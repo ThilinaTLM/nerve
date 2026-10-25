@@ -41,9 +41,14 @@ import {
 } from "./capability-tool-labels";
 import {
   capabilitySubagentCounts,
+  capabilitySubagentEnabled,
   type CapabilitySubagentProfile,
 } from "./capability-subagent-profiles";
 import type { ComposerLockedFields } from "../conversations/conversation-view-contracts.js";
+import {
+  capabilityToolLocks,
+  editableToolOverrideResets,
+} from "./capability-tool-locks";
 type Row = {
   key: string;
   label: string;
@@ -135,19 +140,16 @@ const toolRows = $derived<Row[]>(
   allToolGroups
     .filter((g) => g.key !== "bash")
     .map((group) => {
-      const provenance =
-        Object.entries(configuration?.resolution.provenance ?? {}).find(
-          ([pointer, p]) =>
-            group.names.some((name) => pointer.startsWith(`/tools/${name}/`)) &&
-            p.source === "requirement",
-        )?.[1] ??
-        configuration?.resolution.provenance[
-          `/tools/${group.names[0]}/enabled`
-        ];
-      const lockedBy =
-        provenance?.source === "requirement"
-          ? (provenance.profile ?? "the active profile")
-          : undefined;
+      const locks = capabilityToolLocks(
+        group.names,
+        configuration?.resolution.provenance,
+      );
+      const lockedBy = locks.enabledBy;
+      const resets = editableToolOverrideResets(
+        group.names,
+        configuration?.overrides,
+        configuration?.resolution.provenance,
+      );
       const configurable =
         !!onConfigureTool &&
         group.names.some(
@@ -164,25 +166,16 @@ const toolRows = $derived<Row[]>(
               "enabled" in configuration.resolution.settings.tools[name]! &&
               configuration.resolution.settings.tools[name]!.enabled === true),
         ),
-        overridden:
-          !lockedBy &&
-          group.names.some(
-            (name) => configuration?.overrides.tools?.[name] !== undefined,
-          ),
+        overridden: resets.length > 0,
         lockedBy,
-        configure:
-          configurable && !lockedBy ? () => configureTool(group) : undefined,
+        configure: configurable ? () => configureTool(group) : undefined,
         toggle: (enabled) =>
           onPatch?.({
             tools: Object.fromEntries(
               group.names.map((name) => [name, { enabled }]),
             ),
           }),
-        reset: () =>
-          onPatch?.(
-            {},
-            group.names.map((name) => `/overrides/tools/${name}`),
-          ),
+        reset: () => onPatch?.({}, resets),
       };
     }),
 );
@@ -193,7 +186,12 @@ const enabledTools = $derived(optionalToolRows.filter((r) => r.enabled).length);
 const toolGroups = $derived(optionalToolRows);
 const subagentRow = $derived(toolRows.find((r) => r.key === "subagents"));
 const subagentCounts = $derived(
-  subagentProfiles ? capabilitySubagentCounts(subagentProfiles) : undefined,
+  subagentProfiles
+    ? capabilitySubagentCounts(
+        subagentProfiles,
+        configuration?.resolution.settings.subagents,
+      )
+    : undefined,
 );
 const skillRows = $derived<Row[]>(
   skills.map((skill) => {
@@ -353,7 +351,11 @@ function openSettings(
     {:else}
       {@const delegationOff = subagentRow?.enabled === false}
       {#each subagentProfiles as profile (profile.name)}
-        {@const unavailable = Boolean(profile.disabled || profile.error)}
+        {@const unavailable = Boolean(profile.error)}
+        {@const enabled = capabilitySubagentEnabled(
+          profile,
+          configuration?.resolution.settings.subagents,
+        )}
         {@const enabledSource =
           configuration?.resolution.provenance[
             `/subagents/${escape(profile.name)}/enabled`
@@ -376,7 +378,7 @@ function openSettings(
             >
               <TriangleAlert class="size-3.5" aria-hidden="true" />
             </span>
-          {:else if profile.disabled}
+          {:else if !enabled}
             <span class="flex-none text-xs text-muted-foreground">Off</span>
           {/if}
           {#if configuration?.overrides.subagents?.[profile.name]}
@@ -395,9 +397,7 @@ function openSettings(
           />
           <Switch
             aria-label={`Enable ${profile.label} launches`}
-            checked={configuration?.resolution.settings.subagents?.[
-              profile.name
-            ]?.enabled ?? !profile.disabled}
+            checked={enabled}
             busy={loading}
             disabled={disabled ||
               unavailable ||

@@ -89,6 +89,13 @@ export class ScopedAgentState {
               };
         this.resolution = resolveAgentConfiguration({
           role: "lead",
+          // The server baseline includes authored profile launch defaults. Scoped
+          // values still layer above it; catalog enablement is not availability.
+          subagentDefaults: Object.fromEntries(
+            Object.entries(document.inherited.subagents ?? {}).map(
+              ([name, launch]) => [name, launch.enabled ?? true],
+            ),
+          ),
           ...layers,
           clampThinking: this.clampThinking,
         });

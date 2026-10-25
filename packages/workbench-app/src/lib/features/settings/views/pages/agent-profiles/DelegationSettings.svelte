@@ -86,7 +86,7 @@ const escape = (name: string) =>
         />
         <Switch
           aria-label={`Enable ${profile.label} launches`}
-          checked={value?.enabled ?? profile.enabled}
+          checked={value?.enabled ?? profile.defaultEnabled}
           disabled={editor.saving ||
             !editor.resolution ||
             !!profile.error ||

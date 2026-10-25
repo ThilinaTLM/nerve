@@ -48,6 +48,89 @@ const mutation = (
   resets,
 });
 
+test("authored subagent defaults resolve below scopes and only active requirements lock", () => {
+  const defaults = { explore: false, coding: true };
+  const options = {
+    role: "lead" as const,
+    subagentDefaults: defaults,
+  };
+  const builtin = resolveAgentConfiguration(options);
+  assert.deepEqual(builtin.settings.subagents, {
+    explore: { enabled: false },
+    coding: { enabled: true },
+  });
+  assert.deepEqual(builtin.provenance["/subagents/explore/enabled"], {
+    source: "builtin",
+  });
+  for (const scope of ["user", "project"] as const) {
+    const scoped = {
+      ...options,
+      [scope]: { subagents: { coding: { enabled: false } } },
+    };
+    assert.equal(
+      resolveAgentConfiguration(scoped).settings.subagents?.coding?.enabled,
+      false,
+    );
+    const conversation = {
+      ...scoped,
+      conversation: { subagents: { coding: { enabled: true } } },
+    };
+    for (const appliedProfile of [
+      null,
+      profile({ subagents: { coding: { enabled: false } } }),
+    ]) {
+      const result = resolveAgentConfiguration({
+        ...conversation,
+        appliedProfile,
+      });
+      assert.equal(result.settings.subagents?.coding?.enabled, true);
+      assert.equal(
+        result.provenance["/subagents/coding/enabled"]?.source,
+        "conversation",
+      );
+    }
+    const required = profile({}, { subagents: { coding: { enabled: false } } });
+    const locked = resolveAgentConfiguration({
+      ...conversation,
+      appliedProfile: required,
+    });
+    assert.equal(locked.settings.subagents?.coding?.enabled, false);
+    assert.equal(
+      locked.provenance["/subagents/coding/enabled"]?.source,
+      "requirement",
+    );
+    assert.throws(
+      () =>
+        applySettingsMutation(
+          {},
+          mutation(conversation.conversation),
+          required.requirements,
+        ),
+      /Required/,
+    );
+    // Switching away from Required reveals the retained conversation choice.
+    assert.equal(
+      resolveAgentConfiguration({ ...conversation, appliedProfile: profile() })
+        .settings.subagents?.coding?.enabled,
+      true,
+    );
+  }
+  const recommended = resolveAgentConfiguration({
+    ...options,
+    user: { subagents: { explore: { enabled: true } } },
+    appliedProfile: profile({ subagents: { explore: { enabled: false } } }),
+  });
+  assert.equal(recommended.settings.subagents?.explore?.enabled, false);
+  assert.equal(
+    recommended.provenance["/subagents/explore/enabled"]?.source,
+    "recommendation",
+  );
+  const child = resolveAgentConfiguration({ ...options, role: "child" });
+  assert.equal(child.settings.subagents, undefined);
+  assert.equal(child.provenance["/subagents/explore/enabled"], undefined);
+  assert.deepEqual(defaults, { explore: false, coding: true });
+});
+
 test("resetting reactive overrides uses a detached validated copy", () => {
   const original: LeadSettingsOverrides = {
     subagents: {

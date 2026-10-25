@@ -4,6 +4,7 @@
   template configures a tool exactly as settings do.
 -->
 <script lang="ts">
+import { canonicalSettingRequired } from "$lib/presentation/composer/capability-tool-locks";
 import { openAiCodexImageSizeSchema } from "$lib/api";
 import type { ModelInfo } from "$lib/api";
 import {
@@ -26,6 +27,7 @@ import {
 
 type Props = {
   name: ToolId;
+  requiredPointers?: readonly string[];
   payload: ToolPayload;
   /** Whether the draft can be saved. */
   valid?: boolean;
@@ -42,6 +44,7 @@ type Props = {
 
 let {
   name,
+  requiredPointers = [],
   payload = $bindable(),
   valid = $bindable(true),
   models = [],
@@ -50,6 +53,10 @@ let {
   leadProfiles = [],
   resolvedPython,
 }: Props = $props();
+
+function required(field: string): boolean {
+  return canonicalSettingRequired(`/tools/${name}/${field}`, requiredPointers);
+}
 
 type Loose = Record<string, unknown>;
 const settings = $derived((payload.settings ?? {}) as Loose);
@@ -156,6 +163,7 @@ const accountItems = $derived([
         </p>
       </div>
       <Switch
+        disabled={required("settings/autoPromotion")}
         id="tool-bash-auto"
         checked={auto.enabled}
         aria-label="Enable automatic backgrounding"
@@ -172,7 +180,7 @@ const accountItems = $derived([
           min={1}
           max={86_400}
           value={afterSeconds}
-          disabled={!auto.enabled}
+          disabled={!auto.enabled || required("settings/autoPromotion")}
           aria-label="Background after seconds"
           oninput={(event) =>
             patchSettings({
@@ -199,6 +207,7 @@ const accountItems = $derived([
         </p>
         <div class="flex items-center gap-2">
           <Input
+            disabled={required("settings/maxTimeoutMs")}
             id="tool-bash-timeout"
             type="number"
             min={1}
@@ -222,6 +231,7 @@ const accountItems = $derived([
     <div class="grid gap-1.5">
       <Label for="tool-bash-shell">Shell</Label>
       <Input
+        disabled={required("settings/shellPath")}
         id="tool-bash-shell"
         class="font-mono"
         value={String(settings.shellPath ?? "")}
@@ -238,6 +248,7 @@ const accountItems = $derived([
     <div class="grid gap-1.5">
       <Label for="tool-python-path">Python executable</Label>
       <Input
+        disabled={required("settings/interpreterPath")}
         id="tool-python-path"
         class="font-mono"
         value={String(settings.interpreterPath ?? "")}
@@ -266,6 +277,7 @@ const accountItems = $derived([
       <SelectField
         items={accountItems}
         value={payload.profileId ?? ""}
+        disabled={required("profileId")}
         ariaLabel="Account"
         onValueChange={(next) =>
           (payload = { ...payload, profileId: next || undefined })}
@@ -280,6 +292,9 @@ const accountItems = $derived([
     <div class="grid gap-1.5">
       <Label>Vision model</Label>
       <ModelPicker
+        modelDisabled={required("settings/model")}
+        thinkingDisabled={required("settings/thinkingLevel")}
+        lockReason="Required by the active profile"
         label="Image explanation model"
         class="w-full"
         {models}
@@ -289,8 +304,10 @@ const accountItems = $derived([
         emptyMessage="Connect a provider with a vision-capable model first."
         onChange={(next) =>
           patchSettings({
-            model: next.model,
-            thinkingLevel: next.thinkingLevel,
+            ...(!required("settings/model") ? { model: next.model } : {}),
+            ...(!required("settings/thinkingLevel")
+              ? { thinkingLevel: next.thinkingLevel }
+              : {}),
           })}
       />
     </div>
@@ -306,6 +323,7 @@ const accountItems = $derived([
           },
         ]}
         value={String(settings.provider ?? "openai-codex")}
+        disabled={required("settings/provider")}
         ariaLabel="Image generation provider"
         onValueChange={(next) => patchSettings({ provider: next })}
       />
@@ -315,6 +333,7 @@ const accountItems = $derived([
       <SelectField
         items={imageModelItems}
         value={String(settings.model ?? "gpt-image-2.5-flare")}
+        disabled={required("settings/model")}
         ariaLabel="Image model"
         onValueChange={(next) => patchSettings({ model: next })}
       />
@@ -324,6 +343,7 @@ const accountItems = $derived([
       <SelectField
         items={qualityItems}
         value={String(imageOptions.quality ?? "auto")}
+        disabled={required("settings/options/quality")}
         ariaLabel="Image quality"
         onValueChange={(next) => patchImageOptions({ quality: next })}
       />
@@ -331,6 +351,7 @@ const accountItems = $derived([
     <div class="grid gap-1.5">
       <Label for="tool-image-size">Size</Label>
       <Input
+        disabled={required("settings/options/size")}
         id="tool-image-size"
         value={imageSize}
         aria-invalid={validSize ? undefined : "true"}
@@ -352,6 +373,7 @@ const accountItems = $derived([
       <SelectField
         items={backgroundItems}
         value={String(imageOptions.background ?? "auto")}
+        disabled={required("settings/options/background")}
         ariaLabel="Image background"
         onValueChange={(next) => patchImageOptions({ background: next })}
       />
@@ -360,6 +382,7 @@ const accountItems = $derived([
     <div class="grid gap-1.5">
       <Label for="tool-kroki-url">Kroki server</Label>
       <Input
+        disabled={required("settings/url")}
         id="tool-kroki-url"
         class="font-mono"
         value={krokiUrl}
@@ -390,6 +413,7 @@ const accountItems = $derived([
         }))}
         value={String(settings.approvalProfile ?? "")}
         placeholder="Choose a profile"
+        disabled={required("settings/approvalProfile")}
         ariaLabel="Profile after plan approval"
         onValueChange={(next) => patchSettings({ approvalProfile: next })}
       />

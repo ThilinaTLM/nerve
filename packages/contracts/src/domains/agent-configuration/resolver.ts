@@ -21,6 +21,9 @@ export type ConfigurationSource = z.infer<typeof configurationSourceSchema>;
 export type FieldProvenance = z.infer<typeof fieldProvenanceSchema>;
 export interface ResolutionOptions {
   role: "lead" | "child";
+  /** Valid subagent catalog definitions' authored enabled defaults (absent enabled means true).
+   * Resolved in the builtin layer, below scoped settings; never availability or requirements. */
+  subagentDefaults?: Record<string, boolean>;
   user?: LeadSettingsOverrides;
   project?: LeadSettingsOverrides;
   process?: LeadSettingsOverrides;
@@ -140,7 +143,17 @@ export function resolveAgentConfiguration(
     });
   else {
     for (const [source, value] of [
-      ["builtin", builtin],
+      [
+        "builtin",
+        {
+          ...builtin,
+          subagents: Object.fromEntries(
+            Object.entries(options.subagentDefaults ?? {}).map(
+              ([name, enabled]) => [name, { enabled }],
+            ),
+          ),
+        },
+      ],
       ["user", options.user],
       ["project", options.project],
       ["process", options.process],

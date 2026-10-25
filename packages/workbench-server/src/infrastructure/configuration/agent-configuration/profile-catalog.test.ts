@@ -45,6 +45,7 @@ void test("catalog shadows complete definitions, isolates invalid entries and bi
   const saved = await f.catalog.save(user, "coding", "missing", {
     ...profile,
     instructions: "User",
+    enabled: false,
     recommendations: { reasoningLevel: "low" },
   });
   assert.equal(
@@ -55,7 +56,13 @@ void test("catalog shadows complete definitions, isolates invalid entries and bi
     false,
   );
   const local = await f.catalog.get("coding", "p");
+  assert.equal(local.status, "available");
+  assert.equal(
+    (await f.catalog.get("coding", "p", "child")).status,
+    "available",
+  );
   if (local.status === "available") {
+    assert.equal(local.definition.enabled, false);
     assert.equal(local.source, "user");
     assert.equal(local.digest, saved.digest);
   }
@@ -91,6 +98,7 @@ void test("malformed project shadow never falls back; unrelated catalog entries 
     ...profile,
     name: "explore",
     usableBy: "subagent",
+    enabled: false,
   });
   assert.equal(
     (await f.catalog.get("explore", "p", "child")).status,

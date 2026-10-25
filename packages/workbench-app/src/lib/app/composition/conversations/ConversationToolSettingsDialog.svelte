@@ -4,6 +4,7 @@
   conversation choice; cleared optional local fields are reset explicitly.
 -->
 <script lang="ts">
+import { requiredCanonicalPointers } from "$lib/presentation/composer/capability-tool-locks";
 import { toolSettingsMutation } from "$lib/features/settings/views/pages/tools/tool-settings-mutation";
 import type { LeadSettingsOverrides } from "@nervekit/contracts/agent-configuration";
 import type { AgentEditorView } from "$lib/presentation/composer/agent-editor-view";
@@ -63,6 +64,9 @@ const leadProfiles = $derived(
     label: profile.label,
   })),
 );
+const requiredPointers = $derived(
+  requiredCanonicalPointers(configuration?.resolution.provenance),
+);
 const scopeNote = $derived(
   `${sourceLabel(toolId ? configuration?.resolution.provenance[`/tools/${toolId}/enabled`] : undefined)}. Applies only to this conversation.`,
 );
@@ -87,6 +91,7 @@ $effect(() => {
     bind:open
     name={toolId}
     {value}
+    {requiredPointers}
     description={scopeNote}
     models={usableModels}
     {accounts}
@@ -98,6 +103,7 @@ $effect(() => {
         toolId,
         next,
         configuration.overrides,
+        requiredPointers,
       );
       onPatch(mutation.changes, mutation.resets);
     }}

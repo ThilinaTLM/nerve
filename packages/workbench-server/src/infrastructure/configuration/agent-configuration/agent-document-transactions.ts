@@ -30,6 +30,10 @@ import type {
 export interface TransactionPort {
   store: ScopedDocumentStore<AgentScope, AgentDocument>;
   options: AgentConfigurationServiceOptions;
+  captureResources(
+    projectId?: string,
+    role?: "lead" | "child",
+  ): Promise<ResourceSnapshot>;
   dependencies(id: string): AgentScope[];
   load(scope: AgentScope): Promise<ScopeHealth<AgentScope, AgentDocument>>;
   resolve(
@@ -57,6 +61,13 @@ export async function saveAgentDocument(
         ? [{ scope: "user" }, scope]
         : [scope];
   await Promise.all(dependencies.map((dependency) => port.load(dependency)));
+  const resources = await port.captureResources(
+    scope.scope === "project"
+      ? scope.projectId
+      : scope.scope === "conversation"
+        ? port.options.conversationOwner(scope.conversationId).projectId
+        : undefined,
+  );
   const result = await port.store.save(
     scope,
     { revision: mutation.expectedRevision, digest: mutation.expectedDigest },
@@ -65,13 +76,6 @@ export async function saveAgentDocument(
         ...withoutLegacyTransition(document),
         overrides: applySettingsMutation(document.overrides, mutation),
       };
-      const resources = port.options.captureResources(
-        scope.scope === "project"
-          ? scope.projectId
-          : scope.scope === "conversation"
-            ? port.options.conversationOwner(scope.conversationId).projectId
-            : undefined,
-      );
       const values = dependencies
         .map((dependency) => port.store.peek(dependency))
         .flatMap((state) => {
@@ -145,7 +149,12 @@ export async function readInheritedAgentSettings(
     scope,
     document.value.document,
     values,
-    port.options.captureResources(projectId),
+    await port.captureResources(
+      projectId,
+      scope.scope === "conversation"
+        ? port.options.conversationOwner(scope.conversationId).role
+        : "lead",
+    ),
   );
 }
 
@@ -248,7 +257,12 @@ export async function resolveRepairCandidate(
         ? port.options.conversationOwner(scope.conversationId).projectId
         : undefined;
   if (projectId) await port.options.prepareResources?.(projectId);
-  const resources = port.options.captureResources(projectId);
+  const resources = await port.captureResources(
+    projectId,
+    scope.scope === "conversation"
+      ? port.options.conversationOwner(scope.conversationId).role
+      : "lead",
+  );
   const scopes: AgentScope[] =
     scope.scope === "conversation"
       ? port.dependencies(scope.conversationId)
@@ -409,7 +423,7 @@ export async function prepareConversationDocument(
         throw new ScopeUnavailableError();
       return [state.value];
     });
-  const resources = port.options.captureResources(owner.projectId);
+  const resources = await port.captureResources(owner.projectId, owner.role);
   document = normalizeAgentDocument(
     port,
     { scope: "conversation", conversationId },

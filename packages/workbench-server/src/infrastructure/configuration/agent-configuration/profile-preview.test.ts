@@ -23,6 +23,7 @@ void test("transition previews include target metadata/instructions, changed val
   const coding = {
     schemaVersion: 1 as const,
     name: "coding",
+    enabled: false,
     description: "Implement",
     usableBy: "lead" as const,
     instructions: "Coding instructions",
@@ -89,6 +90,7 @@ void test("transition previews include target metadata/instructions, changed val
   const changed = await lifecycle.port.preview("c", "coding");
   if (changed.status !== "ready") throw new Error("Expected coding preview");
   const preview = profileTransitionPreviewSchema.parse(changed.preview);
+  assert.equal(preview.targetDefinition.enabled, false);
   assert.equal(preview.targetDefinition.instructions, coding.instructions);
   assert.equal(preview.targetDefinition.description, coding.description);
   assert.equal(

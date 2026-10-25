@@ -200,7 +200,7 @@ const capabilitySubagentProfiles = $derived(
       name: p.name,
       label: p.label,
       description: p.description,
-      disabled: !p.enabled,
+      defaultEnabled: p.defaultEnabled,
       error: p.error,
     })),
 );

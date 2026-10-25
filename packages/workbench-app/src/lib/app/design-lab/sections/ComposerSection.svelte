@@ -604,7 +604,7 @@ function cycleMic() {
         subagentControlsEnabled
         subagentProfiles={[
           { name: "explorer", label: "Explorer" },
-          { name: "reviewer", label: "Reviewer", disabled: true },
+          { name: "reviewer", label: "Reviewer", defaultEnabled: false },
         ]}
         onPatch={noop}
         onReset={noop}

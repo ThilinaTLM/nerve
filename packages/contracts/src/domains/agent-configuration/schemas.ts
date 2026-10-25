@@ -234,6 +234,7 @@ export const profileDefinitionSchema = z
       .trim()
       .min(1)
       .max(AGENT_PROFILE_DESCRIPTION_MAX_LENGTH),
+    /** Authored launch default (true if omitted), not availability or a requirement. */
     enabled: z.boolean().optional(),
     usableBy: z.enum(["lead", "subagent", "both"]),
     instructions: agentProfileInstructionsSchema,

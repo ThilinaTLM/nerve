@@ -83,6 +83,10 @@ async function fixture(
     conversationOwner: () => ({ projectId: "p", role: "lead" }),
     builtins: {
       ...bundledAgentProfiles,
+      coding: JSON.stringify({
+        ...JSON.parse(bundledAgentProfiles.coding),
+        enabled: false,
+      }),
       locked: JSON.stringify({
         schemaVersion: 1,
         name: "locked",

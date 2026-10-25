@@ -27,7 +27,7 @@ export function leadProfileOptions(): ProfileOption[] {
     (profile) => {
       const effective = profile.definition;
       return effective &&
-        profile.enabled &&
+        profile.trusted &&
         profile.applicable &&
         effective.usableBy !== "subagent"
         ? [{ name: profile.name, label: effective.label ?? profile.name }]

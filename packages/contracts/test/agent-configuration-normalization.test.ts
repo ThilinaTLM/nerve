@@ -14,6 +14,59 @@ import type { LeadSettingsOverrides } from "../src/domains/agent-configuration/s
 
 const model = { provider: "provider-a", modelId: "model-a" };
 
+test("subagent inheritance normalizes equal true and false against authored defaults and scoped layers", () => {
+  for (const enabled of [true, false]) {
+    const options: ResolutionOptions = {
+      role: "lead",
+      subagentDefaults: { explore: enabled },
+    };
+    const choice = { subagents: { explore: { enabled } } };
+    assert.deepEqual(
+      normalizeSettingsOverrides(
+        choice,
+        resolveAgentConfiguration(options).settings,
+      ),
+      {},
+    );
+    const scoped = {
+      ...options,
+      user: { subagents: { explore: { enabled: !enabled } } },
+    };
+    assert.deepEqual(
+      normalizeSettingsOverrides(
+        choice,
+        resolveAgentConfiguration(scoped).settings,
+      ),
+      choice,
+    );
+    const appliedProfile = {
+      name: "coding",
+      source: "builtin" as const,
+      sourceDigest: "a".repeat(64),
+      instructions: "",
+      recommendations: {},
+      requirements: { subagents: { explore: { enabled: !enabled } } },
+    };
+    const inherited = resolveInheritedConversationSettings({
+      ...options,
+      conversation: choice,
+      appliedProfile,
+    });
+    assert.equal(inherited.subagents?.explore?.enabled, enabled);
+    assert.deepEqual(normalizeSettingsOverrides(choice, inherited), {});
+    const recommended = resolveInheritedConversationSettings({
+      ...scoped,
+      conversation: { subagents: { explore: { enabled: !enabled } } },
+      appliedProfile: {
+        ...appliedProfile,
+        recommendations: choice,
+        requirements: {},
+      },
+    });
+    assert.deepEqual(normalizeSettingsOverrides(choice, recommended), {});
+  }
+});
+
 test("conversation inheritance keeps recommendations but excludes choices and requirements without mutation", () => {
   const options: ResolutionOptions = {
     role: "lead",

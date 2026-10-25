@@ -28,13 +28,11 @@ import {
   childConversationAgentSchema,
   conversationDefaultsSchema,
   conversationAgentSummariesSchema,
-  type ResolutionOptions,
   type ResolutionResult,
   type AppliedProfile,
   type ImplementationChoices,
   type ConfigurationVersion,
 } from "@nervekit/contracts/agent-configuration";
-import type { z } from "zod";
 import {
   ScopedDocumentStore,
   ScopeUnavailableError,
@@ -58,14 +56,11 @@ import {
 } from "./document-adapters.js";
 import { AgentProfileCatalog } from "./profile-catalog.js";
 
-export interface ResourceSnapshot {
-  options: Pick<
-    ResolutionOptions,
-    "process" | "eligibleSkills" | "clampThinking" | "referenceAvailable"
-  >;
-  /** Includes model/account/trust/discovery generations; synchronous, never polls files. */
-  isCurrent(): boolean;
-}
+import {
+  captureProfileResources,
+  type ResourceSnapshot,
+} from "./profile-resources.js";
+export type { ResourceSnapshot } from "./profile-resources.js";
 export interface AgentConfigurationServiceOptions extends ConfigurationLocations {
   builtins: Readonly<Record<string, string>>;
   prepareUser?(): Promise<void>;
@@ -89,23 +84,11 @@ export interface AgentConfigurationServiceOptions extends ConfigurationLocations
     "write" | "syncDirectory"
   >;
 }
-export type EffectiveAgentView =
-  | {
-      readonly status: "available";
-      readonly conversationId: string;
-      readonly role: "lead" | "child";
-      readonly resolution: ResolutionResult;
-      readonly diagnostics: readonly ConfigurationDiagnostic[];
-      readonly sources: readonly ScopeGeneration<AgentScope, AgentDocument>[];
-    }
-  | {
-      readonly status: "unavailable";
-      readonly conversationId: string;
-      readonly diagnostics: readonly ConfigurationDiagnostic[];
-    };
-type Summary = z.infer<
-  typeof conversationAgentSummariesSchema
->["entries"][string];
+export type { EffectiveAgentView } from "./agent-configuration-views.js";
+import type {
+  EffectiveAgentView,
+  Summary,
+} from "./agent-configuration-views.js";
 /** Scoped configuration authority. Does not perform execution admission or load mutable profile definitions for applied snapshots. */
 export class AgentConfigurationService {
   readonly paths: AgentConfigurationPaths;
@@ -391,7 +374,7 @@ export class AgentConfigurationService {
       const checkDocuments = this.agents.captureGenerations(scopes);
       const resourceEpoch = this.resourceEpoch;
       const catalogEpoch = this.catalogEpoch;
-      const resources = this.options.captureResources(projectId);
+      const resources = await this.captureResources(projectId, owner.role);
       const resolution = this.resolve(conversationId, values, resources);
       const current = () =>
         checkDocuments() &&
@@ -459,7 +442,7 @@ export class AgentConfigurationService {
         if (state.status === "unavailable") throw new ScopeUnavailableError();
         return state.value.document.overrides;
       });
-      const resources = this.options.captureResources(projectId);
+      const resources = await this.captureResources(projectId);
       const documentsCurrent = this.agents.captureGenerations(scopes);
       const epoch = this.resourceEpoch;
       const catalog = this.catalogEpoch;
@@ -518,12 +501,30 @@ export class AgentConfigurationService {
     this.notifyHealth(scope);
   }
 
+  private captureResources(
+    projectId?: string,
+    role = "lead",
+  ): Promise<ResourceSnapshot> {
+    if (role === "child")
+      return Promise.resolve(this.options.captureResources(projectId));
+    return captureProfileResources(
+      this.profiles,
+      this.options.captureResources,
+      () => {
+        const epoch = this.catalogEpoch;
+        return () => epoch === this.catalogEpoch;
+      },
+      projectId,
+    );
+  }
   private transactionPort(): TransactionPort & {
     paths: AgentConfigurationPaths;
   } {
     return {
       store: this.agents,
       options: this.options,
+      captureResources: (projectId, role) =>
+        this.captureResources(projectId, role),
       paths: this.paths,
       load: (scope) => this.ensureLoaded(scope),
       dependencies: (id) => this.dependencies(id),

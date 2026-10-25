@@ -1,6 +1,8 @@
 <script lang="ts">
+import { untrack } from "svelte";
 import { resolveAgentConfiguration } from "@nervekit/contracts/agent-configuration";
 import { requestWorkbench } from "$lib/application/startup/workbench-connection";
+import { ScopedAgentState } from "$lib/application/agent-configuration/scoped-agent-state.svelte";
 import Pencil from "@lucide/svelte/icons/pencil";
 import Plus from "@lucide/svelte/icons/plus";
 import Trash2 from "@lucide/svelte/icons/trash-2";
@@ -99,6 +101,20 @@ const target = $derived<PreferenceScope | undefined>(
       : undefined
     : { scope },
 );
+const launchPreferences = new ScopedAgentState();
+$effect(() => {
+  const currentTarget = target;
+  void all;
+  if (currentTarget) untrack(() => void launchPreferences.load(currentTarget));
+});
+$effect(() => launchPreferences.observe());
+function launchEnabled(profile: ProfileCatalogEntry): boolean {
+  return (
+    launchPreferences.resolution?.settings.subagents?.[profile.name]?.enabled ??
+    profile.definition?.enabled ??
+    true
+  );
+}
 let filter = $state("");
 let busy = $state<string>();
 let errors = $state<Record<string, string>>({});
@@ -238,20 +254,6 @@ async function snapshot(profile: ProfileCatalogEntry) {
     definition: structuredClone(read.profile.definition),
     expectedDigest: read.localDigest,
   };
-}
-async function update(
-  profile: ProfileCatalogEntry,
-  change: (definition: ProfileDefinition) => ProfileDefinition,
-) {
-  return mutate(profile.name, async () => {
-    const base = await snapshot(profile);
-    return saveScopedProfile({
-      scope: base.scope,
-      name: profile.name,
-      expectedDigest: base.expectedDigest,
-      definition: change(base.definition),
-    });
-  });
 }
 function modelText(selection?: ModelSelection) {
   const model = models.find(
@@ -467,6 +469,15 @@ const repairReplacement = $derived(
   },
 );
 </script>
+{#if launchPreferences.error}<SettingsInlineMessage
+    tone="destructive"
+    text={launchPreferences.error}
+    >{#snippet actions()}<Button
+        size="sm"
+        variant="outline"
+        onclick={() => launchPreferences.reload()}>Reload</Button
+      >{/snippet}</SettingsInlineMessage
+  >{/if}
 {#if agentProfilesState.error}<SettingsInlineMessage
     tone="destructive"
     text={agentProfilesState.error}
@@ -508,17 +519,23 @@ const repairReplacement = $derived(
             ? "User"
             : "Project"}</Badge
       >{#if !profile.local}<Badge variant="outline">Inherited</Badge
-        >{/if}{#if !profile.enabled}<Badge variant="outline">Off</Badge
+        >{/if}{#if profile.definition?.usableBy !== "lead" && !launchEnabled(profile)}<Badge
+          variant="outline">Off</Badge
         >{/if}{#if profile.source === "project" && !profile.trusted}<Badge
           variant="warning">Needs trust</Badge
         >{/if}{/snippet}
-    {#snippet actions()}{#if profile.definition}<Switch
-          checked={profile.enabled}
-          disabled={!!busy}
-          aria-label={`Enable ${profile.definition.label ?? profile.name}`}
-          onCheckedChange={(enabled) =>
-            update(profile, (definition) => ({ ...definition, enabled }))}
-        /><IconAction
+    {#snippet actions()}{#if profile.definition}{#if profile.definition.usableBy !== "lead"}<Switch
+            checked={launchEnabled(profile)}
+            disabled={!!busy ||
+              launchPreferences.saving ||
+              !launchPreferences.resolution ||
+              !profile.trusted}
+            aria-label={`Enable ${profile.definition.label ?? profile.name} launches`}
+            onCheckedChange={(enabled) =>
+              launchPreferences.save({
+                subagents: { [profile.name]: { enabled } },
+              })}
+          />{/if}<IconAction
           icon={Pencil}
           label={`Edit ${profile.definition.label ?? profile.name}`}
           disabled={!!busy}

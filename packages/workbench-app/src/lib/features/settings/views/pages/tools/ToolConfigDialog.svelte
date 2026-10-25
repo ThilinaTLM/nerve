@@ -1,5 +1,6 @@
 <!-- Configure one tool at the current level, with the shared canonical form. -->
 <script lang="ts">
+import { canonicalSettingRequired } from "$lib/presentation/composer/capability-tool-locks";
 import type { ModelInfo } from "$lib/api";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
 import Dialog from "@nervekit/ui-kit/components/composites/dialog-shell";
@@ -14,6 +15,7 @@ import {
 type Props = {
   open?: boolean;
   name: ToolId;
+  requiredPointers?: readonly string[];
   /** The value being edited; the dialog works on a copy until Save. */
   value: ToolPayload;
   description?: string;
@@ -30,6 +32,7 @@ type Props = {
 let {
   open = $bindable(false),
   name,
+  requiredPointers = [],
   value,
   description,
   models,
@@ -64,6 +67,7 @@ function save(): void {
 >
   <ToolConfigForm
     {name}
+    {requiredPointers}
     bind:payload={draft}
     bind:valid
     {models}
@@ -81,6 +85,10 @@ function save(): void {
     {#if name === "python_exec"}
       <Button
         variant="outline"
+        disabled={canonicalSettingRequired(
+          "/tools/python_exec/settings/interpreterPath",
+          requiredPointers,
+        )}
         onclick={() => {
           const next = {
             ...((draft.settings ?? {}) as Record<string, unknown>),

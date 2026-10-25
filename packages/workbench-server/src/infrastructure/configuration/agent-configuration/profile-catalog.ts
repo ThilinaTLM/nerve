@@ -54,7 +54,7 @@ export interface ProfileCatalogOptions {
   >;
 }
 
-/** Complete-definition shadowing: invalid/untrusted/disabled project entries never fall through. */
+/** Complete-definition shadowing: invalid/untrusted project entries never fall through. */
 export class AgentProfileCatalog {
   private readonly store: ScopedDocumentStore<ProfileScope, ProfileDefinition>;
   private readonly extraDiagnostics = new Map<
@@ -231,15 +231,6 @@ export class AgentProfileCatalog {
     file: string,
     diagnostics: ConfigurationDiagnostic[],
   ): ProfileLookup {
-    if (definition.enabled === false)
-      diagnostics.push(
-        diagnostic(
-          scope,
-          `profile:${definition.name}`,
-          file,
-          "disabled-profile",
-        ),
-      );
     if (
       (role === "lead" && definition.usableBy === "subagent") ||
       (role === "child" && definition.usableBy === "lead")
@@ -339,7 +330,7 @@ export class AgentProfileCatalog {
     };
   }
 
-  /** Editing can inspect disabled/untrusted definitions, but never bypass application checks. */
+  /** Editing can inspect untrusted definitions, but never bypass application checks. */
   async readForEditing(
     scope: PreferenceScope,
     name: string,

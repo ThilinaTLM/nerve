@@ -4,7 +4,7 @@ export type ProfileOption = {
   label: string;
   description: string;
   usableBy: "lead" | "subagent" | "both";
-  enabled: boolean;
+  defaultEnabled: boolean;
   applicable?: boolean;
   error?: string;
   digest?: string;
@@ -16,13 +16,12 @@ import {
 } from "$lib/application/events/workbench-event-bus";
 import { requestWorkbench } from "$lib/application/startup/workbench-connection";
 
-/** Profiles a lead conversation can switch to: enabled, unblocked and not sub-agent only. */
+/** Profiles a lead conversation can switch to: unblocked and not sub-agent only. */
 export function leadAgentProfiles(
   profiles: readonly ProfileOption[],
 ): ProfileOption[] {
   return profiles.filter(
     (profile) =>
-      profile.enabled &&
       profile.applicable !== false &&
       !profile.error &&
       profile.usableBy !== "subagent",
@@ -92,7 +91,7 @@ function profileOption(entry: ProfileCatalogEntry): ProfileOption {
     label: entry.definition?.label ?? entry.name,
     description: entry.definition?.description ?? "Definition unavailable",
     usableBy: entry.definition?.usableBy ?? "both",
-    enabled: entry.enabled,
+    defaultEnabled: entry.definition?.enabled ?? true,
     applicable: entry.applicable,
     digest: entry.digest,
     source: entry.source,
