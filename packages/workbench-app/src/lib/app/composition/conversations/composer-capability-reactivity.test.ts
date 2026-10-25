@@ -4,7 +4,7 @@ import { test } from "node:test";
 import { compileModule, parse } from "svelte/compiler";
 import ts from "typescript";
 
-void test("capability edits preserve the view; scope and project changes reset it", async () => {
+void test("capability edits preserve the view; scope, project and profile changes reset it", async () => {
   const component = await readFile(
     new URL("./WorkbenchComposerAdapter.svelte", import.meta.url),
     "utf8",
@@ -65,6 +65,7 @@ export function edit() { activePendingConversation.overrides.subagents.developer
 export function replaceDraft() { activePendingConversation = { ...activePendingConversation, overrides: { subagents: { developer: { enabled: true } } } }; }
 export function switchScope() { activePendingConversation.id = 'other-draft'; }
 export function switchProject() { activeProject.id = 'other-project'; }
+export function switchProfile() { activePendingConversation.explicitAgentProfile = 'planning'; }
 export function publish() { pendingCapabilityResolution = 'ready'; }
 export function view() { return { refreshes, resolution: pendingCapabilityResolution }; }
 `,
@@ -87,6 +88,7 @@ export function view() { return { refreshes, resolution: pendingCapabilityResolu
     replaceDraft(): void;
     switchScope(): void;
     switchProject(): void;
+    switchProfile(): void;
     publish(): void;
     view(): { refreshes: number; resolution?: string };
   };
@@ -108,6 +110,10 @@ export function view() { return { refreshes, resolution: pendingCapabilityResolu
     harness.switchProject();
     flushSync();
     assert.deepEqual(harness.view(), { refreshes: 3, resolution: undefined });
+    harness.publish();
+    harness.switchProfile();
+    flushSync();
+    assert.deepEqual(harness.view(), { refreshes: 4, resolution: undefined });
   } finally {
     harness.stop();
   }

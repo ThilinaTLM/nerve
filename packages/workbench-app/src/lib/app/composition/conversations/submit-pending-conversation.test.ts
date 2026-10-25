@@ -2,6 +2,14 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import type { PendingConversationState } from "$lib/application/workspace/pending-conversations.svelte";
 import { submitPendingConversation } from "./submit-pending-conversation";
+import {
+  applySettingsMutation,
+  type LeadSettingsOverrides,
+} from "@nervekit/contracts/agent-configuration";
+import {
+  mutateDraftSettings,
+  replacementSettingsMutation,
+} from "$lib/application/agent-configuration/override-view";
 
 type Pending = Parameters<typeof submitPendingConversation>[0];
 function draft(): Pending {
@@ -74,6 +82,48 @@ function setup(pending = draft()) {
   return { pending, calls, created, snapshot, dependencies };
 }
 
+test("retry replaces a previously created override when the draft returns to inheritance", async () => {
+  const { pending, dependencies } = setup();
+  const baseline = { model: { provider: "openai", modelId: "A" } };
+  pending.inheritedSettings = baseline;
+  pending.overrides = { model: { provider: "openai", modelId: "B" } };
+  let persisted: LeadSettingsOverrides = {};
+  let failInput = true;
+  const retryDependencies = {
+    ...dependencies,
+    create: async (input: Parameters<typeof dependencies.create>[0]) => {
+      persisted = input.overrides ?? {};
+      return dependencies.create(input);
+    },
+    saveOverrides: async (_id: string, desired: LeadSettingsOverrides) => {
+      persisted = applySettingsMutation(persisted, {
+        expectedRevision: 1,
+        expectedDigest: "a".repeat(64),
+        ...replacementSettingsMutation(persisted, desired),
+      });
+    },
+    submit: async () => {
+      if (failInput) throw new Error("first input failed");
+    },
+  };
+  await assert.rejects(
+    submitPendingConversation(pending, "hello", retryDependencies),
+    /first input failed/,
+  );
+  assert.equal(pending.createdConversationId, "conv_one");
+  assert.equal(persisted.model?.modelId, "B");
+  pending.overrides = mutateDraftSettings(
+    pending.overrides,
+    baseline,
+    [],
+    baseline,
+  );
+  assert.deepEqual(pending.overrides, {});
+  failInput = false;
+  await submitPendingConversation(pending, "hello", retryDependencies);
+  assert.deepEqual(persisted, {});
+});
+
 test("creation carries the sparse choices and no post-create save follows", async () => {
   const { pending, calls, created, snapshot, dependencies } = setup();
   pending.overrides = {
@@ -145,4 +195,21 @@ test("creation omits inherited agent values and binds explicit profiles to catal
     };
   };
   await submitPendingConversation(pending, "hello", dependencies);
+});
+
+test("creation strips redundant draft choices against its authoritative lower layer", async () => {
+  const { pending, created, dependencies } = setup();
+  pending.inheritedSettings = {
+    model: { provider: "openai", modelId: "inherited" },
+    reasoningLevel: "off",
+    tools: { web_search: { enabled: true } },
+  };
+  pending.overrides = {
+    ...pending.inheritedSettings,
+    permissionRuleSetId: "read_only",
+  };
+  await submitPendingConversation(pending, "hello", dependencies);
+  assert.deepEqual(created, [{ permissionRuleSetId: "read_only" }]);
+  // Submission/view normalization is not an implicit persisted save.
+  assert.equal(pending.overrides.reasoningLevel, "off");
 });

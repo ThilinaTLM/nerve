@@ -11,6 +11,7 @@ import {
   requestConversation,
 } from "$lib/application/startup/conversation-connection";
 
+import { settingsOverrideView } from "./override-view";
 import { requestWorkbench } from "$lib/application/startup/workbench-connection";
 
 /** One loaded editor, with the exact source version displayed to its user. */
@@ -18,7 +19,11 @@ export class ScopedAgentState {
   document = $state<GetAgentConfigurationResult>();
   role = $state<"lead" | "child">("lead");
   resolution = $state<ResolutionResult>();
-  inherited = $state<ResolutionResult>();
+  get inherited(): { settings: LeadSettingsOverrides } | undefined {
+    return this.document?.status === "available"
+      ? { settings: this.document.inherited }
+      : undefined;
+  }
   error = $state<string>();
   saving = $state(false);
   scope: AgentScope | undefined;
@@ -28,14 +33,18 @@ export class ScopedAgentState {
   ) {}
 
   get overrides(): LeadSettingsOverrides {
-    return this.document?.status === "available" ? this.document.overrides : {};
+    return settingsOverrideView(
+      this.document?.status === "available" ? this.document.overrides : {},
+      this.document?.status === "available"
+        ? this.document.inherited
+        : undefined,
+    );
   }
   async load(scope: AgentScope): Promise<void> {
     const generation = ++this.generation;
     if (JSON.stringify(this.scope) !== JSON.stringify(scope)) {
       this.document = undefined;
       this.resolution = undefined;
-      this.inherited = undefined;
     }
     this.scope = scope;
     try {
@@ -58,7 +67,6 @@ export class ScopedAgentState {
           throw new Error("Effective configuration unavailable.");
         this.role = effective.role;
         this.resolution = effective.resolution;
-        this.inherited = undefined;
       } else {
         this.role = "lead";
         const user =
@@ -82,11 +90,6 @@ export class ScopedAgentState {
         this.resolution = resolveAgentConfiguration({
           role: "lead",
           ...layers,
-          clampThinking: this.clampThinking,
-        });
-        this.inherited = resolveAgentConfiguration({
-          role: "lead",
-          ...(scope.scope === "project" ? { user: layers.user } : {}),
           clampThinking: this.clampThinking,
         });
       }

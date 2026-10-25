@@ -11,7 +11,12 @@ import type {
   ConfigurationMutationFailure,
 } from "@nervekit/contracts/agent-configuration";
 import { ScopeConflictError } from "../scoped-store/scoped-document-store.js";
-import { healthDiagnostics, type AgentDocument } from "./document-adapters.js";
+import {
+  diagnostic,
+  healthDiagnostics,
+  type AgentDocument,
+  type ConfigurationDiagnostic,
+} from "./document-adapters.js";
 import type { ScopeGeneration } from "../scoped-store/scoped-document-store.js";
 import type { AgentConfigurationService } from "./agent-configuration-service.js";
 
@@ -90,6 +95,51 @@ export function mutationFailure(
         ],
   };
 }
+function unavailableDependencies(
+  service: AgentConfigurationService,
+  scope: AgentScope,
+  document: "agent" | "conversation-defaults",
+  path: string,
+): { status: "unavailable"; diagnostics: ConfigurationDiagnostic[] } {
+  let projectId = scope.scope === "project" ? scope.projectId : undefined;
+  let inheritsPreferences = scope.scope !== "conversation";
+  if (scope.scope === "conversation") {
+    try {
+      const owner = service.paths.locations.conversationOwner(
+        scope.conversationId,
+      );
+      projectId = owner.projectId;
+      inheritsPreferences = owner.role === "lead";
+    } catch {
+      // Ownership may itself have changed; retain only the requested scope.
+    }
+  }
+  const diagnostics = service
+    .health()
+    .filter(
+      (issue) =>
+        issue.document === document &&
+        ((issue.scope === "user" && inheritsPreferences) ||
+          (issue.scope === "project" &&
+            inheritsPreferences &&
+            issue.scopeId === projectId) ||
+          (scope.scope === "conversation" &&
+            issue.scope === "conversation" &&
+            issue.scopeId === scope.conversationId)),
+    );
+  return {
+    status: "unavailable" as const,
+    diagnostics: diagnostics.length
+      ? diagnostics
+      : [
+          {
+            ...diagnostic(scope, document, path, "dependencies-changing"),
+            recoveryChoices: ["retry"],
+          },
+        ],
+  };
+}
+
 export function agentConfigurationOperations(
   service: AgentConfigurationService,
 ) {
@@ -101,11 +151,21 @@ export function agentConfigurationOperations(
           status: "unavailable",
           diagnostics: healthDiagnostics(state, "agent"),
         };
-      return {
-        status: "available",
-        source: documentSource(state.value),
-        overrides: state.value.document.overrides,
-      };
+      try {
+        return {
+          status: "available",
+          source: documentSource(state.value),
+          overrides: state.value.document.overrides,
+          inherited: await service.getInheritedSettings(scope),
+        };
+      } catch {
+        return unavailableDependencies(
+          service,
+          scope,
+          "agent",
+          state.value.path,
+        );
+      }
     },
     async save({
       scope,
@@ -132,17 +192,27 @@ export function agentConfigurationOperations(
           status: "unavailable",
           diagnostics: healthDiagnostics(state, "conversation-defaults"),
         };
-      const preferences = await service.getCreationPreferences(
-        scope.scope === "project" ? scope.projectId : undefined,
-      );
-      if (preferences.status === "unavailable") return preferences;
-      return {
-        status: "available",
-        source: { ...documentSource(state.value), scope },
-        overrides: state.value.document.overrides,
-        effective: preferences.overrides,
-        diagnostics: preferences.diagnostics,
-      };
+      try {
+        const preferences = await service.getCreationPreferences(
+          scope.scope === "project" ? scope.projectId : undefined,
+        );
+        if (preferences.status === "unavailable") return preferences;
+        return {
+          status: "available",
+          source: { ...documentSource(state.value), scope },
+          overrides: state.value.document.overrides,
+          effective: preferences.overrides,
+          inherited: await service.getInheritedCreationPreferences(scope),
+          diagnostics: preferences.diagnostics,
+        };
+      } catch {
+        return unavailableDependencies(
+          service,
+          scope,
+          "conversation-defaults",
+          state.value.path,
+        );
+      }
     },
     async saveCreation({
       scope,

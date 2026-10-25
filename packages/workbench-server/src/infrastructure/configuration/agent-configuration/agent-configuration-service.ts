@@ -2,6 +2,7 @@ import { ProjectAgentDefaults } from "./project-agent-defaults.js";
 import { withoutLegacyTransition } from "./document-adapters.js";
 import {
   readCreationPreferences,
+  readInheritedCreationPreferences,
   saveCreationPreferences,
   type CreationMutation,
 } from "./creation-preferences.js";
@@ -14,10 +15,12 @@ import {
 } from "./conversation-context.js";
 import {
   saveAgentDocument,
+  readInheritedAgentSettings,
   isUntrustedAgentDocument,
   prepareConversationDocument,
   resolveRepairCandidate,
   resolveStoredAgent,
+  type TransactionPort,
 } from "./agent-document-transactions.js";
 import {
   agentPreferencesSchema,
@@ -515,16 +518,35 @@ export class AgentConfigurationService {
     this.notifyHealth(scope);
   }
 
+  private transactionPort(): TransactionPort & {
+    paths: AgentConfigurationPaths;
+  } {
+    return {
+      store: this.agents,
+      options: this.options,
+      paths: this.paths,
+      load: (scope) => this.ensureLoaded(scope),
+      dependencies: (id) => this.dependencies(id),
+      resolve: (id, values, resources, candidate) =>
+        this.resolve(id, values, resources, candidate),
+    };
+  }
+
+  getInheritedSettings(scope: AgentScope) {
+    return readInheritedAgentSettings(this.transactionPort(), scope);
+  }
+
+  async getInheritedCreationPreferences(scope: PreferenceScope) {
+    return readInheritedCreationPreferences(
+      this.creation,
+      (dependency) => this.loadCreation(dependency),
+      scope,
+    );
+  }
+
   async save(scope: AgentScope, input: unknown) {
     const result = await saveAgentDocument(
-      {
-        store: this.agents,
-        options: this.options,
-        load: (dependency) => this.ensureLoaded(dependency),
-        dependencies: (id) => this.dependencies(id),
-        resolve: (id, values, resources, candidate) =>
-          this.resolve(id, values, resources, candidate),
-      },
+      this.transactionPort(),
       scope,
       input,
     );
@@ -567,16 +589,21 @@ export class AgentConfigurationService {
     const scope = { scope: "conversation" as const, conversationId: id };
     await this.ensureLoaded(scope);
     try {
-      const result = await this.agents.save(scope, expected, (document) => {
-        if (!("appliedProfile" in document)) throw new ScopeUnavailableError();
-        if (!isCurrent()) throw new Error("Transition dependencies changed");
-        this.publicationGuards.set(id, isCurrent);
-        return {
-          ...withoutLegacyTransition(document),
-          overrides: { ...document.overrides, ...choices },
-          appliedProfile,
-        };
-      });
+      const result = await this.agents.save(
+        scope,
+        expected,
+        async (document) => {
+          if (!("appliedProfile" in document))
+            throw new ScopeUnavailableError();
+          if (!isCurrent()) throw new Error("Transition dependencies changed");
+          this.publicationGuards.set(id, isCurrent);
+          return prepareConversationDocument(this.transactionPort(), id, {
+            ...withoutLegacyTransition(document),
+            overrides: { ...document.overrides, ...choices },
+            appliedProfile,
+          });
+        },
+      );
       this.notifyHealth(scope);
       this.project(() => this.refreshSummary(id));
       return result.value;
@@ -590,19 +617,7 @@ export class AgentConfigurationService {
     scope: AgentScope,
     input: unknown,
   ): Promise<ResolutionResult> {
-    return resolveRepairCandidate(
-      {
-        store: this.agents,
-        options: this.options,
-        paths: this.paths,
-        load: (dependency) => this.ensureLoaded(dependency),
-        dependencies: (id) => this.dependencies(id),
-        resolve: (id, values, resources, candidate) =>
-          this.resolve(id, values, resources, candidate),
-      },
-      scope,
-      input,
-    );
+    return resolveRepairCandidate(this.transactionPort(), scope, input);
   }
 
   /** Trusted host-only initial creation; not a repair or arbitrary UI document editor. */
@@ -622,14 +637,7 @@ export class AgentConfigurationService {
     this.creatingConversations.add(conversationId);
     try {
       const document = await prepareConversationDocument(
-        {
-          store: this.agents,
-          options: this.options,
-          load: (scope) => this.ensureLoaded(scope),
-          dependencies: (id) => this.dependencies(id),
-          resolve: (id, values, resources, candidate) =>
-            this.resolve(id, values, resources, candidate),
-        },
+        this.transactionPort(),
         conversationId,
         input,
       );

@@ -4,6 +4,12 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import { AgentConfigurationService } from "../infrastructure/configuration/agent-configuration/agent-configuration-service.js";
+import {
+  fixture as configurationFixture,
+  A,
+  B,
+  user,
+} from "../infrastructure/configuration/agent-configuration/agent-configuration-test-fixture.js";
 import { scopedConversationCreation } from "./scoped-conversation-creation.js";
 
 async function fixture(requiredModel = false) {
@@ -84,6 +90,39 @@ async function fixture(requiredModel = false) {
     },
   };
 }
+
+void test("lead creation fits inherited-equal reasoning before readiness validation", async (t) => {
+  const f = await configurationFixture(t, {
+    captureResources: () => ({
+      options: {
+        clampThinking: (model, level) =>
+          model.modelId === "b" ? "low" : level,
+      },
+      isCurrent: () => true,
+    }),
+  });
+  await f.agent(user, {
+    schemaVersion: 1,
+    revision: 0,
+    overrides: { model: A, reasoningLevel: "high" },
+  });
+  const creation = scopedConversationCreation(f.service, async () => {});
+  await creation.initializeConversation({
+    id: "new",
+    projectId: "p",
+    overrides: { model: B, reasoningLevel: "high" },
+  });
+  const effective = await f.service.getEffective("new");
+  assert.equal(effective.status, "available");
+  if (effective.status === "available")
+    assert.equal(effective.resolution.settings.reasoningLevel, "low");
+  const state = await f.service.ensureLoaded({
+    scope: "conversation",
+    conversationId: "new",
+  });
+  if (state.status === "unavailable") assert.fail("conversation unavailable");
+  assert.deepEqual(state.value.document.overrides, { model: B });
+});
 
 void test("child launch uses only model/reasoning invocation choices, freezes preferences and never copies parent", async () => {
   const f = await fixture();

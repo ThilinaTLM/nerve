@@ -1,5 +1,7 @@
 import {
   resolveAgentConfiguration,
+  normalizeSettingsOverrides,
+  resolveInheritedConversationSettings,
   type AppliedProfile,
   type ProjectAgentDefaultsResult,
   type ResolveProjectAgentRequest,
@@ -129,14 +131,23 @@ export class ProjectAgentDefaults {
         recommendations: definition.recommendations ?? {},
         requirements: definition.requirements ?? {},
       };
+      const inherited = resolveInheritedConversationSettings({
+        ...defaults.options,
+        role: "lead",
+        appliedProfile,
+      });
       return {
         view: freezeJson({
           status: "available",
           appliedProfile,
+          inherited,
           resolution: resolveAgentConfiguration({
             ...defaults.options,
             role: "lead",
-            conversation: input.overrides ?? {},
+            conversation: normalizeSettingsOverrides(
+              input.overrides ?? {},
+              inherited,
+            ),
             appliedProfile,
           }),
           diagnostics: [...creation.view.diagnostics, ...profile.diagnostics],

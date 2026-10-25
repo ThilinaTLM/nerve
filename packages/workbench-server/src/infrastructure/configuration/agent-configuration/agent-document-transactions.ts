@@ -6,6 +6,8 @@ import {
   leadConversationAgentSchema,
   applySettingsMutation,
   resolveAgentConfiguration,
+  normalizeSettingsOverrides,
+  resolveInheritedConversationSettings,
   type ResolutionResult,
 } from "@nervekit/contracts/agent-configuration";
 import {
@@ -25,7 +27,7 @@ import type {
   AgentConfigurationServiceOptions,
   ResourceSnapshot,
 } from "./agent-configuration-service.js";
-interface TransactionPort {
+export interface TransactionPort {
   store: ScopedDocumentStore<AgentScope, AgentDocument>;
   options: AgentConfigurationServiceOptions;
   dependencies(id: string): AgentScope[];
@@ -59,7 +61,7 @@ export async function saveAgentDocument(
     scope,
     { revision: mutation.expectedRevision, digest: mutation.expectedDigest },
     (document) => {
-      const candidate = {
+      let candidate: AgentDocument = {
         ...withoutLegacyTransition(document),
         overrides: applySettingsMutation(document.overrides, mutation),
       };
@@ -77,6 +79,13 @@ export async function saveAgentDocument(
             throw new ScopeUnavailableError();
           return [state.value];
         });
+      candidate = normalizeAgentDocument(
+        port,
+        scope,
+        candidate,
+        values,
+        resources,
+      );
       const resolution =
         scope.scope === "conversation"
           ? port.resolve(scope.conversationId, values, resources, candidate)
@@ -98,6 +107,118 @@ export async function saveAgentDocument(
   );
   return result;
 }
+export async function readInheritedAgentSettings(
+  port: TransactionPort & { paths: AgentConfigurationPaths },
+  scope: AgentScope,
+) {
+  const projectId =
+    scope.scope === "project"
+      ? scope.projectId
+      : scope.scope === "conversation"
+        ? port.options.conversationOwner(scope.conversationId).projectId
+        : undefined;
+  if (projectId) await port.options.prepareResources?.(projectId);
+  const scopes: AgentScope[] =
+    scope.scope === "conversation"
+      ? port.dependencies(scope.conversationId)
+      : scope.scope === "project"
+        ? [{ scope: "user" }, scope]
+        : [scope];
+  await Promise.all(scopes.map((dependency) => port.load(dependency)));
+  const values = scopes.flatMap((dependency) => {
+    const state = port.store.peek(dependency);
+    if (
+      state &&
+      scope.scope === "conversation" &&
+      isUntrustedAgentDocument(port.options, port.paths, state)
+    )
+      return [];
+    if (!state || state.status === "unavailable")
+      throw new ScopeUnavailableError();
+    return [state.value];
+  });
+  const document = port.store.peek(scope);
+  if (!document || document.status === "unavailable")
+    throw new ScopeUnavailableError();
+  return inheritedAgentSettings(
+    port,
+    scope,
+    document.value.document,
+    values,
+    port.options.captureResources(projectId),
+  );
+}
+
+/** Compare only against layers below the edited scope, never higher locks. */
+export function inheritedAgentSettings(
+  port: Pick<TransactionPort, "options">,
+  scope: AgentScope,
+  document: AgentDocument,
+  values: readonly ScopeGeneration<AgentScope, AgentDocument>[],
+  resources: ResourceSnapshot,
+): ResolutionResult["settings"] {
+  if (scope.scope === "conversation" && "appliedProfile" in document) {
+    const role = port.options.conversationOwner(scope.conversationId).role;
+    const project = values.find((value) => value.scope.scope === "project");
+    const trustedProject =
+      project &&
+      project.scope.scope === "project" &&
+      (!port.options.isProjectAgentTrusted ||
+        port.options.isProjectAgentTrusted(
+          project.scope.projectId,
+          project.path,
+          project.digest,
+        ));
+    return resolveInheritedConversationSettings({
+      ...resources.options,
+      role,
+      ...(role === "lead"
+        ? {
+            user: values.find((value) => value.scope.scope === "user")?.document
+              .overrides,
+            project: trustedProject ? project.document.overrides : undefined,
+          }
+        : {}),
+      appliedProfile: document.appliedProfile,
+      ...("frozenDefaults" in document
+        ? { frozenDefaults: document.frozenDefaults }
+        : {}),
+    });
+  }
+  return resolveAgentConfiguration({
+    ...resources.options,
+    process: undefined,
+    role: "lead",
+    ...(scope.scope === "project"
+      ? {
+          user: values.find((value) => value.scope.scope === "user")?.document
+            .overrides,
+        }
+      : {}),
+  }).settings;
+}
+
+export function normalizeAgentDocument(
+  port: Pick<TransactionPort, "options">,
+  scope: AgentScope,
+  document: AgentDocument,
+  values: readonly ScopeGeneration<AgentScope, AgentDocument>[],
+  resources: ResourceSnapshot,
+): AgentDocument {
+  if (
+    scope.scope === "conversation" &&
+    port.options.conversationOwner(scope.conversationId).role === "child"
+  )
+    return document;
+  return {
+    ...document,
+    overrides: normalizeSettingsOverrides(
+      document.overrides,
+      inheritedAgentSettings(port, scope, document, values, resources),
+    ),
+  };
+}
+
 export function validateAgentResolution(
   resolution: ResolutionResult,
   resources: ResourceSnapshot,
@@ -270,7 +391,7 @@ export async function prepareConversationDocument(
 ) {
   const owner = port.options.conversationOwner(conversationId);
   await port.options.prepareResources?.(owner.projectId);
-  const document = (
+  let document: AgentDocument = (
     owner.role === "child"
       ? childConversationAgentSchema
       : leadConversationAgentSchema
@@ -289,6 +410,13 @@ export async function prepareConversationDocument(
       return [state.value];
     });
   const resources = port.options.captureResources(owner.projectId);
+  document = normalizeAgentDocument(
+    port,
+    { scope: "conversation", conversationId },
+    document,
+    values,
+    resources,
+  );
   validateAgentResolution(
     port.resolve(conversationId, values, resources, document),
     resources,

@@ -1,3 +1,4 @@
+import { settingsOverrideView } from "$lib/application/agent-configuration/override-view";
 import {
   leadSettingsOverridesSchema,
   type ProfileTarget,
@@ -7,7 +8,12 @@ import type { PendingConversationState } from "$lib/application/workspace/pendin
 
 type Pending = Pick<
   PendingConversationState,
-  "id" | "projectId" | "config" | "overrides" | "explicitAgentProfile"
+  | "id"
+  | "projectId"
+  | "config"
+  | "overrides"
+  | "explicitAgentProfile"
+  | "inheritedSettings"
 >;
 
 /** Capture current sparse choices and context before awaiting the server. */
@@ -36,7 +42,10 @@ export function captureSystemPromptPreview(input: {
       params: {
         projectId: pending.projectId,
         config: { systemPrompt, instructions, workingDirectory },
-        overrides: leadSettingsOverridesSchema.parse(pending.overrides ?? {}),
+        overrides: settingsOverrideView(
+          leadSettingsOverridesSchema.parse(pending.overrides ?? {}),
+          pending.inheritedSettings,
+        ),
         ...(input.targetProfile
           ? { agentProfile: { ...input.targetProfile } }
           : {}),

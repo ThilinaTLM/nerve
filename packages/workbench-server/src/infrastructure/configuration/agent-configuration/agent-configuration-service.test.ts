@@ -527,7 +527,7 @@ void test("same-layer pairs block saves, while cross-layer reasoning fits withou
   await assert.rejects(
     f.service.save(
       lead,
-      mutation(0, state.value.digest, { model: A, reasoningLevel: "high" }),
+      mutation(0, state.value.digest, { model: B, reasoningLevel: "high" }),
     ),
     /Unsupported explicit/,
   );

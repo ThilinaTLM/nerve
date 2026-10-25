@@ -1,3 +1,4 @@
+import { settingsOverrideView } from "$lib/application/agent-configuration/override-view";
 import { leadSettingsOverridesSchema } from "@nervekit/contracts/agent-configuration";
 import type { OperationParams } from "@nervekit/contracts/operations";
 import type {
@@ -13,6 +14,7 @@ type PendingSubmission = Pick<
   | "explicitAgentProfile"
   | "config"
   | "overrides"
+  | "inheritedSettings"
   | "createdConversationId"
 >;
 type SnapshotIdentity = {
@@ -47,7 +49,10 @@ export async function submitPendingConversation<
 ): Promise<Snapshot> {
   const { systemPrompt, instructions, workingDirectory } = pending.config;
   const config = { systemPrompt, instructions, workingDirectory };
-  const overrides = leadSettingsOverridesSchema.parse(pending.overrides ?? {});
+  const overrides = settingsOverrideView(
+    leadSettingsOverridesSchema.parse(pending.overrides ?? {}),
+    pending.inheritedSettings,
+  );
   const explicitProfile = pending.explicitAgentProfile;
   const retrying = pending.createdConversationId !== undefined;
   let snapshot: Snapshot;

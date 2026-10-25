@@ -63,7 +63,7 @@ function commitScopedModels(next: ModelSelection[]): void {
       {scopedModels}
       onScopedModelsChange={commitScopedModels}
     />
-    {#if available.overrides.scopedModels !== undefined}
+    {#if preferences.overrides.scopedModels !== undefined}
       <Button
         variant="ghost"
         disabled={preferences.saving}

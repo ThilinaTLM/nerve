@@ -10,6 +10,46 @@ import {
   mutation,
 } from "./agent-configuration-test-fixture.js";
 
+void test("draft defaults expose below-requirement inheritance and normalize before reasoning validation", async (t) => {
+  const f = await fixture(t, {
+    builtins: {
+      coding: JSON.stringify({
+        ...definition,
+        recommendations: { retry: { enabled: false } },
+        requirements: { permissionRuleSetId: "locked" },
+      }),
+    },
+    captureResources: () => ({
+      options: {
+        clampThinking: (model, level) =>
+          model.modelId === "b" ? "low" : level,
+      },
+      isCurrent: () => true,
+    }),
+  });
+  await f.agent(user, {
+    schemaVersion: 1,
+    revision: 0,
+    overrides: { model: A, reasoningLevel: "high" },
+  });
+  const result = await f.service.projectDefaults.get({
+    projectId: "p",
+    overrides: { model: B, reasoningLevel: "high" },
+  });
+  assert.equal(result.status, "available");
+  if (result.status !== "available") return;
+  assert.deepEqual(result.inherited.model, A);
+  assert.equal(result.inherited.retry?.enabled, false);
+  assert.notEqual(result.inherited.permissionRuleSetId, "locked");
+  assert.equal(result.resolution.settings.reasoningLevel, "low");
+  assert.equal(result.resolution.settings.permissionRuleSetId, "locked");
+  assert.ok(
+    !result.resolution.diagnostics.some(
+      (issue) => issue.code === "unsupported-reasoning",
+    ),
+  );
+});
+
 void test("project defaults are shared in memory and draft overrides never contaminate them", async (t) => {
   const { service } = await fixture(t);
   const input = { projectId: "p" };

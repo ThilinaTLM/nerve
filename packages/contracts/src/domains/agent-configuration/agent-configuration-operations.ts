@@ -67,6 +67,8 @@ export const getAgentConfigurationResultSchema = z.discriminatedUnion(
       status: z.literal("available"),
       source: configurationDocumentSourceSchema,
       overrides: leadSettingsOverridesSchema,
+      /** Resolved below this scope, without the edited layer or requirements. */
+      inherited: leadSettingsOverridesSchema,
     }),
     configurationUnavailableSchema,
   ],
@@ -150,6 +152,7 @@ export const getCreationPreferencesResultSchema = z.discriminatedUnion(
       status: z.literal("available"),
       source: creationSource,
       overrides: conversationDefaultsSchema.shape.overrides,
+      inherited: conversationDefaultsSchema.shape.overrides,
       effective: conversationDefaultsSchema.shape.overrides.required({
         defaultAgentProfile: true,
       }),
@@ -187,6 +190,8 @@ export const projectAgentDefaultsResultSchema = z.discriminatedUnion("status", [
     status: z.literal("available"),
     appliedProfile: appliedProfileSchema,
     resolution: agentResolutionSchema,
+    /** Baseline below supplied draft overrides, excluding requirements. */
+    inherited: leadSettingsOverridesSchema,
     diagnostics,
   }),
   configurationUnavailableSchema,

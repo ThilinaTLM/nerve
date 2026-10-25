@@ -13,6 +13,8 @@ export type PendingConversationState = {
   explicitAgentProfile?: string;
   permissionRuleSetId: string;
   overrides?: LeadSettingsOverrides;
+  /** Authoritative lower layer, excluding profile requirements and draft choices. */
+  inheritedSettings?: LeadSettingsOverrides;
   sending: boolean;
   error?: string;
   createdConversationId?: string;

@@ -1,3 +1,4 @@
+import { settingsOverrideView } from "$lib/application/agent-configuration/override-view";
 import type {
   EffectiveAgentView,
   GetAgentConfigurationResult,
@@ -37,10 +38,11 @@ export class ConversationCompactionState {
   get overridden(): boolean {
     return (
       this.result?.status === "available" &&
-      Object.entries(this.result.resolution.provenance).some(
-        ([pointer, value]) =>
-          pointer.startsWith("/compaction/") && value.source === "conversation",
-      )
+      this.configuration?.status === "available" &&
+      settingsOverrideView(
+        this.configuration.overrides,
+        this.configuration.inherited,
+      ).compaction !== undefined
     );
   }
   private scope: { projectId: string; conversationId: string } | undefined;

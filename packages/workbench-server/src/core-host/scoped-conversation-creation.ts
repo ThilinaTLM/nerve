@@ -2,6 +2,8 @@ import {
   childLaunchOverridesSchema,
   freezeChildPreferences,
   resolveAgentConfiguration,
+  normalizeSettingsOverrides,
+  resolveInheritedConversationSettings,
   type AppliedProfile,
   type LeadSettingsOverrides,
   leadSettingsOverridesSchema,
@@ -70,7 +72,18 @@ export function scopedConversationCreation(
         ...defaults.options,
         role: parentId ? "child" : "lead",
         appliedProfile: applied,
-        ...(!parentId && choices ? { conversation: choices } : {}),
+        ...(!parentId && choices
+          ? {
+              conversation: normalizeSettingsOverrides(
+                choices,
+                resolveInheritedConversationSettings({
+                  ...defaults.options,
+                  role: "lead",
+                  appliedProfile: applied,
+                }),
+              ),
+            }
+          : {}),
         ...(launch ? { launch } : {}),
       });
       requireReady(resolution);

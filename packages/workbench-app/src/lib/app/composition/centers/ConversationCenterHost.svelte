@@ -1,7 +1,15 @@
 <script lang="ts">
+import {
+  mutateDraftSettings,
+  replacementSettingsMutation,
+  settingsOverrideView,
+} from "$lib/application/agent-configuration/override-view";
 import ProfileUpdateNotice from "$lib/features/conversations/views/ProfileUpdateNotice.svelte";
 import { projectAgentDefaults } from "$lib/application/agent-configuration/project-agent-defaults.svelte";
-import type { EffectiveAgentView } from "@nervekit/contracts/agent-configuration";
+import {
+  normalizeCreationPreferencesOverrides,
+  type EffectiveAgentView,
+} from "@nervekit/contracts/agent-configuration";
 import { CreationPreferencesState } from "$lib/features/settings/state/creation-preferences.svelte";
 import { switchAgentProfile } from "$lib/features/conversations/adapters/core-agent-configuration.adapter";
 import { compareSubagents } from "$lib/presentation/conversations/subagent-order";
@@ -302,6 +310,11 @@ $effect(() => {
     : undefined;
   const overrides = $state.snapshot(pending?.overrides ?? {});
   if (!name && Object.keys(overrides).length === 0) {
+    if (pending)
+      pending.inheritedSettings =
+        projectDefaultView?.status === "available"
+          ? projectDefaultView.inherited
+          : undefined;
     pendingResolution =
       projectDefaultView?.status === "available"
         ? projectDefaultView.resolution
@@ -325,6 +338,9 @@ $effect(() => {
   })
     .then((result) => {
       if (!current) return;
+      if (pending)
+        pending.inheritedSettings =
+          result.status === "available" ? result.inherited : undefined;
       pendingResolution =
         result.status === "available" ? result.resolution : undefined;
     })
@@ -392,18 +408,26 @@ const lockedFields = $derived({
   ),
 });
 const activeCompactionLocked = $derived(Boolean(lockedFields.compaction));
+const composerOverrides = $derived(
+  activePendingConversation
+    ? settingsOverrideView(
+        activePendingConversation.overrides ?? {},
+        activePendingConversation.inheritedSettings,
+      )
+    : store?.configuration?.status === "available"
+      ? settingsOverrideView(
+          store.configuration.overrides,
+          store.configuration.inherited,
+        )
+      : {},
+);
 const settingsDiffers = $derived({
   model:
     !viewedChildId &&
-    !activePendingConversation &&
-    store?.configuration?.status === "available" &&
-    (store.configuration.overrides.model !== undefined ||
-      store.configuration.overrides.reasoningLevel !== undefined),
+    (composerOverrides.model !== undefined ||
+      composerOverrides.reasoningLevel !== undefined),
   permission:
-    !viewedChildId &&
-    !activePendingConversation &&
-    store?.configuration?.status === "available" &&
-    store.configuration.overrides.permissionRuleSetId !== undefined,
+    !viewedChildId && composerOverrides.permissionRuleSetId !== undefined,
 });
 $effect(() => {
   void agentProfileCatalog.ensure(profileCatalogProjectId);
@@ -541,12 +565,16 @@ async function configure(
   if (p) {
     Object.assign(p.config, patch);
     const { model, reasoningLevel, permissionRuleSetId } = patch;
-    p.overrides = {
-      ...p.overrides,
-      ...(model ? { model } : {}),
-      ...(reasoningLevel !== undefined ? { reasoningLevel } : {}),
-      ...(permissionRuleSetId ? { permissionRuleSetId } : {}),
-    };
+    p.overrides = mutateDraftSettings(
+      p.overrides ?? {},
+      {
+        ...(model ? { model } : {}),
+        ...(reasoningLevel !== undefined ? { reasoningLevel } : {}),
+        ...(permissionRuleSetId ? { permissionRuleSetId } : {}),
+      },
+      [],
+      p.inheritedSettings,
+    );
     p.selectedModelKey = modelKey(p.config.model);
     p.thinkingLevel = p.config.reasoningLevel;
     p.agentProfile = p.config.agentProfile;
@@ -596,8 +624,7 @@ async function submitPrompt(
             scope,
             expectedRevision: current.source.revision,
             expectedDigest: current.source.digest,
-            changes,
-            resets: [],
+            ...replacementSettingsMutation(current.overrides, changes),
           });
           if (result.status !== "saved")
             throw new Error(
@@ -748,12 +775,33 @@ function setComposerModelSelection(next: {
   });
 }
 function resetComposerModel() {
-  return store?.configure({}, [
+  const resets = [
     ...(lockedFields.model ? [] : ["/overrides/model"]),
     ...(lockedFields.thinking ? [] : ["/overrides/reasoningLevel"]),
-  ]);
+  ];
+  if (activePendingConversation) {
+    const pending = activePendingConversation;
+    pending.overrides = mutateDraftSettings(
+      pending.overrides ?? {},
+      {},
+      resets,
+      pending.inheritedSettings,
+    );
+    return;
+  }
+  return store?.configure({}, resets);
 }
 function resetComposerPermission() {
+  if (activePendingConversation) {
+    const pending = activePendingConversation;
+    pending.overrides = mutateDraftSettings(
+      pending.overrides ?? {},
+      {},
+      ["/overrides/permissionRuleSetId"],
+      pending.inheritedSettings,
+    );
+    return;
+  }
   return store?.configure({}, ["/overrides/permissionRuleSetId"]);
 }
 async function setComposerAgentProfile(name: string) {
@@ -762,7 +810,11 @@ async function setComposerAgentProfile(name: string) {
     // The exact catalog target is captured when creation is submitted.
     pending.config.agentProfile = name;
     pending.agentProfile = name;
-    pending.explicitAgentProfile = name;
+    pending.inheritedSettings = undefined;
+    pending.explicitAgentProfile = normalizeCreationPreferencesOverrides(
+      { defaultAgentProfile: name },
+      { defaultAgentProfile: creationDefaults?.defaultAgentProfile },
+    ).defaultAgentProfile;
   } else await store?.setAgentProfile(name);
 }
 function setComposerPermissionRuleSet(value: string) {

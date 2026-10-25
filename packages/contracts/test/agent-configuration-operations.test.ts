@@ -1,6 +1,9 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
+  getAgentConfigurationResultSchema,
+  getCreationPreferencesResultSchema,
+  projectAgentDefaultsResultSchema,
   saveAgentConfigurationRequestSchema,
   saveAgentConfigurationResultSchema,
   saveCreationPreferencesRequestSchema,
@@ -43,6 +46,59 @@ const effective = {
   diagnostics: [],
   sources: [source],
 };
+
+test("editor reads require authoritative inherited baselines independently of effective values", () => {
+  const cases = [
+    {
+      schema: getAgentConfigurationResultSchema,
+      value: {
+        status: "available",
+        source,
+        overrides: { retry: { enabled: false } },
+        inherited: { retry: { enabled: true } },
+      },
+    },
+    {
+      schema: getCreationPreferencesResultSchema,
+      value: {
+        status: "available",
+        source: { ...source, scope: { scope: "project", projectId: "p" } },
+        overrides: { defaultAgentProfile: "planning" },
+        inherited: { defaultAgentProfile: "coding", scopedModels: [] },
+        effective: { defaultAgentProfile: "planning" },
+        diagnostics: [],
+      },
+    },
+    {
+      schema: projectAgentDefaultsResultSchema,
+      value: {
+        status: "available",
+        appliedProfile: {
+          name: "coding",
+          source: "builtin",
+          sourceDigest: "a".repeat(64),
+          instructions: "",
+          recommendations: {},
+          requirements: { permissionRuleSetId: "planning" },
+        },
+        inherited: { permissionRuleSetId: "autonomous" },
+        resolution: resolveAgentConfiguration({ role: "lead" }),
+        diagnostics: [],
+      },
+    },
+  ];
+  for (const { schema, value } of cases) {
+    assert.deepEqual(schema.parse(value), value);
+    const missing: Record<string, unknown> = { ...value };
+    delete missing.inherited;
+    assert.equal(schema.safeParse(missing).success, false);
+    assert.equal(schema.safeParse({ ...value, inherited: {} }).success, true);
+    assert.equal(
+      schema.safeParse({ ...value, inherited: { unexpected: true } }).success,
+      false,
+    );
+  }
+});
 
 test("scoped saves require CAS tokens and canonical sparse mutations without metadata edits", () => {
   const request = {

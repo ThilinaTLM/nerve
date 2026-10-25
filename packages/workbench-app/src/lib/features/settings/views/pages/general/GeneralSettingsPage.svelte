@@ -112,10 +112,15 @@ const values = $derived(
       )
     : undefined,
 );
-const inherited = $derived(display(projectState.inherited?.settings ?? {}));
+const inherited = $derived(
+  display(
+    projectState.inherited?.settings ?? {},
+    preferences.inherited?.defaultAgentProfile,
+  ),
+);
 const overrides = $derived(projectState.overrides);
 const changedKeys = $derived({
-  startProfile: creation?.overrides.defaultAgentProfile !== undefined,
+  startProfile: preferences.overrides.defaultAgentProfile !== undefined,
   model:
     overrides.model !== undefined || overrides.reasoningLevel !== undefined,
   permission: overrides.permissionRuleSetId !== undefined,

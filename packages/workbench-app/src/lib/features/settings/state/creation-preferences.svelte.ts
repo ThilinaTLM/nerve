@@ -1,3 +1,7 @@
+import {
+  normalizeCreationPreferencesOverrides,
+  type CreationPreferencesOverrides,
+} from "@nervekit/contracts/agent-configuration";
 import type {
   GetCreationPreferencesResult,
   PreferenceScope,
@@ -13,6 +17,18 @@ import { requestWorkbench } from "$lib/application/startup/workbench-connection"
 /** Each settings view holds the version it displayed, never a speculative CAS token. */
 export class CreationPreferencesState {
   result = $state<GetCreationPreferencesResult>();
+  get inherited(): CreationPreferencesOverrides | undefined {
+    return this.result?.status === "available"
+      ? this.result.inherited
+      : undefined;
+  }
+  get overrides(): CreationPreferencesOverrides {
+    const own =
+      this.result?.status === "available" ? this.result.overrides : {};
+    return this.inherited === undefined
+      ? own
+      : normalizeCreationPreferencesOverrides(own, this.inherited);
+  }
   error = $state<string>();
   saving = $state(false);
   private scope: PreferenceScope | undefined;

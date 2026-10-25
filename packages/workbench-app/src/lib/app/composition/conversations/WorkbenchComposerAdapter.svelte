@@ -1,14 +1,15 @@
 <script lang="ts">
+import {
+  mutateDraftSettings,
+  settingsOverrideView,
+} from "$lib/application/agent-configuration/override-view";
 import { projectAgentDefaults } from "$lib/application/agent-configuration/project-agent-defaults.svelte";
 import { editableCapabilityResets } from "$lib/domain/capabilities/editable-resets";
 import { agentProfileCatalog } from "$lib/application/agent-profiles/agent-profile-catalog.svelte";
 import { parseSlashCommand } from "@nervekit/contracts/completions";
 import { onDestroy, untrack, type Snippet } from "svelte";
 import { DEFAULT_AGENT_PROFILE } from "@nervekit/contracts/agent-profiles";
-import {
-  applySettingsMutation,
-  type LeadSettingsOverrides,
-} from "@nervekit/contracts/agent-configuration";
+import { type LeadSettingsOverrides } from "@nervekit/contracts/agent-configuration";
 import { ScopedAgentState } from "$lib/application/agent-configuration/scoped-agent-state.svelte";
 import type { AgentEditorView } from "$lib/presentation/composer/agent-editor-view";
 import type { AvailableSkill } from "@nervekit/contracts/skills";
@@ -157,6 +158,7 @@ const capabilityScopeKey = $derived(
   JSON.stringify([
     activeProject?.id,
     activeConversation?.id ?? activePendingConversation?.id,
+    activePendingConversation?.explicitAgentProfile,
   ]),
 );
 const defaultProjectView = $derived(
@@ -176,7 +178,10 @@ const capabilityConfiguration = $derived<AgentEditorView | undefined>(
     ? effectivePendingResolution
       ? {
           resolution: effectivePendingResolution,
-          overrides: activePendingConversation.overrides ?? {},
+          overrides: settingsOverrideView(
+            activePendingConversation.overrides ?? {},
+            activePendingConversation.inheritedSettings,
+          ),
         }
       : undefined
     : activeConversation && capabilityEditor.resolution
@@ -239,6 +244,8 @@ async function refreshCapabilities() {
         generation === capabilityRefreshGeneration &&
         activePendingConversation === pending
       ) {
+        pending.inheritedSettings =
+          result.status === "available" ? result.inherited : undefined;
         pendingCapabilityResolution =
           result.status === "available" ? result.resolution : undefined;
         capabilityError =
@@ -308,9 +315,11 @@ async function patchCapabilities(
   resets: string[] = [],
 ) {
   if (activePendingConversation) {
-    activePendingConversation.overrides = applySettingsMutation(
+    activePendingConversation.overrides = mutateDraftSettings(
       activePendingConversation.overrides ?? {},
-      { expectedRevision: 0, expectedDigest: "missing", changes, resets },
+      changes,
+      resets,
+      activePendingConversation.inheritedSettings,
     );
     await refreshCapabilities();
   } else {
