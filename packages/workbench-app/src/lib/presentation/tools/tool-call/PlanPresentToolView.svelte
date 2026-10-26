@@ -1,9 +1,5 @@
 <script lang="ts">
-import {
-  canonicalSettingsEntries,
-  type ProfileTransitionPreview,
-} from "@nervekit/contracts/agent-configuration";
-import { Badge } from "@nervekit/ui-kit/components/ui/badge";
+import type { ProfileTransitionPreview } from "@nervekit/contracts/agent-configuration";
 import { getConversationUiCapabilities } from "../../context.svelte";
 import Check from "@lucide/svelte/icons/check";
 import type {
@@ -68,30 +64,26 @@ let {
   onRejectPlanReview,
 }: Props = $props();
 
+// Model overrides must still respect the target profile's requirements.
 let profilePreview = $state<ProfileTransitionPreview>();
-let profilePreviewError = $state<string>();
 $effect(() => {
   const target = planReview?.targetProfile;
   const preview = uiCapabilities.previewAgentProfile;
+  profilePreview = undefined;
   if (!target || !planReview || planReview.status !== "pending" || !preview)
     return;
   let current = true;
-  profilePreview = undefined;
-  profilePreviewError = undefined;
   void preview(planReview.conversationId, target.name)
     .then((result) => {
-      if (!current) return;
       if (
+        current &&
         result.status === "ready" &&
         result.preview.targetProfile.digest === target.digest
       )
         profilePreview = result.preview;
-      else
-        profilePreviewError =
-          "Implementation profile changed or is unavailable. Review refreshed confirmation before approving.";
     })
-    .catch((cause) => {
-      if (current) profilePreviewError = String(cause);
+    .catch(() => {
+      // Approval still validates the authoritative profile confirmation.
     });
   return () => {
     current = false;
@@ -308,35 +300,6 @@ async function rejectPlan() {
   }
 }
 </script>
-
-{#if planReview?.status === "pending" && planReview.targetProfile}
-  <div class="space-y-2 border-b px-3 py-2 text-xs">
-    <div class="flex items-center gap-2">
-      <span class="font-medium">Implementation profile</span><Badge
-        variant="outline">{planReview.targetProfile.name}</Badge
-      >
-    </div>
-    {#if profilePreviewError}<p class="text-warning" role="status">
-        {profilePreviewError}
-      </p>{/if}
-    {#if profilePreview}
-      {#each canonicalSettingsEntries(profilePreview.requirements) as [pointer, value] (pointer)}
-        <p>
-          <Badge variant="outline"
-            >Required · {profilePreview.targetProfile.name}</Badge
-          >
-          {pointer}: {typeof value === "string" ? value : JSON.stringify(value)}
-        </p>
-      {/each}
-      {#if profilePreview.resolution.diagnostics.some((d) => d.code === "unsupported-reasoning")}<p
-          class="text-destructive"
-          role="alert"
-        >
-          Requirement conflict: the model does not support required reasoning.
-        </p>{/if}
-    {/if}
-  </div>
-{/if}
 
 {#if showPlanCard && displayedReview}
   <div class="grid gap-2" aria-label="Plan review">

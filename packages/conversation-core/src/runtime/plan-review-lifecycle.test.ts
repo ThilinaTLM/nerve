@@ -108,7 +108,7 @@ for (const scenario of [
                   (event) =>
                     event.type === "user_message" &&
                     event.payload.text.startsWith(
-                      "Implement the approved plan.",
+                      "The user has accepted the plan. Please implement it.",
                     ),
                 ).length,
               1,
@@ -125,7 +125,9 @@ for (const scenario of [
               .filter(
                 (event) =>
                   event.type === "user_message" &&
-                  event.payload.text.startsWith("Implement the approved plan."),
+                  event.payload.text.startsWith(
+                    "The user has accepted the plan. Please implement it.",
+                  ),
               );
             assert.equal(
               messages.length,
@@ -139,9 +141,13 @@ for (const scenario of [
             );
             const message = messages[0];
             assert.ok(message?.type === "user_message");
-            assert.equal(
+            assert.match(
               message.payload.text,
-              "Implement the approved plan.\n\nimplementation.md\n\n# Implementation plan\n\nA reviewed snapshot.\n\nApproval feedback:\nKeep the reviewed scope.",
+              /^The user has accepted the plan\. Please implement it\.\n\nPlan file: .+\/plan\.md\n\nApproval feedback:\nKeep the reviewed scope\.$/,
+            );
+            assert.doesNotMatch(
+              message.payload.text,
+              /# Implementation plan|A reviewed snapshot/,
             );
           }
           return { systemPrompt: "Test", tools: [] };
@@ -310,7 +316,9 @@ for (const scenario of [
               .filter(
                 (event) =>
                   event.type === "user_message" &&
-                  event.payload.text.startsWith("Implement the approved plan."),
+                  event.payload.text.startsWith(
+                    "The user has accepted the plan. Please implement it.",
+                  ),
               ).length,
             1,
           );

@@ -704,6 +704,7 @@ async function openDetails() {
       {toolCall}
       {view}
       expanded={false}
+      {detailsAction}
       {onOpenFile}
       questionRecord={toolQuestion}
       planReview={toolPlanReview}
