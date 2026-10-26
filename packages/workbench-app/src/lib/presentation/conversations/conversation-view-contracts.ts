@@ -226,8 +226,6 @@ export type ConversationPaneActions = {
   onUsageOpenChange?: (open: boolean) => void;
   onUsageRetry?: () => void;
   onModelSelectionChange?: (next: ComposerModelChange) => void;
-  /** Resets an unlocked model and reasoning to the effective settings. */
-  onResetModel?: () => void;
   onResetPermission?: () => void;
   onAgentProfileChange?: (name: string) => void;
   onPermissionRuleSetChange?: (value: PermissionRuleSetId) => void;

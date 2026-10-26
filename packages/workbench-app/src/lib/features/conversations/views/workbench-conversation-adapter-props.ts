@@ -131,7 +131,6 @@ export type WorkbenchConversationAdapterProps = {
   onOpenFile?: (path: string, line?: number) => void;
   onOpenTask?: (taskId: string) => void;
   onModelSelectionChange?: PromptComposerProps["onModelSelectionChange"];
-  onResetModel?: () => void;
   onResetPermission?: () => void;
   onAgentProfileChange?: (name: string) => void;
   onPermissionRuleSetChange?: (value: PermissionRuleSetId) => void;

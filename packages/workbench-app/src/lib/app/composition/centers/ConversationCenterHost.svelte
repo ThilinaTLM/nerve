@@ -774,23 +774,6 @@ function setComposerModelSelection(next: {
     ...(model ? { model, reasoningLevel } : {}),
   });
 }
-function resetComposerModel() {
-  const resets = [
-    ...(lockedFields.model ? [] : ["/overrides/model"]),
-    ...(lockedFields.thinking ? [] : ["/overrides/reasoningLevel"]),
-  ];
-  if (activePendingConversation) {
-    const pending = activePendingConversation;
-    pending.overrides = mutateDraftSettings(
-      pending.overrides ?? {},
-      {},
-      resets,
-      pending.inheritedSettings,
-    );
-    return;
-  }
-  return store?.configure({}, resets);
-}
 function resetComposerPermission() {
   if (activePendingConversation) {
     const pending = activePendingConversation;
@@ -1138,7 +1121,6 @@ const teamRunning = $derived(
   onModelSelectionChange={(next) => {
     void runActivePaneAction(() => setComposerModelSelection(next));
   }}
-  onResetModel={() => void runActivePaneAction(resetComposerModel)}
   onResetPermission={() => void runActivePaneAction(resetComposerPermission)}
   onAgentProfileChange={(value) => {
     void runActivePaneAction(() => setComposerAgentProfile(value));

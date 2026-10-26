@@ -101,7 +101,6 @@ let {
   onOpenFile,
   onOpenTask,
   onModelSelectionChange,
-  onResetModel,
   onResetPermission,
   onAgentProfileChange,
   onPermissionRuleSetChange,
@@ -411,7 +410,6 @@ function menuForTranscript(
       {onUsageRetry}
       {onOpenSystemPrompt}
       {onModelSelectionChange}
-      {onResetModel}
       {onResetPermission}
       {onAgentProfileChange}
       {onPermissionRuleSetChange}

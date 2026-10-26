@@ -83,7 +83,6 @@ export type PromptComposerProps = {
   onUsageRetry?: () => void;
   onOpenSystemPrompt?: () => void | Promise<void>;
   onModelSelectionChange?: (next: ComposerModelChange) => void;
-  onResetModel?: () => void;
   onResetPermission?: () => void;
   onAgentProfileChange?: (name: string) => void;
   onPermissionRuleSetChange?: (value: PermissionRuleSetId) => void;

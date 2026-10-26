@@ -84,7 +84,6 @@ type Props = {
   thinkingLevel: ThinkingLevel;
   modelEmptyMessage?: string;
   onModelSelectionChange?: (next: ComposerModelChange) => void;
-  onResetModel?: () => void;
   onResetPermission?: () => void;
   onCompact?: () => void;
   onOpenSystemPrompt?: () => void | Promise<void>;
@@ -147,7 +146,6 @@ let {
   thinkingLevel,
   modelEmptyMessage,
   onModelSelectionChange,
-  onResetModel,
   onResetPermission,
   onCompact,
   onOpenSystemPrompt,
@@ -295,14 +293,6 @@ function permissionTitle(option: PermissionRuleSetSummary): string {
       : "Reasoning conflict"}
   </Badge>
 {/if}
-<ComposerSettingStatus
-  label="Model and reasoning"
-  differs={settingsDiffers.model &&
-    !lockedFields.model &&
-    !lockedFields.thinking}
-  disabled={modelDisabled}
-  onReset={onResetModel}
-/>
 
 {#key capabilityScopeKey}
   <Popover
