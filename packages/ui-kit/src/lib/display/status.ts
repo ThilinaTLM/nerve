@@ -34,8 +34,8 @@ export function statusTone(status: string | undefined): StatusTone {
   return "neutral";
 }
 
-export function agentRunningTone(mode: string | undefined): StatusTone {
-  return mode === "planning" ? "success" : "info";
+export function agentRunningTone(agentProfile: string | undefined): StatusTone {
+  return agentProfile === "planning" ? "success" : "info";
 }
 
 // Agent activity indicators intentionally collapse all non-active states to
@@ -44,10 +44,10 @@ export function agentRunningTone(mode: string | undefined): StatusTone {
 export function agentActivityTone(
   status: string | undefined,
   active = false,
-  mode?: string,
+  agentProfile?: string,
 ): StatusTone {
   if (status === "awaiting_user") return "warning";
-  if (status === "running" || active) return agentRunningTone(mode);
+  if (status === "running" || active) return agentRunningTone(agentProfile);
   return "neutral";
 }
 

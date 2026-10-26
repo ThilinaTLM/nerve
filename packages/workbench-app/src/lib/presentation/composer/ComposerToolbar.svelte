@@ -1,17 +1,16 @@
 <script lang="ts">
+import { Badge } from "@nervekit/ui-kit/components/ui/badge";
 import type { Snippet } from "svelte";
-import ClipboardList from "@lucide/svelte/icons/clipboard-list";
-import Code2 from "@lucide/svelte/icons/code-2";
-import Lock from "@lucide/svelte/icons/lock";
+import ShieldCheck from "@lucide/svelte/icons/shield-check";
+import ShieldCog from "@lucide/svelte/icons/shield-cog";
+import ShieldEllipsis from "@lucide/svelte/icons/shield-ellipsis";
+import ShieldMinus from "@lucide/svelte/icons/shield-minus";
+import ShieldZap from "@nervekit/ui-kit/icons/ShieldZap";
 import RefreshCw from "@lucide/svelte/icons/refresh-cw";
 import Paperclip from "@lucide/svelte/icons/paperclip";
 import Settings from "@lucide/svelte/icons/settings";
-import Shield from "@lucide/svelte/icons/shield";
-import Zap from "@lucide/svelte/icons/zap";
-import type {
-  CapabilityConfiguration,
-  CapabilityPatch,
-} from "@nervekit/contracts/capabilities";
+import type { LeadSettingsOverrides } from "@nervekit/contracts/agent-configuration";
+import type { AgentEditorView } from "$lib/presentation/composer/agent-editor-view";
 import type {
   ContextUsage,
   ModelInfo,
@@ -31,38 +30,44 @@ import Popover, {
   PopoverRow,
 } from "@nervekit/ui-kit/components/composites/popover-panel";
 import ComposerModelPicker from "./ComposerModelPicker.svelte";
+import ComposerSettingStatus from "./ComposerSettingStatus.svelte";
+import ComposerProfilePicker from "./ComposerProfilePicker.svelte";
 import ContextProgressBadge from "./ContextProgressBadge.svelte";
 import type { ConversationSessionInfo } from "./session-info";
 import type { ConversationUsageSummary } from "../usage/conversation-usage.js";
 import TodoProgressChip from "./TodoProgressChip.svelte";
 import ComposerCapabilitiesPopover from "./ComposerCapabilitiesPopover.svelte";
 import type { CapabilityToolGroup } from "./capability-tool-labels";
-import type { CapabilitySkillRow } from "./capability-skill-row";
-import type { CapabilitySubagentProfiles } from "./capability-subagent-slot";
+import type { AvailableSkill } from "@nervekit/contracts/skills";
+import type { CapabilitySubagentProfile } from "./capability-subagent-profiles";
+import type {
+  ComposerAgentProfile,
+  ComposerLockedFields,
+  ComposerModelChange,
+  ComposerSettingsDiffers,
+} from "../conversations/conversation-view-contracts.js";
 
 type Props = {
   controlsDisabled: boolean;
-  modeDisabled: boolean;
-  /** Conversations without plan mode drop the toggle entirely. */
-  modeHidden?: boolean;
+  profileDisabled: boolean;
+  /** Profiles offered by the selector; an empty list drops it entirely. */
+  agentProfiles: ComposerAgentProfile[];
+  agentProfile: string;
+  /** Fields the active profile locks; their pickers are disabled. */
+  lockedFields?: ComposerLockedFields;
   session?: ConversationSessionInfo;
   contextActions?: Snippet<[closePopover: () => void]>;
   modelDisabled: boolean;
-  /** Display label for the mode tab, e.g. "Coding" / "Planning". */
-  modeLabel: string;
-  /** Selects the planning vs coding icon; mode semantics stay with the caller. */
-  modePlanning: boolean;
-  onToggleMode?: () => void;
+  onAgentProfileChange?: (name: string) => void;
   permissionRuleSetId: PermissionRuleSetId;
   permissionRuleSets: PermissionRuleSetSummary[];
   permissionRuleSetsLoading?: boolean;
   permissionRuleSetsError?: string;
   permissionShortcut?: string;
   permissionShortcutAria?: string;
-  modeShortcut?: string;
-  modeShortcutAria?: string;
-  modelShortcut?: string;
-  thinkingShortcut?: string;
+  profileShortcut?: string;
+  profileShortcutAria?: string;
+  settingsDiffers?: ComposerSettingsDiffers;
   contextUsage?: ContextUsage;
   conversationUsage?: ConversationUsageSummary;
   agentUsage?: ConversationAgentUsage;
@@ -77,28 +82,29 @@ type Props = {
   models: ModelInfo[];
   selectedModelKey: string;
   thinkingLevel: ThinkingLevel;
-  runtimeChangeHint?: string;
   modelEmptyMessage?: string;
-  onModelChange?: (value: string) => void;
-  onThinkingLevelChange?: (value: ThinkingLevel) => void;
+  onModelSelectionChange?: (next: ComposerModelChange) => void;
+  onResetPermission?: () => void;
   onCompact?: () => void;
   onOpenSystemPrompt?: () => void | Promise<void>;
   onPermissionRuleSetChange?: (value: PermissionRuleSetId) => void;
   onRefreshPermissionRuleSets?: () => void;
   onOpenPermissionSettings?: () => void;
-  capabilityConfiguration?: CapabilityConfiguration;
-  capabilitySkills?: CapabilitySkillRow[];
+  capabilityConfiguration?: AgentEditorView;
+  capabilitySkills?: AvailableSkill[];
   capabilityLoading?: boolean;
   capabilityError?: string;
-  capabilityProfiles?: CapabilitySubagentProfiles;
   capabilityScopeKey?: string;
   subagentControlsEnabled?: boolean;
+  capabilitySubagentProfiles?: CapabilitySubagentProfile[];
   capabilityDisabled?: boolean;
-  onCapabilityPatch?: (patch: CapabilityPatch) => void;
+  onCapabilityPatch?: (patch: LeadSettingsOverrides, resets?: string[]) => void;
   onConfigureCapabilityTool?: (group: CapabilityToolGroup) => void;
   onResetCapabilities?: () => void;
   onRefreshCapabilities?: () => void;
-  onOpenCapabilitySettings?: (page: "tools" | "skills" | "subagents") => void;
+  onOpenCapabilitySettings?: (
+    page: "tools" | "skills" | "agents" | "sub-agents",
+  ) => void;
   /** Picked via the attach button; omit to hide the button. */
   onAttachFiles?: (files: File[]) => void;
   attachDisabled?: boolean;
@@ -107,24 +113,23 @@ type Props = {
 
 let {
   controlsDisabled,
-  modeDisabled,
-  modeHidden = false,
+  profileDisabled,
+  agentProfiles,
+  agentProfile,
+  lockedFields = {},
   session,
   contextActions,
   modelDisabled,
-  modeLabel,
-  modePlanning,
-  onToggleMode,
+  onAgentProfileChange,
   permissionRuleSetId,
   permissionRuleSets,
   permissionRuleSetsLoading = false,
   permissionRuleSetsError,
   permissionShortcut,
   permissionShortcutAria,
-  modeShortcut,
-  modeShortcutAria,
-  modelShortcut,
-  thinkingShortcut,
+  profileShortcut,
+  profileShortcutAria,
+  settingsDiffers = {},
   contextUsage,
   conversationUsage,
   agentUsage,
@@ -139,10 +144,9 @@ let {
   models,
   selectedModelKey,
   thinkingLevel,
-  runtimeChangeHint,
   modelEmptyMessage,
-  onModelChange,
-  onThinkingLevelChange,
+  onModelSelectionChange,
+  onResetPermission,
   onCompact,
   onOpenSystemPrompt,
   onPermissionRuleSetChange,
@@ -152,9 +156,9 @@ let {
   capabilitySkills = [],
   capabilityLoading = false,
   capabilityError,
-  capabilityProfiles,
   capabilityScopeKey,
   subagentControlsEnabled = false,
+  capabilitySubagentProfiles,
   capabilityDisabled = controlsDisabled,
   onCapabilityPatch,
   onConfigureCapabilityTool,
@@ -175,6 +179,12 @@ const activePermission = $derived(
     enabled: false,
     available: false,
   },
+);
+
+const lockReason = $derived(
+  lockedFields.model || lockedFields.thinking
+    ? `Locked by ${agentProfiles.find((profile) => profile.name === lockedFields.by)?.label ?? lockedFields.by}`
+    : undefined,
 );
 
 const showPermissionLabel = $derived(permissionRuleSetId !== "default");
@@ -203,7 +213,7 @@ function openPermissionSettings(): void {
   onOpenPermissionSettings?.();
 }
 
-/* The picker chooses between a handful of known modes, so a rule set is one
+/* The picker chooses between a handful of options, so a rule set is one
  * line: its name, plus a marker when it is not one of the built-ins. The prose
  * stays available on hover and in Settings, where rules are actually edited. */
 function permissionTitle(option: PermissionRuleSetSummary): string {
@@ -246,135 +256,157 @@ function permissionTitle(option: PermissionRuleSetSummary): string {
   ></span>
 {/if}
 
-{#if !modeHidden}
-  <button
-    type="button"
-    class={`composer-tab mode-tab ${modePlanning ? "text-info" : ""}`}
-    disabled={modeDisabled}
-    title={modeShortcut
-      ? `Mode: ${modeLabel} (${modeShortcut})`
-      : `Mode: ${modeLabel} (click to switch)`}
-    aria-keyshortcuts={modeShortcutAria}
-    data-tour-id="composer-mode"
-    onclick={() => onToggleMode?.()}
+{#key capabilityScopeKey}
+  <ComposerProfilePicker
+    {agentProfiles}
+    {agentProfile}
+    disabled={profileDisabled}
+    {controlsDisabled}
+    shortcut={profileShortcut}
+    shortcutAria={profileShortcutAria}
+    onChange={onAgentProfileChange}
+  />
+{/key}
+
+{#key capabilityScopeKey}
+  <ComposerModelPicker
+    {models}
+    {selectedModelKey}
+    {thinkingLevel}
+    emptyMessage={modelEmptyMessage}
+    disabled={modelDisabled}
+    modelLocked={lockedFields.model}
+    thinkingLocked={lockedFields.thinking}
+    {lockReason}
+    onChange={onModelSelectionChange}
+  />
+{/key}
+{#if capabilityConfiguration?.resolution.diagnostics.some((diagnostic) => diagnostic.code === "unsupported-reasoning")}
+  <Badge
+    variant="outline"
+    class="text-destructive"
+    title="The model does not support the configured reasoning level. Review the controlling profile or choose a compatible pair."
   >
-    {#if modePlanning}
-      <ClipboardList aria-hidden="true" />
-    {:else}
-      <Code2 aria-hidden="true" />
-    {/if}
-    <span class="@max-[500px]/composer-toolbar:hidden">{modeLabel}</span>
-  </button>
+    {capabilityConfiguration.resolution.provenance["/reasoningLevel"]
+      ?.source === "requirement"
+      ? "Requirement conflict"
+      : "Reasoning conflict"}
+  </Badge>
 {/if}
 
-<ComposerModelPicker
-  {models}
-  {selectedModelKey}
-  {thinkingLevel}
-  disabled={modelDisabled}
-  {onModelChange}
-  {onThinkingLevelChange}
-  {runtimeChangeHint}
-  emptyMessage={modelEmptyMessage}
-  {modelShortcut}
-  {thinkingShortcut}
-/>
-
-<Popover
-  bind:open={permissionOpen}
-  size="sm"
-  triggerClass={`composer-tab ${showPermissionLabel ? "" : "w-control p-0"} ${activePermission.id === "autonomous" ? "text-warning" : ""}`}
-  ariaLabel="Permission rule set"
-  triggerTitle={permissionShortcut
-    ? `Permission rule set: ${activePermission.name} (${permissionShortcut})`
-    : `Permission rule set: ${activePermission.name}`}
-  triggerAriaKeyShortcuts={permissionShortcutAria}
-  side="top"
-  align="start"
->
-  {#snippet trigger()}
-    <span
-      class={`inline-flex items-center justify-center gap-1 ${controlsDisabled ? "opacity-60" : ""}`}
-      data-tour-id="composer-permission"
-    >
-      {#if activePermission.id === "read_only"}
-        <Lock />
-      {:else if activePermission.id === "autonomous"}
-        <Zap />
-      {:else}
-        <Shield />
-      {/if}
-      {#if showPermissionLabel}<span
-          class="@max-[440px]/composer-toolbar:hidden"
-          >{activePermission.name}</span
-        >{/if}
-    </span>
-  {/snippet}
-  <PopoverHeader title="Permissions">
-    {#snippet actions()}
-      <Button
-        size="icon"
-        variant="ghost"
-        disabled={permissionRuleSetsLoading}
-        ariaLabel="Refresh permission rule sets"
-        title="Refresh permission rule sets"
-        onclick={() => onRefreshPermissionRuleSets?.()}
+{#key capabilityScopeKey}
+  <Popover
+    triggerWidthKey={`${activePermission.id}:${showPermissionLabel ? activePermission.name : ""}`}
+    bind:open={permissionOpen}
+    size="sm"
+    triggerClass={`composer-tab ${showPermissionLabel ? "" : "w-control p-0"}`}
+    ariaLabel="Permission rule set"
+    triggerTitle={`Permission rule set: ${activePermission.name}${permissionShortcut ? ` (${permissionShortcut})` : ""}${lockedFields.permission ? ` · Locked by ${lockedFields.by ?? "the applied profile"}` : ""}`}
+    triggerAriaKeyShortcuts={permissionShortcutAria}
+    side="top"
+    align="start"
+  >
+    {#snippet trigger()}
+      <span
+        class={`inline-flex items-center justify-center gap-1 ${controlsDisabled ? "opacity-60" : ""}`}
+        data-tour-id="composer-permission"
       >
-        <RefreshCw
-          class={`size-3.5 ${permissionRuleSetsLoading ? "animate-spin" : ""}`}
-          aria-hidden="true"
-        />
-      </Button>
-      <Button
-        size="icon"
-        variant="ghost"
-        ariaLabel="Open permission settings"
-        title="Open permission settings"
-        onclick={openPermissionSettings}
-      >
-        <Settings class="size-3.5" aria-hidden="true" />
-      </Button>
+        {#if activePermission.id === "read_only"}
+          <ShieldMinus aria-hidden="true" />
+        {:else if activePermission.id === "autonomous"}
+          <ShieldZap aria-hidden="true" />
+        {:else if activePermission.id === "supervised"}
+          <ShieldCheck aria-hidden="true" />
+        {:else if activePermission.id === "planning"}
+          <ShieldEllipsis aria-hidden="true" />
+        {:else}
+          <ShieldCog aria-hidden="true" />
+        {/if}
+        {#if showPermissionLabel}<span
+            class="@max-[440px]/composer-toolbar:hidden"
+            >{activePermission.name}</span
+          >{/if}
+      </span>
     {/snippet}
-  </PopoverHeader>
-  <PopoverBody>
-    {#if permissionRuleSetsError}
-      <p class="px-1.5 text-warning">{permissionRuleSetsError}</p>
-    {/if}
-    {#if !activePermission.available}
-      <PopoverRow
-        label={activePermission.name}
-        title={activePermission.description}
-        selected
-        disabled
-      >
-        {#snippet trailing()}
-          <span class="flex-none text-muted-foreground">Unavailable</span>
-        {/snippet}
-      </PopoverRow>
-    {/if}
-    {#each permissionRuleSets as option (option.id)}
-      <PopoverRow
-        label={option.name}
-        title={permissionTitle(option)}
-        selected={option.id === permissionRuleSetId}
-        disabled={controlsDisabled || modePlanning}
-        onclick={() => selectPermission(option.id)}
-      >
-        {#snippet trailing()}
-          {#if option.source !== "builtin"}
-            <span class="flex-none text-muted-foreground">Custom</span>
-          {/if}
-        {/snippet}
-      </PopoverRow>
-    {/each}
-  </PopoverBody>
-</Popover>
+    <PopoverHeader title="Permissions">
+      {#snippet actions()}
+        <Button
+          size="icon"
+          variant="ghost"
+          disabled={permissionRuleSetsLoading}
+          ariaLabel="Refresh permission rule sets"
+          title="Refresh permission rule sets"
+          onclick={() => onRefreshPermissionRuleSets?.()}
+        >
+          <RefreshCw
+            class={`size-3.5 ${permissionRuleSetsLoading ? "animate-spin" : ""}`}
+            aria-hidden="true"
+          />
+        </Button>
+        <Button
+          size="icon"
+          variant="ghost"
+          ariaLabel="Open permission settings"
+          title="Open permission settings"
+          onclick={openPermissionSettings}
+        >
+          <Settings class="size-3.5" aria-hidden="true" />
+        </Button>
+      {/snippet}
+    </PopoverHeader>
+    <PopoverBody>
+      {#if lockedFields.permission}
+        <p class="px-1.5 text-muted-foreground">
+          Locked by {lockedFields.by ?? "the applied profile"}.
+        </p>
+      {/if}
+      {#if permissionRuleSetsError}
+        <p class="px-1.5 text-warning">{permissionRuleSetsError}</p>
+      {/if}
+      {#if !activePermission.available}
+        <PopoverRow
+          label={activePermission.name}
+          title={activePermission.description}
+          selected
+          disabled
+        >
+          {#snippet trailing()}
+            <span class="flex-none text-muted-foreground">Unavailable</span>
+          {/snippet}
+        </PopoverRow>
+      {/if}
+      {#each permissionRuleSets as option (option.id)}
+        <PopoverRow
+          label={option.name}
+          title={permissionTitle(option)}
+          selected={option.id === permissionRuleSetId}
+          disabled={controlsDisabled || lockedFields.permission}
+          onclick={() => selectPermission(option.id)}
+        >
+          {#snippet trailing()}
+            {#if option.source !== "builtin"}
+              <span class="flex-none text-muted-foreground">Custom</span>
+            {/if}
+          {/snippet}
+        </PopoverRow>
+      {/each}
+    </PopoverBody>
+  </Popover>
+{/key}
+
+<ComposerSettingStatus
+  label="Permission"
+  differs={settingsDiffers.permission && !lockedFields.permission}
+  disabled={controlsDisabled}
+  onReset={onResetPermission}
+/>
 
 {#key capabilityScopeKey}
   <ComposerCapabilitiesPopover
     configuration={capabilityConfiguration}
-    subagentProfiles={capabilityProfiles}
+    {lockedFields}
     {subagentControlsEnabled}
+    subagentProfiles={capabilitySubagentProfiles}
     skills={capabilitySkills}
     loading={capabilityLoading}
     error={capabilityError}

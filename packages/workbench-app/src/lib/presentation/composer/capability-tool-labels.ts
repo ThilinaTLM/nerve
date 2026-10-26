@@ -7,19 +7,11 @@ export type CapabilityToolGroup = {
   searchText?: string;
 };
 
-/**
- * Conversation-level rows mirror the capability families shown in Settings.
- * A family still patches every concrete tool name because capability documents
- * and runtime policy remain tool-specific.
- */
+/** Each conversation row controls one concrete capability independently. */
 const capabilityToolCatalog: CapabilityToolGroup[] = [
   { key: "subagents", label: "Sub-agents", names: ["subagents"] },
-  {
-    key: "web",
-    label: "Web access",
-    names: ["web_search", "web_fetch"],
-    searchText: "Web search Web fetch",
-  },
+  { key: "web_search", label: "Web search", names: ["web_search"] },
+  { key: "web_fetch", label: "Web fetch", names: ["web_fetch"] },
   {
     key: "explain_image",
     label: "Image explanation",
@@ -35,20 +27,12 @@ const capabilityToolCatalog: CapabilityToolGroup[] = [
     label: "Diagram export",
     names: ["kroki_export"],
   },
+  { key: "bash", label: "Shell", names: ["bash"] },
   { key: "python_exec", label: "Python", names: ["python_exec"] },
+  { key: "plan_present", label: "Plan review", names: ["plan_present"] },
   { key: "jira", label: "Jira", names: ["jira"] },
   { key: "confluence", label: "Confluence", names: ["confluence"] },
 ];
-
-/** Delegation has its own tab, but remains the same canonical capability. */
-export function capabilityToolGroupsForTab(
-  tools: readonly CapabilityToolName[],
-  tab: "tools" | "subagents",
-): CapabilityToolGroup[] {
-  return capabilityToolGroupsFor(tools).filter(
-    (group) => group.names.includes("subagents") === (tab === "subagents"),
-  );
-}
 
 export function capabilityToolGroupsFor(
   tools: readonly CapabilityToolName[],

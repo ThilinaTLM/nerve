@@ -2,18 +2,21 @@ import {
   formatSkillsForSystemPrompt,
   type Skill,
 } from "@nervekit/harness/resources";
-import { promptText } from "./prompt-text.js";
 
 export interface BuildNerveSystemPromptOptions {
   customPrompt?: string;
+  /** Conversation-local full base override; captured instructions still contribute. */
+  systemPrompt?: string | null;
   selectedTools?: string[];
-  promptGuidelines?: string[];
   appendSystemPrompt?: string;
   cwd: string;
-  mode?: "planning" | "coding";
-  planDir?: string;
   contextFiles?: Array<{ path: string; content: string }>;
   skills?: Skill[];
+  agentProfiles?: Array<{
+    name: string;
+    description: string;
+    permission: string;
+  }>;
   /** Persona and working rules for this conversation only. */
   instructions?: string | null;
 }
@@ -21,6 +24,10 @@ export interface BuildNerveSystemPromptOptions {
 export function buildNerveSystemPrompt(
   options: BuildNerveSystemPromptOptions,
 ): string {
+  if (options.systemPrompt != null)
+    return [options.systemPrompt, options.instructions]
+      .filter(Boolean)
+      .join("\n\n");
   const cwd = options.cwd.replace(/\\/g, "/");
   const date = currentDate();
   const tools = options.selectedTools ?? ["read", "bash", "edit", "write"];
@@ -28,64 +35,53 @@ export function buildNerveSystemPrompt(
 
   const basePrompt = options.customPrompt?.trim()
     ? options.customPrompt
-    : defaultPrompt({
-        promptGuidelines: options.promptGuidelines ?? [],
-      });
+    : defaultPrompt(tools.includes("ask_user"));
 
   const skillsBlock =
     hasRead && (options.skills?.length ?? 0) > 0
       ? formatSkillsForSystemPrompt(options.skills ?? [])
       : "";
 
-  const planModeBlock =
-    options.mode === "planning"
-      ? buildPlanModeInstructions(options.planDir ?? "Nerve plan storage")
-      : "";
   const environmentBlock = formatEnvironment({ date, cwd });
 
   return [
     basePrompt,
     options.appendSystemPrompt,
-    options.mode === "planning" ? buildModeOwnershipInstructions() : "",
-    planModeBlock,
-    formatProjectInstructions(options.contextFiles ?? []),
     options.instructions?.trim()
-      ? [
-          "<agent_instructions>",
-          options.instructions.trim(),
-          "</agent_instructions>",
-        ].join("\n")
+      ? ["<instructions>", options.instructions.trim(), "</instructions>"].join(
+          "\n",
+        )
       : "",
+    formatProjectInstructions(options.contextFiles ?? []),
     skillsBlock,
+    tools.includes("subagent_prompt") && options.agentProfiles?.length
+      ? formatTaggedBulletSection(
+          "available_agent_profiles",
+          options.agentProfiles.map(
+            (profile) =>
+              `${profile.name}: ${profile.description} (permission: ${profile.permission})`,
+          ),
+        )
+      : "",
     environmentBlock,
   ]
     .filter((section): section is string => Boolean(section?.trim()))
     .join("\n\n");
 }
 
-function defaultPrompt(options: { promptGuidelines: string[] }): string {
-  const toolRules: string[] = [];
-  const seen = new Set<string>();
-  const addToolRule = (value: string) => {
-    const normalized = value.trim();
-    if (!normalized || seen.has(normalized)) return;
-    seen.add(normalized);
-    toolRules.push(normalized);
-  };
-
-  for (const guideline of options.promptGuidelines) addToolRule(guideline);
-
-  return promptText`
-    You are Nerve's coding agent. Work safely in the current project and keep responses concise.
-
-    ${formatTaggedBulletSection("tool_rules", toolRules)}
-
-    <working_rules>
-    - Continue until the task is complete or blocked by a user decision.
-    - Use Mermaid diagrams when they clarify complex relationships or flows; otherwise prefer prose.
-    - In the final response, summarize changes, validation, and remaining limits.
-    </working_rules>
-  `;
+function defaultPrompt(hasAskUser: boolean): string {
+  return [
+    "You are Nerve's coding agent, working in the user's project. Keep responses concise.",
+    formatTaggedBulletSection("guidelines", [
+      "Continue until the task is complete or blocked by a user decision.",
+      "Read skills when relevant or explicitly required; resolve their relative paths from the skill directory.",
+      "While async work runs, do independent work or end your turn with a brief status. Completion notifications resume you; never sleep or poll just to wait.",
+      "Responses render as Markdown with Mermaid; use diagrams for complex relationships or flows, otherwise prose.",
+      ...(hasAskUser
+        ? ["Ask the user questions with `ask_user`, not in your reply."]
+        : []),
+    ]),
+  ].join("\n\n");
 }
 
 function formatTaggedBulletSection(tag: string, items: string[]): string {
@@ -95,30 +91,6 @@ function formatTaggedBulletSection(tag: string, items: string[]): string {
 
 function formatBulletList(items: string[]): string {
   return items.map((item) => `- ${item}`).join("\n");
-}
-
-function buildModeOwnershipInstructions(): string {
-  return promptText`
-    <mode_controls>
-    Conversation mode is user-controlled. Only the user can enter planning mode or manually leave it; ask the user to change mode when needed.
-    Presenting a plan with plan_mode_present does not change mode. User approval of the plan switches to coding mode; rejection leaves the mode unchanged and ends the current execution. After rejection, wait for a new user prompt before revising the plan or doing any further work.
-    </mode_controls>
-  `;
-}
-
-function buildPlanModeInstructions(planDir: string): string {
-  const planDirAttribute = escapeXml(planDir.replace(/\\/g, "/"));
-  return promptText`
-    <plan_mode active="true" plan_dir="${planDirAttribute}">
-    Research and produce a user-reviewed implementation plan before workspace changes.
-
-    - Keep research read-only; write only plan files under plan_dir.
-    - Inspect the codebase, compare viable approaches, and ask the user only about requirement-dependent decisions.
-    - Write a self-contained plan with affected files/symbols, ordered steps, validation, risks, and migrations when applicable.
-    - Resolve every decision; leave no open questions or placeholders.
-    - Present the plan with plan_mode_present and obtain approval before implementation.
-    </plan_mode>
-  `;
 }
 
 function formatEnvironment(options: { date: string; cwd: string }): string {

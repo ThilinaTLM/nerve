@@ -12,9 +12,10 @@ Nerve separates portable configuration, secrets, core relational data, managed f
 <NERVE_HOME>/
 ├── manifest.json
 ├── daemon.json
-├── config/                 # daemon, harness, UI, providers, integrations, permissions
+├── config/                 # daemon, agent, conversation defaults, UI, catalogs, permissions
 ├── secrets/                # master.key, credentials.enc, daemon-token
 ├── data/
+│   ├── agent-profiles/     # complete reusable profile definitions
 │   ├── nerve.sqlite
 │   ├── conversations/      # owned tool files, bash output, reports, config overlays
 │   ├── launches/           # workbench launch logs
@@ -44,7 +45,7 @@ Homes from 0.34.1 are converted to this layout by the first [storage migration](
 
 [`conversation-core/src/storage`](../../packages/conversation-core/src/storage/) owns the database, SQL migrations and repositories. It uses synchronous `node:sqlite` on the main thread, WAL, foreign keys and small indexed queries. Transactions use `BEGIN IMMEDIATE`; nested calls join the outer transaction and asynchronous callbacks are rejected. JSON is validated by [`contracts/core`](../../packages/contracts/src/domains/core/) at repository boundaries.
 
-There are **11 tables**, covering foundation records, conversation state/history/work and scratch notes. See [data model](conversation-core/data-model.md) for the table relationships rather than a second schema here. The core has no agent/run tables, domain-document store, journal/checkpoints, projections, RPC receipt table or separate durable notification store.
+There are **10 tables**, covering foundation records, conversation state/history/work and scratch notes. See [data model](conversation-core/data-model.md) for the table relationships rather than a second schema here. The core has no agent/run tables, domain-document store, journal/checkpoints, projections, RPC receipt table or separate durable notification store.
 
 Current configuration is separate from append-only event history. Every event links into the tree, even operational facts; selected-head history drives the transcript and model projection. Durable replay uses event sequence across all branches. Tool-call settlement and input delivery append facts and delete unfinished rows transactionally. See [events and context](conversation-core/events-and-context.md), [tool-call lifecycle](conversation-core/tool-call-lifecycle.md) and [input queue](conversation-core/input-queue.md).
 
@@ -52,7 +53,7 @@ Current configuration is separate from append-only event history. Every event li
 
 ## Files and permissions
 
-[Scoped configuration](configuration.md) defines the common user (`<NERVE_HOME>/config/`), project (`<project>/.nerve/config/`) and conversation (`<NERVE_HOME>/data/conversations/<id>/config/`) roots across tools, skill selections, profiles, permission overlays and compaction. Built-in defaults have no writable root. Domains retain separate documents and merge rules; SQLite conversation configuration remains an intentional exception. The same document defines shared path infrastructure, save guarantees and next-request freshness.
+[Scoped configuration](configuration.md) defines the common user (`<NERVE_HOME>/config/`), project (`<project>/.nerve/config/`) and conversation (`<NERVE_HOME>/data/conversations/<id>/config/`) roots across tools, skill selections, profiles, permission overlays and compaction. Built-in defaults have no writable root. Agent preferences and conversation prompt context live in scoped `agent.json`; SQLite retains working directory on `conversation`, not agent configuration. The same document defines shared path infrastructure, save guarantees and next-request freshness.
 
 The host supplies an asset root at `<NERVE_HOME>/data`. New managed output lives under:
 
@@ -70,22 +71,19 @@ The host supplies an asset root at `<NERVE_HOME>/data`. New managed output lives
 
 Custom rule sets are JSON files under `config/rule-sets/`. Project overlays apply only when file-content trust matches their digest. “Always allow” writes the selected overlay; there is no grant table. See [permissions](permissions.md).
 
-Tool and skill capabilities use the same three layers, also as files:
+Agent preferences (model, reasoning, permission selection, compaction, retry, tools, skills and lead-only launch selections) live in user/project/conversation `config/agent.json`. Conversation documents also hold the applied profile snapshot, conversation-only `context.instructions`/`context.systemPrompt`, and child frozen defaults. SQLite has no `conversation_config`; working directory lives on `conversation`.
 
-- User: `settings.tools` and `settings.skills` in user settings.
-- Project: `<project>/.nerve/config/capabilities.json`, applied only when trusted for its exact content.
-- Conversation: `data/conversations/<conversationId>/config/capabilities.json`; a missing file inherits everything.
+Creation/picker preferences live in user/project `config/conversation-defaults.json`. Reusable profiles are complete per-name definitions at `<NERVE_HOME>/data/agent-profiles/<name>.json` and `<project>/.nerve/agent-profiles/<name>.json`; project definitions shadow whole lower definitions. Existing conversations retain their applied snapshot until explicit switch/reapplication. See [profiles](agent-profiles.md).
 
-See [capabilities](conversation-core/README.md#capabilities) for the override rules.
+Prompt suggestions remain Markdown (built-in, `agent/suggestions/`, `<project>/.nerve/suggestions/`); enablement stays in `config/prompt-suggestions.json`. Suggestion predicate trust and permission/profile exact-byte trust retain their distinct identities.
 
-Compaction settings have the same layers in `harness.json`: user `config/harness.json`, project `<project>/.nerve/config/harness.json`, and `data/conversations/<conversationId>/config/harness.json`, which holds only conversation-scoped settings and replaces the inherited compaction value as a whole. See [delegation](conversation-core/delegation.md#compaction-settings).
+`cache/conversation-agent-summaries.json` holds disposable list display values, never executable settings. Missing cache entries remain unknown; startup does not enumerate conversation documents to fill them. See the [domain registry](../proposals/scoped-configuration-and-active-profiles/domain-inventory.md) for preserved paths and schemas.
 
-Prompt suggestions are Markdown files (built-in, `agent/suggestions/`, `<project>/.nerve/suggestions/`). Trust in a suggestion's JavaScript predicate is a `TRUSTED_RESOURCE` row for its exact content; enabled/disabled choices live in `config/prompt-suggestions.json`.
-
-Sub-agent profiles use one versioned JSON document per writable scope as described in the [customization reference](subagent-profiles.md): user `config/subagents.json`, project `<project>/.nerve/config/subagents.json`, and conversation `data/conversations/<id>/config/subagents.json`. Each contains sparse named overrides including enabled state and instructions; there are no separate Markdown definitions or enablement preferences. Built-in → user → project → conversation resolution retains explicit values until reset; copy-to-scope materializes effective fields. Project document trust is bound to exact content through existing trust storage, with no new database tables or columns. Entry edits, toggles and resets in an untrusted imported document do not grant whole-document trust or activate untouched entries; explicit whole-document trust is required. Nerve-authored updates may automatically trust missing/new documents or updates to previously exact-trusted documents only. Profile-document trust does not establish independent trust for skill content; skill loadability retains existing resource-loader security semantics, with no new skill trust system or database gate. Conversation documents are deleted with their owner. Profiles configure new children only; existing children use their own configuration. See [delegation](conversation-core/delegation.md#profiles). Conversion covers user resources and registered projects, not all directories on disk. Conversion preserves damaged or conflicting sources rather than guessing capability intent; recovery and conversion limits are step-specific. Later-opened unregistered old projects need canonical `.nerve/config/subagents.json`; there is no runtime legacy loader. See [conversion limits](../../packages/workbench-server/src/infrastructure/migrations/steps/0001-conversation-core/README.md). Dev homes with an earlier draft of step 0001 already applied need a baseline rebuild/copy; an extension does not rerun an applied ledger entry (see [migration limitation](../../packages/workbench-server/src/infrastructure/migrations/steps/0001-conversation-core/README.md)).
+Released v0.37.0 `harness.json`, `capabilities.json` and `subagents.json` are converted and retired by step `0002-agent-profiles`; frozen readers exist only inside that migration. Verified exports precede removal of SQLite agent configuration. Later-encountered projects upgrade before activation; no runtime dual-read fallback exists.
 
 ## In-memory state and restart
 
+- Validated UI configuration saves publish directly. There are no file watchers; manual edits need restart for guaranteed activation or an explicit Reload/Retry re-read. Health diagnostics and confirmed repair previews preserve damaged sources; invalid required/security configuration blocks affected execution rather than silently inheriting.
 - Streaming text/thinking, argument drafts, tool progress and channel notices are ephemeral.
 - Workbench file and git monitors, integration health and the latest maintenance operation live in service memory. Reconnect re-fetches snapshots; no workspace replay is persisted.
 - Launch instances start empty after daemon restart; graceful shutdown cancels them. A crash may leave detached processes, intentionally without recovery.

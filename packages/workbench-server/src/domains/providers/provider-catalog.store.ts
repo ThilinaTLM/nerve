@@ -9,7 +9,6 @@ import { type HeaderConfig } from "@nervekit/contracts/settings";
 import type { InitializedStorage } from "../../infrastructure/storage-bootstrap/index.js";
 import { serializeSettingsMutation } from "../../infrastructure/storage-bootstrap/settings-mutations.js";
 import { writeHomeConfiguration } from "../../infrastructure/configuration/index.js";
-import { resolveProjectConfiguration } from "../../infrastructure/configuration/index.js";
 
 /** Non-sensitive provider/model metadata stored in config/providers.json. */
 export class ProviderCatalogStore {
@@ -114,11 +113,8 @@ export class ProviderCatalogStore {
 
   async resolvedModelsWithCredentials(
     getCredential: (name: string) => Promise<string | undefined>,
-    projectDir?: string,
   ): Promise<AgentCustomModel[]> {
-    const configuration = projectDir
-      ? await resolveProjectConfiguration(this.storage, projectDir)
-      : this.storage.configuration;
+    const configuration = this.storage.configuration;
     const providers = new Map(
       configuration.providers.providers.map((provider) => [
         provider.id,

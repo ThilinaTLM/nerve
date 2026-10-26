@@ -1,6 +1,7 @@
 import MessageSquarePlus from "@lucide/svelte/icons/message-square-plus";
 import MessageSquareText from "@lucide/svelte/icons/message-square-text";
 import Copy from "@lucide/svelte/icons/copy";
+import Settings from "@lucide/svelte/icons/settings";
 import Trash2 from "@lucide/svelte/icons/trash-2";
 import Pin from "@lucide/svelte/icons/pin";
 import PinOff from "@lucide/svelte/icons/pin-off";
@@ -39,6 +40,7 @@ export type ProjectTreeMenuContext = {
   onNewConversationInProject?: (projectDir: string) => void;
   onOpenProjectInEditor?: (projectId: string, editor: ProjectEditor) => void;
   onOpenProjectInTerminal?: (projectId: string) => void;
+  onOpenProjectSettings?: (projectId: string) => void;
   requestPrune: (project: ProjectRecord) => void;
   requestDelete: (target: DeleteTarget) => void;
 };
@@ -124,6 +126,13 @@ export function buildProjectMenu(
       onSelect: () => ctx.onNewConversationInProject?.(project.dir),
     },
   ];
+  if (ctx.onOpenProjectSettings) {
+    items.push({
+      label: "Project settings",
+      icon: Settings,
+      onSelect: () => ctx.onOpenProjectSettings?.(project.id),
+    });
+  }
   if (launchItems.length > 0) {
     items.push({ type: "separator" }, ...launchItems);
   }

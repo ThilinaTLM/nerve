@@ -2,6 +2,14 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import type { PendingConversationState } from "$lib/application/workspace/pending-conversations.svelte";
 import { submitPendingConversation } from "./submit-pending-conversation";
+import {
+  applySettingsMutation,
+  type LeadSettingsOverrides,
+} from "@nervekit/contracts/agent-configuration";
+import {
+  mutateDraftSettings,
+  replacementSettingsMutation,
+} from "$lib/application/agent-configuration/override-view";
 
 type Pending = Parameters<typeof submitPendingConversation>[0];
 function draft(): Pending {
@@ -14,128 +22,127 @@ function draft(): Pending {
       systemPrompt: null,
       instructions: null,
       permissionRuleSetId: "default",
-      mode: "coding",
+      agentProfile: "coding",
       workingDirectory: "/project",
-    },
-    subagentProfileOverrides: {
-      schemaVersion: 1,
-      profiles: { explore: { enabled: false } },
     },
   } satisfies Pick<PendingConversationState, keyof Pending>;
 }
+function context(config: Pending["config"]) {
+  const { systemPrompt, instructions, workingDirectory } = config;
+  return { systemPrompt, instructions, workingDirectory };
+}
 function setup(pending = draft()) {
   const calls: string[] = [];
-  const profileInputs: Array<{
-    expectedDigest: string | null;
-    document: NonNullable<Pending["subagentProfileOverrides"]>;
-  }> = [];
-  const snapshot = { conversation: { id: "conv_one" }, marker: "snapshot" };
+  const created: unknown[] = [];
+  const snapshot = {
+    conversation: { id: "conv_one" },
+    config: { agentProfile: "coding" },
+    marker: "snapshot",
+  };
+  const create: Parameters<
+    typeof submitPendingConversation<typeof snapshot>
+  >[2]["create"] = async (input) => {
+    calls.push("create");
+    created.push(input.overrides);
+    return snapshot;
+  };
   const dependencies = {
-    create: async () => {
-      calls.push("create");
-      return snapshot;
-    },
+    create,
     getSnapshot: async (id: string) => {
       calls.push(`get:${id}`);
       return snapshot;
     },
-    configure: async (id: string, config: Pending["config"]) => {
+    configure: async (
+      id: string,
+      config: Partial<
+        Pick<
+          Pending["config"],
+          "systemPrompt" | "instructions" | "workingDirectory"
+        >
+      >,
+    ) => {
       assert.equal(id, "conv_one");
-      assert.deepEqual(config, pending.config);
+      assert.deepEqual(config, context(pending.config));
       calls.push("configure");
     },
-    saveCapabilities: async () => {
-      calls.push("capabilities");
+    setAgentProfile: async (id: string, profile: string) => {
+      calls.push(`profile:${id}:${profile}`);
     },
-    saveProfiles: async (input: (typeof profileInputs)[number]) => {
-      calls.push("profiles");
-      profileInputs.push(input);
-      return { digest: "saved-digest" };
+    resolveProfile: async (_projectId: string, name: string) => ({
+      name,
+      digest: "a".repeat(64),
+    }),
+    saveOverrides: async () => {
+      calls.push("overrides");
     },
     submit: async (id: string, text: string) => {
       calls.push(`input:${id}:${text}`);
     },
   };
-  return { pending, calls, profileInputs, snapshot, dependencies };
+  return { pending, calls, created, snapshot, dependencies };
 }
 
-test("first input starts only after capability and profile configuration is saved", async () => {
-  const { pending, calls, profileInputs, snapshot, dependencies } = setup();
+test("retry replaces a previously created override when the draft returns to inheritance", async () => {
+  const { pending, dependencies } = setup();
+  const baseline = { model: { provider: "openai", modelId: "A" } };
+  pending.inheritedSettings = baseline;
+  pending.overrides = { model: { provider: "openai", modelId: "B" } };
+  let persisted: LeadSettingsOverrides = {};
+  let failInput = true;
+  const retryDependencies = {
+    ...dependencies,
+    create: async (input: Parameters<typeof dependencies.create>[0]) => {
+      persisted = input.overrides ?? {};
+      return dependencies.create(input);
+    },
+    saveOverrides: async (_id: string, desired: LeadSettingsOverrides) => {
+      persisted = applySettingsMutation(persisted, {
+        expectedRevision: 1,
+        expectedDigest: "a".repeat(64),
+        ...replacementSettingsMutation(persisted, desired),
+      });
+    },
+    submit: async () => {
+      if (failInput) throw new Error("first input failed");
+    },
+  };
+  await assert.rejects(
+    submitPendingConversation(pending, "hello", retryDependencies),
+    /first input failed/,
+  );
+  assert.equal(pending.createdConversationId, "conv_one");
+  assert.equal(persisted.model?.modelId, "B");
+  pending.overrides = mutateDraftSettings(
+    pending.overrides,
+    baseline,
+    [],
+    baseline,
+  );
+  assert.deepEqual(pending.overrides, {});
+  failInput = false;
+  await submitPendingConversation(pending, "hello", retryDependencies);
+  assert.deepEqual(persisted, {});
+});
+
+test("creation carries the sparse choices and no post-create save follows", async () => {
+  const { pending, calls, created, snapshot, dependencies } = setup();
+  pending.overrides = {
+    tools: { web_search: { enabled: false } },
+  };
   const result = await submitPendingConversation(
     pending,
     "hello",
     dependencies,
   );
   assert.equal(result, snapshot);
-  assert.deepEqual(calls, [
-    "create",
-    "capabilities",
-    "profiles",
-    "input:conv_one:hello",
-  ]);
+  // Creation carries the sparse choices; there is no post-create save.
+  assert.deepEqual(calls, ["create", "input:conv_one:hello"]);
+  assert.deepEqual(created, [pending.overrides]);
   assert.equal(pending.createdConversationId, "conv_one");
-  assert.equal(pending.subagentProfileDigest, "saved-digest");
-  assert.equal(profileInputs[0]?.expectedDigest, null);
-  assert.deepEqual(
-    profileInputs[0]?.document,
-    pending.subagentProfileOverrides,
-  );
 });
 
-test("an unedited draft inherits profiles without creating a profile file", async () => {
+test("input failure retries on the created conversation with the edited draft", async () => {
   const { pending, calls, dependencies } = setup();
-  delete pending.subagentProfileOverrides;
-  await submitPendingConversation(pending, "hello", dependencies);
-  assert.deepEqual(calls, ["create", "capabilities", "input:conv_one:hello"]);
-  assert.equal(pending.subagentProfileDigest, undefined);
-});
-
-test("a failed capability save stops profile persistence and input submission", async () => {
-  const { pending, calls, dependencies } = setup();
-  dependencies.saveCapabilities = async () => {
-    calls.push("capabilities-failed");
-    throw new Error("capability save failed");
-  };
-  await assert.rejects(
-    submitPendingConversation(pending, "hello", dependencies),
-    /capability save failed/,
-  );
-  assert.deepEqual(calls, ["create", "capabilities-failed"]);
-  assert.equal(pending.createdConversationId, "conv_one");
-  assert.equal(pending.subagentProfileDigest, undefined);
-});
-
-test("a failed profile save retains the draft and created conversation, and never submits input", async () => {
-  const { pending, calls, dependencies } = setup();
-  const original = pending.subagentProfileOverrides;
-  dependencies.saveProfiles = async () => {
-    calls.push("profiles-failed");
-    throw new Error("profile save failed");
-  };
-  await assert.rejects(
-    submitPendingConversation(pending, "hello", dependencies),
-    /profile save failed/,
-  );
-  assert.deepEqual(calls, ["create", "capabilities", "profiles-failed"]);
-  assert.equal(pending.createdConversationId, "conv_one");
-  assert.equal(pending.subagentProfileDigest, undefined);
-  assert.equal(pending.subagentProfileOverrides, original);
-  dependencies.saveProfiles = async () => {
-    calls.push("profiles-retry");
-    return { digest: "saved-digest" };
-  };
-  await submitPendingConversation(pending, "hello", dependencies);
-  assert.deepEqual(calls.slice(3), [
-    "configure",
-    "get:conv_one",
-    "capabilities",
-    "profiles-retry",
-    "input:conv_one:hello",
-  ]);
-});
-
-test("input failure retries with the saved digest instead of creating another conversation", async () => {
-  const { pending, calls, profileInputs, dependencies } = setup();
   const successfulSubmit = dependencies.submit;
   dependencies.submit = async () => {
     calls.push("input-failed");
@@ -145,84 +152,64 @@ test("input failure retries with the saved digest instead of creating another co
     submitPendingConversation(pending, "hello", dependencies),
     /submit failed/,
   );
-  assert.equal(pending.subagentProfileDigest, "saved-digest");
   dependencies.submit = successfulSubmit;
+  pending.config.instructions = "Use these instructions";
   await submitPendingConversation(pending, "hello", dependencies);
-  assert.deepEqual(calls.slice(4), [
+  assert.deepEqual(calls.slice(2), [
     "configure",
     "get:conv_one",
-    "capabilities",
-    "profiles",
+    "overrides",
     "input:conv_one:hello",
   ]);
-  assert.deepEqual(
-    profileInputs.map((input) => input.expectedDigest),
-    [null, "saved-digest"],
-  );
 });
 
-test("external profile conflicts stop retries without accepting the new digest", async () => {
+test("an explicit profile change on retry switches through setAgentProfile", async () => {
   const { pending, calls, dependencies } = setup();
   pending.createdConversationId = "conv_one";
-  pending.subagentProfileDigest = "previous-digest";
-  dependencies.saveProfiles = async (input) => {
-    assert.equal(input.expectedDigest, "previous-digest");
-    calls.push("conflict");
-    throw new Error("Document changed; reload before saving");
-  };
-  await assert.rejects(
-    submitPendingConversation(pending, "hello", dependencies),
-    /Document changed/,
-  );
+  pending.explicitAgentProfile = "planning";
+  await submitPendingConversation(pending, "hello", dependencies);
   assert.deepEqual(calls, [
     "configure",
     "get:conv_one",
-    "capabilities",
-    "conflict",
-  ]);
-  assert.equal(pending.subagentProfileDigest, "previous-digest");
-  assert.equal(
-    pending.subagentProfileOverrides?.profiles.explore?.enabled,
-    false,
-  );
-});
-
-test("pending configuration is snapshotted before asynchronous creation", async () => {
-  const { pending, profileInputs, dependencies } = setup();
-  let release!: () => void;
-  const gate = new Promise<void>((resolve) => {
-    release = resolve;
-  });
-  const create = dependencies.create;
-  dependencies.create = async () => {
-    await gate;
-    return create();
-  };
-  const submission = submitPendingConversation(pending, "hello", dependencies);
-  pending.subagentProfileOverrides!.profiles.explore!.enabled = true;
-  release();
-  await submission;
-  assert.equal(profileInputs[0]?.document.profiles.explore?.enabled, false);
-});
-
-test("retry sends the edited draft configuration rather than the previously created configuration", async () => {
-  const { pending, calls, dependencies } = setup();
-  pending.createdConversationId = "conv_one";
-  pending.config.instructions = "Use these instructions for the next request";
-  pending.config.mode = "planning";
-  const configurations: Pending["config"][] = [];
-  dependencies.configure = async (id, config) => {
-    assert.equal(id, "conv_one");
-    calls.push("configure");
-    configurations.push(config);
-  };
-  await submitPendingConversation(pending, "hello", dependencies);
-  assert.deepEqual(configurations, [pending.config]);
-  assert.deepEqual(calls, [
-    "configure",
+    "profile:conv_one:planning",
     "get:conv_one",
-    "capabilities",
-    "profiles",
+    "overrides",
     "input:conv_one:hello",
   ]);
+});
+
+test("creation omits inherited agent values and binds explicit profiles to catalog bytes", async () => {
+  const { pending, dependencies } = setup();
+  pending.explicitAgentProfile = "planning";
+  dependencies.create = async (input) => {
+    assert.deepEqual(input.config, context(pending.config));
+    assert.deepEqual(input.overrides, {});
+    assert.deepEqual(input.agentProfile, {
+      name: "planning",
+      digest: "a".repeat(64),
+    });
+    return {
+      conversation: { id: "conv_one" },
+      config: { agentProfile: "planning" },
+      marker: "snapshot",
+    };
+  };
+  await submitPendingConversation(pending, "hello", dependencies);
+});
+
+test("creation strips redundant draft choices against its authoritative lower layer", async () => {
+  const { pending, created, dependencies } = setup();
+  pending.inheritedSettings = {
+    model: { provider: "openai", modelId: "inherited" },
+    reasoningLevel: "off",
+    tools: { web_search: { enabled: true } },
+  };
+  pending.overrides = {
+    ...pending.inheritedSettings,
+    permissionRuleSetId: "read_only",
+  };
+  await submitPendingConversation(pending, "hello", dependencies);
+  assert.deepEqual(created, [{ permissionRuleSetId: "read_only" }]);
+  // Submission/view normalization is not an implicit persisted save.
+  assert.equal(pending.overrides.reasoningLevel, "off");
 });

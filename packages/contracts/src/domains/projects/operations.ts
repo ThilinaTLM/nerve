@@ -1,3 +1,7 @@
+import {
+  projectInstructionsListParamsSchema,
+  projectInstructionsListResultSchema,
+} from "./project-instructions.js";
 import { z } from "zod";
 import { defineOperation } from "../../operations/definition.js";
 import {
@@ -8,6 +12,15 @@ import {
 } from "./project.js";
 const projectId = z.object({ projectId: z.string() });
 export const projectsOperationDefinitions = [
+  defineOperation(
+    "projectInstructions.list",
+    projectInstructionsListParamsSchema,
+    projectInstructionsListResultSchema,
+    "read",
+    "none",
+    ["workbench_server"] as const,
+    "operation.projectInstructions.list",
+  ),
   defineOperation(
     "project.openEditor",
     projectId.merge(openProjectInEditorRequestSchema),

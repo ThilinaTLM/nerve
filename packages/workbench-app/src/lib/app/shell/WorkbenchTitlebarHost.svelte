@@ -1,4 +1,6 @@
 <script lang="ts">
+import SettingsHealthItem from "$lib/presentation/activity/SettingsHealthItem.svelte";
+import { settingsHealth } from "$lib/application/settings/settings-health-state.svelte";
 import ActivityPopover from "$lib/presentation/activity/ActivityPopover.svelte";
 import { activityInbox } from "$lib/application/activity/activity-state.svelte";
 import { deriveNeedsYou } from "$lib/application/activity/needs-you";
@@ -31,7 +33,10 @@ import { openLogsPane } from "$lib/features/logs";
 import { discoverTitlebarBadge, openDiscoverPane } from "$lib/app/discover";
 import { guideState } from "$lib/app/discover/guides";
 import { settingsSelectors } from "$lib/features/settings";
-import { openSettingsPane } from "$lib/application/settings";
+import {
+  openProjectSettingsPane,
+  openSettingsPane,
+} from "$lib/application/settings";
 import {
   deleteProjectAndRefresh,
   newConversationInProject,
@@ -112,6 +117,7 @@ const menuContext = $derived<ProjectTreeMenuContext>({
     void openProjectInEditorAndNotify(projectId, editor),
   onOpenProjectInTerminal: (projectId) =>
     void openProjectInTerminalAndNotify(projectId),
+  onOpenProjectSettings: (projectId) => void openProjectSettingsPane(projectId),
   requestPrune: (project) => {
     pendingPrune = {
       id: project.id,
@@ -163,6 +169,17 @@ async function handleDesktopClose() {
 }
 </script>
 
+{#snippet settingsHealthItem()}
+  <SettingsHealthItem
+    health={settingsHealth.notice.health}
+    pending={settingsHealth.notice.pending}
+    error={settingsHealth.notice.error}
+    onReset={(id) => (settingsHealth.resetId = id)}
+    onReload={(id) => void settingsHealth.resolve({ id, action: "reload" })}
+    onRetry={() => void settingsHealth.refresh()}
+  />
+{/snippet}
+
 <Titlebar
   projects={quickProjects}
   projectOptions={projectItems}
@@ -197,6 +214,10 @@ async function handleDesktopClose() {
       items={notifications}
       error={activityInbox.error}
       unseenFailure={activityInbox.unseenFailure}
+      attention={settingsHealth.notice.health.invalid.length ||
+      settingsHealth.notice.error
+        ? settingsHealthItem
+        : undefined}
       open={activityInbox.open}
       onOpenChange={activityInbox.setOpen}
       onOpenItem={(item) => {

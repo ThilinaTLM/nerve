@@ -35,6 +35,7 @@ export type ProjectAgentTreeProps = {
   onOpenConversation?: (conversationId: string) => void;
   onNewConversationInProject?: (projectDir: string) => void;
   onOpenProjectInEditor?: (projectId: string, editor: ProjectEditor) => void;
+  onOpenProjectSettings?: (projectId: string) => void;
   onOpenProjectInTerminal?: (projectId: string) => void;
   onDeleteProject?: (projectId: string) => void;
   onDeleteConversation?: (conversationId: string) => void;

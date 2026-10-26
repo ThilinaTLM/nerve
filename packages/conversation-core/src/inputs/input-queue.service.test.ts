@@ -44,7 +44,7 @@ test("user input resumes a paused conversation with a complete summary", () => {
         systemPrompt: null,
         instructions: null,
         permissionRuleSetId: "baseline",
-        mode: "coding",
+        agentProfile: "coding",
 
         workingDirectory: "/tmp",
       },
@@ -64,12 +64,38 @@ test("user input resumes a paused conversation with a complete summary", () => {
       emit: (change) => changes.push(change),
       requestWake: (id) => wakes.push(id),
     });
-    service.submit({
+    const request = {
       conversationId: "conv_test",
       inputId: "input_test",
       text: "Hello",
-      source: "user",
+      source: "user" as const,
+    };
+    assert.throws(
+      () =>
+        storage.transaction(() => {
+          service.acceptSubmission(request);
+          assert.equal(changes.length, 0);
+          assert.equal(wakes.length, 0);
+          throw new Error("rollback");
+        }),
+      /rollback/,
+    );
+    assert.equal(storage.inputs.list("conv_test").length, 0);
+    assert.equal(storage.conversations.get("conv_test")!.paused, true);
+    let accepted!: ReturnType<typeof service.acceptSubmission>;
+    storage.transaction(() => {
+      accepted = service.acceptSubmission(request);
     });
+    assert.equal(changes.length, 0);
+    assert.equal(wakes.length, 0);
+    accepted.afterCommit();
+    assert.equal(service.submit(request) === "delivered", false);
+    assert.equal(storage.inputs.list("conv_test").length, 1);
+    assert.throws(
+      () => service.submit({ ...request, text: "Conflicting" }),
+      /different content/,
+    );
+    wakes.length = 1;
     const change = changes.find((item) => item.kind === "conversation_changed");
     assert.equal(change?.kind, "conversation_changed");
     if (change?.kind !== "conversation_changed")
@@ -117,6 +143,11 @@ test("user input resumes a paused conversation with a complete summary", () => {
       "input_later",
     );
     assert.equal(storage.inputs.list("conv_test").length, 0);
+    assert.equal(service.submit(request), "delivered");
+    assert.throws(
+      () => service.submit({ ...request, text: "Conflicting" }),
+      /different content/,
+    );
   } finally {
     storage.close();
   }

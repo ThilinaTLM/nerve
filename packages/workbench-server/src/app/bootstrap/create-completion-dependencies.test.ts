@@ -31,15 +31,14 @@ function fixture() {
     home: "/synthetic/home",
     sources: {
       project,
-      capabilities: {
-        configuration: unused,
-        update: unused,
-        subscribe: () => () => undefined,
-      },
-      profiles: {
-        configuration: unused,
-        update: unused,
-        onChanged: () => () => undefined,
+      isProjectAgentTrusted: () => true,
+      configuration: {
+        ensureLoaded: unused,
+        getEffective: unused,
+        captureDefaults: unused,
+        save: unused,
+        subscribeHealth: () => () => undefined,
+        profiles: { list: unused },
       },
       skills: async () => [],
       tools: [],

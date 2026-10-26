@@ -199,31 +199,45 @@ export async function conversationFixture(page: Page) {
         parentConversationId,
         title,
         config: {
+          systemPrompt: null,
+          workingDirectory: directory,
+        },
+        overrides: {
           model: { provider, modelId: "browser" },
           reasoningLevel: "off",
-          systemPrompt: null,
           permissionRuleSetId: "read_only",
-          mode: "coding",
-          workingDirectory: directory,
         },
       });
     const snapshot = await createConversation("Browser conversation");
     const open = async (title: string) => {
       await page.reload();
       if ((page.viewportSize()?.width ?? 1440) < 768) {
-        await page
-          .getByRole("button", {
-            name: new RegExp(`^${title} ${project.name}`),
-          })
-          .click();
+        const conversation = page.getByRole("button", {
+          name: new RegExp(`^${title} ${project.name}`),
+        });
+        const back = page.getByRole("button", { name: "Back", exact: true });
+        // Mobile can restore the conversation route instead of the project list.
+        await expect(conversation.or(back)).toBeVisible();
+        if (!(await conversation.isVisible())) await back.click();
+        await conversation.click();
+        await expect(
+          page.getByRole("heading", { name: title, exact: true }),
+        ).toBeVisible();
       } else {
         await page
           .getByRole("navigation", { name: "Projects", exact: true })
           .getByRole("button", { name: new RegExp(project.name) })
           .click();
         await page.getByText(title, { exact: true }).first().click();
+        await expect(
+          page.getByRole("tab", { name: title, exact: true }),
+        ).toHaveAttribute("aria-selected", "true");
       }
-      await expect(page.getByRole("textbox").first()).toBeVisible();
+      await expect(
+        page
+          .getByRole("group", { name: "Prompt editor drop area", exact: true })
+          .getByRole("textbox"),
+      ).toBeVisible();
     };
     await open(snapshot.conversation.title);
     return {
@@ -293,4 +307,59 @@ export async function submit(page: Page, conversationId: string, text: string) {
     true,
   );
   return history;
+}
+
+export async function effectiveAgent(page: Page, conversationId: string) {
+  const result = await coreRpc(page, "agentConfiguration.getEffective", {
+    conversationId,
+  });
+  if (result.status !== "available")
+    throw new Error(
+      `Agent configuration unavailable: ${JSON.stringify(result)}`,
+    );
+  return result;
+}
+
+export async function saveAgentSettings(
+  page: Page,
+  conversationId: string,
+  changes: z.input<
+    (typeof coreOperationSchemas)["agentConfiguration.save"]["params"]
+  >["changes"],
+) {
+  const scope = { scope: "conversation" as const, conversationId };
+  const current = await coreRpc(page, "agentConfiguration.get", { scope });
+  if (current.status !== "available")
+    throw new Error(
+      `Agent configuration unavailable: ${JSON.stringify(current)}`,
+    );
+  const result = await coreRpc(page, "agentConfiguration.save", {
+    scope,
+    expectedRevision: current.source.revision,
+    expectedDigest: current.source.digest,
+    changes,
+    resets: [],
+  });
+  expect(result.status, JSON.stringify(result)).toBe("saved");
+}
+
+export async function setAgentProfile(
+  page: Page,
+  conversationId: string,
+  profile: string,
+) {
+  const preview = await coreRpc(page, "conversation.previewAgentProfile", {
+    conversationId,
+    profile,
+  });
+  if (preview.status !== "ready")
+    throw new Error(`Profile preview unavailable: ${JSON.stringify(preview)}`);
+  const result = await coreRpc(page, "conversation.setAgentProfile", {
+    conversationId,
+    action: "switch",
+    targetProfile: preview.preview.targetProfile,
+    expectedRevision: preview.preview.expectedRevision,
+    expectedDigest: preview.preview.expectedDigest,
+  });
+  expect(result.status, JSON.stringify(result)).toBe("applied");
 }

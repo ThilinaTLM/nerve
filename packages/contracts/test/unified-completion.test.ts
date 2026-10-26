@@ -14,7 +14,7 @@ void test("typed intent parsing narrows all supported sources without lexical ma
   });
   assert.deepEqual(parseCompletionIntent("@agent:review"), {
     text: "review",
-    kinds: ["subagent_profile", "subagent"],
+    kinds: ["agent_profile", "subagent"],
   });
   assert.deepEqual(parseCompletionIntent("@launch:dev"), {
     text: "dev",

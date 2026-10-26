@@ -5,10 +5,9 @@ import type { ToolDefinition } from "../../contracts.js";
 
 const webSearchParameters = Type.Object(
   {
-    query: Type.String({ description: "The search query" }),
+    query: Type.String(),
     max_results: Type.Optional(
       Type.Number({
-        description: "Maximum number of results (default: 5)",
         minimum: 1,
         maximum: 20,
       }),
@@ -19,13 +18,8 @@ const webSearchParameters = Type.Object(
 
 const webFetchParameters = Type.Object(
   {
-    url: Type.String({ description: "The URL to fetch" }),
-    raw: Type.Optional(
-      Type.Boolean({
-        description:
-          "If true, save raw content to a temp file and return the path (default: false)",
-      }),
-    ),
+    url: Type.String(),
+    raw: Type.Optional(Type.Boolean()),
   },
   { additionalProperties: false },
 );
@@ -39,8 +33,7 @@ export const webToolDefinitions = [
     executionKind: "local",
     executor: executeWebSearch,
     label: "Web Search",
-    description:
-      "Search the web with Tavily; requires a configured API key in Nerve Settings.",
+    description: "Search the web.",
     parameters: webSearchParameters,
     executionMode: "parallel",
   },
@@ -57,7 +50,7 @@ export const webToolDefinitions = [
     executor: executeWebFetch,
     label: "Web Fetch",
     description:
-      "Fetch a URL. HTML converts to markdown unless raw=true; large or binary responses are saved.",
+      "Fetch a URL. HTML is converted to Markdown unless `raw`; large or binary responses are saved to files.",
     parameters: webFetchParameters,
     executionMode: "parallel",
   },

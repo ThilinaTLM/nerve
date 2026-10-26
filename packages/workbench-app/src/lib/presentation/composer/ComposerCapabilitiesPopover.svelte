@@ -1,8 +1,10 @@
 <script lang="ts">
-import Blocks from "@lucide/svelte/icons/blocks";
+import Wrench from "@lucide/svelte/icons/wrench";
+import BookOpen from "@lucide/svelte/icons/book-open";
+import Users from "@lucide/svelte/icons/users";
 import Folder from "@lucide/svelte/icons/folder";
 import Globe from "@lucide/svelte/icons/globe";
-import MessagesSquare from "@lucide/svelte/icons/messages-square";
+import Lock from "@lucide/svelte/icons/lock";
 import RotateCcw from "@lucide/svelte/icons/rotate-ccw";
 import User from "@lucide/svelte/icons/user";
 import Settings from "@lucide/svelte/icons/settings";
@@ -10,12 +12,9 @@ import Settings2 from "@lucide/svelte/icons/settings-2";
 import TriangleAlert from "@lucide/svelte/icons/triangle-alert";
 import Sparkles from "@lucide/svelte/icons/sparkles";
 import type { Component } from "svelte";
-import {
-  isConfigurableCapabilityTool,
-  type CapabilityConfiguration,
-  type CapabilityPatch,
-  type CapabilityToolName,
-} from "@nervekit/contracts/capabilities";
+import type { CapabilityToolName } from "@nervekit/contracts/capabilities";
+import type { LeadSettingsOverrides } from "@nervekit/contracts/agent-configuration";
+import type { AgentEditorView } from "./agent-editor-view";
 import { IconAction } from "@nervekit/ui-kit/components/composites/icon-action";
 import Popover, {
   PopoverBody,
@@ -26,77 +25,48 @@ import SearchInput from "@nervekit/ui-kit/components/composites/search-input";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
 import { Skeleton } from "@nervekit/ui-kit/components/ui/skeleton";
 import { Switch } from "@nervekit/ui-kit/components/ui/switch";
-import * as ToggleGroup from "@nervekit/ui-kit/components/ui/toggle-group";
-import type { SkillSource } from "@nervekit/contracts/skills";
+
 import {
-  capabilityOriginLabel,
-  capabilityResetPatch,
-  capabilityTogglePatch,
-  capabilityToolState,
-} from "./capability-origin";
-import type { CapabilitySkillRow } from "./capability-skill-row";
-import type {
-  CapabilitySubagentCounts,
-  CapabilitySubagentProfiles,
-  CapabilitySubagentSlot,
-} from "./capability-subagent-slot";
+  skillOverrideKind,
+  type AvailableSkill,
+} from "@nervekit/contracts/skills";
 import {
   capabilityBodyHeight,
   filterCapabilityRows,
   showCapabilitySearch,
-  type CapabilityDecisionOrigin,
 } from "./capability-list";
 import {
   capabilityToolGroupsFor,
-  capabilityToolGroupsForTab,
   type CapabilityToolGroup,
 } from "./capability-tool-labels";
+import {
+  capabilitySubagentCounts,
+  capabilitySubagentEnabled,
+  type CapabilitySubagentProfile,
+} from "./capability-subagent-profiles";
+import type { ComposerLockedFields } from "../conversations/conversation-view-contracts.js";
+import {
+  capabilityToolLocks,
+  editableToolOverrideResets,
+} from "./capability-tool-locks";
 type Row = {
   key: string;
   label: string;
   searchText?: string;
   enabled: boolean;
   overridden: boolean;
-  origin: CapabilityDecisionOrigin;
-  detail: string;
-  /** Explains why an enabled tool cannot run yet. */
   warning?: string;
-  /** Opens the tool's settings, for tools with more than an on/off switch. */
   configure?: () => void;
-  /** Marks the row's family when a list mixes more than one. */
+  lockedBy?: string;
   icon?: Component<{ class?: string; "aria-hidden"?: "true" }>;
   toggle: (enabled: boolean) => void;
   reset: () => void;
 };
-
-/* Skills come from source groups that Settings presents separately, so each row
- * carries its source as a leading icon. */
-const skillSourceIcons: Record<SkillSource, Row["icon"]> = {
+const skillSourceIcons = {
   user: User,
   project: Folder,
   nerve: Sparkles,
   agentBrowser: Globe,
-};
-const skillSourceItemLabels: Record<SkillSource, string> = {
-  user: "Your skill",
-  project: "Project skill",
-  nerve: "Built-in Nerve skill",
-  agentBrowser: "Agent Browser skill",
-};
-type Props = {
-  configuration?: CapabilityConfiguration;
-  skills?: CapabilitySkillRow[];
-  loading?: boolean;
-  error?: string;
-  disabled?: boolean;
-  onPatch?: (patch: CapabilityPatch) => void;
-  onReset?: () => void;
-  onRefresh?: () => void;
-  onOpenSettings?: (page: "tools" | "skills" | "subagents") => void;
-  subagentProfiles?: CapabilitySubagentProfiles;
-  subagentControlsEnabled?: boolean;
-  /** Opens the conversation-level settings dialog for one tool group. */
-  onConfigureTool?: (group: CapabilityToolGroup) => void;
 };
 let {
   configuration,
@@ -111,161 +81,167 @@ let {
   onConfigureTool,
   subagentProfiles,
   subagentControlsEnabled = false,
-}: Props = $props();
-
+}: {
+  configuration?: AgentEditorView;
+  skills?: AvailableSkill[];
+  loading?: boolean;
+  error?: string;
+  disabled?: boolean;
+  onPatch?: (changes: LeadSettingsOverrides, resets?: string[]) => void;
+  onReset?: () => void;
+  onRefresh?: () => void;
+  onOpenSettings?: (page: "tools" | "skills" | "sub-agents") => void;
+  onConfigureTool?: (group: CapabilityToolGroup) => void;
+  subagentProfiles?: CapabilitySubagentProfile[];
+  subagentControlsEnabled?: boolean;
+  lockedFields?: ComposerLockedFields;
+} = $props();
 let open = $state(false);
 let tab = $state<"tools" | "skills" | "subagents">("tools");
 let query = $state("");
-
-function handleOpenChange(next: boolean): void {
+const escape = (v: string) => v.replaceAll("~", "~0").replaceAll("/", "~1");
+function handleOpenChange(next: boolean) {
   open = disabled ? false : next;
   if (open) {
     query = "";
     onRefresh?.();
   }
 }
-
-function selectTab(next: "tools" | "skills" | "subagents"): void {
-  tab = next;
-  query = "";
-}
-
-/* Tool settings open in a dialog, which replaces the popover. */
-function configureTool(group: CapabilityToolGroup): void {
+function configureTool(group: CapabilityToolGroup) {
   open = false;
   onConfigureTool?.(group);
 }
-
 $effect(() => {
   if (disabled) open = false;
 });
-
-const tools = $derived<CapabilityToolName[]>(
-  configuration?.availableTools ?? [],
+const allToolGroups = $derived(
+  capabilityToolGroupsFor(
+    Object.keys(
+      configuration?.resolution.settings.tools ?? {},
+    ) as CapabilityToolName[],
+  ),
 );
-
-function toolEnabled(name: CapabilityToolName): boolean {
-  return !configuration?.effective.disabledTools.includes(name);
-}
-
-const conversation = $derived(configuration?.conversation);
-const allToolGroups = $derived(capabilityToolGroupsFor(tools));
-const toolGroups = $derived(capabilityToolGroupsForTab(tools, "tools"));
+const overrideCounts = $derived({
+  tools: Object.keys(configuration?.overrides.tools ?? {}).filter(
+    (name) => name !== "subagents",
+  ).length,
+  skills: Object.values(configuration?.overrides.skills ?? {}).reduce(
+    (n, group) => n + Object.keys(group).length,
+    0,
+  ),
+  subagents:
+    Object.keys(configuration?.overrides.subagents ?? {}).length +
+    Number(configuration?.overrides.tools?.subagents !== undefined),
+});
 const overrideCount = $derived(
-  conversation
-    ? allToolGroups.filter((group) =>
-        group.names.some(
-          (name) =>
-            conversation.tools[name] !== undefined ||
-            (isConfigurableCapabilityTool(name) &&
-              conversation.toolSettings[name] !== undefined),
-        ),
-      ).length +
-        Object.keys(conversation.skills.file).length +
-        Object.keys(conversation.skills.nerve).length +
-        Object.keys(conversation.skills.agentBrowser).length
-    : 0,
+  overrideCounts.tools + overrideCounts.skills + overrideCounts.subagents,
 );
-const enabledTools = $derived(
-  configuration
-    ? toolGroups.filter((group) => group.names.every(toolEnabled)).length
-    : 0,
-);
-const enabledSkills = $derived(
-  configuration ? skills.filter((skill) => skill.enabled).length : 0,
-);
-const triggerTitle = $derived(
-  loading && !configuration
-    ? "Capabilities: loading"
-    : error
-      ? `Capabilities unavailable: ${error}`
-      : `Capabilities: ${enabledTools} of ${toolGroups.length} optional tools, ${enabledSkills} of ${skills.length} skills enabled · delegation ${tools.includes("subagents") ? (toolEnabled("subagents") ? "on" : "off") : "unavailable"}${overrideCount > 0 ? " · conversation overrides" : ""}`,
-);
-
-const toolStates = $derived(
-  configuration
-    ? new Map(
-        allToolGroups.map((group) => [
-          group.key,
-          capabilityToolState({
-            configuration,
-            level: "conversation",
-            names: group.names,
-          }),
-        ]),
-      )
-    : new Map(),
-);
-
 const toolRows = $derived<Row[]>(
-  allToolGroups.flatMap((group) => {
-    const state = toolStates.get(group.key);
-    if (!state) return [];
-    const configurable =
-      Boolean(onConfigureTool) &&
-      (Boolean(state.profileTool && state.profileOptions.length > 0) ||
-        Boolean(state.settingsTool));
-    return [
-      {
+  allToolGroups
+    .filter((g) => g.key !== "bash")
+    .map((group) => {
+      const locks = capabilityToolLocks(
+        group.names,
+        configuration?.resolution.provenance,
+      );
+      const lockedBy = locks.enabledBy;
+      const resets = editableToolOverrideResets(
+        group.names,
+        configuration?.overrides,
+        configuration?.resolution.provenance,
+      );
+      const configurable =
+        !!onConfigureTool &&
+        group.names.some(
+          (name) => name !== "web_fetch" && name !== "subagents",
+        );
+      return {
         key: group.key,
         label: group.label,
         searchText: group.searchText,
-        enabled: state.enabled,
-        overridden: state.stored,
-        origin: state.stored ? "conversation" : state.inheritedFrom,
-        detail: state.originLabel,
-        warning: state.profileMissing
-          ? "Profile not found on this machine"
-          : state.needsProfile
-            ? "Choose a profile"
-            : undefined,
+        enabled: group.names.every(
+          (name) =>
+            name === "bash" ||
+            (configuration?.resolution.settings.tools?.[name] &&
+              "enabled" in configuration.resolution.settings.tools[name]! &&
+              configuration.resolution.settings.tools[name]!.enabled === true),
+        ),
+        overridden: resets.length > 0,
+        lockedBy,
         configure: configurable ? () => configureTool(group) : undefined,
-        toggle: (enabled: boolean) => {
+        toggle: (enabled) =>
           onPatch?.({
-            tools: capabilityTogglePatch(state, group.names, enabled),
-          });
-          // Several profiles and none chosen: ask which one to use.
-          if (
-            enabled &&
-            configurable &&
-            (!state.profileId || state.profileMissing) &&
-            state.profileOptions.length > 1 &&
-            (state.profileTool === "jira" || state.profileTool === "confluence")
-          )
-            configureTool(group);
-        },
-        reset: () => onPatch?.(capabilityResetPatch(group.names)),
-      } satisfies Row,
-    ];
+            tools: Object.fromEntries(
+              group.names.map((name) => [name, { enabled }]),
+            ),
+          }),
+        reset: () => onPatch?.({}, resets),
+      };
+    }),
+);
+const optionalToolRows = $derived(
+  toolRows.filter((r) => r.key !== "subagents"),
+);
+const enabledTools = $derived(optionalToolRows.filter((r) => r.enabled).length);
+const toolGroups = $derived(optionalToolRows);
+const subagentRow = $derived(toolRows.find((r) => r.key === "subagents"));
+const subagentCounts = $derived(
+  subagentProfiles
+    ? capabilitySubagentCounts(
+        subagentProfiles,
+        configuration?.resolution.settings.subagents,
+      )
+    : undefined,
+);
+const skillRows = $derived<Row[]>(
+  skills.map((skill) => {
+    const kind = skillOverrideKind(skill.source);
+    const pointer = `/skills/${kind}/${escape(skill.name)}`;
+    const provenance =
+      configuration?.resolution.provenance[pointer] ??
+      configuration?.resolution.provenance[`/skills/defaults/${kind}`];
+    return {
+      key: `${kind}:${skill.name}`,
+      label: skill.name,
+      enabled:
+        configuration?.resolution.settings.skills?.[kind]?.[skill.name] ??
+        configuration?.resolution.settings.skills?.defaults?.[kind] ??
+        false,
+      overridden:
+        configuration?.overrides.skills?.[kind]?.[skill.name] !== undefined &&
+        provenance?.source !== "requirement",
+      icon: skillSourceIcons[skill.source],
+      lockedBy:
+        provenance?.source === "requirement" ? provenance.profile : undefined,
+      toggle: (enabled) =>
+        onPatch?.({ skills: { [kind]: { [skill.name]: enabled } } }),
+      reset: () => onPatch?.({}, [`/overrides${pointer}`]),
+    };
   }),
 );
-
-const skillRows = $derived<Row[]>(
-  skills.map((skill) => ({
-    key: skill.key,
-    label: skill.name,
-    enabled: skill.enabled,
-    overridden: skill.overridden,
-    origin: skill.overridden ? "conversation" : skill.inheritedFrom,
-    icon: skillSourceIcons[skill.source],
-    detail: `${skillSourceItemLabels[skill.source]} · ${capabilityOriginLabel({
-      level: "conversation",
-      stored: skill.overridden,
-      matchesInherited: skill.matchesInherited,
-      inheritedFrom: skill.inheritedFrom,
-    })}`,
-    toggle: (enabled: boolean) =>
-      onPatch?.({ skills: { [skill.kind]: { [skill.name]: enabled } } }),
-    reset: () =>
-      onPatch?.({ skills: { [skill.kind]: { [skill.name]: null } } }),
-  })),
-);
-
-const subagentRow = $derived(toolRows.find((row) => row.key === "subagents"));
-const optionalToolRows = $derived(
-  toolRows.filter((row) => row.key !== "subagents"),
-);
-/* Keep the original body geometry without showing another tab's search field. */
+const enabledSkills = $derived(skillRows.filter((r) => r.enabled).length);
+const sections = $derived([
+  {
+    kind: "tools" as const,
+    title: "Tools",
+    icon: Wrench,
+    count: `${enabledTools}/${toolGroups.length}`,
+  },
+  {
+    kind: "skills" as const,
+    title: "Skills",
+    icon: BookOpen,
+    count: `${enabledSkills}/${skills.length}`,
+  },
+  {
+    kind: "subagents" as const,
+    title: "Sub-agents",
+    icon: Users,
+    count: subagentCounts
+      ? `${subagentCounts.available}/${subagentCounts.total}`
+      : undefined,
+  },
+]);
 const showSearch = $derived(
   tab === "tools"
     ? showCapabilitySearch(optionalToolRows.length)
@@ -276,24 +252,14 @@ const showSearch = $derived(
 const bodyHeight = $derived(
   capabilityBodyHeight(optionalToolRows.length, skillRows.length),
 );
-
-function openSettings(): void {
+function openSettings(
+  page: "tools" | "skills" | "sub-agents" = tab === "subagents"
+    ? "sub-agents"
+    : tab,
+) {
   open = false;
-  onOpenSettings?.(tab);
+  onOpenSettings?.(page);
 }
-
-let subagentCounts = $state<CapabilitySubagentCounts | undefined>();
-const subagentSlot: CapabilitySubagentSlot = {
-  get delegation() {
-    return subagentControlsEnabled ? delegationRow : undefined;
-  },
-  get delegationOff() {
-    return subagentRow?.enabled === false;
-  },
-  setCounts: (counts) => {
-    subagentCounts = counts;
-  },
-};
 </script>
 
 {#snippet capabilityRow(row: Row)}
@@ -307,7 +273,7 @@ const subagentSlot: CapabilitySubagentSlot = {
         aria-hidden="true"
       />
     {/if}
-    <span class="min-w-0 flex-1 truncate" title={row.detail}>
+    <span class="min-w-0 flex-1 truncate">
       {row.label}
     </span>
     {#if row.warning}
@@ -320,20 +286,21 @@ const subagentSlot: CapabilitySubagentSlot = {
         <TriangleAlert class="size-3.5" aria-hidden="true" />
       </span>
     {/if}
-    {#if row.origin === "conversation"}
+    {#if row.lockedBy}
       <span
-        class="inline-flex flex-none text-primary"
+        class="inline-flex flex-none text-muted-foreground"
         role="img"
-        aria-label="Conversation override"
-        title={row.detail}
+        aria-label={`${row.label} locked by ${row.lockedBy}`}
+        title={`Locked by ${row.lockedBy}`}
       >
-        <MessagesSquare class="size-3.5" aria-hidden="true" />
+        <Lock class="size-3.5" aria-hidden="true" />
       </span>
     {/if}
     {#if row.overridden}
       <IconAction
         icon={RotateCcw}
         label={`Reset ${row.label} to the inherited setting`}
+        disabled={disabled || loading}
         onclick={row.reset}
       />
     {/if}
@@ -346,7 +313,8 @@ const subagentSlot: CapabilitySubagentSlot = {
     {/if}
     <Switch
       checked={row.enabled}
-      disabled={disabled || loading}
+      disabled={disabled || Boolean(row.lockedBy)}
+      busy={loading}
       aria-label={`Enable ${row.label} for this conversation`}
       onCheckedChange={row.toggle}
     />
@@ -356,12 +324,92 @@ const subagentSlot: CapabilitySubagentSlot = {
 {#snippet delegationRow()}
   {#if subagentRow}
     {@render capabilityRow({ ...subagentRow, label: "Delegation" })}
-  {:else if loading && !configuration}
-    <p class="px-1.5 text-muted-foreground">Loading delegation…</p>
   {:else}
     <p class="px-1.5 text-warning">Delegation is unavailable here.</p>
   {/if}
-  {#if error}<p class="px-1.5 text-warning" role="alert">{error}</p>{/if}
+{/snippet}
+
+{#snippet subagentList()}
+  {#if error}
+    <p class="px-1.5 text-warning" role="alert">{error}</p>
+  {:else if loading && !configuration}
+    <div class="grid gap-1" aria-hidden="true">
+      <Skeleton class="h-7 w-full" /><Skeleton class="h-7 w-full" />
+    </div>
+  {:else}
+    {#if subagentControlsEnabled}
+      {@render delegationRow()}
+    {:else}
+      <p class="px-1.5 text-muted-foreground">
+        Sub-agents can't delegate. Configure profiles in the lead conversation.
+      </p>
+    {/if}
+    {#if !subagentProfiles || subagentProfiles.length === 0}
+      <p class="px-1.5 text-muted-foreground">
+        No sub-agent profiles are available.
+      </p>
+    {:else}
+      {@const delegationOff = subagentRow?.enabled === false}
+      {#each subagentProfiles as profile (profile.name)}
+        {@const unavailable = Boolean(profile.error)}
+        {@const enabled = capabilitySubagentEnabled(
+          profile,
+          configuration?.resolution.settings.subagents,
+        )}
+        {@const enabledSource =
+          configuration?.resolution.provenance[
+            `/subagents/${escape(profile.name)}/enabled`
+          ]}
+        <div
+          class="flex min-h-7 min-w-0 items-center gap-2 rounded-md px-1.5 py-1 hover:bg-accent"
+        >
+          <span
+            class={`min-w-0 flex-1 truncate ${unavailable || delegationOff ? "text-muted-foreground" : ""}`}
+            title={profile.error ?? profile.description}
+          >
+            {profile.label}
+          </span>
+          {#if profile.error}
+            <span
+              class="inline-flex flex-none text-warning"
+              role="img"
+              aria-label={profile.error}
+              title={profile.error}
+            >
+              <TriangleAlert class="size-3.5" aria-hidden="true" />
+            </span>
+          {:else if !enabled}
+            <span class="flex-none text-xs text-muted-foreground">Off</span>
+          {/if}
+          {#if configuration?.overrides.subagents?.[profile.name]}
+            <IconAction
+              icon={RotateCcw}
+              label={`Reset ${profile.label} launch choices; requirements remain effective`}
+              disabled={disabled || loading}
+              onclick={() =>
+                onPatch?.({}, [`/overrides/subagents/${escape(profile.name)}`])}
+            />
+          {/if}
+          <IconAction
+            icon={Settings2}
+            label={`Configure ${profile.label}`}
+            onclick={() => openSettings("sub-agents")}
+          />
+          <Switch
+            aria-label={`Enable ${profile.label} launches`}
+            checked={enabled}
+            busy={loading}
+            disabled={disabled ||
+              unavailable ||
+              !subagentControlsEnabled ||
+              enabledSource?.source === "requirement"}
+            onCheckedChange={(enabled) =>
+              onPatch?.({ subagents: { [profile.name]: { enabled } } })}
+          />
+        </div>
+      {/each}
+    {/if}
+  {/if}
 {/snippet}
 
 {#snippet capabilityList(rows: Row[], kind: "tools" | "skills")}
@@ -389,118 +437,87 @@ const subagentSlot: CapabilitySubagentSlot = {
   {/if}
 {/snippet}
 
-<Popover
-  {open}
-  onOpenChange={handleOpenChange}
-  size="md"
-  triggerClass="composer-tab w-control p-0"
-  ariaLabel="Capabilities"
-  {triggerTitle}
-  side="top"
-  align="start"
->
-  {#snippet trigger()}
-    <span
-      class={`relative inline-flex items-center ${disabled ? "opacity-60" : ""}`}
-      data-tour-id="composer-capabilities"
-    >
-      <Blocks aria-hidden="true" />
-      {#if overrideCount > 0}
-        <span
-          class="absolute -top-1 -right-1.5 size-1.5 rounded-full bg-primary"
-        ></span>
-      {/if}
-    </span>
-  {/snippet}
+{#each sections as section (section.kind)}
+  <Popover
+    open={open && tab === section.kind}
+    onOpenChange={(next) => {
+      if (next) {
+        tab = section.kind;
+        handleOpenChange(true);
+      } else if (tab === section.kind) {
+        handleOpenChange(false);
+      }
+    }}
+    size="md"
+    triggerClass="composer-tab w-control p-0"
+    ariaLabel={section.title}
+    triggerTitle={error
+      ? `${section.title} unavailable: ${error}`
+      : `${section.title}${section.count ? ` (${section.count})` : ""}`}
+    side="top"
+    align="start"
+  >
+    {#snippet trigger()}
+      <span
+        class={`relative inline-flex items-center ${disabled ? "opacity-60" : ""}`}
+        data-tour-id={`composer-${section.kind}`}
+      >
+        <section.icon aria-hidden="true" />
+        {#if overrideCounts[section.kind] > 0}
+          <span
+            class="absolute -top-1 -right-1.5 size-1.5 rounded-full bg-primary"
+          ></span>
+        {/if}
+      </span>
+    {/snippet}
 
-  <PopoverHeader title="Capabilities">
-    {#snippet actions()}
-      {#if overrideCount > 0}
+    <PopoverHeader title={section.title}>
+      {#snippet actions()}
+        {#if overrideCount > 0}
+          <Button
+            size="icon-sm"
+            variant="ghost"
+            ariaLabel="Reset all conversation capability overrides"
+            title={`Reset all ${overrideCount} conversation capability override${overrideCount === 1 ? "" : "s"}`}
+            disabled={disabled || loading}
+            onclick={() => onReset?.()}
+          >
+            <RotateCcw class="size-3.5" aria-hidden="true" />
+          </Button>
+        {/if}
         <Button
           size="icon-sm"
           variant="ghost"
-          ariaLabel="Reset conversation capability overrides; profile overrides are unchanged"
-          title={`Reset ${overrideCount} conversation override${overrideCount === 1 ? "" : "s"}`}
-          onclick={() => onReset?.()}
+          ariaLabel={`Open ${tab === "subagents" ? "sub-agent" : tab} settings`}
+          title={`Open ${tab === "subagents" ? "sub-agent" : tab} settings`}
+          onclick={() => openSettings()}
         >
-          <RotateCcw class="size-3.5" aria-hidden="true" />
+          <Settings class="size-3.5" aria-hidden="true" />
         </Button>
-      {/if}
-      <Button
-        size="icon-sm"
-        variant="ghost"
-        ariaLabel={`Open ${tab === "subagents" ? "sub-agent" : tab} settings`}
-        title={`Open ${tab === "subagents" ? "sub-agent" : tab} settings`}
-        onclick={openSettings}
-      >
-        <Settings class="size-3.5" aria-hidden="true" />
-      </Button>
-    {/snippet}
-  </PopoverHeader>
+      {/snippet}
+    </PopoverHeader>
 
-  <PopoverSearch class={showSearch ? "grid gap-2" : undefined}>
-    <ToggleGroup.Root
-      type="single"
-      size="sm"
-      spacing={1}
-      variant="chip"
-      value={tab}
-      class="justify-start"
-      aria-label="Capability kind"
-      onValueChange={(value) => {
-        if (value === "tools" || value === "skills" || value === "subagents")
-          selectTab(value);
-      }}
-    >
-      <ToggleGroup.Item value="tools" class="flex-none">
-        Tools
-        <span data-slot="toggle-count">{enabledTools}/{toolGroups.length}</span>
-      </ToggleGroup.Item>
-      <ToggleGroup.Item value="skills" class="flex-none">
-        Skills
-        <span data-slot="toggle-count">{enabledSkills}/{skills.length}</span>
-      </ToggleGroup.Item>
-      <ToggleGroup.Item value="subagents" class="flex-none">
-        Sub-agents
-        {#if subagentCounts}
-          <span data-slot="toggle-count"
-            >{subagentCounts.enabled}/{subagentCounts.total}</span
-          >
-        {/if}
-      </ToggleGroup.Item>
-    </ToggleGroup.Root>
     {#if showSearch}
-      <SearchInput
-        bind:value={query}
-        placeholder="Filter capabilities"
-        ariaLabel={tab === "subagents"
-          ? "Filter sub-agent profiles"
-          : tab === "skills"
-            ? "Filter skills"
-            : "Filter tools"}
-      />
+      <PopoverSearch>
+        <SearchInput
+          bind:value={query}
+          placeholder={tab === "skills" ? "Filter skills" : "Filter tools"}
+          ariaLabel={tab === "skills" ? "Filter skills" : "Filter tools"}
+        />
+      </PopoverSearch>
     {/if}
-  </PopoverSearch>
 
-  <PopoverBody
-    class="gap-0"
-    stableHeight={tab === "subagents" ? undefined : bodyHeight}
-  >
-    {#if tab === "tools"}
-      {@render capabilityList(optionalToolRows, "tools")}
-    {:else if tab === "skills"}
-      {@render capabilityList(skillRows, "skills")}
-    {:else if !subagentProfiles}
-      {#if subagentControlsEnabled}{@render delegationRow()}{/if}
-      <p class="px-1.5 text-muted-foreground">
-        Sub-agent profiles are available in saved lead conversations.
-      </p>
-    {/if}
-    <!-- Mounted while open so the tab count is known on every tab. -->
-    {#if open && subagentProfiles}
-      <div class={tab === "subagents" ? "grid min-w-0 grid-cols-1" : "hidden"}>
-        {@render subagentProfiles(query, subagentSlot)}
-      </div>
-    {/if}
-  </PopoverBody>
-</Popover>
+    <PopoverBody
+      class="gap-0"
+      stableHeight={tab === "subagents" ? undefined : bodyHeight}
+    >
+      {#if tab === "tools"}
+        {@render capabilityList(optionalToolRows, "tools")}
+      {:else if tab === "skills"}
+        {@render capabilityList(skillRows, "skills")}
+      {:else}
+        {@render subagentList()}
+      {/if}
+    </PopoverBody>
+  </Popover>
+{/each}

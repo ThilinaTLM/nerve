@@ -50,6 +50,52 @@ export function resolveProcessShell(
   });
 }
 
+export interface PreparedShellProcess {
+  command: string;
+  cwd: string;
+  invocation: ReturnType<typeof resolveProcessShell>;
+}
+
+/** Resolve the shell, project manager and environment before execution admission. */
+export function prepareShellProcess(
+  command: string,
+  options: Parameters<typeof resolveProcessShell>[1],
+): PreparedShellProcess {
+  const invocation = resolveProcessShell(command, options);
+  return {
+    command,
+    cwd: options.cwd,
+    invocation: {
+      ...invocation,
+      args: [...invocation.args],
+      env: { ...invocation.env },
+      launch: { ...invocation.launch },
+    },
+  };
+}
+
+/** No configuration, project-manager discovery or ambient environment reads here. */
+export function spawnPreparedShellProcess(
+  prepared: PreparedShellProcess,
+  policy: ManagedProcessResourcePolicy,
+) {
+  const shell = prepared.invocation;
+  let child: ChildProcess;
+  try {
+    child = spawnManagedChildProcess(shell.shell, shell.args, {
+      cwd: prepared.cwd,
+      env: shell.env,
+      policy,
+    });
+  } catch (error) {
+    throw contextualizeShellSpawnError(error, shell.launch);
+  }
+  const managed = managedProcessForChild(child);
+  if (!managed)
+    throw new Error("Native managed process metadata was not registered");
+  return { child, managed, launch: shell.launch };
+}
+
 export function spawnShellProcess(
   command: string,
   options: {
@@ -61,21 +107,10 @@ export function spawnShellProcess(
     policy: ManagedProcessResourcePolicy;
   },
 ) {
-  const shell = resolveProcessShell(command, options);
-  let child: ChildProcess;
-  try {
-    child = spawnManagedChildProcess(shell.shell, shell.args, {
-      cwd: options.cwd,
-      env: shell.env,
-      policy: options.policy,
-    });
-  } catch (error) {
-    throw contextualizeShellSpawnError(error, shell.launch);
-  }
-  const managed = managedProcessForChild(child);
-  if (!managed)
-    throw new Error("Native managed process metadata was not registered");
-  return { child, managed, launch: shell.launch };
+  return spawnPreparedShellProcess(
+    prepareShellProcess(command, options),
+    options.policy,
+  );
 }
 
 /** The caller owns stop intent and terminal settlement; the host owns escalation. */

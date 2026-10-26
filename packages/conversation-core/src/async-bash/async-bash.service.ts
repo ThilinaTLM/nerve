@@ -59,6 +59,7 @@ export class AsyncBashService {
       `conversations/${input.conversationId}/tool-calls/${input.toolCallId}/output`,
     );
     const started = await this.options.processes.start({
+      conversationId: input.conversationId,
       command: input.command,
       cwd: input.cwd,
       signal: input.signal,

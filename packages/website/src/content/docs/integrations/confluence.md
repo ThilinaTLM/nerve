@@ -11,7 +11,7 @@ The tool surface is single-target: there is no subtree/space download or multi-p
 
 `confluence_manage_page` supports `trash`, `restore`, and permanent `purge`. Confluence Cloud does not provide a supported REST API for page archive, so Nerve does not expose an archive action. Use `dry_run` before mutations when you want remote target/state validation without writing.
 
-Read calls are parallel network operations that favor narrow limits and artifacts. Write calls are sequential and pass tool policy; supported operations use dry-run behavior where the catalog provides it. Planning mode excludes mutating Confluence tools.
+Read calls are parallel network operations that favor narrow limits and artifacts. Write calls are sequential and pass tool policy; supported operations use dry-run behavior where the catalog provides it. The Planning profile excludes mutating Confluence tools.
 
 Read-only agent permission blocks Confluence network access. Use supervised permission to inspect proposed page IDs, parents, versions, body changes, publication state, and attachment paths.
 

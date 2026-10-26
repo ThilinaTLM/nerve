@@ -79,39 +79,23 @@ export function removeAtlassianProfilePatch(
   settings: Settings,
   profileId: string,
 ): UpdateSettingsRequest {
-  const jiraSelected = settings.tools.jira.profileId === profileId;
-  const confluenceSelected = settings.tools.confluence.profileId === profileId;
   return {
     providers: {
       atlassianProfiles: settings.providers.atlassianProfiles.filter(
         (profile) => profile.id !== profileId,
       ),
     },
-    tools: {
-      ...(jiraSelected ? { jira: { enabled: false, profileId: null } } : {}),
-      ...(confluenceSelected
-        ? { confluence: { enabled: false, profileId: null } }
-        : {}),
-    },
   };
 }
-
 export function removeTavilyProfilePatch(
   settings: Settings,
   profileId: string,
 ): UpdateSettingsRequest {
-  const selected = settings.tools.web.tavilyProfileId === profileId;
-  const disabled = selected
-    ? [...new Set([...settings.tools.disabled, "web_search" as const])]
-    : settings.tools.disabled;
   return {
     providers: {
       tavilyProfiles: settings.providers.tavilyProfiles.filter(
         (profile) => profile.id !== profileId,
       ),
     },
-    ...(selected
-      ? { tools: { web: { tavilyProfileId: null }, disabled } }
-      : {}),
   };
 }

@@ -1,16 +1,10 @@
 // Invented RAW source catalogs fed through the real production provider adapters.
 // No filesystem discovery, real launches/projects, network, or pre-scored items.
 import {
-  capabilityConfigurationSchema,
-  emptyCapabilityOverrides,
-} from "@nervekit/contracts/capabilities";
-import { defaultSettings } from "@nervekit/contracts/settings";
-import {
-  subagentProfileSchema,
-  type SubagentProfilesConfiguration,
-} from "@nervekit/contracts/subagents";
+  resolveAgentConfiguration,
+  profileDefinitionSchema,
+} from "@nervekit/contracts/agent-configuration";
 import { launchDefinitionSchema } from "@nervekit/contracts/launch-definitions";
-import { userCapabilitySelection } from "../../src/core-host/user-capability-selection.js";
 import {
   createCompletionProviders,
   type CompletionSourcePorts,
@@ -30,60 +24,18 @@ export type SyntheticProviderOptions = {
 export function syntheticProviders(options: SyntheticProviderOptions) {
   const now = Date.now();
   const timestamp = new Date(now).toISOString();
-  const effective = userCapabilitySelection(defaultSettings);
-  effective.disabledTools = ["web_search"];
-  effective.enabledNerveSkills = [];
-  const configuration = capabilityConfigurationSchema.parse({
-    project: emptyCapabilityOverrides(),
-    conversation: emptyCapabilityOverrides(),
-    projectDigest: "synthetic-project",
-    conversationDigest: "synthetic-conversation",
-    trust: {
-      status: "trusted",
-      digest: "synthetic-project",
-      trustedDigest: "synthetic-project",
-      trustedAt: timestamp,
-    },
-    inherited: effective,
-    effective,
-    availableTools: ["web_search"],
-    toolProfileOptions: { jira: [], confluence: [], web_search: [] },
-  });
-  const profile = subagentProfileSchema.parse({
+  const settings = {
+    tools: { web_search: { enabled: false } },
+    subagents: { cobalt: { enabled: false } },
+  };
+  const profile = profileDefinitionSchema.parse({
+    schemaVersion: 1,
     name: "cobalt",
     label: "cobalt",
     description: "Invented review profile",
-    enabled: false,
-    source: "conversation",
-    trust: "trusted",
-    model: "lead",
-    thinking: "lead",
-    permission: "autonomous",
-    compaction: "inherit",
-    tools: {},
-    skills: "inherit",
+    usableBy: "subagent",
     instructions: "Review the invented fixture only.",
   });
-  const profiles: SubagentProfilesConfiguration = {
-    scope: "conversation",
-    digest: "synthetic-profiles",
-    document: null,
-    trust: "trusted",
-    diagnostics: [],
-    profiles: options.allSources
-      ? [
-          {
-            name: profile.name,
-            local: null,
-            inherited: null,
-            effective: profile,
-            trust: "trusted",
-            diagnostics: [],
-            origins: { fields: {}, tools: {}, skills: {} },
-          },
-        ]
-      : [],
-  };
   const crossKind = options.crossKind;
   const launchName = options.weakCompetition
     ? "s_x_e_x_s_x_s_x_i_x_o_x_n"
@@ -100,15 +52,52 @@ export function syntheticProviders(options: SyntheticProviderOptions) {
   };
   const ports: CompletionSourcePorts = {
     project: (id) => ({ id, directory: "/synthetic/unified-completion" }),
-    capabilities: {
-      configuration: async () => configuration,
-      update: refuseWrite,
-      subscribe: () => () => {},
-    },
-    profiles: {
-      configuration: async () => profiles,
-      update: refuseWrite,
-      onChanged: () => () => {},
+    isProjectAgentTrusted: () => true,
+    configuration: {
+      ensureLoaded: async (scope) => ({
+        status: "ready",
+        value: {
+          scope,
+          path: "/synthetic/agent.json",
+          generation: 1,
+          revision: 0,
+          digest: "sha256:synthetic",
+          document: { schemaVersion: 1, revision: 0, overrides: {} },
+        },
+      }),
+      getEffective: async (conversationId) => ({
+        status: "available",
+        conversationId,
+        role: "lead",
+        resolution: resolveAgentConfiguration({
+          role: "lead",
+          conversation: settings,
+        }),
+        sources: [],
+        diagnostics: [],
+      }),
+      captureDefaults: async () => ({
+        options: { project: settings },
+        isCurrent: () => true,
+      }),
+      save: refuseWrite,
+      subscribeHealth: () => () => {},
+      profiles: {
+        list: async () => ({
+          profiles: options.allSources
+            ? {
+                cobalt: {
+                  status: "available",
+                  source: "project",
+                  digest: "sha256:synthetic",
+                  definition: profile,
+                  diagnostics: [],
+                },
+              }
+            : {},
+          diagnostics: [],
+        }),
+      },
     },
     skills: async () =>
       options.allSources

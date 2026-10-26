@@ -1,3 +1,4 @@
+import { guideErrorMessage } from "./guide-errors.js";
 import { requiredString } from "../atlassian/arguments.js";
 import { readFile } from "node:fs/promises";
 import { basename } from "node:path";
@@ -61,7 +62,7 @@ export async function executeConfluenceManageComment(
   if (action !== "create" && !commentId)
     throw new ToolExecutionError(
       "CONFLUENCE_COMMENT_ID_REQUIRED",
-      "comment_id is required.",
+      guideErrorMessage("comment_id is required."),
     );
   let current: Record<string, unknown> | undefined;
   if (commentId)
@@ -94,7 +95,7 @@ export async function executeConfluenceManageComment(
     if (kind !== "inline")
       throw new ToolExecutionError(
         "CONFLUENCE_INLINE_COMMENT_REQUIRED",
-        "Only inline comments can be resolved or reopened.",
+        guideErrorMessage("Only inline comments can be resolved or reopened."),
       );
     payload = {
       body:
@@ -172,7 +173,9 @@ export async function executeConfluenceManagePage(
   if (currentStatus !== expectedStatus) {
     throw new ToolExecutionError(
       "CONFLUENCE_PAGE_INVALID_STATE",
-      `Page ${pageId} must be ${expectedStatus} to ${action}.`,
+      guideErrorMessage(
+        `Page ${pageId} must be ${expectedStatus} to ${action}.`,
+      ),
       { pageId, currentStatus, expectedStatus },
     );
   }
@@ -311,7 +314,7 @@ export async function executeConfluenceManageRestriction(
   if (action !== "clear_operation" && (!subjectType || !subjectId))
     throw new ToolExecutionError(
       "CONFLUENCE_RESTRICTION_SUBJECT_REQUIRED",
-      "subject_type and subject_id are required.",
+      guideErrorMessage("subject_type and subject_id are required."),
     );
   if (args.dry_run === true)
     return dry(
@@ -376,7 +379,9 @@ export async function executeConfluenceManageAttachment(
     if (bytes.byteLength > maximum) {
       throw new ToolExecutionError(
         "CONFLUENCE_ATTACHMENT_TOO_LARGE",
-        "Confluence attachment exceeds the 25 MiB upload limit.",
+        guideErrorMessage(
+          "Confluence attachment exceeds the 25 MiB upload limit.",
+        ),
         { bytes: bytes.byteLength, maximum },
       );
     }

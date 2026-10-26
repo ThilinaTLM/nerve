@@ -1,4 +1,8 @@
 <script lang="ts">
+import ToolsSettingsPage from "$lib/features/settings/views/pages/tools/ToolsSettingsPage.svelte";
+import SkillsSettingsPage from "$lib/features/settings/views/pages/skills/SkillsSettingsPage.svelte";
+import ProfilesSettingsPage from "$lib/features/settings/views/pages/agent-profiles/ProfilesSettingsPage.svelte";
+import { profileKindForPage } from "$lib/features/settings/views/pages/agent-profiles/profile-kind";
 import type {
   ApplicationConfigurationSnapshot,
   AuthProviderMetadata,
@@ -17,26 +21,22 @@ import SuggestionsSettingsPage from "./suggestions/SuggestionsSettingsPage.svelt
 import type { Project } from "@nervekit/contracts/core";
 import type { SettingsPageDef } from "$lib/presentation/settings";
 import { SettingsEmptyState } from "$lib/presentation/settings";
-import UserCog from "@lucide/svelte/icons/user-cog";
-import { Button } from "@nervekit/ui-kit/components/ui/button";
-import CompactionSettingsPage from "$lib/features/settings/views/pages/compaction/CompactionSettingsPage.svelte";
+import GeneralSettingsPage from "$lib/features/settings/views/pages/general/GeneralSettingsPage.svelte";
 import ModelsSettingsPage from "$lib/features/settings/views/pages/models/ModelsSettingsPage.svelte";
 import NotificationsSettingsPage from "$lib/features/settings/views/pages/notifications/NotificationsSettingsPage.svelte";
 import PermissionsSettingsPage from "$lib/features/settings/views/pages/permissions/PermissionsSettingsPage.svelte";
 import ProvidersSettingsPage from "$lib/features/settings/views/pages/providers/ProvidersSettingsPage.svelte";
 import ShortcutsSettingsPage from "$lib/features/settings/views/pages/shortcuts/ShortcutsSettingsPage.svelte";
-import SkillsSettingsPage from "$lib/features/settings/views/pages/skills/SkillsSettingsPage.svelte";
 import StorageSettingsPage from "$lib/features/settings/views/pages/storage/StorageSettingsPage.svelte";
 import SystemSettingsPage from "$lib/features/settings/views/pages/system/SystemSettingsPage.svelte";
-import ProjectToolsSettingsPage from "$lib/features/settings/views/pages/capabilities/ProjectToolsSettingsPage.svelte";
-import SubagentsSettingsPage from "$lib/features/settings/views/pages/subagents/SubagentsSettingsPage.svelte";
-import ToolsSettingsPage from "$lib/features/settings/views/pages/tools/ToolsSettingsPage.svelte";
-import TranscriptionSettingsPage from "$lib/features/settings/views/pages/transcription/TranscriptionSettingsPage.svelte";
+import VoiceSettingsPage from "$lib/features/settings/views/pages/voice/VoiceSettingsPage.svelte";
+import IntegrationsSettingsPage from "$lib/features/settings/views/pages/integrations/IntegrationsSettingsPage.svelte";
+import InstructionsFilesPage from "$lib/features/settings/views/pages/project/InstructionsFilesPage.svelte";
+import LaunchSettingsPage from "$lib/features/settings/views/pages/project/LaunchSettingsPage.svelte";
+import TrustSettingsPage from "$lib/features/settings/views/pages/project/TrustSettingsPage.svelte";
 import WorkbenchSettingsPage from "$lib/features/settings/views/pages/workbench/WorkbenchSettingsPage.svelte";
-import type {
-  SettingsPageControllers,
-  SettingsScope,
-} from "./settings-page-controllers.svelte";
+import type { SettingsScopeTarget } from "$lib/features/settings/registry/settings-scope";
+import type { SettingsPageControllers } from "./settings-page-controllers.svelte";
 
 type SettingsChange = (
   patch: UpdateSettingsRequest,
@@ -44,13 +44,12 @@ type SettingsChange = (
 ) => void;
 
 /**
- * The body of one settings page for the chosen scope. Rendered inside the
+ * The body of one settings page for the given scope target. Rendered inside the
  * desktop settings shell and as a standalone phone settings screen.
  */
 let {
   page,
-  scope,
-  onScopeChange,
+  target,
   controllers,
   status,
   settingsDraft,
@@ -59,7 +58,7 @@ let {
   daemonRestarting = false,
   models = [],
   authProviders = [],
-  activeProject,
+  project,
   skills = [],
   skillsLoading = false,
   skillsError,
@@ -68,11 +67,10 @@ let {
   onRestartDaemon,
   onColorThemeChange,
   onColorModeChange,
-  onSkillsRetry,
 }: {
   page: SettingsPageDef;
-  scope: SettingsScope;
-  onScopeChange: (scope: SettingsScope) => void;
+  /** Fixed for the lifetime of the view; every save goes to this target. */
+  target: SettingsScopeTarget;
   controllers: SettingsPageControllers;
   status?: StatusResponse;
   settingsDraft?: Settings;
@@ -85,7 +83,7 @@ let {
   daemonRestarting?: boolean;
   models?: ModelInfo[];
   authProviders?: AuthProviderMetadata[];
-  activeProject?: Project;
+  project?: Project;
   skills?: AvailableSkill[];
   skillsLoading?: boolean;
   skillsError?: string;
@@ -98,82 +96,35 @@ let {
   onColorModeChange?: (colorMode: ColorMode) => void;
   onSkillsRetry?: () => void;
 } = $props();
+
+const scope = $derived(target.kind);
+const projectId = $derived(
+  target.kind === "project" ? target.projectId : undefined,
+);
 </script>
 
 {#if settingsDraft}
-  {#if scope === "project" && page.id === "tools"}
-    <ProjectToolsSettingsPage
-      configuration={controllers.capabilityConfiguration}
-      loading={controllers.capabilityLoading}
-      error={controllers.capabilityError}
-      onPatch={(patch) => void controllers.patchProjectCapabilities(patch)}
-      onReset={() => void controllers.resetProjectCapabilities()}
-      onTrust={(trusted) => void controllers.setProjectCapabilityTrust(trusted)}
-      onRetry={() => void controllers.loadProjectCapabilities()}
-    />
-  {:else if page.id === "subagents"}
-    <SubagentsSettingsPage
-      {scope}
+  {#if page.id === "agents" || page.id === "sub-agents"}
+    <ProfilesSettingsPage
+      kind={profileKindForPage(page.id)}
+      onOpenFile={project
+        ? (path) => void openFilePane({ projectId: project.id, path })
+        : undefined}
       {settingsDraft}
       {models}
       {authProviders}
       {skills}
-      {onSettingsChange}
-      projectId={activeProject?.id}
-      projectName={activeProject?.name}
-      configuration={controllers.capabilityConfiguration}
-      loading={controllers.capabilityLoading}
-      error={controllers.capabilityError}
-      onPatch={(patch) => void controllers.patchProjectCapabilities(patch)}
-      onTrust={(trusted) => void controllers.setProjectCapabilityTrust(trusted)}
-      onRetry={() => void controllers.loadProjectCapabilities()}
-      onOpenFile={activeProject
-        ? (path) => void openFilePane({ projectId: activeProject.id, path })
-        : undefined}
+      {scope}
+      {projectId}
     />
-  {:else if page.id === "permissions"}
+  {:else if page.id === "permission-rules"}
     <PermissionsSettingsPage
       {scope}
       {settingsDraft}
       controller={controllers.permissionsController}
-      projectId={activeProject?.id}
-      projectName={activeProject?.name}
-      {onSettingsChange}
-      {onScopeChange}
+      {projectId}
+      projectName={project?.name}
     />
-  {:else if scope === "project" && page.id === "skills"}
-    <SkillsSettingsPage
-      scope="project"
-      configuration={controllers.capabilityConfiguration}
-      {settingsDraft}
-      {skills}
-      loading={controllers.capabilityLoading || skillsLoading}
-      error={controllers.capabilityError ?? skillsError}
-      onPatch={(patch) => void controllers.patchProjectCapabilities(patch)}
-      onReset={() => void controllers.resetProjectCapabilities()}
-      onTrust={(trusted) => void controllers.setProjectCapabilityTrust(trusted)}
-      onRetry={() => {
-        onSkillsRetry?.();
-        void controllers.loadProjectCapabilities();
-      }}
-    />
-  {:else if scope === "project"}
-    <SettingsEmptyState
-      variant="card"
-      icon={UserCog}
-      title={`${page.label} is configured per user`}
-      description={`${page.label} applies to every project on this machine.`}
-    >
-      {#snippet actions()}
-        <Button
-          size="sm"
-          variant="outline"
-          onclick={() => onScopeChange("user")}
-        >
-          Open user settings
-        </Button>
-      {/snippet}
-    </SettingsEmptyState>
   {:else if page.id === "workbench"}
     <WorkbenchSettingsPage
       {settingsDraft}
@@ -183,53 +134,62 @@ let {
     />
   {:else if page.id === "notifications"}
     <NotificationsSettingsPage {settingsDraft} {onSettingsChange} />
-  {:else if page.id === "transcription"}
-    <TranscriptionSettingsPage {settingsDraft} {onSettingsChange} />
+  {:else if page.id === "voice"}
+    <VoiceSettingsPage {settingsDraft} {onSettingsChange} />
   {:else if page.id === "shortcuts"}
     <ShortcutsSettingsPage />
-  {:else if page.id === "compaction"}
-    <CompactionSettingsPage {settingsDraft} {onSettingsChange} />
+  {:else if page.id === "general"}
+    <GeneralSettingsPage {scope} {projectId} {models} {authProviders} />
   {:else if page.id === "suggestions"}
     <SuggestionsSettingsPage
       pageState={controllers.suggestionsPageState}
-      activeProject={activeProject ? projectView(activeProject) : undefined}
+      activeProject={project ? projectView(project) : undefined}
     />
   {:else if page.id === "models"}
-    <ModelsSettingsPage
+    <ModelsSettingsPage {models} {authProviders} />
+  {:else if page.id === "integrations"}
+    <IntegrationsSettingsPage
       {settingsDraft}
-      {models}
       {authProviders}
-      readComposerSelection={controllers.readComposerSelection}
       {onSettingsChange}
     />
+  {:else if page.id === "launch"}
+    <LaunchSettingsPage
+      definitions={controllers.launchDefinitions()}
+      onDelete={(id) => void controllers.deleteProjectLaunch(id)}
+    />
+  {:else if page.id === "instructions-files"}
+    <InstructionsFilesPage
+      files={controllers.instructionsFiles}
+      loading={controllers.instructionsLoading}
+      onOpen={project
+        ? (path) => void openFilePane({ projectId: project.id, path })
+        : undefined}
+    />
+  {:else if page.id === "trust"}
+    <TrustSettingsPage {projectId} entries={controllers.trustEntries()} />
   {:else if page.id === "providers"}
-    <ProvidersSettingsPage
-      {settingsDraft}
-      {models}
-      {authProviders}
-      {onSettingsChange}
-    />
+    <ProvidersSettingsPage {models} {authProviders} />
   {:else if page.id === "tools"}
     <ToolsSettingsPage
+      {scope}
+      {projectId}
       {settingsDraft}
-      {status}
-      {authProviders}
       {models}
-      {onSettingsChange}
+      {authProviders}
+      {status}
     />
   {:else if page.id === "skills"}
     <SkillsSettingsPage
-      scope="user"
-      {settingsDraft}
+      {scope}
+      {projectId}
       {skills}
       loading={skillsLoading}
       error={skillsError}
-      onRetry={onSkillsRetry}
-      {onSettingsChange}
     />
   {:else if page.id === "storage"}
     <StorageSettingsPage controller={controllers.storageController} />
-  {:else if page.id === "system"}
+  {:else if scope === "user" && page.id === "system"}
     <SystemSettingsPage
       configuration={applicationConfiguration}
       {status}
@@ -237,6 +197,13 @@ let {
       {daemonRestarting}
       onConfigurationChange={onApplicationConfigurationChange}
       {onRestartDaemon}
+    />
+  {:else}
+    <SettingsEmptyState
+      variant="card"
+      icon={page.icon}
+      title={page.label}
+      description="This page is being rebuilt."
     />
   {/if}
 {:else}

@@ -668,7 +668,7 @@ export function buildUserProjection(
       break;
     }
 
-    case "plan_mode_present": {
+    case "plan_present": {
       const details = record(resultRecord.details);
       const reviewValue = resultRecord.review ?? details.review;
       const review = record(reviewValue);

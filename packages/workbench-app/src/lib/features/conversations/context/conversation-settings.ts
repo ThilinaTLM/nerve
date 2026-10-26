@@ -2,12 +2,11 @@ import {
   autoCompactionSettingsSchema,
   type AutoCompactionSettings,
 } from "@nervekit/contracts/settings";
-import type { HarnessCompactionSource } from "@nervekit/contracts/core";
 import { compactionProfileItems } from "$lib/presentation/settings/compaction-options";
 import {
-  SUBAGENT_INSTRUCTIONS_MAX_BYTES,
+  AGENT_PROFILE_INSTRUCTIONS_MAX_BYTES,
   utf8ByteLength,
-} from "@nervekit/contracts/subagents";
+} from "@nervekit/contracts/agent-profiles";
 
 const PROFILE_LABELS: Record<AutoCompactionSettings["profile"], string> = {
   aggressive: "Aggressive",
@@ -36,12 +35,6 @@ export function compactionDetail(settings: AutoCompactionSettings): string {
   );
 }
 
-export function compactionSourceLabel(source: HarnessCompactionSource): string {
-  return source === "conversation"
-    ? "override for this conversation"
-    : `inherited from ${source}`;
-}
-
 /** First problem with a compaction draft, using the contract's own bounds. */
 export function compactionDraftError(
   draft: AutoCompactionSettings,
@@ -65,7 +58,7 @@ export function compactionsEqual(
   );
 }
 
-export const INSTRUCTIONS_MAX_BYTES = SUBAGENT_INSTRUCTIONS_MAX_BYTES;
+export const INSTRUCTIONS_MAX_BYTES = AGENT_PROFILE_INSTRUCTIONS_MAX_BYTES;
 
 export function instructionsBytes(text: string): number {
   return utf8ByteLength(text);

@@ -49,8 +49,10 @@ type AppShortcutsOptions = {
   setComposerThinkingLevel: (
     value: ConversationConfig["reasoningLevel"],
   ) => void | Promise<void>;
-  selectedMode: () => ConversationConfig["mode"];
-  setComposerMode: (value: ConversationConfig["mode"]) => void | Promise<void>;
+  /** Names of the lead profiles the composer can switch between, in selector order. */
+  agentProfileNames: () => string[];
+  selectedAgentProfile: () => string;
+  setComposerAgentProfile: (name: string) => void | Promise<void>;
   /** Dock ids are inlined so the application command layer stays out of presentation. */
   togglePanelDock: (dock: "left" | "right" | "bottom") => void;
 };
@@ -162,11 +164,14 @@ export function createAppShortcuts(options: AppShortcutsOptions) {
     return true;
   }
 
-  function toggleComposerModeShortcut(): boolean {
+  function cycleAgentProfile(): boolean {
     if (!options.hasConversationComposer()) return false;
-    void options.setComposerMode(
-      options.selectedMode() === "coding" ? "planning" : "coding",
-    );
+    const names = options.agentProfileNames();
+    if (names.length <= 1) return false;
+    const currentIndex = names.indexOf(options.selectedAgentProfile());
+    const next = names[(currentIndex + 1) % names.length] ?? names[0];
+    if (!next) return false;
+    void options.setComposerAgentProfile(next);
     return true;
   }
 
@@ -220,8 +225,8 @@ export function createAppShortcuts(options: AppShortcutsOptions) {
         if (!options.hasConversationComposer()) return false;
         options.toggleMic();
         return true;
-      case "composer.toggleMode":
-        return toggleComposerModeShortcut();
+      case "composer.cycleProfile":
+        return cycleAgentProfile();
       case "composer.cycleModel":
         return cycleModel();
       case "composer.cyclePermission":
@@ -282,6 +287,6 @@ export function createAppShortcuts(options: AppShortcutsOptions) {
     runShortcutCommand,
     selectCenterTabByIndex,
     selectRelativeCenterTab,
-    toggleComposerModeShortcut,
+    cycleAgentProfile,
   };
 }

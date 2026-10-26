@@ -1,22 +1,17 @@
-import type {
-  ConversationConfig,
-  ConversationSummary,
-  Project,
-} from "@nervekit/contracts/core";
+import type { ConversationSummary, Project } from "@nervekit/contracts/core";
 
 /** Presentation-only shapes for the original project navigation views. */
 export type ProjectRecord = Project & { dir: string };
 export type ConversationRecord = ConversationSummary & {
   pinned: boolean;
   activeAgentId: string;
-  permissionRuleSetId: string;
 };
-export type AgentRecord = {
+export type AgentRecord = Pick<
+  ConversationSummary,
+  "agentProfile" | "model" | "permissionRuleSetId"
+> & {
   id: string;
   conversationId: string;
-  mode: ConversationConfig["mode"];
-  model?: ConversationConfig["model"];
-  permissionRuleSetId?: string;
 };
 export type UpdateConversationStateRequest = {
   title?: string;

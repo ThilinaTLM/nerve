@@ -60,6 +60,7 @@ Parameters:
 
 - `command` (string, required)
 - `cwd` (string): project-relative or absolute; must resolve inside the project.
+- `projectEnvironment` (boolean): false skips project environment activation.
 - `background` (boolean)
 - `ready` (string, only with `background`): an `http(s)://` URL to poll until it responds, otherwise a regex matched against stdout and stderr. Waits at most 60 s; a readiness timeout does not stop the process.
 - `timeout` (integer seconds): present only when promotion is disabled.
@@ -67,10 +68,10 @@ Parameters:
 Description (promotion enabled):
 
 ```text
-Run a shell command. Moves to background after {afterS}s if still running; background:true returns at once. Background runs notify you on exit; don't poll. Large output is summarized with file paths for read/grep. Use launch for the user's dev servers.
+Run a shell command in the project. Prefer read/grep/find/ls for inspection and launch for the user's servers. Moves to the background after {afterS}s (`background: true` returns at once); background runs notify you on exit, so don't poll. Large output is saved to files for read/grep.
 ```
 
-Promotion disabled: the second sentence becomes `Requires timeout (max {maxS}s); the process is killed when it expires. background:true returns at once.`
+Promotion disabled: replace the promotion clause with “Requires timeout (max {maxS}s); the process is killed when it expires. `background: true` returns at once”.
 
 Results:
 

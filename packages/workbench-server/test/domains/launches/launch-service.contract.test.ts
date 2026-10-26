@@ -1,34 +1,15 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import type { DomainEventIntent } from "../../../src/core/ports/domain-events.js";
-import {
-  LaunchService,
-  type LaunchProcessCallbacks,
-  type LaunchServicePorts,
+import type {
+  LaunchProcessCallbacks,
+  LaunchServicePorts,
 } from "../../../src/domains/launches/application/launch.service.js";
 import type { LaunchRecord } from "@nervekit/contracts/launches";
-
-function createService(ports: LaunchServicePorts): LaunchService {
-  const launches = new Map<string, LaunchRecord>();
-  const save = ports.repository.save;
-  const remove = ports.repository.remove;
-  ports.repository.save = async (launch) => {
-    await save(launch);
-    launches.set(launch.id, launch);
-  };
-  ports.repository.remove = async (id) => {
-    await remove(id);
-    launches.delete(id);
-  };
-  return new LaunchService({
-    ports,
-    launches,
-    managed: new Map(),
-    repository: {} as never,
-    logs: {} as never,
-    supervisor: { inspectRuntimeListeningPorts: async () => [] } as never,
-  });
-}
+import {
+  createService,
+  servicePortsForRecords,
+} from "./launch-service-fixture.js";
 
 function fixture(
   options: {
@@ -83,59 +64,6 @@ function fixture(
     events,
     signals,
     callbacks: () => callbacks,
-  };
-}
-
-function servicePortsForRecords(
-  records: Map<string, LaunchRecord>,
-  events: DomainEventIntent[],
-  options: {
-    save?: (launch: LaunchRecord) => Promise<void>;
-    spawn?: LaunchServicePorts["process"]["spawn"];
-    inspect?: LaunchServicePorts["process"]["inspect"];
-    signal?: LaunchServicePorts["process"]["signal"];
-    readiness?: LaunchServicePorts["readiness"];
-    diagnostics?: LaunchServicePorts["diagnostics"];
-    timers?: LaunchServicePorts["timers"];
-    clock?: LaunchServicePorts["clock"];
-    definitionPortGuard?: LaunchServicePorts["definitionPortGuard"];
-  } = {},
-): LaunchServicePorts {
-  return {
-    repository: {
-      get: async (id) => records.get(id),
-      list: async () => [...records.values()],
-      save:
-        options.save ??
-        (async (launch) =>
-          void records.set(launch.id, structuredClone(launch))),
-      remove: async (id) => void records.delete(id),
-    },
-    process: {
-      spawn:
-        options.spawn ??
-        (async () => ({
-          pid: 42,
-          startedAt: "2026-07-11T00:00:00.000Z",
-        })),
-      signal: options.signal ?? (async () => undefined),
-      inspect: options.inspect ?? (async () => "running"),
-      waitForExit: async () => "timeout",
-    },
-    logs: {
-      query: async () => ({ events: [], nextCursor: 0 }),
-      append: async () => undefined,
-      remove: async () => undefined,
-    },
-    readiness: options.readiness,
-    events: { publish: async (event) => void events.push(event) },
-    clock:
-      options.clock ??
-      ({ now: () => new Date("2026-07-11T00:00:00.000Z") } as const),
-    ids: { next: () => "launch_contract" },
-    diagnostics: options.diagnostics,
-    timers: options.timers,
-    definitionPortGuard: options.definitionPortGuard,
   };
 }
 
@@ -701,32 +629,4 @@ test("pending starts for the same project definition coalesce", async () => {
   );
   assert.equal(checks, 1);
   assert.equal(records.size, 1);
-});
-
-test("restart and output retain the run's project identity with an external cwd", async () => {
-  const records = new Map<string, LaunchRecord>();
-  const ports = servicePortsForRecords(records, []);
-  let nextId = 0;
-  ports.ids = { next: () => `launch_${++nextId}` };
-  const queried: LaunchRecord[] = [];
-  ports.logs.query = async (launch) => {
-    queried.push(launch);
-    return { events: [], nextCursor: 0 };
-  };
-  const service = createService(ports);
-  const original = await service.start({
-    definitionId: "launchdef_copied",
-    projectId: "proj_copy",
-    command: "original command",
-    cwd: "/external",
-  });
-  records.set(original.id, { ...original, status: "completed" });
-  const restarted = await service.restart(original.id);
-  assert.equal(restarted.projectId, "proj_copy");
-  assert.equal(restarted.definitionId, "launchdef_copied");
-  assert.equal(restarted.cwd, "/external");
-  assert.equal(restarted.command, "original command");
-  await service.logs(restarted.id, {});
-  assert.equal(queried[0]?.projectId, "proj_copy");
-  assert.equal(queried[0]?.id, restarted.id);
 });

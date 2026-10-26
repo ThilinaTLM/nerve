@@ -3,7 +3,6 @@ import { describe, it } from "node:test";
 import type { PermissionRuleSetSummary } from "@nervekit/contracts/permissions";
 import {
   BUILT_IN_PERMISSION_RULE_SET_SUMMARIES,
-  effectivePermissionRuleSetId,
   selectablePermissionRuleSets,
   selectedPermissionRuleSetSummary,
 } from "./rule-set-options";
@@ -15,7 +14,6 @@ const custom: PermissionRuleSetSummary[] = [
     source: "user",
     enabled: true,
     available: true,
-    compatibleModes: ["coding"],
   },
   {
     id: "disabled-coding",
@@ -23,7 +21,6 @@ const custom: PermissionRuleSetSummary[] = [
     source: "user",
     enabled: false,
     available: true,
-    compatibleModes: ["coding"],
   },
   {
     id: "custom-planning",
@@ -31,38 +28,29 @@ const custom: PermissionRuleSetSummary[] = [
     source: "user",
     enabled: true,
     available: true,
-    compatibleModes: ["planning"],
   },
 ];
 
 const summaries = [...BUILT_IN_PERMISSION_RULE_SET_SUMMARIES, ...custom];
 
 describe("permission rule-set options", () => {
-  it("returns coding built-ins and enabled compatible user sets", () => {
+  it("returns every enabled rule set except Baseline", () => {
     assert.deepEqual(
-      selectablePermissionRuleSets(summaries, "coding").map(({ id }) => id),
-      ["read_only", "supervised", "autonomous", "careful-coding"],
-    );
-  });
-
-  it("returns only the fixed Planning rule set in planning mode", () => {
-    assert.deepEqual(
-      selectablePermissionRuleSets(summaries, "planning").map(({ id }) => id),
-      ["planning"],
-    );
-    assert.equal(
-      effectivePermissionRuleSetId("careful-coding", "planning"),
-      "planning",
-    );
-    assert.equal(
-      effectivePermissionRuleSetId("careful-coding", "coding"),
-      "careful-coding",
+      selectablePermissionRuleSets(summaries).map(({ id }) => id),
+      [
+        "read_only",
+        "supervised",
+        "autonomous",
+        "planning",
+        "careful-coding",
+        "custom-planning",
+      ],
     );
   });
 
   it("preserves an unavailable selected ID instead of substituting Autonomous", () => {
     const selected = selectedPermissionRuleSetSummary(
-      selectablePermissionRuleSets(summaries, "coding"),
+      selectablePermissionRuleSets(summaries),
       "missing-custom",
     );
     assert.equal(selected.id, "missing-custom");

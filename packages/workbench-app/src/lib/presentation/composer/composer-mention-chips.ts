@@ -62,7 +62,7 @@ function recognizeBody(
     const kind = {
       skill: "skill",
       tool: "tool",
-      agent: "subagent_profile",
+      agent: "agent_profile",
       launch: "launch_definition",
     }[named[1] as "skill" | "tool" | "agent" | "launch"] as MentionChip["kind"];
     return { kind, label: named[2]! };
@@ -177,7 +177,7 @@ function iconFor(kind: MentionChip["kind"]): IconName {
     case "tool":
       return "tool";
     case "subagent":
-    case "subagent_profile":
+    case "agent_profile":
       return "agent";
     case "launch":
     case "launch_definition":

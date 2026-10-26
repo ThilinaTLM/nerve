@@ -8,12 +8,12 @@ import {
   hasPendingSettingsSave,
   loadSettingsPanel,
 } from "$lib/application/settings";
-import { registerSubagentProfileEventHandlers } from "./subagent-profiles.svelte";
+import { registerAgentProfileEventHandlers } from "./agent-profiles.svelte";
 
 export function registerSettingsEventHandlers(): () => void {
   const unregisterEvents = onAnyEvent(handleSettingsEvent);
   const unregisterReconnect = onWorkbenchReconnect(loadSettingsPanel);
-  const unregisterProfiles = registerSubagentProfileEventHandlers();
+  const unregisterProfiles = registerAgentProfileEventHandlers();
   return () => {
     unregisterProfiles();
     unregisterEvents();

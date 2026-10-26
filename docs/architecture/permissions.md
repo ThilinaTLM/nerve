@@ -2,7 +2,7 @@
 
 > **Status:** Implemented. Contracts, the evaluator and its tests are authoritative; the public [Tools and approval policy](https://nerve.tlmtech.dev/developers/tools-policy/) page describes user-facing behavior.
 
-Every tool call is checked by one generic evaluator before it runs. The result is `allow`, `prompt` (ask the user) or `deny`. Product modes such as Read only, Supervised, Autonomous and Planning are rule sets the evaluator reads, not special cases inside it.
+Every tool call is checked by one generic evaluator before it runs. The result is `allow`, `prompt` (ask the user) or `deny`. Permission policies such as Read only, Supervised, Autonomous and Planning are rule sets the evaluator reads, not special cases inside it.
 
 ## Ownership
 
@@ -25,7 +25,7 @@ The tool catalog owns tool names, groups, risk and how targets are extracted fro
 
 ## Selection
 
-A conversation's configuration holds one permission rule set. In planning mode the core evaluates with the built-in Planning set instead, and the configured set applies again when the conversation returns to coding.
+Permission selection resolves from scoped `agent.json` preferences and the applied profile. Requirements temporarily control it without rewriting underlying conversation choices. Planning requires the Planning ruleset; leaving Planning reveals the underlying choice/default. Coding does not grant write permission. Every enabled rule set is selectable when permission is not required.
 
 ## Evaluation
 
@@ -40,7 +40,7 @@ The decision, matched rule, reason, suggested rules and the authority it was mad
 
 ## Changes during execution
 
-The selected rule set and overlays are read when a tool call enters supervision, independently of the system prompt sent to the model. Changing configuration does not automatically reauthorize an already-approved call or cancel an executing tool. Planning mode affects the selected policy at subsequent evaluations. See [scoped configuration](configuration.md#request-preparation-and-effective-time) for per-LLM-request freshness and the separate authorization boundary.
+Current selection, ruleset definitions and overlays are checked at execution admission, including after approval waits. Approval cannot defeat a later denial. Not-yet-started recovered calls are re-captured and re-admitted; changed targets require fresh approval. Invalid security configuration waits **configuration-blocked** with Retry/Cancel, not a Baseline or approval fallback. Retry re-reads authority. Executing tools are not retroactively cancelled by configuration edits. See [scoped configuration](configuration.md#persistence-and-activation).
 
 ## Overlay files
 
@@ -50,7 +50,7 @@ The selected rule set and overlays are read when a tool call enters supervision,
 | Project      | `<project>/.nerve/config/permissions.json`                     |
 | Conversation | `<NERVE_HOME>/data/conversations/<id>/config/permissions.json` |
 
-These files use the shared [configuration scope roots](configuration.md#scope-directories); rule-set definitions remain distinct from overlays.
+These files use the shared [configuration scope roots](configuration.md#scope-files); rule-set definitions remain distinct from overlays.
 
 Each file holds `overlays: [{ ruleSetId, rules }]`. A project file applies only while the user trusts its exact content (a `TRUSTED_RESOURCE` row with the file's digest); any edit requires trust again. "Always allow" in an approval writes a rule into the overlay the user picks; there is no grant table. Rules never contain secrets.
 

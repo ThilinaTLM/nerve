@@ -17,6 +17,8 @@ In supervised mode, non-read actions pause before execution. Review the tool nam
 
 Supervised mode automatically allows safe reads. When Nerve can describe a bounded tool rule, **Always in project** saves it only for the current Nerve project; **Always for user** applies it to every project. User rules live in `<NERVE_HOME>/config/permissions.json`; project rules live in `.nerve/config/permissions.json`. Project allow rules require trust in the exact document content; external edits invalidate that trust. Review imported project rules before trusting them. Python and destructive, secret, or deployment calls offer approval once only. Autonomous permission skips normal approval for allowed risks but still honors explicit blocks; Read only denies disallowed tools rather than offering an approval override.
 
+Approval does not freeze authority: current permissions are checked again before execution. If security configuration is invalid, the call waits **configuration-blocked** with **Retry/Cancel**, not Approve. Repair the reported source, then Retry to re-read it; Cancel settles the call without executing it.
+
 ## User questions
 
 An `ask_user` card can contain one or several questions, each with its own context, recommendation, options, and free-text answer. For a single question, choosing an option with no typed detail submits it immediately. For several questions, select answers and add detail before sending the set.
@@ -36,11 +38,13 @@ Draft answers survive switching conversations. Once resolved, the question and o
 
 ## Plan review
 
-A planning run writes a reviewed plan in Nerve plan storage and presents it in the transcript. Acceptance options can:
+The Planning profile writes a complete plan in Nerve plan storage and submits it with `plan_present`, ending the turn for review. Approval switches to the default lead profile (`defaultAgentProfile`); rejection keeps Planning and ends the run until your next prompt. Acceptance options can:
 
 - implement in the same conversation;
 - compact context, then implement;
 - optionally open a new implementation conversation and choose its model.
+
+The review previews the target profile requirements and constrains implementation model/thinking choices. If the target changes or becomes unavailable, refresh confirmation; incompatible choices do not silently substitute a model. Accepted choices and the new applied snapshot commit together, preserving other conversation overrides.
 
 Review file scope, validation, migration impact, and security assumptions before accepting. A plan is a proposal, not evidence that implementation is already complete.
 

@@ -25,7 +25,7 @@ Fetch, pull, push, and sync run as background operations, so you can keep workin
 
 With multiple repositories, the **All repositories** menu offers **Fetch all**, **Pull all**, and **Switch all to base and pull**. The last action asks for confirmation and uses fast-forward-only pulls; Git stops if local files would be overwritten. Each repository reports its own result. Stopping an operation does not roll back completed steps or remote updates.
 
-These Workbench operations are server routes, not agent tools. An agent uses Git indirectly through finite Bash commands, subject to its mode and permission policy.
+These Workbench operations are server routes, not agent tools. An agent uses Git indirectly through finite Bash commands, subject to its configuration and permission policy.
 
 <DocsScreenshot
   light={gitLight}

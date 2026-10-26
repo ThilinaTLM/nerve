@@ -1,7 +1,8 @@
 import type { ConversationConfig } from "@nervekit/contracts/core";
 
+/** Applied profile permissions are ordinary persisted config, not a live overlay. */
 export function effectivePermissionRuleSetId(
-  config: Pick<ConversationConfig, "mode" | "permissionRuleSetId">,
+  config: Pick<ConversationConfig, "permissionRuleSetId">,
 ): string {
-  return config.mode === "planning" ? "planning" : config.permissionRuleSetId;
+  return config.permissionRuleSetId;
 }

@@ -28,27 +28,55 @@ Application `*Host` components are state/effect adapters around canonical featur
   `muted`/`default` are all spellings of tones that already exist). Domain
   vocabularies that are genuinely not status — diff line kinds, notification
   sounds — stay separate.
-- **Settings has one type ladder.** Three sizes only, with weight and colour
-  carrying the rest: page title `text-base` semibold foreground, page subtitle
-  `text-sm` muted, section heading `text-sm` semibold foreground, group heading
-  `text-sm` semibold muted (subordinate by colour, not size), row title
-  `text-sm` regular foreground, and all supporting text `text-xs` muted.
-  Headings are sentence case — no uppercase eyebrows, which rank a section below
-  its own rows. Row titles stay regular weight so headings win. Headings carry
-  no description paragraph; put the detail in a `SettingsInfoHint` tooltip
-  beside the title so section- and row-level grey text stay distinguishable.
-  `settings-typography.test.ts` enforces this.
+- **Settings has three heading levels.** Page title `text-lg` semibold
+  foreground (`SettingsPageHeader`, `pb-2` of space below); section heading
+  `text-sm` semibold foreground, optionally followed by ONE `text-xs` muted
+  description line; entity title (`EntityCard`, e.g. a profile) `text-sm`
+  medium foreground. Row titles are `text-sm` regular foreground and all
+  supporting text is `text-xs` muted, so weight and colour carry the
+  hierarchy. Headings are sentence case, never uppercase eyebrows. Longer
+  detail goes in a `SettingsInfoHint` tooltip, not a paragraph. Use
+  `SettingsSection` for every group of rows (the muted `SettingsGroup` heading
+  is legacy); an entity such as a profile gets an `EntityCard`, never a muted
+  group heading above it. `settings-typography.test.ts` enforces this.
+- **Settings navigation is grouped.** `SettingsNav` takes `SettingsNavGroup[]`
+  (optional quiet caption `text-xs font-medium text-muted-foreground`, no hover
+  or icon; items `text-sm` with a lucide icon, muted until active) and a
+  `SettingsScopeHeader` (User settings, or project name and path) separated by a
+  rule. The active item is `bg-selected font-medium`: `muted`/`accent` are
+  darker than `panel` in dark themes and disappear. Never reuse a group title as
+  an item name.
 - **Settings sections are surfaces.** `SettingsSection` draws its body as a
   bordered `card` (`rounded-lg`) with the heading outside, above it; the
-  surface, not a rule or a divider, separates sections. Put a section's rows
-  straight in it; don't add horizontal rules between sections or rows. Nested
-  cards read the `data-settings-surface` contract and sit flush instead of
-  stacking card-in-card (`SettingsList`, `SettingsEmptyState variant="card"`,
-  the model catalog). Group related controls into few sections; a sub-page
-  should not spend a section on one or two rows.
-- **Action labels never end in an ellipsis.** Menu items, buttons, and titles
-  read `Edit`, `Review`, `Delete profile` — not `Edit…`. Reserve `…` for
-  in-progress status text such as `Saving…` and for placeholders.
+  surface, not a rule, separates sections. Pass `divided` for rows: the body
+  becomes `divide-y divide-border` with no padding and `SettingsRow` pads itself
+  (`min-h-12 px-3 py-2`) with a fixed 14rem control column, so controls align
+  across rows and sections (rows stack on narrow panes). Put controls directly
+  in the row's `control` snippet: Select, Input with suffix, Switch; do not
+  pair a value with a "Change" button. Nested cards read the
+  `data-settings-surface` contract and sit flush (`SettingsList`,
+  `SettingsEmptyState variant="card"`, the model catalog). Group related
+  controls into few sections.
+- **Show provenance only when it differs.** A setting that matches where it
+  would otherwise come from shows nothing. One that differs (a project value
+  that differs from the user's, a conversation value that differs from its
+  profile) gets `SettingsChangeIndicator` (a `bg-info` dot opening a popover,
+  plus ↺ to reset) in the row's `badges` slot, and pages summarise them with
+  `SettingsDiffBanner` ("N settings differ · Reset all"). Fixed values say who
+  fixed them in a tooltip ("Locked by Planning"), not a disabled-looking input.
+- **Entity cards.** `EntityCard` is one card per entity: header (title, then
+  badges, actions on the right), muted description, `EntityRow` changes divided
+  by hairlines (muted label column, foreground value, icon actions), ghost
+  `Button size="sm"` footer. Never put `well` behind editable rows: `well` is
+  for recessed output.
+- **Model choice has two components.** `ModelPicker`
+  (`$lib/presentation/model-picker`) chooses ONE model together with its
+  reasoning level, constrained to the levels that model supports; use it
+  wherever a single model is chosen (settings, profile changes, tool config,
+  composer). `ModelMultiSelect` chooses several (the model scope). They are
+  not interchangeable.
+- **Monospace is only for code, logs and paths.** Tool, skill and setting
+  names, counts and other metadata use the sans face.
 - **Settings uses one set of list patterns.** Entity lists are a single
   `SettingsList` (bordered `card` surface, hairline-divided rows) holding
   `SettingsListItem` rows, never a stack of individually tinted cards. A row's
@@ -57,6 +85,9 @@ Application `*Host` components are state/effect adapters around canonical featur
   The right column holds icon actions and nothing else, always visible. Row
   actions are `IconAction`s, which require a label and supply the tooltip and
   accessible name; detail editing belongs in a dialog, not inline on the page.
+- **Action labels never end in an ellipsis.** Menu items, buttons, and titles
+  read `Edit`, `Review`, `Delete profile` — not `Edit…`. Reserve `…` for
+  in-progress status text such as `Saving…` and for placeholders.
 - **File-type icons are deliberately outside the token system.** The Material
   Icon Theme sprite in `$lib/features/filesystem/views` keeps its own multi-hued
   palette so file types stay recognizable; do not recolour it with theme tokens.
@@ -251,7 +282,7 @@ src/styles/
 
 ## Misc
 
-- Create planning wireframes as local, mock-only Svelte components in the gitignored `src/lib/app/design-lab/wireframes/` directory using shared UI components and styles; kebab-case filenames are automatically discoverable at `/dev/wireframes/<name>` during development, so prefer this over standalone HTML files.
+- Create planning wireframes as local, mock-only Svelte components in the gitignored `src/lib/app/design-lab/wireframes/` directory using shared UI components and styles; kebab-case filenames are automatically discoverable at `/dev/wireframes/<name>` during development, so prefer this over standalone HTML files. This temporary directory is excluded from formatting, linting, type checking, test discovery and coverage; tracked design-lab infrastructure remains validated. Do not statically import local wireframes into product code (TypeScript follows imports even from excluded directories).
 
 - Icons: `@lucide/svelte`, sized/colored via `class` on the icon. Loading
   spinners use the shared `Spinner` component

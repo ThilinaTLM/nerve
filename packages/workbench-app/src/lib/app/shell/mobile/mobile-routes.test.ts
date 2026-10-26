@@ -6,6 +6,7 @@ import {
   mobileHistoryDepth,
   mobileRouteForCenterTab,
   mobileRouteProjectId,
+  mobileRoutesEqual,
   parseMobileNav,
   popMobileRoute,
   popMobileRouteTo,
@@ -123,6 +124,42 @@ describe("mobile routes", () => {
     assert.equal(
       mobileRouteProjectId({ kind: "launch", launchId: "t1" }),
       undefined,
+    );
+  });
+
+  it("carries the project on project settings routes", () => {
+    const index: MobileRoute = { kind: "project-settings", projectId: "p1" };
+    const page: MobileRoute = {
+      kind: "project-settings-page",
+      projectId: "p1",
+      pageId: "tools",
+    };
+    assert.equal(mobileRouteProjectId(index), "p1");
+    assert.equal(mobileRouteProjectId(page), "p1");
+    // Another project's page is a different screen, not a duplicate.
+    assert.equal(mobileRoutesEqual(page, { ...page, projectId: "p2" }), false);
+    let state = pushMobileRoute(initialMobileNavState(), project);
+    state = pushMobileRoute(state, index);
+    state = pushMobileRoute(state, page);
+    assert.deepEqual(popMobileRoute(state).stacks.inbox, [project, index]);
+    assert.deepEqual(parseMobileNav(serializeMobileNav(state)), state);
+    assert.deepEqual(
+      pruneMissingRoutes(state, {
+        projectIds: new Set(["p9"]),
+        conversationIds: new Set(),
+      }).stacks.inbox,
+      [],
+    );
+  });
+
+  it("maps project settings tabs onto project settings routes", () => {
+    assert.deepEqual(
+      mobileRouteForCenterTab({ kind: "project-settings", id: "p1" }),
+      { kind: "project-settings", projectId: "p1" },
+    );
+    assert.deepEqual(
+      mobileRouteForCenterTab({ kind: "project-settings", id: "p1" }, "tools"),
+      { kind: "project-settings-page", projectId: "p1", pageId: "tools" },
     );
   });
 

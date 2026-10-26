@@ -14,7 +14,7 @@ import { Switch } from "@nervekit/ui-kit/components/ui/switch";
 import {
   SettingsDisclosureItem,
   SettingsEmptyState,
-  SettingsGroup,
+  SettingsSection,
   SettingsInlineMessage,
   SettingsList,
   SettingsToolbar,
@@ -246,21 +246,21 @@ function copyPath(path: string): void {
   <SettingsInlineMessage tone="warning" text={diagnostic.message} />
 {/each}
 
-<SettingsGroup title="Built-in">
+<SettingsSection id="suggestions" title="Built-in">
   {@render suggestionList(builtins, "No built-in suggestions are available.")}
-</SettingsGroup>
+</SettingsSection>
 
-<SettingsGroup title="User">
+<SettingsSection title="User">
   {@render suggestionList(user, "No user suggestions have been created.")}
-</SettingsGroup>
+</SettingsSection>
 
 {#if activeProject}
-  <SettingsGroup title={`Project · ${activeProject.name}`}>
+  <SettingsSection title={`Project · ${activeProject.name}`}>
     {@render suggestionList(
       project,
       "No suggestions have been created for this project.",
     )}
-  </SettingsGroup>
+  </SettingsSection>
 {/if}
 
 <CreatePromptSuggestionDialog

@@ -11,7 +11,12 @@
   "sortTailwindcss": false,
   "sortPackageJson": false,
   "jsdoc": false,
-  "ignorePatterns": ["pnpm-lock.yaml"],
+  "ignorePatterns": [
+    "pnpm-lock.yaml",
+    "data/**",
+    "packages/website/.screenshots/**",
+    "packages/workbench-app/src/lib/app/design-lab/wireframes/**"
+  ],
   "svelte": {
     "allowShorthand": true,
     "indentScriptAndStyle": false,

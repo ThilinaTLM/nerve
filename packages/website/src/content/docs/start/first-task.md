@@ -13,15 +13,15 @@ Open the Git panel and confirm the working tree. Commit or stash unrelated work.
 
 ## 2. Plan when the change is uncertain
 
-Switch the composer to **Planning** mode and describe the desired outcome. Planning mode allows research and constrains plan writes to Nerve's plan directory. When the agent presents a plan, review it in the transcript.
+Switch the composer to the **Planning** profile and describe the desired outcome. The Planning profile allows research and constrains plan writes to Nerve's plan directory. When the agent presents a plan, review it in the transcript.
 
 You can accept implementation in the same conversation, compact context before implementing, or optionally start implementation in a new conversation and select its model.
 
-Planning shell restrictions are guardrails, not a security sandbox. Keep supervised permission for unfamiliar repositories.
+Planning locks its permission policy. Its shell restrictions are guardrails, not a security sandbox; use supervised permission for implementation in unfamiliar repositories.
 
 ## 3. Review actions as they happen
 
-In Coding mode, the agent can request an edit, command, Python run, network call, or other action. An approval card describes the request and remains the active interaction; the main composer is disabled until you approve, deny, or otherwise resolve the gate.
+With the Coding profile, the agent can request an edit, command, Python run, network call, or other action. An approval card describes the request and remains the active interaction; the main composer is disabled until you approve, deny, or otherwise resolve the gate.
 
 Use the transcript to inspect:
 

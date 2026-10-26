@@ -11,7 +11,7 @@ export type PlanPort = {
 
 export function createPlanHandlers(port: PlanPort): ToolHandlerRegistry {
   return {
-    plan_mode_present: (args, context) =>
+    plan_present: (args, context) =>
       port.present(context.identity, parsePlanRequest(args)),
   };
 }

@@ -83,7 +83,7 @@ test("non-waking input stays queued, can be discarded, and force-pushes into dur
       (await coreRpc(page, "conversation.getSnapshot", { conversationId }))
         .queue,
     ).toEqual([]);
-    await page.reload();
+    await f.open("Browser conversation");
     await expect(
       page.getByText(input.text, { exact: true }).first(),
     ).toBeVisible();

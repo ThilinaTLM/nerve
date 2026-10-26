@@ -20,7 +20,7 @@ export type {
   ConversationEntry,
   ConversationTreeNode,
 } from "$lib/presentation/view-models/conversation";
-export type { PlanReviewRecord } from "@nervekit/contracts/plans";
+export type { PlanReviewRecord } from "$lib/presentation/view-models/run-review";
 export type { ProjectRecord } from "$lib/presentation/view-models/conversation";
 
 export type {

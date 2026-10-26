@@ -6,7 +6,7 @@ import type {
 } from "$lib/presentation/view-models/conversation";
 import {
   agentRowState,
-  subagentProfileLabel,
+  agentProfileLabel,
   type AgentRowState,
 } from "./agent-team";
 
@@ -69,7 +69,7 @@ export function islandAgents(
       return {
         agent,
         name: agent.name?.trim() || "Sub-agent",
-        profile: subagentProfileLabel(agent),
+        profile: agentProfileLabel(agent),
         state,
         viewed: agent.id === viewedId,
       };

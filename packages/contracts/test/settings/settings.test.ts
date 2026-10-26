@@ -2,110 +2,14 @@ import { subagentToolNames } from "../../src/domains/tools/subagent-tools.js";
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
-  defaultHarnessConfig,
+  autoCompactionSettingsSchema,
   defaultSettings,
-  harnessConfigSchema,
   settingsSchema,
   updateApplicationConfigurationRequestSchema,
   updateSettingsRequestSchema,
 } from "../../src/domains/settings/index.js";
 
 describe("settings schema", () => {
-  it("strips obsolete retention while preserving compaction settings", () => {
-    const compaction = {
-      auto: false,
-      profile: "custom",
-      customTriggerPercent: 73,
-    };
-    assert.deepEqual(defaultSettings.compaction, {
-      auto: true,
-      profile: "balanced",
-      customTriggerPercent: 80,
-    });
-    assert.deepEqual(
-      defaultHarnessConfig.compaction,
-      defaultSettings.compaction,
-    );
-    for (const obsolete of [15, 0, "unused", null]) {
-      const legacy = { ...compaction, customKeepRecentPercent: obsolete };
-      assert.deepEqual(
-        harnessConfigSchema.parse({
-          ...defaultHarnessConfig,
-          compaction: legacy,
-        }).compaction,
-        compaction,
-      );
-      assert.deepEqual(
-        settingsSchema.parse({
-          ...defaultSettings,
-          compaction: legacy,
-        }).compaction,
-        compaction,
-      );
-    }
-    assert.deepEqual(
-      updateSettingsRequestSchema.parse({
-        compaction: { customKeepRecentPercent: 15, customTriggerPercent: 73 },
-      }),
-      { compaction: { customTriggerPercent: 73 } },
-    );
-  });
-
-  it("keeps harness compaction strict apart from the obsolete retention key", () => {
-    for (const extra of [{ unknown: true }, { customTriggerPercent: 59 }]) {
-      assert.equal(
-        harnessConfigSchema.safeParse({
-          ...defaultHarnessConfig,
-          compaction: {
-            ...defaultHarnessConfig.compaction,
-            customKeepRecentPercent: 15,
-            ...extra,
-          },
-        }).success,
-        false,
-      );
-    }
-  });
-  it("defaults and bounds the foreground bash timeout setting", () => {
-    assert.equal(defaultSettings.tools.bash.maxTimeoutMs, 900_000);
-    for (const maxTimeoutMs of [1000, 3_600_000]) {
-      assert.equal(
-        updateSettingsRequestSchema.safeParse({
-          tools: { bash: { maxTimeoutMs } },
-        }).success,
-        true,
-      );
-    }
-    for (const maxTimeoutMs of [999, 3_600_001, 1000.5]) {
-      assert.equal(
-        updateSettingsRequestSchema.safeParse({
-          tools: { bash: { maxTimeoutMs } },
-        }).success,
-        false,
-      );
-    }
-    const settings = settingsSchema.parse({
-      ...defaultSettings,
-      tools: {
-        ...defaultSettings.tools,
-        bash: { autoPromotion: { enabled: true, afterMs: 120_000 } },
-      },
-    });
-    assert.equal(settings.tools.bash.maxTimeoutMs, 900_000);
-  });
-  it("validates only the current harness version and preserves explicit enablement", () => {
-    assert.equal(
-      harnessConfigSchema.safeParse({ ...defaultHarnessConfig, version: 2 })
-        .success,
-      false,
-    );
-    const enabled = harnessConfigSchema.parse({
-      ...defaultHarnessConfig,
-      tools: { ...defaultHarnessConfig.tools, disabled: [] },
-    });
-    assert.deepEqual(enabled.tools.disabled, []);
-    assert.deepEqual(harnessConfigSchema.parse(enabled), enabled);
-  });
   it("normalizes a partially disabled sub-agent group to fully disabled", () => {
     const settings = settingsSchema.parse({
       ...defaultSettings,
@@ -132,49 +36,8 @@ describe("settings schema", () => {
       new Set([...subagentToolNames, "web_fetch"]),
     );
     assert.deepEqual(parse(["explore", "web_fetch"]), ["web_fetch"]);
-    assert.deepEqual(
-      harnessConfigSchema.parse({
-        ...defaultHarnessConfig,
-        tools: { ...defaultHarnessConfig.tools, disabled: ["subagent_list"] },
-      }).tools.disabled,
-      [...subagentToolNames],
-    );
   });
 
-  it("no longer carries Explore or async sub-agent settings", () => {
-    assert.equal("exploreAgent" in defaultSettings, false);
-    assert.equal("asyncSubagent" in defaultSettings, false);
-    assert.equal("exploreAgent" in defaultHarnessConfig, false);
-    assert.equal("asyncSubagent" in defaultHarnessConfig, false);
-    assert.equal(
-      harnessConfigSchema.safeParse({
-        ...defaultHarnessConfig,
-        asyncSubagent: {},
-      }).success,
-      false,
-    );
-    assert.deepEqual(
-      updateSettingsRequestSchema.parse({
-        exploreAgent: {},
-        asyncSubagent: {},
-      }),
-      {},
-    );
-  });
-
-  it("defaults newly added Nerve skill settings in older harness files", () => {
-    const legacy = structuredClone(defaultHarnessConfig) as Record<
-      string,
-      unknown
-    >;
-    const skills = { ...(legacy.skills as Record<string, unknown>) };
-    delete skills.nerve;
-    legacy.skills = skills;
-
-    const parsed = harnessConfigSchema.parse(legacy);
-
-    assert.deepEqual(parsed.skills.nerve, { enabled: [] });
-  });
   it("adds automatic resource defaults to older persisted application settings", () => {
     const legacy = structuredClone(defaultSettings);
     const application: Record<string, unknown> = { ...legacy.application };
@@ -261,220 +124,31 @@ describe("settings schema", () => {
     );
   });
 
-  it("accepts runtime and tool update settings", () => {
-    const parsed = updateSettingsRequestSchema.parse({
-      notifications: {
-        systemEnabled: false,
-        soundsEnabled: false,
-        events: {
-          question: "pop",
-          approval: "signal",
-          completed: "none",
-        },
-      },
-      transcription: {
-        model: "gpt-transcribe",
-        languages: ["en", "zh-tw"],
-        vocabulary: ["Nerve", "Codex CLI"],
-      },
-      runtime: {
-        pythonExecutablePath: "/usr/bin/python3",
-        shellPath: "C:\\Program Files\\Git\\bin\\bash.exe",
-      },
-      ui: {
-        theme: "solar",
-        colorMode: "dark",
-      },
-      desktop: { headerType: "macos" },
-      skills: {
-        disabled: ["diagram", "imagegen"],
-        nerve: { enabled: ["skill-creator"] },
-        agentBrowser: { enabled: ["core", "dogfood"] },
-      },
-      tools: {
-        disabled: ["web_search", "web_fetch", "explain_image", "python_exec"],
-        bash: {
-          autoPromotion: { enabled: false, afterMs: 240_000 },
-        },
-        jira: { enabled: true, profileId: "work" },
-        confluence: { enabled: true, profileId: "work" },
-        web: { tavilyProfileId: "search" },
-        imageExplanation: {
-          model: { provider: "google", modelId: "gemini-2.5-flash" },
-          thinkingLevel: "high",
-        },
-        imageGeneration: {
-          provider: "openai-codex",
-          model: "gpt-image-2.5-sunburst",
-          options: {
-            quality: "max",
-            size: "2048x2048",
-            background: "transparent",
-          },
-        },
-      },
-      providers: {
-        atlassianProfiles: [
-          {
-            id: "work",
-            name: "Work",
-            siteUrl: "https://example.atlassian.net",
-            email: "user@example.com",
-            defaultProjectKey: "PROJ",
-            defaultSpaceKey: "DEV",
-          },
-        ],
-        tavilyProfiles: [{ id: "search", name: "Search" }],
-      },
-    });
-    assert.deepEqual(parsed.notifications, {
-      systemEnabled: false,
-      soundsEnabled: false,
-      events: {
-        question: "pop",
-        approval: "signal",
-        completed: "none",
-      },
-    });
-    for (const invalidTone of ["siren", "kenney-switch-20"]) {
-      assert.equal(
-        updateSettingsRequestSchema.safeParse({
-          notifications: { events: { approval: invalidTone } },
-        }).success,
-        false,
-      );
-    }
-    assert.deepEqual(parsed.transcription, {
-      model: "gpt-transcribe",
-      languages: ["en", "zh-tw"],
-      vocabulary: ["Nerve", "Codex CLI"],
-    });
-    for (const transcription of [
-      { model: "whisper-1" },
-      { languages: ["english"] },
-      { vocabulary: ["invalid<term"] },
+  it("rejects migrated agent and creation fields in the preserved settings update API", () => {
+    for (const patch of [
+      { defaultAgentProfile: "coding" },
+      { defaultModel: null },
+      { compaction: {} },
+      { retry: {} },
+      { skills: {} },
+      { tools: {} },
+      { scopedModels: [] },
     ]) {
-      assert.equal(
-        updateSettingsRequestSchema.safeParse({ transcription }).success,
-        false,
-      );
+      assert.equal(updateSettingsRequestSchema.safeParse(patch).success, false);
     }
-    assert.deepEqual(parsed.ui, {
-      theme: "solar",
-      colorMode: "dark",
-    });
-    assert.deepEqual(parsed.desktop, { headerType: "macos" });
+  });
+  it("rejects obsolete harness retention fields instead of silently stripping them", () => {
     assert.equal(
-      updateSettingsRequestSchema.safeParse({
-        desktop: { headerType: "beos" },
+      autoCompactionSettingsSchema.safeParse(defaultSettings.compaction)
+        .success,
+      true,
+    );
+    assert.equal(
+      autoCompactionSettingsSchema.safeParse({
+        ...defaultSettings.compaction,
+        customKeepRecentPercent: 15,
       }).success,
       false,
-    );
-    for (const ui of [{ theme: "unknown" }, { colorMode: "sepia" }]) {
-      assert.equal(
-        updateSettingsRequestSchema.safeParse({ ui }).success,
-        false,
-      );
-    }
-    assert.equal(parsed.runtime?.pythonExecutablePath, "/usr/bin/python3");
-    assert.equal(
-      parsed.runtime?.shellPath,
-      "C:\\Program Files\\Git\\bin\\bash.exe",
-    );
-    assert.deepEqual(parsed.tools?.disabled, [
-      "web_search",
-      "web_fetch",
-      "explain_image",
-      "python_exec",
-    ]);
-    assert.deepEqual(parsed.skills?.disabled, ["diagram", "imagegen"]);
-    assert.deepEqual(parsed.skills?.agentBrowser?.enabled, ["core", "dogfood"]);
-    assert.deepEqual(parsed.tools?.bash?.autoPromotion, {
-      enabled: false,
-      afterMs: 240_000,
-    });
-    assert.equal(
-      updateSettingsRequestSchema.safeParse({
-        tools: { disabled: ["python"] },
-      }).success,
-      false,
-    );
-    assert.deepEqual(parsed.tools?.jira, {
-      enabled: true,
-      profileId: "work",
-    });
-    assert.deepEqual(parsed.tools?.confluence, {
-      enabled: true,
-      profileId: "work",
-    });
-    assert.deepEqual(parsed.tools?.web, { tavilyProfileId: "search" });
-    assert.equal(parsed.providers?.atlassianProfiles?.[0]?.name, "Work");
-    assert.equal(parsed.providers?.tavilyProfiles?.[0]?.name, "Search");
-    assert.deepEqual(parsed.tools?.imageExplanation, {
-      model: { provider: "google", modelId: "gemini-2.5-flash" },
-      thinkingLevel: "high",
-    });
-    assert.deepEqual(parsed.tools?.imageGeneration, {
-      provider: "openai-codex",
-      model: "gpt-image-2.5-sunburst",
-      options: {
-        quality: "max",
-        size: "2048x2048",
-        background: "transparent",
-      },
-    });
-    const validImageGeneration = {
-      provider: "openai-codex",
-      model: "gpt-image-2.5-flare",
-      options: { quality: "auto", size: "auto", background: "auto" },
-    } as const;
-    for (const imageGeneration of [
-      { ...validImageGeneration, provider: "google" },
-      { ...validImageGeneration, model: "gpt-image-latest" },
-      { ...validImageGeneration, model: "gpt-image-2" },
-      {
-        ...validImageGeneration,
-        options: { ...validImageGeneration.options, quality: "ultra" },
-      },
-      {
-        ...validImageGeneration,
-        options: { ...validImageGeneration.options, size: "1000x1000" },
-      },
-      {
-        ...validImageGeneration,
-        options: { ...validImageGeneration.options, background: "green" },
-      },
-    ]) {
-      assert.equal(
-        updateSettingsRequestSchema.safeParse({
-          tools: { imageGeneration },
-        }).success,
-        false,
-      );
-    }
-    const cleared = updateSettingsRequestSchema.parse({
-      runtime: { pythonExecutablePath: null, shellPath: null },
-      tools: {
-        jira: { profileId: null },
-        confluence: { profileId: null },
-        web: { tavilyProfileId: null },
-      },
-    });
-    assert.equal(cleared.runtime?.pythonExecutablePath, null);
-    assert.equal(cleared.runtime?.shellPath, null);
-    assert.equal(cleared.tools?.jira?.profileId, null);
-    assert.equal(cleared.tools?.confluence?.profileId, null);
-    assert.equal(cleared.tools?.web?.tavilyProfileId, null);
-
-    assert.throws(() =>
-      updateSettingsRequestSchema.parse({
-        tools: { bash: { autoPromotion: { afterMs: 0 } } },
-      }),
-    );
-    assert.throws(() =>
-      updateSettingsRequestSchema.parse({
-        tools: { bash: { autoPromotion: { afterMs: 86_400_001 } } },
-      }),
     );
   });
 });

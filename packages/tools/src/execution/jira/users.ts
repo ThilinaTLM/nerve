@@ -1,3 +1,4 @@
+import { guideErrorMessage } from "./guide-errors.js";
 import type {
   IntegrationExecutionContext,
   ToolExecutionResult,
@@ -74,7 +75,9 @@ export async function maybeResolveAssignee(
   if (optionalString(args.assignee_account_id)) {
     throw new ToolExecutionError(
       "JIRA_ASSIGNEE_CONFLICT",
-      "Provide either assignee_account_id or assignee_query, not both.",
+      guideErrorMessage(
+        "Provide either assignee_account_id or assignee_query, not both.",
+      ),
     );
   }
   const data = await searchJiraUsers(connection, {
@@ -100,12 +103,14 @@ export async function maybeResolveAssignee(
   if (candidates.length === 0) {
     throw new ToolExecutionError(
       "JIRA_USER_NOT_FOUND",
-      `No assignable Jira user matched "${query}".`,
+      guideErrorMessage(`No assignable Jira user matched "${query}".`),
     );
   }
   throw new ToolExecutionError(
     "JIRA_USER_AMBIGUOUS",
-    `Multiple assignable Jira users matched "${query}"; use assignee_account_id or a narrower query.`,
+    guideErrorMessage(
+      `Multiple assignable Jira users matched "${query}"; use assignee_account_id or a narrower query.`,
+    ),
     { users: candidates.slice(0, 10) },
   );
 }

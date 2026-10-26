@@ -9,7 +9,7 @@ export function planReviewDisplayResult(
 ) {
   const interaction = call.interaction;
   if (
-    call.toolName !== "plan_mode_present" ||
+    call.toolName !== "plan_present" ||
     outcome !== "completed" ||
     interaction?.kind !== "plan_review" ||
     !interaction.resolution
@@ -35,5 +35,27 @@ export function planReviewDisplayResult(
         : {}),
       review,
     },
+  };
+}
+
+/** Stable input identity referencing the captured, reviewed plan file. */
+export function planImplementationInput(call: ToolCall) {
+  const interaction = call.interaction;
+  if (
+    call.toolName !== "plan_present" ||
+    interaction?.kind !== "plan_review" ||
+    interaction.resolution?.decision !== "approve"
+  )
+    return undefined;
+  const { request, resolution } = interaction;
+  if (request.content === undefined)
+    throw new Error(
+      "Captured plan content is unavailable; present the plan again.",
+    );
+  return {
+    conversationId: call.conversationId,
+    inputId: `plan-implementation:${JSON.stringify([call.conversationId, call.id])}`,
+    source: "user" as const,
+    text: `The user has accepted the plan. Please implement it.\n\nPlan file: ${request.path}${resolution.feedback ? `\n\nApproval feedback:\n${resolution.feedback}` : ""}`,
   };
 }

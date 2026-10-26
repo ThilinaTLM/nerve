@@ -11,19 +11,11 @@ export type {
   TrustedResource,
 } from "./trusted-resource.js";
 export {
-  conversationHarnessSettingsSchema,
-  conversationHarnessSettingsResultSchema,
-  harnessCompactionSourceSchema,
-} from "./harness-settings.js";
-export type {
-  ConversationHarnessSettings,
-  ConversationHarnessSettingsResult,
-  HarnessCompactionSource,
-} from "./harness-settings.js";
-export {
   conversationStatusSchema,
   conversationSchema,
   conversationConfigSchema,
+  conversationContextSchema,
+  conversationHistoryConfigSchema,
   conversationSummarySchema,
   conversationSnapshotSchema,
 } from "./conversation.js";
@@ -31,6 +23,8 @@ export type {
   ConversationStatus,
   Conversation,
   ConversationConfig,
+  ConversationContextConfig,
+  ConversationHistoryConfig,
   ConversationSummary,
   ConversationSnapshot,
 } from "./conversation.js";
@@ -85,6 +79,13 @@ export {
   toolCallStateSchema,
   toolCallOriginSchema,
   supervisionSchema,
+  toolApprovalBindingSchema,
+  toolApprovalBindingMatches,
+  configurationGenerationVectorSchema,
+  toolAdmissionEvidenceSchema,
+  configurationBlockedRequestSchema,
+  configurationBlockedResolutionSchema,
+  configurationBlockedInteractionSchema,
   interactionResolutionSchema,
   approvalRequestSchema,
   userInputRequestSchema,
@@ -100,6 +101,12 @@ export type {
   ToolCallState,
   ToolCallOrigin,
   Supervision,
+  ToolApprovalBinding,
+  ConfigurationGenerationVector,
+  ToolAdmissionEvidence,
+  ConfigurationBlockedRequest,
+  ConfigurationBlockedResolution,
+  ConfigurationBlockedInteraction,
   InteractionResolution,
   ApprovalRequest,
   UserInputRequest,
@@ -158,12 +165,14 @@ export {
 } from "./core-operations.js";
 export {
   previewSystemPromptParamsSchema,
+  previewSystemPromptResultSchema,
   conversationChannelOperations,
   conversationChannelEvents,
   conversationChannelEventSchemas,
 } from "./channel.js";
 export type {
   PreviewSystemPromptParams,
+  PreviewSystemPromptResult,
   ConversationChannelOperationName,
   ConversationChannelOperationParams,
   ConversationChannelOperationResult,
@@ -194,3 +203,6 @@ export {
   compactionOperationSchema,
   type CompactionOperation,
 } from "./compaction-operation.js";
+
+export { setConversationAgentProfileRequestSchema } from "./core-operations.js";
+export type { SetConversationAgentProfileRequest } from "./core-operations.js";

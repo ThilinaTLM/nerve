@@ -1,367 +1,55 @@
 import assert from "node:assert/strict";
-import { mkdtemp, rm } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
 import { test } from "node:test";
-import type { ConversationConfig } from "@nervekit/contracts/core";
-import type { Skill } from "@nervekit/harness/resources";
-import { NerveSkillCatalog } from "@nervekit/skills";
-import { AgentBrowserSkillCatalog } from "./agent-browser-skills.js";
-import { listAvailableSkills } from "./resource-loader.js";
 import {
   toolDefinitionByName,
   type ToolDefinition,
 } from "@nervekit/tools/catalog";
-import {
-  createTurnResourcesPort,
-  withSubagentProfiles,
-} from "./turn-resources.adapter.js";
-import { buildNerveSystemPrompt } from "./nerve-system-prompt.js";
+import { withAgentProfiles } from "./turn-resources.adapter.js";
 
-const tool = (name: string) => toolDefinitionByName(name) as ToolDefinition;
-const coreTools = [
+const tools = [
   "subagent_prompt",
   "subagent_status",
   "subagent_stop",
   "ask_user",
-  "plan_mode_present",
-].map(tool);
+].map((name) => toolDefinitionByName(name) as ToolDefinition);
 
-async function prepare(options: {
-  parent: string | null;
-  usable: { name: string; description: string }[];
-  instructions?: string | null;
-  hasExistingSubagents?: boolean;
-  subagentsEnabled?: boolean;
-  mode?: ConversationConfig["mode"];
-  planToolSource?: "host" | "core";
-}) {
-  const home = await mkdtemp(join(tmpdir(), "nerve-turn-"));
-  try {
-    const port = createTurnResourcesPort({
-      home,
-      tools: () => [
-        tool("read"),
-        ...(options.planToolSource === "host"
-          ? [tool("plan_mode_present")]
-          : []),
-      ],
-      skillCatalogs: {
-        nerve: { skills: [] },
-        agentBrowser: { skills: [] },
-      },
-      hasExistingSubagents: (id) => {
-        assert.equal(id, "c");
-        assert.notEqual(
-          options.subagentsEnabled,
-          false,
-          "master switch bypasses profile/child checks",
-        );
-        return options.hasExistingSubagents ?? false;
-      },
-      capabilities: {
-        configuration: async () => ({
-          effective: {
-            disabledTools:
-              options.subagentsEnabled === false ? ["subagents"] : [],
-            toolProfiles: {},
-          },
-          availableTools: [
-            "subagents",
-            "ask_user",
-            "plan_mode_present",
-            "read",
-          ],
-          toolProfileOptions: { jira: [], confluence: [], web_search: [] },
-        }),
-      } as never,
-      subagentProfiles: {
-        preview: async () => {
-          throw new Error("Not a draft");
-        },
-        usable: async (context) => {
-          assert.notEqual(
-            options.subagentsEnabled,
-            false,
-            "master switch bypasses profile/child checks",
-          );
-          assert.deepEqual(context, { projectId: "p", conversationId: "c" });
-          return options.usable as never;
-        },
-      },
-    });
-    return await port.prepare({
-      conversation: {
-        id: "c",
-        projectId: "p",
-        parentConversationId: options.parent,
-      },
-      config: {
-        mode: options.mode,
-        workingDirectory: home,
-        systemPrompt: null,
-        instructions: options.instructions ?? null,
-      } as ConversationConfig,
-      projectDir: home,
-      coreTools:
-        options.planToolSource === "host"
-          ? coreTools.filter((entry) => entry.name !== "plan_mode_present")
-          : coreTools,
-    });
-  } finally {
-    await rm(home, { recursive: true });
-  }
-}
-
-const names = (tools: ToolDefinition[]) => tools.map((entry) => entry.name);
-
-for (const planToolSource of ["host", "core"] as const) {
-  for (const mode of [undefined, "coding", "planning"] as const) {
-    void test(`${planToolSource} plan tool is gated in ${mode ?? "default"} mode`, async () => {
-      const { tools, systemPrompt } = await prepare({
-        parent: null,
-        usable: [],
-        mode,
-        planToolSource,
-      });
-      assert.equal(
-        names(tools).includes("plan_mode_present"),
-        mode === "planning",
-      );
-      assert.ok(names(tools).includes("read"));
-      assert.ok(names(tools).includes("ask_user"));
-      if (mode !== "planning")
-        assert.doesNotMatch(
-          systemPrompt,
-          /plan_mode_present|<mode_controls>|<plan_mode/,
-        );
-    });
-  }
-}
-
-void test("planning mode does not expose blocked tools to sub-agents", async () => {
-  const { tools } = await prepare({
-    parent: "lead",
-    usable: [],
-    mode: "planning",
-  });
-  assert.deepEqual(names(tools), ["read"]);
-});
-
-void test("sub-agent conversations lose blocked tools", async () => {
-  const { tools } = await prepare({
-    parent: "lead",
-    usable: [{ name: "explore", description: "Research" }],
-  });
-  assert.deepEqual(names(tools), ["read"]);
-});
-
-void test("leads get a profile enum and description from the usable profiles", async () => {
-  const { tools } = await prepare({
-    parent: null,
-    usable: [
-      { name: "explore", description: "Read-only research" },
-      { name: "developer", description: "Edits code" },
-    ],
-  });
-  assert.ok(names(tools).includes("subagent_status"));
-  const parameters = tools.find((entry) => entry.name === "subagent_prompt")!
-    .parameters as unknown as {
-    properties: {
-      assignments: {
-        items: {
-          properties: { profile: { enum: string[]; description: string } };
-        };
-      };
-    };
-  };
-  const profile = parameters.properties.assignments.items.properties.profile;
-  assert.deepEqual(profile.enum, ["explore", "developer"]);
-  assert.match(
-    profile.description,
-    /explore — Read-only research\ndeveloper — Edits code/,
-  );
-  // The catalog definition itself is untouched.
-  assert.equal(
-    JSON.stringify(tool("subagent_prompt").parameters).includes("developer"),
-    false,
-  );
-});
-
-void test("sub-agent tools are dropped when no profile is usable", () => {
-  assert.deepEqual(names(withSubagentProfiles(coreTools, [])), [
-    "ask_user",
-    "plan_mode_present",
-  ]);
-});
-
-void test("existing agents retain follow-up, status and stop tools without usable profiles", async () => {
-  const { tools } = await prepare({
-    parent: null,
-    usable: [],
-    hasExistingSubagents: true,
-  });
+void test("no usable profiles or existing children removes delegation tools", () => {
   assert.deepEqual(
-    names(tools).filter((name) => name.startsWith("subagent_")),
-    ["subagent_prompt", "subagent_status", "subagent_stop"],
+    withAgentProfiles(tools, []).map((tool) => tool.name),
+    ["ask_user"],
   );
-  const prompt = tools.find((entry) => entry.name === "subagent_prompt");
-  assert.ok(prompt);
-  const parameters = prompt.parameters as unknown as {
+});
+
+void test("usable profile names constrain new assignments without mutating the catalog", () => {
+  const original = JSON.stringify(tools);
+  const result = withAgentProfiles(tools, [
+    { name: "research", description: "Research" },
+  ]);
+  const prompt = result.find((tool) => tool.name === "subagent_prompt")!;
+  const schema = prompt.parameters as unknown as {
     properties: {
-      assignments: {
-        items: { properties: Record<string, unknown>; required: string[] };
-      };
+      assignments: { items: { properties: { profile: { enum: string[] } } } };
     };
   };
-  const assignments = parameters.properties.assignments.items;
-  assert.equal(Object.hasOwn(assignments.properties, "profile"), false);
-  assert.deepEqual(assignments.required, ["name", "prompt"]);
-  assert.doesNotMatch(JSON.stringify(parameters), /"enum":\[\]/);
-  assert.match(prompt.description, /follow-up work for existing sub-agents/);
-  assert.match(prompt.description, /new sub-agents cannot be created/);
-  assert.ok(
-    Object.hasOwn(
-      (tool("subagent_prompt").parameters as unknown as typeof parameters)
-        .properties.assignments.items.properties,
-      "profile",
-    ),
-    "catalog schema remains untouched",
+  assert.deepEqual(
+    schema.properties.assignments.items.properties.profile.enum,
+    ["research"],
   );
+  assert.equal(JSON.stringify(tools), original);
 });
 
-void test("no profiles and no existing agents remove all sub-agent tools", async () => {
-  const { tools } = await prepare({
-    parent: null,
-    usable: [],
-    hasExistingSubagents: false,
-  });
-  assert.equal(
-    names(tools).some((name) => name.startsWith("subagent_")),
-    false,
-  );
-});
-
-void test("the master capability removes sub-agent tools even with existing children", async () => {
-  const { tools } = await prepare({
-    parent: null,
-    usable: [],
-    hasExistingSubagents: true,
-    subagentsEnabled: false,
-  });
-  assert.equal(
-    names(tools).some((name) => name.startsWith("subagent_")),
-    false,
-  );
-});
-
-void test("preparation reads initialized catalogs and current selections without changing prior prompts", async () => {
-  const home = await mkdtemp(join(tmpdir(), "nerve-catalog-turn-"));
-  const nerve = new NerveSkillCatalog();
-  const browserSkill: Skill = {
-    name: "core",
-    description: "Browser automation",
-    filePath: join(home, "core", "SKILL.md"),
-    content: "Use the browser",
-  };
-  const agentBrowser = new AgentBrowserSkillCatalog({
-    async run(args) {
-      return args[1] === "--json"
-        ? JSON.stringify({
-            data: [{ name: "core", description: browserSkill.description }],
-          })
-        : `---\nname: core\ndescription: ${browserSkill.description}\n---\n${browserSkill.content}`;
-    },
-  });
-  const enabled = { nerve: ["skill-creator"], agentBrowser: ["core"] };
-  try {
-    // Isolate catalog selection from skills installed in the developer's home.
-    const disabledFileSkills = (
-      await listAvailableSkills(home, { storageHome: home })
-    ).skills.map(({ name }) => name);
-    const port = createTurnResourcesPort({
-      home,
-      tools: () => [tool("read")],
-      skillCatalogs: { nerve, agentBrowser },
-      capabilities: {
-        configuration: async () => ({
-          effective: {
-            disabledTools: [],
-            toolProfiles: {},
-            enabledNerveSkills: [...enabled.nerve],
-            enabledAgentBrowserSkills: [...enabled.agentBrowser],
-            disabledFileSkills,
-          },
-          availableTools: ["read"],
-          toolProfileOptions: { jira: [], confluence: [], web_search: [] },
-        }),
-      } as never,
-      subagentProfiles: {
-        usable: async () => [],
-        preview: async () => {
-          throw new Error("No profile preview expected");
-        },
-      },
-      hasExistingSubagents: () => false,
-    });
-    const input = {
-      conversation: { id: "c", projectId: "p", parentConversationId: null },
-      config: {
-        mode: "coding",
-        workingDirectory: home,
-        systemPrompt: null,
-        instructions: null,
-      } as ConversationConfig,
-      projectDir: home,
+void test("existing children remain addressable without offering new profile assignments", () => {
+  const result = withAgentProfiles(tools, [], true);
+  assert.equal(result.length, tools.length);
+  const prompt = result.find((tool) => tool.name === "subagent_prompt")!;
+  const schema = prompt.parameters as unknown as {
+    properties: {
+      assignments: { items: { properties: Record<string, unknown> } };
     };
-    // Consumers exist before initialization, but execution starts after readiness.
-    assert.equal(nerve.skills.length, 0);
-    assert.equal(agentBrowser.skills.length, 0);
-    await nerve.initialize();
-    await agentBrowser.initialize();
-    const initialized = await port.prepare(input);
-    assert.match(initialized.systemPrompt, /<name>skill-creator<\/name>/);
-    assert.match(initialized.systemPrompt, /<name>core<\/name>/);
-    assert.doesNotMatch(initialized.systemPrompt, /<name>team-lead<\/name>/);
-
-    enabled.nerve = ["team-lead"];
-    enabled.agentBrowser = [];
-    const changed = await port.prepare(input);
-    assert.match(changed.systemPrompt, /<name>team-lead<\/name>/);
-    assert.doesNotMatch(
-      changed.systemPrompt,
-      /<name>(skill-creator|core)<\/name>/,
-    );
-    assert.match(initialized.systemPrompt, /<name>skill-creator<\/name>/);
-
-    enabled.nerve = [];
-    assert.doesNotMatch(
-      (await port.prepare(input)).systemPrompt,
-      /<available_skills>/,
-    );
-  } finally {
-    await agentBrowser.shutdown();
-    await rm(home, { recursive: true, force: true });
-  }
-});
-
-void test("instructions render between context files and skills", () => {
-  const prompt = buildNerveSystemPrompt({
-    cwd: "/w",
-    contextFiles: [{ path: "AGENTS.md", content: "rules" }],
-    instructions: "  Report briefly.  ",
-    selectedTools: ["read"],
-    skills: [{ name: "s", description: "d", filePath: "/s/SKILL.md" } as never],
-  });
-  const at = (text: string) => prompt.indexOf(text);
-  assert.match(
-    prompt,
-    /<agent_instructions>\nReport briefly\.\n<\/agent_instructions>/,
+  };
+  assert.equal(
+    Object.hasOwn(schema.properties.assignments.items.properties, "profile"),
+    false,
   );
-  assert.ok(at("project_instructions") < at("<agent_instructions>"));
-  assert.ok(at("<agent_instructions>") < at("<available_skills>"));
-  assert.doesNotMatch(
-    buildNerveSystemPrompt({ cwd: "/w", instructions: null }),
-    /agent_instructions/,
-  );
+  assert.match(prompt.description, /existing sub-agents/);
 });

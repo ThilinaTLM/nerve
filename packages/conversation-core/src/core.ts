@@ -1,3 +1,5 @@
+import type { AgentConfigurationPort } from "./configuration.js";
+import { createId } from "@nervekit/contracts";
 import { storedToolResultSchema } from "@nervekit/contracts/core";
 import type { TransferredConversationEvent } from "@nervekit/contracts/core";
 import { submitInputRequestSchema } from "@nervekit/contracts/core";
@@ -13,7 +15,6 @@ import type {
   SubmitInputRequest,
   UpdateConversationRequest,
 } from "@nervekit/contracts/core";
-import type { AutoCompactionSettings } from "@nervekit/contracts/settings";
 import { loadProjectionOptions } from "./context/asset-projection.js";
 import { estimatePathUsage } from "./context/context-usage.js";
 import { AssetStore } from "./assets/asset-store.js";
@@ -32,7 +33,6 @@ import type {
   PermissionPort,
   ProcessPort,
   ToolHostPort,
-  TurnResourcesPort,
 } from "./ports.js";
 import type { CoreStorage } from "./storage/core-storage.js";
 import { ToolCallService } from "./tool-calls/tool-call.service.js";
@@ -53,10 +53,10 @@ import { ConversationScheduler } from "./runtime/scheduler.js";
 import { openExecutionId, StatusService } from "./runtime/status.js";
 
 export interface ConversationCoreOptions {
+  configuration: AgentConfigurationPort;
   storage: CoreStorage;
   dataDir: string;
   models: ModelPort;
-  turnResources: TurnResourcesPort;
   permissions: PermissionPort;
   toolHost: ToolHostPort;
   processes: ProcessPort;
@@ -71,10 +71,7 @@ export interface ConversationCoreOptions {
   onProjectDeleted?(projectId: string): void | Promise<void>;
   coreTools?: Iterable<CoreToolHandler>;
   readPlan?: CoreToolHandlerOptions["readPlan"];
-  /** Effective auto-compaction settings (user, project, conversation); built-in defaults when absent. */
-  compactionSettings?(
-    conversationId: string,
-  ): AutoCompactionSettings | Promise<AutoCompactionSettings>;
+  planApprovalProfile?: CoreToolHandlerOptions["planApprovalProfile"];
 }
 export interface ContextUsage {
   tokens: number;
@@ -92,6 +89,7 @@ export class ConversationCore {
   readonly asyncBash: AsyncBashService;
   readonly assets: AssetStore;
   readonly dataDir: string;
+  private readonly emit: (change: CoreChange) => void;
   private readonly listeners = new Set<(change: CoreChange) => void>();
   private readonly finishedListeners = new Set<
     (result: ExecutionFinished) => void
@@ -102,6 +100,7 @@ export class ConversationCore {
   private readonly runner: ConversationRunner;
   private readonly modelTurn: ModelTurn;
   private readonly status: StatusService;
+  private readonly creations = new Map<string, Promise<ConversationSnapshot>>();
   private starting?: Promise<void>;
   private closing?: Promise<void>;
   constructor(private readonly options: ConversationCoreOptions) {
@@ -165,6 +164,7 @@ export class ConversationCore {
       if (change.kind === "tool_call_changed" && "removed" in change.toolCall)
         queueMicrotask(() => this.scheduler?.wake(change.conversationId));
     };
+    this.emit = emit;
     this.compactions = new CompactionOperations(emit, now);
     this.assets = new AssetStore(options.dataDir, options.storage);
     this.inputs = new InputQueueService({
@@ -181,6 +181,7 @@ export class ConversationCore {
       emit,
     });
     this.toolCalls = new ToolCallService({
+      inputs: this.inputs,
       storage: options.storage,
       assets: this.assets,
       permissions: options.permissions,
@@ -189,19 +190,24 @@ export class ConversationCore {
       onSettled: (id) => this.status.refresh(id),
       coreTools: this.coreTools,
       asyncBash: this.asyncBash,
-      context: (id) => {
+      context: async (id) => {
         const conversation = options.storage.conversations.get(id);
-        const config = options.storage.conversations.getConfig(id);
+        const config = options.storage.conversations.getContext(id);
         const project =
           conversation && options.storage.projects.get(conversation.projectId);
         if (!project || !config)
           throw new Error("Conversation context not found");
-        return { projectDir: project.directory, config };
+        if (!options.configuration.resolveConfig)
+          throw new Error("Agent configuration resolver is unavailable");
+        return {
+          projectDir: project.directory,
+          config: await options.configuration.resolveConfig(id, config),
+        };
       },
     });
     this.modelTurn = new ModelTurn(
       options.models,
-      options.turnResources,
+      options.configuration,
       () => [...this.coreTools.values()].map((handler) => handler.definition),
       emit,
       this.assets,
@@ -216,7 +222,7 @@ export class ConversationCore {
       status: this.status,
       emit,
       now,
-      compactionSettings: options.compactionSettings,
+      configuration: options.configuration,
       compactions: this.compactions,
     });
     this.scheduler = new ConversationScheduler({
@@ -231,12 +237,15 @@ export class ConversationCore {
     });
     this.conversations = new ConversationService({
       storage: options.storage,
+      summary: (id) => options.configuration.summary?.(id) ?? {},
+      historyContext: (id) => options.configuration.historyContext?.(id) ?? {},
+      configureContext: (id, patch) =>
+        options.configuration.configureContext(id, patch),
       assets: this.assets,
       asyncBash: this.asyncBash,
       inputs: this.inputs,
       emit,
       now,
-      defaultConfig: options.defaultConfig,
       compactions: this.compactions,
       isExecuting: (id) => this.scheduler.isExecuting(id),
       stop: (id) => this.scheduler.stop(id),
@@ -251,15 +260,27 @@ export class ConversationCore {
     this.trust = new TrustedResourceService(options.storage, now);
     for (const handler of createCoreToolHandlers({
       assets: this.assets,
-      configure: (id, patch) => {
-        this.configure(id, patch);
-      },
+      profiles: options.configuration.profiles,
       readPlan: options.readPlan,
+      planApprovalProfile: options.planApprovalProfile,
       onPlanRejected: (id) => this.scheduler.pause(id),
     }).values())
       this.registerCoreTool(handler);
     for (const handler of options.coreTools ?? [])
       this.registerCoreTool(handler);
+  }
+  publishAgentSummary(id: string): void {
+    const summary = this.options.storage.conversations.getSummary(id);
+    if (summary) this.emit({ kind: "conversation_changed", summary });
+  }
+  publishConfigurationEvent(
+    event: import("@nervekit/contracts/core").ConversationEvent,
+  ): void {
+    this.emit({
+      kind: "event_appended",
+      conversationId: event.conversationId,
+      event,
+    });
   }
   registerCoreTool(handler: CoreToolHandler): void {
     this.coreTools.set(handler.definition.name, handler);
@@ -267,7 +288,42 @@ export class ConversationCore {
   createConversation(
     input: CreateConversationInput,
   ): Promise<ConversationSnapshot> {
-    return this.conversations.create(input);
+    input = { ...input, id: input.id ?? createId("conv") };
+    const pending = this.creations.get(input.id!);
+    if (pending) return pending.then(() => this.conversations.create(input));
+    const creating = Promise.resolve().then(() =>
+      this.createAndApplyProfile(input),
+    );
+    if (input.id) {
+      const id = input.id;
+      this.creations.set(id, creating);
+      const finished = () => {
+        if (this.creations.get(id) === creating) this.creations.delete(id);
+      };
+      void creating.then(finished, finished);
+    }
+    return creating;
+  }
+  private async createAndApplyProfile(
+    input: CreateConversationInput,
+  ): Promise<ConversationSnapshot> {
+    const existing =
+      input.id && this.options.storage.conversations.get(input.id);
+    const prepared = existing
+      ? undefined
+      : await this.options.configuration.prepareCreation(input);
+    const created = await this.conversations.create(input, prepared);
+    if (existing) return created;
+    try {
+      await this.options.configuration.initializeConversation({
+        ...input,
+        id: created.conversation.id,
+      });
+    } catch (error) {
+      await this.delete(created.conversation.id);
+      throw error;
+    }
+    return this.getSnapshot(created.conversation.id);
   }
   listConversations(input: ListConversationsRequest) {
     return this.options.storage.conversations.list(input);
@@ -329,39 +385,44 @@ export class ConversationCore {
     );
   }
   /** Snapshot of the next request's current system prompt; does not run a model. */
-  async previewSystemPrompt(input: PreviewSystemPromptParams): Promise<string> {
-    const { storage } = this.options;
+  async previewSystemPrompt(input: PreviewSystemPromptParams) {
     const saved = "conversationId" in input;
     const conversation = saved
-      ? storage.conversations.get(input.conversationId)
+      ? this.options.storage.conversations.get(input.conversationId)
       : { projectId: input.projectId, parentConversationId: null };
-    const config = saved
-      ? storage.conversations.getConfig(input.conversationId)
-      : input.config;
-    if (!conversation || !config) throw new Error("Conversation not found");
-    const project = storage.projects.get(conversation.projectId);
+    if (!conversation) throw new Error("Conversation not found");
+    const project = this.options.storage.projects.get(conversation.projectId);
     if (!project) throw new Error("Project not found");
-    const prepared = await this.modelTurn.prepare({
+    const config = saved
+      ? this.options.storage.conversations.getContext(input.conversationId)
+      : input.config;
+    return this.options.configuration.capturePreview({
       conversation,
-      config,
       projectDir: project.directory,
+      config: {
+        ...(!saved
+          ? {
+              systemPrompt: input.config?.systemPrompt ?? null,
+              instructions: input.config?.instructions ?? null,
+            }
+          : {}),
+        workingDirectory: config?.workingDirectory ?? project.directory,
+      },
+      coreTools: [...this.coreTools.values()].map(
+        (handler) => handler.definition,
+      ),
       ...(!saved
-        ? {
-            capabilityOverrides: input.capabilityOverrides,
-            subagentProfileOverrides: input.subagentProfileOverrides,
-          }
+        ? { overrides: input.overrides, agentProfile: input.agentProfile }
         : {}),
     });
-    return prepared.systemPrompt;
   }
   async contextUsage(id: string): Promise<ContextUsage> {
-    const config = this.options.storage.conversations.getConfig(id);
-    if (!config) throw new Error("Conversation not found");
     const path = this.runner.path(id);
     const projection = await loadProjectionOptions(path, this.assets);
     const tokens = Math.round(estimatePathUsage(path, projection).tokens);
-    const window = await this.options.models
-      .resolve(config.model)
+    const window = await this.options.configuration
+      .captureCompaction(id)
+      .then((capture) => this.options.models.resolve(capture.model))
       .then(({ model }) => model.contextWindow)
       .catch(() => 0);
     return {
@@ -376,9 +437,27 @@ export class ConversationCore {
   update(id: string, patch: UpdateConversationRequest["patch"]) {
     this.conversations.update(id, patch);
   }
+  setAgentProfile(
+    input: import("@nervekit/contracts/agent-configuration").SetConversationAgentProfileRequest,
+  ) {
+    if (this.creations.has(input.conversationId))
+      throw new Error("Conversation configuration is still being initialized");
+    return this.options.configuration.profiles.apply({
+      ...input,
+      kind: "profile",
+    });
+  }
+  previewAgentProfile(id: string, profile: string) {
+    return this.options.configuration.profiles.preview(id, profile);
+  }
   configure(
     id: string,
-    patch: Partial<Omit<ConversationConfig, "conversationId">>,
+    patch: Partial<
+      Pick<
+        ConversationConfig,
+        "systemPrompt" | "instructions" | "workingDirectory"
+      >
+    >,
   ) {
     return this.conversations.configure(id, patch);
   }
@@ -405,6 +484,25 @@ export class ConversationCore {
   stop(id: string) {
     return this.scheduler.stop(id);
   }
+  async reconcilePlanReviews(conversationId?: string): Promise<void> {
+    for (const call of this.options.storage.toolCalls.listAll()) {
+      if (
+        (conversationId && call.conversationId !== conversationId) ||
+        call.interaction?.kind !== "plan_review" ||
+        call.interaction.resolution?.decision !== "approve" ||
+        !call.interaction.resolutionRequestId
+      )
+        continue;
+      await this.resolveInteraction({
+        toolCallId: call.id,
+        resolutionRequestId: call.interaction.resolutionRequestId,
+        resolution: call.interaction.resolution,
+      });
+    }
+  }
+  retryConfigurationBlocked(conversationId?: string): Promise<void> {
+    return this.toolCalls.retryConfigurationBlocked(conversationId);
+  }
   retryResponse(id: string): void {
     this.modelTurn.retryResponse(id);
   }
@@ -418,6 +516,8 @@ export class ConversationCore {
     request: SubmitInputRequest,
   ): QueuedInput | "delivered" | Promise<ToolCall | "delivered"> {
     const input = submitInputRequestSchema.parse(request);
+    if (this.creations.has(input.conversationId))
+      throw new Error("Conversation configuration is still being initialized");
     this.inputs.assertAcceptsSource(input.conversationId, input.source);
     const inline =
       input.source === "user"
@@ -446,12 +546,21 @@ export class ConversationCore {
   cancelInput(inputId: string) {
     this.inputs.cancel(inputId);
   }
-  async resolveInteraction(input: ResolveInteractionRequest): Promise<void> {
+  async resolveInteraction(
+    input: ResolveInteractionRequest,
+  ): Promise<
+    import("@nervekit/contracts/agent-configuration").InteractionResolveResult
+  > {
     const conversationId = this.options.storage.toolCalls.get(
       input.toolCallId,
     )?.conversationId;
-    await this.toolCalls.resolveInteraction(input);
-    if (conversationId) this.scheduler.wake(conversationId);
+    const result = await this.toolCalls.resolveInteraction(input);
+    if (
+      conversationId &&
+      (result.status === "applied" || result.status === "resolved")
+    )
+      this.scheduler.wake(conversationId);
+    return result;
   }
   cancelAsyncBash(bashId: string) {
     return this.asyncBash.cancel(bashId);

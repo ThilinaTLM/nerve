@@ -116,10 +116,10 @@ export const orchestrationToolLifecycleSpecs = {
       });
     },
   }),
-  plan_mode_present: spec({
-    name: "plan_mode_present",
+  plan_present: spec({
+    name: "plan_present",
     argumentRegion: "until-result",
-    completedView: "plan_mode",
+    completedView: "plan_present",
     present: (source) => {
       const path = source.string("file_path");
       return argumentPresentation({

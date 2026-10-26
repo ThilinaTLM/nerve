@@ -60,6 +60,7 @@ let {
   onNewConversationInProject,
   onOpenProjectInEditor,
   onOpenProjectInTerminal,
+  onOpenProjectSettings,
   onDeleteProject,
   onDeleteConversation,
   onUpdateConversationState,
@@ -150,6 +151,7 @@ const menuContext = $derived<ProjectTreeMenuContext>({
   onNewConversationInProject,
   onOpenProjectInEditor,
   onOpenProjectInTerminal,
+  onOpenProjectSettings,
   requestPrune: (project: ProjectRecord) =>
     onPruneProjectConversations?.(project.id, {
       strategy: "keepLatest",

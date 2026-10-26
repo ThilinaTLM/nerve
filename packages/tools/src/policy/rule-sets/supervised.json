@@ -1,11 +1,10 @@
 {
   "schemaVersion": 1,
   "id": "supervised",
-  "name": "Supervised",
+  "name": "Supervise",
   "description": "Allow interaction and local inspection; prompt for other capabilities.",
   "source": "builtin",
   "enabled": true,
-  "compatibleModes": ["coding"],
   "rules": [
     {
       "id": "allow-interaction",

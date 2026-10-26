@@ -1,18 +1,7 @@
-import {
-  disabledToolListSchema,
-  subagentToolNames,
-} from "../tools/subagent-tools.js";
 import { z } from "zod";
 import { applicationLogLevelSchema } from "../logs/logs.js";
-import {
-  modelInputSchema,
-  modelSelectionSchema,
-  thinkingLevelSchema,
-} from "../models/models.js";
-import {
-  permissionOverlayDocumentSchema,
-  permissionRuleSetIdSchema,
-} from "../permissions/permission-rule-sets.js";
+import { modelInputSchema, thinkingLevelSchema } from "../models/models.js";
+import { permissionOverlayDocumentSchema } from "../permissions/permission-rule-sets.js";
 import {
   modelCostSchema,
   piApiSchema,
@@ -22,12 +11,7 @@ import {
 import {
   colorModeSchema,
   colorThemeSchema,
-  autoCompactionSettingsSchema,
   headerTypeSchema,
-  imageGenerationToolSettingsSchema,
-  krokiToolSettingsSchema,
-  defaultKrokiToolSettings,
-  modeSchema,
   notificationToneSchema,
   transcriptionModelSchema,
 } from "./settings.js";
@@ -83,16 +67,6 @@ export const NERVE_HOME_MANIFEST: NerveHomeManifestV2 = {
   homeClass: "standard",
 };
 
-const agentSelectionConfigSchema = z
-  .object({
-    mode: modeSchema,
-
-    permissionRuleSetId: permissionRuleSetIdSchema,
-    model: modelSelectionSchema.optional(),
-    thinkingLevel: thinkingLevelSchema,
-  })
-  .strict();
-
 export const daemonConfigSchema = z
   .object({
     version: z.literal(1),
@@ -147,121 +121,6 @@ export const defaultDaemonConfig: DaemonConfig = {
   process: { startupTimeoutMs: 60_000, maxOldSpaceMb: 4096 },
   logging: { level: "info", retentionDays: 14, maxBufferedLogs: 2000 },
   electron: { ozonePlatform: "auto", fontRenderHinting: "slight" },
-};
-
-export const harnessConfigSchema = z
-  .object({
-    version: z.literal(3),
-    defaults: agentSelectionConfigSchema,
-    rememberLastSelection: z.boolean(),
-    lastSelection: agentSelectionConfigSchema,
-    compaction: autoCompactionSettingsSchema,
-    retry: z
-      .object({
-        enabled: z.boolean(),
-        maxRetries: z.number().int().nonnegative(),
-        baseDelayMs: z.number().int().positive(),
-      })
-      .strict(),
-    execution: z
-      .object({
-        pythonExecutablePath: z.string().trim().min(1).optional(),
-        shellPath: z.string().trim().min(1).optional(),
-      })
-      .strict(),
-    tools: z
-      .object({
-        disabled: disabledToolListSchema,
-        bash: z
-          .object({
-            maxTimeoutMs: z
-              .number()
-              .int()
-              .min(1000)
-              .max(3_600_000)
-              .default(900_000),
-            autoPromotion: z
-              .object({
-                enabled: z.boolean(),
-                afterMs: z.number().int().positive().max(86_400_000),
-              })
-              .strict(),
-          })
-          .strict(),
-        imageExplanation: z
-          .object({
-            model: modelSelectionSchema.optional(),
-            thinkingLevel: thinkingLevelSchema,
-          })
-          .strict(),
-        imageGeneration: imageGenerationToolSettingsSchema,
-        kroki: krokiToolSettingsSchema,
-      })
-      .strict(),
-    skills: z
-      .object({
-        disabled: z.array(z.string().trim().min(1)),
-        nerve: z
-          .object({ enabled: z.array(z.string().trim().min(1)) })
-          .strict()
-          .default({ enabled: [] }),
-        agentBrowser: z
-          .object({ enabled: z.array(z.string().trim().min(1)) })
-          .strict(),
-      })
-      .strict(),
-    scopedModels: z.array(modelSelectionSchema),
-  })
-  .strict();
-export type HarnessConfig = z.infer<typeof harnessConfigSchema>;
-
-export const defaultHarnessConfig: HarnessConfig = {
-  version: 3,
-  defaults: {
-    mode: "coding",
-
-    permissionRuleSetId: "autonomous",
-    thinkingLevel: "off",
-  },
-  rememberLastSelection: false,
-  lastSelection: {
-    mode: "coding",
-
-    permissionRuleSetId: "autonomous",
-    thinkingLevel: "off",
-  },
-  compaction: {
-    auto: true,
-    profile: "balanced",
-    customTriggerPercent: 80,
-  },
-  retry: { enabled: true, maxRetries: 3, baseDelayMs: 2000 },
-  execution: {},
-  tools: {
-    disabled: [
-      "explain_image",
-      "generate_image",
-      "kroki_export",
-      ...subagentToolNames,
-    ],
-    bash: {
-      autoPromotion: { enabled: true, afterMs: 120_000 },
-      maxTimeoutMs: 900_000,
-    },
-    kroki: defaultKrokiToolSettings,
-    imageExplanation: { thinkingLevel: "off" },
-    imageGeneration: {
-      provider: "openai-codex",
-      model: "gpt-image-2.5-flare",
-      options: { quality: "auto", size: "auto", background: "auto" },
-    },
-  },
-  skills: {
-    disabled: [],
-    nerve: { enabled: [] },
-    agentBrowser: { enabled: [] },
-  },
-  scopedModels: [],
 };
 
 export const uiConfigSchema = z
@@ -445,41 +304,24 @@ const tavilyProfileConfigSchema = z
 
 export const integrationsConfigSchema = z
   .object({
-    version: z.literal(1),
+    version: z.literal(2),
     profiles: z
       .object({
         atlassian: z.array(atlassianProfileConfigSchema),
         tavily: z.array(tavilyProfileConfigSchema),
       })
       .strict(),
-    tools: z
-      .object({
-        jira: z
-          .object({ enabled: z.boolean(), profileId: z.string().optional() })
-          .strict(),
-        confluence: z
-          .object({ enabled: z.boolean(), profileId: z.string().optional() })
-          .strict(),
-        web: z.object({ tavilyProfileId: z.string().optional() }).strict(),
-      })
-      .strict(),
   })
   .strict();
 export type IntegrationsConfig = z.infer<typeof integrationsConfigSchema>;
 export const defaultIntegrationsConfig: IntegrationsConfig = {
-  version: 1,
+  version: 2,
   profiles: { atlassian: [], tavily: [] },
-  tools: {
-    jira: { enabled: false },
-    confluence: { enabled: false },
-    web: {},
-  },
 };
 
 export const userConfigurationSchema = z
   .object({
     daemon: daemonConfigSchema,
-    harness: harnessConfigSchema,
     ui: uiConfigSchema,
     permissions: permissionsConfigSchema,
     providers: providersConfigSchema,
@@ -490,7 +332,6 @@ export type UserConfiguration = z.infer<typeof userConfigurationSchema>;
 
 export const defaultUserConfiguration: UserConfiguration = {
   daemon: defaultDaemonConfig,
-  harness: defaultHarnessConfig,
   ui: defaultUiConfig,
   permissions: defaultPermissionsConfig,
   providers: defaultProvidersConfig,

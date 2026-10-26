@@ -30,7 +30,7 @@ export const completionGroupKinds = {
   issues: ["issue"],
   skills: ["skill"],
   tools: ["tool"],
-  agents: ["subagent_profile", "subagent"],
+  agents: ["agent_profile", "subagent"],
   launches: ["launch", "launch_definition"],
 } as const;
 
@@ -101,8 +101,8 @@ const prefixes: Readonly<
   issue: ["issue"],
   skill: ["skill"],
   tool: ["tool"],
-  profile: ["subagent_profile"],
-  agent: ["subagent_profile", "subagent"],
+  profile: ["agent_profile"],
+  agent: ["agent_profile", "subagent"],
   launch: ["launch", "launch_definition"],
 };
 /** Shared syntax only, never lexical matching or authorization. */

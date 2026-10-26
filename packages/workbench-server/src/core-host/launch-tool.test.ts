@@ -59,7 +59,18 @@ function fixture() {
       current = { ...current, command: "new command" };
       return row;
     },
-    restart: async (id) => {
+    prepareRestart: async (id) => {
+      const source = rows.find((row) => row.id === id)!;
+      return {
+        command: source.command,
+        cwd: source.cwd,
+        projectId: source.projectId,
+        displayName: source.displayName,
+        restartedFromLaunchId: source.id,
+      };
+    },
+    restartPrepared: async (id, request) => {
+      assert.equal(request.preparedShell.command, request.command);
       restarts.push(id);
       const source = rows.find((row) => row.id === id)!;
       const row = {
@@ -180,14 +191,14 @@ void test("port conflicts report PID and name, never request listener terminatio
   assert.equal("terminateListeners" in (f.starts[0] as object), false);
 });
 
-void test("restart re-reads current definition after stop, including a specific run", async () => {
+void test("restart uses its admitted definition capture even when stopping changes the catalog", async () => {
   const f = fixture();
   f.setRows([{ ...record }]);
   await f.tool.execute(
     { action: "restart", name: "Dev", runId: record.id },
     "conv_one",
   );
-  assert.equal((f.starts[0] as { command: string }).command, "new command");
+  assert.equal((f.starts[0] as { command: string }).command, "old command");
   const empty = fixture();
   assert.equal(
     (await empty.tool.execute({ action: "restart", name: "Dev" }, "conv_one"))
@@ -481,6 +492,7 @@ void test("status distinguishes current configuration from an older executed com
   const status = (await f.tool.execute({ action: "status" }, "conv_one"))
     .content;
   assert.equal(status.includes(definition.id), false);
+  f.setDefinition({ ...definition, command: "new command" });
   await f.tool.execute({ action: "restart", name: "Dev" }, "conv_one");
   assert.equal((f.starts[0] as { command: string }).command, "new command");
 });

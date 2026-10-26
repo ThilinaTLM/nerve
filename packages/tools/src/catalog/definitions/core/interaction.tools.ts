@@ -11,17 +11,18 @@ const askUserParameters = Type.Object(
               minLength: 1,
               maxLength: 40,
               pattern: "^[a-z0-9_-]+$",
-              description: "Unique question id; defaults to q1, q2, etc.",
             }),
           ),
-          question: Type.String({
-            description: "A focused question requiring the user's decision",
-          }),
+          question: Type.String(),
           context: Type.Optional(
-            Type.String({ description: "Brief background needed to decide" }),
+            Type.String({
+              description: "One short line of background needed to decide.",
+            }),
           ),
           recommendation: Type.Optional(
-            Type.String({ description: "Your recommendation and why" }),
+            Type.String({
+              description: "One short line: your recommendation and why.",
+            }),
           ),
           options: Type.Optional(
             Type.Array(
@@ -30,23 +31,14 @@ const askUserParameters = Type.Object(
                   label: Type.String({
                     minLength: 1,
                     maxLength: 200,
-                    description:
-                      "Short option title, 1–200 characters. Keep concise and put supporting detail in description.",
                   }),
-                  description: Type.Optional(
-                    Type.String({
-                      description:
-                        "Optional supporting detail shown alongside this option's label.",
-                    }),
-                  ),
+                  description: Type.Optional(Type.String()),
                   recommended: Type.Optional(Type.Boolean()),
                 },
                 { additionalProperties: false },
               ),
               {
                 maxItems: 6,
-                description:
-                  "Clear choices with unique labels; mark at most one recommended. Free text is always allowed.",
               },
             ),
           ),
@@ -61,17 +53,15 @@ const askUserParameters = Type.Object(
 
 const todoItemParameters = Type.Object(
   {
-    todo: Type.String({ description: "The todo item text" }),
-    done: Type.Boolean({ description: "Whether the item is done" }),
+    todo: Type.String(),
+    done: Type.Boolean(),
   },
   { additionalProperties: false },
 );
 
 const todosSetParameters = Type.Object(
   {
-    todos: Type.Array(todoItemParameters, {
-      description: "List of todo items with completion status",
-    }),
+    todos: Type.Array(todoItemParameters, {}),
   },
   { additionalProperties: false },
 );
@@ -87,7 +77,7 @@ export const interactionToolDefinitions = [
     executionKind: "host",
     label: "Ask User",
     description:
-      "Ask focused questions only when progress depends on the user's decision. Batch related decisions in one call (max 5). Offer options for a few clear choices and mark at most one recommended. Users can always answer in free text and attach images, which arrive as file paths readable with read.",
+      "Ask focused questions when progress depends on the user's decision. Batch related questions (max 5). Offer options for clear choices and mark at most one recommended. Users can also answer in free text and attach images (returned as readable paths).",
     parameters: askUserParameters,
     executionMode: "sequential",
   },
@@ -98,7 +88,7 @@ export const interactionToolDefinitions = [
     traits: [],
     executionKind: "host",
     label: "Set Todos",
-    description: "Set or replace the todo list for the current task.",
+    description: "Replace the task todo list.",
     parameters: todosSetParameters,
     executionMode: "sequential",
   },
@@ -109,7 +99,7 @@ export const interactionToolDefinitions = [
     traits: [],
     executionKind: "host",
     label: "Get Todos",
-    description: "Get the current todo list with completion status.",
+    description: "Get the task todo list.",
     parameters: todosGetParameters,
     executionMode: "parallel",
   },

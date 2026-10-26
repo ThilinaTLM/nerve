@@ -138,8 +138,10 @@ test("client codec accepts messages above 1 MiB after negotiating a 4 MiB limit"
             {
               id: "evt_large",
               ts: "2026-01-01T00:00:00.000Z",
-              type: "capabilities.changed",
-              data: { projectId: "x".repeat(2_047_842) },
+              type: "agentConfiguration.changed",
+              data: {
+                scope: { scope: "project", projectId: "x".repeat(2_047_842) },
+              },
             },
           ],
         }),

@@ -46,7 +46,7 @@ test("child summaries track parent prompt acceptance across queue delivery, not 
           systemPrompt: null,
           instructions: null,
           permissionRuleSetId: "baseline",
-          mode: "coding",
+          agentProfile: "coding",
           workingDirectory: "/tmp",
         },
       );

@@ -1,13 +1,12 @@
 <script lang="ts">
 import FileText from "@lucide/svelte/icons/file-text";
 import Gauge from "@lucide/svelte/icons/gauge";
-import type { ConversationHarnessSettingsResult } from "@nervekit/contracts/core";
+import type { AutoCompactionSettings } from "@nervekit/contracts/settings";
 import { Badge } from "@nervekit/ui-kit/components/ui/badge";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
 import * as Tooltip from "@nervekit/ui-kit/components/ui/tooltip";
 import {
   compactionDetail,
-  compactionSourceLabel,
   compactionSummary,
   formatBytes,
   instructionsBytes,
@@ -20,24 +19,28 @@ import {
  * draft. Sub-agents also show their profile.
  */
 let {
-  harness,
+  compaction,
+  compactionOverridden = false,
   instructions,
   profile,
   disabled = false,
+  compactionLocked = false,
   onEditCompaction,
   onEditInstructions,
 }: {
-  harness?: ConversationHarnessSettingsResult;
+  compaction?: AutoCompactionSettings;
+  compactionOverridden?: boolean;
   instructions: string | null | undefined;
   /** Profile badge text; sub-agents only. */
   profile?: string;
   disabled?: boolean;
+  /** The active profile locks compaction; the override can't be edited. */
+  compactionLocked?: boolean;
   onEditCompaction: () => void;
   onEditInstructions: () => void;
 } = $props();
 
-const compaction = $derived(harness?.compaction);
-const overridden = $derived(compaction?.source === "conversation");
+const overridden = $derived(compactionOverridden);
 const trimmedInstructions = $derived(instructions?.trim() ?? "");
 </script>
 
@@ -60,10 +63,10 @@ const trimmedInstructions = $derived(instructions?.trim() ?? "");
           <Button
             size="icon-sm"
             variant="ghost"
-            disabled={disabled || !compaction}
+            disabled={disabled || compactionLocked || !compaction}
             class="relative text-muted-foreground hover:text-foreground"
             ariaLabel={compaction
-              ? `Compaction: ${compactionSummary(compaction.effective)}`
+              ? `Compaction: ${compactionSummary(compaction)}`
               : "Compaction"}
             onclick={onEditCompaction}
           >
@@ -81,19 +84,21 @@ const trimmedInstructions = $derived(instructions?.trim() ?? "");
         <span class="font-medium">Compaction</span>
         {#if compaction}
           <span class="text-muted-foreground"
-            >{compactionSourceLabel(compaction.source)}</span
+            >{compactionOverridden ? "Conversation" : "Inherited"}</span
           >
         {/if}
       </div>
       {#if compaction}
-        <p class="font-medium">{compactionSummary(compaction.effective)}</p>
+        <p class="font-medium">{compactionSummary(compaction)}</p>
         <p class="text-muted-foreground">
-          {compactionDetail(compaction.effective)}
+          {compactionDetail(compaction)}
         </p>
       {:else}
         <p class="text-muted-foreground">Loading…</p>
       {/if}
-      <p class="border-t pt-1 text-muted-foreground">Click to change</p>
+      <p class="border-t pt-1 text-muted-foreground">
+        {compactionLocked ? "Locked by the active profile" : "Click to change"}
+      </p>
     </Tooltip.Content>
   </Tooltip.Root>
 </Tooltip.Provider>

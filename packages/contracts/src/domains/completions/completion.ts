@@ -11,7 +11,7 @@ export const completionKindSchema = z.enum([
   "issue",
   "skill",
   "tool",
-  "subagent_profile",
+  "agent_profile",
   "launch_definition",
   "subagent",
 ]);

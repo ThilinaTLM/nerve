@@ -45,6 +45,7 @@ let {
 <SettingsSection id={sectionId} {title}>
   {#snippet actions()}
     <Button
+      variant="outline"
       size="sm"
       data-tour-id={addTourId}
       onclick={onAdd}

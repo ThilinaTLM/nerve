@@ -7,18 +7,18 @@ sidebar:
 
 ## Desktop CLI
 
-| Option                   | Meaning                                        |
-| ------------------------ | ---------------------------------------------- |
-| `--local`                | Run/select an owned local daemon; default mode |
-| `--connect <url>`        | Connect to an existing HTTP(S) daemon origin   |
-| `--token <token>`        | Remote daemon token                            |
-| `--host <host>`          | Owned-daemon bind host                         |
-| `--port <1-65535>`       | Owned-daemon HTTP port                         |
-| `--https-port <1-65535>` | Mobile HTTPS port                              |
-| `--allow-remote`         | Permit non-loopback binding                    |
-| `--mobile-https`         | Generate/use local-CA HTTPS setup              |
-| `--help`, `-h`           | Launcher help                                  |
-| `--version`, `-v`        | Package version                                |
+| Option                   | Meaning                                                 |
+| ------------------------ | ------------------------------------------------------- |
+| `--local`                | Run/select an owned local daemon; default agent profile |
+| `--connect <url>`        | Connect to an existing HTTP(S) daemon origin            |
+| `--token <token>`        | Remote daemon token                                     |
+| `--host <host>`          | Owned-daemon bind host                                  |
+| `--port <1-65535>`       | Owned-daemon HTTP port                                  |
+| `--https-port <1-65535>` | Mobile HTTPS port                                       |
+| `--allow-remote`         | Permit non-loopback binding                             |
+| `--mobile-https`         | Generate/use local-CA HTTPS setup                       |
+| `--help`, `-h`           | Launcher help                                           |
+| `--version`, `-v`        | Package version                                         |
 
 Pass app options after `--` when using `npx` or `pnpm dlx`.
 

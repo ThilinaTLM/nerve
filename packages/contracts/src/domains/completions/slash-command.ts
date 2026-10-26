@@ -1,8 +1,9 @@
+import { agentProfileNameSchema } from "../agent-profiles/constants.js";
 import type { CompletionItem } from "./completion.js";
 
 export const slashCommandNames = [
   "plan",
-  "code",
+  "profile",
   "compact",
   "abort",
   "new",
@@ -10,21 +11,21 @@ export const slashCommandNames = [
 
 export type SlashCommandName = (typeof slashCommandNames)[number];
 
-export type SlashCommand = {
-  name: SlashCommandName;
-};
+export type SlashCommand =
+  | { name: Exclude<SlashCommandName, "profile"> }
+  | { name: "profile"; profile: string };
 
 export const slashCommandCompletionItems = [
   {
     label: "/plan",
-    detail: "Switch to Planning mode",
-    info: "Changes the active composer to Planning mode without sending a prompt.",
+    detail: "Switch to the Planning profile",
+    info: "Changes the active composer to the Planning profile without sending a prompt.",
     kind: "slash",
   },
   {
-    label: "/code",
-    detail: "Switch to Coding mode",
-    info: "Changes the active composer to Coding mode without sending a prompt.",
+    label: "/profile <name>",
+    detail: "Switch agent profile",
+    info: "Switches the active composer to the named agent profile without sending a prompt.",
     kind: "slash",
   },
   {
@@ -47,11 +48,31 @@ export const slashCommandCompletionItems = [
   },
 ] satisfies readonly CompletionItem[];
 
-const slashCommandNameSet = new Set<string>(slashCommandNames);
+/** Expand the profile argument from the available lead profiles. */
+export function slashCommandItemsForProfiles(
+  items: readonly CompletionItem[],
+  profiles: readonly { name: string; label: string; description?: string }[],
+): CompletionItem[] {
+  return items.flatMap((item) =>
+    item.label === "/profile <name>"
+      ? profiles.map((profile) => ({
+          kind: "slash" as const,
+          label: `/profile ${profile.name}`,
+          detail: `Switch to ${profile.label}`,
+          info: profile.description,
+        }))
+      : [item],
+  );
+}
 
 export function parseSlashCommand(text: string): SlashCommand | undefined {
-  const match = /^\/([a-z]+)$/.exec(text.trim());
+  const match = /^\/([a-z]+)(?:\s+(\S+))?$/.exec(text.trim());
   const name = match?.[1];
-  if (!name || !slashCommandNameSet.has(name)) return undefined;
-  return { name: name as SlashCommandName };
+  if (name === "profile") {
+    const profile = agentProfileNameSchema.safeParse(match?.[2]);
+    return profile.success ? { name, profile: profile.data } : undefined;
+  }
+  if (match?.[2] || !slashCommandNames.some((command) => command === name))
+    return undefined;
+  return { name: name as Exclude<SlashCommandName, "profile"> };
 }

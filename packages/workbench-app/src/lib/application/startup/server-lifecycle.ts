@@ -28,7 +28,7 @@ export function describeLifecycle(
   if (!progress) return { status };
   const { done, total } = progress;
   const known = done !== undefined && total !== undefined && total > 0;
-  const detail = `${progress.label}${known ? ` · ${done} of ${total}` : ""}`;
+  const detail = `${progress.label}${known ? ` · ${done.toLocaleString()} of ${total.toLocaleString()}` : ""}`;
   return {
     status,
     detail,

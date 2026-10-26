@@ -54,6 +54,7 @@ export function createPermissionConfigurationService(options: {
   home: string;
   storage: CoreStorage;
   projectDirectory: (projectId: string) => string | undefined;
+  published?(path: string): Promise<void>;
 }): PermissionConfigurationService {
   const { home, storage } = options;
 
@@ -148,9 +149,6 @@ export function createPermissionConfigurationService(options: {
         ...(ruleSet.description ? { description: ruleSet.description } : {}),
         source: ruleSet.source,
         enabled: ruleSet.enabled,
-        ...(ruleSet.compatibleModes
-          ? { compatibleModes: ruleSet.compatibleModes }
-          : {}),
         available: true,
       })),
       userOverlays,
@@ -181,6 +179,7 @@ export function createPermissionConfigurationService(options: {
   ): Promise<PermissionPolicyConfiguration> {
     if (target.scope === "project" && target.projectId)
       await trustProjectPermissions(storage, target.projectId, path);
+    await options.published?.(path);
     return get(target.projectId);
   }
 
@@ -239,6 +238,7 @@ export function createPermissionConfigurationService(options: {
       )
         throw new Error("There is no valid project permissions file to trust.");
       await trustProjectPermissions(storage, projectId, project.path);
+      await options.published?.(project.path);
       return get(projectId);
     },
   };

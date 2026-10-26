@@ -3,7 +3,7 @@ import { activityInbox } from "$lib/application/activity/activity-state.svelte";
 import { WorkbenchShell } from "$lib/presentation/shell";
 import MobileWorkbenchHost from "$lib/app/shell/mobile/MobileWorkbenchHost.svelte";
 import DesktopShutdownOverlay from "$lib/app/shell/DesktopShutdownOverlay.svelte";
-import SettingsHealthNotice from "$lib/app/shell/SettingsHealthNotice.svelte";
+import SettingsHealthWatcher from "$lib/app/shell/SettingsHealthWatcher.svelte";
 import WorkbenchEditorHost from "$lib/app/shell/WorkbenchEditorHost.svelte";
 import WorkbenchPanelHost from "$lib/app/composition/hosts/WorkbenchPanelHost.svelte";
 import ProjectDialogHost from "$lib/app/shell/ProjectDialogHost.svelte";
@@ -109,7 +109,7 @@ $effect(() => {
 </script>
 
 {#snippet workbenchOverlays()}
-  <SettingsHealthNotice />
+  <SettingsHealthWatcher />
   <BrowserNotificationPrompt />
   <CriticalErrorDialog />
   <UpgradeReportNotice />

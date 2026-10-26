@@ -1,19 +1,15 @@
 <script lang="ts">
+import { resolveAgentConfiguration } from "@nervekit/contracts/agent-configuration";
+import type { AgentEditorView } from "$lib/presentation/composer/agent-editor-view";
+import type { AvailableSkill } from "@nervekit/contracts/skills";
 import type { ConversationAgentUsage } from "@nervekit/contracts/core";
-import {
-  capabilityToolSettingsFromSettings,
-  emptyCapabilityOverrides,
-  type CapabilityConfiguration,
-  type CapabilitySelection,
-} from "@nervekit/contracts/capabilities";
+
 import type {
   ContextUsage,
   ModelInfo,
   ThinkingLevel,
 } from "@nervekit/contracts/models";
 import type { PermissionRuleSetSummary } from "@nervekit/contracts/permissions";
-import { defaultSettings } from "@nervekit/contracts/settings";
-import type { Mode } from "@nervekit/contracts/settings";
 import type { TodoItem } from "@nervekit/contracts/tools";
 import GitCommitIcon from "@lucide/svelte/icons/git-commit-horizontal";
 import GitPullRequestIcon from "@lucide/svelte/icons/git-pull-request";
@@ -24,12 +20,11 @@ import type {
   ConversationPaneActions,
 } from "$lib/presentation/conversations/conversation-view-contracts";
 import ComposerCapabilitiesPopover from "$lib/presentation/composer/ComposerCapabilitiesPopover.svelte";
-import ComposerModelPicker from "$lib/presentation/composer/ComposerModelPicker.svelte";
 import VoiceMicButton from "$lib/presentation/composer/VoiceMicButton.svelte";
 import ComposerShell from "$lib/presentation/composer/ComposerShell.svelte";
 import ComposerToolbar from "$lib/presentation/composer/ComposerToolbar.svelte";
 import ContextProgressBadge from "$lib/presentation/composer/ContextProgressBadge.svelte";
-import type { CapabilitySkillRow } from "$lib/presentation/composer/capability-skill-row";
+
 import type { ConversationSessionInfo } from "$lib/presentation/composer/session-info";
 import TodoProgressChip from "$lib/presentation/composer/TodoProgressChip.svelte";
 import { modelKey } from "$lib/presentation/utils/model";
@@ -37,7 +32,6 @@ import GalleryGroup from "../GalleryGroup.svelte";
 import GallerySpecimen from "../GallerySpecimen.svelte";
 
 const noop = () => {};
-const stamp = "2026-10-14T09:30:00.000Z";
 
 /* ------------------------------ Fixtures ------------------------------ */
 
@@ -80,7 +74,7 @@ const models: ModelInfo[] = [
 const permissionRuleSets: PermissionRuleSetSummary[] = [
   {
     id: "read_only",
-    name: "Read only",
+    name: "Read-only",
     description: "Cannot modify files or run commands.",
     source: "builtin",
     enabled: true,
@@ -96,7 +90,7 @@ const permissionRuleSets: PermissionRuleSetSummary[] = [
   },
   {
     id: "autonomous",
-    name: "Autonomous",
+    name: "Auto",
     description: "Runs without prompting.",
     source: "builtin",
     enabled: true,
@@ -206,62 +200,35 @@ const contextLevels: { title: string; usage: ContextUsage }[] = [
   },
 ];
 
-const selection = (): CapabilitySelection => ({
-  disabledTools: ["web_search"],
-  toolProfiles: {},
-  toolSettings: capabilityToolSettingsFromSettings(defaultSettings),
-  disabledFileSkills: [],
-  enabledNerveSkills: [],
-  enabledAgentBrowserSkills: [],
-});
-const capabilityConfiguration: CapabilityConfiguration = {
-  project: emptyCapabilityOverrides(),
-  conversation: emptyCapabilityOverrides(),
-  inherited: selection(),
-  effective: selection(),
-  availableTools: ["jira", "web_search", "web_fetch"],
-  toolProfileOptions: {
-    jira: [{ id: "ner", name: "NER" }],
-    confluence: [],
-    web_search: [],
-  },
-  trust: {
-    status: "trusted",
-    digest: "d",
-    trustedDigest: "d",
-    trustedAt: stamp,
-  },
+const capabilityConfiguration: AgentEditorView = {
+  overrides: { skills: { file: { deploy: false } } },
+  resolution: resolveAgentConfiguration({
+    role: "lead",
+    project: {
+      tools: { web_search: { enabled: false }, jira: { enabled: true } },
+      skills: { file: { review: true }, nerve: { plan: true } },
+    },
+    conversation: { skills: { file: { deploy: false } } },
+  }),
 };
-const capabilitySkills: CapabilitySkillRow[] = [
+const capabilitySkills: AvailableSkill[] = [
   {
-    key: "file:review",
     name: "review",
     source: "project",
-    kind: "file",
-    enabled: true,
-    overridden: false,
-    matchesInherited: true,
-    inheritedFrom: "project",
+    description: "Review changes",
+    filePath: "/project/review/SKILL.md",
   },
   {
-    key: "file:deploy",
     name: "deploy",
     source: "user",
-    kind: "file",
-    enabled: false,
-    overridden: true,
-    matchesInherited: false,
-    inheritedFrom: "user",
+    description: "Deploy a release",
+    filePath: "/skills/deploy/SKILL.md",
   },
   {
-    key: "nerve:plan",
     name: "plan",
     source: "nerve",
-    kind: "nerve",
-    enabled: true,
-    overridden: false,
-    matchesInherited: true,
-    inheritedFrom: "user",
+    description: "Plan work",
+    filePath: "/skills/plan/SKILL.md",
   },
 ];
 
@@ -287,14 +254,19 @@ let draftText = $state(
 );
 let thinkingLevel = $state<ThinkingLevel>("medium");
 let selectedModel = $state(modelKey(models[0]));
-let mode = $state<Mode>("coding");
+let agentProfile = $state("coding");
+const agentProfiles = [
+  { name: "coding", label: "Coding" },
+  { name: "planning", label: "Planning" },
+];
 
 const composerBase = $derived<ConversationComposerModel>({
   text: "",
   models,
   selectedModelKey: selectedModel,
   thinkingLevel,
-  mode,
+  agentProfile,
+  agentProfiles,
   permissionRuleSetId: "default",
   permissionRuleSets,
   contextUsage: { tokens: 70_000, contextWindow: 200_000, percent: 35 },
@@ -311,8 +283,8 @@ const composerVariants = $derived<
 >([
   { title: "Typing", model: { ...composerBase, text: draftText } },
   {
-    title: "Planning mode",
-    model: { ...composerBase, mode: "planning" },
+    title: "Planning profile",
+    model: { ...composerBase, agentProfile: "planning" },
   },
   {
     title: "Running (stop shown; sends are queued)",
@@ -343,9 +315,11 @@ const composerVariants = $derived<
 
 const actions: ConversationPaneActions = {
   onComposerChange: (text) => (draftText = text),
-  onModelChange: (value) => (selectedModel = value),
-  onThinkingLevelChange: (value) => (thinkingLevel = value),
-  onModeChange: (value) => (mode = value),
+  onModelSelectionChange: (next) => {
+    if (next.model) selectedModel = modelKey(next.model);
+    if (next.thinkingLevel) thinkingLevel = next.thinkingLevel;
+  },
+  onAgentProfileChange: (value) => (agentProfile = value),
   onSubmit: () => (draftText = ""),
   onAbort: noop,
   onCompact: noop,
@@ -461,7 +435,7 @@ function cycleMic() {
             <span class="text-xs text-muted-foreground">{variant.t}</span>
             <div class="rounded-md border bg-background">
               <ComposerShell
-                mode="coding"
+                agentProfile="coding"
                 showStop={variant.stop}
                 submitDisabled={variant.disabled}
                 sendAriaLabel="Send prompt"
@@ -500,7 +474,7 @@ function cycleMic() {
             <span class="text-xs text-muted-foreground">{variant.t}</span>
             <div class="rounded-md border bg-background">
               <ComposerShell
-                {mode}
+                agentProfile={variant.planning ? "planning" : "coding"}
                 submitDisabled={false}
                 sendAriaLabel="Send"
                 sendTitle="Send"
@@ -509,11 +483,11 @@ function cycleMic() {
                 {#snippet toolbar()}
                   <ComposerToolbar
                     controlsDisabled={false}
-                    modeDisabled={false}
+                    profileDisabled={false}
                     modelDisabled={false}
-                    modeLabel={variant.planning ? "Planning" : "Coding"}
-                    modePlanning={variant.planning}
-                    onToggleMode={noop}
+                    {agentProfiles}
+                    agentProfile={variant.planning ? "planning" : "coding"}
+                    onAgentProfileChange={noop}
                     permissionRuleSetId={variant.permission}
                     {permissionRuleSets}
                     contextUsage={{
@@ -528,8 +502,11 @@ function cycleMic() {
                     {models}
                     selectedModelKey={selectedModel}
                     {thinkingLevel}
-                    onModelChange={(value) => (selectedModel = value)}
-                    onThinkingLevelChange={(value) => (thinkingLevel = value)}
+                    onModelSelectionChange={(next) => {
+                      if (next.model) selectedModel = modelKey(next.model);
+                      if (next.thinkingLevel)
+                        thinkingLevel = next.thinkingLevel;
+                    }}
                     onCompact={noop}
                     {capabilityConfiguration}
                     {capabilitySkills}
@@ -615,37 +592,8 @@ function cycleMic() {
     </GallerySpecimen>
 
     <GallerySpecimen
-      title="ComposerModelPicker"
-      description="Model chip with reasoning effort. Default, disabled and no models."
-      source="presentation/composer/ComposerModelPicker"
-      usage="1 file · composer"
-      surface="panel"
-    >
-      <ComposerModelPicker
-        {models}
-        selectedModelKey={selectedModel}
-        {thinkingLevel}
-        onModelChange={(value) => (selectedModel = value)}
-        onThinkingLevelChange={(value) => (thinkingLevel = value)}
-        modelShortcut="Ctrl+M"
-        thinkingShortcut="Ctrl+T"
-      />
-      <ComposerModelPicker
-        {models}
-        selectedModelKey={modelKey(models[0])}
-        thinkingLevel="medium"
-        disabled
-      />
-      <ComposerModelPicker
-        models={[]}
-        selectedModelKey=""
-        emptyMessage="No models available. Configure a provider in this host."
-      />
-    </GallerySpecimen>
-
-    <GallerySpecimen
       title="ComposerCapabilitiesPopover"
-      description="Tools / Skills / Sub-agents tabs: configured, loading, error."
+      description="Tools / Skills tabs: configured, loading, error."
       source="presentation/composer/ComposerCapabilitiesPopover"
       usage="1 file · composer"
       surface="panel"
@@ -653,6 +601,11 @@ function cycleMic() {
       <ComposerCapabilitiesPopover
         configuration={capabilityConfiguration}
         skills={capabilitySkills}
+        subagentControlsEnabled
+        subagentProfiles={[
+          { name: "explorer", label: "Explorer" },
+          { name: "reviewer", label: "Reviewer", defaultEnabled: false },
+        ]}
         onPatch={noop}
         onReset={noop}
         onRefresh={noop}

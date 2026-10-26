@@ -6,6 +6,10 @@ import type {
 import type { CoreStorage } from "../storage/core-storage.js";
 
 export class TrustedResourceService {
+  private currentGeneration = 0;
+  get generation(): number {
+    return this.currentGeneration;
+  }
   constructor(
     private readonly storage: CoreStorage,
     private readonly now: () => string,
@@ -24,19 +28,24 @@ export class TrustedResourceService {
       input.path,
     );
     const now = this.now();
-    if (existing)
-      return this.storage.trustedResources.update(existing.id, {
+    if (existing) {
+      const result = this.storage.trustedResources.update(existing.id, {
         name: input.name,
         contentDigest: input.contentDigest,
         status: input.status,
         updatedAt: now,
       });
-    return this.storage.trustedResources.insert({
+      this.currentGeneration++;
+      return result;
+    }
+    const result = this.storage.trustedResources.insert({
       ...input,
       id: input.id ?? createId("trust"),
       createdAt: now,
       updatedAt: now,
     });
+    this.currentGeneration++;
+    return result;
   }
   isTrusted(
     kind: TrustedResourceKind,
@@ -51,5 +60,6 @@ export class TrustedResourceService {
   }
   delete(id: string) {
     this.storage.trustedResources.delete(id);
+    this.currentGeneration++;
   }
 }

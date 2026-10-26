@@ -22,24 +22,57 @@ import {
 } from "./event.js";
 import { submitInputRequestSchema } from "./input.js";
 import { interactionResolutionSchema } from "./tool-call.js";
+import { leadSettingsOverridesSchema } from "../agent-configuration/schemas.js";
+import {
+  getAgentConfigurationRequestSchema,
+  getAgentConfigurationResultSchema,
+  saveAgentConfigurationRequestSchema,
+  saveAgentConfigurationResultSchema,
+  getEffectiveAgentRequestSchema,
+  effectiveAgentViewResultSchema,
+  resolveProjectAgentRequestSchema,
+  projectAgentDefaultsResultSchema,
+  getCreationPreferencesRequestSchema,
+  getCreationPreferencesResultSchema,
+  saveCreationPreferencesRequestSchema,
+  saveCreationPreferencesResultSchema,
+  setConversationAgentProfileRequestSchema,
+  profileTransitionResultSchema,
+  previewProfileTransitionRequestSchema,
+  previewProfileTransitionResultSchema,
+  interactionResolveResultSchema,
+  profileTargetSchema,
+} from "../agent-configuration/agent-configuration-operations.js";
+export { setConversationAgentProfileRequestSchema } from "../agent-configuration/agent-configuration-operations.js";
+export type { SetConversationAgentProfileRequest } from "../agent-configuration/agent-configuration-operations.js";
 
-export const createConversationRequestSchema = z.object({
+export const createConversationRequestSchema = z.strictObject({
   id: z.string(),
   projectId: z.string(),
   parentConversationId: z.string().nullable().optional(),
   title: z.string(),
-  config: conversationConfigSchema.omit({ conversationId: true }).extend({
-    instructions: conversationConfigSchema.shape.instructions.default(null),
-  }),
+  config: conversationConfigSchema
+    .pick({ systemPrompt: true, instructions: true, workingDirectory: true })
+    .partial()
+    .strict(),
+  overrides: leadSettingsOverridesSchema.optional(),
+  agentProfile: profileTargetSchema.optional(),
 });
 export const listConversationsRequestSchema = z.object({
   projectId: z.string(),
   parentConversationId: z.string().nullable().optional(),
 });
-export const configureConversationRequestSchema = z.object({
-  conversationId: z.string(),
-  patch: conversationConfigSchema.omit({ conversationId: true }).partial(),
-});
+export const configureConversationRequestSchema = z
+  .object({
+    conversationId: z.string(),
+    // Only SQL-owned context is editable here; agent choices use agentConfiguration.save.
+    patch: conversationConfigSchema
+      .pick({ systemPrompt: true, instructions: true, workingDirectory: true })
+      .partial()
+      .strict(),
+  })
+  .strict();
+
 export const updateConversationRequestSchema = z.object({
   conversationId: z.string(),
   patch: z.object({
@@ -49,7 +82,9 @@ export const updateConversationRequestSchema = z.object({
     clearStatus: z.boolean().optional(),
   }),
 });
-export const resolveInteractionRequestSchema = z.object({
+/** Configuration-blocked retry/cancel uses this same idempotent command. A
+ * retry is admission re-evaluation, never an approval or permission override. */
+export const resolveInteractionRequestSchema = z.strictObject({
   toolCallId: z.string(),
   resolutionRequestId: z.string(),
   resolution: interactionResolutionSchema,
@@ -137,6 +172,38 @@ export const coreOperationSchemas = {
     params: configureConversationRequestSchema,
     result: done,
   },
+  "conversation.setAgentProfile": {
+    params: setConversationAgentProfileRequestSchema,
+    result: profileTransitionResultSchema,
+  },
+  "conversation.previewAgentProfile": {
+    params: previewProfileTransitionRequestSchema,
+    result: previewProfileTransitionResultSchema,
+  },
+  "agentConfiguration.get": {
+    params: getAgentConfigurationRequestSchema,
+    result: getAgentConfigurationResultSchema,
+  },
+  "agentConfiguration.save": {
+    params: saveAgentConfigurationRequestSchema,
+    result: saveAgentConfigurationResultSchema,
+  },
+  "agentConfiguration.getEffective": {
+    params: getEffectiveAgentRequestSchema,
+    result: effectiveAgentViewResultSchema,
+  },
+  "agentConfiguration.resolveProject": {
+    params: resolveProjectAgentRequestSchema,
+    result: projectAgentDefaultsResultSchema,
+  },
+  "conversationDefaults.get": {
+    params: getCreationPreferencesRequestSchema,
+    result: getCreationPreferencesResultSchema,
+  },
+  "conversationDefaults.save": {
+    params: saveCreationPreferencesRequestSchema,
+    result: saveCreationPreferencesResultSchema,
+  },
   "conversation.update": {
     params: updateConversationRequestSchema,
     result: done,
@@ -160,7 +227,7 @@ export const coreOperationSchemas = {
   "input.cancel": { params: z.object({ inputId: z.string() }), result: done },
   "interaction.resolve": {
     params: resolveInteractionRequestSchema,
-    result: done,
+    result: interactionResolveResultSchema,
   },
   "asyncBash.logs": {
     params: asyncBashLogsRequestSchema,

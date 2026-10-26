@@ -3,6 +3,7 @@ import {
   pendingConversations,
   type PendingConversationState,
 } from "./pending-conversations.svelte";
+import { DEFAULT_AGENT_PROFILE } from "@nervekit/contracts/agent-profiles";
 import type { Project, ConversationConfig } from "@nervekit/contracts/core";
 import { requestConversation } from "$lib/application/startup/conversation-connection";
 import {
@@ -71,6 +72,16 @@ export async function openConversation(conversationId: string): Promise<void> {
   addCenterTab({ kind: "conversation", id: conversationId });
   await selectCenterTab({ kind: "conversation", id: conversationId });
 }
+/** A project's settings tab cannot outlive the project. */
+async function closeRemovedProjectSettings(): Promise<void> {
+  const isRemoved = (tab: CenterTabIdentity) =>
+    tab.kind === "project-settings" &&
+    !workspaceState.projects.some((project) => project.id === tab.id);
+  const open = workspaceState.openCenterTabs.filter(isRemoved);
+  if (open.length > 0) await closeCenterTabs(open);
+  removeTabsFromAllSessions(isRemoved);
+}
+
 export async function loadWorkspaceState(): Promise<void> {
   workspaceState.projects = await requestConversation("project.list", {});
   await recoverConversationLists(
@@ -115,6 +126,7 @@ export async function loadWorkspaceState(): Promise<void> {
       );
     }
   }
+  await closeRemovedProjectSettings();
   if (
     !workspaceState.projects.some(
       (project) => project.id === workspaceState.selectedProjectId,
@@ -215,19 +227,19 @@ export function newConversation() {
 
 export function newConversationInProject(
   projectDir: string,
-  initialMode?: ConversationConfig["mode"],
+  initialProfile?: ConversationConfig["agentProfile"],
 ) {
   const project = projectForNewConversation(
     workspaceState.projects,
     projectDir,
   );
   if (project) {
-    void createConversationForProject(project, initialMode).catch(
+    void createConversationForProject(project, initialProfile).catch(
       reportConversationCreationError,
     );
     return;
   }
-  void createConversationForDirectory(projectDir, initialMode);
+  void createConversationForDirectory(projectDir, initialProfile);
 }
 
 export async function deleteProjectAndRefresh(projectId: string) {
@@ -317,7 +329,7 @@ function reportConversationCreationError(error: unknown): void {
 
 async function createConversationForProject(
   project: Project,
-  initialMode?: ConversationConfig["mode"],
+  initialProfile?: ConversationConfig["agentProfile"],
 ): Promise<void> {
   workspaceState.error = undefined;
   workspaceState.projectPickerOpen = false;
@@ -342,7 +354,8 @@ async function createConversationForProject(
   const config = {
     model,
     reasoningLevel: defaults.selectedThinkingLevel,
-    mode: initialMode ?? defaults.selectedMode,
+    agentProfile:
+      initialProfile ?? settings.defaultAgentProfile ?? DEFAULT_AGENT_PROFILE,
     permissionRuleSetId: defaults.selectedPermissionRuleSetId,
     systemPrompt: null,
     instructions: null,
@@ -355,7 +368,8 @@ async function createConversationForProject(
     title: "New Conversation",
     selectedModelKey: defaults.selectedModelKey,
     thinkingLevel: config.reasoningLevel,
-    mode: config.mode,
+    agentProfile: config.agentProfile,
+    explicitAgentProfile: initialProfile,
     permissionRuleSetId: config.permissionRuleSetId,
     sending: false,
     createdAt: new Date().toISOString(),
@@ -368,7 +382,7 @@ async function createConversationForProject(
 
 export async function createConversationForDirectory(
   dir: string,
-  initialMode?: ConversationConfig["mode"],
+  initialProfile?: ConversationConfig["agentProfile"],
 ) {
   workspaceState.error = undefined;
   try {
@@ -381,7 +395,7 @@ export async function createConversationForDirectory(
         (candidate) => candidate.id !== project.id,
       ),
     ];
-    await createConversationForProject(project, initialMode);
+    await createConversationForProject(project, initialProfile);
   } catch (caught) {
     const message = caught instanceof Error ? caught.message : String(caught);
     workspaceState.error = message;

@@ -61,17 +61,24 @@ export function createServerAdapterContexts(
     completions: { completions: services.completions },
     platform: {
       ...infrastructure,
+      git: services.git,
       conversationCore: services.conversationCore,
-      capabilities: services.capabilities,
+      agentConfiguration: services.agentConfiguration,
+      configurationOperations: services.configurationOperations,
+      admissionPolicy: services.admissionPolicy,
       workspaceMonitor: services.workspaceMonitor,
       integrationHealth: services.integrationHealth,
     },
     projects: {
+      getProject: (id: string) => {
+        const project = services.conversationCore.projects.get(id);
+        if (!project) throw new Error(`Project not found: ${id}`);
+        return project;
+      },
       editors: services.editors,
       terminal: services.terminal,
       scratchNotes: services.scratchNotes,
       promptSuggestions: services.promptSuggestions,
-      subagentProfiles: services.subagentProfiles,
       launchDefinitionOperations: services.launchDefinitionOperations,
       launchDefinitions: services.launchDefinitions,
     },
@@ -96,12 +103,15 @@ export function createServerAdapterContexts(
     protocolAdapter,
     websocket: {
       ...protocolAdapter,
+      coreStorage: services.coreStorage,
       conversationCore: services.conversationCore,
-      capabilities: services.capabilities,
-      harness: services.harness,
+      agentConfiguration: services.agentConfiguration,
+      configurationOperations: services.configurationOperations,
+      admissionPolicy: services.admissionPolicy,
       permissionConfiguration: createPermissionConfigurationService({
         home: infrastructure.storage.paths.home,
         storage: services.coreStorage,
+        published: (path) => services.admissionPolicy.reload([path]),
         projectDirectory: (id) =>
           services.conversationCore.projects.get(id)?.directory,
       }),
@@ -117,6 +127,7 @@ export function createServerAdapterContexts(
         statusResponse: infrastructure.statusResponse,
       },
       settings: {
+        admissionPolicy: services.admissionPolicy,
         storage: infrastructure.storage,
         events: infrastructure.events,
         providerCatalog: infrastructure.providerCatalog,

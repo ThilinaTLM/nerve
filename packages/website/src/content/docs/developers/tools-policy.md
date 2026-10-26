@@ -1,6 +1,6 @@
 ---
 title: Tools and approval policy
-description: Understand the tool manifest, execution lifecycle, risk decisions, and mode restrictions.
+description: Understand the tool manifest, execution lifecycle, risk decisions, and profile and permission restrictions.
 sidebar:
   order: 4
 ---
@@ -21,9 +21,9 @@ The server composes Baseline with one selected permission rule set:
 - **Supervised** allows interaction and local inspection, then prompts for other capabilities;
 - **Autonomous** allows valid requests unless a scoped overlay or guardrail replaces the decision;
 - **Planning** allows research, interaction, sub-agent delegation, and plan-file writes, prompts for local analysis commands, and denies other mutations;
-- custom user rule sets can define another ordered policy for compatible agent modes.
+- custom user rule sets can define another ordered policy; all enabled sets appear in the permission picker.
 
-Sub-agent delegation under Read only and Planning is not tied to the lead's mode: a lead may assign any profile, and each sub-agent runs under its own profile's rule set.
+Sub-agent delegation under Read only and Planning is not tied to the lead's profile: a lead may assign any profile, and each sub-agent runs under its own profile's rule set.
 
 The permission engine combines manifest metadata, normalized arguments and targets, the selected rule set, and matching overlays to produce `allow`, `prompt`, or `deny`. A prompt becomes a durable Workbench approval interaction. Multi-target calls are automatically allowed only when the winning allow rule covers every relevant target.
 
@@ -33,9 +33,11 @@ User, project, and conversation overlays are each bound to exactly one permissio
 
 User overlays are stored under `<NERVE_HOME>/config/permissions.json`; project overlays are stored under `<project>/.nerve/config/permissions.json`; conversation overlays are stored with managed conversation data. Each scope uses one atomic document containing groups shaped as `overlays: [{ ruleSetId, rules }]`, rather than one file per rule set. The complete project document digest must be trusted before any project group is active.
 
-Durable approval choices retain the permission rule set captured when the call was evaluated. Changing a conversation's selected rule set while an approval is pending cannot redirect the saved grant. If a selected custom set becomes missing, malformed, disabled, or incompatible, the host falls back to Baseline without applying overlays.
+Durable approval choices retain the permission rule set captured when the call was evaluated. Changing a conversation's selected rule set while an approval is pending cannot redirect the saved grant. A missing, malformed, disabled or incompatible selected policy blocks dependent execution with a configuration-blocked Retry/Cancel interaction; it never falls back to Baseline. Retry re-reads configuration.
 
 Rules can match tool names/groups, risks, validated arguments, and canonical path or URL targets. Portable path matchers use rooted POSIX patterns such as `src/**`; external host-specific paths use exact argument matching. Rules apply to Nerve's corresponding tools and are not an operating-system sandbox.
+
+Execution admission rechecks current policy even after approval; approval cannot defeat a later denial. After restart, not-yet-started calls are re-captured and re-admitted, and a changed target needs fresh approval. Frozen child preferences do not freeze current authorization.
 
 ## Distinctions
 

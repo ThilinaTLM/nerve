@@ -55,8 +55,8 @@ describe("setup guide policy", () => {
     );
     assert.deepEqual(steps[0]?.preparation, {
       kind: "settings",
-      pageId: "providers",
-      sectionId: "tavily-profiles",
+      pageId: "integrations",
+      sectionId: "tavily-accounts",
     });
     assert.equal(steps[0]?.advanceByClickingTarget, true);
   });
@@ -80,13 +80,13 @@ describe("setup guide policy", () => {
     );
     assert.deepEqual(steps[0]?.preparation, {
       kind: "settings",
-      pageId: "providers",
-      sectionId: "atlassian-profiles",
+      pageId: "integrations",
+      sectionId: "atlassian-accounts",
     });
     assert.deepEqual(steps[2]?.preparation, {
       kind: "settings",
       pageId: "tools",
-      sectionId: "third-party",
+      sectionId: "tools",
     });
     assert.equal(steps[0]?.advanceByClickingTarget, true);
     assert.equal(steps[2]?.advanceByClickingTarget, true);
@@ -132,7 +132,7 @@ describe("setup guide policy", () => {
     assert.equal(
       setupStepsForArea("agent-defaults", { codexConnected: false }).at(-1)
         ?.targetId,
-      "setup-agent-subagent-profiles",
+      "setup-agent-profiles",
     );
   });
 

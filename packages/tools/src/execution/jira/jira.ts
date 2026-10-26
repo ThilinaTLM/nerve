@@ -1,3 +1,4 @@
+import { guideErrorMessage } from "./guide-errors.js";
 import type {
   IntegrationExecutionContext,
   ToolExecutionResult,
@@ -379,7 +380,9 @@ export async function executeJiraCreateIssue(
   if (!projectKey)
     throw new ToolExecutionError(
       "JIRA_PROJECT_REQUIRED",
-      "project_key is required because no default Jira project key is configured.",
+      guideErrorMessage(
+        "project_key is required because no default Jira project key is configured.",
+      ),
     );
   const issueType = requiredString(args.issue_type, "issue_type");
   const summary = requiredString(args.summary, "summary");
@@ -481,7 +484,9 @@ export async function executeJiraUpdateIssue(
   if (Object.keys(fields).length === 0 && Object.keys(update).length === 0) {
     throw new ToolExecutionError(
       "JIRA_EMPTY_UPDATE",
-      "jira_update_issue requires at least one field or update operation.",
+      guideErrorMessage(
+        "jira_update_issue requires at least one field or update operation.",
+      ),
     );
   }
   const payload: Record<string, unknown> = {};
@@ -594,7 +599,9 @@ export async function executeJiraTransitionIssue(
   if (!transition) {
     throw new ToolExecutionError(
       "JIRA_TRANSITION_NOT_FOUND",
-      `No Jira transition matched "${transitionArg}" for ${issueKey}.`,
+      guideErrorMessage(
+        `No Jira transition matched "${transitionArg}" for ${issueKey}.`,
+      ),
       { availableTransitions: transitions.map(transitionSummary) },
     );
   }

@@ -3,7 +3,6 @@ import { describe, it } from "node:test";
 import {
   compactionDraftError,
   compactionDetail,
-  compactionSourceLabel,
   compactionSummary,
   compactionsEqual,
   INSTRUCTIONS_MAX_BYTES,
@@ -28,14 +27,6 @@ describe("compaction", () => {
         customTriggerPercent: 75,
       }),
       "Custom · 75%",
-    );
-  });
-
-  it("labels the source", () => {
-    assert.equal(compactionSourceLabel("user"), "inherited from user");
-    assert.equal(
-      compactionSourceLabel("conversation"),
-      "override for this conversation",
     );
   });
 

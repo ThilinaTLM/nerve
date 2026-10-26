@@ -16,7 +16,7 @@ import { pythonToolDefinitions } from "./definitions/core/python.tools.js";
 import { shellToolDefinitions } from "./definitions/core/shell.tools.js";
 import { webToolDefinitions } from "./definitions/core/web.tools.js";
 import { visionToolDefinitions } from "./definitions/core/vision.tools.js";
-import { planModeToolDefinitions } from "./definitions/orchestration/plan-mode.tools.js";
+import { planPresentToolDefinitions } from "./definitions/orchestration/plan-present.tools.js";
 import { processToolDefinitions } from "./definitions/orchestration/process.tools.js";
 import { agentResultPolicyForTool } from "../result-projection/policies/index.js";
 import { permissionMetadataForTool } from "./permission-metadata.js";
@@ -54,7 +54,7 @@ export const orchestrationToolDefinitions: readonly ToolDefinition[] =
     [
       ...processToolDefinitions,
       ...subagentToolDefinitions,
-      ...planModeToolDefinitions,
+      ...planPresentToolDefinitions,
     ].map(withAgentResultPolicy),
   );
 

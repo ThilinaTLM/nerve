@@ -5,7 +5,7 @@ sidebar:
   order: 3
 ---
 
-Nerve exposes the tool names below. The contracts and manifest own the exact catalog; availability also depends on mode, permission, runtime discovery, module settings, and user toggles.
+Nerve exposes the tool names below. The contracts and manifest own the exact catalog; availability also depends on profile, permission, runtime discovery, module settings, and user toggles.
 
 ## Files and execution
 
@@ -60,13 +60,13 @@ Check `launch status` before starting a server; prefer the user's definitions in
 ## Delegation and planning
 
 - Sub-agents: `subagent_prompt`, `subagent_status`, `subagent_stop`
-- Planning: `plan_mode_present`
+- Planning: `plan_present`
 
-The Sub-agents tool group is disabled by default. With the group enabled but no usable profiles, existing children retain prompt follow-ups, status and stop; the prompt schema omits `profile`, and new-child creation fails. With no usable profiles and no existing children, the tools are hidden. Turning the master Sub-agents capability off hides the entire group even when children exist. `subagent_prompt` takes a batch of 1–10 assignments (`name`, optional `profile`, `prompt`) and optional shared `context`. A new name creates a sub-agent from the named [profile](/reference/subagent-profiles/); an existing name queues a follow-up and resumes a stopped sub-agent. The whole batch is validated first, so a bad name, profile or duplicate fails the call and nothing is created. `subagent_status` lists sub-agents or shows one in detail, and `subagent_stop` stops the current execution of the named sub-agents.
+The Sub-agents tool group is disabled by default. With the group enabled but no usable profiles, existing children retain prompt follow-ups, status and stop; the prompt schema omits `profile`, and new-child creation fails. With no usable profiles and no existing children, the tools are hidden. Turning the master Sub-agents capability off hides the entire group even when children exist. `subagent_prompt` takes a batch of 1–10 assignments (`name`, optional `profile`, `prompt`) and optional shared `context`. A new name creates a sub-agent from the named [profile](/reference/agent-profiles/); an existing name queues a follow-up and resumes a stopped sub-agent. The whole batch is validated first, so a bad name, profile or duplicate fails the call and nothing is created. `subagent_status` lists sub-agents or shows one in detail, and `subagent_stop` stops the current execution of the named sub-agents.
 
-Users select coding or planning mode in the agent controls. In planning mode, `plan_mode_present` submits a plan for review; accepting it transitions to coding for implementation. Agents cannot select or exit planning mode themselves.
+Users select lead profiles in the composer, with `/profile <name>`, or with `/plan` (Planning). `plan_present` is disabled by default and enabled by the Planning profile: “Submit a plan file from plan storage for user review. Ends your turn; approval switches the conversation to the default profile for implementation.” Its `file_path` is inside plan storage; the tool description includes that directory's absolute path. Rejection keeps the profile and ends the run. Agents cannot switch profiles themselves.
 
-Sub-agents run asynchronously in the lead's worktree and do not see the lead transcript. Their completion is delivered as a notice that wakes the lead. They never receive `ask_user`, plan-mode tools or the sub-agent tools. Stopping a sub-agent keeps its history.
+Sub-agents run asynchronously in the lead's worktree and do not see the lead transcript. Their completion is delivered as a notice that wakes the lead. They never receive `ask_user`, `plan_present` or the sub-agent tools. Stopping a sub-agent keeps its history.
 
 ## Not agent tools
 

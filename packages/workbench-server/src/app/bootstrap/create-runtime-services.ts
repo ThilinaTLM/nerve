@@ -9,7 +9,6 @@ import {
   PromptSuggestionTrustRepository,
 } from "../../domains/prompt-suggestions/index.js";
 import { PromptSuggestionEnablementService } from "../../domains/prompt-suggestions/prompt-suggestion-enablement.service.js";
-import { SubagentProfileService } from "../../domains/subagents/index.js";
 import type { AuthManager } from "../../domains/auth/index.js";
 import { IntegrationHealthService } from "../../domains/auth/integration-health.service.js";
 import type { ProviderCatalogStore } from "../../domains/providers/provider-catalog.store.js";
@@ -77,13 +76,13 @@ export function createRuntimeServices(deps: RuntimeDeps) {
   const {
     core: conversationCore,
     storage: coreStorage,
-    capabilities,
-    harness,
-    profileAvailability,
+    agentConfiguration,
+    configurationOperations,
+    scopedConfiguration,
+    admissionPolicy,
   } = createConversationCore(
     deps,
     { launches, definitions: launchDefinitions },
-    () => subagentProfiles,
     // Lazy: completion project lookup depends on the constructed core.
     async (projectId) => {
       await completions.dispose(projectId);
@@ -149,17 +148,13 @@ export function createRuntimeServices(deps: RuntimeDeps) {
         dir: project.directory,
       })),
     getConversation: (id) => conversationCore.getSnapshot(id),
-  });
-  const subagentProfiles = new SubagentProfileService({
-    userPath: storage.paths.subagentsConfigPath,
-    conversationsPath: storage.paths.conversationsPath,
-    getConversation: (id) => conversationCore.getSnapshot(id).conversation,
-    availability: profileAvailability,
-    trust: conversationCore.trust,
-    events,
-    getProject: (id) => {
-      const project = getProject(id);
-      return { id: project.id, directory: project.directory };
+    getAgentContext: async (id) => {
+      const view = await agentConfiguration.getEffective(id);
+      if (view.status !== "available") return undefined;
+      const { permissionRuleSetId, reasoningLevel } = view.resolution.settings;
+      return permissionRuleSetId && reasoningLevel
+        ? { permissionRuleSetId, reasoningLevel }
+        : undefined;
     },
   });
   const completionMetadata = (id: string) => {
@@ -186,8 +181,14 @@ export function createRuntimeServices(deps: RuntimeDeps) {
       },
       sources: {
         project: getProject,
-        capabilities,
-        profiles: subagentProfiles,
+        configuration: agentConfiguration,
+        isProjectAgentTrusted: (projectId, path, digest) =>
+          conversationCore.trust.isTrusted(
+            "project_capabilities",
+            projectId,
+            path,
+            digest,
+          ),
         tools: allToolDescriptors,
         skills: async (scope) =>
           (
@@ -212,12 +213,13 @@ export function createRuntimeServices(deps: RuntimeDeps) {
   return {
     completions,
     activities,
-    subagentProfiles,
     promptSuggestionEnablement,
     promptSuggestions,
     conversationCore,
-    capabilities,
-    harness,
+    agentConfiguration,
+    configurationOperations,
+    scopedConfiguration,
+    admissionPolicy,
     coreStorage,
     launches,
     launchDefinitions,

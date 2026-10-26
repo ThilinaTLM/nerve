@@ -1,67 +1,74 @@
 <!--
-  Conversation-level tool configuration. Reuses the Settings → Tools dialogs,
-  seeded with the conversation's effective values; saving stores a
-  conversation override, and a value equal to the inherited one is pruned.
+  Conversation-level tool configuration with the same dialog as Settings → Tools,
+  seeded with the conversation's effective payload. Saving stores a
+  conversation choice; cleared optional local fields are reset explicitly.
 -->
 <script lang="ts">
-import type { AtlassianProfileHealth } from "@nervekit/contracts/auth";
-import type {
-  CapabilityConfiguration,
-  CapabilityPatch,
-} from "@nervekit/contracts/capabilities";
+import { requiredCanonicalPointers } from "$lib/presentation/composer/capability-tool-locks";
+import { toolSettingsMutation } from "$lib/features/settings/views/pages/tools/tool-settings-mutation";
+import type { LeadSettingsOverrides } from "@nervekit/contracts/agent-configuration";
+import type { AgentEditorView } from "$lib/presentation/composer/agent-editor-view";
 import { authenticatedRealModelOptions } from "$lib/presentation/utils/model";
-import { capabilityToolState } from "$lib/presentation/composer/capability-origin";
 import type { CapabilityToolGroup } from "$lib/presentation/composer/capability-tool-labels";
-import { atlassianHealthBadge } from "$lib/presentation/integrations/atlassian-health";
-import { settingsState } from "$lib/features/settings/state/settings-state.svelte";
-import ImageGenerationToolDialog from "$lib/features/settings/views/pages/tools/ImageGenerationToolDialog.svelte";
-import KrokiToolDialog from "$lib/features/settings/views/pages/tools/KrokiToolDialog.svelte";
-import ToolModelDialog from "$lib/features/settings/views/pages/tools/ToolModelDialog.svelte";
-import ToolProfileDialog from "$lib/features/settings/views/pages/tools/ToolProfileDialog.svelte";
 import {
-  conversationProfileId,
-  inheritedProfileLabel,
-  modelToolSettingsPatch,
-} from "./conversation-tool-settings";
+  agentProfileCatalog,
+  leadAgentProfiles,
+} from "$lib/application/agent-profiles/agent-profile-catalog.svelte";
+import { openSettingsPane } from "$lib/application/settings";
+import { settingsState } from "$lib/features/settings/state/settings-state.svelte";
+import ToolConfigDialog from "$lib/features/settings/views/pages/tools/ToolConfigDialog.svelte";
+import {
+  toolRow,
+  type ToolId,
+  type ToolPayload,
+} from "$lib/features/settings/views/pages/tools/tool-settings";
+import { sourceLabel } from "$lib/presentation/settings/configuration-source";
 
 type Props = {
-  configuration?: CapabilityConfiguration;
+  configuration?: AgentEditorView;
   /** The tool group being configured; clearing it closes the dialog. */
   group?: CapabilityToolGroup;
-  profileHealth?: AtlassianProfileHealth[];
-  onPatch: (patch: CapabilityPatch) => void;
+  projectId?: string;
+  onPatch: (patch: LeadSettingsOverrides, resets?: string[]) => void;
   onClose: () => void;
 };
 
-let {
-  configuration,
-  group,
-  profileHealth = [],
-  onPatch,
-  onClose,
-}: Props = $props();
+let { configuration, group, projectId, onPatch, onClose }: Props = $props();
 
-const toolState = $derived(
-  configuration && group
-    ? capabilityToolState({
-        configuration,
-        level: "conversation",
-        names: group.names,
-      })
-    : undefined,
+/** The tool of the group that has something to configure. */
+const toolId = $derived<ToolId | undefined>(
+  group?.names.find((name) => toolRow(name).configurable),
 );
-const toolSettings = $derived(configuration?.effective.toolSettings);
+const value = $derived<ToolPayload>(
+  toolId ? (configuration?.resolution.settings.tools?.[toolId] ?? {}) : {},
+);
+const accounts = $derived(
+  toolId === "web_search"
+    ? (settingsState.settingsDraft?.providers.tavilyProfiles ?? [])
+    : (settingsState.settingsDraft?.providers.atlassianProfiles.map((p) => ({
+        id: p.id,
+        name: p.name,
+        detail: p.siteUrl,
+      })) ?? []),
+);
+const noAccountLabel = "No account";
 const usableModels = $derived(
   authenticatedRealModelOptions(
     settingsState.models,
     settingsState.authProviders,
   ),
 );
-const title = $derived(group ? `Configure ${group.label}` : "");
+const leadProfiles = $derived(
+  leadAgentProfiles(agentProfileCatalog.profiles(projectId)).map((profile) => ({
+    name: profile.name,
+    label: profile.label,
+  })),
+);
+const requiredPointers = $derived(
+  requiredCanonicalPointers(configuration?.resolution.provenance),
+);
 const scopeNote = $derived(
-  toolState
-    ? `${toolState.originLabel}. Applies only to this conversation.`
-    : "",
+  `${sourceLabel(toolId ? configuration?.resolution.provenance[`/tools/${toolId}/enabled`] : undefined)}. Applies only to this conversation.`,
 );
 
 /* A newly selected group opens its dialog; closing the dialog ends the
@@ -72,77 +79,33 @@ $effect(() => {
   const key = group?.key;
   if (key === openedKey) return;
   openedKey = key;
-  open = key !== undefined;
+  open = key !== undefined && toolId !== undefined;
 });
 $effect(() => {
   if (!open && group) onClose();
 });
-
-function profileStatus(profileId: string) {
-  const service = toolState?.profileTool;
-  if (service !== "jira" && service !== "confluence") return undefined;
-  const result = profileHealth.find((item) => item.profileId === profileId)?.[
-    service
-  ];
-  return result ? atlassianHealthBadge(result) : undefined;
-}
 </script>
 
-{#if configuration && group && toolState && toolSettings}
-  {#if toolState.profileTool}
-    {@const tool = toolState.profileTool}
-    <ToolProfileDialog
-      bind:open
-      {title}
-      description={scopeNote}
-      profiles={toolState.profileOptions}
-      selectedProfileId={conversationProfileId(configuration, tool)}
-      providerSection={tool === "web_search"
-        ? "tavily-profiles"
-        : "atlassian-profiles"}
-      noneLabel={inheritedProfileLabel(
-        configuration,
-        tool,
-        toolState.inheritedFrom,
-      )}
-      warning={toolState.profileMissing
-        ? "The selected profile is not on this machine. Choose another profile."
-        : toolState.needsProfile
-          ? `Choose a profile to use ${group.label}.`
-          : undefined}
-      {profileStatus}
-      onSave={(profileId) =>
-        onPatch({ tools: { [tool]: { profileId: profileId ?? null } } })}
-    />
-  {:else if toolState.settingsTool === "explain_image"}
-    <ToolModelDialog
-      bind:open
-      {title}
-      description={scopeNote}
-      label="Image explanation model"
-      models={usableModels}
-      selectedModel={toolSettings.explain_image.model}
-      selectedThinkingLevel={toolSettings.explain_image.thinkingLevel}
-      requiredCapabilities={["vision"]}
-      emptyMessage="No configured image-capable models are available."
-      onSave={(selection) =>
-        onPatch(modelToolSettingsPatch("explain_image", selection))}
-    />
-  {:else if toolState.settingsTool === "generate_image"}
-    <ImageGenerationToolDialog
-      bind:open
-      {title}
-      description={scopeNote}
-      value={toolSettings.generate_image}
-      onSave={(value) => onPatch({ toolSettings: { generate_image: value } })}
-    />
-  {:else if toolState.settingsTool === "kroki_export"}
-    <KrokiToolDialog
-      bind:open
-      {title}
-      description={scopeNote}
-      value={toolSettings.kroki_export}
-      onSave={(value) => onPatch({ toolSettings: { kroki_export: value } })}
-    />
-  {/if}
+{#if configuration && group && toolId}
+  <ToolConfigDialog
+    bind:open
+    name={toolId}
+    {value}
+    {requiredPointers}
+    description={scopeNote}
+    models={usableModels}
+    {accounts}
+    {noAccountLabel}
+    {leadProfiles}
+    onManageAccounts={() => void openSettingsPane("integrations")}
+    onSave={(next) => {
+      const mutation = toolSettingsMutation(
+        toolId,
+        next,
+        configuration.overrides,
+        requiredPointers,
+      );
+      onPatch(mutation.changes, mutation.resets);
+    }}
+  />
 {/if}

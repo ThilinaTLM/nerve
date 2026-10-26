@@ -1,3 +1,4 @@
+import { defaultSettings } from "@nervekit/contracts/settings";
 import { chmod, copyFile, mkdir, open, rename, rm } from "node:fs/promises";
 import { basename, join } from "node:path";
 import { createHash, randomUUID } from "node:crypto";
@@ -198,7 +199,6 @@ function documentPaths(
 ): Array<[HomeConfigurationDocumentId, string]> {
   return [
     ["daemon", paths.daemonConfigPath],
-    ["harness", paths.harnessConfigPath],
     ["ui", paths.uiConfigPath],
     ["permissions", paths.permissionsConfigPath],
     ["providers", paths.providersConfigPath],
@@ -211,7 +211,6 @@ export async function writeHomeConfiguration(
   configuration: UserConfiguration,
   touched: readonly HomeConfigurationDocumentId[] = [
     "daemon",
-    "harness",
     "ui",
     "providers",
     "integrations",
@@ -232,7 +231,13 @@ export async function writeHomeConfiguration(
     await atomicWriteJson(path, parsed[id], CONFIG_MODE);
     await chmod(path, CONFIG_MODE).catch(() => undefined);
   }
-  return parsed;
+  const written = new Set(changed.map(([id]) => id));
+  return Object.fromEntries(
+    (Object.keys(current) as HomeConfigurationDocumentId[]).map((id) => [
+      id,
+      written.has(id) ? parsed[id] : current[id],
+    ]),
+  ) as unknown as UserConfiguration;
 }
 
 export class HomeConfigurationDocumentError extends Error {
@@ -281,7 +286,6 @@ function decodeConfiguration(
 ): UserConfiguration {
   return {
     daemon: HOME_CONFIGURATION_CODECS.daemon.decode(configuration.daemon),
-    harness: HOME_CONFIGURATION_CODECS.harness.decode(configuration.harness),
     ui: HOME_CONFIGURATION_CODECS.ui.decode(configuration.ui),
     permissions: HOME_CONFIGURATION_CODECS.permissions.decode(
       configuration.permissions,
@@ -301,7 +305,6 @@ function configDocuments(
 ): Array<{ path: string; value: unknown }> {
   return [
     { path: paths.daemonConfigPath, value: configuration.daemon },
-    { path: paths.harnessConfigPath, value: configuration.harness },
     { path: paths.uiConfigPath, value: configuration.ui },
     { path: paths.permissionsConfigPath, value: configuration.permissions },
     { path: paths.providersConfigPath, value: configuration.providers },
@@ -309,17 +312,13 @@ function configDocuments(
   ];
 }
 
-/** Runtime/UI projection assembled from the six authoritative documents. */
+/** Runtime/UI projection assembled from the preserved non-agent documents. */
 export function settingsFromConfiguration(
   configuration: UserConfiguration,
 ): Settings {
-  const { daemon, harness, ui, integrations } = configuration;
+  const { daemon, ui, integrations } = configuration;
   return settingsSchema.parse({
-    defaultPermissionRuleSetId: harness.defaults.permissionRuleSetId,
-    defaultModel: harness.defaults.model,
-    defaultThinkingLevel: harness.defaults.thinkingLevel,
-    rememberLastAgentSelection: harness.rememberLastSelection,
-    lastAgentSelection: harness.lastSelection,
+    ...defaultSettings,
     application: {
       network: daemon.network,
       diagnostics: daemon.diagnostics,
@@ -330,10 +329,7 @@ export function settingsFromConfiguration(
     desktop: ui.desktop,
     notifications: ui.notifications,
     transcription: ui.transcription,
-    compaction: harness.compaction,
     logging: daemon.logging,
-    retry: harness.retry,
-    runtime: harness.execution,
     permissions: { exceptions: [] },
     providers: {
       atlassianProfiles: integrations.profiles.atlassian.map((profile) => ({
@@ -349,18 +345,6 @@ export function settingsFromConfiguration(
         name: profile.name,
       })),
     },
-    tools: {
-      disabled: harness.tools.disabled,
-      bash: harness.tools.bash,
-      jira: integrations.tools.jira,
-      confluence: integrations.tools.confluence,
-      web: integrations.tools.web,
-      imageExplanation: harness.tools.imageExplanation,
-      imageGeneration: harness.tools.imageGeneration,
-      kroki: harness.tools.kroki,
-    },
-    skills: harness.skills,
-    scopedModels: harness.scopedModels,
   });
 }
 
@@ -385,30 +369,6 @@ export function configurationWithSettings(
         logging: parsed.logging,
         electron: parsed.application.electron,
       },
-      harness: {
-        version: 3,
-        defaults: {
-          // New agents always start in coding mode; planning is a per-agent choice.
-          mode: "coding",
-          permissionRuleSetId: parsed.defaultPermissionRuleSetId,
-          model: parsed.defaultModel,
-          thinkingLevel: parsed.defaultThinkingLevel,
-        },
-        rememberLastSelection: parsed.rememberLastAgentSelection,
-        lastSelection: parsed.lastAgentSelection,
-        compaction: parsed.compaction,
-        retry: parsed.retry,
-        execution: parsed.runtime,
-        tools: {
-          disabled: parsed.tools.disabled,
-          bash: parsed.tools.bash,
-          imageExplanation: parsed.tools.imageExplanation,
-          imageGeneration: parsed.tools.imageGeneration,
-          kroki: parsed.tools.kroki,
-        },
-        skills: parsed.skills,
-        scopedModels: parsed.scopedModels,
-      },
       ui: {
         version: 1,
         appearance: parsed.ui,
@@ -426,12 +386,13 @@ function preserveConfigurationExtensions(
   current: UserConfiguration,
   next: UserConfiguration,
 ): UserConfiguration {
-  return Object.fromEntries(
+  const merged = Object.fromEntries(
     (Object.keys(next) as HomeConfigurationDocumentId[]).map((documentId) => [
       documentId,
       mergePreservingUnknown(current[documentId], next[documentId]),
     ]),
   ) as unknown as UserConfiguration;
+  return merged;
 }
 
 function integrationsFromSettings(
@@ -448,7 +409,7 @@ function integrationsFromSettings(
     current.profiles.tavily.map((profile) => [profile.id, profile.credential]),
   );
   return integrationsConfigSchema.parse({
-    version: 1,
+    version: 2,
     profiles: {
       atlassian: settings.providers.atlassianProfiles.map((profile) => ({
         ...profile,
@@ -459,11 +420,6 @@ function integrationsFromSettings(
         ...profile,
         credential: tavilyCredentials.get(profile.id) ?? `tavily:${profile.id}`,
       })),
-    },
-    tools: {
-      jira: settings.tools.jira,
-      confluence: settings.tools.confluence,
-      web: settings.tools.web,
     },
   });
 }

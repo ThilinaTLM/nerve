@@ -419,3 +419,37 @@ void test("rollback resumes after original manifest restoration without revertin
   await rollbackFailedMigration(home, { registry });
   assert.equal(await readFile(join(home, "manifest.json"), "utf8"), original);
 });
+
+void test("custom rollback validates candidates before generic journal restoration, and failed validation preserves them", async (t) => {
+  const { rollbackFailedMigration } = await import("./recovery.js");
+  const home = await temporaryHome(t);
+  const first = entry("0001-example", async () => {});
+  await runMigrations(home, { registry: [first] });
+  const owned = join(home, "owned");
+  await writeFile(owned, "original");
+  const second = entry("0002-example", async (ctx) => {
+    ctx.fs.write(owned, "candidate");
+    throw new Error("postcommit interruption");
+  });
+  let valid = false;
+  second.step = defineStep({
+    ...second.step,
+    async rollback() {
+      assert.equal(await readFile(owned, "utf8"), "candidate");
+      if (!valid) throw new Error("Candidate verification blocked");
+    },
+  });
+  const registry = [first, second];
+  await assert.rejects(
+    runMigrations(home, { registry }),
+    /postcommit interruption/,
+  );
+  await assert.rejects(
+    rollbackFailedMigration(home, { registry }),
+    /Candidate verification blocked/,
+  );
+  assert.equal(await readFile(owned, "utf8"), "candidate");
+  valid = true;
+  await rollbackFailedMigration(home, { registry });
+  assert.equal(await readFile(owned, "utf8"), "original");
+});

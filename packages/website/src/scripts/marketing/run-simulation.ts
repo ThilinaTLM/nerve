@@ -44,7 +44,7 @@ export interface SimRow {
 export interface SimConfig {
   model: "fable" | "opus" | "gpt" | "kimi";
   thinking: "off" | "low" | "medium" | "high";
-  mode: "coding" | "planning";
+  agentProfile: "coding" | "planning";
   permission: "read_only" | "supervised" | "autonomous";
 }
 
@@ -69,7 +69,7 @@ const PERMISSION_LABEL: Record<SimConfig["permission"], string> = {
 const CONFIG_LABEL: Record<keyof SimConfig, string> = {
   model: "model",
   thinking: "thinking",
-  mode: "mode",
+  agentProfile: "profile",
   permission: "permission",
 };
 
@@ -218,7 +218,7 @@ export const TASKS: Task[] = [
 
 /* One agent turn under a given configuration. This is the product argument in
  * data form: the same task takes a different, visibly-governed path depending
- * on mode and permission. */
+ * on agentProfile and permission. */
 export function buildTurn(task: Task, config: SimConfig): SimRow[] {
   const rows: SimRow[] = [];
 
@@ -238,7 +238,7 @@ export function buildTurn(task: Task, config: SimConfig): SimRow[] {
 
   rows.push({ kind: "tool", tool: task.read, wait: 850, runFor: 700 });
 
-  if (config.mode === "planning") {
+  if (config.agentProfile === "planning") {
     rows.push({ kind: "tool", tool: task.research, wait: 1000, runFor: 650 });
     rows.push({ kind: "tool", tool: task.plan, wait: 1000, runFor: 750 });
     rows.push({ kind: "prose", text: task.planReply, wait: 1100 });
@@ -360,7 +360,7 @@ function renderRow(row: SimRow, state: "running" | "done"): HTMLLIElement {
 }
 
 /* The gate pauses the stream until it is approved: by the visitor if they take
- * the button, by a timer if they do not. Supervised mode as a behaviour. */
+ * the button, by a timer if they do not. Supervised permission as a behaviour. */
 function armGate(item: HTMLLIElement, onResolve: () => void): void {
   const approve = document.createElement("button");
   approve.type = "button";
@@ -393,7 +393,7 @@ interface PanelRefs {
   feed: HTMLOListElement;
   chips: {
     model: HTMLElement | null;
-    mode: HTMLElement | null;
+    agentProfile: HTMLElement | null;
     permission: HTMLElement | null;
   };
 }
@@ -405,7 +405,7 @@ function findRefs(root: HTMLElement): PanelRefs | null {
     feed,
     chips: {
       model: root.querySelector<HTMLElement>("[data-run-model]"),
-      mode: root.querySelector<HTMLElement>("[data-run-mode]"),
+      agentProfile: root.querySelector<HTMLElement>("[data-run-profile]"),
       permission: root.querySelector<HTMLElement>("[data-run-permission]"),
     },
   };
@@ -415,14 +415,22 @@ function syncChips(refs: PanelRefs, config: SimConfig): void {
   if (refs.chips.model) {
     refs.chips.model.textContent = `${MODEL_LABEL[config.model]} (${config.thinking[0]?.toUpperCase()}${config.thinking.slice(1)})`;
   }
-  if (refs.chips.mode) {
-    refs.chips.mode.textContent =
-      config.mode === "planning" ? "Plan" : "Coding";
-    refs.chips.mode.dataset.value = config.mode;
+  if (refs.chips.agentProfile) {
+    if (refs.chips.agentProfile instanceof HTMLSelectElement) {
+      refs.chips.agentProfile.value = config.agentProfile;
+    } else {
+      refs.chips.agentProfile.textContent =
+        config.agentProfile === "planning" ? "Planning" : "Coding";
+    }
+    refs.chips.agentProfile.dataset.value = config.agentProfile;
   }
   if (refs.chips.permission) {
-    refs.chips.permission.textContent = PERMISSION_LABEL[config.permission];
-    refs.chips.permission.dataset.value = config.permission;
+    refs.chips.permission.textContent =
+      config.agentProfile === "planning"
+        ? "planning (locked)"
+        : PERMISSION_LABEL[config.permission];
+    refs.chips.permission.dataset.value =
+      config.agentProfile === "planning" ? "planning" : config.permission;
   }
 }
 
@@ -485,7 +493,7 @@ export function startRunSim(
   let config: SimConfig = {
     model: "opus",
     thinking: "high",
-    mode: "coding",
+    agentProfile: "coding",
     permission: "supervised",
     ...options.initial,
   };
@@ -509,7 +517,7 @@ export function startRunSim(
   /* Reduced motion: never autoplay. The lab still answers a control change by
    * replacing the transcript with the whole adjusted turn at once. */
   if (reduced) {
-    return {
+    return bindProfileSelector(root, {
       setConfig(partial) {
         config = { ...config, ...partial };
         syncChips(refs, config);
@@ -533,7 +541,7 @@ export function startRunSim(
       destroy() {
         /* Nothing scheduled. */
       },
-    };
+    });
   }
 
   const schedule = (wait: number): void => {
@@ -641,7 +649,7 @@ export function startRunSim(
   };
   document.addEventListener("visibilitychange", onVisibility);
 
-  return {
+  return bindProfileSelector(root, {
     setConfig(partial) {
       pending = { ...(pending ?? config), ...partial };
       const marker = markerRow(partial);
@@ -656,7 +664,7 @@ export function startRunSim(
       observer.disconnect();
       document.removeEventListener("visibilitychange", onVisibility);
     },
-  };
+  });
 }
 
 /* The control-plane row: what a mid-run change looks like in the stream. */
@@ -670,9 +678,9 @@ function markerRow(partial: Partial<SimConfig>): SimRow | null {
       ? MODEL_LABEL[value as SimConfig["model"]]
       : key === "permission"
         ? PERMISSION_LABEL[value as SimConfig["permission"]]
-        : key === "mode"
+        : key === "agentProfile"
           ? value === "planning"
-            ? "Plan"
+            ? "Planning"
             : "Coding"
           : String(value);
 
@@ -682,5 +690,27 @@ function markerRow(partial: Partial<SimConfig>): SimRow | null {
     text: `${CONFIG_LABEL[key]} → ${display}`,
     noteStatus: "applies from the next call",
     wait: 0,
+  };
+}
+
+function bindProfileSelector(
+  root: HTMLElement,
+  handle: RunSimHandle,
+): RunSimHandle {
+  const selector = root.querySelector<HTMLSelectElement>(
+    "select[data-run-profile]",
+  );
+  const onChange = () => {
+    handle.setConfig({
+      agentProfile: selector?.value === "planning" ? "planning" : "coding",
+    });
+  };
+  selector?.addEventListener("change", onChange);
+  return {
+    setConfig: (partial) => handle.setConfig(partial),
+    destroy() {
+      selector?.removeEventListener("change", onChange);
+      handle.destroy();
+    },
   };
 }

@@ -1,7 +1,11 @@
 <script lang="ts">
-import type { Snippet } from "svelte";
+import { untrack, type Snippet } from "svelte";
 import { Popover as PopoverPrimitive } from "bits-ui";
 import { cn } from "@nervekit/ui-kit/utils";
+import {
+  createTriggerWidthAnimation,
+  type TriggerWidthAnimation,
+} from "./animate-trigger-width.js";
 
 type Props = {
   trigger?: Snippet;
@@ -14,6 +18,12 @@ type Props = {
   triggerAriaKeyShortcuts?: string;
   class?: string;
   triggerClass?: string;
+  /** Opt in to animating the trigger width, keyed by what the trigger shows.
+   * The width animates only when the key changes between two non-null values
+   * during or right after the user interacts with this popover; pass `null`
+   * while the content is still loading.
+   * The resting width stays intrinsic. */
+  triggerWidthKey?: string | null;
   /** Panel width preset: sm 16rem, md 20rem, lg 24rem, anchor matches the
    * trigger (at least 20rem). */
   size?: "sm" | "md" | "lg" | "anchor";
@@ -35,6 +45,7 @@ let {
   triggerAriaKeyShortcuts,
   class: className = "",
   triggerClass = "",
+  triggerWidthKey,
   size = "md",
   side = "bottom",
   align = "end",
@@ -44,6 +55,69 @@ let {
   onOpenChange,
 }: Props = $props();
 
+let triggerElement = $state<HTMLButtonElement | null>(null);
+
+const animatesWidth = $derived(triggerWidthKey !== undefined);
+let widthAnimation: TriggerWidthAnimation | undefined;
+let settledWidthKey: string | null | undefined;
+
+$effect(() => {
+  if (!animatesWidth || !triggerElement) return;
+  widthAnimation = createTriggerWidthAnimation(triggerElement);
+  return () => {
+    widthAnimation?.destroy();
+    widthAnimation = undefined;
+  };
+});
+
+// A width change counts as the user's own only while this popover is open or
+// was just closed (choosing an option closes it). Hydration, other pickers'
+// side effects and conversation switches therefore never animate.
+const INTERACTION_WINDOW_MS = 1500;
+let interactedAt = Number.NEGATIVE_INFINITY;
+let capturedForChange = false;
+
+let openObserved = false;
+$effect(() => {
+  void open;
+  untrack(() => {
+    // The initial run is mount, not an interaction.
+    if (openObserved) interactedAt = performance.now();
+    openObserved = true;
+  });
+});
+
+function userChange(key: string | null | undefined): boolean {
+  return (
+    key != null &&
+    settledWidthKey != null &&
+    key !== settledWidthKey &&
+    (open || performance.now() - interactedAt < INTERACTION_WINDOW_MS)
+  );
+}
+
+// Runs before the DOM updates: record the width currently on screen.
+$effect.pre(() => {
+  const key = triggerWidthKey;
+  untrack(() => {
+    capturedForChange = userChange(key);
+    if (capturedForChange) widthAnimation?.capture();
+  });
+});
+
+$effect(() => {
+  const key = triggerWidthKey;
+  untrack(() => {
+    if (capturedForChange) {
+      widthAnimation?.play();
+      // One animation per interaction: later async updates stay still.
+      interactedAt = Number.NEGATIVE_INFINITY;
+    }
+    capturedForChange = false;
+    settledWidthKey = key;
+  });
+});
+
 function handleOpenChange(next: boolean) {
   open = next;
   onOpenChange?.(next);
@@ -52,7 +126,12 @@ function handleOpenChange(next: boolean) {
 
 <PopoverPrimitive.Root bind:open onOpenChange={handleOpenChange}>
   <PopoverPrimitive.Trigger
-    class={triggerChild ? triggerClass : cn("popover-trigger", triggerClass)}
+    bind:ref={triggerElement}
+    class={cn(
+      !triggerChild && "popover-trigger",
+      triggerClass,
+      animatesWidth && "overflow-hidden",
+    )}
     aria-label={ariaLabel}
     title={triggerTitle}
     aria-keyshortcuts={triggerAriaKeyShortcuts}

@@ -1,9 +1,8 @@
-import { conversationConfigSchema } from "@nervekit/contracts/core";
+import { settingsOverrideView } from "$lib/application/agent-configuration/override-view";
 import {
-  capabilityOverridesDocumentSchema,
-  emptyCapabilityOverrides,
-} from "@nervekit/contracts/capabilities";
-import { subagentProfilesDocumentSchema } from "@nervekit/contracts/subagents";
+  leadSettingsOverridesSchema,
+  type ProfileTarget,
+} from "@nervekit/contracts/agent-configuration";
 import type { OperationParams } from "@nervekit/contracts/operations";
 import type { PendingConversationState } from "$lib/application/workspace/pending-conversations.svelte";
 
@@ -12,13 +11,15 @@ type Pending = Pick<
   | "id"
   | "projectId"
   | "config"
-  | "capabilityOverrides"
-  | "subagentProfileOverrides"
+  | "overrides"
+  | "explicitAgentProfile"
+  | "inheritedSettings"
 >;
 
-/** Capture current draft settings before awaiting the server; never use a prior request. */
+/** Capture current sparse choices and context before awaiting the server. */
 export function captureSystemPromptPreview(input: {
   pending?: Pending;
+  targetProfile?: ProfileTarget;
   conversation?: { id: string; projectId: string };
 }):
   | {
@@ -29,23 +30,24 @@ export function captureSystemPromptPreview(input: {
   | undefined {
   if (input.pending) {
     const pending = input.pending;
+    if (
+      pending.explicitAgentProfile &&
+      input.targetProfile?.name !== pending.explicitAgentProfile
+    )
+      throw new Error("Profile unavailable. Refresh and try again.");
+    const { systemPrompt, instructions, workingDirectory } = pending.config;
     return {
       projectId: pending.projectId,
       sourceId: `pending:${pending.id}`,
       params: {
         projectId: pending.projectId,
-        config: conversationConfigSchema
-          .omit({ conversationId: true })
-          .parse(pending.config),
-        capabilityOverrides: capabilityOverridesDocumentSchema.parse(
-          pending.capabilityOverrides ?? emptyCapabilityOverrides(),
+        config: { systemPrompt, instructions, workingDirectory },
+        overrides: settingsOverrideView(
+          leadSettingsOverridesSchema.parse(pending.overrides ?? {}),
+          pending.inheritedSettings,
         ),
-        ...(pending.subagentProfileOverrides
-          ? {
-              subagentProfileOverrides: subagentProfilesDocumentSchema.parse(
-                pending.subagentProfileOverrides,
-              ),
-            }
+        ...(input.targetProfile
+          ? { agentProfile: { ...input.targetProfile } }
           : {}),
       },
     };

@@ -2,7 +2,6 @@ import { z } from "zod";
 
 export const settingsDocumentIdSchema = z.enum([
   "daemon",
-  "harness",
   "ui",
   "permissions",
   "providers",

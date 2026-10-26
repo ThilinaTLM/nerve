@@ -6,7 +6,7 @@ Status: **implemented**. Code and owning contracts are authoritative.
 
 Make the conversation the single, portable core of Nerve, with a small storage model and its own client channel. IDE features (files, git, GitHub, scratch notes, launch configurations, logs) become a separate workbench layer that depends on the core, never the reverse.
 
-The legacy storage had 62 SQLite tables (about 30 populated), 26 document namespaces and a 15 GB development database dominated by duplicated snapshots and derived history. Lifecycle, journal, obligation and projection machinery accumulated incrementally. The implementation replaces it with 11 tables in `data/core.sqlite` and two channels.
+The legacy storage had 62 SQLite tables (about 30 populated), 26 document namespaces and a 15 GB development database dominated by duplicated snapshots and derived history. Lifecycle, journal, obligation and projection machinery accumulated incrementally. The implementation now uses 10 tables in `data/nerve.sqlite`, scoped JSON configuration and two channels.
 
 ## Documents
 
@@ -33,18 +33,18 @@ The legacy storage had 62 SQLite tables (about 30 populated), 26 document namesp
 
 ## Glossary
 
-| Term               | Meaning                                                                                         |
-| ------------------ | ----------------------------------------------------------------------------------------------- |
-| Conversation       | Persistent entity with configuration, branchable history, queue and unfinished tool calls       |
-| Child conversation | Conversation with a parent; created by `subagent_prompt`                                        |
-| Sub-agent          | A child conversation configured from a profile; see [delegation](delegation.md)                 |
-| Profile            | Scoped JSON template whose resolved configuration and instructions seed a sub-agent at creation |
-| Instructions       | Persona and working rules rendered as their own section of a conversation's system prompt       |
-| Turn               | One model invocation plus the processing of the tool calls it issued                            |
-| Execution          | A span of turns started by an input or assignment, bounded by `execution_state` events          |
-| Event              | Append-only durable fact in a conversation's history                                            |
-| Async bash         | A conversation-owned background command from a background or promoted `bash` call               |
-| Launch             | A run of a user-defined launch definition, started from the UI or the `launch` tool             |
+| Term               | Meaning                                                                                                                                     |
+| ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| Conversation       | Persistent entity with configuration, branchable history, queue and unfinished tool calls                                                   |
+| Child conversation | Conversation with a parent; created by `subagent_prompt`                                                                                    |
+| Sub-agent          | A child conversation configured from a profile; see [delegation](delegation.md)                                                             |
+| Profile            | Complete catalog definition with recommendations/requirements, captured as an applied snapshot; children also freeze underlying preferences |
+| Instructions       | Persona and working rules rendered as their own section of a conversation's system prompt                                                   |
+| Turn               | One model invocation plus the processing of the tool calls it issued                                                                        |
+| Execution          | A span of turns started by an input or assignment, bounded by `execution_state` events                                                      |
+| Event              | Append-only durable fact in a conversation's history                                                                                        |
+| Async bash         | A conversation-owned background command from a background or promoted `bash` call                                                           |
+| Launch             | A run of a user-defined launch definition, started from the UI or the `launch` tool                                                         |
 
 ## Decisions
 
@@ -55,7 +55,7 @@ The legacy storage had 62 SQLite tables (about 30 populated), 26 document namesp
 | Last user message  | Updated only by delivered `user_message` events, human or parent submitted. Never by compaction, tool results or notices.                                                                                                                                                                                                    |
 | Status dismissal   | `status_cleared_at` keeps a dismissed failed or interrupted badge hidden across status rebuilds.                                                                                                                                                                                                                             |
 | Child policy       | None stored. Deliberately stopping a parent stops its children. Rules every child obeys (allowed rule sets, no user prompts, no nested delegation or human-in-the-loop tools) are enforced by the host and core; see [delegation](delegation.md). No budgets, depth or concurrency limits, grants or orchestration policies. |
-| Configuration      | Model, reasoning level, system prompt, instructions, permission rule set, mode, working directory. Tools and skills are host-resolved file capabilities; compaction overrides are a conversation `harness.json`. No permission level, workspace roots, read-only flag or revisions.                                          |
+| Configuration      | Scoped JSON `agent.json` owns model, reasoning, prompt context, permission selection, applied profile, tools, skills and compaction. SQLite `conversation` owns working directory; host services capture effective settings and provenance.                                                                                  |
 | Permissions        | Baseline rule set plus overlays at user, project (`.nerve/`) and conversation (conversation data directory) level.                                                                                                                                                                                                           |
 | Approval grants    | "Always allow" writes a rule into the matching overlay file. No table.                                                                                                                                                                                                                                                       |
 | Event types        | `user_message`, `assistant_message`, `system_event`, `tool_call_response`, `compaction`. No tool-request, branch-summary or delegation-report events.                                                                                                                                                                        |
@@ -73,9 +73,9 @@ The legacy storage had 62 SQLite tables (about 30 populated), 26 document namesp
 
 ### Capabilities
 
-The host resolves tools and skills per turn from user settings → trusted project overrides → conversation overrides. Each override replaces a whole tool entry (enabled state and configuration) or skill flag; saving drops entries equal to the parent. Core tools stay available and permissions authorize their use. Configurable tools default on except image explanation/generation, Kroki, subagents, Jira and Confluence. File skills default on; built-in Nerve and agent-browser skills default off.
+The host captures tools and skills from scoped `agent.json` preferences and the applied profile at each request preparation. Requirements beat conversation choices, which beat recommendations and defaults. Typed tool fields merge at their declared units; skills support source defaults and named booleans. Reset removes an editable override and inherits, rather than deleting choices merely because they match defaults. Core tools remain subject to permission policy.
 
-A new sub-agent starts from the parent's conversation file with its profile's tool and skill changes applied on top (see [delegation](delegation.md)). Capability state is not stored in SQLite. The conversation channel exposes `capabilities.get/update/reset/trust` and ephemeral `capabilities.changed`; user settings remain on the workbench channel. See [storage](../storage.md#files-and-permissions) for paths.
+Children capture their own underlying preferences and applied profile, never the parent's conversation file or effective tools/skills. Follow-ups retain those choices; current authorization is still checked. See [configuration](../configuration.md) for resolution, activation and health, [delegation](delegation.md) for children, and [storage](../storage.md#files-and-permissions) for paths.
 
 ## Implementation status
 
@@ -83,7 +83,7 @@ The portable core, host ports, conversation channel, workbench channel and app c
 
 Existing 0.34.1 homes are converted automatically at startup by migration step 0001; see [storage migrations](../migrations.md) and [migration](migration.md).
 
-Prompt suggestions are kept and evaluate against the conversation (title, mode, rule set, reasoning level, status) and git state; they are served on the workbench channel.
+Prompt suggestions are kept and evaluate against the conversation (title, rule set, reasoning level, status) and git state; they are served on the workbench channel.
 
 ## Non-goals
 

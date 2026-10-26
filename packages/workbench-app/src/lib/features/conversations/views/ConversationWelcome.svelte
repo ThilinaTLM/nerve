@@ -1,5 +1,4 @@
 <script lang="ts">
-import type { Mode } from "@nervekit/contracts/settings";
 import {
   ConversationSignal,
   conversationStarters,
@@ -12,14 +11,14 @@ let {
   projectLabel,
   projectPath,
 }: {
-  onNewChat: (mode: Mode) => void;
+  onNewChat: (profile?: string) => void;
   projectSelected?: boolean;
   projectLabel?: string;
   projectPath?: string;
 } = $props();
 
 function startWith(starter: ConversationStarter) {
-  onNewChat(starter.mode);
+  onNewChat(starter.profile);
 }
 </script>
 

@@ -29,7 +29,7 @@ export function sidebarAgents(rows: ConversationRecord[]): AgentRecord[] {
   return rows.map((row) => ({
     id: row.id,
     conversationId: row.id,
-    mode: row.mode,
+    agentProfile: row.agentProfile,
     model: row.model,
     permissionRuleSetId: row.permissionRuleSetId,
   }));

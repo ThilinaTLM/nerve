@@ -1,3 +1,4 @@
+import { agentProfileNameSchema } from "../agent-profiles/constants.js";
 import {
   disabledToolListSchema,
   subagentToolNames,
@@ -12,9 +13,6 @@ import {
 } from "./application-configuration.js";
 import { permissionRuleSetIdSchema } from "../permissions/permission-rule-sets.js";
 import { permissionExceptionSchema } from "../permissions/permissions.js";
-
-export const modeSchema = z.enum(["planning", "coding"]);
-export type Mode = z.infer<typeof modeSchema>;
 
 export const colorThemeSchema = z.enum(["nerve", "rose", "solar", "midnight"]);
 
@@ -34,22 +32,6 @@ export type ColorMode = z.infer<typeof colorModeSchema>;
 
 export const headerTypeSchema = z.enum(["auto", "linux", "windows", "macos"]);
 export type HeaderType = z.infer<typeof headerTypeSchema>;
-
-export const agentSelectionSettingsSchema = z.object({
-  mode: modeSchema,
-
-  permissionRuleSetId: permissionRuleSetIdSchema,
-  model: modelSelectionSchema.optional(),
-  thinkingLevel: thinkingLevelSchema,
-});
-export type AgentSelectionSettings = z.infer<
-  typeof agentSelectionSettingsSchema
->;
-
-const runtimeSettingsSchema = z.object({
-  pythonExecutablePath: z.string().trim().min(1).optional(),
-  shellPath: z.string().trim().min(1).optional(),
-});
 
 const permissionExceptionsSchema = z
   .array(permissionExceptionSchema)
@@ -137,10 +119,30 @@ const bashAutoPromotionSettingsSchema = z.object({
   afterMs: z.number().int().positive().max(86_400_000),
 });
 
-const bashToolSettingsSchema = z.object({
+export const pythonExecToolSettingsSchema = z
+  .object({
+    interpreterPath: z.string().trim().min(1).optional(),
+  })
+  .strict();
+export type PythonExecToolSettings = z.infer<
+  typeof pythonExecToolSettingsSchema
+>;
+export const planPresentToolSettingsSchema = z
+  .object({
+    approvalProfile: agentProfileNameSchema,
+  })
+  .strict();
+export type PlanPresentToolSettings = z.infer<
+  typeof planPresentToolSettingsSchema
+>;
+
+export const bashToolSettingsSchema = z.object({
+  shellPath: z.string().trim().min(1).optional(),
   autoPromotion: bashAutoPromotionSettingsSchema,
   maxTimeoutMs: z.number().int().min(1000).max(3_600_000).default(900_000),
 });
+
+export type BashToolSettings = z.infer<typeof bashToolSettingsSchema>;
 
 export const imageExplanationToolSettingsSchema = z.object({
   model: modelSelectionSchema.optional(),
@@ -267,6 +269,8 @@ const toolSettingsSchema = z.object({
   kroki: krokiToolSettingsSchema,
   disabled: disabledToolListSchema,
   bash: bashToolSettingsSchema,
+  pythonExec: pythonExecToolSettingsSchema,
+  planPresent: planPresentToolSettingsSchema,
   jira: jiraToolSettingsSchema,
   confluence: confluenceToolSettingsSchema,
   web: webToolSettingsSchema,
@@ -319,7 +323,7 @@ const notificationEventSoundSettingsSchema = z.object({
   failed: notificationToneSchema,
 });
 
-const autoCompactionSettingsObjectSchema = z
+export const autoCompactionSettingsSchema = z
   .object({
     auto: z.boolean(),
     profile: compactionProfileSchema,
@@ -327,17 +331,6 @@ const autoCompactionSettingsObjectSchema = z
   })
   .strict();
 
-export const autoCompactionSettingsSchema = z.preprocess(
-  (value: z.input<typeof autoCompactionSettingsObjectSchema>) => {
-    if (typeof value !== "object" || value === null || Array.isArray(value))
-      return value;
-    // Older harness files carried configurable retention. Discard only that key.
-    const settings: Record<string, unknown> = { ...value };
-    delete settings.customKeepRecentPercent;
-    return settings;
-  },
-  autoCompactionSettingsObjectSchema,
-);
 export type AutoCompactionSettings = z.infer<
   typeof autoCompactionSettingsSchema
 >;
@@ -368,11 +361,10 @@ export const transcriptionSettingsSchema = z.object({
 export type TranscriptionSettings = z.infer<typeof transcriptionSettingsSchema>;
 
 export const settingsSchema = z.object({
+  defaultAgentProfile: agentProfileNameSchema.optional(),
   defaultPermissionRuleSetId: permissionRuleSetIdSchema,
   defaultModel: modelSelectionSchema.optional(),
   defaultThinkingLevel: thinkingLevelSchema,
-  rememberLastAgentSelection: z.boolean(),
-  lastAgentSelection: agentSelectionSettingsSchema,
   application: applicationSettingsSchema,
   ui: z.object({
     theme: colorThemeSchema,
@@ -400,7 +392,6 @@ export const settingsSchema = z.object({
     maxRetries: z.number().int().nonnegative(),
     baseDelayMs: z.number().int().positive(),
   }),
-  runtime: runtimeSettingsSchema,
   permissions: permissionSettingsSchema,
   providers: providersSettingsSchema,
   tools: toolSettingsSchema,
@@ -416,13 +407,6 @@ export type Settings = z.infer<typeof settingsSchema>;
 export const defaultSettings: Settings = {
   defaultPermissionRuleSetId: "autonomous",
   defaultThinkingLevel: "off",
-  rememberLastAgentSelection: false,
-  lastAgentSelection: {
-    mode: "coding",
-
-    permissionRuleSetId: "autonomous",
-    thinkingLevel: "off",
-  },
   application: defaultApplicationSettings,
   ui: {
     theme: "nerve",
@@ -458,11 +442,11 @@ export const defaultSettings: Settings = {
     maxRetries: 3,
     baseDelayMs: 2000,
   },
-  runtime: {},
   permissions: { exceptions: [] },
   providers: { atlassianProfiles: [], tavilyProfiles: [] },
   tools: {
     disabled: [
+      "plan_present",
       "explain_image",
       "generate_image",
       "kroki_export",
@@ -472,6 +456,8 @@ export const defaultSettings: Settings = {
       autoPromotion: { enabled: true, afterMs: 120_000 },
       maxTimeoutMs: 900_000,
     },
+    pythonExec: {},
+    planPresent: { approvalProfile: "coding" },
     jira: { enabled: false },
     confluence: { enabled: false },
     web: {},
@@ -491,20 +477,7 @@ export const defaultSettings: Settings = {
   scopedModels: [],
 };
 
-export const updateSettingsRequestSchema = z.object({
-  defaultPermissionRuleSetId: permissionRuleSetIdSchema.optional(),
-  defaultModel: modelSelectionSchema.nullable().optional(),
-  defaultThinkingLevel: thinkingLevelSchema.optional(),
-  rememberLastAgentSelection: z.boolean().optional(),
-  lastAgentSelection: z
-    .object({
-      mode: modeSchema.optional(),
-
-      permissionRuleSetId: permissionRuleSetIdSchema.optional(),
-      model: modelSelectionSchema.nullable().optional(),
-      thinkingLevel: thinkingLevelSchema.optional(),
-    })
-    .optional(),
+export const updateSettingsRequestSchema = z.strictObject({
   application: applicationSettingsPatchSchema.optional(),
   ui: z
     .object({
@@ -541,13 +514,6 @@ export const updateSettingsRequestSchema = z.object({
       vocabulary: z.array(transcriptionVocabularyTermSchema).max(50).optional(),
     })
     .optional(),
-  compaction: z
-    .object({
-      auto: z.boolean().optional(),
-      profile: compactionProfileSchema.optional(),
-      customTriggerPercent: z.number().int().min(60).max(90).optional(),
-    })
-    .optional(),
   logging: z
     .object({
       level: applicationLogLevelSchema.optional(),
@@ -555,22 +521,9 @@ export const updateSettingsRequestSchema = z.object({
       maxBufferedLogs: z.number().int().positive().optional(),
     })
     .optional(),
-  retry: z
-    .object({
-      enabled: z.boolean().optional(),
-      maxRetries: z.number().int().nonnegative().optional(),
-      baseDelayMs: z.number().int().positive().optional(),
-    })
-    .optional(),
   permissions: z
     .object({
       exceptions: permissionExceptionsSchema.optional(),
-    })
-    .optional(),
-  runtime: z
-    .object({
-      pythonExecutablePath: z.string().trim().min(1).nullable().optional(),
-      shellPath: z.string().trim().min(1).nullable().optional(),
     })
     .optional(),
   providers: z
@@ -579,62 +532,5 @@ export const updateSettingsRequestSchema = z.object({
       tavilyProfiles: tavilyProfilesSchema.optional(),
     })
     .optional(),
-  skills: z
-    .object({
-      disabled: z.array(z.string().min(1)).optional(),
-      nerve: z
-        .object({
-          enabled: z.array(z.string().min(1)).optional(),
-        })
-        .optional(),
-      agentBrowser: z
-        .object({
-          enabled: z.array(z.string().min(1)).optional(),
-        })
-        .optional(),
-    })
-    .optional(),
-  tools: z
-    .object({
-      disabled: disabledToolListSchema.optional(),
-      bash: z
-        .object({
-          maxTimeoutMs: z.number().int().min(1000).max(3_600_000).optional(),
-          autoPromotion: z
-            .object({
-              enabled: z.boolean().optional(),
-              afterMs: z.number().int().positive().max(86_400_000).optional(),
-            })
-            .optional(),
-        })
-        .optional(),
-      jira: z
-        .object({
-          enabled: z.boolean().optional(),
-          profileId: z.string().trim().min(1).nullable().optional(),
-        })
-        .optional(),
-      confluence: z
-        .object({
-          enabled: z.boolean().optional(),
-          profileId: z.string().trim().min(1).nullable().optional(),
-        })
-        .optional(),
-      web: z
-        .object({
-          tavilyProfileId: z.string().trim().min(1).nullable().optional(),
-        })
-        .optional(),
-      imageExplanation: z
-        .object({
-          model: modelSelectionSchema.nullable().optional(),
-          thinkingLevel: thinkingLevelSchema.optional(),
-        })
-        .optional(),
-      imageGeneration: imageGenerationToolSettingsSchema.optional(),
-      kroki: krokiToolSettingsSchema.optional(),
-    })
-    .optional(),
-  scopedModels: z.array(modelSelectionSchema).optional(),
 });
 export type UpdateSettingsRequest = z.infer<typeof updateSettingsRequestSchema>;

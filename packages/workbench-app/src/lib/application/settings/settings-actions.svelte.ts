@@ -1,8 +1,7 @@
-import type { ColorMode, ColorTheme, Settings } from "$lib/api";
+import type { ColorMode, ColorTheme } from "$lib/api";
 import {
   getApplicationConfiguration,
   getAuthProviders,
-  getClientConfig,
   getModels,
   getSettings,
   listAvailableSkills,
@@ -34,25 +33,13 @@ import {
   setActiveCenterTab,
 } from "$lib/application/workspace/center-tabs.svelte";
 import { selection } from "$lib/application/workspace/selection.svelte";
+import { selectProject } from "$lib/application/workspace/workspace-actions.svelte";
+import { resolveSettingsPageId } from "$lib/features/settings/registry/settings-pages";
 import { workspaceState } from "$lib/application/workspace/workspace-state.svelte";
 export type SettingsSaveOptions = {
   immediate?: boolean;
   debounceMs?: number;
 };
-
-type LastAgentSelectionPatch = Partial<Settings["lastAgentSelection"]>;
-
-export function rememberLastAgentSelection(
-  patch: LastAgentSelectionPatch,
-): void {
-  const settings = settingsState.settingsDraft;
-  if (!settings?.rememberLastAgentSelection) return;
-  settings.lastAgentSelection = {
-    ...settings.lastAgentSelection,
-    ...patch,
-  };
-  queueSettingsSave({ lastAgentSelection: patch }, { immediate: true });
-}
 
 let pendingSettingsPatch: UpdateSettingsRequest | undefined;
 let saveTimer: ReturnType<typeof setTimeout> | undefined;
@@ -64,8 +51,31 @@ let settingsLoadInFlight: Promise<void> | undefined;
 let settingsReloadRequested = false;
 
 function targetSettingsPage(pageId?: string, sectionId?: string) {
-  if (pageId) settingsState.activePageId = pageId;
+  if (pageId)
+    settingsState.activePageId = resolveSettingsPageId("user", pageId);
   if (sectionId) settingsState.activeSectionId = sectionId;
+}
+
+/** Opens (or focuses) one project's settings tab, in that project's session. */
+export async function openProjectSettingsPane(
+  projectId: string,
+  pageId?: string,
+  sectionId?: string,
+) {
+  if (!workspaceState.projects.some((project) => project.id === projectId))
+    return;
+  await selectProject(projectId, { deferTabActivation: true });
+  const view = settingsState.projectViews[projectId];
+  settingsState.projectViews[projectId] = {
+    pageId: pageId
+      ? resolveSettingsPageId("project", pageId)
+      : (view?.pageId ?? resolveSettingsPageId("project", undefined)),
+    sectionId: sectionId ?? (pageId ? "" : (view?.sectionId ?? "")),
+  };
+  const tab = { kind: "project-settings" as const, id: projectId };
+  addCenterTab(tab);
+  setActiveCenterTab(tab);
+  await loadSettingsPanel();
 }
 
 export async function openSettingsPane(pageId?: string, sectionId?: string) {
@@ -179,6 +189,7 @@ export function loadSettingsPanel(): Promise<void> {
   return settingsLoadInFlight;
 }
 
+/** Merges preserved settings patches without losing concurrent nested changes. */
 function mergeSettingsPatch(
   base: UpdateSettingsRequest | undefined,
   patch: UpdateSettingsRequest,
@@ -242,80 +253,13 @@ function mergeSettingsPatch(
         : {}),
     };
   }
-  if (base?.lastAgentSelection || patch.lastAgentSelection) {
-    next.lastAgentSelection = {
-      ...(base?.lastAgentSelection ?? {}),
-      ...(patch.lastAgentSelection ?? {}),
-    };
-  }
-  if (base?.compaction || patch.compaction) {
-    next.compaction = {
-      ...(base?.compaction ?? {}),
-      ...(patch.compaction ?? {}),
-    };
-  }
-  if (base?.runtime || patch.runtime) {
-    next.runtime = {
-      ...(base?.runtime ?? {}),
-      ...(patch.runtime ?? {}),
-    };
-  }
   if (base?.providers || patch.providers) {
     next.providers = {
       ...(base?.providers ?? {}),
       ...(patch.providers ?? {}),
     };
   }
-  if (base?.skills || patch.skills) {
-    next.skills = {
-      ...(base?.skills ?? {}),
-      ...(patch.skills ?? {}),
-      ...(base?.skills?.agentBrowser || patch.skills?.agentBrowser
-        ? {
-            agentBrowser: {
-              ...(base?.skills?.agentBrowser ?? {}),
-              ...(patch.skills?.agentBrowser ?? {}),
-            },
-          }
-        : {}),
-    };
-  }
-  if (base?.tools || patch.tools) {
-    next.tools = {
-      ...(base?.tools ?? {}),
-      ...(patch.tools ?? {}),
-      ...(base?.tools?.bash || patch.tools?.bash
-        ? {
-            bash: {
-              ...(base?.tools?.bash ?? {}),
-              ...(patch.tools?.bash ?? {}),
-              ...(base?.tools?.bash?.autoPromotion ||
-              patch.tools?.bash?.autoPromotion
-                ? {
-                    autoPromotion: {
-                      ...(base?.tools?.bash?.autoPromotion ?? {}),
-                      ...(patch.tools?.bash?.autoPromotion ?? {}),
-                    },
-                  }
-                : {}),
-            },
-          }
-        : {}),
-      ...(["jira", "confluence", "web", "imageExplanation"] as const).reduce(
-        (branches, key) =>
-          base?.tools?.[key] || patch.tools?.[key]
-            ? {
-                ...branches,
-                [key]: {
-                  ...(base?.tools?.[key] ?? {}),
-                  ...(patch.tools?.[key] ?? {}),
-                },
-              }
-            : branches,
-        {},
-      ),
-    };
-  }
+
   return next;
 }
 
@@ -323,12 +267,6 @@ function patchTouchesServer(patch: UpdateSettingsRequest | undefined): boolean {
   return Boolean(
     patch?.application && Object.keys(patch.application).length > 0,
   );
-}
-
-function patchTouchesRuntime(
-  patch: UpdateSettingsRequest | undefined,
-): boolean {
-  return Boolean(patch?.runtime && Object.keys(patch.runtime).length > 0);
 }
 
 function clearSaveTimer() {
@@ -374,13 +312,6 @@ export async function flushSettingsSave() {
   try {
     const saved = await updateSettings(patch);
     savedServerSettingsSinceLoad ||= patchTouchesServer(patch);
-    if (patchTouchesRuntime(patch)) {
-      const config = await getClientConfig().catch(() => undefined);
-      if (config) {
-        workspaceState.config = config;
-        workspaceState.status = config.status;
-      }
-    }
     if (!pendingSettingsPatch) {
       settingsState.settingsDraft = saved;
       settingsState.settingsSaveStatus = "saved";

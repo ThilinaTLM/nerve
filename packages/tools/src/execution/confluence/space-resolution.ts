@@ -1,3 +1,4 @@
+import { guideErrorMessage } from "./guide-errors.js";
 import { ToolExecutionError } from "../errors/tool-error.js";
 import { type ConfluenceConnection, confluenceRequest } from "./client.js";
 import {
@@ -15,7 +16,9 @@ export async function resolveSpaceId(
   if (!spaceKey) {
     throw new ToolExecutionError(
       "CONFLUENCE_SPACE_REQUIRED",
-      "space_id or space_key is required because no default Confluence space key is configured.",
+      guideErrorMessage(
+        "space_id or space_key is required because no default Confluence space key is configured.",
+      ),
     );
   }
   const response = await confluenceRequest(connection, {
@@ -31,7 +34,7 @@ export async function resolveSpaceId(
   if (!match) {
     throw new ToolExecutionError(
       "CONFLUENCE_SPACE_NOT_FOUND",
-      `No Confluence space matched key "${spaceKey}".`,
+      guideErrorMessage(`No Confluence space matched key "${spaceKey}".`),
     );
   }
   return { spaceId: match.id, spaceKey: match.key ?? spaceKey };

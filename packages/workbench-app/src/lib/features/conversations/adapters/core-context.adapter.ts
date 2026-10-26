@@ -13,7 +13,7 @@ import type {
 } from "$lib/presentation/view-models/conversation";
 import { summarizeConversationUsage } from "$lib/presentation/usage/conversation-usage";
 import { eventEntry } from "./core-transcript.adapter";
-import { deriveSubagentProfile, deriveSubagentTask } from "./subagent-profile";
+import { deriveSubagentTask } from "./subagent-task";
 
 export function projectView(project: Project): ProjectRecord {
   return { ...project, dir: project.directory };
@@ -24,7 +24,7 @@ export function conversationView(
   const c = snapshot.conversation;
   return {
     ...c,
-    mode: snapshot.config.mode,
+    agentProfile: snapshot.config.agentProfile ?? "Unknown profile",
     activeAgentId: c.id,
     activeEntryId: c.headEventId ?? undefined,
     pinned: !!c.pinnedAt,
@@ -33,24 +33,6 @@ export function conversationView(
     runtimeStatusClearedAt: c.statusClearedAt ?? undefined,
   };
 }
-function creatingToolCall(
-  snapshot: ConversationSnapshot,
-  events: readonly TransferredConversationEvent[],
-  toolCallId: string,
-): { toolName: string; arguments: unknown } | undefined {
-  const open = snapshot.toolCalls.find((call) => call.id === toolCallId);
-  if (open) return { toolName: open.toolName, arguments: open.arguments };
-  for (const event of events)
-    if (
-      event.type === "tool_call_response" &&
-      event.payload.toolCallId === toolCallId
-    )
-      return {
-        toolName: event.payload.toolName,
-        arguments: event.payload.arguments,
-      };
-  return undefined;
-}
 export function agentView(
   snapshot: ConversationSnapshot,
   child?: ConversationSummary,
@@ -58,9 +40,6 @@ export function agentView(
 ): AgentRecord {
   const c = child ?? snapshot.conversation;
   const config = snapshot.config;
-  const creatingCall = child?.parentToolCallId
-    ? creatingToolCall(snapshot, events, child.parentToolCallId)
-    : undefined;
   return {
     id: c.id,
     conversationId: c.id,
@@ -90,10 +69,8 @@ export function agentView(
             })),
         ])
       : undefined,
-    subagentProfile: child
-      ? deriveSubagentProfile(child.title, creatingCall)
-      : undefined,
-    mode: child?.mode ?? config.mode,
+    agentProfile:
+      child?.agentProfile ?? config.agentProfile ?? "Unknown profile",
     permissionRuleSetId:
       child?.permissionRuleSetId ?? config.permissionRuleSetId,
     model: child?.model ?? config.model,
@@ -115,8 +92,8 @@ export function conversationContext(
     boundary?.type === "assistant_message" ? boundary.payload : undefined;
   const model = models.find(
     (m) =>
-      m.provider === (response?.provider ?? snapshot.config.model.provider) &&
-      m.modelId === (response?.model ?? snapshot.config.model.modelId),
+      m.provider === (response?.provider ?? snapshot.config.model?.provider) &&
+      m.modelId === (response?.model ?? snapshot.config.model?.modelId),
   );
   const contextWindow = model?.contextWindow ?? 0;
   const tokens = response

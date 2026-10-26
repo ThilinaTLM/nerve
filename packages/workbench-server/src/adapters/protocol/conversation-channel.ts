@@ -1,5 +1,14 @@
+import {
+  createConfigurationReload,
+  resolveWithConfigurationRetry,
+} from "../../core-host/configuration-reload.js";
+import { subscribeConfigurationNotifications } from "./configuration-notifications.js";
+import {
+  cachedConversationSummary,
+  cachedConversationSnapshot,
+  cachedAgentFields,
+} from "../../core-host/cached-agent-summary.js";
 import { moveProjectLaunchDefinitions } from "../../infrastructure/migrations/steps/0001-conversation-core/configuration.js";
-import { capabilityOverridesDocumentSchema } from "@nervekit/contracts/capabilities";
 import { createId } from "@nervekit/contracts";
 import {
   previewSystemPromptParamsSchema,
@@ -40,6 +49,7 @@ import { orchestratorSource } from "./messages.js";
 import { PROTOCOL_HEARTBEAT, PROTOCOL_SESSION_LIMITS } from "./constants.js";
 import type { LocalProtocolSession } from "./protocol-websocket.js";
 import { ToolArgumentDelivery } from "./tool-argument-delivery.js";
+import { publicSystemPromptPreview } from "./system-prompt-preview.js";
 
 type ChannelContext = ServerAdapterContexts["websocket"];
 const capabilities = [
@@ -122,27 +132,37 @@ export function createConversationProtocolSession(
     const latestSeq = snapshot.lastSequence;
     return { stream, latestSeq, earliestAvailableSeq: 0 };
   };
+  const configurationPublished = () => {
+    state.admissionPolicy.invalidate();
+    state.agentConfiguration.invalidateResources();
+    void core.retryConfigurationBlocked().catch((error) => {
+      void state.logger.warn("Configuration health retry failed", { error });
+    });
+  };
+  const permissionMutation = async <T>(
+    operation: () => Promise<T>,
+  ): Promise<T> => {
+    try {
+      return await operation();
+    } finally {
+      configurationPublished();
+    }
+  };
   const handlers = {
-    "capabilities.get": ({ projectId, conversationId }) => {
-      projects.add(projectId);
-      return state.capabilities.configuration(projectId, conversationId);
-    },
-    "capabilities.update": ({ replace, ...input }) =>
-      state.capabilities.update({
-        ...input,
-        ...(replace !== undefined
-          ? { replace: capabilityOverridesDocumentSchema.parse(replace) }
-          : {}),
-      }),
-    "capabilities.reset": (input) => state.capabilities.reset(input),
-    "capabilities.trust": ({ projectId, digest }) =>
-      state.capabilities.trust(projectId, digest),
-    "harnessSettings.get": ({ projectId, conversationId }) => {
-      projects.add(projectId);
-      return state.harness.get(projectId, conversationId);
-    },
-    "harnessSettings.update": ({ projectId, conversationId, compaction }) =>
-      state.harness.update(projectId, conversationId, compaction),
+    "agentConfiguration.get": ({ scope }) =>
+      state.configurationOperations.get(scope),
+    "agentConfiguration.save": (input) =>
+      state.configurationOperations.save(input),
+    "agentConfiguration.getEffective": ({ conversationId }) =>
+      state.configurationOperations.effective(conversationId),
+    "agentConfiguration.resolveProject": (input) =>
+      state.agentConfiguration.projectDefaults.get(input),
+    "conversationDefaults.get": ({ scope }) =>
+      state.configurationOperations.creation(scope),
+    "conversationDefaults.save": (input) =>
+      state.configurationOperations.saveCreation(input),
+    "conversation.previewAgentProfile": ({ conversationId, profile }) =>
+      core.previewAgentProfile(conversationId, profile),
     "project.create": (input) => {
       const project = core.projects.create(input);
       moveProjectLaunchDefinitions(project.directory);
@@ -165,34 +185,41 @@ export function createConversationProtocolSession(
       return null;
     },
     "trust.list": ({ projectId, kind }) => core.trust.list(projectId, kind),
-    "trust.decide": (input) => core.trust.decide(input),
+    "trust.decide": (input) => {
+      const result = core.trust.decide(input);
+      configurationPublished();
+      return result;
+    },
     "trust.delete": ({ trustedResourceId }) => {
-      state.capabilities.deleteTrust(trustedResourceId);
+      core.trust.delete(trustedResourceId);
+      configurationPublished();
       return null;
     },
     "conversation.create": async (input) => {
       projects.add(input.projectId);
-      const snapshot = await core.createConversation({
-        ...input,
-        config: {
-          ...input.config,
-          instructions: input.config.instructions ?? null,
-        },
-      });
+      const snapshot = await core.createConversation(input);
       owners.set(input.id, input.projectId);
-      return snapshot;
+      return cachedConversationSnapshot(state.agentConfiguration, snapshot);
     },
     "conversation.list": (input) => {
       projects.add(input.projectId);
-      return core.listConversations(input);
+      return core
+        .listConversations(input)
+        .map((row) => cachedConversationSummary(state.agentConfiguration, row));
     },
-    "conversation.getSnapshot": ({ conversationId }) =>
-      core.getSnapshot(conversationId),
-    "conversation.previewSystemPrompt": async (params) => ({
-      systemPrompt: await core.previewSystemPrompt(
+    "conversation.getSnapshot": async ({ conversationId }) => {
+      await state.agentConfiguration.loadConversationContext(conversationId);
+      return cachedConversationSnapshot(
+        state.agentConfiguration,
+        core.getSnapshot(conversationId),
+      );
+    },
+    "conversation.previewSystemPrompt": async (params) => {
+      const result = await core.previewSystemPrompt(
         previewSystemPromptParamsSchema.parse(params),
-      ),
-    }),
+      );
+      return publicSystemPromptPreview(result);
+    },
     "conversation.getUsage": ({ conversationId }) =>
       core.getUsage(conversationId),
     "conversation.getHistory": ({ conversationId, ...page }) =>
@@ -203,8 +230,9 @@ export function createConversationProtocolSession(
       core.getTree(conversationId),
     "conversation.getEventsSince": ({ conversationId, sequence }) =>
       core.getEventsSince(conversationId, sequence),
-    "conversation.configure": ({ conversationId, patch }) => {
-      core.configure(conversationId, patch);
+    "conversation.setAgentProfile": (input) => core.setAgentProfile(input),
+    "conversation.configure": async ({ conversationId, patch }) => {
+      await core.configure(conversationId, patch);
       return null;
     },
     "conversation.update": ({ conversationId, patch }) => {
@@ -260,8 +288,17 @@ export function createConversationProtocolSession(
       return null;
     },
     "interaction.resolve": async (input) => {
-      await core.resolveInteraction(input);
-      return null;
+      const result = await resolveWithConfigurationRetry(input, {
+        lookup: (id) => state.coreStorage.toolCalls.get(id) ?? undefined,
+        reload: createConfigurationReload(
+          state.agentConfiguration,
+          state.admissionPolicy,
+        ).retry,
+        resolve: (resolution) => core.resolveInteraction(resolution),
+      });
+      if (input.resolution.kind === "approval" && input.resolution.persistScope)
+        configurationPublished();
+      return result;
     },
     "asyncBash.logs": (input) => core.asyncBash.readLogPage(input),
     "asyncBash.cancel": async ({ bashId }) => {
@@ -292,17 +329,21 @@ export function createConversationProtocolSession(
       previousRuleId,
       rule,
     }) =>
-      state.permissionConfiguration.saveRule({
-        scope,
-        projectId,
-        ruleSetId,
-        previousRuleId,
-        rule,
-      }),
+      permissionMutation(() =>
+        state.permissionConfiguration.saveRule({
+          scope,
+          projectId,
+          ruleSetId,
+          previousRuleId,
+          rule,
+        }),
+      ),
     "permission.rule.delete": (input) =>
-      state.permissionConfiguration.deleteRule(input),
+      permissionMutation(() => state.permissionConfiguration.deleteRule(input)),
     "permission.projectTrust.grant": ({ projectId }) =>
-      state.permissionConfiguration.grantProjectTrust(projectId),
+      permissionMutation(() =>
+        state.permissionConfiguration.grantProjectTrust(projectId),
+      ),
     "skill.list": ({ projectId } = {}) => {
       const project = projectId ? core.projects.get(projectId) : null;
       if (projectId && !project) throw new Error("Project not found");
@@ -432,15 +473,10 @@ export function createConversationProtocolSession(
       () => notifyDirect(type, data),
       JSON.stringify(data).length * 2,
     );
-  const unsubscribeCapabilities = state.capabilities.subscribe((change) => {
-    if (projects.has(change.projectId))
-      void notify("capabilities.changed", change);
-  });
-  const unsubscribeSettings = state.events.subscribeNotify((event) => {
-    if (event.type === "settings.updated")
-      for (const projectId of projects)
-        void notify("capabilities.changed", { projectId });
-  });
+  const unsubscribeConfiguration = subscribeConfigurationNotifications(
+    state.agentConfiguration,
+    notify,
+  );
   const unsubscribeCore = core.subscribe((change) => {
     switch (change.kind) {
       case "event_appended":
@@ -459,7 +495,10 @@ export function createConversationProtocolSession(
         if (projects.has(projectId))
           void notify("conversation.changed", {
             projectId,
-            summary: change.summary,
+            summary: cachedConversationSummary(
+              state.agentConfiguration,
+              change.summary,
+            ),
           });
         break;
       }
@@ -492,7 +531,13 @@ export function createConversationProtocolSession(
       case "config_changed":
         void notify("conversation.config", {
           conversationId: change.conversationId,
-          config: change.config,
+          config: {
+            ...change.config,
+            ...cachedAgentFields(
+              state.agentConfiguration,
+              change.conversationId,
+            ),
+          },
         });
         break;
       case "tool_call_changed":
@@ -538,8 +583,7 @@ export function createConversationProtocolSession(
     }
   });
   unsubscribe = () => {
-    unsubscribeCapabilities();
-    unsubscribeSettings();
+    unsubscribeConfiguration();
     unsubscribeCore();
   };
   return {

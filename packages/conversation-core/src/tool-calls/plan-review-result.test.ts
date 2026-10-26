@@ -10,7 +10,10 @@ import {
   storedToolResultSchema,
 } from "@nervekit/contracts/core";
 import { buildUserProjection } from "@nervekit/tools/result-projection";
-import { planReviewDisplayResult } from "./plan-review-result.js";
+import {
+  planImplementationInput,
+  planReviewDisplayResult,
+} from "./plan-review-result.js";
 
 function call(decision: "approve" | "reject") {
   return toolCallSchema.parse({
@@ -21,7 +24,7 @@ function call(decision: "approve" | "reject") {
     assistantEventId: "event_1",
     contentIndex: 0,
     origin: "model",
-    toolName: "plan_mode_present",
+    toolName: "plan_present",
     arguments: { file_path: "/plans/original.md" },
     state: "awaiting_input",
     supervision: null,
@@ -30,6 +33,9 @@ function call(decision: "approve" | "reject") {
     interaction: {
       kind: "plan_review",
       request: {
+        targetProfile: { name: "coding", digest: "0".repeat(64) },
+        expectedRevision: 0,
+        expectedDigest: "missing",
         assetId: "asset_1",
         path: "/snapshot/plan.md",
         title: "Plan",
@@ -39,11 +45,57 @@ function call(decision: "approve" | "reject") {
       resolution: {
         kind: "plan_review",
         decision,
+        ...(decision === "approve"
+          ? {
+              confirmation: {
+                targetProfile: { name: "coding", digest: "0".repeat(64) },
+                expectedRevision: 0,
+                expectedDigest: "missing",
+                transitionId: "approve",
+              },
+            }
+          : {}),
         feedback: "Review feedback",
       },
     },
   });
 }
+
+test("implementation input references the reviewed file without embedding the plan", () => {
+  const source = call("approve");
+  const input = planImplementationInput(source);
+  assert.ok(input);
+  assert.equal(
+    input.text,
+    "The user has accepted the plan. Please implement it.\n\nPlan file: /snapshot/plan.md\n\nApproval feedback:\nReview feedback",
+  );
+  assert.equal(input.source, "user");
+  assert.equal(input.conversationId, source.conversationId);
+  assert.deepEqual(planImplementationInput(source), input);
+  assert.doesNotMatch(
+    input.text,
+    /Reviewed snapshot|Implement this approach|original\.md/,
+  );
+  assert.ok(source.interaction?.kind === "plan_review");
+  assert.ok(source.interaction.resolution);
+  source.interaction.resolution.feedback = undefined;
+  assert.equal(
+    planImplementationInput(source)?.text,
+    "The user has accepted the plan. Please implement it.\n\nPlan file: /snapshot/plan.md",
+  );
+});
+
+test("implementation input is only created for approved plan reviews", () => {
+  assert.equal(planImplementationInput(call("reject")), undefined);
+  const source = call("approve");
+  assert.equal(
+    planImplementationInput({ ...source, toolName: "ask_user" }),
+    undefined,
+  );
+  assert.ok(source.interaction?.kind === "plan_review");
+  source.interaction.resolution = undefined;
+  assert.equal(planImplementationInput(source), undefined);
+});
 
 for (const decision of ["approve", "reject"] as const) {
   test(`${decision} preserves the reviewed snapshot in completed display data`, () => {
@@ -51,7 +103,7 @@ for (const decision of ["approve", "reject"] as const) {
     const result = {
       content:
         decision === "approve"
-          ? "Plan approved. Entered coding mode."
+          ? "Plan approved. Switched to the implementation profile."
           : "Plan rejected.",
       details: { decision },
     };
@@ -157,7 +209,7 @@ test("settlement persists display metadata without adding the plan to agent cont
       call("approve"),
       "completed",
       {
-        content: "Plan approved. Entered coding mode.",
+        content: "Plan approved. Switched to the implementation profile.",
         details: { decision: "approve" },
       },
     );

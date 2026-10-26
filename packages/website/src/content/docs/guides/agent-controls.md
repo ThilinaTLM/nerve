@@ -1,19 +1,19 @@
 ---
 title: Control the agent
-description: Choose coding or planning mode, permissions, model, and thinking level.
+description: Choose agent profiles, permissions, model, and thinking level.
 sidebar:
   order: 4
 ---
 
-## Coding and planning
+## Agent profiles
 
-**Coding mode** exposes the normal enabled tool set under the active permission policy.
+Choose a lead/both profile in the composer or use `/profile <name>`. `/plan` selects Planning. Agents cannot switch their own profiles.
 
-**Planning mode** changes instructions, tool availability, and enforcement. Research remains available; edit and write are constrained to Nerve's plan directory; launch and background-process mutations and mutating Jira/Confluence operations are unavailable; shell commands pass a planning guard. A plan must be presented for review before implementation.
+**Coding** contributes instructions and otherwise uses settings. **Planning** points to the planning skill and requires the Planning rule set and `plan_present` enablement. Leaving Planning reveals underlying choices; Coding does not grant write permission. Research stays read-only outside plan storage; planning restrictions are guardrails, not an operating-system sandbox.
 
-Select coding or planning mode in the agent controls; agents cannot change their own mode. In planning mode, the agent uses `plan_mode_present` to submit its plan. **Accept & Implement** approves the plan and transitions to coding mode; rejecting the plan keeps planning mode unchanged and leaves the agent idle until you send a follow-up prompt. You can also change mode directly with the user controls.
+The agent researches, resolves requirement-dependent decisions with `ask_user`, writes a complete plan in plan storage, and submits it with `plan_present`. **Accept & Implement** switches to `defaultAgentProfile` (project → user → built-in Coding). Rejection leaves the profile unchanged and the agent idle until your next prompt.
 
-Planning restrictions reduce accidental mutation but are not an operating-system sandbox.
+Profiles offer **Use settings**, **Recommend**, and **Require**. Conversation choices beat recommendations; requirements temporarily disable controls without overwriting underlying choices. Reset removes an editable override and inherits. The applied profile is a snapshot: catalog edits/deletion do not change it. Use **Apply updated profile** to reapply explicitly. Source labels show what controls each value. See [Agent profiles](/reference/agent-profiles/).
 
 ## Permission levels
 
@@ -21,13 +21,13 @@ Planning restrictions reduce accidental mutation but are not an operating-system
 - **Supervised:** automatically allows safe local reads and audited read-only integrations, then asks for commands, writes, opaque execution, and network access unless a matching permission rule allows the request.
 - **Autonomous:** executes allowed risks without normal approval pauses, while explicit block exceptions and hard guardrails still apply.
 
-Policy is evaluated for every dispatch and recorded with the tool lifecycle.
+Policy is rechecked at execution admission, including after approval waits. Invalid security configuration waits **configuration-blocked** with **Retry/Cancel**; repair the cause and Retry to re-read it. Approval cannot bypass the block.
 
 ## Model and thinking
 
 Select an authenticated model and one of its declared thinking levels. Nerve knows seven possible levels from `off` through `max`, but the picker only presents supported choices and runtime resolution can clamp a stale request.
 
-Changing model, thinking, mode, or permission on an active conversation does not recreate it. Changes made during a run apply to subsequent work—especially the next provider request—not the request already streaming.
+Changing model, thinking, profile, or permission on an active conversation does not recreate it. Changes made during a run apply to subsequent work—especially the next provider request—not the request already streaming.
 
 ## Delegation and authority
 

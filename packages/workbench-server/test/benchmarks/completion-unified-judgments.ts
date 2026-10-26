@@ -269,7 +269,7 @@ export async function measureUnifiedJudgments(
         {
           query: "profile:cobalt",
           label: "@agent:cobalt",
-          kind: "subagent_profile",
+          kind: "agent_profile",
         },
         {
           query: "agent:session-worker",

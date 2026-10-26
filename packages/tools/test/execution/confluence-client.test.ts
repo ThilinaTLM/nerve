@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { builtinSkillFilePath } from "@nervekit/skills";
 import { describe, it } from "node:test";
 import {
   confluenceDownload,
@@ -37,7 +38,32 @@ describe("Confluence attachment downloads", () => {
           assert.equal(structured.details?.path, "/pages/999");
           assert.equal(structured.details?.reason, "Page does not exist");
           assert.match(structured.message, /Page does not exist/);
+          assert.doesNotMatch(structured.message, /See .*SKILL\.md/);
           assert.doesNotMatch(JSON.stringify(structured), /private-cursor/);
+          return true;
+        },
+      );
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
+  it("points malformed requests to the installed Confluence guide", async () => {
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = async () =>
+      new Response("Invalid body format", { status: 400 });
+    try {
+      await assert.rejects(
+        confluenceRequest(connection, {
+          method: "POST",
+          path: "/pages",
+          body: {},
+        }),
+        (error: unknown) => {
+          assert.ok(error instanceof Error);
+          const guide = builtinSkillFilePath("confluence");
+          assert.ok(guide);
+          assert.ok(error.message.endsWith(`See ${guide}.`));
           return true;
         },
       );

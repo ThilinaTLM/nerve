@@ -13,6 +13,7 @@
     "./styles/animation.css": "./src/styles/animation.css",
     "./styles/components.css": "./src/styles/components.css",
     "./utils": "./src/lib/utils.ts",
+    "./icons/*": "./src/lib/icons/*.svelte",
     "./browser/*": "./src/lib/browser/*.ts",
     "./collections/*": "./src/lib/collections/*.ts",
     "./display/*": "./src/lib/display/*.ts",

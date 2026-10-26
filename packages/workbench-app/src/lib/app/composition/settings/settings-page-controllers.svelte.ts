@@ -1,145 +1,214 @@
 import { SuggestionsPageState } from "./suggestions/suggestions-page-state.svelte";
-import {
-  emptyCapabilityOverrides,
-  type CapabilityConfiguration,
-  type CapabilityPatch,
-} from "@nervekit/contracts/capabilities";
+import type { ProfileUsableBy } from "@nervekit/contracts/agent-configuration";
 import type { Project } from "@nervekit/contracts/core";
-import { createCapabilityMutationQueue } from "$lib/domain/capabilities/capability-mutation-queue";
 import {
-  getCapabilityConfiguration,
-  updateCapabilities,
-  trustCapabilities,
-} from "$lib/features/conversations/adapters/core-capabilities.adapter";
+  profileFileCount,
+  profileKindForPage,
+  storedUsableBy,
+} from "$lib/features/settings/views/pages/agent-profiles/profile-kind";
 import {
-  observeConversationChannel,
-  requestConversation,
-} from "$lib/application/startup/conversation-connection";
+  readAgentProfiles,
+  resetAgentProfile,
+} from "$lib/features/settings/api/agent-profiles.api";
+import type { LaunchDefinitionCatalog } from "@nervekit/contracts/launch-definitions";
+import {
+  deleteLaunchDefinition,
+  getLaunchCatalog,
+} from "$lib/features/launches";
+import { requestWorkbench } from "$lib/application/startup/workbench-connection";
+import type { InstructionsFile } from "$lib/features/settings/views/pages/project/InstructionsFilesPage.svelte";
+import type { LaunchDefinitionRow } from "$lib/features/settings/views/pages/project/LaunchSettingsPage.svelte";
+import type { TrustEntry } from "$lib/features/settings/views/pages/project/TrustSettingsPage.svelte";
+import type { SettingsScopeTarget } from "$lib/features/settings/registry/settings-scope";
+import { observeConversationChannel } from "$lib/application/startup/conversation-connection";
 import { onEvent } from "$lib/application/events/workbench-event-bus";
-import { settingsState } from "$lib/features/settings/state/settings-state.svelte";
-import type { Settings } from "$lib/api";
-import { selection } from "$lib/application/workspace/selection.svelte";
-import {
-  retainConversationStore,
-  type ConversationStore,
-} from "$lib/features/conversations";
 import { PermissionsPageController } from "$lib/features/settings/views/pages/permissions/permissions-page-state.svelte";
 import { StoragePageController } from "$lib/features/settings/views/pages/storage/storage-page-state.svelte";
-export type SettingsScope = "user" | "project";
 export function createSettingsPageControllers(deps: {
-  activeProject: () => Project | undefined;
-  scope: () => SettingsScope;
+  /** The immutable target of the view these controllers serve. */
+  target: () => SettingsScopeTarget;
+  /** The target's project, when it is one and is still known. */
+  project: () => Project | undefined;
 }) {
-  let capabilityConfiguration = $state<CapabilityConfiguration>();
-  let capabilityLoading = $state(false);
-  let capabilityError = $state<string>();
-  let capabilityRequest = 0;
+  const targetProjectId = () => {
+    const target = deps.target();
+    return target.kind === "project" ? target.projectId : undefined;
+  };
+  /** What the project stores outside capabilities; see `pageDiffs`. */
+  let profileFiles = $state.raw<
+    {
+      name: string;
+      digest: string;
+      usableBy?: ProfileUsableBy;
+    }[]
+  >([]);
+  let diffRequest = 0;
 
-  async function loadProjectCapabilities(): Promise<void> {
-    const projectId = deps.activeProject()?.id;
-    const request = ++capabilityRequest;
-    capabilityError = undefined;
+  async function loadProjectDiff(): Promise<void> {
+    const projectId = targetProjectId();
+    const request = ++diffRequest;
     if (!projectId) {
-      capabilityConfiguration = undefined;
+      profileFiles = [];
       return;
     }
-    capabilityLoading = true;
     try {
-      const configuration = await getCapabilityConfiguration(projectId);
-      if (request === capabilityRequest)
-        capabilityConfiguration = configuration;
-    } catch (error) {
-      if (request === capabilityRequest)
-        capabilityError =
-          error instanceof Error ? error.message : String(error);
-    } finally {
-      if (request === capabilityRequest) capabilityLoading = false;
+      const profiles = await readAgentProfiles({ scope: "project", projectId });
+      if (request !== diffRequest) return;
+      profileFiles = profiles.profiles
+        .filter((profile) => profile.local)
+        .map((profile) => ({
+          name: profile.name,
+          digest: profile.digest,
+          usableBy: storedUsableBy(profile),
+        }));
+    } catch {
+      // Counts are advisory; the pages report their own load errors.
     }
+  }
+
+  let instructionsFiles = $state.raw<InstructionsFile[]>([]);
+  let instructionsLoading = $state(false);
+  let launchCatalog = $state.raw<LaunchDefinitionCatalog>();
+  let instructionsRequest = 0;
+  let launchRequest = 0;
+
+  function relativeToProject(path: string): string {
+    const root = deps
+      .project()
+      ?.directory.replaceAll("\\", "/")
+      .replace(/\/$/, "");
+    const normalized = path.replaceAll("\\", "/");
+    return root && normalized.startsWith(`${root}/`)
+      ? normalized.slice(root.length + 1)
+      : normalized;
+  }
+
+  async function loadInstructionsFiles(): Promise<void> {
+    const projectId = targetProjectId();
+    const request = ++instructionsRequest;
+    if (!projectId) {
+      instructionsFiles = [];
+      return;
+    }
+    instructionsLoading = true;
+    try {
+      const { files } = await requestWorkbench("projectInstructions.list", {
+        projectId,
+      });
+      if (request !== instructionsRequest) return;
+      instructionsFiles = files.map((file) => ({
+        path: relativeToProject(file.path),
+        kind: file.path.endsWith("AGENTS.md") ? "agents" : "append",
+        description: `Applies to ${relativeToProject(file.appliesTo) || "the project root"}`,
+      }));
+    } catch {
+      if (request === instructionsRequest) instructionsFiles = [];
+    } finally {
+      if (request === instructionsRequest) instructionsLoading = false;
+    }
+  }
+
+  async function loadLaunchCatalog(): Promise<void> {
+    const projectId = targetProjectId();
+    const request = ++launchRequest;
+    if (!projectId) {
+      launchCatalog = undefined;
+      return;
+    }
+    try {
+      const catalog = await getLaunchCatalog(projectId);
+      if (request === launchRequest) launchCatalog = catalog;
+    } catch {
+      // The Launch page shows an empty list; the launches panel reports errors.
+    }
+  }
+
+  function launchDefinitions(): LaunchDefinitionRow[] {
+    return (launchCatalog?.definitions ?? []).map((definition) => ({
+      id: definition.id,
+      label: definition.label ?? definition.command,
+      command: definition.command,
+      cwd: definition.cwd,
+      port: definition.port,
+      runPolicy: definition.runPolicy,
+    }));
+  }
+
+  async function deleteProjectLaunch(id: string): Promise<void> {
+    const projectId = targetProjectId();
+    if (!projectId || !launchCatalog) return;
+    await deleteLaunchDefinition(projectId, id, launchCatalog.revision);
+    await loadLaunchCatalog();
+  }
+
+  /** Capabilities and permissions files; profile files list themselves. */
+  function trustEntries(): TrustEntry[] {
+    const projectId = targetProjectId();
+    const permissions = permissionsController.configuration?.projectTrust;
+    return [
+      ...(permissions && projectId
+        ? [
+            {
+              id: "permissions",
+              path: ".nerve/config/permissions.json",
+              description: "Permission rule overrides for this project.",
+              status: permissions.status,
+              detail: "reason" in permissions ? permissions.reason : undefined,
+              onTrust: () => void permissionsController.trustProject(projectId),
+            } satisfies TrustEntry,
+          ]
+        : []),
+    ];
   }
 
   $effect(() => {
-    const projectId = deps.activeProject()?.id;
-    const scope = deps.scope();
-    if (scope === "project" && projectId) void loadProjectCapabilities();
+    const projectId = targetProjectId();
+    if (projectId) {
+      void loadProjectDiff();
+      void loadInstructionsFiles();
+      void loadLaunchCatalog();
+      void permissionsController.load(projectId);
+    }
   });
 
-  /** Mutations are serialized so each one sends the digest the server just echoed. */
-  const capabilityMutations = createCapabilityMutationQueue();
-
-  async function runCapabilityMutation(
-    mutation: () => Promise<CapabilityConfiguration | void>,
-  ): Promise<void> {
-    await capabilityMutations.run(async () => {
-      try {
-        const configuration = await mutation();
-        if (configuration) capabilityConfiguration = configuration;
-        else await loadProjectCapabilities();
-      } catch (error) {
-        const message = error instanceof Error ? error.message : String(error);
-        await loadProjectCapabilities();
-        capabilityError = message;
-      }
-    });
+  /** Pages where this project differs from the user's settings, with counts. */
+  function pageDiffs(): Readonly<Record<string, number>> {
+    return {
+      agents: profileFileCount(profileFiles, "lead"),
+      "sub-agents": profileFileCount(profileFiles, "subagent"),
+    };
   }
 
-  async function patchProjectCapabilities(
-    patch: CapabilityPatch,
-  ): Promise<void> {
-    const project = deps.activeProject();
-    if (!project || !capabilityConfiguration) return;
-    // The digest is read when the mutation runs, after any queued write applied.
-    await runCapabilityMutation(() =>
-      updateCapabilities({
-        projectId: project.id,
-        layer: "project",
-        patch,
-        expectedDigest: capabilityConfiguration?.projectDigest,
-      }),
-    );
-  }
-
-  async function resetProjectCapabilities(): Promise<void> {
-    const project = deps.activeProject();
-    if (!project || !capabilityConfiguration) return;
-    await runCapabilityMutation(() =>
-      updateCapabilities({
-        projectId: project.id,
-        layer: "project",
-        replace: emptyCapabilityOverrides(),
-        expectedDigest: capabilityConfiguration?.projectDigest,
-      }),
-    );
-  }
-
-  async function setProjectCapabilityTrust(trusted: boolean): Promise<void> {
-    const project = deps.activeProject();
-    if (!project || !capabilityConfiguration) return;
-    await runCapabilityMutation(async () => {
-      const digest = capabilityConfiguration?.projectDigest;
-      if (!digest)
-        throw new Error("Project capability configuration is not loaded.");
-      if (trusted) return trustCapabilities(project.id, digest);
-      const resources = await requestConversation("trust.list", {
-        projectId: project.id,
-        kind: "project_capabilities",
-      });
-      const path =
-        project.directory.replaceAll("\\", "/").replace(/\/$/, "") +
-        "/.nerve/config/capabilities.json";
-      for (const resource of resources) {
-        if (resource.path.replaceAll("\\", "/") === path)
-          await requestConversation("trust.delete", {
-            trustedResourceId: resource.id,
+  /** Removes every project override on one page, so it follows user settings again. */
+  async function resetProjectPage(pageId: string): Promise<void> {
+    const projectId = targetProjectId();
+    if (!projectId) return;
+    switch (pageId) {
+      case "agents":
+      case "sub-agents":
+        for (const file of profileFiles.filter(
+          (candidate) =>
+            profileFileCount([candidate], profileKindForPage(pageId)) > 0,
+        )) {
+          const result = await resetAgentProfile({
+            scope: { scope: "project", projectId },
+            name: file.name,
+            expectedDigest: file.digest,
           });
-      }
-      return getCapabilityConfiguration(project.id);
-    });
+          if (result.status !== "saved")
+            throw new Error(
+              `Profile reset ${result.status}; reload before retrying.`,
+            );
+        }
+        break;
+    }
+    await loadProjectDiff();
   }
 
   $effect(() => {
     const refresh = () =>
-      deps.scope() === "project"
-        ? loadProjectCapabilities()
+      targetProjectId()
+        ? Promise.all([loadProjectDiff()]).then(() => undefined)
         : Promise.resolve();
     const stop = observeConversationChannel({
       recover: refresh,
@@ -147,66 +216,40 @@ export function createSettingsPageControllers(deps: {
       event() {},
       notice(notice) {
         if (
-          notice.type === "capabilities.changed" &&
-          notice.data.projectId === deps.activeProject()?.id &&
-          !notice.data.conversationId
+          notice.type === "agentConfiguration.changed" &&
+          notice.data.scope.scope === "project" &&
+          notice.data.scope.projectId === targetProjectId()
         )
           void refresh();
       },
     });
-    const stopSettings = onEvent("settings.updated", () => void refresh());
+    const stopSettings = [
+      onEvent("settings.updated", () => void refresh()),
+      onEvent("agentProfiles.changed", () => void refresh()),
+    ];
     return () => {
       stop();
-      stopSettings();
+      for (const unsubscribe of stopSettings) unsubscribe();
     };
-  });
-  let activeStore = $state<ConversationStore>();
-  $effect(() => {
-    const id = selection.conversationId;
-    if (!id) {
-      activeStore = undefined;
-      return;
-    }
-    const retained = retainConversationStore(id);
-    activeStore = retained.store;
-    void retained.ready.catch(() => undefined);
-    return retained.release;
   });
   const storageController = new StoragePageController();
   const permissionsController = new PermissionsPageController();
   const suggestionsPageState = new SuggestionsPageState();
-  function readComposerSelection(): Settings["lastAgentSelection"] {
-    const saved = settingsState.settingsDraft?.lastAgentSelection;
-    if (!saved) throw new Error("Settings not loaded");
-    const config = activeStore?.snapshot?.config;
-    return config
-      ? {
-          ...saved,
-          mode: config.mode,
-          model: config.model,
-          thinkingLevel: config.reasoningLevel,
-          permissionRuleSetId: config.permissionRuleSetId,
-        }
-      : { ...saved };
-  }
   return {
-    get capabilityConfiguration() {
-      return capabilityConfiguration;
+    get instructionsFiles() {
+      return instructionsFiles;
     },
-    get capabilityLoading() {
-      return capabilityLoading;
+    get instructionsLoading() {
+      return instructionsLoading;
     },
-    get capabilityError() {
-      return capabilityError;
-    },
-    loadProjectCapabilities,
-    patchProjectCapabilities,
-    resetProjectCapabilities,
-    setProjectCapabilityTrust,
+    launchDefinitions,
+    deleteProjectLaunch,
+    trustEntries,
+    pageDiffs,
+    resetProjectPage,
     suggestionsPageState,
     storageController,
     permissionsController,
-    readComposerSelection,
   };
 }
 export type SettingsPageControllers = ReturnType<

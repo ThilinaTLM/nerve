@@ -1,8 +1,6 @@
 import type { Snippet } from "svelte";
-import type {
-  CapabilityConfiguration,
-  CapabilityPatch,
-} from "@nervekit/contracts/capabilities";
+import type { LeadSettingsOverrides } from "@nervekit/contracts/agent-configuration";
+import type { AgentEditorView } from "$lib/presentation/composer/agent-editor-view";
 import type { CompletionItem } from "@nervekit/contracts/completions";
 import type { ComposerReferenceSource } from "../composer/composer-editor-completions.js";
 import type { ComposerCompletionAction } from "../composer/composer-editor-completions.js";
@@ -11,15 +9,15 @@ import type {
   ConversationAgentUsage,
   UserInputAnswer,
 } from "@nervekit/contracts/core";
-import type { CapabilitySkillRow } from "$lib/presentation/composer/capability-skill-row";
-import type { CapabilitySubagentProfiles } from "$lib/presentation/composer/capability-subagent-slot";
+import type { AvailableSkill } from "@nervekit/contracts/skills";
+import type { CapabilitySubagentProfile } from "$lib/presentation/composer/capability-subagent-profiles";
 import type { CapabilityToolGroup } from "$lib/presentation/composer/capability-tool-labels";
 import type {
   ContextUsage,
   ModelInfo,
+  ModelSelection,
   ThinkingLevel,
 } from "@nervekit/contracts/models";
-import type { Mode } from "@nervekit/contracts/settings";
 import type {
   PermissionRuleSetId,
   PermissionRuleSetSummary,
@@ -73,11 +71,40 @@ export type ComposerEditorOverlay = {
   onAction: () => void;
 };
 
+export type ComposerAgentProfile = {
+  name: string;
+  label: string;
+  description?: string;
+};
+
+export type ComposerLockedFields = {
+  /** Name of the applied profile that holds the locks. */
+  by?: string;
+  /** Model and reasoning are shown in one picker but locked independently. */
+  model?: boolean;
+  thinking?: boolean;
+  permission?: boolean;
+  compaction?: boolean;
+  skills?: boolean;
+  /** Capability tools the profile locks. */
+  tools?: readonly string[];
+};
+
+/** Unlocked values that differ from the effective settings; shown with ↺. */
+/** Only the unlocked parts of the combined picker are reported. */
+export type ComposerModelChange = {
+  model?: ModelSelection;
+  thinkingLevel?: ThinkingLevel;
+};
+
+export type ComposerSettingsDiffers = {
+  model?: boolean;
+  permission?: boolean;
+};
+
 export type ConversationComposerModel = {
   text: string;
   editorOverlay?: ComposerEditorOverlay;
-  /** Hides the mode toggle for conversations without plan mode. */
-  modeHidden?: boolean;
   session?: ConversationSessionInfo;
   /** Conversation-level icon actions in the context popover header; the
    * callback closes the popover (e.g. before opening a dialog over it). */
@@ -96,7 +123,13 @@ export type ConversationComposerModel = {
   models: ModelInfo[];
   selectedModelKey: string;
   thinkingLevel: ThinkingLevel;
-  mode: Mode;
+  /** Active agent profile name. */
+  agentProfile: string;
+  /** Profiles offered by the selector; empty hides it. */
+  agentProfiles: ComposerAgentProfile[];
+  /** Fields the active profile locks; their pickers are disabled. */
+  lockedFields?: ComposerLockedFields;
+  settingsDiffers?: ComposerSettingsDiffers;
   permissionRuleSetId: PermissionRuleSetId;
   permissionRuleSets: PermissionRuleSetSummary[];
   permissionRuleSetsLoading?: boolean;
@@ -111,10 +144,9 @@ export type ConversationComposerModel = {
   placeholder?: string;
   focusToken?: number;
   controlsDisabled?: boolean;
-  modeDisabled?: boolean;
+  profileDisabled?: boolean;
   modelDisabled?: boolean;
   capabilityDisabled?: boolean;
-  runtimeChangeHint?: string;
   sendAriaLabel?: string;
   stopAriaLabel?: string;
   sendTitle?: string;
@@ -122,22 +154,21 @@ export type ConversationComposerModel = {
   stopTitle?: string;
   permissionShortcut?: string;
   permissionShortcutAria?: string;
-  modeShortcut?: string;
-  modeShortcutAria?: string;
-  modelShortcut?: string;
-  thinkingShortcut?: string;
+  profileShortcut?: string;
+  profileShortcutAria?: string;
   modelEmptyMessage?: string;
   todos?: TodoItem[];
   slashCompletions?: CompletionItem[];
   completionSource?: ComposerReferenceSource;
   capabilities?: ConversationComposerCapabilities;
-  capabilityConfiguration?: CapabilityConfiguration;
-  capabilitySkills?: CapabilitySkillRow[];
+  capabilityConfiguration?: AgentEditorView;
+  capabilitySkills?: AvailableSkill[];
   capabilityLoading?: boolean;
   capabilityError?: string;
-  capabilityProfiles?: CapabilitySubagentProfiles;
   capabilityScopeKey?: string;
   subagentControlsEnabled?: boolean;
+  /** Agent profiles the lead can delegate to, for the Capabilities popover. */
+  capabilitySubagentProfiles?: CapabilitySubagentProfile[];
 };
 
 export type ConversationTimelineSections = {
@@ -194,14 +225,16 @@ export type ConversationPaneActions = {
   onOpenSystemPrompt?: () => void | Promise<void>;
   onUsageOpenChange?: (open: boolean) => void;
   onUsageRetry?: () => void;
-  onModelChange?: (value: string) => void;
-  onThinkingLevelChange?: (value: ThinkingLevel) => void;
-  onModeChange?: (value: Mode) => void;
+  onModelSelectionChange?: (next: ComposerModelChange) => void;
+  onResetPermission?: () => void;
+  onAgentProfileChange?: (name: string) => void;
   onPermissionRuleSetChange?: (value: PermissionRuleSetId) => void;
   onRefreshPermissionRuleSets?: () => void;
   onOpenPermissionSettings?: () => void;
-  onOpenCapabilitySettings?: (page: "tools" | "skills" | "subagents") => void;
-  onCapabilityPatch?: (patch: CapabilityPatch) => void;
+  onOpenCapabilitySettings?: (
+    page: "tools" | "skills" | "agents" | "sub-agents",
+  ) => void;
+  onCapabilityPatch?: (patch: LeadSettingsOverrides, resets?: string[]) => void;
   /** Opens the conversation-level settings dialog for one tool group. */
   onConfigureCapabilityTool?: (group: CapabilityToolGroup) => void;
   onResetCapabilities?: () => void;

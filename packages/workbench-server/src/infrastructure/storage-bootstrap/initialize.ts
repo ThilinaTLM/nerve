@@ -4,6 +4,7 @@ import {
   type Settings,
   type NerveHomeClass,
   settingsSchema,
+  updateSettingsRequestSchema,
   type UpdateSettingsRequest,
   type UserConfiguration,
 } from "@nervekit/contracts/settings";
@@ -38,12 +39,6 @@ function settingsDocumentsTouched(
       ids.add("ui");
     else if (key === "providers") ids.add("integrations");
     else if (key === "permissions") ids.add("permissions");
-    else if (key !== "tools") ids.add("harness");
-  }
-  for (const key of Object.keys(patch.tools ?? {})) {
-    ids.add(
-      ["jira", "confluence", "web"].includes(key) ? "integrations" : "harness",
-    );
   }
   return [...ids];
 }
@@ -185,7 +180,9 @@ export function writeSettings(
   return serializeSettingsMutation(storage, () =>
     applySettingsPatch(
       storage,
-      typeof patch === "function" ? patch(storage.settings) : patch,
+      updateSettingsRequestSchema.parse(
+        typeof patch === "function" ? patch(storage.settings) : patch,
+      ),
     ),
   );
 }
@@ -194,138 +191,9 @@ async function applySettingsPatch(
   storage: InitializedStorage,
   patch: UpdateSettingsRequest,
 ): Promise<Settings> {
-  const defaultModelPatch =
-    patch.defaultModel === null
-      ? { defaultModel: undefined }
-      : "defaultModel" in patch
-        ? { defaultModel: patch.defaultModel }
-        : {};
-  const lastAgentSelectionPatch = patch.lastAgentSelection
-    ? {
-        ...patch.lastAgentSelection,
-        ...(patch.lastAgentSelection.model === null
-          ? { model: undefined }
-          : {}),
-      }
-    : undefined;
-  const runtimePatch = patch.runtime
-    ? {
-        ...patch.runtime,
-        ...(patch.runtime.pythonExecutablePath === null
-          ? { pythonExecutablePath: undefined }
-          : {}),
-        ...(patch.runtime.shellPath === null ? { shellPath: undefined } : {}),
-      }
-    : undefined;
-  const bashPatch = patch.tools?.bash
-    ? {
-        ...patch.tools.bash,
-        ...(patch.tools.bash.autoPromotion
-          ? {
-              autoPromotion: {
-                ...storage.settings.tools.bash.autoPromotion,
-                ...patch.tools.bash.autoPromotion,
-              },
-            }
-          : {}),
-      }
-    : undefined;
-  const jiraPatch = patch.tools?.jira
-    ? {
-        ...patch.tools.jira,
-        ...(patch.tools.jira.profileId === null
-          ? { profileId: undefined }
-          : {}),
-      }
-    : undefined;
-  const imageExplanationPatch = patch.tools?.imageExplanation
-    ? {
-        ...patch.tools.imageExplanation,
-        ...(patch.tools.imageExplanation.model === null
-          ? { model: undefined }
-          : {}),
-      }
-    : undefined;
-  const imageGenerationPatch = patch.tools?.imageGeneration
-    ? { ...patch.tools.imageGeneration }
-    : undefined;
-  const confluencePatch = patch.tools?.confluence
-    ? {
-        ...patch.tools.confluence,
-        ...(patch.tools.confluence.profileId === null
-          ? { profileId: undefined }
-          : {}),
-      }
-    : undefined;
-  const webPatch = patch.tools?.web
-    ? {
-        ...patch.tools.web,
-        ...(patch.tools.web.tavilyProfileId === null
-          ? { tavilyProfileId: undefined }
-          : {}),
-      }
-    : undefined;
-  const toolsPatch = patch.tools
-    ? {
-        ...patch.tools,
-        ...(patch.tools.kroki
-          ? { kroki: { ...storage.settings.tools.kroki, ...patch.tools.kroki } }
-          : {}),
-        ...(bashPatch
-          ? { bash: { ...storage.settings.tools.bash, ...bashPatch } }
-          : {}),
-        ...(jiraPatch
-          ? { jira: { ...storage.settings.tools.jira, ...jiraPatch } }
-          : {}),
-        ...(confluencePatch
-          ? {
-              confluence: {
-                ...storage.settings.tools.confluence,
-                ...confluencePatch,
-              },
-            }
-          : {}),
-        ...(webPatch
-          ? { web: { ...storage.settings.tools.web, ...webPatch } }
-          : {}),
-        ...(imageExplanationPatch
-          ? {
-              imageExplanation: {
-                ...storage.settings.tools.imageExplanation,
-                ...imageExplanationPatch,
-              },
-            }
-          : {}),
-        ...(imageGenerationPatch
-          ? { imageGeneration: imageGenerationPatch }
-          : {}),
-      }
-    : undefined;
-  const skillsPatch = patch.skills
-    ? {
-        ...patch.skills,
-        ...(patch.skills.nerve
-          ? {
-              nerve: {
-                ...storage.settings.skills.nerve,
-                ...patch.skills.nerve,
-              },
-            }
-          : {}),
-        ...(patch.skills.agentBrowser
-          ? {
-              agentBrowser: {
-                ...storage.settings.skills.agentBrowser,
-                ...patch.skills.agentBrowser,
-              },
-            }
-          : {}),
-      }
-    : undefined;
   const next = settingsSchema.parse({
     ...storage.settings,
     ...patch,
-    ...defaultModelPatch,
     application: {
       ...storage.settings.application,
       ...(patch.application ?? {}),
@@ -364,23 +232,11 @@ async function applySettingsPatch(
       ...storage.settings.transcription,
       ...(patch.transcription ?? {}),
     },
-    lastAgentSelection: {
-      ...storage.settings.lastAgentSelection,
-      ...(lastAgentSelectionPatch ?? {}),
-    },
-    compaction: {
-      ...storage.settings.compaction,
-      ...(patch.compaction ?? {}),
-    },
     logging: { ...storage.settings.logging, ...(patch.logging ?? {}) },
-    retry: { ...storage.settings.retry, ...(patch.retry ?? {}) },
-    runtime: { ...storage.settings.runtime, ...(runtimePatch ?? {}) },
     providers: {
       ...storage.settings.providers,
       ...(patch.providers ?? {}),
     },
-    tools: { ...storage.settings.tools, ...(toolsPatch ?? {}) },
-    skills: { ...storage.settings.skills, ...(skillsPatch ?? {}) },
   });
   storage.configuration = await writeHomeConfiguration(
     storage.paths,

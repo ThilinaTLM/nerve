@@ -3,7 +3,6 @@ import {
   type Conversation,
   conversationSchema,
   type ConversationConfig,
-  conversationConfigSchema,
   type ConversationSummary,
   conversationSummarySchema,
 } from "@nervekit/contracts/core";
@@ -37,7 +36,7 @@ export class ConversationRepository {
       const row = conversationSchema.parse(input);
       this.db.sqlite
         .prepare(
-          "INSERT INTO conversation (id, project_id, parent_conversation_id, parent_tool_call_id, head_event_id, title, status, status_event_sequence, status_cleared_at, paused, next_input_sequence, pinned_at, completed_at, last_user_message_at, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+          "INSERT INTO conversation (id, project_id, parent_conversation_id, parent_tool_call_id, head_event_id, title, status, status_event_sequence, status_cleared_at, paused, next_input_sequence, pinned_at, completed_at, last_user_message_at, created_at, updated_at, working_directory) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
         )
         .run(
           row.id,
@@ -56,10 +55,10 @@ export class ConversationRepository {
           row.lastUserMessageAt,
           row.createdAt,
           row.updatedAt,
+          config.workingDirectory,
         );
       if (config.conversationId !== row.id)
         throw new Error("Configuration must belong to the conversation");
-      this.insertConfig(config);
       return row;
     });
   }
@@ -104,7 +103,7 @@ export class ConversationRepository {
   getSummary(id: string): ConversationSummary | null {
     const row = this.db.sqlite
       .prepare(
-        `SELECT c.*, config.mode, config.model, config.permission_rule_set_id, ${LAST_PARENT_PROMPT} AS last_parent_prompt_at, (SELECT COUNT(*) FROM conversation child WHERE child.parent_conversation_id = c.id) AS child_count FROM conversation c JOIN conversation_config config ON config.conversation_id = c.id WHERE c.id = ?`,
+        `SELECT c.*, ${LAST_PARENT_PROMPT} AS last_parent_prompt_at, (SELECT COUNT(*) FROM conversation child WHERE child.parent_conversation_id = c.id) AS child_count FROM conversation c WHERE c.id = ?`,
       )
       .get(id);
     return row ? mapSummary(row) : null;
@@ -116,7 +115,7 @@ export class ConversationRepository {
   }): ConversationSummary[] {
     return this.db.sqlite
       .prepare(
-        `SELECT c.*, config.mode, config.model, config.permission_rule_set_id, ${LAST_PARENT_PROMPT} AS last_parent_prompt_at, (SELECT COUNT(*) FROM conversation child WHERE child.parent_conversation_id = c.id) AS child_count FROM conversation c JOIN conversation_config config ON config.conversation_id = c.id WHERE c.project_id = ? AND c.parent_conversation_id IS ? ORDER BY c.pinned_at DESC, c.updated_at DESC, c.id`,
+        `SELECT c.*, ${LAST_PARENT_PROMPT} AS last_parent_prompt_at, (SELECT COUNT(*) FROM conversation child WHERE child.parent_conversation_id = c.id) AS child_count FROM conversation c WHERE c.project_id = ? AND c.parent_conversation_id IS ? ORDER BY c.pinned_at DESC, c.updated_at DESC, c.id`,
       )
       .all(input.projectId, input.parentConversationId ?? null)
       .map(mapSummary);
@@ -139,54 +138,38 @@ export class ConversationRepository {
       .map((row) => String(row.id));
   }
 
-  getConfig(conversationId: string): ConversationConfig | null {
+  /** SQL owns only the working directory, independently of JSON readiness. */
+  getContext(conversationId: string): ConversationContextRow | null {
     const row = this.db.sqlite
-      .prepare("SELECT * FROM conversation_config WHERE conversation_id = ?")
+      .prepare("SELECT id, working_directory FROM conversation WHERE id = ?")
       .get(conversationId);
-    return row ? mapConfig(row) : null;
-  }
-
-  insertConfig(input: ConversationConfig): ConversationConfig {
-    const row = conversationConfigSchema.parse(input);
-    this.db.sqlite
-      .prepare(`INSERT INTO conversation_config
-      (conversation_id, model, reasoning_level, system_prompt, instructions, permission_rule_set_id, mode, working_directory)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?)`)
-      .run(
-        row.conversationId,
-        JSON.stringify(row.model),
-        row.reasoningLevel,
-        row.systemPrompt,
-        row.instructions,
-        row.permissionRuleSetId,
-        row.mode,
-        row.workingDirectory,
-      );
-    return row;
+    return row
+      ? {
+          conversationId: String(row.id),
+          workingDirectory: String(row.working_directory),
+        }
+      : null;
   }
 
   updateConfig(
     conversationId: string,
-    patch: Partial<Omit<ConversationConfig, "conversationId">>,
-  ): ConversationConfig {
-    const existing = this.getConfig(conversationId);
-    if (!existing)
-      throw new Error(`Configuration not found: ${conversationId}`);
-    const row = conversationConfigSchema.parse({ ...existing, ...patch });
-    this.db.sqlite
-      .prepare(`UPDATE conversation_config SET model = ?, reasoning_level = ?, system_prompt = ?, instructions = ?, permission_rule_set_id = ?,
-      mode = ?, working_directory = ? WHERE conversation_id = ?`)
-      .run(
-        JSON.stringify(row.model),
-        row.reasoningLevel,
-        row.systemPrompt,
-        row.instructions,
-        row.permissionRuleSetId,
-        row.mode,
-        row.workingDirectory,
-        conversationId,
-      );
-    return row;
+    patch: Partial<Omit<ConversationContextRow, "conversationId">>,
+  ): ConversationContextRow {
+    // Never accept prompt/agent fields into SQL, even from untyped callers.
+    const keys = Object.keys(patch);
+    if (
+      keys.some((key) => key !== "workingDirectory") ||
+      (patch.workingDirectory !== undefined &&
+        typeof patch.workingDirectory !== "string")
+    )
+      throw new Error("Only workingDirectory is SQL-owned");
+    if (!this.getContext(conversationId))
+      throw new Error("Conversation not found");
+    if (patch.workingDirectory !== undefined)
+      this.db.sqlite
+        .prepare("UPDATE conversation SET working_directory=? WHERE id=?")
+        .run(patch.workingDirectory, conversationId);
+    return this.getContext(conversationId)!;
   }
 
   delete(id: string): void {
@@ -199,9 +182,6 @@ function mapSummary(row: Record<string, SQLOutputValue>): ConversationSummary {
     ...mapConversation(row),
     lastParentPromptAt: row.last_parent_prompt_at,
     childCount: row.child_count,
-    mode: row.mode,
-    model: JSON.parse(String(row.model)),
-    permissionRuleSetId: row.permission_rule_set_id,
   });
 }
 
@@ -226,15 +206,7 @@ function mapConversation(row: Record<string, SQLOutputValue>): Conversation {
   });
 }
 
-function mapConfig(row: Record<string, SQLOutputValue>): ConversationConfig {
-  return conversationConfigSchema.parse({
-    conversationId: row.conversation_id,
-    model: JSON.parse(String(row.model)),
-    reasoningLevel: row.reasoning_level,
-    systemPrompt: row.system_prompt,
-    instructions: row.instructions,
-    permissionRuleSetId: row.permission_rule_set_id,
-    mode: row.mode,
-    workingDirectory: row.working_directory,
-  });
-}
+export type ConversationContextRow = Pick<
+  ConversationConfig,
+  "conversationId" | "workingDirectory"
+>;

@@ -21,7 +21,7 @@ Pause prevents automatic wakes without aborting current work. Stop pauses the co
 
 ## Context and compaction
 
-Selected-head history drives both transcript and model context; replay covers all branches in event-sequence order. Core reconstructs model context from those facts using harness primitives. Compaction settings resolve through user, project and conversation `harness.json` files; a conversation override replaces the inherited compaction setting as a whole. Compaction summaries are history events, not a separate checkpoint store.
+Selected-head history drives both transcript and model context; replay covers all branches in event-sequence order. Core reconstructs model context from those facts using harness primitives. Compaction fields resolve through user/project/conversation `config/agent.json` preferences and the applied profile contribution. Children use captured underlying preferences and requirements; reset removes an editable override and inherits. Compaction summaries are history events, not a separate checkpoint store.
 
 Context usage is an estimate, not a guarantee of an exact provider request-token count. Provider overhead and opaque reasoning can make local estimates differ from billed usage.
 
@@ -29,7 +29,7 @@ Context usage is an estimate, not a guarantee of an exact provider request-token
 
 `subagent_prompt` submits a validated batch of named assignments and returns without waiting for child completion. New names create ordinary child conversations from resolved profiles; existing names receive follow-ups using their current child configuration. `subagent_status` inspects them and `subagent_stop` stops their work without deleting them. Completion notices wake the lead, so polling is unnecessary.
 
-Profiles resolve through built-in → user → project → conversation `subagents.json` documents. Project content requires exact-document trust. Profiles are creation-time templates: changing a profile affects future children, not existing ones. Built-in `explore` and `developer` inherit the lead's model and thinking at creation. Children cannot delegate again, ask the user or use plan-mode tools; their permission selection is restricted to `read_only` or `autonomous`.
+Profiles are complete per-name definitions in user `data/agent-profiles/` and project `.nerve/agent-profiles/`; same-name project definitions shadow lower definitions and require exact-byte trust. Conversations store applied snapshots in `config/agent.json`; catalog changes do not alter them until explicit switch/reapplication. Use settings/Recommend/Require replace materialized template writes. Children freeze their own underlying defaults/profile and launch model/thinking choices, never the lead's effective preferences. Requirements remain separate; children cannot delegate, ask the user or use `plan_present`.
 
 ## Background commands and launches
 
@@ -39,11 +39,11 @@ Profiles resolve through built-in → user → project → conversation `subagen
 
 ## Recovery
 
-On restart, unfinished inputs and tool rows drive recovery. Suspended interactions remain available. Running effects are replayed only when declared safe; uncertain outcomes settle as `indeterminate`. The workbench process adapter cannot reconstruct native handles after restart, so previously running async Bash records become `lost`; commands are not replayed. Launch instances are not recovered. Ephemeral streaming frames are not replayed.
+On restart, unfinished inputs and tool rows drive recovery. Suspended interactions remain available. Not-yet-started calls are re-captured and re-admitted under current configuration; changed targets need fresh approval. Invalid security configuration waits configuration-blocked with Retry/Cancel, never Baseline fallback. Running effects are replayed only when declared safe; uncertain outcomes settle as `indeterminate`. The workbench process adapter cannot reconstruct native handles after restart, so previously running async Bash records become `lost`; commands are not replayed. Launch instances are not recovered. Ephemeral streaming frames are not replayed.
 
 ## Next steps
 
 - [Tools and policy](/developers/tools-policy/)
 - [Tool output lifecycle](/developers/tool-output-lifecycle/)
-- [Sub-agent profiles](/reference/subagent-profiles/)
+- [Agent profiles](/reference/agent-profiles/)
 - [Protocol](/developers/protocol/)

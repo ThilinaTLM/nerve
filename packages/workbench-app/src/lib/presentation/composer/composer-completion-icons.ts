@@ -25,7 +25,7 @@ const kindIcons: Record<CompletionKind, typeof FileIcon> = {
   issue: CircleDot,
   skill: Sparkles,
   tool: Wrench,
-  subagent_profile: Bot,
+  agent_profile: Bot,
   subagent: Bot,
 };
 

@@ -12,6 +12,8 @@ import {
 } from "@nervekit/native";
 import {
   spawnShellProcess,
+  spawnPreparedShellProcess,
+  type PreparedShellProcess,
   terminateProcessChild,
   terminateProcessTarget,
   isProcessTargetAlive,
@@ -23,6 +25,7 @@ import {
 } from "../../../infrastructure/process-host/port-inspector.js";
 
 export interface SpawnManagedLaunchOptions {
+  preparedShell?: PreparedShellProcess;
   cwd: string;
   env?: Record<string, string>;
   shellPath?: string;
@@ -87,10 +90,21 @@ export function createLaunchSupervisor(
 ): LaunchSupervisor {
   return {
     spawn(command, options) {
-      const { child, managed } = spawnShellProcess(command, {
-        ...options,
-        policy: launchProcessPolicy(),
-      });
+      if (
+        options.preparedShell &&
+        (options.preparedShell.command !== command ||
+          options.preparedShell.cwd !== options.cwd)
+      )
+        throw new Error("Prepared launch target does not match execution");
+      const { child, managed } = options.preparedShell
+        ? spawnPreparedShellProcess(
+            options.preparedShell,
+            launchProcessPolicy(),
+          )
+        : spawnShellProcess(command, {
+            ...options,
+            policy: launchProcessPolicy(),
+          });
       return {
         child,
         runtime: Promise.resolve(runtimeForManagedTarget(managed.target)),

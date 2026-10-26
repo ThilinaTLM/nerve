@@ -10,7 +10,6 @@ export interface StoragePaths {
   daemonPath: string;
   configPath: string;
   daemonConfigPath: string;
-  harnessConfigPath: string;
   uiConfigPath: string;
   permissionsConfigPath: string;
   providersConfigPath: string;
@@ -26,7 +25,7 @@ export interface StoragePaths {
   plansPath: string;
   agentPath: string;
   suggestionsPath: string;
-  subagentsConfigPath: string;
+  agentProfilesConfigPath: string;
   tlsPath: string;
   tmpPath: string;
   cachePath: string;
@@ -62,7 +61,6 @@ export function storagePaths(home = resolveDataDir()): StoragePaths {
     daemonPath: join(home, "daemon.json"),
     configPath,
     daemonConfigPath: join(configPath, "daemon.json"),
-    harnessConfigPath: join(configPath, "harness.json"),
     uiConfigPath: join(configPath, "ui.json"),
     permissionsConfigPath: join(configPath, "permissions.json"),
     providersConfigPath: join(configPath, "providers.json"),
@@ -78,7 +76,7 @@ export function storagePaths(home = resolveDataDir()): StoragePaths {
     plansPath: join(dataPath, "plans"),
     agentPath,
     suggestionsPath: join(agentPath, "suggestions"),
-    subagentsConfigPath: join(configPath, "subagents.json"),
+    agentProfilesConfigPath: join(dataPath, "agent-profiles"),
     tlsPath: join(home, "tls"),
     tmpPath: join(home, "tmp"),
     cachePath,

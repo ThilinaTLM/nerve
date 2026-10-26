@@ -79,10 +79,10 @@ export function shortAgentModel(agent: AgentRecord | undefined): string {
 }
 
 export function conversationMeta(row: ConversationRow): string {
-  const mode = row.agent?.mode ?? row.conversation.mode;
+  const profile = row.agent?.agentProfile ?? row.conversation.agentProfile;
   const permission =
     row.agent?.permissionRuleSetId ?? row.conversation.permissionRuleSetId;
-  return `${mode} · ${permissionRuleSetDisplayName(permission)} · ${shortAgentModel(row.agent)}`;
+  return `${profile ?? "unknown"} · ${permission ? permissionRuleSetDisplayName(permission) : "unknown"} · ${shortAgentModel(row.agent)}`;
 }
 
 export function groupIsActive(

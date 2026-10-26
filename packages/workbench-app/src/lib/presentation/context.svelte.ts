@@ -103,6 +103,16 @@ export interface AskReplyComposerCapability {
 export interface ConversationUiCapabilities {
   canCompactPlanBeforeImplementation?: boolean;
   /** Fetch canonical bounded details without loading the complete result. */
+  previewAgentProfile?: (
+    conversationId: string,
+    profile: string,
+  ) => Promise<
+    import("@nervekit/contracts/agent-configuration").PreviewProfileTransitionResult
+  >;
+  resolveConfigurationBlocked?: (
+    toolCallId: string,
+    decision: "retry" | "cancel",
+  ) => Promise<void>;
   fetchToolCall?: (toolCallId: string) => Promise<ToolCallDetails>;
   /** Read one bounded UTF-8 chunk of the complete result. */
   readToolCallResult?: (

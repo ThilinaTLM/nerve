@@ -2,6 +2,7 @@ import { createId } from "@nervekit/contracts";
 import type { ToolCall, ToolCallOutcome } from "@nervekit/contracts/core";
 import type { ToolExecutionResultPayload } from "@nervekit/contracts/tools";
 import type { ToolCallServiceOptions } from "./tool-call.service.js";
+import { planImplementationInput } from "./plan-review-result.js";
 import { prepareToolResult } from "./tool-result.service.js";
 
 export class ToolCallSettlement {
@@ -73,6 +74,7 @@ export class ToolCallSettlement {
       this.options.coreTools.get(call.toolName)?.definition,
     );
     if (this.closed) return;
+    let afterAcceptance: (() => void) | undefined;
     const event = this.options.storage.transaction(() => {
       const row = this.options.storage.toolCalls.get(call.id);
       if (
@@ -81,6 +83,14 @@ export class ToolCallSettlement {
         (row.state === "running" && row.executionClaim !== claim)
       )
         return null;
+      const input =
+        outcome === "completed" ? planImplementationInput(row) : undefined;
+      if (input) {
+        if (!this.options.inputs)
+          throw new Error("Plan implementation queue is not configured");
+        afterAcceptance =
+          this.options.inputs.acceptSubmission(input).afterCommit;
+      }
       const assetIds = [
         ...new Set([
           ...prepared.assetIds,
@@ -141,10 +151,11 @@ export class ToolCallSettlement {
       });
       this.options.assets.linkToEvent(assetIds, event.id);
       this.options.storage.toolCalls.delete(row.id);
-      this.options.onSettled?.(row.conversationId);
       return event;
     });
     if (!event) return;
+    afterAcceptance?.();
+    this.options.onSettled?.(call.conversationId);
     this.executionStarts.delete(call.id);
     this.options.emit({
       kind: "event_appended",

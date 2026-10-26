@@ -10,7 +10,6 @@ import {
   newRuleTemplate,
   overlaySummary,
   ruleMetadata,
-  ruleSetRole,
   validateRuleSource,
 } from "./permission-rule-sets-view";
 
@@ -22,7 +21,6 @@ function ruleSet(
     source: "builtin",
     enabled: true,
     available: true,
-    compatibleModes: ["coding"],
     ...overrides,
   } as PermissionRuleSetSummary;
 }
@@ -67,15 +65,8 @@ describe("permission rule set view helpers", () => {
     }
   });
 
-  it("never offers baseline or planning as the default", () => {
-    // Baseline is always applied underneath, and planning is forced by the mode.
+  it("never offers baseline as the default", () => {
     assert.equal(isDefaultEligible(ruleSet({ id: "baseline" })), false);
-    assert.equal(
-      isDefaultEligible(
-        ruleSet({ id: "planning", compatibleModes: ["planning"] }),
-      ),
-      false,
-    );
   });
 
   it("rejects rule sets that cannot currently be applied", () => {
@@ -87,27 +78,6 @@ describe("permission rule set view helpers", () => {
       isDefaultEligible(ruleSet({ id: "supervised", available: false })),
       false,
     );
-    assert.equal(
-      isDefaultEligible(
-        ruleSet({ id: "custom", compatibleModes: ["planning"] }),
-      ),
-      false,
-    );
-  });
-
-  it("accepts a user rule set that does not restrict its modes", () => {
-    assert.equal(
-      isDefaultEligible(
-        ruleSet({ id: "custom", source: "user", compatibleModes: undefined }),
-      ),
-      true,
-    );
-  });
-
-  it("labels when each rule set applies", () => {
-    assert.equal(ruleSetRole(ruleSet({ id: "baseline" })), "Always applied");
-    assert.equal(ruleSetRole(ruleSet({ id: "planning" })), "Planning mode");
-    assert.equal(ruleSetRole(ruleSet({ id: "supervised" })), "Coding");
   });
 
   it("summarises user and project override counts per rule set", () => {

@@ -102,6 +102,16 @@ export type SettingsTabModel = {
   error?: string;
 };
 
+export type ProjectSettingsTabModel = {
+  kind: "project-settings";
+  /** The project id. */
+  id: string;
+  project: Project;
+  active: boolean;
+  sending: boolean;
+  error?: string;
+};
+
 export type LogsTabModel = {
   kind: "logs";
   id: "logs";
@@ -152,5 +162,6 @@ export type CenterTabModel =
   | DiffTabModel
   | SystemPromptTabModel
   | SettingsTabModel
+  | ProjectSettingsTabModel
   | LogsTabModel
   | DiscoverTabModel;

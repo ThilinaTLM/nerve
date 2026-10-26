@@ -1,0 +1,148 @@
+{
+  "release": "0.37.0",
+  "harness": {
+    "version": 3,
+    "defaults": {
+      "mode": "coding",
+      "permissionRuleSetId": "autonomous",
+      "thinkingLevel": "off"
+    },
+    "rememberLastSelection": false,
+    "lastSelection": {
+      "mode": "coding",
+      "permissionRuleSetId": "autonomous",
+      "thinkingLevel": "off"
+    },
+    "compaction": {
+      "auto": true,
+      "profile": "balanced",
+      "customTriggerPercent": 80
+    },
+    "retry": {
+      "enabled": true,
+      "maxRetries": 3,
+      "baseDelayMs": 2000
+    },
+    "execution": {},
+    "tools": {
+      "disabled": [
+        "explain_image",
+        "generate_image",
+        "kroki_export",
+        "subagent_prompt",
+        "subagent_status",
+        "subagent_stop"
+      ],
+      "bash": {
+        "autoPromotion": {
+          "enabled": true,
+          "afterMs": 120000
+        },
+        "maxTimeoutMs": 900000
+      },
+      "kroki": {
+        "url": "https://kroki.io/"
+      },
+      "imageExplanation": {
+        "thinkingLevel": "off"
+      },
+      "imageGeneration": {
+        "provider": "openai-codex",
+        "model": "gpt-image-2.5-flare",
+        "options": {
+          "quality": "auto",
+          "size": "auto",
+          "background": "auto"
+        }
+      }
+    },
+    "skills": {
+      "disabled": [],
+      "nerve": {
+        "enabled": []
+      },
+      "agentBrowser": {
+        "enabled": []
+      }
+    },
+    "scopedModels": []
+  },
+  "builtins": [
+    {
+      "name": "explore",
+      "label": "Explore",
+      "description": "Read-only codebase and web research; returns a report with paths and evidence.",
+      "enabled": true,
+      "model": "lead",
+      "thinking": "lead",
+      "permission": "read_only",
+      "compaction": "inherit",
+      "skills": "none",
+      "instructions": "You are a read-only researcher. Investigate the assignment and report what you find; do not modify files.\n\n- Search and read the codebase, and use the web when the assignment needs it.\n- Stay within the assignment. Prefer a few targeted searches over exhaustive reading.\n- Back every claim with evidence: file paths with line numbers, command output, or URLs.\n- Say plainly when something could not be found or is uncertain.\n\nEnd with a short report using these headings: Summary, Relevant files, Evidence, Open questions."
+    },
+    {
+      "name": "developer",
+      "label": "Developer",
+      "description": "Implements, tests and fixes code in the shared worktree within an assigned scope.",
+      "enabled": true,
+      "model": "lead",
+      "thinking": "lead",
+      "permission": "autonomous",
+      "compaction": "inherit",
+      "skills": "inherit",
+      "instructions": "You are a developer working in a shared worktree on an assigned scope. Other agents may be editing other files at the same time.\n\n- Stay within the assigned scope. If the work needs changes outside it, report that instead of making them.\n- Never revert, overwrite or reformat changes you did not make.\n- Run the tests and checks relevant to your changes, and fix what you broke.\n- Do not commit unless the assignment says so.\n\nEnd with a short report using these headings: Changes (files and what changed), Validation (what you ran and the results), Left to do (anything unfinished or needing a decision)."
+    }
+  ],
+  "capabilities": {
+    "schemaVersion": 2,
+    "tools": {
+      "web_search": {
+        "enabled": false,
+        "profileId": "search"
+      }
+    },
+    "toolSettings": {
+      "explain_image": {
+        "thinkingLevel": "off"
+      }
+    },
+    "skills": {
+      "file": {
+        "local": false
+      },
+      "nerve": {
+        "planning": true
+      },
+      "agentBrowser": {
+        "core": false
+      }
+    }
+  },
+  "catalog": {
+    "schemaVersion": 1,
+    "profiles": {
+      "developer": {
+        "model": "lead",
+        "thinking": "lead",
+        "skills": {
+          "local": false,
+          "planning": true,
+          "core": false
+        }
+      },
+      "explore": {
+        "skills": "none"
+      }
+    }
+  },
+  "conversation": {
+    "conversation_id": "fixture",
+    "model": "{\"provider\":\"openai\",\"modelId\":\"gpt-4.1\"}",
+    "reasoning_level": "off",
+    "permission_rule_set_id": "autonomous",
+    "mode": "planning",
+    "system_prompt": "preserved system",
+    "instructions": "preserved instructions",
+    "working_directory": "/fixture/project"
+  }
+}

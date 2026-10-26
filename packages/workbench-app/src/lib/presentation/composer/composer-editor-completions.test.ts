@@ -1,3 +1,4 @@
+import { slashCommandCompletionItems } from "@nervekit/contracts/completions";
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { EditorState, type TransactionSpec } from "@codemirror/state";
@@ -180,26 +181,33 @@ describe("popup groups", () => {
     assert.equal(skill.toggleable, true);
   });
 
-  it("builds slash groups: labels without slash, current mode, abort only while running", () => {
-    const items: CompletionItem[] = [
-      "plan",
-      "code",
-      "compact",
-      "abort",
-      "new",
-    ].map((name) => ({ kind: "slash", label: `/${name}`, detail: name }));
+  it("builds slash groups: labels without slash, one row per profile, abort only while running", () => {
+    const items = slashCommandCompletionItems;
+    const profiles = [
+      { name: "coding", label: "Coding" },
+      { name: "planning", label: "Planning" },
+    ];
     const idle = buildSlashGroups(items, "/", {
-      mode: "coding",
+      profile: "coding",
+      profiles,
       running: false,
     });
     assert.deepEqual(
       idle.map((g) => g.label),
-      ["Mode", "Conversation"],
+      ["Profile", "Conversation"],
     );
-    assert.equal(idle[0]!.rows.find((r) => r.name === "code")?.current, true);
+    assert.equal(
+      idle[0]!.rows.find((r) => r.command === "profile coding")?.current,
+      true,
+    );
+    assert.equal(
+      idle[0]!.rows.find((r) => r.command === "profile planning")?.current,
+      false,
+    );
     assert.equal(idle[0]!.rows.find((r) => r.name === "plan")?.current, false);
     const running = buildSlashGroups(items, "/ab", {
-      mode: "planning",
+      profile: "planning",
+      profiles,
       running: true,
     });
     assert.deepEqual(
@@ -501,9 +509,9 @@ describe("composer completion controller", () => {
     const h = harness({
       slashCompletions: () => [
         { kind: "slash", label: "/plan", detail: "Planning" },
-        { kind: "slash", label: "/code", detail: "Coding" },
+        { kind: "slash", label: "/profile <name>", detail: "Switch profile" },
       ],
-      slashContext: () => ({ mode: "coding", running: false }),
+      slashContext: () => ({ profile: "coding", profiles: [], running: false }),
       slashCommand: () => (name) => ran.push(name),
     });
     h.type("/pl");

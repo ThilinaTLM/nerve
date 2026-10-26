@@ -22,7 +22,7 @@ void test("canonical roots preserve domain filenames and protection boundaries",
   const paths = fixture();
   for (const filename of [
     "capabilities.json",
-    "subagents.json",
+    "agent-profiles.json",
     "permissions.json",
     "harness.json",
   ]) {
@@ -143,9 +143,9 @@ void test("explicit owner roots stay in place without inferred relocation", () =
   assert.equal(
     paths.resolve(
       { scope: "conversation", conversationId: "child" },
-      "subagents.json",
+      "agent-profiles.json",
     ).path,
-    "/custom/conversations/child/config/subagents.json",
+    "/custom/conversations/child/config/agent-profiles.json",
   );
   assert.throws(
     () =>

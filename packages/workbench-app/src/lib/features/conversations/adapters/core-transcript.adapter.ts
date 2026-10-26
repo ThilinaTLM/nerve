@@ -193,6 +193,12 @@ function toolRecord(
       requestedAt: source.updatedAt,
       updatedAt: source.updatedAt,
     };
+    if (i.kind === "configuration_blocked")
+      interaction = {
+        ...base,
+        kind: "configuration_blocked",
+        request: i.request,
+      };
     if (i.kind === "approval")
       interaction = {
         ...base,
@@ -311,6 +317,11 @@ export function conversationTranscript(input: {
   const { snapshot, events, liveBlocks, toolOutput } = input;
   const visibleEvents = events.filter(
     (event) =>
+      !(
+        event.type === "system_event" &&
+        event.payload.subtype === "notification" &&
+        event.payload.producer.startsWith("agent-profile:")
+      ) &&
       !(
         event.type === "system_event" &&
         event.payload.subtype === "execution_state" &&
@@ -551,6 +562,7 @@ export function conversationTranscript(input: {
       pendingPlanReviews.push({
         ...base,
         slug: call.id,
+        targetProfile: i.request.targetProfile,
         planPath: i.request.path,
         title: i.request.title,
         summary: i.request.summary,

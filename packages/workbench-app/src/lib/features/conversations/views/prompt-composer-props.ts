@@ -21,15 +21,19 @@ import type { PendingConversationState } from "$lib/application/workspace/pendin
 import type { ComposerSuggestion } from "./composer-suggestion";
 import type { ConversationUsageSummary } from "$lib/presentation/usage/conversation-usage";
 import type { ConversationSessionInfo } from "$lib/presentation/composer/session-info";
-import type { ComposerEditorOverlay } from "$lib/presentation/conversations/conversation-view-contracts";
+import type {
+  ComposerAgentProfile,
+  ComposerEditorOverlay,
+  ComposerLockedFields,
+  ComposerModelChange,
+  ComposerSettingsDiffers,
+} from "$lib/presentation/conversations/conversation-view-contracts";
 
-export type Mode = AgentRecord["mode"];
 export type ThinkingLevel = NonNullable<AgentRecord["thinkingLevel"]>;
 
 export type PromptComposerProps = {
   text?: string;
   editorOverlay?: ComposerEditorOverlay;
-  modeHidden?: boolean;
   session?: ConversationSessionInfo;
   contextActions?: Snippet<[closePopover: () => void]>;
   activeProject?: ProjectRecord;
@@ -57,7 +61,11 @@ export type PromptComposerProps = {
   composerEscapeToken?: number;
   micShortcutToken?: number;
   thinkingLevel?: ThinkingLevel;
-  mode?: Mode;
+  agentProfile?: string;
+  agentProfiles?: ComposerAgentProfile[];
+  lockedFields?: ComposerLockedFields;
+  settingsDiffers?: ComposerSettingsDiffers;
+  profileDisabled?: boolean;
   permissionRuleSetId?: PermissionRuleSetId;
   permissionRuleSets?: PermissionRuleSetSummary[];
   permissionRuleSetsLoading?: boolean;
@@ -74,11 +82,13 @@ export type PromptComposerProps = {
   onUsageOpenChange?: (open: boolean) => void;
   onUsageRetry?: () => void;
   onOpenSystemPrompt?: () => void | Promise<void>;
-  onModelChange?: (value: string) => void;
-  onThinkingLevelChange?: (value: ThinkingLevel) => void;
-  onModeChange?: (value: Mode) => void;
+  onModelSelectionChange?: (next: ComposerModelChange) => void;
+  onResetPermission?: () => void;
+  onAgentProfileChange?: (name: string) => void;
   onPermissionRuleSetChange?: (value: PermissionRuleSetId) => void;
   onRefreshPermissionRuleSets?: () => void;
   onOpenPermissionSettings?: () => void;
-  onOpenCapabilitySettings?: (page: "tools" | "skills" | "subagents") => void;
+  onOpenCapabilitySettings?: (
+    page: "tools" | "skills" | "agents" | "sub-agents",
+  ) => void;
 };

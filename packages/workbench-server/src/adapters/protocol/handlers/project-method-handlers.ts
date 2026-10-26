@@ -1,3 +1,4 @@
+import { listProjectInstructionFiles } from "../../../domains/projects/project-instructions.js";
 import {
   createLaunchDefinitionRequestSchema,
   updateLaunchDefinitionRequestSchema,
@@ -31,24 +32,8 @@ export const projectMethodHandlers: WorkbenchMethodHandlerMapFor<ProjectMethodCo
       await state.promptSuggestions.updateTrust(params);
       return { ok: true };
     },
-    "subagentProfiles.list": async (state, params) => ({
-      profiles: await state.subagentProfiles.list(
-        params?.projectId,
-        params?.conversationId,
-      ),
-    }),
-    "subagentProfiles.preview": (state, params) =>
-      state.subagentProfiles.preview(params),
-    "subagentProfiles.replaceConversation": (state, params) =>
-      state.subagentProfiles.replaceConversation(params),
-    "subagentProfiles.configuration": (state, params) =>
-      state.subagentProfiles.configuration(params),
-    "subagentProfiles.update": (state, params) =>
-      state.subagentProfiles.update(params),
-    "subagentProfiles.reset": (state, params) =>
-      state.subagentProfiles.reset(params),
-    "subagentProfiles.trust": (state, params) =>
-      state.subagentProfiles.trust(params.projectId, params.digest),
+    "projectInstructions.list": (state, { projectId }) =>
+      listProjectInstructionFiles(state.getProject(projectId).directory),
     "project.openEditor": (state, params) =>
       state.editors.openProject(params.projectId, params),
     "project.openTerminal": (state, params) =>

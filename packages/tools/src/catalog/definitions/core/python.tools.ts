@@ -5,29 +5,22 @@ import type { ToolDefinition } from "../../contracts.js";
 const pythonParameters = Type.Object(
   {
     code: Type.Optional(
-      Type.String({ description: "Inline Python code to execute" }),
+      Type.String({ description: "Exactly one of code or path." }),
     ),
     path: Type.Optional(
       Type.String({
-        description:
-          "Path to a Python script file to execute (relative to cwd or absolute). Provide exactly one of code or path.",
+        description: "Exactly one of code or path.",
       }),
     ),
-    cwd: Type.Optional(
-      Type.String({
-        description:
-          "Working directory relative to the agent's current directory, or absolute. Defaults to the current directory.",
-      }),
-    ),
+    cwd: Type.Optional(Type.String()),
     timeout: Type.Optional(
       Type.Number({
-        description: "Timeout in seconds, capped by the executor",
+        description: "Seconds, capped.",
       }),
     ),
     env: Type.Optional(
       Type.Record(Type.String(), Type.String(), {
-        description:
-          "Non-secret environment variable overrides for the Python process. Sensitive-looking keys are rejected.",
+        description: "Non-secret only; sensitive keys are rejected.",
       }),
     ),
   },
@@ -45,7 +38,7 @@ export const pythonToolDefinitions = [
     executor: executePython,
     label: "python_exec",
     description:
-      "Execute inline Python or a script with bounded output and artifact support.",
+      "Run inline Python or a script with bounded output. Save large outputs under `$NERVE_PYTHON_ARTIFACT_DIR`. Not for long-lived or interactive processes.",
     parameters: pythonParameters,
     executionMode: "sequential",
   },

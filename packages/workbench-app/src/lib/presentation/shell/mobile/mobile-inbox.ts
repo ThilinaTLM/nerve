@@ -66,7 +66,9 @@ export function buildMobileInbox(input: MobileInboxInput): MobileInboxModel {
         ? "approval"
         : interaction.kind === "user_input"
           ? "question"
-          : "plan";
+          : interaction.kind === "plan_review"
+            ? "plan"
+            : "error";
     claimed.add(call.conversationId);
     model.needsYou.push({
       id: call.id,
@@ -78,20 +80,25 @@ export function buildMobileInbox(input: MobileInboxInput): MobileInboxModel {
           ? "Approval"
           : kind === "question"
             ? "Question"
-            : "Plan review",
+            : kind === "plan"
+              ? "Plan review"
+              : "Configuration blocked",
       detail:
         interaction.kind === "approval"
           ? interaction.request.reason
           : interaction.kind === "user_input"
             ? (interaction.request.questions[0]?.question ?? "")
-            : interaction.request.path,
+            : interaction.kind === "plan_review"
+              ? interaction.request.path
+              : (interaction.request.diagnostics[0]?.path ??
+                "Configuration unavailable"),
       tone: "warning",
       pulse: false,
       at: call.updatedAt,
       projectLabel: conversation
         ? input.projectNameById?.[conversation.projectId]
         : undefined,
-      interaction: { kind, id: call.id },
+      interaction: kind === "error" ? undefined : { kind, id: call.id },
     });
   }
   for (const conversation of [...input.conversations].sort((a, b) =>

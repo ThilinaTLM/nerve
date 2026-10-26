@@ -13,7 +13,7 @@ Projects and conversations live under `NERVE_HOME`. Canonical conversation recor
 
 Replay reads conversation event sequences directly from SQLite; transcript/model context follow the selected history branch. Detail snapshots carry `lastSequence` so clients can subscribe from the snapshot boundary without scanning the entire durable tail. Live deltas stay ephemeral and do not trigger durable writes for every presentation frame. These are implementation choices, not measured throughput or latency guarantees.
 
-Scoped permissions, capabilities, harness settings and sub-agent profiles are JSON files. Project documents require exact-content trust where applicable. Launch definitions live at `<project>/.nerve/launches/definitions.json`; launch logs are files and instances are memory-only. Async Bash records and output references are durable, but process handles are local to the daemon and cannot be reconstructed after restart, so previously running records become `lost`.
+Scoped permissions, capabilities, harness settings and agent profiles are JSON files. Project documents require exact-content trust where applicable. Launch definitions live at `<project>/.nerve/launches/definitions.json`; launch logs are files and instances are memory-only. Async Bash records and output references are durable, but process handles are local to the daemon and cannot be reconstructed after restart, so previously running records become `lost`.
 
 ## Filesystem safety
 
@@ -29,7 +29,7 @@ Schemas reject secret-like protocol metadata keys, but a broad error/details sch
 
 Startup applies ordered, resumable home migrations before opening application storage and reports upgrade progress. The current baseline is release 0.34.1; older homes must first be opened with that release. Fresh homes initialize at the latest layout. Applied home steps are recorded in `manifest.json`; core SQL migrations have their own checksum ledger.
 
-The conversation-core conversion also converts managed files and configuration, including legacy task definitions and scoped sub-agent profiles. Malformed or conflicting profile conversion requires manual resolution rather than a permanent legacy loader. Rehearse migrations on a copied home, not live data. See the repository's [storage migration architecture](https://github.com/ThilinaTLM/nerve/blob/main/docs/architecture/migrations.md) for exact supported inputs and failure behavior.
+The conversation-core conversion also converts managed files and configuration, including legacy task definitions and scoped agent profiles. Malformed or conflicting profile conversion requires manual resolution rather than a permanent legacy loader. Rehearse migrations on a copied home, not live data. See the repository's [storage migration architecture](https://github.com/ThilinaTLM/nerve/blob/main/docs/architecture/migrations.md) for exact supported inputs and failure behavior.
 
 ## Electron boundary
 

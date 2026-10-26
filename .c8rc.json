@@ -1,7 +1,13 @@
 {
   "all": true,
   "include": ["packages/*/src/**/*.ts"],
-  "exclude": ["**/*.test.ts", "**/*.d.ts"],
+  "exclude": [
+    "**/*.test.ts",
+    "**/*.d.ts",
+    "data/**",
+    "packages/website/.screenshots/**",
+    "packages/workbench-app/src/lib/app/design-lab/wireframes/**"
+  ],
   "reporter": ["text-summary", "json-summary", "lcov"],
   "reports-dir": "coverage"
 }

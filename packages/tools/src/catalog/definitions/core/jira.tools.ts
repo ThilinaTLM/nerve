@@ -21,46 +21,35 @@ import {
 import { jiraManageAttachmentParameters } from "./jira-attachment.schema.js";
 import type { ToolDefinition } from "../../contracts.js";
 
-const stringArray = (description: string) =>
-  Type.Array(Type.String(), { description });
-const unknownRecord = (description: string) =>
-  Type.Record(Type.String(), Type.Any(), { description });
-const positiveInteger = (description: string, maximum = 100) =>
-  Type.Number({ description, minimum: 0, maximum });
+const stringArray = () => Type.Array(Type.String());
+const unknownRecord = () => Type.Record(Type.String(), Type.Any());
+const positiveInteger = (maximum = 100) => Type.Number({ minimum: 0, maximum });
 
 const visibilityObject = Type.Object(
   {
-    type: Type.String({ description: "Jira comment visibility type" }),
-    value: Type.String({ description: "Jira comment visibility value" }),
+    type: Type.String(),
+    value: Type.String(),
   },
   { additionalProperties: false },
 );
 
 const searchUsersParameters = Type.Object(
   {
-    query: Type.String({ description: "User name, email, or account query" }),
+    query: Type.String(),
     project_key: Type.Optional(
       Type.String({
-        description:
-          "Project key for assignable-user search; omitted scope uses the configured default project when present",
+        description: "Defaults to configured project.",
       }),
     ),
-    issue_key: Type.Optional(
-      Type.String({ description: "Issue key for assignable user search" }),
-    ),
+    issue_key: Type.Optional(Type.String()),
     max_results: Type.Optional(
       Type.Number({
-        description: "Maximum users to return (default: 10, max: 50)",
+        description: "Default: 10.",
         minimum: 1,
         maximum: 50,
       }),
     ),
-    include_inactive: Type.Optional(
-      Type.Boolean({
-        description:
-          "Include inactive users for directory search; assignable searches ignore this option",
-      }),
-    ),
+    include_inactive: Type.Optional(Type.Boolean()),
   },
   { additionalProperties: false },
 );
@@ -68,23 +57,19 @@ const searchUsersParameters = Type.Object(
 const searchIssuesParameters = Type.Object(
   {
     jql: Type.String({
-      description:
-        "Bounded JQL query with a field restriction; ORDER-BY-only queries are rejected",
+      description: "Requires a field restriction; not ORDER BY alone.",
     }),
-    fields: Type.Optional(
-      stringArray("Issue fields to return. Defaults to a narrow summary set."),
-    ),
+    fields: Type.Optional(stringArray()),
     max_results: Type.Optional(
       Type.Number({
-        description: "Maximum issues to return (default: 25, max: 100)",
+        description: "Default: 25.",
         minimum: 1,
         maximum: 100,
       }),
     ),
     next_page_token: Type.Optional(
       Type.String({
-        description:
-          "Opaque Jira next-page token returned by the preceding issue search",
+        description: "From the preceding search.",
       }),
     ),
   },
@@ -93,8 +78,8 @@ const searchIssuesParameters = Type.Object(
 
 const getIssueParameters = Type.Object(
   {
-    issue_key: Type.String({ description: "Jira issue key or ID" }),
-    fields: Type.Optional(stringArray("Issue fields")),
+    issue_key: Type.String(),
+    fields: Type.Optional(stringArray()),
     include: Type.Optional(
       Type.Array(
         Type.Union([
@@ -107,15 +92,13 @@ const getIssueParameters = Type.Object(
           Type.Literal("issue_links"),
           Type.Literal("attachments"),
         ]),
-        { uniqueItems: true, description: "Related data to fetch" },
+        { uniqueItems: true },
       ),
     ),
-    comment_start_at: Type.Optional(positiveInteger("Comment offset", 100000)),
-    worklog_start_at: Type.Optional(positiveInteger("Worklog offset", 100000)),
-    changelog_start_at: Type.Optional(
-      positiveInteger("Changelog offset", 100000),
-    ),
-    related_limit: Type.Optional(positiveInteger("Related page size", 100)),
+    comment_start_at: Type.Optional(positiveInteger(100000)),
+    worklog_start_at: Type.Optional(positiveInteger(100000)),
+    changelog_start_at: Type.Optional(positiveInteger(100000)),
+    related_limit: Type.Optional(positiveInteger(100)),
   },
   { additionalProperties: false },
 );
@@ -123,7 +106,7 @@ const getIssueParameters = Type.Object(
 const getProjectParameters = Type.Object(
   {
     project_key: Type.Optional(
-      Type.String({ description: "Project key or ID; defaults from settings" }),
+      Type.String({ description: "Defaults from settings." }),
     ),
     include: Type.Optional(
       Type.Array(
@@ -138,16 +121,12 @@ const getProjectParameters = Type.Object(
           Type.Literal("resolutions"),
           Type.Literal("issue_link_types"),
         ]),
-        { uniqueItems: true, description: "Project metadata to fetch" },
+        { uniqueItems: true },
       ),
     ),
-    issue_type: Type.Optional(
-      Type.String({
-        description: "Issue type ID or exact name for create metadata",
-      }),
-    ),
-    field_query: Type.Optional(Type.String({ description: "Field filter" })),
-    field_limit: Type.Optional(positiveInteger("Field limit", 100)),
+    issue_type: Type.Optional(Type.String()),
+    field_query: Type.Optional(Type.String()),
+    field_limit: Type.Optional(positiveInteger(100)),
   },
   { additionalProperties: false },
 );
@@ -155,86 +134,48 @@ const getProjectParameters = Type.Object(
 const createIssueParameters = Type.Object(
   {
     project_key: Type.Optional(
-      Type.String({ description: "Jira project key; defaults from settings" }),
+      Type.String({ description: "Defaults from settings." }),
     ),
-    issue_type: Type.String({
-      description: "Issue type name, e.g. Task, Story, Bug, Epic, Sub-task",
-    }),
-    summary: Type.String({ description: "Issue summary" }),
+    issue_type: Type.String(),
+    summary: Type.String(),
     description: Type.Optional(
-      Type.String({ description: "Plain text/markdown-ish issue description" }),
-    ),
-    description_adf: Type.Optional(
-      unknownRecord("Raw Atlassian Document Format description"),
-    ),
-    parent_key: Type.Optional(
       Type.String({
-        description: "Parent issue key for subtasks or child issues",
+        description: "Text; mutually exclusive with description_adf.",
       }),
     ),
-    labels: Type.Optional(stringArray("Issue labels")),
-    priority: Type.Optional(Type.String({ description: "Priority name" })),
-    assignee_account_id: Type.Optional(
-      Type.String({ description: "Jira accountId to assign" }),
-    ),
-    assignee_query: Type.Optional(
-      Type.String({ description: "Resolve one assignable Jira user by query" }),
-    ),
-    components: Type.Optional(stringArray("Component names")),
-    dry_run: Type.Optional(
-      Type.Boolean({
-        description: "Return the create payload without mutating",
-      }),
-    ),
-    return_issue: Type.Optional(
-      Type.Boolean({ description: "Fetch and summarize the created issue" }),
-    ),
-    fields: Type.Optional(
-      unknownRecord("Additional raw Jira fields to merge into fields"),
-    ),
+    description_adf: Type.Optional(unknownRecord()),
+    parent_key: Type.Optional(Type.String()),
+    labels: Type.Optional(stringArray()),
+    priority: Type.Optional(Type.String()),
+    assignee_account_id: Type.Optional(Type.String()),
+    assignee_query: Type.Optional(Type.String()),
+    components: Type.Optional(stringArray()),
+    dry_run: Type.Optional(Type.Boolean()),
+    return_issue: Type.Optional(Type.Boolean()),
+    fields: Type.Optional(unknownRecord()),
   },
   { additionalProperties: false },
 );
 
 const updateIssueParameters = Type.Object(
   {
-    issue_key: Type.String({ description: "Jira issue key or ID" }),
-    summary: Type.Optional(Type.String({ description: "New summary" })),
+    issue_key: Type.String(),
+    summary: Type.Optional(Type.String()),
     description: Type.Optional(
-      Type.String({ description: "Plain text/markdown-ish description" }),
-    ),
-    description_adf: Type.Optional(
-      unknownRecord("Raw Atlassian Document Format description"),
-    ),
-    assignee_account_id: Type.Optional(
-      Type.String({ description: "Jira accountId to assign" }),
-    ),
-    assignee_query: Type.Optional(
-      Type.String({ description: "Resolve one assignable Jira user by query" }),
-    ),
-    labels: Type.Optional(stringArray("Replacement labels")),
-    priority: Type.Optional(Type.String({ description: "Priority name" })),
-    fields: Type.Optional(
-      unknownRecord("Additional raw Jira fields to merge into fields"),
-    ),
-    update: Type.Optional(
-      unknownRecord(
-        "Raw Jira update operations to merge into the update payload",
-      ),
-    ),
-    notify_users: Type.Optional(
-      Type.Boolean({ description: "Whether Jira should notify users" }),
-    ),
-    dry_run: Type.Optional(
-      Type.Boolean({
-        description: "Return the update payload without mutating",
+      Type.String({
+        description: "Text; mutually exclusive with description_adf.",
       }),
     ),
-    return_issue: Type.Optional(
-      Type.Boolean({
-        description: "Fetch and summarize the issue after updating",
-      }),
-    ),
+    description_adf: Type.Optional(unknownRecord()),
+    assignee_account_id: Type.Optional(Type.String()),
+    assignee_query: Type.Optional(Type.String()),
+    labels: Type.Optional(stringArray()),
+    priority: Type.Optional(Type.String()),
+    fields: Type.Optional(unknownRecord()),
+    update: Type.Optional(unknownRecord()),
+    notify_users: Type.Optional(Type.Boolean()),
+    dry_run: Type.Optional(Type.Boolean()),
+    return_issue: Type.Optional(Type.Boolean()),
   },
   { additionalProperties: false },
 );
@@ -242,16 +183,12 @@ const updateIssueParameters = Type.Object(
 const commentBodyFields = {
   body: Type.Optional(
     Type.String({
-      description: "Required for create/update unless body_adf is set",
+      description: "Required for create/update unless body_adf is set.",
     }),
   ),
-  body_adf: Type.Optional(
-    unknownRecord("ADF alternative to body for create/update"),
-  ),
+  body_adf: Type.Optional(unknownRecord()),
   visibility: Type.Optional(visibilityObject),
-  dry_run: Type.Optional(
-    Type.Boolean({ description: "Validate without mutating" }),
-  ),
+  dry_run: Type.Optional(Type.Boolean()),
 };
 const manageCommentParameters = Type.Object(
   {
@@ -294,10 +231,10 @@ const getBoardParameters = Type.Object(
     include: Type.Optional(
       Type.Array(
         Type.Union([Type.Literal("sprints"), Type.Literal("backlog")]),
-        { uniqueItems: true, description: "Board data to fetch" },
+        { uniqueItems: true },
       ),
     ),
-    sprint_states: Type.Optional(stringArray("Sprint states")),
+    sprint_states: Type.Optional(stringArray()),
     sprint_start_at: Type.Optional(
       Type.Number({ minimum: 0, maximum: 100000 }),
     ),
@@ -306,7 +243,7 @@ const getBoardParameters = Type.Object(
       Type.Number({ minimum: 0, maximum: 100000 }),
     ),
     backlog_limit: Type.Optional(Type.Number({ minimum: 1, maximum: 100 })),
-    fields: Type.Optional(stringArray("Issue fields")),
+    fields: Type.Optional(stringArray()),
   },
   { additionalProperties: false },
 );
@@ -314,7 +251,7 @@ const getSprintParameters = Type.Object(
   {
     sprint_id: Type.String(),
     include_issues: Type.Optional(Type.Boolean()),
-    fields: Type.Optional(stringArray("Issue fields")),
+    fields: Type.Optional(stringArray()),
     ...agilePageFields,
   },
   { additionalProperties: false },
@@ -347,7 +284,7 @@ const worklogFields = {
   ),
   started: Type.Optional(Type.String()),
   comment: Type.Optional(Type.String()),
-  comment_adf: Type.Optional(unknownRecord("Raw ADF worklog comment")),
+  comment_adf: Type.Optional(unknownRecord()),
   visibility: Type.Optional(visibilityObject),
   ...estimateFields,
   dry_run: Type.Optional(Type.Boolean()),
@@ -384,7 +321,7 @@ const manageIssueLinkParameters = Type.Object(
     ),
     link_id: Type.Optional(Type.String({ description: "Required for delete" })),
     comment: Type.Optional(Type.String()),
-    comment_adf: Type.Optional(unknownRecord("Raw ADF comment")),
+    comment_adf: Type.Optional(unknownRecord()),
     dry_run: Type.Optional(Type.Boolean()),
   },
   { additionalProperties: false },
@@ -438,35 +375,18 @@ const manageBacklogParameters = Type.Object(
 
 const transitionIssueParameters = Type.Object(
   {
-    issue_key: Type.String({ description: "Jira issue key or ID" }),
+    issue_key: Type.String(),
     transition: Type.Optional(
       Type.String({
-        description:
-          "Transition id, transition name, or destination status name",
+        description: "ID, transition name, or destination status.",
       }),
     ),
-    resolution: Type.Optional(
-      Type.String({ description: "Resolution name when required" }),
-    ),
-    comment: Type.Optional(
-      Type.String({
-        description: "Optional plain text comment to add during transition",
-      }),
-    ),
-    comment_adf: Type.Optional(
-      unknownRecord("Optional ADF comment to add during transition"),
-    ),
-    fields: Type.Optional(
-      unknownRecord("Additional fields for the transition payload"),
-    ),
-    update: Type.Optional(
-      unknownRecord("Additional update operations for the transition payload"),
-    ),
-    dry_run: Type.Optional(
-      Type.Boolean({
-        description: "Return available transitions without mutating",
-      }),
-    ),
+    resolution: Type.Optional(Type.String()),
+    comment: Type.Optional(Type.String()),
+    comment_adf: Type.Optional(unknownRecord()),
+    fields: Type.Optional(unknownRecord()),
+    update: Type.Optional(unknownRecord()),
+    dry_run: Type.Optional(Type.Boolean()),
   },
   { additionalProperties: false },
 );
@@ -481,7 +401,7 @@ export const jiraToolDefinitions = [
     executor: executeJiraSearchUsers,
     label: "Jira Search Users",
     description:
-      "Find directory users or issue/project-assignable users. Directory search requires Jira Browse users and groups permission; omitted scope uses the configured default project when present.",
+      "Find directory or assignable Jira users. Read {{skill:jira}} before first use.",
     parameters: searchUsersParameters,
     executionMode: "parallel",
   },
@@ -494,7 +414,7 @@ export const jiraToolDefinitions = [
     executor: executeJiraSearchIssues,
     label: "Jira Search Issues",
     description:
-      "Search Jira Cloud issues with JQL. Continue with next_page_token; comments, worklogs, and changelog use numeric offsets on jira_get_issue. Saves raw JSON for analysis.",
+      "Search Jira issues with JQL and save raw JSON. Read {{skill:jira}} before first use.",
     parameters: searchIssuesParameters,
     executionMode: "parallel",
   },
@@ -507,7 +427,7 @@ export const jiraToolDefinitions = [
     executor: executeJiraGetIssue,
     label: "Jira Get Issue",
     description:
-      "Fetch one Jira issue, optionally including comments, transitions, edit metadata, worklogs, changelog, remote links, and attachment metadata.",
+      "Fetch a Jira issue and optional related data. Read {{skill:jira}} before first use.",
     parameters: getIssueParameters,
     executionMode: "parallel",
   },
@@ -520,7 +440,7 @@ export const jiraToolDefinitions = [
     executor: executeJiraGetProject,
     label: "Jira Get Project",
     description:
-      "Fetch Jira project metadata, optionally including statuses, components, versions, issue types, create metadata, fields, priorities, and resolutions.",
+      "Fetch Jira project metadata. Read {{skill:jira}} before first use.",
     parameters: getProjectParameters,
     executionMode: "parallel",
   },
@@ -532,7 +452,8 @@ export const jiraToolDefinitions = [
     executionKind: "local",
     executor: executeJiraSearchBoards,
     label: "Jira Search Boards",
-    description: "Search visible Jira Software boards.",
+    description:
+      "Search visible Jira Software boards. Read {{skill:jira}} before first use.",
     parameters: searchBoardsParameters,
     executionMode: "parallel",
   },
@@ -545,7 +466,7 @@ export const jiraToolDefinitions = [
     executor: executeJiraGetBoard,
     label: "Jira Get Board",
     description:
-      "Fetch one Jira Software board with optional sprints and backlog issues.",
+      "Fetch a Jira board and optional sprints/backlog. Read {{skill:jira}} before first use.",
     parameters: getBoardParameters,
     executionMode: "parallel",
   },
@@ -557,7 +478,8 @@ export const jiraToolDefinitions = [
     executionKind: "local",
     executor: executeJiraGetSprint,
     label: "Jira Get Sprint",
-    description: "Fetch one Jira sprint with optional issues.",
+    description:
+      "Fetch one Jira sprint with optional issues. Read {{skill:jira}} before first use.",
     parameters: getSprintParameters,
     executionMode: "parallel",
   },
@@ -569,7 +491,8 @@ export const jiraToolDefinitions = [
     executionKind: "local",
     executor: executeJiraDownloadAttachment,
     label: "Jira Download Attachment",
-    description: "Download one Jira attachment to a local artifact.",
+    description:
+      "Download one Jira attachment to a local artifact. Read {{skill:jira}} before first use.",
     parameters: downloadAttachmentParameters,
     executionMode: "parallel",
   },
@@ -582,7 +505,7 @@ export const jiraToolDefinitions = [
     executor: executeJiraCreateIssue,
     label: "Jira Create Issue",
     description:
-      "Create a Jira issue using typed common fields plus optional raw fields.",
+      "Create a Jira issue using typed common fields plus optional raw fields. Only when the user explicitly asks. Read {{skill:jira}} before first use.",
     parameters: createIssueParameters,
     executionMode: "sequential",
   },
@@ -594,7 +517,8 @@ export const jiraToolDefinitions = [
     executionKind: "local",
     executor: executeJiraUpdateIssue,
     label: "Jira Update Issue",
-    description: "Update common Jira issue fields plus optional raw fields.",
+    description:
+      "Update common Jira issue fields plus optional raw fields. Only when the user explicitly asks. Read {{skill:jira}} before first use.",
     parameters: updateIssueParameters,
     executionMode: "sequential",
   },
@@ -606,7 +530,8 @@ export const jiraToolDefinitions = [
     executionKind: "local",
     executor: executeJiraManageComment,
     label: "Jira Manage Comment",
-    description: "Create, update, or delete one Jira issue comment.",
+    description:
+      "Create, update, or delete one Jira issue comment. Only when the user explicitly asks. Read {{skill:jira}} before first use.",
     parameters: manageCommentParameters,
     executionMode: "sequential",
   },
@@ -618,7 +543,8 @@ export const jiraToolDefinitions = [
     executionKind: "local",
     executor: executeJiraManageWorklog,
     label: "Jira Manage Worklog",
-    description: "Create, update, or delete one Jira worklog.",
+    description:
+      "Create, update, or delete one Jira worklog. Only when the user explicitly asks. Read {{skill:jira}} before first use.",
     parameters: manageWorklogParameters,
     executionMode: "sequential",
   },
@@ -630,7 +556,8 @@ export const jiraToolDefinitions = [
     executionKind: "local",
     executor: executeJiraManageIssueLink,
     label: "Jira Manage Issue Link",
-    description: "Create or delete one Jira issue link.",
+    description:
+      "Create or delete one Jira issue link. Only when the user explicitly asks. Read {{skill:jira}} before first use.",
     parameters: manageIssueLinkParameters,
     executionMode: "sequential",
   },
@@ -642,7 +569,8 @@ export const jiraToolDefinitions = [
     executionKind: "local",
     executor: executeJiraManageAttachment,
     label: "Jira Manage Attachment",
-    description: "Upload or delete one Jira attachment.",
+    description:
+      "Upload or delete one Jira attachment. Only when the user explicitly asks. Read {{skill:jira}} before first use.",
     parameters: jiraManageAttachmentParameters,
     executionMode: "sequential",
     classifyRisk: (args) =>
@@ -656,7 +584,8 @@ export const jiraToolDefinitions = [
     executionKind: "local",
     executor: executeJiraManageSprint,
     label: "Jira Manage Sprint",
-    description: "Create, update, start, close, or delete one Jira sprint.",
+    description:
+      "Create, update, start, close, or delete one Jira sprint. Only when the user explicitly asks. Read {{skill:jira}} before first use.",
     parameters: manageSprintParameters,
     executionMode: "sequential",
   },
@@ -668,7 +597,8 @@ export const jiraToolDefinitions = [
     executionKind: "local",
     executor: executeJiraManageBacklog,
     label: "Jira Manage Backlog",
-    description: "Move or rank one Jira issue in a backlog or sprint.",
+    description:
+      "Move or rank one Jira issue in a backlog or sprint. Only when the user explicitly asks. Read {{skill:jira}} before first use.",
     parameters: manageBacklogParameters,
     executionMode: "sequential",
   },
@@ -681,7 +611,7 @@ export const jiraToolDefinitions = [
     executor: executeJiraTransitionIssue,
     label: "Jira Transition Issue",
     description:
-      "Discover or execute Jira workflow transitions with safe matching and dry-run support.",
+      "List or execute Jira workflow transitions. Only when the user explicitly asks. Read {{skill:jira}} before first use.",
     parameters: transitionIssueParameters,
     executionMode: "sequential",
   },

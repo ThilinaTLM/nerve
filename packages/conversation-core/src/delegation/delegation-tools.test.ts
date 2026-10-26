@@ -1,3 +1,8 @@
+import {
+  withTestAdmission,
+  withTestPreparation,
+} from "../runtime/test-admission.js";
+import { testConfiguration } from "../runtime/configuration-test-helper.js";
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { existsSync, readFileSync } from "node:fs";
@@ -50,40 +55,76 @@ async function fixture() {
     [];
   const host: SubagentHost = {
     usableProfiles: async () => profiles,
-    resolveProfile: async ({ parentId, profile }) => {
+    resolveProfile: async ({ profile }) => {
       if (!profiles.includes(profile))
         throw new Error(
           `Unknown profile "${profile}". Usable: ${profiles.join(", ")}`,
         );
       return {
         name: profile,
-        config: {
-          model: { provider: `child-${profile}`, modelId: "test" },
-          reasoningLevel: "low",
-          permissionRuleSetId:
-            profile === "developer" ? "autonomous" : "read_only",
-          instructions: `Instructions for ${profile}`,
-        },
-        initializeChild: async (childId) => {
-          initialized.push({ parentId, childId, profile });
-          if (profile === "waiter")
-            storage.asyncBash.insert({
-              id: `bash_${childId}`,
-              conversationId: childId,
-              toolCallId: "tool_background",
-              command: "pnpm test",
-              workingDirectory: dataDir,
-              status: "running",
-              processRef: null,
-              exitCode: null,
-              startedAt: new Date(Date.now() - 3 * 60_000).toISOString(),
-              finishedAt: null,
-            });
+        application: {
+          config: {
+            agentProfile: profile,
+            model: { provider: `child-${profile}`, modelId: "test" },
+            reasoningLevel: "low",
+            permissionRuleSetId:
+              profile === "developer" ? "autonomous" : "read_only",
+          },
+          applied: {
+            schemaVersion: 1,
+            name: profile,
+            instructions: `Instructions for ${profile}`,
+            locked: {},
+          },
         },
       };
     },
   };
+  const configuration = testConfiguration(
+    { prepare: async () => ({ systemPrompt: "Test", tools: [] }) },
+    (id) => storage.conversations.getContext(id)!,
+  );
+  const prepareCreation = configuration.prepareCreation;
+  configuration.prepareCreation = async (input) => ({
+    ...(await prepareCreation(input)),
+    ...(input.application?.config ?? {
+      model: { provider: "lead", modelId: "test" },
+    }),
+    workingDirectory: dataDir,
+  });
+  configuration.initializeConversation = async (input) => {
+    const config = input.application?.config ?? {
+      agentProfile: "coding",
+      model: { provider: "lead", modelId: "test" },
+      reasoningLevel: "off" as const,
+      permissionRuleSetId: "baseline",
+    };
+    configuration.update(input.id, {
+      ...config,
+      instructions: null,
+      systemPrompt: null,
+    });
+    if (input.id !== LEAD) {
+      const childId = input.id;
+      const profile = config.agentProfile;
+      initialized.push({ parentId: LEAD, childId, profile });
+      if (profile === "waiter")
+        storage.asyncBash.insert({
+          id: `bash_${childId}`,
+          conversationId: childId,
+          toolCallId: "tool_background",
+          command: "pnpm test",
+          workingDirectory: dataDir,
+          status: "running",
+          processRef: null,
+          exitCode: null,
+          startedAt: new Date(Date.now() - 3 * 60_000).toISOString(),
+          finishedAt: null,
+        });
+    }
+  };
   const core = new ConversationCore({
+    configuration,
     storage,
     dataDir,
     models: {
@@ -107,24 +148,21 @@ async function fixture() {
         return { model: handle.getModel("test")! };
       },
     },
-    toolHost: {
+    toolHost: withTestPreparation({
       execute: async () => ({
         kind: "completed",
         result: { content: "file text" },
       }),
       isReplaySafe: () => false,
-    },
-    turnResources: {
-      prepare: async () => ({ systemPrompt: "Test", tools: [] }),
-    },
-    permissions: {
+    }),
+    permissions: withTestAdmission({
       evaluate: async () => ({
         decision: "allow",
         suggestedRules: [],
         authority: null,
       }),
       addRule: async () => {},
-    },
+    }),
     processes: {
       start: async () => {
         throw new Error("No process expected");
@@ -140,7 +178,7 @@ async function fixture() {
       systemPrompt: "Lead prompt",
       instructions: "Lead instructions",
       permissionRuleSetId: "baseline",
-      mode: "coding",
+      agentProfile: "coding",
       workingDirectory: dataDir,
     }),
   });
@@ -221,6 +259,7 @@ async function fixture() {
     core.getSnapshot(child(name).id).conversation.status === "idle";
   return {
     core,
+    configuration,
     dataDir,
     initialized,
     host,
@@ -257,12 +296,26 @@ void test("creates a child from the profile, initializes it and assigns context 
     );
     const created = f.child("a");
     const snapshot = f.core.getSnapshot(created.id);
-    assert.equal(snapshot.config.model.provider, "child-explore");
-    assert.equal(snapshot.config.reasoningLevel, "low");
-    assert.equal(snapshot.config.permissionRuleSetId, "read_only");
-    assert.equal(snapshot.config.instructions, "Instructions for explore");
+    const config = await f.configuration.resolveConfig(
+      created.id,
+      snapshot.config,
+    );
+    assert.equal(config.model.provider, "child-explore");
+    assert.equal(config.reasoningLevel, "low");
+    assert.equal(config.permissionRuleSetId, "read_only");
+    assert.equal(snapshot.config.instructions, null);
+    // Legacy SQL/profile snapshots are not configuration authority.
     assert.equal(snapshot.config.systemPrompt, null);
-    assert.equal(snapshot.config.mode, "coding");
+    assert.equal(config.agentProfile, "explore");
+    assert.equal(
+      (
+        await f.configuration.resolveConfig(
+          LEAD,
+          f.core.getSnapshot(LEAD).config,
+        )
+      ).agentProfile,
+      "coding",
+    );
     assert.deepEqual(f.initialized, [
       { parentId: LEAD, childId: created.id, profile: "explore" },
     ]);
@@ -283,30 +336,14 @@ void test("creates a child from the profile, initializes it and assigns context 
   }
 });
 
-void test("initialization uses the resolved snapshot and follow-ups do not resolve or reapply changed profiles", async () => {
+void test("initialized children keep configuration and follow-ups do not resolve or reapply changed profiles", async () => {
   const f = await fixture();
   try {
     const resolve = f.host.resolveProfile;
     let resolutions = 0;
-    let currentHarness = "original harness";
-    const applied: { childId: string; harness: string }[] = [];
     f.host.resolveProfile = async (input) => {
       resolutions++;
-      const profile = await resolve(input);
-      const harness = currentHarness;
-      // The host changes after resolution, before delegation creates/initializes the child.
-      currentHarness = "changed harness";
-      f.host.resolveProfile = async () => {
-        resolutions++;
-        throw new Error("Profile was removed");
-      };
-      return {
-        ...profile,
-        initializeChild: async (childId) => {
-          applied.push({ childId, harness });
-          await profile.initializeChild(childId);
-        },
-      };
+      return resolve(input);
     };
     f.queue("child-explore", { type: "assistantText", text: "first" });
     const created = await f.lead("subagent_prompt", explore());
@@ -314,9 +351,10 @@ void test("initialization uses the resolved snapshot and follow-ups do not resol
     await waitUntil(f.idle("a"));
     const id = f.child("a").id;
     const config = f.core.getSnapshot(id).config;
-    assert.deepEqual(applied, [{ childId: id, harness: "original harness" }]);
-    assert.equal(currentHarness, "changed harness");
-
+    f.host.resolveProfile = async () => {
+      resolutions++;
+      throw new Error("Profile was removed");
+    };
     f.host.usableProfiles = async () => [];
     for (const assignment of [
       { name: "a", profile: "explore", prompt: "again" },
@@ -332,7 +370,7 @@ void test("initialization uses the resolved snapshot and follow-ups do not resol
       assert.deepEqual(f.core.getSnapshot(id).config, config);
     }
     assert.equal(resolutions, 1);
-    assert.deepEqual(applied, [{ childId: id, harness: "original harness" }]);
+
     assert.deepEqual(f.initialized, [
       { parentId: LEAD, childId: id, profile: "explore" },
     ]);
@@ -577,7 +615,7 @@ void test("status lists children and shows final responses or recent activity", 
   }
 });
 
-void test("sub-agents reject user input and rule sets outside the allowed pair", async () => {
+void test("sub-agents reject user input", async () => {
   const f = await fixture();
   try {
     await f.lead("subagent_prompt", explore());
@@ -591,19 +629,6 @@ void test("sub-agents reject user input and rule sets outside the allowed pair",
           source: "user",
         }),
       /do not accept user input/,
-    );
-    assert.throws(
-      () => f.core.configure(id, { permissionRuleSetId: "baseline" }),
-      /may only use/,
-    );
-    f.core.configure(id, { permissionRuleSetId: "autonomous" });
-    await assert.rejects(
-      f.core.createConversation({
-        projectId: "proj_test",
-        parentConversationId: LEAD,
-        title: "bad",
-      }),
-      /may only use/,
     );
   } finally {
     await f.cleanup();

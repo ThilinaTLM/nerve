@@ -1,4 +1,7 @@
-import { stopProcessTree } from "../../../infrastructure/process-host/shell-process.js";
+import {
+  type PreparedShellProcess,
+  stopProcessTree,
+} from "../../../infrastructure/process-host/shell-process.js";
 import type { WorkbenchLaunchResources } from "../adapters/workbench-launch-adapters.js";
 import { isActiveLaunchStatus } from "../model/launch-status.js";
 import type {
@@ -139,6 +142,8 @@ export interface LaunchServicePorts {
 }
 
 export type LaunchStartInput = StartLaunchRequest & {
+  /** Transient admitted process target; never persisted in launch/env records. */
+  readonly preparedShell?: PreparedShellProcess;
   readonly visibility?: LaunchRecord["visibility"];
   readonly restartedFromLaunchId?: string;
   readonly restartRootLaunchId?: string;
@@ -146,6 +151,10 @@ export type LaunchStartInput = StartLaunchRequest & {
   readonly onOutput?: (
     update: ToolExecutionOutputUpdate,
   ) => void | Promise<void>;
+};
+
+export type PreparedLaunchStartInput = LaunchStartInput & {
+  preparedShell: PreparedShellProcess;
 };
 
 export class LaunchService {
@@ -200,8 +209,22 @@ export class LaunchService {
 
   async start(request: LaunchStartInput): Promise<LaunchRecord> {
     if (this.closing) throw new Error("Launch service is shutting down.");
-    request = { ...request, visibility: "background", onOutput: undefined };
+    request = {
+      ...request,
+      visibility: "background",
+      onOutput: undefined,
+      env: request.env && { ...request.env },
+      preparedShell:
+        request.preparedShell && structuredClone(request.preparedShell),
+    };
     const cwd = resolveLaunchWorkingDirectory(request.cwd);
+    if (
+      request.preparedShell &&
+      (request.preparedShell.command !== request.command ||
+        request.preparedShell.cwd !== cwd)
+    )
+      throw new Error("Prepared launch target does not match execution");
+    request = { ...request, cwd };
     if (!request.command.trim())
       throw new Error("Launch command must not be empty");
     const now = this.now();
@@ -453,21 +476,19 @@ export class LaunchService {
     return (await this.get(id)) ?? initial;
   }
 
-  async restart(id: string): Promise<LaunchRecord> {
-    const previous = await this.require(id);
+  async prepareRestart(id: string): Promise<LaunchStartInput> {
+    const previous = structuredClone(await this.require(id));
     if (previous.envInfo && !previous.envInfo.persisted)
       throw new Error(
         "Launch environment was not persisted; restart is unavailable",
       );
     if (previous.envInfo?.persisted && !this.ports.env)
       throw new Error("Persisted launch environment is unavailable");
-    const env = await this.ports.env?.load(previous);
-    if (!isTerminalLaunchStatus(previous.status)) {
-      const stopped = await this.cancel(id, { reason: "restart" });
-      if (!isTerminalLaunchStatus(stopped.status))
-        throw new Error("Launch is still running and cannot be restarted");
-    }
-    return this.start({
+    const loadedEnv = await this.ports.env?.load(previous);
+    if (previous.envInfo?.persisted && loadedEnv === undefined)
+      throw new Error("Persisted launch environment is unavailable");
+    const env = loadedEnv && { ...loadedEnv };
+    return {
       definitionId: previous.definitionId,
       name: previous.name,
       displayName: previous.displayName,
@@ -486,7 +507,43 @@ export class LaunchService {
       restartedFromLaunchId: previous.id,
       restartRootLaunchId: previous.restartRootLaunchId ?? previous.id,
       restartGeneration: (previous.restartGeneration ?? 0) + 1,
+    };
+  }
+
+  async restart(id: string): Promise<LaunchRecord> {
+    return this.restartWithInput(id, await this.prepareRestart(id));
+  }
+
+  async restartPrepared(
+    id: string,
+    request: PreparedLaunchStartInput,
+  ): Promise<LaunchRecord> {
+    if (request.restartedFromLaunchId !== id)
+      throw new Error("Prepared restart source does not match execution");
+    if (
+      request.preparedShell.command !== request.command ||
+      request.preparedShell.cwd !== resolveLaunchWorkingDirectory(request.cwd)
+    )
+      throw new Error("Prepared launch target does not match execution");
+    // Capture before cancellation/publication callbacks; never reload env or target at dispatch.
+    return this.restartWithInput(id, {
+      ...request,
+      env: request.env && { ...request.env },
+      preparedShell: structuredClone(request.preparedShell),
     });
+  }
+
+  private async restartWithInput(
+    id: string,
+    request: LaunchStartInput,
+  ): Promise<LaunchRecord> {
+    const previous = await this.require(id);
+    if (!isTerminalLaunchStatus(previous.status)) {
+      const stopped = await this.cancel(id, { reason: "restart" });
+      if (!isTerminalLaunchStatus(stopped.status))
+        throw new Error("Launch is still running and cannot be restarted");
+    }
+    return this.start(request);
   }
 
   async prune(): Promise<string[]> {

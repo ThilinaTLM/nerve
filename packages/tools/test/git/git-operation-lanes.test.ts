@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { AsyncLocalStorage } from "node:async_hooks";
 import { mkdtemp, mkdir, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -47,6 +48,39 @@ test("FIFO includes local reads; unrelated repositories run and network cap is g
   await Promise.all([a, a2, a3, b, c, d]);
   assert.ok(order.indexOf("a2-read") < order.indexOf("a3"));
   assert.ok(order.includes("c"));
+});
+
+test("queued jobs retain their submitter's async context across permit and repository waits", async () => {
+  const context = new AsyncLocalStorage<string>();
+  const lanes = new GitOperationLanes(2);
+  const hold = gate();
+  const observed: (string | undefined)[] = [];
+  const jobs = ["a", "b", "c", "d", "a"].map((key, index) =>
+    context.run(`workflow-${index}`, () =>
+      lanes.run(key, true, async () => {
+        if (index < 2) await hold.promise;
+        await tick();
+        observed[index] = context.getStore();
+      }),
+    ),
+  );
+  // A job submitted outside a workflow must not inherit the context draining it.
+  jobs.push(
+    lanes.run("unscoped", true, async () => {
+      observed[5] = context.getStore();
+    }),
+  );
+  await tick();
+  hold.release();
+  await Promise.all(jobs);
+  assert.deepEqual(observed, [
+    "workflow-0",
+    "workflow-1",
+    "workflow-2",
+    "workflow-3",
+    "workflow-4",
+    undefined,
+  ]);
 });
 
 test("queued/global-wait cancellation releases bounded admission without running", async () => {

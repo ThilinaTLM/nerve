@@ -3,6 +3,7 @@ import FolderTree from "@lucide/svelte/icons/folder-tree";
 import GitBranch from "@lucide/svelte/icons/git-branch";
 import GitPullRequest from "@lucide/svelte/icons/git-pull-request";
 import MessagesSquare from "@lucide/svelte/icons/messages-square";
+import Settings from "@lucide/svelte/icons/settings";
 import NotebookPen from "@lucide/svelte/icons/notebook-pen";
 import Terminal from "@lucide/svelte/icons/terminal";
 import { relativeTimeLabel } from "@nervekit/ui-kit/display/time";
@@ -115,6 +116,12 @@ const activityById = $derived(workspaceSelectors.conversationActivityById);
       detail="Notes kept with this project"
       icon={NotebookPen}
       onclick={() => pushMobileScreen({ kind: "notes", projectId })}
+    />
+    <MobileListRow
+      title="Project settings"
+      detail="Agent defaults and files for this project"
+      icon={Settings}
+      onclick={() => pushMobileScreen({ kind: "project-settings", projectId })}
     />
   </MobileSection>
 

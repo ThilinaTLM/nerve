@@ -1,150 +1,110 @@
+import type { Component } from "svelte";
 import Bell from "@lucide/svelte/icons/bell";
+import Bot from "@lucide/svelte/icons/bot";
 import CloudCog from "@lucide/svelte/icons/cloud-cog";
-import FoldVertical from "@lucide/svelte/icons/fold-vertical";
+import FileText from "@lucide/svelte/icons/file-text";
 import HardDrive from "@lucide/svelte/icons/hard-drive";
 import Keyboard from "@lucide/svelte/icons/keyboard";
 import Library from "@lucide/svelte/icons/library";
-import Monitor from "@lucide/svelte/icons/monitor";
 import Lightbulb from "@lucide/svelte/icons/lightbulb";
 import Mic from "@lucide/svelte/icons/mic";
+import Monitor from "@lucide/svelte/icons/monitor";
+import Play from "@lucide/svelte/icons/play";
+import Plug from "@lucide/svelte/icons/plug";
 import Server from "@lucide/svelte/icons/server";
 import ShieldCheck from "@lucide/svelte/icons/shield-check";
 import Shield from "@lucide/svelte/icons/shield";
+import SlidersHorizontal from "@lucide/svelte/icons/sliders-horizontal";
 import Users from "@lucide/svelte/icons/users";
 import Wrench from "@lucide/svelte/icons/wrench";
-import type { SettingsPageDef } from "$lib/presentation/settings";
+import Boxes from "@lucide/svelte/icons/boxes";
+import type {
+  SettingsNavBadge,
+  SettingsNavGroup,
+  SettingsNavItem,
+  SettingsPageDef,
+  SettingsScopeHeader,
+} from "$lib/presentation/settings";
+import type { SettingsScopeTarget } from "./settings-scope";
+import {
+  defaultSettingsPageId,
+  layoutByScope,
+  pagesByScope,
+  resolveSettingsPageId,
+  settingsPageIds,
+} from "./settings-page-data";
 
-export const settingsPages: SettingsPageDef[] = [
-  {
-    id: "workbench",
-    label: "Workbench",
-    icon: Monitor,
-    sections: [
-      { id: "appearance", label: "Appearance" },
-      { id: "desktop", label: "Desktop" },
-    ],
-  },
-  {
-    id: "providers",
-    label: "Providers",
-    icon: CloudCog,
-    sections: [
-      { id: "subscriptions", label: "Subscriptions" },
-      { id: "api-keys", label: "API keys" },
-      { id: "custom-providers", label: "Custom providers" },
-      { id: "custom-models", label: "Custom models" },
-      { id: "tavily-profiles", label: "Tavily profiles" },
-      { id: "atlassian-profiles", label: "Atlassian profiles" },
-    ],
-  },
-  {
-    id: "models",
-    label: "Models",
-    icon: ShieldCheck,
-    description:
-      "Limit which models the composer offers, and star the one new agents start with.",
-    sections: [{ id: "models", label: "Models" }],
-  },
-  {
-    id: "compaction",
-    label: "Compaction",
-    icon: FoldVertical,
-    description:
-      "Compaction checkpoints completed and remaining work before an agent runs out of context.",
-    sections: [{ id: "compaction", label: "Compaction" }],
-  },
-  {
-    id: "permissions",
-    label: "Permissions",
-    icon: Shield,
-    description:
-      "Choose the default rule set and manage the allow, ask or block overrides each one applies.",
-    sections: [
-      { id: "default", label: "Default" },
-      { id: "rule-sets", label: "Rule sets" },
-    ],
-  },
-  {
-    id: "tools",
-    label: "Tools",
-    icon: Wrench,
-    sections: [
-      { id: "core", label: "Core" },
-      { id: "third-party", label: "Third party" },
-    ],
-  },
-  {
-    id: "subagents",
-    label: "Sub-agents",
-    icon: Users,
-    description:
-      "Profiles the lead can assign work to. Changes apply to new sub-agents; running ones keep their settings.",
-    sections: [{ id: "profiles", label: "Profiles" }],
-  },
-  {
-    id: "skills",
-    label: "Skills",
-    icon: Library,
-    description:
-      "Skills apply from the next agent turn. Project definitions take precedence over your skills with the same name.",
-    sections: [{ id: "skills", label: "Skills" }],
-  },
-  {
-    id: "transcription",
-    label: "Transcription",
-    icon: Mic,
-    description:
-      "Configure the OpenAI model and context hints used for voice input.",
-    sections: [
-      { id: "model", label: "Model" },
-      { id: "context", label: "Context" },
-    ],
-  },
-  {
-    id: "suggestions",
-    label: "Suggestions",
-    icon: Lightbulb,
-    description:
-      "Project suggestions override user and built-in suggestions with the same name.",
-    sections: [{ id: "suggestions", label: "Suggestions" }],
-  },
-  {
-    id: "notifications",
-    label: "Notifications",
-    icon: Bell,
-    sections: [
-      { id: "general", label: "General" },
-      { id: "sounds", label: "Sounds" },
-    ],
-  },
-  {
-    id: "shortcuts",
-    label: "Shortcuts",
-    icon: Keyboard,
-    description:
-      "Shortcuts are fixed and use the primary modifier for your platform.",
-    sections: [{ id: "shortcuts", label: "Shortcuts" }],
-  },
-  {
-    id: "storage",
-    label: "Storage",
-    icon: HardDrive,
-    description:
-      "Understand what Nerve keeps locally and safely reclaim space.",
-    sections: [{ id: "storage", label: "Storage" }],
-  },
-  {
-    id: "system",
-    label: "System",
-    icon: Server,
-    sections: [
-      { id: "network", label: "Network" },
-      { id: "diagnostics", label: "Diagnostics" },
-      { id: "resource-concurrency", label: "Resource concurrency" },
-      { id: "daemon", label: "Daemon" },
-      { id: "desktop-rendering", label: "Desktop rendering" },
-      { id: "launch-context", label: "Launch context" },
-      { id: "system-information", label: "System information" },
-    ],
-  },
-];
+export { defaultSettingsPageId, resolveSettingsPageId, settingsPageIds };
+
+const icons: Record<string, Component> = {
+  providers: CloudCog,
+  integrations: Plug,
+  general: SlidersHorizontal,
+  tools: Wrench,
+  skills: Library,
+  agents: Bot,
+  "sub-agents": Users,
+  "permission-rules": Shield,
+  models: ShieldCheck,
+  workbench: Monitor,
+  notifications: Bell,
+  shortcuts: Keyboard,
+  voice: Mic,
+  suggestions: Lightbulb,
+  storage: HardDrive,
+  system: Server,
+  launch: Play,
+  "instructions-files": FileText,
+  trust: Boxes,
+};
+
+function pageDef(target: SettingsScopeTarget, id: string): SettingsPageDef {
+  return { id, icon: icons[id]!, ...pagesByScope[target.kind][id]! };
+}
+
+/** Page definitions (with sections) for the scope, in nav order. */
+export function settingsPagesFor(
+  target: SettingsScopeTarget,
+): SettingsPageDef[] {
+  return settingsPageIds(target.kind).map((id) => pageDef(target, id));
+}
+
+/** The page for an id; stale or foreign ids resolve to the default page. */
+export function settingsPageFor(
+  target: SettingsScopeTarget,
+  pageId: string | undefined,
+): SettingsPageDef {
+  return pageDef(target, resolveSettingsPageId(target.kind, pageId));
+}
+
+/** The grouped nav; `badges` marks pages with project differences or problems. */
+export function settingsNavFor(
+  target: SettingsScopeTarget,
+  badges: Readonly<Record<string, SettingsNavBadge>> = {},
+): SettingsNavGroup[] {
+  const pages = pagesByScope[target.kind];
+  return layoutByScope[target.kind].map(({ id, title, pages: ids }) => ({
+    id,
+    title,
+    items: ids.map(
+      (pageId): SettingsNavItem => ({
+        id: pageId,
+        label: pages[pageId]!.label,
+        icon: icons[pageId]!,
+        ...(badges[pageId] ? { badge: badges[pageId] } : {}),
+      }),
+    ),
+  }));
+}
+
+export function settingsScopeHeader(
+  target: SettingsScopeTarget,
+  project?: { name: string },
+): SettingsScopeHeader {
+  return target.kind === "user"
+    ? { title: "User settings" }
+    : {
+        title: "Project settings",
+        subtitle: project?.name ?? "Project",
+      };
+}

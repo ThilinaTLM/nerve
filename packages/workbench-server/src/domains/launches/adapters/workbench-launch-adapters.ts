@@ -242,14 +242,26 @@ export function createWorkbenchLaunchResources(
     },
     process: {
       spawn: async (input, callbacks = {}) => {
+        const preparedShell =
+          input.preparedShell && structuredClone(input.preparedShell);
+        if (
+          preparedShell &&
+          (preparedShell.command !== input.command ||
+            preparedShell.cwd !== input.cwd)
+        )
+          throw new Error("Prepared launch target does not match execution");
         await repository.bundles.initializeLaunch(input.launchId);
         const logCursor = createLaunchLogCursor(
           await logs.latestLogSeq(repository.logsPath(input.launchId)),
         );
         const spawned = supervisor.spawn(input.command, {
           cwd: input.cwd,
-          env: input.env,
-          shellPath: storage.settings.runtime.shellPath,
+          ...(preparedShell
+            ? { preparedShell }
+            : {
+                env: input.env,
+                shellPath: storage.settings.tools.bash.shellPath,
+              }),
         });
         const { child, runtime, exited, closed } = spawned;
         let resolveTerminal!: (launch: LaunchRecord | undefined) => void;

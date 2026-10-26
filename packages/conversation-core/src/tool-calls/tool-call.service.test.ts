@@ -79,6 +79,29 @@ for (const toolName of ["edit", "subagent_prompt"] as const) {
         isReplaySafe: () => false,
       },
     );
+    config.permissions.prepareAdmission = async (input) => ({
+      check: () => ({
+        kind: "policy",
+        supervision: { decision: "allow", suggestedRules: [], authority: null },
+        evidence: {
+          binding: {
+            toolCallId: input.toolCallId,
+            toolName: input.toolName,
+            argumentsDigest: "a".repeat(64),
+            executionTargetDigest: "b".repeat(64),
+            policyAuthorityDigest: "c".repeat(64),
+          },
+          requestGenerations: {},
+          policyGenerations: {},
+        },
+      }),
+    });
+    config.toolHost.prepareExecution = async (input) => ({
+      args: input.args,
+      cwd: input.cwd,
+      target: { cwd: input.cwd },
+      dispatch: () => config.toolHost.execute(input),
+    });
     const core = new ConversationCore(config);
     for (const handler of createDelegationTools(core, {
       usableProfiles: async () => ["developer"],

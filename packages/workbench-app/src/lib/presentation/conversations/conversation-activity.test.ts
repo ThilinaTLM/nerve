@@ -24,7 +24,7 @@ function summary(
     createdAt: "2026-10-14T00:00:00Z",
     updatedAt: "2026-10-14T00:00:00Z",
     childCount: 0,
-    mode: "planning",
+    agentProfile: "planning",
     model: { provider: "test", modelId: "test" },
     permissionRuleSetId: "default",
     ...patch,
@@ -109,7 +109,7 @@ test("maps conversation lifecycle and human attention to one presentation", () =
 test("planning and execution both communicate active work with blue", () => {
   for (const mode of ["planning", "coding"] as const) {
     assert.equal(
-      summaryActivity(summary({ status: "running", mode })).tone,
+      summaryActivity(summary({ status: "running", agentProfile: mode })).tone,
       "info",
     );
   }

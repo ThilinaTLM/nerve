@@ -14,8 +14,7 @@ import {
 } from "../../../execution/confluence/confluence.js";
 import type { ToolDefinition } from "../../contracts.js";
 
-const stringArray = (description: string) =>
-  Type.Array(Type.String(), { description });
+const stringArray = () => Type.Array(Type.String());
 const bodyFormatRead = Type.Union([
   Type.Literal("storage"),
   Type.Literal("atlas_doc_format"),
@@ -38,19 +37,17 @@ const pageStatus = Type.Union([Type.Literal("current"), Type.Literal("draft")]);
 
 const searchSpacesParameters = Type.Object(
   {
-    keys: Type.Optional(stringArray("Exact space keys to resolve")),
-    ids: Type.Optional(stringArray("Exact space ids to resolve")),
+    keys: Type.Optional(stringArray()),
+    ids: Type.Optional(stringArray()),
     limit: Type.Optional(
       Type.Number({
-        description: "Maximum spaces to return",
         minimum: 1,
         maximum: 100,
       }),
     ),
     cursor: Type.Optional(
       Type.String({
-        description:
-          "Opaque Confluence continuation cursor returned by the previous page",
+        description: "From the preceding page.",
       }),
     ),
   },
@@ -59,26 +56,22 @@ const searchSpacesParameters = Type.Object(
 
 const searchPagesParameters = Type.Object(
   {
-    cql: Type.Optional(Type.String({ description: "Confluence CQL query" })),
-    query: Type.Optional(
-      Type.String({ description: "Free-text search query" }),
-    ),
-    space_key: Type.Optional(Type.String({ description: "Space key filter" })),
-    space_id: Type.Optional(Type.String({ description: "Space id filter" })),
-    title: Type.Optional(Type.String({ description: "Exact title filter" })),
-    status: Type.Optional(Type.String({ description: "Page status filter" })),
+    cql: Type.Optional(Type.String()),
+    query: Type.Optional(Type.String()),
+    space_key: Type.Optional(Type.String()),
+    space_id: Type.Optional(Type.String()),
+    title: Type.Optional(Type.String()),
+    status: Type.Optional(Type.String()),
     body_format: Type.Optional(bodyFormatRead),
     limit: Type.Optional(
       Type.Number({
-        description: "Maximum pages to return",
         minimum: 1,
         maximum: 100,
       }),
     ),
     cursor: Type.Optional(
       Type.String({
-        description:
-          "Opaque Confluence continuation cursor returned by the previous page",
+        description: "From the preceding page.",
       }),
     ),
   },
@@ -87,7 +80,7 @@ const searchPagesParameters = Type.Object(
 
 const getPageParameters = Type.Object(
   {
-    page_id: Type.String({ description: "Confluence page id" }),
+    page_id: Type.String(),
     body_format: Type.Optional(pageBodyFormat),
     include: Type.Optional(
       Type.Array(
@@ -103,13 +96,13 @@ const getPageParameters = Type.Object(
           Type.Literal("inline_comments"),
           Type.Literal("restrictions"),
         ]),
-        { uniqueItems: true, description: "Related page data to fetch" },
+        { uniqueItems: true },
       ),
     ),
     comment_limit: Type.Optional(Type.Number({ minimum: 1, maximum: 100 })),
     comment_cursor: Type.Optional(Type.String()),
     markdown: Type.Optional(
-      Type.Boolean({ description: "Write a read-only markdown sidecar" }),
+      Type.Boolean({ description: "Read-only sidecar." }),
     ),
   },
   { additionalProperties: false },
@@ -117,10 +110,10 @@ const getPageParameters = Type.Object(
 
 const downloadPageParameters = Type.Object(
   {
-    page_id: Type.String({ description: "Page id" }),
+    page_id: Type.String(),
     body_format: Type.Optional(bodyFormatRead),
     markdown: Type.Optional(
-      Type.Boolean({ description: "Write a read-only markdown sidecar" }),
+      Type.Boolean({ description: "Read-only sidecar." }),
     ),
     attachments: Type.Optional(
       Type.Union([
@@ -135,76 +128,62 @@ const downloadPageParameters = Type.Object(
 
 const createPageParameters = Type.Object(
   {
-    space_id: Type.Optional(Type.String({ description: "Space id" })),
+    space_id: Type.Optional(Type.String()),
     space_key: Type.Optional(
-      Type.String({ description: "Space key; defaults from settings" }),
+      Type.String({ description: "Defaults from settings." }),
     ),
-    title: Type.Optional(Type.String({ description: "Page title" })),
-    parent_id: Type.Optional(Type.String({ description: "Parent page id" })),
+    title: Type.Optional(Type.String()),
+    parent_id: Type.Optional(Type.String()),
     status: Type.Optional(pageStatus),
-    body: Type.Optional(Type.String({ description: "Inline page body" })),
+    body: Type.Optional(
+      Type.String({ description: "Mutually exclusive with body_file." }),
+    ),
     body_file: Type.Optional(
       Type.String({
-        description: "Path to a body file (storage XML/ADF/wiki)",
+        description: "Storage XML/ADF/wiki; not with body.",
       }),
     ),
     page_file: Type.Optional(
-      Type.String({ description: "Path to a page JSON or JSONL row" }),
+      Type.String({ description: "Path to one page JSON/JSONL row." }),
     ),
     body_representation: Type.Optional(writeBodyRepresentation),
-    dry_run: Type.Optional(
-      Type.Boolean({
-        description: "Return the create payload without mutating",
-      }),
-    ),
-    return_page: Type.Optional(
-      Type.Boolean({ description: "Fetch and summarize the created page" }),
-    ),
+    dry_run: Type.Optional(Type.Boolean()),
+    return_page: Type.Optional(Type.Boolean()),
   },
   { additionalProperties: false },
 );
 
 const updatePageParameters = Type.Object(
   {
-    page_id: Type.Optional(Type.String({ description: "Page id" })),
+    page_id: Type.Optional(Type.String()),
     page_file: Type.Optional(
-      Type.String({ description: "Path to a page JSON or JSONL row" }),
+      Type.String({ description: "Path to one page JSON/JSONL row." }),
     ),
-    title: Type.Optional(Type.String({ description: "New title" })),
-    parent_id: Type.Optional(Type.String({ description: "Parent page id" })),
+    title: Type.Optional(Type.String()),
+    parent_id: Type.Optional(Type.String()),
     status: Type.Optional(pageStatus),
-    body: Type.Optional(Type.String({ description: "Inline page body" })),
+    body: Type.Optional(
+      Type.String({ description: "Mutually exclusive with body_file." }),
+    ),
     body_file: Type.Optional(
       Type.String({
-        description: "Path to a body file (storage XML/ADF/wiki)",
+        description: "Storage XML/ADF/wiki; not with body.",
       }),
     ),
     body_representation: Type.Optional(writeBodyRepresentation),
-    version_message: Type.Optional(
-      Type.String({ description: "Version message" }),
-    ),
+    version_message: Type.Optional(Type.String()),
     allow_stale: Type.Optional(
       Type.Boolean({
-        description: "Allow publishing over a newer remote version",
+        description: "Overrides stale-version protection.",
       }),
     ),
-    dry_run: Type.Optional(
-      Type.Boolean({
-        description: "Return the update payload without mutating",
-      }),
-    ),
-    return_page: Type.Optional(
-      Type.Boolean({
-        description: "Fetch and summarize the page after updating",
-      }),
-    ),
+    dry_run: Type.Optional(Type.Boolean()),
+    return_page: Type.Optional(Type.Boolean()),
   },
   { additionalProperties: false },
 );
 
-const dryRun = Type.Optional(
-  Type.Boolean({ description: "Validate without mutating" }),
-);
+const dryRun = Type.Optional(Type.Boolean());
 const commentKind = Type.Union([
   Type.Literal("footer"),
   Type.Literal("inline"),
@@ -256,9 +235,7 @@ const manageLabelParameters = Type.Object(
     action: Type.Union([Type.Literal("add"), Type.Literal("remove")]),
     page_id: Type.String(),
     label: Type.String(),
-    prefix: Type.Optional(
-      Type.String({ description: "Used only when adding a label" }),
-    ),
+    prefix: Type.Optional(Type.String()),
     dry_run: dryRun,
   },
   { additionalProperties: false },
@@ -323,7 +300,8 @@ export const confluenceToolDefinitions = [
     executionKind: "local",
     executor: executeConfluenceSearchSpaces,
     label: "Confluence Search Spaces",
-    description: "List or resolve visible Confluence Cloud spaces.",
+    description:
+      "List or resolve visible Confluence Cloud spaces. Read {{skill:confluence}} before first use.",
     parameters: searchSpacesParameters,
     executionMode: "parallel",
   },
@@ -336,7 +314,7 @@ export const confluenceToolDefinitions = [
     executor: executeConfluenceSearchPages,
     label: "Confluence Search Pages",
     description:
-      "Find Confluence pages by simple filters or CQL/free-text search.",
+      "Find Confluence pages by simple filters or CQL/free-text search. Read {{skill:confluence}} before first use.",
     parameters: searchPagesParameters,
     executionMode: "parallel",
   },
@@ -349,7 +327,7 @@ export const confluenceToolDefinitions = [
     executor: executeConfluenceGetPage,
     label: "Confluence Get Page",
     description:
-      "Fetch one Confluence page with optional body, related metadata, attachments, and markdown sidecar.",
+      "Fetch a Confluence page and optional related data. Read {{skill:confluence}} before first use.",
     parameters: getPageParameters,
     executionMode: "parallel",
   },
@@ -362,7 +340,7 @@ export const confluenceToolDefinitions = [
     executor: executeConfluenceDownloadPage,
     label: "Confluence Download Page",
     description:
-      "Download one page into editable JSON/storage XML artifacts with optional page attachments.",
+      "Download editable Confluence page artifacts and optional attachments. Read {{skill:confluence}} before first use.",
     parameters: downloadPageParameters,
     executionMode: "parallel",
   },
@@ -375,7 +353,7 @@ export const confluenceToolDefinitions = [
     executor: executeConfluenceCreatePage,
     label: "Confluence Create Page",
     description:
-      "Create a Confluence page from inline storage XML, a body file, or a page JSON/JSONL row.",
+      "Create a Confluence page. Only when the user explicitly asks. Read {{skill:confluence}} before first use.",
     parameters: createPageParameters,
     executionMode: "sequential",
   },
@@ -388,7 +366,7 @@ export const confluenceToolDefinitions = [
     executor: executeConfluenceUpdatePage,
     label: "Confluence Update Page",
     description:
-      "Update one Confluence page from inline body, body file, or a page JSON/JSONL row with stale-version protection.",
+      "Update a Confluence page with stale-version protection. Only when the user explicitly asks. Read {{skill:confluence}} before first use.",
     parameters: updatePageParameters,
     executionMode: "sequential",
   },
@@ -401,7 +379,7 @@ export const confluenceToolDefinitions = [
     executor: executeConfluenceManageComment,
     label: "Confluence Manage Comment",
     description:
-      "Create, update, delete, resolve, or reopen one Confluence comment.",
+      "Create, update, delete, resolve, or reopen one Confluence comment. Only when the user explicitly asks. Read {{skill:confluence}} before first use.",
     parameters: manageCommentParameters,
     executionMode: "sequential",
   },
@@ -414,7 +392,7 @@ export const confluenceToolDefinitions = [
     executor: executeConfluenceManagePage,
     label: "Confluence Manage Page",
     description:
-      "Trash, restore, or permanently purge one Confluence page; archive is not supported by the API.",
+      "Trash, restore, or permanently purge one Confluence page; archive is not supported by the API. Only when the user explicitly asks. Read {{skill:confluence}} before first use.",
     parameters: managePageParameters,
     executionMode: "sequential",
     classifyRisk: (args) =>
@@ -428,7 +406,8 @@ export const confluenceToolDefinitions = [
     executionKind: "local",
     executor: executeConfluenceManageLabel,
     label: "Confluence Manage Label",
-    description: "Add or remove one label on one Confluence page.",
+    description:
+      "Add or remove one label on one Confluence page. Only when the user explicitly asks. Read {{skill:confluence}} before first use.",
     parameters: manageLabelParameters,
     executionMode: "sequential",
   },
@@ -441,7 +420,7 @@ export const confluenceToolDefinitions = [
     executor: executeConfluenceManageRestriction,
     label: "Confluence Manage Restriction",
     description:
-      "Add or remove one page restriction subject, or explicitly clear one operation.",
+      "Add or remove one page restriction subject, or explicitly clear one operation. Only when the user explicitly asks. Read {{skill:confluence}} before first use.",
     parameters: manageRestrictionParameters,
     executionMode: "sequential",
     classifyRisk: (args) =>
@@ -455,7 +434,8 @@ export const confluenceToolDefinitions = [
     executionKind: "local",
     executor: executeConfluenceManageAttachment,
     label: "Confluence Manage Attachment",
-    description: "Upload, rename, or delete one Confluence attachment.",
+    description:
+      "Upload, rename, or delete one Confluence attachment. Only when the user explicitly asks. Read {{skill:confluence}} before first use.",
     parameters: manageAttachmentParameters,
     executionMode: "sequential",
   },

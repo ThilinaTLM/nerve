@@ -48,7 +48,9 @@ let {
 }: Props = $props();
 
 const dotActivity = $derived(activity ?? idleConversationActivity);
-const mode = $derived(row.agent?.mode ?? row.conversation.mode);
+const profile = $derived(
+  row.agent?.agentProfile ?? row.conversation.agentProfile,
+);
 const permission = $derived(
   row.agent?.permissionRuleSetId ?? row.conversation.permissionRuleSetId,
 );
@@ -66,7 +68,7 @@ const tooltip = $derived(
   [
     row.conversation.title,
     `status: ${dotActivity.label ?? "idle"}`,
-    `mode: ${mode} · rule set: ${permissionRuleSetDisplayName(permission)}`,
+    `profile: ${profile ?? "unknown"} · rule set: ${permission ? permissionRuleSetDisplayName(permission) : "unknown"}`,
     `model: ${shortAgentModel(row.agent)}`,
     row.conversation.id,
   ].join("\n"),
@@ -133,8 +135,8 @@ const tooltip = $derived(
       </span>
     {/snippet}
     {#snippet trailing()}
-      {#if mode === "planning"}
-        <ClipboardList class="size-3" aria-label="Planning mode" />
+      {#if profile === "planning"}
+        <ClipboardList class="size-3" aria-label="Planning profile" />
       {/if}
       {#if childCount > 0}
         <span

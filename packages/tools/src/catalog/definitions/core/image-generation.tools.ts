@@ -5,7 +5,6 @@ import type { ToolDefinition } from "../../contracts.js";
 const generateImageParameters = Type.Object(
   {
     prompt: Type.String({
-      description: "Describe the image to generate",
       minLength: 1,
       maxLength: 32_000,
     }),
@@ -22,8 +21,7 @@ export const imageGenerationToolDefinitions = [
     executionKind: "local",
     executor: executeGenerateImage,
     label: "Generate Image",
-    description:
-      "Generate an image from a text prompt using the provider and output settings configured by the user.",
+    description: "Generate an image from a text prompt.",
     parameters: generateImageParameters,
     executionMode: "sequential",
   },

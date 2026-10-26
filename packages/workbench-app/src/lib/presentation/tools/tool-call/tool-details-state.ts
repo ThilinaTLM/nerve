@@ -53,7 +53,7 @@ export function hasFormattedToolView(
     case "confluence":
       return hasStoredPreview;
     case "ask_user":
-    case "plan_mode":
+    case "plan_present":
       return true;
     case "generic":
       return false;

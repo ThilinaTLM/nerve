@@ -26,35 +26,49 @@ import { coreOperationSchemas } from "./core-operations.js";
 import { transferredConversationEventSchema } from "./event.js";
 import {
   conversationConfigSchema,
+  conversationHistoryConfigSchema,
   conversationSummarySchema,
 } from "./conversation.js";
-import { autoCompactionSettingsSchema } from "../settings/settings.js";
-import { conversationHarnessSettingsResultSchema } from "./harness-settings.js";
 import { toolCallSchema } from "./tool-call.js";
 import { queuedInputSchema } from "./input.js";
 import { asyncBashSchema } from "./async-bash.js";
 import { liveDeltaSchema } from "./live.js";
 
 import {
-  capabilityConfigurationSchema,
-  capabilityOverridesDocumentSchema,
-  capabilityPatchSchema,
-  capabilityOriginSchema,
-} from "../capabilities/capabilities.js";
-
-import { subagentProfilesDocumentSchema } from "../subagents/subagent-configuration.js";
+  leadSettingsOverridesSchema,
+  agentResolutionSchema,
+} from "../agent-configuration/schemas.js";
+import {
+  agentScopeSchema,
+  preferenceScopeSchema,
+  profileTargetSchema,
+  configurationUnavailableSchema,
+} from "../agent-configuration/agent-configuration-operations.js";
 
 export const previewSystemPromptParamsSchema = z.union([
-  z.object({ conversationId: z.string() }).strict(),
-  z
-    .object({
-      projectId: z.string(),
-      config: conversationConfigSchema.omit({ conversationId: true }),
-      capabilityOverrides: capabilityOverridesDocumentSchema.optional(),
-      subagentProfileOverrides: subagentProfilesDocumentSchema.optional(),
-    })
-    .strict(),
+  z.strictObject({ conversationId: z.string().min(1) }),
+  z.strictObject({
+    projectId: z.string().min(1),
+    overrides: leadSettingsOverridesSchema,
+    agentProfile: profileTargetSchema.optional(),
+    config: conversationConfigSchema
+      .pick({ systemPrompt: true, instructions: true, workingDirectory: true })
+      .partial()
+      .strict()
+      .optional(),
+  }),
 ]);
+export const previewSystemPromptResultSchema = z.discriminatedUnion("status", [
+  z.strictObject({
+    status: z.literal("available"),
+    systemPrompt: z.string(),
+    resolution: agentResolutionSchema,
+  }),
+  configurationUnavailableSchema,
+]);
+export type PreviewSystemPromptResult = z.infer<
+  typeof previewSystemPromptResultSchema
+>;
 export type PreviewSystemPromptParams = z.infer<
   typeof previewSystemPromptParamsSchema
 >;
@@ -70,15 +84,70 @@ const permissionRuleTarget = z.object({
   ruleSetId: permissionRuleSetIdSchema,
 });
 
-const harnessScope = z.object({
-  projectId: z.string(),
-  conversationId: z.string(),
-});
-const capabilityScope = z.object({
-  projectId: z.string(),
-  conversationId: z.string().optional(),
-});
 export const conversationChannelOperations = [
+  defineOperation(
+    "agentConfiguration.get",
+    coreOperationSchemas["agentConfiguration.get"].params,
+    coreOperationSchemas["agentConfiguration.get"].result,
+    "read",
+    "none",
+    host,
+    "operation.agentConfiguration.get",
+  ),
+  defineOperation(
+    "agentConfiguration.save",
+    coreOperationSchemas["agentConfiguration.save"].params,
+    coreOperationSchemas["agentConfiguration.save"].result,
+    "mutation",
+    "none",
+    host,
+    "operation.agentConfiguration.save",
+  ),
+  defineOperation(
+    "agentConfiguration.getEffective",
+    coreOperationSchemas["agentConfiguration.getEffective"].params,
+    coreOperationSchemas["agentConfiguration.getEffective"].result,
+    "read",
+    "none",
+    host,
+    "operation.agentConfiguration.getEffective",
+  ),
+  defineOperation(
+    "agentConfiguration.resolveProject",
+    coreOperationSchemas["agentConfiguration.resolveProject"].params,
+    coreOperationSchemas["agentConfiguration.resolveProject"].result,
+    "read",
+    "none",
+    host,
+    "operation.agentConfiguration.resolveProject",
+  ),
+  defineOperation(
+    "conversationDefaults.get",
+    coreOperationSchemas["conversationDefaults.get"].params,
+    coreOperationSchemas["conversationDefaults.get"].result,
+    "read",
+    "none",
+    host,
+    "operation.conversationDefaults.get",
+  ),
+  defineOperation(
+    "conversationDefaults.save",
+    coreOperationSchemas["conversationDefaults.save"].params,
+    coreOperationSchemas["conversationDefaults.save"].result,
+    "mutation",
+    "none",
+    host,
+    "operation.conversationDefaults.save",
+  ),
+  defineOperation(
+    "conversation.previewAgentProfile",
+    coreOperationSchemas["conversation.previewAgentProfile"].params,
+    coreOperationSchemas["conversation.previewAgentProfile"].result,
+    "read",
+    "none",
+    host,
+    "operation.conversation.previewAgentProfile",
+  ),
   defineOperation(
     "toolCall.getDetails",
     coreOperationSchemas["toolCall.getDetails"].params,
@@ -87,68 +156,6 @@ export const conversationChannelOperations = [
     "none",
     host,
     "operation.toolCall.getDetails",
-  ),
-  defineOperation(
-    "capabilities.get",
-    capabilityScope,
-    capabilityConfigurationSchema,
-    "read",
-    "none",
-    host,
-    "operation.capabilities.get",
-  ),
-  defineOperation(
-    "capabilities.update",
-    capabilityScope.extend({
-      layer: capabilityOriginSchema,
-      patch: capabilityPatchSchema.optional(),
-      replace: capabilityOverridesDocumentSchema.optional(),
-      expectedDigest: z.string().optional(),
-    }),
-    capabilityConfigurationSchema,
-    "mutation",
-    "none",
-    host,
-    "operation.capabilities.update",
-  ),
-  defineOperation(
-    "capabilities.reset",
-    capabilityScope.extend({ layer: capabilityOriginSchema }),
-    capabilityConfigurationSchema,
-    "mutation",
-    "none",
-    host,
-    "operation.capabilities.reset",
-  ),
-  defineOperation(
-    "capabilities.trust",
-    z.object({ projectId: z.string(), digest: z.string() }),
-    capabilityConfigurationSchema,
-    "mutation",
-    "none",
-    host,
-    "operation.capabilities.trust",
-  ),
-  defineOperation(
-    "harnessSettings.get",
-    harnessScope,
-    conversationHarnessSettingsResultSchema,
-    "read",
-    "none",
-    host,
-    "operation.harnessSettings.get",
-  ),
-  defineOperation(
-    "harnessSettings.update",
-    harnessScope.extend({
-      /** Null removes the conversation override. */
-      compaction: autoCompactionSettingsSchema.nullable(),
-    }),
-    conversationHarnessSettingsResultSchema,
-    "mutation",
-    "none",
-    host,
-    "operation.harnessSettings.update",
   ),
   defineOperation(
     "project.create",
@@ -261,7 +268,7 @@ export const conversationChannelOperations = [
   defineOperation(
     "conversation.previewSystemPrompt",
     previewSystemPromptParamsSchema,
-    z.object({ systemPrompt: z.string() }),
+    previewSystemPromptResultSchema,
     "read",
     "none",
     host,
@@ -293,6 +300,15 @@ export const conversationChannelOperations = [
     "none",
     host,
     "operation.conversation.getEventsSince",
+  ),
+  defineOperation(
+    "conversation.setAgentProfile",
+    coreOperationSchemas["conversation.setAgentProfile"].params,
+    coreOperationSchemas["conversation.setAgentProfile"].result,
+    "mutation",
+    "none",
+    host,
+    "operation.conversation.setAgentProfile",
   ),
   defineOperation(
     "conversation.configure",
@@ -535,7 +551,10 @@ export const conversationChannelOperations = [
 ] as const;
 
 export const conversationChannelEventSchemas = {
-  "capabilities.changed": capabilityScope,
+  "agentConfiguration.changed": z.strictObject({ scope: agentScopeSchema }),
+  "conversationDefaults.changed": z.strictObject({
+    scope: preferenceScopeSchema,
+  }),
   "conversation.event": transferredConversationEventSchema,
   "conversation.head": z.object({
     conversationId: z.string(),
@@ -551,8 +570,10 @@ export const conversationChannelEventSchemas = {
   }),
   "conversation.config": z.object({
     conversationId: z.string(),
-    config: conversationConfigSchema,
+    config: conversationHistoryConfigSchema,
   }),
+  // Includes configuration-blocked waiting interactions and their retry/cancel
+  // receipts; no separate event or database state is needed.
   "conversation.toolCall": z.object({
     conversationId: z.string(),
     toolCall: z.union([
@@ -580,9 +601,14 @@ export const conversationChannelEventSchemas = {
 
 export const conversationChannelEvents = [
   defineContentEvent(
-    "capabilities.changed",
-    conversationChannelEventSchemas["capabilities.changed"],
-    { delivery: "ephemeral", scope: ["projectId"] },
+    "conversationDefaults.changed",
+    conversationChannelEventSchemas["conversationDefaults.changed"],
+    { delivery: "ephemeral", scope: [] },
+  ),
+  defineContentEvent(
+    "agentConfiguration.changed",
+    conversationChannelEventSchemas["agentConfiguration.changed"],
+    { delivery: "ephemeral", scope: [] },
   ),
   defineContentEvent(
     "conversation.event",

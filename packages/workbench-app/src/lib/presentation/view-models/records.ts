@@ -23,7 +23,8 @@ export type AgentRecord = {
   conversationId: string;
   projectId: string;
   projectDir: string;
-  mode: "planning" | "coding";
+  /** Active profile for the lead; the creation profile for a sub-agent. */
+  agentProfile: string;
   thinkingLevel?:
     | "off"
     | "minimal"
@@ -36,8 +37,6 @@ export type AgentRecord = {
   updatedAt: string;
   parentAgentId?: string | undefined;
   lastParentPromptAt?: string | null | undefined;
-  /** Profile a sub-agent was created from; absent for the lead. */
-  subagentProfile?: string | undefined;
   name?: string | undefined;
   permissionRuleSetId?: string | undefined;
   systemPrompt?: string | undefined;
@@ -85,7 +84,7 @@ export type ConversationRecord = {
   parentConversationId?: string | null;
   projectId: string;
   title: string;
-  mode: "planning" | "coding";
+  agentProfile: string;
   createdAt: string;
   updatedAt: string;
   activeAgentId?: string | undefined;

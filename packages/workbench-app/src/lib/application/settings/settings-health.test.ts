@@ -3,6 +3,8 @@ import test from "node:test";
 import {
   fetchSettingsHealth,
   resolveSettingsHealth,
+  settingsHealthSignature,
+  settingsHealthToastTitle,
   updateSettingsHealthNotice,
 } from "./settings-health";
 
@@ -64,4 +66,33 @@ test("notice keeps problems on failure, shows server errors, and clears only aft
   } finally {
     globalThis.fetch = original;
   }
+});
+
+test("toasts only when the set of failing files changes", () => {
+  const one = health;
+  const two = {
+    invalid: [
+      ...health.invalid,
+      {
+        id: "providers" as const,
+        path: "/home/config/providers.json",
+        reason: "x",
+      },
+    ],
+  };
+  const reordered = { invalid: [...two.invalid].reverse() };
+  assert.equal(
+    settingsHealthSignature(two),
+    settingsHealthSignature(reordered),
+  );
+  assert.notEqual(settingsHealthSignature(one), settingsHealthSignature(two));
+  assert.equal(settingsHealthSignature({ invalid: [] }), "");
+  assert.equal(
+    settingsHealthToastTitle(one),
+    "Settings need attention · 1 file",
+  );
+  assert.equal(
+    settingsHealthToastTitle(two),
+    "Settings need attention · 2 files",
+  );
 });

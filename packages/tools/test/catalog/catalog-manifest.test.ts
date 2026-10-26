@@ -117,14 +117,11 @@ describe("model-facing tool schema compatibility", () => {
         }
       }
 
-      const searchSchema = requireToolDefinition("jira_search_issues")
-        .parameters as {
-        properties?: Record<string, { description?: string }>;
-      };
-      assert.match(
-        searchSchema.properties?.jql?.description ?? "",
-        /field restriction.*ORDER-BY/i,
-      );
+      const searchSchema =
+        requireToolDefinition("jira_search_issues").parameters;
+      assert.equal(Check(searchSchema, { jql: "project = PROJ" }), true);
+      assert.equal(Check(searchSchema, {}), false);
+      assert.equal(Check(searchSchema, { jql: 123 }), false);
 
       const editSchemaSize = JSON.stringify(
         requireToolDefinition("edit").parameters,
@@ -184,8 +181,8 @@ describe("model-facing tool schema compatibility", () => {
     }
   });
 
-  it("keeps plan_mode_present limited to the plan file path", () => {
-    const schema = requireToolDefinition("plan_mode_present").parameters;
+  it("keeps plan_present limited to the plan file path", () => {
+    const schema = requireToolDefinition("plan_present").parameters;
     assert.equal(Check(schema, { file_path: "/tmp/plan.md" }), true);
     assert.equal(
       Check(schema, { file_path: "/tmp/plan.md", summary: "override" }),

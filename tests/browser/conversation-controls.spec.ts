@@ -2,6 +2,7 @@ import { expect, test } from "@playwright/test";
 import {
   conversationFixture,
   coreRpc,
+  setAgentProfile,
   submit,
 } from "./conversation.helpers.js";
 
@@ -28,7 +29,7 @@ for (const width of [1440, 390]) {
           return history.some((event) => event.type === "assistant_message");
         })
         .toBe(true);
-      await page.reload();
+      await f.open("Browser conversation");
       await expect(
         page.getByText(prompt, { exact: true }).first(),
       ).toBeVisible();
@@ -49,10 +50,7 @@ test("separate conversations keep private history and configuration", async ({
     const other = await f.createConversation("Other conversation");
     await submit(page, f.snapshot.conversation.id, "First private prompt");
     await submit(page, other.conversation.id, "Second private prompt");
-    await coreRpc(page, "conversation.configure", {
-      conversationId: other.conversation.id,
-      patch: { mode: "planning" },
-    });
+    await setAgentProfile(page, other.conversation.id, "planning");
     await f.open("Other conversation");
     await expect(
       page.getByText("Second private prompt", { exact: true }).first(),
@@ -60,7 +58,7 @@ test("separate conversations keep private history and configuration", async ({
     await expect(
       page.getByText("First private prompt", { exact: true }),
     ).toHaveCount(0);
-    await expect(page.getByTitle(/Mode: Planning/)).toBeVisible();
+    await expect(page.getByTitle(/Agent profile: Planning/)).toBeVisible();
     await f.open("Browser conversation");
     await expect(
       page.getByText("First private prompt", { exact: true }).first(),
@@ -68,7 +66,7 @@ test("separate conversations keep private history and configuration", async ({
     await expect(
       page.getByText("Second private prompt", { exact: true }),
     ).toHaveCount(0);
-    await expect(page.getByTitle(/Mode: Coding/)).toBeVisible();
+    await expect(page.getByTitle(/Agent profile: Coding/)).toBeVisible();
   } finally {
     await f.close();
   }

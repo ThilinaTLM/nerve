@@ -8,8 +8,8 @@ import { Button } from "@nervekit/ui-kit/components/ui/button";
 import { Spinner } from "@nervekit/ui-kit/components/ui/spinner";
 
 type Props = {
-  /** Opaque mode string; only `"planning"` receives special surface styling. */
-  mode: string;
+  /** Active profile name; only `"planning"` receives special surface styling. */
+  agentProfile: string;
   commandMode?: boolean;
   executableBlocks?: boolean;
   pendingApproval?: boolean;
@@ -37,7 +37,7 @@ type Props = {
 };
 
 let {
-  mode,
+  agentProfile,
   commandMode = false,
   executableBlocks = false,
   pendingApproval = false,
@@ -80,7 +80,7 @@ let {
 
   <div
     class="composer-surface"
-    data-mode={mode}
+    data-profile={agentProfile}
     data-command-mode={commandMode ? "true" : undefined}
     data-executable-blocks={executableBlocks ? "true" : undefined}
   >
@@ -196,8 +196,8 @@ let {
   border-color: var(--ring);
 }
 
-.composer-surface[data-mode="planning"],
-.composer-surface[data-mode="planning"]:focus-within {
+.composer-surface[data-profile="planning"],
+.composer-surface[data-profile="planning"]:focus-within {
   border-color: var(--info);
 }
 

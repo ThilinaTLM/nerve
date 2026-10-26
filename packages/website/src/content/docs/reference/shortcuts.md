@@ -28,7 +28,7 @@ sidebar:
 | Send prompt                     | `Mod+Enter`        |
 | Stop active run                 | `Mod+.`            |
 | Toggle / cancel voice recording | `Alt+V` / `Escape` |
-| Toggle coding/planning          | `Alt+M`            |
+| Cycle agent profile             | `Alt+M`            |
 | Cycle permission                | `Alt+P`            |
 | Cycle thinking                  | `Alt+T`            |
 

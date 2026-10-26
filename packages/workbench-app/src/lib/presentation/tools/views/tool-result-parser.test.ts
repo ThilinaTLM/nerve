@@ -88,7 +88,7 @@ describe("recorded planning tools", () => {
   it("reads the complete reviewed snapshot from stored result details", () => {
     const view = parseToolView(
       call(
-        "plan_mode_present",
+        "plan_present",
         { file_path: "/workspace/plan.md" },
         {
           content: "Plan approved.",
@@ -104,8 +104,8 @@ describe("recorded planning tools", () => {
         },
       ),
     );
-    assert.equal(view.kind, "plan_mode");
-    if (view.kind !== "plan_mode") return;
+    assert.equal(view.kind, "plan_present");
+    if (view.kind !== "plan_present") return;
     assert.equal(view.planPreview, "# Reviewed plan");
     assert.equal(view.outcome, "accepted");
     assert.equal(view.planPath, "/snapshot/plan.md");
@@ -114,7 +114,7 @@ describe("recorded planning tools", () => {
   it("keeps plan presentation and review data specialized", () => {
     const view = parseToolView(
       call(
-        "plan_mode_present",
+        "plan_present",
         { file_path: "/workspace/plan.md" },
         {
           review: { content: "Implementation plan", status: "accepted" },
@@ -123,7 +123,7 @@ describe("recorded planning tools", () => {
       ),
     );
     assert.deepEqual(view, {
-      kind: "plan_mode",
+      kind: "plan_present",
       action: "present",
       summary: "Approved",
       planPreview: "Implementation plan",

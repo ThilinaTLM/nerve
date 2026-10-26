@@ -513,7 +513,7 @@ describe("adaptive agent tool-result projection", () => {
     const feedback =
       "Keep the exact cursor boundary and rename the final section.";
     const projected = projectAgentResult(
-      context("plan_mode_present", {
+      context("plan_present", {
         content: feedback,
         details: {
           reviewId: "review_1",
@@ -522,7 +522,7 @@ describe("adaptive agent tool-result projection", () => {
           feedback,
         },
       }),
-      agentResultPolicyForTool("plan_mode_present"),
+      agentResultPolicyForTool("plan_present"),
     );
     const output = text(projected.blocks);
     assert.match(output, /review_1/);

@@ -68,7 +68,7 @@ export type HistoryNodeDescriptor = {
 const TOOL_CALL_PLACEHOLDER = /^\[Tool call:([\s\S]*)\]$/;
 
 /** Tools that always involve a human-in-the-loop interaction. */
-const INTERACTION_TOOLS = new Set(["ask_user", "plan_mode_present"]);
+const INTERACTION_TOOLS = new Set(["ask_user", "plan_present"]);
 
 const TOOL_ICONS: Record<string, HistoryIconName> = {
   read: "file-text",
@@ -84,7 +84,7 @@ const TOOL_ICONS: Record<string, HistoryIconName> = {
   web_search: "globe",
   web_fetch: "download",
   ask_user: "message-circle-question",
-  plan_mode_present: "clipboard-check",
+  plan_present: "clipboard-check",
   todos_set: "list-todo",
   todos_get: "list-todo",
 };

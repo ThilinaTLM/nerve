@@ -597,7 +597,7 @@ export function parseToolView(
       };
     }
 
-    case "plan_mode_present": {
+    case "plan_present": {
       const resultRecord = asRecord(rawResult);
       const review = asRecord(
         resultRecord.review ?? asRecord(resultRecord.details).review,
@@ -611,7 +611,7 @@ export function parseToolView(
       const outcome =
         stringField(resultRecord.outcome) ?? stringField(review.status);
       return {
-        kind: "plan_mode",
+        kind: "plan_present",
         action: "present",
         summary:
           stringField(resultRecord.feedback) ?? firstTextBlock(rawResult),

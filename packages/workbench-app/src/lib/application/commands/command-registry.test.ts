@@ -3,7 +3,7 @@ import test from "node:test";
 import { DEFAULT_SHORTCUTS, getShortcutBinding } from "./command-registry";
 
 test("publishes the composer power shortcuts used by settings", () => {
-  assert.deepEqual(getShortcutBinding("composer.toggleMode"), {
+  assert.deepEqual(getShortcutBinding("composer.cycleProfile"), {
     key: "tab",
     shift: true,
   });
@@ -22,7 +22,7 @@ test("publishes the composer power shortcuts used by settings", () => {
 
   const bindings = DEFAULT_SHORTCUTS.filter((command) =>
     [
-      "composer.toggleMode",
+      "composer.cycleProfile",
       "composer.cycleModel",
       "composer.cycleThinking",
       "composer.cyclePermission",

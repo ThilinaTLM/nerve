@@ -20,7 +20,6 @@ void test("evaluates conversation/rule-set conditions and fails closed for untru
     source: { kind: "user", path: "/suggestions/test.md" },
     when: {
       hasRepos: false,
-      modes: ["planning"],
       permissionRuleSets: ["read_only"],
     },
     enableJs:
@@ -33,7 +32,6 @@ void test("evaluates conversation/rule-set conditions and fails closed for untru
     conversation: {
       id: "conv_test",
       title: "Test",
-      mode: "planning",
       permissionRuleSetId: "read_only",
       reasoningLevel: "medium",
       status: "idle",

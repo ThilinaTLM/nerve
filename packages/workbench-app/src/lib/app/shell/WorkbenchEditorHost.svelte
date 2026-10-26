@@ -184,6 +184,13 @@ function closeCenterTabsLeft(tab: CenterTabIdentity) {
                 {@const Component = module?.default}
                 {#if Component}<Component />{/if}
               {/await}
+            {:else if activeCenterTab.kind === "project-settings"}
+              {#await loadedCenterViews["project-settings"]}
+                <LazyViewPending />
+              {:then module}
+                {@const Component = module?.default}
+                {#if Component}<Component />{/if}
+              {/await}
             {:else if activeCenterTab.kind === "logs"}
               {#await loadedCenterViews.logs}
                 <LazyViewPending />

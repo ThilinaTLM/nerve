@@ -1,5 +1,10 @@
 import { expect, test } from "@playwright/test";
-import { conversationFixture, coreRpc } from "./conversation.helpers.js";
+import {
+  conversationFixture,
+  effectiveAgent,
+  saveAgentSettings,
+  setAgentProfile,
+} from "./conversation.helpers.js";
 
 test("composer configuration persists on the conversation across reload", async ({
   page,
@@ -7,22 +12,26 @@ test("composer configuration persists on the conversation across reload", async 
   const f = await conversationFixture(page);
   try {
     const conversationId = f.snapshot.conversation.id;
-    await page.getByTitle(/Mode: Coding/).click();
+    await page
+      .getByRole("button", { name: "Agent profile", exact: true })
+      .click();
+    await page.getByRole("button", { name: "Planning", exact: true }).click();
     await expect
       .poll(
         async () =>
-          (await coreRpc(page, "conversation.getSnapshot", { conversationId }))
-            .config.mode,
+          (await effectiveAgent(page, conversationId)).appliedProfile?.name,
       )
       .toBe("planning");
-    await page.reload();
-    await expect(page.getByTitle(/Mode: Planning/)).toBeVisible();
-    await page.getByTitle(/Mode: Planning/).click();
+    await f.open("Browser conversation");
+    await expect(page.getByTitle(/Agent profile: Planning/)).toBeVisible();
+    await page
+      .getByRole("button", { name: "Agent profile", exact: true })
+      .click();
+    await page.getByRole("button", { name: "Coding", exact: true }).click();
     await expect
       .poll(
         async () =>
-          (await coreRpc(page, "conversation.getSnapshot", { conversationId }))
-            .config.mode,
+          (await effectiveAgent(page, conversationId)).appliedProfile?.name,
       )
       .toBe("coding");
   } finally {
@@ -36,22 +45,32 @@ test("configuration notices update the open composer without replacing its draft
   const f = await conversationFixture(page);
   try {
     const composer = page.getByRole("textbox").first();
+    const conversationId = f.snapshot.conversation.id;
     await composer.fill("Keep this unsent draft");
-    await coreRpc(page, "conversation.configure", {
-      conversationId: f.snapshot.conversation.id,
-      patch: { mode: "planning", permissionRuleSetId: "autonomous" },
+    await saveAgentSettings(page, conversationId, {
+      permissionRuleSetId: "autonomous",
     });
-    await expect(page.getByTitle(/Mode: Planning/)).toBeVisible();
-    await expect(
-      page.getByRole("button", { name: "Permission rule set", exact: true }),
-    ).toHaveAttribute("title", /Planning/);
-    await coreRpc(page, "conversation.configure", {
-      conversationId: f.snapshot.conversation.id,
-      patch: { mode: "coding" },
+    await setAgentProfile(page, conversationId, "planning");
+    await expect(page.getByTitle(/Agent profile: Planning/)).toBeVisible();
+    const permission = page.getByRole("button", {
+      name: "Permission rule set",
+      exact: true,
     });
-    await expect(
-      page.getByRole("button", { name: "Permission rule set", exact: true }),
-    ).toHaveAttribute("title", /Autonomous/);
+    await expect(permission).toHaveAttribute(
+      "title",
+      /Permission rule set: Draft .*Locked by planning/,
+    );
+    await setAgentProfile(page, conversationId, "coding");
+    await expect(page.getByTitle(/Agent profile: Coding/)).toBeVisible();
+    // Leaving Planning removes its requirement and restores the explicit override.
+    await expect(permission).toHaveAttribute(
+      "title",
+      /Permission rule set: Auto \(/,
+    );
+    expect(
+      (await effectiveAgent(page, conversationId)).resolution.settings
+        .permissionRuleSetId,
+    ).toBe("autonomous");
     await expect(composer).toHaveText("Keep this unsent draft");
   } finally {
     await f.close();

@@ -18,6 +18,7 @@ export { AssetRepository } from "./storage/asset.repository.js";
 export { AsyncBashRepository } from "./storage/async-bash.repository.js";
 export { ScratchNoteRepository } from "./storage/scratch-note.repository.js";
 export type {
+  TurnPreparationInput,
   ModelPort,
   TurnResourcesPort,
   PermissionPort,
@@ -77,3 +78,20 @@ export {
   estimatePathUsage,
   shouldCompact,
 } from "./context/index.js";
+
+export type {
+  AgentConfigurationPort,
+  RequestConfigurationCapture,
+  CompactionConfigurationCapture,
+  RetryPreferences,
+} from "./configuration.js";
+
+export type {
+  ProfileLifecyclePort,
+  ProfileTransitionInput,
+} from "./configuration.js";
+
+export type {
+  ConversationContext,
+  ConfigurationPreviewInput,
+} from "./configuration.js";

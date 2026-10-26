@@ -299,8 +299,6 @@ export type PermissionRuleSetId = z.infer<typeof permissionRuleSetIdSchema>;
 
 export const ruleSetSourceSchema = z.enum(["builtin", "user"]);
 export type RuleSetSource = z.infer<typeof ruleSetSourceSchema>;
-export const agentModeIdSchema = identifierSchema;
-export type AgentModeId = z.infer<typeof agentModeIdSchema>;
 
 function validateRules(
   rules: readonly PermissionRule[],
@@ -337,7 +335,6 @@ export const permissionRuleSetSchema = z
     description: z.string().trim().min(1).max(1_024).optional(),
     source: ruleSetSourceSchema,
     enabled: z.boolean(),
-    compatibleModes: z.array(agentModeIdSchema).max(64).optional(),
     rules: z.array(permissionRuleSchema).min(1).max(256),
   })
   .strict()
@@ -455,7 +452,6 @@ export const permissionRuleSetSummarySchema = z
     description: z.string().max(1_024).optional(),
     source: ruleSetSourceSchema,
     enabled: z.boolean(),
-    compatibleModes: z.array(agentModeIdSchema).max(64).optional(),
     available: z.boolean(),
     diagnostic: z.string().max(4_096).optional(),
   })

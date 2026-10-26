@@ -1,7 +1,17 @@
-import { resolveProcessShell } from "../../../src/infrastructure/process-host/shell-process.js";
+import {
+  prepareShellProcess,
+  resolveProcessShell,
+} from "../../../src/infrastructure/process-host/shell-process.js";
 import assert from "node:assert/strict";
 import { EventEmitter } from "node:events";
-import { chmod, mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import {
+  chmod,
+  mkdir,
+  mkdtemp,
+  realpath,
+  rm,
+  writeFile,
+} from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { delimiter, join } from "node:path";
 import { describe, it } from "node:test";
@@ -132,4 +142,50 @@ describe("launch supervisor", () => {
     assert.equal(result.attempted, false);
     assert.match(result.error ?? "", /not owned/);
   });
+});
+
+it("spawns the admitted invocation without rediscovering shell, project manager or environment", async (t) => {
+  if (process.platform === "win32") return t.skip("POSIX shell fixture");
+  const cwd = await mkdtemp(join(tmpdir(), "nerve-prepared-launch-"));
+  const previous = process.env.NERVE_PREPARED_LAUNCH_PROBE;
+  try {
+    process.env.NERVE_PREPARED_LAUNCH_PROBE = "admitted";
+    const command = 'printf "%s\n" "$NERVE_PREPARED_LAUNCH_PROBE"; pwd -P';
+    const preparedShell = prepareShellProcess(command, {
+      cwd,
+      shellPath: "/bin/sh",
+      env: { PATH: `${cwd}:${process.env.PATH}` },
+    });
+    process.env.NERVE_PREPARED_LAUNCH_PROBE = "changed";
+    await writeFile(join(cwd, ".envrc"), "# added after preparation");
+    await writeFile(
+      join(cwd, "direnv"),
+      "#!/bin/sh\necho WRONG_MANAGER\nexit 42\n",
+      { mode: 0o755 },
+    );
+    const spawned = defaultLaunchSupervisor.spawn(command, {
+      cwd,
+      shellPath: "/unadmitted-shell",
+      env: { NERVE_PREPARED_LAUNCH_PROBE: "wrong" },
+      preparedShell,
+    });
+    const chunks: Buffer[] = [];
+    spawned.child.stdout?.on("data", (chunk: Buffer) => chunks.push(chunk));
+    const result = await spawned.closed;
+    assert.equal(result.kind, "closed");
+    if (result.kind === "closed") assert.equal(result.exitCode, 0);
+    assert.equal(
+      Buffer.concat(chunks).toString("utf8"),
+      `admitted\n${await realpath(cwd)}\n`,
+    );
+    assert.throws(
+      () =>
+        defaultLaunchSupervisor.spawn("wrong command", { cwd, preparedShell }),
+      /does not match/,
+    );
+  } finally {
+    if (previous === undefined) delete process.env.NERVE_PREPARED_LAUNCH_PROBE;
+    else process.env.NERVE_PREPARED_LAUNCH_PROBE = previous;
+    await rm(cwd, { recursive: true, force: true });
+  }
 });

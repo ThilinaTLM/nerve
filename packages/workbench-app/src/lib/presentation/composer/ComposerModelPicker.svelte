@@ -4,30 +4,34 @@ import Popover, {
   PopoverBody,
   PopoverHeader,
   PopoverRow,
-  PopoverSearch,
   PopoverSection,
 } from "@nervekit/ui-kit/components/composites/popover-panel";
-import SearchInput from "@nervekit/ui-kit/components/composites/search-input";
-import * as ToggleGroup from "@nervekit/ui-kit/components/ui/toggle-group";
 import { VirtualScroller } from "@nervekit/ui-kit/components/composites/virtual-list";
-import { contextualModelLabel, modelKey } from "$lib/presentation/utils/model";
+import * as ToggleGroup from "@nervekit/ui-kit/components/ui/toggle-group";
 import {
-  buildModelCatalog,
-  filterModelCatalog,
-  modelProviderFacets,
-} from "$lib/presentation/utils/model-catalog";
+  clampThinkingLevelForModel,
+  supportedThinkingLevelsForModel,
+} from "$lib/presentation/state/thinking-levels";
+import {
+  contextualModelLabel,
+  modelKey,
+  parseModelKey,
+} from "$lib/presentation/utils/model";
+import type { ComposerModelChange } from "../conversations/conversation-view-contracts.js";
 
 type Props = {
+  /** Scoped, usable models. */
   models?: ModelInfo[];
   selectedModelKey?: string;
   thinkingLevel?: ThinkingLevel;
   disabled?: boolean;
-  modelShortcut?: string;
-  thinkingShortcut?: string;
-  runtimeChangeHint?: string;
+  /** The active agent profile locks the model. */
+  modelLocked?: boolean;
+  /** The active agent profile locks the reasoning level. */
+  thinkingLocked?: boolean;
+  lockReason?: string;
   emptyMessage?: string;
-  onModelChange?: (value: string) => void;
-  onThinkingLevelChange?: (value: ThinkingLevel) => void;
+  onChange?: (next: ComposerModelChange) => void;
 };
 
 let {
@@ -35,38 +39,20 @@ let {
   selectedModelKey = "",
   thinkingLevel = "off",
   disabled = false,
-  modelShortcut,
-  thinkingShortcut,
-  runtimeChangeHint,
+  modelLocked = false,
+  thinkingLocked = false,
+  lockReason,
   emptyMessage = "No models available. Configure a provider or adjust Scoped Models in Settings.",
-  onModelChange,
-  onThinkingLevelChange,
+  onChange,
 }: Props = $props();
 
-const SEARCH_THRESHOLD = 10;
-
 let open = $state(false);
-let query = $state("");
-let providerFilter = $state("all");
 
-const showSearch = $derived(models.length > SEARCH_THRESHOLD);
-const catalog = $derived(buildModelCatalog(models));
-const providerChips = $derived(modelProviderFacets(catalog));
-const filteredModels = $derived(
-  filterModelCatalog(
-    catalog,
-    showSearch ? query : "",
-    showSearch ? providerFilter : "all",
-  ),
-);
-const modelCountLabel = $derived(
-  filteredModels.length === models.length
-    ? `${models.length}`
-    : `${filteredModels.length} of ${models.length}`,
-);
 const selectedModel = $derived(
   models.find((model) => modelKey(model) === selectedModelKey),
 );
+const thinkingLevels = $derived(supportedThinkingLevelsForModel(selectedModel));
+const hasThinking = $derived(thinkingLevels.length > 1);
 
 const thinkingLevelDetails: Record<ThinkingLevel, string> = {
   off: "No reasoning",
@@ -96,54 +82,49 @@ function thinkingLevelShortLabel(level: ThinkingLevel): string {
       return "XH";
     case "max":
       return "Max";
-    case "off":
     default:
       return "Off";
   }
 }
 
-const thinkingLevels = $derived<ThinkingLevel[]>(
-  selectedModel?.supportedThinkingLevels?.length
-    ? selectedModel.supportedThinkingLevels
-    : ["off"],
-);
-
-const hasThinking = $derived(thinkingLevels.length > 1);
-
 const triggerLabel = $derived(
-  selectedModel ? contextualModelLabel(selectedModel, models) : "Select model",
+  selectedModel
+    ? contextualModelLabel(selectedModel, models)
+    : parseModelKey(selectedModelKey)
+      ? `${selectedModelKey} (unavailable)`
+      : "Select model",
 );
-const triggerSuffix = $derived(
-  hasThinking && thinkingLevel !== "off"
-    ? thinkingLevelLabel(thinkingLevel)
-    : undefined,
-);
-const triggerShortSuffix = $derived(
-  hasThinking && thinkingLevel !== "off"
-    ? thinkingLevelShortLabel(thinkingLevel)
-    : undefined,
-);
+const showSuffix = $derived(hasThinking && thinkingLevel !== "off");
 const triggerTitle = $derived(
-  `${triggerSuffix ? `${triggerLabel} (${triggerSuffix})` : triggerLabel}${runtimeChangeHint ? ` · ${runtimeChangeHint}` : ""}${modelShortcut ? ` · Cycle model ${modelShortcut}` : ""}${thinkingShortcut ? ` · Cycle reasoning ${thinkingShortcut}` : ""}`,
+  `${showSuffix ? `${triggerLabel} (${thinkingLevelLabel(thinkingLevel)})` : triggerLabel}${lockReason ? ` · ${lockReason}` : ""}`,
 );
-
-function handleOpenChange(next: boolean) {
-  open = disabled ? false : next;
-  if (open) {
-    query = "";
-    providerFilter = "all";
-  }
-}
 
 function selectModel(model: ModelInfo) {
-  if (disabled) return;
+  if (
+    disabled ||
+    modelLocked ||
+    (thinkingLocked &&
+      !supportedThinkingLevelsForModel(model).includes(thinkingLevel))
+  )
+    return;
   const key = modelKey(model);
-  if (key !== selectedModelKey) onModelChange?.(key);
+  if (key === selectedModelKey) return;
+  onChange?.({
+    model: { provider: model.provider, modelId: model.modelId },
+    // The host clamps the level to what the new model supports.
+    thinkingLevel: thinkingLocked
+      ? thinkingLevel
+      : clampThinkingLevelForModel(thinkingLevel, model),
+  });
 }
 
 function selectThinking(level: ThinkingLevel) {
-  if (disabled) return;
-  if (level !== thinkingLevel) onThinkingLevelChange?.(level);
+  if (disabled || thinkingLocked || level === thinkingLevel) return;
+  if (!selectedModel) return;
+  onChange?.({
+    model: { provider: selectedModel.provider, modelId: selectedModel.modelId },
+    thinkingLevel: level,
+  });
 }
 
 $effect(() => {
@@ -152,8 +133,10 @@ $effect(() => {
 </script>
 
 <Popover
-  {open}
-  onOpenChange={handleOpenChange}
+  triggerWidthKey={selectedModel
+    ? `${triggerLabel}:${showSuffix ? thinkingLevelShortLabel(thinkingLevel) : ""}`
+    : null}
+  bind:open
   size="md"
   triggerClass="composer-tab flex-initial overflow-hidden"
   ariaLabel="Model and thinking level"
@@ -163,72 +146,47 @@ $effect(() => {
 >
   {#snippet trigger()}
     <span
-      class="model-tab-inner"
-      class:disabled
+      class="inline-flex min-w-0 max-w-full items-center gap-1.5 text-inherit"
+      class:opacity-60={disabled}
       aria-disabled={disabled}
       data-tour-id="composer-model"
     >
-      <span class="model-tab-label">{triggerLabel}</span>
-      {#if triggerShortSuffix}<span
-          class="model-tab-suffix @max-[560px]/composer-toolbar:hidden"
-          >({triggerShortSuffix})</span
+      <span class="min-w-0 truncate">{triggerLabel}</span>
+      {#if showSuffix}<span
+          class="flex-none text-muted-foreground @max-[560px]/composer-toolbar:hidden"
+          >({thinkingLevelShortLabel(thinkingLevel)})</span
         >{/if}
     </span>
   {/snippet}
 
-  <PopoverHeader title="Model" meta={modelCountLabel} />
-
-  {#if showSearch}
-    <PopoverSearch class={providerChips.length > 2 ? "grid gap-2" : undefined}>
-      {#if providerChips.length > 2}
-        <ToggleGroup.Root
-          type="single"
-          size="sm"
-          spacing={1}
-          variant="chip"
-          value={providerFilter}
-          aria-label="Filter by provider"
-          class="flex-nowrap overflow-x-auto"
-          onValueChange={(value) => {
-            if (value) providerFilter = value;
-          }}
-        >
-          {#each providerChips as chip (chip.id)}
-            <ToggleGroup.Item value={chip.id} class="flex-none">
-              {chip.label}
-              <span data-slot="toggle-count">{chip.count}</span>
-            </ToggleGroup.Item>
-          {/each}
-        </ToggleGroup.Root>
-      {/if}
-      <SearchInput
-        bind:value={query}
-        placeholder="Search models"
-        ariaLabel="Search models"
-      />
-    </PopoverSearch>
-  {/if}
+  <PopoverHeader title="Model" meta={`${models.length}`} />
 
   <PopoverBody>
+    {#if lockReason}
+      <p class="px-1.5 text-muted-foreground">{lockReason}</p>
+    {/if}
     {#if models.length === 0}
       <p class="px-1.5 text-muted-foreground">{emptyMessage}</p>
-    {:else if filteredModels.length === 0}
-      <p class="px-1.5 text-muted-foreground">No models match.</p>
     {:else}
       <VirtualScroller
-        items={filteredModels}
-        getKey={(entry) => entry.key}
+        items={models}
+        getKey={(model) => modelKey(model)}
         estimateSize={() => 28}
         gap={2}
         viewportClass="max-h-[min(44vh,18rem)]"
         viewportAriaLabel="Available models"
       >
-        {#snippet row({ item: entry })}
+        {#snippet row({ item: model })}
           <PopoverRow
-            label={entry.contextualLabel}
-            selected={entry.key === selectedModelKey}
-            {disabled}
-            onclick={() => selectModel(entry.model)}
+            label={contextualModelLabel(model, models)}
+            selected={modelKey(model) === selectedModelKey}
+            disabled={disabled ||
+              modelLocked ||
+              (thinkingLocked &&
+                !supportedThinkingLevelsForModel(model).includes(
+                  thinkingLevel,
+                ))}
+            onclick={() => selectModel(model)}
           />
         {/snippet}
       </VirtualScroller>
@@ -253,7 +211,7 @@ $effect(() => {
               value={level}
               class="flex-none"
               title={thinkingLevelDetails[level]}
-              {disabled}
+              disabled={disabled || thinkingLocked}
             >
               {thinkingLevelLabel(level)}
             </ToggleGroup.Item>
@@ -263,30 +221,3 @@ $effect(() => {
     {/if}
   </PopoverBody>
 </Popover>
-
-<style>
-.model-tab-inner {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.3rem;
-  min-width: 0;
-  max-width: 100%;
-  color: inherit;
-}
-
-.model-tab-inner.disabled {
-  opacity: 0.55;
-}
-
-.model-tab-label {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.model-tab-suffix {
-  flex: none;
-  color: var(--muted-foreground);
-}
-</style>

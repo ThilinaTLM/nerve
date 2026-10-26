@@ -26,7 +26,7 @@ Create suggestions in Settings or edit Markdown files:
 
 Project definitions override user definitions with the same name; user definitions override built-ins. A disabled higher-precedence definition remains authoritative instead of revealing the lower one. Settings identifies shadowed definitions.
 
-A definition can set label, description, order, default enabled state, prompt body, and declarative conditions for Git state, mode, and permission. See the [format reference](/reference/prompt-suggestions/).
+A definition can set label, description, order, default enabled state, prompt body, and declarative conditions for Git state and permission. See the [format reference](/reference/prompt-suggestions/).
 
 ## JavaScript predicates
 

@@ -15,6 +15,8 @@ import {
   inGitReadLane,
 } from "../../src/git/git-operation-context.js";
 
+import { runNativeGitProjectRead } from "../../src/git/read/git-native-read-admission.js";
+
 const tick = () => new Promise<void>((resolve) => setImmediate(resolve));
 async function until(predicate: () => boolean) {
   for (let i = 0; i < 100; i++) {
@@ -79,7 +81,7 @@ async function fixture(
   deadlineMs?: number,
 ) {
   const root = await mkdtemp(join(tmpdir(), "nerve-operations-"));
-  for (const repo of ["a", "b"])
+  for (const repo of ["a", "b", "c", "d", "e"])
     await mkdir(join(root, repo, ".git"), { recursive: true });
   const report = reporter();
   let changed = 0;
@@ -115,6 +117,43 @@ async function fixture(
     },
   };
 }
+
+test("bulk switch-and-pull preserves each workflow through queued native reads", async () => {
+  let release!: () => void;
+  const hold = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  let started = 0;
+  const f = await fixture(async () => {
+    const submitted = currentGitCommandOptions();
+    await runNativeGitProjectRead(async () => {
+      started++;
+      await hold;
+      assert.equal(currentGitCommandOptions().activityId, submitted.activityId);
+      assert.equal(currentGitCommandOptions().signal, submitted.signal);
+    }, submitted.signal!);
+    return {} as never;
+  });
+  try {
+    const bulk = f.service.startBulk({
+      projectId: "p",
+      repos: ["a", "b", "c", "d", "e"],
+      kind: "switchBaseAndPull",
+    });
+    await until(() => started === 2);
+    release();
+    await f.entries.get(bulk.operationId)!.finished;
+    assert.equal(f.entries.get(bulk.operationId)?.status, "succeeded");
+    assert.deepEqual(
+      bulk.childOperationIds.map((id) => f.entries.get(id)?.status),
+      Array(5).fill("succeeded"),
+    );
+    assert.equal(f.changed, 5);
+  } finally {
+    release();
+    await f.cleanup();
+  }
+});
 
 for (const kind of ["fetch", "pull", "switchBaseAndPull"] as const) {
   test(`${kind}: background IDs precede completion; bulk children report partial failure independently`, async () => {

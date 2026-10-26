@@ -712,13 +712,13 @@ function projectToolPresentation(
             : [],
       };
 
-    case "plan_mode":
+    case "plan_present":
       // The presented-plan card renders its own footer (status chip + accept/
       // reject buttons on one line) from live review state inside
-      // PlanModeToolView, so the generic footer stays empty here.
+      // PlanPresentToolView, so the generic footer stays empty here.
       return {
         ...base,
-        badge: `plan_mode_${view.action}`,
+        badge: `plan_${view.action}`,
         primaryArg:
           base.primaryArg ??
           (view.planPath

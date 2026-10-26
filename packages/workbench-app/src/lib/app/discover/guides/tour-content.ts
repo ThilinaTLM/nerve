@@ -4,7 +4,7 @@ export type TourStepId =
   | "tab-new-conversation"
   | "composer"
   | "permission"
-  | "mode"
+  | "profile"
   | "context"
   | "capabilities"
   | "activity"
@@ -74,12 +74,12 @@ export const tourSteps: readonly TourStep[] = [
     targetId: "composer-permission",
   },
   {
-    id: "mode",
+    id: "profile",
     introducedIn: 2,
-    title: "Switch between coding and planning",
+    title: "Choose an agent profile",
     description:
-      "You choose Coding or Planning here, or with Shift+Tab; the agent cannot switch modes. Coding implements changes. Planning inspects the project and presents a written plan for your review.",
-    targetId: "composer-mode",
+      "You choose the profile here, or with Shift+Tab or /profile; the agent cannot switch profiles. Coding implements changes. Planning inspects the project and presents a written plan for your review, then approval returns to the default profile.",
+    targetId: "composer-profile",
   },
   {
     id: "context",
@@ -110,10 +110,10 @@ export const tourSteps: readonly TourStep[] = [
     introducedIn: 2,
     title: "Choose capabilities and sub-agents",
     description:
-      "Capabilities beside the composer controls optional tools for this conversation; changes apply to the next run. Enable Sub-agents to delegate asynchronous work using profiles configured in Settings → Sub-agents. Teammates share your worktree but cannot see the lead's conversation, so include context and clear editing boundaries in assignments.",
-    targetId: "composer-capabilities",
+      "Tools, Skills, and Sub-agents beside the composer each open their own controls; changes apply to the next run. Enable Sub-agents to delegate asynchronous work using profiles configured in Settings → Sub-agents. Teammates share your worktree but cannot see the lead's conversation, so include context and clear editing boundaries in assignments.",
+    targetId: "composer-tools",
     fallback:
-      "Open a conversation to find Capabilities beside the composer, or configure profiles in Settings → Sub-agents.",
+      "Open a conversation to find Tools, Skills, and Sub-agents beside the composer, or configure profiles in Settings → Sub-agents.",
   },
   {
     id: "activity",

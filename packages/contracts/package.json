@@ -106,6 +106,14 @@
       "types": "./dist/domains/status/index.d.ts",
       "import": "./dist/domains/status/index.js"
     },
+    "./agent-configuration": {
+      "types": "./dist/domains/agent-configuration/index.d.ts",
+      "import": "./dist/domains/agent-configuration/index.js"
+    },
+    "./agent-profiles": {
+      "types": "./dist/domains/agent-profiles/index.d.ts",
+      "import": "./dist/domains/agent-profiles/index.js"
+    },
     "./subagents": {
       "types": "./dist/domains/subagents/index.d.ts",
       "import": "./dist/domains/subagents/index.js"
@@ -145,6 +153,7 @@
   },
   "scripts": {
     "build": "tsc -b",
+    "schema:agent-configuration": "tsx scripts/export-agent-configuration-json-schema.ts",
     "check": "tsc -b --pretty false",
     "test": "tsx --test \"test/**/*.test.ts\""
   },

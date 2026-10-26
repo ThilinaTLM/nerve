@@ -1,11 +1,10 @@
 {
   "schemaVersion": 1,
   "id": "planning",
-  "name": "Planning",
+  "name": "Draft",
   "description": "Allow read-only research, interaction, sub-agent delegation, and plan writes; prompt for local analysis commands.",
   "source": "builtin",
   "enabled": true,
-  "compatibleModes": ["planning"],
   "rules": [
     {
       "id": "allow-interaction",

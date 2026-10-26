@@ -1,6 +1,5 @@
 import {
   daemonConfigSchema,
-  harnessConfigSchema,
   uiConfigSchema,
   permissionsConfigSchema,
   providersConfigSchema,
@@ -10,7 +9,6 @@ import {
 export type HomeConfigurationDocumentId = keyof UserConfiguration;
 export const HOME_CONFIGURATION_CODECS = {
   daemon: { decode: (value: unknown) => daemonConfigSchema.parse(value) },
-  harness: { decode: (value: unknown) => harnessConfigSchema.parse(value) },
   ui: { decode: (value: unknown) => uiConfigSchema.parse(value) },
   permissions: {
     decode: (value: unknown) => permissionsConfigSchema.parse(value),

@@ -1,3 +1,4 @@
+import { AsyncResource } from "node:async_hooks";
 import { constants } from "node:fs";
 import { lstat, open, realpath, stat } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
@@ -141,7 +142,9 @@ export class GitOperationLanes {
         key,
         network,
         signal,
-        run,
+        // Draining can happen in another workflow's completion/abort context.
+        // Preserve the submitter's repository identity and cancellation scope.
+        run: AsyncResource.bind(run),
         resolve: (value) => resolve(value as T),
         reject,
         abort: () => {

@@ -1,7 +1,7 @@
 import type {
   AsyncBash,
   CompactionOperation,
-  ConversationConfig,
+  ConversationHistoryConfig,
   ConversationEvent,
   ConversationSummary,
   LiveDelta,
@@ -21,7 +21,7 @@ export type CoreChange =
   | {
       kind: "config_changed";
       conversationId: string;
-      config: ConversationConfig;
+      config: ConversationHistoryConfig;
     }
   | {
       kind: "tool_call_changed";

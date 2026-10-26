@@ -7,6 +7,7 @@ export function isWorkbenchEvent(type: string): boolean {
     "launch.",
     "launchCatalog.",
     "settings.",
+    "projectSettings.",
     "applicationConfiguration.",
     "auth.",
     "providers.",
@@ -18,7 +19,7 @@ export function isWorkbenchEvent(type: string): boolean {
     "usage.",
     "scratchNote.",
     "prompt_suggestions.",
-    "subagentProfiles.",
+    "agentProfiles.",
     "applicationLog.",
     "plan.written",
   ].some((prefix) => type.startsWith(prefix));
@@ -26,6 +27,15 @@ export function isWorkbenchEvent(type: string): boolean {
 
 /** Operations owned by the IDE surface rather than conversation execution. */
 export function isWorkbenchOperation(method: string): boolean {
+  if (
+    [
+      "agentConfiguration.reload",
+      "agentConfiguration.trust",
+      "agentConfiguration.repairPreview",
+      "agentConfiguration.repairApply",
+    ].includes(method)
+  )
+    return true;
   if (method === "completion.search" || method === "completion.select")
     return true;
   if (method === "project.openEditor" || method === "project.openTerminal")
@@ -36,12 +46,14 @@ export function isWorkbenchOperation(method: string): boolean {
     "github.",
     "scratchNote.",
     "promptSuggestion.",
-    "subagentProfiles.",
+    "agentProfiles.",
+    "projectInstructions.",
     "launch.",
     "launchDefinition.",
     "launchFolder.",
     "launchCatalog.",
     "settings.",
+    "projectSettings.",
     "applicationConfiguration.",
     "auth.",
     "providerCatalog.",

@@ -223,9 +223,6 @@ ${errors.map((line) => `- ${line}`).join("\n")}`;
           },
         });
       }
-      const { conversationId, ...parentConfig } =
-        core.getSnapshot(parentId).config;
-      void conversationId;
       const projectId = core.getSnapshot(parentId).conversation.projectId;
       const lines: string[] = [];
       const details: z.infer<typeof subagentPromptResultDetailsSchema> = {
@@ -261,22 +258,13 @@ ${errors.map((line) => `- ${line}`).join("\n")}`;
             continue;
           }
           const profile = resolved.get(text(assignment.profile))!;
-          const overrides = Object.fromEntries(
-            Object.entries(profile.config).filter(([, v]) => v !== undefined),
-          );
           const child = await core.createConversation({
             projectId,
             parentConversationId: parentId,
             parentToolCallId: call.id,
             title: assignment.name.trim(),
-            config: {
-              ...parentConfig,
-              systemPrompt: null,
-              instructions: null,
-              ...overrides,
-            },
+            application: profile.application,
           });
-          await profile.initializeChild(child.conversation.id);
           submit(child.conversation.id);
           details.assignments!.push({
             name: assignment.name,
@@ -350,7 +338,9 @@ ${errors.map((line) => `- ${line}`).join("\n")}`;
     return {
       name: child.title,
       profile: profileOf(parentId, child),
-      model: `${snapshot.config.model.provider}/${snapshot.config.model.modelId}`,
+      model: snapshot.config.model
+        ? `${snapshot.config.model.provider}/${snapshot.config.model.modelId}`
+        : "unknown",
       state,
       background,
       context: usage,

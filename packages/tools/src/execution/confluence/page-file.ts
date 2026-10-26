@@ -1,3 +1,4 @@
+import { guideErrorMessage } from "./guide-errors.js";
 import { readFile, stat } from "node:fs/promises";
 import { basename, dirname, extname, join } from "node:path";
 import { optionalString } from "../atlassian/arguments.js";
@@ -24,12 +25,14 @@ export async function readSinglePageRow(
   if (rows.length === 0)
     throw new ToolExecutionError(
       "CONFLUENCE_PAGE_FILE_EMPTY",
-      `No page rows found in ${path}.`,
+      guideErrorMessage(`No page rows found in ${path}.`),
     );
   if (rows.length > 1)
     throw new ToolExecutionError(
       "CONFLUENCE_PAGE_FILE_AMBIGUOUS",
-      `Expected exactly one page row in ${path}, found ${rows.length}. Bulk page publishing is not supported.`,
+      guideErrorMessage(
+        `Expected exactly one page row in ${path}, found ${rows.length}. Bulk page publishing is not supported.`,
+      ),
     );
   return { row: rows[0], path };
 }
@@ -87,14 +90,16 @@ function parseJsonRecord(text: string, label: string): Record<string, unknown> {
   } catch (error) {
     throw new ToolExecutionError(
       "CONFLUENCE_PAGE_FILE_INVALID_JSON",
-      `Invalid JSON in ${label}: ${error instanceof Error ? error.message : String(error)}`,
+      guideErrorMessage(
+        `Invalid JSON in ${label}: ${error instanceof Error ? error.message : String(error)}`,
+      ),
     );
   }
   const record = asRecord(parsed);
   if (!record)
     throw new ToolExecutionError(
       "CONFLUENCE_PAGE_FILE_INVALID",
-      `${label} must contain a JSON object.`,
+      guideErrorMessage(`${label} must contain a JSON object.`),
     );
   return record;
 }

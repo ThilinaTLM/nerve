@@ -25,7 +25,6 @@ import {
   SettingsDisclosureItem,
   SettingsEmptyState,
   SettingsFieldRow,
-  SettingsGroup,
   SettingsInfoHint,
   SettingsInlineMessage,
   SettingsList,
@@ -154,6 +153,13 @@ const pages: SettingsPageDef[] = [
   },
   { id: "shortcuts", label: "Shortcuts", icon: KeyboardIcon, sections: [] },
 ];
+const groups = [
+  {
+    id: "pages",
+    title: "Pages",
+    items: pages.map(({ id, label, icon }) => ({ id, label, icon })),
+  },
+];
 const coreTools = [
   {
     id: "inspect",
@@ -228,7 +234,6 @@ let toolState = $state<Record<string, boolean>>({
 });
 let activePageId = $state("workbench");
 let activeSectionId = $state("appearance");
-let scope = $state<"user" | "project">("user");
 let trayToggle = $state(false);
 let headerStyle = $state("auto");
 </script>
@@ -245,13 +250,7 @@ let headerStyle = $state("auto");
       layout="bare"
     >
       <div class="h-160 w-250 max-w-full overflow-hidden rounded-md border">
-        <SettingsShell
-          {pages}
-          bind:activePageId
-          bind:activeSectionId
-          {scope}
-          onScopeChange={(next) => (scope = next)}
-        >
+        <SettingsShell {pages} {groups} bind:activePageId bind:activeSectionId>
           {#snippet sidebarFooter()}
             <SettingsSidebarStatus status="saved" text={saveText.saved} />
           {/snippet}
@@ -413,28 +412,6 @@ let headerStyle = $state("auto");
         {/snippet}
         <SettingsToggleRow label="Example row" bind:checked={toggleA} />
       </SettingsSection>
-    </GallerySpecimen>
-
-    <GallerySpecimen
-      title="SettingsGroup"
-      source="settings/SettingsGroup"
-      usage="8 files · settings, shell"
-      layout="stack"
-      description="Subordinate heading with optional info; `divided` adds hairlines between rows."
-    >
-      <div class="grid gap-6 md:grid-cols-2">
-        <SettingsGroup
-          title="Built-in"
-          info="Categories are ordered by footprint."
-        >
-          <SettingsToggleRow label="First" bind:checked={toggleA} />
-          <SettingsToggleRow label="Second" bind:checked={toggleB} />
-        </SettingsGroup>
-        <SettingsGroup title="User" divided>
-          <SettingsToggleRow label="First" bind:checked={toggleA} />
-          <SettingsToggleRow label="Second" bind:checked={toggleB} />
-        </SettingsGroup>
-      </div>
     </GallerySpecimen>
 
     <GallerySpecimen

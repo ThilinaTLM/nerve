@@ -1,3 +1,4 @@
+import type { ScopedPermissionPolicySource } from "../../../core-host/scoped-permission-source.js";
 import { Hono } from "hono";
 import { settingsResolutionRequestSchema } from "@nervekit/contracts/settings";
 import type { ProviderCatalogStore } from "../../../domains/providers/provider-catalog.store.js";
@@ -20,8 +21,10 @@ export function createSettingsHealthRoutes({
   storage,
   events,
   providerCatalog,
+  admissionPolicy,
 }: {
   storage: InitializedStorage;
+  admissionPolicy: Pick<ScopedPermissionPolicySource, "reload">;
   events: Pick<WorkbenchNoticePublisher, "publish">;
   providerCatalog: Pick<ProviderCatalogStore, "load">;
 }): Hono {
@@ -57,6 +60,8 @@ export function createSettingsHealthRoutes({
           await resetHomeConfigurationDocument(storage.paths, parsed.data.id);
         else
           await reloadHomeConfigurationDocument(storage.paths, parsed.data.id);
+        if (parsed.data.id === "permissions")
+          await admissionPolicy.reload([storage.paths.permissionsConfigPath]);
         storage.configuration = await readHomeConfiguration(storage.paths);
         storage.settings = settingsFromConfiguration(storage.configuration);
         const health = await readSettingsHealth(storage.paths);

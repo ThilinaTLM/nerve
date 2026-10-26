@@ -256,17 +256,24 @@ test("oversized ephemeral notifications are logged and skipped without losing sm
     await server.notify({
       id: "evt_large",
       ts: "2026-01-01T00:00:00.000Z",
-      type: "capabilities.changed",
-      data: { projectId: "x".repeat(10_000) },
+      type: "agentConfiguration.changed",
+      data: { scope: { scope: "project", projectId: "x".repeat(10_000) } },
     });
     await server.notify({
       id: "evt_small",
       ts: "2026-01-01T00:00:00.000Z",
-      type: "capabilities.changed",
-      data: { projectId: "proj_small" },
+      type: "agentConfiguration.changed",
+      data: { scope: { scope: "project", projectId: "proj_small" } },
     });
     await server.flush();
     assert.equal(oversized.length, 1);
+    assert.ok(
+      outbound.every(
+        (message) =>
+          message.kind !== "event.notify" ||
+          message.data.events.every((event) => event.id !== "evt_large"),
+      ),
+    );
     assert.equal(server.state, "ready");
     assert.equal(
       outbound.some((message) => message.kind === "goodbye"),

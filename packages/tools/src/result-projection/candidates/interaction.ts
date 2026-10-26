@@ -23,7 +23,7 @@ export function humanCandidate(context: CandidateContext): ProjectionCandidate {
       ) ?? fallbackText(result));
   const identity = pickSemantic(
     { ...result, ...details, ...record(result.review) },
-    ["reviewId", "planPath", "decision", "outcome", "status", "mode"],
+    ["reviewId", "planPath", "decision", "outcome", "status"],
   );
   const prefix =
     Object.keys(identity).length > 0 ? `${formatFlat(identity)}\n\n` : "";

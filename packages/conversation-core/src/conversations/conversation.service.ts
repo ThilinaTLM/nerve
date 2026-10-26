@@ -1,12 +1,22 @@
+import type {
+  LeadSettingsOverrides,
+  ProfileTarget,
+} from "@nervekit/contracts/agent-configuration";
+import type {
+  ConversationContext,
+  AgentConfigurationPort,
+} from "../configuration.js";
+import { configureConversationRequestSchema } from "@nervekit/contracts/core";
+import type { SubagentHost } from "../delegation/subagent-host.js";
 import { rm } from "node:fs/promises";
 import { createId } from "@nervekit/contracts";
 import {
   conversationConfigSchema,
+  type ConversationHistoryConfig,
   type ConversationConfig,
   type ConversationSnapshot,
   type UpdateConversationRequest,
 } from "@nervekit/contracts/core";
-import { subagentPermissionRuleSetIds } from "@nervekit/contracts/subagents";
 import { deriveConversationTitle } from "./conversation-title.js";
 import type { AssetStore } from "../assets/asset-store.js";
 import type { AsyncBashService } from "../async-bash/async-bash.service.js";
@@ -26,37 +36,42 @@ export interface CreateConversationInput {
   parentConversationId?: string | null;
   parentToolCallId?: string | null;
   title?: string;
-  config?: DefaultConversationConfig;
-}
-function assertSubagentRuleSet(permissionRuleSetId: string): void {
-  if (
-    !(subagentPermissionRuleSetIds as readonly string[]).includes(
-      permissionRuleSetId,
-    )
-  )
-    throw new Error(
-      `Sub-agents may only use the ${subagentPermissionRuleSetIds.join(" or ")} permission rule set`,
-    );
+  config?: Partial<ConversationContext>;
+  overrides?: LeadSettingsOverrides;
+  agentProfile?: ProfileTarget;
+  application?: Awaited<
+    ReturnType<SubagentHost["resolveProfile"]>
+  >["application"];
 }
 export class ConversationService {
   constructor(
     private readonly options: {
       storage: CoreStorage;
+      summary?(
+        id: string,
+      ): Partial<
+        Pick<
+          ConversationConfig,
+          "model" | "reasoningLevel" | "permissionRuleSetId" | "agentProfile"
+        >
+      >;
+      historyContext?: AgentConfigurationPort["historyContext"];
+      configureContext: AgentConfigurationPort["configureContext"];
       assets: AssetStore;
       asyncBash: AsyncBashService;
       inputs: InputQueueService;
       emit: CoreEmitter;
       now(): string;
-      defaultConfig(
-        projectId: string,
-      ): DefaultConversationConfig | Promise<DefaultConversationConfig>;
       isExecuting(id: string): boolean;
       stop(id: string): Promise<void>;
       status: StatusService;
       compactions: CompactionOperations;
     },
   ) {}
-  async create(input: CreateConversationInput): Promise<ConversationSnapshot> {
+  async create(
+    input: CreateConversationInput,
+    initialConfig?: DefaultConversationConfig,
+  ): Promise<ConversationSnapshot> {
     const { storage } = this.options;
     const id = input.id ?? createId("conv");
     const existing = storage.conversations.get(id);
@@ -73,13 +88,12 @@ export class ConversationService {
     if (!storage.projects.get(input.projectId))
       throw new Error("Project not found");
     const config = conversationConfigSchema.parse({
-      ...(input.config ?? (await this.options.defaultConfig(input.projectId))),
+      ...initialConfig,
+      ...input.config,
       conversationId: id,
     });
-    if (input.parentConversationId)
-      assertSubagentRuleSet(config.permissionRuleSetId);
     // The callback may await host settings; another caller can create the same ID meanwhile.
-    if (storage.conversations.get(id)) return this.create(input);
+    if (storage.conversations.get(id)) return this.create(input, initialConfig);
     const now = this.options.now();
     storage.conversations.insert(
       {
@@ -106,7 +120,11 @@ export class ConversationService {
       kind: "conversation_changed",
       summary: storage.conversations.getSummary(id)!,
     });
-    this.options.emit({ kind: "config_changed", conversationId: id, config });
+    this.options.emit({
+      kind: "config_changed",
+      conversationId: id,
+      config: { ...config, ...this.options.summary?.(id) },
+    });
     if (input.parentConversationId)
       this.emitParentSummary(input.parentConversationId);
     return this.snapshot(id);
@@ -114,14 +132,14 @@ export class ConversationService {
   snapshot(id: string): ConversationSnapshot {
     const storage = this.options.storage;
     const conversation = storage.conversations.get(id);
-    const config = storage.conversations.getConfig(id);
+    const config = storage.conversations.getContext(id);
     if (!conversation || !config)
       throw new Error(`Conversation not found: ${id}`);
     return {
       conversation,
       compaction: this.options.compactions.get(id),
       lastSequence: storage.events.lastSequence(id),
-      config,
+      config: { ...config, ...this.options.historyContext?.(id) },
       toolCalls: storage.toolCalls.list(id),
       queue: storage.inputs.list(id),
       asyncBash: storage.asyncBash.list(id),
@@ -150,33 +168,41 @@ export class ConversationService {
     });
     this.options.status.refresh(id);
   }
-  configure(
+  async configure(
     id: string,
-    patch: Partial<DefaultConversationConfig>,
-  ): ConversationConfig {
-    const config = this.options.storage.conversations.getConfig(id);
-    if (!config) throw new Error("Conversation not found");
-    const validated = conversationConfigSchema.parse({
-      ...config,
-      ...patch,
-      conversationId: id,
-    });
-    if (this.options.storage.conversations.get(id)?.parentConversationId)
-      assertSubagentRuleSet(validated.permissionRuleSetId);
+    patch: Partial<ConversationContext>,
+  ): Promise<ConversationHistoryConfig> {
+    const validated =
+      configureConversationRequestSchema.shape.patch.parse(patch);
+    if (!this.options.storage.conversations.getContext(id))
+      throw new Error("Conversation not found");
+    const context = {
+      ...(validated.instructions !== undefined
+        ? { instructions: validated.instructions }
+        : {}),
+      ...(validated.systemPrompt !== undefined
+        ? { systemPrompt: validated.systemPrompt }
+        : {}),
+    };
+    if (Object.keys(context).length)
+      await this.options.configureContext(id, context);
     const updated = this.options.storage.conversations.updateConfig(
       id,
-      validated,
+      validated.workingDirectory !== undefined
+        ? { workingDirectory: validated.workingDirectory }
+        : {},
     );
+    const config = { ...updated, ...this.options.historyContext?.(id) };
     this.options.emit({
       kind: "config_changed",
       conversationId: id,
-      config: updated,
+      config,
     });
     this.options.emit({
       kind: "conversation_changed",
       summary: this.options.storage.conversations.getSummary(id)!,
     });
-    return updated;
+    return config;
   }
   assertQuiescent(id: string): void {
     this.snapshot(id);

@@ -4,17 +4,19 @@ Part of the [conversation core redesign](README.md).
 
 ## Tables by layer
 
-| Layer             | Tables                                                                                                         | Notes                                                 |
-| ----------------- | -------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------- |
-| Foundation        | `PROJECT`, `TRUSTED_RESOURCE`, `SCHEMA_MIGRATIONS`                                                             | Used by both layers above                             |
-| Conversation core | `CONVERSATION`, `CONVERSATION_CONFIG`, `CONVERSATION_EVENT`, `TOOL_CALL`, `INPUT_QUEUE`, `ASSET`, `ASYNC_BASH` | Portable agent runtime                                |
-| Workbench         | `SCRATCH_NOTE`                                                                                                 | IDE features; most workbench state is files or memory |
+| Layer             | Tables                                                                                  | Notes                                                 |
+| ----------------- | --------------------------------------------------------------------------------------- | ----------------------------------------------------- |
+| Foundation        | `PROJECT`, `TRUSTED_RESOURCE`, `SCHEMA_MIGRATIONS`                                      | Used by both layers above                             |
+| Conversation core | `CONVERSATION`, `CONVERSATION_EVENT`, `TOOL_CALL`, `INPUT_QUEUE`, `ASSET`, `ASYNC_BASH` | Portable agent runtime                                |
+| Workbench         | `SCRATCH_NOTE`                                                                          | IDE features; most workbench state is files or memory |
+
+Agent configuration is JSON authority, not a SQLite table or index. Conversation-list summaries use a disposable JSON cache; missing summaries are unknown. See [scoped configuration](../configuration.md).
 
 Outside SQLite:
 
 - Launch configurations: project file, see [async bash and launch configurations](async-bash-and-launches.md).
 - Permission rule sets and overlays: user, project (`.nerve/`) and conversation data directory files.
-- Daemon, harness and integration config; secrets; provider usage caches.
+- Scoped agent preferences, applied snapshots and prompt context (`config/agent.json`); creation defaults and profile catalogs; daemon/UI/integration config; secrets; disposable caches.
 - Large content (tool output, images, plans, reports): managed files tracked by `ASSET`.
 - Live progress, launch instances, workbench change notices: memory only.
 
@@ -34,7 +36,7 @@ erDiagram
 
     TRUSTED_RESOURCE {
         string id PK "Stable identity"
-        enum kind "prompt_suggestion | skill | project_permissions | project_capabilities | subagent_profile"
+        enum kind "prompt_suggestion | skill | project_permissions | project_capabilities | agent_profile"
         string project_id FK "Nullable; null for user-level resources"
         string path "Resource location"
         string name "Nullable; display name"
@@ -58,6 +60,7 @@ erDiagram
         string parent_tool_call_id "Nullable; delegation call that created this child"
         string head_event_id FK "Nullable; current branch head; null selects empty context"
         string title "Navigation label"
+        string working_directory "Start directory for commands and relative paths; not an access boundary"
         enum status "idle | running | waiting | failed | interrupted; rebuildable cache"
         bigint status_event_sequence "Latest event incorporated into the status cache"
         datetime status_cleared_at "Nullable; user dismissal of a failed or interrupted status"
@@ -68,17 +71,6 @@ erDiagram
         datetime last_user_message_at "Nullable; latest delivered user_message, human or parent"
         datetime created_at "Creation time"
         datetime updated_at "Recent-activity ordering"
-    }
-
-    CONVERSATION_CONFIG {
-        string conversation_id PK,FK "Exactly one current configuration per conversation"
-        json model "Provider and model ID"
-        enum reasoning_level "off | minimal | low | medium | high | xhigh | max"
-        string system_prompt "Nullable; null selects the generated default"
-        string instructions "Nullable; rendered as its own section of the generated prompt"
-        string permission_rule_set_id "Baseline rule set; overlays apply on top; not a database foreign key"
-        enum mode "planning | coding"
-        string working_directory "Start directory for commands and relative paths; not an access boundary"
     }
 
     CONVERSATION_EVENT {
@@ -166,7 +158,6 @@ erDiagram
     PROJECT ||--o{ SCRATCH_NOTE : "contains"
     PROJECT o|--o{ TRUSTED_RESOURCE : "scopes"
     CONVERSATION o|--o{ CONVERSATION : "parent of"
-    CONVERSATION ||--|| CONVERSATION_CONFIG : "has current configuration"
     CONVERSATION ||--o{ CONVERSATION_EVENT : "owns"
     CONVERSATION_EVENT o|--o{ CONVERSATION_EVENT : "event predecessor"
     CONVERSATION o|--o| CONVERSATION_EVENT : "selected branch head"
@@ -189,12 +180,12 @@ The physical schema and migrations live in [`conversation-core/src/storage`](../
 - `paused` is separate from derived status: idle does not tell the scheduler whether it may start queued work. Pause is a current control, not a rewindable event.
 - `status` is rebuilt from `execution_state` events and unfinished tool calls. A rebuilt failed or interrupted status is shown only when its event is newer than `status_cleared_at`; the next execution start supersedes it anyway.
 - `last_user_message_at` changes only when a `user_message` event is delivered. Compaction summaries, tool results and notices never update it, even though some reach providers as user-role messages.
-- `instructions` is persona and working rules for one conversation, set from a sub-agent profile at creation or edited later; a `system_prompt` replaces the generated prompt and the section with it.
-- Configuration has no revision and no tool or skill columns. Edits are schema-validated current values; rewinding does not restore them. Tools and skills come from capability files; see [storage](../storage.md#files-and-permissions). Permission supervision is recorded on each tool call.
+- Conversation-only instructions and custom system prompt live in JSON `agent.json.context`; applied-profile instructions contribute separately, including with a custom base prompt. They are not conversation columns.
+- Agent documents use revision/digest conflict checks; rewinding history does not restore settings. Tools/skills and other agent choices come from scoped JSON; see [storage](../storage.md#files-and-permissions). Permission supervision is recorded on each tool call.
 
 ## Trusted resources
 
-A resource is trusted for the exact content that was approved. When the file at `path` changes, its digest no longer matches and the user is asked again. Uniqueness is `(kind, project_id, path)`, treating null `project_id` as user level. The `prompt_suggestion` kind records trust in a prompt suggestion's JavaScript predicate; `subagent_profile` records trust in a project sub-agent profile file.
+A resource is trusted for the exact content that was approved. When the file at `path` changes, its digest no longer matches and the user is asked again. Uniqueness is `(kind, project_id, path)`, treating null `project_id` as user level. The `prompt_suggestion` kind records trust in a prompt suggestion's JavaScript predicate; `agent_profile` records trust in a project agent profile file.
 
 ## Idempotency without a receipt table
 
@@ -212,8 +203,8 @@ A queued input cancelled and then retried with the same ID can be accepted again
 Deleting a conversation deletes its children recursively. For each affected conversation:
 
 1. Stop processing and settle unfinished tool calls and async bash as cancelled.
-2. Delete asset files and the conversation data directory, which also holds the conversation-level capability and permission overlays under `config/`.
-3. Delete asset, async bash, tool-call, queue, event and configuration rows, then the conversation.
+2. Delete asset files and the conversation data directory, which also holds the conversation agent document and permission overlay under `config/`.
+3. Delete asset, async bash, tool-call, queue and event rows, then the conversation.
 
 Asset rows with null `event_id` whose producer no longer exists are orphans and may be cleaned up at any time. Deleting a project deletes its conversations, scratch notes and project-scoped trusted resources; project files on disk are untouched.
 

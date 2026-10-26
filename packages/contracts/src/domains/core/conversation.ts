@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { modelSelectionSchema, thinkingLevelSchema } from "../models/models.js";
-import { modeSchema } from "../settings/settings.js";
-import { subagentInstructionsSchema } from "../subagents/constants.js";
+import { agentProfileNameSchema } from "../agent-profiles/constants.js";
+import { agentProfileInstructionsSchema } from "../agent-profiles/constants.js";
 import { toolCallSchema } from "./tool-call.js";
 import { queuedInputSchema } from "./input.js";
 import { asyncBashSchema } from "./async-bash.js";
@@ -37,13 +37,38 @@ export const conversationConfigSchema = z.object({
   model: modelSelectionSchema,
   reasoningLevel: thinkingLevelSchema,
   systemPrompt: z.string().nullable(),
-  /** Extra instructions (at most 16 KB) appended to the system prompt; sub-agent profiles set it. */
-  instructions: subagentInstructionsSchema.nullable(),
+  /** Conversation-only instructions (at most 16 KB); profile instructions contribute separately. */
+  instructions: agentProfileInstructionsSchema.nullable(),
   permissionRuleSetId: z.string(),
-  mode: modeSchema,
+  agentProfile: agentProfileNameSchema,
 
   workingDirectory: z.string(),
 });
+/** Working directory is SQL-owned. JSON prompt context may be unavailable in history. */
+export const conversationContextSchema = conversationConfigSchema
+  .pick({
+    conversationId: true,
+    systemPrompt: true,
+    instructions: true,
+    workingDirectory: true,
+  })
+  .partial({ systemPrompt: true, instructions: true });
+export const conversationHistoryConfigSchema = conversationConfigSchema.partial(
+  {
+    model: true,
+    reasoningLevel: true,
+    permissionRuleSetId: true,
+    agentProfile: true,
+    systemPrompt: true,
+    instructions: true,
+  },
+);
+export type ConversationContextConfig = z.infer<
+  typeof conversationContextSchema
+>;
+export type ConversationHistoryConfig = z.infer<
+  typeof conversationHistoryConfigSchema
+>;
 export const conversationSummarySchema = conversationSchema
   .omit({
     headEventId: true,
@@ -54,14 +79,16 @@ export const conversationSummarySchema = conversationSchema
     /** Latest input from the parent, including prompts still queued for delivery. */
     lastParentPromptAt: z.string().datetime().nullable().optional(),
     childCount: z.number().int().nonnegative(),
-    mode: modeSchema,
-    model: modelSelectionSchema,
-    permissionRuleSetId: z.string(),
+    /** Disposable cache values; unknown until configuration is lazily resolved. */
+    agentProfile: agentProfileNameSchema.optional(),
+    model: modelSelectionSchema.optional(),
+    reasoningLevel: thinkingLevelSchema.optional(),
+    permissionRuleSetId: z.string().optional(),
   });
 export const conversationSnapshotSchema = z.object({
   conversation: conversationSchema,
   lastSequence: z.number().int().nonnegative(),
-  config: conversationConfigSchema,
+  config: conversationHistoryConfigSchema,
   toolCalls: z.array(toolCallSchema),
   queue: z.array(queuedInputSchema),
   asyncBash: z.array(asyncBashSchema),

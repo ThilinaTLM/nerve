@@ -8,6 +8,7 @@ import {
   updateConversationStateAndRefresh,
   pruneProjectConversationsAndRefresh,
 } from "$lib/features/projects/adapters/conversation-sidebar.adapter";
+import { openProjectSettingsPane } from "$lib/application/settings";
 import { selection } from "$lib/application/workspace/selection.svelte";
 import { workspaceSelectors } from "$lib/application/workspace/workspace-selectors.svelte";
 import { maintenance } from "$lib/application/maintenance/maintenance-state.svelte";
@@ -58,6 +59,7 @@ const conversationActivityById = $derived(
     void openProjectInEditorAndNotify(projectId, editor)}
   onOpenProjectInTerminal={(projectId) =>
     void openProjectInTerminalAndNotify(projectId)}
+  onOpenProjectSettings={(projectId) => void openProjectSettingsPane(projectId)}
   onDeleteProject={(id) => void deleteProjectAndRefresh(id)}
   onDeleteConversation={(id) => void deleteConversationAndRefresh(id)}
   onUpdateConversationState={(id, request) =>

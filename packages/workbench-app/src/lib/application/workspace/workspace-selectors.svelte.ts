@@ -36,6 +36,7 @@ export type {
   MermaidTabModel,
   PendingConversationTabModel,
   PrTabModel,
+  ProjectSettingsTabModel,
   SettingsTabModel,
   LaunchTabModel,
 } from "./center-tab-models";
@@ -50,6 +51,7 @@ import type {
   MermaidTabModel,
   PendingConversationTabModel,
   PrTabModel,
+  ProjectSettingsTabModel,
   SettingsTabModel,
   LaunchTabModel,
 } from "./center-tab-models";
@@ -327,6 +329,22 @@ export const workspaceSelectors = {
         ]
       : [];
   },
+  get openProjectSettingsTabs(): ProjectSettingsTabModel[] {
+    return workspaceState.openCenterTabs.flatMap((tab) => {
+      if (tab.kind !== "project-settings") return [];
+      const project = workspaceState.projects.find((row) => row.id === tab.id);
+      if (!project) return [];
+      return [
+        {
+          kind: "project-settings" as const,
+          id: tab.id,
+          project,
+          active: activeTabMatches("project-settings", tab.id),
+          sending: false,
+        },
+      ];
+    });
+  },
   get openLogsTabs(): LogsTabModel[] {
     return workspaceFeaturePorts().logs.read.tabOpen
       ? [
@@ -394,6 +412,7 @@ export const workspaceSelectors = {
           : [],
       ),
       this.openSettingsTabs,
+      this.openProjectSettingsTabs,
       this.openLogsTabs,
       this.openDiscoverTabs,
     ];

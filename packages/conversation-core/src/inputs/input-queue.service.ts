@@ -64,6 +64,16 @@ export class InputQueueService {
   }
 
   submit(request: SubmitInputRequest): QueuedInput | "delivered" {
+    const accepted = this.acceptSubmission(request);
+    accepted.afterCommit();
+    return accepted.result;
+  }
+
+  /** Transaction-safe acceptance. The caller must run afterCommit only after commit. */
+  acceptSubmission(request: SubmitInputRequest): {
+    result: QueuedInput | "delivered";
+    afterCommit(): void;
+  } {
     const input = submitInputRequestSchema.parse(request);
     this.assertAcceptsSource(input.conversationId, input.source);
     const preparation = initialCommandPreparation(input.text);
@@ -80,24 +90,30 @@ export class InputQueueService {
       wakeWhenIdle: input.wakeWhenIdle ?? true,
       acceptedAt: new Date().toISOString(),
     });
-    if (result === "delivered") return result;
-    if (
+    if (result === "delivered") return { result, afterCommit() {} };
+    const unpause =
       input.source === "user" &&
-      this.options.storage.conversations.get(input.conversationId)?.paused
-    ) {
+      this.options.storage.conversations.get(input.conversationId)?.paused;
+    if (unpause) {
       this.options.storage.conversations.update(input.conversationId, {
         paused: false,
       });
-      this.options.emit({
-        kind: "conversation_changed",
-        summary: this.options.storage.conversations.getSummary(
-          input.conversationId,
-        )!,
-      });
     }
-    this.startPreparation(result);
-    this.wake(result);
-    return result;
+    return {
+      result,
+      afterCommit: () => {
+        this.changed(input.conversationId);
+        if (unpause)
+          this.options.emit({
+            kind: "conversation_changed",
+            summary: this.options.storage.conversations.getSummary(
+              input.conversationId,
+            )!,
+          });
+        this.startPreparation(result);
+        this.wake(result);
+      },
+    };
   }
 
   enqueueNotice(request: EnqueueNoticeRequest): QueuedInput | "delivered" {
@@ -120,7 +136,10 @@ export class InputQueueService {
       wakeWhenIdle: request.wakeWhenIdle,
       acceptedAt: new Date().toISOString(),
     });
-    if (result !== "delivered") this.wake(result);
+    if (result !== "delivered") {
+      this.changed(request.conversationId);
+      this.wake(result);
+    }
     return result;
   }
 
@@ -263,7 +282,6 @@ export class InputQueueService {
       }
       return storage.inputs.insert(input);
     });
-    if (result !== "delivered") this.changed(input.conversationId);
     return result;
   }
 
@@ -323,7 +341,7 @@ export class InputQueueService {
       this.preparations.has(row.inputId)
     )
       return;
-    const config = this.options.storage.conversations.getConfig(
+    const config = this.options.storage.conversations.getContext(
       row.conversationId,
     );
     if (!config)
@@ -336,6 +354,7 @@ export class InputQueueService {
     void Promise.resolve()
       .then(() =>
         prepareCommands({
+          conversationId: row.conversationId,
           text: row.content as string,
           preparation: row.commandPreparation!,
           cwd: config.workingDirectory,

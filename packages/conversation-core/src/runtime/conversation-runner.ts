@@ -1,3 +1,4 @@
+import type { AgentConfigurationPort } from "../configuration.js";
 import { loadProjectionOptions } from "../context/asset-projection.js";
 import type { AssetStore } from "../assets/asset-store.js";
 import { setTimeout as delay } from "node:timers/promises";
@@ -8,7 +9,6 @@ import {
   type CompactionOperation,
 } from "@nervekit/contracts/core";
 import type { ModelSelection } from "@nervekit/contracts/models";
-import type { AutoCompactionSettings } from "@nervekit/contracts/settings";
 import { isRetryableProviderError } from "@nervekit/harness/models";
 import {
   estimatePathUsage,
@@ -23,7 +23,7 @@ import type { CoreStorage } from "../storage/core-storage.js";
 import type { ToolCallService } from "../tool-calls/tool-call.service.js";
 import type { CompactionOperations } from "./compaction-operations.js";
 import type { CoreEmitter } from "./core-change.js";
-import type { ModelTurn } from "./model-turn.js";
+import { StaleRequestCaptureError, type ModelTurn } from "./model-turn.js";
 import type { StatusService } from "./status.js";
 import { abortable } from "./abortable.js";
 import { shutdownReason } from "./shutdown.js";
@@ -38,6 +38,7 @@ export interface ExecutionFinished {
 export class ConversationRunner {
   constructor(
     private readonly options: {
+      configuration: AgentConfigurationPort;
       storage: CoreStorage;
       assets?: AssetStore;
       inputs: InputQueueService;
@@ -48,9 +49,6 @@ export class ConversationRunner {
       emit: CoreEmitter;
       compactions: CompactionOperations;
       now(): string;
-      compactionSettings?(
-        conversationId: string,
-      ): AutoCompactionSettings | Promise<AutoCompactionSettings>;
     },
   ) {}
   path(id: string): ConversationEvent[] {
@@ -80,25 +78,41 @@ export class ConversationRunner {
     let committed = false;
     try {
       signal.throwIfAborted();
-      const storedConfig = this.options.storage.conversations.getConfig(id);
-      if (!storedConfig) throw new Error("Conversation not found");
-      const config = structuredClone(storedConfig);
-      const resolved = structuredClone(
-        await abortable(
-          this.options.models.resolve(structuredClone(config.model)),
+      let capture;
+      let resolved;
+      let path: ConversationEvent[] = [];
+      let projectionOptions: Partial<
+        Awaited<ReturnType<typeof loadProjectionOptions>>
+      > = {};
+      do {
+        const source = await abortable(
+          this.options.configuration.captureCompaction(id),
           signal,
-        ),
-      );
-      const autoSettings = structuredClone(
-        await abortable(
-          Promise.resolve(this.options.compactionSettings?.(id)),
-          signal,
-        ),
-      );
-      const path = this.path(id);
-      const projectionOptions = this.options.assets
-        ? await loadProjectionOptions(path, this.options.assets)
-        : {};
+        );
+        capture = {
+          ...structuredClone({
+            model: source.model,
+            reasoningLevel: source.reasoningLevel,
+            settings: source.settings,
+          }),
+          isCurrent: source.isCurrent,
+        };
+        resolved = structuredClone(
+          await abortable(
+            this.options.models.resolve(structuredClone(capture.model)),
+            signal,
+          ),
+        );
+        path = this.path(id);
+        projectionOptions = this.options.assets
+          ? await loadProjectionOptions(path, this.options.assets)
+          : {};
+      } while (!capture.isCurrent());
+      const config = {
+        model: structuredClone(capture.model),
+        reasoningLevel: capture.reasoningLevel,
+      };
+      const autoSettings = structuredClone(capture.settings);
       const payload = await abortable(
         runCompaction({
           path,
@@ -261,140 +275,173 @@ export class ConversationRunner {
           compactedAtTurn ?? boundaryModel;
         boundaryModel = undefined;
         let attempt = 1;
-        const maxAttempts = 3;
-        let message;
-        while (true) {
-          signal.throwIfAborted();
-          try {
-            // Configuration belongs to an attempt, not to the logical turn.
-            // Input delivery stays outside this loop so retries never replay it.
-            const conversation = storage.conversations.get(id);
-            const config = storage.conversations.getConfig(id);
-            if (!conversation || !config)
-              throw new Error("Conversation not found");
-            const project = storage.projects.get(conversation.projectId);
-            if (!project) throw new Error("Project not found");
-            const input = {
-              conversation,
-              config,
-              projectDir: project.directory,
-              path: this.path(id),
-              turnId,
-              signal,
-            };
-            const prepared = await abortable(
-              this.options.modelTurn.prepareRequest(input),
-              signal,
-            );
-            const autoSettings = await abortable(
-              Promise.resolve(this.options.compactionSettings?.(id)),
-              signal,
-            );
-            if (
-              !(
-                compactedModel?.provider === config.model.provider &&
-                compactedModel.modelId === config.model.modelId
-              ) &&
-              shouldCompact(
-                estimatePathUsage(input.path),
-                prepared.resolved.model,
-                autoSettings,
-              )
-            ) {
-              compactedModel = await this.compact(id, signal, {
-                reason: "threshold",
-                executionId,
-              });
-              continue;
-            }
-            compactedModel = undefined;
-            message = await abortable(
-              this.options.modelTurn.runPrepared(input, prepared),
-              signal,
-            );
-            if (
-              isContextOverflowAssistantMessage(message) &&
-              !overflowRetried
-            ) {
-              overflowRetried = true;
-              compactedModel = await this.compact(id, signal, {
-                reason: "overflow",
-                executionId,
-              });
-              continue;
-            }
-            if (
-              message.stopReason === "error" ||
-              message.stopReason === "aborted"
-            )
-              throw new Error(
-                message.errorMessage ??
-                  `Provider response ${message.stopReason}`,
-              );
-            break;
-          } catch (error) {
+        const retry = structuredClone(
+          await abortable(this.options.configuration.captureRetry(id), signal),
+        );
+        const maxAttempts = retry.enabled ? retry.maxRetries + 1 : 1;
+        let message: Awaited<ReturnType<ModelTurn["runPrepared"]>>;
+        let requestCaptureId: string | undefined;
+        try {
+          while (true) {
+            if (requestCaptureId)
+              this.options.configuration.releaseRequest?.(requestCaptureId);
+            requestCaptureId = undefined;
             signal.throwIfAborted();
-            const text = error instanceof Error ? error.message : String(error);
-            if (!isRetryableProviderError(text) || attempt >= maxAttempts)
-              throw error;
-            const delayMs = 1000 * 2 ** (attempt - 1);
-            status.transition(id, {
-              subtype: "execution_state",
-              transition: "retrying",
-              executionId,
-              retry: { attempt, maxAttempts, delayMs, error: text },
-            });
-            attempt++;
-            await delay(delayMs, undefined, { signal });
+            try {
+              // Configuration belongs to an attempt, not to the logical turn.
+              // Input delivery stays outside this loop so retries never replay it.
+              const conversation = storage.conversations.get(id);
+              const context = storage.conversations.getContext(id);
+              if (!this.options.configuration.resolveConfig)
+                throw new Error("Agent configuration resolver is unavailable");
+              const config =
+                context &&
+                (await this.options.configuration.resolveConfig(id, context));
+              if (!conversation || !config)
+                throw new Error("Conversation not found");
+              const project = storage.projects.get(conversation.projectId);
+              if (!project) throw new Error("Project not found");
+              const input = {
+                conversation,
+                config,
+                projectDir: project.directory,
+                path: this.path(id),
+                turnId,
+                signal,
+              };
+              const prepared = await abortable(
+                this.options.modelTurn.prepareRequest(input),
+                signal,
+              );
+              requestCaptureId = prepared.requestCaptureId;
+              const autoSettings = await abortable(
+                this.options.configuration
+                  .captureCompaction(id)
+                  .then((capture) => capture.settings),
+                signal,
+              );
+              if (
+                !(
+                  compactedModel?.provider === prepared.model.provider &&
+                  compactedModel.modelId === prepared.model.modelId
+                ) &&
+                shouldCompact(
+                  estimatePathUsage(input.path),
+                  prepared.resolved.model,
+                  autoSettings,
+                )
+              ) {
+                compactedModel = await this.compact(id, signal, {
+                  reason: "threshold",
+                  executionId,
+                });
+                continue;
+              }
+              compactedModel = undefined;
+              message = await abortable(
+                this.options.modelTurn.runPrepared(input, prepared),
+                signal,
+              );
+              if (
+                isContextOverflowAssistantMessage(message) &&
+                !overflowRetried
+              ) {
+                overflowRetried = true;
+                compactedModel = await this.compact(id, signal, {
+                  reason: "overflow",
+                  executionId,
+                });
+                continue;
+              }
+              if (
+                message.stopReason === "error" ||
+                message.stopReason === "aborted"
+              )
+                throw new Error(
+                  message.errorMessage ??
+                    `Provider response ${message.stopReason}`,
+                );
+              break;
+            } catch (error) {
+              if (requestCaptureId)
+                this.options.configuration.releaseRequest?.(requestCaptureId);
+              requestCaptureId = undefined;
+              signal.throwIfAborted();
+              if (error instanceof StaleRequestCaptureError) continue;
+              const text =
+                error instanceof Error ? error.message : String(error);
+              if (!isRetryableProviderError(text) || attempt >= maxAttempts)
+                throw error;
+              const delayMs = retry.baseDelayMs * 2 ** (attempt - 1);
+              status.transition(id, {
+                subtype: "execution_state",
+                transition: "retrying",
+                executionId,
+                retry: { attempt, maxAttempts, delayMs, error: text },
+              });
+              attempt++;
+              await delay(delayMs, undefined, { signal });
+            }
           }
-        }
-        signal.throwIfAborted();
-        const { event, calls } = storage.transaction(() => {
-          const event = storage.events.append({
-            id: createId("evt"),
-            conversationId: id,
-            type: "assistant_message",
-            llmRepresentation: "assistant",
-            turnId,
-            inputId: null,
-            payload: assistantMessagePayloadSchema.parse(message),
-            createdAt: this.options.now(),
+          signal.throwIfAborted();
+          const { event, calls } = storage.transaction(() => {
+            const event = storage.events.append({
+              id: createId("evt"),
+              conversationId: id,
+              type: "assistant_message",
+              llmRepresentation: "assistant",
+              turnId,
+              inputId: null,
+              payload: assistantMessagePayloadSchema.parse(message),
+              createdAt: this.options.now(),
+            });
+            const calls = toolCalls.createFromAssistantMessage(
+              id,
+              turnId,
+              event,
+              requestCaptureId,
+            );
+            status.refresh(id);
+            return { event, calls };
           });
-          const calls = toolCalls.createFromAssistantMessage(id, turnId, event);
-          status.refresh(id);
-          return { event, calls };
-        });
-        this.options.emit({
-          kind: "event_appended",
-          conversationId: id,
-          event,
-        });
-        for (const call of calls)
           this.options.emit({
-            kind: "tool_call_changed",
+            kind: "event_appended",
             conversationId: id,
-            toolCall: call,
+            event,
           });
-        signal.throwIfAborted();
-        await abortable(toolCalls.start(calls.map((call) => call.id)), signal);
-        signal.throwIfAborted();
-        await abortable(toolCalls.waitForTurn(id, turnId), signal);
-        signal.throwIfAborted();
-        // Rejection ends this execution, rather than resuming it to revise the plan.
-        // The persisted pause gate blocks other wakes until a new user prompt.
-        if (
-          hasRejectedPlan(
-            storage.events
-              .since(id, event.sequence)
-              .filter((response) => response.turnId === turnId),
+          for (const call of calls)
+            this.options.emit({
+              kind: "tool_call_changed",
+              conversationId: id,
+              toolCall: call,
+            });
+          signal.throwIfAborted();
+          await abortable(
+            toolCalls.start(calls.map((call) => call.id)),
+            signal,
+          );
+          signal.throwIfAborted();
+          await abortable(toolCalls.waitForTurn(id, turnId), signal);
+          signal.throwIfAborted();
+          // Rejection ends this execution, rather than resuming it to revise the plan.
+          // The persisted pause gate blocks other wakes until a new user prompt.
+          if (
+            hasRejectedPlan(
+              storage.events
+                .since(id, event.sequence)
+                .filter((response) => response.turnId === turnId),
+            )
           )
-        )
-          break;
-        if (
-          !calls.length &&
-          !inputs.hasDeliverable(id, { kind: "turn", executionId })
-        )
-          break;
+            break;
+          if (
+            !calls.length &&
+            !inputs.hasDeliverable(id, { kind: "turn", executionId })
+          )
+            break;
+        } finally {
+          if (requestCaptureId)
+            this.options.configuration.releaseRequest?.(requestCaptureId);
+        }
       }
     } catch (error) {
       if (signal.aborted && signal.reason === shutdownReason) return;

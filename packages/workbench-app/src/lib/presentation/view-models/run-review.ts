@@ -79,7 +79,7 @@ export type ApprovalRecord = {
       | "subagent_prompt"
       | "subagent_status"
       | "subagent_stop"
-      | "plan_mode_present";
+      | "plan_present";
     effect: "allow" | "deny";
     rule: string;
   }[];
@@ -235,7 +235,8 @@ export interface ConversationCompactionFailedData {
 }
 
 export type PlanReviewRecord = {
-  id: string;
+  targetProfile?: import("@nervekit/contracts/agent-configuration").ProfileTarget;
+  id?: string;
   toolCallId: string;
   agentId: string;
   conversationId: string;
