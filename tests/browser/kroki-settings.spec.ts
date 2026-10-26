@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { coreRpc } from "./conversation.helpers.js";
 
 test("Kroki settings validate, cancel, persist and toggle independently", async ({
   page,
@@ -9,21 +10,23 @@ test("Kroki settings validate, cancel, persist and toggle independently", async 
     .getByRole("button", { name: "Tools", exact: true });
   await toolsPage.click();
   const enabled = page.getByRole("switch", {
-    name: "Enable Diagram export tools",
+    name: "Enable Diagram export",
+    exact: true,
   });
   const configure = page.getByRole("button", {
     name: "Configure diagram export",
   });
   await expect(enabled).not.toBeChecked();
-  await page.getByRole("button", { name: /^Diagram export/ }).click();
-  await expect(page.getByText("Public Kroki server")).toBeVisible();
+  await expect(
+    page.getByText("Off · kroki.io/", { exact: true }),
+  ).toBeVisible();
   await configure.click();
   let dialog = page.getByRole("dialog", { name: "Configure diagram export" });
-  await expect(dialog.getByRole("textbox", { name: "Kroki URL" })).toHaveValue(
-    "https://kroki.io/",
-  );
+  await expect(
+    dialog.getByRole("textbox", { name: "Kroki server" }),
+  ).toHaveValue("https://kroki.io/");
   await dialog
-    .getByRole("textbox", { name: "Kroki URL" })
+    .getByRole("textbox", { name: "Kroki server" })
     .fill("file:///tmp/kroki");
   await expect(
     dialog.getByRole("button", { name: "Save", exact: true }),
@@ -31,19 +34,33 @@ test("Kroki settings validate, cancel, persist and toggle independently", async 
   await dialog.getByRole("button", { name: "Cancel", exact: true }).click();
   await configure.click();
   dialog = page.getByRole("dialog", { name: "Configure diagram export" });
-  await expect(dialog.getByRole("textbox", { name: "Kroki URL" })).toHaveValue(
-    "https://kroki.io/",
-  );
+  await expect(
+    dialog.getByRole("textbox", { name: "Kroki server" }),
+  ).toHaveValue("https://kroki.io/");
   await dialog
-    .getByRole("textbox", { name: "Kroki URL" })
+    .getByRole("textbox", { name: "Kroki server" })
     .fill("http://127.0.0.1:9080/kroki");
   await dialog.getByRole("button", { name: "Save", exact: true }).click();
   await expect(dialog).not.toBeVisible();
-  await expect(page.getByText("Custom Kroki server")).toBeVisible();
+  await expect(
+    page.getByText("Off · 127.0.0.1:9080/kroki/", { exact: true }),
+  ).toBeVisible();
   await expect(enabled).not.toBeChecked();
   await enabled.click();
   await expect(enabled).toBeChecked();
-  await expect(page.getByText("Saved", { exact: true })).toBeVisible();
+  await expect
+    .poll(async () => {
+      const configuration = await coreRpc(page, "agentConfiguration.get", {
+        scope: { scope: "user" },
+      });
+      return configuration.status === "available"
+        ? configuration.overrides.tools?.kroki_export
+        : null;
+    })
+    .toMatchObject({
+      enabled: true,
+      settings: { url: "http://127.0.0.1:9080/kroki/" },
+    });
   await page.reload();
   await page
     .getByRole("button", { name: "Open settings", exact: true })
@@ -52,9 +69,9 @@ test("Kroki settings validate, cancel, persist and toggle independently", async 
   await expect(enabled).toBeChecked();
   await configure.click();
   dialog = page.getByRole("dialog", { name: "Configure diagram export" });
-  await expect(dialog.getByRole("textbox", { name: "Kroki URL" })).toHaveValue(
-    "http://127.0.0.1:9080/kroki/",
-  );
+  await expect(
+    dialog.getByRole("textbox", { name: "Kroki server" }),
+  ).toHaveValue("http://127.0.0.1:9080/kroki/");
   await dialog.getByRole("button", { name: "Cancel", exact: true }).click();
   await enabled.click();
   await expect(enabled).not.toBeChecked();

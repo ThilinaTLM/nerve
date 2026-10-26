@@ -4,7 +4,14 @@ import {
 } from "../../../src/infrastructure/process-host/shell-process.js";
 import assert from "node:assert/strict";
 import { EventEmitter } from "node:events";
-import { chmod, mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import {
+  chmod,
+  mkdir,
+  mkdtemp,
+  realpath,
+  rm,
+  writeFile,
+} from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { delimiter, join } from "node:path";
 import { describe, it } from "node:test";
@@ -143,7 +150,7 @@ it("spawns the admitted invocation without rediscovering shell, project manager 
   const previous = process.env.NERVE_PREPARED_LAUNCH_PROBE;
   try {
     process.env.NERVE_PREPARED_LAUNCH_PROBE = "admitted";
-    const command = 'printf "%s\n" "$NERVE_PREPARED_LAUNCH_PROBE"; pwd';
+    const command = 'printf "%s\n" "$NERVE_PREPARED_LAUNCH_PROBE"; pwd -P';
     const preparedShell = prepareShellProcess(command, {
       cwd,
       shellPath: "/bin/sh",
@@ -167,7 +174,10 @@ it("spawns the admitted invocation without rediscovering shell, project manager 
     const result = await spawned.closed;
     assert.equal(result.kind, "closed");
     if (result.kind === "closed") assert.equal(result.exitCode, 0);
-    assert.equal(Buffer.concat(chunks).toString("utf8"), `admitted\n${cwd}\n`);
+    assert.equal(
+      Buffer.concat(chunks).toString("utf8"),
+      `admitted\n${await realpath(cwd)}\n`,
+    );
     assert.throws(
       () =>
         defaultLaunchSupervisor.spawn("wrong command", { cwd, preparedShell }),

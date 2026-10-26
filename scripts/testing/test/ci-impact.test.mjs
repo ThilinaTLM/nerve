@@ -139,6 +139,7 @@ test("known operational scripts map to their owning runtime", () => {
     "@nervekit/conversation-core",
     "@nervekit/desktop-shell",
     "@nervekit/skills",
+    "@nervekit/tools",
     "@nervekit/workbench-server",
   ]);
 

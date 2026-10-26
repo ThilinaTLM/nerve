@@ -22,7 +22,7 @@ test("editing an earlier prompt creates a branch while retaining durable history
   try {
     const conversationId = f.snapshot.conversation.id;
     await submit(page, conversationId, "Original browser prompt");
-    await page.reload();
+    await f.open("Browser conversation");
     await expect(
       page.getByText("Original browser prompt", { exact: true }).first(),
     ).toBeVisible();
@@ -47,7 +47,7 @@ test("editing an earlier prompt creates a branch while retaining durable history
       conversationId,
     });
     expect(tree.filter((node) => node.type === "user_message")).toHaveLength(2);
-    await page.reload();
+    await f.open("Browser conversation");
     await expect(
       page.getByText("Edited browser prompt", { exact: true }).first(),
     ).toBeVisible();
@@ -76,7 +76,7 @@ test("selecting a previous head updates the visible path without deleting other 
       conversationId,
       eventId: previousHead.id,
     });
-    await page.reload();
+    await f.open("Browser conversation");
     await expect(
       page.getByText("First branch prompt", { exact: true }).first(),
     ).toBeVisible();
