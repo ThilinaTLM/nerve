@@ -1,12 +1,12 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
-  defaultHarnessConfig,
   defaultSettings,
   krokiToolSettingsSchema,
-  updateSettingsRequestSchema,
 } from "../../src/domains/settings/index.js";
 import { krokiExportResultDetailsSchema } from "../../src/domains/tools/kroki.js";
+import { resolveAgentConfiguration } from "../../src/domains/agent-configuration/resolver.js";
+import { leadSettingsOverridesSchema } from "../../src/domains/agent-configuration/schemas.js";
 
 describe("Kroki configuration", () => {
   it("normalizes public and private endpoints without losing path prefixes", () => {
@@ -17,12 +17,18 @@ describe("Kroki configuration", () => {
     ])
       assert.equal(krokiToolSettingsSchema.parse({ url: input }).url, expected);
     assert.ok(defaultSettings.tools.disabled.includes("kroki_export"));
-    assert.ok(defaultHarnessConfig.tools.disabled.includes("kroki_export"));
+    assert.equal(
+      resolveAgentConfiguration({ role: "lead" }).settings.tools?.kroki_export
+        ?.enabled,
+      false,
+    );
     assert.deepEqual(
-      updateSettingsRequestSchema.parse({
-        tools: { kroki: { url: "https://example.org" } },
+      leadSettingsOverridesSchema.parse({
+        tools: { kroki_export: { settings: { url: "https://example.org" } } },
       }),
-      { tools: { kroki: { url: "https://example.org/" } } },
+      {
+        tools: { kroki_export: { settings: { url: "https://example.org/" } } },
+      },
     );
   });
   it("rejects credentials, queries, fragments, non-HTTP and invalid URLs", () => {
