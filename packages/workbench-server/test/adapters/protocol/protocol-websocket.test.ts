@@ -303,14 +303,10 @@ test("conversation adapter replays durable events from the requested cursor", as
     id: "conv_replay",
     projectId: project.id,
     title: "Replay fixture",
-    config: {
+    overrides: {
       model: { provider: "nerve-faux", modelId: "faux-fast" },
       reasoningLevel: "off",
-      systemPrompt: null,
-      instructions: null,
-      agentProfile: "coding",
       permissionRuleSetId: "read_only",
-      workingDirectory: project.directory,
     },
   });
   for (const index of [1, 2])
