@@ -100,6 +100,7 @@ export interface LaunchPanelModel {
 }
 
 export interface LaunchPanelActions {
+  readonly refreshDefinitions: () => void | Promise<void>;
   readonly createFolder: (input: {
     label: string;
     parentFolderId: string | null;

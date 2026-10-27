@@ -154,7 +154,7 @@ test("resetting reactive overrides uses a detached validated copy", () => {
   assert.equal(original.subagents?.explore?.enabled, true);
 });
 
-test("normative examples parse without materializing fields", () => {
+test("configuration fixtures parse without materializing fields", () => {
   for (const name of [
     "user-agent",
     "project-agent",
@@ -163,10 +163,7 @@ test("normative examples parse without materializing fields", () => {
   ]) {
     const input = JSON.parse(
       readFileSync(
-        new URL(
-          `../../../docs/proposals/scoped-configuration-and-active-profiles/examples/${name}.json`,
-          import.meta.url,
-        ),
+        new URL(`./fixtures/agent-configuration/${name}.json`, import.meta.url),
         "utf8",
       ),
     );

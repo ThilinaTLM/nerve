@@ -77,7 +77,7 @@ Creation/picker preferences live in user/project `config/conversation-defaults.j
 
 Prompt suggestions remain Markdown (built-in, `agent/suggestions/`, `<project>/.nerve/suggestions/`); enablement stays in `config/prompt-suggestions.json`. Suggestion predicate trust and permission/profile exact-byte trust retain their distinct identities.
 
-`cache/conversation-agent-summaries.json` holds disposable list display values, never executable settings. Missing cache entries remain unknown; startup does not enumerate conversation documents to fill them. See the [domain registry](../proposals/scoped-configuration-and-active-profiles/domain-inventory.md) for preserved paths and schemas.
+`cache/conversation-agent-summaries.json` holds disposable list display values, never executable settings. Missing cache entries remain unknown; startup does not enumerate conversation documents to fill them. See [scoped configuration](configuration.md) for configuration ownership and activation.
 
 Released v0.37.0 `harness.json`, `capabilities.json` and `subagents.json` are converted and retired by step `0002-agent-profiles`; frozen readers exist only inside that migration. Verified exports precede removal of SQLite agent configuration. Later-encountered projects upgrade before activation; no runtime dual-read fallback exists.
 

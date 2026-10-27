@@ -1,6 +1,6 @@
 # Scoped configuration
 
-> **Status:** Current architecture. Owning contracts and services implement the [normative specification](../proposals/scoped-configuration-and-active-profiles/README.md).
+> **Status:** Current architecture. Owning contracts define schemas and resolution; host services implement persistence and activation.
 
 JSON is authoritative for agent preferences and conversation-only prompt context. SQLite owns identity, relationships, history, lifecycle and `conversation.working_directory`; it has no `conversation_config` or settings index. Resolved memory and conversation-list summaries are disposable.
 
@@ -15,7 +15,7 @@ JSON is authoritative for agent preferences and conversation-only prompt context
 
 `agent.json.overrides` holds model, reasoning, permission selection, compaction, retry, typed tool settings, skill selection and lead-only sub-agent launch selections. Conversation documents also hold `appliedProfile`, optional child `frozenDefaults`, transition metadata and non-inheritable `context.instructions`/`context.systemPrompt`. Profile switches preserve context. Custom system prompts supply the base; local and applied-profile instructions contribute separately.
 
-The [domain registry](../proposals/scoped-configuration-and-active-profiles/domain-inventory.md) defines preserved domains: daemon/UI, providers, integrations, rule-set definitions, suggestions, launch definitions and secrets retain their own schemas and locations. Credentials never belong in agent snapshots. Skill/context source files stay in discovery locations, not `config/`.
+Other domains—daemon/UI, providers, integrations, rule-set definitions, suggestions, launch definitions and secrets—retain their own schemas and locations; see [storage](storage.md). Credentials never belong in agent snapshots. Skill/context source files stay in discovery locations, not `config/`.
 
 ## Resolution and resets
 
@@ -46,4 +46,4 @@ Prepared provider requests and running tools are not retroactively changed. Appr
 
 Scoped health diagnostics report malformed/unsupported documents, missing references and conflicts without discarding original bytes. Existing in-memory validated generations may remain available where permitted; there is no persisted last-known-good authority. Health/repair uses existing Settings, activity notices and toasts. Repair requires a source-bound preview and confirmation with backups; dismissing a notice does not repair it or grant trust. History and unrelated UI remain usable when affected execution is blocked.
 
-`cache/conversation-agent-summaries.json` is display-only. Missing/invalid entries yield unknown list fields; lists do not scan all conversation documents at startup or fall back to SQL agent columns. See [storage](storage.md) and [migration/recovery specification](../proposals/scoped-configuration-and-active-profiles/migration-and-recovery.md).
+`cache/conversation-agent-summaries.json` is display-only. Missing/invalid entries yield unknown list fields; lists do not scan all conversation documents at startup or fall back to SQL agent columns. See [storage](storage.md) and [storage migrations](migrations.md).

@@ -229,6 +229,17 @@ export function createWorkbenchLaunchPanelAdapter(
     }
   }
   const host: LaunchPanelActions = {
+    refreshDefinitions: async () => {
+      const project = activeProject();
+      if (!project) return;
+      try {
+        await invalidateLaunchCatalog(project.id);
+      } catch (error) {
+        notify.error(
+          `Could not reload launch configurations: ${errorMessage(error)}`,
+        );
+      }
+    },
     createFolder: (input) =>
       mutate((id, rev) => createLaunchFolder(id, input, rev)),
     renameFolder: (folder, label) =>
