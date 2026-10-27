@@ -1,3 +1,5 @@
+import { AsyncResource } from "node:async_hooks";
+
 interface Request {
   execute: (key: string) => Promise<unknown>;
   resolve: (value: unknown) => void;
@@ -42,7 +44,7 @@ export class GitIdentityAdmission {
     if (!group) {
       group = {
         key,
-        identity,
+        identity: AsyncResource.bind(identity),
         controller: new AbortController(),
         requests: new Set(),
       };
@@ -60,7 +62,9 @@ export class GitIdentityAdmission {
         return true;
       };
       const request: Request = {
-        execute,
+        // Shared lookups and queue draining may run in another repository's
+        // context. Keep each submitter's lane and cancellation scope intact.
+        execute: AsyncResource.bind(execute),
         resolve: (value) => {
           if (finish()) resolve(value as T);
         },
