@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { AsyncLocalStorage } from "node:async_hooks";
 import { test } from "node:test";
 import { GitIdentityAdmission } from "../../src/git/git-identity-admission.js";
 const tick = () => new Promise<void>((resolve) => setImmediate(resolve));
@@ -171,3 +172,36 @@ void test("same-path waiters share one resolver, retain FIFO, and do not block u
   await Promise.all(waiters);
   assert.deepEqual(order, [1, 2, 3]);
 });
+
+for (const sharedIdentity of [false, true]) {
+  void test(`admission preserves submitter context for ${sharedIdentity ? "shared" : "queued"} identities`, async () => {
+    const context = new AsyncLocalStorage<string>();
+    const admission = new GitIdentityAdmission(4, 1);
+    const hold = deferred<string>();
+    const first = context.run("first", () =>
+      admission.run(
+        () => hold.promise,
+        async () => {
+          assert.equal(context.getStore(), "first");
+        },
+        undefined,
+        "first",
+      ),
+    );
+    const second = context.run("second", () =>
+      admission.run(
+        async () => {
+          assert.equal(context.getStore(), "second");
+          return "second";
+        },
+        async () => {
+          assert.equal(context.getStore(), "second");
+        },
+        undefined,
+        sharedIdentity ? "first" : "second",
+      ),
+    );
+    hold.resolve("first");
+    await Promise.all([first, second]);
+  });
+}
