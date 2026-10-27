@@ -327,6 +327,9 @@ export function createLaunchPanelActions(
     available() && model().capabilities[capability].enabled;
 
   return {
+    refreshDefinitions: () => {
+      if (available()) return host.refreshDefinitions();
+    },
     createFolder: (input) => {
       if (enabled("manageDefinitions")) return host.createFolder(input);
     },

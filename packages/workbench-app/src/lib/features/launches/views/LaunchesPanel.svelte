@@ -3,6 +3,7 @@ import { untrack } from "svelte";
 import ListTodo from "@lucide/svelte/icons/list-todo";
 import FolderPlus from "@lucide/svelte/icons/folder-plus";
 import Plus from "@lucide/svelte/icons/plus";
+import RefreshCw from "@lucide/svelte/icons/refresh-cw";
 import Trash2 from "@lucide/svelte/icons/trash-2";
 import type {
   LaunchFolder,
@@ -57,6 +58,18 @@ let {
   model: LaunchPanelModel;
   actions: LaunchPanelActions;
 } = $props();
+
+let refreshingDefinitions = $state(false);
+
+async function refreshDefinitions() {
+  if (refreshingDefinitions) return;
+  refreshingDefinitions = true;
+  try {
+    await panelActions.refreshDefinitions();
+  } finally {
+    refreshingDefinitions = false;
+  }
+}
 
 // Without a valid catalog snapshot, a missing definition proves nothing, so
 // linked runs must stay attached instead of looking deleted.
@@ -416,6 +429,13 @@ function rerunDefinition(entry: { definition?: LaunchPanelDefinition }): void {
       >
         {#snippet trailing()}
           {#if model.availability.available}
+            <IconAction
+              icon={RefreshCw}
+              label="Reload launch configurations from disk"
+              side="bottom"
+              disabled={refreshingDefinitions || model.definitionsLoading}
+              onclick={() => void refreshDefinitions()}
+            />
             <IconAction
               icon={FolderPlus}
               label="New folder"

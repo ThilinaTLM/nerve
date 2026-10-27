@@ -1,6 +1,6 @@
 # Agent profiles
 
-Agent profiles contribute instructions, recommendations and requirements to scoped agent preferences. Contracts in `@nervekit/contracts/agent-profiles` own schemas and pure resolution; host services own files, trust and publication; conversation core owns execution lifecycle. See the [normative specification](../proposals/scoped-configuration-and-active-profiles/README.md) and [user reference](../../packages/website/src/content/docs/reference/agent-profiles.md).
+Agent profiles contribute instructions, recommendations and requirements to scoped agent preferences. Contracts in `@nervekit/contracts/agent-profiles` own schemas and pure resolution; host services own files, trust and publication; conversation core owns execution lifecycle. See [scoped configuration](configuration.md) and the [user reference](../../packages/website/src/content/docs/reference/agent-profiles.md).
 
 ## Definitions and applied snapshots
 
