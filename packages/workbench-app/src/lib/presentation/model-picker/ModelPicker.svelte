@@ -155,7 +155,7 @@ function handleOpenChange(next: boolean): void {
 <Popover
   {open}
   onOpenChange={handleOpenChange}
-  size="anchor"
+  size="lg"
   variant="field"
   align="start"
   ariaLabel={label}

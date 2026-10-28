@@ -317,8 +317,9 @@ export type AddChangeItem = {
   label: string;
   group: string;
   keywords?: string[];
-  detail?: string;
   defaultOn?: boolean;
+  /** What one click does, e.g. Off → On; once applied, what it did. */
+  flip?: { from: "On" | "Off"; to: "On" | "Off"; applied: boolean };
 };
 /** Baseline is captured when opening, so a just-added flip remains available to undo. */
 export function buildAddChangeItems(input: {
@@ -357,18 +358,19 @@ export function buildAddChangeItems(input: {
       group: "Skills",
       keywords: [skill.key, skill.description ?? ""],
     })),
-  ].map((item) => {
+  ].map((item): AddChangeItem => {
+    // Tools without an on/off switch (e.g. bash) only open their settings.
+    if (item.defaultOn === undefined) return item;
     const row = input.rows.find((row) => row.key === item.key);
-    const enabled =
-      row &&
-      (item.key.startsWith("tool:")
+    const from = item.defaultOn ? "On" : "Off";
+    const enabled = row
+      ? item.key.startsWith("tool:")
         ? (row.value as { enabled?: boolean }).enabled
-        : Boolean(row.value));
+        : Boolean(row.value)
+      : !item.defaultOn;
     return {
       ...item,
-      detail: row
-        ? `Turned ${enabled ? "on" : "off"}`
-        : `Turn ${item.defaultOn ? "off" : "on"}`,
+      flip: { from, to: enabled ? "On" : "Off", applied: Boolean(row) },
     };
   });
   return [...settings, ...flips].filter(

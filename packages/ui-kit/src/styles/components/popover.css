@@ -98,10 +98,29 @@
     width: min(24rem, calc(100vw - 1.5rem));
   }
 
-  /* Field-like triggers (pickers) open a panel as wide as the field, so the
-   * panel reads as the field's dropdown rather than a detached card. */
+  /* Field-like triggers (pickers) open a panel at least as wide as the field,
+   * so it reads as the field's dropdown; the field preset keeps narrow fields
+   * from squeezing list content such as model names and capabilities. */
   .popover-content.popover-anchor {
-    width: min(var(--bits-popover-anchor-width, 20rem), calc(100vw - 1.5rem));
+    width: min(
+      max(
+        var(--bits-popover-anchor-width, 0px),
+        var(--popover-field-min, 20rem)
+      ),
+      calc(100vw - 1.5rem)
+    );
+  }
+
+  .popover-content.popover-field-sm {
+    --popover-field-min: 16rem;
+  }
+
+  .popover-content.popover-field-md {
+    --popover-field-min: 20rem;
+  }
+
+  .popover-content.popover-field-lg {
+    --popover-field-min: 24rem;
   }
 }
 

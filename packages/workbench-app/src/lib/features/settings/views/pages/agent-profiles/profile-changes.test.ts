@@ -224,18 +224,19 @@ test("add list omits its opening baseline, keeps newly changed flips, and suppli
       (item) => item.key === "model" || item.key === "tool:web_search",
     ),
   );
-  assert.equal(
-    items.find((item) => item.key === "skill:file:review")?.detail,
-    "Turned off",
+  assert.deepEqual(
+    items.find((item) => item.key === "skill:file:review")?.flip,
+    { from: "On", to: "Off", applied: true },
   );
   assert.equal(
     items.find((item) => item.key === "tool:jira")?.group,
     "Account tools",
   );
-  assert.equal(
-    items.find((item) => item.key === "tool:jira")?.detail,
-    "Turn on",
-  );
+  assert.deepEqual(items.find((item) => item.key === "tool:jira")?.flip, {
+    from: "Off",
+    to: "On",
+    applied: false,
+  });
   assert.ok(
     items
       .find((item) => item.key === "compaction")

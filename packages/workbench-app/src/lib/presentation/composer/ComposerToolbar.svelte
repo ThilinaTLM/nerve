@@ -1,11 +1,7 @@
 <script lang="ts">
 import { Badge } from "@nervekit/ui-kit/components/ui/badge";
 import type { Snippet } from "svelte";
-import ShieldCheck from "@lucide/svelte/icons/shield-check";
-import ShieldCog from "@lucide/svelte/icons/shield-cog";
-import ShieldEllipsis from "@lucide/svelte/icons/shield-ellipsis";
-import ShieldMinus from "@lucide/svelte/icons/shield-minus";
-import ShieldZap from "@nervekit/ui-kit/icons/ShieldZap";
+import { permissionIcon } from "./composer-icons";
 import RefreshCw from "@lucide/svelte/icons/refresh-cw";
 import Paperclip from "@lucide/svelte/icons/paperclip";
 import Settings from "@lucide/svelte/icons/settings";
@@ -181,6 +177,7 @@ const activePermission = $derived(
     available: false,
   },
 );
+const ActivePermissionIcon = $derived(permissionIcon(activePermission.id));
 
 const lockReason = $derived(
   lockedFields.model || lockedFields.thinking
@@ -301,7 +298,7 @@ const permissionItems = $derived(
   <Popover
     triggerWidthKey={`${activePermission.id}:${showPermissionLabel ? activePermission.name : ""}`}
     bind:open={permissionOpen}
-    size="sm"
+    size="lg"
     triggerClass={`composer-tab ${showPermissionLabel ? "" : "w-control p-0"}`}
     ariaLabel="Permission rule set"
     triggerTitle={`Permission rule set: ${activePermission.name}${permissionShortcut ? ` (${permissionShortcut})` : ""}${lockedFields.permission ? ` · Locked by ${lockedFields.by ?? "the applied profile"}` : ""}`}
@@ -314,17 +311,7 @@ const permissionItems = $derived(
         class={`inline-flex items-center justify-center gap-1 ${controlsDisabled ? "opacity-60" : ""}`}
         data-tour-id="composer-permission"
       >
-        {#if activePermission.id === "read_only"}
-          <ShieldMinus aria-hidden="true" />
-        {:else if activePermission.id === "autonomous"}
-          <ShieldZap aria-hidden="true" />
-        {:else if activePermission.id === "supervised"}
-          <ShieldCheck aria-hidden="true" />
-        {:else if activePermission.id === "planning"}
-          <ShieldEllipsis aria-hidden="true" />
-        {:else}
-          <ShieldCog aria-hidden="true" />
-        {/if}
+        <ActivePermissionIcon aria-hidden="true" />
         {#if showPermissionLabel}<span
             class="@max-[440px]/composer-toolbar:hidden"
             >{activePermission.name}</span
@@ -388,7 +375,15 @@ const permissionItems = $derived(
       isSelected={(option) => option.id === permissionRuleSetId}
       isDisabled={() => controlsDisabled || Boolean(lockedFields.permission)}
       onChoose={(option) => selectPermission(option.id)}
-    />
+    >
+      {#snippet icon(option)}
+        {@const Icon = permissionIcon(option.id)}
+        <Icon
+          class="mt-0.5 size-3.5 flex-none self-start text-muted-foreground"
+          aria-hidden="true"
+        />
+      {/snippet}
+    </PopoverCommandList>
   </Popover>
 {/key}
 

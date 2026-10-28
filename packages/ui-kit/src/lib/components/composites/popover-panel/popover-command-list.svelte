@@ -20,6 +20,7 @@ let {
   isDisabled = () => false,
   onChoose,
   row,
+  icon,
   rowMode = "button",
   empty = "No matching choices.",
   stableHeight,
@@ -33,6 +34,8 @@ let {
   isDisabled?: (item: Item) => boolean;
   onChoose: (item: Item) => void;
   row?: Snippet<[Item, { active: boolean; selected: boolean }]>;
+  /** Leading glyph for button rows, before the label. */
+  icon?: Snippet<[Item]>;
   /** Container rows render custom content directly and allow embedded controls.
    * Their controls never choose the row; disabled rows keep those controls usable. */
   rowMode?: "button" | "container";
@@ -99,6 +102,7 @@ function keydown(event: KeyboardEvent) {
   {#each groups as group (group.group)}
     <PopoverSection label={group.group}>
       {#each group.items as item (item.key)}
+        {#snippet leading()}{@render icon?.(item)}{/snippet}
         {#snippet customLabel()}{@render row?.(item, {
             active: navigation.activeDescendant === rowId(item),
             selected: isSelected(item),
@@ -138,6 +142,7 @@ function keydown(event: KeyboardEvent) {
             role="option"
             tabindex={-1}
             aria-selected={isSelected(item)}
+            icon={icon ? leading : undefined}
             label={row ? customLabel : item.label}
             detail={row
               ? undefined

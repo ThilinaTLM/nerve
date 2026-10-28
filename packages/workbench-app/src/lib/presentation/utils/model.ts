@@ -18,6 +18,9 @@ export function shortModelLabel(modelId: string): string {
 const providerDisplayNames: Record<string, string> = {
   "nerve-faux": "Nerve Faux",
   anthropic: "Anthropic",
+  "amazon-bedrock": "Amazon Bedrock",
+  deepseek: "DeepSeek",
+  "github-copilot": "GitHub Copilot",
   google: "Google",
   "google-vertex": "Google Vertex",
   openai: "OpenAI",

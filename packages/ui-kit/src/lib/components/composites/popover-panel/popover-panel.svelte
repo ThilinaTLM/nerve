@@ -25,7 +25,8 @@ type Props = {
    * The resting width stays intrinsic. */
   triggerWidthKey?: string | null;
   /** Panel width preset: sm 16rem, md 20rem, lg 24rem, anchor matches the
-   * trigger. Field variants always use anchor width. */
+   * trigger. Field variants are at least as wide as their trigger and use the
+   * preset as their minimum width (anchor and md: 20rem). */
   size?: "sm" | "md" | "lg" | "anchor";
   /** Fields match their trigger; panels have a fixed width and an anchor arrow. */
   variant?: "panel" | "field";
@@ -148,7 +149,9 @@ function handleOpenChange(next: boolean) {
     <PopoverPrimitive.Content
       class={cn(
         "floating-surface popover-content",
-        `popover-${variant === "field" ? "anchor" : size}`,
+        variant === "field"
+          ? `popover-anchor popover-field-${size === "anchor" ? "md" : size}`
+          : `popover-${size}`,
         className,
       )}
       {side}

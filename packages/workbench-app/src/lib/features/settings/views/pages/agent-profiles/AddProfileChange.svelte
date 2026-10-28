@@ -1,4 +1,6 @@
 <script lang="ts">
+import ArrowRight from "@lucide/svelte/icons/arrow-right";
+import ChevronRight from "@lucide/svelte/icons/chevron-right";
 import Plus from "@lucide/svelte/icons/plus";
 import type { ProfileDefinition } from "@nervekit/contracts/agent-configuration";
 import { skillOverrideKind } from "$lib/domain/skills/skill-catalog";
@@ -149,7 +151,36 @@ async function choose(item: (typeof items)[number]) {
           onChoose={choose}
           isDisabled={() => saving}
           isSelected={(item) => rows.some((r) => r.key === item.key)}
-        />
+        >
+          {#snippet row(item)}
+            <span class="flex min-w-0 flex-1 items-center gap-2">
+              <span class="min-w-0 flex-1 truncate text-foreground"
+                >{item.label}</span
+              >
+              {#if item.flip}
+                <span
+                  class="flex flex-none items-center gap-1 text-muted-foreground"
+                  aria-label={item.flip.applied
+                    ? `Changed from ${item.flip.from} to ${item.flip.to}; choose to undo`
+                    : `Turns ${item.flip.to.toLowerCase()}, default is ${item.flip.from.toLowerCase()}`}
+                >
+                  <span>{item.flip.from}</span>
+                  <ArrowRight class="size-3" aria-hidden="true" />
+                  <span
+                    class={item.flip.to === "On"
+                      ? "font-medium text-success"
+                      : "font-medium text-foreground"}>{item.flip.to}</span
+                  >
+                </span>
+              {:else}
+                <ChevronRight
+                  class="size-3.5 flex-none text-muted-foreground"
+                  aria-hidden="true"
+                />
+              {/if}
+            </span>
+          {/snippet}
+        </PopoverCommandList>
       {:else}
         <ProfileChangeEditor
           bind:this={editor}

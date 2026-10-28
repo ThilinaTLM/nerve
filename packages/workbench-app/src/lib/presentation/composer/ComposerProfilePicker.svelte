@@ -1,8 +1,5 @@
 <script lang="ts">
-import Bot from "@lucide/svelte/icons/bot";
-import ClipboardList from "@lucide/svelte/icons/clipboard-list";
-import Network from "@lucide/svelte/icons/network";
-import Code2 from "@lucide/svelte/icons/code-2";
+import { profileIcon } from "./composer-icons";
 import Popover, {
   PopoverHeader,
   PopoverCommandList,
@@ -31,6 +28,7 @@ let {
   shortcutAria,
   onChange,
 }: Props = $props();
+const ActiveProfileIcon = $derived(profileIcon(agentProfile));
 
 const active = $derived(
   agentProfiles.find((profile) => profile.name === agentProfile) ?? {
@@ -39,7 +37,6 @@ const active = $derived(
   },
 );
 const profileItems = $derived(composerProfileItems(agentProfiles));
-const planning = $derived(agentProfile === "planning");
 let open = $state(false);
 
 function select(name: string) {
@@ -56,7 +53,7 @@ function select(name: string) {
       ? `${agentProfile}:${active.label}`
       : null}
     bind:open
-    size="sm"
+    size="lg"
     triggerClass="composer-tab"
     ariaLabel="Agent profile"
     triggerTitle={shortcut && !disabled
@@ -71,15 +68,7 @@ function select(name: string) {
         class={`inline-flex items-center gap-1 ${disabled ? "opacity-60" : ""}`}
         data-tour-id="composer-profile"
       >
-        {#if planning}
-          <ClipboardList aria-hidden="true" />
-        {:else if agentProfile === "coding"}
-          <Code2 aria-hidden="true" />
-        {:else if agentProfile === "lead"}
-          <Network aria-hidden="true" />
-        {:else}
-          <Bot aria-hidden="true" />
-        {/if}
+        <ActiveProfileIcon aria-hidden="true" />
         <span class="@max-[500px]/composer-toolbar:hidden">{active.label}</span>
       </span>
     {/snippet}
@@ -91,6 +80,14 @@ function select(name: string) {
       isSelected={(profile) => profile.name === agentProfile}
       isDisabled={() => controlsDisabled || disabled}
       onChoose={(profile) => select(profile.name)}
-    />
+    >
+      {#snippet icon(profile)}
+        {@const Icon = profileIcon(profile.name)}
+        <Icon
+          class="mt-0.5 size-3.5 flex-none self-start text-muted-foreground"
+          aria-hidden="true"
+        />
+      {/snippet}
+    </PopoverCommandList>
   </Popover>
 {/if}

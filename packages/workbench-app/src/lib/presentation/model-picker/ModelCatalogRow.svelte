@@ -3,7 +3,8 @@
   listbox (keyboard highlight is driven by its search field); `checkbox` rows
   live in the inline scope editor. Capability cells keep fixed widths so the
   context size, image and reasoning columns align across rows. Option rows
-  mark the selection in a leading slot so the row ends at its capabilities.
+  lead with the provider mark, swapped for a check on the selected row, so
+  the row ends at its capabilities.
 -->
 <script lang="ts">
 import type { Snippet } from "svelte";
@@ -15,6 +16,7 @@ import { Checkbox } from "@nervekit/ui-kit/components/ui/checkbox";
 import { Label } from "@nervekit/ui-kit/components/ui/label";
 import * as Tooltip from "@nervekit/ui-kit/components/ui/tooltip";
 import { cn } from "@nervekit/ui-kit/utils";
+import ProviderIcon from "./ProviderIcon.svelte";
 import {
   formatTokenCapacity,
   supportsImageInput,
@@ -72,7 +74,9 @@ const reasoning = $derived(model ? modelSupportsReasoning(model) : false);
   <span class="flex min-w-0 flex-1 items-baseline gap-1.5">
     <span
       class={cn(
-        "max-w-full shrink-0 truncate text-sm text-foreground",
+        "max-w-full shrink-0 truncate text-foreground",
+        // Option rows match PopoverRow; the settings scope table stays larger.
+        mode === "option" ? "text-xs" : "text-sm",
         selected && mode === "option" && "font-medium",
       )}>{label}</span
     >
@@ -147,13 +151,17 @@ const reasoning = $derived(model ? modelSupportsReasoning(model) : false);
     }}
   >
     <div class="flex min-h-7 min-w-0 items-center gap-2 py-1 pr-1.5 pl-1">
-      <CircleCheck
-        class={cn(
-          "size-3.5 flex-none text-foreground",
-          !selected && "invisible",
-        )}
-        aria-hidden="true"
-      />
+      {#if selected || !model}
+        <CircleCheck
+          class={cn(
+            "size-3.5 flex-none text-foreground",
+            !selected && "invisible",
+          )}
+          aria-hidden="true"
+        />
+      {:else}
+        <ProviderIcon provider={model.provider} />
+      {/if}
       {@render leading?.()}
       {@render text()}
       {@render capabilities()}
