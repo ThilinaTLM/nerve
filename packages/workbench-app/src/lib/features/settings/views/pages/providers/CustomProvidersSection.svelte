@@ -1,4 +1,5 @@
 <script lang="ts">
+import ProviderIcon from "$lib/presentation/model-picker/ProviderIcon.svelte";
 import { Badge } from "@nervekit/ui-kit/components/ui/badge";
 import Pencil from "@lucide/svelte/icons/pencil";
 import Trash2 from "@lucide/svelte/icons/trash-2";
@@ -6,19 +7,24 @@ import { IconAction } from "@nervekit/ui-kit/components/composites/icon-action";
 import type { AuthProviderMetadata, CustomProvider } from "$lib/api";
 import { deleteCustomProvider } from "$lib/api";
 import ConfirmDialog from "@nervekit/ui-kit/components/composites/confirm-dialog";
-import { SettingsListItem } from "$lib/presentation/settings";
+import {
+  SettingsInlineMessage,
+  SettingsListItem,
+} from "$lib/presentation/settings";
 import { providerCatalogState } from "$lib/features/settings/state/provider-catalog-state.svelte";
 import { refreshProviderCatalog } from "$lib/features/settings/state/provider-catalog-actions.svelte";
 import SettingsEntityListSection from "../../shared/settings-entity-list-section.svelte";
 import CustomProviderDialog from "./CustomProviderDialog.svelte";
 
 type Props = {
+  onError?: () => void;
   authProviders?: AuthProviderMetadata[];
 };
 
-let { authProviders = [] }: Props = $props();
+let { authProviders = [], onError }: Props = $props();
 
 let dialogOpen = $state(false);
+let deleteError = $state<string | undefined>(undefined);
 let editing = $state<CustomProvider | undefined>(undefined);
 let pendingDelete = $state<CustomProvider | undefined>(undefined);
 
@@ -55,11 +61,13 @@ function openEdit(provider: CustomProvider): void {
 async function confirmDelete(): Promise<void> {
   const provider = pendingDelete;
   if (!provider) return;
+  deleteError = undefined;
   try {
     await deleteCustomProvider(provider.id);
     await refreshProviderCatalog();
-  } catch {
-    // Refresh on the next catalog event keeps the UI consistent.
+  } catch (error) {
+    deleteError = error instanceof Error ? error.message : String(error);
+    onError?.();
   } finally {
     pendingDelete = undefined;
   }
@@ -80,9 +88,12 @@ async function confirmDelete(): Promise<void> {
 >
   {#snippet row(provider)}
     <SettingsListItem title={provider.displayName}>
+      {#snippet leading()}
+        <ProviderIcon provider={provider.id} class="size-4 shrink-0" />
+      {/snippet}
       {#snippet detail()}
         <span class="truncate">
-          <span class="font-mono">{provider.id}</span>
+          <span>{provider.id}</span>
           · {provider.api} ·
           <span class="font-mono">{provider.baseUrl}</span>
           · {modelCountByProvider.get(provider.id) ?? 0} models
@@ -107,6 +118,12 @@ async function confirmDelete(): Promise<void> {
         />
       {/snippet}
     </SettingsListItem>
+  {/snippet}
+  {#snippet below()}
+    {#if deleteError}<SettingsInlineMessage
+        tone="destructive"
+        text={deleteError}
+      />{/if}
   {/snippet}
 </SettingsEntityListSection>
 

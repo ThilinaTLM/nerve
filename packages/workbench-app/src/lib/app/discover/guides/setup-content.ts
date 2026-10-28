@@ -127,7 +127,7 @@ export const setupGuideSteps: Record<
       id: "scoped-models-catalog",
       title: "Search and check models",
       description:
-        "Search, filter by provider or capability, and check the models you want in scope. Changes save immediately; leaving everything unchecked keeps all models available.",
+        "Search by model, provider, or capability, and check the models you want in scope (a provider's checkbox adds all of its shown models). Changes save immediately; leaving everything unchecked keeps all models available.",
       targetId: "setup-scoped-models-catalog",
       fallback:
         "In Settings → Models, check the models the composer should offer.",

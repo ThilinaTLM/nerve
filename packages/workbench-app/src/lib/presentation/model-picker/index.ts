@@ -4,6 +4,8 @@ export {
   INHERIT_PICKER_KEY,
   scopedCatalogRows,
   toggleScopedModel,
+  type ScopedCatalogHeader,
+  type ScopedCatalogItem,
   type ScopedCatalogRow,
   type ScopedCatalogView,
 } from "./model-picker";

@@ -134,44 +134,36 @@ describe("settings model picker", () => {
     );
   });
 
-  it("lists stale scoped models first in the scoped view and only available models in the all view", () => {
+  it("groups the scope editor by provider, with stale selections first", () => {
     const scoped = [{ provider: "openai", modelId: "gpt" }, stale];
-    const scopedRows = scopedCatalogRows({
-      ...noFilter,
-      entries,
-      scoped,
-      view: "scoped",
-    });
+    const shape = (items: ReturnType<typeof scopedCatalogRows>) =>
+      items.map((item) =>
+        item.kind === "header"
+          ? `# ${item.label} ${item.checked}/${item.selections.length}`
+          : `${item.key}${item.checked ? " ✓" : ""}${item.stale ? " stale" : ""}`,
+      );
     assert.deepEqual(
-      scopedRows.map((row) => [row.key, row.checked, row.stale]),
+      shape(scopedCatalogRows({ entries, scoped, view: "scoped", query: "" })),
       [
-        ["openai:gpt-old", true, true],
-        ["openai:gpt", true, false],
-      ],
-    );
-    const allRows = scopedCatalogRows({
-      ...noFilter,
-      entries,
-      scoped,
-      view: "all",
-    });
-    assert.deepEqual(
-      allRows.map((row) => [row.key, row.checked]),
-      [
-        ["anthropic:sonnet", false],
-        ["openai:gpt", true],
+        "# Unavailable 1/1",
+        "openai:gpt-old ✓ stale",
+        "# OpenAI 1/1",
+        "openai:gpt ✓",
       ],
     );
     assert.deepEqual(
-      scopedCatalogRows({
-        ...noFilter,
-        capabilities: new Set(["reasoning"] as const),
-        entries,
-        scoped,
-        view: "scoped",
-      }).map((row) => row.key),
-      ["openai:gpt"],
+      shape(scopedCatalogRows({ entries, scoped, view: "all", query: "" })),
+      ["# Anthropic 0/1", "anthropic:sonnet", "# OpenAI 1/1", "openai:gpt ✓"],
     );
+  });
+
+  it("searches the scope editor by provider and capability like the picker", () => {
+    const keys = (query: string) =>
+      scopedCatalogRows({ entries, scoped: [], view: "all", query })
+        .filter((item) => item.kind === "model")
+        .map((item) => item.key);
+    assert.deepEqual(keys("anthropic"), ["anthropic:sonnet"]);
+    assert.deepEqual(keys("reasoning"), ["openai:gpt"]);
   });
 
   it("toggles scope idempotently while preserving order and stale entries", () => {

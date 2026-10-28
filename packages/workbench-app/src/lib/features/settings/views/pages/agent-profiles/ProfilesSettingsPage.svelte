@@ -58,7 +58,6 @@ import AddProfileChange from "./AddProfileChange.svelte";
 import ProfileEditorDialog from "./ProfileEditorDialog.svelte";
 import ProfileChangeChip from "./ProfileChangeChip.svelte";
 import Copy from "@lucide/svelte/icons/copy";
-import DelegationSettings from "./DelegationSettings.svelte";
 import ProfileTrustReviewDialog from "./ProfileTrustReviewDialog.svelte";
 import {
   applyProfileChange,
@@ -102,6 +101,33 @@ $effect(() => {
   if (currentTarget) untrack(() => void launchPreferences.load(currentTarget));
 });
 $effect(() => launchPreferences.observe());
+/** A model chosen for launches in an earlier version of this page (the
+ * "Sub-agent launches" section). It outranks the profile's recommended
+ * model, so it is surfaced on the card until cleared. */
+function launchModelOverride(profile: ProfileCatalogEntry) {
+  const own = launchPreferences.overrides.subagents?.[profile.name];
+  if (!own?.model && !own?.reasoningLevel) return undefined;
+  const definition = profile.definition;
+  const model =
+    definition?.requirements?.model ?? definition?.recommendations?.model;
+  const level =
+    definition?.requirements?.reasoningLevel ??
+    definition?.recommendations?.reasoningLevel;
+  const sameModel =
+    !own.model ||
+    (own.model.provider === model?.provider &&
+      own.model.modelId === model?.modelId);
+  const sameLevel = !own.reasoningLevel || own.reasoningLevel === level;
+  // Matching values change nothing; only a differing launch choice matters.
+  return sameModel && sameLevel ? undefined : own;
+}
+function clearLaunchModel(profile: ProfileCatalogEntry) {
+  const pointer = `/overrides/subagents/${profile.name.replaceAll("~", "~0").replaceAll("/", "~1")}`;
+  void launchPreferences.save({}, [
+    `${pointer}/model`,
+    `${pointer}/reasoningLevel`,
+  ]);
+}
 function launchEnabled(profile: ProfileCatalogEntry): boolean {
   return (
     launchPreferences.resolution?.settings.subagents?.[profile.name]?.enabled ??
@@ -485,9 +511,7 @@ const repairReplacement = $derived(
         >{/if}{#if profile.source !== "builtin"}<Badge variant="outline"
           >{profile.source === "user" ? "Personal" : "Project"}</Badge
         >{#if !profile.local}<Badge variant="outline">Inherited</Badge
-          >{/if}{/if}{#if profile.definition?.usableBy !== "lead" && !launchEnabled(profile)}<Badge
-          variant="outline">Off</Badge
-        >{/if}{#if profile.source === "project" && !profile.trusted}<Badge
+          >{/if}{/if}{#if profile.source === "project" && !profile.trusted}<Badge
           variant="warning">Needs trust</Badge
         >{/if}{/snippet}
     {#snippet actions()}{#if profile.definition}{#if profile.definition.usableBy !== "lead"}<Switch
@@ -576,6 +600,17 @@ const repairReplacement = $derived(
             onclick={() => reloadProfiles(profile.name)}>Reload</Button
           >{/snippet}</SettingsInlineMessage
       >{/each}
+    {@const launchOverride = launchModelOverride(profile)}
+    {#if launchOverride}<SettingsInlineMessage
+        tone="warning"
+        text={`Launches use ${launchOverride.model?.modelId ?? "the profile model"}${launchOverride.reasoningLevel ? ` · ${launchOverride.reasoningLevel}` : ""} from an earlier launch setting, which outranks this profile's model.`}
+        >{#snippet actions()}<Button
+            size="sm"
+            variant="outline"
+            disabled={launchPreferences.saving}
+            onclick={() => clearLaunchModel(profile)}>Use profile model</Button
+          >{/snippet}</SettingsInlineMessage
+      >{/if}
     {#if profile.source === "project" && profile.definition}<div
         class="flex items-center gap-2 px-3 pb-2"
       >
@@ -594,12 +629,6 @@ const repairReplacement = $derived(
       </div>{/if}
   </EntityCard>
 {/each}
-{#if kind === "subagent"}<DelegationSettings
-    editor={launchPreferences}
-    {projectId}
-    {models}
-    {authProviders}
-  />{/if}
 {#if metadata}<ProfileEditorDialog
     definition={metadata.definition}
     profiles={all}

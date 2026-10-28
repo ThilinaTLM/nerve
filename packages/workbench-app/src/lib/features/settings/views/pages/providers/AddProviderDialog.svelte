@@ -5,6 +5,11 @@ import Check from "@lucide/svelte/icons/check";
 import Copy from "@lucide/svelte/icons/copy";
 import ExternalLink from "@lucide/svelte/icons/external-link";
 import TriangleAlert from "@lucide/svelte/icons/triangle-alert";
+import ProviderIcon from "$lib/presentation/model-picker/ProviderIcon.svelte";
+import PopoverPanel, {
+  PopoverCommandList,
+} from "@nervekit/ui-kit/components/composites/popover-panel";
+import { providerCommandItems } from "./provider-profiles";
 import type { AuthProviderMetadata } from "$lib/api";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
 import * as Tooltip from "@nervekit/ui-kit/components/ui/tooltip";
@@ -19,6 +24,8 @@ import {
 
 type Props = {
   open?: boolean;
+  triggerLabel?: string;
+  triggerTourId?: string;
   authProviders?: AuthProviderMetadata[];
   kind?: ProviderDialogKind;
   excludeProviders?: string[];
@@ -26,11 +33,14 @@ type Props = {
 
 let {
   open = $bindable(false),
+  triggerLabel,
+  triggerTourId,
   authProviders = [],
   kind = "all",
   excludeProviders = [],
 }: Props = $props();
 
+let choicesOpen = $state(false);
 const flowController = new AddProviderFlow(() => (open = false));
 const excluded = $derived(new Set(excludeProviders));
 const available = $derived(
@@ -44,6 +54,7 @@ const available = $derived(
     )
     .sort((a, b) => a.displayName.localeCompare(b.displayName)),
 );
+const items = $derived(providerCommandItems(available));
 const activeInteraction = $derived(
   flowController.flow?.state === "active"
     ? flowController.flow.interaction
@@ -63,6 +74,80 @@ function handleOpenChange(next: boolean) {
 
 onDestroy(() => void flowController.dispose());
 </script>
+
+{#snippet providerChoices()}
+  <Tooltip.Provider delayDuration={200} disableHoverableContent>
+    <div data-tour-id="setup-auth-provider-choices">
+      <PopoverCommandList
+        {items}
+        ariaLabel="Providers"
+        placeholder="Search providers…"
+        stableHeight="calc(var(--spacing) * 64)"
+        empty={available.length === 0
+          ? "All known providers are already connected."
+          : "No matching providers."}
+        onChoose={(item) => {
+          choicesOpen = false;
+          open = true;
+          flowController.chooseProvider(item.provider, kind);
+        }}
+      >
+        {#snippet icon(item)}
+          <ProviderIcon provider={item.key} class="size-4" />
+        {/snippet}
+        {#snippet row(item)}
+          <span
+            class="flex min-w-0 flex-1 items-center gap-2"
+            data-tour-id={item.key === "openai-codex"
+              ? "setup-auth-openai-codex-choice"
+              : undefined}
+          >
+            <span class="truncate">{item.label}</span>
+            <span class="truncate text-muted-foreground">{item.detail}</span>
+            {#if kind !== "api_key" && item.provider.supportsOAuth && item.provider.warning}
+              <Tooltip.Root>
+                <Tooltip.Trigger>
+                  {#snippet child({ props })}
+                    <span
+                      {...props}
+                      role="img"
+                      class="ml-auto shrink-0 text-warning"
+                      aria-label={item.provider.warning}
+                    >
+                      <TriangleAlert class="size-3.5" />
+                    </span>
+                  {/snippet}
+                </Tooltip.Trigger>
+                <Tooltip.Content class="max-w-64"
+                  >{item.provider.warning}</Tooltip.Content
+                >
+              </Tooltip.Root>
+            {/if}
+          </span>
+        {/snippet}
+      </PopoverCommandList>
+    </div>
+  </Tooltip.Provider>
+{/snippet}
+
+{#if triggerLabel}
+  <PopoverPanel
+    bind:open={choicesOpen}
+    variant="panel"
+    size="lg"
+    ariaLabel={triggerLabel}
+  >
+    {#snippet triggerChild({ props })}
+      <Button
+        {...props}
+        variant="outline"
+        size="sm"
+        data-tour-id={triggerTourId}>{triggerLabel}</Button
+      >
+    {/snippet}
+    {#if choicesOpen}{@render providerChoices()}{/if}
+  </PopoverPanel>
+{/if}
 
 <Dialog
   bind:open
@@ -92,60 +177,7 @@ onDestroy(() => void flowController.dispose());
       />
     {/if}
     {#if flowController.step === "choose"}
-      {#if available.length === 0}
-        <p class="text-sm text-muted-foreground">
-          All known providers are already connected.
-        </p>
-      {:else}
-        <Tooltip.Provider delayDuration={200} disableHoverableContent>
-          <ul
-            class="grid h-[min(52vh,24rem)] content-start gap-1 overflow-y-auto pr-1"
-            data-tour-id="setup-auth-provider-choices"
-          >
-            {#each available as provider (provider.provider)}
-              <li class="flex items-center gap-1">
-                <button
-                  type="button"
-                  class="flex min-w-0 flex-1 cursor-pointer items-center rounded-md border border-transparent bg-card px-2 py-2 text-left transition-colors hover:bg-accent/50"
-                  data-tour-id={provider.provider === "openai-codex"
-                    ? "setup-auth-openai-codex-choice"
-                    : undefined}
-                  onclick={() => flowController.chooseProvider(provider, kind)}
-                >
-                  <span
-                    class="flex min-w-0 flex-1 items-baseline gap-2 text-sm"
-                  >
-                    <span class="truncate">{provider.displayName}</span>
-                    <span
-                      class="truncate font-mono text-xs text-muted-foreground"
-                      >{provider.provider}</span
-                    >
-                  </span>
-                </button>
-                {#if kind !== "api_key" && provider.supportsOAuth && provider.warning}
-                  <Tooltip.Root>
-                    <Tooltip.Trigger>
-                      {#snippet child({ props })}
-                        <span
-                          {...props}
-                          role="img"
-                          class="inline-flex shrink-0 cursor-help px-1 text-warning"
-                          aria-label={provider.warning}
-                        >
-                          <TriangleAlert class="size-4" />
-                        </span>
-                      {/snippet}
-                    </Tooltip.Trigger>
-                    <Tooltip.Content sideOffset={5} class="max-w-64"
-                      >{provider.warning}</Tooltip.Content
-                    >
-                  </Tooltip.Root>
-                {/if}
-              </li>
-            {/each}
-          </ul>
-        </Tooltip.Provider>
-      {/if}
+      {@render providerChoices()}
     {:else if flowController.step === "method"}
       <div class="grid gap-2">
         <Button
