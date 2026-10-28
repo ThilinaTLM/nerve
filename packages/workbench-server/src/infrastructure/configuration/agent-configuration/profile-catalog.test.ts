@@ -11,7 +11,7 @@ const project = { scope: "project", projectId: "p" } as const;
 const profile = {
   schemaVersion: 1,
   name: "coding",
-  description: "Coding",
+  whenToUse: "Coding",
   usableBy: "both",
   instructions: "Builtin",
 };

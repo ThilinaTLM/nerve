@@ -4,8 +4,8 @@ import { permissionRuleSetIdSchema } from "../permissions/permission-rule-sets.j
 import {
   agentProfileNameSchema,
   agentProfileInstructionsSchema,
+  AGENT_PROFILE_WHEN_TO_USE_MAX_LENGTH,
   AGENT_PROFILE_LABEL_MAX_LENGTH,
-  AGENT_PROFILE_DESCRIPTION_MAX_LENGTH,
 } from "../agent-profiles/constants.js";
 import {
   capabilitySkillsSchema,
@@ -161,11 +161,14 @@ const contribution = {
   sourceDigest: sha256HexSchema,
   instructions: agentProfileInstructionsSchema,
 };
+const profileSettingsOverridesSchema = leadSettingsOverridesSchema.extend({
+  skills: capabilitySkillsSchema.partial().strict().optional(),
+});
 export const appliedProfileSchema = z
   .strictObject({
     ...contribution,
-    recommendations: leadSettingsOverridesSchema,
-    requirements: leadSettingsOverridesSchema,
+    recommendations: profileSettingsOverridesSchema,
+    requirements: profileSettingsOverridesSchema,
   })
   .superRefine(checkOverlap);
 export type AppliedProfile = z.infer<typeof appliedProfileSchema>;
@@ -229,17 +232,17 @@ export const profileDefinitionSchema = z
       .min(1)
       .max(AGENT_PROFILE_LABEL_MAX_LENGTH)
       .optional(),
-    description: z
+    whenToUse: z
       .string()
       .trim()
       .min(1)
-      .max(AGENT_PROFILE_DESCRIPTION_MAX_LENGTH),
+      .max(AGENT_PROFILE_WHEN_TO_USE_MAX_LENGTH),
     /** Authored launch default (true if omitted), not availability or a requirement. */
     enabled: z.boolean().optional(),
     usableBy: z.enum(["lead", "subagent", "both"]),
     instructions: agentProfileInstructionsSchema,
-    recommendations: leadSettingsOverridesSchema.optional(),
-    requirements: leadSettingsOverridesSchema.optional(),
+    recommendations: profileSettingsOverridesSchema.optional(),
+    requirements: profileSettingsOverridesSchema.optional(),
   })
   .superRefine((v, ctx) => {
     checkOverlap(v, ctx);

@@ -63,7 +63,7 @@ void test("custom base preserves all appended sections in order", () => {
     contextFiles: [{ path: "AGENTS.md", content: "Project instructions" }],
     skills: [{ name: "s", description: "d", filePath: "/s/SKILL.md" } as never],
     agentProfiles: [
-      { name: "explore", description: "Research", permission: "Read only" },
+      { name: "explore", whenToUse: "Research", permission: "Read only" },
     ],
     selectedTools: ["read", "subagent_prompt", "ask_user"],
   });
@@ -92,7 +92,7 @@ void test("profile listing requires creation tool and usable profiles", () => {
         cwd: "/w",
         selectedTools,
         agentProfiles: [
-          { name: "explore", description: "Research", permission: "Read only" },
+          { name: "explore", whenToUse: "Research", permission: "Read only" },
         ],
       }),
       /<available_agent_profiles>/,

@@ -397,7 +397,7 @@ const composerProfiles = $derived(
     : leadAgentProfiles(resolvedProfiles).map((profile) => ({
         name: profile.name,
         label: profile.label,
-        description: profile.description,
+        whenToUse: profile.whenToUse,
         source: profile.source,
       })),
 );

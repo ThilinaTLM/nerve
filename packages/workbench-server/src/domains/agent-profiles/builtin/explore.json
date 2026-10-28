@@ -3,7 +3,7 @@
   "enabled": true,
   "name": "explore",
   "label": "Explore",
-  "description": "Read-only codebase and web research; returns a report with paths and evidence.",
+  "whenToUse": "Use when the task needs read-only codebase or web research and a report with file paths and evidence.",
   "usableBy": "subagent",
   "model": "lead",
   "permission": {

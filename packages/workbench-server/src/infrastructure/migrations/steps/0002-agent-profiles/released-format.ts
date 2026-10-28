@@ -577,17 +577,17 @@ export function splitCatalogV037(
     for (const [tool, settings] of Object.entries(complete.tools ?? {}))
       (recommendations.tools ??= {})[rename(tool)] =
         typeof settings === "boolean" ? { enabled: settings } : { settings };
-    if (complete.skills === "none")
-      recommendations.skills = {
-        defaults: { file: false, nerve: false, agentBrowser: false },
-      };
-    else if (complete.skills && complete.skills !== "inherit")
+    if (
+      complete.skills &&
+      complete.skills !== "none" &&
+      complete.skills !== "inherit"
+    )
       recommendations.skills = namedSkills(complete.skills, ctx);
     profiles[name] = profileDefinitionSchema.parse({
       schemaVersion: 1,
       name,
       label: complete.label,
-      description: complete.description,
+      whenToUse: complete.description,
       // Released enablement belongs only to the launch override; do not pin it
       // a second time in the catalog and make Use settings unable to re-enable.
       enabled: Object.hasOwn(ctx.builtins, name)

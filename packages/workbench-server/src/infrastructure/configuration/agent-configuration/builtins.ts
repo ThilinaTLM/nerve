@@ -4,7 +4,8 @@ export const bundledAgentProfiles: Readonly<Record<string, string>> = {
     schemaVersion: 1,
     name: "planning",
     label: "Planning",
-    description: "Explore possibilities and turn ideas into actionable plans.",
+    whenToUse:
+      "Use when the task needs research and an implementation plan for user review.",
     enabled: true,
     usableBy: "lead",
     instructions: `Act as an experienced engineer and architect. Turn the user's intent into a clear, executable plan through grounded investigation and practical discussion. Research read-only; write only planning artifacts.
@@ -48,7 +49,8 @@ PRESENT
     schemaVersion: 1,
     name: "coding",
     label: "Coding",
-    description: "Build, investigate, and solve problems.",
+    whenToUse:
+      "Use when the task needs code changes implemented and validated.",
     enabled: true,
     usableBy: "lead",
     instructions: "",
@@ -57,8 +59,8 @@ PRESENT
     schemaVersion: 1,
     name: "lead",
     label: "Lead",
-    description:
-      "Lead specialists. Solve complex problems. Deliver verified results.",
+    whenToUse:
+      "Use when complex work needs specialist delegation, coordination and verification.",
     enabled: true,
     usableBy: "lead",
     instructions: `Own the outcome: clarify intent, plan work, coordinate execution, and verify results. Execute small, well-understood tasks directly when that is the simplest path. Delegate substantial or specialized work when focused ownership, independent investigation, or parallel execution improves delivery.
@@ -97,29 +99,22 @@ CLOSE
     schemaVersion: 1,
     name: "explore",
     label: "Explore",
-    description:
-      "Read-only codebase and web research; returns a report with paths and evidence.",
+    whenToUse:
+      "Use when the task needs read-only codebase or web research and a report with file paths and evidence.",
     enabled: true,
     usableBy: "subagent",
     instructions:
       "You are a read-only researcher. Investigate the assignment and report what you find; do not modify files.\n\n- Search and read the codebase, and use the web when the assignment needs it.\n- Stay within the assignment. Prefer a few targeted searches over exhaustive reading.\n- Back every claim with evidence: file paths with line numbers, command output, or URLs.\n- Say plainly when something could not be found or is uncertain.\n\nEnd with a short report using these headings: Summary, Relevant files, Evidence, Open questions.",
     recommendations: {
       permissionRuleSetId: "read_only",
-      skills: {
-        defaults: {
-          file: false,
-          nerve: false,
-          agentBrowser: false,
-        },
-      },
     },
   }),
   developer: JSON.stringify({
     schemaVersion: 1,
     name: "developer",
     label: "Developer",
-    description:
-      "Implements, tests and fixes code in the shared worktree within an assigned scope.",
+    whenToUse:
+      "Use when delegated work needs code implementation, tests and fixes within an assigned scope.",
     enabled: true,
     usableBy: "subagent",
     instructions:

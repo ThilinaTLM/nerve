@@ -3,7 +3,7 @@
   "enabled": true,
   "name": "planning",
   "label": "Planning",
-  "description": "Research and present an implementation plan.",
+  "whenToUse": "Use when the task needs research and an implementation plan for user review.",
   "usableBy": "lead",
   "permission": {
     "lock": "planning"

@@ -1,3 +1,4 @@
+import { AGENT_PROFILE_NAME_MAX_LENGTH } from "@nervekit/contracts/agent-profiles";
 import {
   profileDefinitionSchema,
   type ProfileDefinition,
@@ -9,29 +10,20 @@ export type ChangeKey =
   | "model"
   | "permission"
   | "compaction"
-  | "skills"
   | "instructions"
   | `tool:${string}`
-  | `skill:${"file" | "nerve" | "agentBrowser"}:${string}`
-  | "skill-defaults";
+  | `skill:${"file" | "nerve" | "agentBrowser"}:${string}`;
 export type ModelChangeValue = {
   model?: ModelSelection;
   thinking?: ThinkingLevel;
   modelMode?: ChangeMode;
   thinkingMode?: ChangeMode;
 };
-export type SkillBuckets = {
-  file: Record<string, boolean>;
-  nerve: Record<string, boolean>;
-  agentBrowser: Record<string, boolean>;
-  defaults?: Partial<Record<"file" | "nerve" | "agentBrowser", boolean>>;
-};
 export const changeKinds = [
   { key: "model", label: "Model" },
   { key: "permission", label: "Permissions" },
   { key: "compaction", label: "Compaction" },
   { key: "tool", label: "Tool" },
-  { key: "skills", label: "Skills" },
   { key: "instructions", label: "Instructions" },
 ] as const;
 export const modeLabels: Record<ChangeMode, string> = {
@@ -133,13 +125,6 @@ export function changeRows(profile: ProfileDefinition): ChangeRow[] {
       });
     }
   }
-  const defaults = field(profile, "skills");
-  if ((defaults.value as SkillBuckets | undefined)?.defaults)
-    rows.push({
-      key: "skill-defaults",
-      label: "Skill source defaults",
-      ...defaults,
-    });
   for (const name of new Set([
     ...Object.keys(profile.recommendations?.tools ?? {}),
     ...Object.keys(profile.requirements?.tools ?? {}),
@@ -194,33 +179,27 @@ export function applyProfileChange(
       next[target] = { ...next[target], [key]: value };
     }
   };
-  if (change.key.startsWith("skill:") || change.key === "skill-defaults") {
+  if (change.key.startsWith("skill:")) {
     const [, source, ...parts] = change.key.split(":");
     const name = parts.join(":");
     for (const contribution of ["recommendations", "requirements"] as const) {
       const skills = next[contribution]?.skills;
       if (!skills) continue;
-      if (change.key === "skill-defaults") delete skills.defaults;
-      else {
-        const bucket = skills[source as "file" | "nerve" | "agentBrowser"];
-        if (bucket) delete bucket[name];
-      }
+      const bucket = skills[source as "file" | "nerve" | "agentBrowser"];
+      if (bucket) delete bucket[name];
     }
     if (change.mode !== "settings") {
       const target = section(change.mode);
       const skills = next[target]?.skills ?? {};
       next[target] = {
         ...next[target],
-        skills:
-          change.key === "skill-defaults"
-            ? { ...skills, defaults: (change.value as SkillBuckets).defaults }
-            : {
-                ...skills,
-                [source!]: {
-                  ...skills[source as "file" | "nerve" | "agentBrowser"],
-                  [name]: Boolean(change.value),
-                },
-              },
+        skills: {
+          ...skills,
+          [source!]: {
+            ...skills[source as "file" | "nerve" | "agentBrowser"],
+            [name]: Boolean(change.value),
+          },
+        },
       };
     }
   } else if (change.key === "model") {
@@ -250,35 +229,21 @@ export function applyProfileChange(
     write(
       change.key === "permission"
         ? "permissionRuleSetId"
-        : (change.key as "compaction" | "skills"),
-      change.value === "none"
-        ? { defaults: { file: false, nerve: false, agentBrowser: false } }
-        : change.value,
+        : (change.key as "compaction"),
+      change.value,
       change.mode,
     );
   return profileDefinitionSchema.parse(next);
 }
-export function skillsSummary(value: unknown): string {
-  const skills = value as Partial<SkillBuckets> | undefined;
-  if (!skills) return "";
-  if (value === "none") return "None";
-  return (
-    ["file", "nerve", "agentBrowser"]
-      .flatMap((kind) =>
-        Object.entries(skills[kind as keyof SkillBuckets] ?? {}).map(
-          ([name, enabled]) => `${enabled ? "+" : "−"} ${name}`,
-        ),
-      )
-      .join(", ") || "Source defaults"
-  );
-}
-export function nameFromLabel(label: string): string {
-  return label
+export function normalizeProfileName(name: string): string {
+  return name
     .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "")
-    .slice(0, 32)
-    .replace(/-+$/g, "");
+    .replace(/[\s_]+/g, "-")
+    .replace(/[^a-z0-9-]/g, "")
+    .slice(0, AGENT_PROFILE_NAME_MAX_LENGTH);
+}
+export function duplicateProfileName(name: string): string {
+  return `${name.slice(0, AGENT_PROFILE_NAME_MAX_LENGTH - 5).replace(/-+$/g, "")}-copy`;
 }
 
 /** A single policy choice explicitly unifies model and reasoning, retaining absent fields. */
@@ -340,7 +305,7 @@ export function buildAddChangeItems(input: {
   }[];
 }): AddChangeItem[] {
   const settings = (
-    ["model", "permission", "compaction", "instructions", "skills"] as const
+    ["model", "permission", "compaction", "instructions"] as const
   ).map((key) => ({
     key,
     label: changeLabel(key),

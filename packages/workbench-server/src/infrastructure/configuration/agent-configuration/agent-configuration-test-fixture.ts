@@ -14,7 +14,7 @@ export const lead = { scope: "conversation", conversationId: "lead" } as const;
 export const definition = {
   schemaVersion: 1,
   name: "coding",
-  description: "Coding",
+  whenToUse: "Coding",
   usableBy: "both",
   instructions: "",
 };

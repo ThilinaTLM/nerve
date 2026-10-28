@@ -14,7 +14,7 @@ export interface BuildNerveSystemPromptOptions {
   skills?: Skill[];
   agentProfiles?: Array<{
     name: string;
-    description: string;
+    whenToUse: string;
     permission: string;
   }>;
   /** Persona and working rules for this conversation only. */
@@ -59,7 +59,7 @@ export function buildNerveSystemPrompt(
           "available_agent_profiles",
           options.agentProfiles.map(
             (profile) =>
-              `${profile.name}: ${profile.description} (permission: ${profile.permission})`,
+              `${profile.name}: ${profile.whenToUse} (permission: ${profile.permission})`,
           ),
         )
       : "",

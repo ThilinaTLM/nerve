@@ -260,8 +260,8 @@ const subagentRows = $derived<Row[]>(
       key: profile.name,
       label: profile.label,
       group: "Sub-agents",
-      detail: profile.description,
-      keywords: profile.description ? [profile.description] : undefined,
+      detail: profile.whenToUse,
+      keywords: profile.whenToUse ? [profile.whenToUse] : undefined,
       enabled: capabilitySubagentEnabled(
         profile,
         configuration?.resolution.settings.subagents,

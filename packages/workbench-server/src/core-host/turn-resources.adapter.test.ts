@@ -23,7 +23,7 @@ void test("no usable profiles or existing children removes delegation tools", ()
 void test("usable profile names constrain new assignments without mutating the catalog", () => {
   const original = JSON.stringify(tools);
   const result = withAgentProfiles(tools, [
-    { name: "research", description: "Research" },
+    { name: "research", whenToUse: "Research" },
   ]);
   const prompt = result.find((tool) => tool.name === "subagent_prompt")!;
   const schema = prompt.parameters as unknown as {

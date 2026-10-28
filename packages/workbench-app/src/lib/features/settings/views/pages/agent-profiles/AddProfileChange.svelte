@@ -69,9 +69,10 @@ const items = $derived(
       key: `skill:${skillOverrideKind(skill.source)}:${skill.name}` as ChangeKey,
       label: skill.name,
       description: skill.source,
-      defaultOn:
-        context.skillEnabled?.(skillOverrideKind(skill.source), skill.name) ??
-        true,
+      defaultOn: context.skillEnabled(
+        skillOverrideKind(skill.source),
+        skill.name,
+      ),
     })),
   }),
 );
@@ -80,17 +81,16 @@ const draft = $derived<ChangeDraft>({
   key: view === "menu" ? "model" : view,
   mode: rows.find((row) => row.key === view)?.mode ?? "recommend",
   value:
-    (rows.find((row) => row.key === view)?.value ?? view === "compaction")
+    rows.find((row) => row.key === view)?.value ??
+    (view === "compaction"
       ? { auto: true, profile: "balanced", customTriggerPercent: 80 }
-      : view === "skills"
-        ? { file: {}, nerve: {}, agentBrowser: {} }
-        : view === "instructions"
-          ? ""
-          : view.startsWith("tool:")
-            ? context.seedTool(
-                view.slice(5) as Parameters<typeof context.seedTool>[0],
-              )
-            : undefined,
+      : view === "instructions"
+        ? ""
+        : view.startsWith("tool:")
+          ? context.seedTool(
+              view.slice(5) as Parameters<typeof context.seedTool>[0],
+            )
+          : undefined),
 });
 async function choose(item: (typeof items)[number]) {
   if (saving) return;

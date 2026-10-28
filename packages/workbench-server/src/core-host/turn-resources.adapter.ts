@@ -2,7 +2,7 @@ import type { ToolDefinition } from "@nervekit/tools/catalog";
 
 export function withAgentProfiles(
   tools: ToolDefinition[],
-  usable: readonly { name: string; description: string }[],
+  usable: readonly { name: string; whenToUse: string }[],
   hasExistingSubagents = false,
 ): ToolDefinition[] {
   if (!usable.length && !hasExistingSubagents)

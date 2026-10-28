@@ -1,3 +1,4 @@
+import { isAppliedHome, upgradeProfileDocuments } from "./profile-documents.js";
 import { inventory } from "./released-inventory.js";
 import {
   releasedBuiltins as builtins,
@@ -628,6 +629,10 @@ export default defineStep({
   id: "0002-agent-profiles",
   description: "Move agent settings to configuration files",
   async run(ctx) {
+    if (isAppliedHome(ctx)) {
+      upgradeProfileDocuments(ctx);
+      return;
+    }
     beginMigrationArchive(ctx.paths.home);
     if (process.platform === "win32")
       ctx.log(
@@ -677,6 +682,10 @@ export default defineStep({
     );
   },
   async verify(ctx) {
+    if (isAppliedHome(ctx)) {
+      upgradeProfileDocuments(ctx, true);
+      return;
+    }
     const plan = loadPlan(ctx),
       backend = new ReleasedSqliteBackend(
         ctx,
@@ -694,10 +703,15 @@ export default defineStep({
     }
   },
   async commit(ctx) {
+    if (isAppliedHome(ctx)) return;
     await retireReleasedSources(completion(ctx, loadPlan(ctx)));
     finishMigrationArchive(ctx.paths.home, archiveRoot(ctx), "committed");
   },
   async rollback(ctx) {
+    if (isAppliedHome(ctx)) {
+      new RollbackJournal(ctx.scratchDir).restore();
+      return;
+    }
     const archive = currentMigrationArchive(ctx.paths.home);
     if (!archive) return;
     assert(

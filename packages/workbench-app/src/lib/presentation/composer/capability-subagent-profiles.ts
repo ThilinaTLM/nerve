@@ -4,7 +4,7 @@ import type { LeadSettingsOverrides } from "@nervekit/contracts/agent-configurat
 export type CapabilitySubagentProfile = {
   name: string;
   label: string;
-  description?: string;
+  whenToUse?: string;
   /** Authored launch default, below scoped preferences. */
   defaultEnabled?: boolean;
   /** Blocked profile: why it is never offered to the model. */

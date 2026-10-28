@@ -3,7 +3,7 @@
   "enabled": true,
   "name": "coding",
   "label": "Coding",
-  "description": "Implement and validate changes.",
+  "whenToUse": "Use when the task needs code changes implemented and validated.",
   "usableBy": "lead",
   "permission": "settings",
   "tools": {

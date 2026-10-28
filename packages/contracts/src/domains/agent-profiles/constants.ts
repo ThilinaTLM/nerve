@@ -12,7 +12,7 @@ export const DEFAULT_AGENT_PROFILE = "coding";
 
 export const AGENT_PROFILE_NAME_MAX_LENGTH = 32;
 export const AGENT_PROFILE_LABEL_MAX_LENGTH = 80;
-export const AGENT_PROFILE_DESCRIPTION_MAX_LENGTH = 200;
+export const AGENT_PROFILE_WHEN_TO_USE_MAX_LENGTH = 200;
 
 export const agentProfileNameSchema = z
   .string()

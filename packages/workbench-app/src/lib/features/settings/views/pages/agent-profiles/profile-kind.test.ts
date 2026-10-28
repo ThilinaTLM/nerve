@@ -36,7 +36,7 @@ function profile(
       ? {
           schemaVersion: 1,
           name,
-          description: "Example profile",
+          whenToUse: "Use when testing profiles",
           instructions: "",
           usableBy,
         }

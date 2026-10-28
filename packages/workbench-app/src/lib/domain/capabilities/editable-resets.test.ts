@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { resolveAgentConfiguration } from "@nervekit/contracts/agent-configuration";
 import { editableCapabilityResets } from "./editable-resets";
-test("reset capabilities preserves required fields, source-default locks and non-capability choices", () => {
+test("reset capabilities preserves required fields, individual skill locks and non-capability choices", () => {
   const overrides = {
     model: { provider: "test", modelId: "chosen" },
     tools: { web_fetch: { enabled: false }, python_exec: { enabled: false } },
@@ -19,7 +19,7 @@ test("reset capabilities preserves required fields, source-default locks and non
       recommendations: {},
       requirements: {
         tools: { web_fetch: { enabled: true } },
-        skills: { defaults: { file: false } },
+        skills: { file: { review: false } },
       },
     },
   });

@@ -12,7 +12,8 @@ export type ProfileEditContext = {
   models: ModelInfo[];
   permissionOptions: { value: string; label: string; detail?: string }[];
   skills: AvailableSkill[];
-  skillEnabled?: (
+  /** Effective settings for this page scope, including inherited source defaults. */
+  skillEnabled: (
     source: "file" | "nerve" | "agentBrowser",
     name: string,
   ) => boolean;

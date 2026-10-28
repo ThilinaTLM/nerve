@@ -2,7 +2,7 @@ import type { ProfileCatalogEntry } from "@nervekit/contracts/agent-configuratio
 export type ProfileOption = {
   name: string;
   label: string;
-  description: string;
+  whenToUse: string;
   usableBy: "lead" | "subagent" | "both";
   defaultEnabled: boolean;
   applicable?: boolean;
@@ -89,7 +89,7 @@ function profileOption(entry: ProfileCatalogEntry): ProfileOption {
   return {
     name: entry.name,
     label: entry.definition?.label ?? entry.name,
-    description: entry.definition?.description ?? "Definition unavailable",
+    whenToUse: entry.definition?.whenToUse ?? "Definition unavailable",
     usableBy: entry.definition?.usableBy ?? "both",
     defaultEnabled: entry.definition?.enabled ?? true,
     applicable: entry.applicable,

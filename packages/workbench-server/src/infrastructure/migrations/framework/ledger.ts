@@ -97,7 +97,17 @@ export function planMigrations<T extends MigrationRegistryEntry>(
       throw new Error(`Released migration checksum mismatch: ${applied.id}`);
     }
   }
-  return registry.slice(ledger.length);
+  return [
+    ...registry
+      .slice(0, ledger.length)
+      .filter(
+        (entry, index) =>
+          entry.stage === "draft" &&
+          entry.rerunOnChange &&
+          entry.checksum !== ledger[index].checksum,
+      ),
+    ...registry.slice(ledger.length),
+  ];
 }
 
 export async function recordMigration(
@@ -108,19 +118,14 @@ export async function recordMigration(
   const manifest = nerveHomeManifestSchema.parse(
     JSON.parse(await readFile(paths.manifestPath, "utf8")),
   );
-  await atomicWriteJson(
-    paths.manifestPath,
-    {
-      ...manifest,
-      migrations: [
-        ...(manifest.migrations ?? []),
-        {
-          id: entry.step.id,
-          checksum: entry.checksum,
-          appliedAt: new Date().toISOString(),
-        },
-      ],
-    },
-    0o600,
-  );
+  const migrations = [...(manifest.migrations ?? [])];
+  const applied = {
+    id: entry.step.id,
+    checksum: entry.checksum,
+    appliedAt: new Date().toISOString(),
+  };
+  const index = migrations.findIndex((item) => item.id === entry.step.id);
+  if (index < 0) migrations.push(applied);
+  else migrations[index] = applied;
+  await atomicWriteJson(paths.manifestPath, { ...manifest, migrations }, 0o600);
 }

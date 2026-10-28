@@ -3,7 +3,7 @@
   "enabled": true,
   "name": "developer",
   "label": "Developer",
-  "description": "Implements, tests and fixes code in the shared worktree within an assigned scope.",
+  "whenToUse": "Use when delegated work needs code implementation, tests and fixes within an assigned scope.",
   "usableBy": "subagent",
   "model": "lead",
   "permission": {

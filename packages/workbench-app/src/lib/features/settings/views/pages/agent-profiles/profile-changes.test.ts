@@ -6,12 +6,14 @@ import {
   changeRows,
   unifyChangeMode,
   buildAddChangeItems,
+  normalizeProfileName,
+  duplicateProfileName,
 } from "./profile-changes";
 const model = { provider: "test", modelId: "one" };
 const base = profileDefinitionSchema.parse({
   schemaVersion: 1,
   name: "planning",
-  description: "Plan first",
+  whenToUse: "Use when planning first",
   usableBy: "lead",
   instructions: "Plan carefully.",
   recommendations: {
@@ -101,7 +103,7 @@ test("child definitions use the same real recommendations/requirements schema an
   const child = profileDefinitionSchema.parse({
     schemaVersion: 1,
     name: "research",
-    description: "Research",
+    whenToUse: "Use when researching",
     usableBy: "subagent",
     instructions: "Read.",
   });
@@ -122,11 +124,11 @@ test("child definitions use the same real recommendations/requirements schema an
   assert.equal(next.usableBy, "subagent");
 });
 
-test("skill item edits preserve other buckets, defaults and independent policies", () => {
+test("skill item edits preserve other individual skills and independent policies", () => {
   const profile = profileDefinitionSchema.parse({
     ...base,
     recommendations: {
-      skills: { file: { test: false }, defaults: { nerve: false } },
+      skills: { file: { test: false } },
     },
     requirements: {
       skills: { file: { review: false }, agentBrowser: { browser: true } },
@@ -138,7 +140,6 @@ test("skill item edits preserve other buckets, defaults and independent policies
     rows.find((row) => row.key === "skill:file:review")?.value,
     false,
   );
-  assert.ok(rows.some((row) => row.key === "skill-defaults"));
   const next = applyProfileChange(profile, {
     key: "skill:file:review",
     mode: "settings",
@@ -147,7 +148,6 @@ test("skill item edits preserve other buckets, defaults and independent policies
   assert.equal(next.requirements?.skills?.file?.review, undefined);
   assert.equal(next.recommendations?.skills?.file?.review, undefined);
   assert.equal(next.recommendations?.skills?.file?.test, false);
-  assert.equal(next.recommendations?.skills?.defaults?.nerve, false);
   assert.equal(next.requirements?.skills?.agentBrowser?.browser, true);
 });
 
@@ -246,5 +246,62 @@ test("add list omits its opening baseline, keeps newly changed flips, and suppli
     items
       .find((item) => item.key === "instructions")
       ?.keywords?.includes("prompt"),
+  );
+});
+
+test("legacy skill source defaults never become editable changes", () => {
+  const legacy = {
+    ...base,
+    recommendations: {
+      skills: { defaults: { file: false }, file: { review: true } },
+    },
+  };
+  assert.deepEqual(
+    changeRows(legacy).filter((row) => row.key.startsWith("skill")),
+    [
+      {
+        key: "skill:file:review",
+        label: "review",
+        mode: "recommend",
+        value: true,
+      },
+    ],
+  );
+});
+
+test("add menu offers individual skills using their inherited on/off state, not source buckets", () => {
+  const items = buildAddChangeItems({
+    baseline: [],
+    rows: [],
+    tools: [],
+    skills: [
+      { key: "skill:file:review", label: "Review", defaultOn: false },
+      { key: "skill:nerve:research", label: "Research", defaultOn: true },
+    ],
+  });
+  assert.deepEqual(
+    items.filter((item) => item.group === "Settings").map((item) => item.key),
+    ["model", "permission", "compaction", "instructions"],
+  );
+  assert.deepEqual(
+    items.find((item) => item.key === "skill:file:review")?.flip,
+    { from: "Off", to: "On", applied: false },
+  );
+  assert.deepEqual(
+    items.find((item) => item.key === "skill:nerve:research")?.flip,
+    { from: "On", to: "Off", applied: false },
+  );
+});
+
+test("profile names stay slugs and duplicates fit the identity length limit", () => {
+  assert.equal(
+    normalizeProfileName("UI_Developer helper!"),
+    "ui-developer-helper",
+  );
+  assert.equal(duplicateProfileName("ui-developer"), "ui-developer-copy");
+  assert.equal(duplicateProfileName("a".repeat(32)), `${"a".repeat(27)}-copy`);
+  assert.equal(
+    duplicateProfileName(`${"a".repeat(26)}-long`),
+    `${"a".repeat(26)}-copy`,
   );
 });

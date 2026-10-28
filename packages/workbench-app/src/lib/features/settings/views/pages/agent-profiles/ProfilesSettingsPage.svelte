@@ -6,7 +6,6 @@ import { ScopedAgentState } from "$lib/application/agent-configuration/scoped-ag
 import Pencil from "@lucide/svelte/icons/pencil";
 import Plus from "@lucide/svelte/icons/plus";
 import Trash2 from "@lucide/svelte/icons/trash-2";
-import Wrench from "@lucide/svelte/icons/wrench";
 import FileText from "@lucide/svelte/icons/file-text";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
 import { Badge } from "@nervekit/ui-kit/components/ui/badge";
@@ -62,7 +61,7 @@ import ProfileTrustReviewDialog from "./ProfileTrustReviewDialog.svelte";
 import {
   applyProfileChange,
   changeRows,
-  skillsSummary,
+  duplicateProfileName,
   type ChangeRow,
   type ModelChangeValue,
 } from "./profile-changes";
@@ -154,7 +153,7 @@ const profiles = $derived(
         (kind === "lead"
           ? p.definition.usableBy !== "subagent"
           : p.definition.usableBy !== "lead")) &&
-      `${p.name} ${p.definition?.label ?? ""} ${p.definition?.description ?? ""}`
+      `${p.name} ${p.definition?.label ?? ""} ${p.definition?.whenToUse ?? ""}`
         .toLowerCase()
         .includes(filter.toLowerCase()),
   ),
@@ -320,8 +319,6 @@ function text(row: ChangeRow) {
         ? `At ${value.customTriggerPercent}%`
         : (value.profile ?? "Use settings");
   }
-  if (row.key === "skills" || row.key === "skill-defaults")
-    return skillsSummary(row.value);
   if (row.key.startsWith("skill:")) return row.value ? "On" : "Off";
   if (row.key === "permission")
     return rules.find((r) => r.id === row.value)?.name ?? String(row.value);
@@ -360,14 +357,14 @@ function openNew(profile?: ProfileCatalogEntry) {
   newDefinition = profile?.definition
     ? {
         ...structuredClone($state.snapshot(profile.definition)),
-        name: "new-profile",
+        name: duplicateProfileName(profile.name),
         label: `${profile.definition.label ?? profile.name} copy`,
       }
     : {
         schemaVersion: 1,
-        name: "new-profile",
+        name: "",
         label: "",
-        description: "",
+        whenToUse: "",
         instructions: "",
         usableBy: kind,
       };
@@ -457,7 +454,7 @@ const repairReplacement = $derived(
   repairProfile?.definition ?? {
     schemaVersion: 1,
     name: repairProfile?.name ?? "recovered",
-    description: "Recovered profile",
+    whenToUse: "Use when recovering this profile.",
     usableBy: kind,
     instructions: "",
   },
@@ -502,18 +499,30 @@ const repairReplacement = $derived(
   >
 </div>
 {#each profiles as profile (profile.name)}
-  <EntityCard
-    title={profile.definition?.label ?? profile.name}
-    description={profile.definition?.description}
-  >
-    {#snippet badges()}{#if profile.definition?.usableBy === "both"}<Badge
-          variant="outline">Both</Badge
-        >{/if}{#if profile.source !== "builtin"}<Badge variant="outline"
-          >{profile.source === "user" ? "Personal" : "Project"}</Badge
-        >{#if !profile.local}<Badge variant="outline">Inherited</Badge
-          >{/if}{/if}{#if profile.source === "project" && !profile.trusted}<Badge
-          variant="warning">Needs trust</Badge
-        >{/if}{/snippet}
+  <EntityCard>
+    {#snippet head()}
+      <div class="flex min-w-0 flex-wrap items-center gap-2">
+        <h4 class="text-sm font-medium text-foreground">
+          {profile.definition?.label ?? profile.name}
+        </h4>
+        <span class="font-mono text-xs text-muted-foreground"
+          >{profile.name}</span
+        >
+        {#if profile.definition?.usableBy === "both"}<Badge variant="outline"
+            >Both</Badge
+          >{/if}{#if profile.source !== "builtin"}<Badge variant="outline"
+            >{profile.source === "user" ? "Personal" : "Project"}</Badge
+          >{#if !profile.local}<Badge variant="outline">Inherited</Badge
+            >{/if}{/if}{#if profile.source === "project" && !profile.trusted}<Badge
+            variant="warning">Needs trust</Badge
+          >{/if}
+      </div>
+      {#if profile.definition?.whenToUse}<p
+          class="line-clamp-2 text-xs text-muted-foreground"
+        >
+          {profile.definition.whenToUse}
+        </p>{/if}
+    {/snippet}
     {#snippet actions()}{#if profile.definition}{#if profile.definition.usableBy !== "lead"}<Switch
             checked={launchEnabled(profile)}
             disabled={!!busy ||
@@ -539,14 +548,6 @@ const repairReplacement = $derived(
           onclick={() => {
             metadata = undefined;
             openNew(profile);
-          }}
-        />{/if}{#if profile.local}<IconAction
-          icon={Wrench}
-          label="Preview repair"
-          disabled={!!busy}
-          onclick={() => {
-            repairProfile = profile;
-            repairOpen = true;
           }}
         />{/if}{#if onOpenFile && profile.source !== "builtin"}<IconAction
           icon={FileText}
@@ -598,7 +599,17 @@ const repairReplacement = $derived(
             size="sm"
             variant="outline"
             onclick={() => reloadProfiles(profile.name)}>Reload</Button
-          >{/snippet}</SettingsInlineMessage
+          >
+          {#if profile.local}<Button
+              size="sm"
+              variant="outline"
+              disabled={!!busy}
+              onclick={() => {
+                repairProfile = profile;
+                repairOpen = true;
+              }}>Repair…</Button
+            >{/if}
+        {/snippet}</SettingsInlineMessage
       >{/each}
     {@const launchOverride = launchModelOverride(profile)}
     {#if launchOverride}<SettingsInlineMessage
@@ -631,8 +642,6 @@ const repairReplacement = $derived(
 {/each}
 {#if metadata}<ProfileEditorDialog
     definition={metadata.definition}
-    profiles={all}
-    {context}
     onSave={saveDefinition}
     bind:open={
       () => !!metadata,
@@ -645,8 +654,6 @@ const repairReplacement = $derived(
     bind:open={newOpen}
     definition={newDefinition}
     isNew
-    profiles={all}
-    {context}
     onSave={saveDefinition}
   />{/if}
 <ConfirmDialog

@@ -5,7 +5,7 @@ sidebar:
   order: 6
 ---
 
-Agent profiles contribute instructions and settings for model, thinking, permissions, compaction, retry, tools and skills. `usableBy` is `lead`, `subagent`, or `both`; the description explains when to use the profile.
+Agent profiles contribute instructions and settings for model, thinking, permissions, compaction, retry, tools and skills. `usableBy` is `lead`, `subagent`, or `both`; `whenToUse` tells the agent when to use the profile.
 
 ## Selection and built-ins
 
@@ -29,7 +29,7 @@ Plan approval previews the target profile's requirements and commits accepted mo
 
 Priority is requirement → conversation choice → recommendation → process default → project → user → built-in. Switching profiles preserves conversation choices. **Reset removes an editable override and inherits**; it does not copy a default into the conversation or remove a requirement. Source labels distinguish defaults, conversation choices, recommendations, requirements and frozen child choices. Required values identify the controlling profile.
 
-Model and reasoning are separate settings; the picker saves them together. Reasoning inherited from a different source can be fitted to the model with a visible adjustment. Incompatible required reasoning is a conflict, not silently changed. Tool settings are typed; skills support source defaults (`file`, `nerve`, `agentBrowser`) and individual booleans. Permission policy remains authoritative.
+Model and reasoning are separate settings; the picker saves them together. Reasoning inherited from a different source can be fitted to the model with a visible adjustment. Incompatible required reasoning is a conflict, not silently changed. Tool settings are typed; profiles support individual skill booleans. Ordinary settings also support source defaults (`file`, `nerve`, `agentBrowser`). Permission policy remains authoritative.
 
 ## Applied profile snapshots
 
@@ -55,7 +55,7 @@ Catalog files are complete definitions: a same-name project definition replaces 
 {
   "schemaVersion": 1,
   "name": "research",
-  "description": "Inspect and explain without changing files.",
+  "whenToUse": "Inspect and explain without changing files.",
   "usableBy": "lead",
   "instructions": "Research the question and cite relevant files.",
   "recommendations": { "reasoningLevel": "high" },
@@ -70,3 +70,5 @@ Child agents resolve their own defaults and profile; they do not copy the lead's
 UI saves update validated configuration directly. **There are no file watchers:** manual edits need a restart for guaranteed activation, or an explicit Reload/Retry re-read. New requests capture current settings; tool execution checks current permissions even after approval waits.
 
 Malformed files and unavailable required references appear in configuration health. Review repair previews before confirming; damaged sources are backed up, not silently replaced, and dismissing a notice does not repair it. Invalid security configuration puts affected calls in **configuration-blocked** waiting with **Retry/Cancel**. Repair the cause, then Retry to re-read it; approval cannot bypass the block.
+
+Profile `whenToUse` is required, trimmed text (at most 200 characters). Agents see profiles as `name: whenToUse`; the slug `name` is used for delegation and the optional `label` is the display name. Profiles can override individual skills only, not skill-source defaults (`skills.defaults`). Skill availability otherwise follows the normal built-in → user → project → conversation layers.

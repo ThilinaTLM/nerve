@@ -12,6 +12,6 @@ export function composerProfileItems(profiles: ComposerAgentProfile[]) {
           : profile.source === "project"
             ? "Project"
             : "Profiles",
-    detail: profile.description,
+    detail: profile.whenToUse,
   }));
 }

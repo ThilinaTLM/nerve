@@ -8,7 +8,7 @@ test("profile groups use catalog sources, not profile names", () => {
       name: "coding",
       label: "My coding profile",
       source: "project",
-      description: "Project conventions",
+      whenToUse: "Project conventions",
     },
     { name: "personal", label: "Personal agent", source: "user" },
     { name: "stock", label: "Stock agent", source: "builtin" },

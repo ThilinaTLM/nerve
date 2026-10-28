@@ -244,18 +244,7 @@ export async function flush(): Promise<boolean> {
           />
         {/if}
       {:else}
-        <ProfileChangeForm
-          bind:draft={
-            () =>
-              draft.key === "skill-defaults"
-                ? { ...draft, key: "skills" }
-                : draft,
-            (next) => (draft = { ...next, key: draft.key })
-          }
-          {context}
-          {usableBy}
-          bind:valid
-        />
+        <ProfileChangeForm bind:draft {context} {usableBy} bind:valid />
         <Button
           size="sm"
           disabled={!valid || saving}

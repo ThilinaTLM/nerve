@@ -198,7 +198,7 @@ const capabilitySubagentProfiles = $derived(
     .map((p) => ({
       name: p.name,
       label: p.label,
-      description: p.description,
+      whenToUse: p.whenToUse,
       defaultEnabled: p.defaultEnabled,
       error: p.error,
     })),

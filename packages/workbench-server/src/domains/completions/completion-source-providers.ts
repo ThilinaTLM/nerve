@@ -667,7 +667,7 @@ export function createCompletionProviders(
             {
               label: `@agent:${name}`,
               displayLabel: definition?.label ?? name,
-              detail: definition?.description,
+              detail: definition?.whenToUse,
               enabled,
               available: !blocked && (enabled || writeAllowed),
               canDisable: !blocked && writeAllowed,
@@ -681,7 +681,7 @@ export function createCompletionProviders(
             fields([
               ["name", definition?.label ?? name],
               ["identifier", name],
-              ["description", definition?.description],
+              ["description", definition?.whenToUse],
             ]),
             [config.version, profile],
             {

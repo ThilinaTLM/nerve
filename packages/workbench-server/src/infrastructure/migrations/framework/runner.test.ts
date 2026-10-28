@@ -453,3 +453,45 @@ void test("custom rollback validates candidates before generic journal restorati
   await rollbackFailedMigration(home, { registry });
   assert.equal(await readFile(owned, "utf8"), "original");
 });
+
+void test("only opted-in changed draft steps rerun and replace their ledger entry", async (t) => {
+  const home = await temporaryHome(t);
+  let runs = 0;
+  const first = {
+    ...entry("0001-example", async () => {
+      runs++;
+    }),
+    stage: "draft" as const,
+    rerunOnChange: true,
+  };
+  await runMigrations(home, { registry: [first] });
+  const revised = { ...first, checksum: "b".repeat(64) };
+  assert.deepEqual(
+    (await runMigrations(home, { registry: [revised], dryRun: true })).pending,
+    [first.step.id],
+  );
+  assert.equal(runs, 0);
+  await runMigrations(home, { registry: [revised] });
+  assert.equal(runs, 1);
+  assert.equal((await manifest(home)).migrations.length, 1);
+  assert.equal((await manifest(home)).migrations[0].checksum, revised.checksum);
+  await runMigrations(home, { registry: [revised] });
+  assert.equal(runs, 1);
+  const notOptedIn = {
+    ...revised,
+    checksum: "c".repeat(64),
+    rerunOnChange: false,
+  };
+  assert.deepEqual(
+    (await runMigrations(home, { registry: [notOptedIn], dryRun: true }))
+      .pending,
+    [],
+  );
+  await assert.rejects(
+    runMigrations(home, {
+      registry: [{ ...notOptedIn, stage: "released", releasedIn: "0.37.0" }],
+      dryRun: true,
+    }),
+    /checksum mismatch/,
+  );
+});
