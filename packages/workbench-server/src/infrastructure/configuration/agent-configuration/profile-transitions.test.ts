@@ -10,7 +10,7 @@ import {
 import type { ModelSelection, ThinkingLevel } from "@nervekit/contracts/models";
 import { atomicReplaceFile } from "../../storage-bootstrap/file-mutations.js";
 import { AgentConfigurationService } from "./agent-configuration-service.js";
-import { bundledAgentProfiles } from "./builtins.js";
+import { bundledAgentProfiles } from "./builtins/index.js";
 import { createProfileTransitions } from "./profile-transitions.js";
 
 async function fixture(

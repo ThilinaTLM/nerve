@@ -1,6 +1,6 @@
 import convertedModeProfiles from "./converted-mode-profiles.json" with { type: "json" };
 import { profileDefinitionSchema } from "@nervekit/contracts/agent-configuration";
-import { bundledAgentProfiles } from "../../../configuration/agent-configuration/builtins.js";
+import { bundledAgentProfiles } from "../../../configuration/agent-configuration/builtins/index.js";
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import fixture from "../../../../../test/fixtures/storage/releases/0.37.0/agent-conversion-inputs.json" with { type: "json" };
