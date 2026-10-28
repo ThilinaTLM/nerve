@@ -4,7 +4,10 @@ import Popover, {
   PopoverHeader,
 } from "@nervekit/ui-kit/components/composites/popover-panel";
 import { ModelPickerPanel } from "$lib/presentation/model-picker";
-import { supportedThinkingLevelsForModel } from "$lib/presentation/state/thinking-levels";
+import {
+  supportedThinkingLevelsForModel,
+  thinkingLevelShortLabel,
+} from "$lib/presentation/state/thinking-levels";
 import {
   contextualModelLabel,
   modelKey,
@@ -49,25 +52,6 @@ const hasThinking = $derived(thinkingLevels.length > 1);
 
 function thinkingLevelLabel(level: ThinkingLevel): string {
   return level === "off" ? "Off" : level[0].toUpperCase() + level.slice(1);
-}
-
-function thinkingLevelShortLabel(level: ThinkingLevel): string {
-  switch (level) {
-    case "minimal":
-      return "Mi";
-    case "low":
-      return "L";
-    case "medium":
-      return "M";
-    case "high":
-      return "H";
-    case "xhigh":
-      return "XH";
-    case "max":
-      return "Max";
-    default:
-      return "Off";
-  }
 }
 
 const triggerLabel = $derived(

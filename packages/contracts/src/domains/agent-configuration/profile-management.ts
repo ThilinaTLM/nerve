@@ -22,6 +22,8 @@ export const profileCatalogEntrySchema = z.strictObject({
   applicable: z.boolean(),
   enabled: z.boolean(),
   local: z.boolean(),
+  /** The lower layer a local copy hides; reverting deletes the copy to reveal it. */
+  shadows: z.enum(["builtin", "user"]).optional(),
   diagnostics: z.array(configurationDiagnosticSchema),
 });
 export const listScopedProfilesRequestSchema = z.strictObject({

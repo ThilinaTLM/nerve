@@ -149,3 +149,17 @@ void test("profile UI saves detect conflicts/external edits, validate filename i
   );
   await assert.rejects(f.catalog.get("../escape"));
 });
+
+void test("editing reports which lower layer a local copy shadows", async (t) => {
+  const f = await fixture(t);
+  const shadows = async (scope: typeof user | typeof project, name: string) =>
+    (await f.catalog.readForEditing(scope, name)).profile.shadows;
+  assert.equal(await shadows(user, "coding"), undefined);
+  await f.catalog.save(user, "coding", "missing", profile);
+  assert.equal(await shadows(user, "coding"), "builtin");
+  await f.catalog.save(project, "coding", "missing", profile);
+  assert.equal(await shadows(project, "coding"), "user");
+  const own = { ...profile, name: "own" };
+  await f.catalog.save(project, "own", "missing", own);
+  assert.equal(await shadows(project, "own"), undefined);
+});

@@ -360,6 +360,8 @@ export class AgentProfileCatalog {
       const trusted =
         current.scope !== "project" ||
         this.options.isTrusted(current.projectId, file, digest);
+      const shadows =
+        index === 0 ? await this.lowerSource(scopes.slice(1), name) : undefined;
       return {
         localDigest,
         profile: {
@@ -375,6 +377,7 @@ export class AgentProfileCatalog {
               definition.usableBy === (role === "lead" ? "lead" : "subagent")),
           enabled: definition?.enabled !== false,
           local: index === 0,
+          ...(shadows ? { shadows } : {}),
           diagnostics: [
             ...healthDiagnostics(state, `profile:${name}`),
             ...(!trusted
@@ -404,6 +407,22 @@ export class AgentProfileCatalog {
         diagnostics: [],
       },
     };
+  }
+
+  /** The first lower layer that defines `name`, if any. */
+  private async lowerSource(
+    scopes: PreferenceScope[],
+    name: string,
+  ): Promise<"user" | "builtin" | undefined> {
+    for (const current of scopes) {
+      const state = await this.read({ ...current, name });
+      if (
+        state.status !== "unavailable" ||
+        !state.issues.every((issue) => issue.code === "missing-required")
+      )
+        return current.scope === "user" ? "user" : undefined;
+    }
+    return this.options.builtins[name] === undefined ? undefined : "builtin";
   }
 
   async listForEditing(

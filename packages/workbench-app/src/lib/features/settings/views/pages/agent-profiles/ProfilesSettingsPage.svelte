@@ -3,9 +3,9 @@ import { untrack } from "svelte";
 import { resolveAgentConfiguration } from "@nervekit/contracts/agent-configuration";
 import { requestWorkbench } from "$lib/application/startup/workbench-connection";
 import { ScopedAgentState } from "$lib/application/agent-configuration/scoped-agent-state.svelte";
-import Pencil from "@lucide/svelte/icons/pencil";
 import Plus from "@lucide/svelte/icons/plus";
 import Trash2 from "@lucide/svelte/icons/trash-2";
+import RotateCcw from "@lucide/svelte/icons/rotate-ccw";
 import FileText from "@lucide/svelte/icons/file-text";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
 import { Badge } from "@nervekit/ui-kit/components/ui/badge";
@@ -32,6 +32,7 @@ import {
   modelDisplayName,
 } from "$lib/presentation/utils/model";
 import type { ModelSelection } from "@nervekit/contracts/models";
+import { thinkingLevelShortLabel } from "$lib/presentation/state/thinking-levels";
 import { permissionRuleSetCatalog } from "$lib/application/permissions/permission-rule-set-catalog.svelte";
 import { agentProfileCatalog } from "$lib/application/agent-profiles/agent-profile-catalog.svelte";
 import {
@@ -54,14 +55,18 @@ import {
 } from "../tools/tool-settings";
 import ConfigurationRepairDialog from "../capabilities/ConfigurationRepairDialog.svelte";
 import AddProfileChange from "./AddProfileChange.svelte";
-import ProfileEditorDialog from "./ProfileEditorDialog.svelte";
+import ProfileCardHead, {
+  type ProfileHeadPatch,
+} from "./ProfileCardHead.svelte";
 import ProfileChangeChip from "./ProfileChangeChip.svelte";
 import Copy from "@lucide/svelte/icons/copy";
 import ProfileTrustReviewDialog from "./ProfileTrustReviewDialog.svelte";
 import {
   applyProfileChange,
   changeRows,
+  changeSections,
   duplicateProfileName,
+  unifyChangeMode,
   type ChangeRow,
   type ModelChangeValue,
 } from "./profile-changes";
@@ -305,7 +310,10 @@ function modelText(selection?: ModelSelection) {
 function text(row: ChangeRow) {
   if (row.key === "model") {
     const value = row.value as ModelChangeValue;
-    return `${modelText(value.model)} · ${value.thinking ?? "Use settings"}`;
+    const name = value.model ? modelText(value.model) : "Default";
+    return value.thinking
+      ? `${name} (${thinkingLevelShortLabel(value.thinking)})`
+      : name;
   }
   if (row.key === "compaction") {
     const value = row.value as {
@@ -332,26 +340,7 @@ function text(row: ChangeRow) {
     modelLabel: (selection) => modelText(selection as ModelSelection),
   });
 }
-let metadata = $state<{
-  name: string;
-  scope: PreferenceScope;
-  expectedDigest: string;
-  definition: ProfileDefinition;
-}>();
-async function editMetadata(profile: ProfileCatalogEntry) {
-  try {
-    const base = await snapshot(profile);
-    metadata = {
-      name: profile.name,
-      scope: base.scope,
-      expectedDigest: base.expectedDigest,
-      definition: base.definition,
-    };
-  } catch (error) {
-    errors[profile.name] = String(error);
-  }
-}
-let newOpen = $state(false);
+/** The draft card for a new or duplicated profile, shown first. */
 let newDefinition = $state<ProfileDefinition>();
 function openNew(profile?: ProfileCatalogEntry) {
   newDefinition = profile?.definition
@@ -359,6 +348,7 @@ function openNew(profile?: ProfileCatalogEntry) {
         ...structuredClone($state.snapshot(profile.definition)),
         name: duplicateProfileName(profile.name),
         label: `${profile.definition.label ?? profile.name} copy`,
+        usableBy: kind,
       }
     : {
         schemaVersion: 1,
@@ -368,22 +358,48 @@ function openNew(profile?: ProfileCatalogEntry) {
         instructions: "",
         usableBy: kind,
       };
-  newOpen = true;
 }
-async function saveDefinition(definition: ProfileDefinition) {
-  const edit = metadata;
-  const name = edit?.name ?? definition.name;
-  if (!target) throw new Error("Choose a project first.");
-  const ok = await mutate(name, () =>
+async function createProfile(head: ProfileHeadPatch) {
+  if (!target || !newDefinition) throw new Error("Choose a project first.");
+  if (all.some((p) => p.name === head.name))
+    throw new Error(`A profile with ID “${head.name}” already exists.`);
+  const definition = { ...$state.snapshot(newDefinition), ...head };
+  const ok = await mutate(head.name, () =>
     saveScopedProfile({
-      scope: edit?.scope ?? target!,
-      name,
-      expectedDigest: edit?.expectedDigest ?? "missing",
+      scope: target!,
+      name: head.name,
+      expectedDigest: "missing",
       definition: profileDefinitionSchema.parse(definition),
     }),
   );
-  if (!ok) throw new Error(errors[name] ?? "Could not save profile.");
-  metadata = undefined;
+  if (!ok) {
+    const message = errors[head.name] ?? "Could not create profile.";
+    delete errors[head.name];
+    throw new Error(message);
+  }
+  newDefinition = undefined;
+}
+async function saveHead(profile: ProfileCatalogEntry, head: ProfileHeadPatch) {
+  try {
+    const base = await snapshot(profile);
+    const ok = await mutate(profile.name, () =>
+      saveScopedProfile({
+        scope: base.scope,
+        name: profile.name,
+        expectedDigest: base.expectedDigest,
+        definition: profileDefinitionSchema.parse({
+          ...base.definition,
+          label: head.label,
+          whenToUse: head.whenToUse,
+        }),
+      }),
+    );
+    if (!ok) throw new Error(errors[profile.name]);
+  } catch (error) {
+    errors[profile.name] ??=
+      error instanceof Error ? error.message : String(error);
+    throw error;
+  }
 }
 async function persistChange(
   profile: ProfileCatalogEntry,
@@ -402,6 +418,7 @@ async function persistChange(
   );
   if (!ok) throw new Error(errors[profile.name] ?? "Could not save profile.");
 }
+const layerText = { builtin: "built-in", user: "User", project: "Project" };
 let deleteOpen = $state(false);
 let deleting = $state<Awaited<ReturnType<typeof snapshot>>>();
 async function askDelete(profile: ProfileCatalogEntry) {
@@ -444,8 +461,7 @@ let repairProfile = $state<ProfileCatalogEntry>();
 const editingScopeKey = $derived(`${scope}:${projectId ?? ""}:${kind}`);
 $effect(() => {
   void editingScopeKey;
-  metadata = undefined;
-  newOpen = false;
+  newDefinition = undefined;
   reviewOpen = false;
   repairOpen = false;
   deleteOpen = false;
@@ -460,6 +476,21 @@ const repairReplacement = $derived(
   },
 );
 </script>
+{#snippet profileBadges(
+  profile: ProfileCatalogEntry,
+)}{#if profile.definition?.usableBy === "both"}<Badge variant="outline"
+      >Both</Badge
+    >{/if}{#if profile.source !== "builtin"}<Badge variant="outline"
+      >{layerText[profile.source]}</Badge
+    >{#if !profile.local}<Badge variant="outline">Inherited</Badge
+      >{/if}{/if}{#if profile.local && profile.definition && profile.shadows}<IconAction
+      icon={RotateCcw}
+      label={`Revert to the ${layerText[profile.shadows]} version`}
+      disabled={!!busy}
+      onclick={() => askDelete(profile)}
+    />{/if}{#if profile.source === "project" && !profile.trusted}<Badge
+      variant="warning">Needs trust</Badge
+    >{/if}{/snippet}
 {#if launchPreferences.error}<SettingsInlineMessage
     tone="destructive"
     text={launchPreferences.error}
@@ -492,36 +523,32 @@ const repairReplacement = $derived(
     size="sm"
     variant="outline"
     disabled={!target || !!busy}
-    onclick={() => {
-      metadata = undefined;
-      openNew();
-    }}><Plus class="size-3.5" />New profile</Button
+    onclick={() => openNew()}><Plus class="size-3.5" />New profile</Button
   >
 </div>
+{#if newDefinition}{#key newDefinition}<EntityCard>
+      {#snippet head()}<ProfileCardHead
+          definition={newDefinition!}
+          isNew
+          onSave={createProfile}
+          onCancel={() => (newDefinition = undefined)}
+        />{/snippet}
+    </EntityCard>{/key}{/if}
 {#each profiles as profile (profile.name)}
   <EntityCard>
     {#snippet head()}
-      <div class="flex min-w-0 flex-wrap items-center gap-2">
-        <h4 class="text-sm font-medium text-foreground">
-          {profile.definition?.label ?? profile.name}
-        </h4>
-        <span class="font-mono text-xs text-muted-foreground"
-          >{profile.name}</span
-        >
-        {#if profile.definition?.usableBy === "both"}<Badge variant="outline"
-            >Both</Badge
-          >{/if}{#if profile.source !== "builtin"}<Badge variant="outline"
-            >{profile.source === "user" ? "Personal" : "Project"}</Badge
-          >{#if !profile.local}<Badge variant="outline">Inherited</Badge
-            >{/if}{/if}{#if profile.source === "project" && !profile.trusted}<Badge
-            variant="warning">Needs trust</Badge
-          >{/if}
-      </div>
-      {#if profile.definition?.whenToUse}<p
-          class="line-clamp-2 text-xs text-muted-foreground"
-        >
-          {profile.definition.whenToUse}
-        </p>{/if}
+      {#if profile.definition}<ProfileCardHead
+          definition={profile.definition}
+          disabled={!!busy}
+          editHint={profile.local ? undefined : `Editing saves a ${scope} copy`}
+          onSave={(head) => saveHead(profile, head)}
+          >{#snippet badges()}{@render profileBadges(
+              profile,
+            )}{/snippet}</ProfileCardHead
+        >{:else}<div class="flex min-w-0 flex-wrap items-center gap-2">
+          <h4 class="text-sm font-medium text-foreground">{profile.name}</h4>
+          {@render profileBadges(profile)}
+        </div>{/if}
     {/snippet}
     {#snippet actions()}{#if profile.definition}{#if profile.definition.usableBy !== "lead"}<Switch
             checked={launchEnabled(profile)}
@@ -535,25 +562,15 @@ const repairReplacement = $derived(
                 subagents: { [profile.name]: { enabled } },
               })}
           />{/if}<IconAction
-          icon={Pencil}
-          label={profile.local
-            ? `Edit ${profile.definition.label ?? profile.name}`
-            : `Edit ${profile.definition.label ?? profile.name} (saves a ${scope} copy)`}
-          disabled={!!busy}
-          onclick={() => editMetadata(profile)}
-        />{/if}{#if profile.definition}<IconAction
           icon={Copy}
           label={`Duplicate ${profile.name}`}
           disabled={!!busy}
-          onclick={() => {
-            metadata = undefined;
-            openNew(profile);
-          }}
+          onclick={() => openNew(profile)}
         />{/if}{#if onOpenFile && profile.source !== "builtin"}<IconAction
           icon={FileText}
           label="Open profile file"
           onclick={() => onOpenFile?.(profile.path)}
-        />{/if}{#if profile.local && profile.definition}<IconAction
+        />{/if}{#if profile.local && profile.definition && !profile.shadows}<IconAction
           icon={Trash2}
           label={`Delete local ${profile.name}`}
           disabled={!!busy}
@@ -569,27 +586,50 @@ const repairReplacement = $derived(
           >{/snippet}</SettingsInlineMessage
       >{/if}
     {#if profile.definition}
-      <div class="flex flex-wrap items-center gap-2 px-3 py-2">
-        {#each changeRows(profile.definition) as row (row.key)}
-          <ProfileChangeChip
-            {row}
-            value={text(row)}
-            label={row.key.startsWith("tool:")
-              ? toolRow(row.key.slice(5) as ToolId).label
-              : row.label}
+      {@const definition = profile.definition}
+      {@const sections = changeSections(changeRows(definition))}
+      <div
+        class="grid grid-cols-[5.5rem_minmax(0,1fr)] items-start gap-x-3 gap-y-1.5 px-3 py-2"
+      >
+        {#each sections as section (section.label)}
+          <span
+            class="flex h-control-sm items-center text-xs text-muted-foreground"
+            >{section.label}</span
+          >
+          <div class="flex min-w-0 flex-wrap items-center gap-1.5">
+            {#each section.rows as row (row.key)}
+              <ProfileChangeChip
+                {row}
+                value={text(row)}
+                label={row.key.startsWith("tool:")
+                  ? toolRow(row.key.slice(5) as ToolId).label
+                  : row.label}
+                {context}
+                usableBy={definition.usableBy}
+                disabled={!!busy}
+                onSave={(next) => persistChange(profile, next)}
+                onToggleMode={(mode) =>
+                  persistChange(profile, unifyChangeMode(row, mode))}
+              />
+            {/each}
+          </div>
+        {/each}
+        <div
+          class={sections.length
+            ? "col-start-2 -ml-1.5"
+            : "col-span-2 flex items-center gap-3"}
+        >
+          {#if !sections.length}<span
+              class="text-xs whitespace-nowrap text-muted-foreground"
+              >Uses your defaults</span
+            >{/if}
+          <AddProfileChange
+            profileLabel={definition.label ?? profile.name}
+            {definition}
             {context}
-            usableBy={profile.definition.usableBy}
             onSave={(next) => persistChange(profile, next)}
           />
-        {:else}<span class="text-xs text-muted-foreground"
-            >Uses your defaults</span
-          >{/each}
-        <AddProfileChange
-          profileLabel={profile.definition.label ?? profile.name}
-          definition={profile.definition}
-          {context}
-          onSave={(next) => persistChange(profile, next)}
-        />
+        </div>
       </div>
     {/if}
     {#each profile.diagnostics as diagnostic, index (index)}<SettingsInlineMessage
@@ -640,27 +680,20 @@ const repairReplacement = $derived(
       </div>{/if}
   </EntityCard>
 {/each}
-{#if metadata}<ProfileEditorDialog
-    definition={metadata.definition}
-    onSave={saveDefinition}
-    bind:open={
-      () => !!metadata,
-      (value) => {
-        if (!value) metadata = undefined;
-      }
-    }
-  />{/if}
-{#if newDefinition && newOpen}<ProfileEditorDialog
-    bind:open={newOpen}
-    definition={newDefinition}
-    isNew
-    onSave={saveDefinition}
-  />{/if}
 <ConfirmDialog
   bind:open={deleteOpen}
-  title="Delete local profile copy?"
-  description="Only this complete local copy is deleted. Future applications reveal the lower definition, if any. Existing conversation snapshots are unchanged."
-  confirmLabel="Delete local copy"
+  {...deleting?.profile.shadows
+    ? {
+        title: `Revert to the ${layerText[deleting.profile.shadows]} version?`,
+        description: `All ${scope}-level changes to this profile are discarded and the ${layerText[deleting.profile.shadows]} version applies again. Existing conversations are unchanged.`,
+        confirmLabel: "Revert",
+      }
+    : {
+        title: "Delete profile?",
+        description:
+          "The profile is removed from these settings. Existing conversations are unchanged.",
+        confirmLabel: "Delete profile",
+      }}
   onConfirm={remove}
 />
 <ProfileTrustReviewDialog

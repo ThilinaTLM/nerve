@@ -15,12 +15,8 @@ import {
   PopoverRow,
   PopoverSection,
 } from "@nervekit/ui-kit/components/composites/popover-panel";
-import ProfileChangeForm from "./ProfileChangeForm.svelte";
-import {
-  modeHint,
-  unifyChangeMode,
-  type ModelChangeValue,
-} from "./profile-changes";
+import ProfileToolConfigForm from "./ProfileToolConfigForm.svelte";
+import { unifyChangeMode, type ModelChangeValue } from "./profile-changes";
 import { toolRow, type ToolId, type ToolPayload } from "../tools/tool-settings";
 import type { ChangeDraft, ProfileEditContext } from "./profile-edit-context";
 let {
@@ -51,9 +47,6 @@ let configured = $state<ChangeDraft>(
   untrack(() => structuredClone($state.snapshot(change))),
 );
 const model = $derived(draft.value as ModelChangeValue | undefined);
-const mixed = $derived(
-  draft.key === "model" && model?.modelMode !== model?.thinkingMode,
-);
 const tool = $derived(
   draft.key.startsWith("tool:") ? (draft.key.slice(5) as ToolId) : undefined,
 );
@@ -243,59 +236,20 @@ export async function flush(): Promise<boolean> {
             }}
           />
         {/if}
-      {:else}
-        <ProfileChangeForm bind:draft {context} {usableBy} bind:valid />
-        <Button
-          size="sm"
-          disabled={!valid || saving}
-          onclick={() => save(draft)}>Apply</Button
-        >
       {/if}
     </PopoverSection>
   </PopoverBody>
 {/if}
-<PopoverFooter>
-  {#if draft.key === "instructions"}<span class="text-muted-foreground"
-      >Added to the system prompt.</span
-    >
-  {:else}
-    <div class="grid gap-1">
-      <ToggleGroup.Root
-        type="single"
-        variant="chip"
-        size="sm"
-        value={mixed ? "" : draft.mode}
-        aria-label="Change policy"
-        onValueChange={(mode) =>
-          mode && save(unifyChangeMode(draft, mode as "recommend" | "require"))}
-      >
-        <ToggleGroup.Item value="recommend" disabled={saving}
-          >Recommend</ToggleGroup.Item
-        >
-        <ToggleGroup.Item value="require" disabled={saving}
-          >Require</ToggleGroup.Item
-        >
-      </ToggleGroup.Root>
-      <span class="text-xs text-muted-foreground"
-        >{mixed
-          ? `Model ${model?.modelMode} · reasoning ${model?.thinkingMode}`
-          : modeHint(draft.mode)}</span
-      >
-    </div>
-  {/if}
-</PopoverFooter>
+{#if draft.key === "instructions"}<PopoverFooter
+    ><span class="text-muted-foreground">Added to the system prompt.</span
+    ></PopoverFooter
+  >{/if}
 <DialogShell
   bind:open={configure}
   title={`Configure ${tool ? toolRow(tool).label : title}`}
   size="wide"
 >
-  <ProfileChangeForm
-    bind:draft={configured}
-    {context}
-    {usableBy}
-    fixedTool
-    bind:valid
-  />
+  <ProfileToolConfigForm bind:draft={configured} {context} bind:valid />
   {#snippet footer()}<Button variant="ghost" onclick={() => (configure = false)}
       >Cancel</Button
     ><Button

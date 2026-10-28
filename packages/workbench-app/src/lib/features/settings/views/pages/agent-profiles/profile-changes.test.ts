@@ -4,6 +4,7 @@ import { profileDefinitionSchema } from "@nervekit/contracts/agent-configuration
 import {
   applyProfileChange,
   changeRows,
+  changeSections,
   unifyChangeMode,
   buildAddChangeItems,
   normalizeProfileName,
@@ -303,5 +304,26 @@ test("profile names stay slugs and duplicates fit the identity length limit", ()
   assert.equal(
     duplicateProfileName(`${"a".repeat(26)}-long`),
     `${"a".repeat(26)}-copy`,
+  );
+});
+test("change sections group rows in a fixed order and drop empty sections", () => {
+  const sections = changeSections(
+    changeRows(
+      profileDefinitionSchema.parse({
+        ...base,
+        recommendations: {
+          ...base.recommendations,
+          skills: { file: { review: true } },
+        },
+      }),
+    ),
+  );
+  assert.deepEqual(
+    sections.map((s) => [s.label, s.rows.map((r) => r.key)]),
+    [
+      ["Basics", ["model", "permission", "instructions"]],
+      ["Tools", ["tool:web_search"]],
+      ["Skills", ["skill:file:review"]],
+    ],
   );
 });

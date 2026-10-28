@@ -9,7 +9,6 @@
 <script lang="ts">
 import type { Snippet } from "svelte";
 import Brain from "@lucide/svelte/icons/brain";
-import CircleCheck from "@lucide/svelte/icons/circle-check";
 import Image from "@lucide/svelte/icons/image";
 import type { ModelInfo } from "@nervekit/contracts/models";
 import { Checkbox } from "@nervekit/ui-kit/components/ui/checkbox";
@@ -149,15 +148,7 @@ const reasoning = $derived(model ? modelSupportsReasoning(model) : false);
     }}
   >
     <div class="flex min-h-7 min-w-0 items-center gap-2 py-1 pr-1.5 pl-1">
-      {#if selected || !model}
-        <CircleCheck
-          class={cn(
-            "size-3.5 flex-none text-foreground",
-            !selected && "invisible",
-          )}
-          aria-hidden="true"
-        />
-      {:else}
+      {#if model}
         <ProviderIcon provider={model.provider} />
       {/if}
       {@render leading?.()}

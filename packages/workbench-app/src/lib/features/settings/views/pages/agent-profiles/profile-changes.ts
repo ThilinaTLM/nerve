@@ -26,25 +26,16 @@ export const changeKinds = [
   { key: "tool", label: "Tool" },
   { key: "instructions", label: "Instructions" },
 ] as const;
-export const modeLabels: Record<ChangeMode, string> = {
-  settings: "Use settings",
-  recommend: "Recommend",
-  require: "Require",
-};
 export function changeLabel(key: ChangeKey): string {
   return key.startsWith("tool:")
     ? "Tool"
     : (changeKinds.find((k) => k.key === key)?.label ?? key);
 }
-export function modesFor(): ChangeMode[] {
-  return ["settings", "recommend", "require"];
-}
-export function modeHint(mode: ChangeMode): string {
-  return mode === "settings"
-    ? "No profile contribution. Existing conversation choices and scoped preferences remain intact."
-    : mode === "recommend"
-      ? "Used unless the conversation explicitly chooses another value."
-      : "Controls the effective value while this profile applies. Underlying choices are preserved.";
+/** What a change does in its current mode; the chip's mode toggle tooltip. */
+export function modeHint(mode: "recommend" | "require"): string {
+  return mode === "recommend"
+    ? "Recommended: used unless the conversation chooses another value. Click to require."
+    : "Required: locked while this profile applies. Click to only recommend.";
 }
 export type ChangeRow = {
   key: ChangeKey;
@@ -92,7 +83,7 @@ export function changeRows(profile: ProfileDefinition): ChangeRow[] {
   if (model.value !== undefined || reasoning.value !== undefined)
     rows.push({
       key: "model",
-      label: "Model and reasoning",
+      label: "Model",
       mode: model.value !== undefined ? model.mode : reasoning.mode,
       mixed: model.mode !== reasoning.mode,
       value: {
@@ -341,4 +332,25 @@ export function buildAddChangeItems(input: {
   return [...settings, ...flips].filter(
     (item) => !input.baseline.includes(item.key),
   );
+}
+
+export type ChangeSection = {
+  label: "Basics" | "Tools" | "Skills";
+  rows: ChangeRow[];
+};
+/** Card sections, in a fixed order; empty sections are omitted. Basics holds
+ * the single-value changes (model, permissions, compaction, instructions). */
+export function changeSections(rows: ChangeRow[]): ChangeSection[] {
+  const sectionOf = (key: ChangeKey): ChangeSection["label"] =>
+    key.startsWith("tool:")
+      ? "Tools"
+      : key.startsWith("skill:")
+        ? "Skills"
+        : "Basics";
+  return (["Basics", "Tools", "Skills"] as const)
+    .map((label) => ({
+      label,
+      rows: rows.filter((row) => sectionOf(row.key) === label),
+    }))
+    .filter((section) => section.rows.length > 0);
 }

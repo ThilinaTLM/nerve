@@ -84,7 +84,7 @@ function select(name: string) {
       {#snippet icon(profile)}
         {@const Icon = profileIcon(profile.name)}
         <Icon
-          class="mt-0.5 size-3.5 flex-none self-start text-muted-foreground"
+          class="size-3.5 flex-none text-muted-foreground"
           aria-hidden="true"
         />
       {/snippet}

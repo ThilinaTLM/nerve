@@ -51,3 +51,23 @@ export const THINKING_LEVEL_DETAILS: Record<ThinkingLevel, string> = {
   xhigh: "Extra-high reasoning",
   max: "Maximum reasoning",
 };
+
+/** Compact level marker for tight labels, e.g. `GPT-6 (M)`. */
+export function thinkingLevelShortLabel(level: ThinkingLevel): string {
+  switch (level) {
+    case "minimal":
+      return "Mi";
+    case "low":
+      return "L";
+    case "medium":
+      return "M";
+    case "high":
+      return "H";
+    case "xhigh":
+      return "XH";
+    case "max":
+      return "Max";
+    default:
+      return "Off";
+  }
+}
