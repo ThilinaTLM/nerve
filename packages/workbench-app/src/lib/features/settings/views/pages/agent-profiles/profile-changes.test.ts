@@ -1,7 +1,12 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { profileDefinitionSchema } from "@nervekit/contracts/agent-configuration";
-import { applyProfileChange, changeRows } from "./profile-changes";
+import {
+  applyProfileChange,
+  changeRows,
+  unifyChangeMode,
+  buildAddChangeItems,
+} from "./profile-changes";
 const model = { provider: "test", modelId: "one" };
 const base = profileDefinitionSchema.parse({
   schemaVersion: 1,
@@ -115,4 +120,130 @@ test("child definitions use the same real recommendations/requirements schema an
     "",
   );
   assert.equal(next.usableBy, "subagent");
+});
+
+test("skill item edits preserve other buckets, defaults and independent policies", () => {
+  const profile = profileDefinitionSchema.parse({
+    ...base,
+    recommendations: {
+      skills: { file: { test: false }, defaults: { nerve: false } },
+    },
+    requirements: {
+      skills: { file: { review: false }, agentBrowser: { browser: true } },
+    },
+  });
+  const rows = changeRows(profile);
+  assert.equal(rows.filter((row) => row.key === "skill:file:review").length, 1);
+  assert.equal(
+    rows.find((row) => row.key === "skill:file:review")?.value,
+    false,
+  );
+  assert.ok(rows.some((row) => row.key === "skill-defaults"));
+  const next = applyProfileChange(profile, {
+    key: "skill:file:review",
+    mode: "settings",
+    value: false,
+  });
+  assert.equal(next.requirements?.skills?.file?.review, undefined);
+  assert.equal(next.recommendations?.skills?.file?.review, undefined);
+  assert.equal(next.recommendations?.skills?.file?.test, false);
+  assert.equal(next.recommendations?.skills?.defaults?.nerve, false);
+  assert.equal(next.requirements?.skills?.agentBrowser?.browser, true);
+});
+
+test("Remove instructions clears the contribution", () => {
+  assert.equal(
+    applyProfileChange(base, {
+      key: "instructions",
+      mode: "settings",
+      value: base.instructions,
+    }).instructions,
+    "",
+  );
+});
+
+test("a single model policy unifies existing fields but does not invent absent reasoning", () => {
+  const next = unifyChangeMode(
+    {
+      key: "model",
+      value: {
+        model,
+        thinking: "low",
+        modelMode: "require",
+        thinkingMode: "recommend",
+      },
+    },
+    "require",
+  );
+  const profile = applyProfileChange(base, next);
+  assert.equal(profile.requirements?.reasoningLevel, "low");
+  assert.deepEqual(profile.requirements?.model, model);
+  const modelOnly = applyProfileChange(
+    base,
+    unifyChangeMode({ key: "model", value: { model } }, "recommend"),
+  );
+  assert.equal(modelOnly.recommendations?.reasoningLevel, undefined);
+  const removed = applyProfileChange(
+    profile,
+    unifyChangeMode(next, "settings"),
+  );
+  assert.equal(removed.requirements?.model, undefined);
+  assert.equal(removed.requirements?.reasoningLevel, undefined);
+});
+
+test("add list omits its opening baseline, keeps newly changed flips, and supplies search aliases", () => {
+  const items = buildAddChangeItems({
+    baseline: ["model", "tool:web_search"],
+    rows: [
+      {
+        key: "skill:file:review",
+        label: "Review",
+        mode: "recommend",
+        value: false,
+      },
+    ],
+    tools: [
+      {
+        key: "tool:jira",
+        label: "Jira",
+        description: "Issues",
+        account: true,
+        defaultOn: false,
+      },
+      {
+        key: "tool:web_search",
+        label: "Search",
+        description: "Web",
+        defaultOn: true,
+      },
+    ],
+    skills: [{ key: "skill:file:review", label: "Review", defaultOn: true }],
+  });
+  assert.ok(
+    !items.some(
+      (item) => item.key === "model" || item.key === "tool:web_search",
+    ),
+  );
+  assert.equal(
+    items.find((item) => item.key === "skill:file:review")?.detail,
+    "Turned off",
+  );
+  assert.equal(
+    items.find((item) => item.key === "tool:jira")?.group,
+    "Account tools",
+  );
+  assert.equal(
+    items.find((item) => item.key === "tool:jira")?.detail,
+    "Turn on",
+  );
+  assert.ok(
+    items
+      .find((item) => item.key === "compaction")
+      ?.keywords?.includes("compression"),
+  );
+  assert.ok(
+    items
+      .find((item) => item.key === "instructions")
+      ?.keywords?.includes("prompt"),
+  );
 });

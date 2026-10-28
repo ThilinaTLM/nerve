@@ -23,6 +23,8 @@ import ContextMenuList, {
 import DialogShell from "@nervekit/ui-kit/components/composites/dialog-shell";
 import PopoverPanel, {
   PopoverBody,
+  PopoverCommandList,
+  PopoverViews,
   PopoverFooter,
   PopoverHeader,
   PopoverMeter,
@@ -83,6 +85,14 @@ const models = [
   { id: "sonnet", label: "Claude Sonnet 4.5", detail: "Balanced" },
   { id: "opus", label: "Claude Opus 4.1", detail: "Highest capability" },
   { id: "haiku", label: "Claude Haiku 4.5", detail: "Fastest" },
+];
+let commandChoice = $state<string | null>(null);
+let commandEnabled = $state(false);
+const commandItems = [
+  { key: "search", label: "Search files", group: "Tools", keywords: ["find"] },
+  { key: "terminal", label: "Terminal", group: "Tools" },
+  { key: "sonnet", label: "Sonnet", group: "Models" },
+  { key: "opus", label: "Opus", group: "Models" },
 ];
 let modelQuery = $state("");
 let modelSelected = $state("gpt");
@@ -289,6 +299,69 @@ const toolOutput = [
     title="Popovers"
     description="PopoverPanel anchored to a trigger. Status-bar and composer panels open upward (side top)."
   >
+    <GallerySpecimen
+      title="Command list and field family"
+      source="composites/popover-panel"
+      description="Search group names or items; arrows and Enter choose. Panel details cross-fade and resize."
+    >
+      <PopoverPanel
+        ariaLabel="Command list specimen"
+        onOpenChange={() => (commandChoice = null)}
+      >
+        {#snippet trigger()}{@render fakeTrigger("Panel · Commands")}{/snippet}
+        <PopoverViews key={commandChoice}>
+          {#if commandChoice}
+            <PopoverHeader title={commandChoice} />
+            <PopoverBody
+              ><p class="px-1.5 text-xs text-muted-foreground">
+                This view demonstrates a shorter detail panel.
+              </p></PopoverBody
+            >
+            <PopoverFooter
+              ><Button
+                variant="ghost"
+                size="sm"
+                onclick={() => (commandChoice = null)}>Back</Button
+              ></PopoverFooter
+            >
+          {:else}
+            <PopoverCommandList
+              items={commandItems}
+              ariaLabel="Search commands"
+              onChoose={(item) => (commandChoice = item.label)}
+            />
+          {/if}
+        </PopoverViews>
+      </PopoverPanel>
+      <PopoverPanel
+        variant="field"
+        ariaLabel="Field list specimen"
+        triggerClass="w-64 rounded-md border border-input"
+      >
+        {#snippet triggerChild({ props })}
+          <Button {...props} variant="outline" class="w-64"
+            >Field · Commands</Button
+          >
+        {/snippet}
+        <PopoverCommandList
+          items={commandItems}
+          ariaLabel="Search field commands"
+          rowMode="container"
+          isDisabled={(item) => item.key === "terminal"}
+          onChoose={(item) => (lastResult = item.label)}
+        >
+          {#snippet row(item)}
+            <div class="flex items-center justify-between gap-2 px-1.5 py-1">
+              <span>{item.label}</span>
+              <Switch
+                bind:checked={commandEnabled}
+                aria-label={`Enable ${item.label}`}
+              />
+            </div>
+          {/snippet}
+        </PopoverCommandList>
+      </PopoverPanel>
+    </GallerySpecimen>
     <GallerySpecimen
       title="PopoverPanel sm / md / lg"
       source="composites/popover-panel"

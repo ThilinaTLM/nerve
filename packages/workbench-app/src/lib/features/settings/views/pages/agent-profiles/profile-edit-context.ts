@@ -10,8 +10,13 @@ import type {
 export type ProfileEditContext = {
   /** Authenticated models for the model picker. */
   models: ModelInfo[];
-  permissionOptions: { value: string; label: string }[];
+  permissionOptions: { value: string; label: string; detail?: string }[];
   skills: AvailableSkill[];
+  skillEnabled?: (
+    source: "file" | "nerve" | "agentBrowser",
+    name: string,
+  ) => boolean;
+  defaultPermission?: string;
   accountsFor: (tool: ToolId) => AccountOption[];
   /** The user's current value of a tool, used as the starting point for a new change. */
   seedTool: (tool: ToolId) => ToolPayload;

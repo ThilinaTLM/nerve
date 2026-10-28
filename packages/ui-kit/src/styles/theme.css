@@ -17,6 +17,9 @@
 
   /* Motion: adaptive one-shot timing for live transcript content. */
   --motion-enter-duration: 180ms;
+  --motion-exit-duration: 120ms;
+  --motion-exit-compact-duration: 90ms;
+  --motion-exit-easing: ease-in;
   --motion-enter-compact-duration: 120ms;
   --motion-enter-minimal-duration: 90ms;
   --motion-enter-easing: cubic-bezier(0.2, 0.8, 0.2, 1);

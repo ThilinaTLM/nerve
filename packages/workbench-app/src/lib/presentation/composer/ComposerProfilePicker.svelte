@@ -4,10 +4,10 @@ import ClipboardList from "@lucide/svelte/icons/clipboard-list";
 import Network from "@lucide/svelte/icons/network";
 import Code2 from "@lucide/svelte/icons/code-2";
 import Popover, {
-  PopoverBody,
   PopoverHeader,
-  PopoverRow,
+  PopoverCommandList,
 } from "@nervekit/ui-kit/components/composites/popover-panel";
+import { composerProfileItems } from "./composer-profile-items.js";
 import type { ComposerAgentProfile } from "../conversations/conversation-view-contracts.js";
 
 type Props = {
@@ -38,6 +38,7 @@ const active = $derived(
     label: agentProfile,
   },
 );
+const profileItems = $derived(composerProfileItems(agentProfiles));
 const planning = $derived(agentProfile === "planning");
 let open = $state(false);
 
@@ -83,16 +84,13 @@ function select(name: string) {
       </span>
     {/snippet}
     <PopoverHeader title="Agent profile" />
-    <PopoverBody>
-      {#each agentProfiles as profile (profile.name)}
-        <PopoverRow
-          label={profile.label}
-          title={profile.description}
-          selected={profile.name === agentProfile}
-          disabled={controlsDisabled || disabled}
-          onclick={() => select(profile.name)}
-        />
-      {/each}
-    </PopoverBody>
+    <PopoverCommandList
+      items={profileItems}
+      ariaLabel="Agent profiles"
+      placeholder="Search profiles"
+      isSelected={(profile) => profile.name === agentProfile}
+      isDisabled={() => controlsDisabled || disabled}
+      onChoose={(profile) => select(profile.name)}
+    />
   </Popover>
 {/if}

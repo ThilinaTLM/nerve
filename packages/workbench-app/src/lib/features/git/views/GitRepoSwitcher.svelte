@@ -51,7 +51,6 @@ let {
 const MAX_LIST_ROWS = 6;
 
 let branchesOpen = $state(false);
-let branchFilter = $state("");
 let branchDialogOpen = $state(false);
 let branchDialogView = $state<"switch" | "create">("switch");
 let dialogFilter = $state("");
@@ -69,7 +68,7 @@ const branchRows = $derived(
     "",
     repoSummary?.baseBranch,
     model.repoBranchState(selectedRepo).prHeads,
-  ).local,
+  ).all,
 );
 const branchGroups = $derived(
   groupBranchesForDialog(
@@ -256,7 +255,6 @@ async function createBranch(repository: string): Promise<void> {
               repo={repoSummary}
               rows={branchRows}
               bind:open={branchesOpen}
-              bind:filter={branchFilter}
               loading={model.repoBranchState(selectedRepo).loadingBranches}
               enabled={model.capabilities.branches.enabled}
               switchingBranch={model.repoBranchState(selectedRepo)

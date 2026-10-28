@@ -8,5 +8,13 @@ export { default as PopoverMeter } from "./popover-meter.svelte";
 export { default as PopoverProperties } from "./popover-properties.svelte";
 export { default as PopoverProperty } from "./popover-property.svelte";
 export { createListNavigation } from "./list-navigation.svelte.js";
+export {
+  filterCommandItems,
+  type CommandGroup,
+  type CommandItem,
+} from "../../../collections/command-filter.js";
 export { default as PopoverRow } from "../select-row/select-row.svelte";
 export { default as SelectRow } from "../select-row/select-row.svelte";
+
+export { default as PopoverCommandList } from "./popover-command-list.svelte";
+export { default as PopoverViews } from "./popover-views.svelte";

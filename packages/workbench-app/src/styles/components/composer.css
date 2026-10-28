@@ -36,8 +36,7 @@
     flex: none;
   }
 
-  .composer-tab:hover:not(:disabled),
-  .composer-tab[data-state="open"] {
+  .composer-tab:hover:not(:disabled) {
     background: var(--muted);
     color: var(--foreground);
   }

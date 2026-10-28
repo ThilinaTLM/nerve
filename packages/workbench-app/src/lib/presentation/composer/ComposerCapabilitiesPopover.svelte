@@ -19,9 +19,8 @@ import { IconAction } from "@nervekit/ui-kit/components/composites/icon-action";
 import Popover, {
   PopoverBody,
   PopoverHeader,
-  PopoverSearch,
+  PopoverCommandList,
 } from "@nervekit/ui-kit/components/composites/popover-panel";
-import SearchInput from "@nervekit/ui-kit/components/composites/search-input";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
 import { Skeleton } from "@nervekit/ui-kit/components/ui/skeleton";
 import { Switch } from "@nervekit/ui-kit/components/ui/switch";
@@ -30,11 +29,6 @@ import {
   skillOverrideKind,
   type AvailableSkill,
 } from "@nervekit/contracts/skills";
-import {
-  capabilityBodyHeight,
-  filterCapabilityRows,
-  showCapabilitySearch,
-} from "./capability-list";
 import {
   capabilityToolGroupsFor,
   type CapabilityToolGroup,
@@ -52,7 +46,13 @@ import {
 type Row = {
   key: string;
   label: string;
-  searchText?: string;
+  group: string;
+  keywords?: string[];
+  detail?: string;
+  unavailable?: boolean;
+  muted?: boolean;
+  switchLabel?: string;
+  resetLabel?: string;
   enabled: boolean;
   overridden: boolean;
   warning?: string;
@@ -158,7 +158,8 @@ const toolRows = $derived<Row[]>(
       return {
         key: group.key,
         label: group.label,
-        searchText: group.searchText,
+        group: "Built-in",
+        keywords: group.searchText ? [group.searchText] : undefined,
         enabled: group.names.every(
           (name) =>
             name === "bash" ||
@@ -203,6 +204,13 @@ const skillRows = $derived<Row[]>(
     return {
       key: `${kind}:${skill.name}`,
       label: skill.name,
+      group: {
+        user: "User",
+        project: "Project",
+        nerve: "Nerve",
+        agentBrowser: "Agent Browser",
+      }[skill.source],
+      keywords: [skill.source],
       enabled:
         configuration?.resolution.settings.skills?.[kind]?.[skill.name] ??
         configuration?.resolution.settings.skills?.defaults?.[kind] ??
@@ -242,16 +250,52 @@ const sections = $derived([
       : undefined,
   },
 ]);
-const showSearch = $derived(
+const subagentRows = $derived<Row[]>(
+  (subagentProfiles ?? []).map((profile) => {
+    const source =
+      configuration?.resolution.provenance[
+        `/subagents/${escape(profile.name)}/enabled`
+      ];
+    return {
+      key: profile.name,
+      label: profile.label,
+      group: "Sub-agents",
+      detail: profile.description,
+      keywords: profile.description ? [profile.description] : undefined,
+      enabled: capabilitySubagentEnabled(
+        profile,
+        configuration?.resolution.settings.subagents,
+      ),
+      overridden: Boolean(configuration?.overrides.subagents?.[profile.name]),
+      warning: profile.error,
+      unavailable: Boolean(profile.error) || !subagentControlsEnabled,
+      muted: Boolean(profile.error) || subagentRow?.enabled === false,
+      lockedBy: source?.source === "requirement" ? source.profile : undefined,
+      switchLabel: `Enable ${profile.label} launches`,
+      resetLabel: `Reset ${profile.label} launch choices; requirements remain effective`,
+      configure: () => openSettings("sub-agents"),
+      toggle: (enabled) =>
+        onPatch?.({ subagents: { [profile.name]: { enabled } } }),
+      reset: () =>
+        onPatch?.({}, [`/overrides/subagents/${escape(profile.name)}`]),
+    };
+  }),
+);
+const rows = $derived(
   tab === "tools"
-    ? showCapabilitySearch(optionalToolRows.length)
+    ? optionalToolRows
     : tab === "skills"
-      ? showCapabilitySearch(skillRows.length)
-      : false,
+      ? skillRows
+      : subagentRows,
 );
-const bodyHeight = $derived(
-  capabilityBodyHeight(optionalToolRows.length, skillRows.length),
-);
+function rowDisabled(row: Row) {
+  return (
+    disabled || loading || Boolean(row.lockedBy) || Boolean(row.unavailable)
+  );
+}
+function toggleRow(row: Row) {
+  if (!rowDisabled(row)) row.toggle(!row.enabled);
+}
 function openSettings(
   page: "tools" | "skills" | "sub-agents" = tab === "subagents"
     ? "sub-agents"
@@ -265,7 +309,7 @@ function openSettings(
 {#snippet capabilityRow(row: Row)}
   {@const Icon = row.icon}
   <div
-    class="flex min-h-7 min-w-0 items-center gap-2 rounded-md px-1.5 py-1 hover:bg-accent"
+    class="flex min-h-7 min-w-0 flex-1 items-center gap-2 rounded-md px-1.5 py-1 hover:bg-accent"
   >
     {#if Icon}
       <Icon
@@ -273,7 +317,10 @@ function openSettings(
         aria-hidden="true"
       />
     {/if}
-    <span class="min-w-0 flex-1 truncate">
+    <span
+      class={`min-w-0 flex-1 truncate ${row.muted ? "text-muted-foreground" : ""}`}
+      title={row.warning ?? row.detail}
+    >
       {row.label}
     </span>
     {#if row.warning}
@@ -299,23 +346,31 @@ function openSettings(
     {#if row.overridden}
       <IconAction
         icon={RotateCcw}
-        label={`Reset ${row.label} to the inherited setting`}
+        label={row.resetLabel ?? `Reset ${row.label} to the inherited setting`}
         disabled={disabled || loading}
-        onclick={row.reset}
+        onclick={(event) => {
+          event.stopPropagation();
+          row.reset();
+        }}
       />
     {/if}
     {#if row.configure}
       <IconAction
         icon={Settings2}
         label={`Configure ${row.label}`}
-        onclick={row.configure}
+        onclick={(event) => {
+          event.stopPropagation();
+          row.configure?.();
+        }}
       />
     {/if}
     <Switch
       checked={row.enabled}
-      disabled={disabled || Boolean(row.lockedBy)}
+      disabled={rowDisabled(row)}
       busy={loading}
-      aria-label={`Enable ${row.label} for this conversation`}
+      aria-label={row.switchLabel ??
+        `Enable ${row.label} for this conversation`}
+      onclick={(event) => event.stopPropagation()}
       onCheckedChange={row.toggle}
     />
   </div>
@@ -326,114 +381,6 @@ function openSettings(
     {@render capabilityRow({ ...subagentRow, label: "Delegation" })}
   {:else}
     <p class="px-1.5 text-warning">Delegation is unavailable here.</p>
-  {/if}
-{/snippet}
-
-{#snippet subagentList()}
-  {#if error}
-    <p class="px-1.5 text-warning" role="alert">{error}</p>
-  {:else if loading && !configuration}
-    <div class="grid gap-1" aria-hidden="true">
-      <Skeleton class="h-7 w-full" /><Skeleton class="h-7 w-full" />
-    </div>
-  {:else}
-    {#if subagentControlsEnabled}
-      {@render delegationRow()}
-    {:else}
-      <p class="px-1.5 text-muted-foreground">
-        Sub-agents can't delegate. Configure profiles in the lead conversation.
-      </p>
-    {/if}
-    {#if !subagentProfiles || subagentProfiles.length === 0}
-      <p class="px-1.5 text-muted-foreground">
-        No sub-agent profiles are available.
-      </p>
-    {:else}
-      {@const delegationOff = subagentRow?.enabled === false}
-      {#each subagentProfiles as profile (profile.name)}
-        {@const unavailable = Boolean(profile.error)}
-        {@const enabled = capabilitySubagentEnabled(
-          profile,
-          configuration?.resolution.settings.subagents,
-        )}
-        {@const enabledSource =
-          configuration?.resolution.provenance[
-            `/subagents/${escape(profile.name)}/enabled`
-          ]}
-        <div
-          class="flex min-h-7 min-w-0 items-center gap-2 rounded-md px-1.5 py-1 hover:bg-accent"
-        >
-          <span
-            class={`min-w-0 flex-1 truncate ${unavailable || delegationOff ? "text-muted-foreground" : ""}`}
-            title={profile.error ?? profile.description}
-          >
-            {profile.label}
-          </span>
-          {#if profile.error}
-            <span
-              class="inline-flex flex-none text-warning"
-              role="img"
-              aria-label={profile.error}
-              title={profile.error}
-            >
-              <TriangleAlert class="size-3.5" aria-hidden="true" />
-            </span>
-          {:else if !enabled}
-            <span class="flex-none text-xs text-muted-foreground">Off</span>
-          {/if}
-          {#if configuration?.overrides.subagents?.[profile.name]}
-            <IconAction
-              icon={RotateCcw}
-              label={`Reset ${profile.label} launch choices; requirements remain effective`}
-              disabled={disabled || loading}
-              onclick={() =>
-                onPatch?.({}, [`/overrides/subagents/${escape(profile.name)}`])}
-            />
-          {/if}
-          <IconAction
-            icon={Settings2}
-            label={`Configure ${profile.label}`}
-            onclick={() => openSettings("sub-agents")}
-          />
-          <Switch
-            aria-label={`Enable ${profile.label} launches`}
-            checked={enabled}
-            busy={loading}
-            disabled={disabled ||
-              unavailable ||
-              !subagentControlsEnabled ||
-              enabledSource?.source === "requirement"}
-            onCheckedChange={(enabled) =>
-              onPatch?.({ subagents: { [profile.name]: { enabled } } })}
-          />
-        </div>
-      {/each}
-    {/if}
-  {/if}
-{/snippet}
-
-{#snippet capabilityList(rows: Row[], kind: "tools" | "skills")}
-  {@const visibleRows = showSearch ? filterCapabilityRows(rows, query) : rows}
-  {#if error}
-    <p class="px-1.5 text-warning" role="alert">{error}</p>
-  {:else if loading && !configuration}
-    <div class="grid gap-1" aria-hidden="true">
-      <Skeleton class="h-7 w-full" /><Skeleton class="h-7 w-full" /><Skeleton
-        class="h-7 w-full"
-      />
-    </div>
-  {:else if rows.length === 0}
-    <p class="px-1.5 text-muted-foreground">
-      {kind === "skills"
-        ? "No skills are available for this project."
-        : "No optional tools are available."}
-    </p>
-  {:else if visibleRows.length === 0}
-    <p class="px-1.5 text-muted-foreground">
-      {kind === "skills" ? "No skills match." : "No tools match."}
-    </p>
-  {:else}
-    {#each visibleRows as row (row.key)}{@render capabilityRow(row)}{/each}
   {/if}
 {/snippet}
 
@@ -497,27 +444,50 @@ function openSettings(
       {/snippet}
     </PopoverHeader>
 
-    {#if showSearch}
-      <PopoverSearch>
-        <SearchInput
-          bind:value={query}
-          placeholder={tab === "skills" ? "Filter skills" : "Filter tools"}
-          ariaLabel={tab === "skills" ? "Filter skills" : "Filter tools"}
-        />
-      </PopoverSearch>
-    {/if}
-
-    <PopoverBody
-      class="gap-0"
-      stableHeight={tab === "subagents" ? undefined : bodyHeight}
-    >
-      {#if tab === "tools"}
-        {@render capabilityList(optionalToolRows, "tools")}
-      {:else if tab === "skills"}
-        {@render capabilityList(skillRows, "skills")}
-      {:else}
-        {@render subagentList()}
+    {#if error}
+      <PopoverBody
+        ><p class="px-1.5 text-warning" role="alert">{error}</p></PopoverBody
+      >
+    {:else if loading && !configuration}
+      <PopoverBody
+        ><div class="grid gap-1" aria-hidden="true">
+          <Skeleton class="h-7 w-full" /><Skeleton class="h-7 w-full" />
+        </div></PopoverBody
+      >
+    {:else}
+      {#if tab === "subagents"}
+        <PopoverBody>
+          {#if subagentControlsEnabled}
+            {@render delegationRow()}
+          {:else}
+            <p class="px-1.5 text-muted-foreground">
+              Sub-agents can't delegate. Configure profiles in the lead
+              conversation.
+            </p>
+          {/if}
+        </PopoverBody>
       {/if}
-    </PopoverBody>
+      <PopoverCommandList
+        rowMode="container"
+        items={rows}
+        bind:query
+        ariaLabel={section.title}
+        placeholder={`Search ${section.title.toLowerCase()}`}
+        isSelected={(row) => row.enabled}
+        isDisabled={rowDisabled}
+        onChoose={toggleRow}
+        empty={rows.length === 0
+          ? tab === "tools"
+            ? "No optional tools are available."
+            : tab === "skills"
+              ? "No skills are available for this project."
+              : "No sub-agent profiles are available."
+          : `No ${section.title.toLowerCase()} match.`}
+      >
+        {#snippet row(item)}
+          {@render capabilityRow(item)}
+        {/snippet}
+      </PopoverCommandList>
+    {/if}
   </Popover>
 {/each}

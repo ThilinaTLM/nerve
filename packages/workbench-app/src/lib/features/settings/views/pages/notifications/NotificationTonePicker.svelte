@@ -48,6 +48,7 @@ function previewTone(tone: NotificationTone): void {
 <Popover
   bind:open
   size="md"
+  variant="field"
   align="end"
   {ariaLabel}
   triggerClass={cn("w-full min-w-0", className)}

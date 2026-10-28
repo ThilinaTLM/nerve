@@ -4,6 +4,7 @@ import type { ModelInfo, ModelSelection } from "@nervekit/contracts/models";
 import { buildModelCatalog } from "$lib/presentation/utils/model-catalog";
 import {
   pickerListItems,
+  pickerNavigableItems,
   resolvePickerValue,
   scopedCatalogRows,
   toggleScopedModel,
@@ -51,13 +52,13 @@ describe("settings model picker", () => {
   it("pins an unavailable selection above the filtered catalog", () => {
     const items = pickerListItems({
       ...noFilter,
-      capabilities: new Set(["vision"] as const),
+      query: "vision",
       entries,
       resolved: resolvePickerValue(entries, stale),
     });
     assert.deepEqual(
       items.map((item) => item.key),
-      ["openai:gpt-old", "anthropic:sonnet"],
+      ["openai:gpt-old", "header:Anthropic", "anthropic:sonnet"],
     );
   });
 
@@ -70,7 +71,13 @@ describe("settings model picker", () => {
     });
     assert.deepEqual(
       offered.map((item) => item.key),
-      ["inherit", "anthropic:sonnet", "openai:gpt"],
+      [
+        "inherit",
+        "header:Anthropic",
+        "anthropic:sonnet",
+        "header:OpenAI",
+        "openai:gpt",
+      ],
     );
     const searching = pickerListItems({
       ...noFilter,
@@ -81,7 +88,49 @@ describe("settings model picker", () => {
     });
     assert.deepEqual(
       searching.map((item) => item.key),
-      ["openai:gpt"],
+      ["header:OpenAI", "openai:gpt"],
+    );
+  });
+
+  it("matches provider names, capability aliases, ids, and AND terms", () => {
+    const catalog = buildModelCatalog([
+      model("openai", "first", { label: "Friendly", input: ["text", "image"] }),
+      model("openai", "second", { contextWindow: 400_000 }),
+      model("anthropic", "third", { supportedThinkingLevels: ["high"] }),
+    ]);
+    const matches = (query: string) =>
+      pickerListItems({
+        entries: catalog,
+        query,
+        resolved: { kind: "none" },
+      })
+        .filter((item) => item.kind === "model")
+        .map((item) => item.key);
+    assert.deepEqual(matches("openai"), ["openai:first", "openai:second"]);
+    assert.deepEqual(matches("vision"), ["openai:first"]);
+    assert.deepEqual(matches("image"), ["openai:first"]);
+    assert.deepEqual(matches("thinking"), ["anthropic:third"]);
+    assert.deepEqual(matches("reasoning"), ["anthropic:third"]);
+    assert.deepEqual(matches("long context"), ["openai:second"]);
+    assert.deepEqual(matches(" OpenAI   vision "), ["openai:first"]);
+    assert.deepEqual(matches("anthropic vision"), []);
+    assert.deepEqual(matches("first"), ["openai:first"]);
+    assert.deepEqual(matches("friendly"), ["openai:first"]);
+  });
+
+  it("renders provider headers but excludes them from navigation", () => {
+    const items = pickerListItems({
+      entries,
+      query: "",
+      resolved: { kind: "none" },
+    });
+    assert.deepEqual(
+      items.filter((item) => item.kind === "header").map((item) => item.label),
+      ["Anthropic", "OpenAI"],
+    );
+    assert.deepEqual(
+      pickerNavigableItems(items).map((item) => item.key),
+      ["anthropic:sonnet", "openai:gpt"],
     );
   });
 

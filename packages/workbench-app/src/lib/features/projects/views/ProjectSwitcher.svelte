@@ -4,13 +4,10 @@ import LayoutGrid from "@lucide/svelte/icons/layout-grid";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
 import type { ContextMenuItem } from "@nervekit/ui-kit/components/composites/context-menu-list";
 import Popover, {
-  createListNavigation,
-  PopoverBody,
+  PopoverCommandList,
   PopoverFooter,
   PopoverHeader,
-  PopoverSearch,
 } from "@nervekit/ui-kit/components/composites/popover-panel";
-import SearchInput from "@nervekit/ui-kit/components/composites/search-input";
 import * as Tooltip from "@nervekit/ui-kit/components/ui/tooltip";
 import { ItemSurface } from "$lib/presentation";
 import { getShortcutAriaLabel } from "$lib/application/commands/command-registry";
@@ -45,28 +42,20 @@ let {
 
 let popoverOpen = $state(false);
 let query = $state("");
-let listEl = $state<HTMLDivElement | undefined>(undefined);
-
-const filteredPopoverItems = $derived.by(() => {
-  const q = query.trim().toLowerCase();
-  if (!q) return popoverItems;
-  return popoverItems.filter(
-    (item) =>
-      item.label.toLowerCase().includes(q) ||
-      item.project.name.toLowerCase().includes(q) ||
-      item.project.dir.toLowerCase().includes(q),
-  );
-});
-function rowId(item: ProjectSwitcherItem): string {
-  return `project-popover:${encodeURIComponent(item.key)}`;
-}
-
-const navigation = createListNavigation({
-  items: () => filteredPopoverItems,
-  getId: rowId,
-  viewport: () => listEl,
-  onChoose: (item) => chooseProject(item),
-});
+const commandItems = $derived(
+  popoverItems.map((item) => ({
+    ...item,
+    group:
+      item.activity.needsUser || item.activity.failed
+        ? "Needs you"
+        : item.activity.running ||
+            item.activity.awaitingAsync ||
+            item.launches.running
+          ? "Running"
+          : "Recent",
+    keywords: [item.project.name, item.project.dir],
+  })),
+);
 
 const switchAria = getShortcutAriaLabel("conversation.newFromProject");
 function tabLabel(item: ProjectSwitcherItem): string {
@@ -84,7 +73,6 @@ function conversationSignalClass(tone: ProjectActivitySignal["tone"]): string {
 function handleOpenChange(open: boolean) {
   popoverOpen = open;
   query = "";
-  navigation.reset();
 }
 
 function chooseProject(item: ProjectSwitcherItem) {
@@ -95,11 +83,6 @@ function chooseProject(item: ProjectSwitcherItem) {
 function browseProjects() {
   popoverOpen = false;
   onOpenPicker?.();
-}
-
-function handleSubmit(event: Event) {
-  event.preventDefault();
-  navigation.chooseActive();
 }
 </script>
 
@@ -116,7 +99,7 @@ function handleSubmit(event: Event) {
     ariaLabel="Switch project"
     triggerTitle="Switch project"
     triggerAriaKeyShortcuts={switchAria}
-    triggerClass="inline-flex size-8 shrink-0 items-center justify-center rounded-md text-muted-foreground [-webkit-app-region:no-drag] hover:bg-accent hover:text-foreground data-[state=open]:bg-accent data-[state=open]:text-foreground"
+    triggerClass="inline-flex size-8 shrink-0 items-center justify-center rounded-md text-muted-foreground [-webkit-app-region:no-drag] hover:bg-accent hover:text-foreground"
   >
     {#snippet trigger()}
       <span data-tour-id="guide-project-open">
@@ -124,79 +107,48 @@ function handleSubmit(event: Event) {
       </span>
     {/snippet}
 
-    <PopoverHeader title="Projects" meta={`${filteredPopoverItems.length}`} />
+    <PopoverHeader title="Projects" meta={`${popoverItems.length}`} />
 
-    <PopoverSearch>
-      <form onsubmit={handleSubmit}>
-        <SearchInput
-          bind:value={query}
-          onValueChange={() => navigation.reset()}
-          onkeydown={(event) => navigation.handleKeydown(event)}
-          controls="project-switcher-list"
-          activeDescendant={navigation.activeDescendant}
-          placeholder="Search projects"
-          ariaLabel="Search projects"
-        />
-      </form>
-    </PopoverSearch>
-
-    <PopoverBody
-      bind:ref={listEl}
-      id="project-switcher-list"
-      role="listbox"
-      ariaLabel="Recent projects"
-    >
-      {#if filteredPopoverItems.length}
-        <Tooltip.Provider delayDuration={300} disableHoverableContent>
-          {#each filteredPopoverItems as item, index (item.key)}
-            {@const current = item.key === activeKey}
-            <ItemSurface
-              id={rowId(item)}
-              role="option"
-              ariaLabel={`${item.project.name}${current ? ", current project" : ""}`}
-              ariaSelected={current}
-              tabindex={-1}
-              tone="row"
-              selected={current}
-              menuItems={buildMenuItems?.(item) ?? []}
-              menuDisabled={!buildMenuItems}
-              hover="default"
-              class={`w-full cursor-pointer items-center gap-2 px-1.5 py-1 text-left focus-visible:outline-none ${navigation.isActive(index) ? "outline outline-1 -outline-offset-1 outline-ring/55" : ""}`}
-              onclick={() => chooseProject(item)}
-              onkeydown={(event) => {
-                if (event.key === "Enter" || event.key === " ") {
-                  event.preventDefault();
-                  chooseProject(item);
-                }
-              }}
-            >
-              <!-- Sized to the two-line text block beside it, not to the
+    <Tooltip.Provider delayDuration={300} disableHoverableContent>
+      <PopoverCommandList
+        items={commandItems}
+        bind:query
+        placeholder="Search projects"
+        ariaLabel="Recent projects"
+        isSelected={(item) => item.key === activeKey}
+        onChoose={chooseProject}
+        empty={popoverItems.length
+          ? "No projects match your search."
+          : "No recent projects yet."}
+      >
+        {#snippet row(item, { selected: current })}
+          <ItemSurface
+            ariaLabel={`${item.project.name}${current ? ", current project" : ""}`}
+            tone="row"
+            menuItems={buildMenuItems?.(item) ?? []}
+            menuDisabled={!buildMenuItems}
+            class="w-full items-center gap-2 text-left"
+          >
+            <!-- Sized to the two-line text block beside it, not to the
                    single-line icons used elsewhere in the panel. -->
-              <ProjectIcon projectId={item.project.id} class="size-7" />
-              <span class="grid min-w-0 flex-1 gap-0.5">
-                <span class="flex min-w-0 items-center gap-1.5">
-                  <span class="min-w-0 flex-1 truncate">
-                    {item.project.name}
-                  </span>
-                  <span class="ml-auto min-w-0 flex-none">
-                    <ProjectActivityStatus {item} />
-                  </span>
+            <ProjectIcon projectId={item.project.id} class="size-7" />
+            <span class="grid min-w-0 flex-1 gap-0.5">
+              <span class="flex min-w-0 items-center gap-1.5">
+                <span class="min-w-0 flex-1 truncate">
+                  {item.project.name}
                 </span>
-                <span class="min-w-0 truncate font-mono text-muted-foreground">
-                  {tildePath(item.project.dir, homeDir)}
+                <span class="ml-auto min-w-0 flex-none">
+                  <ProjectActivityStatus {item} />
                 </span>
               </span>
-            </ItemSurface>
-          {/each}
-        </Tooltip.Provider>
-      {:else}
-        <p class="px-1.5 py-6 text-center text-muted-foreground">
-          {popoverItems.length
-            ? "No projects match your search."
-            : "No recent projects yet."}
-        </p>
-      {/if}
-    </PopoverBody>
+              <span class="min-w-0 truncate font-mono text-muted-foreground">
+                {tildePath(item.project.dir, homeDir)}
+              </span>
+            </span>
+          </ItemSurface>
+        {/snippet}
+      </PopoverCommandList>
+    </Tooltip.Provider>
 
     <PopoverFooter>
       <Button

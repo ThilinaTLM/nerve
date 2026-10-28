@@ -28,6 +28,7 @@ import Popover, {
   PopoverBody,
   PopoverHeader,
   PopoverRow,
+  PopoverCommandList,
 } from "@nervekit/ui-kit/components/composites/popover-panel";
 import ComposerModelPicker from "./ComposerModelPicker.svelte";
 import ComposerSettingStatus from "./ComposerSettingStatus.svelte";
@@ -213,13 +214,15 @@ function openPermissionSettings(): void {
   onOpenPermissionSettings?.();
 }
 
-/* The picker chooses between a handful of options, so a rule set is one
- * line: its name, plus a marker when it is not one of the built-ins. The prose
- * stays available on hover and in Settings, where rules are actually edited. */
-function permissionTitle(option: PermissionRuleSetSummary): string {
-  const source = option.source === "builtin" ? "Built-in" : "User";
-  return option.description ? `${source} · ${option.description}` : source;
-}
+const permissionItems = $derived(
+  permissionRuleSets.map((option) => ({
+    ...option,
+    key: option.id,
+    label: option.name,
+    detail: option.description,
+    group: option.source === "builtin" ? "Built-in" : "Custom",
+  })),
+);
 </script>
 
 {#if onAttachFiles}
@@ -354,43 +357,38 @@ function permissionTitle(option: PermissionRuleSetSummary): string {
         </Button>
       {/snippet}
     </PopoverHeader>
-    <PopoverBody>
-      {#if lockedFields.permission}
-        <p class="px-1.5 text-muted-foreground">
-          Locked by {lockedFields.by ?? "the applied profile"}.
-        </p>
-      {/if}
-      {#if permissionRuleSetsError}
-        <p class="px-1.5 text-warning">{permissionRuleSetsError}</p>
-      {/if}
-      {#if !activePermission.available}
-        <PopoverRow
-          label={activePermission.name}
-          title={activePermission.description}
-          selected
-          disabled
-        >
-          {#snippet trailing()}
-            <span class="flex-none text-muted-foreground">Unavailable</span>
-          {/snippet}
-        </PopoverRow>
-      {/if}
-      {#each permissionRuleSets as option (option.id)}
-        <PopoverRow
-          label={option.name}
-          title={permissionTitle(option)}
-          selected={option.id === permissionRuleSetId}
-          disabled={controlsDisabled || lockedFields.permission}
-          onclick={() => selectPermission(option.id)}
-        >
-          {#snippet trailing()}
-            {#if option.source !== "builtin"}
-              <span class="flex-none text-muted-foreground">Custom</span>
-            {/if}
-          {/snippet}
-        </PopoverRow>
-      {/each}
-    </PopoverBody>
+    {#if lockedFields.permission || permissionRuleSetsError || !activePermission.available}
+      <PopoverBody>
+        {#if lockedFields.permission}
+          <p class="px-1.5 text-muted-foreground">
+            Locked by {lockedFields.by ?? "the applied profile"}.
+          </p>
+        {/if}
+        {#if permissionRuleSetsError}
+          <p class="px-1.5 text-warning">{permissionRuleSetsError}</p>
+        {/if}
+        {#if !activePermission.available}
+          <PopoverRow
+            label={activePermission.name}
+            title={activePermission.description}
+            selected
+            disabled
+          >
+            {#snippet trailing()}
+              <span class="flex-none text-muted-foreground">Unavailable</span>
+            {/snippet}
+          </PopoverRow>
+        {/if}
+      </PopoverBody>
+    {/if}
+    <PopoverCommandList
+      items={permissionItems}
+      ariaLabel="Permission rule sets"
+      placeholder="Search permissions"
+      isSelected={(option) => option.id === permissionRuleSetId}
+      isDisabled={() => controlsDisabled || Boolean(lockedFields.permission)}
+      onChoose={(option) => selectPermission(option.id)}
+    />
   </Popover>
 {/key}
 

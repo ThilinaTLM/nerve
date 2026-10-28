@@ -45,23 +45,42 @@
     flex-direction: column;
     min-height: 0;
     max-height: min(32rem, var(--bits-popover-content-available-height, 32rem));
-    overflow: hidden;
+    overflow: visible;
   }
 
   .popover-content:focus-visible {
     outline: none;
   }
 
-  /* The panel grows out of its trigger. This is the job the old arrow was
-   * doing badly: it stated the anchor with a borderless triangle that rarely
-   * pointed at anything, since every status-bar panel aligns to its end. */
-  .popover-content[data-open] {
-    animation: popover-enter 120ms var(--motion-enter-easing);
+  /* Bits keeps the arrow aligned with the trigger even with align=end.
+   * Only the inner stack clips, leaving the arrow outside the surface. */
+  .popover-content {
     transform-origin: var(--bits-popover-content-transform-origin, center);
+    --popover-slide: -4px;
+    --popover-scale: 0.96;
   }
-
+  .popover-content[data-side="top"] {
+    --popover-slide: 4px;
+  }
+  .popover-content[data-popover-variant="field"] {
+    --popover-scale: 1;
+  }
+  .popover-content[data-state="open"] {
+    animation: popover-enter var(--motion-enter-duration)
+      var(--motion-enter-easing) both;
+  }
+  .popover-content[data-state="closed"] {
+    animation: popover-exit var(--motion-exit-duration)
+      var(--motion-exit-easing) both;
+  }
+  .popover-content[data-popover-variant="field"][data-state="open"] {
+    animation-duration: var(--motion-enter-compact-duration);
+  }
+  .popover-content[data-popover-variant="field"][data-state="closed"] {
+    animation-duration: var(--motion-exit-compact-duration);
+  }
   @media (prefers-reduced-motion: reduce) {
-    .popover-content[data-open] {
+    .popover-content[data-state] {
       animation: none;
     }
   }
@@ -82,9 +101,19 @@
   /* Field-like triggers (pickers) open a panel as wide as the field, so the
    * panel reads as the field's dropdown rather than a detached card. */
   .popover-content.popover-anchor {
-    width: min(
-      max(var(--bits-popover-anchor-width, 20rem), 20rem),
-      calc(100vw - 1.5rem)
-    );
+    width: min(var(--bits-popover-anchor-width, 20rem), calc(100vw - 1.5rem));
+  }
+}
+
+/* Trigger state is a utility-layer contract so canonical Button variants
+ * cannot mask it with their generic aria-expanded background. */
+@layer utilities {
+  [data-popover-variant="panel"][data-popover-trigger][data-state="open"] {
+    background: var(--selected);
+    color: var(--foreground);
+  }
+  [data-popover-variant="field"][data-popover-trigger][data-state="open"] {
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
   }
 }

@@ -7,3 +7,5 @@ export {
   type ScopedCatalogRow,
   type ScopedCatalogView,
 } from "./model-picker";
+
+export { default as ModelPickerPanel } from "./ModelPickerPanel.svelte";

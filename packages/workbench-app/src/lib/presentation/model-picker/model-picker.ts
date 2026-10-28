@@ -1,7 +1,9 @@
+import { filterCommandItems } from "@nervekit/ui-kit/collections/command-filter";
 import type { ModelSelection } from "@nervekit/contracts/models";
 import { modelKey } from "$lib/presentation/utils/model";
 import {
   filterModelCatalog,
+  modelHasCapability,
   type ModelCapability,
   type ModelCatalogEntry,
 } from "$lib/presentation/utils/model-catalog";
@@ -15,6 +17,7 @@ export type ResolvedPickerValue =
 export const INHERIT_PICKER_KEY = "inherit";
 
 export type PickerListItem =
+  | { kind: "header"; key: string; label: string }
   | { kind: "inherit"; key: typeof INHERIT_PICKER_KEY }
   | { kind: "unavailable"; key: string; selection: ModelSelection }
   | { kind: "model"; key: string; entry: ModelCatalogEntry };
@@ -41,13 +44,12 @@ export function resolvePickerValue(
 /** Rows of the single-model popover: the optional "use the parent's model"
  * row while not searching, a pinned unavailable selection, then the filtered
  * catalog. */
-export function pickerListItems(
-  options: CatalogFilter & {
-    entries: ModelCatalogEntry[];
-    resolved: ResolvedPickerValue;
-    offerInherit?: boolean;
-  },
-): PickerListItem[] {
+export function pickerListItems(options: {
+  query: string;
+  entries: ModelCatalogEntry[];
+  resolved: ResolvedPickerValue;
+  offerInherit?: boolean;
+}): PickerListItem[] {
   const items: PickerListItem[] = [];
   if (options.offerInherit && !options.query.trim())
     items.push({ kind: "inherit", key: INHERIT_PICKER_KEY });
@@ -58,15 +60,39 @@ export function pickerListItems(
       selection: options.resolved.selection,
     });
   }
-  for (const entry of filterModelCatalog(
-    options.entries,
+  const commands = options.entries.map((entry) => ({
+    key: entry.key,
+    label: entry.displayName,
+    group: entry.providerLabel,
+    keywords: [
+      entry.model.modelId,
+      entry.model.label,
+      entry.model.provider,
+      ...(modelHasCapability(entry.model, "vision") ? ["vision", "image"] : []),
+      ...(modelHasCapability(entry.model, "reasoning")
+        ? ["reasoning", "thinking"]
+        : []),
+      ...(modelHasCapability(entry.model, "long-context")
+        ? ["long context", "long-context"]
+        : []),
+    ],
+    entry,
+  }));
+  for (const { group, items: matches } of filterCommandItems(
+    commands,
     options.query,
-    options.provider,
-    options.capabilities,
   )) {
-    items.push({ kind: "model", key: entry.key, entry });
+    items.push({ kind: "header", key: `header:${group}`, label: group });
+    for (const { entry } of matches) {
+      items.push({ kind: "model", key: entry.key, entry });
+    }
   }
   return items;
+}
+
+/** Headers are presentation-only and never enter the keyboard option sequence. */
+export function pickerNavigableItems(items: PickerListItem[]) {
+  return items.filter((item) => item.kind !== "header");
 }
 
 export type ScopedCatalogView = "scoped" | "all";

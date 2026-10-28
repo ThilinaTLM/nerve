@@ -75,6 +75,7 @@ export type ComposerAgentProfile = {
   name: string;
   label: string;
   description?: string;
+  source?: "builtin" | "user" | "project";
 };
 
 export type ComposerLockedFields = {

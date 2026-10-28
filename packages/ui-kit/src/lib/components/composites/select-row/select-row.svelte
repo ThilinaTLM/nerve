@@ -4,6 +4,10 @@ import type { Snippet } from "svelte";
 import { cn } from "@nervekit/ui-kit/utils";
 
 let {
+  id,
+  role,
+  tabindex,
+  "aria-selected": ariaSelected,
   label,
   detail,
   selected = false,
@@ -15,6 +19,10 @@ let {
   class: className,
   onclick,
 }: {
+  id?: string;
+  role?: "option";
+  tabindex?: number;
+  "aria-selected"?: boolean;
   label: string | Snippet;
   /** Secondary line: plain text, or a snippet for richer markup (e.g. mono ids). */
   detail?: string | Snippet;
@@ -35,9 +43,13 @@ let {
 
 <button
   type="button"
+  {id}
+  {role}
+  {tabindex}
+  aria-selected={ariaSelected}
   {disabled}
   {title}
-  aria-pressed={selected}
+  aria-pressed={role === "option" ? undefined : selected}
   class={cn(
     "flex min-h-7 w-full cursor-pointer items-center gap-2 rounded-md px-1.5 py-1 text-left text-xs transition-colors hover:bg-accent",
     selected && "bg-selected hover:bg-selected",
