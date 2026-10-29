@@ -32,7 +32,7 @@ export function syntheticProviders(options: SyntheticProviderOptions) {
     schemaVersion: 1,
     name: "cobalt",
     label: "cobalt",
-    description: "Invented review profile",
+    whenToUse: "Invented review profile",
     usableBy: "subagent",
     instructions: "Review the invented fixture only.",
   });
