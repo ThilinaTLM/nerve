@@ -1,5 +1,6 @@
 <script lang="ts">
 import type { Snippet } from "svelte";
+import { untrack } from "svelte";
 import { prefersReducedMotion } from "svelte/motion";
 import {
   HEIGHT_RESPONSE_MS,
@@ -46,12 +47,36 @@ function release(): void {
   outer?.style.removeProperty("overflow");
 }
 
+/**
+ * While active, the outer box keeps an explicit height even between motions.
+ * Growth is then only ever applied by the spring step (in a frame callback,
+ * before layout), so ancestors measuring this row never observe the natural
+ * height for a frame before the pin catches up. Without this, the first
+ * growth after a settled motion reached a virtualized list one frame early
+ * and the scroll-follow overshot and bounced back on every new line.
+ */
+function holding(): boolean {
+  return active && visible && !prefersReducedMotion.current && responseMs() > 0;
+}
+
+/** Hold the settled height; content fits, so nothing needs clipping. */
+function hold(height: number): void {
+  if (!outer) return;
+  outer.style.removeProperty("overflow");
+  outer.style.height = `${height}px`;
+}
+
+function settle(): void {
+  if (holding()) hold(spring.height);
+  else release();
+}
+
 const client: SpringDriverClient = {
   step(dtMs) {
     const done = spring.step(dtMs, responseMs());
     if (done) {
       driver = undefined;
-      release();
+      settle();
     } else if (outer) {
       outer.style.height = `${spring.height}px`;
     }
@@ -65,17 +90,11 @@ function snap(height: number): void {
     driver.remove(client);
     driver = undefined;
   }
-  release();
+  settle();
 }
 
 function shouldAnimate(widthChanged: boolean): boolean {
-  return (
-    active &&
-    visible &&
-    !widthChanged &&
-    !prefersReducedMotion.current &&
-    responseMs() > 0
-  );
+  return holding() && !widthChanged;
 }
 
 function follow(blockSize: number, inlineSize: number): void {
@@ -84,7 +103,7 @@ function follow(blockSize: number, inlineSize: number): void {
   if (!measured) {
     measured = true;
     lastInlineSize = inlineSize;
-    spring.snap(blockSize);
+    snap(blockSize);
     return;
   }
   const widthChanged =
@@ -95,7 +114,7 @@ function follow(blockSize: number, inlineSize: number): void {
     return;
   }
   if (!driver && Math.abs(blockSize - spring.height) < 0.5) {
-    spring.snap(blockSize);
+    snap(blockSize);
     return;
   }
   spring.retarget(blockSize);
@@ -113,6 +132,17 @@ function follow(blockSize: number, inlineSize: number): void {
     outer.style.height = `${spring.height}px`;
   }
 }
+
+// Pin when following starts and release once it stops; a running motion
+// settles through `step`, which re-checks `holding()`.
+$effect(() => {
+  const shouldHold = holding();
+  untrack(() => {
+    if (driver || !measured) return;
+    if (shouldHold) hold(spring.height);
+    else release();
+  });
+});
 
 $effect(() => {
   const node = inner;

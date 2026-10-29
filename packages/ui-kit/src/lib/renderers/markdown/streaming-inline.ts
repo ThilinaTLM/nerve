@@ -8,6 +8,11 @@
  * which renders exactly like the previous escaped-text tail.
  */
 
+import {
+  streamingBoundaries,
+  type StreamingMarkdownParts,
+} from "./streaming-markdown.js";
+
 export const MARK_STRONG = 1;
 export const MARK_EM = 2;
 export const MARK_CODE = 4;
@@ -16,6 +21,38 @@ export const MARK_LINK = 16;
 
 /** Tails longer than this render as plain text. */
 export const MAX_OPTIMISTIC_TAIL_CHARS = 4000;
+
+/**
+ * Split revealed streaming Markdown for the optimistic tail. Like
+ * `splitStreamingMarkdown`, except a boundary whose tail has nothing visible
+ * yet (only blank lines or a held-back `#`, `-`, `1.` marker) does not take
+ * the previous block out of the tail. The caret then stays at the end of
+ * that block instead of briefly occupying a line of its own, and the block
+ * moves into the parsed prefix together with the next visible content.
+ */
+export function splitRevealedMarkdown(source: string): StreamingMarkdownParts {
+  const boundaries = streamingBoundaries(source);
+  const last = boundaries.at(-1) ?? 0;
+  const split = (at: number) => ({
+    prefix: source.slice(0, at),
+    tail: source.slice(at),
+  });
+  if (last === 0 || tokenizeStreamingTail(source, last).length > 0) {
+    return split(last);
+  }
+  for (let index = boundaries.length - 2; index >= -1; index -= 1) {
+    const candidate = index >= 0 ? boundaries[index]! : 0;
+    if (source.slice(candidate, last).trim() === "") continue;
+    // Only fall back to a block the tail models exactly; an unmodelled one
+    // (fence, table, quote) would flash as escaped text instead.
+    const blocks = tokenizeStreamingTail(source, candidate);
+    if (blocks.length > 0 && blocks.every((block) => block.kind !== "plain")) {
+      return split(candidate);
+    }
+    break;
+  }
+  return split(last);
+}
 
 export type InlineToken =
   | { kind: "text"; start: number; end: number; marks: number }
@@ -30,7 +67,13 @@ export type StreamingBlock =
       /** First number of an ordered list. */
       start: number;
       items: InlineToken[][];
+      /** Per item: checkbox state of a task item, `undefined` otherwise. */
+      tasks: (boolean | undefined)[];
     }
+  /** Blockquote holding plain paragraphs. */
+  | { kind: "quote"; paragraphs: InlineToken[][] }
+  /** Body of a fenced code block, from `start` to `end`. */
+  | { kind: "code"; start: number; end: number; mermaid: boolean }
   /** Unmodelled syntax: escaped source text from `start` to `end`. */
   | { kind: "plain"; start: number; end: number };
 
@@ -39,12 +82,19 @@ type Line = { start: number; end: number };
 const HEADING = /^ {0,3}(#{1,6})(?:[ \t]+|$)/;
 const PENDING_HEADING = /^ {0,3}#{1,6}$/;
 const LIST_ITEM = /^( {0,3})([-*+]|(\d{1,9})[.)])[ \t]+/;
-const PENDING_LIST_ITEM = /^ {0,3}(?:[-*+]|\d{1,9}[.)])$/;
+// A bare number may still become an ordered list marker (`1` before `1.`).
+const PENDING_LIST_ITEM = /^ {0,3}(?:[-*+]|\d{1,9}[.)]?)$/;
 const INDENTED_LIST_ITEM = /^ {4,}(?:[-*+]|\d{1,9}[.)])[ \t]/;
 const FENCE = /^ {0,3}(?:`{3,}|~{3,})/;
 const SETEXT_OR_RULE = /^ {0,3}(?:=+|-{2,}|\*{3,}|_{3,})[ \t]*$/;
-const UNMODELLED_BLOCK = /^ {0,3}(?:>|\||<|\[[^\]]*\]:)/;
-const TASK_ITEM = /^\[[ xX]\](?:[ \t]|$)/;
+const UNMODELLED_BLOCK = /^ {0,3}(?:\||<|\[[^\]]*\]:)/;
+const QUOTE = /^ {0,3}> ?/;
+const TASK_ITEM = /^\[([ xX])\](?:[ \t]+|$)/;
+// `[`, `[ `, `[x` may still become a task checkbox.
+const PENDING_TASK_ITEM = /^\[(?:[ xX]\]?)?$/;
+/** Quote content the tail does not model (nested blocks). */
+const QUOTE_UNMODELLED =
+  /^ {0,3}(?:>|#{1,6}(?:[ \t]|$)|[-*+][ \t]|\d{1,9}[.)][ \t]|`{3,}|~{3,}|\||<)/;
 const ASCII_PUNCTUATION = /[!-/:-@[-`{-~]/;
 const WORD = /[\p{L}\p{N}]/u;
 
@@ -89,8 +139,15 @@ export function tokenizeStreamingTail(
   // Content ranges per block, tokenized inline once grouping is known.
   let paragraph: Line[] | undefined;
   let list:
-    | { ordered: boolean; start: number; items: Line[][]; marker: string }
+    | {
+        ordered: boolean;
+        start: number;
+        items: Line[][];
+        tasks: (boolean | undefined)[];
+        marker: string;
+      }
     | undefined;
+  let quote: Line[][] | undefined;
 
   const flush = () => {
     if (paragraph) {
@@ -105,10 +162,27 @@ export function tokenizeStreamingTail(
         ordered: list.ordered,
         start: list.start,
         items: list.items.map((item) => tokenizeInline(source, item)),
+        tasks: list.tasks,
       });
+    }
+    if (quote) {
+      const paragraphs = quote.filter((lines) => lines.length > 0);
+      if (paragraphs.length > 0) {
+        blocks.push({
+          kind: "quote",
+          paragraphs: paragraphs.map((lines) => tokenizeInline(source, lines)),
+        });
+      }
     }
     paragraph = undefined;
     list = undefined;
+    quote = undefined;
+  };
+
+  const fallBack = (line: Line) => {
+    flush();
+    blocks.push({ kind: "plain", start: line.start, end: source.length });
+    return blocks;
   };
 
   const lines = splitLines(source, from);
@@ -117,17 +191,59 @@ export function tokenizeStreamingTail(
     const text = lineText(source, line);
     const isLast = index === lines.length - 1;
 
-    if (text.trim() === "") continue;
+    // A blank line ends the current block. (The tail only spans blank
+    // lines when the caret is held on the previous block.)
+    if (text.trim() === "") {
+      flush();
+      continue;
+    }
+
+    const fence = FENCE.exec(text);
+    if (fence) {
+      // Hold the opener until its info string is complete, so a Mermaid
+      // fence never flashes as a code block first.
+      if (isLast) continue;
+      flush();
+      const marker = fence[0].trim();
+      const info = text.slice(fence.index + fence[0].length).trim();
+      const mermaid = /^mermaid(?:\s|$)/iu.test(info);
+      const close = closingFenceIndex(source, lines, index, marker);
+      const start = lines[index + 1]!.start;
+      if (close === -1) {
+        // Open fence: code (or the diagram box) until the source closes it.
+        let end = source.length;
+        if (end > start && source[end - 1] === "\n") end -= 1;
+        blocks.push({ kind: "code", start, end, mermaid });
+        return blocks;
+      }
+      const end = Math.max(start, lines[close]!.start - 1);
+      blocks.push({ kind: "code", start, end, mermaid });
+      index = close;
+      continue;
+    }
+
+    const quoteMarker = QUOTE.exec(text);
+    if (quoteMarker) {
+      const contentStart = line.start + quoteMarker[0].length;
+      const content = source.slice(contentStart, line.end);
+      if (QUOTE_UNMODELLED.test(content)) return fallBack(line);
+      if (!quote) {
+        // A lone `>` may still be followed by its content.
+        if (content.trim() === "" && isLast) continue;
+        flush();
+        quote = [[]];
+      }
+      if (content.trim() === "") quote.push([]);
+      else quote.at(-1)!.push({ start: contentStart, end: line.end });
+      continue;
+    }
 
     if (
-      FENCE.test(text) ||
       UNMODELLED_BLOCK.test(text) ||
       INDENTED_LIST_ITEM.test(text) ||
-      (SETEXT_OR_RULE.test(text) && (paragraph || list || !isLast))
+      (SETEXT_OR_RULE.test(text) && (paragraph || list || quote || !isLast))
     ) {
-      flush();
-      blocks.push({ kind: "plain", start: line.start, end: source.length });
-      return blocks;
+      return fallBack(line);
     }
 
     // A marker without its trailing space yet may still become a heading or
@@ -140,6 +256,16 @@ export function tokenizeStreamingTail(
     }
     // A lone rule-like run may still turn into a rule or setext underline.
     if (isLast && SETEXT_OR_RULE.test(text)) continue;
+
+    if (quote && !HEADING.test(text) && !LIST_ITEM.test(text)) {
+      // Lazy continuation of the quote's last paragraph.
+      const last = quote.at(-1)!;
+      if (last.length > 0) {
+        last.push(line);
+        continue;
+      }
+      flush();
+    }
 
     const heading = HEADING.exec(text);
     if (heading) {
@@ -160,12 +286,11 @@ export function tokenizeStreamingTail(
 
     const item = LIST_ITEM.exec(text);
     if (item) {
-      const contentStart = line.start + item[0].length;
-      if (TASK_ITEM.test(source.slice(contentStart, line.end))) {
-        flush();
-        blocks.push({ kind: "plain", start: line.start, end: source.length });
-        return blocks;
-      }
+      let contentStart = line.start + item[0].length;
+      const content = source.slice(contentStart, line.end);
+      if (isLast && PENDING_TASK_ITEM.test(content)) continue;
+      const task = TASK_ITEM.exec(content);
+      if (task) contentStart += task[0].length;
       const marker = item[3] === undefined ? item[2]! : item[2]!.slice(-1);
       const ordered = item[3] !== undefined;
       if (paragraph && ordered && Number(item[3]) !== 1) {
@@ -180,10 +305,12 @@ export function tokenizeStreamingTail(
           ordered,
           start: ordered ? Number(item[3]) : 1,
           items: [],
+          tasks: [],
           marker,
         };
       }
       list.items.push([{ start: contentStart, end: line.end }]);
+      list.tasks.push(task ? task[1] !== " " : undefined);
       continue;
     }
 
@@ -197,6 +324,23 @@ export function tokenizeStreamingTail(
   }
   flush();
   return blocks;
+}
+
+/** Index of the tail line closing the fence opened by `marker`, or -1. */
+function closingFenceIndex(
+  source: string,
+  lines: Line[],
+  openerIndex: number,
+  marker: string,
+): number {
+  const char = marker[0]!;
+  for (let index = openerIndex + 1; index < lines.length; index += 1) {
+    const run = /^ {0,3}(`{3,}|~{3,})[ \t]*$/.exec(
+      lineText(source, lines[index]!),
+    )?.[1];
+    if (run && run[0] === char && run.length >= marker.length) return index;
+  }
+  return -1;
 }
 
 function trimClosingHashes(source: string, start: number, end: number): number {

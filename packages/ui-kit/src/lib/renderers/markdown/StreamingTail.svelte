@@ -98,9 +98,21 @@ function lastIndex(items: readonly unknown[]): number {
     >
   {:else if block.kind === "list"}
     {#if block.ordered}
-      <ol start={block.start === 1 ? undefined : block.start}>
+      <ol
+        start={block.start === 1 ? undefined : block.start}
+        class={block.tasks.some((task) => task !== undefined)
+          ? "contains-task-list"
+          : undefined}
+      >
         {#each block.items as item, itemIndex (itemIndex)}
-          <li>
+          {@const task = block.tasks[itemIndex]}
+          <li class={task === undefined ? undefined : "task-list-item"}>
+            <!-- The space after the checkbox matches the final render. -->
+            {#if task !== undefined}<input
+                type="checkbox"
+                disabled
+                checked={task}
+              />{/if}
             {@render inline(
               item,
               withCaret && itemIndex === lastIndex(block.items),
@@ -109,9 +121,20 @@ function lastIndex(items: readonly unknown[]): number {
         {/each}
       </ol>
     {:else}
-      <ul>
+      <ul
+        class={block.tasks.some((task) => task !== undefined)
+          ? "contains-task-list"
+          : undefined}
+      >
         {#each block.items as item, itemIndex (itemIndex)}
-          <li>
+          {@const task = block.tasks[itemIndex]}
+          <li class={task === undefined ? undefined : "task-list-item"}>
+            <!-- The space after the checkbox matches the final render. -->
+            {#if task !== undefined}<input
+                type="checkbox"
+                disabled
+                checked={task}
+              />{/if}
             {@render inline(
               item,
               withCaret && itemIndex === lastIndex(block.items),
@@ -120,6 +143,45 @@ function lastIndex(items: readonly unknown[]): number {
         {/each}
       </ul>
     {/if}
+  {:else if block.kind === "quote"}
+    <blockquote>
+      {#each block.paragraphs as paragraph, paragraphIndex (paragraphIndex)}
+        <p>
+          {@render inline(
+            paragraph,
+            withCaret && paragraphIndex === lastIndex(block.paragraphs),
+          )}
+        </p>
+      {/each}
+    </blockquote>
+  {:else if block.kind === "code" && block.mermaid}
+    <!-- The rendered diagram's box, so closing the fence changes no height;
+         the source streams in faded and anchored to the bottom. -->
+    <div
+      class="mermaid-block h-80 min-h-64 max-h-96"
+      aria-busy="true"
+      aria-label="Mermaid diagram"
+    >
+      <div
+        class="streaming-diagram-source h-full overflow-hidden p-3 font-mono text-xs text-muted-foreground"
+      >
+        <div class="whitespace-pre">
+          {@render text(
+            block.start,
+            block.end,
+          )}{#if withCaret}{@render caretDot()}{/if}
+        </div>
+      </div>
+    </div>
+  {:else if block.kind === "code"}
+    <div class="code-block">
+      <pre><code
+          >{@render text(
+            block.start,
+            block.end,
+          )}{#if withCaret}{@render caretDot()}{/if}</code
+        ></pre>
+    </div>
   {:else}
     <span class="whitespace-pre-wrap break-words"
       >{@render text(
@@ -132,6 +194,14 @@ function lastIndex(items: readonly unknown[]): number {
 {#if caret && blocks.length === 0}{@render caretDot()}{/if}
 
 <style>
+.streaming-diagram-source {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  /* Older lines fade out toward the top of the fixed-height box. */
+  mask-image: linear-gradient(to bottom, transparent, black 60%);
+}
+
 .stream-caret {
   animation: stream-caret-breathe 1.1s ease-in-out infinite;
 }

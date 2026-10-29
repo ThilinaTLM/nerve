@@ -8,7 +8,19 @@ export type StreamingMarkdownParts = {
  * code advance the parsed prefix; the unresolved suffix remains escaped text.
  */
 export function splitStreamingMarkdown(source: string): StreamingMarkdownParts {
-  let boundary = 0;
+  const boundary = streamingBoundaries(source).at(-1) ?? 0;
+  return {
+    prefix: source.slice(0, boundary),
+    tail: source.slice(boundary),
+  };
+}
+
+/**
+ * Every offset where the parsed prefix may end, ascending: the start of each
+ * line following a blank line outside fenced code.
+ */
+export function streamingBoundaries(source: string): number[] {
+  const boundaries: number[] = [];
   let offset = 0;
   let fence: { marker: "`" | "~"; length: number } | undefined;
 
@@ -33,13 +45,10 @@ export function splitStreamingMarkdown(source: string): StreamingMarkdownParts {
     }
 
     offset = nextOffset;
-    if (!fence && hasLineBreak && line.trim() === "") boundary = offset;
+    if (!fence && hasLineBreak && line.trim() === "") boundaries.push(offset);
   }
 
-  return {
-    prefix: source.slice(0, boundary),
-    tail: source.slice(boundary),
-  };
+  return boundaries;
 }
 
 export function appendedNewline(previous: string, next: string): boolean {
