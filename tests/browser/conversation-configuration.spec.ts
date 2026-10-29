@@ -15,7 +15,7 @@ test("composer configuration persists on the conversation across reload", async 
     await page
       .getByRole("button", { name: "Agent profile", exact: true })
       .click();
-    await page.getByRole("button", { name: "Planning", exact: true }).click();
+    await page.getByRole("option", { name: /^Planning\b/ }).click();
     await expect
       .poll(
         async () =>
@@ -27,7 +27,7 @@ test("composer configuration persists on the conversation across reload", async 
     await page
       .getByRole("button", { name: "Agent profile", exact: true })
       .click();
-    await page.getByRole("button", { name: "Coding", exact: true }).click();
+    await page.getByRole("option", { name: /^Coding\b/ }).click();
     await expect
       .poll(
         async () =>
