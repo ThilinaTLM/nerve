@@ -73,7 +73,7 @@ export function testConfiguration(
             targetDefinition: {
               schemaVersion: 1,
               name: profile,
-              description: "Fixture profile",
+              whenToUse: "Use when testing fixtures.",
               usableBy: "lead",
               instructions: "",
             },

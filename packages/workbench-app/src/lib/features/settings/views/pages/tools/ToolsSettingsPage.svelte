@@ -46,7 +46,6 @@ import {
   type ToolPayload,
   type ToolRowDef,
 } from "./tool-settings";
-import DelegationSettings from "../agent-profiles/DelegationSettings.svelte";
 let {
   scope,
   projectId,
@@ -246,13 +245,6 @@ const python = $derived(status?.runtime.python);
       </SettingsRow>
     {/each}
   </SettingsSection>
-
-  {#if project}<DelegationSettings
-      {editor}
-      {models}
-      {authProviders}
-      {projectId}
-    />{/if}
 
   <ToolConfigDialog
     bind:open={dialogOpen}

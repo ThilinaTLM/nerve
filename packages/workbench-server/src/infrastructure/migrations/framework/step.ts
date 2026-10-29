@@ -93,6 +93,8 @@ export interface MigrationRegistryEntry {
   checksum: string;
   stage: "draft" | "released";
   releasedIn?: string;
+  /** Explicit opt-in for an unreleased step with a safe applied-home path. */
+  rerunOnChange?: boolean;
 }
 
 export interface RegisteredStep extends MigrationRegistryEntry {

@@ -27,7 +27,7 @@ const project = { scope: "project" as const, projectId: "p" };
 const definition: ProfileDefinition = {
   schemaVersion: 1,
   name: "coding",
-  description: "Coding",
+  whenToUse: "Coding",
   instructions: "Short coding instructions",
   usableBy: "both",
   recommendations: {},

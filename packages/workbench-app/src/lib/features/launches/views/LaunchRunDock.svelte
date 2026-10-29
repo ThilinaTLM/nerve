@@ -70,13 +70,20 @@ function selectRun(launchId: string): void {
       size="sm"
       ariaLabel="Show launch run history"
       triggerTitle="Run history"
-      triggerClass="h-6 gap-1.5 rounded-md px-1.5 text-xs hover:bg-muted"
+      side="top"
+      align="start"
     >
-      {#snippet trigger()}
-        <LaunchStatusIcon status={launch.status} />
-        <span class="tabular-nums">{formatLaunchRunTime(launch.startedAt)}</span
-        >
-        <ChevronDown class="size-3 text-muted-foreground" aria-hidden="true" />
+      {#snippet triggerChild({ props })}
+        <Button {...props} variant="ghost" size="sm">
+          <LaunchStatusIcon status={launch.status} />
+          <span class="tabular-nums"
+            >{formatLaunchRunTime(launch.startedAt)}</span
+          >
+          <ChevronDown
+            class="size-3 text-muted-foreground"
+            aria-hidden="true"
+          />
+        </Button>
       {/snippet}
       <PopoverHeader title="Runs" meta={String(runs.length)}>
         {#snippet actions()}

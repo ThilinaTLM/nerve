@@ -385,11 +385,20 @@ const selectedPermissionRuleSetId = $derived(
 /** Profiles the selector offers; a viewed sub-agent shows only its own, read-only. */
 const composerProfiles = $derived(
   viewedChildId
-    ? [{ name: selectedAgentProfile, label: selectedAgentProfile }]
+    ? [
+        {
+          name: selectedAgentProfile,
+          label: selectedAgentProfile,
+          source: resolvedProfiles.find(
+            (profile) => profile.name === selectedAgentProfile,
+          )?.source,
+        },
+      ]
     : leadAgentProfiles(resolvedProfiles).map((profile) => ({
         name: profile.name,
         label: profile.label,
-        description: profile.description,
+        whenToUse: profile.whenToUse,
+        source: profile.source,
       })),
 );
 const lockedFields = $derived({

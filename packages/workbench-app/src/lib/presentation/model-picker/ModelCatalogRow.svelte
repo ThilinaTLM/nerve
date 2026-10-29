@@ -1,20 +1,21 @@
 <!--
   One model in a settings catalog. `option` rows live in the ModelPicker
   listbox (keyboard highlight is driven by its search field); `checkbox` rows
-  live in the inline scope editor. Capability cells keep fixed widths so the
+  live in the inline scope editor (provider mark after the checkbox). Capability cells keep fixed widths so the
   context size, image and reasoning columns align across rows. Option rows
-  mark the selection in a leading slot so the row ends at its capabilities.
+  lead with the provider mark, swapped for a check on the selected row, so
+  the row ends at its capabilities.
 -->
 <script lang="ts">
 import type { Snippet } from "svelte";
 import Brain from "@lucide/svelte/icons/brain";
-import CircleCheck from "@lucide/svelte/icons/circle-check";
 import Image from "@lucide/svelte/icons/image";
 import type { ModelInfo } from "@nervekit/contracts/models";
 import { Checkbox } from "@nervekit/ui-kit/components/ui/checkbox";
 import { Label } from "@nervekit/ui-kit/components/ui/label";
 import * as Tooltip from "@nervekit/ui-kit/components/ui/tooltip";
 import { cn } from "@nervekit/ui-kit/utils";
+import ProviderIcon from "./ProviderIcon.svelte";
 import {
   formatTokenCapacity,
   supportsImageInput,
@@ -72,7 +73,7 @@ const reasoning = $derived(model ? modelSupportsReasoning(model) : false);
   <span class="flex min-w-0 flex-1 items-baseline gap-1.5">
     <span
       class={cn(
-        "max-w-full shrink-0 truncate text-sm text-foreground",
+        "max-w-full shrink-0 truncate text-xs text-foreground",
         selected && mode === "option" && "font-medium",
       )}>{label}</span
     >
@@ -147,13 +148,9 @@ const reasoning = $derived(model ? modelSupportsReasoning(model) : false);
     }}
   >
     <div class="flex min-h-7 min-w-0 items-center gap-2 py-1 pr-1.5 pl-1">
-      <CircleCheck
-        class={cn(
-          "size-3.5 flex-none text-foreground",
-          !selected && "invisible",
-        )}
-        aria-hidden="true"
-      />
+      {#if model}
+        <ProviderIcon provider={model.provider} />
+      {/if}
       {@render leading?.()}
       {@render text()}
       {@render capabilities()}
@@ -161,10 +158,16 @@ const reasoning = $derived(model ? modelSupportsReasoning(model) : false);
     </div>
   </div>
 {:else}
+  <!-- Scope editor row: an option of the multi-select listbox driven by the
+       search field; the checkbox stays the pointer target. -->
   <div
+    {id}
     {title}
+    role="option"
+    aria-selected={selected}
     class={cn(
-      "flex h-8 min-w-0 items-center gap-2 border-b border-border/50 pr-2 pl-3 transition-colors hover:bg-accent/50",
+      "flex h-8 min-w-0 items-center gap-2 rounded-md pr-2 pl-2 transition-colors hover:bg-accent/50",
+      active && "outline outline-1 -outline-offset-1 outline-ring/55",
       disabled && "opacity-70",
       className,
     )}
@@ -175,11 +178,13 @@ const reasoning = $derived(model ? modelSupportsReasoning(model) : false);
       <Checkbox
         checked={selected}
         {disabled}
+        tabindex={-1}
         aria-label={`Include ${label}`}
         onCheckedChange={(next) => {
           if (next !== selected) onclick?.();
         }}
       />
+      {#if model}<ProviderIcon provider={model.provider} />{/if}
       {@render leading?.()}
       {@render text()}
     </Label>

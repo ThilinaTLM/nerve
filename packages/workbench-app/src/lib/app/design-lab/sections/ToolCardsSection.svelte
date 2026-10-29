@@ -13,7 +13,7 @@ setConversationUiCapabilities({
       targetDefinition: {
         schemaVersion: 1,
         name: "coding",
-        description: "Implementation profile",
+        whenToUse: "Implementation profile",
         usableBy: "lead",
         instructions: "",
       },

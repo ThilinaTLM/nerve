@@ -48,7 +48,7 @@ export const processToolDefinitions = [
     label: "launch",
     classifyRisk: classifyProcessRisk,
     description:
-      "Use the user's launch definitions (dev servers etc.); you can't create or edit them. Check status before starting. Select by exact name; `runId` targets one run (default: latest). logs: output from offset (default: tail).",
+      "Use the user's launch definitions (dev servers etc.). Check status before starting. Select by exact name; `runId` targets one run (default: latest). logs: output from offset (default: tail).",
     parameters: Type.Object(
       {
         action: Type.Union([

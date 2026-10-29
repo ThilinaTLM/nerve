@@ -1,12 +1,20 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { profileDefinitionSchema } from "@nervekit/contracts/agent-configuration";
-import { applyProfileChange, changeRows } from "./profile-changes";
+import {
+  applyProfileChange,
+  changeRows,
+  changeSections,
+  unifyChangeMode,
+  buildAddChangeItems,
+  normalizeProfileName,
+  duplicateProfileName,
+} from "./profile-changes";
 const model = { provider: "test", modelId: "one" };
 const base = profileDefinitionSchema.parse({
   schemaVersion: 1,
   name: "planning",
-  description: "Plan first",
+  whenToUse: "Use when planning first",
   usableBy: "lead",
   instructions: "Plan carefully.",
   recommendations: {
@@ -96,7 +104,7 @@ test("child definitions use the same real recommendations/requirements schema an
   const child = profileDefinitionSchema.parse({
     schemaVersion: 1,
     name: "research",
-    description: "Research",
+    whenToUse: "Use when researching",
     usableBy: "subagent",
     instructions: "Read.",
   });
@@ -115,4 +123,207 @@ test("child definitions use the same real recommendations/requirements schema an
     "",
   );
   assert.equal(next.usableBy, "subagent");
+});
+
+test("skill item edits preserve other individual skills and independent policies", () => {
+  const profile = profileDefinitionSchema.parse({
+    ...base,
+    recommendations: {
+      skills: { file: { test: false } },
+    },
+    requirements: {
+      skills: { file: { review: false }, agentBrowser: { browser: true } },
+    },
+  });
+  const rows = changeRows(profile);
+  assert.equal(rows.filter((row) => row.key === "skill:file:review").length, 1);
+  assert.equal(
+    rows.find((row) => row.key === "skill:file:review")?.value,
+    false,
+  );
+  const next = applyProfileChange(profile, {
+    key: "skill:file:review",
+    mode: "settings",
+    value: false,
+  });
+  assert.equal(next.requirements?.skills?.file?.review, undefined);
+  assert.equal(next.recommendations?.skills?.file?.review, undefined);
+  assert.equal(next.recommendations?.skills?.file?.test, false);
+  assert.equal(next.requirements?.skills?.agentBrowser?.browser, true);
+});
+
+test("Remove instructions clears the contribution", () => {
+  assert.equal(
+    applyProfileChange(base, {
+      key: "instructions",
+      mode: "settings",
+      value: base.instructions,
+    }).instructions,
+    "",
+  );
+});
+
+test("a single model policy unifies existing fields but does not invent absent reasoning", () => {
+  const next = unifyChangeMode(
+    {
+      key: "model",
+      value: {
+        model,
+        thinking: "low",
+        modelMode: "require",
+        thinkingMode: "recommend",
+      },
+    },
+    "require",
+  );
+  const profile = applyProfileChange(base, next);
+  assert.equal(profile.requirements?.reasoningLevel, "low");
+  assert.deepEqual(profile.requirements?.model, model);
+  const modelOnly = applyProfileChange(
+    base,
+    unifyChangeMode({ key: "model", value: { model } }, "recommend"),
+  );
+  assert.equal(modelOnly.recommendations?.reasoningLevel, undefined);
+  const removed = applyProfileChange(
+    profile,
+    unifyChangeMode(next, "settings"),
+  );
+  assert.equal(removed.requirements?.model, undefined);
+  assert.equal(removed.requirements?.reasoningLevel, undefined);
+});
+
+test("add list omits its opening baseline, keeps newly changed flips, and supplies search aliases", () => {
+  const items = buildAddChangeItems({
+    baseline: ["model", "tool:web_search"],
+    rows: [
+      {
+        key: "skill:file:review",
+        label: "Review",
+        mode: "recommend",
+        value: false,
+      },
+    ],
+    tools: [
+      {
+        key: "tool:jira",
+        label: "Jira",
+        description: "Issues",
+        account: true,
+        defaultOn: false,
+      },
+      {
+        key: "tool:web_search",
+        label: "Search",
+        description: "Web",
+        defaultOn: true,
+      },
+    ],
+    skills: [{ key: "skill:file:review", label: "Review", defaultOn: true }],
+  });
+  assert.ok(
+    !items.some(
+      (item) => item.key === "model" || item.key === "tool:web_search",
+    ),
+  );
+  assert.deepEqual(
+    items.find((item) => item.key === "skill:file:review")?.flip,
+    { from: "On", to: "Off", applied: true },
+  );
+  assert.equal(
+    items.find((item) => item.key === "tool:jira")?.group,
+    "Account tools",
+  );
+  assert.deepEqual(items.find((item) => item.key === "tool:jira")?.flip, {
+    from: "Off",
+    to: "On",
+    applied: false,
+  });
+  assert.ok(
+    items
+      .find((item) => item.key === "compaction")
+      ?.keywords?.includes("compression"),
+  );
+  assert.ok(
+    items
+      .find((item) => item.key === "instructions")
+      ?.keywords?.includes("prompt"),
+  );
+});
+
+test("legacy skill source defaults never become editable changes", () => {
+  const legacy = {
+    ...base,
+    recommendations: {
+      skills: { defaults: { file: false }, file: { review: true } },
+    },
+  };
+  assert.deepEqual(
+    changeRows(legacy).filter((row) => row.key.startsWith("skill")),
+    [
+      {
+        key: "skill:file:review",
+        label: "review",
+        mode: "recommend",
+        value: true,
+      },
+    ],
+  );
+});
+
+test("add menu offers individual skills using their inherited on/off state, not source buckets", () => {
+  const items = buildAddChangeItems({
+    baseline: [],
+    rows: [],
+    tools: [],
+    skills: [
+      { key: "skill:file:review", label: "Review", defaultOn: false },
+      { key: "skill:nerve:research", label: "Research", defaultOn: true },
+    ],
+  });
+  assert.deepEqual(
+    items.filter((item) => item.group === "Settings").map((item) => item.key),
+    ["model", "permission", "compaction", "instructions"],
+  );
+  assert.deepEqual(
+    items.find((item) => item.key === "skill:file:review")?.flip,
+    { from: "Off", to: "On", applied: false },
+  );
+  assert.deepEqual(
+    items.find((item) => item.key === "skill:nerve:research")?.flip,
+    { from: "On", to: "Off", applied: false },
+  );
+});
+
+test("profile names stay slugs and duplicates fit the identity length limit", () => {
+  assert.equal(
+    normalizeProfileName("UI_Developer helper!"),
+    "ui-developer-helper",
+  );
+  assert.equal(duplicateProfileName("ui-developer"), "ui-developer-copy");
+  assert.equal(duplicateProfileName("a".repeat(32)), `${"a".repeat(27)}-copy`);
+  assert.equal(
+    duplicateProfileName(`${"a".repeat(26)}-long`),
+    `${"a".repeat(26)}-copy`,
+  );
+});
+test("change sections group rows in a fixed order and drop empty sections", () => {
+  const sections = changeSections(
+    changeRows(
+      profileDefinitionSchema.parse({
+        ...base,
+        recommendations: {
+          ...base.recommendations,
+          skills: { file: { review: true } },
+        },
+      }),
+    ),
+  );
+  assert.deepEqual(
+    sections.map((s) => [s.label, s.rows.map((r) => r.key)]),
+    [
+      ["Basics", ["model", "permission", "instructions"]],
+      ["Tools", ["tool:web_search"]],
+      ["Skills", ["skill:file:review"]],
+    ],
+  );
 });

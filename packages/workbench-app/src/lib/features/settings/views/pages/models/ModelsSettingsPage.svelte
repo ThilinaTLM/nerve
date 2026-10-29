@@ -31,7 +31,12 @@ $effect(() => preferences.observe());
 const available = $derived(
   preferences.result?.status === "available" ? preferences.result : undefined,
 );
-const scopedModels = $derived(available?.effective.scopedModels ?? []);
+const savedScope = $derived(available?.effective.scopedModels ?? []);
+/** Choices made while a save is in flight; shown immediately and saved in
+ * order, so several models can be checked in quick succession. */
+let pending = $state<ModelSelection[]>();
+let flushing = false;
+const scopedModels = $derived(pending ?? savedScope);
 const availableModels = $derived(
   authenticatedRealModelOptions(models, authProviders),
 );
@@ -41,15 +46,24 @@ const staleCount = $derived.by(() => {
     .length;
 });
 
-function commitScopedModels(next: ModelSelection[]): void {
-  void preferences.save({ scopedModels: next });
+async function commitScopedModels(next: ModelSelection[]): Promise<void> {
+  pending = next;
+  if (flushing) return;
+  flushing = true;
+  try {
+    while (pending) {
+      const target: ModelSelection[] = pending;
+      await preferences.save({ scopedModels: target });
+      if (preferences.error || pending === target) {
+        pending = undefined;
+        break;
+      }
+    }
+  } finally {
+    flushing = false;
+  }
 }
 </script>
-
-<SettingsInlineMessage
-  tone="neutral"
-  text="An empty scope offers every authenticated model. Choose a model and reasoning level in the conversation."
-/>
 
 <SettingsSection id="models" title="Model scope">
   {#if availableModels.length === 0}
@@ -57,7 +71,7 @@ function commitScopedModels(next: ModelSelection[]): void {
       tone="info"
       text="Authenticate a provider before choosing scoped models."
     />
-  {:else if available && !preferences.saving}
+  {:else if available}
     <ModelMultiSelect
       models={availableModels}
       {scopedModels}
@@ -66,7 +80,7 @@ function commitScopedModels(next: ModelSelection[]): void {
     {#if preferences.overrides.scopedModels !== undefined}
       <Button
         variant="ghost"
-        disabled={preferences.saving}
+        disabled={preferences.saving || !!pending}
         onclick={() => preferences.save({}, ["/overrides/scopedModels"])}
         >Reset model scope</Button
       >
@@ -84,3 +98,8 @@ function commitScopedModels(next: ModelSelection[]): void {
     tone="destructive"
     text={preferences.error}
   />{/if}
+
+<p class="text-xs text-muted-foreground">
+  An empty scope offers every authenticated model. Choose a model and reasoning
+  level in the conversation.
+</p>

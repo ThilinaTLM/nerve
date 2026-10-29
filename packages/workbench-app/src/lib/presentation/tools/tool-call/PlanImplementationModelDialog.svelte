@@ -22,6 +22,7 @@ import {
 import {
   clampThinkingLevelForModel,
   supportedThinkingLevelsForModel,
+  THINKING_LEVEL_DETAILS,
 } from "../../state/thinking-levels";
 
 type ThinkingLevel = NonNullable<AgentRecord["thinkingLevel"]>;
@@ -68,16 +69,6 @@ const selectedModel = $derived(
 );
 const thinkingLevels = $derived(supportedThinkingLevelsForModel(selectedModel));
 const confirmDisabled = $derived(!selectedModel);
-
-const thinkingLevelDetails: Record<ThinkingLevel, string> = {
-  off: "No reasoning",
-  minimal: "Very brief reasoning",
-  low: "Light reasoning",
-  medium: "Moderate reasoning",
-  high: "Deep reasoning",
-  xhigh: "Extra-high reasoning",
-  max: "Maximum reasoning",
-};
 
 function thinkingLevelLabel(level: ThinkingLevel): string {
   return level === "off" ? "Off" : level[0].toUpperCase() + level.slice(1);
@@ -278,7 +269,7 @@ $effect(() => {
               }`}
               disabled={requirements.reasoningLevel !== undefined}
               aria-pressed={active}
-              title={thinkingLevelDetails[level]}
+              title={THINKING_LEVEL_DETAILS[level]}
               onclick={() => selectThinking(level)}
             >
               {thinkingLevelLabel(level)}

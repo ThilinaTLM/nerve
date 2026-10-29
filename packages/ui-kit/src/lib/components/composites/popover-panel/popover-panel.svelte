@@ -25,8 +25,11 @@ type Props = {
    * The resting width stays intrinsic. */
   triggerWidthKey?: string | null;
   /** Panel width preset: sm 16rem, md 20rem, lg 24rem, anchor matches the
-   * trigger (at least 20rem). */
+   * trigger. Field variants are at least as wide as their trigger and use the
+   * preset as their minimum width (anchor and md: 20rem). */
   size?: "sm" | "md" | "lg" | "anchor";
+  /** Fields match their trigger; panels have a fixed width and an anchor arrow. */
+  variant?: "panel" | "field";
   side?: "top" | "bottom";
   align?: "start" | "center" | "end";
   sideOffset?: number;
@@ -47,8 +50,9 @@ let {
   triggerClass = "",
   triggerWidthKey,
   size = "md",
+  variant = "panel",
   side = "bottom",
-  align = "end",
+  align,
   sideOffset = 6,
   collisionPadding = 8,
   trapFocus = true,
@@ -56,6 +60,7 @@ let {
 }: Props = $props();
 
 let triggerElement = $state<HTMLButtonElement | null>(null);
+let returnFocusToTrigger = false;
 
 const animatesWidth = $derived(triggerWidthKey !== undefined);
 let widthAnimation: TriggerWidthAnimation | undefined;
@@ -127,6 +132,7 @@ function handleOpenChange(next: boolean) {
 <PopoverPrimitive.Root bind:open onOpenChange={handleOpenChange}>
   <PopoverPrimitive.Trigger
     bind:ref={triggerElement}
+    data-popover-variant={variant}
     class={cn(
       !triggerChild && "popover-trigger",
       triggerClass,
@@ -143,16 +149,39 @@ function handleOpenChange(next: boolean) {
     <PopoverPrimitive.Content
       class={cn(
         "floating-surface popover-content",
-        `popover-${size}`,
+        variant === "field"
+          ? `popover-anchor popover-field-${size === "anchor" ? "md" : size}`
+          : `popover-${size}`,
         className,
       )}
       {side}
-      {align}
+      align={align ?? (variant === "field" ? "start" : "end")}
+      data-popover-variant={variant}
       {sideOffset}
       {collisionPadding}
       {trapFocus}
+      onEscapeKeydown={() => {
+        returnFocusToTrigger = true;
+      }}
+      onCloseAutoFocus={(event) => {
+        if (!returnFocusToTrigger) return;
+        returnFocusToTrigger = false;
+        event.preventDefault();
+        triggerElement?.focus();
+      }}
     >
-      {@render children?.()}
+      <div
+        class="flex min-h-0 max-h-[inherit] flex-col overflow-hidden rounded-[inherit]"
+      >
+        {@render children?.()}
+      </div>
+      {#if variant === "panel"}
+        <PopoverPrimitive.Arrow
+          class="text-popover stroke-border"
+          width={16}
+          height={8}
+        />
+      {/if}
     </PopoverPrimitive.Content>
   </PopoverPrimitive.Portal>
 </PopoverPrimitive.Root>

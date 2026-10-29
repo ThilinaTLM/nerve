@@ -74,7 +74,8 @@ export type ComposerEditorOverlay = {
 export type ComposerAgentProfile = {
   name: string;
   label: string;
-  description?: string;
+  whenToUse?: string;
+  source?: "builtin" | "user" | "project";
 };
 
 export type ComposerLockedFields = {

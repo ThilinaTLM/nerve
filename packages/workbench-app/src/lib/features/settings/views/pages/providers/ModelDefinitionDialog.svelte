@@ -5,9 +5,12 @@ import { upsertModelDefinition } from "$lib/api";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
 import Dialog from "@nervekit/ui-kit/components/composites/dialog-shell";
 import { Label } from "@nervekit/ui-kit/components/ui/label";
-import SelectField, {
-  type SelectItem,
-} from "@nervekit/ui-kit/components/composites/select-field";
+import type { SelectItem } from "@nervekit/ui-kit/components/composites/select-field";
+import ProviderIcon from "$lib/presentation/model-picker/ProviderIcon.svelte";
+import PopoverPanel, {
+  PopoverCommandList,
+} from "@nervekit/ui-kit/components/composites/popover-panel";
+import { providerSearchKeywords } from "./provider-profiles";
 import { CodeMirrorEditor } from "$lib/presentation/code";
 import { refreshProviderCatalog } from "$lib/features/settings/state/provider-catalog-actions.svelte";
 import {
@@ -26,6 +29,7 @@ let { open = $bindable(false), model, providerItems = [] }: Props = $props();
 
 const editing = $derived(Boolean(model));
 let provider = $state("");
+let providerOpen = $state(false);
 let jsonText = $state(DEFAULT_MODEL_JSON);
 let busy = $state(false);
 let submitError = $state<string | undefined>(undefined);
@@ -40,6 +44,21 @@ const selectProviderItems = $derived<SelectItem[]>(
       ]
     : providerItems,
 );
+const commandItems = $derived(
+  selectProviderItems.map((item) => ({
+    key: item.value,
+    label: item.label,
+    detail: item.detail,
+    group:
+      item.detail === "Custom provider"
+        ? "Custom providers"
+        : "Connected providers",
+    keywords: providerSearchKeywords(item.value, item.label),
+  })),
+);
+const selectedProvider = $derived(
+  selectProviderItems.find((item) => item.value === provider),
+);
 const providerAvailable = $derived(
   providerItems.some((item) => item.value === provider),
 );
@@ -50,6 +69,7 @@ const canSubmit = $derived(parseResult.success && providerAvailable && !busy);
 
 $effect(() => {
   if (!open) return;
+  providerOpen = false;
   provider = model?.provider ?? "";
   jsonText = model ? modelDefinitionToJson(model) : DEFAULT_MODEL_JSON;
   submitError = undefined;
@@ -80,14 +100,36 @@ async function submit() {
   <div class="grid min-h-0 gap-3">
     <div class="grid gap-1.5">
       <Label>Provider</Label>
-      <SelectField
-        items={selectProviderItems}
-        value={provider}
-        onValueChange={(value) => (provider = value)}
-        placeholder="Select a provider"
+      <PopoverPanel
+        bind:open={providerOpen}
+        variant="field"
+        size="lg"
         ariaLabel="Provider"
-        disabled={busy || editing}
-      />
+      >
+        {#snippet triggerChild({ props })}
+          <Button {...props} variant="outline" disabled={busy || editing}>
+            {#if provider}<ProviderIcon {provider} class="size-4" />{/if}
+            {selectedProvider?.label ?? "Select a provider"}
+          </Button>
+        {/snippet}
+        {#if providerOpen}
+          <PopoverCommandList
+            items={commandItems}
+            ariaLabel="Providers"
+            placeholder="Search providers…"
+            isSelected={(item) => item.key === provider}
+            onChoose={(item) => {
+              provider = item.key;
+              providerOpen = false;
+            }}
+          >
+            {#snippet icon(item)}<ProviderIcon
+                provider={item.key}
+                class="size-4"
+              />{/snippet}
+          </PopoverCommandList>
+        {/if}
+      </PopoverPanel>
     </div>
 
     {#if provider.length > 0 && !providerAvailable}

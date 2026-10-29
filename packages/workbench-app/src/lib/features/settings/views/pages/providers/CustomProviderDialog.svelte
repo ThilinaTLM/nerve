@@ -34,7 +34,11 @@ import { Button } from "@nervekit/ui-kit/components/ui/button";
 import Dialog from "@nervekit/ui-kit/components/composites/dialog-shell";
 import { Input } from "@nervekit/ui-kit/components/ui/input";
 import { Label } from "@nervekit/ui-kit/components/ui/label";
-import SelectField from "@nervekit/ui-kit/components/composites/select-field";
+import ProviderIcon from "$lib/presentation/model-picker/ProviderIcon.svelte";
+import PopoverPanel, {
+  PopoverCommandList,
+} from "@nervekit/ui-kit/components/composites/popover-panel";
+import { providerSearchKeywords } from "./provider-profiles";
 import { Textarea } from "@nervekit/ui-kit/components/ui/textarea";
 import { encryptApiKey } from "$lib/platform/crypto/credential-crypto";
 import { refreshProviderCatalog } from "$lib/features/settings/state/provider-catalog-actions.svelte";
@@ -52,6 +56,30 @@ const editing = $derived(Boolean(provider));
 let displayName = $state("");
 let id = $state("");
 let api = $state<PiApi>("openai-completions");
+let apiOpen = $state(false);
+const apiItems = PI_API_ITEMS.map((item) => {
+  const family = item.value.startsWith("bedrock")
+    ? "amazon-bedrock"
+    : item.value.startsWith("azure")
+      ? "openai"
+      : item.value.startsWith("openai-codex")
+        ? "openai-codex"
+        : item.value.split("-")[0];
+  return {
+    key: item.value,
+    label: item.label,
+    detail: item.detail,
+    family,
+    group: item.value.includes("openai")
+      ? "OpenAI-compatible"
+      : "Other provider APIs",
+    keywords: [
+      ...providerSearchKeywords(family, item.label),
+      item.value,
+      item.detail ?? "",
+    ],
+  };
+});
 let baseUrl = $state("");
 let headersText = $state("");
 let compatText = $state("");
@@ -65,6 +93,7 @@ $effect(() => {
   if (!open) return;
   displayName = provider?.displayName ?? "";
   id = provider?.id ?? "";
+  apiOpen = false;
   api = provider?.api ?? "openai-completions";
   baseUrl = provider?.baseUrl ?? "";
   headersText = headersToText(provider?.headers);
@@ -192,12 +221,40 @@ async function submit() {
 
     <div class="grid gap-1.5">
       <Label>API type</Label>
-      <SelectField
-        items={PI_API_ITEMS}
-        value={api}
-        onValueChange={(value) => (api = value as PiApi)}
+      <PopoverPanel
+        bind:open={apiOpen}
+        variant="field"
+        size="lg"
         ariaLabel="API type"
-      />
+      >
+        {#snippet triggerChild({ props })}
+          <Button {...props} variant="outline" disabled={busy}>
+            <ProviderIcon
+              provider={apiItems.find((item) => item.key === api)?.family ??
+                api}
+              class="size-4"
+            />
+            {apiItems.find((item) => item.key === api)?.label ?? api}
+          </Button>
+        {/snippet}
+        {#if apiOpen}
+          <PopoverCommandList
+            items={apiItems}
+            ariaLabel="API types"
+            placeholder="Search provider APIs…"
+            isSelected={(item) => item.key === api}
+            onChoose={(item) => {
+              api = item.key as PiApi;
+              apiOpen = false;
+            }}
+          >
+            {#snippet icon(item)}<ProviderIcon
+                provider={item.family}
+                class="size-4"
+              />{/snippet}
+          </PopoverCommandList>
+        {/if}
+      </PopoverPanel>
     </div>
 
     <div class="grid gap-1.5">

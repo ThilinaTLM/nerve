@@ -212,7 +212,7 @@ test("strict sparse inputs reject unsupported, partial atomic and future values"
     profileDefinitionSchema.safeParse({
       schemaVersion: 1,
       name: "both",
-      description: "both",
+      whenToUse: "both",
       instructions: "",
       usableBy: "both",
       requirements: { subagents: { coding: { enabled: true } } },
@@ -383,5 +383,59 @@ test("skill identities cannot resolve inherited object properties", () => {
     assert.equal(result.settings.skills!.file![name], true);
   assert.throws(() =>
     applySettingsMutation({}, mutation({}, ["/overrides/constructor"])),
+  );
+});
+
+test("profiles require trimmed when-to-use text and only allow individual skill overrides", () => {
+  const definition = {
+    schemaVersion: 1,
+    name: "review",
+    label: "Review",
+    whenToUse: "  Use for review.  ",
+    usableBy: "both",
+    instructions: "",
+  };
+  assert.equal(
+    profileDefinitionSchema.parse(definition).whenToUse,
+    "Use for review.",
+  );
+  assert.equal(
+    profileDefinitionSchema.safeParse({ ...definition, whenToUse: " " })
+      .success,
+    false,
+  );
+  assert.equal(
+    profileDefinitionSchema.safeParse({
+      ...definition,
+      whenToUse: "x".repeat(201),
+    }).success,
+    false,
+  );
+  assert.equal(
+    profileDefinitionSchema.safeParse({ ...definition, description: "legacy" })
+      .success,
+    false,
+  );
+  for (const section of ["recommendations", "requirements"]) {
+    assert.equal(
+      profileDefinitionSchema.safeParse({
+        ...definition,
+        [section]: { skills: { defaults: { file: false } } },
+      }).success,
+      false,
+    );
+    assert.equal(
+      profileDefinitionSchema.safeParse({
+        ...definition,
+        [section]: { skills: { file: { review: true } } },
+      }).success,
+      true,
+    );
+  }
+  assert.equal(
+    leadSettingsOverridesSchema.safeParse({
+      skills: { defaults: { file: false } },
+    }).success,
+    true,
   );
 });

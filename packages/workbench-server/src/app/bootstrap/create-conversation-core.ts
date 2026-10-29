@@ -21,7 +21,7 @@ import { createScopedPermissionSource } from "../../core-host/scoped-permission-
 import { resolveAgentModel } from "@nervekit/harness/models";
 import { scopedConversationCreation } from "../../core-host/scoped-conversation-creation.js";
 import { AgentConfigurationService } from "../../infrastructure/configuration/agent-configuration/agent-configuration-service.js";
-import { bundledAgentProfiles } from "../../infrastructure/configuration/agent-configuration/builtins.js";
+import { bundledAgentProfiles } from "../../infrastructure/configuration/agent-configuration/builtins/index.js";
 import { createScopedAgentConfiguration } from "../../core-host/scoped-agent-configuration.js";
 import { scopedTurnResources } from "../../core-host/scoped-turn-resources.js";
 import { clampAgentThinkingLevel } from "@nervekit/harness/models";

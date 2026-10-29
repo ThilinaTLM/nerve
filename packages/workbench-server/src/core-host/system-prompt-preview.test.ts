@@ -110,29 +110,17 @@ void test("prompt preparation reads initialized and subsequently replaced skill 
     ];
     const first = await prepare(input, settings, "");
     assert.match(first.systemPrompt, /<available_skills>/);
-    assert.match(first.systemPrompt, /<name>enabled-nerve<\/name>/);
-    assert.match(first.systemPrompt, /<name>enabled-browser<\/name>/);
-    assert.match(
-      first.systemPrompt,
-      /<location>\/nerve\/initial\/SKILL.md<\/location>/,
-    );
-    assert.match(
-      first.systemPrompt,
-      /<location>\/browser\/initial\/SKILL.md<\/location>/,
-    );
+    assert.match(first.systemPrompt, /- enabled-nerve:/);
+    assert.match(first.systemPrompt, /- enabled-browser:/);
+    assert.match(first.systemPrompt, /path: \/nerve\/initial\/SKILL.md/);
+    assert.match(first.systemPrompt, /path: \/browser\/initial\/SKILL.md/);
     assert.doesNotMatch(first.systemPrompt, /disabled-nerve|disabled-browser/);
 
     nerveSkills = [skill("enabled-nerve", "/nerve/refreshed/SKILL.md")];
     browserSkills = [skill("enabled-browser", "/browser/refreshed/SKILL.md")];
     const next = await prepare(input, settings, "");
-    assert.match(
-      next.systemPrompt,
-      /<location>\/nerve\/refreshed\/SKILL.md<\/location>/,
-    );
-    assert.match(
-      next.systemPrompt,
-      /<location>\/browser\/refreshed\/SKILL.md<\/location>/,
-    );
+    assert.match(next.systemPrompt, /path: \/nerve\/refreshed\/SKILL.md/);
+    assert.match(next.systemPrompt, /path: \/browser\/refreshed\/SKILL.md/);
     assert.doesNotMatch(next.systemPrompt, /initial\/SKILL.md/);
   } finally {
     await rm(project, { recursive: true, force: true });

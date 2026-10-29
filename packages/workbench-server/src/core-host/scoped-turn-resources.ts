@@ -73,7 +73,7 @@ export function scopedTurnResources(options: {
         if (profile.status === "available")
           profiles.push({
             name,
-            description: profile.definition.description,
+            whenToUse: profile.definition.whenToUse,
             permission: "Independent child policy",
           });
       }

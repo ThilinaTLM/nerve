@@ -12,7 +12,7 @@ void test("transition previews include target metadata/instructions, changed val
   const planning = {
     schemaVersion: 1 as const,
     name: "planning",
-    description: "Plan without implementation",
+    whenToUse: "Plan without implementation",
     usableBy: "lead" as const,
     instructions: "Plan instructions",
     requirements: {
@@ -24,7 +24,7 @@ void test("transition previews include target metadata/instructions, changed val
     schemaVersion: 1 as const,
     name: "coding",
     enabled: false,
-    description: "Implement",
+    whenToUse: "Implement",
     usableBy: "lead" as const,
     instructions: "Coding instructions",
   };
@@ -92,7 +92,7 @@ void test("transition previews include target metadata/instructions, changed val
   const preview = profileTransitionPreviewSchema.parse(changed.preview);
   assert.equal(preview.targetDefinition.enabled, false);
   assert.equal(preview.targetDefinition.instructions, coding.instructions);
-  assert.equal(preview.targetDefinition.description, coding.description);
+  assert.equal(preview.targetDefinition.whenToUse, coding.whenToUse);
   assert.equal(
     preview.changedFields.some((entry) => entry.pointer === "/model"),
     false,
@@ -139,7 +139,7 @@ void test("declared model levels diagnose unsupported requirements and block tra
   const definition = {
     schemaVersion: 1,
     name: "unsupported",
-    description: "Unsupported requirement",
+    whenToUse: "Unsupported requirement",
     instructions: "Short",
     usableBy: "lead",
     requirements: { reasoningLevel: "high" },

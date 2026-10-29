@@ -28,7 +28,7 @@ void test("digest-only definitions never acquire revision metadata and protect e
   const definition = {
     schemaVersion: 1,
     name: "coding",
-    description: "Coding",
+    whenToUse: "Coding",
     usableBy: "lead",
     instructions: "",
   };
@@ -41,7 +41,7 @@ void test("digest-only definitions never acquire revision metadata and protect e
   const second = await store.save(
     "profile",
     { revision: 0, digest: first.value.digest },
-    (doc) => ({ ...doc, description: "Updated" }),
+    (doc) => ({ ...doc, whenToUse: "Updated" }),
   );
   assert.equal(Object.hasOwn(second.value.document, "revision"), false);
   await writeFile(file, JSON.stringify(second.value.document));

@@ -30,7 +30,7 @@ void test("every configuration notification from profile and agent publication p
   const profile = {
     schemaVersion: 1,
     name: "coding",
-    description: "Coding",
+    whenToUse: "Coding",
     instructions: "Short",
     usableBy: "lead",
   };

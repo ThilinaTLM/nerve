@@ -1,11 +1,7 @@
 <script lang="ts">
 import { Badge } from "@nervekit/ui-kit/components/ui/badge";
 import type { Snippet } from "svelte";
-import ShieldCheck from "@lucide/svelte/icons/shield-check";
-import ShieldCog from "@lucide/svelte/icons/shield-cog";
-import ShieldEllipsis from "@lucide/svelte/icons/shield-ellipsis";
-import ShieldMinus from "@lucide/svelte/icons/shield-minus";
-import ShieldZap from "@nervekit/ui-kit/icons/ShieldZap";
+import { permissionIcon } from "./composer-icons";
 import RefreshCw from "@lucide/svelte/icons/refresh-cw";
 import Paperclip from "@lucide/svelte/icons/paperclip";
 import Settings from "@lucide/svelte/icons/settings";
@@ -28,6 +24,7 @@ import Popover, {
   PopoverBody,
   PopoverHeader,
   PopoverRow,
+  PopoverCommandList,
 } from "@nervekit/ui-kit/components/composites/popover-panel";
 import ComposerModelPicker from "./ComposerModelPicker.svelte";
 import ComposerSettingStatus from "./ComposerSettingStatus.svelte";
@@ -180,6 +177,7 @@ const activePermission = $derived(
     available: false,
   },
 );
+const ActivePermissionIcon = $derived(permissionIcon(activePermission.id));
 
 const lockReason = $derived(
   lockedFields.model || lockedFields.thinking
@@ -213,13 +211,15 @@ function openPermissionSettings(): void {
   onOpenPermissionSettings?.();
 }
 
-/* The picker chooses between a handful of options, so a rule set is one
- * line: its name, plus a marker when it is not one of the built-ins. The prose
- * stays available on hover and in Settings, where rules are actually edited. */
-function permissionTitle(option: PermissionRuleSetSummary): string {
-  const source = option.source === "builtin" ? "Built-in" : "User";
-  return option.description ? `${source} · ${option.description}` : source;
-}
+const permissionItems = $derived(
+  permissionRuleSets.map((option) => ({
+    ...option,
+    key: option.id,
+    label: option.name,
+    detail: option.description,
+    group: option.source === "builtin" ? "Built-in" : "Custom",
+  })),
+);
 </script>
 
 {#if onAttachFiles}
@@ -298,7 +298,7 @@ function permissionTitle(option: PermissionRuleSetSummary): string {
   <Popover
     triggerWidthKey={`${activePermission.id}:${showPermissionLabel ? activePermission.name : ""}`}
     bind:open={permissionOpen}
-    size="sm"
+    size="lg"
     triggerClass={`composer-tab ${showPermissionLabel ? "" : "w-control p-0"}`}
     ariaLabel="Permission rule set"
     triggerTitle={`Permission rule set: ${activePermission.name}${permissionShortcut ? ` (${permissionShortcut})` : ""}${lockedFields.permission ? ` · Locked by ${lockedFields.by ?? "the applied profile"}` : ""}`}
@@ -311,17 +311,7 @@ function permissionTitle(option: PermissionRuleSetSummary): string {
         class={`inline-flex items-center justify-center gap-1 ${controlsDisabled ? "opacity-60" : ""}`}
         data-tour-id="composer-permission"
       >
-        {#if activePermission.id === "read_only"}
-          <ShieldMinus aria-hidden="true" />
-        {:else if activePermission.id === "autonomous"}
-          <ShieldZap aria-hidden="true" />
-        {:else if activePermission.id === "supervised"}
-          <ShieldCheck aria-hidden="true" />
-        {:else if activePermission.id === "planning"}
-          <ShieldEllipsis aria-hidden="true" />
-        {:else}
-          <ShieldCog aria-hidden="true" />
-        {/if}
+        <ActivePermissionIcon aria-hidden="true" />
         {#if showPermissionLabel}<span
             class="@max-[440px]/composer-toolbar:hidden"
             >{activePermission.name}</span
@@ -354,43 +344,46 @@ function permissionTitle(option: PermissionRuleSetSummary): string {
         </Button>
       {/snippet}
     </PopoverHeader>
-    <PopoverBody>
-      {#if lockedFields.permission}
-        <p class="px-1.5 text-muted-foreground">
-          Locked by {lockedFields.by ?? "the applied profile"}.
-        </p>
-      {/if}
-      {#if permissionRuleSetsError}
-        <p class="px-1.5 text-warning">{permissionRuleSetsError}</p>
-      {/if}
-      {#if !activePermission.available}
-        <PopoverRow
-          label={activePermission.name}
-          title={activePermission.description}
-          selected
-          disabled
-        >
-          {#snippet trailing()}
-            <span class="flex-none text-muted-foreground">Unavailable</span>
-          {/snippet}
-        </PopoverRow>
-      {/if}
-      {#each permissionRuleSets as option (option.id)}
-        <PopoverRow
-          label={option.name}
-          title={permissionTitle(option)}
-          selected={option.id === permissionRuleSetId}
-          disabled={controlsDisabled || lockedFields.permission}
-          onclick={() => selectPermission(option.id)}
-        >
-          {#snippet trailing()}
-            {#if option.source !== "builtin"}
-              <span class="flex-none text-muted-foreground">Custom</span>
-            {/if}
-          {/snippet}
-        </PopoverRow>
-      {/each}
-    </PopoverBody>
+    {#if lockedFields.permission || permissionRuleSetsError || !activePermission.available}
+      <PopoverBody>
+        {#if lockedFields.permission}
+          <p class="px-1.5 text-muted-foreground">
+            Locked by {lockedFields.by ?? "the applied profile"}.
+          </p>
+        {/if}
+        {#if permissionRuleSetsError}
+          <p class="px-1.5 text-warning">{permissionRuleSetsError}</p>
+        {/if}
+        {#if !activePermission.available}
+          <PopoverRow
+            label={activePermission.name}
+            title={activePermission.description}
+            selected
+            disabled
+          >
+            {#snippet trailing()}
+              <span class="flex-none text-muted-foreground">Unavailable</span>
+            {/snippet}
+          </PopoverRow>
+        {/if}
+      </PopoverBody>
+    {/if}
+    <PopoverCommandList
+      items={permissionItems}
+      ariaLabel="Permission rule sets"
+      placeholder="Search permissions"
+      isSelected={(option) => option.id === permissionRuleSetId}
+      isDisabled={() => controlsDisabled || Boolean(lockedFields.permission)}
+      onChoose={(option) => selectPermission(option.id)}
+    >
+      {#snippet icon(option)}
+        {@const Icon = permissionIcon(option.id)}
+        <Icon
+          class="mt-0.5 size-3.5 flex-none self-start text-muted-foreground"
+          aria-hidden="true"
+        />
+      {/snippet}
+    </PopoverCommandList>
   </Popover>
 {/key}
 

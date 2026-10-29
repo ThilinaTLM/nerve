@@ -43,7 +43,7 @@ async function fixture(requiredModel = false) {
         schemaVersion: 1,
         name: "worker",
         usableBy: "subagent",
-        description: "Worker",
+        whenToUse: "Worker",
         instructions: "Worker instructions",
         recommendations: requiredModel
           ? {}

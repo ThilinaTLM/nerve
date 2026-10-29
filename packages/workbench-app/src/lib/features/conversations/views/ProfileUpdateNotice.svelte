@@ -181,8 +181,8 @@ async function apply() {
         label="Label"
         value={preview.targetDefinition.label ?? preview.targetDefinition.name}
       /><EntityRow
-        label="Description"
-        value={preview.targetDefinition.description}
+        label="When to use"
+        value={preview.targetDefinition.whenToUse}
       /><EntityRow
         label="Usable by"
         value={preview.targetDefinition.usableBy}

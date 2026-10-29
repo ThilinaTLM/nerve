@@ -4,10 +4,10 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, it } from "node:test";
 
-/* Every floating panel in the workbench is the same object: a PopoverPanel with
- * a header, an optional search row, one scrolling body, and an optional footer.
- * The panel owns its width, padding, and scroll bounds, so a consumer that
- * restates them is drifting back toward the per-popover chrome this replaced. */
+/* Floating panels share PopoverPanel's frame: titled content has one header;
+ * command-style selectors may start directly with their labeled search/list.
+ * Both have one scrolling body and an optional footer. The panel owns its width,
+ * padding, and scroll bounds, so consumers must not restate that chrome. */
 
 const appRoot = fileURLToPath(new URL("..", import.meta.url));
 const PANEL_IMPORT = "components/composites/popover-panel";
@@ -44,18 +44,61 @@ describe("popover anatomy", () => {
     );
   });
 
-  it("gives every popover exactly one header", () => {
+  it("titles content once or uses a labeled command list", () => {
     // Fragments that only contribute sections to a panel have no header.
     const panels = panelComponents.filter((file) =>
       /<(?:Popover|PopoverPanel)\b/.test(file.source),
     );
     for (const file of panels) {
-      const headers = file.source.match(/<PopoverHeader\b/g) ?? [];
-      assert.equal(
-        headers.length,
-        1,
-        `${file.name} declares ${headers.length} PopoverHeader elements; a panel is titled once`,
-      );
+      let headerSource = file.source;
+      if (
+        file.name ===
+        path.join(
+          "features/settings/views/pages/agent-profiles",
+          "ProfileChangeChip.svelte",
+        )
+      ) {
+        // The chip owns the trigger; its shared editor owns the titled content.
+        const editors =
+          file.source.match(/<ProfileChangeEditor(?=\s|\/>)/g) ?? [];
+        assert.equal(editors.length, 1, "the chip renders one change editor");
+        assert.match(
+          file.source,
+          /<ProfileChangeEditor\b[^>]*\btitle=\{label\}/s,
+        );
+        const editor = components.find(
+          (component) =>
+            component.name ===
+            path.join(path.dirname(file.name), "ProfileChangeEditor.svelte"),
+        );
+        assert.ok(editor, "the shared change editor exists");
+        assert.match(editor.source, /<PopoverHeader\b[^>]*\{title\}/s);
+        headerSource += editor.source;
+      }
+      const headers = headerSource.match(/<PopoverHeader\b/g) ?? [];
+      if (headers.length === 0) {
+        // Command selectors already identify their choices via the searchable
+        // list; repeating that label in a visible header is unnecessary.
+        const commands =
+          headerSource.match(/<PopoverCommandList\b[^>]*>/gs) ?? [];
+        assert.ok(
+          commands.length > 0,
+          `${file.name} has neither a PopoverHeader nor a command list`,
+        );
+        for (const command of commands) {
+          assert.match(
+            command,
+            /\bariaLabel=/,
+            `${file.name} must label its headerless command list`,
+          );
+        }
+      } else {
+        assert.equal(
+          headers.length,
+          1,
+          `${file.name} declares ${headers.length} PopoverHeader elements; a panel is titled once`,
+        );
+      }
     }
   });
 

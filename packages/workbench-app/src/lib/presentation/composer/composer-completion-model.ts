@@ -362,7 +362,7 @@ export type SlashContext = {
   /** Active agent profile name. */
   profile: string;
   /** Profiles `/profile <name>` can switch to. */
-  profiles: readonly { name: string; label: string; description?: string }[];
+  profiles: readonly { name: string; label: string; whenToUse?: string }[];
   running: boolean;
 };
 

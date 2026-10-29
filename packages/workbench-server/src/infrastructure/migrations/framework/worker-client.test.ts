@@ -130,12 +130,21 @@ void test("shared planner preserves released checksum enforcement and draft tole
     () => planMigrations(manifest, registry),
     /Released migration checksum mismatch/,
   );
+  const drafts = registry.map((entry) => ({
+    ...entry,
+    stage: "draft" as const,
+  }));
   assert.deepEqual(
     planMigrations(
       manifest,
-      registry.map((entry) => ({ ...entry, stage: "draft" as const })),
+      drafts.map((entry) => ({ ...entry, rerunOnChange: false })),
     ),
     [],
+  );
+  // An unreleased step that opts in re-runs when its checksum changes.
+  assert.deepEqual(
+    planMigrations(manifest, drafts).map((entry) => entry.step.id),
+    drafts.filter((entry) => entry.rerunOnChange).map((entry) => entry.step.id),
   );
 });
 

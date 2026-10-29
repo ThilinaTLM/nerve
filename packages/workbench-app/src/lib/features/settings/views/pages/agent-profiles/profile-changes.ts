@@ -1,3 +1,4 @@
+import { AGENT_PROFILE_NAME_MAX_LENGTH } from "@nervekit/contracts/agent-profiles";
 import {
   profileDefinitionSchema,
   type ProfileDefinition,
@@ -9,48 +10,32 @@ export type ChangeKey =
   | "model"
   | "permission"
   | "compaction"
-  | "skills"
   | "instructions"
-  | `tool:${string}`;
+  | `tool:${string}`
+  | `skill:${"file" | "nerve" | "agentBrowser"}:${string}`;
 export type ModelChangeValue = {
   model?: ModelSelection;
   thinking?: ThinkingLevel;
   modelMode?: ChangeMode;
   thinkingMode?: ChangeMode;
 };
-export type SkillBuckets = {
-  file: Record<string, boolean>;
-  nerve: Record<string, boolean>;
-  agentBrowser: Record<string, boolean>;
-  defaults?: Partial<Record<"file" | "nerve" | "agentBrowser", boolean>>;
-};
 export const changeKinds = [
   { key: "model", label: "Model" },
   { key: "permission", label: "Permissions" },
   { key: "compaction", label: "Compaction" },
   { key: "tool", label: "Tool" },
-  { key: "skills", label: "Skills" },
   { key: "instructions", label: "Instructions" },
 ] as const;
-export const modeLabels: Record<ChangeMode, string> = {
-  settings: "Use settings",
-  recommend: "Recommend",
-  require: "Require",
-};
 export function changeLabel(key: ChangeKey): string {
   return key.startsWith("tool:")
     ? "Tool"
     : (changeKinds.find((k) => k.key === key)?.label ?? key);
 }
-export function modesFor(): ChangeMode[] {
-  return ["settings", "recommend", "require"];
-}
-export function modeHint(mode: ChangeMode): string {
-  return mode === "settings"
-    ? "No profile contribution. Existing conversation choices and scoped preferences remain intact."
-    : mode === "recommend"
-      ? "Used unless the conversation explicitly chooses another value."
-      : "Controls the effective value while this profile applies. Underlying choices are preserved.";
+/** What a change does in its current mode; the chip's mode toggle tooltip. */
+export function modeHint(mode: "recommend" | "require"): string {
+  return mode === "recommend"
+    ? "Recommended: used unless the conversation chooses another value. Click to require."
+    : "Required: locked while this profile applies. Click to only recommend.";
 }
 export type ChangeRow = {
   key: ChangeKey;
@@ -98,7 +83,7 @@ export function changeRows(profile: ProfileDefinition): ChangeRow[] {
   if (model.value !== undefined || reasoning.value !== undefined)
     rows.push({
       key: "model",
-      label: "Model and reasoning",
+      label: "Model",
       mode: model.value !== undefined ? model.mode : reasoning.mode,
       mixed: model.mode !== reasoning.mode,
       value: {
@@ -111,11 +96,25 @@ export function changeRows(profile: ProfileDefinition): ChangeRow[] {
   for (const [key, pointer] of [
     ["permission", "permissionRuleSetId"],
     ["compaction", "compaction"],
-    ["skills", "skills"],
   ] as const) {
     const value = field(profile, pointer);
     if (value.value !== undefined)
       rows.push({ key, label: changeLabel(key), ...value });
+  }
+  for (const source of ["file", "nerve", "agentBrowser"] as const) {
+    const recommended = profile.recommendations?.skills?.[source] ?? {};
+    const required = profile.requirements?.skills?.[source] ?? {};
+    for (const name of new Set([
+      ...Object.keys(recommended),
+      ...Object.keys(required),
+    ])) {
+      rows.push({
+        key: `skill:${source}:${name}`,
+        label: name,
+        mode: required[name] !== undefined ? "require" : "recommend",
+        value: required[name] ?? recommended[name],
+      });
+    }
   }
   for (const name of new Set([
     ...Object.keys(profile.recommendations?.tools ?? {}),
@@ -152,7 +151,8 @@ export function applyProfileChange(
 ): ProfileDefinition {
   const next = structuredClone(profile);
   if (change.key === "instructions") {
-    next.instructions = String(change.value ?? "");
+    next.instructions =
+      change.mode === "settings" ? "" : String(change.value ?? "");
     return profileDefinitionSchema.parse(next);
   }
   const write = (
@@ -170,7 +170,30 @@ export function applyProfileChange(
       next[target] = { ...next[target], [key]: value };
     }
   };
-  if (change.key === "model") {
+  if (change.key.startsWith("skill:")) {
+    const [, source, ...parts] = change.key.split(":");
+    const name = parts.join(":");
+    for (const contribution of ["recommendations", "requirements"] as const) {
+      const skills = next[contribution]?.skills;
+      if (!skills) continue;
+      const bucket = skills[source as "file" | "nerve" | "agentBrowser"];
+      if (bucket) delete bucket[name];
+    }
+    if (change.mode !== "settings") {
+      const target = section(change.mode);
+      const skills = next[target]?.skills ?? {};
+      next[target] = {
+        ...next[target],
+        skills: {
+          ...skills,
+          [source!]: {
+            ...skills[source as "file" | "nerve" | "agentBrowser"],
+            [name]: Boolean(change.value),
+          },
+        },
+      };
+    }
+  } else if (change.key === "model") {
     const value = change.value as ModelChangeValue | undefined;
     write("model", value?.model, value?.modelMode ?? change.mode);
     write(
@@ -197,33 +220,137 @@ export function applyProfileChange(
     write(
       change.key === "permission"
         ? "permissionRuleSetId"
-        : (change.key as "compaction" | "skills"),
-      change.value === "none"
-        ? { defaults: { file: false, nerve: false, agentBrowser: false } }
-        : change.value,
+        : (change.key as "compaction"),
+      change.value,
       change.mode,
     );
   return profileDefinitionSchema.parse(next);
 }
-export function skillsSummary(value: unknown): string {
-  const skills = value as Partial<SkillBuckets> | undefined;
-  if (!skills) return "";
-  if (value === "none") return "None";
-  return (
-    ["file", "nerve", "agentBrowser"]
-      .flatMap((kind) =>
-        Object.entries(skills[kind as keyof SkillBuckets] ?? {}).map(
-          ([name, enabled]) => `${enabled ? "+" : "−"} ${name}`,
-        ),
-      )
-      .join(", ") || "Source defaults"
+export function normalizeProfileName(name: string): string {
+  return name
+    .toLowerCase()
+    .replace(/[\s_]+/g, "-")
+    .replace(/[^a-z0-9-]/g, "")
+    .slice(0, AGENT_PROFILE_NAME_MAX_LENGTH);
+}
+export function duplicateProfileName(name: string): string {
+  return `${name.slice(0, AGENT_PROFILE_NAME_MAX_LENGTH - 5).replace(/-+$/g, "")}-copy`;
+}
+
+/** A single policy choice explicitly unifies model and reasoning, retaining absent fields. */
+export function unifyChangeMode(
+  row: { key: ChangeKey; value: unknown },
+  mode: ChangeMode,
+) {
+  if (row.key !== "model") return { ...row, mode };
+  const value = row.value as ModelChangeValue | undefined;
+  return {
+    ...row,
+    mode,
+    value: {
+      ...value,
+      modelMode: mode === "settings" || !value?.model ? "settings" : mode,
+      thinkingMode:
+        mode === "settings" || value?.thinking === undefined
+          ? "settings"
+          : mode,
+    },
+  };
+}
+export const changeKeywords: Partial<Record<ChangeKey, string[]>> = {
+  model: ["llm", "provider", "thinking", "reasoning"],
+  permission: ["approval", "safety", "planning"],
+  compaction: ["compression", "context", "tokens", "summarize"],
+  instructions: ["prompt", "system prompt", "guidance"],
+};
+export function defaultText(value: unknown): string {
+  if (typeof value === "boolean") return value ? "On" : "Off";
+  return value === undefined ? "Use settings" : String(value);
+}
+
+export type AddChangeItem = {
+  key: ChangeKey;
+  label: string;
+  group: string;
+  keywords?: string[];
+  defaultOn?: boolean;
+  /** What one click does, e.g. Off → On; once applied, what it did. */
+  flip?: { from: "On" | "Off"; to: "On" | "Off"; applied: boolean };
+};
+/** Baseline is captured when opening, so a just-added flip remains available to undo. */
+export function buildAddChangeItems(input: {
+  baseline: ChangeKey[];
+  rows: ChangeRow[];
+  tools: {
+    key: ChangeKey;
+    label: string;
+    description: string;
+    account?: boolean;
+    defaultOn?: boolean;
+  }[];
+  skills: {
+    key: ChangeKey;
+    label: string;
+    defaultOn: boolean;
+    description?: string;
+  }[];
+}): AddChangeItem[] {
+  const settings = (
+    ["model", "permission", "compaction", "instructions"] as const
+  ).map((key) => ({
+    key,
+    label: changeLabel(key),
+    group: "Settings",
+    keywords: changeKeywords[key],
+  }));
+  const flips = [
+    ...input.tools.map((tool) => ({
+      ...tool,
+      group: tool.account ? "Account tools" : "Tools",
+      keywords: [tool.key, tool.description, "tools"],
+    })),
+    ...input.skills.map((skill) => ({
+      ...skill,
+      group: "Skills",
+      keywords: [skill.key, skill.description ?? ""],
+    })),
+  ].map((item): AddChangeItem => {
+    // Tools without an on/off switch (e.g. bash) only open their settings.
+    if (item.defaultOn === undefined) return item;
+    const row = input.rows.find((row) => row.key === item.key);
+    const from = item.defaultOn ? "On" : "Off";
+    const enabled = row
+      ? item.key.startsWith("tool:")
+        ? (row.value as { enabled?: boolean }).enabled
+        : Boolean(row.value)
+      : !item.defaultOn;
+    return {
+      ...item,
+      flip: { from, to: enabled ? "On" : "Off", applied: Boolean(row) },
+    };
+  });
+  return [...settings, ...flips].filter(
+    (item) => !input.baseline.includes(item.key),
   );
 }
-export function nameFromLabel(label: string): string {
-  return label
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "")
-    .slice(0, 32)
-    .replace(/-+$/g, "");
+
+export type ChangeSection = {
+  label: "Basics" | "Tools" | "Skills";
+  rows: ChangeRow[];
+};
+/** Card sections, in a fixed order; empty sections are omitted. Basics holds
+ * the single-value changes (model, permissions, compaction, instructions). */
+export function changeSections(rows: ChangeRow[]): ChangeSection[] {
+  const sectionOf = (key: ChangeKey): ChangeSection["label"] =>
+    key.startsWith("tool:")
+      ? "Tools"
+      : key.startsWith("skill:")
+        ? "Skills"
+        : "Basics";
+  return (["Basics", "Tools", "Skills"] as const)
+    .map((label) => ({
+      label,
+      rows: rows.filter((row) => sectionOf(row.key) === label),
+    }))
+    .filter((section) => section.rows.length > 0);
 }

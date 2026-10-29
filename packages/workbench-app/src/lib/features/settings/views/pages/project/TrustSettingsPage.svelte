@@ -227,7 +227,7 @@ async function trustProfile(): Promise<void> {
     replacement={repairProfile.definition ?? {
       schemaVersion: 1,
       name: repairProfile.name,
-      description: "Recovered profile",
+      whenToUse: "Recovered profile",
       usableBy: "lead",
       instructions: "",
     }}

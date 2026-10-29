@@ -10,7 +10,7 @@ import {
 import type { ModelSelection, ThinkingLevel } from "@nervekit/contracts/models";
 import { atomicReplaceFile } from "../../storage-bootstrap/file-mutations.js";
 import { AgentConfigurationService } from "./agent-configuration-service.js";
-import { bundledAgentProfiles } from "./builtins.js";
+import { bundledAgentProfiles } from "./builtins/index.js";
 import { createProfileTransitions } from "./profile-transitions.js";
 
 async function fixture(
@@ -90,7 +90,7 @@ async function fixture(
       locked: JSON.stringify({
         schemaVersion: 1,
         name: "locked",
-        description: "Required model",
+        whenToUse: "Required model",
         usableBy: "lead",
         instructions: "Locked instructions",
         requirements: {
@@ -319,7 +319,7 @@ void test("stale target bytes, current configuration changes, and untrusted shad
     await f.service.profiles.save({ scope: "user" }, "coding", "missing", {
       schemaVersion: 1,
       name: "coding",
-      description: "Updated coding",
+      whenToUse: "Updated coding",
       usableBy: "lead",
       instructions: "New instructions",
     });
@@ -348,7 +348,7 @@ void test("stale target bytes, current configuration changes, and untrusted shad
       {
         schemaVersion: 1,
         name: "coding",
-        description: "Project shadow",
+        whenToUse: "Project shadow",
         usableBy: "lead",
         instructions: "Project",
       },
@@ -435,7 +435,7 @@ void test("explicit reapply is digest-bound and replaces only the currently appl
     await f.service.profiles.save({ scope: "user" }, "coding", "missing", {
       schemaVersion: 1,
       name: "coding",
-      description: "Changed coding",
+      whenToUse: "Changed coding",
       usableBy: "lead",
       instructions: "New frozen instructions",
       requirements: { permissionRuleSetId: "read_only" },
@@ -489,7 +489,7 @@ void test("D7 transitions accept cross-layer fitting but refresh same-layer inva
       await f.service.profiles.save({ scope: "user" }, name, "missing", {
         schemaVersion: 1,
         name,
-        description: name,
+        whenToUse: name,
         usableBy: "lead",
         instructions: "",
         requirements: {

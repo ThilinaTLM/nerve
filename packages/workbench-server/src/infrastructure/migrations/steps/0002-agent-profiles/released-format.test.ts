@@ -1,5 +1,6 @@
+import convertedModeProfiles from "./converted-mode-profiles.json" with { type: "json" };
 import { profileDefinitionSchema } from "@nervekit/contracts/agent-configuration";
-import { bundledAgentProfiles } from "../../../configuration/agent-configuration/builtins.js";
+import { bundledAgentProfiles } from "../../../configuration/agent-configuration/builtins/index.js";
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import fixture from "../../../../../test/fixtures/storage/releases/0.37.0/agent-conversion-inputs.json" with { type: "json" };
@@ -72,11 +73,11 @@ await test("released harness folds enabled remember-last, preserves independent 
 await test("released sub-agent split removes each parent copy and maps none/inherit/named sources", () => {
   const split = splitCatalogV037(fixture.catalog, "user", ctx);
   assert.equal(split.launches.developer, undefined);
-  assert.deepEqual(split.profiles.explore.recommendations.skills.defaults, {
-    file: false,
-    nerve: false,
-    agentBrowser: false,
-  });
+  assert.equal(split.profiles.explore.recommendations.skills, undefined);
+  assert.equal(
+    split.profiles.explore.whenToUse,
+    ctx.builtins.explore.description,
+  );
   assert.deepEqual(split.profiles.developer.recommendations.skills, {
     file: { local: false },
     nerve: { planning: true },
@@ -305,7 +306,7 @@ await test("D9 reports document and newly inherited fields, while existing child
   assert.deepEqual(report, []);
 });
 
-await test("authored bundled children use normal choices and explicit all-off skill defaults", () => {
+await test("authored bundled children use normal choices without profile skill-source defaults", () => {
   const explore = profileDefinitionSchema.parse(
     JSON.parse(bundledAgentProfiles.explore),
   );
@@ -313,20 +314,16 @@ await test("authored bundled children use normal choices and explicit all-off sk
     JSON.parse(bundledAgentProfiles.developer),
   );
   assert.equal(explore.usableBy, "subagent");
-  assert.deepEqual(explore.recommendations?.skills?.defaults, {
-    file: false,
-    nerve: false,
-    agentBrowser: false,
-  });
+  assert.equal(explore.recommendations?.skills, undefined);
   assert.equal(developer.recommendations?.model, undefined);
   assert.equal(developer.recommendations?.reasoningLevel, undefined);
   assert.equal(
     modeSnapshot("planning").sourceDigest,
-    sha256(bundledAgentProfiles.planning),
+    sha256(convertedModeProfiles.planning),
   );
   assert.equal(
     modeSnapshot("coding").sourceDigest,
-    sha256(bundledAgentProfiles.coding),
+    sha256(convertedModeProfiles.coding),
   );
 });
 
