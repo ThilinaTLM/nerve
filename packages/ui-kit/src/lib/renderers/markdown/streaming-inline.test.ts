@@ -13,6 +13,7 @@ import {
   MAX_OPTIMISTIC_TAIL_CHARS,
   type InlineToken,
   type StreamingBlock,
+  splitRevealedMarkdown,
   tokenizeStreamingTail,
 } from "./streaming-inline.js";
 
@@ -27,6 +28,7 @@ function inlineText(source: string, tokens: InlineToken[]): string {
 function blockText(source: string, block: StreamingBlock): string {
   switch (block.kind) {
     case "plain":
+    case "code":
       return source.slice(block.start, block.end);
     case "list":
       return block.items.map((item) => inlineText(source, item)).join(" ");
@@ -46,7 +48,7 @@ function marked(source: string, mark: number): string {
   const tokens = blocks.flatMap((block) =>
     block.kind === "list"
       ? block.items.flat()
-      : block.kind === "plain"
+      : block.kind === "plain" || block.kind === "code"
         ? []
         : block.inline,
   );
@@ -165,13 +167,23 @@ describe("tokenizeStreamingTail", () => {
     assert.equal(visibleText("Intro line\n##"), "Intro line");
   });
 
+  it("renders an open code fence as code until it closes", () => {
+    const source = "Intro\n```mermaid\nflowchart LR\n  A --> B\n";
+    const blocks = tokenizeStreamingTail(source);
+    assert.equal(blocks.at(-1)!.kind, "code");
+    assert.equal(blockText(source, blocks.at(-1)!), "flowchart LR\n  A --> B");
+
+    const closed = tokenizeStreamingTail("```ts\nconst a = 1\n```\nAfter");
+    assert.equal(closed.at(-1)!.kind, "plain");
+  });
+
+  it("holds back a bare number that may become an ordered list", () => {
+    assert.equal(visibleText("Intro line\n1"), "Intro line");
+    assert.deepEqual(tokenizeStreamingTail("1"), []);
+  });
+
   it("falls back to plain text for unmodelled blocks", () => {
-    for (const source of [
-      "```ts\nconst a",
-      "> quoted",
-      "| a | b |",
-      "- [ ] task",
-    ]) {
+    for (const source of ["> quoted", "| a | b |", "- [ ] task"]) {
       const blocks = tokenizeStreamingTail(source);
       assert.equal(blocks.at(-1)!.kind, "plain", source);
     }
@@ -188,7 +200,7 @@ describe("tokenizeStreamingTail", () => {
         let cursor = 0;
         for (const block of tokenizeStreamingTail(prefix)) {
           const tokens =
-            block.kind === "plain"
+            block.kind === "plain" || block.kind === "code"
               ? [
                   {
                     kind: "text" as const,
@@ -215,6 +227,34 @@ describe("tokenizeStreamingTail", () => {
     for (const source of CORPUS) {
       assert.equal(normalize(visibleText(source)), finalText(source), source);
     }
+  });
+});
+
+describe("splitRevealedMarkdown", () => {
+  it("keeps a finished block in the tail until the next one is visible", () => {
+    for (const pending of ["", "#", "##", "1", "1.", "-"]) {
+      const source = `Done.\n\nLast paragraph.\n\n${pending}`;
+      assert.deepEqual(splitRevealedMarkdown(source), {
+        prefix: "Done.\n\n",
+        tail: `Last paragraph.\n\n${pending}`,
+      });
+    }
+  });
+
+  it("advances once the next block has visible content", () => {
+    const source = "Done.\n\nLast paragraph.\n\n## Next";
+    assert.deepEqual(splitRevealedMarkdown(source), {
+      prefix: "Done.\n\nLast paragraph.\n\n",
+      tail: "## Next",
+    });
+  });
+
+  it("never pulls an unmodelled block back into the tail", () => {
+    const source = "> quoted\n\n#";
+    assert.deepEqual(splitRevealedMarkdown(source), {
+      prefix: "> quoted\n\n",
+      tail: "#",
+    });
   });
 });
 

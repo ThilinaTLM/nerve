@@ -18,6 +18,7 @@ import {
   appendedNewline,
   splitStreamingMarkdown,
 } from "@nervekit/ui-kit/renderers/markdown/streaming-markdown";
+import { splitRevealedMarkdown } from "./streaming-inline.js";
 import { LatestPresentationScheduler } from "@nervekit/ui-kit/scheduling/latest-presentation-scheduler";
 import { revealBoundary } from "@nervekit/ui-kit/scheduling/streaming-reveal";
 import { StreamingRevealLoop } from "@nervekit/ui-kit/scheduling/streaming-reveal-loop";
@@ -84,8 +85,15 @@ function renderStreamingPrefix(
   );
 }
 
+/** The optimistic tail keeps the caret on the last block between blocks. */
+function splitForDisplay(source: string) {
+  return reveal && !prefersReducedMotion.current
+    ? splitRevealedMarkdown(source)
+    : splitStreamingMarkdown(source);
+}
+
 const initialRender = untrack(() => {
-  const parts = streaming ? splitStreamingMarkdown(text) : undefined;
+  const parts = streaming ? splitForDisplay(text) : undefined;
   return {
     html: streaming
       ? ""
@@ -130,60 +138,12 @@ async function handleClick(event: MouseEvent) {
   onOpenFile(path, split.line);
 }
 
-function copyButtonHandler(node: HTMLDivElement, initialHtml: string) {
-  let currentHtml = initialHtml;
-  let buttons: ReturnType<typeof mount>[] = [];
-  function clear() {
-    for (const button of buttons) void unmount(button);
-    buttons = [];
-  }
-  function enhance() {
-    clear();
-    for (const target of node.querySelectorAll<HTMLElement>(
-      "[data-copy-code]",
-    )) {
-      const code =
-        target.closest(".code-block")?.querySelector("pre code")?.textContent ??
-        "";
-      buttons.push(
-        mount(CodeCopyButton, {
-          target,
-          props: { code, onCopy: (ok: boolean) => onCopy?.(ok) },
-        }),
-      );
-    }
-  }
-  enhance();
-  node.addEventListener("click", handleClick);
-  return {
-    update(nextHtml: string) {
-      if (nextHtml === currentHtml) return;
-      currentHtml = nextHtml;
-      enhance();
-    },
-    destroy() {
-      clear();
-      node.removeEventListener("click", handleClick);
-    },
-  };
-}
-
-type MermaidEnhancement = {
-  destroy: () => void;
-  matches: (root: HTMLElement, value: MermaidHandlerValue) => boolean;
-};
-type MermaidHandlerValue = {
+type HtmlContentValue = {
   html: string;
+  /** Markdown source the HTML was rendered from (for Mermaid extraction). */
   source: string;
   sourceLineStart: number;
   onOpenMermaid?: (block: MermaidMarkdownBlock) => void;
-};
-
-type MermaidHostValue = {
-  host: HTMLElement;
-  source: string;
-  ariaLabel: string;
-  extracted?: MermaidMarkdownBlock;
 };
 
 function nearestVerticalScrollRoot(root: HTMLElement): Element | null {
@@ -210,114 +170,191 @@ function createMermaidPlaceholder(host: HTMLElement): void {
   host.replaceChildren(placeholder);
 }
 
-function enhanceMermaidBlocks(
+/** Mount a lazily rendered diagram into one host; returns its teardown. */
+function enhanceMermaidHost(
   root: HTMLElement,
-  value: MermaidHandlerValue,
-): MermaidEnhancement {
-  const components: Record<string, unknown>[] = [];
-  const blocks = extractMermaidMarkdownBlocks(
-    value.source,
-    value.sourceLineStart,
-  );
-  const hosts = [
-    ...root.querySelectorAll<HTMLElement>("[data-mermaid-diagram]"),
-  ];
-  const hostValues: MermaidHostValue[] = [];
+  host: HTMLElement,
+  extracted: MermaidMarkdownBlock | undefined,
+  onOpenMermaid: ((block: MermaidMarkdownBlock) => void) | undefined,
+): () => void {
+  const source =
+    extracted?.source ?? host.querySelector("pre > code")?.textContent ?? "";
+  if (!source.trim()) return () => {};
+  const ariaLabel = host.getAttribute("aria-label") ?? "Mermaid diagram";
+  createMermaidPlaceholder(host);
+  let component: Record<string, unknown> | undefined;
   let active = true;
-
-  for (const [index, host] of hosts.entries()) {
-    const extracted = blocks[index];
-    const source =
-      extracted?.source ?? host.querySelector("pre > code")?.textContent ?? "";
-    if (!source.trim()) continue;
-    hostValues.push({
-      host,
-      source,
-      extracted,
-      ariaLabel: host.getAttribute("aria-label") ?? "Mermaid diagram",
-    });
-    createMermaidPlaceholder(host);
-  }
-
-  const stopObserving = observeMermaidVisibility(
-    hostValues.map((value) => value.host),
-    {
-      root: nearestVerticalScrollRoot(root),
-      mount: (target) => {
-        const host = target as HTMLElement;
-        const hostValue = hostValues.find((value) => value.host === host);
-        if (!active || !host.isConnected || !hostValue) return;
-        host.removeAttribute("aria-busy");
-        host.replaceChildren();
-        components.push(
-          mount(MermaidDiagram, {
-            target: host,
-            props: {
-              source: hostValue.source,
-              ariaLabel: hostValue.ariaLabel,
-              class: "h-full w-full",
-              onOpenStandalone:
-                hostValue.extracted && value.onOpenMermaid
-                  ? () => value.onOpenMermaid?.(hostValue.extracted!)
-                  : undefined,
-            },
-          }),
-        );
-      },
+  const stopObserving = observeMermaidVisibility([host], {
+    root: nearestVerticalScrollRoot(root),
+    mount: () => {
+      if (!active || !host.isConnected) return;
+      host.removeAttribute("aria-busy");
+      host.replaceChildren();
+      component = mount(MermaidDiagram, {
+        target: host,
+        props: {
+          source,
+          ariaLabel,
+          class: "h-full w-full",
+          onOpenStandalone:
+            extracted && onOpenMermaid
+              ? () => onOpenMermaid(extracted)
+              : undefined,
+        },
+      });
     },
-  );
-
-  return {
-    matches(nextRoot, nextValue) {
-      if (
-        nextValue.source !== value.source ||
-        nextValue.sourceLineStart !== value.sourceLineStart ||
-        nextValue.onOpenMermaid !== value.onOpenMermaid
-      )
-        return false;
-      const nextHosts = nextRoot.querySelectorAll("[data-mermaid-diagram]");
-      return (
-        nextHosts.length === hosts.length &&
-        hosts.every((host, index) => nextHosts[index] === host)
-      );
-    },
-    destroy() {
-      active = false;
-      stopObserving();
-      for (const component of components) void unmount(component);
-    },
+  });
+  return () => {
+    active = false;
+    stopObserving();
+    if (component) void unmount(component);
   };
 }
 
-function mermaidHandler(node: HTMLDivElement, value: MermaidHandlerValue) {
-  let generation = 0;
-  let enhancement: MermaidEnhancement | undefined;
+function nodeSignature(node: Node): string {
+  return node instanceof Element
+    ? node.outerHTML
+    : `#${node.nodeType}:${node.textContent ?? ""}`;
+}
 
-  async function update(nextValue: MermaidHandlerValue) {
-    const current = ++generation;
-    if (!nextValue.html.includes("data-mermaid-diagram")) {
-      enhancement?.destroy();
-      enhancement = undefined;
-      return;
+/**
+ * Owns the rendered Markdown HTML. Updates keep every leading top-level node
+ * whose rendered markup is unchanged and replace only the rest, so a growing
+ * streaming prefix appends blocks instead of rebuilding the whole message:
+ * finished Mermaid diagrams, copy buttons, and selections survive each new
+ * paragraph, and the final render reuses whatever it shares with the stream.
+ */
+function htmlContent(node: HTMLDivElement, initial: HtmlContentValue) {
+  let value = initial;
+  let nodes: Node[] = [];
+  let signatures: string[] = [];
+  // Imperative DOM bookkeeping, never read by the template.
+  // eslint-disable-next-line svelte/prefer-svelte-reactivity -- non-reactive by design
+  const copyButtons = new Map<HTMLElement, ReturnType<typeof mount>>();
+  // eslint-disable-next-line svelte/prefer-svelte-reactivity -- non-reactive by design
+  const diagrams = new Map<HTMLElement, () => void>();
+  let mermaidGeneration = 0;
+
+  function reconcile(html: string) {
+    const template = node.ownerDocument.createElement("template");
+    template.innerHTML = html;
+    const next = [...template.content.childNodes];
+    const nextSignatures = next.map(nodeSignature);
+    let keep = 0;
+    while (
+      keep < nodes.length &&
+      keep < next.length &&
+      signatures[keep] === nextSignatures[keep]
+    ) {
+      keep += 1;
     }
-    await tick();
-    if (current !== generation || enhancement?.matches(node, nextValue)) return;
-    enhancement?.destroy();
-    enhancement = enhanceMermaidBlocks(node, nextValue);
+    for (const stale of nodes.slice(keep)) stale.parentNode?.removeChild(stale);
+    const added = next.slice(keep);
+    node.append(...added);
+    nodes = [...nodes.slice(0, keep), ...added];
+    signatures = [...signatures.slice(0, keep), ...nextSignatures.slice(keep)];
   }
 
-  void update(value);
+  function enhanceCopyButtons() {
+    for (const [target, button] of copyButtons) {
+      if (node.contains(target)) continue;
+      void unmount(button);
+      copyButtons.delete(target);
+    }
+    for (const target of node.querySelectorAll<HTMLElement>(
+      "[data-copy-code]",
+    )) {
+      if (copyButtons.has(target)) continue;
+      const code =
+        target.closest(".code-block")?.querySelector("pre code")?.textContent ??
+        "";
+      copyButtons.set(
+        target,
+        mount(CodeCopyButton, {
+          target,
+          props: { code, onCopy: (ok: boolean) => onCopy?.(ok) },
+        }),
+      );
+    }
+  }
+
+  function clearDiagrams() {
+    for (const destroy of diagrams.values()) destroy();
+    diagrams.clear();
+  }
+
+  async function enhanceDiagrams(current: HtmlContentValue) {
+    const generation = ++mermaidGeneration;
+    for (const [host, destroy] of diagrams) {
+      if (node.contains(host)) continue;
+      destroy();
+      diagrams.delete(host);
+    }
+    const hosts = [
+      ...node.querySelectorAll<HTMLElement>("[data-mermaid-diagram]"),
+    ];
+    if (hosts.every((host) => diagrams.has(host))) return;
+    // Let the surrounding layout settle so the scroll root can be resolved.
+    await tick();
+    if (generation !== mermaidGeneration) return;
+    const blocks = extractMermaidMarkdownBlocks(
+      current.source,
+      current.sourceLineStart,
+    );
+    for (const [index, host] of hosts.entries()) {
+      if (diagrams.has(host) || !node.contains(host)) continue;
+      diagrams.set(
+        host,
+        enhanceMermaidHost(node, host, blocks[index], current.onOpenMermaid),
+      );
+    }
+  }
+
+  function apply(next: HtmlContentValue, previous?: HtmlContentValue) {
+    if (
+      previous &&
+      (next.sourceLineStart !== previous.sourceLineStart ||
+        next.onOpenMermaid !== previous.onOpenMermaid)
+    ) {
+      // Diagram callbacks capture these; rebuild them all.
+      clearDiagrams();
+      nodes = [];
+      signatures = [];
+      node.replaceChildren();
+    }
+    reconcile(next.html);
+    enhanceCopyButtons();
+    void enhanceDiagrams(next);
+  }
+
+  apply(value);
+  node.addEventListener("click", handleClick);
   return {
-    update,
+    update(next: HtmlContentValue) {
+      if (
+        next.html === value.html &&
+        next.source === value.source &&
+        next.sourceLineStart === value.sourceLineStart &&
+        next.onOpenMermaid === value.onOpenMermaid
+      ) {
+        return;
+      }
+      const previous = value;
+      value = next;
+      apply(next, previous);
+    },
     destroy() {
-      generation += 1;
-      enhancement?.destroy();
+      mermaidGeneration += 1;
+      node.removeEventListener("click", handleClick);
+      for (const button of copyButtons.values()) void unmount(button);
+      copyButtons.clear();
+      clearDiagrams();
     },
   };
 }
 
 function commitStreaming(value: StreamingValue) {
-  const parts = splitStreamingMarkdown(value.source);
+  const parts = splitForDisplay(value.source);
   if (
     parts.prefix !== streamingPrefixSource ||
     value.trim !== streamingPrefixTrim ||
@@ -530,19 +567,20 @@ $effect(() => () => {
 });
 </script>
 
-{#if showingStreaming}
+<div class="markdown select-text">
+  <!-- The rendered (sanitized) Markdown; the streaming tail follows it. -->
   <div
-    class="markdown select-text"
-    use:copyButtonHandler={streamingPrefixHtml}
-    use:mermaidHandler={{
-      html: streamingPrefixHtml,
-      source: streamingPrefixSource,
-      sourceLineStart,
-      onOpenMermaid,
-    }}
-  >
-    <!-- eslint-disable-next-line svelte/no-at-html-tags -- the prefix uses the sanitized Markdown pipeline. -->
-    {@html streamingPrefixHtml}
+    class="markdown-rendered contents"
+    use:htmlContent={showingStreaming
+      ? {
+          html: streamingPrefixHtml,
+          source: streamingPrefixSource,
+          sourceLineStart,
+          onOpenMermaid,
+        }
+      : { html, source: text, sourceLineStart, onOpenMermaid }}
+  ></div>
+  {#if showingStreaming}
     {#if revealing}
       <StreamingTail
         source={streamingPrefixSource + streamingTail}
@@ -562,17 +600,9 @@ $effect(() => () => {
         ></span>
       {/if}
     {/if}
-  </div>
-{:else}
-  <div
-    class="markdown select-text"
-    use:copyButtonHandler={html}
-    use:mermaidHandler={{ html, source: text, sourceLineStart, onOpenMermaid }}
-  >
-    <!-- eslint-disable-next-line svelte/no-at-html-tags -- renderMarkdown applies rehype-sanitize before producing markup. -->
-    {@html html}
-  </div>
-{/if}
+  {/if}
+</div>
+
 <style>
 .stream-caret {
   animation: stream-caret-breathe 1.1s ease-in-out infinite;
@@ -600,6 +630,12 @@ $effect(() => () => {
 
 .markdown :global(:last-child) {
   margin-bottom: 0;
+}
+
+/* The rendered wrapper is display: contents and always the first child; with
+   nothing rendered yet, the streaming tail's first block starts the content. */
+.markdown-rendered:empty + :global(*) {
+  margin-top: 0;
 }
 
 .markdown :global(p),

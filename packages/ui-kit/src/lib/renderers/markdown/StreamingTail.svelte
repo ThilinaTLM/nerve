@@ -120,6 +120,15 @@ function lastIndex(items: readonly unknown[]): number {
         {/each}
       </ul>
     {/if}
+  {:else if block.kind === "code"}
+    <div class="code-block">
+      <pre><code
+          >{@render text(
+            block.start,
+            block.end,
+          )}{#if withCaret}{@render caretDot()}{/if}</code
+        ></pre>
+    </div>
   {:else}
     <span class="whitespace-pre-wrap break-words"
       >{@render text(

@@ -8,6 +8,11 @@
  * which renders exactly like the previous escaped-text tail.
  */
 
+import {
+  streamingBoundaries,
+  type StreamingMarkdownParts,
+} from "./streaming-markdown.js";
+
 export const MARK_STRONG = 1;
 export const MARK_EM = 2;
 export const MARK_CODE = 4;
@@ -16,6 +21,38 @@ export const MARK_LINK = 16;
 
 /** Tails longer than this render as plain text. */
 export const MAX_OPTIMISTIC_TAIL_CHARS = 4000;
+
+/**
+ * Split revealed streaming Markdown for the optimistic tail. Like
+ * `splitStreamingMarkdown`, except a boundary whose tail has nothing visible
+ * yet (only blank lines or a held-back `#`, `-`, `1.` marker) does not take
+ * the previous block out of the tail. The caret then stays at the end of
+ * that block instead of briefly occupying a line of its own, and the block
+ * moves into the parsed prefix together with the next visible content.
+ */
+export function splitRevealedMarkdown(source: string): StreamingMarkdownParts {
+  const boundaries = streamingBoundaries(source);
+  const last = boundaries.at(-1) ?? 0;
+  const split = (at: number) => ({
+    prefix: source.slice(0, at),
+    tail: source.slice(at),
+  });
+  if (last === 0 || tokenizeStreamingTail(source, last).length > 0) {
+    return split(last);
+  }
+  for (let index = boundaries.length - 2; index >= -1; index -= 1) {
+    const candidate = index >= 0 ? boundaries[index]! : 0;
+    if (source.slice(candidate, last).trim() === "") continue;
+    // Only fall back to a block the tail models exactly; an unmodelled one
+    // (fence, table, quote) would flash as escaped text instead.
+    const blocks = tokenizeStreamingTail(source, candidate);
+    if (blocks.length > 0 && blocks.every((block) => block.kind !== "plain")) {
+      return split(candidate);
+    }
+    break;
+  }
+  return split(last);
+}
 
 export type InlineToken =
   | { kind: "text"; start: number; end: number; marks: number }
@@ -31,6 +68,8 @@ export type StreamingBlock =
       start: number;
       items: InlineToken[][];
     }
+  /** Body of a still-open code fence, from `start` to `end`. */
+  | { kind: "code"; start: number; end: number }
   /** Unmodelled syntax: escaped source text from `start` to `end`. */
   | { kind: "plain"; start: number; end: number };
 
@@ -39,7 +78,8 @@ type Line = { start: number; end: number };
 const HEADING = /^ {0,3}(#{1,6})(?:[ \t]+|$)/;
 const PENDING_HEADING = /^ {0,3}#{1,6}$/;
 const LIST_ITEM = /^( {0,3})([-*+]|(\d{1,9})[.)])[ \t]+/;
-const PENDING_LIST_ITEM = /^ {0,3}(?:[-*+]|\d{1,9}[.)])$/;
+// A bare number may still become an ordered list marker (`1` before `1.`).
+const PENDING_LIST_ITEM = /^ {0,3}(?:[-*+]|\d{1,9}[.)]?)$/;
 const INDENTED_LIST_ITEM = /^ {4,}(?:[-*+]|\d{1,9}[.)])[ \t]/;
 const FENCE = /^ {0,3}(?:`{3,}|~{3,})/;
 const SETEXT_OR_RULE = /^ {0,3}(?:=+|-{2,}|\*{3,}|_{3,})[ \t]*$/;
@@ -119,8 +159,21 @@ export function tokenizeStreamingTail(
 
     if (text.trim() === "") continue;
 
+    const fence = FENCE.exec(text);
+    if (fence && !fenceCloses(source, lines, index, fence[0].trim())) {
+      // An open fence renders as code from the start; the parsed prefix takes
+      // over (with highlighting or a diagram) once it closes.
+      flush();
+      const next = lines[index + 1];
+      const start = next ? next.start : source.length;
+      let end = source.length;
+      if (end > start && source[end - 1] === "\n") end -= 1;
+      blocks.push({ kind: "code", start, end: Math.max(start, end) });
+      return blocks;
+    }
+
     if (
-      FENCE.test(text) ||
+      fence ||
       UNMODELLED_BLOCK.test(text) ||
       INDENTED_LIST_ITEM.test(text) ||
       (SETEXT_OR_RULE.test(text) && (paragraph || list || !isLast))
@@ -197,6 +250,23 @@ export function tokenizeStreamingTail(
   }
   flush();
   return blocks;
+}
+
+/** Whether a later tail line closes the fence opened by `marker`. */
+function fenceCloses(
+  source: string,
+  lines: Line[],
+  openerIndex: number,
+  marker: string,
+): boolean {
+  const char = marker[0]!;
+  for (let index = openerIndex + 1; index < lines.length; index += 1) {
+    const run = /^ {0,3}(`{3,}|~{3,})[ \t]*$/.exec(
+      lineText(source, lines[index]!),
+    )?.[1];
+    if (run && run[0] === char && run.length >= marker.length) return true;
+  }
+  return false;
 }
 
 function trimClosingHashes(source: string, start: number, end: number): number {
