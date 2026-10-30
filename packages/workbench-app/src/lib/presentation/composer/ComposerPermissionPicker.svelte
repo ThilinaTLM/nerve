@@ -47,7 +47,7 @@ function select(id: PermissionRuleSetId) {
   triggerWidthKey={`${activePermission.id}:${showLabel ? activePermission.name : ""}`}
   bind:open
   size="lg"
-  triggerClass={`composer-tab ${showLabel ? "" : "w-control p-0"} @max-[480px]/composer-toolbar:w-control @max-[480px]/composer-toolbar:p-0 @max-[480px]/composer-toolbar:text-warning @max-[480px]/composer-toolbar:animate-in @max-[480px]/composer-toolbar:fade-in-0 @max-[480px]/composer-toolbar:zoom-in-50`}
+  triggerClass={`composer-tab ${showLabel ? "" : "w-control p-0"}`}
   ariaLabel="Permission rule set"
   triggerTitle={`Permission rule set: ${activePermission.name}${shortcut ? ` (${shortcut})` : ""}${lockedBy ? ` · Locked by ${lockedBy}` : ""}`}
   triggerAriaKeyShortcuts={shortcutAria}
@@ -61,9 +61,7 @@ function select(id: PermissionRuleSetId) {
       data-tour-id="composer-permission"
     >
       <ActiveIcon aria-hidden="true" />
-      {#if showLabel}<span class="@max-[480px]/composer-toolbar:hidden"
-          >{activePermission.name}</span
-        >{/if}
+      {#if showLabel}<span>{activePermission.name}</span>{/if}
     </span>
   {/snippet}
   <ComposerPermissionPanel

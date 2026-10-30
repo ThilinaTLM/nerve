@@ -176,7 +176,6 @@ const permissionLockedBy = $derived(
     ? (lockedFields.by ?? "the applied profile")
     : undefined,
 );
-const permissionChanged = $derived(permissionRuleSetId !== "default");
 
 const lockReason = $derived(
   lockedFields.model || lockedFields.thinking
@@ -204,8 +203,8 @@ let fileInput = $state<HTMLInputElement | null>(null);
 
 <!-- Compact toolbars (phones, narrow split panes) keep the model, context and
 send cluster in the row; attach is left to paste/drop, and profile, permissions
-and capabilities move behind one settings trigger. A non-default permission
-stays visible as a warning. -->
+and capabilities move behind one settings trigger, whose change dot flags a
+non-default permission. -->
 {#if onAttachFiles}
   <span class="contents @max-[480px]/composer-toolbar:hidden">
     <input
@@ -279,11 +278,7 @@ stays visible as a warning. -->
   </Badge>
 {/if}
 
-<span
-  class={permissionChanged
-    ? "contents"
-    : "contents @max-[480px]/composer-toolbar:hidden"}
->
+<span class="contents @max-[480px]/composer-toolbar:hidden">
   {#key capabilityScopeKey}
     <ComposerPermissionPicker
       {activePermission}
