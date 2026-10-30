@@ -6,6 +6,8 @@ import { afterEach, describe, it } from "node:test";
 import type { Project } from "@nervekit/contracts/core";
 import { LaunchDefinitionRepository } from "../../../src/domains/launch-definitions/launch-definition.repository.js";
 
+import { ProjectMigrationService } from "../../../src/infrastructure/configuration/project-migration/project-migration.js";
+
 const roots: string[] = [];
 
 afterEach(async () => {
@@ -101,7 +103,7 @@ describe("project launch definition storage", () => {
     );
   });
 
-  it("rejects unknown nested v2 fields without rewriting source bytes", async () => {
+  it("falls back for unknown nested v2 fields and blocks writes without rewriting source bytes", async () => {
     const { project, repository } = await setup();
     const dir = join(project.directory, ".nerve", "launches");
     await mkdir(dir, { recursive: true });
@@ -145,35 +147,40 @@ describe("project launch definition storage", () => {
     for (const document of cases) {
       const source = `${JSON.stringify(document, null, 3)}\n`;
       await writeFile(path, source);
+      const catalog = await repository.catalog(project.id);
+      assert.deepEqual(catalog.definitions, []);
+      assert.deepEqual(catalog.folders, []);
+      assert.equal(repository.health(project.id).issues.length, 1);
       await assert.rejects(
-        repository.catalog(project.id),
-        /Invalid project launch definitions.*definitions\.json/,
-      );
-      await assert.rejects(
-        repository.transact(project.id, "unused", () => {
+        repository.transact(project.id, catalog.revision, () => {
           assert.fail(
             "Invalid nested data must be rejected before invoking mutation",
           );
         }),
-        /Invalid project launch definitions.*definitions\.json/,
+        /invalid or incompatible/,
       );
       assert.equal(await readFile(path, "utf8"), source);
     }
   });
 
-  it("rejects unsupported project launch definition files", async () => {
+  it("falls back for unsupported project launch definition files and blocks writes", async () => {
     const { project, repository } = await setup();
     const dir = join(project.directory, ".nerve", "launches");
     await mkdir(dir, { recursive: true });
-    await writeFile(
-      join(dir, "definitions.json"),
-      `${JSON.stringify({ version: 3, folders: [], definitions: [] })}\n`,
-    );
+    const path = join(dir, "definitions.json");
+    const source = `${JSON.stringify({ version: 3, folders: [], definitions: [] })}\n`;
+    await writeFile(path, source);
 
+    assert.deepEqual(await repository.list(project.id), []);
+    assert.equal(repository.health(project.id).issues.length, 1);
+    const catalog = await repository.catalog(project.id);
     await assert.rejects(
-      repository.list(project.id),
-      /Invalid project launch definitions.*definitions\.json/,
+      repository.transact(project.id, catalog.revision, () => {
+        assert.fail("Unsupported versions must be rejected before mutation");
+      }),
+      /invalid or incompatible/,
     );
+    assert.equal(await readFile(path, "utf8"), source);
   });
 });
 
@@ -192,5 +199,9 @@ async function setup(): Promise<{
     updatedAt: now,
   };
   await mkdir(project.directory, { recursive: true });
-  return { project, repository: new LaunchDefinitionRepository(() => project) };
+  const migrations = new ProjectMigrationService({ home: join(root, "home") });
+  return {
+    project,
+    repository: new LaunchDefinitionRepository(() => project, migrations),
+  };
 }
