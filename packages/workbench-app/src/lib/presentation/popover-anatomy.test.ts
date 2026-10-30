@@ -75,6 +75,28 @@ describe("popover anatomy", () => {
         assert.match(editor.source, /<PopoverHeader\b[^>]*\{title\}/s);
         headerSource += editor.source;
       }
+      // Composer triggers delegate their content to panels also used by the
+      // compact settings view. Inspect that content rather than adding a second
+      // header to the trigger component.
+      const composerPanels: Record<string, string> = {
+        "ComposerCapabilitiesPopover.svelte": "ComposerCapabilityPanel",
+        "ComposerPermissionPicker.svelte": "ComposerPermissionPanel",
+        "ComposerProfilePicker.svelte": "ComposerProfilePanel",
+      };
+      const panelName = composerPanels[path.basename(file.name)];
+      if (panelName) {
+        const uses =
+          file.source.match(new RegExp(`<${panelName}\\b`, "g")) ?? [];
+        assert.equal(uses.length, 1, `${file.name} renders one shared panel`);
+        const panel = components.find(
+          (component) =>
+            component.name ===
+            path.join(path.dirname(file.name), `${panelName}.svelte`),
+        );
+        assert.ok(panel, `${file.name} has a shared content panel`);
+        assert.match(panel.source, /<PopoverHeader\b/);
+        headerSource += panel.source;
+      }
       const headers = headerSource.match(/<PopoverHeader\b/g) ?? [];
       if (headers.length === 0) {
         // Command selectors already identify their choices via the searchable
