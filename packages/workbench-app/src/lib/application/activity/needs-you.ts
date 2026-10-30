@@ -4,31 +4,64 @@ import type { ConversationActivity } from "$lib/presentation/conversations/conve
 import { buildMobileInbox } from "$lib/presentation/shell/mobile/mobile-inbox";
 
 /**
- * Conversations waiting on the user, from the same derivation the mobile inbox
- * uses. Agent errors share that list but are not a request for input.
+ * Root conversations that need the user (input, failure, interruption) or hold
+ * an unseen finished result, from the same derivation the mobile inbox uses.
+ * Sub-agent requests surface through their root's pending input.
  */
 export function deriveNeedsYou(input: {
   conversations: readonly ConversationSummary[];
   activityById: Readonly<Record<string, ConversationActivity>>;
   projectNameById: Readonly<Record<string, string>>;
 }): NeedsYouInput[] {
-  const byId = new Map(input.conversations.map((entry) => [entry.id, entry]));
-  return buildMobileInbox({
-    conversations: input.conversations,
+  const roots = input.conversations.filter(
+    (conversation) => !conversation.parentConversationId,
+  );
+  const byId = new Map(roots.map((entry) => [entry.id, entry]));
+  const entry = (
+    conversationId: string,
+    kind: NeedsYouInput["kind"],
+    title: string,
+    itemId: string,
+    at?: string,
+    conversationTitle?: string,
+  ): NeedsYouInput => {
+    const conversation = byId.get(conversationId);
+    return {
+      id: itemId,
+      kind,
+      title,
+      conversationId,
+      conversationTitle: conversationTitle ?? conversation?.title ?? "",
+      projectId: conversation?.projectId,
+      projectName: conversation
+        ? input.projectNameById[conversation.projectId]
+        : undefined,
+      at: at ?? conversation?.updatedAt ?? "",
+    };
+  };
+  const needsYou = buildMobileInbox({
+    conversations: roots,
     activityById: input.activityById,
-  })
-    .needsYou.filter((item) => item.kind !== "error")
-    .map((item) => {
-      const conversation = byId.get(item.conversationId);
-      return {
-        id: item.id,
-        conversationId: item.conversationId,
-        conversationTitle: item.title,
-        projectId: conversation?.projectId,
-        projectName: conversation
-          ? input.projectNameById[conversation.projectId]
-          : undefined,
-        at: item.at ?? conversation?.updatedAt ?? "",
-      };
-    });
+  }).needsYou.map((item) => {
+    const activity = input.activityById[item.conversationId];
+    return entry(
+      item.conversationId,
+      activity?.indicator === "needs-user" ? "attention" : "failed",
+      activity?.indicator === "aborted"
+        ? "Agent interrupted"
+        : (activity?.statusText ?? "Needs your attention"),
+      item.id,
+      item.at,
+      item.title,
+    );
+  });
+  const finished = roots
+    .filter(
+      (conversation) =>
+        input.activityById[conversation.id]?.indicator === "result-ready",
+    )
+    .map((conversation) =>
+      entry(conversation.id, "finished", "Agent finished", conversation.id),
+    );
+  return [...needsYou, ...finished];
 }

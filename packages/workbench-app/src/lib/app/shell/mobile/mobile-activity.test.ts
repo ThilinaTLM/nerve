@@ -28,6 +28,8 @@ function conversation(
     createdAt: "2026-10-14T00:00:00Z",
     updatedAt: "2026-10-14T00:00:00Z",
     childCount: 0,
+    pendingWork: false,
+    pendingInput: null,
     agentProfile: "coding",
     model: { provider: "test", modelId: "test" },
     permissionRuleSetId: "default",
@@ -38,7 +40,7 @@ function conversation(
 test("mobile activity puts human attention and failures before unfinished work", () => {
   const conversations = [
     conversation("running", { status: "running" }),
-    conversation("async"),
+    conversation("async", { pendingWork: true }),
     conversation("human", { status: "waiting" }),
     conversation("failed", { status: "failed" }),
     conversation("completed", { completedAt: "2026-10-14T00:00:00Z" }),
@@ -46,10 +48,7 @@ test("mobile activity puts human attention and failures before unfinished work",
     conversation("stopped", { status: "interrupted" }),
   ];
   const activityById = Object.fromEntries(
-    conversations.map((row) => [
-      row.id,
-      summaryActivity(row, row.id === "async"),
-    ]),
+    conversations.map((row) => [row.id, summaryActivity(row)]),
   );
   const result = buildMobileActivity({
     conversations,

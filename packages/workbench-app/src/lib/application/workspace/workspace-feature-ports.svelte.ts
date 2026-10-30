@@ -79,8 +79,6 @@ export interface WorkspaceFeaturePorts {
   conversations: {
     read: {
       readonly asyncBashes: Readonly<Record<string, AsyncBash>>;
-      /** Known pending work in retained conversation stores, not global coverage. */
-      readonly pendingAsyncConversationIds: ReadonlySet<string>;
     };
     commands: {
       discardAsyncBashTab(id: string): void;

@@ -1,7 +1,13 @@
 <script lang="ts">
 import type { NotificationTone, Settings } from "$lib/api";
+import { Button } from "@nervekit/ui-kit/components/ui/button";
+import {
+  attentionMute,
+  sendTestNotification,
+} from "$lib/application/notifications";
 import {
   SettingsInlineMessage,
+  SettingsRow,
   SettingsSection,
   SettingsSelectRow,
   SettingsToggleRow,
@@ -25,8 +31,8 @@ type EventToneOption = {
 const eventToneOptions: readonly EventToneOption[] = [
   {
     key: "question",
-    label: "User question",
-    description: "When an agent uses ask_user and waits for your answer.",
+    label: "Question for you",
+    description: "When an agent asks you a question and waits for your answer.",
   },
   {
     key: "planReview",
@@ -35,22 +41,32 @@ const eventToneOptions: readonly EventToneOption[] = [
   },
   {
     key: "approval",
-    label: "Tool approval",
-    description: "When supervised mode requires approval for a tool call.",
+    label: "Approval needed",
+    description: "When a tool call needs your approval.",
   },
   {
     key: "completed",
-    label: "Run completed",
-    description: "When an agent finishes successfully.",
+    label: "Agent finished",
+    description:
+      "When an agent finishes, including its sub-agents and background commands.",
   },
   {
     key: "failed",
-    label: "Run failed",
-    description: "When an agent stops because of a critical error.",
+    label: "Agent failed or interrupted",
+    description: "When an agent fails or stops unexpectedly.",
   },
 ];
 
 let { settingsDraft, onSettingsChange }: Props = $props();
+
+const mutedUntilLabel = $derived(
+  attentionMute.until === undefined
+    ? undefined
+    : new Date(attentionMute.until).toLocaleTimeString([], {
+        hour: "2-digit",
+        minute: "2-digit",
+      }),
+);
 
 const soundsEnabled = $derived(settingsDraft.notifications.soundsEnabled);
 
@@ -82,16 +98,39 @@ function setEventTone(key: EventToneKey, tone: NotificationTone): void {
 <SettingsSection id="general" title="General">
   <SettingsToggleRow
     label="System notifications"
-    description="Show agent updates through desktop or browser notifications."
+    description="Show a desktop or browser notification when you're away from Nerve. While you're using Nerve, a toast appears in the app instead."
     bind:checked={settingsDraft.notifications.systemEnabled}
     onCheckedChange={setSystemEnabled}
   />
   <SettingsToggleRow
     label="Notification sounds"
-    description="Play the selected sounds for agent events."
+    description="Play a sound for the events below, unless you're already looking at that conversation."
     bind:checked={settingsDraft.notifications.soundsEnabled}
     onCheckedChange={setSoundsEnabled}
   />
+  {#if mutedUntilLabel}
+    <SettingsInlineMessage
+      tone="info"
+      text={`Notifications are muted in this window until ${mutedUntilLabel}.`}
+    >
+      {#snippet actions()}
+        <Button variant="outline" size="sm" onclick={attentionMute.unmute}
+          >Unmute</Button
+        >
+      {/snippet}
+    </SettingsInlineMessage>
+  {/if}
+  <SettingsRow
+    label="Test"
+    description="Plays your sound and shows a notification as if you were away."
+    layout="responsive"
+  >
+    {#snippet control()}
+      <Button variant="outline" onclick={() => void sendTestNotification()}
+        >Send test notification</Button
+      >
+    {/snippet}
+  </SettingsRow>
 </SettingsSection>
 
 <SettingsSection id="sounds" title="Sounds">
@@ -118,3 +157,8 @@ function setEventTone(key: EventToneKey, tone: NotificationTone): void {
     </SettingsSelectRow>
   {/each}
 </SettingsSection>
+
+<p class="text-xs text-muted-foreground">
+  Sub-agents only notify you when they need your input. Their results and errors
+  go to the lead agent.
+</p>

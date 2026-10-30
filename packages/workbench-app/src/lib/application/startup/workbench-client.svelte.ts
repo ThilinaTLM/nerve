@@ -33,9 +33,14 @@ import {
   stopWorkbenchStartup,
   transitionWorkbenchStartup,
 } from "./workbench-startup-state.svelte";
+import {
+  conversationAttention,
+  startConversationAttention,
+} from "$lib/application/activity/conversation-attention.svelte";
 import { workspaceMonitorDemand } from "$lib/application/monitoring/workspace-monitor-demand";
 let usageTimer: ReturnType<typeof setInterval> | undefined;
 let unobserve: (() => void) | undefined;
+let stopAttention: (() => void) | undefined;
 
 export async function initializeWorkbench(): Promise<boolean> {
   const generation = beginWorkbenchStartup();
@@ -55,16 +60,22 @@ export async function initializeWorkbench(): Promise<boolean> {
     unobserve?.();
     unobserve = observeConversationChannel({
       recover: async (id) => {
-        if (!id) await loadWorkspaceState();
+        if (!id) {
+          await loadWorkspaceState();
+          conversationAttention.seed(workspaceState.conversations);
+        }
         workspaceState.connection = "connected";
       },
       disconnected: () => {
+        // Reloads after a reconnect are a new baseline, never notifications.
+        conversationAttention.reset();
         workspaceState.connection = "reconnecting";
       },
       event: () => undefined,
       notice: (notice) => {
         if (notice.type === "conversation.changed") {
           const summary = notice.data.summary;
+          conversationAttention.observe(summary);
           workspaceState.conversations = [
             ...workspaceState.conversations.filter(
               (row) => row.id !== summary.id,
@@ -73,6 +84,7 @@ export async function initializeWorkbench(): Promise<boolean> {
           ];
         } else if (notice.type === "conversation.deleted") {
           const id = notice.data.conversationId;
+          conversationAttention.forget(id);
           conversationDraftStore().clearPrompt({ kind: "conversation", id });
           workspaceState.conversations = workspaceState.conversations.filter(
             (row) => row.id !== id,
@@ -86,6 +98,9 @@ export async function initializeWorkbench(): Promise<boolean> {
     });
     await loadCoreSettings();
     await loadWorkspaceState();
+    conversationAttention.seed(workspaceState.conversations);
+    stopAttention?.();
+    stopAttention = startConversationAttention();
     workspaceState.connection = "connected";
     workspaceState.error = undefined;
     transitionWorkbenchStartup(generation, "core-ready");
@@ -112,6 +127,8 @@ export function disconnectWorkbench(): void {
   usageTimer = undefined;
   unobserve?.();
   unobserve = undefined;
+  stopAttention?.();
+  stopAttention = undefined;
   stopReleasePolling();
   workspaceMonitorDemand.reset();
   disconnectWorkbenchChannel();

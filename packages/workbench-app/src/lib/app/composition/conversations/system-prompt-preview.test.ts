@@ -10,12 +10,8 @@ function draft(): Pending {
     id: "draft-one",
     projectId: "project-one",
     config: {
-      model: { provider: "openai", modelId: "test" },
-      reasoningLevel: "off",
       systemPrompt: null,
       instructions: "Unsent instructions",
-      permissionRuleSetId: "default",
-      agentProfile: "planning",
       workingDirectory: "/project",
     },
     overrides: {
@@ -48,7 +44,6 @@ test("each opening captures fresh settings without mutating an already captured 
   const pending = draft();
   const first = captureSystemPromptPreview({ pending })!;
   pending.config.instructions = "Next request instructions";
-  pending.config.agentProfile = "coding";
   pending.overrides = {
     ...pending.overrides,
     model: { provider: "openai", modelId: "changed" },

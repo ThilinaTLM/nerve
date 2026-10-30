@@ -5,10 +5,7 @@ import {
   isDesktopApp,
   showDesktopNotification,
 } from "$lib/platform/desktop/desktop-bridge.svelte";
-import {
-  initializeNotificationSoundPlayback,
-  playNotificationSound,
-} from "$lib/application/notifications/state/notification-sounds";
+import { initializeNotificationSoundPlayback } from "$lib/application/notifications/state/notification-sounds";
 
 type BrowserPermission = NotificationPermission | "unsupported";
 type NotifyKind = "success" | "error" | "message";
@@ -26,12 +23,6 @@ export type NotifyOptions = {
   action?: { label: string; onClick: () => void };
   /** Toast lifetime in milliseconds. */
   duration?: number;
-};
-
-export type NativeNotifyOptions = NotifyOptions & {
-  backgroundOnly?: boolean;
-  kind?: NotifyKind;
-  soundEvent?: NotificationSoundEvent;
 };
 
 export type NotificationPreferences = {
@@ -75,10 +66,10 @@ let listenersInstalled = false;
 // runtime notification policy.
 export const notify = {
   success(title: string, options: NotifyOptions = {}): void {
-    showToast("success", title, options.description);
+    showToast("success", title, options);
   },
   error(title: string, options: NotifyOptions = {}): void {
-    showToast("error", title, options.description);
+    showToast("error", title, options);
   },
   warning(title: string, options: NotifyOptions = {}): void {
     sonnerToast.warning(title, {
@@ -88,7 +79,7 @@ export const notify = {
     });
   },
   message(title: string, options: NotifyOptions = {}): void {
-    showToast("message", title, options.description);
+    showToast("message", title, options);
   },
 };
 
@@ -137,59 +128,75 @@ export function dismissBrowserNotificationPrompt(): void {
   syncNotificationState();
 }
 
+export type NativeNotifyOptions = {
+  /** One system notification per tag; a newer one replaces the older one. */
+  tag?: string;
+  /** Opens whatever the notification is about (click, or the toast action). */
+  onOpen?: () => void;
+  kind?: NotifyKind;
+};
+
+/**
+ * Shows a system (desktop/browser) notification, falling back to an in-app
+ * toast when system notifications are off or unavailable. Sound, presence and
+ * mute are decided by the attention delivery module, not here.
+ */
 export function notifyNative(
   payload: DesktopNotificationPayload,
   options: NativeNotifyOptions = {},
 ): void {
-  const tone = options.soundEvent
-    ? notificationState.eventSounds[options.soundEvent]
-    : "none";
-  if (tone !== "none" && notificationState.soundsEnabled) {
-    playNotificationSound(tone);
-  }
-  if (!notificationState.systemEnabled) return;
-
-  const fallbackKind =
+  const kind =
     options.kind ?? (payload.urgency === "attention" ? "error" : "message");
-  deliverNativeNotification(payload, fallbackKind, options);
-}
-
-function deliverNativeNotification(
-  payload: DesktopNotificationPayload,
-  kind: NotifyKind,
-  options: NativeNotifyOptions,
-): void {
-  if (options.backgroundOnly && documentIsActive()) return;
+  const fallback = () =>
+    showToast(kind, payload.title, {
+      description: payload.body,
+      id: options.tag,
+      action: options.onOpen && { label: "Open", onClick: options.onOpen },
+    });
+  if (!notificationState.systemEnabled) return fallback();
 
   syncNotificationState();
-
   if (isDesktopApp()) {
-    void showDesktopNotification(payload);
-    return;
-  }
-
-  if (browserNotificationsAllowed()) {
+    void showDesktopNotification(payload).then((result) => {
+      if (!result.shown) fallback();
+    });
+  } else if (browserNotificationsAllowed()) {
     showBrowserNotification(payload, options);
-    return;
+  } else {
+    fallback();
   }
+}
 
-  showToast(kind, payload.title, payload.body);
+/** In-app toast with an optional Open action. */
+export function notifyToast(
+  title: string,
+  options: NotifyOptions & { id?: string; kind?: NotifyKind } = {},
+): void {
+  showToast(options.kind ?? "message", title, options);
 }
 
 function showToast(
   kind: NotifyKind,
   title: string,
-  description?: string,
+  options: {
+    description?: string;
+    id?: string;
+    action?: { label: string; onClick: () => void };
+  } = {},
 ): void {
-  const options = description ? { description } : undefined;
-  if (kind === "success") sonnerToast.success(title, options);
-  else if (kind === "error") sonnerToast.error(title, options);
-  else sonnerToast.message(title, options);
+  const toastOptions = {
+    description: options.description,
+    id: options.id,
+    action: options.action,
+  };
+  if (kind === "success") sonnerToast.success(title, toastOptions);
+  else if (kind === "error") sonnerToast.error(title, toastOptions);
+  else sonnerToast.message(title, toastOptions);
 }
 
 function showBrowserNotification(
   payload: DesktopNotificationPayload,
-  options: NotifyOptions,
+  options: NativeNotifyOptions,
 ): void {
   try {
     const notification = new Notification(payload.title, {
@@ -200,6 +207,7 @@ function showBrowserNotification(
     notification.onclick = () => {
       window.focus();
       notification.close();
+      options.onOpen?.();
     };
   } catch {
     // If the browser reports granted permission but refuses construction, do not
@@ -238,9 +246,4 @@ function currentBrowserPermission(): BrowserPermission {
   return browserNotificationsSupported()
     ? Notification.permission
     : "unsupported";
-}
-
-function documentIsActive(): boolean {
-  if (typeof document === "undefined") return false;
-  return document.visibilityState === "visible" && document.hasFocus();
 }

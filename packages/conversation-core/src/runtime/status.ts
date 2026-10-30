@@ -1,3 +1,4 @@
+import { publishSummary } from "./publish-summary.js";
 import { createId } from "@nervekit/contracts";
 import {
   type ConversationEvent,
@@ -48,7 +49,7 @@ export class StatusService {
     private readonly finished: (result: ExecutionFinished) => void,
     private readonly processing: (id: string) => boolean,
   ) {}
-  refresh(id: string): void {
+  refresh(id: string, publish = true): void {
     const conversation = this.storage.conversations.get(id);
     if (!conversation) return;
     const last = latestExecution(this.storage, id);
@@ -82,10 +83,7 @@ export class StatusService {
       status,
       statusEventSequence: sequence,
     });
-    this.emit({
-      kind: "conversation_changed",
-      summary: this.storage.conversations.getSummary(id)!,
-    });
+    if (publish) publishSummary(this.storage, this.emit, id);
   }
   transition(id: string, payload: ExecutionStatePayload): ConversationEvent {
     let event!: ConversationEvent;
@@ -100,21 +98,24 @@ export class StatusService {
         payload,
         createdAt: this.now(),
       });
-      this.refresh(id);
+      // Terminal reports may enqueue a wake input for the parent. Update status
+      // silently first, then publish only once the report is queued, atomically.
+      this.refresh(id, false);
+      if (
+        payload.transition === "completed" ||
+        payload.transition === "failed" ||
+        payload.transition === "cancelled" ||
+        payload.transition === "interrupted"
+      )
+        this.finished({
+          conversationId: id,
+          executionId: payload.executionId,
+          transition: payload.transition,
+          event,
+        });
     });
+    publishSummary(this.storage, this.emit, id);
     this.emit({ kind: "event_appended", conversationId: id, event });
-    if (
-      payload.transition === "completed" ||
-      payload.transition === "failed" ||
-      payload.transition === "cancelled" ||
-      payload.transition === "interrupted"
-    )
-      this.finished({
-        conversationId: id,
-        executionId: payload.executionId,
-        transition: payload.transition,
-        event,
-      });
     return event;
   }
 }

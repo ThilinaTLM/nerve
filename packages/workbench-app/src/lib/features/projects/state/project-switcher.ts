@@ -21,6 +21,8 @@ export type ProjectActivitySummary = {
   failed: number;
   running: number;
   awaitingAsync: number;
+  /** Conversations with an unseen finished result. */
+  resultReady: number;
 };
 
 export type ProjectLaunchSummary = {
@@ -48,6 +50,7 @@ export function summarizeProjectActivity(
     failed: 0,
     running: 0,
     awaitingAsync: 0,
+    resultReady: 0,
   };
   for (const conversation of conversations) {
     const activity = activityById[conversation.id];
@@ -57,6 +60,7 @@ export function summarizeProjectActivity(
     else if (activity.indicator === "awaiting-async")
       summary.awaitingAsync += 1;
     else if (activity.busy) summary.running += 1;
+    else if (activity.indicator === "result-ready") summary.resultReady += 1;
   }
   return summary;
 }
@@ -81,6 +85,7 @@ export function projectActivitySignal(
     activity.awaitingAsync
       ? `${activity.awaitingAsync} waiting for background work`
       : "",
+    activity.resultReady ? `${activity.resultReady} finished` : "",
     launches.running
       ? `${launches.running} background launch${launches.running === 1 ? "" : "s"} running`
       : "",

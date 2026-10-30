@@ -3,7 +3,6 @@ import {
   pendingConversations,
   type PendingConversationState,
 } from "./pending-conversations.svelte";
-import { DEFAULT_AGENT_PROFILE } from "@nervekit/contracts/agent-profiles";
 import type { Project, ConversationConfig } from "@nervekit/contracts/core";
 import { requestConversation } from "$lib/application/startup/conversation-connection";
 import {
@@ -18,9 +17,6 @@ import {
   openProjectInTerminal,
   type ProjectEditor,
 } from "$lib/api";
-import { settingsReadModel } from "$lib/application/preferences/settings-read-model.svelte";
-import { resolveNewAgentComposerSelection } from "$lib/application/preferences/agent-selection";
-import { parseModelKey } from "$lib/presentation/utils/model";
 import { closeCenterTabs } from "./center-tab-actions.svelte";
 import { queryClient, queryKeys } from "$lib/platform/query/client";
 import { registerWorkspaceCommands } from "./workspace-commands";
@@ -334,29 +330,12 @@ async function createConversationForProject(
   workspaceState.error = undefined;
   workspaceState.projectPickerOpen = false;
   await selectProject(project.id, { deferTabActivation: true });
-  const settings = settingsReadModel.settingsDraft;
-  if (!settings) throw new Error("Settings not loaded");
-  const defaults = resolveNewAgentComposerSelection(
-    settings,
-    settingsReadModel.models,
-    settingsReadModel.authProviders,
-  );
-  const model = parseModelKey(defaults.selectedModelKey);
-  if (!model)
-    throw new Error(
-      "Choose a model in settings before creating a conversation",
-    );
   const restoredDraft = conversationDraftStore().restorablePendingPrompt(
     project.id,
     pendingConversations.keys(),
   );
   const id = restoredDraft?.id ?? crypto.randomUUID();
   const config = {
-    model,
-    reasoningLevel: defaults.selectedThinkingLevel,
-    agentProfile:
-      initialProfile ?? settings.defaultAgentProfile ?? DEFAULT_AGENT_PROFILE,
-    permissionRuleSetId: defaults.selectedPermissionRuleSetId,
     systemPrompt: null,
     instructions: null,
     workingDirectory: project.directory,
@@ -366,11 +345,7 @@ async function createConversationForProject(
     projectId: project.id,
     projectDir: project.directory,
     title: "New Conversation",
-    selectedModelKey: defaults.selectedModelKey,
-    thinkingLevel: config.reasoningLevel,
-    agentProfile: config.agentProfile,
     explicitAgentProfile: initialProfile,
-    permissionRuleSetId: config.permissionRuleSetId,
     sending: false,
     createdAt: new Date().toISOString(),
     config,

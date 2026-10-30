@@ -79,6 +79,22 @@ export const conversationSummarySchema = conversationSchema
     /** Latest input from the parent, including prompts still queued for delivery. */
     lastParentPromptAt: z.string().datetime().nullable().optional(),
     childCount: z.number().int().nonnegative(),
+    /** Derived from live background work and recursive descendants; never stored. */
+    pendingWork: z.boolean(),
+    /** Oldest unresolved human request in this conversation or a descendant. */
+    pendingInput: z
+      .object({
+        conversationId: z.string(),
+        conversationTitle: z.string(),
+        toolCallId: z.string(),
+        kind: z.enum([
+          "approval",
+          "user_input",
+          "plan_review",
+          "configuration_blocked",
+        ]),
+      })
+      .nullable(),
     /** Disposable cache values; unknown until configuration is lazily resolved. */
     agentProfile: agentProfileNameSchema.optional(),
     model: modelSelectionSchema.optional(),

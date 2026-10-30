@@ -55,10 +55,13 @@ const Icon = $derived(
   {#if Icon}
     <Icon class={`size-3 ${colorClass[activity.tone]}`} aria-hidden="true" />
   {:else}
+    <!-- An unseen result is an unread-style dot: solid whether or not the tab is open. -->
     <StatusDot
       tone={activity.tone}
       {size}
-      variant={isOpen ? "solid" : "outline"}
+      variant={isOpen || activity.indicator === "result-ready"
+        ? "solid"
+        : "outline"}
       pulse={activity.pulse}
     />
   {/if}

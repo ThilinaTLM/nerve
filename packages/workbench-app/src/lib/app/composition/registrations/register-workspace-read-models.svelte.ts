@@ -1,10 +1,5 @@
+import { activeComposer } from "$lib/application/composer/active-composer.svelte";
 import { registerUsageSelectionReadModel } from "$lib/application/usage/usage-selectors.svelte";
-import { pendingConversations } from "$lib/application/workspace/pending-conversations.svelte";
-import {
-  retainedConversationStores,
-  waitingConversationIds,
-} from "$lib/features/conversations/state/open-conversation-stores";
-import { parseModelKey } from "$lib/presentation/utils/model";
 import { ConversationListStore } from "$lib/features/conversations/state/core-conversation-list-store.svelte";
 import { registerConversationLists } from "$lib/application/workspace/conversation-lists.svelte";
 import { cancelVoiceInputTargets } from "$lib/features/conversations/audio/voice-input-session.svelte";
@@ -53,9 +48,6 @@ export function registerWorkspaceReadModels(): () => void {
     read: {
       get asyncBashes() {
         return asyncBashWorkspaceReadModel.asyncBashes;
-      },
-      get pendingAsyncConversationIds() {
-        return waitingConversationIds();
       },
     },
     commands: {
@@ -118,22 +110,7 @@ export function registerWorkspaceReadModels(): () => void {
 
   const unregisterUsageSelection = registerUsageSelectionReadModel({
     get selectedProvider() {
-      const tab = workspaceState.activeCenterTab;
-      if (tab?.kind === "pending-conversation") {
-        const pending = pendingConversations.get(tab.id);
-        return pending
-          ? parseModelKey(pending.selectedModelKey)?.provider
-          : undefined;
-      }
-      if (tab?.kind === "conversation") {
-        const effective = retainedConversationStores().find(
-          (store) => store.snapshot?.conversation.id === tab.id,
-        )?.effective;
-        return effective?.status === "available"
-          ? effective.resolution.settings.model?.provider
-          : undefined;
-      }
-      return undefined;
+      return activeComposer()?.resolution?.settings.model?.provider;
     },
   });
 

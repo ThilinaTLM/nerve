@@ -1,16 +1,11 @@
 <script lang="ts">
-import {
-  mutateDraftSettings,
-  settingsOverrideView,
-} from "$lib/application/agent-configuration/override-view";
-import { projectAgentDefaults } from "$lib/application/agent-configuration/project-agent-defaults.svelte";
 import { editableCapabilityResets } from "$lib/domain/capabilities/editable-resets";
 import { agentProfileCatalog } from "$lib/application/agent-profiles/agent-profile-catalog.svelte";
 import { parseSlashCommand } from "@nervekit/contracts/completions";
 import { onDestroy, untrack, type Snippet } from "svelte";
 import { DEFAULT_AGENT_PROFILE } from "@nervekit/contracts/agent-profiles";
 import { type LeadSettingsOverrides } from "@nervekit/contracts/agent-configuration";
-import { ScopedAgentState } from "$lib/application/agent-configuration/scoped-agent-state.svelte";
+import type { ComposerView } from "$lib/application/composer/composer-view.svelte";
 import type { AgentEditorView } from "$lib/presentation/composer/agent-editor-view";
 import type { AvailableSkill } from "@nervekit/contracts/skills";
 import { isInlineCommandPrompt } from "@nervekit/contracts/completions";
@@ -43,12 +38,7 @@ import { deriveComposerAvailability } from "$lib/features/conversations/adapters
 import { resolveDroppedFiles } from "./dropped-files";
 import { workbenchStartupState } from "$lib/application/startup/workbench-startup-state.svelte";
 import { listAvailableSkills } from "$lib/features/skills/api/skills.api";
-import {
-  observeConversationChannel,
-  requestConversation,
-} from "$lib/application/startup/conversation-connection";
 import { conversationCatalog } from "$lib/features/conversations/state/conversation-catalog.svelte";
-import { onEvent } from "$lib/application/events/workbench-event-bus";
 import type { CapabilityToolGroup } from "$lib/presentation/composer/capability-tool-labels";
 import ConversationToolSettingsDialog from "./ConversationToolSettingsDialog.svelte";
 import type { ComposerEditorApi } from "$lib/presentation/composer/composer-editor-api";
@@ -56,6 +46,7 @@ import { ComposerDictationBridge } from "$lib/presentation/composer/composer-dic
 import { bindComposerVoiceInput } from "./composer-voice-input";
 
 let {
+  composerView,
   activity,
   text = "",
   editorOverlay,
@@ -114,7 +105,10 @@ let {
   onRefreshPermissionRuleSets,
   onOpenPermissionSettings,
   onOpenCapabilitySettings,
-}: PromptComposerProps & { activity?: Snippet } = $props();
+}: PromptComposerProps & {
+  activity?: Snippet;
+  composerView?: ComposerView;
+} = $props();
 
 let headerEl = $state<HTMLDivElement>();
 let activityWidth = $state(0);
@@ -146,9 +140,7 @@ let lastFocusToken: number | undefined;
 let lastComposerEscapeToken: number | undefined;
 let lastMicShortcutToken: number | undefined;
 let audioAuthDialogOpen = $state(false);
-const capabilityEditor = new ScopedAgentState();
 let capabilitySkills = $state<AvailableSkill[]>([]);
-let pendingCapabilityResolution = $state<AgentEditorView["resolution"]>();
 let capabilityError = $state<string>();
 let capabilityLoading = $state(false);
 let capabilityRefreshGeneration = 0;
@@ -160,36 +152,14 @@ const capabilityScopeKey = $derived(
     activePendingConversation?.explicitAgentProfile,
   ]),
 );
-const defaultProjectView = $derived(
-  projectAgentDefaults.get(activePendingConversation?.projectId),
-);
-const effectivePendingResolution = $derived(
-  activePendingConversation &&
-    !activePendingConversation.explicitAgentProfile &&
-    !Object.keys(activePendingConversation.overrides ?? {}).length
-    ? defaultProjectView?.status === "available"
-      ? defaultProjectView.resolution
-      : undefined
-    : pendingCapabilityResolution,
-);
 const capabilityConfiguration = $derived<AgentEditorView | undefined>(
-  activePendingConversation
-    ? effectivePendingResolution
-      ? {
-          resolution: effectivePendingResolution,
-          overrides: settingsOverrideView(
-            activePendingConversation.overrides ?? {},
-            activePendingConversation.inheritedSettings,
-          ),
-        }
-      : undefined
-    : activeConversation && capabilityEditor.resolution
-      ? {
-          resolution: capabilityEditor.resolution,
-          role: capabilityEditor.role,
-          overrides: capabilityEditor.overrides,
-        }
-      : undefined,
+  composerView?.resolution
+    ? {
+        resolution: composerView.resolution,
+        overrides: composerView.overrides,
+        role: "lead",
+      }
+    : undefined,
 );
 const capabilitySubagentProfiles = $derived(
   agentProfileCatalog
@@ -216,44 +186,6 @@ async function refreshCapabilities() {
   const projectId = activeProject.id;
   capabilityLoading = true;
   try {
-    if (conversation) {
-      await capabilityEditor.load({
-        scope: "conversation",
-        conversationId: conversation.id,
-      });
-      if (generation !== capabilityRefreshGeneration) return;
-      capabilityError = capabilityEditor.error;
-    } else if (pending) {
-      const profile = agentProfileCatalog
-        .profiles(pending.projectId)
-        .find((p) => p.name === pending.explicitAgentProfile);
-      if (pending.explicitAgentProfile && !profile?.digest)
-        throw new Error("Profile unavailable. Refresh and try again.");
-      const result = await requestConversation(
-        "agentConfiguration.resolveProject",
-        {
-          projectId: pending.projectId,
-          agentProfile: profile?.digest
-            ? { name: profile.name, digest: profile.digest }
-            : undefined,
-          overrides: pending.overrides,
-        },
-      );
-      if (
-        generation === capabilityRefreshGeneration &&
-        activePendingConversation === pending
-      ) {
-        pending.inheritedSettings =
-          result.status === "available" ? result.inherited : undefined;
-        pendingCapabilityResolution =
-          result.status === "available" ? result.resolution : undefined;
-        capabilityError =
-          result.status === "available"
-            ? undefined
-            : "Configuration unavailable.";
-      }
-    }
-
     const result = await listAvailableSkills(projectId);
     if (generation === capabilityRefreshGeneration)
       capabilitySkills = result.skills;
@@ -272,32 +204,10 @@ $effect(() => {
   untrack(() => {
     capabilityRefreshGeneration += 1;
     capabilitySkills = [];
-    pendingCapabilityResolution = undefined;
     capabilityError = undefined;
-    if (activePendingConversation) capabilityEditor.scope = undefined;
     configuringToolGroup = undefined;
     void refreshCapabilities();
   });
-});
-$effect(() => capabilityEditor.observe());
-$effect(() =>
-  observeConversationChannel({
-    recover: () => refreshCapabilities(),
-    disconnected() {},
-    event() {},
-    notice: (notice) => {
-      if (notice.type === "agentConfiguration.changed")
-        void refreshCapabilities();
-    },
-  }),
-);
-$effect(() => {
-  const stop = onEvent("agentProfiles.changed", () => {
-    void agentProfileCatalog
-      .refresh(activeProject?.id)
-      .then(refreshCapabilities);
-  });
-  return stop;
 });
 $effect(() => {
   if (!workbenchStartupState.progressiveActive || !activeProject) return;
@@ -313,19 +223,9 @@ async function patchCapabilities(
   changes: LeadSettingsOverrides,
   resets: string[] = [],
 ) {
-  if (activePendingConversation) {
-    activePendingConversation.overrides = mutateDraftSettings(
-      activePendingConversation.overrides ?? {},
-      changes,
-      resets,
-      activePendingConversation.inheritedSettings,
-    );
-    await refreshCapabilities();
-  } else {
-    await capabilityEditor.save(changes, resets);
-    capabilityError = capabilityEditor.error;
-  }
+  await composerView?.patchCapabilities(changes, resets);
 }
+
 function resetCapabilities() {
   if (!capabilityConfiguration) return;
   const resets = editableCapabilityResets(
@@ -732,8 +632,11 @@ function handleMicContextMenu(event: MouseEvent) {
     completionSource,
     capabilityConfiguration,
     capabilitySkills,
-    capabilityLoading: capabilityLoading || capabilityEditor.saving,
-    capabilityError,
+    capabilityLoading:
+      capabilityLoading ||
+      composerView?.status === "loading" ||
+      composerView?.saving,
+    capabilityError: composerView?.error ?? capabilityError,
     capabilityScopeKey,
     capabilitySubagentProfiles,
     subagentControlsEnabled:

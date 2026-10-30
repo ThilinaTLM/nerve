@@ -3,6 +3,7 @@ import { test } from "node:test";
 import type { ConversationSummary } from "@nervekit/contracts/core";
 import {
   idleConversationActivity,
+  pendingInputTitle,
   summaryActivity,
 } from "./conversation-activity.js";
 
@@ -24,6 +25,8 @@ function summary(
     createdAt: "2026-10-14T00:00:00Z",
     updatedAt: "2026-10-14T00:00:00Z",
     childCount: 0,
+    pendingWork: false,
+    pendingInput: null,
     agentProfile: "planning",
     model: { provider: "test", modelId: "test" },
     permissionRuleSetId: "default",
@@ -74,7 +77,7 @@ test("maps conversation lifecycle and human attention to one presentation", () =
       patch: { status: "interrupted" },
       async: false,
       indicator: "aborted",
-      tone: "neutral",
+      tone: "destructive",
       label: "Stopped",
     },
     {
@@ -92,7 +95,9 @@ test("maps conversation lifecycle and human attention to one presentation", () =
     label: string;
   }[];
   for (const entry of cases) {
-    const activity = summaryActivity(summary(entry.patch), entry.async);
+    const activity = summaryActivity(
+      summary({ ...entry.patch, pendingWork: entry.async }),
+    );
     assert.equal(activity.indicator, entry.indicator);
     assert.equal(activity.tone, entry.tone);
     assert.equal(activity.label, entry.label);
@@ -122,7 +127,8 @@ test("active and human-attention states override pending async and completed mar
     ["running", "running"],
   ] as const) {
     assert.equal(
-      summaryActivity(summary({ status, completedAt: at }), true).indicator,
+      summaryActivity(summary({ status, completedAt: at, pendingWork: true }))
+        .indicator,
       indicator,
     );
   }
@@ -134,7 +140,7 @@ test("pending async work overrides stopped, completed, and idle states without a
     { status: "interrupted" },
     { completedAt: at },
   ] satisfies Partial<ConversationSummary>[]) {
-    const activity = summaryActivity(summary(patch), true);
+    const activity = summaryActivity(summary({ ...patch, pendingWork: true }));
     assert.equal(activity.indicator, "awaiting-async");
     assert.equal(activity.tone, "info");
     assert.equal(activity.needsUser, false);
@@ -142,21 +148,44 @@ test("pending async work overrides stopped, completed, and idle states without a
   }
 });
 
-test("cleared terminal statuses return to idle or the remaining known work", () => {
-  for (const status of ["failed", "interrupted"] as const) {
-    const row = summary({ status, statusClearedAt: at });
-    assert.deepEqual(summaryActivity(row), idleConversationActivity);
-    assert.equal(summaryActivity(row, true).indicator, "awaiting-async");
-    assert.equal(
-      summaryActivity({ ...row, completedAt: at }).indicator,
-      "completed",
-    );
-  }
+test("trusts server status after a clear, including a new failure", () => {
   assert.equal(
-    summaryActivity(summary({ status: "running", statusClearedAt: at }))
-      .indicator,
-    "running",
+    summaryActivity(summary({ status: "failed" })).indicator,
+    "error",
   );
+  assert.deepEqual(
+    summaryActivity(summary({ status: "idle", statusClearedAt: at })),
+    idleConversationActivity,
+  );
+  assert.equal(
+    summaryActivity(summary({ status: "failed", statusClearedAt: at }))
+      .indicator,
+    "error",
+  );
+  assert.equal(
+    summaryActivity(summary({ status: "interrupted", statusClearedAt: at }))
+      .indicator,
+    "aborted",
+  );
+});
+
+test("descendant input takes precedence over failure, running and background work", () => {
+  for (const status of ["idle", "running", "failed", "interrupted"] as const) {
+    const activity = summaryActivity(
+      summary({
+        status,
+        pendingWork: true,
+        pendingInput: {
+          conversationId: "child",
+          conversationTitle: "Child",
+          toolCallId: "approval",
+          kind: "approval",
+        },
+      }),
+    );
+    assert.equal(activity.indicator, "needs-user");
+    assert.equal(activity.needsUser, true);
+  }
 });
 
 test("ending a turn is idle rather than explicit completion", () => {
@@ -164,5 +193,58 @@ test("ending a turn is idle rather than explicit completion", () => {
   assert.equal(
     summaryActivity(summary({ completedAt: at })).indicator,
     "completed",
+  );
+});
+
+test("unseen results sit below stopped and above completed", () => {
+  const ready = { resultReady: true };
+  const result = summaryActivity(summary({ completedAt: at }), ready);
+  assert.equal(result.indicator, "result-ready");
+  assert.equal(result.tone, "success");
+  assert.equal(result.statusText, "Finished");
+  assert.equal(
+    summaryActivity(summary({ status: "interrupted" }), ready).indicator,
+    "aborted",
+  );
+  assert.equal(
+    summaryActivity(summary({ pendingWork: true }), ready).indicator,
+    "awaiting-async",
+  );
+  assert.equal(
+    summaryActivity(summary({ status: "running" }), ready).indicator,
+    "running",
+  );
+  assert.equal(summaryActivity(summary()).indicator, "idle");
+});
+
+test("pending input names its kind and, for descendants, the sub-agent", () => {
+  const input = (
+    kind: "approval" | "user_input" | "plan_review" | "configuration_blocked",
+    conversationId = "conversation",
+  ) => ({
+    conversationId,
+    conversationTitle: "Researcher",
+    toolCallId: "call",
+    kind,
+  });
+  assert.equal(
+    pendingInputTitle("conversation", input("approval")),
+    "Approval needed",
+  );
+  assert.equal(
+    pendingInputTitle("conversation", input("user_input")),
+    "Question for you",
+  );
+  assert.equal(
+    pendingInputTitle("conversation", input("plan_review")),
+    "Plan ready for review",
+  );
+  assert.equal(
+    pendingInputTitle("conversation", input("configuration_blocked")),
+    "Approval needed",
+  );
+  assert.equal(
+    pendingInputTitle("conversation", input("user_input", "child")),
+    "Researcher · question for you",
   );
 });

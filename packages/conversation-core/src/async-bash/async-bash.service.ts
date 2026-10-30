@@ -1,3 +1,5 @@
+import { publishSummary } from "../runtime/publish-summary.js";
+import type { ConversationSummary } from "@nervekit/contracts/core";
 import {
   projectProcessOutput,
   projectProcessOutputPage,
@@ -37,7 +39,11 @@ export class AsyncBashService {
       assets: AssetStore;
       processes: ProcessPort;
       inputs: InputQueueService;
-      emit(change: AsyncBashChange): void;
+      emit(
+        change:
+          | AsyncBashChange
+          | { kind: "conversation_changed"; summary: ConversationSummary },
+      ): void;
     },
   ) {}
 
@@ -338,5 +344,6 @@ export class AsyncBashService {
       conversationId,
       asyncBash: this.list(conversationId),
     });
+    publishSummary(this.options.storage, this.options.emit, conversationId);
   }
 }

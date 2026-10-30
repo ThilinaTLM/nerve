@@ -1,3 +1,4 @@
+import { publishSummary } from "./runtime/publish-summary.js";
 import type { AgentConfigurationPort } from "./configuration.js";
 import { createId } from "@nervekit/contracts";
 import { storedToolResultSchema } from "@nervekit/contracts/core";
@@ -132,11 +133,13 @@ export class ConversationCore {
       (id) => this.scheduler?.isProcessing(id) ?? false,
     );
     const emit = (change: CoreChange) => {
-      if (
-        change.kind === "event_appended" ||
-        change.kind === "tool_call_changed"
-      )
+      if (change.kind === "event_appended")
         this.status.refresh(change.conversationId);
+      if (change.kind === "tool_call_changed") {
+        // The oldest pending request can change without a status transition.
+        this.status.refresh(change.conversationId, false);
+        publishSummary(options.storage, publish, change.conversationId);
+      }
       if (
         change.kind === "event_appended" &&
         change.event.type === "user_message"
@@ -270,8 +273,7 @@ export class ConversationCore {
       this.registerCoreTool(handler);
   }
   publishAgentSummary(id: string): void {
-    const summary = this.options.storage.conversations.getSummary(id);
-    if (summary) this.emit({ kind: "conversation_changed", summary });
+    publishSummary(this.options.storage, this.emit, id);
   }
   publishConfigurationEvent(
     event: import("@nervekit/contracts/core").ConversationEvent,

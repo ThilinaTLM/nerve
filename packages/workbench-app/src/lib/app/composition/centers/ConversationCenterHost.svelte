@@ -1,19 +1,15 @@
 <script lang="ts">
-import {
-  mutateDraftSettings,
-  replacementSettingsMutation,
-  settingsOverrideView,
-} from "$lib/application/agent-configuration/override-view";
+import { replacementSettingsMutation } from "$lib/application/agent-configuration/override-view";
 import ProfileUpdateNotice from "$lib/features/conversations/views/ProfileUpdateNotice.svelte";
 import { projectAgentDefaults } from "$lib/application/agent-configuration/project-agent-defaults.svelte";
-import {
-  normalizeCreationPreferencesOverrides,
-  type EffectiveAgentView,
-} from "@nervekit/contracts/agent-configuration";
 import { CreationPreferencesState } from "$lib/features/settings/state/creation-preferences.svelte";
 import { switchAgentProfile } from "$lib/features/conversations/adapters/core-agent-configuration.adapter";
 import { compareSubagents } from "$lib/presentation/conversations/subagent-order";
 import { untrack } from "svelte";
+import { createComposerView } from "$lib/application/composer/composer-view.svelte";
+import { activateComposer } from "$lib/application/composer/active-composer.svelte";
+import { ScopedAgentState } from "$lib/application/agent-configuration/scoped-agent-state.svelte";
+import { onEvent } from "$lib/application/events/workbench-event-bus";
 import GitBranchPlus from "@lucide/svelte/icons/git-branch-plus";
 import GitCommitHorizontal from "@lucide/svelte/icons/git-commit-horizontal";
 import GitPullRequest from "@lucide/svelte/icons/git-pull-request";
@@ -60,7 +56,6 @@ import { newConversationInProject } from "$lib/application/workspace/workspace-a
 import { clampThinkingLevelForModel } from "$lib/presentation/state/thinking-levels";
 import {
   modelKey,
-  parseModelKey,
   scopedUsableModelOptions,
 } from "$lib/presentation/utils/model";
 import { summarizeConversationUsage } from "$lib/presentation/usage/conversation-usage";
@@ -250,117 +245,72 @@ const creationDefaults = $derived(
     ? creationPreferences.result.effective
     : undefined,
 );
-let pendingResolution =
-  $state<Extract<EffectiveAgentView, { status: "available" }>["resolution"]>();
-// Non-reactive identity of the preview currently displayed. Preference edits
-// refresh that target in place; a different draft/profile must not reuse it.
-let pendingResolutionTarget: string | undefined;
-const projectDefaultView = $derived(
-  projectAgentDefaults.get(
-    activePendingConversation?.projectId ?? activeProject?.id,
-  ),
-);
-let pendingConfigurationRevision = $state(0);
-$effect(() =>
-  observeConversationChannel({
-    recover: () => {
-      pendingConfigurationRevision += 1;
-      return Promise.resolve();
-    },
-    disconnected() {},
-    event() {},
-    notice: (notice) => {
-      if (
-        notice.type !== "agentConfiguration.changed" &&
-        notice.type !== "conversationDefaults.changed"
-      )
-        return;
-      const scope = notice.data.scope;
-      if (
-        scope.scope === "user" ||
-        (scope.scope === "project" &&
-          scope.projectId ===
-            (activePendingConversation?.projectId ?? activeProject?.id))
-      )
-        pendingConfigurationRevision += 1;
-    },
-  }),
-);
-$effect(() => {
-  void pendingConfigurationRevision;
-  void creationDefaults;
-  const pending = activePendingConversation;
-  // Warm the backend's project projection before any draft exists. A blank
-  // draft has the same target as these defaults, so opening it retains them.
-  const projectId = pending?.projectId ?? activeProject?.id;
-  if (!projectId) {
-    pendingResolution = undefined;
-    pendingResolutionTarget = undefined;
-    return;
-  }
-  const name = pending?.explicitAgentProfile;
-  const profile = resolvedProfiles.find((candidate) => candidate.name === name);
-  if (name && !profile?.digest) {
-    pendingResolution = undefined;
-    pendingResolutionTarget = undefined;
-    return;
-  }
-  const agentProfile = profile?.digest
-    ? { name: profile.name, digest: profile.digest }
-    : undefined;
-  const overrides = $state.snapshot(pending?.overrides ?? {});
-  if (!name && Object.keys(overrides).length === 0) {
-    if (pending)
-      pending.inheritedSettings =
-        projectDefaultView?.status === "available"
-          ? projectDefaultView.inherited
-          : undefined;
-    pendingResolution =
-      projectDefaultView?.status === "available"
-        ? projectDefaultView.resolution
-        : undefined;
-    pendingResolutionTarget = undefined;
-    return;
-  }
-  const targetKey = JSON.stringify([
-    projectId,
-    agentProfile,
-    creationDefaults?.defaultAgentProfile,
-    name || Object.keys(overrides).length ? pending?.id : undefined,
-  ]);
-  if (pendingResolutionTarget !== targetKey) pendingResolution = undefined;
-  pendingResolutionTarget = targetKey;
-  let current = true;
-  void requestConversation("agentConfiguration.resolveProject", {
-    projectId,
-    agentProfile,
-    overrides,
-  })
-    .then((result) => {
-      if (!current) return;
-      if (pending)
-        pending.inheritedSettings =
-          result.status === "available" ? result.inherited : undefined;
-      pendingResolution =
-        result.status === "available" ? result.resolution : undefined;
-    })
-    .catch(() => {
-      if (current) pendingResolution = undefined;
+const composerView = createComposerView({
+  target: () =>
+    activePendingConversation
+      ? {
+          kind: "draft",
+          pendingId: activePendingConversation.id,
+          projectId: activePendingConversation.projectId,
+        }
+      : {
+          kind: "conversation",
+          conversationId: viewedChildId ?? conversationId ?? "",
+          readOnly: !!viewedChildId,
+        },
+  pending: () => activePendingConversation,
+  store: () => store,
+  defaults: (projectId) => projectAgentDefaults.get(projectId),
+  profiles: (projectId) => agentProfileCatalog.profiles(projectId),
+  resolve: (input) =>
+    requestConversation("agentConfiguration.resolveProject", input),
+  clampReasoning: (key, level) =>
+    clampThinkingLevelForModel(
+      level,
+      settingsState.models.find((m) => modelKey(m) === key),
+    ),
+  capabilityEditor: new ScopedAgentState(),
+  observe: (invalidate) => {
+    const stop = observeConversationChannel({
+      recover: () => {
+        invalidate();
+        return Promise.resolve();
+      },
+      disconnected() {},
+      event() {},
+      notice: (notice) => {
+        if (
+          notice.type !== "agentConfiguration.changed" &&
+          notice.type !== "conversationDefaults.changed"
+        )
+          return;
+        const scope = notice.data.scope;
+        if (
+          scope.scope === "user" ||
+          (scope.scope === "project" &&
+            scope.projectId === activeProject?.id) ||
+          (scope.scope === "conversation" &&
+            scope.conversationId === conversationId)
+        )
+          invalidate();
+      },
     });
-  return () => {
-    current = false;
-  };
+    const stopProfiles = onEvent("agentProfiles.changed", () => {
+      void agentProfileCatalog.refresh(activeProject?.id).then(() => {
+        // Drafts track the refreshed catalog directly; do not resolve twice.
+        if (!activePendingConversation) invalidate();
+      });
+    });
+    return () => {
+      stop();
+      stopProfiles();
+    };
+  },
 });
-const composerResolution = $derived(
-  activePendingConversation
-    ? !activePendingConversation.explicitAgentProfile &&
-      !Object.keys(activePendingConversation.overrides ?? {}).length
-      ? projectDefaultView?.status === "available"
-        ? projectDefaultView.resolution
-        : undefined
-      : pendingResolution
-    : effective?.resolution,
-);
+$effect(() => {
+  if (active) return activateComposer(composerView);
+});
+const composerResolution = $derived(composerView.resolution);
 const selectedModelKey = $derived(
   composerResolution?.settings.model
     ? modelKey(composerResolution.settings.model)
@@ -370,14 +320,7 @@ const selectedThinkingLevel = $derived(
   composerResolution?.settings.reasoningLevel ?? "off",
 );
 const selectedAgentProfile = $derived(
-  activePendingConversation
-    ? (activePendingConversation.explicitAgentProfile ??
-        (projectDefaultView?.status === "available"
-          ? projectDefaultView.appliedProfile.name
-          : undefined) ??
-        creationDefaults?.defaultAgentProfile ??
-        DEFAULT_AGENT_PROFILE)
-    : (effective?.appliedProfile?.name ?? DEFAULT_AGENT_PROFILE),
+  composerView.appliedProfile ?? DEFAULT_AGENT_PROFILE,
 );
 const selectedPermissionRuleSetId = $derived(
   composerResolution?.settings.permissionRuleSetId ?? "autonomous",
@@ -402,34 +345,11 @@ const composerProfiles = $derived(
       })),
 );
 const lockedFields = $derived({
-  by: activePendingConversation
-    ? selectedAgentProfile
-    : effective?.appliedProfile?.name,
-  model: composerResolution?.provenance["/model"]?.source === "requirement",
-  thinking:
-    composerResolution?.provenance["/reasoningLevel"]?.source === "requirement",
-  permission:
-    composerResolution?.provenance["/permissionRuleSetId"]?.source ===
-    "requirement",
-  compaction: Object.entries(composerResolution?.provenance ?? {}).some(
-    ([pointer, value]) =>
-      pointer.startsWith("/compaction/") && value.source === "requirement",
-  ),
+  ...composerView.locked,
+  by: composerView.appliedProfile,
 });
 const activeCompactionLocked = $derived(Boolean(lockedFields.compaction));
-const composerOverrides = $derived(
-  activePendingConversation
-    ? settingsOverrideView(
-        activePendingConversation.overrides ?? {},
-        activePendingConversation.inheritedSettings,
-      )
-    : store?.configuration?.status === "available"
-      ? settingsOverrideView(
-          store.configuration.overrides,
-          store.configuration.inherited,
-        )
-      : {},
-);
+const composerOverrides = $derived(composerView.overrides);
 const settingsDiffers = $derived({
   model:
     !viewedChildId &&
@@ -567,29 +487,6 @@ async function runActivePaneAction(action: () => unknown | Promise<unknown>) {
     notify.error(e instanceof Error ? e.message : String(e));
   }
 }
-async function configure(
-  patch: Partial<Omit<ConversationConfig, "conversationId">>,
-) {
-  const p = activePendingConversation;
-  if (p) {
-    Object.assign(p.config, patch);
-    const { model, reasoningLevel, permissionRuleSetId } = patch;
-    p.overrides = mutateDraftSettings(
-      p.overrides ?? {},
-      {
-        ...(model ? { model } : {}),
-        ...(reasoningLevel !== undefined ? { reasoningLevel } : {}),
-        ...(permissionRuleSetId ? { permissionRuleSetId } : {}),
-      },
-      [],
-      p.inheritedSettings,
-    );
-    p.selectedModelKey = modelKey(p.config.model);
-    p.thinkingLevel = p.config.reasoningLevel;
-    p.agentProfile = p.config.agentProfile;
-    p.permissionRuleSetId = p.config.permissionRuleSetId;
-  } else await store?.configure(patch);
-}
 async function submitPrompt(
   text = activeComposerText,
   options: { clearComposer?: boolean } = {},
@@ -601,6 +498,7 @@ async function submitPrompt(
     pending.sending = true;
     try {
       const snapshot = await submitPendingConversation(pending, text, {
+        inherited: composerView.inherited,
         create: (input) =>
           requestConversation("conversation.create", {
             id: createId("conv"),
@@ -662,6 +560,8 @@ async function submitPrompt(
         {
           ...snapshot.conversation,
           childCount: 0,
+          pendingWork: false,
+          pendingInput: null,
           agentProfile: snapshot.config.agentProfile,
           model: snapshot.config.model,
           permissionRuleSetId: snapshot.config.permissionRuleSetId,
@@ -727,6 +627,7 @@ async function openSystemPrompt() {
   if (openingSystemPrompt) return;
   const target = captureSystemPromptPreview({
     pending: activePendingConversation,
+    inherited: composerView.inherited,
     targetProfile: (() => {
       const name = activePendingConversation?.explicitAgentProfile;
       const profile = resolvedProfiles.find((p) => p.name === name);
@@ -772,45 +673,21 @@ function setComposerModelSelection(next: {
   model?: ModelSelection;
   thinkingLevel?: ConversationConfig["reasoningLevel"];
 }) {
-  const model = next.model ?? parseModelKey(selectedModelKey);
-  const reasoningLevel = clampThinkingLevelForModel(
-    next.thinkingLevel ?? selectedThinkingLevel,
-    settingsState.models.find(
-      (candidate) => model && modelKey(candidate) === modelKey(model),
-    ),
-  );
-  return configure({
-    ...(model ? { model, reasoningLevel } : {}),
-  });
+  return (async () => {
+    if (next.model)
+      await composerView.setModel(modelKey(next.model), next.thinkingLevel);
+    else if (next.thinkingLevel !== undefined)
+      await composerView.setReasoning(next.thinkingLevel);
+  })();
 }
 function resetComposerPermission() {
-  if (activePendingConversation) {
-    const pending = activePendingConversation;
-    pending.overrides = mutateDraftSettings(
-      pending.overrides ?? {},
-      {},
-      ["/overrides/permissionRuleSetId"],
-      pending.inheritedSettings,
-    );
-    return;
-  }
-  return store?.configure({}, ["/overrides/permissionRuleSetId"]);
+  return composerView.setPermission("");
 }
-async function setComposerAgentProfile(name: string) {
-  const pending = activePendingConversation;
-  if (pending) {
-    // The exact catalog target is captured when creation is submitted.
-    pending.config.agentProfile = name;
-    pending.agentProfile = name;
-    pending.inheritedSettings = undefined;
-    pending.explicitAgentProfile = normalizeCreationPreferencesOverrides(
-      { defaultAgentProfile: name },
-      { defaultAgentProfile: creationDefaults?.defaultAgentProfile },
-    ).defaultAgentProfile;
-  } else await store?.setAgentProfile(name);
+function setComposerAgentProfile(name: string) {
+  return composerView.setProfile(name);
 }
 function setComposerPermissionRuleSet(value: string) {
-  return configure({ permissionRuleSetId: value });
+  return composerView.setPermission(value);
 }
 async function resolve(toolCallId: string, resolution: InteractionResolution) {
   const result = await store?.resolve(toolCallId, resolution);
@@ -1127,6 +1004,7 @@ const teamRunning = $derived(
   onNewConversationInProject={newConversationInProject}
   onOpenFile={openToolFile}
   onOpenTask={openTaskFromNotice}
+  {composerView}
   onModelSelectionChange={(next) => {
     void runActivePaneAction(() => setComposerModelSelection(next));
   }}
