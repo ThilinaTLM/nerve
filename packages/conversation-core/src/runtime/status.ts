@@ -49,7 +49,16 @@ export class StatusService {
     private readonly finished: (result: ExecutionFinished) => void,
     private readonly processing: (id: string) => boolean,
   ) {}
-  refresh(id: string, publish = true): void {
+  refresh(id: string, publish = true): boolean {
+    try {
+      this.refreshStatus(id, publish);
+      return true;
+    } catch (error) {
+      this.storage.conversations.reportFailure(id, "status.refresh", error);
+      return false;
+    }
+  }
+  private refreshStatus(id: string, publish: boolean): void {
     const conversation = this.storage.conversations.get(id);
     if (!conversation) return;
     const last = latestExecution(this.storage, id);

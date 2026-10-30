@@ -6,6 +6,11 @@ import {
   isWorkbenchEvent,
   isWorkbenchOperation,
 } from "../../src/events/workbench-events.js";
+import {
+  publicEventDefinition,
+  validatePublicEvent,
+} from "../../src/events/catalog.js";
+import { projectEventDefinitions } from "../../src/domains/projects/events.js";
 import { allOperationDefinitions } from "../../src/operations/catalog.js";
 
 void test("all catalog operations route to their owning workbench or conversation surface", () => {
@@ -35,4 +40,24 @@ void test("launch catalog invalidation events remain distinct from management op
   }
   assert.equal(isWorkbenchEvent("conversation.event"), false);
   assert.equal(isWorkbenchOperation("conversation.getSnapshot"), false);
+});
+
+void test("project configuration health is a published, ephemeral workbench notice", () => {
+  // Publishing an event missing from the catalog throws on the server, which
+  // silently dropped every health update to mounted UIs.
+  for (const { name } of projectEventDefinitions)
+    assert.ok(publicEventDefinition(name), `${name} is not in the catalog`);
+  assert.equal(
+    publicEventDefinition("project.configuration.health")?.delivery,
+    "ephemeral",
+  );
+  const health = { projectId: "proj_a", issues: [] };
+  assert.deepEqual(
+    validatePublicEvent(
+      "project.configuration.health",
+      health,
+      "workbench_server",
+    ),
+    health,
+  );
 });

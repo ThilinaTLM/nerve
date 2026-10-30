@@ -14,9 +14,13 @@ export function publishSummary(
   let current: string | null = id;
   while (current && !seen.has(current)) {
     seen.add(current);
-    const summary = storage.conversations.getSummary(current);
-    if (!summary) return;
-    emit({ kind: "conversation_changed", summary });
-    current = summary.parentConversationId;
+    const id = current;
+    current = storage.conversations.parentId(id);
+    try {
+      const summary = storage.conversations.getSummary(id);
+      if (summary) emit({ kind: "conversation_changed", summary });
+    } catch (error) {
+      storage.conversations.reportFailure(id, "publishSummary", error);
+    }
   }
 }

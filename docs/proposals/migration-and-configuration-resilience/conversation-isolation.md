@@ -1,6 +1,6 @@
 # Conversation isolation
 
-Part of [Migration and configuration resilience](./README.md). **Investigated on 2026-10-30; fixes not implemented.**
+Part of [Migration and configuration resilience](./README.md). **Investigated and rechecked on 2026-10-30. Startup/list and stream containment implemented; Unavailable UI remains follow-up.**
 
 Home migration already sets aside conversations it cannot convert. Corruption can also appear later, for example from a partial write, disk trouble, or a bug in a newer version. The same principle applies: one unreadable conversation must not break startup, the conversation list, or other conversations.
 
@@ -24,9 +24,9 @@ Ran `env -u NERVE_HOME -u NERVE_API_TARGET pnpm dev --slot 8`: daemon HTTP `4398
 
 For each successful startup, opened the affected conversation, then the unrelated conversation, typed an unsent draft in its composer, and confirmed **Send prompt** was available. No test prompt was submitted and no model response was required. Also exercised snapshot/history/configuration RPCs and read-only repository probes. Startup failures make all UI/composer checks unavailable, rather than independent passes.
 
-### Results
+### Original results (before containment fixes)
 
-Locations are repository-relative; `CC` below means `packages/conversation-core/src/` and `WS` means `packages/workbench-server/src/`.
+Locations below refer to the investigation snapshot, before the fixes; `CC` below means `packages/conversation-core/src/` and `WS` means `packages/workbench-server/src/`.
 
 | Case and injected fault                                    | Startup / conversation list                    | Opening affected conversation                                                                                                                                                                                                                                                        | Unrelated conversation / composer       | Isolated?                                                                          | Throwing or containing location                                                                                                                                                                          |
 | ---------------------------------------------------------- | ---------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------- | ---------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -43,7 +43,7 @@ The malformed user-event startup failure depends on recovery needing to publish 
 
 For asset cases, used a valid `read` tool-response event referencing an image and a valid full-result JSON asset. Case 3a deleted only the image file; case 3b omitted only its row. This tests missing image dependencies, not every payload/report asset consumer. Neither case justifies disabling an otherwise readable transcript.
 
-### Replay is not contained to one conversation
+### Original replay failure (now contained)
 
 On case 1a, a separate authenticated conversation-channel client first read the healthy snapshot/history successfully. It then subscribed to `conv/conv_iso_bad` from `processedSeq: 0`:
 
@@ -72,7 +72,9 @@ Recorded fault runs were approximately 13:34–13:46 UTC on 2026-10-30. Local ev
 
 The first attempted controlled seed had a SQL placeholder-count error; that empty-home launch was discarded, the sanitized backup restored, and the seed corrected before recording the cases above. No observations from that failed setup are used as fault evidence.
 
-### Minimal fixes for the demonstrated gaps
+### Original proposed fixes and current scope
+
+**Implemented:** items 1 and 3 (startup/list and replay/activation/live projection containment). **Deferred:** item 2 (Unavailable UI and raw export/delete), item 4 (asset presentation), and item 5 (configuration presentation). The original proposals are retained below for context; the implementation/recheck section records the delivered boundaries.
 
 1. **Contain startup and list projection failures (cases 1 and 4).** Enumerate minimal raw conversation identity/ownership first, then validate and recover each conversation independently. Do not begin with `listAll().map(mapConversation)`, since it throws before a per-conversation catch can run. Guard JSON extraction in summary SQL (for example, `CASE WHEN json_valid(payload) THEN … END`) so a damaged payload cannot abort the whole query. Record the projection diagnostic and skip execution/recovery for that conversation; do not silently coerce the corrupt status or payload into a valid value. Ancestor summary failures must also remain contained. No new database table or column is needed for this proposal.
 
@@ -84,4 +86,44 @@ The first attempted controlled seed had a SQL placeholder-count error; that empt
 
 5. **Reuse existing configuration isolation (case 5).** Keep the scoped store's unavailable state and existing reload/repair/reset choices; do not add a second corrupt-configuration subsystem or fall back to unvalidated content. Surface the configuration diagnostic near the affected conversation's controls and preserve readable history. The conversation-wide unavailable view is needed only when its projection cannot be opened; configuration-only failure should not unnecessarily hide the transcript. Execution admission was not exercised in this experiment, so blocked-provider behavior is not claimed as an observed result.
 
-No product fixes were implemented. All task-owned servers/browser sessions were stopped afterward, and slot 8 was restored to the seeded, sanitized baseline.
+The initial investigation implemented no product fixes. The approved containment work and verification follow below.
+
+## Implemented containment and post-fix verification
+
+### Delivered boundaries
+
+- **Raw identity enumeration and per-conversation recovery:** `ConversationRepository.identities()` does not validate execution state. Recovery validates each row and its event records before recovering that conversation's tools, inputs and async jobs. A failure logs its conversation ID, operation and error, skips that conversation, and does not wake it. Status refresh also catches and reports a failure for its own conversation without rewriting invalid state. This does not repair persisted data or invent a valid status/payload.
+- **List and summary reads:** summary JSON extraction uses `CASE WHEN json_valid(...)` for event payloads and tool interactions. Invalid conversation/summary rows are skipped individually with a diagnostic, not returned with coerced fields. Raw ancestor IDs let summary publication skip an invalid ancestor and still publish healthy ancestors. There is deliberately no Unavailable list entry yet: an invalid status row is omitted; a valid row with unreadable history can still appear normally.
+- **Stream projection boundary:** the conversation channel validates event data and envelopes before queuing them. Initial unreadable replay uses the existing per-stream `mode: unavailable` reply. Activation, later replay pages and live event/delta projection failures log a diagnostic and remove only that stream; healthy streams and RPCs on the same connection remain usable. A later subscription can retry a repaired stream.
+- **Minimal transport-neutral protocol change:** durable stream readers can return `null` for an unavailable stream. Replay removes that stream rather than interpreting it as an empty-page continuity failure and closing the connection. The replay loop also honors streams removed during activation. No wire schema or persisted schema was added. Later failures remove the server-side stream; a new unsolicited Unavailable UI notification is not part of this change. Genuine malformed protocol frames and transport/send failures retain their connection-wide handling.
+
+Implementation owners are `packages/conversation-core/src/storage/conversation.repository.ts`, `storage/conversation-event.repository.ts`, `runtime/recovery.ts`, `runtime/status.ts`, `runtime/publish-summary.ts`, the three scoped service recovery methods, `packages/protocol/src/runtime/ports.ts` / `sessions/server-session.ts`, and `packages/workbench-server/src/adapters/protocol/conversation-channel.ts`. Daemon composition supplies the diagnostic logger in `app/bootstrap/create-conversation-core.ts`.
+
+### Slot-8 recheck
+
+Restored the same sanitized seeded database/configuration between each requested case with the daemon stopped. Every launch used `env -u NERVE_HOME -u NERVE_API_TARGET pnpm dev --slot 8`; its owned UI was used at port 5180. Rechecked all project/working-directory paths before launching. No test prompt was submitted to a provider.
+
+| Case                               | Daemon and list after fixes                                     | Affected conversation                                                                                                       | Unrelated conversation and shared connection                                                                                                                   |
+| ---------------------------------- | --------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1: malformed user-event JSON       | Starts; project list returns 161 entries                        | Recovery logs/skips corrupt history; opening history still shows a local raw error (UI follow-up)                           | Healthy transcript/composer work. Bad stream is unavailable; healthy event replay, snapshot RPC and live config notification all arrive on the same connection |
+| 1a: malformed assistant-event JSON | Starts; list returns 161 entries                                | Same local history error; no shared socket close                                                                            | Same healthy transcript/composer and shared replay/RPC/live-notification checks pass                                                                           |
+| 2a: unknown event type             | Starts; list returns 161 entries                                | Recovery logs/skips invalid event; history returns `DOMAIN_VALIDATION_FAILED` locally                                       | Same healthy transcript/composer and shared replay/RPC/live-notification checks pass                                                                           |
+| 4: invalid conversation status     | Starts; list returns 160 entries, omitting only the invalid row | Direct snapshot/configuration RPCs reject that row. SQL confirms `broken_iso_status` and status sequence 0 remain unchanged | Healthy entry remains selectable; transcript/composer work. Bad stream is unavailable; shared healthy replay/RPC/live-notification checks pass                 |
+
+For every case, a single authenticated client subscribed to both bad and healthy streams from sequence 0, received the healthy durable event, successfully read the healthy snapshot, then received a stream-scoped `conversation.config` notification after a non-executing working-directory configuration call. This checks continuing live delivery, not just the absence of a disconnect. The connection was closed intentionally only after these checks. Browser verification typed an unsent draft and observed the enabled Send prompt control in the healthy conversation.
+
+The copied home also contains pre-existing histories that fail the current event schema (for example, missing `interactionResolution.confirmation`). Recovery now logs/skips those too; these fixes do not repair or coerce their historical data.
+
+Post-fix evidence remains under `/tmp/nerve-conv-iso-evidence/`: `fixed-case{1,1a,2a,4}-daemon.log`, matching `-rpc.log` and `-composer.snapshot`, and `fixed-application.jsonl`. The latter contains conversation-scoped skip diagnostics and stream-unavailable warnings; healthy replay/live evidence is in each RPC log. Initial malformed-JSON errors and invalid-status errors no longer reach the daemon startup failure path.
+
+### Regression validation and remaining work
+
+Owning-layer unit coverage:
+
+- `packages/conversation-core/src/storage/conversation-isolation.test.ts`: malformed JSON/interaction summary reads, invalid-row omission without coercion, ancestor publication/status containment, and independent recovery/wake failure handling.
+- `packages/workbench-server/src/adapters/protocol/conversation-channel.test.ts`: independent resolver, activation and later replay failures; live payload/envelope/delta failures; healthy shared RPC and stream delivery; genuine malformed-frame and transport-write connection closure.
+- `packages/protocol/test/streams/subscription-recovery.test.ts`: unavailable reader results and activation-time stream removal do not silence healthy replay/live delivery.
+
+All 65 relevant unit tests passed (42 conversation-core, 15 protocol, 8 conversation-channel). `pnpm fix:focused --base HEAD` and `pnpm check:focused --base HEAD` passed, including selected package/type checks and repository policies. No broad test suites were run. Items 2, 4 and 5 above remain follow-up, including replacing local raw error views with Unavailable / Export raw data / confirmed Delete. Asset and configuration presentation were not changed.
+
+All task-owned servers/browser sessions were stopped after the recheck, and slot 8 was restored to the seeded, sanitized baseline.

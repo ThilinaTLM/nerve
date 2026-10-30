@@ -87,6 +87,8 @@ function createPair(
     close?: (code: number, reason: string) => void;
     maxBufferedEvents?: number;
     knownStreams?: readonly string[];
+    unreadableStreams?: readonly string[];
+    removeOnActivate?: readonly string[];
     addressServerByRole?: boolean;
     serverSend?: (
       message: ProtocolV1Message,
@@ -140,8 +142,13 @@ function createPair(
             .map((cursor) => logs.state(cursor.stream)),
         };
       },
+      activate() {
+        for (const stream of options.removeOnActivate ?? [])
+          server.removeStream(stream);
+      },
     },
     readStream(stream, fromSeq, limit) {
+      if (options.unreadableStreams?.includes(stream)) return null;
       return {
         ...logs.state(stream),
         events: (logs.streams.get(stream) ?? [])
@@ -174,6 +181,44 @@ async function start(pair: Pair): Promise<void> {
 }
 
 describe("subscription-only replay and recovery", () => {
+  for (const unavailableAt of ["read", "activation"] as const) {
+    it(`removes only an unavailable stream during ${unavailableAt}`, async () => {
+      const logs = new MemoryStreams();
+      logs.append("bad");
+      logs.append("healthy");
+      const applied: string[] = [];
+      const closes: number[] = [];
+      const pair = createPair(logs, {
+        unreadableStreams: unavailableAt === "read" ? ["bad"] : [],
+        removeOnActivate: unavailableAt === "activation" ? ["bad"] : [],
+        apply: (stream) => {
+          applied.push(stream);
+        },
+        close: (code) => {
+          closes.push(code);
+        },
+      });
+      try {
+        await start(pair);
+        await pair.client.subscribe([
+          { stream: "bad", processedSeq: 0 },
+          { stream: "healthy", processedSeq: 0 },
+        ]);
+        assert.deepEqual(applied, ["healthy"]);
+        assert.equal(pair.server.isStreamActive("bad"), false);
+        assert.equal(pair.server.isStreamActive("healthy"), true);
+        await pair.server.publish("bad", logs.append("bad"));
+        await pair.server.publish("healthy", logs.append("healthy"));
+        await pair.server.flush();
+        assert.deepEqual(applied, ["healthy", "healthy"]);
+        assert.deepEqual(closes, []);
+      } finally {
+        pair.client.disconnect(new Error("test complete"));
+        pair.server.dispose();
+      }
+    });
+  }
+
   it("binds role-addressed clients to the accepting peer after welcome", async () => {
     const logs = new MemoryStreams();
     const applied: number[] = [];

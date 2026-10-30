@@ -72,6 +72,16 @@ export class ConversationEventRepository {
     };
   }
 
+  /** Validate without retaining an entire conversation's history in memory. */
+  validate(conversationId: string): void {
+    for (const row of this.db.sqlite
+      .prepare(
+        "SELECT * FROM conversation_event WHERE conversation_id = ? ORDER BY sequence",
+      )
+      .iterate(conversationId))
+      mapEvent(row);
+  }
+
   get(id: string): ConversationEvent | null {
     const row = this.db.sqlite
       .prepare("SELECT * FROM conversation_event WHERE id = ?")

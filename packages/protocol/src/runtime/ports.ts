@@ -6,13 +6,13 @@ export interface StreamReadResult extends StreamState {
   readonly events: readonly EventEnvelope[];
 }
 
-/** Durable per-stream log reader used by subscription replay. */
+/** Durable per-stream log reader. null means this stream is unavailable, not a transport failure. */
 export interface StreamReader {
   readStream(
     stream: string,
     fromSeq: number,
     limit: number,
-  ): StreamReadResult | Promise<StreamReadResult>;
+  ): StreamReadResult | null | Promise<StreamReadResult | null>;
 }
 
 export interface ProtocolDiagnosticsPublisher {

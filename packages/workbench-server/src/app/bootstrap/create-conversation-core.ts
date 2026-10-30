@@ -56,7 +56,15 @@ export function createConversationCore(
 ) {
   const dataDir = deps.storage.paths.dataPath;
   mkdirSync(dataDir, { recursive: true });
-  const storage = openCoreStorage(deps.storage.paths.sqlitePath);
+  const storage = openCoreStorage(deps.storage.paths.sqlitePath, (failure) => {
+    void deps.logger
+      .warn("Conversation read failed; skipped", {
+        conversationId: failure.conversationId,
+        context: { operation: failure.operation },
+        error: failure.error,
+      })
+      .catch(() => undefined);
+  });
   const models = createModelPort(deps.auth, deps.providerCatalog, (name) =>
     deps.secrets.get(name),
   );

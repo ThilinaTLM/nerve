@@ -559,10 +559,12 @@ export class ProtocolServerSession {
       );
 
       for (const cursor of acceptedCursors) {
+        if (!this.#activeStreams.has(cursor.stream)) continue;
         const state = statesByName.get(cursor.stream) as StreamState;
         if (cursor.processedSeq < state.latestSeq) {
           await this.#replayStream(cursor, state.latestSeq);
         }
+        if (!this.#activeStreams.has(cursor.stream)) continue;
         this.#replaying.delete(cursor.stream);
         const buffered = this.#liveEvents.takeReplay(cursor.stream);
         const fresh = buffered.filter((event) => event.seq > state.latestSeq);
@@ -579,12 +581,17 @@ export class ProtocolServerSession {
       ServerSessionOptions["readStream"]
     >;
     let nextSeq = cursor.processedSeq + 1;
-    while (nextSeq <= throughSeq) {
+    while (nextSeq <= throughSeq && this.#activeStreams.has(cursor.stream)) {
       const read = await readStream(
         cursor.stream,
         nextSeq,
         this.#options.limits.maxBatchEvents,
       );
+      if (read === null) {
+        this.removeStream(cursor.stream);
+        return;
+      }
+      if (!this.#activeStreams.has(cursor.stream)) return;
       const events = read.events.filter((event) => event.seq <= throughSeq);
       if (events.length === 0 || events[0]?.seq !== nextSeq) {
         await this.#overflow(`Replay continuity failed for ${cursor.stream}`);

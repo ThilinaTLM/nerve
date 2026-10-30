@@ -309,9 +309,13 @@ export class ToolCallService {
     await this.start(ids);
   }
 
-  async recover(): Promise<void> {
+  async recover(conversationId?: string): Promise<void> {
     const ids: string[] = [];
-    for (const call of this.options.storage.toolCalls.listAll()) {
+    const calls =
+      conversationId === undefined
+        ? this.options.storage.toolCalls.listAll()
+        : this.options.storage.toolCalls.list(conversationId);
+    for (const call of calls) {
       if (
         call.state === "awaiting_input" ||
         call.state === "awaiting_approval"

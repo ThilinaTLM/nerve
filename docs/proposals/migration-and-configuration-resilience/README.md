@@ -1,6 +1,6 @@
 # Migration and configuration resilience
 
-> **Status:** Proposal for discussion. Not yet an approved implementation plan. Revised 2026-10-30 against root package version 0.37.0. No API, UI, filesystem layout, or database schema change is approved by this document.
+> **Status:** Implemented on branch `feat/migration-config-resilience` (2026-10-30, against root package version 0.37.0), except the follow-ups listed below. No database schema change was made.
 
 ## Goal
 
@@ -71,7 +71,12 @@ flowchart TD
 - The archive from "start fresh" is kept until the user deletes it, and its location is shown in settings.
 - Broken-conversation isolation stays here as a follow-up investigation.
 
-## Implementation order
+## Follow-ups
+
+- Conversation isolation: an **Unavailable** list entry with Export raw data / confirmed Delete, a typed missing-asset response, and conversation-level configuration notices ([details](./conversation-isolation.md)). Startup, list, and replay containment are implemented.
+- Add a check that every event name the server publishes exists in the public event catalog. A missing registration was only logged as a warning, which hid a live-update bug during QA.
+
+## Implementation order (as delivered)
 
 1. **Small isolated fixes:** isolate failures in permission rule-set listing, and correct the manifest version message ([unsupported homes](./unsupported-homes.md), [project recovery](./project-migration-and-recovery.md#known-gaps)).
 2. **Remove project handling from home steps 0001/0002** (both still draft). This also removes the slot-5 blocker. Rerun the slot-5 and slot-6 rehearsals.

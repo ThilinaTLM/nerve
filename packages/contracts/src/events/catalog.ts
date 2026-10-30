@@ -8,6 +8,7 @@ import { scratchNoteEventDefinitions } from "../domains/scratch-notes/events.js"
 import { authEventDefinitions } from "../domains/auth/events.js";
 import { filesystemEventDefinitions } from "../domains/filesystem/events.js";
 import { gitEventDefinitions } from "../domains/git/events.js";
+import { projectEventDefinitions } from "../domains/projects/events.js";
 import { planEventDefinitions } from "../domains/plans/events.js";
 import type { PeerRole } from "../wire/envelope.js";
 import { eventBatchDataSchema } from "../wire/event-stream.js";
@@ -37,6 +38,7 @@ const definitions: PublicEventDefinition[] = [
   ...filesystemEventDefinitions,
   ...gitEventDefinitions,
   ...planEventDefinitions,
+  ...projectEventDefinitions,
   ...settingsEventDefinitions,
   ...authEventDefinitions,
   ...daemonEventDefinitions,

@@ -263,8 +263,14 @@ export class AsyncBashService {
         if (row.status === "running") await this.cancel(row.id);
   }
 
-  async recover(): Promise<void> {
-    for (const row of this.options.storage.asyncBash.listByStatus("running")) {
+  async recover(conversationId?: string): Promise<void> {
+    const rows =
+      conversationId === undefined
+        ? this.options.storage.asyncBash.listByStatus("running")
+        : this.options.storage.asyncBash
+            .list(conversationId)
+            .filter((row) => row.status === "running");
+    for (const row of rows) {
       if (this.watchers.has(row.id)) continue;
       let process: BackgroundProcess | null = null;
       if (row.processRef) {
