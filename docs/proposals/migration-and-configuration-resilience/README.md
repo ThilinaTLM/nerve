@@ -73,6 +73,8 @@ flowchart TD
 
 ## Follow-ups
 
+Planned in [follow-up plan](./follow-up-plan.md): replace start-fresh with instructions, drop multi-file project merges, surface unreadable conversations as one activity item, plus small fixes.
+
 - Conversation isolation: an **Unavailable** list entry with Export raw data / confirmed Delete, a typed missing-asset response, and conversation-level configuration notices ([details](./conversation-isolation.md)). Startup, list, and replay containment are implemented.
 - Add a check that every event name the server publishes exists in the public event catalog. A missing registration was only logged as a warning, which hid a live-update bug during QA.
 
