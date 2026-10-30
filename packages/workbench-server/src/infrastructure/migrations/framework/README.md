@@ -49,37 +49,10 @@ Confirmations use the migrated request's target profile and revision/digest. Set
 After an offline migration, run:
 
 ```sh
-pnpm exec tsx scripts/storage-migrations/validate-history.ts --home data/storage-5
-pnpm exec tsx scripts/storage-migrations/validate-history.ts --home data/storage-6
+pnpm exec tsx scripts/storage-migrations/validate-history.ts --home data/storage-N
 ```
 
 This read-only gate parses **every** event (including unselected branches) and every tool-call row, decoding all their JSON columns, against the current contracts. It exits nonzero on failure and reports counts with bounded example IDs, without printing stored prompts or results. It stays outside the frozen steps so future contract changes are detected without reinterpreting old conversion code or adding a full-history contract scan to startup.
-
-#### QA rehearsal, 2026-10-30
-
-Fresh stopped copies were recreated from `data/storage-0-34-1` into slot 5 and `data/storage-0-37-0` into slot 6, then migrated offline and checked with the commands above. Both homes recorded 0002 checksum `15b23510e159c4d2530ecda888a3528d51fba1a005f533c1aa0d65e6c4881504`. All reports were checked: **zero set-aside items in either home**, with no set-aside reasons. All **159** released child compaction overrides were compared directly with their migrated `frozenDefaults.compaction` values and matched exactly; the 0.34.1 source has no such harness files.
-
-| Source          | Approval-confirmation event rows fixed | Affected conversations | Events validated | Tool-call rows validated | Schema failures |
-| --------------- | -------------------------------------: | ---------------------: | ---------------: | -----------------------: | --------------: |
-| 0.34.1 / slot 5 |                                    105 |                     98 |           116329 |                        0 |               0 |
-| 0.37.0 / slot 6 |                                     88 |                     82 |           158611 |                        0 |               0 |
-
-Missing approval confirmations were the only current-contract mismatch class found. Both datasets contain no active tool-call rows, so their request-binding and embedded-resolution fix counts are zero; fixtures cover those columns, matching confirmations across event/call storage, current captured evidence, authored profile names, rejections, and idempotency. Aggregated fix counts are retained in each home's `migrations/reports/0002-agent-profiles.json`. No daemons were started and neither original dataset was modified.
-
-Aggregated loss counts across all step reports (conversion occurrences, not distinct conversations):
-
-| Reason                                                                                 | 0.34.1 / slot 5 | 0.37.0 / slot 6 |
-| -------------------------------------------------------------------------------------- | --------------: | --------------: |
-| Assistant tool-call block without durable result settled as indeterminate              |              27 |               0 |
-| Dropped legacy compaction field customKeepRecentPercent                                |             828 |               0 |
-| Legacy interaction retained in result details rather than typed resolution             |               2 |               0 |
-| Missing legacy assets                                                                  |               7 |               0 |
-| Reconstructed archival plan-review approval confirmation in conversation_event.payload |             105 |              88 |
-| Removed bundled Explore/Developer parent-copy model and reasoning behavior             |               1 |               1 |
-| Renamed historical planning tool metadata in conversation_event.payload                |             254 |             220 |
-| Selected branch lacked a result recorded elsewhere; result copied onto selected branch |               4 |               0 |
-
-Reports are in `data/storage-{5,6}/migrations/reports/`. Both full history scans passed with zero schema failures. Validation also passed 115 step unit tests, `pnpm fix:focused`, `pnpm check:focused`, and `pnpm exec tsx scripts/storage-migrations/check.ts`.
 
 ## Framework and reporting
 

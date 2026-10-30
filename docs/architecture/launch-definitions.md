@@ -70,14 +70,16 @@ Activity is derived from catalog and run state, keeping transient execution out 
 | Application-lifetime subscriptions and access | `cachedLaunchCatalog` and `invalidateLaunchCatalog` in [`launch-definitions.svelte.ts`](../../packages/workbench-app/src/lib/features/launches/state/launch-definitions.svelte.ts)                                                                             |
 | Agent execution selection                     | [`LaunchTool`](../../packages/workbench-server/src/core-host/launch-tool.ts)                                                                                                                                                                                   |
 
-## Project-local conversion
+## Format versions and recovery
 
-Catalog conversion belongs to project-file loading, independently of the home database migration ledger, so projects opened later receive the same handling. Reads decode supported older input in memory; the next semantic mutation persists the current format under the normal write boundary. Conversion preserves portable identity and execution configuration, leaving runs and logs untouched.
+The catalog file is versioned. An older catalog is upgraded when the project's catalog is loaded, through the shared [project configuration versions](configuration.md#project-configuration-versions) service rather than in the repository; the original bytes go to home quarantine. Home migrations never touch the catalog, so projects opened long after an upgrade receive the same handling.
 
-The live catalog remains authoritative after interruption. The exact-source backup is a recovery artifact, **never an automatic fallback**, because falling back could silently discard newer edits. Invalid input, unsupported versions and conflicting backups fail visibly rather than replacing configuration. A missing file normally means an empty catalog, but a conversion backup makes that absence a recovery error. Explicit restoration does not preserve edits made after the backup.
+A corrupted catalog shows no launches, an inline notice in the Launches panel and a header activity item. Management actions are hidden and the server refuses catalog mutations, so a save cannot overwrite the invalid original. The user fixes the file and reloads, or confirms a reset to an empty catalog. A catalog written by a newer Nerve is read-only and never reset. A missing file means an empty catalog. An old `tasks/definitions.json` is reported as a leftover file and is not imported.
 
-| Concern                              | Owner                                                                                                                                   |
-| ------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------- |
-| Loading, conversion and backup rules | [`LaunchDefinitionRepository`](../../packages/workbench-server/src/domains/launch-definitions/launch-definition.repository.ts)          |
-| Persistence-boundary verification    | [`launch-definition-catalog.test.ts`](../../packages/workbench-server/src/domains/launch-definitions/launch-definition-catalog.test.ts) |
-| Wider persistence boundaries         | [Storage architecture](storage.md)                                                                                                      |
+| Concern                            | Owner                                                                                                                                   |
+| ---------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| Catalog version chain and reset    | [`launch-definition-migrations.ts`](../../packages/workbench-server/src/domains/launch-definitions/launch-definition-migrations.ts)     |
+| Loading through the shared service | [`LaunchDefinitionRepository`](../../packages/workbench-server/src/domains/launch-definitions/launch-definition.repository.ts)          |
+| Inline notice and blocked actions  | [`LaunchConfigurationNotice`](../../packages/workbench-app/src/lib/features/launches/hosts/LaunchConfigurationNotice.svelte)            |
+| Persistence-boundary verification  | [`launch-definition-catalog.test.ts`](../../packages/workbench-server/src/domains/launch-definitions/launch-definition-catalog.test.ts) |
+| Wider persistence boundaries       | [Storage architecture](storage.md)                                                                                                      |

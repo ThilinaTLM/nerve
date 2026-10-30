@@ -52,33 +52,58 @@ A missing optional preference file means inheritance. A missing required convers
 
 Restart re-captures not-yet-started tool calls, so a changed execution target requires fresh approval. Configuration changes leave already-running tools and in-flight provider requests unchanged because their execution has already begun.
 
+## Project configuration versions
+
+Home migrations never touch project files, so each project file type carries its own version and upgrades lazily when a feature loads it. A file is classified against its type's current schema:
+
+| File state                                     | Result                                                                                                                        |
+| ---------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| Current version, valid                         | Used.                                                                                                                         |
+| Older version                                  | Converted by that type's version chain, validated, and written back over the same file; the original goes to home quarantine. |
+| Current version but invalid, or failed upgrade | **Corrupted**: the file is left unchanged and the resource uses its safe fallback.                                            |
+| Newer version than this installation           | **Incompatible**: read-only, never reset, because it probably belongs to a newer Nerve sharing the project.                   |
+
+Upgrades happen at load time rather than at startup because projects may be unregistered, unreachable or restored independently of the home. Each chain reads and writes one file; types never merge several files or import old filenames. Older project files under names the current version no longer reads produce one notice listing them, with a confirmed action that moves them to quarantine. Their settings are not carried over.
+
+Feature loaders contain no format conversion; they accept only the current schema and delegate everything else to the migration service. Feature writes are refused while a file is corrupted or incompatible, so a fallback can never overwrite the original. Only a confirmed reset replaces a corrupted file, and reset revokes rather than grants trust. An upgrade keeps an existing approval only when the exact original bytes were approved, because the output is a deterministic conversion of approved input.
+
+Fallbacks follow each resource's meaning: an invalid launch catalog shows no launches, an invalid override lets lower-precedence settings apply, a bad profile or suggestion hides only that entry, and an invalid permission overlay blocks tool execution in that project while plain model replies continue. Each type declares its fallback, reset effect and user-facing wording in its descriptor.
+
 ## Health and recovery
 
-Required configuration failures block only the affected execution and expose a diagnostic. The user can reload corrected files or review and confirm a repair; repair preserves damaged source bytes in a backup so recovery is reversible.
+Invalid configuration degrades only what depends on it and raises a diagnostic. Project files report health through a header activity item, a toast when the set of failing files changes and, where a feature shows the resource, an inline notice. The actions are open the file, reload after a manual fix, and a confirmed reset that preserves the original in quarantine. Home settings use the equivalent [settings-health](storage.md#settings-health) path.
+
+Required configuration, such as a conversation's own document, has no fallback. Its failure blocks only the affected execution; the user can reload corrected files or review and confirm a repair that backs up the damaged bytes.
 
 ```mermaid
 flowchart TD
-    I[Invalid required configuration] --> B[Affected execution blocked with diagnostic]
-    B --> R[Correct source and reload]
-    B --> P[Preview repair]
-    P --> C[Confirm and back up damaged source]
-    C --> R
+    I[Invalid configuration] --> F{Fallback available?}
+    F -->|Yes| D[Use fallback and show notice]
+    F -->|No| B[Affected execution blocked with diagnostic]
+    D --> R[Correct source and reload]
+    D --> S[Confirmed reset to quarantine]
+    B --> R
+    B --> P[Preview and confirm repair]
     R --> V{Configuration valid?}
-    V -->|No| B
-    V -->|Yes| A[Retry normal admission checks]
+    S --> A
+    P --> V
+    V -->|No| D
+    V -->|Yes| A[Normal resolution and admission checks]
 ```
 
-Retry re-reads authority and repeats authorization because repairing configuration does not itself grant permission. Dismissing a diagnostic leaves the underlying problem unchanged. The system has no persisted last-known-good execution authority, so a stale backup cannot silently authorize work.
+Retry re-reads authority and repeats authorization because repairing configuration does not itself grant permission. Dismissing a diagnostic leaves the underlying problem unchanged. The system has no persisted last-known-good execution authority, so a stale backup cannot silently authorize work. Validation happens at load time; there are no filesystem watchers, so external edits are noticed on reload, on restart or when the feature next loads the file.
 
 The summary cache lets conversation-list rows show fields such as model and profile without opening every conversation document. Reading a summary never loads that conversation; missing or invalid cache entries display unknown fields so a disposable projection cannot block execution or trigger a startup scan. See [conversation state and attention](conversation-state-and-attention.md) for consumer ownership.
 
 ## Where it lives
 
-| Concern                          | Owner                                                                                                                                                                                                                                                          |
-| -------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Scope roots and agent paths      | [`ConfigurationScopePaths`](../../packages/workbench-server/src/infrastructure/configuration/scope-paths.ts) and [`AgentConfigurationPaths`](../../packages/workbench-server/src/infrastructure/configuration/agent-configuration/document-adapters.ts)        |
-| Atomic saves and publication     | [`ScopedDocumentStore`](../../packages/workbench-server/src/infrastructure/configuration/scoped-store/scoped-document-store.ts) and [store tests](../../packages/workbench-server/src/infrastructure/configuration/scoped-store/scoped-document-store.test.ts) |
-| Loaded generations and summaries | [`AgentConfigurationService`](../../packages/workbench-server/src/infrastructure/configuration/agent-configuration/agent-configuration-service.ts), especially `getSummary`                                                                                    |
-| Request capture                  | [`createScopedAgentConfiguration`](../../packages/workbench-server/src/core-host/scoped-agent-configuration.ts) and [request freshness tests](../../packages/conversation-core/src/runtime/request-freshness.test.ts)                                          |
-| Execution admission and restart  | [`ToolCallService`](../../packages/conversation-core/src/tool-calls/tool-call.service.ts) and [admission tests](../../packages/conversation-core/src/tool-calls/execution-admission.test.ts)                                                                   |
-| Reload and confirmed repair      | [`createConfigurationReload`](../../packages/workbench-server/src/core-host/configuration-reload.ts) and [`createScopedRepair`](../../packages/workbench-server/src/infrastructure/configuration/agent-configuration/scoped-repair.ts)                         |
+| Concern                          | Owner                                                                                                                                                                                                                                                                                                                                                                                                    |
+| -------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Scope roots and agent paths      | [`ConfigurationScopePaths`](../../packages/workbench-server/src/infrastructure/configuration/scope-paths.ts) and [`AgentConfigurationPaths`](../../packages/workbench-server/src/infrastructure/configuration/agent-configuration/document-adapters.ts)                                                                                                                                                  |
+| Atomic saves and publication     | [`ScopedDocumentStore`](../../packages/workbench-server/src/infrastructure/configuration/scoped-store/scoped-document-store.ts) and [store tests](../../packages/workbench-server/src/infrastructure/configuration/scoped-store/scoped-document-store.test.ts)                                                                                                                                           |
+| Loaded generations and summaries | [`AgentConfigurationService`](../../packages/workbench-server/src/infrastructure/configuration/agent-configuration/agent-configuration-service.ts), especially `getSummary`                                                                                                                                                                                                                              |
+| Request capture                  | [`createScopedAgentConfiguration`](../../packages/workbench-server/src/core-host/scoped-agent-configuration.ts) and [request freshness tests](../../packages/conversation-core/src/runtime/request-freshness.test.ts)                                                                                                                                                                                    |
+| Execution admission and restart  | [`ToolCallService`](../../packages/conversation-core/src/tool-calls/tool-call.service.ts) and [admission tests](../../packages/conversation-core/src/tool-calls/execution-admission.test.ts)                                                                                                                                                                                                             |
+| Project file versions and health | [`ProjectMigrationService`](../../packages/workbench-server/src/infrastructure/configuration/project-migration/project-migration.ts), [type registry](../../packages/workbench-server/src/infrastructure/configuration/project-migration/descriptors.ts) and [agent configuration chains](../../packages/workbench-server/src/infrastructure/configuration/agent-configuration/project-chains/README.md) |
+| Project health notices           | [`ProjectConfigurationHealthWatcher`](../../packages/workbench-app/src/lib/app/shell/ProjectConfigurationHealthWatcher.svelte)                                                                                                                                                                                                                                                                           |
+| Reload and confirmed repair      | [`createConfigurationReload`](../../packages/workbench-server/src/core-host/configuration-reload.ts) and [`createScopedRepair`](../../packages/workbench-server/src/infrastructure/configuration/agent-configuration/scoped-repair.ts)                                                                                                                                                                   |
