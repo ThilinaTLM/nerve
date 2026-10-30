@@ -277,3 +277,33 @@ test("a resolved configuration without a model is unavailable, not a draft-creat
     stop();
   }
 });
+
+test("failed refreshes and unavailable profiles never present an earlier preview as current", async () => {
+  const { mount } = await harness();
+  const s = setup();
+  const { view, stop } = mount(s.deps);
+  try {
+    s.setPending({ ...s.pending(), explicitAgentProfile: "planning" });
+    flushSync();
+    s.requests[0]!.resolve(available());
+    await settle();
+    assert.equal(view.resolution?.settings.model?.modelId, "test");
+    s.setPending({
+      ...s.pending(),
+      explicitAgentProfile: "planning",
+      overrides: { permissionRuleSetId: "read_only" },
+    });
+    flushSync();
+    assert.equal(view.resolution, undefined);
+    s.requests[1]!.resolve({ status: "unavailable", diagnostics: [] });
+    await settle();
+    assert.equal(view.resolution, undefined);
+    assert.equal(view.status, "unavailable");
+    s.setPending({ ...s.pending(), explicitAgentProfile: "missing" });
+    flushSync();
+    assert.equal(s.requests.length, 2);
+    assert.equal(view.resolution, undefined);
+  } finally {
+    stop();
+  }
+});
