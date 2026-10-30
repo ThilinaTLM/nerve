@@ -67,7 +67,10 @@ export function createModelPort(
           `Model unavailable: ${selection.provider}/${selection.modelId}`,
         );
       const credentials = await auth.requestAuthForPiModel(model);
-      return { model, ...credentials };
+      const requestModel = credentials?.baseUrl
+        ? { ...model, baseUrl: credentials.baseUrl }
+        : model;
+      return { model: requestModel, ...credentials };
     },
   };
 }
