@@ -52,17 +52,18 @@ void test("failures aggregate, preserve raw metadata, survive clear, and disappe
     1,
     "retention does not evict attention",
   );
-  await assert.rejects(notice.delete("bad"), /Could not remove files/);
+  await assert.rejects(notice.delete(["bad"]), /Could not remove files/);
   assert.equal(activities.list().length, 1);
   notice.report("child", new Error("later read failed"));
   await Promise.resolve();
   assert.equal(activities.list()[0].id, first.id);
   assert.ok(activities.list()[0].revision > first.revision);
   deny = false;
-  assert.deepEqual(await notice.delete("bad"), { removed: 1 });
+  // Deleting the parent also removes the child, so the batch skips it.
+  assert.deepEqual(await notice.delete(["bad", "child"]), { removed: 1 });
   await Promise.resolve();
   assert.deepEqual(activities.list(), []);
-  assert.deepEqual(await notice.delete("missing"), { removed: 0 });
+  assert.deepEqual(await notice.delete(["missing"]), { removed: 0 });
   notice.report("already-deleted", new Error("stale reader"));
   await Promise.resolve();
   assert.deepEqual(activities.list(), []);

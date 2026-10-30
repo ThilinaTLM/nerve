@@ -1,7 +1,12 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import type { Activity } from "@nervekit/contracts/activity";
-import { buildNotifications, notificationRank } from "./notifications.js";
+import {
+  buildNotifications,
+  groupUnreadableConversations,
+  notificationRank,
+  type NotificationItem,
+} from "./notifications.js";
 
 const iso = (minutesAgo: number) =>
   new Date(Date.UTC(2026, 0, 1, 12, 0) - minutesAgo * 60_000).toISOString();
@@ -161,4 +166,49 @@ test("unreadable conversations stay in one non-dismissible attention item with d
   assert.deepEqual(item.unreadableConversations, unreadableConversations);
   assert.equal(item.conversationId, undefined);
   assert.equal(item.action, undefined);
+});
+
+test("unreadable conversations summarize projects and show a shared error once", () => {
+  const entry = (id: string, projectId: string, error = "bad payload") => ({
+    id,
+    title: id,
+    projectId,
+    projectName: projectId.toUpperCase(),
+    error,
+  });
+  const build = (
+    unreadableConversations: ReturnType<typeof entry>[],
+  ): NotificationItem =>
+    buildNotifications({
+      ...base,
+      activities: [
+        activity("unreadable", {
+          status: "failed",
+          kind: "conversation.unreadable",
+          unreadableConversations,
+        }),
+      ],
+    })[0];
+  const shared = build([
+    entry("a", "p"),
+    entry("b", "q"),
+    entry("c", "p"),
+    entry("d", "r"),
+  ]);
+  assert.equal(shared.context, "P, Q +1 more");
+  assert.equal(shared.detail, "bad payload");
+  assert.deepEqual(
+    groupUnreadableConversations(shared.unreadableConversations!).groups.map(
+      (group) => [group.projectName, group.entries.map((e) => e.id)],
+    ),
+    [
+      ["P", ["a", "c"]],
+      ["Q", ["b"]],
+      ["R", ["d"]],
+    ],
+  );
+  assert.equal(
+    build([entry("a", "p"), entry("b", "p", "other")]).detail,
+    undefined,
+  );
 });

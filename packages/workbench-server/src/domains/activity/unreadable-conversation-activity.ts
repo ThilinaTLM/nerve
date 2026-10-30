@@ -34,11 +34,18 @@ export class UnreadableConversationActivity {
   forget(conversationId: string): void {
     if (this.#failures.delete(conversationId)) this.schedule();
   }
-  async delete(conversationId: string): Promise<{ removed: number }> {
-    if (!this.#failures.has(conversationId)) return { removed: 0 };
-    await this.options.delete(conversationId);
-    this.forget(conversationId);
-    return { removed: 1 };
+  /** Deletes in order and stops at the first failure; the rest stay listed. Ids already gone (e.g. deleted with an ancestor) are skipped. */
+  async delete(
+    conversationIds: readonly string[],
+  ): Promise<{ removed: number }> {
+    let removed = 0;
+    for (const id of new Set(conversationIds)) {
+      if (!this.#failures.has(id)) continue;
+      await this.options.delete(id);
+      this.forget(id);
+      removed += 1;
+    }
+    return { removed };
   }
   private schedule(): void {
     if (this.#scheduled) return;

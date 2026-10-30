@@ -4,7 +4,7 @@ type ActivityContext = ServerAdapterContexts["protocol"]["activity"];
 export const activityMethodHandlers =
   defineWorkbenchMethodHandlersFor<ActivityContext>()({
     "activity.deleteConversation": (context, params) =>
-      context.unreadableConversations.delete(params.conversationId),
+      context.unreadableConversations.delete(params.conversationIds),
     "activity.list": (context) => ({ activities: context.activities.list() }),
     "activity.cancel": (context, params) =>
       context.activities.cancel(params.activityId),

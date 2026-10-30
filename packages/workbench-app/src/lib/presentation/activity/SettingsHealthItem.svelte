@@ -1,12 +1,10 @@
-<!-- Persistent activity entries for settings files that need attention. -->
+<!-- Persistent notification entries for settings files that need attention. -->
 <script lang="ts">
-import CircleAlert from "@lucide/svelte/icons/circle-alert";
 import type {
   SettingsDocumentId,
   SettingsHealth,
 } from "@nervekit/contracts/settings";
-import { Button } from "@nervekit/ui-kit/components/ui/button";
-import ActivityEntry from "./ActivityEntry.svelte";
+import NotificationEntry from "./NotificationEntry.svelte";
 
 let {
   health,
@@ -31,50 +29,34 @@ let {
   data-testid="settings-health-item"
 >
   {#each health.invalid as item (item.id)}
-    <ActivityEntry
+    <NotificationEntry
+      tone="failed"
       title={`${item.id}.json needs attention`}
       titleHint={item.path}
-      description={`${item.reason.replace(/\.$/, "")} · ${
-        item.id === "permissions"
-          ? "Tool execution is blocked until repaired"
-          : "Using defaults until repaired"
-      }`}
-    >
-      {#snippet icon()}
-        <CircleAlert class="size-4 text-destructive" aria-hidden="true" />
-      {/snippet}
-      {#snippet footer()}
-        <Button
-          size="sm"
-          variant="ghost"
-          class="text-muted-foreground"
-          disabled={pending}
-          onclick={() => onReload(item.id)}>Reload</Button
-        >
-        <Button
-          size="sm"
-          variant="ghost"
-          class="text-muted-foreground"
-          disabled={pending}
-          onclick={() => onReset(item.id)}>Reset to defaults</Button
-        >
-      {/snippet}
-    </ActivityEntry>
+      context={item.id === "permissions"
+        ? "Tool execution is blocked until repaired"
+        : "Using defaults until repaired"}
+      detail={item.reason}
+      actions={[
+        {
+          label: "Reload",
+          disabled: pending,
+          onSelect: () => onReload(item.id),
+        },
+        {
+          label: "Reset to defaults",
+          disabled: pending,
+          onSelect: () => onReset(item.id),
+        },
+      ]}
+    />
   {/each}
   {#if error}
-    <ActivityEntry title="Couldn't check settings" description={error}>
-      {#snippet icon()}
-        <CircleAlert class="size-4 text-warning" aria-hidden="true" />
-      {/snippet}
-      {#snippet footer()}
-        <Button
-          size="sm"
-          variant="ghost"
-          class="text-muted-foreground"
-          disabled={pending}
-          onclick={onRetry}>Retry</Button
-        >
-      {/snippet}
-    </ActivityEntry>
+    <NotificationEntry
+      tone="warning"
+      title="Couldn't check settings"
+      detail={error}
+      actions={[{ label: "Retry", disabled: pending, onSelect: onRetry }]}
+    />
   {/if}
 </section>

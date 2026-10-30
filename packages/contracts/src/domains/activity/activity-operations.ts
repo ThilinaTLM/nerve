@@ -7,7 +7,7 @@ const removed = z.object({ removed: z.number().int().nonnegative() });
 export const activityOperationDefinitions = [
   defineOperation(
     "activity.deleteConversation",
-    z.object({ conversationId: z.string().min(1) }),
+    z.object({ conversationIds: z.array(z.string().min(1)).min(1) }),
     removed,
     "mutation",
     "recommended",
