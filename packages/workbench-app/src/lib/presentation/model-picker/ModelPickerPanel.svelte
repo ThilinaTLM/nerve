@@ -10,6 +10,7 @@ import {
   createListNavigation,
   PopoverBody,
   PopoverSearch,
+  usePopoverPresentation,
 } from "@nervekit/ui-kit/components/composites/popover-panel";
 import {
   VirtualScroller,
@@ -188,7 +189,11 @@ $effect(() => {
 });
 
 let searchRef = $state<HTMLInputElement | null>(null);
-onMount(() => searchRef?.focus());
+const presentation = usePopoverPresentation();
+// In a sheet, focusing search would raise the on-screen keyboard.
+onMount(() => {
+  if (presentation() !== "sheet") searchRef?.focus();
+});
 $effect(() => {
   void query;
   navigation.reset();

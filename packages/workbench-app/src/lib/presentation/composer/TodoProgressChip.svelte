@@ -27,6 +27,7 @@ const title = $derived(`Todos: ${completed} of ${total} complete`);
     ariaLabel="Todo progress"
     triggerTitle={title}
     side="top"
+    presentation="adaptive"
     align="end"
   >
     {#snippet trigger()}

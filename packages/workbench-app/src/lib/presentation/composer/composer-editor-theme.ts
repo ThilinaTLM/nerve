@@ -29,7 +29,8 @@ export const composerEditorTheme = EditorView.theme({
     borderRadius: "var(--radius-sm)",
   },
   ".cm-scroller": {
-    minHeight: "92px",
+    // ComposerEditor shrinks this on phones, where the transcript needs room.
+    minHeight: "var(--composer-editor-min-height, 92px)",
     maxHeight: "min(40vh, 320px)",
     overflow: "auto",
   },

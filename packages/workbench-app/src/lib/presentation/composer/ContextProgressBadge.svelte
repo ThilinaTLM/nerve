@@ -227,6 +227,7 @@ function requestCompact(): void {
     ariaLabel="Context usage"
     triggerTitle={title}
     side="top"
+    presentation="adaptive"
     align="end"
   >
     {#snippet trigger()}

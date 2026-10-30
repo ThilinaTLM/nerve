@@ -18,3 +18,7 @@ export { default as SelectRow } from "../select-row/select-row.svelte";
 
 export { default as PopoverCommandList } from "./popover-command-list.svelte";
 export { default as PopoverViews } from "./popover-views.svelte";
+export {
+  usePopoverPresentation,
+  type PopoverPresentation,
+} from "./presentation.js";

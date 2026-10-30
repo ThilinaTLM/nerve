@@ -10,6 +10,7 @@ import PopoverBody from "./popover-body.svelte";
 import PopoverSection from "./popover-section.svelte";
 import PopoverRow from "../select-row/select-row.svelte";
 import { createListNavigation } from "./list-navigation.svelte.js";
+import { usePopoverPresentation } from "./presentation.js";
 
 let {
   items,
@@ -65,9 +66,11 @@ $effect(() => {
   void query;
   navigation.reset();
 });
+const presentation = usePopoverPresentation();
 onMount(() => {
   // Let the primitive capture the trigger as its restore target first.
-  if (!autofocus) return;
+  // A sheet is a touch surface: focusing search would raise the keyboard.
+  if (!autofocus || presentation() === "sheet") return;
   const frame = requestAnimationFrame(() => input?.focus());
   return () => cancelAnimationFrame(frame);
 });
@@ -120,7 +123,7 @@ function keydown(event: KeyboardEvent) {
             aria-selected={isSelected(item)}
             data-disabled={isDisabled(item) || undefined}
             class={[
-              "min-h-7 rounded-md text-xs",
+              "min-h-control rounded-md text-xs",
               isSelected(item) && "bg-selected",
               navigation.activeDescendant === rowId(item) &&
                 "outline outline-1 -outline-offset-1 outline-ring/55",
