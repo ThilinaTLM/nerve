@@ -1,82 +1,71 @@
 # Codebase architecture
 
-> **Status:** Current implementation. [`scripts/shared/workspace-architecture.mjs`](../../scripts/shared/workspace-architecture.mjs), package manifests, export surfaces, and boundary checks are authoritative.
-
-Nerve is a twelve-package pnpm workspace. Paths communicate ownership: domain contracts are separate from runtime mechanics, product runtimes compose reusable libraries, and platform shells sit at the edge.
+Nerve separates the reusable agent engine from the workbench that hosts it. The server supplies storage and local environment services, the web app supplies the user interface, and the desktop shell manages the application window and server process. Shared contracts let these parts agree on domain data without tying that data to a particular connection or platform.
 
 ```mermaid
-flowchart TD
+flowchart TB
+  subgraph Foundation
+    contracts
+    protocol
+    native
+    ui-kit
+  end
+  subgraph Engine
+    harness --> skills
+    skills --> tools
+    harness --> conversation-core
+    tools --> conversation-core
+  end
+  subgraph Product
+    workbench-server --> desktop-shell
+    workbench-app
+  end
   contracts --> protocol
-  contracts --> harness
   native --> harness
-  harness --> skills
-  contracts --> tools
-  native --> tools
-  contracts --> conversation-core
-  native --> conversation-core
-  harness --> conversation-core
-  skills --> conversation-core
-  tools --> conversation-core
-  contracts --> workbench-server
-  native --> workbench-server
-  protocol --> workbench-server
-  harness --> workbench-server
-  skills --> workbench-server
-  tools --> workbench-server
   conversation-core --> workbench-server
-  contracts --> workbench-app
+  protocol --> workbench-server
   protocol --> workbench-app
   ui-kit --> workbench-app
-  contracts --> desktop-shell
-  workbench-server --> desktop-shell
 ```
 
-Arrows in the diagram mean “is consumed by.” `website` is standalone.
+Arrows mean “is consumed by.” The diagram highlights key direct dependencies; contracts supply shared domain types throughout the engine and product, so their other edges are omitted. The exact allowed graph lives in [`workspacePackages`](../../scripts/shared/workspace-architecture.mjs) and is enforced by the [boundary checker](../../scripts/checks/check-package-boundaries.mjs).
 
-| Package             | Ownership                                                                                     |
-| ------------------- | --------------------------------------------------------------------------------------------- |
-| `contracts`         | Transport-neutral schemas, events, operations, snapshots, and domain records                  |
-| `protocol`          | Sessions, RPC, replay, streams, backpressure, reconnect, and transport adapters               |
-| `native`            | Normalized Git and managed-process N-API capabilities                                         |
-| `harness`           | Agent loop, conversation harness, compaction, models, resources, and execution environment    |
-| `skills`            | Built-in skills and harness resource integration                                              |
-| `conversation-core` | Portable conversation storage, context, tool lifecycle, inputs, async bash and runtime        |
-| `tools`             | Canonical tool catalog, execution, policy, result projection, and Git services                |
-| `ui-kit`            | Contract-free shadcn primitives, generic composites, renderers, display helpers, and styles   |
-| `workbench-server`  | Host ports for core, bootstrap, channels, authentication/configuration and workbench services |
-| `workbench-app`     | Svelte composition, application workflows, vertical features, platform adapters, and UI       |
-| `desktop-shell`     | Electron lifecycle, daemon supervision, IPC, windows, tray, and packaging                     |
-| `website`           | Standalone Astro marketing and documentation site                                             |
+| Package             | Layer      | One-line responsibility                                                     |
+| ------------------- | ---------- | --------------------------------------------------------------------------- |
+| `contracts`         | Foundation | Transport-neutral domain schemas and policy contracts.                      |
+| `protocol`          | Foundation | Sessions, remote procedure calls, replay and transport lifecycle.           |
+| `native`            | Foundation | Rust-backed Git reads, managed processes, filesystem monitoring and search. |
+| `ui-kit`            | Foundation | Domain-independent UI primitives and shared styles.                         |
+| `harness`           | Engine     | Model execution and the agent loop, with conversation orchestration.        |
+| `skills`            | Engine     | Built-in skills and their integration with harness resources.               |
+| `tools`             | Engine     | Tool execution, policy and result projection.                               |
+| `conversation-core` | Engine     | Portable conversation storage and durable runtime behavior.                 |
+| `workbench-server`  | Product    | Host services, core composition and client-facing adapters.                 |
+| `workbench-app`     | Product    | Web UI, application workflows and feature state.                            |
+| `desktop-shell`     | Product    | Electron windows, integration and daemon supervision.                       |
+| `website`           | Standalone | Public website and documentation.                                           |
 
-## Naming
+## Reusable engine
 
-- TypeScript paths are kebab-case; Svelte/Astro components are PascalCase; Rust modules are snake_case.
-- Name files for concepts, not merely `types`, `state`, `helpers`, `utils`, or `operations`.
-- `*.service.ts` is a cohesive multi-operation domain/application service.
-- `*.repository.ts` owns authoritative record access; `*.store.ts` owns mutable in-memory/client state.
-- `*.adapter.ts` translates across a boundary; `*.policy.ts` makes pure decisions.
-- `index.ts` is a curated public boundary, never an internal import shortcut.
-- Avoid `common`, `shared`, and broad `utils` directories. Reusable code belongs to a named technical or domain area.
-- Small domains remain flat; add layer subdirectories only when they improve navigation.
-- Cohesive exceptions remain intentional: UI-kit `utils.ts`, domain-local `operations.ts`, curated `index.ts` boundaries, test-support helpers, narrowly scoped tools/server contract modules, and the desktop daemon composition boundary. `scripts/checks/source-naming-policy.mjs` is the complete authoritative inventory for production `types.ts`, `state.ts`, `helpers.ts`, `utils.ts`, `operations.ts`, and `composition.ts` exceptions; every new occurrence requires architecture review and an explicit inventory update.
+Contracts describe domain data and policy independently of transport. Protocol owns the mechanics of exchanging that data, including sessions, remote procedure calls and replay after reconnecting. Keeping those concerns separate lets core behavior work without a network connection.
 
-## Runtime composition boundaries
+The execution libraries build upward from native Git/process capabilities through model execution, skills and tools. Conversation core combines them into durable conversation behavior. A **port** is an interface through which the core asks its host for an environment service, such as model resolution or permission evaluation. Ports keep the core reusable because it can ask for those services without importing the workbench server or UI.
 
-- `conversation-core` depends on contracts, native, harness, skills and tools, never on workbench-server, protocol or UI. [`ConversationCore`](../../packages/conversation-core/src/core.ts) is its facade; [`ports.ts`](../../packages/conversation-core/src/ports.ts) isolates model resolution, turn resources, permissions, tool execution and processes. Core schemas belong in `contracts/src/domains/core`, not transport adapters.
-- `workbench-server` composes the core in [`app/bootstrap`](../../packages/workbench-server/src/app/bootstrap/) and implements its environment ports in [`core-host`](../../packages/workbench-server/src/core-host/). `RuntimeLifecycle` starts recovery and closes services. Adapters receive prebound capability contexts, not a runtime service locator.
-- [`adapters/protocol`](../../packages/workbench-server/src/adapters/protocol/) exposes independent `/ws/conversations` and `/ws/workbench` sessions. Conversation events replay directly from core SQLite; workbench notices are in-memory snapshot invalidations. The old `/ws` endpoint, journal and agent/run domains are gone. See [channels](conversation-core/channels.md) and [storage](storage.md).
-- `workbench-app` keeps mutable feature stores private. Workspace workflows consume application-owned readonly feature ports and named commands; composition installs and unregisters concrete implementations plus reverse selection/tab inputs. Presentation remains stateless and isolated from application, feature, and platform state.
-- `desktop-shell/main.ts` performs bootstrap safety, single-instance acquisition, and concrete runtime construction. `DesktopRuntime` owns Electron/daemon lifetime state and listener disposal through injected ports with idempotent `start()`/`dispose()`; window policy, network configuration, direct process spawning, systemd policy, and diagnostic capture live in focused adapters. The shell never opens storage; the server owns startup and migrations, and the web app renders them (see [startup](startup.md)).
+For example, changing how the local host resolves a model belongs in its port implementation; changing how conversation history is stored belongs in the core. See [conversation core](conversation-core/README.md) for the engine's internal boundaries.
 
-## Enforced surfaces
+## Product composition
 
-Package export allowlists live in [`scripts/checks/package-export-surfaces.mjs`](../../scripts/checks/package-export-surfaces.mjs). Contracts, protocol, harness, skills and tools expose curated boundaries; conversation-core exposes a curated package-root API. `pnpm build` verifies every declared concrete build target and each wildcard target after production artifacts are generated. Website token parity is checked at build/check time without adding a runtime UI-kit dependency.
+The server constructs the core and supplies its environment ports. Its protocol adapters expose durable conversation history and workbench invalidation notices—signals that clients should fetch fresh state. Storage stays with the domain owner so that transport recovery does not become a second persistence system. See [channels](conversation-core/channels.md).
 
-The canonical package inventory and allowed workspace dependencies live in [`scripts/shared/workspace-architecture.mjs`](../../scripts/shared/workspace-architecture.mjs). Package-specific `AGENTS.md` and README files define stricter local ownership rules. [`scripts/checks/check-package-boundaries.mjs`](../../scripts/checks/check-package-boundaries.mjs) is the runner for package, workbench, UI-style, and retired-surface checks in `scripts/checks/*-checks.mjs`, alongside the contracts, naming, server-test, and export policies. They share one repository source inventory and cached reads, covering tracked and non-ignored untracked files while excluding deleted paths. The command emits one sorted diagnostic report.
+The web app owns workflows and feature state. UI-kit supplies reusable primitives and styles without domain contracts, so presentation components can be reused without inheriting application state. [Conversation state and attention](conversation-state-and-attention.md) explains the application-owned state around conversations.
 
-## Cohesive implementation owners
+The desktop shell owns Electron windows and daemon supervision. The server owns storage initialization, while the web app renders progress and recovery. This division gives browser and desktop clients the same [startup](startup.md) behavior.
 
-- Tool-result policies choose profiles and strategies; `tools/src/result-projection/candidates/` owns candidate construction by semantic family. Artifact accounting, continuation metadata, semantic text, and terminal-resource selection have named owners rather than a general common module.
-- Conversation rendering projects core snapshots, selected history and live deltas through `features/conversations/adapters/core-transcript.adapter.ts`. Retained detail stores are shared by panes and read-only child peeks; project list stores consume summary notices only. Snapshot `lastSequence` fences replay recovery without reading the entire durable tail.
-- Git PR filters live in `features/git/pr-filters.ts`, independent of views. `PrResourceLoader` owns projection coalescing and initial-bundle/section version claims; QueryClient owns network results and freshness. The refresh coordinator binds endpoints, view projections, and polling demand. Discovery, overview, and PR-list request bookkeeping is grouped separately from rendered loading and mutation state.
-- Conversation-core owns tool-call durable transitions, waiters and recovery. Core delegation and async-bash handlers are registered through the facade; core-host supplies local environment executors. UI launch instances are a separate workbench service, not agent task state.
+## Where it lives
+
+| Concern                                      | Owner                                                                                                                                         |
+| -------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| Package graph and enforcement                | [`workspacePackages`](../../scripts/shared/workspace-architecture.mjs); [boundary checker](../../scripts/checks/check-package-boundaries.mjs) |
+| Portable core facade and host interfaces     | [`ConversationCore`](../../packages/conversation-core/src/core.ts); [ports](../../packages/conversation-core/src/ports.ts)                    |
+| Server construction and host implementations | [bootstrap](../../packages/workbench-server/src/app/bootstrap/); [core-host](../../packages/workbench-server/src/core-host/)                  |
+| Desktop lifetime                             | [`DesktopRuntime`](../../packages/desktop-shell/src/app/desktop-runtime.ts)                                                                   |

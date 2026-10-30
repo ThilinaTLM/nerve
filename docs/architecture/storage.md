@@ -1,97 +1,67 @@
 # Storage architecture
 
-> **Status:** Current implementation. Owning schemas, repositories and host adapters are authoritative.
+A Nerve home holds the server's persistent data and operational files. Conversation core owns relational conversation state, while the host supplies configuration, secrets and managed file storage. Some live state exists only in the running process; understanding that boundary explains what can be recovered after a restart.
 
-Nerve separates portable configuration, secrets, core relational data, managed files and disposable state. `NERVE_HOME` defaults to `~/.nerve`; development uses repo-local `data/storage-N`, not the live home.
-
-## Home boundaries
-
-[`storage-bootstrap/paths.ts`](../../packages/workbench-server/src/infrastructure/storage-bootstrap/paths.ts) owns home paths. The active layout includes:
-
-```text
-<NERVE_HOME>/
-├── manifest.json
-├── daemon.json
-├── config/                 # daemon, agent, conversation defaults, UI, catalogs, permissions
-├── secrets/                # master.key, credentials.enc, daemon-token
-├── data/
-│   ├── agent-profiles/     # complete reusable profile definitions
-│   ├── nerve.sqlite
-│   ├── conversations/      # owned tool files, bash output, reports, config overlays
-│   ├── launches/           # workbench launch logs
-│   ├── images/
-│   └── plans/
-├── agent/                  # user-authored instructions, skills and suggestions
-├── tls/
-├── tmp/
-├── cache/
-├── logs/
-├── crashes/
-└── backups/
+```mermaid
+flowchart TD
+  home[NERVE_HOME] --> identity[Manifest and daemon discovery]
+  home --> config[config/ and agent/: settings and authored resources]
+  home --> secrets[secrets/ and tls/: credentials and TLS material]
+  home --> data[data/]
+  data --> db[SQLite: core records, history, unfinished work]
+  data --> files[Files: owned output, profiles, file quarantine]
+  home --> recovery[migrations/ and quarantine/: upgrade recovery]
+  home --> disposable[cache/ and tmp/: rebuildable state]
+  home --> operations[logs/, crashes/, backups/: operational data]
+  runtime[Running process] --> memory[Memory: execution handles, streams, live notices]
+  runtime --> db
+  runtime --> files
 ```
 
-Optional directories are created lazily. `manifest.json` identifies the home format; homes without it, or with an older layout, are rejected rather than imported. Electron's profile lives outside this boundary and needs separate test isolation.
+## Home ownership
 
-- `config/` contains validated, atomically replaced human-readable settings. Invalid runtime-owned documents are preserved while runtime uses in-memory defaults; explicit reset quarantines originals. See [settings recovery](migrations.md#runtime-owned-settings).
-- `secrets/` holds restricted encrypted credentials and authentication material; plaintext secret values do not belong in configuration or SQLite.
-- `data/nerve.sqlite` owns projects, conversations, durable history and unfinished work.
-- Managed conversation files and overlays are deleted with their owner. Core asset references are relative to `data/`.
-- [Launch definitions](launch-definitions.md) are project files at `.nerve/launches/definitions.json`, not home database rows. Their architecture owns the catalog schema, folder/order invariants, and project-file mutation boundary. Launch logs are files; instance identity/status/environment are in memory.
-- `cache/` and `tmp/` are rebuildable; logs, crashes and backups have separate retention rules.
+The home defaults to `~/.nerve`; `NERVE_HOME` selects another location. Development uses repo-local slots so ordinary testing stays isolated from the live home. The manifest identifies the storage format, and daemon discovery describes the running server.
 
-Homes from 0.34.1 are converted to this layout by the first [storage migration](migrations.md).
+The diagram groups stable areas rather than enumerating files. Exact paths belong to the host's path resolver, including the query-cache database under `cache/` and file quarantine under `data/`. Recovery areas preserve evidence and damaged sources, while caches can be rebuilt. This distinction matters when deciding what a cleanup operation may safely remove.
 
-## Core SQLite
+Electron's profile lives outside the Nerve home, so tests that launch the shell need separate profile isolation. Home admission and conversion follow [storage migrations](migrations.md).
 
-[`conversation-core/src/storage`](../../packages/conversation-core/src/storage/) owns the database, SQL migrations and repositories. It uses synchronous `node:sqlite` on the main thread, WAL, foreign keys and small indexed queries. Transactions use `BEGIN IMMEDIATE`; nested calls join the outer transaction and asynchronous callbacks are rejected. JSON is validated by [`contracts/core`](../../packages/contracts/src/domains/core/) at repository boundaries.
+## SQLite and managed files
 
-There are **10 tables**, covering foundation records, conversation state/history/work and scratch notes. See [data model](conversation-core/data-model.md) for the table relationships rather than a second schema here. The core has no agent/run tables, domain-document store, journal/checkpoints, projections, RPC receipt table or separate durable notification store.
+Core SQLite stores conversation records, event history and unfinished work. Access is synchronous, with WAL (write-ahead logging) and foreign-key enforcement. Immediate write transactions give related durable changes a shared commit boundary; nested calls join the outer transaction, and asynchronous callbacks are rejected so work cannot escape it.
 
-Current configuration is separate from append-only event history. Every event links into the tree, even operational facts; selected-head history drives the transcript and model projection. Durable replay uses event sequence across all branches. Tool-call settlement and input delivery append facts and delete unfinished rows transactionally. See [events and context](conversation-core/events-and-context.md), [tool-call lifecycle](conversation-core/tool-call-lifecycle.md) and [input queue](conversation-core/input-queue.md).
+The [core data model](conversation-core/data-model.md) explains record relationships. Event-tree history selects what a conversation sees, while durable replay lets clients recover stored changes; see [events and context](conversation-core/events-and-context.md). Tool settlement and input delivery belong to the core's [tool lifecycle](conversation-core/tool-call-lifecycle.md) and [input queue](conversation-core/input-queue.md).
 
-`schema_migrations` records ordered SQL versions and checksums. Opening core storage applies missing steps transactionally and rejects unknown versions or changed checksums. This is not the old home-wide staging/promotion framework.
+Managed assets split metadata from bytes: database records identify the owner and relative file reference, while content lives beneath the host-supplied data root. For example, a tool's full output can remain in an owned file while the model receives a smaller projection. This keeps durable output available without forcing every consumer to load it; see [tool-result projection](tool-result-projection.md).
 
-## Files and permissions
+## Configuration and authored files
 
-[Scoped configuration](configuration.md) defines the common user (`<NERVE_HOME>/config/`), project (`<project>/.nerve/config/`) and conversation (`<NERVE_HOME>/data/conversations/<id>/config/`) roots across tools, skill selections, profiles, permission overlays and compaction. Built-in defaults have no writable root. Agent preferences and conversation prompt context live in scoped `agent.json`; SQLite retains working directory on `conversation`, not agent configuration. The same document defines shared path infrastructure, save guarantees and next-request freshness.
+Configuration describes current choices independently of event history. Agent preferences and prompt context live in scoped documents, while the conversation working directory remains in SQLite. A **scope** is the user, project or conversation location from which a configuration domain reads its settings. [Configuration](configuration.md) explains resolution and save guarantees.
 
-The host supplies an asset root at `<NERVE_HOME>/data`. New managed output lives under:
+Reusable agent definitions and their captured conversation settings belong to [profiles and delegation](conversation-core/delegation.md). Permission rule sets and trusted configuration layers belong to [permissions](permissions.md). Project [launch definitions](launch-definitions.md) are project-authored files so they can travel with the project; running launch instances belong to the workbench process.
 
-- `conversations/<conversationId>/tool-calls/<toolCallId>/...`
-- `conversations/<conversationId>/bash/<bashId>/...`
-- `conversations/<conversationId>/reports/<executionId>.md` (a sub-agent's full final response when it exceeded the notice cap)
+## Settings health
 
-`ASSET` tracks owner, logical path and file metadata; bytes stay outside SQLite. Imported assets can retain legacy relative locations. Images and plans also remain file-based. Complete results and bounded model/transcript projections are distinct concerns; see [Tool-result projection](tool-result-projection.md).
+Invalid runtime home settings use a separate recovery path from failed upgrades. The runtime preserves unreadable bytes, uses in-memory defaults and exposes a non-blocking health notice so the application remains available for repair. The authoritative document set comes from the settings-health contract and home configuration codecs.
 
-[`core-host/permission.adapter.ts`](../../packages/workbench-server/src/core-host/permission.adapter.ts) composes the selected rule set with overlays at:
+Writes stay blocked until explicit resolution so cached defaults cannot overwrite damaged sources. Reset quarantines the original before writing defaults; reload validates a user-repaired file before clearing the invalid state. Security-sensitive scoped configuration follows stricter health and authorization rules because a fallback must not grant execution authority. See [configuration](configuration.md).
 
-- User: `config/permissions.json`
-- Project: `<project>/.nerve/config/permissions.json`
-- Conversation: `data/conversations/<conversationId>/config/permissions.json`
+## Restart and recovery
 
-Custom rule sets are JSON files under `config/rule-sets/`. Project overlays apply only when file-content trust matches their digest. “Always allow” writes the selected overlay; there is no grant table. See [permissions](permissions.md).
+Persistence follows the owner of the state rather than whether the state appears in the UI:
 
-Agent preferences (model, reasoning, permission selection, compaction, retry, tools, skills and lead-only launch selections) live in user/project/conversation `config/agent.json`. Conversation documents also hold the applied profile snapshot, conversation-only `context.instructions`/`context.systemPrompt`, and child frozen defaults. SQLite has no `conversation_config`; working directory lives on `conversation`.
+- Core history and unfinished work survive restart. Native execution handles are process-local, so [async bash recovery](conversation-core/async-bash-and-launches.md) cannot simply resume or replay a command.
+- Streaming fragments, tool progress and workbench invalidation notices are ephemeral. Clients recover through snapshots and core replay so the workbench does not need a second durable journal; see [channels](conversation-core/channels.md).
+- UI drafts, attention and notifications follow their own persistence rules; see [conversation state and attention](conversation-state-and-attention.md).
+- Invalid home settings preserve their source bytes for explicit [reset/reload recovery](#settings-health). Security-sensitive scoped settings have stricter execution rules because fallback must not silently grant authorization.
 
-Creation/picker preferences live in user/project `config/conversation-defaults.json`. Reusable profiles are complete per-name definitions at `<NERVE_HOME>/data/agent-profiles/<name>.json` and `<project>/.nerve/agent-profiles/<name>.json`; project definitions shadow whole lower definitions. Existing conversations retain their applied snapshot until explicit switch/reapplication. See [profiles](agent-profiles.md).
+## Where it lives
 
-Prompt suggestions remain Markdown (built-in, `agent/suggestions/`, `<project>/.nerve/suggestions/`); enablement stays in `config/prompt-suggestions.json`. Suggestion predicate trust and permission/profile exact-byte trust retain their distinct identities.
-
-`cache/conversation-agent-summaries.json` holds disposable list display values, never executable settings. Missing cache entries remain unknown; startup does not enumerate conversation documents to fill them. See [scoped configuration](configuration.md) for configuration ownership and activation.
-
-Released v0.37.0 `harness.json`, `capabilities.json` and `subagents.json` are converted and retired by step `0002-agent-profiles`; frozen readers exist only inside that migration. Verified exports precede removal of SQLite agent configuration. Later-encountered projects upgrade before activation; no runtime dual-read fallback exists.
-
-## In-memory state and restart
-
-- Validated UI configuration saves publish directly. There are no file watchers; manual edits need restart for guaranteed activation or an explicit Reload/Retry re-read. Health diagnostics and confirmed repair previews preserve damaged sources; invalid required/security configuration blocks affected execution rather than silently inheriting.
-- Streaming text/thinking, argument drafts, tool progress and channel notices are ephemeral.
-- Workbench file and git monitors, integration health and the latest maintenance operation live in service memory. Reconnect re-fetches snapshots; no workspace replay is persisted.
-- Launch instances start empty after daemon restart; graceful shutdown cancels them. A crash may leave detached processes, intentionally without recovery.
-- Async bash identity/status/output references are durable, but native process handles are instance-local. The workbench adapter cannot reconstruct those handles after daemon restart, so previously running rows become `lost`; commands are not replayed.
-- Execution slots and in-progress command preparation live in memory; after a restart, the unfinished tool-call and input rows drive recovery. Pause is stored and survives restarts. See [async bash and launches](conversation-core/async-bash-and-launches.md) and [channels](conversation-core/channels.md).
-
-Stopping a conversation pauses it and cascades through descendants/async bash. Deletion stops work before removing files and rows; project deletion leaves project-authored files untouched.
-
-## Migrations
-
-See [storage migrations](migrations.md).
+| Concern                                  | Owner                                                                                                                                                                                                                  |
+| ---------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Home selection and exact paths           | [`resolveDataDir` and `storagePaths`](../../packages/workbench-server/src/infrastructure/storage-bootstrap/paths.ts)                                                                                                   |
+| Database access and transaction behavior | [`openCoreDatabase`](../../packages/conversation-core/src/storage/database.ts)                                                                                                                                         |
+| Ordered, checksummed SQL upgrades        | [`migrate`](../../packages/conversation-core/src/storage/migrations.ts)                                                                                                                                                |
+| Asset root supplied by the host          | [`ConversationCoreOptions.dataDir`](../../packages/conversation-core/src/core.ts)                                                                                                                                      |
+| Home settings recovery                   | [`settingsDocumentIdSchema`](../../packages/contracts/src/domains/settings/settings-health.ts); [`readHomeConfiguration`](../../packages/workbench-server/src/infrastructure/configuration/home-configuration.ts)      |
+| Home document mapping                    | [`storagePaths`](../../packages/workbench-server/src/infrastructure/storage-bootstrap/paths.ts); [configuration codecs](../../packages/workbench-server/src/infrastructure/configuration/home-configuration-codecs.ts) |

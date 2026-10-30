@@ -1,6 +1,6 @@
 /**
  * Pure decision logic for attention delivery (see
- * docs/proposals/conversation-composer-and-attention/notifications-ux.md).
+ * docs/architecture/conversation-state-and-attention.md).
  */
 
 export type AttentionKind = "input" | "finished" | "failed" | "interrupted";

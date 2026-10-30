@@ -1,60 +1,58 @@
 # Input queue
 
-Part of the [conversation core redesign](README.md).
+The input queue holds prompts and system notices until a conversation can safely deliver them to history. People, parent conversations and internal producers share the same ordering mechanism. An input can be reserved for a particular execution—a span of model turns—or for a later execution; this is execution targeting. Command preparation and targeting let inputs wait for the right boundary without interrupting unfinished tool work.
 
-One queue holds user prompts, parent prompts and system notices. Rows contain only undelivered inputs: no delivered or cancelled state and no separate idempotency key. Image locations stay in prompt text; there is no attachment column.
+Part of [conversation core](README.md).
 
-## Sources
+```mermaid
+flowchart LR
+    I[Prompt or notice] --> A[Accept and deduplicate]
+    A --> Q[Queued input]
+    Q --> P[Prepare executable blocks if present]
+    P --> B{Eligible boundary and no unfinished calls?}
+    B -->|wait| Q
+    B -->|yes| T[Transaction: append event + remove queue row]
+    T --> H[Conversation history]
+```
 
-| `source`              | Submitted by                                       | `content`                                                                                                                      |
-| --------------------- | -------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
-| `user`                | A person                                           | Prompt text, image paths and executable blocks                                                                                 |
-| `parent_conversation` | The parent conversation (`sender_conversation_id`) | Prompt text                                                                                                                    |
-| `system`              | An internal producer                               | Notice subtype (`async_bash_event`, `sub_conversation_event`, `user_intervention`, `notification`), producer and typed details |
+## Ordering and delivery
 
-Source does not grant priority or authority; delivery follows acceptance order. A conversation with a parent rejects `user` input; it takes work only from its parent (see [delegation](delegation.md#rules-enforced-for-every-sub-agent)).
+Acceptance order determines delivery order among eligible inputs, so source does not grant priority. Execution targeting selects eligible rows. An eligible prompt still undergoing command preparation blocks later delivery in that scan to preserve acceptance order. Safe boundaries occur between model turns or at execution start, after unfinished calls have settled, so new inputs cannot bypass an unresolved approval or question.
 
-## Delivery
+Delivery appends prompt or notice events, advances the head, updates prompt activity and deletes queue rows in one transaction. This ensures a crash cannot leave a delivered event with an undelivered copy of the same input.
 
-After command preparation and settlement of the current turn's tool calls, and before the next model request, one transaction:
+## Pause and waking
 
-1. Appends eligible inputs in acceptance order: prompts as `user_message`, notices as `system_event`.
-2. Advances the event head.
-3. Updates `last_user_message_at` for delivered prompts.
-4. Deletes the delivered queue rows.
+Acceptance and waking are separate decisions because a producer may want to queue context without starting model work. Targeting controls when an input can be delivered; the wake setting controls whether acceptance requests idle processing. These rules apply to queued inputs, including prompt preparation:
 
-Eligibility by `delivery_target`:
+| Source        | Respects pause?                             | Clears pause?                 | Can wake?                                                     |
+| ------------- | ------------------------------------------- | ----------------------------- | ------------------------------------------------------------- |
+| User          | Clears it before checking wake eligibility. | Yes, for pending submissions. | Yes, when waking is enabled.                                  |
+| Parent        | Yes.                                        | No.                           | Yes, when waking is enabled and the conversation is unpaused. |
+| System notice | Yes.                                        | No.                           | Yes, when waking is enabled and the conversation is unpaused. |
 
-| Target               | Eligible                                                                                           |
-| -------------------- | -------------------------------------------------------------------------------------------------- |
-| `next_turn`          | At the next safe turn boundary, including continuing an execution after a final assistant response |
-| `specific_execution` | Only during the execution started by `target_execution_id`                                         |
-| `next_execution`     | At the start of the next execution, optionally after `target_execution_id` finishes                |
+User and parent prompts enable waking by default; notice producers choose it explicitly. Retrying an already delivered input neither clears pause nor wakes processing. Child conversations, created by a parent to delegate work, reject user submissions; see [delegation](delegation.md).
 
-`wake_when_idle` decides whether accepting an input starts processing on an idle conversation or only queues it. System and parent inputs never override pause. Accepting a new user prompt clears pause and wakes normal processing.
+Replacement through force push uses [scheduler cancellation](tool-call-lifecycle.md#cancellation-and-force-push) to reach a safe boundary; it does not give the queued input special priority.
 
-Queued inputs never bypass an unresolved approval or question. Force push stops without setting pause, clears any existing pause and drains eligible queued inputs; see [cancellation and force push](tool-call-lifecycle.md#cancellation-and-force-push).
+## Retry identity
 
-## Identities
-
-- `input_id` identifies a submission. A sender reuses it when retrying; intentionally repeated text gets a new ID. Before delivery, deduplicate against the queue row; after delivery, against the event's `input_id`. Reuse with different content is rejected.
-- `turn_id` identifies one model invocation plus its tool processing. One prompt can lead to several turns, and several inputs can be delivered within one execution. An input identity is not a turn identity.
-- Internal tool-call IDs pair `TOOL_CALL` rows with responses; `provider_call_id` pairs model calls with assistant tool-call blocks.
+An input ID names one submission. Retrying a timed-out submission reuses its ID; deliberately sending the same text twice uses two IDs. Acceptance checks pending rows and delivered events, rejecting conflicting reuse, so a network retry cannot duplicate durable delivery. External command effects remain outside that guarantee.
 
 ## Command preparation
 
-Fenced `!!!` blocks in a prompt run before delivery, tracked per block in `command_preparation`:
+Fenced executable blocks are prepared before prompt delivery. Each block is checkpointed before execution and recorded results are reused. Interrupted effects become indeterminate rather than being rerun automatically, because a process may already have changed external state. A recorded completion means an outcome is known, including command failure.
 
-```text
-not_started | running | completed | cancelled | indeterminate | not_run
-```
-
-- Record progress before executing a block; reuse confirmed results.
-- Mark uncertain outcomes `indeterminate` instead of rerunning automatically.
-- `completed` means an outcome was recorded, not that the command succeeded.
-- `prepared_text` holds the prompt after block replacement; null means unfinished or not applicable.
-- Results are expanded into the prompt; receipts are preserved in the delivered `user_message` payload before the row is deleted.
+Prepared output replaces blocks in the delivered prompt, while the original text and preparation receipts remain in its event. Inline direct commands instead use the [tool-call lifecycle](tool-call-lifecycle.md#direct-user-commands), because their result can be recorded without a model turn.
 
 ## Cancellation
 
-Cancelling removes an undelivered row without writing an event. Deduplication therefore covers pending and delivered submissions, **not cancelled ones**: retrying a cancelled submission with the same `input_id` queues it again. This gap is accepted rather than adding a receipt or tombstone table.
+Cancellation aborts preparation and removes an undelivered row without appending an event. Deduplication therefore covers pending and delivered inputs, **not cancelled submissions**: retrying a cancelled ID can queue it again. This deliberate gap avoids retaining a separate cancellation ledger. Cancellation cannot undo effects a preparation command already performed.
+
+## Where it lives
+
+| Concern                                     | Owner                                                                                                                          |
+| ------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| Sources, targeting and payloads             | [`queuedInputSchema`, `submitInputRequestSchema`, `systemNoticeSchema`](../../../packages/contracts/src/domains/core/input.ts) |
+| Acceptance, eligibility and atomic delivery | [`InputQueueService`](../../../packages/conversation-core/src/inputs/input-queue.service.ts)                                   |
+| Executable-block checkpoints                | [`prepareCommands`](../../../packages/conversation-core/src/inputs/command-preparation.ts)                                     |

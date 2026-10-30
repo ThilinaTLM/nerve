@@ -4,14 +4,28 @@ Root `docs/` is for maintainers working across package boundaries. Public produc
 
 ## Current architecture
 
-- [Codebase architecture](architecture/codebase.md) — package ownership, dependencies, naming, and runtime composition boundaries.
-- [Storage architecture](architecture/storage.md) — `NERVE_HOME`, SQLite, managed files, capability and permission files, in-memory state.
-- [Scoped configuration](architecture/configuration.md) — shared scope directories, domain-owned layering, save guarantees and when changes take effect during execution.
-- [Launch definitions](architecture/launch-definitions.md) — authoritative project catalog schema, folders, manual ordering, mutation and concurrency boundaries, activity projection, and format conversion.
-- [Storage migrations](architecture/migrations.md) — how a home is upgraded between releases.
-- [Conversation core](architecture/conversation-core/README.md) — conversation as the portable agent core: data model, event tree, tool-call lifecycle, input queue, delegation and sub-agent profiles, channels and legacy import.
-- [Permissions](architecture/permissions.md) — permission rule sets, overlays and the evaluator.
-- [Tool-result projection](architecture/tool-result-projection.md) — complete result, agent projection and user projection: purpose, storage and transfer.
+Start with the codebase overview, then the conversation core.
+
+**Platform**
+
+- [Codebase architecture](architecture/codebase.md) — packages, layers and allowed dependencies.
+- [Startup and reconnection](architecture/startup.md) — daemon early bind, shell supervision, storage failure handoff and client reconnect.
+- [Storage architecture](architecture/storage.md) — `NERVE_HOME` areas, SQLite versus files versus memory, restart behavior and settings health.
+- [Storage migrations](architecture/migrations.md) — home upgrades, damage isolation, rollback and how to add a step.
+- [Scoped configuration](architecture/configuration.md) — user/project/conversation scopes, save guarantees and when changes take effect.
+
+**Conversations and agents**
+
+- [Conversation core](architecture/conversation-core/README.md) — the portable agent core: data model, events and context, tool-call lifecycle, input queue, delegation, async bash and channels.
+- [Agent profiles and delegation](architecture/conversation-core/delegation.md) — profile catalog and precedence, lead lifecycle, child configuration and sub-agent lifecycle.
+- [Permissions](architecture/permissions.md) — rule sets, overlays, guardrails and tool-call authorization.
+- [System prompt and tool descriptions](architecture/system-prompt.md) — prompt assembly and tool-writing rules.
+- [Tool-result projection](architecture/tool-result-projection.md) — complete payload, agent projection and user projection.
+- [Conversation state and attention](architecture/conversation-state-and-attention.md) — composer and drafts, execution status, summary activity and notifications.
+
+**Workbench**
+
+- [Launch catalog](architecture/launch-definitions.md) — saved project commands, folders, safe shared editing and client cache.
 
 ## Maintainer runbooks
 

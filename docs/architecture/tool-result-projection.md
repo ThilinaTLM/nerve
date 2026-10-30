@@ -1,88 +1,76 @@
 # Tool-result projection
 
-> **Status:** Being reworked on `feat/conversation-core`. This document is the target design.
+Tool results can contain far more data than a model request or transcript card should carry. Core saves the received result for inspection and builds two smaller representations: one for the model and one for the user. Each reader gets a representation suited to its cost and purpose, while managed files provide a route back to fuller evidence.
 
-A tool can return anything from one line to megabytes of output or an image. Neither the model nor the UI should receive that raw. Every tool call therefore has three forms of its result, one per reader:
+```mermaid
+flowchart TB
+  Result[Result received by core] --> Prepare[Prepare result and register assets]
+  Prepare --> Complete[Complete payload: managed result.json]
+  Prepare --> Agent[Agent projection: durable response event]
+  Prepare --> User[User projection: durable response event]
+  Complete --> Details[On-demand details and file inspection]
+  Agent --> Context[Subsequent model context]
+  User --> Transfer[History and live event transfer]
+  Transfer --> Transcript[Transcript cards]
+```
 
-| Form                 | Reader                 | Purpose                                             |
-| -------------------- | ---------------------- | --------------------------------------------------- |
-| **Complete result**  | Details view, recovery | Exact data, never truncated.                        |
-| **Agent projection** | The model              | Useful context without flooding the context window. |
-| **User projection**  | The transcript         | A small, fast, real-time view of what the call did. |
+## Three readers, three representations
 
-The three forms have different limits and must not share one.
+A **projection** is a selected representation of a result, rather than a second execution of the tool. The agent projection protects model context, where oversized output can be paid for again on later requests. The user projection keeps transcript rendering small and predictable. The complete payload supports inspection without loading full results for every card.
+
+“Complete” means the result received by core, independently of preview reduction. Execution may already have bounded capture or saved separate artifacts, so this payload cannot reconstruct bytes the tool never returned. Core also normalizes display data and replaces embedded image bytes with asset references before saving it.
+
+For example, a command with a long log can yield a short diagnostic summary for the model, a compact output preview for the transcript, and managed files for deeper investigation. These views serve different readers and therefore have independent reduction rules.
 
 ## Agent projection
 
-The agent projection is what the model sees in every later request. Its purpose is to protect the context window: each oversized result costs context on every following turn, crowds out the conversation's instructions and history, brings compaction closer, and makes the agent noticeably less capable.
+A tool policy first builds a **candidate**: the semantic content worth showing to the model. A **profile** supplies its inline and overflow budgets. A fitting candidate passes through unchanged; oversized candidates use a reduction strategy such as diagnostic selection or source continuation. “Unchanged” therefore refers to the candidate, which may already differ from raw output.
 
-- A result that fits its tool's budget is returned unchanged.
-- A larger result is reduced to the useful part (status, errors, the relevant lines, counts) and states that the complete result is saved, where it is, and how to read more with `read` or `grep`.
-- Status, errors, exit codes and continuation hints are kept before bulk output.
-- Each call has its own budget; parallel calls do not share one.
+Each call has its own budget so parallel calls do not compete for a shared allowance. Text is measured by lines and UTF-8 bytes, with item accounting where applicable. Images are outside this text accounting.
 
-### When a result is reduced
+Failures, denials, cancellations and interruptions take precedence over ordinary output so the model sees the outcome before bulk data. Their explanation does not imply rollback, because an interrupted operation may already have changed external state. Unknown tools and candidate-building failures use a conservative fallback so projection can still produce bounded context.
 
-Each tool has a profile with two budgets: an **inline** budget and an **overflow** budget. The projector first builds the tool's candidate text, then:
+Reduction can retain references to validated artifacts or the complete payload, allowing further inspection instead of treating a summary as the only evidence. Process output notices use the same projection machinery so background completion and ordinary tool settlement share policy.
 
-1. If the call failed, was denied, was cancelled or was interrupted, it uses the `terminal_outcome` profile (40 lines, 4 KB) to report the outcome.
-2. Otherwise, if the candidate fits the inline budget, it is sent unchanged. Fitting means at most that many lines **and** bytes of text, and at most that many items where the profile counts items. Images do not count towards the budget.
-3. Otherwise the tool's reduction strategy cuts it down to the overflow budget, for example the head of a file with a continuation offset, the first matches of a search, or the diagnostic lines of a failed command.
+| Concern                                     | Owner                                                                                                                     |
+| ------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| Candidate selection and terminal precedence | [`projectAgentResult`](../../packages/tools/src/result-projection/projector.ts)                                           |
+| Budgets                                     | [`AGENT_RESULT_PROFILES`](../../packages/tools/src/result-projection/profiles.ts)                                         |
+| Tool-specific policies                      | [`agentResultPolicyForTool`](../../packages/tools/src/result-projection/policies/index.ts) and neighboring policy modules |
+| Reduction behavior                          | [`strategies.ts`](../../packages/tools/src/result-projection/strategies.ts)                                               |
+| Process output and notices                  | [`projectProcessOutput`](../../packages/tools/src/result-projection/process-output.ts)                                    |
 
-Sub-agent final responses are not tool results. Core caps them itself when it builds a completion notice, and spills the full text to a report file; see [delegation](conversation-core/delegation.md#report-cap). The sub-agent tools' own results use the `lifecycle_state` profile below, so a long response shown by `subagent_status` can be reduced further, with the complete result saved as usual.
-
-| Profile                    | Tools                                                       | Inline budget                        | Overflow budget                        |
-| -------------------------- | ----------------------------------------------------------- | ------------------------------------ | -------------------------------------- |
-| `source_text`              | `read`                                                      | 202 lines, 24 KB (200 content lines) | same                                   |
-| `human_response`           | `ask_user`, plan review                                     | 202 lines, 24 KB (200 content lines) | same                                   |
-| `process_diagnostics`      | `bash`, `python_exec`, process output notices and log pages | 84 lines, 12 KB                      | 16 lines, 4 KB (8 items of up to 1 KB) |
-| `search_matches`           | `grep`                                                      | 80 lines, 16 KB                      | same                                   |
-| `file_listing`             | `find`, `ls`                                                | 120 lines, 12 KB, 120 items          | same                                   |
-| `search_summaries`         | `web_search`, Jira/Confluence search                        | 120 lines, 12 KB, 10 items           | same                                   |
-| `network_prose`            | `web_fetch` without a saved page                            | 120 lines, 16 KB                     | 12 lines, 3 KB                         |
-| `primary_file_result`      | `web_fetch` with a saved page, `kroki_export`, downloads    | 80 lines, 8 KB                       | 12 lines, 3 KB                         |
-| `resource_detail`          | Jira issue/project/board, Confluence page                   | 160 lines, 16 KB                     | same                                   |
-| `mutation_acknowledgement` | `edit`, `write`, plan presentation, Jira/Confluence changes | 40 lines, 4 KB                       | same                                   |
-| `lifecycle_state`          | async bash, sub-agent tools, todos                          | 80 lines, 8 KB                       | same                                   |
-| `vision_explanation`       | `explain_image`, `generate_image`                           | 100 lines, 12 KB                     | same                                   |
-| `terminal_outcome`         | any failed, denied, cancelled or interrupted call           | 40 lines, 4 KB                       | same                                   |
-| `conservative_fallback`    | unknown tools                                               | 200 lines, 24 KB                     | same                                   |
-
-The numbers live in [`profiles.ts`](../../packages/tools/src/result-projection/profiles.ts) and the tool-to-profile mapping in [`policies/index.ts`](../../packages/tools/src/result-projection/policies/index.ts); update this table when they change.
+Sub-agent completion reports have a separate lifecycle cap; see [delegation](conversation-core/delegation.md). The sub-agent tool's own result still passes through tool-result projection because it enters model context as a tool response.
 
 ## User projection
 
-The user projection is what a transcript card shows. Its purpose is a fast UI: the transcript renders hundreds of calls, updates live, and pages through long histories, so each card's data must be small and ready to draw.
+The settled transcript preview contains bounded argument and result data plus overflow metadata. Tool-specific summaries, such as edit diffs, can differ from the agent's candidate because users are inspecting what happened rather than consuming model context. Live progress is separate from this settled preview.
 
-- Usually six lines or items of output, the first or the last six depending on the tool, plus counts of what was hidden (lines, characters, items) and the status. Web results show up to ten items. Each preview text is capped at 8 KB.
-- Tools with a better summary use it, for example the diff of an `edit`.
-- It is built once, when the call finishes. While a call runs, live output deltas show progress and are not stored.
+Core builds the preview at settlement, and the app consumes it without loading the complete payload for every card. Preview limits belong to the shared builder so rendering components can rely on bounded input.
 
-## Complete result
+| Concern                      | Owner                                                                                                                                           |
+| ---------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| Argument and result previews | [`buildUserProjection`](../../packages/tools/src/result-projection/user-projection/tool-user-projection.ts)                                     |
+| App transcript adaptation    | `toolRecord` in [`core-transcript.adapter.ts`](../../packages/workbench-app/src/lib/features/conversations/adapters/core-transcript.adapter.ts) |
 
-The complete result is written once to the conversation's managed files (`data/conversations/<id>/tool-calls/<toolCallId>/result.json`, plus any files the tool produced) and tracked by `ASSET` rows. It is never copied into an event. The details view and the agent's own `read`/`grep` use it.
+## Persistence and transfer
 
-## Storage
+Result preparation saves the complete payload, registers produced files, validates artifact claims and builds both projections. An **artifact** is a separately retained file. Claims must resolve to registered files from that tool call, because an arbitrary claimed path is insufficient evidence of ownership.
 
-A `tool_call_response` event stores the agent projection, the user projection, the call's metadata (tool, arguments, outcome, supervision) and the IDs of its assets. Binary content such as images is stored as an asset and referenced by ID from both projections, never inlined as base64.
+The payload lives at `conversations/<id>/tool-calls/<toolCallId>/result.json` under the managed data directory. Managed assets carry producer ownership and event linkage; event-linked assets cannot be overwritten through the asset store's write operation, preserving settled evidence.
 
-## Transfer
+The durable response event holds the projections, call metadata and asset IDs. Ordinary event transfer omits the agent projection, keeping transcript delivery focused on the user preview. Opening details fetches the selected call's agent projection and complete payload on demand.
 
-| What                               | When                                       | Contains                                                          |
-| ---------------------------------- | ------------------------------------------ | ----------------------------------------------------------------- |
-| History pages, replay, live events | Always                                     | Events with the user projection; the agent projection is left out |
-| `toolCall.getDetails`              | When the user opens a card's details       | Agent projection and complete result for one call                 |
-| `GET /api/assets/:assetId`         | When a card or details view shows an image | The image bytes                                                   |
+| Concern                                    | Owner                                                                                                                |
+| ------------------------------------------ | -------------------------------------------------------------------------------------------------------------------- |
+| Result preparation and artifact validation | [`prepareToolResult`](../../packages/conversation-core/src/tool-calls/tool-result.service.ts)                        |
+| Managed paths, ownership and files         | [`AssetStore`](../../packages/conversation-core/src/assets/asset-store.ts)                                           |
+| Event transfer filtering                   | [`transferConversationEvent`](../../packages/contracts/src/domains/core/event.ts)                                    |
+| Protocol delivery and details operation    | [`createConversationProtocolSession`](../../packages/workbench-server/src/adapters/protocol/conversation-channel.ts) |
+| Details retrieval                          | `ConversationCore.getToolCallDetails` in [`core.ts`](../../packages/conversation-core/src/core.ts)                   |
 
-Pages are limited by size as well as count, so one large conversation cannot exceed the channel's message limit. An oversized reply fails that request with a clear error; it never ends the session.
+## Images and model context
 
-## Images
+Images returned in tool content become managed assets referenced by ID. They need not appear in both previews, because each projection chooses its own content. Model-context assembly resolves image references explicitly present in the agent projection; UI image requests use the asset HTTP route. Keeping bytes outside events avoids carrying binary payloads through transcript replay.
 
-The model sees an image only when it asked for one: a `read` of an image file, or a tool such as `explain_image`. Nothing attaches images to a request implicitly. The image is stored once as an asset; when the core builds the model request it inlines that asset's bytes into the tool result the model asked for. Transcript cards and the details view load images over HTTP from `/api/assets/:assetId`; image bytes never travel inside events or RPC replies.
-
-## Ownership
-
-- Projection contracts: [`tool-agent-projection.ts`](../../packages/contracts/src/domains/tools/tool-agent-projection.ts)
-- Agent projection strategies: [`packages/tools/src/result-projection/`](../../packages/tools/src/result-projection/)
-- Building both projections and writing the complete result: [`tool-result.service.ts`](../../packages/conversation-core/src/tool-calls/tool-result.service.ts) and [`asset-store.ts`](../../packages/conversation-core/src/assets/asset-store.ts)
-- Building model requests from events: [events and context](conversation-core/events-and-context.md)
+Image resolution is owned by [`loadProjectionOptions`](../../packages/conversation-core/src/context/asset-projection.ts). For how projections enter subsequent model requests, see [events and context](conversation-core/events-and-context.md).
