@@ -43,6 +43,8 @@ export interface NerveDesktopBridge {
     reportRendererCoreReady: () => Promise<{ ok: true }>;
     /** Normal app quit; stops an owned daemon. */
     quit: () => Promise<{ ok: true }>;
+    /** Dock/taskbar badge; 0 clears it. Best effort per platform. */
+    setBadgeCount: (count: number) => Promise<{ applied: boolean }>;
     onQuitStarted: (listener: () => void) => () => void;
   };
   notifications: {
@@ -181,4 +183,10 @@ export async function showDesktopNotification(
   const bridge = getDesktopBridge();
   if (!bridge) return { shown: false };
   return bridge.notifications.show(payload).catch(() => ({ shown: false }));
+}
+
+export async function setDesktopBadgeCount(count: number): Promise<void> {
+  await getDesktopBridge()
+    ?.app.setBadgeCount(count)
+    .catch(() => undefined);
 }

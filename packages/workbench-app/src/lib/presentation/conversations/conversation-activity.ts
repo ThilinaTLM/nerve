@@ -10,6 +10,7 @@ export type ConversationActivity = {
     | "awaiting-async"
     | "error"
     | "aborted"
+    | "result-ready"
     | "completed";
   tone: StatusTone;
   pulse: boolean;
@@ -17,7 +18,32 @@ export type ConversationActivity = {
   needsUser: boolean;
   clearableFailure?: boolean;
   label?: string;
+  /** Short second-line text for states the user should act on or read. */
+  statusText?: string;
 };
+
+type PendingInput = NonNullable<ConversationSummary["pendingInput"]>;
+
+const pendingInputText: Record<PendingInput["kind"], string> = {
+  approval: "Approval needed",
+  user_input: "Question for you",
+  plan_review: "Plan ready for review",
+  configuration_blocked: "Approval needed",
+};
+
+/**
+ * "Approval needed" for the conversation itself, "<sub-agent> · approval
+ * needed" when a descendant raised the request.
+ */
+export function pendingInputTitle(
+  rootId: string,
+  pendingInput: PendingInput,
+): string {
+  const text = pendingInputText[pendingInput.kind];
+  return pendingInput.conversationId === rootId
+    ? text
+    : `${pendingInput.conversationTitle} · ${text.charAt(0).toLowerCase()}${text.slice(1)}`;
+}
 
 export const idleConversationActivity: ConversationActivity = {
   indicator: "idle",
@@ -31,21 +57,19 @@ export const idleConversationActivity: ConversationActivity = {
 
 export function summaryActivity(
   row: ConversationSummary,
-  awaitingAsync = false,
+  options: { resultReady?: boolean } = {},
 ): ConversationActivity {
-  const status =
-    row.statusClearedAt &&
-    (row.status === "failed" || row.status === "interrupted")
-      ? "idle"
-      : row.status;
-  // Summary waiting means an unresolved tool approval or human input request.
-  if (status === "waiting")
+  const status = row.status;
+  if (status === "waiting" || row.pendingInput !== null)
     return {
       ...idleConversationActivity,
       indicator: "needs-user",
       tone: "warning",
       needsUser: true,
       label: "Needs your attention",
+      statusText: row.pendingInput
+        ? pendingInputTitle(row.id, row.pendingInput)
+        : "Needs your attention",
     };
   if (status === "failed")
     return {
@@ -54,6 +78,7 @@ export function summaryActivity(
       tone: "destructive",
       clearableFailure: true,
       label: "Agent error",
+      statusText: "Agent failed",
     };
   if (status === "running")
     return {
@@ -64,7 +89,7 @@ export function summaryActivity(
       busy: true,
       label: "Agent running",
     };
-  if (awaitingAsync)
+  if (row.pendingWork)
     return {
       ...idleConversationActivity,
       indicator: "awaiting-async",
@@ -75,8 +100,18 @@ export function summaryActivity(
     return {
       ...idleConversationActivity,
       indicator: "aborted",
+      tone: "destructive",
       clearableFailure: true,
       label: "Stopped",
+      statusText: "Interrupted",
+    };
+  if (options.resultReady)
+    return {
+      ...idleConversationActivity,
+      indicator: "result-ready",
+      tone: "success",
+      label: "Finished",
+      statusText: "Finished",
     };
   if (row.completedAt)
     return {

@@ -1,7 +1,9 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import type { ConversationSummary } from "@nervekit/contracts/core";
 import {
   idleConversationActivity,
+  summaryActivity,
   type ConversationActivity,
 } from "./conversation-activity";
 import {
@@ -10,13 +12,6 @@ import {
   conversationRowGlyph,
 } from "./conversation-row-state";
 
-const needsUser: ConversationActivity = {
-  ...idleConversationActivity,
-  indicator: "needs-user",
-  tone: "warning",
-  needsUser: true,
-  label: "Needs your attention",
-};
 const running: ConversationActivity = {
   ...idleConversationActivity,
   indicator: "running",
@@ -33,15 +28,47 @@ test("glyph is empty only for idle closed conversations", () => {
   assert.equal(conversationRowGlyph(running, false), "activity");
 });
 
-test("detail line is limited to needs-user and error", () => {
-  assert.deepEqual(conversationRowDetail(needsUser), {
-    text: "Needs your attention",
-    tone: "warning",
+test("detail line explains attention states and unseen results only", () => {
+  const row = (patch: Partial<ConversationSummary>, resultReady = false) =>
+    conversationRowDetail(
+      summaryActivity(
+        {
+          id: "c",
+          status: "idle",
+          pendingWork: false,
+          pendingInput: null,
+          ...patch,
+        } as ConversationSummary,
+        { resultReady },
+      ),
+    );
+  assert.deepEqual(
+    row({
+      pendingInput: {
+        conversationId: "child",
+        conversationTitle: "Researcher",
+        toolCallId: "t",
+        kind: "approval",
+      },
+    }),
+    { text: "Researcher · approval needed", tone: "warning" },
+  );
+  assert.deepEqual(row({ status: "failed" }), {
+    text: "Agent failed",
+    tone: "destructive",
   });
+  assert.deepEqual(row({ status: "interrupted" }), {
+    text: "Interrupted",
+    tone: "destructive",
+  });
+  assert.deepEqual(row({}, true), { text: "Finished", tone: "success" });
   assert.equal(conversationRowDetail(running), undefined);
   assert.equal(conversationNeedsAttention(running), false);
+  for (const indicator of ["error", "aborted"] as const) {
+    assert.equal(conversationNeedsAttention({ ...running, indicator }), true);
+  }
   assert.equal(
-    conversationNeedsAttention({ ...running, indicator: "error" }),
-    true,
+    conversationNeedsAttention({ ...running, indicator: "result-ready" }),
+    false,
   );
 });

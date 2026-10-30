@@ -25,7 +25,10 @@ import { transcriptMenu } from "$lib/features/conversations/views/conversation-m
 import type { TranscriptMenuTarget } from "$lib/presentation/conversations";
 import { createConversationRenderProjection } from "$lib/features/conversations/state/conversation-render-projection.svelte";
 
+import type { ComposerView } from "$lib/application/composer/composer-view.svelte";
+
 let {
+  composerView,
   activity,
   pendingWork = [],
   onOpenPendingWork,
@@ -121,7 +124,9 @@ let {
   onNavigateToEntry,
   onEditEntry,
   onOpenHistory,
-}: WorkbenchConversationAdapterProps = $props();
+}: WorkbenchConversationAdapterProps & {
+  composerView?: ComposerView;
+} = $props();
 
 setConversationUiCapabilities(
   workbenchConversationUiCapabilities({
@@ -358,6 +363,7 @@ function menuForTranscript(
 >
   {#snippet composer(activityContent)}
     <WorkbenchComposerAdapter
+      {composerView}
       activity={activityContent}
       text={composerText}
       {editorOverlay}

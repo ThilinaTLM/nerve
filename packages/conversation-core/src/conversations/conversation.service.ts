@@ -1,3 +1,4 @@
+import { publishSummary } from "../runtime/publish-summary.js";
 import type {
   LeadSettingsOverrides,
   ProfileTarget,
@@ -116,17 +117,12 @@ export class ConversationService {
       },
       config,
     );
-    this.options.emit({
-      kind: "conversation_changed",
-      summary: storage.conversations.getSummary(id)!,
-    });
+    publishSummary(storage, this.options.emit, id);
     this.options.emit({
       kind: "config_changed",
       conversationId: id,
       config: { ...config, ...this.options.summary?.(id) },
     });
-    if (input.parentConversationId)
-      this.emitParentSummary(input.parentConversationId);
     return this.snapshot(id);
   }
   snapshot(id: string): ConversationSnapshot {
@@ -162,11 +158,8 @@ export class ConversationService {
       ...(patch.clearStatus ? { statusClearedAt: now } : {}),
       updatedAt: now,
     });
-    this.options.emit({
-      kind: "conversation_changed",
-      summary: this.options.storage.conversations.getSummary(id)!,
-    });
-    this.options.status.refresh(id);
+    this.options.status.refresh(id, false);
+    publishSummary(this.options.storage, this.options.emit, id);
   }
   async configure(
     id: string,
@@ -198,10 +191,7 @@ export class ConversationService {
       conversationId: id,
       config,
     });
-    this.options.emit({
-      kind: "conversation_changed",
-      summary: this.options.storage.conversations.getSummary(id)!,
-    });
+    publishSummary(this.options.storage, this.options.emit, id);
     return config;
   }
   assertQuiescent(id: string): void {
@@ -249,10 +239,6 @@ export class ConversationService {
         title: deriveConversationTitle(messages[0].payload.originalText),
       });
   }
-  private emitParentSummary(parentId: string): void {
-    const summary = this.options.storage.conversations.getSummary(parentId);
-    if (summary) this.options.emit({ kind: "conversation_changed", summary });
-  }
   async delete(id: string): Promise<void> {
     const conversation = this.options.storage.conversations.get(id);
     if (!conversation) return;
@@ -274,6 +260,10 @@ export class ConversationService {
       this.options.emit({ kind: "conversation_deleted", conversationId });
     }
     if (conversation.parentConversationId)
-      this.emitParentSummary(conversation.parentConversationId);
+      publishSummary(
+        this.options.storage,
+        this.options.emit,
+        conversation.parentConversationId,
+      );
   }
 }

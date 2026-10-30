@@ -3,6 +3,7 @@ import type { Snippet } from "svelte";
 import ArrowLeft from "@lucide/svelte/icons/arrow-left";
 import Ban from "@lucide/svelte/icons/ban";
 import Bell from "@lucide/svelte/icons/bell";
+import BellOff from "@lucide/svelte/icons/bell-off";
 import BellRing from "@lucide/svelte/icons/bell-ring";
 import ChevronRight from "@lucide/svelte/icons/chevron-right";
 import CircleAlert from "@lucide/svelte/icons/circle-alert";
@@ -31,6 +32,7 @@ let {
   items = [],
   error,
   unseenFailure = false,
+  muted = false,
   attention,
   open = false,
   onOpenChange,
@@ -38,11 +40,14 @@ let {
   onAction,
   onDismiss,
   onClearFinished,
+  onToggleMute,
   onViewed,
 }: {
   items?: NotificationItem[];
   error?: string;
   unseenFailure?: boolean;
+  /** Sounds, toasts and pop-ups are muted in this window. */
+  muted?: boolean;
   /** A persistent entry above the list (e.g. settings health); the bell shows a warning badge while it exists. */
   attention?: Snippet;
   open?: boolean;
@@ -55,6 +60,8 @@ let {
   ) => void;
   onDismiss?: (id: string) => void;
   onClearFinished?: () => void;
+  /** Mute for an hour, or unmute when already muted. */
+  onToggleMute?: () => void;
   /** Called with the ids that have been on screen long enough to be read. */
   onViewed?: (ids: string[]) => void;
 } = $props();
@@ -78,8 +85,10 @@ const commandItems = $derived(
   })),
 );
 
+// The badge counts requests for input only; failures are grouped under
+// "Needs attention" but surface through the red dot.
 const needsYou = $derived(
-  items.filter((item) => notificationRank(item) === 0).length,
+  items.filter((item) => item.kind === "attention").length,
 );
 const running = $derived(
   items.filter((item) => item.kind === "running").length,
@@ -96,7 +105,7 @@ const unreadIds = $derived(
     .map((item) => item.id),
 );
 const label = $derived(
-  `Notifications${needsYou ? `, ${needsYou} need you` : running ? ", running" : ""}${unseenFailure ? ", unseen failure" : ""}${attention ? ", settings need attention" : ""}`,
+  `Notifications${needsYou ? `, ${needsYou} need you` : running ? ", running" : ""}${unseenFailure ? ", unseen failure" : ""}${muted ? ", muted" : ""}${attention ? ", settings need attention" : ""}`,
 );
 
 let now = $state(Date.now());
@@ -159,7 +168,10 @@ const childLabel = {
       class="relative"
       ariaLabel={label}
     >
-      {#if !needsYou && running}<Spinner class="size-4" />{:else}<Bell
+      {#if muted}<BellOff
+          class="size-4"
+          aria-hidden="true"
+        />{:else if !needsYou && running}<Spinner class="size-4" />{:else}<Bell
           class="size-4"
           aria-hidden="true"
         />{/if}
@@ -188,6 +200,9 @@ const childLabel = {
     meta={needsYou ? `${needsYou} need you` : undefined}
   >
     {#snippet actions()}
+      <Button variant="ghost" size="sm" onclick={() => onToggleMute?.()}
+        >{muted ? "Unmute" : "Mute 1 h"}</Button
+      >
       <Button
         variant="ghost"
         size="sm"

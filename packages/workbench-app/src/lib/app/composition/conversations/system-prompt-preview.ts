@@ -2,23 +2,20 @@ import { settingsOverrideView } from "$lib/application/agent-configuration/overr
 import {
   leadSettingsOverridesSchema,
   type ProfileTarget,
+  type LeadSettingsOverrides,
 } from "@nervekit/contracts/agent-configuration";
 import type { OperationParams } from "@nervekit/contracts/operations";
 import type { PendingConversationState } from "$lib/application/workspace/pending-conversations.svelte";
 
 type Pending = Pick<
   PendingConversationState,
-  | "id"
-  | "projectId"
-  | "config"
-  | "overrides"
-  | "explicitAgentProfile"
-  | "inheritedSettings"
+  "id" | "projectId" | "config" | "overrides" | "explicitAgentProfile"
 >;
 
 /** Capture current sparse choices and context before awaiting the server. */
 export function captureSystemPromptPreview(input: {
   pending?: Pending;
+  inherited?: LeadSettingsOverrides;
   targetProfile?: ProfileTarget;
   conversation?: { id: string; projectId: string };
 }):
@@ -44,7 +41,7 @@ export function captureSystemPromptPreview(input: {
         config: { systemPrompt, instructions, workingDirectory },
         overrides: settingsOverrideView(
           leadSettingsOverridesSchema.parse(pending.overrides ?? {}),
-          pending.inheritedSettings,
+          input.inherited,
         ),
         ...(input.targetProfile
           ? { agentProfile: { ...input.targetProfile } }

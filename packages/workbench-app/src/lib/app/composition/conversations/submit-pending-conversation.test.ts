@@ -17,12 +17,8 @@ function draft(): Pending {
     projectId: "proj_one",
     title: "New Conversation",
     config: {
-      model: { provider: "openai", modelId: "test" },
-      reasoningLevel: "off",
       systemPrompt: null,
       instructions: null,
-      permissionRuleSetId: "default",
-      agentProfile: "coding",
       workingDirectory: "/project",
     },
   } satisfies Pick<PendingConversationState, keyof Pending>;
@@ -47,6 +43,7 @@ function setup(pending = draft()) {
     return snapshot;
   };
   const dependencies = {
+    inherited: undefined as LeadSettingsOverrides | undefined,
     create,
     getSnapshot: async (id: string) => {
       calls.push(`get:${id}`);
@@ -85,7 +82,7 @@ function setup(pending = draft()) {
 test("retry replaces a previously created override when the draft returns to inheritance", async () => {
   const { pending, dependencies } = setup();
   const baseline = { model: { provider: "openai", modelId: "A" } };
-  pending.inheritedSettings = baseline;
+  dependencies.inherited = baseline;
   pending.overrides = { model: { provider: "openai", modelId: "B" } };
   let persisted: LeadSettingsOverrides = {};
   let failInput = true;
@@ -199,13 +196,13 @@ test("creation omits inherited agent values and binds explicit profiles to catal
 
 test("creation strips redundant draft choices against its authoritative lower layer", async () => {
   const { pending, created, dependencies } = setup();
-  pending.inheritedSettings = {
+  dependencies.inherited = {
     model: { provider: "openai", modelId: "inherited" },
     reasoningLevel: "off",
     tools: { web_search: { enabled: true } },
   };
   pending.overrides = {
-    ...pending.inheritedSettings,
+    ...dependencies.inherited,
     permissionRuleSetId: "read_only",
   };
   await submitPendingConversation(pending, "hello", dependencies);

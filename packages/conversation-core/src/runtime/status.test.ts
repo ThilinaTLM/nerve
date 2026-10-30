@@ -1,3 +1,5 @@
+import { ConversationService } from "../conversations/conversation.service.js";
+import type { CoreChange } from "./core-change.js";
 import assert from "node:assert/strict";
 import test from "node:test";
 import type { ExecutionStatePayload } from "@nervekit/contracts/core";
@@ -243,6 +245,68 @@ test("a held scheduler slot stays running until release, then reveals idle or fa
     processing = false;
     service.refresh("conv_test");
     assert.equal(storage.conversations.get("conv_test")?.status, "failed");
+  } finally {
+    storage.close();
+  }
+});
+
+test("clearing a failure publishes one refreshed summary and does not hide a later failure", () => {
+  const { storage, append } = fixture();
+  const changes: CoreChange[] = [];
+  const emit = (change: CoreChange) => {
+    changes.push(change);
+  };
+  let clock = now;
+  const status = new StatusService(
+    storage,
+    emit,
+    () => clock,
+    () => {},
+    () => false,
+  );
+  const conversations = new ConversationService({
+    storage,
+    status,
+    emit,
+    now: () => clock,
+  } as ConstructorParameters<typeof ConversationService>[0]);
+  try {
+    const started = append({
+      subtype: "execution_state",
+      transition: "started",
+    });
+    append({
+      subtype: "execution_state",
+      transition: "failed",
+      executionId: started.id,
+      failure: { message: "failed" },
+    });
+    status.refresh("conv_test");
+    assert.equal(
+      storage.conversations.getSummary("conv_test")!.status,
+      "failed",
+    );
+    clock = "2026-10-11T00:00:00.000Z";
+    changes.length = 0;
+    conversations.update("conv_test", { clearStatus: true });
+    assert.equal(changes.length, 1);
+    assert.equal(changes[0]!.kind, "conversation_changed");
+    if (changes[0]!.kind === "conversation_changed")
+      assert.equal(changes[0]!.summary.status, "idle");
+    append(
+      {
+        subtype: "execution_state",
+        transition: "failed",
+        executionId: started.id,
+        failure: { message: "new failure" },
+      },
+      "2026-10-12T00:00:00.000Z",
+    );
+    status.refresh("conv_test");
+    assert.equal(
+      storage.conversations.getSummary("conv_test")!.status,
+      "failed",
+    );
   } finally {
     storage.close();
   }

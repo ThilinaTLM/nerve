@@ -14,7 +14,6 @@ type PendingSubmission = Pick<
   | "explicitAgentProfile"
   | "config"
   | "overrides"
-  | "inheritedSettings"
   | "createdConversationId"
 >;
 type SnapshotIdentity = {
@@ -22,6 +21,7 @@ type SnapshotIdentity = {
   config: { agentProfile?: string };
 };
 type Dependencies<Snapshot extends SnapshotIdentity> = {
+  inherited?: LeadSettingsOverrides;
   create(
     input: Omit<OperationParams<"conversation.create">, "id">,
   ): Promise<Snapshot>;
@@ -51,7 +51,7 @@ export async function submitPendingConversation<
   const config = { systemPrompt, instructions, workingDirectory };
   const overrides = settingsOverrideView(
     leadSettingsOverridesSchema.parse(pending.overrides ?? {}),
-    pending.inheritedSettings,
+    dependencies.inherited,
   );
   const explicitProfile = pending.explicitAgentProfile;
   const retrying = pending.createdConversationId !== undefined;

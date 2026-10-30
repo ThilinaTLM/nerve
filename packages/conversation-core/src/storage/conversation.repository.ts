@@ -21,6 +21,33 @@ const LAST_PARENT_PROMPT = `(SELECT MAX(prompt_at) FROM (
     AND json_extract(payload, '$.senderConversationId') = c.parent_conversation_id
 ))`;
 
+// Seed only the requested rows, so list reads traverse each selected subtree once.
+function summaryQuery(where: string): string {
+  return `WITH RECURSIVE selected AS (SELECT * FROM conversation WHERE ${where}),
+    descendants(root_id, id) AS (
+      SELECT id, id FROM selected
+      UNION ALL
+      SELECT d.root_id, c.id FROM conversation c
+      JOIN descendants d ON c.parent_conversation_id = d.id
+    )
+    SELECT c.*, ${LAST_PARENT_PROMPT} AS last_parent_prompt_at,
+      (SELECT COUNT(*) FROM conversation child WHERE child.parent_conversation_id = c.id) AS child_count,
+      EXISTS(SELECT 1 FROM descendants d JOIN conversation work ON work.id = d.id
+        WHERE d.root_id = c.id AND (
+          (d.id != c.id AND work.status IN ('running', 'waiting')) OR
+          EXISTS(SELECT 1 FROM async_bash b WHERE b.conversation_id = d.id AND b.status = 'running') OR
+          (work.paused = 0 AND EXISTS(SELECT 1 FROM input_queue q WHERE q.conversation_id = d.id AND q.wake_when_idle = 1))
+        )) AS pending_work,
+      (SELECT json_object('conversationId', owner.id, 'conversationTitle', owner.title,
+          'toolCallId', t.id, 'kind', CASE WHEN t.state = 'awaiting_approval' THEN 'approval'
+            ELSE json_extract(t.interaction, '$.kind') END)
+        FROM descendants d JOIN tool_call t ON t.conversation_id = d.id
+        JOIN conversation owner ON owner.id = d.id
+        WHERE d.root_id = c.id AND t.state IN ('awaiting_approval', 'awaiting_input')
+        ORDER BY t.updated_at, t.id LIMIT 1) AS pending_input
+    FROM selected c`;
+}
+
 export class ConversationRepository {
   constructor(private readonly db: CoreDatabase) {}
 
@@ -101,11 +128,7 @@ export class ConversationRepository {
   }
 
   getSummary(id: string): ConversationSummary | null {
-    const row = this.db.sqlite
-      .prepare(
-        `SELECT c.*, ${LAST_PARENT_PROMPT} AS last_parent_prompt_at, (SELECT COUNT(*) FROM conversation child WHERE child.parent_conversation_id = c.id) AS child_count FROM conversation c WHERE c.id = ?`,
-      )
-      .get(id);
+    const row = this.db.sqlite.prepare(summaryQuery("id = ?")).get(id);
     return row ? mapSummary(row) : null;
   }
 
@@ -115,7 +138,7 @@ export class ConversationRepository {
   }): ConversationSummary[] {
     return this.db.sqlite
       .prepare(
-        `SELECT c.*, ${LAST_PARENT_PROMPT} AS last_parent_prompt_at, (SELECT COUNT(*) FROM conversation child WHERE child.parent_conversation_id = c.id) AS child_count FROM conversation c WHERE c.project_id = ? AND c.parent_conversation_id IS ? ORDER BY c.pinned_at DESC, c.updated_at DESC, c.id`,
+        `${summaryQuery("project_id = ? AND parent_conversation_id IS ?")} ORDER BY c.pinned_at DESC, c.updated_at DESC, c.id`,
       )
       .all(input.projectId, input.parentConversationId ?? null)
       .map(mapSummary);
@@ -182,6 +205,10 @@ function mapSummary(row: Record<string, SQLOutputValue>): ConversationSummary {
     ...mapConversation(row),
     lastParentPromptAt: row.last_parent_prompt_at,
     childCount: row.child_count,
+    pendingWork: row.pending_work === 1,
+    pendingInput: row.pending_input
+      ? JSON.parse(String(row.pending_input))
+      : null,
   });
 }
 

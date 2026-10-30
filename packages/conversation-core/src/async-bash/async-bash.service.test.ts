@@ -286,10 +286,15 @@ for (const exitCode of [0, 7, null]) {
         cancel: async () => {},
       };
       const processes = {} as ProcessPort;
+      const pendingSnapshots: boolean[] = [];
+      const observe = () =>
+        pendingSnapshots.push(
+          f.storage.conversations.getSummary("conv_1")!.pendingWork,
+        );
       const inputs = new InputQueueService({
         storage: f.storage,
         processes,
-        emit: () => {},
+        emit: observe,
         requestWake: () => {},
       });
       let finished!: () => void;
@@ -302,7 +307,9 @@ for (const exitCode of [0, 7, null]) {
         processes,
         inputs,
         emit: (change) => {
+          observe();
           if (
+            change.kind === "async_bash_changed" &&
             change.asyncBash.some(
               (row) => row.toolCallId === "tool_2" && row.status !== "running",
             )
@@ -334,6 +341,20 @@ for (const exitCode of [0, 7, null]) {
       assert.equal(notice.status, status);
       assert.equal(notice.producer, bash.id);
       assert.equal(f.storage.asyncBash.get(bash.id)?.exitCode, exitCode);
+      assert.ok(pendingSnapshots.length > 0);
+      assert.ok(
+        pendingSnapshots.every(Boolean),
+        "no quiet summary between process completion and wake delivery",
+      );
+      assert.equal(
+        f.storage.conversations.getSummary("conv_1")!.pendingWork,
+        true,
+      );
+      inputs.deliver("conv_1", { kind: "turn" });
+      assert.equal(
+        f.storage.conversations.getSummary("conv_1")!.pendingWork,
+        false,
+      );
     } finally {
       await f.close();
     }

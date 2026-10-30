@@ -12,6 +12,7 @@ import type {
   LiveDelta,
 } from "@nervekit/contracts/core";
 import { createId } from "@nervekit/contracts";
+import { suppressNextCompletion } from "$lib/application/activity/user-stop";
 import {
   installConversationReplaySequence,
   isConversationChannelReady,
@@ -501,6 +502,8 @@ export class ConversationStore {
   control(
     action: "pause" | "resume" | "stop" | "forcePush" | "continue" | "compact",
   ): Promise<null> {
+    // Stop ends as idle; tell attention so it is not announced as a result.
+    if (action === "stop") suppressNextCompletion(this.conversationId);
     return requestConversation(`conversation.${action}`, {
       conversationId: this.conversationId,
     });

@@ -19,6 +19,7 @@ import {
   idleConversationActivity,
   summaryActivity,
 } from "$lib/presentation/conversations/conversation-activity";
+import { unseenResults } from "$lib/application/activity/unseen-results.svelte";
 import { conversationLists } from "./conversation-lists.svelte";
 import { selection } from "$lib/application/workspace/selection.svelte";
 import {
@@ -71,8 +72,6 @@ function isActiveLaunchStatus(status: string): boolean {
 }
 
 const conversationActivityById = $derived.by(() => {
-  const pendingIds =
-    workspaceFeaturePorts().conversations.read.pendingAsyncConversationIds;
   return Object.fromEntries(
     [
       ...workspaceState.conversations,
@@ -80,7 +79,10 @@ const conversationActivityById = $derived.by(() => {
         ...list.roots,
         ...Object.values(list.children).flat(),
       ]),
-    ].map((row) => [row.id, summaryActivity(row, pendingIds.has(row.id))]),
+    ].map((row) => [
+      row.id,
+      summaryActivity(row, { resultReady: unseenResults.has(row.id) }),
+    ]),
   );
 });
 function centerTabKey(tab: CenterTabIdentity): string {

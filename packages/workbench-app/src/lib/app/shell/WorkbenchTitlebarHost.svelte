@@ -3,6 +3,8 @@ import SettingsHealthItem from "$lib/presentation/activity/SettingsHealthItem.sv
 import { settingsHealth } from "$lib/application/settings/settings-health-state.svelte";
 import ActivityPopover from "$lib/presentation/activity/ActivityPopover.svelte";
 import { activityInbox } from "$lib/application/activity/activity-state.svelte";
+import { unseenResults } from "$lib/application/activity/unseen-results.svelte";
+import { attentionMute } from "$lib/application/notifications";
 import { deriveNeedsYou } from "$lib/application/activity/needs-you";
 import { buildNotifications } from "$lib/presentation/activity/notifications";
 import Titlebar from "$lib/app/shell/Titlebar.svelte";
@@ -78,6 +80,25 @@ const notifications = $derived(
     readIds: activityInbox.readIds,
   }),
 );
+const unseenConversationFailure = $derived(
+  notifications.some(
+    (item) => item.conversationId && item.kind === "failed" && item.unread,
+  ),
+);
+
+function dismissNotification(id: string): void {
+  const finished = notifications.find(
+    (item) =>
+      item.id === id && item.conversationId && item.kind === "succeeded",
+  );
+  if (finished?.conversationId) unseenResults.delete(finished.conversationId);
+  else void activityInbox.action("dismiss", id);
+}
+
+function clearFinished(): void {
+  unseenResults.clear();
+  void activityInbox.clear();
+}
 const newConversationShortcut = getShortcutLabel("conversation.new");
 
 let pendingDelete = $state<DeleteTarget | undefined>();
@@ -213,7 +234,8 @@ async function handleDesktopClose() {
     <ActivityPopover
       items={notifications}
       error={activityInbox.error}
-      unseenFailure={activityInbox.unseenFailure}
+      unseenFailure={activityInbox.unseenFailure || unseenConversationFailure}
+      muted={attentionMute.muted}
       attention={settingsHealth.notice.health.invalid.length ||
       settingsHealth.notice.error
         ? settingsHealthItem
@@ -233,8 +255,10 @@ async function handleDesktopClose() {
           }
         } else void activityInbox.action(intent, item.id);
       }}
-      onDismiss={(id) => void activityInbox.action("dismiss", id)}
-      onClearFinished={() => void activityInbox.clear()}
+      onDismiss={dismissNotification}
+      onClearFinished={clearFinished}
+      onToggleMute={() =>
+        attentionMute.muted ? attentionMute.unmute() : attentionMute.mute()}
       onViewed={activityInbox.markRead}
     />
   {/snippet}

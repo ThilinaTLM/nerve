@@ -23,6 +23,8 @@ function conversation(
     createdAt: "2026-10-14T00:00:00Z",
     updatedAt: "2026-10-14T00:00:00Z",
     childCount: 0,
+    pendingWork: false,
+    pendingInput: null,
     agentProfile: "coding",
     model: { provider: "test", modelId: "test" },
     permissionRuleSetId: "default",
@@ -32,16 +34,14 @@ function conversation(
 
 test("inbox groups known async work separately without calling it human attention", () => {
   const conversations = [
-    conversation("async"),
+    conversation("async", { pendingWork: true }),
     conversation("human", { status: "waiting" }),
     conversation("running", { status: "running" }),
     conversation("failed", { status: "failed" }),
+    conversation("stopped", { status: "interrupted" }),
   ];
   const activityById = Object.fromEntries(
-    conversations.map((row) => [
-      row.id,
-      summaryActivity(row, row.id === "async" || row.id === "human"),
-    ]),
+    conversations.map((row) => [row.id, summaryActivity(row)]),
   );
   const model = buildMobileInbox({ conversations, activityById });
   assert.deepEqual(
@@ -49,6 +49,7 @@ test("inbox groups known async work separately without calling it human attentio
     [
       ["human", "warning"],
       ["failed", "destructive"],
+      ["stopped", "destructive"],
     ],
   );
   assert.deepEqual(
@@ -65,10 +66,9 @@ test("inbox groups known async work separately without calling it human attentio
 test("cleared failures and neutral terminal states belong in recent, not needs-you", () => {
   const conversations = [
     conversation("cleared", {
-      status: "failed",
+      status: "idle",
       statusClearedAt: "2026-10-14T00:00:00Z",
     }),
-    conversation("stopped", { status: "interrupted" }),
     conversation("completed", { completedAt: "2026-10-14T00:00:00Z" }),
   ];
   const model = buildMobileInbox({ conversations });
@@ -77,7 +77,6 @@ test("cleared failures and neutral terminal states belong in recent, not needs-y
     model.recent.map((row) => [row.conversationId, row.tone, row.kindLabel]),
     [
       ["cleared", "neutral", "Idle"],
-      ["stopped", "neutral", "Stopped"],
       ["completed", "neutral", "Completed"],
     ],
   );

@@ -31,11 +31,19 @@ export type NotificationItem = {
   unread: boolean;
   /** Present when the item navigates to a conversation. */
   conversationId?: string;
+  /** Lists under "Needs attention" without being a request for input. */
+  needsAttention?: boolean;
 };
 
-/** A conversation waiting on the user, derived from conversation state. */
+/** What a conversation item says: input required, failed/interrupted, or finished. */
+export type ConversationAttentionItemKind = "attention" | "failed" | "finished";
+
+/** A conversation needing the user or holding an unseen result. */
 export type NeedsYouInput = {
   id: string;
+  kind: ConversationAttentionItemKind;
+  /** Event title, e.g. "Approval needed" or "Agent failed". */
+  title: string;
   conversationId: string;
   conversationTitle: string;
   projectId?: string;
@@ -50,9 +58,15 @@ export type NotificationInput = {
   readIds: ReadonlySet<string>;
 };
 
-/** Needs-you first, then running, then finished. */
-export function notificationRank(item: Pick<NotificationItem, "kind">): number {
-  return item.kind === "attention" ? 0 : item.kind === "running" ? 1 : 2;
+/** Needs attention first, then running, then finished. */
+export function notificationRank(
+  item: Pick<NotificationItem, "kind" | "needsAttention">,
+): number {
+  return item.kind === "attention" || item.needsAttention
+    ? 0
+    : item.kind === "running"
+      ? 1
+      : 2;
 }
 
 const isFailure = (activity: Activity) =>
@@ -144,11 +158,16 @@ export function buildNotifications(
     childrenByParent.set(activity.parentId, siblings);
   }
   const attention = input.needsYou.map((entry): NotificationItem => {
-    const id = `attention:${entry.id}`;
+    const id = `${entry.kind}:${entry.id}`;
     return {
       id,
-      kind: "attention",
-      title: "Needs your attention",
+      kind:
+        entry.kind === "attention"
+          ? "attention"
+          : entry.kind === "failed"
+            ? "failed"
+            : "succeeded",
+      title: entry.title,
       context: [
         entry.projectId === input.activeProjectId
           ? undefined
@@ -162,6 +181,7 @@ export function buildNotifications(
       action: { label: "Open", intent: "open" },
       unread: !input.readIds.has(id),
       conversationId: entry.conversationId,
+      needsAttention: entry.kind !== "finished",
     };
   });
   const activities = input.activities

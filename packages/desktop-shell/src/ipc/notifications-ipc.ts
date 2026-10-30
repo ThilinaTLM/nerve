@@ -1,4 +1,8 @@
-import { ipcMain, Notification } from "../platform/electron/electron-api.js";
+import {
+  app,
+  ipcMain,
+  Notification,
+} from "../platform/electron/electron-api.js";
 
 export interface DesktopNotificationPayload {
   title: string;
@@ -12,6 +16,22 @@ export function registerNotificationsIpc(
   ipcMain.handle("desktop.notifications.show", (_event, payload) =>
     showNotification(payload),
   );
+  ipcMain.handle("desktop.app.setBadgeCount", (_event, count) =>
+    setDesktopBadgeCount(count),
+  );
+}
+
+/** Dock/taskbar badge. Best effort: unsupported platforms report `applied: false`. */
+export function setDesktopBadgeCount(count: unknown): { applied: boolean } {
+  if (typeof count !== "number" || !Number.isFinite(count)) {
+    return { applied: false };
+  }
+  const normalized = Math.min(Math.max(Math.trunc(count), 0), 9999);
+  try {
+    return { applied: app.setBadgeCount(normalized) };
+  } catch {
+    return { applied: false };
+  }
 }
 
 export function showDesktopNotification(

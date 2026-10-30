@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import type { Activity } from "@nervekit/contracts/activity";
-import { buildNotifications } from "./notifications.js";
+import { buildNotifications, notificationRank } from "./notifications.js";
 
 const iso = (minutesAgo: number) =>
   new Date(Date.UTC(2026, 0, 1, 12, 0) - minutesAgo * 60_000).toISOString();
@@ -36,6 +36,8 @@ test("orders needs-you, running, then finished, newest first", () => {
     needsYou: [
       {
         id: "c1",
+        kind: "attention",
+        title: "Approval needed",
         conversationId: "c1",
         conversationTitle: "Fix tests",
         at: iso(30),
@@ -98,4 +100,39 @@ test("omits the active project and tracks unread", () => {
   assert.equal(byId.fresh?.unread, true);
   assert.equal(byId.fresh?.detail, "denied");
   assert.equal(byId.fresh?.action?.intent, "retry");
+});
+
+test("conversation items: failures need attention, finished results do not", () => {
+  const items = buildNotifications({
+    ...base,
+    activities: [activity("done")],
+    needsYou: [
+      {
+        id: "f",
+        kind: "finished",
+        title: "Agent finished",
+        conversationId: "f",
+        conversationTitle: "Ship it",
+        at: iso(1),
+      },
+      {
+        id: "x",
+        kind: "failed",
+        title: "Agent failed",
+        conversationId: "x",
+        conversationTitle: "Broken",
+        at: iso(40),
+      },
+    ],
+  });
+  assert.deepEqual(
+    items.map((item) => [item.id, item.kind, notificationRank(item)]),
+    [
+      ["failed:x", "failed", 0],
+      ["finished:f", "succeeded", 2],
+      ["done", "succeeded", 2],
+    ],
+  );
+  assert.equal(items[0]?.title, "Agent failed");
+  assert.equal(items[1]?.conversationId, "f");
 });

@@ -51,6 +51,7 @@ const ipcChannels = [
   "desktop.startup.retry",
   "desktop.startup.rendererCoreReady",
   "desktop.app.quit",
+  "desktop.app.setBadgeCount",
 ] as const;
 
 export function createDesktopRuntime(

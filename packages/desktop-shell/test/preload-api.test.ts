@@ -47,6 +47,7 @@ function preloadApiShape() {
     app: {
       retryStartup: invoke,
       quit: invoke,
+      setBadgeCount: invoke,
       reportRendererCoreReady: invoke,
       onQuitStarted: subscribe,
     },
@@ -141,6 +142,7 @@ describe("desktop preload API", () => {
       api.window.getState(),
       api.app.retryStartup(),
       api.app.quit(),
+      api.app.setBadgeCount(3),
       api.daemon.getCapability(),
       api.daemon.restart(),
       api.settings.setCloseToTray(false),
@@ -158,6 +160,7 @@ describe("desktop preload API", () => {
       ["desktop.window.getState"],
       ["desktop.startup.retry"],
       ["desktop.app.quit"],
+      ["desktop.app.setBadgeCount", 3],
       ["desktop.daemon.getCapability"],
       ["desktop.daemon.restart"],
       ["desktop.settings.setCloseToTray", false],

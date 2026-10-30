@@ -172,8 +172,6 @@ function browseProjects() {
         item.activity.failed +
         item.activity.running +
         item.activity.awaitingAsync}
-      {@const combinedSignals =
-        conversationActivityCount > 0 && item.launches.running > 0}
       {@const active = item.key === activeKey}
       <ItemSurface
         tone="row"
@@ -191,28 +189,18 @@ function browseProjects() {
           ariaLabel={tabLabel(item)}
           onclick={() => onSelect?.(item.project.id)}
         >
-          {#if signal}
+          {#if signal && conversationActivityCount}
             <span
-              class={combinedSignals
-                ? "relative isolate h-4 w-7 flex-none"
-                : "inline-flex size-4 flex-none items-center"}
+              class={`inline-flex size-4 flex-none items-center justify-center rounded-full text-xs leading-none tabular-nums ${conversationSignalClass(signal.tone)}`}
               aria-hidden="true"
             >
-              {#if conversationActivityCount}
-                <span
-                  class={`${combinedSignals ? "absolute top-0 left-0" : "relative"} z-10 inline-flex size-4 items-center justify-center rounded-full border-[1.5px] border-background text-xs leading-none tabular-nums ${conversationSignalClass(signal.tone)}`}
-                >
-                  <span class="scale-90">{conversationActivityCount}</span>
-                </span>
-              {/if}
-              {#if item.launches.running}
-                <span
-                  class={`${combinedSignals ? "absolute top-0 right-0" : "relative"} z-0 inline-flex size-4 items-center justify-center rounded-sm border-[1.5px] border-background bg-info text-xs leading-none text-info-foreground tabular-nums`}
-                >
-                  <span class="scale-90">{item.launches.running}</span>
-                </span>
-              {/if}
+              <span class="scale-90">{conversationActivityCount}</span>
             </span>
+          {:else if item.activity.resultReady}
+            <span
+              class="size-2 flex-none rounded-full bg-success"
+              aria-hidden="true"
+            ></span>
           {/if}
           <span class="truncate">{item.label}</span>
         </Button>

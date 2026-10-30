@@ -31,9 +31,5 @@ function compileTimeReadonlyContract(ports: WorkspaceFeaturePorts): void {
   ports.launches.read.openLaunchTabIds.push("launch_1");
   // @ts-expect-error application consumers cannot replace feature map entries
   ports.conversations.read.asyncBashes.bash_1 = {};
-  // @ts-expect-error application consumers cannot mutate known pending work
-  ports.conversations.read.pendingAsyncConversationIds.add("conv_1");
-  // @ts-expect-error application consumers cannot replace known pending work
-  ports.conversations.read.pendingAsyncConversationIds = new Set();
 }
 void compileTimeReadonlyContract;

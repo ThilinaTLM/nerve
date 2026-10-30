@@ -1,3 +1,4 @@
+import { publishSummary } from "./publish-summary.js";
 import type { CoreStorage } from "../storage/core-storage.js";
 import type { InputQueueService } from "../inputs/input-queue.service.js";
 import type { ToolCallService } from "../tool-calls/tool-call.service.js";
@@ -130,10 +131,7 @@ export class ConversationScheduler {
     this.options.storage.conversations.update(id, {
       paused,
     });
-    this.options.emit({
-      kind: "conversation_changed",
-      summary: this.options.storage.conversations.getSummary(id)!,
-    });
+    publishSummary(this.options.storage, this.options.emit, id);
   }
   private async cancelOne(
     id: string,

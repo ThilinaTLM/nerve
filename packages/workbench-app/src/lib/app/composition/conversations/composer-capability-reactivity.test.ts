@@ -4,7 +4,7 @@ import { test } from "node:test";
 import { compileModule, parse } from "svelte/compiler";
 import ts from "typescript";
 
-void test("capability edits preserve the view; scope, project and profile changes reset it", async () => {
+void test("capability edits do not reload skills; scope, project and profile changes do", async () => {
   const component = await readFile(
     new URL("./WorkbenchComposerAdapter.svelte", import.meta.url),
     "utf8",
@@ -50,9 +50,7 @@ let activeConversation = $state(null);
 let activePendingConversation = $state({ id: 'draft', overrides: { subagents: { developer: { enabled: true } } } });
 let capabilityRefreshGeneration = 0;
 let capabilitySkills = [];
-let pendingCapabilityResolution = $state('ready');
 let capabilityError;
-let capabilityEditor = {};
 let configuringToolGroup;
 let refreshes = 0;
 async function refreshCapabilities() {
@@ -66,8 +64,7 @@ export function replaceDraft() { activePendingConversation = { ...activePendingC
 export function switchScope() { activePendingConversation.id = 'other-draft'; }
 export function switchProject() { activeProject.id = 'other-project'; }
 export function switchProfile() { activePendingConversation.explicitAgentProfile = 'planning'; }
-export function publish() { pendingCapabilityResolution = 'ready'; }
-export function view() { return { refreshes, resolution: pendingCapabilityResolution }; }
+export function view() { return { refreshes }; }
 `,
     { filename: "composer-capabilities.svelte.js", generate: "client" },
   ).js.code;
@@ -89,31 +86,27 @@ export function view() { return { refreshes, resolution: pendingCapabilityResolu
     switchScope(): void;
     switchProject(): void;
     switchProfile(): void;
-    publish(): void;
-    view(): { refreshes: number; resolution?: string };
+    view(): { refreshes: number };
   };
   const { flushSync } = (await import(clientUrl)) as { flushSync(): void };
   try {
     flushSync();
     assert.equal(harness.view().refreshes, 1);
-    harness.publish();
     flushSync();
     harness.edit();
     flushSync();
     harness.replaceDraft();
     flushSync();
-    assert.deepEqual(harness.view(), { refreshes: 1, resolution: "ready" });
+    assert.deepEqual(harness.view(), { refreshes: 1 });
     harness.switchScope();
     flushSync();
-    assert.deepEqual(harness.view(), { refreshes: 2, resolution: undefined });
-    harness.publish();
+    assert.deepEqual(harness.view(), { refreshes: 2 });
     harness.switchProject();
     flushSync();
-    assert.deepEqual(harness.view(), { refreshes: 3, resolution: undefined });
-    harness.publish();
+    assert.deepEqual(harness.view(), { refreshes: 3 });
     harness.switchProfile();
     flushSync();
-    assert.deepEqual(harness.view(), { refreshes: 4, resolution: undefined });
+    assert.deepEqual(harness.view(), { refreshes: 4 });
   } finally {
     harness.stop();
   }

@@ -114,15 +114,15 @@ export function buildMobileInbox(input: MobileInboxInput): MobileInboxModel {
           ? "running"
           : activity.indicator === "needs-user"
             ? "question"
-            : activity.indicator === "error"
+            : activity.indicator === "error" || activity.indicator === "aborted"
               ? "error"
               : activity.indicator === "awaiting-async"
                 ? "awaiting-async"
                 : "recent",
       conversationId: conversation.id,
       title: conversation.title,
-      kindLabel: activity.label ?? "Recent",
-      detail: activity.label ?? "",
+      kindLabel: activity.statusText ?? activity.label ?? "Recent",
+      detail: activity.statusText ?? activity.label ?? "",
       tone: activity.tone,
       pulse: activity.pulse,
       at: conversation.updatedAt,
