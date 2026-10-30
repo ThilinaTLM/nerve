@@ -116,7 +116,15 @@ const projectIssues = $derived(
 const newConversationShortcut = getShortcutLabel("conversation.new");
 
 let pendingDelete = $state<DeleteTarget | undefined>();
-let unreadableDelete = $state<UnreadableConversation>();
+let unreadableDelete = $state<UnreadableConversation[]>();
+const unreadableDeleteDescription = $derived.by(() => {
+  const entries = unreadableDelete ?? [];
+  const subject =
+    entries.length === 1
+      ? `“${entries[0].title || entries[0].id}”`
+      : `${entries.length} unreadable conversations`;
+  return `Delete ${subject} and all ${entries.length === 1 ? "its" : "their"} descendants? Stored messages and files will be permanently removed.`;
+});
 let pendingPrune = $state<PruneTarget | undefined>();
 const quickLimit = $derived(
   responsive.isPhone ? 1 : responsive.isCompact ? 2 : 5,
@@ -313,8 +321,8 @@ $effect(() => {
           }
         } else void activityInbox.action(intent, item.id);
       }}
-      onDeleteConversation={(entry) =>
-        fromPopover(() => (unreadableDelete = entry))}
+      onDeleteConversations={(entries) =>
+        fromPopover(() => (unreadableDelete = entries))}
       onDismiss={dismissNotification}
       onClearFinished={clearFinished}
       onToggleMute={() =>
@@ -360,16 +368,20 @@ $effect(() => {
 />
 
 <AlertDialog
-  open={!!unreadableDelete}
-  title="Delete unreadable conversation?"
-  description={unreadableDelete
-    ? `Delete “${unreadableDelete.title || unreadableDelete.id}” and all its descendants? Their stored messages and files will be permanently removed.`
-    : ""}
-  confirmLabel="Delete"
+  open={!!unreadableDelete?.length}
+  title={unreadableDelete?.length === 1
+    ? "Delete unreadable conversation?"
+    : "Delete unreadable conversations?"}
+  description={unreadableDeleteDescription}
+  confirmLabel={unreadableDelete?.length === 1
+    ? "Delete"
+    : `Delete ${unreadableDelete?.length ?? 0}`}
   destructive
   onConfirm={() => {
-    if (unreadableDelete)
-      void activityInbox.deleteConversation(unreadableDelete.id);
+    if (unreadableDelete?.length)
+      void activityInbox.deleteConversations(
+        unreadableDelete.map((entry) => entry.id),
+      );
   }}
   onOpenChange={(open) => {
     if (!open) unreadableDelete = undefined;

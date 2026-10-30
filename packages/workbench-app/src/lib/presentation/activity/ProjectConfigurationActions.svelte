@@ -1,7 +1,8 @@
-<!-- Open file / Reload / Reset (or Dismiss for migrated) for one configuration issue. -->
+<!-- Ghost-button row of an issue's actions, for surfaces outside the Notifications popover. -->
 <script lang="ts">
 import type { ProjectConfigurationIssue } from "@nervekit/contracts/projects";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
+import { projectConfigurationActions } from "./project-configuration-message";
 
 let {
   issue,
@@ -16,46 +17,17 @@ let {
   onReload: (issue: ProjectConfigurationIssue) => void;
   onReset: (issue: ProjectConfigurationIssue) => void;
 } = $props();
+const actions = $derived(
+  projectConfigurationActions(issue, pending, { onOpen, onReload, onReset }),
+);
 </script>
 
-{#if issue.classification === "migrated"}
+{#each actions as action (action.label)}
   <Button
     size="sm"
     variant="ghost"
     class="text-muted-foreground"
-    disabled={pending}
-    onclick={() => onReload(issue)}>Dismiss</Button
+    disabled={action.disabled}
+    onclick={action.onSelect}>{action.label}</Button
   >
-{:else}
-  <Button
-    size="sm"
-    variant="ghost"
-    class="text-muted-foreground"
-    onclick={() => onOpen(issue)}
-    >{issue.classification === "legacy" ? "Open folder" : "Open file"}</Button
-  >
-  <Button
-    size="sm"
-    variant="ghost"
-    class="text-muted-foreground"
-    disabled={pending}
-    onclick={() => onReload(issue)}>Reload</Button
-  >
-  {#if issue.classification === "legacy"}
-    <Button
-      size="sm"
-      variant="ghost"
-      class="text-muted-foreground"
-      disabled={pending}
-      onclick={() => onReset(issue)}>Remove old files</Button
-    >
-  {:else if issue.classification === "corrupted" && issue.resetOffered}
-    <Button
-      size="sm"
-      variant="ghost"
-      class="text-muted-foreground"
-      disabled={pending}
-      onclick={() => onReset(issue)}>Reset</Button
-    >
-  {/if}
-{/if}
+{/each}

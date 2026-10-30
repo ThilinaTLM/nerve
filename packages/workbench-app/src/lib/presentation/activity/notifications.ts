@@ -77,6 +77,54 @@ function repositoryName(path: string | undefined): string | undefined {
   return path?.split(/[\\/]/).filter(Boolean).pop();
 }
 
+export type UnreadableConversationEntry = NonNullable<
+  Activity["unreadableConversations"]
+>[number];
+export type UnreadableConversationGroup = {
+  key: string;
+  projectName: string;
+  entries: UnreadableConversationEntry[];
+};
+
+/** Groups by project in first-seen order; `sharedError` is set when every entry failed the same way, so it can be shown once. */
+export function groupUnreadableConversations(
+  entries: readonly UnreadableConversationEntry[],
+): { sharedError?: string; groups: UnreadableConversationGroup[] } {
+  const groups = new Map<string, UnreadableConversationGroup>();
+  for (const entry of entries) {
+    const key = entry.projectId || entry.projectName;
+    let group = groups.get(key);
+    if (!group) {
+      group = {
+        key,
+        projectName: entry.projectName || entry.projectId || "Unknown project",
+        entries: [],
+      };
+      groups.set(key, group);
+    }
+    group.entries.push(entry);
+  }
+  const first = entries[0]?.error;
+  return {
+    sharedError:
+      entries.length > 1 && entries.every((entry) => entry.error === first)
+        ? first
+        : undefined,
+    groups: [...groups.values()],
+  };
+}
+
+/** Muted list-row line naming the affected projects, e.g. "PPlied, aegira +1 more". */
+function unreadableContext(
+  entries: readonly UnreadableConversationEntry[],
+): string {
+  const names = groupUnreadableConversations(entries).groups.map(
+    (group) => group.projectName,
+  );
+  const shown = names.slice(0, 2).join(", ");
+  return names.length > 2 ? `${shown} +${names.length - 2} more` : shown;
+}
+
 function childStatus(activity: Activity): NotificationChild["status"] {
   if (activity.status === "succeeded") return "done";
   if (activity.status === "queued") return "queued";
@@ -98,16 +146,18 @@ function activityItem(
   const finishedChildren = children.filter(
     (child) => child.status === "succeeded",
   ).length;
-  const context = [
-    projectName,
-    repositoryName(scope?.repositoryPath),
-    running ? (activity.phase ?? activity.message) : undefined,
-    running && children.length
-      ? `${finishedChildren} of ${children.length}`
-      : undefined,
-  ]
-    .filter(Boolean)
-    .join(" · ");
+  const context = activity.unreadableConversations?.length
+    ? unreadableContext(activity.unreadableConversations)
+    : [
+        projectName,
+        repositoryName(scope?.repositoryPath),
+        running ? (activity.phase ?? activity.message) : undefined,
+        running && children.length
+          ? `${finishedChildren} of ${children.length}`
+          : undefined,
+      ]
+        .filter(Boolean)
+        .join(" · ");
   const progress =
     activity.progress ??
     (children.length
@@ -132,9 +182,12 @@ function activityItem(
           : "succeeded",
     title: activity.title,
     context,
-    detail: isFailure(activity)
-      ? (activity.error?.message ?? activity.message)
-      : undefined,
+    detail: activity.unreadableConversations?.length
+      ? groupUnreadableConversations(activity.unreadableConversations)
+          .sharedError
+      : isFailure(activity)
+        ? (activity.error?.message ?? activity.message)
+        : undefined,
     at: running
       ? activity.startedAt
       : (activity.finishedAt ?? activity.updatedAt),

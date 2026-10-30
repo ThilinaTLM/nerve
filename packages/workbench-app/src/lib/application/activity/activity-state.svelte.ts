@@ -124,16 +124,18 @@ export const activityInbox = {
     void controller.refresh();
   },
   action,
-  deleteConversation: async (conversationId: string): Promise<void> => {
+  deleteConversations: async (conversationIds: string[]): Promise<void> => {
     try {
-      await protocolRequest("activity.deleteConversation", { conversationId });
+      await protocolRequest("activity.deleteConversation", {
+        conversationIds,
+      });
       await controller.refresh();
       state.error = undefined;
     } catch (error) {
       state.error =
         error instanceof Error
           ? error.message
-          : "Could not delete conversation.";
+          : "Could not delete conversations.";
     }
   },
   clear: async () => {

@@ -1,11 +1,12 @@
-<!-- Persistent activity entries: one per project configuration issue. -->
+<!-- Persistent notification entries: one per project configuration issue. -->
 <script lang="ts">
-import CircleAlert from "@lucide/svelte/icons/circle-alert";
-import Info from "@lucide/svelte/icons/info";
 import type { ProjectConfigurationIssue } from "@nervekit/contracts/projects";
-import ActivityEntry from "./ActivityEntry.svelte";
-import { displayPath, issueMessage } from "./project-configuration-message";
-import ProjectConfigurationActions from "./ProjectConfigurationActions.svelte";
+import NotificationEntry from "./NotificationEntry.svelte";
+import {
+  displayPath,
+  issueMessage,
+  projectConfigurationActions,
+} from "./project-configuration-message";
 
 let {
   issues,
@@ -25,14 +26,6 @@ let {
   onReset: (issue: ProjectConfigurationIssue) => void;
 } = $props();
 
-function describe(issue: ProjectConfigurationIssue): string {
-  const message =
-    issue.classification === "migrated"
-      ? "Upgraded to the current format"
-      : issueMessage(issue);
-  return [projectName(issue.projectId), message].filter(Boolean).join(" · ");
-}
-
 function hint(issue: ProjectConfigurationIssue): string {
   return issue.classification === "legacy"
     ? (issue.files ?? []).join("\n")
@@ -46,35 +39,42 @@ function hint(issue: ProjectConfigurationIssue): string {
   data-testid="project-configuration-health"
 >
   {#each issues as issue (`${issue.projectId}:${issue.type}`)}
-    <ActivityEntry
+    <NotificationEntry
+      tone={issue.classification === "migrated"
+        ? "info"
+        : issue.classification === "corrupted"
+          ? "failed"
+          : "warning"}
       title={issue.label}
       titleHint={hint(issue)}
-      description={describe(issue)}
-    >
-      {#snippet icon()}
-        {#if issue.classification === "migrated"}
-          <Info class="size-4 text-info" aria-hidden="true" />
-        {:else}
-          <CircleAlert
-            class="size-4 {issue.classification === 'corrupted'
-              ? 'text-destructive'
-              : 'text-warning'}"
-            aria-hidden="true"
-          />
-        {/if}
-      {/snippet}
-      {#snippet footer()}
-        <ProjectConfigurationActions
-          {issue}
-          {pending}
-          {onOpen}
-          {onReload}
-          {onReset}
-        />
-      {/snippet}
-    </ActivityEntry>
+      context={[
+        projectName(issue.projectId),
+        issue.classification === "migrated"
+          ? "Upgraded to the current format"
+          : undefined,
+      ]
+        .filter(Boolean)
+        .join(" · ")}
+      detail={issue.classification === "migrated"
+        ? undefined
+        : issueMessage(issue)}
+      actions={issue.classification === "migrated"
+        ? []
+        : projectConfigurationActions(issue, pending, {
+            onOpen,
+            onReload,
+            onReset,
+          })}
+      onDismiss={issue.classification === "migrated" && !pending
+        ? () => onReload(issue)
+        : undefined}
+    />
   {/each}
   {#if error}
-    <p role="alert" class="px-0.5 py-2 text-xs text-destructive">{error}</p>
+    <NotificationEntry
+      tone="failed"
+      title="Couldn't update project configuration"
+      detail={error}
+    />
   {/if}
 </section>
