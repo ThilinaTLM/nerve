@@ -60,7 +60,6 @@ export class DesktopRuntime {
   /** True while the window shows the shell error page instead of the app. */
   #startupErrorVisible = false;
   #retryInFlight = false;
-  #admissionFailure = false;
   #startupRetryable = false;
   #startupDiagnostics = "";
   #trayController!: TrayController;
@@ -181,35 +180,6 @@ export class DesktopRuntime {
       },
       homeDirectory: desktopDataDir,
       startupDiagnostics: () => runtime.#startupDiagnostics,
-      startFresh: async () => {
-        const window = runtime.#mainWindow;
-        if (
-          !runtime.#startupErrorVisible ||
-          !runtime.#admissionFailure ||
-          !window ||
-          window.isDestroyed() ||
-          runtime.#startupAttempt ||
-          runtime.#retryInFlight
-        )
-          return false;
-        runtime.#retryInFlight = true;
-        try {
-          if (!runtime.#shellPageUrls.isTrusted(window.webContents.getURL()))
-            return false;
-          const daemon = runtime.#managedDaemon;
-          if (daemon && !daemon.owned) return false;
-          if (daemon) await daemon.stop();
-          if (!(await ports.recoverHome(desktopDataDir))) return false;
-          runtime.#unsubscribeDaemonStatus?.();
-          runtime.#unsubscribeDaemonStatus = undefined;
-          runtime.#managedDaemon = undefined;
-          runtime.#admissionFailure = false;
-          void startMainWindow(window);
-          return true;
-        } finally {
-          runtime.#retryInFlight = false;
-        }
-      },
       retryStartup: () => {
         const window = runtime.#mainWindow;
         if (
@@ -552,8 +522,6 @@ export class DesktopRuntime {
         });
         console.error(error);
         if (!window.isDestroyed()) {
-          runtime.#admissionFailure =
-            homeAdmissionFailureKind(error) !== undefined;
           runtime.#startupRetryable = startupErrorRetryable(error);
           runtime.#startupDiagnostics =
             error instanceof Error ? error.message : String(error);
@@ -651,11 +619,10 @@ export class DesktopRuntime {
           const error = new Error(
             info?.error ?? "The Nerve daemon stopped and could not restart.",
           );
-          runtime.#admissionFailure =
-            homeAdmissionFailureKind(error) !== undefined;
           runtime.#startupDiagnostics = error.message;
           // Exhausted service recovery may be retried manually; admission never can.
-          runtime.#startupRetryable = !runtime.#admissionFailure;
+          runtime.#startupRetryable =
+            homeAdmissionFailureKind(error) === undefined;
           runtime.#startupErrorVisible = true;
           await window.loadURL(
             runtime.#shellPageUrls.create(

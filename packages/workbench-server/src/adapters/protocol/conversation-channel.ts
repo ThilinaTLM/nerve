@@ -1,3 +1,4 @@
+import { MissingAssetError } from "@nervekit/conversation-core";
 import {
   createConfigurationReload,
   resolveWithConfigurationRetry,
@@ -130,7 +131,14 @@ export function createConversationProtocolSession(
     session.removeStream(stream);
     activatingStreams.delete(stream);
     const id = parseConversationStream(stream);
-    if (id) delivery.invalidate(id);
+    if (id) {
+      delivery.invalidate(id);
+      state.coreStorage.conversations.reportFailure(
+        id,
+        "stream.projection",
+        error,
+      );
+    }
     void state.logger
       .warn("Conversation stream unavailable", {
         conversationId: id ?? undefined,
@@ -392,9 +400,11 @@ export function createConversationProtocolSession(
         sessionContext: true,
         translateError: (error) => ({
           code:
-            error instanceof ZodError
-              ? "DOMAIN_VALIDATION_FAILED"
-              : "INTERNAL_ERROR",
+            error instanceof MissingAssetError
+              ? "RESOURCE_NOT_FOUND"
+              : error instanceof ZodError
+                ? "DOMAIN_VALIDATION_FAILED"
+                : "INTERNAL_ERROR",
           message: error instanceof Error ? error.message : "Operation failed",
           retryable: false,
         }),

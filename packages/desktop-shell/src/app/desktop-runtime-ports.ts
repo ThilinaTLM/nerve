@@ -65,7 +65,6 @@ export interface DesktopRuntimePorts {
     onUpdated(listener: () => void): () => void;
   };
   checkHomeAdmission(home: string): Promise<void>;
-  recoverHome(home: string): Promise<boolean>;
   readCurrentSettings(dataDir: string): Promise<Settings>;
   configureNetworkSession(): Promise<void>;
   acquireDaemon(options: EnsureDaemonOptions): Promise<ManagedDaemon>;
@@ -84,7 +83,6 @@ export interface DesktopRuntimePorts {
     };
     restartDaemon: () => Promise<void>;
     retryStartup: () => boolean;
-    startFresh: () => Promise<boolean>;
     homeDirectory: string;
     startupDiagnostics: () => string;
     reportRendererCoreReady: () => void;

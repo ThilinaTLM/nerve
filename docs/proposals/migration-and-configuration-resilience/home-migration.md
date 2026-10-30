@@ -32,15 +32,10 @@ A user-level settings document that was set aside is then handled like any inval
 
 ## Removing project handling from 0001 and 0002
 
-Both steps currently read project `.nerve/` directories:
+Both draft steps are home-only. 0001 no longer preflights project configuration, converts project task files or traverses project subagent Markdown. 0002 no longer merges project harness/capability/catalog/integration files or carries project trust across files. Neither step can be blocked by an inaccessible or newer project configuration file.
 
-- **0001** runs a configuration preflight over project files and converts `tasks/definitions.json` into launch definitions.
-- **0002** converts legacy project files such as `harness.json`, `capabilities.json`, and `subagents.json`, and carries project trust over.
+0001's `legacy-launch-definitions.ts` and call site have also been removed: legacy task definitions stored **only in a 0.34.1 home database are not carried over**. There is no home staging directory/source for project launches. This intentional data-compatibility reduction requires review confirmation before release.
 
-Both steps are still `draft` in [`migrations.lock.json`](../../../packages/workbench-server/src/infrastructure/migrations/migrations.lock.json), so they can still change before release. The project parts move into the first versions of the matching project migration chains. The conversion logic is kept, not dropped; it just moves.
+Project handling is limited to lazy **same-file version bumps** ([project migration](./project-migration-and-recovery.md#versions-and-legacy-files)). Old project filenames generate a notice asking users to configure the settings again; nothing imports or merges them. Confirmed Remove old files preserves them in home quarantine and removes them. Only same-file bumps can retain exact-byte trust; resetting never grants it.
 
-Consequences:
-
-- The slot-5 blocker disappears, because 0001 preflight no longer validates project launch catalogs.
-- 0002's project-trust carry-over must be re-homed in the project migration framework (see [trust](./project-migration-and-recovery.md#project-trust)).
-- The removal and the replacement chains must ship in the same release. Otherwise users coming from 0.34.1 or 0.37.0 lose legacy project configuration in between.
+Both home steps remain `draft` in [`migrations.lock.json`](../../../packages/workbench-server/src/infrastructure/migrations/migrations.lock.json). After removing 0001 staging, its checksum is recomputed using `hashStepFolder` and recorded in the registry metadata and lock. No database schema change is involved.

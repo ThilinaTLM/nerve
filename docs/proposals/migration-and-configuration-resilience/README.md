@@ -53,13 +53,13 @@ flowchart TD
 
 ## Documents
 
-| Document                                                              | Contents                                                                                              |
-| --------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
-| [Unsupported and damaged homes](./unsupported-homes.md)               | The 0.34.1 baseline, "upgrade through 0.34.1" versus "start fresh, keep providers", admission errors. |
-| [Home migration](./home-migration.md)                                 | Startup migration scope, set-aside rule, removal of project handling from steps 0001/0002.            |
-| [Project migration and recovery](./project-migration-and-recovery.md) | Lazy per-type migrations, corrupted-file handling, the runtime safety net, reset semantics.           |
-| [Conversation isolation](./conversation-isolation.md)                 | Follow-up investigation: one unreadable conversation must not break the application.                  |
-| [Evidence](./evidence.md)                                             | Migration rehearsals, the slot-5 blocker, and code findings behind this proposal.                     |
+| Document                                                              | Contents                                                                                    |
+| --------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
+| [Unsupported and damaged homes](./unsupported-homes.md)               | The 0.34.1 baseline, manual recovery instructions, and typed admission errors.              |
+| [Home migration](./home-migration.md)                                 | Startup migration scope, set-aside rule, removal of project handling from steps 0001/0002.  |
+| [Project migration and recovery](./project-migration-and-recovery.md) | Lazy per-type migrations, corrupted-file handling, the runtime safety net, reset semantics. |
+| [Conversation isolation](./conversation-isolation.md)                 | Follow-up investigation: one unreadable conversation must not break the application.        |
+| [Evidence](./evidence.md)                                             | Migration rehearsals, the slot-5 blocker, and code findings behind this proposal.           |
 
 ## Decisions recorded
 
@@ -68,12 +68,12 @@ flowchart TD
 - A file with the current version that fails validation, or a file whose migration fails, is corrupted. It is reset only after user confirmation.
 - Project-level notices use the header activity list.
 - An invalid project permission overlay is reset by removing it, so the user-level policy applies.
-- The archive from "start fresh" is kept until the user deletes it, and its location is shown in settings.
+- Unsupported and damaged homes show manual recovery instructions; Nerve does not reset the home or track archives.
 - Broken-conversation isolation stays here as a follow-up investigation.
 
 ## Follow-ups
 
-Planned in [follow-up plan](./follow-up-plan.md): replace start-fresh with instructions, drop multi-file project merges, surface unreadable conversations as one activity item, plus small fixes.
+The [follow-up plan](./follow-up-plan.md) replaces start-fresh with instructions (implemented in section 1). Its remaining sections cover dropping multi-file project merges, surfacing unreadable conversations as one activity item, and small fixes.
 
 - Conversation isolation: an **Unavailable** list entry with Export raw data / confirmed Delete, a typed missing-asset response, and conversation-level configuration notices ([details](./conversation-isolation.md)). Startup, list, and replay containment are implemented.
 - Add a check that every event name the server publishes exists in the public event catalog. A missing registration was only logged as a warning, which hid a live-update bug during QA.

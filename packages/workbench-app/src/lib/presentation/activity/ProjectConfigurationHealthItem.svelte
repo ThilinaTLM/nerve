@@ -51,14 +51,24 @@ let {
         <p class="text-xs break-words text-muted-foreground">
           {issueMessage(issue)}
         </p>
-        {#if issue.classification !== "migrated"}
+        {#if issue.classification !== "migrated" && issue.classification !== "legacy"}
           <p class="text-xs text-muted-foreground">
             Nerve is using defaults until this is fixed.
           </p>
         {/if}
-        <code class="font-mono text-xs break-all text-muted-foreground"
-          >{issue.path}</code
-        >
+        {#if issue.classification === "legacy"}
+          <ul class="grid gap-1">
+            {#each issue.files ?? [] as file (file)}
+              <li class="font-mono text-xs break-all text-muted-foreground">
+                {file}
+              </li>
+            {/each}
+          </ul>
+        {:else}
+          <code class="font-mono text-xs break-all text-muted-foreground"
+            >{issue.path}</code
+          >
+        {/if}
         <ProjectConfigurationActions
           {issue}
           {pending}

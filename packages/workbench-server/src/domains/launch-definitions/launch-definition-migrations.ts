@@ -1,4 +1,3 @@
-import { createHash } from "node:crypto";
 import { z } from "zod";
 import {
   launchDefinitionFileSchema,
@@ -25,11 +24,6 @@ const v1Definition = z
 const v1 = z
   .object({ version: z.literal(1), definitions: z.array(v1Definition) })
   .strict();
-const tasksV1 = v1.extend({
-  definitions: z.array(
-    v1Definition.extend({ id: z.string().startsWith("taskdef_") }),
-  ),
-});
 export function migrateLaunchesV1(value: unknown): unknown {
   const old = v1.parse(value);
   return {
@@ -40,17 +34,6 @@ export function migrateLaunchesV1(value: unknown): unknown {
       scope: { kind: "project" },
       parentFolderId: null,
       order,
-    })),
-  };
-}
-export function migrateLegacyTasks(value: unknown): unknown {
-  const raw = value as Record<string, unknown>;
-  const old = tasksV1.parse({ ...raw, version: raw?.version ?? 1 });
-  return {
-    version: 1,
-    definitions: old.definitions.map((definition) => ({
-      ...definition,
-      id: definition.id.replace(/^taskdef_/, "launchdef_"),
     })),
   };
 }
@@ -68,20 +51,7 @@ export const launchDefinitionsConfiguration: ProjectConfigurationType<LaunchDefi
     currentVersion: 2,
     version: { field: "version", absent: 1 },
     migrators: { 1: migrateLaunchesV1 },
-    legacySources: [
-      {
-        path: "tasks/definitions.json",
-        currentVersion: 1,
-        migrate: migrateLegacyTasks,
-      },
-      {
-        root: "home",
-        path: ({ projectId }) =>
-          `data/launches/legacy/${createHash("sha256").update(projectId).digest("hex")}.json`,
-        currentVersion: 1,
-        migrate: migrateLegacyTasks,
-      },
-    ],
+    legacyFiles: ["tasks/definitions.json"],
     schema: launchDefinitionFileSchema,
     fallback: empty,
     reset: empty,

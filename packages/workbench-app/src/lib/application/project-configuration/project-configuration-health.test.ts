@@ -47,3 +47,24 @@ test("event health replaces a project's issues and removes it when healthy", () 
   assert.equal(first.p1?.length, 1);
   assert.deepEqual(withHealth(first, { projectId: "p1", issues: [] }), {});
 });
+
+test("an aggregate legacy issue counts files and changes its signature when the file set changes", () => {
+  const legacy = {
+    ...issue("p", "legacy", "legacy-files"),
+    files: ["/p/.nerve/harness.json", "/p/.nerve/subagents/old.md"],
+  };
+  assert.equal(
+    failingToastTitle({ p: [legacy] }),
+    "Project configuration needs attention · 2 files",
+  );
+  assert.equal(
+    failingSignature({ p: [legacy] }),
+    failingSignature({
+      p: [{ ...legacy, files: [...legacy.files].reverse() }],
+    }),
+  );
+  assert.notEqual(
+    failingSignature({ p: [legacy] }),
+    failingSignature({ p: [{ ...legacy, files: legacy.files.slice(0, 1) }] }),
+  );
+});

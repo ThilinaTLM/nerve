@@ -136,3 +136,29 @@ test("conversation items: failures need attention, finished results do not", () 
   assert.equal(items[0]?.title, "Agent failed");
   assert.equal(items[1]?.conversationId, "f");
 });
+
+test("unreadable conversations stay in one non-dismissible attention item with deletion metadata", () => {
+  const unreadableConversations = [
+    {
+      id: "bad",
+      title: "Raw",
+      projectId: "p",
+      projectName: "Project",
+      error: "invalid status",
+    },
+  ];
+  const [item] = buildNotifications({
+    ...base,
+    activities: [
+      activity("unreadable", {
+        status: "failed",
+        kind: "conversation.unreadable",
+        unreadableConversations,
+      }),
+    ],
+  });
+  assert.equal(notificationRank(item), 0);
+  assert.deepEqual(item.unreadableConversations, unreadableConversations);
+  assert.equal(item.conversationId, undefined);
+  assert.equal(item.action, undefined);
+});

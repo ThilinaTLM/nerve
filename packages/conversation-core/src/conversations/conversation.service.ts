@@ -9,7 +9,6 @@ import type {
 } from "../configuration.js";
 import { configureConversationRequestSchema } from "@nervekit/contracts/core";
 import type { SubagentHost } from "../delegation/subagent-host.js";
-import { rm } from "node:fs/promises";
 import { createId } from "@nervekit/contracts";
 import {
   conversationConfigSchema,
@@ -20,7 +19,6 @@ import {
 } from "@nervekit/contracts/core";
 import { deriveConversationTitle } from "./conversation-title.js";
 import type { AssetStore } from "../assets/asset-store.js";
-import type { AsyncBashService } from "../async-bash/async-bash.service.js";
 import type { InputQueueService } from "../inputs/input-queue.service.js";
 import type { CoreStorage } from "../storage/core-storage.js";
 import type { CoreEmitter } from "../runtime/core-change.js";
@@ -59,12 +57,14 @@ export class ConversationService {
       historyContext?: AgentConfigurationPort["historyContext"];
       configureContext: AgentConfigurationPort["configureContext"];
       assets: AssetStore;
-      asyncBash: AsyncBashService;
       inputs: InputQueueService;
       emit: CoreEmitter;
       now(): string;
       isExecuting(id: string): boolean;
-      stop(id: string): Promise<void>;
+      discard(
+        ids: readonly string[],
+        remove: () => Promise<void>,
+      ): Promise<void>;
       status: StatusService;
       compactions: CompactionOperations;
     },
@@ -240,21 +240,15 @@ export class ConversationService {
       });
   }
   async delete(id: string): Promise<void> {
-    const conversation = this.options.storage.conversations.get(id);
+    const conversation = this.options.storage.conversations.rawIdentity(id);
     if (!conversation) return;
-    const ids = [id, ...this.options.storage.descendantConversationIds(id)];
-    await this.options.stop(id);
-    await this.options.asyncBash.cancelForConversations(ids);
-    for (const conversationId of ids)
-      for (const input of this.options.inputs.list(conversationId))
-        this.options.inputs.cancel(input.inputId);
-    await this.options.assets.deleteConversations(ids);
-    for (const conversationId of ids)
-      await rm(this.options.assets.path(`conversations/${conversationId}`), {
-        recursive: true,
-        force: true,
-      });
-    this.options.storage.conversations.delete(id);
+    const ids = [
+      ...new Set([id, ...this.options.storage.descendantConversationIds(id)]),
+    ];
+    await this.options.discard(ids, async () => {
+      await this.options.assets.deleteConversationFiles(ids);
+      this.options.storage.conversations.delete(id);
+    });
     for (const conversationId of ids) {
       this.options.compactions.delete(conversationId);
       this.options.emit({ kind: "conversation_deleted", conversationId });

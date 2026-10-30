@@ -10,6 +10,15 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import test from "node:test";
+import {
+  toolCallSchema,
+  toolCallResponsePayloadSchema,
+} from "@nervekit/contracts/core";
+import {
+  eventConfirmationReason,
+  callConfirmationReason,
+  requestBindingReason,
+} from "./released-metadata.js";
 import { coreMigrations } from "@nervekit/conversation-core";
 import { NodeAgentBrowserCommandRunner } from "../../../../core-host/agent-browser-skills.js";
 import { storagePaths } from "../../../storage-bootstrap/paths.js";
@@ -69,6 +78,37 @@ for (const damaged of [0, 1, 2, 3])
       db.exec(
         "UPDATE conversation_config SET model = '{}' WHERE conversation_id = 'c'",
       );
+    const review = {
+      kind: "plan_review",
+      request: {
+        assetId: "plan",
+        path: "plans/fixture.md",
+        approvalProfile: "planning",
+      },
+      resolution: { kind: "plan_review", decision: "approve" },
+    };
+    const payload = {
+      toolCallId: "review",
+      toolName: "plan_present",
+      providerCallId: null,
+      arguments: {},
+      origin: "user",
+      assistantEventId: null,
+      contentIndex: null,
+      outcome: "completed",
+      agentProjection: [],
+      userProjection: { argsPreview: {}, resultPreview: null },
+      supervision: null,
+      interactionResolution: review.resolution,
+      resolutionRequestId: "r",
+      assetIds: [],
+    };
+    db.prepare(
+      "INSERT INTO conversation_event VALUES ('review-event', 'c', 1, NULL, 'tool_call_response', 'none', NULL, NULL, ?, '2026-10-30T00:00:00.000Z')",
+    ).run(JSON.stringify(payload));
+    db.prepare(
+      "INSERT INTO tool_call VALUES ('review', 'c', 'turn', NULL, NULL, NULL, 'user', 'plan_present', '{}', 'ready', NULL, ?, NULL, '2026-10-30T00:00:00.000Z')",
+    ).run(JSON.stringify(review));
     db.close();
     const own = join(home, "data/conversations/c/config");
     mkdirSync(own, { recursive: true });
@@ -95,6 +135,66 @@ for (const damaged of [0, 1, 2, 3])
     );
     await step.run(context);
     await step.verify!(context);
+    const migratedDb = new DatabaseSync(paths.sqlitePath, { readOnly: true });
+    try {
+      const event = toolCallResponsePayloadSchema.parse(
+        JSON.parse(
+          String(
+            migratedDb
+              .prepare(
+                "SELECT payload FROM conversation_event WHERE id='review-event'",
+              )
+              .get()!.payload,
+          ),
+        ),
+      );
+      const row = migratedDb
+        .prepare("SELECT * FROM tool_call WHERE id='review'")
+        .get()!;
+      const call = toolCallSchema.parse({
+        id: row.id,
+        conversationId: row.conversation_id,
+        turnId: row.turn_id,
+        providerCallId: row.provider_call_id,
+        assistantEventId: row.assistant_event_id,
+        contentIndex: row.content_index,
+        origin: row.origin,
+        toolName: row.tool_name,
+        arguments: JSON.parse(String(row.arguments)),
+        state: row.state,
+        supervision: null,
+        interaction: JSON.parse(String(row.interaction)),
+        executionClaim: null,
+        updatedAt: row.updated_at,
+      });
+      assert.deepEqual(
+        event.interactionResolution,
+        call.interaction?.resolution,
+      );
+      assert.equal(call.interaction?.kind, "plan_review");
+      if (
+        call.interaction?.kind === "plan_review" &&
+        call.interaction.resolution?.decision === "approve"
+      ) {
+        assert.deepEqual(
+          call.interaction.resolution.confirmation.targetProfile,
+          call.interaction.request.targetProfile,
+        );
+        assert.equal(call.interaction.request.targetProfile.name, "planning");
+      }
+    } finally {
+      migratedDb.close();
+    }
+    for (const reason of [
+      eventConfirmationReason,
+      callConfirmationReason,
+      requestBindingReason,
+    ])
+      assert.equal(
+        toolkitState(context).losses.find((loss) => loss.reason === reason)
+          ?.count,
+        1,
+      );
     if (damaged === 1) {
       const items = toolkitState(context).setAside;
       assert.equal(items.length, damagedFiles.length);

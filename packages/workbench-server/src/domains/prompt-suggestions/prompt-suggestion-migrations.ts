@@ -104,7 +104,6 @@ export function suggestionConfiguration(
     },
     fallback: () => null,
     reset: () => null,
-    trustKind: "prompt_suggestion",
   };
   cache.set(filename, type);
   return type;

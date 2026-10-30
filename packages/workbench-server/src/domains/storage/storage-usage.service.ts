@@ -1,4 +1,3 @@
-import { readArchivedHome } from "../../infrastructure/storage-bootstrap/start-fresh.js";
 import { basename } from "node:path";
 import type {
   LargestConversationUsage,
@@ -296,7 +295,6 @@ export class StorageUsageService {
     );
     const value: StorageUsageResponse = {
       homeDir: paths.home,
-      archivedHomeDir: await readArchivedHome(paths.home),
       generatedAt: new Date().toISOString(),
       totalBytes,
       categories,

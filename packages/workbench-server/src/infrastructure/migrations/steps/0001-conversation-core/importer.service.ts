@@ -6,7 +6,6 @@ import {
   trustedResourceSchema,
 } from "./shapes.js";
 import assert from "node:assert/strict";
-import { stageLegacyLaunchDefinitions } from "./legacy-launch-definitions.js";
 import { existsSync, lstatSync, realpathSync, rmSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { DatabaseSync } from "node:sqlite";
@@ -321,12 +320,6 @@ export async function importCoreStorage(input: {
     }
     await importTrust(reader, mapping, home, input.scratchDir);
     preferences = await convertDocumentPreferences(reader, home, input.context);
-    await stageLegacyLaunchDefinitions({
-      home,
-      reader,
-      context: input.context,
-      projectId: (id) => mapping.ids.get("proj", id),
-    });
     const overlayImporter = new ConversationOverlaysImporter(home, dataDir);
     overlays = overlayImporter.counts;
     for (const { row, data } of reader.documents("scratch_notes")) {

@@ -119,7 +119,6 @@ describe("DesktopRuntime", () => {
       nativeTheme: { onUpdated: () => () => undefined },
       // A legacy/unsupported home must not block startup.
       checkHomeAdmission: async () => undefined,
-      recoverHome: async () => false,
       readCurrentSettings: async () => {
         throw new Error("unsupported home");
       },
@@ -220,7 +219,6 @@ describe("DesktopRuntime", () => {
       },
       nativeTheme: { onUpdated: () => () => undefined },
       checkHomeAdmission: async () => undefined,
-      recoverHome: async () => false,
       readCurrentSettings: async () => defaultSettings,
       configureNetworkSession: async () => undefined,
       acquireDaemon: async () => daemon,
@@ -356,7 +354,6 @@ describe("DesktopRuntime", () => {
       },
       nativeTheme: { onUpdated: () => () => undefined },
       checkHomeAdmission: async () => undefined,
-      recoverHome: async () => false,
       readCurrentSettings: async () => defaultSettings,
       configureNetworkSession: async () => undefined,
       acquireDaemon: async () => {
@@ -412,31 +409,17 @@ describe("DesktopRuntime", () => {
     await runtime.dispose();
   });
 
-  it("keeps admission recovery confirmed, single-flight, and in the same window", async () => {
+  it("shows admission instructions without acquiring a daemon or offering retry", async () => {
     let ipc: Parameters<DesktopRuntimePorts["registerIpc"]>[0] | undefined;
-    let admitted = false;
     let acquisitions = 0;
-    let confirmations = 0;
     let currentUrl = "";
     const shown = Promise.withResolvers<void>();
-    const resumed = Promise.withResolvers<void>();
-    const confirmation = Promise.withResolvers<boolean>();
     const window = fakeWindow();
-    window.webContents.getURL = () => currentUrl;
     window.loadURL = async (url) => {
       currentUrl = url;
-      if (decodeURIComponent(url).includes('id="start-fresh"')) shown.resolve();
-      if (url.startsWith("http:")) resumed.resolve();
+      if (decodeURIComponent(url).includes("delete or move this folder"))
+        shown.resolve();
     };
-    const daemon = {
-      url: "http://127.0.0.1:4802",
-      owned: true,
-      mode: "local",
-      getStatus: () => "ready",
-      onStatusChange: () => () => undefined,
-      stop: async () => undefined,
-      restart: async () => undefined,
-    } as ManagedDaemon;
     const noListener = () => () => undefined;
     const ports = {
       application: {
@@ -459,19 +442,12 @@ describe("DesktopRuntime", () => {
       nativeTheme: { onUpdated: noListener },
       readCurrentSettings: async () => defaultSettings,
       checkHomeAdmission: async () => {
-        if (!admitted)
-          throw new HomeAdmissionError("manifest_invalid", "damaged manifest");
-      },
-      recoverHome: async () => {
-        confirmations += 1;
-        const confirmed = await confirmation.promise;
-        admitted = confirmed;
-        return confirmed;
+        throw new HomeAdmissionError("manifest_invalid", "damaged manifest");
       },
       configureNetworkSession: async () => undefined,
       acquireDaemon: async () => {
         acquisitions += 1;
-        return daemon;
+        throw new Error("must not acquire a daemon after admission fails");
       },
       installDaemonCookie: async () => undefined,
       refreshDesktopSettings: async () => defaultSettings,
@@ -513,15 +489,10 @@ describe("DesktopRuntime", () => {
     await new Promise((resolve) => setImmediate(resolve));
     assert.equal(acquisitions, 0);
     assert.equal(ipc?.retryStartup(), false);
-    const recovery = ipc!.startFresh();
-    assert.equal(await ipc!.startFresh(), false);
-    assert.equal(confirmations, 1);
-    assert.equal(acquisitions, 0);
-    confirmation.resolve(true);
-    assert.equal(await recovery, true);
-    await resumed.promise;
-    assert.equal(acquisitions, 1);
-    assert.equal(await ipc!.startFresh(), false);
+    assert.doesNotMatch(
+      decodeURIComponent(currentUrl),
+      /startFresh|start-fresh|startup-retry/,
+    );
     await runtime.dispose();
   });
 
@@ -584,7 +555,6 @@ describe("DesktopRuntime", () => {
       },
       nativeTheme: { onUpdated: () => () => undefined },
       checkHomeAdmission: async () => undefined,
-      recoverHome: async () => false,
       readCurrentSettings: async () => defaultSettings,
       configureNetworkSession: async () => undefined,
       acquireDaemon: async () => daemon,

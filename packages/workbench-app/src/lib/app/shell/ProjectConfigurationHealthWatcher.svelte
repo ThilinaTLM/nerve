@@ -67,9 +67,15 @@ const target = $derived(health.resetTarget);
 
 <ConfirmDialog
   open={target !== undefined}
-  title={`Reset ${target ? target.label.toLowerCase() : "configuration"}?`}
-  description={`${target?.resetDescription ?? ""} The original file is kept in quarantine.`}
-  confirmLabel="Reset"
+  title={target?.classification === "legacy"
+    ? "Remove old files?"
+    : `Reset ${target ? target.label.toLowerCase() : "configuration"}?`}
+  description={target?.classification === "legacy"
+    ? "Move the listed old project settings to home quarantine. Nothing will be imported, and current settings will not change."
+    : `${target?.resetDescription ?? ""} The original file is kept in quarantine.`}
+  confirmLabel={target?.classification === "legacy"
+    ? "Remove old files"
+    : "Reset"}
   destructive
   onOpenChange={(open) => {
     if (!open) health.resetTarget = undefined;

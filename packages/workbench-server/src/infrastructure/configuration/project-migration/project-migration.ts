@@ -2,17 +2,11 @@ import {
   digest,
   bytes,
   projectPath,
-  homePath,
   quarantine,
   decodeConfiguration,
-  legacyVersion,
 } from "./project-migration-files.js";
-import {
-  ProjectInputError,
-  NewerLegacyVersion,
-} from "./project-input-error.js";
 import { lstat, mkdir, open, unlink } from "node:fs/promises";
-import { dirname, join, resolve } from "node:path";
+import { dirname, resolve } from "node:path";
 import type {
   ProjectConfigurationHealth,
   ProjectConfigurationIssue,
@@ -20,29 +14,9 @@ import type {
 } from "@nervekit/contracts/projects";
 import { ApplicationError } from "../../../core/application-error.js";
 import { atomicWriteFile } from "../../storage-bootstrap/file-mutations.js";
-import type { TrustedResourceKind } from "@nervekit/contracts/core";
+import { findLegacyFiles } from "./project-legacy-files.js";
 import { atomicWriteJson } from "../../storage-bootstrap/json.js";
 
-export interface ProjectLegacyInput {
-  root?: "project" | "home";
-  path: string;
-  currentVersion: number;
-  version?: { field: string; absent: number };
-  decode?(bytes: string): unknown;
-  trustKind?: TrustedResourceKind;
-  select?(value: unknown): boolean;
-}
-export interface ProjectLegacySource extends Omit<ProjectLegacyInput, "path"> {
-  root?: "project" | "home";
-  path: string | ((context: ProjectConfigurationContext) => string);
-  /** A catalog entry absent from a valid catalog is not an invalid override. */
-  select?(value: unknown): boolean;
-  shared?: boolean;
-  inputs?:
-    | readonly ProjectLegacyInput[]
-    | ((value: unknown) => readonly ProjectLegacyInput[]);
-  migrate(value: unknown, inputs: Readonly<Record<string, unknown>>): unknown;
-}
 export interface ProjectConfigurationType<T> {
   readonly id: string;
   readonly label: string;
@@ -54,9 +28,8 @@ export interface ProjectConfigurationType<T> {
   readonly version: { field: string; absent: number };
   /** Frozen local schemas and pure N -> N+1 conversions belong to the type. */
   readonly migrators: Readonly<Record<number, (value: unknown) => unknown>>;
-  readonly legacySources?: readonly ProjectLegacySource[];
-  readonly trustKind?: TrustedResourceKind;
-  readonly migrationDependencies?: readonly ProjectConfigurationType<unknown>[];
+  /** Notice only: these files are never read as migration inputs. */
+  readonly legacyFiles?: readonly string[];
   readonly decode?: (bytes: string) => unknown;
   encode?(value: T): string;
   readonly schema: { parse(value: unknown): T };
@@ -81,12 +54,6 @@ export interface ProjectMigrationTrust {
     projectId: string;
     path: string;
     source: Buffer;
-    targetKind?: TrustedResourceKind;
-    sources?: readonly {
-      path: string;
-      source: Buffer;
-      kind?: TrustedResourceKind;
-    }[];
   }): Promise<((path: string, bytes: Buffer) => Promise<void>) | undefined>;
 }
 export interface ProjectConfigurationResult<T> {
@@ -148,12 +115,21 @@ export class ProjectMigrationService {
     context: ProjectConfigurationContext,
     request: ResolveProjectConfiguration,
   ): Promise<ProjectConfigurationHealth> {
+    if (request.type === "legacy-files") {
+      if (request.action === "remove-legacy")
+        await this.removeLegacy(context, request.confirmed);
+      else if (request.action === "reload") await this.recordLegacy(context);
+      else throw new Error("Legacy files cannot be reset");
+      return this.health(context.projectId);
+    }
     const type = this.types.get(request.type);
     if (!type)
       throw new Error(`Unknown project configuration type: ${request.type}`);
     if (request.action === "reset")
       await this.reset(context, type, request.confirmed);
-    else await this.reload(context, type);
+    else if (request.action === "reload") await this.reload(context, type);
+    else
+      throw new Error("Remove old files is only available for legacy notices");
     for (const listener of this.resolvedListeners)
       await listener(context, type);
     return this.health(context.projectId);
@@ -182,7 +158,8 @@ export class ProjectMigrationService {
       if (
         otherKey !== key &&
         issue.projectId === context.projectId &&
-        issue.type === type.id
+        issue.type === type.id &&
+        issue.classification !== "legacy"
       ) {
         this.issues.delete(otherKey);
         removedOther = true;
@@ -218,151 +195,24 @@ export class ProjectMigrationService {
   async load<T>(
     context: ProjectConfigurationContext,
     type: ProjectConfigurationType<T>,
-    ancestors: readonly string[] = [],
   ): Promise<ProjectConfigurationResult<T>> {
     let path = resolve(context.directory, ".nerve", type.path);
     try {
+      await this.recordLegacy(context, type.legacyFiles);
       path = await projectPath(context.directory, type.path);
     } catch (error) {
       this.record(context, type, path, "corrupted", message(error), false);
       return { path, classification: "corrupted", value: type.fallback() };
     }
     for (let attempt = 0; attempt < 4; attempt++) {
-      let sourcePath = path;
       let source: Buffer | undefined;
-      let legacy:
-        | NonNullable<ProjectConfigurationType<T>["legacySources"]>[number]
-        | undefined;
       try {
         source = await bytes(path);
-        const snapshots: {
-          path: string;
-          source: Buffer;
-          missing?: boolean;
-          kind?: TrustedResourceKind;
-        }[] = [];
-        const inputs: Record<string, unknown> = {};
-        if (!source) {
-          const suppressed = await this.suppressed(context, type);
-          for (const candidate of type.legacySources ?? []) {
-            const candidatePath = await this.legacyPath(context, candidate);
-            const candidateBytes = await bytes(candidatePath);
-            if (candidateBytes === undefined) {
-              snapshots.push({
-                path: candidatePath,
-                source: Buffer.alloc(0),
-                missing: true,
-              });
-              continue;
-            }
-            if (suppressed[candidatePath] === digest(candidateBytes)) {
-              snapshots.push({ path: candidatePath, source: candidateBytes });
-              continue;
-            }
-            sourcePath = candidatePath;
-            source = candidateBytes;
-            const decoded = legacyVersion(
-              decodeConfiguration(candidateBytes, candidate.decode),
-              candidate,
-              type.version,
-            );
-            if (candidate.select && !candidate.select(decoded)) {
-              snapshots.push({ path: candidatePath, source: candidateBytes });
-              source = undefined;
-              continue;
-            }
-            legacy = candidate;
-            snapshots.push({
-              path: candidatePath,
-              source: candidateBytes,
-              kind: candidate.trustKind,
-            });
-            for (const input of typeof candidate.inputs === "function"
-              ? candidate.inputs(decoded)
-              : (candidate.inputs ?? [])) {
-              const inputPath =
-                input.root === "home"
-                  ? await homePath(this.options.home, input.path)
-                  : await projectPath(context.directory, input.path);
-              const inputBytes =
-                inputPath === candidatePath
-                  ? candidateBytes
-                  : await bytes(inputPath);
-              if (inputBytes === undefined) {
-                snapshots.push({
-                  path: inputPath,
-                  source: Buffer.alloc(0),
-                  missing: true,
-                });
-                continue;
-              }
-              if (suppressed[inputPath] === digest(inputBytes)) {
-                snapshots.push({ path: inputPath, source: inputBytes });
-                continue;
-              }
-              let value: unknown;
-              try {
-                value = decodeConfiguration(inputBytes, input.decode);
-                value = legacyVersion(value, input, type.version);
-              } catch (error) {
-                throw new ProjectInputError(inputPath, inputBytes, error);
-              }
-              if (input.select && !input.select(value)) {
-                snapshots.push({ path: inputPath, source: inputBytes });
-                continue;
-              }
-              inputs[input.path] = value;
-              if (inputPath !== candidatePath)
-                snapshots.push({
-                  path: inputPath,
-                  source: inputBytes,
-                  kind: input.trustKind,
-                });
-            }
-            break;
-          }
-        }
         if (!source) {
           this.record(context, type, path, "healthy");
           return { value: type.fallback(), path, classification: "healthy" };
         }
-        let value: unknown = decodeConfiguration(
-          source,
-          legacy?.decode ?? type.decode,
-        );
-        if (legacy) {
-          const accessor = legacy.version ?? type.version;
-          if (!value || typeof value !== "object" || Array.isArray(value))
-            throw new Error("Expected a legacy configuration object");
-          const rawLegacy = value as Record<string, unknown>;
-          const legacyVersion = Object.hasOwn(rawLegacy, accessor.field)
-            ? rawLegacy[accessor.field]
-            : accessor.absent;
-          if (
-            typeof legacyVersion !== "number" ||
-            !Number.isSafeInteger(legacyVersion) ||
-            legacyVersion < 1
-          )
-            throw new Error("Unrecognisable legacy configuration version");
-          if (legacyVersion > legacy.currentVersion) {
-            this.record(
-              context,
-              type,
-              sourcePath,
-              "incompatible",
-              "This legacy configuration requires a newer Nerve version. The file is read-only.",
-            );
-            return {
-              value: type.fallback(),
-              path: sourcePath,
-              classification: "incompatible",
-            };
-          }
-          value = legacy.migrate(
-            { ...rawLegacy, [accessor.field]: legacyVersion },
-            inputs,
-          );
-        }
+        let value: unknown = decodeConfiguration(source, type.decode);
         if (!value || typeof value !== "object" || Array.isArray(value))
           throw new Error("Expected a configuration object");
         const raw = value as Record<string, unknown>;
@@ -379,13 +229,13 @@ export class ProjectMigrationService {
           this.record(
             context,
             type,
-            sourcePath,
+            path,
             "incompatible",
             "This configuration requires a newer Nerve version. Upgrade to use it; the file is read-only.",
           );
           return {
             value: type.fallback(),
-            path: sourcePath,
+            path: path,
             classification: "incompatible",
           };
         }
@@ -404,49 +254,18 @@ export class ProjectMigrationService {
             throw new Error("Migrator did not advance exactly one version");
         }
         const validated = type.schema.parse(value);
-        if (legacy || version < type.currentVersion) {
-          for (const dependency of type.migrationDependencies ?? []) {
-            if (dependency.id === type.id || ancestors.includes(dependency.id))
-              throw new Error("Cyclic project migration dependency");
-            this.register(dependency);
-            const prerequisite = await this.load(context, dependency, [
-              ...ancestors,
-              type.id,
-            ]);
-            if (
-              prerequisite.classification === "corrupted" ||
-              prerequisite.classification === "incompatible"
-            )
-              throw new Error(
-                `Migration requires healthy ${dependency.label}; originals were retained`,
-              );
-          }
+        if (version < type.currentVersion) {
           const release = await this.lock(path);
           let migrationMessage: string | undefined;
           try {
             const carry = await this.options.trust?.capture({
               type: type.id,
               projectId: context.projectId,
-              path: sourcePath,
+              path: path,
               source,
-              targetKind: type.trustKind,
-              sources: legacy ? snapshots : undefined,
             });
-            for (const snapshot of snapshots)
-              if (!snapshot.missing)
-                await quarantine(
-                  this.options.home,
-                  context,
-                  snapshot.path,
-                  snapshot.source,
-                );
-            await quarantine(this.options.home, context, sourcePath, source);
-            if (
-              !(await bytes(sourcePath))?.equals(source) ||
-              (legacy && (await bytes(path))) ||
-              !(await this.unchanged(snapshots))
-            )
-              continue;
+            await quarantine(this.options.home, context, path, source);
+            if (!(await bytes(path))?.equals(source)) continue;
             await this.write(type, path, validated);
             // Use the deterministic bytes we wrote, never an external replacement.
             const written = Buffer.from(
@@ -482,25 +301,11 @@ export class ProjectMigrationService {
           classification: "healthy",
           sourceDigest: digest(source),
         };
-      } catch (caught) {
-        let error = caught;
-        if (error instanceof ProjectInputError) {
-          sourcePath = error.path;
-          source = error.source;
-          error = error.cause;
-        }
-        if (error instanceof NewerLegacyVersion) {
-          this.record(context, type, sourcePath, "incompatible", error.message);
-          return {
-            value: type.fallback(),
-            path: sourcePath,
-            classification: "incompatible",
-          };
-        }
-        this.record(context, type, sourcePath, "corrupted", message(error));
+      } catch (error) {
+        this.record(context, type, path, "corrupted", message(error));
         return {
           value: type.fallback(),
-          path: sourcePath,
+          path: path,
           classification: "corrupted",
           sourceDigest: source && digest(source),
         };
@@ -552,7 +357,6 @@ export class ProjectMigrationService {
         if (mutation.remove) {
           if (before)
             await quarantine(this.options.home, context, path, before);
-          await this.suppressLegacy(context, type);
           await this.options.trust?.revoke?.({
             type: type.id,
             projectId: context.projectId,
@@ -628,68 +432,92 @@ export class ProjectMigrationService {
     const release = await this.lock(path);
     try {
       await quarantine(this.options.home, context, loaded.path, source);
-      if (
-        !(await bytes(loaded.path))?.equals(source) ||
-        (loaded.path !== path && (await bytes(path)))
-      )
+      if (!(await bytes(path))?.equals(source))
         throw new Error("Configuration changed; reload before resetting");
-      let shared = false;
-      for (const legacy of type.legacySources ?? [])
-        if (
-          legacy.shared &&
-          (await this.legacyPath(context, legacy)) === loaded.path
-        )
-          shared = true;
       await this.options.trust?.revoke?.({
         type: type.id,
         projectId: context.projectId,
-        paths: shared ? [path] : [...new Set([path, loaded.path])],
+        paths: [path],
       });
       const replacement = repair
         ? type.schema.parse(repair.value)
         : type.reset();
-      if (
-        !(await bytes(loaded.path))?.equals(source) ||
-        (loaded.path !== path && (await bytes(path)))
-      )
+      if (!(await bytes(path))?.equals(source))
         throw new Error("Configuration changed; reload before resetting");
-      await this.suppressLegacy(context, type);
-      if (replacement === null) {
-        // Shared legacy catalogs are retained: suppression is per target/entry.
-        if (loaded.path === path || !type.legacySources?.length)
-          await unlink(loaded.path);
-      } else await this.write(type, path, type.schema.parse(replacement));
+      if (replacement === null) await unlink(path);
+      else await this.write(type, path, type.schema.parse(replacement));
       // Deliberately no trust carry-over on reset.
     } finally {
       await release();
     }
     return this.reload(context, type);
   }
-  private async suppressLegacy<T>(
+  private readonly legacyPatterns = new Map<string, Set<string>>();
+  private async recordLegacy(
     context: ProjectConfigurationContext,
-    type: ProjectConfigurationType<T>,
+    declared: readonly string[] = [],
+  ): Promise<string[]> {
+    const patterns =
+      this.legacyPatterns.get(context.projectId) ?? new Set<string>();
+    for (const name of [
+      ...declared,
+      ...[...this.types.values()].flatMap((type) => type.legacyFiles ?? []),
+    ])
+      patterns.add(name);
+    this.legacyPatterns.set(context.projectId, patterns);
+    const files = await findLegacyFiles(context.directory, [...patterns]);
+    const key = JSON.stringify([context.projectId, "legacy-files"]);
+    const previous = this.issues.get(key);
+    if (files.length)
+      this.issues.set(key, {
+        projectId: context.projectId,
+        type: "legacy-files",
+        label: "Old project settings",
+        path: resolve(context.directory, ".nerve"),
+        classification: "legacy",
+        files,
+        message:
+          "Project settings from an older Nerve weren't imported; configure them again.",
+        resetDescription: "",
+        resetOffered: false,
+      });
+    else this.issues.delete(key);
+    if (JSON.stringify(previous) !== JSON.stringify(this.issues.get(key)))
+      this.publishHealth(this.health(context.projectId));
+    return files;
+  }
+  private async removeLegacy(
+    context: ProjectConfigurationContext,
+    confirmed: boolean,
   ): Promise<void> {
-    const suppressed = await this.suppressed(context, type);
-    for (const legacy of type.legacySources ?? []) {
-      const sourcePath = await this.legacyPath(context, legacy);
-      const original = await bytes(sourcePath);
-      if (original) suppressed[sourcePath] = digest(original);
-      for (const input of typeof legacy.inputs === "function"
-        ? []
-        : (legacy.inputs ?? [])) {
-        const inputPath =
-          input.root === "home"
-            ? await homePath(this.options.home, input.path)
-            : await projectPath(context.directory, input.path);
-        const originalInput = await bytes(inputPath);
-        if (originalInput) suppressed[inputPath] = digest(originalInput);
+    if (confirmed !== true)
+      throw new Error("Removing old files requires confirmation");
+    const files = await this.recordLegacy(context);
+    const releases: (() => Promise<void>)[] = [];
+    try {
+      const originals: { path: string; source: Buffer }[] = [];
+      for (const file of files) {
+        // Revalidate confinement and reject links before any destructive operation.
+        const local = file.slice(
+          resolve(context.directory, ".nerve").length + 1,
+        );
+        const path = await projectPath(context.directory, local);
+        if (path !== resolve(file) || !(await lstat(file)).isFile())
+          throw new Error("Remove legacy links manually before retrying");
+        releases.push(await this.lock(path));
+        const source = await bytes(path);
+        if (source) originals.push({ path, source });
       }
+      for (const { path, source } of originals)
+        await quarantine(this.options.home, context, path, source);
+      for (const { path, source } of originals)
+        if (!(await bytes(path))?.equals(source))
+          throw new Error("Old files changed; reload before removing");
+      for (const { path } of originals) await unlink(path);
+    } finally {
+      for (const release of releases.reverse()) await release();
+      await this.recordLegacy(context);
     }
-    await atomicWriteJson(
-      this.suppressionPath(context, type),
-      suppressed,
-      0o600,
-    );
   }
   private async write<T>(
     type: ProjectConfigurationType<T>,
@@ -699,60 +527,6 @@ export class ProjectMigrationService {
     if (type.encode)
       await atomicWriteFile(path, type.encode(value), { mode: 0o600 });
     else await (this.options.write ?? atomicWriteJson)(path, value, 0o600);
-  }
-  private async unchanged(
-    snapshots: readonly { path: string; source: Buffer; missing?: boolean }[],
-  ): Promise<boolean> {
-    for (const snapshot of snapshots) {
-      const current = await bytes(snapshot.path);
-      if (
-        snapshot.missing
-          ? current !== undefined
-          : !current?.equals(snapshot.source)
-      )
-        return false;
-    }
-    return true;
-  }
-  private async legacyPath(
-    context: ProjectConfigurationContext,
-    source: ProjectLegacySource,
-  ): Promise<string> {
-    const local =
-      typeof source.path === "function" ? source.path(context) : source.path;
-    return source.root === "home"
-      ? homePath(this.options.home, local)
-      : projectPath(context.directory, local);
-  }
-  private suppressionPath<T>(
-    context: ProjectConfigurationContext,
-    type: ProjectConfigurationType<T>,
-  ): string {
-    return join(
-      this.options.home,
-      "quarantine",
-      "project-configuration",
-      digest(context.projectId),
-      digest(type.id + ":" + type.path) + ".reset.json",
-    );
-  }
-  private async suppressed<T>(
-    context: ProjectConfigurationContext,
-    type: ProjectConfigurationType<T>,
-  ): Promise<Record<string, string>> {
-    const saved = await bytes(this.suppressionPath(context, type));
-    if (!saved) return {};
-    const value: unknown = decodeConfiguration(saved);
-    if (
-      !value ||
-      typeof value !== "object" ||
-      Array.isArray(value) ||
-      Object.values(value).some(
-        (v) => typeof v !== "string" || !/^[a-f0-9]{64}$/.test(v),
-      )
-    )
-      throw new Error("Invalid project reset receipt");
-    return value as Record<string, string>;
   }
   private async lock(path: string): Promise<() => Promise<void>> {
     await mkdir(dirname(path), { recursive: true, mode: 0o700 });

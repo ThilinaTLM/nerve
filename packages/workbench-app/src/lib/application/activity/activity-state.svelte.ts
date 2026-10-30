@@ -124,6 +124,18 @@ export const activityInbox = {
     void controller.refresh();
   },
   action,
+  deleteConversation: async (conversationId: string): Promise<void> => {
+    try {
+      await protocolRequest("activity.deleteConversation", { conversationId });
+      await controller.refresh();
+      state.error = undefined;
+    } catch (error) {
+      state.error =
+        error instanceof Error
+          ? error.message
+          : "Could not delete conversation.";
+    }
+  },
   clear: async () => {
     // Client feedback can always be cleared, even if the daemon is unavailable.
     controller.clearClientNotices();

@@ -118,7 +118,7 @@ for (const [filename, type] of [
           ),
         "successful fallback must not clear the health notice",
       );
-      if (filename !== "conversation-defaults.json") {
+      if (filename === "agent.json") {
         assert.equal((await service.ensureLoaded(scope)).status, "unavailable");
         await assert.rejects(
           service.save(scope, {
@@ -128,6 +128,12 @@ for (const [filename, type] of [
             resets: [],
           }),
           /unavailable/,
+        );
+      } else {
+        assert.notEqual(
+          (await service.ensureLoaded(scope)).status,
+          "unavailable",
+          "independent corrupt resources must not poison the agent file",
         );
       }
     },

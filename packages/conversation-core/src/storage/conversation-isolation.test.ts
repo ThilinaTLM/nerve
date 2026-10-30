@@ -244,7 +244,7 @@ test("recovery validates raw identities independently and never recovers or wake
     assert.deepEqual(recovered, ["healthy", "wake-fails", "z-healthy"]);
     assert.deepEqual(woken, ["healthy", "z-healthy"]);
     assert.deepEqual(
-      f.failures.map((failure) => failure.conversationId),
+      [...new Set(f.failures.map((failure) => failure.conversationId))],
       ["bad-event", "bad-row", "bad-type", "wake-fails"],
     );
     assert.equal(
@@ -257,6 +257,36 @@ test("recovery validates raw identities independently and never recovers or wake
         .get()?.status,
       "corrupt",
     );
+  } finally {
+    f.storage.close();
+  }
+});
+
+test("history failures discovered after startup reach the conversation failure reporter", () => {
+  const f = fixture();
+  try {
+    f.insert("later");
+    f.event("later");
+    assert.equal(
+      f.storage.events.historyPage("later", { limit: 10 }).length,
+      1,
+    );
+    f.db.sqlite.exec(
+      "UPDATE conversation_event SET payload='{' WHERE conversation_id='later'",
+    );
+    assert.throws(
+      () => f.storage.events.historyPage("later", { limit: 10 }),
+      SyntaxError,
+    );
+    assert.throws(() => f.storage.events.sincePage("later", 0), SyntaxError);
+    assert.ok(
+      f.failures.every(
+        (failure) =>
+          failure.conversationId === "later" &&
+          failure.operation === "events.read",
+      ),
+    );
+    assert.equal(f.failures.length, 2);
   } finally {
     f.storage.close();
   }

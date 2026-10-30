@@ -163,6 +163,34 @@ export class ConversationScheduler {
       this.options.status.refresh(id);
     }
   }
+  async discard(
+    ids: readonly string[],
+    remove: () => Promise<void>,
+  ): Promise<void> {
+    for (const id of ids) {
+      this.stopping.add(id);
+      this.options.compactions.cancelQueued(id);
+      this.slots.get(id)?.controller.abort(shutdownReason);
+      this.options.inputs.discard(this.options.storage.inputs.ids(id));
+    }
+    try {
+      await this.options.toolCalls.discard(
+        ids.flatMap((id) => this.options.storage.toolCalls.ids(id)),
+        async () => {
+          await this.options.asyncBash.discard(
+            ids.flatMap((id) => this.options.storage.asyncBash.ids(id)),
+          );
+          await Promise.allSettled(
+            ids.flatMap((id) => this.slots.get(id)?.done ?? []),
+          );
+          await remove();
+        },
+      );
+    } finally {
+      for (const id of ids) this.stopping.delete(id);
+    }
+  }
+
   async stop(id: string): Promise<void> {
     if (!this.options.storage.conversations.get(id)) return;
     const ids = [id, ...this.options.storage.descendantConversationIds(id)];

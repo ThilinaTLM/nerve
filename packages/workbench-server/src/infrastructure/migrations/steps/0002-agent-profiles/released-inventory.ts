@@ -158,7 +158,7 @@ export function inventory(ctx: StepContext, connection?: DatabaseSync) {
     const metadata = planMetadata({
       events: db
         .prepare(
-          "SELECT id,payload FROM conversation_event WHERE instr(payload, 'plan_mode_present') > 0",
+          "SELECT id,payload FROM conversation_event WHERE instr(payload, 'plan_mode_present') > 0 OR instr(payload, 'plan_review') > 0",
         )
         .all()
         .map((row) => ({ id: String(row.id), payload: String(row.payload) })),

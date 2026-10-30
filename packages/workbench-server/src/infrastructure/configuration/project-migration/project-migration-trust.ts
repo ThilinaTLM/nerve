@@ -1,15 +1,13 @@
 import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
-import { basename } from "node:path";
-import { createId } from "@nervekit/contracts";
 import { isDeepStrictEqual } from "node:util";
 import type { CoreStorage } from "@nervekit/conversation-core";
 import type { TrustedResourceKind } from "@nervekit/contracts/core";
 import type { ProjectMigrationTrust } from "./project-migration.js";
 
 const digest = (bytes: Buffer) =>
-  `sha256:${createHash("sha256").update(bytes).digest("hex")}`;
-/** Uses existing byte-bound trust records; no new storage or implicit approval. */
+  createHash("sha256").update(bytes).digest("hex");
+/** Preserve an existing exact-byte approval for a same-file bump only. */
 export function projectMigrationTrust(
   getStorage: () => Pick<CoreStorage, "trustedResources" | "transaction">,
   kinds: Readonly<Record<string, TrustedResourceKind>>,
@@ -26,96 +24,31 @@ export function projectMigrationTrust(
         }
       });
     },
-    async capture({ type, projectId, path, source, targetKind, sources }) {
+    async capture({ type, projectId, path, source }) {
       const storage = getStorage();
-      const kind = targetKind ?? kinds[type] ?? kinds[type.split(":")[0]];
+      const kind = kinds[type] ?? kinds[type.split(":")[0]];
       if (!kind) return undefined;
-      const inputs = sources?.length
-        ? sources.filter((input) => input.kind)
-        : [{ path, source, kind }];
-      if (!inputs.length) return undefined;
-      const approvals = inputs.map((input) => ({
-        ...input,
-        before: storage.trustedResources.find(
-          input.kind!,
-          projectId,
-          input.path,
-        ),
-      }));
+      const before = storage.trustedResources.find(kind, projectId, path);
       if (
-        approvals.some(
-          (input) =>
-            input.before?.status !== "trusted" ||
-            input.before.contentDigest.replace(/^sha256:/, "") !==
-              digest(input.source).slice("sha256:".length),
-        )
+        before?.status !== "trusted" ||
+        before.contentDigest.replace(/^sha256:/, "") !== digest(source)
       )
         return undefined;
-      return async (targetPath, targetBytes) => {
-        if (!(await readFile(targetPath)).equals(targetBytes)) return;
-        for (const input of approvals)
-          if (
-            !(await readFile(input.path)).equals(
-              input.path === targetPath ? targetBytes : input.source,
-            )
-          )
-            return;
+      return async (targetPath, output) => {
+        if (targetPath !== path || !(await readFile(path)).equals(output))
+          return;
         storage.transaction(() => {
           if (
-            approvals.some(
-              (input) =>
-                !isDeepStrictEqual(
-                  storage.trustedResources.find(
-                    input.kind!,
-                    projectId,
-                    input.path,
-                  ),
-                  input.before,
-                ),
+            !isDeepStrictEqual(
+              storage.trustedResources.find(kind, projectId, path),
+              before,
             )
           )
             return;
-          const existing = storage.trustedResources.find(
-            kind,
-            projectId,
-            targetPath,
-          );
-          if (
-            existing &&
-            !approvals.some((input) => input.before?.id === existing.id)
-          )
-            return;
-          const now = new Date().toISOString();
-          const outputDigest =
-            kind === "project_permissions"
-              ? digest(targetBytes)
-              : digest(targetBytes).slice("sha256:".length);
-          if (!sources && !existing) {
-            storage.trustedResources.update(approvals[0].before!.id, {
-              path: targetPath,
-              name: basename(targetPath),
-              contentDigest: outputDigest,
-              updatedAt: now,
-            });
-            return;
-          }
-          if (existing)
-            storage.trustedResources.update(existing.id, {
-              contentDigest: outputDigest,
-              updatedAt: now,
-            });
-          else
-            storage.trustedResources.insert({
-              id: createId("trust"),
-              kind,
-              projectId,
-              path: targetPath,
-              name: basename(targetPath),
-              contentDigest: outputDigest,
-              status: "trusted",
-              createdAt: now,
-              updatedAt: now,
-            });
+          storage.trustedResources.update(before.id, {
+            contentDigest: `${kind === "project_permissions" ? "sha256:" : ""}${digest(output)}`,
+            updatedAt: new Date().toISOString(),
+          });
         });
       };
     },

@@ -92,6 +92,28 @@ export class ConversationRepository {
       }));
   }
 
+  /** Recovery/deletion metadata deliberately bypasses conversation validation. */
+  rawIdentity(id: string) {
+    const row = this.db.sqlite
+      .prepare(`SELECT c.id, c.title, c.project_id, c.parent_conversation_id, p.name AS project_name
+      FROM conversation c LEFT JOIN project p ON p.id = c.project_id WHERE c.id = ?`)
+      .get(id);
+    if (!row) return null;
+    return {
+      id: String(row.id),
+      title: typeof row.title === "string" ? row.title : String(row.id),
+      projectId: String(row.project_id),
+      projectName:
+        typeof row.project_name === "string"
+          ? row.project_name
+          : String(row.project_id),
+      parentConversationId:
+        row.parent_conversation_id === null
+          ? null
+          : String(row.parent_conversation_id),
+    };
+  }
+
   parentId(id: string): string | null {
     const row = this.db.sqlite
       .prepare("SELECT parent_conversation_id FROM conversation WHERE id = ?")
@@ -121,7 +143,13 @@ export class ConversationRepository {
     const row = this.db.sqlite
       .prepare("SELECT * FROM conversation WHERE id = ?")
       .get(id);
-    return row ? mapConversation(row) : null;
+    if (!row) return null;
+    try {
+      return mapConversation(row);
+    } catch (error) {
+      this.reportFailure(id, "get", error);
+      throw error;
+    }
   }
 
   insert(input: Conversation, config: ConversationConfig): Conversation {
@@ -195,7 +223,13 @@ export class ConversationRepository {
 
   getSummary(id: string): ConversationSummary | null {
     const row = this.db.sqlite.prepare(summaryQuery("id = ?")).get(id);
-    return row ? mapSummary(row) : null;
+    if (!row) return null;
+    try {
+      return mapSummary(row);
+    } catch (error) {
+      this.reportFailure(id, "getSummary", error);
+      throw error;
+    }
   }
 
   list(input: {
@@ -221,7 +255,7 @@ export class ConversationRepository {
     return this.db.sqlite
       .prepare(`WITH RECURSIVE descendants(id) AS (
       SELECT id FROM conversation WHERE parent_conversation_id = ?
-      UNION ALL SELECT c.id FROM conversation c JOIN descendants d ON c.parent_conversation_id = d.id
+      UNION SELECT c.id FROM conversation c JOIN descendants d ON c.parent_conversation_id = d.id
     ) SELECT id FROM descendants`)
       .all(id)
       .map((row) => String(row.id));

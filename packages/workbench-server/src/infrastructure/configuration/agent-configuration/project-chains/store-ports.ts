@@ -1,10 +1,10 @@
-import { atomicReplaceFile } from "../../../storage-bootstrap/file-mutations.js";
-import type { atomicWriteJson } from "../../../storage-bootstrap/json.js";
-import { resolve } from "node:path";
 import {
   projectCapabilitiesConfiguration,
   projectIntegrations,
 } from "./scoped-migrations.js";
+import { atomicReplaceFile } from "../../../storage-bootstrap/file-mutations.js";
+import type { atomicWriteJson } from "../../../storage-bootstrap/json.js";
+import { resolve } from "node:path";
 import type {
   ProjectConfigurationType,
   ProjectMigrationService,
@@ -49,15 +49,20 @@ export function projectStorePorts<
       const type = descriptor(scope);
       migrations.register(type);
       const loaded = await migrations.load(context(scope), type);
-      if (type.id === "agent-settings") {
-        for (const contribution of [
-          projectCapabilitiesConfiguration,
-          projectIntegrations,
-        ] as ProjectConfigurationType<unknown>[]) {
-          migrations.register(contribution);
-          await migrations.load(context(scope), contribution);
-        }
-      }
+      // The agent feature also loads these independent optional resources.
+      // No chain depends on another chain or imports its values.
+      if (type.id === "agent-settings")
+        await Promise.all(
+          (
+            [
+              projectCapabilitiesConfiguration,
+              projectIntegrations,
+            ] as ProjectConfigurationType<unknown>[]
+          ).map(async (resource) => {
+            migrations.register(resource);
+            await migrations.load(context(scope), resource);
+          }),
+        );
       if (
         loaded.classification === "corrupted" &&
         loaded.sourceDigest !== undefined &&

@@ -27,6 +27,13 @@ export interface WriteAsset extends RegisterAsset {
   content: string | Uint8Array;
 }
 
+export class MissingAssetError extends Error {
+  constructor() {
+    super("Asset not found.");
+    this.name = "MissingAssetError";
+  }
+}
+
 export class AssetStore {
   readonly dataDir: string;
 
@@ -227,31 +234,33 @@ export class AssetStore {
 
   async read(assetId: string): Promise<Buffer> {
     const asset = this.storage.assets.get(assetId);
-    if (!asset) throw new Error(`Asset not found: ${assetId}`);
-    await this.ensureDirectory(dirname(this.path(asset.logicalPath)));
-    const info = await lstat(this.path(asset.logicalPath));
-    if (!info.isFile() || info.isSymbolicLink())
-      throw new Error("Asset must be a regular file");
-    const bytes = await readFile(this.path(asset.logicalPath));
-    if (
-      asset.category !== "bash_output" &&
-      asset.digest !== null &&
-      createHash("sha256").update(bytes).digest("hex") !== asset.digest
-    )
-      throw new Error("Asset digest mismatch");
-    return bytes;
+    if (!asset) throw new MissingAssetError();
+    try {
+      await this.ensureDirectory(dirname(this.path(asset.logicalPath)));
+      const info = await lstat(this.path(asset.logicalPath));
+      if (!info.isFile() || info.isSymbolicLink())
+        throw new Error("Asset must be a regular file");
+      const bytes = await readFile(this.path(asset.logicalPath));
+      if (
+        asset.category !== "bash_output" &&
+        asset.digest !== null &&
+        createHash("sha256").update(bytes).digest("hex") !== asset.digest
+      )
+        throw new Error("Asset digest mismatch");
+      return bytes;
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === "ENOENT")
+        throw new MissingAssetError();
+      throw error;
+    }
   }
 
-  async deleteConversations(conversationIds: string[]): Promise<void> {
+  async deleteConversationFiles(conversationIds: string[]): Promise<void> {
     for (const id of conversationIds) {
       this.assertSegment(id);
       const path = this.path(`conversations/${id}`);
       await this.ensureDirectory(dirname(path));
       await rm(path, { recursive: true, force: true });
-      this.storage.transaction(() => {
-        for (const asset of this.storage.assets.list(id))
-          this.storage.assets.delete(asset.id);
-      });
     }
   }
 

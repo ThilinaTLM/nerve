@@ -393,3 +393,37 @@ void test("async bash start supplies conversation identity for effective shell r
     await f.close();
   }
 });
+
+void test("deletion ignores completed process refs and never cancels an unverifiable process", async () => {
+  let reattachments = 0;
+  const unexpected = async (): Promise<never> => {
+    throw new Error("No process should start");
+  };
+  const f = await fixture({
+    start: unexpected,
+    run: unexpected,
+    reattach: async () => {
+      reattachments++;
+      throw new Error("Unverifiable process");
+    },
+  });
+  try {
+    f.storage.asyncBash.update(f.bash.id, { processRef: "old-ref" });
+    await f.service.discard([f.bash.id]);
+    assert.equal(reattachments, 0);
+    f.storage.asyncBash.update(f.bash.id, {
+      status: "running",
+      exitCode: null,
+      finishedAt: null,
+    });
+    await f.service.discard([f.bash.id]);
+    assert.equal(reattachments, 1);
+    assert.equal(
+      f.storage.asyncBash.get(f.bash.id)?.status,
+      "running",
+      "raw deletion, not a fake completion, owns removal",
+    );
+  } finally {
+    await f.close();
+  }
+});

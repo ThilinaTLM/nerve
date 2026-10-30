@@ -57,7 +57,10 @@ export function createServerAdapterContexts(
     return project;
   };
   const protocol = {
-    activity: { activities: infrastructure.activities },
+    activity: {
+      activities: infrastructure.activities,
+      unreadableConversations: services.unreadableConversations,
+    },
     completions: { completions: services.completions },
     platform: {
       ...infrastructure,

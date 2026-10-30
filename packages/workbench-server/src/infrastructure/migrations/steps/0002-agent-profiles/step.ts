@@ -626,6 +626,7 @@ export default defineStep({
       [
         "Removed bundled Explore/Developer parent-copy model and reasoning behavior",
         ...plan.receipts.flatMap((item) => item.receipt.report),
+        ...plan.metadata.flatMap((patch) => patch.reasons ?? []),
       ].map((reason) => ({ reason, count: 1 })),
     );
   },

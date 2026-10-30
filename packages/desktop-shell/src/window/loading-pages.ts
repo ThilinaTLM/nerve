@@ -110,35 +110,23 @@ export function errorHtml(
   const summary =
     options.summary ??
     (admission === "too_old"
-      ? "This home predates the supported 0.34.1 baseline. Upgrade through 0.34.1 to preserve history, or start fresh and keep recognizable providers."
+      ? "To keep your conversation history, run Nerve 0.34.1 once, then reopen this version."
       : admission
-        ? "The home metadata is damaged or unrecognized. You can inspect the data folder or archive it and start fresh. The original home is never deleted."
+        ? "The home metadata is damaged or unrecognized."
         : retry
           ? "Nerve could not connect to its local service. You can try again without closing the app."
           : "Nerve lost its connection to the local service. Technical details are available below.");
   const escapedDataDir = escapeHtml(dataDir);
-  const recoveryMarkup = admission
-    ? `
-    ${admission === "too_old" ? '<button id="upgrade-instructions" type="button">Upgrade through 0.34.1</button><p>Close Nerve, run Nerve 0.34.1 once with this same data folder, then reopen the latest version.</p>' : ""}
-    <button id="start-fresh" type="button">Start fresh, keep providers</button>
-    <button id="open-home" type="button">Open data folder</button>
-    <button id="copy-diagnostics" type="button">Copy diagnostics</button>`
+  const damaged = admission !== undefined && admission !== "too_old";
+  const admissionMarkup = admission
+    ? `<p class="diagnostic-location">Home folder: ${escapedDataDir}</p>
+    <p>Close Nerve, delete or move this folder, then reopen Nerve to start with an empty home.</p>
+    ${damaged ? '<button id="open-home" type="button">Open folder</button><button id="copy-diagnostics" type="button">Copy diagnostics</button>' : ""}`
     : "";
-  const recoveryScript = admission
+  const admissionScript = damaged
     ? `<script>
-    const status = document.getElementById("startup-error-status");
-    document.getElementById("upgrade-instructions")?.addEventListener("click", () => window.nerveDesktop?.app.upgradeInstructions());
     document.getElementById("open-home")?.addEventListener("click", () => window.nerveDesktop?.app.openHomeFolder());
     document.getElementById("copy-diagnostics")?.addEventListener("click", () => window.nerveDesktop?.app.copyStartupDiagnostics());
-    document.getElementById("start-fresh")?.addEventListener("click", async (event) => {
-      const button = event.currentTarget;
-      button.disabled = true;
-      try {
-        const result = await window.nerveDesktop?.app.startFresh();
-        if (!result?.accepted && status) status.textContent = "Start fresh was cancelled or could not be started.";
-      } catch (error) { if (status) status.textContent = "Start fresh failed. Your original data remains on disk. " + String(error); }
-      finally { button.disabled = false; }
-    });
   </script>`
     : "";
   const retryMarkup = retry
@@ -166,7 +154,7 @@ export function errorHtml(
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; ${retry || admission ? "script-src 'unsafe-inline'; " : ""}style-src 'unsafe-inline'; img-src data:" />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; ${retry || damaged ? "script-src 'unsafe-inline'; " : ""}style-src 'unsafe-inline'; img-src data:" />
     <title>Nerve startup error</title>
     <style>${shellStyles()}</style>
   </head>
@@ -175,7 +163,7 @@ export function errorHtml(
       <h1 class="error-title">${escapeHtml(title)}</h1>
       <p id="startup-error-status" class="status">${escapeHtml(summary)}</p>
       ${retryMarkup}
-      ${recoveryMarkup}
+      ${admissionMarkup}
       <details>
         <summary>Technical details</summary>
         <p class="diagnostic-location">Logs: ${escapedDataDir}/logs</p>
@@ -183,7 +171,7 @@ export function errorHtml(
       </details>
     </main>
     ${retryScript}
-    ${recoveryScript}
+    ${admissionScript}
   </body>
 </html>`;
 }

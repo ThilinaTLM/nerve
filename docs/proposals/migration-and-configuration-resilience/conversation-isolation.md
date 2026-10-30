@@ -1,14 +1,15 @@
 # Conversation isolation
 
-Part of [Migration and configuration resilience](./README.md). **Investigated and rechecked on 2026-10-30. Startup/list and stream containment implemented; Unavailable UI remains follow-up.**
+Part of [Migration and configuration resilience](./README.md). **Investigated and rechecked on 2026-10-30. Recovery/stream containment, unreadable-conversation activity with Delete, and missing-asset handling are implemented.**
 
 Home migration already sets aside conversations it cannot convert. Corruption can also appear later, for example from a partial write, disk trouble, or a bug in a newer version. The same principle applies: one unreadable conversation must not break startup, the conversation list, or other conversations.
 
 ## Intended behaviour
 
-- The conversation list shows an unreadable conversation as **Unavailable**, with its title if one can be recovered.
-- Opening it shows the error and offers **Export raw data** and **Delete**. Delete asks for confirmation.
-- Projection or replay failures are contained to that conversation.
+- One header activity item lists conversations that could not be loaded, with each raw title (or ID), project and error summary.
+- Each entry offers **Delete** with confirmation. It removes that conversation, its descendants and their files from raw identity.
+- There is no Unavailable conversation-list entry, conversation contract change, or export action; these were dropped in the [follow-up plan](./follow-up-plan.md).
+- Projection or replay failures are contained to that conversation. A missing image returns a typed, path-free 404 and renders a placeholder; wrong ownership remains a different error.
 
 ## Investigation
 
@@ -72,28 +73,16 @@ Recorded fault runs were approximately 13:34–13:46 UTC on 2026-10-30. Local ev
 
 The first attempted controlled seed had a SQL placeholder-count error; that empty-home launch was discarded, the sanitized backup restored, and the seed corrected before recording the cases above. No observations from that failed setup are used as fault evidence.
 
-### Original proposed fixes and current scope
+### Decisions after the investigation
 
-**Implemented:** items 1 and 3 (startup/list and replay/activation/live projection containment). **Deferred:** item 2 (Unavailable UI and raw export/delete), item 4 (asset presentation), and item 5 (configuration presentation). The original proposals are retained below for context; the implementation/recheck section records the delivered boundaries.
-
-1. **Contain startup and list projection failures (cases 1 and 4).** Enumerate minimal raw conversation identity/ownership first, then validate and recover each conversation independently. Do not begin with `listAll().map(mapConversation)`, since it throws before a per-conversation catch can run. Guard JSON extraction in summary SQL (for example, `CASE WHEN json_valid(payload) THEN … END`) so a damaged payload cannot abort the whole query. Record the projection diagnostic and skip execution/recovery for that conversation; do not silently coerce the corrupt status or payload into a valid value. Ancestor summary failures must also remain contained. No new database table or column is needed for this proposal.
-
-2. **Represent unavailable conversations explicitly (cases 1, 1a, 2 and 4).** Add a transport-neutral available/unavailable list/view result to contracts, retaining raw recoverable ID, project ownership and title plus a diagnostic. This is availability, not a new persisted execution status. Keep the list entry selectable as **Unavailable**; replace the raw `RpcError` dead end with the error, **Export raw data**, and confirmed **Delete**. Export must preserve raw SQL payload strings and available conversation files without projecting/replaying them; report missing files instead of aborting the export. Deletion must work from raw identity/ownership without validating the broken row first: the existing delete path starts with validating `conversations.get(id)` (`CC/conversations/conversation.service.ts:243`) and therefore cannot delete case 4 as-is.
-
-3. **Contain replay and activation failures to the stream (case 1a).** Apply the same per-conversation projection boundary to replay, activation and live event projection, not only RPC handlers or bounds lookup. Mark/unsubscribe only the offending conversation stream and deliver its unavailable diagnostic; do not invoke the shared `failed` socket-close path for corrupt conversation data. Leave healthy subscriptions and RPCs usable on the same connection. Keep genuine framing/transport failures connection-wide. Extend transport-neutral stream mechanics only if the existing stream-unavailable path cannot express this; do not add a transport-specific workaround in core.
-
-4. **Keep missing-asset failures local (cases 3a and 3b).** Preserve the working transcript/details boundaries. Normalize a missing backing file to a typed missing-asset response rather than leaking an absolute-path `INTERNAL_ERROR`/500, and render an explicit missing-image placeholder instead of a broken image. Distinguish a missing asset from wrong ownership in tool details. If a required payload makes a projection unreadable, promote only that conversation to the unavailable view above. Do not mark every conversation with an optional missing thumbnail unavailable, and never relax asset ownership/path checks.
-
-5. **Reuse existing configuration isolation (case 5).** Keep the scoped store's unavailable state and existing reload/repair/reset choices; do not add a second corrupt-configuration subsystem or fall back to unvalidated content. Surface the configuration diagnostic near the affected conversation's controls and preserve readable history. The conversation-wide unavailable view is needed only when its projection cannot be opened; configuration-only failure should not unnecessarily hide the transcript. Execution admission was not exercised in this experiment, so blocked-provider behavior is not claimed as an observed result.
-
-The initial investigation implemented no product fixes. The approved containment work and verification follow below.
+Startup/list and replay/activation/live containment were implemented first. The original Unavailable list/view and raw-export proposal was subsequently replaced by the simpler header activity item and confirmed raw Delete. Missing-asset response/presentation fixes are also delivered below. Scoped configuration isolation remains as investigated; this work does not change its presentation or repair historical data.
 
 ## Implemented containment and post-fix verification
 
 ### Delivered boundaries
 
 - **Raw identity enumeration and per-conversation recovery:** `ConversationRepository.identities()` does not validate execution state. Recovery validates each row and its event records before recovering that conversation's tools, inputs and async jobs. A failure logs its conversation ID, operation and error, skips that conversation, and does not wake it. Status refresh also catches and reports a failure for its own conversation without rewriting invalid state. This does not repair persisted data or invent a valid status/payload.
-- **List and summary reads:** summary JSON extraction uses `CASE WHEN json_valid(...)` for event payloads and tool interactions. Invalid conversation/summary rows are skipped individually with a diagnostic, not returned with coerced fields. Raw ancestor IDs let summary publication skip an invalid ancestor and still publish healthy ancestors. There is deliberately no Unavailable list entry yet: an invalid status row is omitted; a valid row with unreadable history can still appear normally.
+- **List and summary reads:** summary JSON extraction uses `CASE WHEN json_valid(...)` for event payloads and tool interactions. Invalid conversation/summary rows are skipped individually with a diagnostic, not returned with coerced fields. Raw ancestor IDs let summary publication skip an invalid ancestor and still publish healthy ancestors. There is deliberately no Unavailable list entry: an invalid status row is omitted; a valid row with unreadable history can still appear normally.
 - **Stream projection boundary:** the conversation channel validates event data and envelopes before queuing them. Initial unreadable replay uses the existing per-stream `mode: unavailable` reply. Activation, later replay pages and live event/delta projection failures log a diagnostic and remove only that stream; healthy streams and RPCs on the same connection remain usable. A later subscription can retry a repaired stream.
 - **Minimal transport-neutral protocol change:** durable stream readers can return `null` for an unavailable stream. Replay removes that stream rather than interpreting it as an empty-page continuity failure and closing the connection. The replay loop also honors streams removed during activation. No wire schema or persisted schema was added. Later failures remove the server-side stream; a new unsolicited Unavailable UI notification is not part of this change. Genuine malformed protocol frames and transport/send failures retain their connection-wide handling.
 
@@ -124,6 +113,48 @@ Owning-layer unit coverage:
 - `packages/workbench-server/src/adapters/protocol/conversation-channel.test.ts`: independent resolver, activation and later replay failures; live payload/envelope/delta failures; healthy shared RPC and stream delivery; genuine malformed-frame and transport-write connection closure.
 - `packages/protocol/test/streams/subscription-recovery.test.ts`: unavailable reader results and activation-time stream removal do not silence healthy replay/live delivery.
 
-All 65 relevant unit tests passed (42 conversation-core, 15 protocol, 8 conversation-channel). `pnpm fix:focused --base HEAD` and `pnpm check:focused --base HEAD` passed, including selected package/type checks and repository policies. No broad test suites were run. Items 2, 4 and 5 above remain follow-up, including replacing local raw error views with Unavailable / Export raw data / confirmed Delete. Asset and configuration presentation were not changed.
+At the first containment checkpoint, all 65 relevant unit tests passed (42 conversation-core, 15 protocol, 8 conversation-channel), as did `pnpm fix:focused --base HEAD` and `pnpm check:focused --base HEAD`. No broad test suites were run. Servers/browser sessions were stopped and slot 8 restored to the seeded baseline at that checkpoint. The follow-up below recreated slot 8 from the specified pristine dataset.
 
-All task-owned servers/browser sessions were stopped after the recheck, and slot 8 was restored to the seeded, sanitized baseline.
+## Follow-up plan sections 3 and 4: delivered
+
+### Design and ownership
+
+- `ConversationRepository`'s failure reporter now covers later row/history reads as well as startup recovery. `UnreadableConversationActivity` deduplicates failed IDs in memory and publishes one producer-owned, non-dismissable/non-evictable activity. It reads title/project metadata through `rawIdentity`, not the failing projection, and reduces schema failures to a concise first-issue summary.
+- The existing activity service, snapshot/event transport and activity popover carry/render the item. Activity metadata has an optional `unreadableConversations` collection; the **conversation schemas/list contracts are unchanged**. `activity.deleteConversation` is the only new operation, and accepts deletion only for a reported ID. The existing ConfirmDialog is used; the popover closes before the confirmation opens.
+- Conversation deletion now has one raw-identity path for regular and unreadable conversations. It enumerates descendants with duplicate-safe SQL, fences/aborts runners and tool workers, cancels queued preparation and owned async processes, removes the conversation directories, and lets SQLite cascade the raw rows. It does not decode corrupt event, queue or tool-argument payloads or validate the broken conversation row. Completed/unverifiable process references are never blindly cancelled. Existing asset-path safety checks remain intact. Redundant per-asset row deletion and the second recursive file-removal loop were removed. No database schema or persistent dismissal state was added.
+- A public-catalog regression test scans qualified literal server publications and all declared server event definitions (including callback-published names). Project configuration publication failures now log at **error**, not warning.
+- `MissingAssetError` distinguishes missing rows/backing files from ownership/integrity errors. The image route returns `404 { error: { code: "ASSET_NOT_FOUND", message: "Asset not found." } }`, without an absolute path. Conversation-channel result reads map missing assets to `RESOURCE_NOT_FOUND`; another tool/conversation's image still produces the distinct ownership error. Read-card and agent-preview images reuse `ToolImage` and show **Image unavailable** on load failure.
+
+### Fresh slot-8 live verification
+
+Created the assigned slot with the requested commands:
+
+```sh
+env -u NERVE_HOME -u NERVE_API_TARGET pnpm storage:copy --from data/storage-0-37-0 --slot 8
+env -u NERVE_HOME -u NERVE_API_TARGET pnpm storage:migrate --home data/storage-8
+```
+
+Rewrote every copied project directory and conversation working directory to nonexistent `/tmp/conv-resilience-missing-*` paths before any daemon launch. Checked configuration paths. Opened only the copied database to apply the core SQL upgrade, then re-sanitized its new working-directory column. Removed the copied queued input as an additional safety measure; there were no open tool calls or running async jobs. Pristine datasets and protected homes were not used as runnable homes.
+
+Started and restarted only with `env -u NERVE_HOME -u NERVE_API_TARGET pnpm dev --slot 8` (HTTP 43981, UI 5180). No real provider request was made. Injected controlled faults after migration, each with a child and deletion-marker/config files:
+
+| Check                                            | Observed result                                                                                                                                                                        |
+| ------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Fault 1, `conv_000_fault1`: malformed event JSON | Daemon starts; the single activity item shows **Fault 1: unreadable JSON**, project **nerve**, and the JSON parse summary                                                              |
+| Fault 4, `conv_000_fault4`: invalid status       | Daemon starts; the same item shows **Fault 4: invalid row**, project **nerve**, and the status validation summary                                                                      |
+| Cancel                                           | Confirmation appears; Cancel preserves the row, child and files. Repeated with the final popover/confirmation flow                                                                     |
+| Confirmed Delete for both faults                 | Both parents, both descendants and all four directories disappear, without validating the invalid status or replaying corrupt history                                                  |
+| Restart                                          | Both fault families remain absent from SQL, files and the activity payload                                                                                                             |
+| Later read failure                               | Corrupted the disposable healthy probe after startup; a history RPC immediately added it to the existing activity item. Cancel preserved it; confirmed Delete removed it and its files |
+| Missing backing image                            | HTTP 404 with `ASSET_NOT_FOUND`, no absolute path; transcript displays an accessible **Image unavailable** placeholder rather than a broken image                                      |
+| Healthy conversation                             | Transcript opens and the composer accepts an unsent draft with Send prompt available before the later-read corruption test                                                             |
+
+The copied dataset independently contains 82 schema-invalid historical conversations. They were not repaired or deleted. Thus the one notice counted **84 → 83 → 82** as the two controlled faults were deleted; its ID stayed stable within that daemon. Restart rebuilt one notice for the same 82 pre-existing failures, with neither controlled fault present. The later-read test temporarily changed it to 83 and deletion returned it to 82.
+
+Evidence is local under `/tmp/nerve-conv-iso-evidence/`: `followup-copy.log`, `followup-migrate.log`, `followup-live.log`, `followup-restart.log`, `followup-activity-before.json`, `followup-after-delete1.json`, `followup-after-delete-both.json`, `followup-after-restart.json`, `followup-later-read.log`, `followup-later-activity.json`, `followup-after-later-delete.json`, `followup-delete-confirm.snapshot`, `followup-missing-asset-http.log`, `followup-missing-image.png`, `followup-healthy-composer.snapshot`, and filtered `followup-application.jsonl`.
+
+All task-owned daemon/UI/browser processes were stopped. Slot 8 is retained, migrated and sanitized, with the controlled deletions preserved and the missing-image probe available for inspection; it was not restored in a way that would resurrect deleted rows.
+
+### Follow-up regression coverage
+
+Owning-layer tests cover raw recursive deletion of invalid status/history and malformed queued/tool payloads, active-worker abortion/fencing, safe async-process handling, later-read reporting, aggregation/retention/deletion failure handling, notification mapping, typed missing-asset responses and distinct ownership errors, plus server event-catalog membership. Existing lifecycle, activity reconciliation and conversation-channel tests were also run. The selected unit runs passed: 6 contracts, 43 conversation-core, 19 server and 29 application tests (97 total). Owning-file formatting/lint, selected package/type checks, repository policy checks and migration integrity passed. `pnpm check:focused --base HEAD` currently stops on formatting in the concurrently edited proposal `README.md`; that out-of-scope file was left untouched. The focused autofix plan was previewed, but repository-wide/shared-file autofix was not used to rewrite another agent's changes. The lead must format that file and rerun `pnpm fix:focused && pnpm check:focused`. Exact commands/results are in the task handoff; no full or browser test suites were run.

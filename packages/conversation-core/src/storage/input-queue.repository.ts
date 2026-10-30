@@ -7,6 +7,16 @@ export type EnqueueInput = Omit<QueuedInput, "acceptanceSequence">;
 export class InputQueueRepository {
   constructor(private readonly db: CoreDatabase) {}
 
+  /** Runtime cleanup must not decode damaged persisted work. */
+  ids(conversationId: string): string[] {
+    return this.db.sqlite
+      .prepare(
+        "SELECT input_id AS id FROM input_queue WHERE conversation_id = ?",
+      )
+      .all(conversationId)
+      .map((row) => String(row.id));
+  }
+
   get(inputId: string): QueuedInput | null {
     const row = this.db.sqlite
       .prepare("SELECT * FROM input_queue WHERE input_id = ?")

@@ -1,6 +1,5 @@
 import {
   checkHomeAdmission,
-  startFreshHome,
   readCurrentSettingsForBootstrap,
 } from "@nervekit/workbench-server";
 import { ensureDaemon } from "../daemon/composition.js";
@@ -10,7 +9,6 @@ import { desktopLog } from "../logging.js";
 import { installDesktopPerformanceMonitor } from "../performance/performance-monitor.js";
 import {
   app,
-  dialog,
   BrowserWindow,
   ipcMain,
   nativeTheme,
@@ -54,10 +52,8 @@ const ipcChannels = [
   "desktop.clipboard.readText",
   "desktop.clipboard.writeText",
   "desktop.startup.retry",
-  "desktop.startup.startFresh",
   "desktop.startup.openHome",
   "desktop.startup.copyDiagnostics",
-  "desktop.startup.upgradeInstructions",
   "desktop.startup.rendererCoreReady",
   "desktop.app.quit",
   "desktop.app.setBadgeCount",
@@ -133,21 +129,6 @@ export function createDesktopRuntimePorts(): DesktopRuntimePorts {
       },
     },
     checkHomeAdmission,
-    recoverHome: async (home) => {
-      const result = await dialog.showMessageBox({
-        type: "warning",
-        title: "Start fresh, keep providers",
-        message: "Archive this Nerve home and start fresh?",
-        detail: `The entire home at ${home} will be renamed to an archive sibling, never deleted. Only recognizable current provider settings and paired credentials will be carried over. Conversations remain in the archive until you delete it.`,
-        buttons: ["Cancel", "Start fresh, keep providers"],
-        defaultId: 0,
-        cancelId: 0,
-        noLink: true,
-      });
-      if (result.response !== 1) return false;
-      await startFreshHome(home);
-      return true;
-    },
     readCurrentSettings: readCurrentSettingsForBootstrap,
     configureNetworkSession: () =>
       configureDesktopNetworkSession(session.defaultSession, desktopLog),

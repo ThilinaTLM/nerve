@@ -6,14 +6,14 @@ export const MIGRATION_METADATA: readonly MigrationRegistryEntry[] =
     {
       step: { id: "0001-conversation-core" },
       checksum:
-        "ff3ad9d3b43fcbc678bcd8eec15f6a838efe81750448ad76a4445f0c18a06e23",
+        "b548ad605a06952cb10dba894b4c99252e1f68db8d798f4fb61d3e4cb29db90b",
       stage: "draft",
     },
     {
       step: { id: "0002-agent-profiles" },
       rerunOnChange: true,
       checksum:
-        "bb15ece4bbc7d0a323f4771be7c3f9e82d84f37aa5aad156b9f70b2aa13ed331",
+        "20ae70d4def3887f4e5afe9f5bd4671ea57849a1a8d4a28417c8b5169c0e97a0",
       stage: "draft",
     },
   ]);

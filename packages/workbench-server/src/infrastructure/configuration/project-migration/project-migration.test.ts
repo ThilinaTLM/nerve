@@ -199,35 +199,6 @@ void test("reload clears a manually fixed issue and removal reset removes an ove
   await assert.rejects(readFile(f.path), { code: "ENOENT" });
 });
 
-void test("legacy newer version is read-only and never passed to conversion", async (t) => {
-  const f = await fixture(t);
-  const legacy = join(f.context.directory, ".nerve", "old.json");
-  await writeFile(legacy, '{"schemaVersion":8}');
-  let converted = false;
-  const descriptor = {
-    ...type,
-    legacySources: [
-      {
-        path: "old.json",
-        currentVersion: 1,
-        version: { field: "schemaVersion", absent: 1 },
-        migrate: () => {
-          converted = true;
-          return {};
-        },
-      },
-    ],
-  };
-  const result = await f.service.load(f.context, descriptor);
-  assert.equal(result.classification, "incompatible");
-  assert.equal(converted, false);
-  await assert.rejects(
-    f.service.reset(f.context, descriptor, true),
-    /Only corrupted/,
-  );
-  await assert.rejects(readFile(f.path), { code: "ENOENT" });
-});
-
 void test("registered resolve actions reload and confirm reset, without granting trust", async (t) => {
   const f = await fixture(t);
   f.service.register(type);
@@ -300,28 +271,4 @@ void test("transactions preserve concurrent invalid edits and issues expose abso
   assert.equal(await readFile(f.path, "utf8"), "invalid external edit");
   await f.service.load(context, type);
   assert.ok(isAbsolute(f.service.health(context.projectId).issues[0].path));
-});
-
-void test("a healthy current file clears and publishes a legacy-path issue", async (t) => {
-  const f = await fixture(t);
-  const descriptor = {
-    ...type,
-    legacySources: [
-      {
-        path: "old.json",
-        currentVersion: 1,
-        migrate: (value: unknown) => value,
-      },
-    ],
-  };
-  await writeFile(
-    join(f.context.directory, ".nerve", "old.json"),
-    "invalid legacy",
-  );
-  await f.service.load(f.context, descriptor);
-  const count = f.changes.length;
-  await writeFile(f.path, '{"version":2,"value":"fixed"}');
-  await f.service.load(f.context, descriptor);
-  assert.equal(f.changes.length, count + 1);
-  assert.deepEqual(f.service.health(f.context.projectId).issues, []);
 });

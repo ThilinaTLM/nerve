@@ -100,6 +100,7 @@ await test("configure awaits JSON context persistence and keeps working-director
           return { conversationId: "c", workingDirectory };
         },
         getSummary: () => ({ id: "c" }),
+        parentId: () => null,
       },
     },
     historyContext: () => (unavailable ? {} : context),

@@ -49,6 +49,7 @@ async function fixture(failure: "resolve" | "activation" | "replay" | "live") {
     closed = deferred();
   const applied: string[] = [],
     warnings: string[] = [],
+    readFailures: string[] = [],
     closes: number[] = [];
   const reads = new Map<string, number>();
   let listener!: (change: CoreChange) => void;
@@ -74,6 +75,13 @@ async function fixture(failure: "resolve" | "activation" | "replay" | "live") {
     socket as unknown as WebSocket,
     {
       daemonId: "isolation-test",
+      coreStorage: {
+        conversations: {
+          reportFailure: (id: string) => {
+            readFailures.push(id);
+          },
+        },
+      },
       operationContexts: { platform: {} },
       logger: {
         warn: async (message: string) => {
@@ -144,6 +152,7 @@ async function fixture(failure: "resolve" | "activation" | "replay" | "live") {
     socket,
     applied,
     warnings,
+    readFailures,
     closes,
     healthy,
     closed,
@@ -198,6 +207,7 @@ for (const failure of ["resolve", "activation", "replay"] as const) {
         );
         assert.deepEqual(f.closes, []);
         assert.ok(f.warnings.includes("Conversation stream unavailable"));
+        assert.deepEqual(f.readFailures, ["bad"]);
       } finally {
         f.dispose();
       }
@@ -242,6 +252,7 @@ for (const projection of ["payload", "envelope", "delta"] as const) {
         );
         assert.deepEqual(f.closes, []);
         assert.ok(f.warnings.includes("Conversation stream unavailable"));
+        assert.deepEqual(f.readFailures, ["bad"]);
       } finally {
         f.dispose();
       }

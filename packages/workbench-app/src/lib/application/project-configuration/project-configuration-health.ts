@@ -21,7 +21,10 @@ export function failingSignature(
   return Object.values(byProject)
     .flat()
     .filter(isFailingIssue)
-    .map((issue) => `${issueKey(issue)}:${issue.classification}`)
+    .map(
+      (issue) =>
+        `${issueKey(issue)}:${issue.classification}:${issue.classification === "legacy" ? [...(issue.files ?? [])].sort().join(";") : ""}`,
+    )
     .sort()
     .join(",");
 }
@@ -29,7 +32,15 @@ export function failingSignature(
 export function failingToastTitle(
   byProject: Readonly<Record<string, readonly ProjectConfigurationIssue[]>>,
 ): string {
-  const count = Object.values(byProject).flat().filter(isFailingIssue).length;
+  const count = Object.values(byProject)
+    .flat()
+    .filter(isFailingIssue)
+    .reduce(
+      (sum, issue) =>
+        sum +
+        (issue.classification === "legacy" ? (issue.files?.length ?? 1) : 1),
+      0,
+    );
   return `Project configuration needs attention · ${count} ${count === 1 ? "file" : "files"}`;
 }
 

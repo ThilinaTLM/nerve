@@ -8,6 +8,16 @@ export const activityStatusSchema = z.enum([
   "cancelled",
   "interrupted",
 ]);
+export const unreadableConversationSchema = z.object({
+  id: z.string(),
+  title: z.string(),
+  projectId: z.string(),
+  projectName: z.string(),
+  error: z.string(),
+});
+export type UnreadableConversation = z.infer<
+  typeof unreadableConversationSchema
+>;
 export const activitySchema = z.object({
   id: z.string().min(1),
   parentId: z.string().optional(),
@@ -24,6 +34,7 @@ export const activitySchema = z.object({
   status: activityStatusSchema,
   phase: z.string().optional(),
   message: z.string().optional(),
+  unreadableConversations: z.array(unreadableConversationSchema).optional(),
   progress: z
     .object({
       completed: z.number().nonnegative(),

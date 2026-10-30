@@ -28,7 +28,7 @@ let {
     >
   {:else}
     <Button size="sm" variant="outline" onclick={() => onOpen(issue)}
-      >Open file</Button
+      >{issue.classification === "legacy" ? "Open folder" : "Open file"}</Button
     >
     <Button
       size="sm"
@@ -36,7 +36,14 @@ let {
       disabled={pending}
       onclick={() => onReload(issue)}>Reload</Button
     >
-    {#if issue.classification === "corrupted" && issue.resetOffered}
+    {#if issue.classification === "legacy"}
+      <Button
+        size="sm"
+        variant="ghost"
+        disabled={pending}
+        onclick={() => onReset(issue)}>Remove old files</Button
+      >
+    {:else if issue.classification === "corrupted" && issue.resetOffered}
       <Button
         size="sm"
         variant="ghost"

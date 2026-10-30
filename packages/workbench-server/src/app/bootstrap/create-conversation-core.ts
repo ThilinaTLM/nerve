@@ -53,10 +53,12 @@ export function createConversationCore(
   onProjectDeleted?: ConversationCoreOptions["onProjectDeleted"],
   processHost?: CoreProcessHost,
   migrations?: ProjectMigrationService,
+  onConversationFailure?: Parameters<typeof openCoreStorage>[1],
 ) {
   const dataDir = deps.storage.paths.dataPath;
   mkdirSync(dataDir, { recursive: true });
   const storage = openCoreStorage(deps.storage.paths.sqlitePath, (failure) => {
+    onConversationFailure?.(failure);
     void deps.logger
       .warn("Conversation read failed; skipped", {
         conversationId: failure.conversationId,

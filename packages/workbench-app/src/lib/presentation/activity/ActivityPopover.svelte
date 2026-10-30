@@ -1,5 +1,6 @@
 <script lang="ts">
 import type { Snippet } from "svelte";
+import type { UnreadableConversation } from "@nervekit/contracts/activity";
 import ArrowLeft from "@lucide/svelte/icons/arrow-left";
 import Ban from "@lucide/svelte/icons/ban";
 import Bell from "@lucide/svelte/icons/bell";
@@ -39,6 +40,7 @@ let {
   onOpenItem,
   onAction,
   onDismiss,
+  onDeleteConversation,
   onClearFinished,
   onToggleMute,
   onViewed,
@@ -59,6 +61,7 @@ let {
     item: NotificationItem,
   ) => void;
   onDismiss?: (id: string) => void;
+  onDeleteConversation?: (entry: UnreadableConversation) => void;
   onClearFinished?: () => void;
   /** Mute for an hour, or unmute when already muted. */
   onToggleMute?: () => void;
@@ -104,8 +107,11 @@ const unreadIds = $derived(
     .filter((item) => item.unread)
     .map((item) => item.id),
 );
+const unreadable = $derived(
+  items.some((item) => item.unreadableConversations?.length),
+);
 const label = $derived(
-  `Notifications${needsYou ? `, ${needsYou} need you` : running ? ", running" : ""}${unseenFailure ? ", unseen failure" : ""}${muted ? ", muted" : ""}${attention ? ", settings need attention" : ""}`,
+  `Notifications${needsYou ? `, ${needsYou} need you` : running ? ", running" : ""}${unseenFailure ? ", unseen failure" : ""}${muted ? ", muted" : ""}${attention ? ", settings need attention" : unreadable ? ", conversations need attention" : ""}`,
 );
 
 let now = $state(Date.now());
@@ -181,7 +187,7 @@ const childLabel = {
           aria-hidden="true">{needsYou}</span
         >
       {/if}
-      {#if attention && !needsYou}
+      {#if (attention || unreadable) && !needsYou}
         <span
           class="absolute -right-0.5 -top-0.5 size-2 rounded-full bg-warning"
           aria-hidden="true"
@@ -369,6 +375,31 @@ const childLabel = {
             (item.progress.completed / item.progress.total) * 100,
           )}
         />
+      {/if}
+      {#if item.unreadableConversations?.length}
+        <ul class="mt-2 grid gap-3">
+          {#each item.unreadableConversations as entry (entry.id)}
+            <li class="grid min-w-0 gap-1">
+              <p class="break-words text-sm">{entry.title || entry.id}</p>
+              <p class="text-xs text-muted-foreground">
+                {entry.projectName || entry.projectId}
+              </p>
+              <p
+                class="break-words whitespace-pre-wrap text-xs text-destructive"
+              >
+                {entry.error}
+              </p>
+              <div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  ariaLabel={`Delete ${entry.title || entry.id}`}
+                  onclick={() => onDeleteConversation?.(entry)}>Delete</Button
+                >
+              </div>
+            </li>
+          {/each}
+        </ul>
       {/if}
       {#if item.children.length}
         <Collapsible.Root bind:open={expanded[item.id]}>

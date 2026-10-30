@@ -4,7 +4,7 @@ import {
   type PermissionOverlayDocument,
 } from "@nervekit/contracts/permissions";
 import type { ProjectConfigurationType } from "../infrastructure/configuration/project-migration/project-migration.js";
-import { convertDocument } from "../infrastructure/configuration/agent-configuration/project-chains/frozen/policy-document.js";
+import { convertPermissionOverlayV1 } from "../infrastructure/configuration/agent-configuration/project-chains/frozen/policy-document.js";
 export type ProjectPermissionDocument = PermissionOverlayDocument & {
   version: 2;
 };
@@ -54,7 +54,7 @@ export const projectPermissionsConfiguration: ProjectConfigurationType<ProjectPe
         const document = { ...(value as Record<string, unknown>) };
         delete document.version;
         return {
-          ...(convertDocument(document, "permissions") as object),
+          ...(convertPermissionOverlayV1(document) as object),
           version: 2,
         };
       },
@@ -62,5 +62,4 @@ export const projectPermissionsConfiguration: ProjectConfigurationType<ProjectPe
     schema: projectPermissionSchema,
     fallback: () => ({ schemaVersion: 2, version: 2, overlays: [] }),
     reset: () => null,
-    trustKind: "project_permissions",
   };

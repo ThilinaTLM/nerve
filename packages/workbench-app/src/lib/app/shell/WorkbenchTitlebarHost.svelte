@@ -1,4 +1,5 @@
 <script lang="ts">
+import type { UnreadableConversation } from "@nervekit/contracts/activity";
 import { workbenchStartupState } from "$lib/application/startup/workbench-startup-state.svelte";
 import {
   UpgradeReportNotice,
@@ -113,6 +114,7 @@ const projectIssues = $derived(
 const newConversationShortcut = getShortcutLabel("conversation.new");
 
 let pendingDelete = $state<DeleteTarget | undefined>();
+let unreadableDelete = $state<UnreadableConversation>();
 let pendingPrune = $state<PruneTarget | undefined>();
 const quickLimit = $derived(
   responsive.isPhone ? 1 : responsive.isCompact ? 2 : 5,
@@ -217,7 +219,10 @@ $effect(() => {
     health={settingsHealth.notice.health}
     pending={settingsHealth.notice.pending}
     error={settingsHealth.notice.error}
-    onReset={(id) => (settingsHealth.resetId = id)}
+    onReset={(id) => {
+      activityInbox.setOpen(false);
+      settingsHealth.resetId = id;
+    }}
     onReload={(id) => void settingsHealth.resolve({ id, action: "reload" })}
     onRetry={() => void settingsHealth.refresh()}
   />
@@ -240,7 +245,10 @@ $effect(() => {
         void projectConfigurationHealth.open(issue);
       }}
       onReload={(issue) => void projectConfigurationHealth.reload(issue)}
-      onReset={(issue) => projectConfigurationHealth.requestReset(issue)}
+      onReset={(issue) => {
+        activityInbox.setOpen(false);
+        projectConfigurationHealth.requestReset(issue);
+      }}
     />
   {/if}
 {/snippet}
@@ -301,6 +309,10 @@ $effect(() => {
           }
         } else void activityInbox.action(intent, item.id);
       }}
+      onDeleteConversation={(entry) => {
+        activityInbox.setOpen(false);
+        unreadableDelete = entry;
+      }}
       onDismiss={dismissNotification}
       onClearFinished={clearFinished}
       onToggleMute={() =>
@@ -340,5 +352,22 @@ $effect(() => {
   onConfirm={confirmPrune}
   onOpenChange={(open) => {
     if (!open) pendingPrune = undefined;
+  }}
+/>
+
+<AlertDialog
+  open={!!unreadableDelete}
+  title="Delete unreadable conversation?"
+  description={unreadableDelete
+    ? `Delete “${unreadableDelete.title || unreadableDelete.id}” and all its descendants? Their stored messages and files will be permanently removed.`
+    : ""}
+  confirmLabel="Delete"
+  destructive
+  onConfirm={() => {
+    if (unreadableDelete)
+      void activityInbox.deleteConversation(unreadableDelete.id);
+  }}
+  onOpenChange={(open) => {
+    if (!open) unreadableDelete = undefined;
   }}
 />

@@ -16,6 +16,4 @@ export {
   type NerveHomeInspection,
 } from "./infrastructure/storage-bootstrap/index.js";
 
-export { startFreshHome } from "./infrastructure/storage-bootstrap/start-fresh.js";
-
 export { checkHomeAdmission } from "./infrastructure/storage-bootstrap/admission.js";

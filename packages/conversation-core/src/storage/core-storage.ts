@@ -31,7 +31,9 @@ export class CoreStorage {
     this.projects = new ProjectRepository(db);
     this.trustedResources = new TrustedResourceRepository(db);
     this.conversations = new ConversationRepository(db, onConversationFailure);
-    this.events = new ConversationEventRepository(db);
+    this.events = new ConversationEventRepository(db, (id, error) =>
+      this.conversations.reportFailure(id, "events.read", error),
+    );
     this.toolCalls = new ToolCallRepository(db);
     this.inputs = new InputQueueRepository(db);
     this.assets = new AssetRepository(db);

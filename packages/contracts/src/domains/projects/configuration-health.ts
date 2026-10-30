@@ -11,7 +11,8 @@ export const projectConfigurationIssueSchema = z.object({
       (path) => /^(?:\/|[A-Za-z]:[\\/]|\\\\)/.test(path),
       "Expected an absolute configuration path",
     ),
-  classification: z.enum(["migrated", "corrupted", "incompatible"]),
+  classification: z.enum(["migrated", "corrupted", "incompatible", "legacy"]),
+  files: z.array(z.string()).optional(),
   message: z.string(),
   resetOffered: z.boolean(),
 });
@@ -29,6 +30,11 @@ export const resolveProjectConfigurationSchema = z.discriminatedUnion(
   "action",
   [
     z.object({ action: z.literal("reload"), type: z.string() }),
+    z.object({
+      action: z.literal("remove-legacy"),
+      type: z.literal("legacy-files"),
+      confirmed: z.literal(true),
+    }),
     z.object({
       action: z.literal("reset"),
       type: z.string(),

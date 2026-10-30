@@ -146,6 +146,13 @@ export class InputQueueService {
     this.changed(row.conversationId);
   }
 
+  discard(inputIds: readonly string[]): void {
+    for (const id of inputIds) {
+      this.preparations.get(id)?.abort();
+      this.preparations.delete(id);
+    }
+  }
+
   close(): void {
     // Fence late saves without removing prompts or rewriting uncertain outcomes.
     for (const controller of this.preparations.values()) controller.abort();

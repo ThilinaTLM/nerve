@@ -23,7 +23,20 @@ export interface HistoryPage {
 }
 
 export class ConversationEventRepository {
-  constructor(private readonly db: CoreDatabase) {}
+  constructor(
+    private readonly db: CoreDatabase,
+    private readonly onFailure?: (id: string, error: unknown) => void,
+  ) {}
+  private readonly mapEvent = (
+    row: Record<string, SQLOutputValue>,
+  ): ConversationEvent => {
+    try {
+      return mapEvent(row);
+    } catch (error) {
+      this.onFailure?.(String(row.conversation_id), error);
+      throw error;
+    }
+  };
 
   getUsage(conversationId: string): ConversationAgentUsage {
     const rows = this.db.sqlite
@@ -79,14 +92,14 @@ export class ConversationEventRepository {
         "SELECT * FROM conversation_event WHERE conversation_id = ? ORDER BY sequence",
       )
       .iterate(conversationId))
-      mapEvent(row);
+      this.mapEvent(row);
   }
 
   get(id: string): ConversationEvent | null {
     const row = this.db.sqlite
       .prepare("SELECT * FROM conversation_event WHERE id = ?")
       .get(id);
-    return row ? mapEvent(row) : null;
+    return row ? this.mapEvent(row) : null;
   }
 
   latestExecution(conversationId: string): ConversationEvent | undefined {
@@ -96,7 +109,7 @@ export class ConversationEventRepository {
           AND json_extract(payload, '$.subtype') = 'execution_state'
         ORDER BY sequence DESC LIMIT 1`)
       .get(conversationId);
-    return row ? mapEvent(row) : undefined;
+    return row ? this.mapEvent(row) : undefined;
   }
 
   lastSequence(conversationId: string): number {
@@ -112,7 +125,7 @@ export class ConversationEventRepository {
     const row = this.db.sqlite
       .prepare("SELECT * FROM conversation_event WHERE input_id = ?")
       .get(inputId);
-    return row ? mapEvent(row) : null;
+    return row ? this.mapEvent(row) : null;
   }
 
   append(input: AppendConversationEvent): ConversationEvent {
@@ -215,7 +228,7 @@ export class ConversationEventRepository {
         page.beforeEventId ?? null,
         page.limit,
       )
-      .map(mapEvent);
+      .map(this.mapEvent);
   }
 
   since(conversationId: string, sequence: number): ConversationEvent[] {
@@ -224,7 +237,7 @@ export class ConversationEventRepository {
         "SELECT * FROM conversation_event WHERE conversation_id = ? AND sequence > ? ORDER BY sequence",
       )
       .all(conversationId, sequence)
-      .map(mapEvent);
+      .map(this.mapEvent);
   }
 
   historyPage(
@@ -243,9 +256,10 @@ export class ConversationEventRepository {
         "SELECT * FROM conversation_event WHERE conversation_id = ? AND sequence > ? ORDER BY sequence LIMIT 100",
       )
       .iterate(conversationId, sequence);
+    const map = this.mapEvent;
     return byteLimitedEvents(
       (function* () {
-        for (const row of rows) yield mapEvent(row);
+        for (const row of rows) yield map(row);
       })(),
     );
   }
@@ -259,7 +273,7 @@ export class ConversationEventRepository {
         "SELECT * FROM conversation_event WHERE conversation_id = ? AND event_type = 'tool_call_response' AND json_extract(payload, '$.toolCallId') = ? LIMIT 1",
       )
       .get(conversationId, toolCallId);
-    const event = row ? mapEvent(row) : null;
+    const event = row ? this.mapEvent(row) : null;
     return event?.type === "tool_call_response" ? event : null;
   }
 
@@ -270,7 +284,7 @@ export class ConversationEventRepository {
       )
       .all(conversationId)
       .map((row) => {
-        const event = mapEvent(row);
+        const event = this.mapEvent(row);
         return {
           id: event.id,
           previousEventId: event.previousEventId,

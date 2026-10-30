@@ -2,6 +2,7 @@ import {
   projectConfigurationHealthSchema,
   type ProjectConfigurationHealth,
   type ProjectConfigurationIssue,
+  type ResolveProjectConfiguration,
 } from "@nervekit/contracts/projects";
 import { requestWorkbench } from "$lib/application/startup/workbench-connection";
 import { openFilePane } from "$lib/features/filesystem/state/file-tabs.svelte";
@@ -59,8 +60,22 @@ class ProjectConfigurationHealthController {
     await this.resolve({ ...issue, action: "reload" });
   }
 
-  async reset(issue: IssueRef): Promise<void> {
-    await this.resolve({ ...issue, action: "reset", confirmed: true });
+  async reset(issue: ProjectConfigurationIssue): Promise<void> {
+    await this.resolve(
+      issue.classification === "legacy"
+        ? {
+            projectId: issue.projectId,
+            type: "legacy-files",
+            action: "remove-legacy",
+            confirmed: true,
+          }
+        : {
+            projectId: issue.projectId,
+            type: issue.type,
+            action: "reset",
+            confirmed: true,
+          },
+    );
   }
 
   /** Reset is never direct: it opens the confirmation owned by the watcher. */
@@ -68,14 +83,30 @@ class ProjectConfigurationHealthController {
     this.resetTarget = issue;
   }
 
+  private folderOpener?: (issue: ProjectConfigurationIssue) => Promise<void>;
+  registerFolderOpener(
+    open: (issue: ProjectConfigurationIssue) => Promise<void>,
+  ): () => void {
+    this.folderOpener = open;
+    return () => {
+      this.folderOpener = undefined;
+    };
+  }
   async open(issue: ProjectConfigurationIssue): Promise<void> {
-    await openFilePane({ projectId: issue.projectId, path: issue.path });
+    try {
+      if (issue.classification === "legacy") {
+        if (!this.folderOpener)
+          throw new Error("Folder navigation is unavailable");
+        await this.folderOpener(issue);
+      } else
+        await openFilePane({ projectId: issue.projectId, path: issue.path });
+    } catch (error) {
+      this.error = message(error, "Could not open project settings.");
+    }
   }
 
   private async resolve(
-    request:
-      | (IssueRef & { action: "reload" })
-      | (IssueRef & { action: "reset"; confirmed: true }),
+    request: ResolveProjectConfiguration & { projectId: string },
   ): Promise<void> {
     if (this.pending) return;
     this.pending = true;

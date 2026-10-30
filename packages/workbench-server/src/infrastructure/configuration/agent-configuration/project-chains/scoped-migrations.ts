@@ -1,168 +1,17 @@
-import { legacySubagentCatalog } from "./frozen/subagent-catalog.js";
 import { z } from "zod";
 import {
   agentPreferencesSchema,
   conversationDefaultsSchema,
   leadSettingsOverridesSchema,
-  canonicalSettingsEntries,
-  applySettingsMutation,
 } from "@nervekit/contracts/agent-configuration";
 import { integrationsConfigSchema } from "@nervekit/contracts/settings";
-import type {
-  ProjectConfigurationType,
-  ProjectLegacyInput,
-} from "../../project-migration/project-migration.js";
+import type { ProjectConfigurationType } from "../../project-migration/project-migration.js";
+import { legacySubagentCatalog } from "./frozen/subagent-catalog.js";
 import {
-  convertPreferencesV037,
-  convertCapabilitiesV037,
-  splitCatalogV037,
-  merge,
-  type Data,
-  type ConversionContext,
-} from "./frozen/released-format.js";
-import baseline from "./frozen/released-baseline.json" with { type: "json" };
+  migrateCapabilitiesV2,
+  migrateIntegrationsV1,
+} from "./frozen/single-file-versions.js";
 
-export const releasedBuiltins = Object.fromEntries(
-  baseline.builtins.map((profile) => [profile.name, profile]),
-);
-export function releasedContext(inputs: Data): ConversionContext {
-  const skills: Record<string, ("file" | "nerve" | "agentBrowser")[]> = {};
-  for (const name of ["planning", "team-lead", "skill-creator"])
-    skills[name] = ["nerve"];
-  for (const source of ["file", "nerve", "agentBrowser"] as const) {
-    for (const name of Object.keys(
-      (inputs.capabilities?.overrides ?? inputs.capabilities)?.skills?.[
-        source
-      ] ?? {},
-    ))
-      (skills[name] ??= []).push(source);
-    for (const name of source === "file"
-      ? (inputs.harness?.skills?.disabled ?? [])
-      : (inputs.harness?.skills?.[source]?.enabled ?? []))
-      (skills[name] ??= []).push(source);
-  }
-  return {
-    builtins: releasedBuiltins,
-    skillSources: skills,
-    inheritedSettings: {},
-    report: () => {},
-  };
-}
-export const scopeLegacyInputs: readonly ProjectLegacyInput[] = [
-  {
-    path: "config/harness.json",
-    currentVersion: 3,
-    version: { field: "version", absent: 3 },
-  },
-  {
-    path: "config/capabilities.json",
-    currentVersion: 3,
-    version: { field: "schemaVersion", absent: 2 },
-    trustKind: "project_capabilities",
-  },
-  {
-    path: "config/subagents.json",
-    currentVersion: 2,
-    version: { field: "version", absent: 1 },
-    trustKind: "agent_profile",
-  },
-  {
-    path: "config/integrations.json",
-    currentVersion: 2,
-    version: { field: "version", absent: 1 },
-  },
-];
-function scopeInputs(inputs: Readonly<Record<string, unknown>>): Data {
-  return Object.fromEntries(
-    Object.entries(inputs).map(([path, value]) => [
-      path.slice("config/".length, -".json".length),
-      value,
-    ]),
-  );
-}
-export function migrateScopedInputs(inputs: Readonly<Record<string, unknown>>) {
-  const before = scopeInputs(inputs);
-  // v2 integrations no longer contribute tool selections.
-  const conversion = {
-    ...before,
-    capabilities: undefined,
-    integrations:
-      before.integrations?.version === 2 ? undefined : before.integrations,
-    scope: "project" as const,
-  };
-  const context = {
-    ...releasedContext(before),
-    inheritedSettings:
-      before.agent === undefined
-        ? {}
-        : agentPreferencesSchema.parse(before.agent).overrides,
-  };
-  const result = convertPreferencesV037(conversion, context);
-  if (before.capabilities) {
-    const contribution =
-      before.capabilities.schemaVersion === 3
-        ? projectCapabilitiesSchema.parse(before.capabilities).overrides
-        : convertCapabilitiesV037(before.capabilities);
-    result.agent.overrides = applySettingsMutation(result.agent.overrides, {
-      expectedRevision: 0,
-      expectedDigest: "missing",
-      changes: {},
-      resets: canonicalSettingsEntries(contribution).map(
-        ([pointer]) => `/overrides${pointer}`,
-      ),
-    });
-  }
-  if (before.subagents) {
-    const catalog = z
-      .object({
-        schemaVersion: z.literal(1),
-        profiles: z.record(z.string(), z.record(z.string(), z.unknown())),
-      })
-      .strict()
-      .parse(legacySubagentCatalog(before.subagents));
-    const launches = Object.fromEntries(
-      Object.entries(catalog.profiles).map(([name, entry]) => [
-        name,
-        Object.fromEntries(
-          Object.entries(entry).filter(([key]) =>
-            ["enabled", "model", "thinking"].includes(key),
-          ),
-        ),
-      ]),
-    );
-    result.agent.overrides = merge(result.agent.overrides, {
-      subagents: splitCatalogV037(
-        { schemaVersion: 1, profiles: launches },
-        "project",
-        context,
-      ).launches,
-    });
-  }
-  return result;
-}
-const sources = (part: "agent" | "creation") =>
-  (part === "creation"
-    ? scopeLegacyInputs.filter((input) => input.path === "config/harness.json")
-    : scopeLegacyInputs
-  ).map((input) => ({
-    ...input,
-    inputs:
-      part === "creation"
-        ? scopeLegacyInputs.filter(
-            (input) => input.path === "config/harness.json",
-          )
-        : [
-            ...scopeLegacyInputs,
-            {
-              root: "home" as const,
-              path: "config/agent.json",
-              currentVersion: 1,
-              version: { field: "schemaVersion", absent: 1 },
-            },
-          ],
-    migrate: (_value: unknown, inputs: Readonly<Record<string, unknown>>) =>
-      migrateScopedInputs(inputs)[part],
-  }));
 export const projectAgentConfiguration: ProjectConfigurationType<
   z.infer<typeof agentPreferencesSchema>
 > = {
@@ -176,11 +25,10 @@ export const projectAgentConfiguration: ProjectConfigurationType<
   currentVersion: 1,
   version: { field: "schemaVersion", absent: 1 },
   migrators: {},
-  legacySources: sources("agent"),
+  legacyFiles: ["config/harness.json"],
   schema: agentPreferencesSchema,
   fallback: () => ({ schemaVersion: 1, revision: 0, overrides: {} }),
   reset: () => null,
-  trustKind: "project_capabilities",
 };
 export const projectConversationDefaults: ProjectConfigurationType<
   z.infer<typeof conversationDefaultsSchema>
@@ -195,7 +43,7 @@ export const projectConversationDefaults: ProjectConfigurationType<
   currentVersion: 1,
   version: { field: "schemaVersion", absent: 1 },
   migrators: {},
-  legacySources: sources("creation"),
+  legacyFiles: ["config/harness.json"],
   schema: conversationDefaultsSchema,
   fallback: () => ({ schemaVersion: 1, revision: 0, overrides: {} }),
   reset: () => null,
@@ -210,14 +58,7 @@ export const projectIntegrations: ProjectConfigurationType<
   path: "config/integrations.json",
   currentVersion: 2,
   version: { field: "version", absent: 1 },
-  migrationDependencies: [projectAgentConfiguration],
-  migrators: {
-    1: (value) =>
-      convertPreferencesV037(
-        { integrations: value, scope: "project" },
-        releasedContext({}),
-      ).integrations,
-  },
+  migrators: { 1: migrateIntegrationsV1 },
   schema: integrationsConfigSchema,
   fallback: () =>
     integrationsConfigSchema.parse({
@@ -237,6 +78,7 @@ export const projectSubagentCatalog: ProjectConfigurationType<{
   resetDescription:
     "Remove the invalid project subagent catalog; valid individual profile files will be preserved.",
   path: "config/subagents.json",
+  legacyFiles: ["subagents/*.md"],
   currentVersion: 2,
   version: { field: "version", absent: 1 },
   migrators: {
@@ -251,7 +93,6 @@ export const projectSubagentCatalog: ProjectConfigurationType<{
     .strict(),
   fallback: () => ({ version: 2, schemaVersion: 1, profiles: {} }),
   reset: () => null,
-  trustKind: "agent_profile",
 };
 
 export const projectCapabilitiesSchema = z
@@ -272,14 +113,8 @@ export const projectCapabilitiesConfiguration: ProjectConfigurationType<
   path: "config/capabilities.json",
   currentVersion: 3,
   version: { field: "schemaVersion", absent: 2 },
-  migrators: {
-    2: (value) => ({
-      schemaVersion: 3,
-      overrides: convertCapabilitiesV037(value),
-    }),
-  },
+  migrators: { 2: migrateCapabilitiesV2 },
   schema: projectCapabilitiesSchema,
   fallback: () => ({ schemaVersion: 3, overrides: {} }),
   reset: () => null,
-  trustKind: "project_capabilities",
 };

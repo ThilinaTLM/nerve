@@ -1,3 +1,4 @@
+import { UnreadableConversationActivity } from "../../domains/activity/unreadable-conversation-activity.js";
 import { ProjectMigrationService } from "../../infrastructure/configuration/project-migration/project-migration.js";
 import {
   projectConfigurationDescriptors,
@@ -63,6 +64,11 @@ export function createRuntimeServices(deps: RuntimeDeps) {
   const activities = new ActivityService((activity, removed) =>
     events.publish("activity.updated", { activity, removed }),
   );
+  const unreadableConversations = new UnreadableConversationActivity({
+    activities,
+    lookup: (id) => coreStorage.conversations.rawIdentity(id),
+    delete: (id) => conversationCore.delete(id),
+  });
   const getProject = (id: string) => {
     const project = conversationCore.projects.get(id);
     if (!project) throw new Error(`Project not found: ${id}`);
@@ -82,7 +88,7 @@ export function createRuntimeServices(deps: RuntimeDeps) {
       void events
         .publish("project.configuration.health", health)
         .catch((error) => {
-          void logger.warn("Could not publish project configuration health", {
+          void logger.error("Could not publish project configuration health", {
             error,
           });
         });
@@ -114,7 +120,13 @@ export function createRuntimeServices(deps: RuntimeDeps) {
     },
     undefined,
     projectMigration,
+    ({ conversationId, error }) =>
+      unreadableConversations.report(conversationId, error),
   );
+  conversationCore.subscribe((change) => {
+    if (change.kind === "conversation_deleted")
+      unreadableConversations.forget(change.conversationId);
+  });
   const launchDefinitionOperations = new LaunchDefinitionOperations(
     launchDefinitions,
     launches,
@@ -238,6 +250,7 @@ export function createRuntimeServices(deps: RuntimeDeps) {
     }),
   );
   return {
+    unreadableConversations,
     projectMigration,
     completions,
     activities,

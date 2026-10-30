@@ -12,13 +12,11 @@ The supported upgrade baseline is **Nerve 0.34.1**. New homes use `manifest.json
 If startup identifies a home older than the baseline, choose one of these options:
 
 - **Upgrade through 0.34.1:** close Nerve and back up the complete home. Install [Nerve 0.34.1](https://github.com/ThilinaTLM/nerve/releases/tag/v0.34.1), run it once against that same home (`NERVE_HOME` if overridden), then close it and run the latest version. This route preserves conversation history.
-- **Start fresh, keep providers:** confirm the desktop action to rename the old home to `<home>.archive-<timestamp>` and start a new home. Nothing in the original home is deleted. Conversations, artifacts, and runtime data remain in the archive, not in the new workbench.
+- **Start with an empty home:** close Nerve, delete or move the home folder shown on the startup screen, then reopen Nerve. Moving the folder keeps the original data available; deleting it permanently removes its contents. Back it up first if needed. The new home has no conversation history or provider sign-ins, so configure providers again.
 
-Provider settings are copied only from a recognizable current layout and only if `config/providers.json` validates against the current schema. `secrets/credentials.enc` and `secrets/master.key` are copied only together, when the pair validates. No formats are converted. If nothing can be carried over, sign in to providers again. Permissions and project trust are not copied.
+Damaged manifests, unreadable or unexpected ledgers, and unrecognized layouts show the same delete-or-move instruction, plus **Open folder** and **Copy diagnostics**. Running 0.34.1 is not offered as a repair for damaged metadata. Retry is offered only for failures identified as transient. Never share credential files with diagnostics.
 
-The archive remains until **you delete it**. **Settings → Storage** shows its location in both browser and desktop while it exists. Back it up before deleting it if you may need the history.
-
-Damaged manifests, unreadable or unexpected ledgers, and unrecognized layouts offer the same confirmed fresh-start action, **Open data folder**, and **Copy diagnostics**. They do not suggest that upgrading through 0.34.1 will repair damaged metadata. Retry is offered only for failures identified as transient. Never share credential files with diagnostics.
+Nerve does not move or delete the folder for you, carry over providers or credentials, or track an archived-home location. Do not modify the home while Nerve is running.
 
 ## Migration aborts
 

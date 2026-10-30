@@ -161,147 +161,55 @@ for (const entry of cases) {
       );
     });
 }
-void test("scoped legacy inputs combine all contributions without losing integration selections", async (t) => {
+void test("harness and Markdown are notices only; catalog entries never create profile files", async (t) => {
   const f = await fixture(t);
-  const harness = await f.put("config/harness.json", {
-    version: 3,
-    defaults: { mode: "coding", model: { provider: "test", modelId: "model" } },
-    execution: { shellPath: "/bin/sh" },
-  });
-  const capabilities = await f.put("config/capabilities.json", {
-    schemaVersion: 2,
-    tools: { web_search: { enabled: false } },
-  });
-  await f.put("config/subagents.json", {
-    schemaVersion: 1,
-    profiles: { review: { enabled: false, model: "lead" } },
-  });
-  await f.put("config/integrations.json", {
-    ...integrations,
-    version: 1,
-    tools: {
-      jira: { enabled: false },
-      confluence: { enabled: false },
-      web: {},
-    },
-  });
-  const loaded = await f.service.load(f.context, projectAgentConfiguration);
-  assert.equal(loaded.classification, "migrated");
-  const capabilityLayer = await f.service.load(
-    f.context,
-    projectCapabilitiesConfiguration,
-  );
-  assert.equal(
-    capabilityLayer.value.overrides.tools?.web_search?.enabled,
-    false,
-  );
-  assert.equal(loaded.value.overrides.tools?.jira?.enabled, false);
-  assert.equal(
-    loaded.value.overrides.tools?.bash?.settings?.shellPath,
-    "/bin/sh",
-  );
-  assert.equal(loaded.value.overrides.subagents?.review?.enabled, false);
-  assert.equal(
-    (await f.service.load(f.context, projectConversationDefaults))
-      .classification,
-    "migrated",
-  );
-  assert.equal(JSON.parse(await readFile(harness, "utf8")).version, 3);
-  assert.equal(
-    JSON.parse(await readFile(capabilities, "utf8")).schemaVersion,
-    3,
-  );
-});
-void test("failed migration does not overwrite sources; reset cannot resurrect retained legacy inputs after restart", async (t) => {
-  const f = await fixture(t);
-  const original = await f.put("config/harness.json", {
-    version: 3,
-    unexpected: true,
-  });
-  assert.equal(
-    (await f.service.load(f.context, projectAgentConfiguration)).classification,
-    "corrupted",
-  );
-  await f.service.reset(f.context, projectAgentConfiguration, true);
-  assert.equal(JSON.parse(await readFile(original, "utf8")).unexpected, true);
-  const restarted = new ProjectMigrationService({ home: f.home });
-  assert.equal(
-    (await restarted.load(f.context, projectAgentConfiguration)).classification,
-    "healthy",
-  );
-  await assert.rejects(
-    readFile(join(f.context.directory, ".nerve/config/agent.json")),
-    { code: "ENOENT" },
-  );
-});
-void test("legacy catalog entries isolate conversion failures; Markdown subagents use frozen parsing", async (t) => {
-  const f = await fixture(t);
+  const harness = await f.put("config/harness.json", "not even JSON");
+  const markdown = await f.put("subagents/review.md", "old Markdown");
   await f.put("config/subagents.json", {
     schemaVersion: 1,
     profiles: {
-      broken: { description: 4 },
-      review: {
-        label: "Review",
-        description: "Review",
-        model: "lead",
-        thinking: "lead",
-        permission: "read_only",
-        compaction: "inherit",
-        skills: "none",
-        instructions: "Review carefully",
-      },
+      review: { description: "Old review", instructions: "Do work" },
     },
   });
   assert.equal(
-    (await f.service.load(f.context, projectProfileConfiguration("broken")))
-      .classification,
-    "corrupted",
+    (await f.service.load(f.context, projectAgentConfiguration)).classification,
+    "healthy",
   );
   assert.equal(
-    (await f.service.load(f.context, projectProfileConfiguration("review")))
-      .classification,
-    "migrated",
-  );
-  await f.service.reset(f.context, projectProfileConfiguration("broken"), true);
-  assert.equal(
-    (await f.service.load(f.context, projectProfileConfiguration("broken")))
+    (await f.service.load(f.context, projectConversationDefaults))
       .classification,
     "healthy",
   );
   assert.equal(
-    (await f.service.load(f.context, projectProfileConfiguration("review")))
-      .classification,
-    "healthy",
-  );
-  await f.put(
-    "config/capabilities.json",
-    "broken unrelated capability metadata",
-  );
-  await f.put("config/integrations.json", "broken unrelated integrations");
-  await f.put(
-    "subagents/worker.md",
-    "---\ndescription: Worker\nmodel: lead\nthinking: lead\npermission: read_only\ncompaction: inherit\nskills: none\n---\n\nDo work.\n",
-  );
-  assert.equal(
-    (await f.service.load(f.context, projectProfileConfiguration("worker")))
-      .classification,
+    (await f.service.load(f.context, projectSubagentCatalog)).classification,
     "migrated",
   );
-  await f.put("config/subagents.json", {
-    version: 2,
-    enabled: { missing: false },
-  });
   assert.equal(
-    (await f.service.load(f.context, projectProfileConfiguration("missing")))
-      .classification,
-    "corrupted",
-    "a current invalid catalog is never repaired as an old enablement map",
+    (await f.service.load(f.context, projectProfileConfiguration("review")))
+      .value,
+    null,
+  );
+  for (const name of [
+    "config/agent.json",
+    "config/conversation-defaults.json",
+    "agent-profiles/review.json",
+  ])
+    await assert.rejects(readFile(join(f.context.directory, ".nerve", name)), {
+      code: "ENOENT",
+    });
+  assert.equal(await readFile(harness, "utf8"), "not even JSON");
+  assert.equal(await readFile(markdown, "utf8"), "old Markdown");
+  assert.deepEqual(
+    f.service
+      .health("p")
+      .issues.find((issue) => issue.classification === "legacy")?.files,
+    [harness, markdown],
   );
 });
-
-void test("loading integrations first preserves its tool selections in agent settings before retiring the v1 fields", async (t) => {
+void test("integrations bump is independent and never writes tool selections into agent settings", async (t) => {
   const f = await fixture(t);
-  await f.put("config/integrations.json", {
+  await f.put("config/harness.json", "corrupt unrelated legacy settings");
+  const file = await f.put("config/integrations.json", {
     ...integrations,
     version: 1,
     tools: {
@@ -314,21 +222,41 @@ void test("loading integrations first preserves its tool selections in agent set
     (await f.service.load(f.context, projectIntegrations)).classification,
     "migrated",
   );
-  const agent = JSON.parse(
-    await readFile(
-      join(f.context.directory, ".nerve/config/agent.json"),
-      "utf8",
-    ),
+  assert.deepEqual(JSON.parse(await readFile(file, "utf8")), integrations);
+  await assert.rejects(
+    readFile(join(f.context.directory, ".nerve/config/agent.json")),
+    { code: "ENOENT" },
   );
-  assert.equal(agent.overrides.tools.jira.enabled, false);
-  assert.equal(agent.overrides.tools.confluence.enabled, false);
-  assert.equal(
-    JSON.parse(
-      await readFile(
-        join(f.context.directory, ".nerve/config/integrations.json"),
-        "utf8",
-      ),
-    ).version,
-    2,
+});
+
+void test("permission bump renames only the planning selector, not descriptive text", async (t) => {
+  const f = await fixture(t);
+  const old = {
+    schemaVersion: 2,
+    overlays: [
+      {
+        ruleSetId: "supervised",
+        rules: [
+          {
+            id: "planning",
+            description: "plan_mode_present stays in text",
+            enabled: true,
+            priority: 1,
+            enforcement: "overridable",
+            when: { toolNames: ["plan_mode_present", "bash"] },
+            decision: "prompt",
+          },
+        ],
+      },
+    ],
+  };
+  await f.put(projectPermissionsConfiguration.path, old);
+  const migrated = await f.service.load(
+    f.context,
+    projectPermissionsConfiguration,
   );
+  assert.equal(migrated.classification, "migrated");
+  const rule = migrated.value.overlays[0].rules[0];
+  assert.deepEqual(rule.when?.toolNames, ["plan_present", "bash"]);
+  assert.equal(rule.description, "plan_mode_present stays in text");
 });

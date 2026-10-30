@@ -41,6 +41,7 @@ export class ActivityService implements ActivityProducerPort {
   #entries = new Map<string, Activity>();
   #actions = new Map<string, ActivityProducerActions>();
   #pending = new Set<string>();
+  #notices = new Set<string>();
   #closed = false;
   constructor(
     private readonly publish: (
@@ -49,6 +50,31 @@ export class ActivityService implements ActivityProducerPort {
     ) => unknown,
     private readonly finishedLimit = 200,
   ) {}
+
+  /** Producer-owned attention stays until its underlying problem is resolved. */
+  reportNotice(
+    input: Pick<Activity, "id" | "kind" | "title" | "unreadableConversations">,
+  ): void {
+    if (this.#closed) return;
+    const previous = this.#entries.get(input.id);
+    if (previous && !this.#notices.has(input.id))
+      throw new Error("Activity ID is already owned");
+    this.#notices.add(input.id);
+    const now = new Date().toISOString();
+    const entry: Activity = {
+      ...structuredClone(input),
+      status: "failed",
+      revision: (previous?.revision ?? 0) + 1,
+      startedAt: previous?.startedAt ?? now,
+      updatedAt: now,
+      actions: { cancel: false, retry: false },
+    };
+    this.#entries.set(entry.id, entry);
+    this.emit(entry);
+  }
+  removeNotice(id: string): void {
+    if (this.#notices.delete(id)) this.dismiss(id);
+  }
 
   start(
     input: ActivityStart,
@@ -180,7 +206,7 @@ export class ActivityService implements ActivityProducerPort {
   }
   dismiss(id: string): number {
     const entry = this.#entries.get(id);
-    if (!entry || isActivityRunning(entry)) return 0;
+    if (!entry || isActivityRunning(entry) || this.#notices.has(id)) return 0;
     this.#entries.delete(id);
     this.#actions.delete(id);
     this.emit(entry, true);
@@ -218,7 +244,7 @@ export class ActivityService implements ActivityProducerPort {
   }
   private evict(): void {
     const finished = [...this.#entries.values()].filter(
-      (entry) => !isActivityRunning(entry),
+      (entry) => !isActivityRunning(entry) && !this.#notices.has(entry.id),
     );
     while (finished.length > Math.max(0, this.finishedLimit)) {
       const entry = finished.shift()!;

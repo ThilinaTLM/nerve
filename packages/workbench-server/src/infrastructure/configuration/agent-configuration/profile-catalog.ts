@@ -327,28 +327,13 @@ export class AgentProfileCatalog {
     return cached;
   }
 
-  private async legacyNames(projectId: string): Promise<string[]> {
+  private async loadProjectCatalog(projectId: string): Promise<void> {
     const directory = this.options.paths.locations.projectDirectory(projectId);
-    if (!directory) return [];
-    const root = path.join(directory, ".nerve");
-    const names: string[] = [];
+    if (!directory) return;
     this.migrations.register(projectSubagentCatalog);
-    const catalog = await this.migrations.load(
+    await this.migrations.load(
       { projectId, directory },
       projectSubagentCatalog,
-    );
-    names.push(...Object.keys(catalog.value.profiles));
-    try {
-      names.push(
-        ...(await readdir(path.join(root, "subagents")))
-          .filter((name) => name.endsWith(".md"))
-          .map((name) => name.slice(0, -3)),
-      );
-    } catch (error) {
-      if (errorCode(error) !== "ENOENT") throw error;
-    }
-    return [...new Set(names)].filter(
-      (name) => profileDefinitionSchema.shape.name.safeParse(name).success,
     );
   }
   async list(
@@ -363,10 +348,9 @@ export class AgentProfileCatalog {
     const project = projectId
       ? await this.names({ scope: "project", projectId })
       : { names: [], diagnostics: [] };
-    const legacyNames = projectId ? await this.legacyNames(projectId) : [];
+    if (projectId) await this.loadProjectCatalog(projectId);
     const names = [
       ...new Set([
-        ...legacyNames,
         ...Object.keys(this.options.builtins),
         ...user.names,
         ...project.names,
@@ -491,11 +475,10 @@ export class AgentProfileCatalog {
       scope.scope === "project"
         ? await this.names(scope)
         : { names: [], diagnostics: [] };
-    const legacyNames =
-      scope.scope === "project" ? await this.legacyNames(scope.projectId) : [];
+    if (scope.scope === "project")
+      await this.loadProjectCatalog(scope.projectId);
     const names = [
       ...new Set([
-        ...legacyNames,
         ...Object.keys(this.options.builtins),
         ...user.names,
         ...project.names,

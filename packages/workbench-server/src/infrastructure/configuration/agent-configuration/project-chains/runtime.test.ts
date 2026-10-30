@@ -70,3 +70,42 @@ void test("capability chain participates in resolution, sparse save normalizatio
     false,
   );
 });
+
+void test("catalog and Markdown legacy names never appear as profiles in runtime or settings catalogs", async (t) => {
+  const f = await fixture(t);
+  const root = path.join(f.options.projectDirectory("p")!, ".nerve");
+  await put(path.join(root, "config/subagents.json"), {
+    schemaVersion: 1,
+    profiles: {
+      "catalog-only": { description: "Old profile", instructions: "Do work" },
+    },
+  });
+  const markdown = path.join(root, "subagents/markdown-only.md");
+  await put(markdown, "Old Markdown is not decoded");
+  const runtime = await f.service.profiles.list("p", "child");
+  assert.deepEqual(Object.keys(runtime.profiles), ["coding"]);
+  const editing = await f.service.profiles.listForEditing(
+    { scope: "project", projectId: "p" },
+    "child",
+  );
+  assert.deepEqual(
+    editing.profiles.map((profile) => profile.name),
+    ["coding"],
+  );
+  assert.equal(
+    JSON.parse(await readFile(path.join(root, "config/subagents.json"), "utf8"))
+      .version,
+    2,
+  );
+  assert.deepEqual(
+    f.service.projectMigration
+      .health("p")
+      .issues.find((issue) => issue.classification === "legacy")?.files,
+    [markdown],
+  );
+  for (const name of ["catalog-only", "markdown-only"])
+    await assert.rejects(
+      readFile(path.join(root, "agent-profiles", `${name}.json`)),
+      { code: "ENOENT" },
+    );
+});

@@ -33,6 +33,7 @@ export type NotificationItem = {
   conversationId?: string;
   /** Lists under "Needs attention" without being a request for input. */
   needsAttention?: boolean;
+  unreadableConversations?: Activity["unreadableConversations"];
 };
 
 /** What a conversation item says: input required, failed/interrupted, or finished. */
@@ -120,6 +121,8 @@ function activityItem(
         : undefined;
   return {
     id: activity.id,
+    unreadableConversations: activity.unreadableConversations,
+    needsAttention: !!activity.unreadableConversations?.length,
     kind: running
       ? "running"
       : isFailure(activity)
