@@ -55,3 +55,21 @@ export function summarizeUpgradeReports(
   const verb = total === 1 ? "was" : "were";
   return `${lead}${subject} ${verb} set aside because ${total === 1 ? "it" : "they"} couldn't be upgraded.`;
 }
+
+/** Keep the activity details bounded even when many units share one failure. */
+export function upgradeReportSetAsideGroups(reports: readonly UpgradeReport[]) {
+  const groups = new Map<
+    string,
+    { reason: string; count: number; paths: string[] }
+  >();
+  for (const item of upgradeReportSetAside(reports)) {
+    const reason = item.reason
+      .replace(/(?<![\w])(?:[A-Za-z]:[\\/]|\/)[^\s:;,]+:?\s*/g, "")
+      .trim();
+    const group = groups.get(reason) ?? { reason, count: 0, paths: [] };
+    group.count++;
+    if (group.paths.length < 3) group.paths.push(item.quarantinePath);
+    groups.set(reason, group);
+  }
+  return [...groups.values()];
+}

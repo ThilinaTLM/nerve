@@ -1,9 +1,6 @@
 import { checkedText } from "../../framework/toolkit.js";
 import assert from "node:assert/strict";
-import {
-  HOME_CONFIGURATION_FILES,
-  PROJECT_CONFIGURATION_FILES,
-} from "./owned-paths.js";
+import { HOME_CONFIGURATION_FILES } from "./owned-paths.js";
 import { existsSync, lstatSync, readdirSync } from "node:fs";
 import { basename, join, relative, resolve } from "node:path";
 import type { StepContext, DiscardableItem } from "../../framework/step.js";
@@ -41,11 +38,6 @@ const object: Validate = (document) =>
   assert(
     document && typeof document === "object" && !Array.isArray(document),
     "Expected a JSON object",
-  );
-const definitions: Validate = (document) =>
-  assert(
-    document.version === 1 && Array.isArray(document.definitions),
-    "Expected version 1 with a definitions list",
   );
 const validators: Record<string, Validate> = {
   "capabilities.json": (document) => {
@@ -106,23 +98,6 @@ function candidates(
     });
   for (const name of HOME_CONFIGURATION_FILES) user(join(home, "config", name));
   for (const path of jsonFiles(join(home, "config", "rule-sets"))) user(path);
-
-  for (const { data } of reader.documents("project")) {
-    const directory = data.dir ?? data.directory;
-    if (typeof directory !== "string") continue;
-    const nerve = join(resolve(directory), ".nerve");
-    const project = (path: string, validate?: Validate) =>
-      result.push({
-        path,
-        root: resolve(directory),
-        title: `Project ${data.name ?? basename(directory)}: ${relative(directory, path)}`,
-        validate,
-      });
-    for (const name of PROJECT_CONFIGURATION_FILES)
-      project(join(nerve, "config", name), validators[name]);
-    project(join(nerve, "tasks", "definitions.json"), definitions);
-    project(join(nerve, "launches", "definitions.json"), definitions);
-  }
 
   for (const source of reader.conversations()) {
     if (!source.data || discarded.has(source.id)) continue;
@@ -214,13 +189,21 @@ export async function checkConfiguration(input: {
         } catch (error) {
           if (runtime) {
             unreadable.add(path);
+            input.context.quarantine(
+              { ...item, reason: reasonOf(error) },
+              {
+                files: [path],
+                root: candidate.root,
+                retainSource: true,
+              },
+            );
             return;
           }
           failures.push({ ...item, reason: reasonOf(error) });
           throw error;
         }
       },
-      runtime ? {} : { quarantine: { files: [path], root: candidate.root } },
+      { quarantine: { files: [path], root: candidate.root } },
     );
   }
   return { failures, apply() {} };

@@ -1,3 +1,12 @@
+import {
+  projectAgentConfiguration,
+  projectConversationDefaults,
+} from "./project-chains/scoped-migrations.js";
+import {
+  projectProfileConfiguration,
+  projectProfileSchema,
+} from "./project-chains/profile-migrations.js";
+import type { ProjectConfigurationType } from "../project-migration/project-migration.js";
 import { withoutLegacyTransition } from "./document-adapters.js";
 import {
   createLegacyRepair,
@@ -86,6 +95,22 @@ function parseOriginal(bytes: Buffer | null): unknown {
 
 export function createScopedRepair(service: AgentConfigurationService) {
   const legacy = createLegacyRepair(service);
+  function projectTarget(target: ScopedConfigurationTarget) {
+    if (target.scope.scope !== "project") return undefined;
+    const directory = service.paths.locations.projectDirectory(
+      target.scope.projectId,
+    );
+    if (!directory) throw new Error("Project not found");
+    const type: ProjectConfigurationType<unknown> =
+      target.document === "profile"
+        ? projectProfileConfiguration(target.name)
+        : target.document === "conversation-defaults"
+          ? projectConversationDefaults
+          : projectAgentConfiguration;
+    service.projectMigration.register(type);
+    return { context: { projectId: target.scope.projectId, directory }, type };
+  }
+
   async function preview(input: RepairPreviewRequest): Promise<RepairPreview> {
     if (
       input.target.document === "agent" &&
@@ -100,12 +125,30 @@ export function createScopedRepair(service: AgentConfigurationService) {
           target: { ...input.target, legacyFile },
         });
     }
+    const project = projectTarget(input.target);
+    if (
+      project &&
+      (await service.projectMigration.load(project.context, project.type))
+        .classification === "incompatible"
+    )
+      throw new Error("Incompatible project configuration is read-only");
     const file = configurationTargetPath(service, input.target);
     const bytes = await original(file);
     const old = parseOriginal(bytes);
     let candidate: unknown = input.replacement;
     if (input.target.document === "profile") {
-      candidate = profileDefinitionSchema.parse(candidate);
+      candidate =
+        input.target.scope.scope === "project"
+          ? projectProfileSchema.parse({
+              ...(candidate as object),
+              version:
+                candidate &&
+                typeof candidate === "object" &&
+                "version" in candidate
+                  ? candidate.version
+                  : 2,
+            })
+          : profileDefinitionSchema.parse(candidate);
       if ((candidate as { name: string }).name !== input.target.name)
         throw new Error("Profile name differs from filename");
     } else {
@@ -272,53 +315,95 @@ export function createScopedRepair(service: AgentConfigurationService) {
     )
       throw new ScopeConflictError();
 
-    await atomicReplaceFile(
-      file,
-      async (handle) => {
-        await handle.writeFile(bytesFor(prepared.candidate));
-      },
-      {
-        mode: 0o600,
-        prepare: async () => {
-          if ((await readConfigurationDigest(file)) !== input.sourceDigest)
-            throw new ScopeConflictError();
-          await mkdir(directory, { recursive: true, mode: 0o700 });
-          if (backupPath) {
-            const bytes = await readFile(file);
-            if (digestBytes(bytes) !== input.sourceDigest)
-              throw new ScopeConflictError();
-            await atomicReplaceFile(
+    const project = projectTarget(input.target);
+    if (project) {
+      if ((await readConfigurationDigest(file)) !== input.sourceDigest)
+        throw new ScopeConflictError();
+      await mkdir(directory, { recursive: true, mode: 0o700 });
+      if (backupPath) {
+        const bytes = await readFile(file);
+        if (digestBytes(bytes) !== input.sourceDigest)
+          throw new ScopeConflictError();
+        await atomicReplaceFile(
+          backupPath,
+          (handle) => handle.writeFile(bytes),
+          { mode: 0o600 },
+        );
+        await sync(backupPath);
+      }
+      await atomicReplaceFile(
+        receiptPath,
+        (handle) =>
+          handle.writeFile(
+            bytesFor({
+              schemaVersion: 1,
+              target: input.target,
+              path: file,
+              sourceDigest: input.sourceDigest,
+              candidateDigest: input.candidateDigest,
+              candidateVersion: input.candidateVersion,
               backupPath,
-              (handle) => handle.writeFile(bytes),
+            }),
+          ),
+        { mode: 0o600 },
+      );
+      await sync(receiptPath);
+      if (targetGuard && !targetGuard.isCurrent())
+        throw new ScopeConflictError();
+      await service.projectMigration.reset(
+        project.context,
+        project.type,
+        true,
+        { value: prepared.candidate, sourceDigest: input.sourceDigest },
+      );
+    } else
+      await atomicReplaceFile(
+        file,
+        async (handle) => {
+          await handle.writeFile(bytesFor(prepared.candidate));
+        },
+        {
+          mode: 0o600,
+          prepare: async () => {
+            if ((await readConfigurationDigest(file)) !== input.sourceDigest)
+              throw new ScopeConflictError();
+            await mkdir(directory, { recursive: true, mode: 0o700 });
+            if (backupPath) {
+              const bytes = await readFile(file);
+              if (digestBytes(bytes) !== input.sourceDigest)
+                throw new ScopeConflictError();
+              await atomicReplaceFile(
+                backupPath,
+                (handle) => handle.writeFile(bytes),
+                { mode: 0o600 },
+              );
+              await sync(backupPath);
+            }
+            await atomicReplaceFile(
+              receiptPath,
+              (handle) =>
+                handle.writeFile(
+                  bytesFor({
+                    schemaVersion: 1,
+                    target: input.target,
+                    path: file,
+                    sourceDigest: input.sourceDigest,
+                    candidateDigest: input.candidateDigest,
+                    candidateVersion: input.candidateVersion,
+                    backupPath,
+                  }),
+                ),
               { mode: 0o600 },
             );
-            await sync(backupPath);
-          }
-          await atomicReplaceFile(
-            receiptPath,
-            (handle) =>
-              handle.writeFile(
-                bytesFor({
-                  schemaVersion: 1,
-                  target: input.target,
-                  path: file,
-                  sourceDigest: input.sourceDigest,
-                  candidateDigest: input.candidateDigest,
-                  candidateVersion: input.candidateVersion,
-                  backupPath,
-                }),
-              ),
-            { mode: 0o600 },
-          );
-          await sync(receiptPath);
-          if ((await readConfigurationDigest(file)) !== input.sourceDigest)
-            throw new ScopeConflictError();
-          if (targetGuard && !targetGuard.isCurrent())
-            throw new ScopeConflictError();
-          return undefined;
+            await sync(receiptPath);
+            if ((await readConfigurationDigest(file)) !== input.sourceDigest)
+              throw new ScopeConflictError();
+            if (targetGuard && !targetGuard.isCurrent())
+              throw new ScopeConflictError();
+            return undefined;
+          },
         },
-      },
-    );
+      );
     await sync(file);
     await reload();
     if ((await readConfigurationDigest(file)) !== input.candidateDigest)

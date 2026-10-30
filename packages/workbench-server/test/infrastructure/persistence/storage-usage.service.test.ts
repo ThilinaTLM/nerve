@@ -129,6 +129,27 @@ describe("StorageUsageService", () => {
     assert.equal(targetBytes(usage, "tmp"), 19);
   });
 
+  it("exposes only an existing archived home through storage usage", async () => {
+    const home = await fixtureHome();
+    const archive = `${home}.archive-test`;
+    roots.push(archive);
+    const service = new StorageUsageService({
+      paths: storagePaths(home),
+      getSource: () => ({ listConversations: () => [] }),
+    });
+    assert.equal((await service.computeUsage(true)).archivedHomeDir, undefined);
+    await mkdir(archive);
+    await writeFile(
+      join(home, "archived-home.json"),
+      JSON.stringify({ version: 1, path: archive }),
+    );
+    assert.equal((await service.computeUsage(true)).archivedHomeDir, archive);
+    await rm(archive, { recursive: true });
+    assert.equal((await service.computeUsage(true)).archivedHomeDir, undefined);
+    await writeFile(join(home, "archived-home.json"), "{broken");
+    assert.equal((await service.computeUsage(true)).archivedHomeDir, undefined);
+  });
+
   it("shares concurrent refreshes, caches results, and bypasses cache on force", async () => {
     const home = await fixtureHome();
     let reads = 0;

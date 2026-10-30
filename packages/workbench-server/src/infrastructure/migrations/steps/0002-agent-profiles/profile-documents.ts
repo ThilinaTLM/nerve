@@ -1,7 +1,6 @@
 import assert from "node:assert/strict";
 import { existsSync, readdirSync } from "node:fs";
 import { join } from "node:path";
-import { DatabaseSync } from "node:sqlite";
 import type { StepContext } from "../../framework/step.js";
 import { json, safePath, writeJson } from "./files.js";
 
@@ -59,30 +58,28 @@ export function upgradeProfileDocuments(
   const roots = new Map([
     [ctx.paths.home, join(ctx.paths.home, "data", "agent-profiles")],
   ]);
-  safePath(ctx.paths.sqlitePath);
-  if (existsSync(ctx.paths.sqlitePath)) {
-    const db = new DatabaseSync(ctx.paths.sqlitePath, { readOnly: true });
-    try {
-      for (const row of db
-        .prepare("SELECT directory FROM project ORDER BY id")
-        .all())
-        roots.set(
-          join(String(row.directory), ".nerve"),
-          join(String(row.directory), ".nerve", "agent-profiles"),
-        );
-    } finally {
-      db.close();
-    }
-  }
   function update(
     path: string,
     root: string,
     convert: (value: unknown) => unknown,
   ) {
-    safePath(path);
-    if (!existsSync(path)) return;
-    const before = json(path),
+    let before: unknown, after: unknown;
+    try {
+      safePath(path);
+      if (!existsSync(path)) return;
+      before = json(path);
       after = convert(before);
+    } catch (error) {
+      ctx.quarantine(
+        {
+          kind: "configuration",
+          id: path,
+          reason: error instanceof Error ? error.message : String(error),
+        },
+        { files: [path], retainSource: true },
+      );
+      return;
+    }
     if (JSON.stringify(before) === JSON.stringify(after)) return;
     assert(!verifyOnly, `Profile document was not upgraded: ${path}`);
     ctx.ownPaths([path], root);

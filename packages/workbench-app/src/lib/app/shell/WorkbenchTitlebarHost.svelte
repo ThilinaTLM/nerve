@@ -1,5 +1,13 @@
 <script lang="ts">
+import { workbenchStartupState } from "$lib/application/startup/workbench-startup-state.svelte";
+import {
+  UpgradeReportNotice,
+  hasUpgradeReports,
+  loadUpgradeReports,
+} from "$lib/features/storage-upgrade";
 import SettingsHealthItem from "$lib/presentation/activity/SettingsHealthItem.svelte";
+import ProjectConfigurationHealthItem from "$lib/presentation/activity/ProjectConfigurationHealthItem.svelte";
+import { projectConfigurationHealth } from "$lib/application/project-configuration/project-configuration-health-state.svelte";
 import { settingsHealth } from "$lib/application/settings/settings-health-state.svelte";
 import ActivityPopover from "$lib/presentation/activity/ActivityPopover.svelte";
 import { activityInbox } from "$lib/application/activity/activity-state.svelte";
@@ -99,6 +107,9 @@ function clearFinished(): void {
   unseenResults.clear();
   void activityInbox.clear();
 }
+const projectIssues = $derived(
+  Object.values(projectConfigurationHealth.byProject).flat(),
+);
 const newConversationShortcut = getShortcutLabel("conversation.new");
 
 let pendingDelete = $state<DeleteTarget | undefined>();
@@ -188,6 +199,17 @@ async function handleDesktopClose() {
       caught instanceof Error ? caught.message : String(caught);
   }
 }
+let reportsLoaded = false;
+$effect(() => {
+  if (
+    !reportsLoaded &&
+    workbenchStartupState.progressiveActive &&
+    workspaceState.connection === "connected"
+  ) {
+    reportsLoaded = true;
+    void loadUpgradeReports();
+  }
+});
 </script>
 
 {#snippet settingsHealthItem()}
@@ -199,6 +221,28 @@ async function handleDesktopClose() {
     onReload={(id) => void settingsHealth.resolve({ id, action: "reload" })}
     onRetry={() => void settingsHealth.refresh()}
   />
+{/snippet}
+
+{#snippet attentionItems()}
+  <UpgradeReportNotice home={status?.storage.home} />
+  {#if settingsHealth.notice.health.invalid.length || settingsHealth.notice.error}
+    {@render settingsHealthItem()}
+  {/if}
+  {#if projectIssues.length}
+    <ProjectConfigurationHealthItem
+      issues={projectIssues}
+      projectName={(id) =>
+        workspaceSelectors.projects.find((project) => project.id === id)?.name}
+      pending={projectConfigurationHealth.pending}
+      error={projectConfigurationHealth.error}
+      onOpen={(issue) => {
+        activityInbox.setOpen(false);
+        void projectConfigurationHealth.open(issue);
+      }}
+      onReload={(issue) => void projectConfigurationHealth.reload(issue)}
+      onReset={(issue) => projectConfigurationHealth.requestReset(issue)}
+    />
+  {/if}
 {/snippet}
 
 <Titlebar
@@ -237,8 +281,10 @@ async function handleDesktopClose() {
       unseenFailure={activityInbox.unseenFailure || unseenConversationFailure}
       muted={attentionMute.muted}
       attention={settingsHealth.notice.health.invalid.length ||
-      settingsHealth.notice.error
-        ? settingsHealthItem
+      settingsHealth.notice.error ||
+      projectIssues.length ||
+      hasUpgradeReports()
+        ? attentionItems
         : undefined}
       open={activityInbox.open}
       onOpenChange={activityInbox.setOpen}

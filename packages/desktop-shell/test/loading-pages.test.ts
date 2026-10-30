@@ -1,6 +1,11 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { errorHtml, loadingHtml } from "../src/window/loading-pages.js";
+import { HomeAdmissionError } from "@nervekit/contracts/settings";
+import {
+  errorHtml,
+  loadingHtml,
+  startupErrorRetryable,
+} from "../src/window/loading-pages.js";
 
 describe("loadingHtml", () => {
   it("renders the shared splash hooks and escapes the status text", () => {
@@ -66,4 +71,26 @@ describe("errorHtml", () => {
     });
     assert.match(html, /startup-retry/);
   });
+});
+
+void it("offers archive recovery without retry for typed admission errors across child-process boundaries", () => {
+  for (const kind of [
+    "too_old",
+    "manifest_invalid",
+    "ledger_unexpected",
+    "layout_unrecognized",
+  ] as const) {
+    const error = new Error(
+      new HomeAdmissionError(kind, "preserve <data>").message,
+    );
+    const html = errorHtml(error, "/tmp/home", { retry: true });
+    assert.equal(startupErrorRetryable(error), false);
+    assert.match(html, /Start fresh, keep providers/);
+    assert.match(html, /Open data folder/);
+    assert.match(html, /Copy diagnostics/);
+    assert.doesNotMatch(html, /id="startup-retry"/);
+    assert.equal(html.includes("Upgrade through 0.34.1"), kind === "too_old");
+    assert.match(html, /preserve &lt;data&gt;/);
+  }
+  assert.equal(startupErrorRetryable(new Error("unknown failure")), false);
 });

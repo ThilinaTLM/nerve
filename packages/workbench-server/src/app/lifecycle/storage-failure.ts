@@ -1,5 +1,5 @@
 import type { ServerLifecycleFailure } from "@nervekit/contracts/status";
-import { FLOOR_ERROR } from "../../infrastructure/migrations/framework/ledger.js";
+import { homeAdmissionFailureKind } from "@nervekit/contracts/settings";
 import { readMigrationFailureReport } from "../../infrastructure/migrations/framework/recovery.js";
 import { storagePaths } from "../../infrastructure/storage-bootstrap/paths.js";
 
@@ -23,7 +23,7 @@ export async function classifyStorageFailure(
   if (error instanceof StartupFailureError) {
     return { code: error.code, message, retryable: error.retryable };
   }
-  if (message.includes(FLOOR_ERROR)) {
+  if (homeAdmissionFailureKind(error)) {
     return { code: "HOME_UNSUPPORTED", message, retryable: false };
   }
   const paths = storagePaths(home);

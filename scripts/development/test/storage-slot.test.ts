@@ -1,3 +1,5 @@
+import { spawn } from "node:child_process";
+import { once } from "node:events";
 import assert from "node:assert/strict";
 import {
   cp,
@@ -230,6 +232,60 @@ test("only matching authenticated daemon metadata permits reuse and avoids probi
     inspectSlotDaemon(slot, request),
     /Invalid development daemon/,
   );
+});
+
+test("dead local daemon metadata does not require live-slot fields or credentials, but ports must be free", async (t) => {
+  const slot = resolveStorageSlot([], await temporary(t));
+  const daemon = await daemonFixture(slot);
+  const child = spawn(process.execPath, ["-e", ""], { stdio: "ignore" });
+  await once(child, "exit");
+  assert.ok(child.pid);
+  daemon.pid = child.pid;
+  delete daemon.mobileHttps;
+  const raw = JSON.stringify(daemon);
+  await writeFile(join(slot.home, "daemon.json"), raw);
+  await rm(join(slot.home, "secrets", "daemon-token"));
+  assert.equal(
+    await inspectSlotDaemon(slot, () =>
+      assert.fail("must not contact a dead owner"),
+    ),
+    false,
+  );
+  const probes = [];
+  assert.equal(
+    await preflightSlot(slot, {
+      probe: async (port) => {
+        probes.push(port);
+      },
+    }),
+    false,
+  );
+  assert.deepEqual(probes, [slot.httpPort, slot.httpsPort]);
+  assert.equal(await readFile(join(slot.home, "daemon.json"), "utf8"), raw);
+  await assert.rejects(
+    preflightSlot(slot, {
+      probe: async () => {
+        throw new Error("occupied");
+      },
+    }),
+    /occupied/,
+  );
+});
+
+test("live local daemon metadata missing HTTPS fields is still rejected without contacting or stopping it", async (t) => {
+  const slot = resolveStorageSlot([], await temporary(t));
+  const daemon = await daemonFixture(slot);
+  delete daemon.mobileHttps;
+  const raw = JSON.stringify(daemon);
+  await writeFile(join(slot.home, "daemon.json"), raw);
+  await assert.rejects(
+    inspectSlotDaemon(slot, () =>
+      assert.fail("must not contact a mismatched owner"),
+    ),
+    /does not match/,
+  );
+  assert.equal(await readFile(join(slot.home, "daemon.json"), "utf8"), raw);
+  process.kill(process.pid, 0);
 });
 
 test("manual home copies discard only destination runtime metadata without contacting the source", async (t) => {

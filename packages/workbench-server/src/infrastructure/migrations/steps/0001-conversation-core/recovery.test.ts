@@ -5,10 +5,7 @@ import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { test } from "node:test";
 import { runMigrations } from "../../framework/runner.js";
-import {
-  discardFailedItems,
-  rollbackFailedMigration,
-} from "../../framework/recovery.js";
+import { rollbackFailedMigration } from "../../framework/recovery.js";
 import { fixture, registry, timestamp } from "./step-fixture.js";
 
 /** One unreadable document and one that fails inside the importer. */
@@ -42,51 +39,10 @@ async function addBrokenConversations(home: string): Promise<void> {
   }
 }
 
-const report = async (home: string) =>
-  JSON.parse(
-    await readFile(join(home, "migrations/last-failure.json"), "utf8"),
-  ) as {
-    discardable?: {
-      kind: string;
-      id: string;
-      title?: string;
-      reason: string;
-    }[];
-    rollbackAvailable?: boolean;
-  };
-
 void test("0001 reports every failed conversation and completes once they are discarded", async (t) => {
   const home = await fixture(t);
   await addBrokenConversations(home);
-  await assert.rejects(
-    runMigrations(home, { registry }),
-    /2 conversations could not be upgraded/,
-  );
-  const failure = await report(home);
-  assert.equal(failure.rollbackAvailable, true);
-  assert.deepEqual(
-    failure.discardable?.map(({ kind, id, title }) => ({ kind, id, title })),
-    [
-      { kind: "conversation", id: "conv_corrupt", title: undefined },
-      { kind: "conversation", id: "conv_broken", title: "Broken conversation" },
-    ],
-  );
-  assert.match(failure.discardable[0].reason, /^Unreadable conversation/);
-
-  await assert.rejects(
-    discardFailedItems(home, ["conv_one"]),
-    /Only items reported/,
-  );
-  await discardFailedItems(home, ["conv_corrupt", "conv_broken"]);
-  // Both failed during import, so the previous import is verified as is.
-  const phases = new Set<string>();
-  await runMigrations(home, {
-    registry,
-    onProgress: ({ phase }) => phases.add(phase),
-  });
-  assert.equal(phases.has("import"), false);
-  assert(phases.has("verify-history-and-assets"));
-
+  await runMigrations(home, { registry });
   const db = new DatabaseSync(join(home, "data/nerve.sqlite"), {
     readOnly: true,
   });
@@ -152,7 +108,14 @@ void test("0001 rollback restores the 0.34.1 home after a failed attempt", async
   const conversationsBefore = await readdir(join(home, "data/conversations"));
   const databaseBefore = await readFile(join(home, "data/nerve.sqlite"));
 
-  await assert.rejects(runMigrations(home, { registry }));
+  await assert.rejects(
+    runMigrations(home, {
+      registry,
+      onProgress: ({ phase }) => {
+        if (phase === "verify") throw new Error("home-level interruption");
+      },
+    }),
+  );
   // The attempt converted files in place; the rollback must undo all of it.
   assert.notEqual(
     await readFile(join(home, "config/harness.json"), "utf8"),
@@ -185,33 +148,28 @@ void test("0001 rollback restores the 0.34.1 home after a failed attempt", async
 
 void test("0001 attributes verification failures to their source conversation", async (t) => {
   const home = await fixture(t);
-  await assert.rejects(
-    runMigrations(home, {
-      registry,
-      onProgress: ({ phase }) => {
-        if (phase !== "verify") return;
-        const db = new DatabaseSync(join(home, "data/nerve.sqlite"));
-        try {
-          db.exec(
-            "UPDATE conversation_event SET payload = json_set(payload, '$.text', 'corrupted') WHERE conversation_id = 'conv_one'",
-          );
-        } finally {
-          db.close();
-        }
-      },
-    }),
-    /1 conversation could not be upgraded/,
-  );
-  const failure = await report(home);
-  assert.deepEqual(failure.discardable, [
-    {
-      kind: "conversation",
-      id: "conv_one",
-      reason: "History verification failed: user messages differ",
+  await runMigrations(home, {
+    registry,
+    onProgress: ({ phase }) => {
+      if (phase !== "verify") return;
+      const db = new DatabaseSync(join(home, "data/nerve.sqlite"));
+      try {
+        db.exec(
+          "UPDATE conversation_event SET payload = json_set(payload, '$.text', 'corrupted') WHERE conversation_id = 'conv_one'",
+        );
+      } finally {
+        db.close();
+      }
     },
-  ]);
-  assert.equal(failure.rollbackAvailable, true);
-  assert(existsSync(join(home, "data/nerve.sqlite.migrating")));
+  });
+  const upgrade = JSON.parse(
+    await readFile(
+      join(home, "migrations/reports/0001-conversation-core.json"),
+      "utf8",
+    ),
+  );
+  assert.equal(upgrade.setAside[0].id, "conv_one");
+  assert.match(upgrade.setAside[0].reason, /History verification failed/);
 });
 
 /** Two discardable files plus an unreadable runtime-owned document. */
@@ -229,30 +187,6 @@ async function corruptConfiguration(home: string) {
 void test("0001 checks configuration before converting and sets discarded files aside", async (t) => {
   const home = await fixture(t);
   const { rules, overlay, harness } = await corruptConfiguration(home);
-  await assert.rejects(
-    runMigrations(home, { registry }),
-    /2 configuration files could not be upgraded/,
-  );
-  const failure = await report(home);
-  assert.deepEqual(
-    failure.discardable?.map(({ kind, id, title }) => ({ kind, id, title })),
-    [
-      {
-        kind: "configuration",
-        id: rules,
-        title: "User settings: config/rule-sets/custom.json",
-      },
-      {
-        kind: "configuration",
-        id: overlay,
-        title: "Conversation conv_one: capabilities.json",
-      },
-    ],
-  );
-  // The check runs before any conversion.
-  assert.equal(existsSync(join(home, "config/subagents.json")), false);
-
-  await discardFailedItems(home, [rules, overlay]);
   await runMigrations(home, { registry });
   const upgrade = JSON.parse(
     await readFile(
@@ -261,7 +195,7 @@ void test("0001 checks configuration before converting and sets discarded files 
     ),
   );
   assert.equal(upgrade.step, "0001-conversation-core");
-  assert.equal(upgrade.setAside.length, 2);
+  assert.equal(upgrade.setAside.length, 3);
   const ruleEntry = upgrade.setAside.find(
     (item: { id: string }) => item.id === rules,
   );
@@ -284,7 +218,7 @@ void test("0001 checks configuration before converting and sets discarded files 
   assert(
     existsSync(join(overlayEntry.quarantinePath, "payload/capabilities.json")),
   );
-  // Runtime-owned documents are never reported or rewritten by the step.
+  // Runtime-owned documents stay active for Settings Health, with a quarantine copy.
   assert.equal(await readFile(harness, "utf8"), "not json");
 });
 
@@ -292,9 +226,14 @@ void test("0001 rollback returns configuration files that were set aside", async
   const home = await fixture(t);
   const { rules, overlay } = await corruptConfiguration(home);
   await addBrokenConversations(home);
-  await assert.rejects(runMigrations(home, { registry }), /configuration/);
-  await discardFailedItems(home, [rules, overlay]);
-  await assert.rejects(runMigrations(home, { registry }), /2 conversations/);
+  await assert.rejects(
+    runMigrations(home, {
+      registry,
+      onProgress: ({ phase }) => {
+        if (phase === "verify") throw new Error("home-level interruption");
+      },
+    }),
+  );
   await rollbackFailedMigration(home, { registry });
   assert.equal(await readFile(rules, "utf8"), "{ truncated");
   assert.equal(existsSync(`${rules}.corrupt`), false);
@@ -315,12 +254,13 @@ void test("0001 re-imports when a conversation that failed verification is disca
       db.close();
     }
   };
-  await assert.rejects(runMigrations(home, { registry, onProgress: corrupt }));
-  await discardFailedItems(home, ["conv_one"]);
   const phases = new Set<string>();
   await runMigrations(home, {
     registry,
-    onProgress: ({ phase }) => phases.add(phase),
+    onProgress: (progress) => {
+      phases.add(progress.phase);
+      corrupt(progress);
+    },
   });
   assert(phases.has("import"));
   const db = new DatabaseSync(join(home, "data/nerve.sqlite"), {

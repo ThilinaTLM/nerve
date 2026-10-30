@@ -5,17 +5,26 @@ sidebar:
   order: 7
 ---
 
-## Incompatible state
+## Unsupported or damaged homes
 
-Current state uses `manifest.json` with format `nerve-home`, version `1`. Nerve does not downgrade, reset malformed state, or open unknown/future versions. Nonempty homes without that manifest are unsupported; this version does not import older `nerve-workbench-state` layouts. Stop all Nerve processes and preserve the complete directory before trying a fresh, separate `NERVE_HOME`.
+The supported upgrade baseline is **Nerve 0.34.1**. New homes use `manifest.json` with format `nerve-home`, version `2`; versions `1` and `2` are accepted on read. Older layouts are not converted automatically. Do not add a manifest or change a migration checksum to make an old directory appear current.
 
-Do not add a manifest or change a migration checksum to make an old directory appear current.
+If startup identifies a home older than the baseline, choose one of these options:
+
+- **Upgrade through 0.34.1:** close Nerve and back up the complete home. Install [Nerve 0.34.1](https://github.com/ThilinaTLM/nerve/releases/tag/v0.34.1), run it once against that same home (`NERVE_HOME` if overridden), then close it and run the latest version. This route preserves conversation history.
+- **Start fresh, keep providers:** confirm the desktop action to rename the old home to `<home>.archive-<timestamp>` and start a new home. Nothing in the original home is deleted. Conversations, artifacts, and runtime data remain in the archive, not in the new workbench.
+
+Provider settings are copied only from a recognizable current layout and only if `config/providers.json` validates against the current schema. `secrets/credentials.enc` and `secrets/master.key` are copied only together, when the pair validates. No formats are converted. If nothing can be carried over, sign in to providers again. Permissions and project trust are not copied.
+
+The archive remains until **you delete it**. **Settings → Storage** shows its location in both browser and desktop while it exists. Back it up before deleting it if you may need the history.
+
+Damaged manifests, unreadable or unexpected ledgers, and unrecognized layouts offer the same confirmed fresh-start action, **Open data folder**, and **Copy diagnostics**. They do not suggest that upgrading through 0.34.1 will repair damaged metadata. Retry is offered only for failures identified as transient. Never share credential files with diagnostics.
 
 ## Migration aborts
 
 Read the reported stage and error before retrying. Startup upgrades check source records, schema checksums, referenced assets, and destination integrity. The current conversation-core conversion keeps resumable work until verification; do not delete its retained source database, sidecars, work directory, or ledger to bypass a failure.
 
-Back up the stopped home before an upgrade. The current conversion does not retain an automatic whole-home backup after success. If rehearsing on a copied home, also redirect project paths to copied projects: conversion can update project-resident `.nerve` configuration.
+Back up the stopped home before an upgrade. The current conversion does not retain an automatic whole-home backup after success. Home upgrades touch only the Nerve home. Project configuration is upgraded separately when its feature loads it. A copied home can still point at real projects, so use copied projects when testing those features.
 
 ## Launch configurations conflict
 

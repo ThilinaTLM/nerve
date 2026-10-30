@@ -64,11 +64,24 @@ const databaseBytes = $derived(
     : 0,
 );
 
+const archivedHome = $derived(usage?.archivedHomeDir);
+
 onMount(() => {
   controller.start();
   return () => controller.dispose();
 });
 </script>
+
+{#if archivedHome}
+  <SettingsSection
+    title="Archived home"
+    description="Kept until you delete it. Conversations and other original data remain here."
+  >
+    <p class="break-all font-mono text-xs text-muted-foreground">
+      {archivedHome}
+    </p>
+  </SettingsSection>
+{/if}
 
 {#if controller.errorMessage}
   <SettingsInlineMessage tone="destructive" text={controller.errorMessage} />

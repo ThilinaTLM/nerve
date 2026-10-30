@@ -1,21 +1,13 @@
 import { createHash } from "node:crypto";
-import {
-  lstat,
-  mkdir,
-  open,
-  readFile,
-  realpath,
-  unlink,
-} from "node:fs/promises";
-import { basename, dirname, join } from "node:path";
+import { realpath } from "node:fs/promises";
 import type { Project } from "@nervekit/contracts/core";
 import {
   launchDefinitionFileSchema,
-  launchDefinitionV1FileSchema,
   type LaunchDefinitionFile,
   type LaunchDefinitionCatalog,
 } from "@nervekit/contracts/launch-definitions";
-import { atomicWriteJson } from "../../infrastructure/storage-bootstrap/index.js";
+import { ProjectMigrationService } from "../../infrastructure/configuration/project-migration/project-migration.js";
+import { launchDefinitionsConfiguration } from "./launch-definition-migrations.js";
 import { ApplicationError } from "../../core/application-error.js";
 
 function canonical(value: unknown): unknown {
@@ -47,10 +39,12 @@ export function launchCatalogRevision(file: LaunchDefinitionFile): string {
 export class LaunchDefinitionRepository {
   constructor(
     private readonly getProject: (id: string) => Project,
-    private readonly write: typeof atomicWriteJson = atomicWriteJson,
-  ) {}
+    private readonly migrations: ProjectMigrationService,
+  ) {
+    this.migrations.register(launchDefinitionsConfiguration);
+  }
   async catalog(projectId: string): Promise<LaunchDefinitionCatalog> {
-    const { file } = await this.read(await this.path(projectId));
+    const { value: file } = await this.load(projectId);
     return this.runtime(projectId, file);
   }
   async list(projectId: string) {
@@ -61,72 +55,36 @@ export class LaunchDefinitionRepository {
     expectedRevision: string,
     mutate: (file: LaunchDefinitionFile) => T,
   ): Promise<{ result: T; revision: string; changed: boolean }> {
-    const path = await this.path(projectId);
-    const directory = join(path, "..");
-    await mkdir(directory, { recursive: true, mode: 0o700 });
-    // An exclusive, persistent lock fails closed. Never infer dead ownership from
-    // age/PID: crash leftovers require operator removal after quiescing writers.
-    const lockPath = `${path}.lock`;
-    const lock = await open(lockPath, "wx", 0o600).catch((cause: unknown) => {
-      if ((cause as NodeJS.ErrnoException).code === "EEXIST") {
-        const error = new ApplicationError(
-          409,
-          "LAUNCH_CATALOG_BUSY",
-          `Cannot exclusively lock launch catalog ${path}: another writer may be active. Refresh and retry after it finishes. A leftover crash lock requires quiescing all writers before manually removing ${lockPath}; locks are never automatically stolen.`,
-          { retryable: true },
-        );
-        error.cause = cause;
-        throw error;
-      }
-      throw new Error(
-        `Cannot establish exclusive coordination for launch catalog ${path}.`,
-        { cause },
-      );
-    });
-    const lockIdentity = await lock.stat();
+    const context = this.context(projectId);
+    context.directory = await realpath(context.directory);
     try {
-      const { file, source, legacy } = await this.read(path);
-      const previousRevision = launchCatalogRevision(file);
-      if (expectedRevision !== previousRevision)
-        throw new ApplicationError(
-          409,
-          "LAUNCH_CATALOG_CONFLICT",
-          "Launch catalog changed; refresh before retrying.",
-        );
-      const result = mutate(file);
-      const validated = launchDefinitionFileSchema.parse(file);
-      const revision = launchCatalogRevision(validated);
-      const changed = revision !== previousRevision;
-      if (changed) {
-        if (legacy && source) await this.backup(path, source);
-        await this.write(path, validated, 0o600);
-      }
-      return { result, revision, changed };
-    } finally {
-      try {
-        const current = await lstat(lockPath);
-        if (
-          current.dev === lockIdentity.dev &&
-          current.ino === lockIdentity.ino
-        )
-          await unlink(lockPath);
-        else
-          console.error(
-            "Launch catalog lock was replaced; leaving replacement intact",
-            { lockPath },
-          );
-      } catch (error) {
-        if ((error as NodeJS.ErrnoException).code !== "ENOENT")
-          console.error(
-            "Launch catalog lock cleanup failed; future writes fail closed",
-            { lockPath, error },
-          );
-      }
-      try {
-        await lock.close();
-      } catch (error) {
-        console.error("Launch catalog lock close failed", { lockPath, error });
-      }
+      return await this.migrations.transact(
+        context,
+        launchDefinitionsConfiguration,
+        (file) => {
+          const previousRevision = launchCatalogRevision(file);
+          if (expectedRevision !== previousRevision)
+            throw new ApplicationError(
+              409,
+              "LAUNCH_CATALOG_CONFLICT",
+              "Launch catalog changed; refresh before retrying.",
+            );
+          const result = mutate(file);
+          const validated = launchDefinitionFileSchema.parse(file);
+          const revision = launchCatalogRevision(validated);
+          const changed = revision !== previousRevision;
+          return { result: { result, revision, changed }, changed };
+        },
+      );
+    } catch (error) {
+      if (
+        error instanceof ApplicationError &&
+        error.code === "PROJECT_CONFIGURATION_BUSY"
+      )
+        throw new ApplicationError(409, "LAUNCH_CATALOG_BUSY", error.message, {
+          retryable: true,
+        });
+      throw error;
     }
   }
   private runtime(
@@ -143,97 +101,32 @@ export class LaunchDefinitionRepository {
       })),
     };
   }
-  private async backup(path: string, source: Buffer): Promise<void> {
-    const backupPath = join(dirname(path), "definitions.v1.backup.json");
-    let handle;
-    try {
-      handle = await open(backupPath, "wx", 0o600);
-    } catch (error) {
-      if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error;
-      if (!(await readFile(backupPath)).equals(source))
-        throw new Error(
-          `Launch catalog backup differs from source: ${backupPath}`,
-          { cause: error },
-        );
-      return;
-    }
-    try {
-      await handle.writeFile(source);
-      await handle.sync();
-    } finally {
-      await handle.close();
-    }
+  health(projectId: string) {
+    return this.migrations.health(projectId);
   }
-  private async read(
-    path: string,
-  ): Promise<{ file: LaunchDefinitionFile; source?: Buffer; legacy: boolean }> {
-    let source: Buffer;
-    try {
-      source = await readFile(path);
-    } catch (error) {
-      if ((error as NodeJS.ErrnoException).code === "ENOENT") {
-        try {
-          await readFile(join(dirname(path), "definitions.v1.backup.json"));
-        } catch (backupError) {
-          if ((backupError as NodeJS.ErrnoException).code === "ENOENT")
-            return {
-              file: { version: 2, folders: [], definitions: [] },
-              legacy: false,
-            };
-          throw backupError;
-        }
-        throw new Error(
-          `Missing authoritative launch catalog with conversion backup present: ${path}`,
-          { cause: error },
-        );
-      }
-      throw error;
-    }
-    try {
-      const raw = JSON.parse(source.toString("utf8"));
-      if (raw.version === 1) {
-        const old = launchDefinitionV1FileSchema.parse(raw);
-        return {
-          source,
-          legacy: true,
-          file: launchDefinitionFileSchema.parse({
-            version: 2,
-            folders: [],
-            definitions: old.definitions.map((d, order) => ({
-              ...d,
-              parentFolderId: null,
-              order,
-            })),
-          }),
-        };
-      }
-      return {
-        source,
-        legacy: false,
-        file: launchDefinitionFileSchema.parse(raw),
-      };
-    } catch (cause) {
-      throw new Error(
-        `Invalid project launch definitions at ${path}: ${cause instanceof Error ? cause.message : String(cause)}`,
-        { cause },
+  async resolve(
+    projectId: string,
+    action: "reload" | "reset",
+    confirmed = false,
+  ) {
+    const context = this.context(projectId);
+    if (action === "reset")
+      await this.migrations.reset(
+        context,
+        launchDefinitionsConfiguration,
+        confirmed,
       );
-    }
+    else await this.migrations.reload(context, launchDefinitionsConfiguration);
+    return this.catalog(projectId);
   }
-  private async path(projectId: string): Promise<string> {
-    const project = this.getProject(projectId);
-    // Resolve the directory before creating infrastructure: project aliases share
-    // the same path and filesystem lock, including across Nerve processes.
-    const resolveExisting = async (path: string): Promise<string> => {
-      try {
-        return await realpath(path);
-      } catch (error) {
-        if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
-        return join(await resolveExisting(dirname(path)), basename(path));
-      }
-    };
-    const directory = await realpath(project.directory);
-    return resolveExisting(
-      join(directory, ".nerve", "launches", "definitions.json"),
+  private context(projectId: string) {
+    return { projectId, directory: this.getProject(projectId).directory };
+  }
+  private async load(projectId: string) {
+    const directory = await realpath(this.getProject(projectId).directory);
+    return this.migrations.load(
+      { projectId, directory },
+      launchDefinitionsConfiguration,
     );
   }
 }

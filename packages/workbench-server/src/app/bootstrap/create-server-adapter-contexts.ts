@@ -70,6 +70,7 @@ export function createServerAdapterContexts(
       integrationHealth: services.integrationHealth,
     },
     projects: {
+      projectMigration: services.projectMigration,
       getProject: (id: string) => {
         const project = services.conversationCore.projects.get(id);
         if (!project) throw new Error(`Project not found: ${id}`);
@@ -109,6 +110,7 @@ export function createServerAdapterContexts(
       configurationOperations: services.configurationOperations,
       admissionPolicy: services.admissionPolicy,
       permissionConfiguration: createPermissionConfigurationService({
+        projectMigration: services.projectMigration,
         home: infrastructure.storage.paths.home,
         storage: services.coreStorage,
         published: (path) => services.admissionPolicy.reload([path]),

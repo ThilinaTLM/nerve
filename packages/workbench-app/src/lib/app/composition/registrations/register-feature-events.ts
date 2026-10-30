@@ -5,6 +5,7 @@ import {
   registerSettingsEventHandlers,
 } from "$lib/features/settings";
 import { registerLaunchEventHandlers } from "$lib/features/launches";
+import { registerProjectConfigurationHealthEffects } from "./register-project-configuration-health";
 import { registerUsageEventHandlers } from "$lib/features/usage";
 
 export function registerFeatureEventHandlers(): () => void {
@@ -15,6 +16,7 @@ export function registerFeatureEventHandlers(): () => void {
     registerUsageEventHandlers(),
     registerGitEventHandlers(),
     registerPromptSuggestionEventHandlers(),
+    registerProjectConfigurationHealthEffects(),
   ];
   return () => {
     for (const dispose of unregister.splice(0)) dispose();

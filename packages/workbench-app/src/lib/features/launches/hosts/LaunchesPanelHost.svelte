@@ -4,6 +4,7 @@ import type { LaunchRecord } from "$lib/api";
 import type { CancelLaunchRequest } from "@nervekit/contracts/launches";
 import { createWorkbenchLaunchPanelAdapter } from "$lib/features/launches/state/workbench-launch-panel-adapter.svelte";
 import { LaunchesPanel } from "$lib/features/launches";
+import LaunchConfigurationNotice from "./LaunchConfigurationNotice.svelte";
 
 type Props = {
   activeProject?: Project;
@@ -53,4 +54,12 @@ const adapter = createWorkbenchLaunchPanelAdapter(
 );
 </script>
 
-<LaunchesPanel model={adapter.model} actions={adapter.actions} />
+{#snippet configurationNotice()}
+  <LaunchConfigurationNotice projectId={activeProject?.id} />
+{/snippet}
+
+<LaunchesPanel
+  model={adapter.model}
+  actions={adapter.actions}
+  {configurationNotice}
+/>

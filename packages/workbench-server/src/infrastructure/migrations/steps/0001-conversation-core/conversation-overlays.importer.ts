@@ -1,5 +1,5 @@
 import { convertPermissionRules } from "./process-history.js";
-import { createHash, randomUUID } from "node:crypto";
+import { randomUUID } from "node:crypto";
 import {
   lstatSync,
   mkdirSync,
@@ -12,15 +12,13 @@ import {
 import { dirname, isAbsolute, join, relative } from "node:path";
 import {
   capabilityOverridesDocumentSchema,
-  normalizeCapabilityOverrides,
   resolveCapabilitySelection,
   userCapabilitySelection,
   toolNames,
   type CapabilitySelection,
 } from "./capabilities.js";
 import { permissionOverlayDocumentForOriginSchema } from "./shapes.js";
-import type { CoreStorage } from "./storage.js";
-import type { ImportReport, Legacy } from "./legacy.reader.js";
+import type { Legacy } from "./legacy.reader.js";
 import {
   consumeCheckedText,
   isUnreadableDocument,
@@ -31,20 +29,17 @@ export interface ImportedConversationOverlays {
   permissionsWritten: number;
 }
 
-/** Read the same effective layers as the host; never initialize or edit them. */
+/** Convert home-owned conversation overlays without consulting project files. */
 export class ConversationOverlaysImporter {
   readonly counts: ImportedConversationOverlays = {
     capabilitiesWritten: 0,
     permissionsWritten: 0,
   };
   private user: CapabilitySelection | undefined;
-  private readonly projects = new Map<string, CapabilitySelection>();
 
   constructor(
     private readonly home: string,
     private readonly dataDir: string,
-    private readonly storage: CoreStorage,
-    private readonly report: ImportReport,
   ) {}
 
   private userSelection(): CapabilitySelection {
@@ -61,43 +56,6 @@ export class ConversationOverlaysImporter {
     };
     this.user = userCapabilitySelection(read("harness"), read("integrations"));
     return this.user;
-  }
-
-  private inherited(projectId: string): CapabilitySelection {
-    const cached = this.projects.get(projectId);
-    if (cached) return cached;
-    const user = this.userSelection();
-    const project = this.storage.projects.get(projectId);
-    if (!project) throw new Error(`Missing overlay project ${projectId}`);
-    const path = join(
-      project.directory,
-      ".nerve",
-      "config",
-      "capabilities.json",
-    );
-    const trust = this.storage.trustedResources.find(
-      "project_capabilities",
-      projectId,
-      path,
-    );
-    let document;
-    try {
-      const content = consumeCheckedText(path) ?? readFileSync(path, "utf8");
-      const parsed = capabilityOverridesDocumentSchema.parse(
-        JSON.parse(content),
-      );
-      const digest = `sha256:${createHash("sha256").update(content).digest("hex")}`;
-      if (trust?.status === "trusted" && trust.contentDigest === digest)
-        document = parsed;
-    } catch (error) {
-      if ((error as NodeJS.ErrnoException).code !== "ENOENT")
-        this.report.skip(
-          "Invalid project capability layer; inherited user selection instead",
-        );
-    }
-    const inherited = resolveCapabilitySelection({ user, project: document });
-    this.projects.set(projectId, inherited);
-    return inherited;
   }
 
   private assertContained(path: string): void {
@@ -143,7 +101,6 @@ export class ConversationOverlaysImporter {
   }
 
   importConversation(
-    projectId: string,
     oldId: string,
     newId: string,
     enabledTools?: string[],
@@ -163,7 +120,7 @@ export class ConversationOverlaysImporter {
     let permissions = this.source(join(source, "permissions.json"));
     let normalized = null;
     if (capabilities !== null || enabledTools) {
-      const inherited = this.inherited(projectId);
+      const inherited = this.userSelection();
       const document = capabilityOverridesDocumentSchema.parse(
         capabilities === null ? { schemaVersion: 2 } : JSON.parse(capabilities),
       );
@@ -193,7 +150,9 @@ export class ConversationOverlaysImporter {
         }
         Object.assign(document.toolSettings, oldEffective.toolSettings);
       }
-      normalized = normalizeCapabilityOverrides(document, inherited);
+      // Project inheritance is deliberately unknown to home migration. Keep
+      // explicit opinions rather than erasing them against a guessed baseline.
+      normalized = document;
     }
     if (permissions !== null) {
       const document = JSON.parse(permissions);

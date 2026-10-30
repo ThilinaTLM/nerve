@@ -5,7 +5,6 @@ import {
   readReleasedScope,
   validateReleasedCatalog,
   scopeIssueReport,
-  type ReleasedScopeInput,
 } from "./released-scope.js";
 import {
   releasedScopeTargets,
@@ -39,7 +38,7 @@ import {
 } from "./documents.js";
 import { verifyConversationExports } from "./released-verification.js";
 import type { MetadataPatch } from "./released-metadata.js";
-import { discoverReleasedSkillSources } from "./released-resources.js";
+import { discoverReleasedHomeSkillSources } from "./released-resources.js";
 import {
   executeReleasedMigration,
   retireReleasedSources,
@@ -96,18 +95,28 @@ function io(ctx: StepContext): ExportIO {
     },
   };
 }
-function inputs(root: string, snapshots: Map<string, string>): Data {
-  const value: Data = {};
-  for (const name of ["harness", "capabilities", "subagents", "integrations"]) {
-    const path = join(root, "config", name + ".json");
-    safePath(path);
-    if (existsSync(path)) {
-      const bytes = readText(path);
-      snapshots.set(path, sha256(bytes));
-      value[name] = JSON.parse(bytes);
-    }
-  }
-  return value;
+function inputs(
+  ctx: StepContext,
+  root: string,
+  snapshots: Map<string, string>,
+): Data {
+  const input = readReleasedScope(root, io(ctx), "user", {
+    builtins,
+    skillSources: {},
+    report: () => {},
+  });
+  validateReleasedCatalog(input, root, "user", {
+    builtins,
+    skillSources: {},
+    report: () => {},
+  });
+  for (const issue of input.issues)
+    ctx.quarantine(
+      { kind: "configuration", id: issue.path, reason: issue.reason },
+      { files: [issue.path], retainSource: true },
+    );
+  for (const [path, digest] of input.snapshots) snapshots.set(path, digest);
+  return input.before;
 }
 export interface Plan {
   schemaVersion: 1;
@@ -134,7 +143,6 @@ async function planExports(ctx: StepContext): Promise<Plan> {
     baseContext,
   );
   const user = userInput.before;
-  const lower = convertPreferencesV037(user, baseContext).agent.overrides;
   const receipts: Plan["receipts"] = [],
     rows: Plan["rows"] = {},
     trust: Plan["trust"] = [];
@@ -172,109 +180,76 @@ async function planExports(ctx: StepContext): Promise<Plan> {
     receipts.push({ path, receipt });
     return receipt;
   }
-  const converted = new Map<
-    string,
-    ReturnType<typeof convertPreferencesV037>
-  >();
-  const projectInputs = new Map<string, ReleasedScopeInput>();
-  const checkProjects = phaseProgress(
-    ctx,
-    "projects",
-    "Checking projects",
-    original.projects.length,
-  );
-  await checkProjects();
-  let checkedProjects = 0;
-  for (const project of original.projects) {
-    projectInputs.set(
-      String(project.id),
-      readReleasedScope(
-        join(String(project.directory), ".nerve"),
-        files,
-        "project",
-        { ...baseContext, inheritedSettings: lower },
-      ),
-    );
-    await checkProjects(++checkedProjects);
-  }
   const convertScopes = phaseProgress(
     ctx,
     "scope-settings",
-    "Converting user and project settings",
-    original.projects.length + 1,
+    "Converting user settings",
+    1,
   );
   await convertScopes();
   let convertedScopes = 0;
-  for (const { root, input, project } of [
-    { root: ctx.paths.home, input: userInput, project: undefined },
-    ...original.projects.map((project) => ({
-      root: join(String(project.directory), ".nerve"),
-      input: projectInputs.get(String(project.id))!,
-      project,
-    })),
-  ]) {
+  for (const { root, input } of [{ root: ctx.paths.home, input: userInput }]) {
     const before = input.before;
     const report: string[] = scopeIssueReport(input.issues);
     const context = {
       report: (message: string) => report.push(`${root}/config: ${message}`),
       builtins,
       documentPath: join(root, "config/capabilities.json"),
-      inheritedSettings: project ? converted.get("user")?.agent.overrides : {},
-      skillSources: await discoverReleasedSkillSources(
-        ctx.paths.home,
-        project ? String(project.directory) : ctx.paths.home,
-        [user, before],
-      ),
+      inheritedSettings: {},
+      skillSources: await discoverReleasedHomeSkillSources(ctx.paths.home, [
+        user,
+        before,
+      ]),
     };
-    validateReleasedCatalog(input, root, project ? "project" : "user", context);
+    validateReleasedCatalog(input, root, "user", context);
     for (const [path, digest] of input.snapshots) snapshots.set(path, digest);
     const result = convertPreferencesV037(
-      { ...before, scope: project ? "project" : "user" },
+      { ...before, scope: "user" },
       context,
     );
-    converted.set(project ? String(project.id) : "user", result);
     const targets = input.issues.length
       ? {}
       : isolateScopeTargets(
           root,
           input,
           files,
-          releasedScopeTargets(
-            root,
-            project ? "project" : "user",
-            before,
-            context,
-            result,
-          ),
+          releasedScopeTargets(root, "user", before, context, result),
         );
+    for (const issue of input.issues)
+      ctx.quarantine(
+        { kind: "configuration", id: issue.path, reason: issue.reason },
+        { files: [issue.path], retainSource: true },
+      );
     for (const message of scopeIssueReport(input.issues))
       if (!report.includes(message)) report.push(message);
     const sources = ["harness", "capabilities", "subagents", "integrations"]
       .filter((key) => before[key] !== undefined)
       .map((key) => join(root, "config", `${key}.json`));
-    const policyFiles = project
-      ? [
-          {
-            path: join(root, "config/permissions.json"),
-            kind: "permissions" as const,
-          },
-        ]
-      : documentFiles(root, [], []).filter(
-          (file) => file.kind === "permissions" || file.kind === "rule-set",
-        );
+    const policyFiles = documentFiles(root, [], []).filter(
+      (file) => file.kind === "permissions" || file.kind === "rule-set",
+    );
     for (const file of policyFiles) {
       if (!existsSync(file.path)) continue;
       const bytes = readText(file.path);
       snapshots.set(file.path, sha256(bytes));
       const before = parsePolicySource(bytes, file.path, report),
         after = convertDocument(before, file.kind);
+      if (before === undefined)
+        ctx.quarantine(
+          {
+            kind: "configuration",
+            id: file.path,
+            reason: "Invalid policy JSON",
+          },
+          { files: [file.path], retainSource: true },
+        );
       if (JSON.stringify(before) !== JSON.stringify(after)) {
         targets[file.path] = exportedTarget("metadata", after);
         sources.push(file.path);
         report.push(`Converted planning-tool metadata: ${file.path}`);
       }
     }
-    const receipt = add(
+    add(
       `scope:${root}`,
       root,
       targets,
@@ -284,47 +259,6 @@ async function planExports(ctx: StepContext): Promise<Plan> {
       ),
       report,
     );
-    if (project)
-      for (const [path, target] of Object.entries(targets)) {
-        const names =
-          target.kind === "profile"
-            ? ["subagents"]
-            : target.kind === "preferences"
-              ? ["capabilities", "subagents"]
-              : path === join(root, "config/permissions.json")
-                ? ["permissions"]
-                : [];
-        if (!names.length) continue;
-        const contributions = names
-          .map((name) => ({
-            path: join(root, "config", name + ".json"),
-            kind:
-              name === "subagents"
-                ? "subagent_profile"
-                : name === "permissions"
-                  ? "project_permissions"
-                  : "project_capabilities",
-          }))
-          .filter((source) => receipt.sources[source.path]);
-        const decision = convertedTrust(
-          original.trust,
-          contributions.map((source) => ({
-            ...source,
-            digest: receipt.sources[source.path].digest,
-            projectId: String(project.id),
-          })),
-          path,
-          target.digest,
-          target.kind === "profile"
-            ? "agent_profile"
-            : path === join(root, "config/permissions.json")
-              ? "project_permissions"
-              : "project_capabilities",
-        );
-        decision.projectId = String(project.id);
-        trust.push(decision);
-        if (decision.report) receipt.report.push(decision.report);
-      }
     await convertScopes(++convertedScopes);
   }
   const convertConversations = phaseProgress(
@@ -337,40 +271,25 @@ async function planExports(ctx: StepContext): Promise<Plan> {
   let convertedConversations = 0;
   for (const raw of original.rows) {
     const row = raw as unknown as ReleasedConversation;
-    const id = row.conversation_id,
-      projectId = String(raw.project_id);
+    const id = row.conversation_id;
     assert(
       /^[a-zA-Z0-9_-]+$/.test(id),
       "Unsafe released conversation identity",
     );
-    const project = original.projects.find(
-      (project) => project.id === projectId,
-    );
-    assert(project, "Missing project");
-    const before = projectInputs.get(projectId)!.before;
     const root = join(ctx.paths.home, "data/conversations", id);
-    const own = inputs(root, snapshots),
+    const own = inputs(ctx, root, snapshots),
       report: string[] = [];
     const context = {
       report: (message: string) => report.push(`${root}/config: ${message}`),
       builtins,
       documentPath: join(root, "config/capabilities.json"),
-      inheritedSettings: merge(
-        converted.get("user")?.agent.overrides ?? {},
-        trust.some(
-          (entry) =>
-            entry.projectId === projectId &&
-            entry.kind === "project_capabilities" &&
-            entry.status === "trusted",
-        )
-          ? (converted.get(projectId)?.agent.overrides ?? {})
-          : {},
-      ),
-      skillSources: await discoverReleasedSkillSources(
-        ctx.paths.home,
-        String(project.directory),
-        [user, before, own],
-      ),
+      // Project files are owned by lazy project migration, never startup.
+      // Preserve explicit conversation opinions without a project baseline.
+      inheritedSettings: {},
+      skillSources: await discoverReleasedHomeSkillSources(ctx.paths.home, [
+        user,
+        own,
+      ]),
     };
     const userEffective = convertPreferencesV037(
       {
@@ -380,38 +299,9 @@ async function planExports(ctx: StepContext): Promise<Plan> {
       },
       context,
     ).agent.overrides;
-    // Untrusted project capabilities are converted, but not frozen as applicable settings.
-    const projectRoot = join(String(project.directory), ".nerve");
-    const capPath = join(projectRoot, "config/capabilities.json");
-    const capBytes =
-      before.capabilities === undefined ? undefined : files.read(capPath);
-    const trusted =
-      capBytes !== undefined &&
-      original.trust.some(
-        (entry) =>
-          entry.path === capPath &&
-          entry.kind === "project_capabilities" &&
-          entry.projectId === projectId &&
-          entry.status === "trusted" &&
-          [sha256(capBytes), `sha256:${sha256(capBytes)}`].includes(
-            entry.contentDigest,
-          ),
-      );
-    let baselineSettings: Data = user.capabilities
+    const baselineSettings: Data = user.capabilities
       ? applyReleasedCapabilities(userEffective, user.capabilities)
       : userEffective;
-    baselineSettings = merge(
-      baselineSettings,
-      convertPreferencesV037(
-        { harness: before.harness, scope: "project" },
-        context,
-      ).agent.overrides,
-    );
-    if (trusted && before.capabilities)
-      baselineSettings = applyReleasedCapabilities(
-        baselineSettings,
-        before.capabilities,
-      );
     baselineSettings.tools = merge(
       {
         jira: { enabled: false },
@@ -434,18 +324,56 @@ async function planExports(ctx: StepContext): Promise<Plan> {
       for (const source of sources)
         baselineSettings.skills[source][name] ??=
           baselineSettings.skills.defaults[source];
-    const document = convertConversationV037(
-      row,
-      {
-        capabilities: own.capabilities,
-        harness: own.harness,
-        subagents: own.subagents,
+    let document;
+    try {
+      document = convertConversationV037(
+        row,
+        {
+          capabilities: own.capabilities,
+          harness: own.harness,
+          subagents: own.subagents,
+          ...(raw.parent_conversation_id
+            ? { childDefaults: baselineSettings }
+            : {}),
+        },
+        context,
+      );
+    } catch (error) {
+      // Preserve the complete SQL contribution before its legacy columns retire.
+      // The placeholder cannot execute: its permission policy does not exist.
+      const reason = error instanceof Error ? error.message : String(error);
+      ctx.quarantine(
+        { kind: "conversation", id, reason },
+        {
+          records: [{ row, settings: own }],
+          files: ["harness", "capabilities", "subagents"]
+            .map((name) => join(root, "config", `${name}.json`))
+            .filter(existsSync),
+          retainSource: true,
+        },
+      );
+      report.push("Conversation settings set aside; see quarantine");
+      const permissionRuleSetId = `migration-set-aside-${sha256(JSON.stringify(row)).slice(0, 16)}`;
+      const frozenDefaults = structuredClone(baselineSettings);
+      delete frozenDefaults.subagents;
+      delete frozenDefaults.tools.subagents;
+      delete frozenDefaults.tools.plan_present;
+      document = {
+        schemaVersion: 1,
+        revision: 0,
+        appliedProfile: null,
+        overrides: raw.parent_conversation_id ? {} : { permissionRuleSetId },
         ...(raw.parent_conversation_id
-          ? { childDefaults: baselineSettings }
+          ? {
+              frozenDefaults: {
+                ...frozenDefaults,
+                reasoningLevel: "off",
+                permissionRuleSetId,
+              },
+            }
           : {}),
-      },
-      context,
-    );
+      };
+    }
     const sources = ["harness", "capabilities", "subagents"]
       .filter((name) => own[name] !== undefined)
       .map((name) => join(root, "config", `${name}.json`));
@@ -460,6 +388,15 @@ async function planExports(ctx: StepContext): Promise<Plan> {
       const bytes = readText(permissionPath),
         before = parsePolicySource(bytes, permissionPath, report),
         after = convertDocument(before, "permissions");
+      if (before === undefined)
+        ctx.quarantine(
+          {
+            kind: "configuration",
+            id: permissionPath,
+            reason: "Invalid policy JSON",
+          },
+          { files: [permissionPath], retainSource: true },
+        );
       if (JSON.stringify(before) !== JSON.stringify(after)) {
         snapshots.set(permissionPath, sha256(bytes));
         sources.push(permissionPath);
@@ -500,7 +437,18 @@ async function planExports(ctx: StepContext): Promise<Plan> {
 function loadPlan(ctx: StepContext): Plan {
   const value = json(planPath(ctx)) as Plan;
   assert.equal(value.schemaVersion, 1);
-  for (const item of value.receipts) exportReceiptSchema.parse(item.receipt);
+  for (const item of value.receipts) {
+    exportReceiptSchema.parse(item.receipt);
+    assert(
+      item.receipt.identity === `scope:${ctx.paths.home}` ||
+        (item.receipt.identity.startsWith("conversation:") &&
+          Object.hasOwn(
+            value.rows,
+            item.receipt.identity.slice("conversation:".length),
+          )),
+      "Archived migration plan contains project receipts; restore the home backup before retrying",
+    );
+  }
   return value;
 }
 async function verify(

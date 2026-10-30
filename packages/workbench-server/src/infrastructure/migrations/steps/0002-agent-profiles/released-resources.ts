@@ -1,29 +1,19 @@
 import { NodeAgentBrowserCommandRunner } from "../../../../core-host/agent-browser-skills.js";
 import { validateName } from "@nervekit/harness/resources";
 import { homedir } from "node:os";
-import { dirname, join, resolve } from "node:path";
+import { join } from "node:path";
 import { loadSkills } from "@nervekit/harness/resources";
 import { NodeExecutionEnv } from "@nervekit/harness/node";
 import type { ConversionContext, Data } from "./released-format.js";
 
-/** v0.37 discovery order: project .nerve, ancestor .agents, storage agent,
- * home .agents. The latter is a user source, never a project source. Parsing
- * SKILL.md does not execute project code. No ambient ~/.nerve lookup. */
-export async function discoverReleasedSkillSources(
+/** Home migration only discovers user-owned skills, never project/ancestor roots. */
+export async function discoverReleasedHomeSkillSources(
   home: string,
-  project: string,
   inputs: Data[],
 ): Promise<ConversionContext["skillSources"]> {
   const userAgents = join(homedir(), ".agents/skills");
-  const directories = [join(project, ".nerve/skills")];
-  for (let directory = resolve(project); ; directory = dirname(directory)) {
-    const path = join(directory, ".agents/skills");
-    if (path !== userAgents) directories.push(path);
-    if (directory === dirname(directory)) break;
-  }
-  const env = new NodeExecutionEnv({ cwd: project });
+  const env = new NodeExecutionEnv({ cwd: home });
   const loaded = await loadSkills(env, [
-    ...directories,
     join(home, "agent/skills"),
     userAgents,
   ]);

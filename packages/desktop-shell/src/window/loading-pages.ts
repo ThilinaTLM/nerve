@@ -1,3 +1,5 @@
+import { DaemonStartupError } from "../daemon/diagnostics.js";
+import { homeAdmissionFailureKind } from "@nervekit/contracts/settings";
 import {
   STARTUP_SPLASH_STYLES,
   startupSplashMarkup,
@@ -60,8 +62,11 @@ export interface ErrorPageOptions {
 }
 
 export function startupErrorRetryable(error: unknown): boolean {
+  if (homeAdmissionFailureKind(error)) return false;
   const failure = structuredStartupFailure(error);
-  return failure ? failure.retryable : true;
+  return failure
+    ? failure.retryable
+    : error instanceof DaemonStartupError && error.retryable;
 }
 
 export function errorHtml(
@@ -69,6 +74,7 @@ export function errorHtml(
   dataDir = "~/.nerve",
   options: ErrorPageOptions = {},
 ): string {
+  const admission = homeAdmissionFailureKind(error);
   const failure = structuredStartupFailure(error);
   const message = failure
     ? [
@@ -93,14 +99,48 @@ export function errorHtml(
     daemonOutput && !message.includes(daemonOutput)
       ? `${message}\n\nDaemon output:\n${daemonOutput}`
       : message;
-  const retry = options.retry ?? failure?.retryable ?? false;
-  const title = options.title ?? "Nerve is unavailable";
+  const retry = !admission && (options.retry ?? failure?.retryable ?? false);
+  const title =
+    options.title ??
+    (admission === "too_old"
+      ? "This Nerve home needs an older upgrade"
+      : admission
+        ? "This Nerve home could not be opened"
+        : "Nerve is unavailable");
   const summary =
     options.summary ??
-    (retry
-      ? "Nerve could not connect to its local service. You can try again without closing the app."
-      : "Nerve lost its connection to the local service. Technical details are available below.");
+    (admission === "too_old"
+      ? "This home predates the supported 0.34.1 baseline. Upgrade through 0.34.1 to preserve history, or start fresh and keep recognizable providers."
+      : admission
+        ? "The home metadata is damaged or unrecognized. You can inspect the data folder or archive it and start fresh. The original home is never deleted."
+        : retry
+          ? "Nerve could not connect to its local service. You can try again without closing the app."
+          : "Nerve lost its connection to the local service. Technical details are available below.");
   const escapedDataDir = escapeHtml(dataDir);
+  const recoveryMarkup = admission
+    ? `
+    ${admission === "too_old" ? '<button id="upgrade-instructions" type="button">Upgrade through 0.34.1</button><p>Close Nerve, run Nerve 0.34.1 once with this same data folder, then reopen the latest version.</p>' : ""}
+    <button id="start-fresh" type="button">Start fresh, keep providers</button>
+    <button id="open-home" type="button">Open data folder</button>
+    <button id="copy-diagnostics" type="button">Copy diagnostics</button>`
+    : "";
+  const recoveryScript = admission
+    ? `<script>
+    const status = document.getElementById("startup-error-status");
+    document.getElementById("upgrade-instructions")?.addEventListener("click", () => window.nerveDesktop?.app.upgradeInstructions());
+    document.getElementById("open-home")?.addEventListener("click", () => window.nerveDesktop?.app.openHomeFolder());
+    document.getElementById("copy-diagnostics")?.addEventListener("click", () => window.nerveDesktop?.app.copyStartupDiagnostics());
+    document.getElementById("start-fresh")?.addEventListener("click", async (event) => {
+      const button = event.currentTarget;
+      button.disabled = true;
+      try {
+        const result = await window.nerveDesktop?.app.startFresh();
+        if (!result?.accepted && status) status.textContent = "Start fresh was cancelled or could not be started.";
+      } catch (error) { if (status) status.textContent = "Start fresh failed. Your original data remains on disk. " + String(error); }
+      finally { button.disabled = false; }
+    });
+  </script>`
+    : "";
   const retryMarkup = retry
     ? `<button id="startup-retry" type="button">Try again</button>`
     : "";
@@ -126,7 +166,7 @@ export function errorHtml(
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; ${retry ? "script-src 'unsafe-inline'; " : ""}style-src 'unsafe-inline'; img-src data:" />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; ${retry || admission ? "script-src 'unsafe-inline'; " : ""}style-src 'unsafe-inline'; img-src data:" />
     <title>Nerve startup error</title>
     <style>${shellStyles()}</style>
   </head>
@@ -135,6 +175,7 @@ export function errorHtml(
       <h1 class="error-title">${escapeHtml(title)}</h1>
       <p id="startup-error-status" class="status">${escapeHtml(summary)}</p>
       ${retryMarkup}
+      ${recoveryMarkup}
       <details>
         <summary>Technical details</summary>
         <p class="diagnostic-location">Logs: ${escapedDataDir}/logs</p>
@@ -142,6 +183,7 @@ export function errorHtml(
       </details>
     </main>
     ${retryScript}
+    ${recoveryScript}
   </body>
 </html>`;
 }

@@ -1,6 +1,10 @@
 import { appendFile, mkdir } from "node:fs/promises";
 import { dirname, join } from "node:path";
-import { defaultSettings, type Settings } from "@nervekit/contracts/settings";
+import {
+  homeAdmissionFailureKind,
+  defaultSettings,
+  type Settings,
+} from "@nervekit/contracts/settings";
 import type { DesktopCliOptions } from "./cli-options.js";
 import { createDesktopConfigurationController } from "./desktop-configuration.js";
 import { startRunRuntime } from "./runtime-recovery.js";
@@ -56,6 +60,9 @@ export class DesktopRuntime {
   /** True while the window shows the shell error page instead of the app. */
   #startupErrorVisible = false;
   #retryInFlight = false;
+  #admissionFailure = false;
+  #startupRetryable = false;
+  #startupDiagnostics = "";
   #trayController!: TrayController;
   #shellPageUrls = new ShellPageUrlRegistry();
   #desktopConfiguration: DesktopRuntimeOptions["desktopConfiguration"];
@@ -172,9 +179,41 @@ export class DesktopRuntime {
         }
         await runtime.#managedDaemon.restart();
       },
+      homeDirectory: desktopDataDir,
+      startupDiagnostics: () => runtime.#startupDiagnostics,
+      startFresh: async () => {
+        const window = runtime.#mainWindow;
+        if (
+          !runtime.#startupErrorVisible ||
+          !runtime.#admissionFailure ||
+          !window ||
+          window.isDestroyed() ||
+          runtime.#startupAttempt ||
+          runtime.#retryInFlight
+        )
+          return false;
+        runtime.#retryInFlight = true;
+        try {
+          if (!runtime.#shellPageUrls.isTrusted(window.webContents.getURL()))
+            return false;
+          const daemon = runtime.#managedDaemon;
+          if (daemon && !daemon.owned) return false;
+          if (daemon) await daemon.stop();
+          if (!(await ports.recoverHome(desktopDataDir))) return false;
+          runtime.#unsubscribeDaemonStatus?.();
+          runtime.#unsubscribeDaemonStatus = undefined;
+          runtime.#managedDaemon = undefined;
+          runtime.#admissionFailure = false;
+          void startMainWindow(window);
+          return true;
+        } finally {
+          runtime.#retryInFlight = false;
+        }
+      },
       retryStartup: () => {
         const window = runtime.#mainWindow;
         if (
+          !runtime.#startupRetryable ||
           !runtime.#startupErrorVisible ||
           !window ||
           window.isDestroyed() ||
@@ -412,6 +451,8 @@ export class DesktopRuntime {
           },
           connectDaemon: async () => {
             if (!runtime.#managedDaemon) {
+              if (desktopOptions.mode !== "remote")
+                await ports.checkHomeAdmission(desktopDataDir);
               const startup = await startRunRuntime(() =>
                 ports.acquireDaemon({
                   webDistPath: ports.packagedWebDistPath(),
@@ -511,6 +552,11 @@ export class DesktopRuntime {
         });
         console.error(error);
         if (!window.isDestroyed()) {
+          runtime.#admissionFailure =
+            homeAdmissionFailureKind(error) !== undefined;
+          runtime.#startupRetryable = startupErrorRetryable(error);
+          runtime.#startupDiagnostics =
+            error instanceof Error ? error.message : String(error);
           runtime.#startupErrorVisible = true;
           await window.loadURL(
             runtime.#shellPageUrls.create(
@@ -602,16 +648,20 @@ export class DesktopRuntime {
             runtime.#shellPageUrls.clear();
           }
         } else if (status === "failed") {
+          const error = new Error(
+            info?.error ?? "The Nerve daemon stopped and could not restart.",
+          );
+          runtime.#admissionFailure =
+            homeAdmissionFailureKind(error) !== undefined;
+          runtime.#startupDiagnostics = error.message;
+          // Exhausted service recovery may be retried manually; admission never can.
+          runtime.#startupRetryable = !runtime.#admissionFailure;
           runtime.#startupErrorVisible = true;
           await window.loadURL(
             runtime.#shellPageUrls.create(
-              errorHtml(
-                new Error(
-                  info?.error ??
-                    "The Nerve daemon stopped and could not restart.",
-                ),
-                desktopDataDir,
-              ),
+              errorHtml(error, desktopDataDir, {
+                retry: runtime.#startupRetryable,
+              }),
             ),
           );
         }

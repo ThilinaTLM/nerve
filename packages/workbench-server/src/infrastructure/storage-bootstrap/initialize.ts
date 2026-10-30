@@ -1,3 +1,4 @@
+import { HomeAdmissionError } from "@nervekit/contracts/settings";
 import { chmod, mkdir } from "node:fs/promises";
 import {
   defaultSettings,
@@ -84,7 +85,8 @@ export async function readCurrentSettingsForBootstrap(
       await readHomeConfiguration(storagePaths(home)),
     );
   }
-  if (inspection.kind === "unsupported") throw new Error(inspection.reason);
+  if (inspection.kind === "unsupported")
+    throw new HomeAdmissionError(inspection.failureKind, inspection.reason);
   return defaultSettings;
 }
 

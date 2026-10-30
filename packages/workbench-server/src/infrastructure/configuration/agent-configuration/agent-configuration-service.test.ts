@@ -216,7 +216,9 @@ void test("health is strict, scoped, redacted and isolated; missing required con
       JSON.stringify(health).includes("do not include this secret"),
       false,
     );
-    assert.equal((await f.service.getEffective("lead")).status, "unavailable");
+    const effective = await f.service.getEffective("lead");
+    assert.equal(effective.status, "available");
+    assert.ok(effective.diagnostics.some((issue) => issue.scope === "project"));
   }
   const missing = await f.service.getEffective("other");
   assert.equal(missing.status, "unavailable");

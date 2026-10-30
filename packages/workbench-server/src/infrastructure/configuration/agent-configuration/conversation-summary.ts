@@ -24,3 +24,39 @@ export function conversationSummary(
       : {}),
   };
 }
+
+/** Summary publication is disposable and never rolls back configuration authority. */
+export function publishConversationSummary(
+  id: string,
+  view: Extract<
+    import("./agent-configuration-views.js").EffectiveAgentView,
+    { status: "available" }
+  >,
+  forgotten: ReadonlySet<string>,
+  summaries: import("../scoped-store/conversation-summary-cache.js").ConversationSummaryCache<
+    import("./agent-configuration-views.js").Summary
+  >,
+  notify: (id: string) => void,
+  queue: (work: () => Promise<unknown>) => void,
+): void {
+  if (forgotten.has(id)) return;
+  if (
+    view.resolution.diagnostics.some(
+      (issue) => issue.code !== "reasoning-adjusted",
+    )
+  ) {
+    summaries.remove(id);
+    notify(id);
+    queue(() => summaries.flush());
+    return;
+  }
+  const summary = conversationSummary(view);
+  if (!summary) return;
+  try {
+    summaries.set(id, summary);
+    notify(id);
+    queue(() => summaries.flush());
+  } catch {
+    /* Disposable display cache. */
+  }
+}

@@ -3,6 +3,7 @@ import { join } from "node:path";
 import {
   nerveHomeManifestSchema,
   type NerveHomeManifest,
+  type HomeAdmissionFailureKind,
 } from "@nervekit/contracts/settings";
 import { pathExists } from "./json.js";
 
@@ -33,12 +34,16 @@ export async function isFreshNerveHome(home: string): Promise<boolean> {
 }
 
 export const NERVE_HOME_FORMAT = "nerve-home";
-export const NERVE_HOME_VERSION = 1;
+export const NERVE_HOME_VERSION = 2;
 
 export type NerveHomeInspection =
   | { kind: "missing" | "empty" }
   | { kind: "current"; manifest: NerveHomeManifest }
-  | { kind: "unsupported"; reason: string };
+  | {
+      kind: "unsupported";
+      failureKind: HomeAdmissionFailureKind;
+      reason: string;
+    };
 
 /**
  * Inspect only the root directory and manifest. No other in-home file is opened
@@ -54,6 +59,7 @@ export async function inspectNerveHome(
     if (await isFreshNerveHome(home)) return { kind: "empty" };
     return {
       kind: "unsupported",
+      failureKind: "layout_unrecognized",
       reason:
         "NERVE_HOME is non-empty and has no nerve-home manifest.json. This version does not import older storage layouts; preserve the directory and use an empty NERVE_HOME.",
     };
@@ -65,6 +71,7 @@ export async function inspectNerveHome(
   } catch {
     return {
       kind: "unsupported",
+      failureKind: "manifest_invalid",
       reason: "The Nerve home manifest.json is unreadable or invalid JSON.",
     };
   }
@@ -72,7 +79,8 @@ export async function inspectNerveHome(
   if (!parsed.success) {
     return {
       kind: "unsupported",
-      reason: `The Nerve home manifest is not ${NERVE_HOME_FORMAT} version ${NERVE_HOME_VERSION}.`,
+      failureKind: "manifest_invalid",
+      reason: `The Nerve home manifest is not ${NERVE_HOME_FORMAT} with a supported manifest version (1 or ${NERVE_HOME_VERSION}).`,
     };
   }
   return { kind: "current", manifest: parsed.data };

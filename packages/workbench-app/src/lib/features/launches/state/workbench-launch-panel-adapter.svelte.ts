@@ -19,6 +19,7 @@ import {
   launchEntryKey,
 } from "$lib/features/launches/state/launch-tabs.svelte";
 import { refreshWorkbenchLaunches } from "./launch-events";
+import { launchConfigurationBlocked } from "./launch-configuration-blocked.svelte";
 import {
   getLaunchLogs,
   startLaunchDefinition,
@@ -100,8 +101,10 @@ export function createWorkbenchLaunchPanelAdapter(
       );
       const catalog = cachedLaunchCatalog(project?.id);
       const catalogError = launchCatalogError(project?.id);
-      const action =
-        project && catalog && !catalogError
+      const configurationBlocked = launchConfigurationBlocked(project?.id);
+      const action = configurationBlocked
+        ? unavailable("Launch definitions are unavailable until repaired.")
+        : project && catalog && !catalogError
           ? enabledCapability
           : unavailable(catalogError ?? "Wait for a valid launch catalog.");
       return {
@@ -119,6 +122,7 @@ export function createWorkbenchLaunchPanelAdapter(
         folders: catalog?.folders ?? [],
         catalogRevision: catalogError ? undefined : catalog?.revision,
         catalogError,
+        configurationBlocked,
         definitions: definitions.map(normalizeLaunchDefinition),
         defaultCwd: project?.directory ?? "",
         definitionsLoading: loadingDefinitions,

@@ -9,10 +9,15 @@ import {
   type RepairApplyRequest,
 } from "@nervekit/contracts/agent-configuration";
 import { withFileMutation } from "../../storage-bootstrap/file-mutations.js";
-import {
-  safePath,
-  writeProtected,
-} from "../../migrations/steps/0002-agent-profiles/files.js";
+import { lstatSync } from "node:fs";
+import { atomicWriteFile } from "../../storage-bootstrap/file-mutations.js";
+function safePath(file: string): void {
+  for (let entry = path.resolve(file); ; entry = path.dirname(entry)) {
+    if (lstatSync(entry, { throwIfNoEntry: false })?.isSymbolicLink())
+      throw new Error("Symlinked configuration path");
+    if (entry === path.dirname(entry)) break;
+  }
+}
 import {
   digestBytes,
   ScopeConflictError,
@@ -125,9 +130,13 @@ export function createLegacyRepair(service: AgentConfigurationService) {
       const bytes = await readFile(file);
       if (digestBytes(bytes) !== input.sourceDigest)
         throw new ScopeConflictError();
-      writeProtected(backupPath, bytes);
+      await atomicWriteFile(backupPath, bytes, { mode: 0o600 });
       await sync(backupPath);
-      writeProtected(receiptPath, JSON.stringify(receipt, null, 2) + "\n");
+      await atomicWriteFile(
+        receiptPath,
+        JSON.stringify(receipt, null, 2) + "\n",
+        { mode: 0o600 },
+      );
       await sync(receiptPath);
       // Backup and receipt must both be durable before removing the authority.
       if ((await readConfigurationDigest(file)) !== input.sourceDigest)

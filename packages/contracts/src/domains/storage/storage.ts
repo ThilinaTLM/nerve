@@ -60,6 +60,8 @@ export type LargestConversationUsage = z.infer<
 
 export const storageUsageResponseSchema = z.object({
   homeDir: z.string(),
+  /** Retained home archive, omitted after the user deletes it. */
+  archivedHomeDir: z.string().optional(),
   generatedAt: z.string().datetime(),
   totalBytes: z.number().int().nonnegative(),
   categories: z.array(storageCategoryUsageSchema),

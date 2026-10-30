@@ -47,18 +47,23 @@ export async function verifyConversationExports(
     const document = JSON.parse(targets[0].bytes) as {
       context?: { instructions?: string; systemPrompt?: string };
     };
-    assert.deepEqual(
-      document.context ?? {},
-      {
-        ...(row.instructions !== null
-          ? { instructions: row.instructions }
-          : {}),
-        ...(row.system_prompt !== null
-          ? { systemPrompt: row.system_prompt }
-          : {}),
-      },
-      "Conversation prompt context differs from released SQL",
-    );
+    if (
+      !receipt.report.includes(
+        "Conversation settings set aside; see quarantine",
+      )
+    )
+      assert.deepEqual(
+        document.context ?? {},
+        {
+          ...(row.instructions !== null
+            ? { instructions: row.instructions }
+            : {}),
+          ...(row.system_prompt !== null
+            ? { systemPrompt: row.system_prompt }
+            : {}),
+        },
+        "Conversation prompt context differs from released SQL",
+      );
     assert.equal(
       targets[0].kind,
       row.parent_conversation_id ? "child" : "lead",

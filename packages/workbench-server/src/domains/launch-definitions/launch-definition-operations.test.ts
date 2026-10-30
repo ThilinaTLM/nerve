@@ -6,6 +6,7 @@ import { test } from "node:test";
 import type { Project } from "@nervekit/contracts/core";
 import { createLaunchDefinitionRequestSchema } from "@nervekit/contracts/launch-definitions";
 import type { LaunchService } from "../launches/application/launch.service.js";
+import { ProjectMigrationService } from "../../infrastructure/configuration/project-migration/project-migration.js";
 import { LaunchDefinitionRepository } from "./launch-definition.repository.js";
 import { LaunchDefinitionService } from "./launch-definition.service.js";
 import { LaunchDefinitionOperations } from "./launch-definition-operations.js";
@@ -15,7 +16,10 @@ async function fixture(t: { after(fn: () => Promise<void>): void }) {
   t.after(() => rm(directory, { recursive: true, force: true }));
   const project = { id: "proj_one", directory } as Project;
   const service = new LaunchDefinitionService(
-    new LaunchDefinitionRepository(() => project),
+    new LaunchDefinitionRepository(
+      () => project,
+      new ProjectMigrationService({ home: join(directory, "home") }),
+    ),
     () => project,
   );
   return { project, service };

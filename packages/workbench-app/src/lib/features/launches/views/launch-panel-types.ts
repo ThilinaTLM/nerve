@@ -78,6 +78,8 @@ export interface LaunchPanelModel {
   readonly folders: readonly LaunchFolder[];
   readonly catalogRevision?: string;
   readonly catalogError?: string;
+  /** Launch definitions file is unusable; hide the empty state and creation. */
+  readonly configurationBlocked?: boolean;
   readonly availability:
     | { readonly available: true }
     | { readonly available: false; readonly message: string };

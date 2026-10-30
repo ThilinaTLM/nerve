@@ -8,7 +8,6 @@ import {
   cachedConversationSnapshot,
   cachedAgentFields,
 } from "../../core-host/cached-agent-summary.js";
-import { moveProjectLaunchDefinitions } from "../../infrastructure/migrations/steps/0001-conversation-core/configuration.js";
 import { createId } from "@nervekit/contracts";
 import {
   previewSystemPromptParamsSchema,
@@ -165,7 +164,6 @@ export function createConversationProtocolSession(
       core.previewAgentProfile(conversationId, profile),
     "project.create": (input) => {
       const project = core.projects.create(input);
-      moveProjectLaunchDefinitions(project.directory);
       projects.add(project.id);
       return project;
     },

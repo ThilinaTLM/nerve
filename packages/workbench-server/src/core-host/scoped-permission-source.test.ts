@@ -1,3 +1,5 @@
+import { ProjectMigrationService } from "../infrastructure/configuration/project-migration/project-migration.js";
+import { projectPermissionsConfiguration } from "./project-permission-migrations.js";
 import assert from "node:assert/strict";
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -33,7 +35,9 @@ void test("admission reads live selection, blocks invalid policy, and reloads on
       };
     },
   } as unknown as AgentConfigurationService;
+  const migrations = new ProjectMigrationService({ home });
   const source = createScopedPermissionSource({
+    projectMigration: migrations,
     home,
     storage,
     agents,
@@ -105,6 +109,29 @@ void test("admission reads live selection, blocks invalid policy, and reloads on
     await writeFile(path, JSON.stringify({ schemaVersion: 2, overlays: [] }));
     assert.equal((await prepare(input)).check().kind, "blocked");
     await source.reload([path]);
+    assert.equal((await prepare(input)).check().kind, "policy");
+    const projectPath = join(home, ".nerve/config/permissions.json");
+    await mkdir(join(home, ".nerve/config"), { recursive: true });
+    await writeFile(projectPath, "invalid untrusted project overlay");
+    await migrations.load(
+      { projectId: "p", directory: home },
+      projectPermissionsConfiguration,
+    );
+    assert.equal(
+      (await prepare(input)).check().kind,
+      "blocked",
+      "health learned by another loader invalidates previously published policies",
+    );
+    const projectBlocked = (await prepare(input)).check();
+    assert.equal(
+      projectBlocked.kind,
+      "blocked",
+      "invalid overlays fail closed even without a trust grant",
+    );
+    if (projectBlocked.kind === "blocked")
+      assert.equal(projectBlocked.request.diagnostics[0].path, projectPath);
+    await rm(projectPath);
+    await source.reload([projectPath]);
     assert.equal((await prepare(input)).check().kind, "policy");
   } finally {
     await rm(home, { recursive: true, force: true });

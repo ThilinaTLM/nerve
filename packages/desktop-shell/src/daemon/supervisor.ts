@@ -344,6 +344,7 @@ export class DaemonSupervisor {
       `Nerve daemon did not become ready within ${readinessTimeoutMs}ms.`,
       output,
       {
+        retryable: true,
         dataDir: paths.home,
         readinessTimeoutMs,
         crashReportPath,

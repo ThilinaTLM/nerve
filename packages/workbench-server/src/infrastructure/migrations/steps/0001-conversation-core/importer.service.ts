@@ -6,6 +6,7 @@ import {
   trustedResourceSchema,
 } from "./shapes.js";
 import assert from "node:assert/strict";
+import { stageLegacyLaunchDefinitions } from "./legacy-launch-definitions.js";
 import { existsSync, lstatSync, realpathSync, rmSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { DatabaseSync } from "node:sqlite";
@@ -40,7 +41,7 @@ export interface CoreImportSummary {
   failedConversations: DiscardableItem[];
   /** Source conversation IDs not imported: failed or discarded by the user. */
   excludedConversations: string[];
-  preferences: { enablement: number; taskDefinitions: number };
+  preferences: { enablement: number };
   counts: Record<string, number>;
   skipped: Record<string, number>;
   lossyMappings: Record<string, number>;
@@ -319,18 +320,14 @@ export async function importCoreStorage(input: {
       else insert();
     }
     await importTrust(reader, mapping, home, input.scratchDir);
-    preferences = await convertDocumentPreferences(
+    preferences = await convertDocumentPreferences(reader, home, input.context);
+    await stageLegacyLaunchDefinitions({
+      home,
       reader,
-      storage,
-      home,
-      input.context,
-    );
-    const overlayImporter = new ConversationOverlaysImporter(
-      home,
-      dataDir,
-      storage,
-      report,
-    );
+      context: input.context,
+      projectId: (id) => mapping.ids.get("proj", id),
+    });
+    const overlayImporter = new ConversationOverlaysImporter(home, dataDir);
     overlays = overlayImporter.counts;
     for (const { row, data } of reader.documents("scratch_notes")) {
       await setImmediate();
@@ -478,7 +475,6 @@ export async function importCoreStorage(input: {
           tasks.get(conversation.id) ?? [],
         );
         overlayImporter.importConversation(
-          mapping.ids.get("proj", conversation.projectId),
           conversation.id,
           mapping.ids.get("conv", conversation.id),
         );
@@ -491,7 +487,6 @@ export async function importCoreStorage(input: {
               mapping.ids.get("conv", agent.id),
             );
             overlayImporter.importConversation(
-              mapping.ids.get("proj", conversation.projectId),
               conversation.id,
               mapping.ids.get("conv", agent.id),
               Array.isArray(agent.tools) ? agent.tools : undefined,

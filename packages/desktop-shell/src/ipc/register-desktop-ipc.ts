@@ -17,6 +17,9 @@ export function registerDesktopIpc(options: {
   getDaemonCapability: () => DaemonCapability;
   restartDaemon: () => Promise<void>;
   retryStartup: () => boolean;
+  startFresh: () => Promise<boolean>;
+  homeDirectory: string;
+  startupDiagnostics: () => string;
   reportRendererCoreReady: () => void;
   quitApp: () => void;
 }): void {

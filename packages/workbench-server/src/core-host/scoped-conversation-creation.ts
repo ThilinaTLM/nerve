@@ -112,11 +112,7 @@ export function scopedConversationCreation(
       const capture = await service.captureEffective(parentId);
       if (capture.view.status !== "available" || capture.view.role !== "lead")
         throw new Error("Children cannot delegate");
-      const owner = capture.view.sources.find(
-        (source) => source.scope.scope === "project",
-      )?.scope;
-      if (!owner || owner.scope !== "project")
-        throw new Error("Project configuration unavailable");
+      const owner = service.paths.locations.conversationOwner(parentId);
       const usable: string[] = [];
       for (const name of Object.keys(
         capture.view.resolution.settings.subagents ?? {},
@@ -134,11 +130,7 @@ export function scopedConversationCreation(
       const capture = await service.captureEffective(parentId);
       if (capture.view.status !== "available" || capture.view.role !== "lead")
         throw new Error("Children cannot delegate");
-      const scope = capture.view.sources.find(
-        (source) => source.scope.scope === "project",
-      )?.scope;
-      if (!scope || scope.scope !== "project")
-        throw new Error("Project configuration unavailable");
+      const scope = service.paths.locations.conversationOwner(parentId);
       const resolved = await resolve(scope.projectId, profile, parentId);
       const settings = resolved.resolution.settings;
       const application: Awaited<

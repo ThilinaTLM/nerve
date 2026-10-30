@@ -4,6 +4,7 @@ import type { UpgradeReport } from "@nervekit/contracts/status";
 import {
   summarizeUpgradeReports,
   upgradeReportLosses,
+  upgradeReportSetAsideGroups,
 } from "./upgrade-report-summary";
 
 const item = (kind: "conversation" | "configuration", id: string) => ({
@@ -40,6 +41,24 @@ test("summarizes set-aside conversations and settings", () => {
     ]),
     "Upgrade complete: 1 conversation was set aside because it couldn't be upgraded.",
   );
+});
+
+test("groups set-aside reasons with counts and bounded quarantine examples", () => {
+  const reports = [
+    report({
+      setAside: Array.from({ length: 20 }, (_, i) => ({
+        ...item("configuration", String(i)),
+        reason: `/home/test/config/${i}.json: Invalid JSON`,
+      })),
+    }),
+  ];
+  assert.deepEqual(upgradeReportSetAsideGroups(reports), [
+    {
+      reason: "Invalid JSON",
+      count: 20,
+      paths: ["/q/0", "/q/1", "/q/2"],
+    },
+  ]);
 });
 
 test("describes loss-only reports and merges losses by reason", () => {

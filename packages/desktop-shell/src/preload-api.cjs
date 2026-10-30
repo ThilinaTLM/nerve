@@ -41,6 +41,12 @@ function createDesktopPreloadApi({
         ),
     },
     app: {
+      startFresh: () => ipcRenderer.invoke("desktop.startup.startFresh"),
+      openHomeFolder: () => ipcRenderer.invoke("desktop.startup.openHome"),
+      copyStartupDiagnostics: () =>
+        ipcRenderer.invoke("desktop.startup.copyDiagnostics"),
+      upgradeInstructions: () =>
+        ipcRenderer.invoke("desktop.startup.upgradeInstructions"),
       retryStartup: () => ipcRenderer.invoke("desktop.startup.retry"),
       quit: () => ipcRenderer.invoke("desktop.app.quit"),
       setBadgeCount: (count) =>

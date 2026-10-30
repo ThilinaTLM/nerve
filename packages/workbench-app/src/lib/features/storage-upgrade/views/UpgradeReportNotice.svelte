@@ -1,5 +1,4 @@
 <script lang="ts">
-import { onMount } from "svelte";
 import Copy from "@lucide/svelte/icons/copy";
 import PackageCheck from "@lucide/svelte/icons/package-check";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
@@ -9,23 +8,21 @@ import { notify } from "$lib/application/notifications/notify.svelte";
 import { writeClipboardText } from "$lib/platform/clipboard/write-text";
 import {
   dismissUpgradeReports,
-  loadUpgradeReports,
   upgradeReportState,
 } from "../state/upgrade-report-state.svelte";
 import {
   summarizeUpgradeReports,
   upgradeReportLosses,
-  upgradeReportSetAside,
+  upgradeReportSetAsideGroups,
 } from "../state/upgrade-report-summary";
 
 let detailsOpen = $state(false);
 
 const reports = $derived(upgradeReportState.reports);
 const summary = $derived(summarizeUpgradeReports(reports));
-const setAside = $derived(upgradeReportSetAside(reports));
+const setAside = $derived(upgradeReportSetAsideGroups(reports));
+let { home }: { home?: string } = $props();
 const losses = $derived(upgradeReportLosses(reports));
-
-onMount(() => void loadUpgradeReports());
 
 async function copyPath(path: string): Promise<void> {
   try {
@@ -44,7 +41,7 @@ function dismiss(): void {
 
 {#if reports.length > 0}
   <aside
-    class="fixed right-4 bottom-10 z-50 w-[min(24rem,calc(100vw-2rem))] rounded-lg border border-border bg-card p-4 text-card-foreground shadow-lg"
+    class="border-b border-border p-3"
     aria-live="polite"
     aria-label="Upgrade report"
   >
@@ -77,28 +74,37 @@ function dismiss(): void {
       </Dialog.Header>
       <ScrollArea class="max-h-[60vh] min-w-0">
         <div class="space-y-4 pr-3">
+          {#if home}
+            <p class="text-xs text-muted-foreground">
+              Reports: <code class="font-mono break-all"
+                >{home}/migrations/reports</code
+              ><br />Quarantine:
+              <code class="font-mono break-all">{home}/quarantine</code>
+            </p>
+          {/if}
           {#if setAside.length > 0}
             <ul class="divide-y divide-border rounded-md border">
-              {#each setAside as item (item.quarantinePath)}
+              {#each setAside as item (item.reason)}
                 <li class="space-y-1 p-3">
                   <p class="text-sm font-medium break-words">
-                    {item.title ?? item.id}
+                    {item.count} × {item.reason}
                   </p>
-                  <p class="text-xs text-muted-foreground">{item.reason}</p>
-                  <div class="flex items-center gap-2">
-                    <code
-                      class="min-w-0 flex-1 font-mono break-all text-xs text-muted-foreground"
-                      title={item.quarantinePath}>{item.quarantinePath}</code
-                    >
-                    <Button
-                      variant="ghost"
-                      size="icon-sm"
-                      aria-label="Copy path"
-                      onclick={() => void copyPath(item.quarantinePath)}
-                    >
-                      <Copy class="size-3.5" />
-                    </Button>
-                  </div>
+                  {#each item.paths as path (path)}
+                    <div class="flex items-center gap-2">
+                      <code
+                        class="min-w-0 flex-1 font-mono break-all text-xs text-muted-foreground"
+                        title={path}>{path}</code
+                      >
+                      <Button
+                        variant="ghost"
+                        size="icon-sm"
+                        aria-label="Copy path"
+                        onclick={() => void copyPath(path)}
+                      >
+                        <Copy class="size-3.5" />
+                      </Button>
+                    </div>
+                  {/each}
                 </li>
               {/each}
             </ul>

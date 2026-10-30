@@ -2,15 +2,17 @@ import type { DatabaseSync } from "node:sqlite";
 import { readFile } from "node:fs/promises";
 import {
   nerveHomeManifestSchema,
+  HomeAdmissionError,
   NERVE_HOME_MANIFEST,
   type NerveHomeManifest,
 } from "@nervekit/contracts/settings";
 import { atomicWriteJson } from "../../storage-bootstrap/json.js";
-import { isFreshNerveHome } from "../../storage-bootstrap/state-layout.js";
+import {
+  isFreshNerveHome,
+  inspectNerveHome,
+} from "../../storage-bootstrap/state-layout.js";
 import type { StoragePaths } from "../../storage-bootstrap/paths.js";
 import type { MigrationRegistryEntry, RegisteredStep } from "./step.js";
-
-export const FLOOR_ERROR = "Run Nerve 0.34.1 first";
 
 /** Read only the manifest; legacy baseline admission belongs in the worker. */
 export async function readMigrationManifest(
@@ -20,13 +22,19 @@ export async function readMigrationManifest(
   try {
     bytes = await readFile(paths.manifestPath, "utf8");
   } catch (error) {
-    if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
-    return undefined;
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return undefined;
+    throw new HomeAdmissionError(
+      "manifest_invalid",
+      "The home manifest could not be read.",
+    );
   }
   try {
     return nerveHomeManifestSchema.parse(JSON.parse(bytes));
   } catch {
-    throw new Error(FLOOR_ERROR);
+    throw new HomeAdmissionError(
+      "manifest_invalid",
+      "The home manifest is invalid; supported versions are 1 and 2.",
+    );
   }
 }
 
@@ -41,10 +49,20 @@ export async function readMigrationHome(
         manifest: { ...NERVE_HOME_MANIFEST, migrations: [] },
       };
     }
-    throw new Error(FLOOR_ERROR);
+    const inspection = await inspectNerveHome(paths.home);
+    throw new HomeAdmissionError(
+      "layout_unrecognized",
+      inspection.kind === "unsupported"
+        ? inspection.reason
+        : "The home layout is unrecognized.",
+    );
   }
   if (!manifest.migrations) {
-    if (manifest.version !== 1) throw new Error(FLOOR_ERROR);
+    if (manifest.version !== 1)
+      throw new HomeAdmissionError(
+        "ledger_unexpected",
+        "The home manifest has no migration ledger.",
+      );
     const source = paths.sqlitePath;
     let database: DatabaseSync | undefined;
     try {
@@ -65,16 +83,25 @@ export async function readMigrationHome(
         "0009-agent-async-obligations-backfill",
         "0010-deletion-indexes",
       ];
-      if (
-        rows.length < baselineIds.length ||
-        rows
-          .slice(0, baselineIds.length)
-          .some((row, index) => row.id !== baselineIds[index])
-      ) {
-        throw new Error(FLOOR_ERROR);
-      }
-    } catch {
-      throw new Error(FLOOR_ERROR);
+      const knownPrefix = rows
+        .slice(0, baselineIds.length)
+        .every((row, index) => row.id === baselineIds[index]);
+      if (!knownPrefix)
+        throw new HomeAdmissionError(
+          "ledger_unexpected",
+          "The baseline migration ledger contains unexpected entries.",
+        );
+      if (rows.length < baselineIds.length)
+        throw new HomeAdmissionError(
+          "too_old",
+          "This home predates the supported baseline. Run Nerve 0.34.1 once before upgrading.",
+        );
+    } catch (error) {
+      if (error instanceof HomeAdmissionError) throw error;
+      throw new HomeAdmissionError(
+        "ledger_unexpected",
+        "The baseline migration ledger could not be read.",
+      );
     } finally {
       database?.close();
     }
@@ -90,11 +117,15 @@ export function planMigrations<T extends MigrationRegistryEntry>(
   for (const [index, applied] of ledger.entries()) {
     const entry = registry[index];
     if (!entry || entry.step.id !== applied.id)
-      throw new Error(
+      throw new HomeAdmissionError(
+        "ledger_unexpected",
         `Unknown or out-of-order migration ledger ID: ${applied.id}`,
       );
     if (entry.stage === "released" && entry.checksum !== applied.checksum) {
-      throw new Error(`Released migration checksum mismatch: ${applied.id}`);
+      throw new HomeAdmissionError(
+        "ledger_unexpected",
+        `Released migration checksum mismatch: ${applied.id}`,
+      );
     }
   }
   return [

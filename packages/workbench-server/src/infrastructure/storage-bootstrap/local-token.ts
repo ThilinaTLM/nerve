@@ -1,3 +1,4 @@
+import { HomeAdmissionError } from "@nervekit/contracts/settings";
 import { chmod, mkdir, readFile } from "node:fs/promises";
 import { dirname } from "node:path";
 import { pathExists, writeTextFileIfMissing } from "./json.js";
@@ -28,7 +29,8 @@ export async function ensureLocalToken(
     return {
       ok: false,
       code: "HOME_UNSUPPORTED",
-      message: inspection.reason,
+      message: new HomeAdmissionError(inspection.failureKind, inspection.reason)
+        .message,
     };
   }
   if (!(await pathExists(paths.localTokenPath))) {

@@ -42,6 +42,18 @@ async function inspectDaemonRecord(slot, record, request) {
   // Never contact its URL, resolve its source path, or inspect/signal its PID.
   if (!record || record.foreign) return false;
   const { daemon } = record;
+  // Crashed starts can leave incomplete metadata. A dead PID cannot own this
+  // home; preflight still verifies both ports before allowing a new launch.
+  try {
+    process.kill(daemon.pid, 0);
+  } catch (error) {
+    if (error.code === "ESRCH") return false;
+    throw new Error(
+      "Cannot verify the development daemon owner; refusing to launch.",
+      { cause: error },
+    );
+  }
+
   if (
     (await realpath(daemon.dataDir)) !== (await realpath(slot.home)) ||
     daemon.host !== "127.0.0.1" ||

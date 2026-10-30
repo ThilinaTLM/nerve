@@ -257,3 +257,27 @@ void test("project edits enforce project restrictions, trust state, and re-trust
     await f.cleanup();
   }
 });
+
+void test("invalid project overlays cannot be edited into an implicitly trusted policy", async () => {
+  const f = await fixture();
+  try {
+    await writeFile(f.projectFile, "broken");
+    assert.equal(
+      (await f.service.get("project")).projectTrust.status,
+      "invalid",
+    );
+    await assert.rejects(
+      f.service.saveRule({
+        scope: "project",
+        projectId: "project",
+        ruleSetId: "supervised",
+        rule: rule("new"),
+      }),
+      /not trusted/,
+    );
+    assert.equal(await readFile(f.projectFile, "utf8"), "broken");
+    assert.equal(f.records.length, 0);
+  } finally {
+    await f.cleanup();
+  }
+});

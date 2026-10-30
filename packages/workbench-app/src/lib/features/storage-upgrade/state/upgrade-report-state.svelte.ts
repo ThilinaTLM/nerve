@@ -35,3 +35,7 @@ export async function dismissUpgradeReports(): Promise<void> {
       }),
   );
 }
+
+export function hasUpgradeReports(): boolean {
+  return upgradeReportState.reports.length > 0;
+}

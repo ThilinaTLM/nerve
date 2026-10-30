@@ -1,3 +1,35 @@
+import type {
+  ProjectMigrationService,
+  ProjectConfigurationContext,
+} from "../infrastructure/configuration/project-migration/project-migration.js";
+import {
+  projectPermissionsConfiguration,
+  projectPermissionValue,
+} from "./project-permission-migrations.js";
+import { resolve } from "node:path";
+type ProjectOverlayContext = {
+  context: ProjectConfigurationContext;
+  migrations: ProjectMigrationService;
+};
+function projectContext(
+  path: string,
+  project: ProjectOverlayContext | undefined,
+): ProjectOverlayContext {
+  if (
+    !project ||
+    resolve(path) !==
+      resolve(
+        project.context.directory,
+        ".nerve",
+        projectPermissionsConfiguration.path,
+      )
+  )
+    throw new Error(
+      "Project permission loading requires its migration context",
+    );
+  project.migrations.register(projectPermissionsConfiguration);
+  return project;
+}
 import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import type { CoreStorage } from "@nervekit/conversation-core";
@@ -22,7 +54,23 @@ export function overlayDigest(content: string | Buffer): string {
 export async function loadPermissionOverlay(
   origin: PermissionOverlayOrigin,
   path: string,
+  project?: ProjectOverlayContext,
 ): Promise<PermissionOverlayDocument> {
+  if (origin === "project") {
+    const active = projectContext(path, project);
+    const loaded = await active.migrations.load(
+      active.context,
+      projectPermissionsConfiguration,
+    );
+    if (
+      loaded.classification === "corrupted" ||
+      loaded.classification === "incompatible"
+    )
+      throw new Error(
+        "Invalid or incompatible project permissions; tool execution is blocked",
+      );
+    return projectPermissionValue(loaded.value);
+  }
   try {
     return permissionOverlayDocumentForOriginSchema(origin).parse(
       JSON.parse(await readFile(path, "utf8")),
@@ -41,7 +89,19 @@ export async function mutatePermissionOverlay(
   origin: PermissionOverlayOrigin,
   path: string,
   mutate: (document: PermissionOverlayDocument) => void,
+  project?: ProjectOverlayContext,
 ): Promise<void> {
+  if (origin === "project") {
+    const active = projectContext(path, project);
+    return active.migrations.transact(
+      active.context,
+      projectPermissionsConfiguration,
+      (document) => {
+        mutate(document);
+        return { result: undefined, changed: true };
+      },
+    );
+  }
   const write = (writes.get(path) ?? Promise.resolve())
     .catch(() => undefined)
     .then(async () => {

@@ -10,6 +10,7 @@ import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { storagePaths } from "../../../storage-bootstrap/paths.js";
 import { createStepContext } from "../../framework/context.js";
+import { toolkitState } from "../../framework/toolkit.js";
 import { RollbackJournal } from "../../framework/rollback-journal.js";
 import assert from "node:assert/strict";
 import test from "node:test";
@@ -67,7 +68,7 @@ void test("captured contributions lose source defaults but conversation choices 
   });
 });
 
-void test("applied homes upgrade the real user/project catalog paths with rollback", (t) => {
+void test("applied homes upgrade only home profiles and never open registered project profiles", (t) => {
   const home = mkdtempSync(join(tmpdir(), "nerve-profile-revision-"));
   t.after(() => rmSync(home, { recursive: true, force: true }));
   const paths = storagePaths(home);
@@ -102,12 +103,49 @@ void test("applied homes upgrade the real user/project catalog paths with rollba
   );
   upgradeProfileDocuments(context);
   upgradeProfileDocuments(context, true);
-  for (const file of files) {
-    const after = JSON.parse(readFileSync(file, "utf8"));
-    assert.equal(after.whenToUse, "Use for review.");
-    assert.equal(after.description, undefined);
-    assert.deepEqual(after.recommendations, {});
-  }
+  const after = JSON.parse(readFileSync(files[0], "utf8"));
+  assert.equal(after.whenToUse, "Use for review.");
+  assert.equal(after.description, undefined);
+  assert.deepEqual(after.recommendations, {});
+  assert.equal(readFileSync(files[1], "utf8"), before);
+  // A malformed/newer project document cannot block an applied-home rerun.
+  writeFileSync(files[1], "not JSON");
+  upgradeProfileDocuments(context);
+  upgradeProfileDocuments(context, true);
+  assert.equal(readFileSync(files[1], "utf8"), "not JSON");
   new RollbackJournal(context.scratchDir).restore();
-  for (const file of files) assert.equal(readFileSync(file, "utf8"), before);
+  assert.equal(readFileSync(files[0], "utf8"), before);
+  assert.equal(readFileSync(files[1], "utf8"), "not JSON");
+});
+
+void test("damaged applied-home profile documents are retained and quarantined independently", (t) => {
+  const home = mkdtempSync(join(tmpdir(), "nerve-profile-damaged-"));
+  t.after(() => rmSync(home, { recursive: true, force: true }));
+  const files = [
+    join(home, "data/agent-profiles/broken.json"),
+    join(home, "data/conversations/c/config/agent.json"),
+  ];
+  for (const path of files) {
+    mkdirSync(join(path, ".."), { recursive: true });
+    writeFileSync(path, "broken JSON");
+  }
+  const { context } = createStepContext(
+    storagePaths(home),
+    "0002-agent-profiles",
+    "Profiles",
+    () => {},
+  );
+  upgradeProfileDocuments(context);
+  upgradeProfileDocuments(context, true);
+  assert.equal(toolkitState(context).setAside.length, 2);
+  for (const item of toolkitState(context).setAside) {
+    assert.equal(readFileSync(item.id, "utf8"), "broken JSON");
+    assert.equal(
+      readFileSync(
+        join(item.quarantinePath, "payload", item.id.split("/").at(-1)!),
+        "utf8",
+      ),
+      "broken JSON",
+    );
+  }
 });

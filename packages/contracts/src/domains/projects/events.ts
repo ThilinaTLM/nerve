@@ -6,9 +6,16 @@ import {
   pruneProjectConversationsSummarySchema,
 } from "./project.js";
 
+import { projectConfigurationHealthSchema } from "./configuration-health.js";
+
 const workbenchRoles = ["workbench_server"] as const;
 
 export const projectEventDefinitions = [
+  definePublicEvent(
+    "project.configuration.health",
+    projectConfigurationHealthSchema,
+    { allowedSourceRoles: workbenchRoles, scope: ["projectId"] },
+  ),
   definePublicEvent(
     "project.created",
     z.object({ project: projectRecordSchema }),

@@ -29,7 +29,7 @@ import {
   type RegisteredStep,
   type StepContext,
 } from "./step.js";
-import type { MigrationFailureReport } from "./recovery.js";
+import { discardFailedItems, type MigrationFailureReport } from "./recovery.js";
 import {
   manifestBackupPath,
   recoverCompletedMigrationCleanup,
@@ -269,6 +269,21 @@ export async function runMigrations(
         rollbackAvailable: rollbackAvailable(current),
       };
       await atomicWriteJson(paths.migrationFailureReportPath, failure, 0o600);
+      if (
+        error instanceof DiscardableMigrationError &&
+        current &&
+        rollbackAvailable(current)
+      ) {
+        const ids = error.items.map((item) => item.id);
+        if (ids.some((id) => !current!.context.discarded.has(id))) {
+          await discardFailedItems(home, ids, {
+            lock,
+            registry: options.registry,
+          });
+          log(`Setting aside ${ids.length} failed items; continuing upgrade`);
+          return await runMigrations(home, { ...options, lock });
+        }
+      }
     }
     if (!options.dryRun)
       log(

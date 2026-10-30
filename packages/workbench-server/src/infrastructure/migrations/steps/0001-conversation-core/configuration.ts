@@ -1,9 +1,6 @@
 import { syncDirectory, syncFile } from "../../framework/durability.js";
 import type { StepContext } from "../../framework/step.js";
-import {
-  HOME_CONFIGURATION_FILES,
-  PROJECT_CONFIGURATION_FILES,
-} from "./owned-paths.js";
+import { HOME_CONFIGURATION_FILES } from "./owned-paths.js";
 import { convertPermissionRules } from "./process-history.js";
 import assert from "node:assert/strict";
 import { createHash, randomUUID } from "node:crypto";
@@ -17,9 +14,8 @@ import {
   rmSync,
   writeFileSync,
 } from "node:fs";
-import { dirname, join, resolve } from "node:path";
+import { dirname, join } from "node:path";
 import type { Legacy, LegacyReader } from "./legacy.reader.js";
-import type { CoreStorage } from "./storage.js";
 import { preserveForRollback } from "../../framework/rollback-journal.js";
 import {
   consumeCheckedDocument,
@@ -232,15 +228,17 @@ export function convertPromptTrust(
   const status = ["denied", "rejected"].includes(data.status)
     ? "rejected"
     : "trusted";
+  // Project files are never opened by home migration. Existing byte digests can
+  // be imported unchanged; predicate-only approvals require project reapproval.
+  if (data.sourceKind !== "user") {
+    const approved = data.contentDigest ?? data.digest;
+    return approved
+      ? { ...data, path, status, contentDigest: normalizeDigest(approved) }
+      : null;
+  }
   try {
     const text = readFileSync(path, "utf8"),
       current = digest(text);
-    if (
-      data.sourceKind === "project" &&
-      status === "trusted" &&
-      renameSuggestionFilter(text) !== text
-    )
-      return null;
     const old = data.contentDigest ?? data.digest;
     if (old) {
       const conversions = readJson(join(scratch, "suggestion-digests.json"));
@@ -271,10 +269,9 @@ export function convertPromptTrust(
 
 export async function convertDocumentPreferences(
   reader: LegacyReader,
-  storage: CoreStorage,
   home: string,
   ctx?: StepContext,
-): Promise<{ enablement: number; taskDefinitions: number }> {
+): Promise<{ enablement: number }> {
   const path = join(home, "config", "prompt-suggestions.json"),
     preferences = readJson(path, { version: 1, enabled: {} });
   assert(
@@ -282,8 +279,7 @@ export async function convertDocumentPreferences(
       preferences.enabled &&
       typeof preferences.enabled === "object",
   );
-  let enablement = 0,
-    taskDefinitions = 0;
+  let enablement = 0;
   const unit = async (
     namespace: string,
     row: Record<string, unknown>,
@@ -294,10 +290,7 @@ export async function convertDocumentPreferences(
       {
         kind: "configuration",
         id: `legacy-record:${namespace}/${row.document_id}`,
-        title:
-          namespace === "task_definitions"
-            ? "Project launch definitions"
-            : "Prompt suggestion settings",
+        title: "Prompt suggestion settings",
       },
       fn,
     );
@@ -315,137 +308,5 @@ export async function convertDocumentPreferences(
     });
   }
   if (enablement) writeJson(path, preferences);
-  for (const { row, data } of reader.documents("task_definitions")) {
-    await unit("task_definitions", row, () => {
-      const definitions: Legacy[] = Array.isArray(data)
-        ? data
-        : (data.definitions ?? []);
-      if (!definitions.length) return;
-      const projectId = definitions[0].scope?.projectId ?? row.document_id;
-      const project = storage.projects.get(String(projectId));
-      if (
-        !project &&
-        ctx?.discarded.has(`legacy-record:project/${projectId}`)
-      ) {
-        ctx.quarantine(
-          {
-            kind: "configuration",
-            id: `legacy-record:task_definitions/${row.document_id}`,
-            title: "Project launch definitions",
-            reason: "Owning project was unreadable and set aside",
-          },
-          { records: [{ table: "domain_documents", row }] },
-        );
-        return;
-      }
-      assert(project, `Missing task definition project ${projectId}`);
-      const target = join(
-        resolve(project.directory),
-        ".nerve",
-        "tasks",
-        "definitions.json",
-      );
-      const current = readJson(target, { version: 1, definitions: [] });
-      assert(current.version === 1 && Array.isArray(current.definitions));
-      const existing = new Set(
-        current.definitions.map((item: Legacy) => item.id),
-      );
-      for (const definition of definitions) {
-        assert(
-          typeof definition.id === "string" &&
-            definition.id.startsWith("taskdef_") &&
-            typeof definition.command === "string" &&
-            definition.command.length,
-        );
-        if (existing.has(definition.id)) continue;
-        const converted: Legacy = {
-          scope: { kind: "project" },
-          runPolicy: "single",
-        };
-        for (const key of [
-          "id",
-          "label",
-          "command",
-          "cwd",
-          "port",
-          "runPolicy",
-          "createdAt",
-          "updatedAt",
-        ])
-          if (definition[key] !== undefined) converted[key] = definition[key];
-        current.definitions.push(converted);
-        existing.add(definition.id);
-        taskDefinitions++;
-      }
-      writeJson(target, current);
-    });
-  }
-  for (const row of storage.sqlite
-    .prepare("SELECT directory FROM project")
-    .all()) {
-    const directory = String(row.directory);
-    const tasksPath = join(directory, ".nerve", "tasks", "definitions.json");
-    if (ctx)
-      await ctx.unit(
-        {
-          kind: "configuration",
-          id: tasksPath,
-          title: "Project launch definitions",
-        },
-        () => moveProjectLaunchDefinitions(directory),
-        { quarantine: { files: [tasksPath], root: directory } },
-      );
-    else moveProjectLaunchDefinitions(directory);
-    const config = join(directory, ".nerve", "config");
-    if (existsSync(config))
-      for (const name of PROJECT_CONFIGURATION_FILES) {
-        if (!existsSync(join(config, name))) continue;
-        const path = join(config, name);
-        const convert = () => {
-          const document = readJson(path);
-          if (convertPermissionRules(document)) writeJson(path, document);
-        };
-        if (ctx)
-          await ctx.unit(
-            {
-              kind: "configuration",
-              id: path,
-              title: `Project settings: ${name}`,
-            },
-            convert,
-            { quarantine: { files: [path], root: directory } },
-          );
-        else convert();
-      }
-  }
-  return { enablement, taskDefinitions };
-}
-
-/** Shared one-time conversion, also used when an unknown project is first opened. */
-export function moveProjectLaunchDefinitions(
-  directory: string,
-  report: (message: string) => void = console.warn,
-): boolean {
-  const old = join(resolve(directory), ".nerve", "tasks", "definitions.json");
-  const target = join(
-    resolve(directory),
-    ".nerve",
-    "launches",
-    "definitions.json",
-  );
-  if (!existsSync(old)) return false;
-  if (existsSync(target)) {
-    report(`Launch definitions collision at ${target}; keeping both files`);
-    return false;
-  }
-  const document = readJson(old);
-  assert(document.version === 1 && Array.isArray(document.definitions));
-  for (const definition of document.definitions) {
-    if (typeof definition.id === "string")
-      definition.id = definition.id.replace(/^taskdef_/, "launchdef_");
-  }
-  writeJson(target, document);
-  preserveForRollback(old);
-  rmSync(old);
-  return true;
+  return { enablement };
 }

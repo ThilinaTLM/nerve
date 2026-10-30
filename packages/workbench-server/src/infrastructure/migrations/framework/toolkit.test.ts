@@ -221,3 +221,37 @@ void test("quarantine moves an owned symlink boundary instead of touching its ex
     boundary,
   );
 });
+
+void test("retained runtime settings preserve bytes and symlinks without following them", async (t) => {
+  const ctx = await fixture(t);
+  const settings = join(ctx.paths.home, "settings");
+  await mkdir(settings);
+  await writeFile(join(settings, "broken.json"), "broken bytes");
+  await symlink("/does-not-exist/outside-home", join(settings, "linked.json"));
+  startPhase(ctx, "run");
+  const path = ctx.quarantine(
+    { kind: "configuration", id: settings, reason: "Invalid settings" },
+    { files: [settings], retainSource: true },
+  );
+  assert.equal(
+    await readFile(join(settings, "broken.json"), "utf8"),
+    "broken bytes",
+  );
+  assert.equal(
+    await readFile(join(path, "payload/settings/broken.json"), "utf8"),
+    "broken bytes",
+  );
+  assert.equal(
+    await readlink(join(settings, "linked.json")),
+    "/does-not-exist/outside-home",
+  );
+  assert.deepEqual(
+    JSON.parse(
+      await readFile(
+        join(path, "payload/settings/linked.json.symlink.json"),
+        "utf8",
+      ),
+    ),
+    { target: "/does-not-exist/outside-home" },
+  );
+});

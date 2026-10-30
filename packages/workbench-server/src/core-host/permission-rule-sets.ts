@@ -15,11 +15,20 @@ export async function listPermissionRuleSets(home: string) {
   const custom = await Promise.all(
     files
       .filter((file) => file.endsWith(".json"))
-      .map(async (file) =>
-        permissionRuleSetSchema.parse(
-          JSON.parse(await readFile(join(directory, file), "utf8")),
-        ),
-      ),
+      .map(async (file) => {
+        try {
+          return permissionRuleSetSchema.parse(
+            JSON.parse(await readFile(join(directory, file), "utf8")),
+          );
+        } catch {
+          // Isolate malformed or unreadable custom files, just like execution's
+          // scoped permission source. Never substitute a permissive rule set.
+          return undefined;
+        }
+      }),
   );
-  return [...builtInPermissionRuleSets, ...custom];
+  return [
+    ...builtInPermissionRuleSets,
+    ...custom.filter((ruleSet) => ruleSet !== undefined),
+  ];
 }

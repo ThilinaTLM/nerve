@@ -35,6 +35,7 @@ export class DaemonStartupError extends Error {
   constructor(
     message: string,
     readonly daemonOutput: string,
+    readonly retryable = false,
   ) {
     super(message);
     this.name = "DaemonStartupError";
@@ -64,6 +65,7 @@ export function daemonStartupError(
   message: string,
   output: OutputBuffer,
   context?: {
+    retryable?: boolean;
     dataDir?: string;
     readinessTimeoutMs?: number;
     crashReportPath?: string;
@@ -101,5 +103,6 @@ export function daemonStartupError(
         : ""
     }${heapGuidance ? `\n\nGuidance:\n${heapGuidance}` : ""}`,
     daemonOutput,
+    context?.retryable,
   );
 }
