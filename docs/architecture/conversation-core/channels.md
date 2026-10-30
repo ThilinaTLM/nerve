@@ -1,66 +1,58 @@
 # Channels
 
-Part of the [conversation core redesign](README.md).
+The client uses separate connections for conversation activity and workbench panels. Conversation history can replay after a disconnect, while current panel state is recovered from snapshots. This split keeps workbench traffic out of conversation streaming buffers and lets the core operate independently of IDE services.
 
-## Boundary
-
-Two independent Protocol v1 connections replace the old `/ws` endpoint:
+Part of [conversation core](README.md).
 
 ```mermaid
 flowchart LR
     CV[Conversation views] <-->|/ws/conversations| CC[Conversation core + host catalogs]
+    CC --> E[SQLite event log]
+    E -->|sequence replay| CV
+    CC -->|current snapshots + live notices| CV
     WB[Workbench panels] <-->|/ws/workbench| WS[Workbench services]
-    WS -.->|reads| CC
+    WS -->|snapshots + change notices| WB
+    WS -.->|reads core state| CC
 ```
 
-Each connection has its own session, send buffer and reconnect lifecycle. Workbench traffic does not share the token-streaming buffer. The workbench may read core state; core never depends on workbench services. Agents reach files and git through host tools.
+## Connection boundary
 
-## Conversation channel
+Each channel has its own Protocol v1 session, buffering and reconnect lifecycle, so workbench load cannot consume the conversation connection's streaming buffer. Workbench services may read core state; core uses host interfaces rather than depending on workbench services.
 
-The [owning catalog](../../../packages/contracts/src/domains/core/channel.ts) defines the operations; [core operation schemas](../../../packages/contracts/src/domains/core/core-operations.ts) own request/result shapes:
+Conversation operations include core access and host catalogs. Workbench operations serve IDE resources and panels. Prompt suggestions belong to workbench because their evaluation can depend on git state. The owning contracts define these catalogs; duplicating operation or event names here would obscure the boundary as capabilities evolve.
 
-```text
-project.create project.list project.get project.update project.delete
-trust.list trust.decide trust.delete
-conversation.create conversation.list conversation.getSnapshot
-conversation.getHistory conversation.getTree conversation.getEventsSince
-conversation.configure conversation.update conversation.selectHead
-conversation.compact conversation.delete conversation.pause conversation.resume
-conversation.stop conversation.forcePush conversation.continue
-input.submit input.cancel interaction.resolve asyncBash.cancel toolCall.getDetails
-capabilities.get capabilities.update capabilities.reset capabilities.trust
-harnessSettings.get harnessSettings.update
-model.list permissionRuleSet.list skill.list tool.list completion.slash.list
-```
+## Durable replay versus current state
 
-Prompt suggestions use the workbench channel (`promptSuggestion.*`) because they also need git state.
+The conversation channel separates three recovery models:
 
-| Surface                   | Initial state                                                                 | Updates                                        | Replay                |
-| ------------------------- | ----------------------------------------------------------------------------- | ---------------------------------------------- | --------------------- |
-| Project conversation list | Summaries including `childCount`                                              | `conversation.changed`, `conversation.deleted` | Re-fetch on reconnect |
-| Conversation detail       | Conversation, config, tool calls, queue, async bash, children, `lastSequence` | Head/config/tool-call/queue/async-bash notices | Re-fetch on reconnect |
-| Durable history           | Selected-head history or events since sequence                                | `conversation.event`                           | Core event sequence   |
-| Live progress             | None                                                                          | `conversation.live`                            | None                  |
+| State                          | Recovery                                                             |
+| ------------------------------ | -------------------------------------------------------------------- |
+| Durable events                 | Replay from the last processed conversation event sequence.          |
+| Lists and conversation details | Re-fetch current snapshots.                                          |
+| Live progress                  | Discard on reconnect; later snapshots and durable events replace it. |
 
-Clients subscribe to the stream `conv/<conversationId>`, passing the last event sequence they processed (`processedSeq`, 0 for everything). The server first sends the events after that sequence, then new events as they are appended. Each `conversation.event` carries a `ConversationEvent`, and its envelope sequence is the event's own sequence. Tool responses are sent with their user projection only; `toolCall.getDetails` returns the agent projection and complete result of one call when the user opens its details ([tool-result projection](../tool-result-projection.md)). History pages are limited by size as well as count. A reply that would exceed the message limit fails that request with an error and never closes the session. A snapshot's `lastSequence` is the newest sequence at the time it was read, so a client can load a snapshot and then subscribe from that point. Subscribing to a deleted or unknown conversation fails for that stream only.
+A snapshot includes a history high-water mark, the newest event sequence at the time of reading. A client can subscribe from that point to cover events arriving after the snapshot. Stream activation also covers appends during subscription setup, closing the handoff gap.
 
-Replay covers every branch in sequence order; the transcript shows only the path back from the selected head. Events are read straight from `CONVERSATION_EVENT`; there is no separate notification store. Live deltas may be merged or dropped under backpressure, because the next durable event or snapshot replaces them.
+Replay reads the core event log directly, including every branch; the selected head controls transcript projection instead. Keeping replay independent of branch selection ensures clients observe all durable changes without a second notification store.
 
-Ephemeral events, defined alongside the operations:
+Tool responses transfer their user projection, and details are fetched on demand, so complete results need not travel with every replay. See [tool-result projection](../tool-result-projection.md).
 
-- `conversation.changed`, `conversation.deleted`, `capabilities.changed`: project-scoped notices.
-- `conversation.head`, `conversation.config`, `conversation.toolCall`, `conversation.queue`, `conversation.asyncBash`, `conversation.live`: limited to active conversation subscriptions.
+Project-scoped notices invalidate lists; subscription-scoped notices update retained conversation details. Both are disposable because reconnect re-fetches current state. Unavailable conversation subscriptions are handled independently so one deleted conversation does not invalidate every stream on a connection.
 
-A connection receives a project's list notices after it lists, reads or creates conversations in that project, or subscribes to one of its conversations. There is no separate project-subscription operation and no durable workspace stream. After a reconnect the client replays durable events, re-fetches list and detail snapshots, and starts with empty live state.
+## Workbench and client ownership
 
-Children are separate conversations. Parent snapshots contain child summaries; opening or peeking a child retains its own shared detail store/subscription. `parentToolCallId` associates it with its delegation card.
+Workbench panels recover from snapshots and scoped resource-change notices. Reconnect also restores monitor demand so services resume producing the panel updates clients need.
 
-## Workbench channel
+Conversation summaries serve navigation, while retained detail stores own streaming state and child subscriptions. This separation keeps token updates local to open conversations. Composer, status and notification ownership is described in [conversation state and attention](../conversation-state-and-attention.md).
 
-Files, git/GitHub, scratch notes, launch configurations and instances, settings, maintenance and usage use the workbench operations and in-memory notices listed in [`workbench-events.ts`](../../../packages/contracts/src/events/workbench-events.ts).
+## Where it lives
 
-Panels load snapshots and refresh on scoped resource-change notices. There are no durable streams or replay; reconnect re-snapshots and restores monitor demand. Launch RPCs use `launch.*`; saved definitions use `launchDefinition.*`.
-
-## Client state
-
-Conversation and workbench stores do not share live reactive state. Streaming updates affect only retained conversation detail stores. Sidebar, title bar and project switcher consume summaries, never live transcript state. The app connects conversations before workbench recovery so workbench panels can resolve core projects.
+| Concern                                    | Owner                                                                                                                                  |
+| ------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------- |
+| Conversation operation and event catalogs  | [`conversationChannelOperations`, `conversationChannelEventSchemas`](../../../packages/contracts/src/domains/core/channel.ts)          |
+| Server binding, scoping and replay handoff | [`createConversationProtocolSession`](../../../packages/workbench-server/src/adapters/protocol/conversation-channel.ts)                |
+| Workbench ownership predicates             | [`isWorkbenchOperation`, `isWorkbenchEvent`](../../../packages/contracts/src/events/workbench-events.ts)                               |
+| Public event transfer                      | [`transferConversationEvent`](../../../packages/contracts/src/domains/core/event.ts)                                                   |
+| Workbench snapshot recovery                | [`recoverWorkbenchPanels`](../../../packages/workbench-app/src/lib/application/events/workbench-event-bus.ts)                          |
+| Navigation summaries                       | [`ConversationListStore`](../../../packages/workbench-app/src/lib/features/conversations/state/core-conversation-list-store.svelte.ts) |
+| Shared detail subscriptions                | [`retainConversationStore`](../../../packages/workbench-app/src/lib/features/conversations/state/open-conversation-stores.ts)          |

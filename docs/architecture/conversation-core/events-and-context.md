@@ -1,90 +1,71 @@
 # Events and context
 
-Part of the [conversation core redesign](README.md).
+A conversation stores durable facts as events, then selects some of those facts as context for a model request. The selected history can branch, and compaction can summarize older context while preserving the original events. Separating stored meaning from provider formatting lets the same history work across model providers.
 
-## Event types
+Part of [conversation core](README.md).
 
-The five event types describe application facts, independent of how providers package messages. No transcript `role` column is needed: message event types identify transcript roles; tool and system events identify their own semantics. Tool requests are not events: their arguments live in the assistant message content and, while unfinished, in [`TOOL_CALL`](tool-call-lifecycle.md).
+The event tree preserves both branches. Here the new branch ends at compaction `K`, the selected head:
 
-| Event                | Canonical contribution                                                   | Payload                                                                                                                                                                                                                                                                                                                                               |
-| -------------------- | ------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `user_message`       | `user`                                                                   | Delivered prompt, original submitted text, submitter and command-preparation receipts.                                                                                                                                                                                                                                                                |
-| `assistant_message`  | `assistant`                                                              | Ordered text, thinking and tool-call blocks with arguments, usage, stop reason and response provenance.                                                                                                                                                                                                                                               |
-| `system_event`       | `none` or `user`                                                         | Typed notice or execution transition. Application provenance grants no provider-system authority.                                                                                                                                                                                                                                                     |
-| `tool_call_response` | `tool_result` for model calls; `user` or `none` for direct user commands | Internal and provider call IDs, tool name, final `arguments`, origin, originating assistant event and content index, outcome, agent projection, user projection, supervision record, interaction resolution and asset references. The complete result is an asset, not part of the event; see [tool-result projection](../tool-result-projection.md). |
-| `compaction`         | `user`                                                                   | Summary text and retained-history boundary.                                                                                                                                                                                                                                                                                                           |
-
-`llm_representation` states how an event can contribute, not whether it appears in a given request; the selected branch and compaction decide inclusion. Because it restates what `event_type` and payload imply, validation rejects contradictory combinations.
-
-## Projection to Pi
-
-The configured system prompt is supplied separately. The context projection produces Pi-compatible messages, and Pi's provider adapter builds the wire request. Provider switching rebuilds messages without rewriting history.
-
-- Tool-call blocks in an assistant message become Pi `toolCall` content; a tool call never creates another assistant message.
-- Tool responses become Pi `toolResult` messages built from their agent projection, ordered by originating content index, not completion order. Every tool-call block is followed by exactly one result. Image blocks reference assets; their bytes are inlined only while building the request.
-- Direct user commands included in context are projected as user content, not as orphan tool results.
-- Neither Anthropic's user-role result packaging nor OpenAI's tool-role packaging is persisted as application meaning.
-
-Pi AI 0.99.1 maps these as follows:
-
-| Provider API            | Tool request               | Tool response                |
-| ----------------------- | -------------------------- | ---------------------------- |
-| Anthropic Messages      | Assistant `tool_use` block | User `tool_result` block     |
-| Google Gemini           | Model `functionCall` part  | User `functionResponse` part |
-| OpenAI Chat Completions | Assistant `tool_calls`     | Tool-role message            |
-| OpenAI Responses        | `function_call` item       | `function_call_output` item  |
-
-## System events
-
-Closed payload subtypes:
-
-```text
-async_bash_event | sub_conversation_event | user_intervention | notification | execution_state
+```mermaid
+flowchart TD
+    A[Event A] --> B[Event B]
+    B --> C[Event C: original branch]
+    B --> D[Event D: new branch]
+    D --> K[Compaction K: selected head]
 ```
 
-The first four arrive through the [input queue](input-queue.md). `execution_state` is a lifecycle fact written directly, never queued. It covers provider failure before any tool exists, retries, waiting and completion of text-only processing:
+Request preparation follows the selected branch and then projects it into provider context:
 
-```text
-started | waiting | retrying | completed | failed | cancelled | interrupted
+```mermaid
+flowchart LR
+    H[Selected head] --> P[Walk predecessor path]
+    P --> K[Apply latest compaction]
+    K --> M[Project messages]
+    M --> R[Provider request]
+    SP[Current system prompt] --> R
 ```
 
-- Retry metadata can indicate exhaustion.
-- Waiting details identify the tool call awaiting approval or input, or the child assignment being awaited.
-- An execution is identified by its `started` event ID; later transitions reference it. Queue execution targets reference the same ID. This supports executions spanning several turns without an execution table or an execution-ID column on every event.
+## Canonical facts, projected context
 
-Child results:
+Events describe application meaning independently of provider message packaging. Tool requests are blocks in an assistant event; [unfinished calls](tool-call-lifecycle.md) checkpoint their execution, and settlement appends responses. Complete results live in managed files, with separate [agent and user projections](../tool-result-projection.md), so large outputs need not travel through every history read.
 
-- Delegation is asynchronous. A finished child execution notifies its parent with a queued `sub_conversation_event` identifying the assignment (see [delegation](delegation.md#completion-notices)); the tool call that created the child has already returned.
-- There is no report event and no separate obligation tracking.
+Each event type declares whether and how it can appear in model context. Branch selection and compaction decide actual inclusion. Operational facts remain available for lifecycle reconstruction even when they contribute no model context. Application-generated notices become ordinary context rather than provider-system instructions, preserving the authority boundary.
+
+Execution transitions are written directly as durable lifecycle facts; notices arrive through the [input queue](input-queue.md). An execution is a span of model turns identified by its start event, so later transitions and targeted inputs need no separate execution table. Child completion arrives as a queued notice; [delegation](delegation.md) explains how a parent associates it with assigned work.
+
+## Projection to provider requests
+
+Projection converts the selected path into model messages. The harness converts application notices and summaries, and the provider adapter builds the wire request. The current system prompt is supplied separately, so provider switching rebuilds a request without rewriting history.
+
+Tool results follow the originating assistant's blocks in content order, even when responses persisted in completion order. Missing or mismatched responses produce synthetic interrupted results so the provider receives valid assistant/result pairs. Direct user-command results included in context become user content because they have no model-issued tool request to answer. Image files are resolved during request preparation to keep binary content out of event payloads.
 
 ## Compaction
 
-Compaction appends an event; earlier history is never mutated or deleted. The payload holds the summary, `firstKeptEventId` for retained context, `tokensBefore` and optional details.
+Compaction appends a summary and a retained-history boundary. Original events remain available for browsing and branching because summarization changes context selection rather than storage history.
 
-Context assembly on the selected branch uses the latest applicable compaction:
+For example, if `A → B → C → D` is compacted with `C` retained, the next request contains:
 
-1. Current configured system prompt.
-2. Compaction summary as a user message.
-3. Retained context from `firstKeptEventId` up to the compaction.
-4. Context-bearing events after the compaction.
+1. The current system prompt.
+2. A summary of `A` and `B`.
+3. Retained events `C` and `D`.
+4. Events appended after compaction.
 
-Retained boundaries must keep assistant tool-call blocks with their results; no orphan responses.
+The latest compaction on the selected path controls this selection. Planning keeps assistant tool calls and their responses together, moving the cut backward when completion order crosses it, so a retained response never loses its request. Manual and automatic compaction derive their policies from effective settings rather than thresholds documented here.
 
-Thresholds come from the effective auto-compaction settings, which the host resolves per conversation (user → project → conversation; see [delegation](delegation.md#compaction-settings)) through `ConversationCoreOptions.compactionSettings`. They apply to the automatic check, including `auto: false`, and to manual compaction.
+## Branching
 
-```text
-History:      A → B → C → D → Compaction → E → F
-Summarized:   A and B
-First kept:   C
-LLM context:  current system prompt → summary → C → D → E → F
-```
+Each append links to the selected head, the event currently ending the active branch. Walking predecessor links defines the transcript; event sequence order defines replay across all branches. Selecting a head changes future context while leaving configuration and performed effects intact, because browsing old facts must not execute them again.
 
-## Event tree and branching
+A branch can append a compaction to summarize context it leaves behind. Head selection requires a quiescent runner, no unfinished calls and no unfinished prompt-command preparation, so in-flight work cannot land on an unexpectedly changed branch. Parent and child histories branch independently; selecting a parent head does not rewind child effects.
 
-Every event joins the tree through `previous_event_id`, including operational events. Each append links to `head_event_id` and becomes the new head. Transcript history walks that path; `llm_representation = none` omits operational facts from model context. Sequence replay includes all branches.
+## Where it lives
 
-- Selecting a branch changes `head_event_id`, not configuration.
-- A branch that needs a summary of the history it leaves appends a compaction on the new branch. There is no branch-summary event type.
-- Execution facts stay in append order and are never replayed as actions because an older context was selected.
-- Branch changes require a quiescent runner, no unfinished tool calls and no unfinished input command preparation.
-- Parent and child histories branch independently; coordinated rewind is a non-goal.
+| Concern                                | Owner                                                                                                                  |
+| -------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| Event shapes and valid representations | [`conversationEventSchema`](../../../packages/contracts/src/domains/core/event.ts)                                     |
+| Context selection and projection       | [`selectContextEvents`, `projectModelMessages`](../../../packages/conversation-core/src/context/context-projection.ts) |
+| Harness message conversion             | [`convertToLlm`](../../../packages/harness/src/messages/messages.ts)                                                   |
+| Compaction planning and settings       | [`prepareCompaction`, `runCompaction`](../../../packages/conversation-core/src/context/compaction.ts)                  |
+| Append order and branch reads          | [`ConversationEventRepository`](../../../packages/conversation-core/src/storage/conversation-event.repository.ts)      |
+| Head-selection safety                  | [`ConversationService.selectHead`](../../../packages/conversation-core/src/conversations/conversation.service.ts)      |
+| Execution transitions                  | [`StatusService`](../../../packages/conversation-core/src/runtime/status.ts)                                           |

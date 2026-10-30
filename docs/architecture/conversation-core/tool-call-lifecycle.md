@@ -1,76 +1,66 @@
 # Tool-call lifecycle
 
-Part of the [conversation core redesign](README.md).
+A tool call moves from proposed arguments through permission checks, execution and a durable result. Calls may wait for approval or user input, so unfinished work must survive restarts independently of a running model request. One lifecycle handles model-issued calls and direct user commands.
 
-Every tool call follows one lifecycle; individual tools may skip states. `TOOL_CALL` holds only unfinished calls, like `INPUT_QUEUE` holds only undelivered inputs. Reaching a terminal outcome appends one `tool_call_response` event and deletes the row in the same transaction. The event log gains one event per call regardless of how many durable checkpoints the call passed.
+Part of [conversation core](README.md).
 
-## States
+## State machine
 
 ```mermaid
 stateDiagram-v2
-    [*] --> drafting: model streams arguments
-    drafting --> supervising: assistant_message persisted and row inserted
+    [*] --> drafting: streamed arguments (memory)
+    drafting --> supervising: persist assistant and call
     supervising --> ready: allowed
-    supervising --> awaiting_approval: requires user approval
+    supervising --> awaiting_approval: approval required
     supervising --> settled: denied
     awaiting_approval --> ready: approved
     awaiting_approval --> settled: denied or cancelled
-    ready --> running: current authorization checked and execution claimed
-    running --> awaiting_input: tool requests user input
+    ready --> running: re-admit and claim execution
+    ready --> awaiting_input: configuration blocked
+    awaiting_input --> ready: retry configuration
+    running --> awaiting_input: interaction required
     awaiting_input --> settled: answered or cancelled
-    running --> settled: completed, failed, cancelled or indeterminate
-    settled --> [*]: response event appended and row deleted
+    running --> settled: known outcome or indeterminate
+    settled --> [*]: append response and delete row
 ```
 
-| State             | Durable      | Notes                                                                                                                                                                                                       |
-| ----------------- | ------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Drafting          | No           | Memory only. If processing stops first, no row exists; an `execution_state` event records the failure or interruption.                                                                                      |
-| Supervising       | Row inserted | Permission evaluation has no side effects. Decision, matched rule and captured authority are written to `supervision` before leaving.                                                                       |
-| Awaiting approval | Yes          | Suspension point. `interaction` stores the request; the resolution is written once, deduplicated by its resolution request ID.                                                                              |
-| Ready             | Yes          | Allowed, not yet started.                                                                                                                                                                                   |
-| Running           | Yes          | Claimed before external effects. Only the worker holding `execution_claim` may settle the call.                                                                                                             |
-| Awaiting input    | Yes          | Suspension point for `ask_user`, plan review and configuration-blocked Retry/Cancel. The user's answer is the tool result.                                                                                  |
-| Settled           | Event        | `completed`, `failed`, `denied`, `cancelled` or `indeterminate`. The response payload preserves final `arguments`, provider-call identity, supervision and interaction resolution after the row is deleted. |
+Direct commands skip argument streaming, and cancellation can settle any unfinished durable state. The unfinished-call table stores durable checkpoints between drafting and settlement. Settlement appends a response and deletes the pending row in one transaction, so history records one outcome regardless of how many waits preceded it. Drafting stays in memory because incomplete streamed arguments are not executable work. Result storage is covered by [tool-result projection](../tool-result-projection.md).
 
-## Approval grants
+Configuration-blocked admission reuses `awaiting_input`, so it appears as an interaction the user can resolve by retrying after configuration repair. A retry repeats admission after configuration repair, because resolving the wait does not itself grant permission.
 
-Permission decisions use the conversation's baseline rule set plus overlays at user, project (`.nerve/`) and conversation (conversation data directory) level. Overlays are readable JSON rule files.
+## Admission and the turn barrier
 
-Approving with "always allow" writes a rule into the overlay for the chosen scope: conversation, project or user. A one-time approval writes nothing beyond the call's own resolution. There is no grant table.
+Supervision evaluates permission policy and records its decision and authority before effects, so the eventual result can explain why execution was allowed. An execution claim identifies the worker entitled to settle the call, so a stale worker cannot overwrite a newer outcome. Final admission checks current authorization after waits, so prior approval cannot override a later denial. Invalid security configuration blocks execution rather than falling back to permissive defaults. Persistent approval rules are stored in permission overlays, scoped files that extend the baseline rules; see [permissions](../permissions.md).
 
-Before external effects, final admission checks current authorization even after approval waits. Approval cannot defeat a later denial. Invalid security configuration waits **configuration-blocked** with **Retry/Cancel**, never an approval bypass or Baseline fallback. Retry re-reads authoritative configuration.
-
-## Multiple calls in one assistant message
-
-- Calls progress independently. Some may be auto-allowed and running while a sibling awaits approval and another is denied with an error result.
-- Whether allowed calls start while a sibling awaits approval is runtime policy, not schema.
-- The conversation shows `waiting` while any of its rows is `awaiting_approval` or `awaiting_input`.
-- The next model request for a turn starts only when no `TOOL_CALL` row remains for that `turn_id`.
-- Responses are appended in completion order; the [context projection](events-and-context.md#projection-to-pi) orders them by `content_index`.
+A turn is one model invocation and its tool processing. Sibling calls can progress independently, but the turn barrier holds the next model request until that turn has no unfinished calls, so the model sees a complete result set. Responses persist in completion order; [context projection](events-and-context.md#projection-to-provider-requests) restores assistant-block order for the provider.
 
 ## Recovery
 
-| Row state at restart                  | Action                                                                                 |
-| ------------------------------------- | -------------------------------------------------------------------------------------- |
-| `supervising`                         | Re-evaluate permission.                                                                |
-| `awaiting_approval`, `awaiting_input` | Keep interactions; re-capture/re-admit not-yet-started calls before execution.         |
-| `ready`                               | Re-capture current configuration and re-admit; changed targets require fresh approval. |
-| `running`                             | Re-run only tools declared safe to replay; otherwise settle as `indeterminate`.        |
+Recovery re-admits work that has not started so current authorization governs execution. Ordinary unanswered input interactions remain suspended; approval and configuration-blocked waits are re-evaluated, not blindly restored as authorization. Persisted resolutions are replayed through the interaction resolver using their resolution request identity.
 
-Recovery never invokes a provider merely to repair status. Uncertain outcomes stay visible as `indeterminate`.
+A running call is retried only if the host declares the tool safe to repeat after interruption; otherwise it settles as indeterminate. This is deliberate: a committed claim cannot prove whether an external effect happened before a crash. Core recovery repairs lifecycle state without invoking a provider merely to finish an old execution; newly deliverable queued work can still wake processing. This avoids turning a status repair into fresh model work.
 
 ## Cancellation and force push
 
-Stopping a turn settles every unfinished row for that turn: unstarted and suspended calls become `cancelled`; running calls are aborted and settle as `cancelled` or `indeterminate`. User stop sets `paused` and cascades to all descendant conversations and their running async bash. A new user prompt resumes its receiving conversation; parent/system notices do not.
+Stopping cancels work, pauses the conversation and cascades through descendants and their async bash (conversation-owned background commands), so delegated work cannot continue after a deliberate user stop. Cancellation settles unfinished calls but cannot undo external effects; uncertain running outcomes may be indeterminate.
 
-Force push stops only the current conversation’s turn without setting pause, clears any existing pause, then drains eligible queued inputs. It does not perform the user-stop descendant/async-bash cascade. No force-push state is stored.
+Force push cancels only the receiving conversation's current work, clears pause and starts eligible [queued input](input-queue.md), so a replacement prompt can take over at a safe boundary. It does not perform stop's descendant/async-bash cascade, and stores no force-push state. Pause semantics are covered by the [input queue](input-queue.md#pause-and-waking); presentation behavior belongs to [conversation state and attention](../conversation-state-and-attention.md).
 
-`pause` blocks automatic wakes without aborting the current turn; `resume` clears pause and wakes eligible queued work. `continue` clears pause and explicitly starts processing even without a new prompt (but never bypasses unfinished tool calls).
+## Other entry and exit paths
 
-## Promotion to async bash
+Promotion to [async bash](async-bash-and-launches.md) settles the foreground call with a process identity; later completion is a queued notice, not a second response. [Delegation](delegation.md) likewise returns before a child execution completes.
 
-A bash call that exceeds its foreground limit is promoted to an [async bash](async-bash-and-launches.md). The call settles normally with a response explaining the promotion and identifying the async bash. Its later completion arrives as a queued `async_bash_event`.
+### Direct user commands
 
-## Direct user commands
+Input submission routes inline commands through supervised user-origin tool calls, so they receive permission checks without requiring a provider invocation. They have no originating assistant event because the user supplied the command. The submission ID deduplicates pending and settled commands. Included results become user context, not model-tool results. Fenced prompt commands instead use [queue preparation](input-queue.md#command-preparation).
 
-A user prompt that is an inline command (`!command`) is not queued. `input.submit` recognizes it and runs it directly: it creates a row with `origin = user` and no provider or assistant references, passes normal supervision, and settles into a `tool_call_response` whose output is included in later model context. It never starts a model turn. The submission's `input_id` dedupes retries, both while the command runs and after it settles. Fenced `!!!` blocks inside submitted prompts are prepared in the [input queue](input-queue.md#command-preparation), not as tool-call rows.
+## Where it lives
+
+| Concern                                  | Owner                                                                                                      |
+| ---------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| Durable call and interaction shapes      | [`toolCallSchema`](../../../packages/contracts/src/domains/core/tool-call.ts)                              |
+| Admission, transitions and call recovery | [`ToolCallService`](../../../packages/conversation-core/src/tool-calls/tool-call.service.ts)               |
+| Settlement and turn barrier              | [`ToolCallSettlement`](../../../packages/conversation-core/src/tool-calls/tool-call-settlement.service.ts) |
+| Startup recovery                         | [`recoverCore`](../../../packages/conversation-core/src/runtime/recovery.ts)                               |
+| Stop and force push                      | [`ConversationScheduler`](../../../packages/conversation-core/src/runtime/scheduler.ts)                    |
+| Direct-command routing                   | [`ConversationCore.submitInput`](../../../packages/conversation-core/src/core.ts)                          |
