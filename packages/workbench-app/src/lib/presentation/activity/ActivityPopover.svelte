@@ -16,6 +16,7 @@ import Popover, {
   PopoverHeader,
   PopoverBody,
   PopoverCommandList,
+  PopoverSection,
   PopoverViews,
   filterCommandItems,
 } from "@nervekit/ui-kit/components/composites/popover-panel";
@@ -182,15 +183,17 @@ const childLabel = {
           class="size-4"
           aria-hidden="true"
         />{/if}
-      {#if needsYou}
-        <span
-          class="absolute -right-0.5 -top-0.5 min-w-4 rounded-full bg-warning px-1 text-center text-[0.6875rem] leading-4 text-warning-foreground"
-          aria-hidden="true">{needsYou}</span
-        >
-      {/if}
+      <!-- Keyed so the finite pulse replays when more items need the user. -->
+      {#if needsYou}{#key needsYou}
+          <span
+            class="status-pulse absolute -right-0.5 -top-0.5 min-w-4 rounded-full bg-warning px-1 text-center text-[0.6875rem] leading-4 text-warning"
+            aria-hidden="true"
+            ><span class="text-warning-foreground">{needsYou}</span></span
+          >
+        {/key}{/if}
       {#if (attention || unreadable) && !needsYou}
         <span
-          class="absolute -right-0.5 -top-0.5 size-2 rounded-full bg-warning"
+          class="status-pulse absolute -right-0.5 -top-0.5 size-2 rounded-full bg-warning text-warning"
           aria-hidden="true"
         ></span>
       {/if}
@@ -218,14 +221,6 @@ const childLabel = {
       >
     {/snippet}
   </PopoverHeader>
-  {#if error || attention}
-    <PopoverBody class="gap-0 px-3" ariaLabel="Notification notices">
-      {#if error}<p role="alert" class="px-0.5 py-2 text-xs text-destructive">
-          {error}
-        </p>{/if}
-      {#if attention}{@render attention()}{/if}
-    </PopoverBody>
-  {/if}
   <PopoverViews key={selectedItem?.id ?? "list"}>
     {#if selectedItem}
       <PopoverBody ariaLabel="Notification details">
@@ -245,6 +240,7 @@ const childLabel = {
         bind:query
         placeholder="Search notifications"
         ariaLabel="Notifications"
+        leading={error || attention ? notices : undefined}
         onChoose={(item) => {
           selectedId = item.id;
         }}
@@ -298,6 +294,17 @@ const childLabel = {
     {/if}
   </PopoverViews>
 </Popover>
+
+{#snippet notices()}
+  {#if !query}
+    <PopoverSection label="Needs attention">
+      {#if error}<p role="alert" class="px-1.5 py-1 text-xs text-destructive">
+          {error}
+        </p>{/if}
+      {#if attention}{@render attention()}{/if}
+    </PopoverSection>
+  {/if}
+{/snippet}
 
 {#snippet notificationDetail(item: NotificationItem)}
   {@const finished = notificationRank(item) === 2}
