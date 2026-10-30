@@ -116,6 +116,21 @@ const label = $derived(
   `Notifications${needsYou ? `, ${needsYou} need you` : running ? ", running" : ""}${unseenFailure ? ", unseen failure" : ""}${muted ? ", muted" : ""}${attention ? ", settings need attention" : unreadable ? ", conversations need attention" : ""}`,
 );
 
+// Ping the bell dot until the user has opened the notifications for the
+// current attention state; a new needs-you item or notice re-arms it.
+const attentionKey = $derived(
+  needsYou || attention || unreadable
+    ? `${needsYou}:${Boolean(attention)}:${unreadable}`
+    : "",
+);
+let seenAttentionKey = $state("");
+$effect(() => {
+  if (open) seenAttentionKey = attentionKey;
+});
+const ping = $derived(
+  !muted && attentionKey !== "" && attentionKey !== seenAttentionKey,
+);
+
 let now = $state(Date.now());
 $effect(() => {
   if (!open) return;
@@ -183,17 +198,23 @@ const childLabel = {
           class="size-4"
           aria-hidden="true"
         />{/if}
-      <!-- Keyed so the finite pulse replays when more items need the user. -->
-      {#if needsYou}{#key needsYou}
-          <span
-            class="status-pulse absolute -right-0.5 -top-0.5 min-w-4 rounded-full bg-warning px-1 text-center text-[0.6875rem] leading-4 text-warning"
-            aria-hidden="true"
-            ><span class="text-warning-foreground">{needsYou}</span></span
-          >
-        {/key}{/if}
+      {#if needsYou}
+        <span
+          class={[
+            "absolute -right-0.5 -top-0.5 min-w-4 rounded-full bg-warning px-1 text-center text-[0.6875rem] leading-4 text-warning",
+            ping && "attention-ping",
+          ]}
+          aria-hidden="true"
+          ><span class="relative z-10 text-warning-foreground">{needsYou}</span
+          ></span
+        >
+      {/if}
       {#if (attention || unreadable) && !needsYou}
         <span
-          class="status-pulse absolute -right-0.5 -top-0.5 size-2 rounded-full bg-warning text-warning"
+          class={[
+            "absolute -right-0.5 -top-0.5 size-2 rounded-full bg-warning text-warning",
+            ping && "attention-ping",
+          ]}
           aria-hidden="true"
         ></span>
       {/if}

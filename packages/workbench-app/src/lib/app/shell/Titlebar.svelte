@@ -146,14 +146,14 @@ let {
         <Compass size={16} strokeWidth={2.1} />
         {#if discoverBadge.kind === "count"}
           <span
-            class="absolute -right-1 -top-1 inline-flex min-w-4 items-center justify-center rounded-full bg-info px-1 text-xs font-medium text-info-foreground"
+            class="absolute -right-0.5 -top-0.5 min-w-4 rounded-full bg-info px-1 text-center text-[0.6875rem] leading-4 text-info-foreground"
             aria-hidden="true"
           >
             {discoverBadge.value}
           </span>
         {:else if discoverBadge.kind === "dot"}
           <span
-            class="absolute right-0 top-0 size-1.5 rounded-full bg-muted-foreground"
+            class="absolute -right-0.5 -top-0.5 size-2 rounded-full bg-muted-foreground"
             aria-hidden="true"
           ></span>
         {/if}

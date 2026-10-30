@@ -282,3 +282,29 @@
     transform: scale(1) rotate(0);
   }
 }
+
+/* Unseen-attention ring for small indicator dots (bell dot). Repeats until the
+ * owner removes the class (e.g. once the notifications are opened). Animates
+ * only transform/opacity on a pseudo-element so it composites without
+ * repainting the window. Reduced motion collapses it via the base layer. */
+.attention-ping::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: currentColor;
+  animation: attention-ping 2s cubic-bezier(0, 0, 0.2, 1) infinite;
+  will-change: transform, opacity;
+}
+
+@keyframes attention-ping {
+  0% {
+    transform: scale(1);
+    opacity: 0.6;
+  }
+  70%,
+  100% {
+    transform: scale(2.4);
+    opacity: 0;
+  }
+}
