@@ -8,6 +8,8 @@ import {
   outwardSheetSwipeDistance,
   SHEET_SWIPE_AXIS_DOMINANCE,
   SHEET_SWIPE_INTENT_DISTANCE,
+  sheetSwipeAxis,
+  sheetSwipeDismissTranslation,
   sheetSwipeTranslation,
   shouldDismissSheetSwipe,
   type SheetSwipeSide,
@@ -32,8 +34,11 @@ let {
 } = $props();
 
 const swipeEnabled = $derived(
-  swipeToDismiss && (side === "left" || side === "right"),
+  swipeToDismiss && (side === "left" || side === "right" || side === "bottom"),
 );
+/** Bottom sheets are pulled down by their grab handle or any element marked
+ * `data-sheet-drag-region` (e.g. a header), so body content keeps scrolling. */
+const pullDown = $derived(swipeEnabled && side === "bottom");
 
 let swipeTranslate = $state<number>();
 let swiping = $state(false);
@@ -46,7 +51,7 @@ let gesture:
       startX: number;
       startY: number;
       startTime: number;
-      horizontal: boolean;
+      locked: boolean;
     }
   | undefined;
 
@@ -82,6 +87,11 @@ $effect(() => {
 
   const contentElement = element as HTMLElement;
   const swipeSide = side as SheetSwipeSide;
+  const axis = sheetSwipeAxis(swipeSide);
+  const extent = () => {
+    const rect = contentElement.getBoundingClientRect();
+    return axis === "x" ? rect.width : rect.height;
+  };
 
   function releasePointer(pointerId: number) {
     if (contentElement.hasPointerCapture(pointerId)) {
@@ -98,8 +108,7 @@ $effect(() => {
     settling = true;
     dismissAfterSettlement = dismiss;
     swipeTranslate = dismiss
-      ? (swipeSide === "left" ? -1 : 1) *
-        contentElement.getBoundingClientRect().width
+      ? sheetSwipeDismissTranslation(swipeSide, extent())
       : 0;
 
     if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
@@ -116,7 +125,17 @@ $effect(() => {
       settling ||
       gesture ||
       !event.isPrimary ||
-      event.pointerType === "mouse"
+      (event.pointerType === "mouse" && axis === "x")
+    ) {
+      return;
+    }
+    if (
+      axis === "y" &&
+      !(
+        event.target instanceof Element &&
+        event.target.closest("[data-sheet-drag-region]") &&
+        !event.target.closest("button, input, textarea, select, a")
+      )
     ) {
       return;
     }
@@ -126,7 +145,7 @@ $effect(() => {
       startX: event.clientX,
       startY: event.clientY,
       startTime: event.timeStamp,
-      horizontal: false,
+      locked: false,
     };
   }
 
@@ -136,46 +155,51 @@ $effect(() => {
 
     const deltaX = event.clientX - activeGesture.startX;
     const deltaY = event.clientY - activeGesture.startY;
+    const along = axis === "x" ? deltaX : deltaY;
+    const across = axis === "x" ? deltaY : deltaX;
 
-    if (!activeGesture.horizontal) {
-      const absoluteX = Math.abs(deltaX);
-      const absoluteY = Math.abs(deltaY);
+    if (!activeGesture.locked) {
+      const absoluteAlong = Math.abs(along);
+      const absoluteAcross = Math.abs(across);
       if (
-        absoluteX < SHEET_SWIPE_INTENT_DISTANCE &&
-        absoluteY < SHEET_SWIPE_INTENT_DISTANCE
+        absoluteAlong < SHEET_SWIPE_INTENT_DISTANCE &&
+        absoluteAcross < SHEET_SWIPE_INTENT_DISTANCE
       ) {
         return;
       }
-      if (absoluteY > absoluteX) {
+      if (absoluteAcross > absoluteAlong) {
         gesture = undefined;
         return;
       }
-      if (absoluteX < absoluteY * SHEET_SWIPE_AXIS_DOMINANCE) return;
+      if (absoluteAlong < absoluteAcross * SHEET_SWIPE_AXIS_DOMINANCE) return;
 
-      activeGesture.horizontal = true;
+      activeGesture.locked = true;
       contentElement.setPointerCapture(event.pointerId);
       swiping = true;
     }
 
     event.preventDefault();
-    swipeTranslate = sheetSwipeTranslation(swipeSide, deltaX);
+    swipeTranslate = sheetSwipeTranslation(swipeSide, along);
   }
 
   function handlePointerEnd(event: PointerEvent) {
     const activeGesture = gesture;
     if (!activeGesture || event.pointerId !== activeGesture.pointerId) return;
-    if (!activeGesture.horizontal) {
+    if (!activeGesture.locked) {
       gesture = undefined;
       return;
     }
 
-    const deltaX = event.clientX - activeGesture.startX;
-    const distance = outwardSheetSwipeDistance(swipeSide, deltaX);
+    const along =
+      axis === "x"
+        ? event.clientX - activeGesture.startX
+        : event.clientY - activeGesture.startY;
+    const distance = outwardSheetSwipeDistance(swipeSide, along);
     const elapsed = Math.max(1, event.timeStamp - activeGesture.startTime);
     settle(
       shouldDismissSheetSwipe({
         distance,
-        width: contentElement.getBoundingClientRect().width,
+        size: extent(),
         velocity: distance / elapsed,
       }),
     );
@@ -183,7 +207,7 @@ $effect(() => {
 
   function handlePointerCancel(event: PointerEvent) {
     if (!gesture || event.pointerId !== gesture.pointerId) return;
-    if (gesture.horizontal) settle(false);
+    if (gesture.locked) settle(false);
     else gesture = undefined;
   }
 
@@ -230,16 +254,26 @@ $effect(() => {
         "data-open:slide-in-from-top data-closed:slide-out-to-top inset-x-0 top-0 h-auto max-h-[85vh] border-b",
       side === "bottom" &&
         "data-open:slide-in-from-bottom data-closed:slide-out-to-bottom inset-x-0 bottom-0 h-auto max-h-[85vh] border-t",
-      swipeEnabled && "touch-pan-y [&_*]:touch-pan-y",
+      swipeEnabled && !pullDown && "touch-pan-y [&_*]:touch-pan-y",
+      pullDown && "[&_[data-sheet-drag-region]]:touch-none",
       swiping && "transition-none will-change-[translate]",
       settling && "transition-[translate] ease-out",
       className,
     )}
     style={swipeTranslate === undefined
       ? styleProp
-      : `${styleProp ? `${styleProp};` : ""}translate:${swipeTranslate}px 0`}
+      : `${styleProp ? `${styleProp};` : ""}translate:${side === "bottom" ? `0 ${swipeTranslate}px` : `${swipeTranslate}px 0`}`}
     {...restProps}
   >
+    {#if pullDown}
+      <div
+        class="flex h-5 flex-none cursor-grab items-center justify-center"
+        data-sheet-drag-region
+        aria-hidden="true"
+      >
+        <span class="h-1 w-9 rounded-full bg-border"></span>
+      </div>
+    {/if}
     {@render children?.()}
   </DialogPrimitive.Content>
 </SheetPortal>

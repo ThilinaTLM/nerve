@@ -1,10 +1,7 @@
 <script lang="ts">
 import { Badge } from "@nervekit/ui-kit/components/ui/badge";
 import type { Snippet } from "svelte";
-import { permissionIcon } from "./composer-icons";
-import RefreshCw from "@lucide/svelte/icons/refresh-cw";
 import Paperclip from "@lucide/svelte/icons/paperclip";
-import Settings from "@lucide/svelte/icons/settings";
 import type { LeadSettingsOverrides } from "@nervekit/contracts/agent-configuration";
 import type { AgentEditorView } from "$lib/presentation/composer/agent-editor-view";
 import type {
@@ -20,12 +17,6 @@ import type {
 import type { ConversationAgentUsage } from "@nervekit/contracts/core";
 import type { TodoItem } from "@nervekit/contracts/tools";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
-import Popover, {
-  PopoverBody,
-  PopoverHeader,
-  PopoverRow,
-  PopoverCommandList,
-} from "@nervekit/ui-kit/components/composites/popover-panel";
 import ComposerModelPicker from "./ComposerModelPicker.svelte";
 import ComposerSettingStatus from "./ComposerSettingStatus.svelte";
 import ComposerProfilePicker from "./ComposerProfilePicker.svelte";
@@ -34,6 +25,9 @@ import type { ConversationSessionInfo } from "./session-info";
 import type { ConversationUsageSummary } from "../usage/conversation-usage.js";
 import TodoProgressChip from "./TodoProgressChip.svelte";
 import ComposerCapabilitiesPopover from "./ComposerCapabilitiesPopover.svelte";
+import ComposerPermissionPicker from "./ComposerPermissionPicker.svelte";
+import ComposerSettingsPopover from "./ComposerSettingsPopover.svelte";
+import type { ComposerCapabilityProps } from "./composer-capabilities.svelte.js";
 import type { CapabilityToolGroup } from "./capability-tool-labels";
 import type { AvailableSkill } from "@nervekit/contracts/skills";
 import type { CapabilitySubagentProfile } from "./capability-subagent-profiles";
@@ -177,7 +171,11 @@ const activePermission = $derived(
     available: false,
   },
 );
-const ActivePermissionIcon = $derived(permissionIcon(activePermission.id));
+const permissionLockedBy = $derived(
+  lockedFields.permission
+    ? (lockedFields.by ?? "the applied profile")
+    : undefined,
+);
 
 const lockReason = $derived(
   lockedFields.model || lockedFields.thinking
@@ -185,88 +183,74 @@ const lockReason = $derived(
     : undefined,
 );
 
-const showPermissionLabel = $derived(permissionRuleSetId !== "default");
-let fileInput = $state<HTMLInputElement | null>(null);
-
-let permissionOpen = $state(false);
-let refreshedForCurrentOpen = false;
-
-$effect(() => {
-  if (!permissionOpen) {
-    refreshedForCurrentOpen = false;
-    return;
-  }
-  if (refreshedForCurrentOpen) return;
-  refreshedForCurrentOpen = true;
-  onRefreshPermissionRuleSets?.();
+const capability = $derived<ComposerCapabilityProps>({
+  configuration: capabilityConfiguration,
+  subagentControlsEnabled,
+  subagentProfiles: capabilitySubagentProfiles,
+  skills: capabilitySkills,
+  loading: capabilityLoading,
+  error: capabilityError,
+  disabled: capabilityDisabled,
+  onPatch: onCapabilityPatch,
+  onConfigureTool: onConfigureCapabilityTool,
+  onReset: onResetCapabilities,
+  onRefresh: onRefreshCapabilities,
+  onOpenSettings: onOpenCapabilitySettings,
 });
 
-function selectPermission(value: PermissionRuleSetId) {
-  if (value !== permissionRuleSetId) onPermissionRuleSetChange?.(value);
-  permissionOpen = false;
-}
-
-function openPermissionSettings(): void {
-  permissionOpen = false;
-  onOpenPermissionSettings?.();
-}
-
-const permissionItems = $derived(
-  permissionRuleSets.map((option) => ({
-    ...option,
-    key: option.id,
-    label: option.name,
-    detail: option.description,
-    group: option.source === "builtin" ? "Built-in" : "Custom",
-  })),
-);
+let fileInput = $state<HTMLInputElement | null>(null);
 </script>
 
+<!-- Compact toolbars (phones, narrow split panes) keep the model, context and
+send cluster in the row; attach is left to paste/drop, and profile, permissions
+and capabilities move behind one settings trigger, whose change dot flags a
+non-default permission. -->
 {#if onAttachFiles}
-  <input
-    bind:this={fileInput}
-    type="file"
-    multiple
-    class="hidden"
-    tabindex="-1"
-    aria-hidden="true"
-    onchange={(event) => {
-      const files = [...(event.currentTarget.files ?? [])];
-      if (files.length) onAttachFiles(files);
-      event.currentTarget.value = "";
-    }}
-  />
-  <Button
-    variant="ghost"
-    size="icon"
-    type="button"
-    disabled={attachDisabled}
-    ariaLabel="Attach images or files"
-    title={attachShortcut
-      ? `Attach images or files (${attachShortcut}) — or paste / drop them`
-      : "Attach images or files — or paste / drop them"}
-    data-tour-id="composer-attach"
-    onclick={() => fileInput?.click()}
-  >
-    <Paperclip />
-  </Button>
-  <span
-    class="mx-0.5 h-4 w-px flex-none bg-border @max-[440px]/composer-toolbar:hidden"
-    aria-hidden="true"
-  ></span>
+  <span class="contents @max-[480px]/composer-toolbar:hidden">
+    <input
+      bind:this={fileInput}
+      type="file"
+      multiple
+      class="hidden"
+      tabindex="-1"
+      aria-hidden="true"
+      onchange={(event) => {
+        const files = [...(event.currentTarget.files ?? [])];
+        if (files.length) onAttachFiles(files);
+        event.currentTarget.value = "";
+      }}
+    />
+    <Button
+      variant="ghost"
+      size="icon"
+      type="button"
+      disabled={attachDisabled}
+      ariaLabel="Attach images or files"
+      title={attachShortcut
+        ? `Attach images or files (${attachShortcut}) — or paste / drop them`
+        : "Attach images or files — or paste / drop them"}
+      data-tour-id="composer-attach"
+      onclick={() => fileInput?.click()}
+    >
+      <Paperclip />
+    </Button>
+    <span class="mx-0.5 h-4 w-px flex-none bg-border" aria-hidden="true"></span>
+  </span>
 {/if}
 
-{#key capabilityScopeKey}
-  <ComposerProfilePicker
-    {agentProfiles}
-    {agentProfile}
-    disabled={profileDisabled}
-    {controlsDisabled}
-    shortcut={profileShortcut}
-    shortcutAria={profileShortcutAria}
-    onChange={onAgentProfileChange}
-  />
-{/key}
+<span class="contents @max-[480px]/composer-toolbar:hidden">
+  {#key capabilityScopeKey}
+    <ComposerProfilePicker
+      {agentProfiles}
+      {agentProfile}
+      disabled={profileDisabled}
+      {controlsDisabled}
+      shortcut={profileShortcut}
+      shortcutAria={profileShortcutAria}
+      onChange={onAgentProfileChange}
+    />
+  {/key}
+</span>
 
 {#key capabilityScopeKey}
   <ComposerModelPicker
@@ -294,123 +278,57 @@ const permissionItems = $derived(
   </Badge>
 {/if}
 
-{#key capabilityScopeKey}
-  <Popover
-    triggerWidthKey={`${activePermission.id}:${showPermissionLabel ? activePermission.name : ""}`}
-    bind:open={permissionOpen}
-    size="lg"
-    triggerClass={`composer-tab ${showPermissionLabel ? "" : "w-control p-0"}`}
-    ariaLabel="Permission rule set"
-    triggerTitle={`Permission rule set: ${activePermission.name}${permissionShortcut ? ` (${permissionShortcut})` : ""}${lockedFields.permission ? ` · Locked by ${lockedFields.by ?? "the applied profile"}` : ""}`}
-    triggerAriaKeyShortcuts={permissionShortcutAria}
-    side="top"
-    align="start"
-  >
-    {#snippet trigger()}
-      <span
-        class={`inline-flex items-center justify-center gap-1 ${controlsDisabled ? "opacity-60" : ""}`}
-        data-tour-id="composer-permission"
-      >
-        <ActivePermissionIcon aria-hidden="true" />
-        {#if showPermissionLabel}<span
-            class="@max-[440px]/composer-toolbar:hidden"
-            >{activePermission.name}</span
-          >{/if}
-      </span>
-    {/snippet}
-    <PopoverHeader title="Permissions">
-      {#snippet actions()}
-        <Button
-          size="icon"
-          variant="ghost"
-          disabled={permissionRuleSetsLoading}
-          ariaLabel="Refresh permission rule sets"
-          title="Refresh permission rule sets"
-          onclick={() => onRefreshPermissionRuleSets?.()}
-        >
-          <RefreshCw
-            class={`size-3.5 ${permissionRuleSetsLoading ? "animate-spin" : ""}`}
-            aria-hidden="true"
-          />
-        </Button>
-        <Button
-          size="icon"
-          variant="ghost"
-          ariaLabel="Open permission settings"
-          title="Open permission settings"
-          onclick={openPermissionSettings}
-        >
-          <Settings class="size-3.5" aria-hidden="true" />
-        </Button>
-      {/snippet}
-    </PopoverHeader>
-    {#if lockedFields.permission || permissionRuleSetsError || !activePermission.available}
-      <PopoverBody>
-        {#if lockedFields.permission}
-          <p class="px-1.5 text-muted-foreground">
-            Locked by {lockedFields.by ?? "the applied profile"}.
-          </p>
-        {/if}
-        {#if permissionRuleSetsError}
-          <p class="px-1.5 text-warning">{permissionRuleSetsError}</p>
-        {/if}
-        {#if !activePermission.available}
-          <PopoverRow
-            label={activePermission.name}
-            title={activePermission.description}
-            selected
-            disabled
-          >
-            {#snippet trailing()}
-              <span class="flex-none text-muted-foreground">Unavailable</span>
-            {/snippet}
-          </PopoverRow>
-        {/if}
-      </PopoverBody>
-    {/if}
-    <PopoverCommandList
-      items={permissionItems}
-      ariaLabel="Permission rule sets"
-      placeholder="Search permissions"
-      isSelected={(option) => option.id === permissionRuleSetId}
-      isDisabled={() => controlsDisabled || Boolean(lockedFields.permission)}
-      onChoose={(option) => selectPermission(option.id)}
-    >
-      {#snippet icon(option)}
-        {@const Icon = permissionIcon(option.id)}
-        <Icon
-          class="mt-0.5 size-3.5 flex-none self-start text-muted-foreground"
-          aria-hidden="true"
-        />
-      {/snippet}
-    </PopoverCommandList>
-  </Popover>
-{/key}
+<span class="contents @max-[480px]/composer-toolbar:hidden">
+  {#key capabilityScopeKey}
+    <ComposerPermissionPicker
+      {activePermission}
+      {permissionRuleSets}
+      loading={permissionRuleSetsLoading}
+      error={permissionRuleSetsError}
+      lockedBy={permissionLockedBy}
+      {controlsDisabled}
+      shortcut={permissionShortcut}
+      shortcutAria={permissionShortcutAria}
+      onChange={onPermissionRuleSetChange}
+      onRefresh={onRefreshPermissionRuleSets}
+      onOpenSettings={onOpenPermissionSettings}
+    />
+  {/key}
 
-<ComposerSettingStatus
-  label="Permission"
-  differs={settingsDiffers.permission && !lockedFields.permission}
-  disabled={controlsDisabled}
-  onReset={onResetPermission}
-/>
-
-{#key capabilityScopeKey}
-  <ComposerCapabilitiesPopover
-    configuration={capabilityConfiguration}
-    {lockedFields}
-    {subagentControlsEnabled}
-    subagentProfiles={capabilitySubagentProfiles}
-    skills={capabilitySkills}
-    loading={capabilityLoading}
-    error={capabilityError}
-    disabled={capabilityDisabled}
-    onPatch={onCapabilityPatch}
-    onConfigureTool={onConfigureCapabilityTool}
-    onReset={onResetCapabilities}
-    onRefresh={onRefreshCapabilities}
-    onOpenSettings={onOpenCapabilitySettings}
+  <ComposerSettingStatus
+    label="Permission"
+    differs={settingsDiffers.permission && !lockedFields.permission}
+    disabled={controlsDisabled}
+    onReset={onResetPermission}
   />
-{/key}
+</span>
+
+<span class="contents @max-[480px]/composer-toolbar:hidden">
+  {#key capabilityScopeKey}
+    <ComposerCapabilitiesPopover {...capability} {lockedFields} />
+  {/key}
+</span>
+
+<span class="hidden @max-[480px]/composer-toolbar:contents">
+  {#key capabilityScopeKey}
+    <ComposerSettingsPopover
+      {agentProfiles}
+      {agentProfile}
+      {profileDisabled}
+      {controlsDisabled}
+      {onAgentProfileChange}
+      {activePermission}
+      {permissionRuleSets}
+      permissionLoading={permissionRuleSetsLoading}
+      permissionError={permissionRuleSetsError}
+      {permissionLockedBy}
+      onPermissionChange={onPermissionRuleSetChange}
+      onRefreshPermissions={onRefreshPermissionRuleSets}
+      {onOpenPermissionSettings}
+      {capability}
+    />
+  {/key}
+</span>
 
 <span class="ml-auto"></span>
 <TodoProgressChip {todos} />

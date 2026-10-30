@@ -6,6 +6,7 @@ import Square from "@lucide/svelte/icons/square";
 import type { Snippet } from "svelte";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
 import { Spinner } from "@nervekit/ui-kit/components/ui/spinner";
+import { cubicOut } from "svelte/easing";
 
 type Props = {
   /** Active profile name; only `"planning"` receives special surface styling. */
@@ -60,6 +61,19 @@ let {
   sendLeading,
   onGoToQuestion,
 }: Props = $props();
+
+/** The stop button grows into the send cluster (and collapses out of it) so
+ * the mic and send buttons slide instead of jumping. */
+function revealAction(node: HTMLElement) {
+  const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const width = node.offsetWidth;
+  return {
+    duration: reduced ? 0 : 180,
+    easing: cubicOut,
+    css: (t: number) =>
+      `width:${t * width}px;opacity:${t};transform:scale(${0.6 + 0.4 * t});overflow:hidden;`,
+  };
+}
 </script>
 
 <form
@@ -131,22 +145,24 @@ let {
           {@render sendLeading()}
         {/if}
         {#if showStop}
-          <Button
-            variant="destructive"
-            size="icon"
-            type="button"
-            disabled={stopDisabled || stopping}
-            onclick={onAbort}
-            aria-label={stopping ? "Stopping generation" : stopAriaLabel}
-            aria-keyshortcuts={stopShortcutAria}
-            title={stopping ? "Stopping generation" : stopTitle}
-          >
-            {#if stopping}
-              <Spinner />
-            {:else}
-              <Square />
-            {/if}
-          </Button>
+          <span class="inline-flex flex-none" transition:revealAction>
+            <Button
+              variant="destructive"
+              size="icon"
+              type="button"
+              disabled={stopDisabled || stopping}
+              onclick={onAbort}
+              aria-label={stopping ? "Stopping generation" : stopAriaLabel}
+              aria-keyshortcuts={stopShortcutAria}
+              title={stopping ? "Stopping generation" : stopTitle}
+            >
+              {#if stopping}
+                <Spinner />
+              {:else}
+                <Square />
+              {/if}
+            </Button>
+          </span>
         {/if}
         <Button
           size="icon"

@@ -1,10 +1,7 @@
 <script lang="ts">
 import { profileIcon } from "./composer-icons";
-import Popover, {
-  PopoverHeader,
-  PopoverCommandList,
-} from "@nervekit/ui-kit/components/composites/popover-panel";
-import { composerProfileItems } from "./composer-profile-items.js";
+import Popover from "@nervekit/ui-kit/components/composites/popover-panel";
+import ComposerProfilePanel from "./ComposerProfilePanel.svelte";
 import type { ComposerAgentProfile } from "../conversations/conversation-view-contracts.js";
 
 type Props = {
@@ -36,7 +33,6 @@ const active = $derived(
     label: agentProfile,
   },
 );
-const profileItems = $derived(composerProfileItems(agentProfiles));
 let open = $state(false);
 
 function select(name: string) {
@@ -62,6 +58,7 @@ function select(name: string) {
     triggerAriaKeyShortcuts={shortcutAria}
     side="top"
     align="start"
+    presentation="adaptive"
   >
     {#snippet trigger()}
       <span
@@ -72,22 +69,11 @@ function select(name: string) {
         <span class="@max-[500px]/composer-toolbar:hidden">{active.label}</span>
       </span>
     {/snippet}
-    <PopoverHeader title="Agent profile" />
-    <PopoverCommandList
-      items={profileItems}
-      ariaLabel="Agent profiles"
-      placeholder="Search profiles"
-      isSelected={(profile) => profile.name === agentProfile}
-      isDisabled={() => controlsDisabled || disabled}
-      onChoose={(profile) => select(profile.name)}
-    >
-      {#snippet icon(profile)}
-        {@const Icon = profileIcon(profile.name)}
-        <Icon
-          class="size-3.5 flex-none text-muted-foreground"
-          aria-hidden="true"
-        />
-      {/snippet}
-    </PopoverCommandList>
+    <ComposerProfilePanel
+      {agentProfiles}
+      {agentProfile}
+      disabled={controlsDisabled || disabled}
+      onSelect={select}
+    />
   </Popover>
 {/if}

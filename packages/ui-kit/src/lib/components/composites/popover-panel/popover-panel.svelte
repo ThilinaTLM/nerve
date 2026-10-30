@@ -1,7 +1,12 @@
 <script lang="ts">
 import { untrack, type Snippet } from "svelte";
-import { Popover as PopoverPrimitive } from "bits-ui";
+import {
+  Dialog as DialogPrimitive,
+  Popover as PopoverPrimitive,
+} from "bits-ui";
 import { cn } from "@nervekit/ui-kit/utils";
+import SheetContent from "../../ui/sheet/sheet-content.svelte";
+import { phoneViewport, setPopoverPresentation } from "./presentation.js";
 import {
   createTriggerWidthAnimation,
   type TriggerWidthAnimation,
@@ -35,6 +40,9 @@ type Props = {
   sideOffset?: number;
   collisionPadding?: number;
   trapFocus?: boolean;
+  /** `adaptive` opens a bottom sheet instead on phone-sized viewports, so
+   * touch users get full-width rows and a pull-down to dismiss. */
+  presentation?: "popover" | "adaptive";
   onOpenChange?: (open: boolean) => void;
 };
 
@@ -56,8 +64,13 @@ let {
   sideOffset = 6,
   collisionPadding = 8,
   trapFocus = true,
+  presentation = "popover",
   onOpenChange,
 }: Props = $props();
+
+const asSheet = $derived(presentation === "adaptive" && phoneViewport());
+setPopoverPresentation(() => (asSheet ? "sheet" : "popover"));
+let sheetElement = $state<HTMLElement | null>(null);
 
 let triggerElement = $state<HTMLButtonElement | null>(null);
 let returnFocusToTrigger = false;
@@ -129,59 +142,100 @@ function handleOpenChange(next: boolean) {
 }
 </script>
 
-<PopoverPrimitive.Root bind:open onOpenChange={handleOpenChange}>
-  <PopoverPrimitive.Trigger
-    bind:ref={triggerElement}
-    data-popover-variant={variant}
-    class={cn(
-      !triggerChild && "popover-trigger",
-      triggerClass,
-      animatesWidth && "overflow-hidden",
-    )}
-    aria-label={ariaLabel}
-    title={triggerTitle}
-    aria-keyshortcuts={triggerAriaKeyShortcuts}
-    child={triggerChild}
-  >
-    {@render trigger?.()}
-  </PopoverPrimitive.Trigger>
-  <PopoverPrimitive.Portal>
-    <PopoverPrimitive.Content
+{#if asSheet}
+  <DialogPrimitive.Root bind:open onOpenChange={handleOpenChange}>
+    <DialogPrimitive.Trigger
+      bind:ref={triggerElement}
+      data-popover-variant={variant}
+      data-popover-trigger
       class={cn(
-        "floating-surface popover-content",
-        variant === "field"
-          ? `popover-anchor popover-field-${size === "anchor" ? "md" : size}`
-          : `popover-${size}`,
+        !triggerChild && "popover-trigger",
+        triggerClass,
+        animatesWidth && "overflow-hidden",
+      )}
+      aria-label={ariaLabel}
+      title={triggerTitle}
+      aria-keyshortcuts={triggerAriaKeyShortcuts}
+      child={triggerChild}
+    >
+      {@render trigger?.()}
+    </DialogPrimitive.Trigger>
+    <SheetContent
+      bind:ref={sheetElement}
+      side="bottom"
+      swipeToDismiss
+      onSwipeDismiss={() => handleOpenChange(false)}
+      aria-label={ariaLabel}
+      class={cn(
+        "max-h-[85dvh] rounded-t-xl bg-popover pb-[env(safe-area-inset-bottom)] text-popover-foreground",
         className,
       )}
-      {side}
-      align={align ?? (variant === "field" ? "start" : "end")}
-      data-popover-variant={variant}
-      {sideOffset}
-      {collisionPadding}
-      {trapFocus}
-      onEscapeKeydown={() => {
-        returnFocusToTrigger = true;
-      }}
-      onCloseAutoFocus={(event) => {
-        if (!returnFocusToTrigger) return;
-        returnFocusToTrigger = false;
+      onOpenAutoFocus={(event) => {
+        // Focus the sheet itself: a focused field would raise the keyboard.
         event.preventDefault();
-        triggerElement?.focus();
+        sheetElement?.focus();
       }}
     >
-      <div
-        class="flex min-h-0 max-h-[inherit] flex-col overflow-hidden rounded-[inherit]"
-      >
+      <div class="flex min-h-0 flex-1 flex-col overflow-hidden">
         {@render children?.()}
       </div>
-      {#if variant === "panel"}
-        <PopoverPrimitive.Arrow
-          class="text-popover stroke-border"
-          width={16}
-          height={8}
-        />
-      {/if}
-    </PopoverPrimitive.Content>
-  </PopoverPrimitive.Portal>
-</PopoverPrimitive.Root>
+    </SheetContent>
+  </DialogPrimitive.Root>
+{:else}
+  <PopoverPrimitive.Root bind:open onOpenChange={handleOpenChange}>
+    <PopoverPrimitive.Trigger
+      bind:ref={triggerElement}
+      data-popover-variant={variant}
+      class={cn(
+        !triggerChild && "popover-trigger",
+        triggerClass,
+        animatesWidth && "overflow-hidden",
+      )}
+      aria-label={ariaLabel}
+      title={triggerTitle}
+      aria-keyshortcuts={triggerAriaKeyShortcuts}
+      child={triggerChild}
+    >
+      {@render trigger?.()}
+    </PopoverPrimitive.Trigger>
+    <PopoverPrimitive.Portal>
+      <PopoverPrimitive.Content
+        class={cn(
+          "floating-surface popover-content",
+          variant === "field"
+            ? `popover-anchor popover-field-${size === "anchor" ? "md" : size}`
+            : `popover-${size}`,
+          className,
+        )}
+        {side}
+        align={align ?? (variant === "field" ? "start" : "end")}
+        data-popover-variant={variant}
+        {sideOffset}
+        {collisionPadding}
+        {trapFocus}
+        onEscapeKeydown={() => {
+          returnFocusToTrigger = true;
+        }}
+        onCloseAutoFocus={(event) => {
+          if (!returnFocusToTrigger) return;
+          returnFocusToTrigger = false;
+          event.preventDefault();
+          triggerElement?.focus();
+        }}
+      >
+        <div
+          class="flex min-h-0 max-h-[inherit] flex-col overflow-hidden rounded-[inherit]"
+        >
+          {@render children?.()}
+        </div>
+        {#if variant === "panel"}
+          <PopoverPrimitive.Arrow
+            class="text-popover stroke-border"
+            width={16}
+            height={8}
+          />
+        {/if}
+      </PopoverPrimitive.Content>
+    </PopoverPrimitive.Portal>
+  </PopoverPrimitive.Root>
+{/if}

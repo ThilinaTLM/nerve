@@ -81,6 +81,7 @@ $effect(() => {
   ariaLabel="Model and thinking level"
   {triggerTitle}
   side="top"
+  presentation="adaptive"
   align="start"
 >
   {#snippet trigger()}
@@ -92,7 +93,7 @@ $effect(() => {
     >
       <span class="min-w-0 truncate">{triggerLabel}</span>
       {#if showSuffix}<span
-          class="flex-none text-muted-foreground @max-[560px]/composer-toolbar:hidden"
+          class="flex-none text-muted-foreground @max-[300px]/composer-toolbar:hidden @min-[481px]/composer-toolbar:@max-[560px]/composer-toolbar:hidden"
           >({thinkingLevelShortLabel(thinkingLevel)})</span
         >{/if}
     </span>
