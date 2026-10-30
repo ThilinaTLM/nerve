@@ -145,14 +145,14 @@ void test("rejects unsupported baselines without modifying SQLite", async (t) =>
     const home = await temporaryHome(t);
     await baseline(home, ids);
     const before = await readFile(join(home, "data/nerve.sqlite"));
-    await assert.rejects(runMigrations(home), /Run Nerve 0.34.1 first/);
+    await assert.rejects(runMigrations(home), /NERVE_HOME_ADMISSION:/);
     assert.deepEqual(await readFile(join(home, "data/nerve.sqlite")), before);
   }
   const home = await temporaryHome(t);
   await writeFile(join(home, "unknown"), "old home");
   await assert.rejects(
     runMigrations(home, { dryRun: true }),
-    /Run Nerve 0.34.1 first/,
+    /NERVE_HOME_ADMISSION:/,
   );
   await assert.rejects(readFile(join(home, "migrations/last-failure.json")), {
     code: "ENOENT",

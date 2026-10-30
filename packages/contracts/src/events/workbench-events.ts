@@ -22,6 +22,7 @@ export function isWorkbenchEvent(type: string): boolean {
     "agentProfiles.",
     "applicationLog.",
     "plan.written",
+    "project.configuration.health",
   ].some((prefix) => type.startsWith(prefix));
 }
 
@@ -38,7 +39,14 @@ export function isWorkbenchOperation(method: string): boolean {
     return true;
   if (method === "completion.search" || method === "completion.select")
     return true;
-  if (method === "project.openEditor" || method === "project.openTerminal")
+  if (
+    [
+      "project.openEditor",
+      "project.openTerminal",
+      "project.configuration.health",
+      "project.configuration.resolve",
+    ].includes(method)
+  )
     return true;
   return [
     "filesystem.",

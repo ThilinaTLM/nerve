@@ -25,6 +25,7 @@ let {
   empty = "No matching choices.",
   stableHeight,
   autofocus = true,
+  leading,
 }: {
   items: Item[];
   query?: string;
@@ -42,6 +43,9 @@ let {
   empty?: string | Snippet;
   stableHeight?: string;
   autofocus?: boolean;
+  /** Non-searchable content at the top of the list, below the search field.
+   * When present, the empty message is shown only for a non-empty query. */
+  leading?: Snippet;
 } = $props();
 const id = $props.id();
 let input = $state<HTMLInputElement | null>(null);
@@ -99,6 +103,7 @@ function keydown(event: KeyboardEvent) {
   />
 </PopoverSearch>
 <PopoverBody bind:ref={viewport} {id} role="listbox" {ariaLabel} {stableHeight}>
+  {#if leading}<div role="group" class="contents">{@render leading()}</div>{/if}
   {#each groups as group (group.group)}
     <PopoverSection label={group.group}>
       {#each group.items as item (item.key)}
@@ -158,8 +163,10 @@ function keydown(event: KeyboardEvent) {
       {/each}
     </PopoverSection>
   {:else}
-    <div class="px-3 py-6 text-center text-xs text-muted-foreground">
-      {#if typeof empty === "string"}{empty}{:else}{@render empty()}{/if}
-    </div>
+    {#if !leading || query}<div
+        class="px-3 py-6 text-center text-xs text-muted-foreground"
+      >
+        {#if typeof empty === "string"}{empty}{:else}{@render empty()}{/if}
+      </div>{/if}
   {/each}
 </PopoverBody>

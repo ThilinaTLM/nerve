@@ -15,3 +15,5 @@ export {
   storagePaths,
   type NerveHomeInspection,
 } from "./infrastructure/storage-bootstrap/index.js";
+
+export { checkHomeAdmission } from "./infrastructure/storage-bootstrap/admission.js";

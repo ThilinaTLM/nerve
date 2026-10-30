@@ -1,3 +1,10 @@
+import { UnreadableConversationActivity } from "../../domains/activity/unreadable-conversation-activity.js";
+import { ProjectMigrationService } from "../../infrastructure/configuration/project-migration/project-migration.js";
+import {
+  projectConfigurationDescriptors,
+  projectConfigurationTrustKinds,
+} from "../../infrastructure/configuration/project-migration/descriptors.js";
+import { projectMigrationTrust } from "../../infrastructure/configuration/project-migration/project-migration-trust.js";
 import { allToolDescriptors } from "@nervekit/tools/catalog";
 import { listAvailableSkills } from "../../core-host/resource-loader.js";
 import { UnifiedCompletionService } from "../../domains/completions/unified-completion-service.js";
@@ -57,6 +64,11 @@ export function createRuntimeServices(deps: RuntimeDeps) {
   const activities = new ActivityService((activity, removed) =>
     events.publish("activity.updated", { activity, removed }),
   );
+  const unreadableConversations = new UnreadableConversationActivity({
+    activities,
+    lookup: (id) => coreStorage.conversations.rawIdentity(id),
+    delete: (id) => conversationCore.delete(id),
+  });
   const getProject = (id: string) => {
     const project = conversationCore.projects.get(id);
     if (!project) throw new Error(`Project not found: ${id}`);
@@ -66,8 +78,26 @@ export function createRuntimeServices(deps: RuntimeDeps) {
   const launches = new LaunchService(
     createWorkbenchLaunchResources(storage, events, logger, {}),
   );
+  const projectMigration = new ProjectMigrationService({
+    home: storage.paths.home,
+    trust: projectMigrationTrust(
+      () => coreStorage,
+      projectConfigurationTrustKinds,
+    ),
+    changed: (health) => {
+      void events
+        .publish("project.configuration.health", health)
+        .catch((error) => {
+          void logger.error("Could not publish project configuration health", {
+            error,
+          });
+        });
+    },
+  });
+  for (const { type } of projectConfigurationDescriptors)
+    projectMigration.register(type);
   const launchDefinitions = new LaunchDefinitionService(
-    new LaunchDefinitionRepository(getProject),
+    new LaunchDefinitionRepository(getProject, projectMigration),
     getProject,
     async (type, data) => {
       await events.publish(type, data);
@@ -88,7 +118,15 @@ export function createRuntimeServices(deps: RuntimeDeps) {
       await completions.dispose(projectId);
       git.invalidateProjectReads(projectId);
     },
+    undefined,
+    projectMigration,
+    ({ conversationId, error }) =>
+      unreadableConversations.report(conversationId, error),
   );
+  conversationCore.subscribe((change) => {
+    if (change.kind === "conversation_deleted")
+      unreadableConversations.forget(change.conversationId);
+  });
   const launchDefinitionOperations = new LaunchDefinitionOperations(
     launchDefinitions,
     launches,
@@ -130,6 +168,7 @@ export function createRuntimeServices(deps: RuntimeDeps) {
     storage.paths.configPath,
   );
   const promptSuggestions = new PromptSuggestionService({
+    projectMigration,
     storage,
     events,
     trustRepository: new PromptSuggestionTrustRepository(
@@ -211,6 +250,8 @@ export function createRuntimeServices(deps: RuntimeDeps) {
     }),
   );
   return {
+    unreadableConversations,
+    projectMigration,
     completions,
     activities,
     promptSuggestionEnablement,

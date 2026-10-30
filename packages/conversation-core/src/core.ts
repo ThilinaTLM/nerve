@@ -18,7 +18,7 @@ import type {
 } from "@nervekit/contracts/core";
 import { loadProjectionOptions } from "./context/asset-projection.js";
 import { estimatePathUsage } from "./context/context-usage.js";
-import { AssetStore } from "./assets/asset-store.js";
+import { AssetStore, MissingAssetError } from "./assets/asset-store.js";
 import { AsyncBashService } from "./async-bash/async-bash.service.js";
 import {
   ConversationService,
@@ -245,13 +245,12 @@ export class ConversationCore {
       configureContext: (id, patch) =>
         options.configuration.configureContext(id, patch),
       assets: this.assets,
-      asyncBash: this.asyncBash,
       inputs: this.inputs,
       emit,
       now,
       compactions: this.compactions,
       isExecuting: (id) => this.scheduler.isExecuting(id),
-      stop: (id) => this.scheduler.stop(id),
+      discard: (ids, remove) => this.scheduler.discard(ids, remove),
       status: this.status,
     });
     this.projects = new ProjectService(
@@ -358,15 +357,16 @@ export class ConversationCore {
           asset.toolCallId === toolCallId &&
           asset.logicalPath.endsWith("/result.json"),
       );
-    if (!payload) throw new Error("Complete tool result asset not found");
+    if (!payload) throw new MissingAssetError();
     const result = storedToolResultSchema.parse(
       JSON.parse((await this.assets.read(payload.id)).toString("utf8")),
     );
     for (const block of result.contentBlocks ?? []) {
       if (block.type !== "image") continue;
       const image = this.options.storage.assets.get(block.assetId);
+      if (!image) throw new MissingAssetError();
       if (
-        image?.conversationId !== conversationId ||
+        image.conversationId !== conversationId ||
         image.toolCallId !== toolCallId
       )
         throw new Error("Image asset does not belong to tool call");

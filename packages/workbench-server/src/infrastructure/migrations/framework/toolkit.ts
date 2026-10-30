@@ -1,3 +1,4 @@
+import { aggregateLosses, reportReason } from "./report.js";
 import { readLines, serializeRecord } from "./json-lines.js";
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
@@ -10,7 +11,13 @@ import {
   resolve,
   sep,
 } from "node:path";
-import { existsSync, lstatSync, readFileSync } from "node:fs";
+import {
+  existsSync,
+  lstatSync,
+  readFileSync,
+  readdirSync,
+  readlinkSync,
+} from "node:fs";
 import { atomicWriteJson } from "../../storage-bootstrap/json.js";
 import {
   DiscardableMigrationError,
@@ -21,6 +28,8 @@ import {
 export interface QuarantinePayload {
   /** Archive damaged records without claiming the whole owning unit was set aside. */
   setAside?: boolean;
+  /** Keep invalid runtime settings active for Settings Health (and fail-closed policy). */
+  retainSource?: boolean;
   files?: readonly string[];
   /** Trusted source directory for files outside the home (for example a registered project). */
   root?: string;
@@ -130,6 +139,18 @@ export function checkedJson<T>(
   const state = toolkitState(ctx);
   path = resolve(path);
   assert(state.owned.has(path), `Migration does not own ${path}`);
+  if (!state.unit && ctx.discarded.has(path)) {
+    quarantine(
+      ctx,
+      {
+        kind: "configuration",
+        id: path,
+        reason: "Settings could not be migrated",
+      },
+      { files: [path], root: state.owned.get(path), retainSource: true },
+    );
+    return undefined;
+  }
   try {
     const boundary = state.owned.get(path)!;
     for (
@@ -232,6 +253,7 @@ export function quarantine(
     (entry) => entry.kind === item.kind && entry.id === item.id,
   );
   if (original) item = original;
+  item = { ...item, reason: reportReason(item.reason) };
   const source = basename(ctx.scratchDir);
   const hash = createHash("sha256")
     .update(`${item.kind}:${item.id}`)
@@ -299,7 +321,24 @@ export function quarantine(
     for (const file of sources) {
       const destination = join(path, "payload", basename(file));
       if (!lstatSync(file, { throwIfNoEntry: false })) continue;
-      ctx.fs.move(file, destination);
+      if (payload.retainSource) {
+        const copy = (from: string, to: string): void => {
+          const stat = lstatSync(from);
+          if (stat.isSymbolicLink()) {
+            if (!existsSync(`${to}.symlink.json`))
+              ctx.fs.write(
+                `${to}.symlink.json`,
+                JSON.stringify({ target: readlinkSync(from) }),
+              );
+          } else if (stat.isDirectory()) {
+            ctx.fs.mkdir(to);
+            for (const name of readdirSync(from).sort())
+              copy(join(from, name), join(to, name));
+          } else if (stat.isFile() && !existsSync(to))
+            ctx.fs.write(to, readFileSync(from));
+        };
+        copy(file, destination);
+      } else ctx.fs.move(file, destination);
     }
     if (
       payload.setAside !== false &&
@@ -321,6 +360,7 @@ export function recordLoss(ctx: StepContext, reason: string, count = 1): void {
   assert(Number.isSafeInteger(count) && count >= 0);
   assert(!ctx.fs.readOnly, "The migration check phase is read-only");
   const state = toolkitState(ctx);
+  reason = reportReason(reason);
   const loss = state.losses.find((entry) => entry.reason === reason);
   if (loss) loss.count += count;
   else state.losses.push({ reason, count });
@@ -343,7 +383,10 @@ export async function writeUpgradeReport(
       description,
       completedAt: new Date().toISOString(),
       setAside,
-      losses,
+      setAsideSummary: aggregateLosses(
+        setAside.map((item) => ({ reason: item.reason, count: 1 })),
+      ),
+      losses: aggregateLosses(losses),
     },
     0o600,
   );
@@ -355,10 +398,10 @@ export function replaceLosses(
   losses: ToolkitState["losses"],
 ): void {
   const state = toolkitState(ctx);
-  state.losses = losses;
+  state.losses = aggregateLosses(losses);
   ctx.fs.write(
     join(ctx.scratchDir, "upgrade-report.json"),
-    JSON.stringify({ setAside: state.setAside, losses }),
+    JSON.stringify({ setAside: state.setAside, losses: state.losses }),
   );
 }
 

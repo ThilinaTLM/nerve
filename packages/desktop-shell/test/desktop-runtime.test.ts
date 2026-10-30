@@ -1,6 +1,10 @@
+import { DaemonStartupError } from "../src/daemon/diagnostics.js";
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { defaultSettings } from "@nervekit/contracts/settings";
+import {
+  HomeAdmissionError,
+  defaultSettings,
+} from "@nervekit/contracts/settings";
 import type { ManagedDaemon } from "../src/daemon/contracts.js";
 import type { BrowserWindowType } from "../src/platform/electron/electron-api.js";
 import {
@@ -114,6 +118,7 @@ describe("DesktopRuntime", () => {
       },
       nativeTheme: { onUpdated: () => () => undefined },
       // A legacy/unsupported home must not block startup.
+      checkHomeAdmission: async () => undefined,
       readCurrentSettings: async () => {
         throw new Error("unsupported home");
       },
@@ -213,6 +218,7 @@ describe("DesktopRuntime", () => {
         createMainWindow: () => window,
       },
       nativeTheme: { onUpdated: () => () => undefined },
+      checkHomeAdmission: async () => undefined,
       readCurrentSettings: async () => defaultSettings,
       configureNetworkSession: async () => undefined,
       acquireDaemon: async () => daemon,
@@ -347,11 +353,13 @@ describe("DesktopRuntime", () => {
         createMainWindow: () => window,
       },
       nativeTheme: { onUpdated: () => () => undefined },
+      checkHomeAdmission: async () => undefined,
       readCurrentSettings: async () => defaultSettings,
       configureNetworkSession: async () => undefined,
       acquireDaemon: async () => {
         acquireCount += 1;
-        if (acquireCount === 1) throw new Error("daemon unavailable");
+        if (acquireCount === 1)
+          throw new DaemonStartupError("daemon timeout", "", true);
         return secondAcquire.promise;
       },
       installDaemonCookie: async () => undefined,
@@ -398,6 +406,93 @@ describe("DesktopRuntime", () => {
     secondAcquire.resolve(daemon);
     await daemonShown.promise;
     assert.equal(acquireCount, 2);
+    await runtime.dispose();
+  });
+
+  it("shows admission instructions without acquiring a daemon or offering retry", async () => {
+    let ipc: Parameters<DesktopRuntimePorts["registerIpc"]>[0] | undefined;
+    let acquisitions = 0;
+    let currentUrl = "";
+    const shown = Promise.withResolvers<void>();
+    const window = fakeWindow();
+    window.loadURL = async (url) => {
+      currentUrl = url;
+      if (decodeURIComponent(url).includes("delete or move this folder"))
+        shown.resolve();
+    };
+    const noListener = () => () => undefined;
+    const ports = {
+      application: {
+        whenReady: async () => undefined,
+        onSecondInstance: noListener,
+        onActivate: noListener,
+        onWindowAllClosed: noListener,
+        onChildProcessGone: noListener,
+        onBeforeQuit: noListener,
+        quit: () => undefined,
+        getAppMetrics: () => [],
+        platform: "linux",
+        architecture: "x64",
+      },
+      signals: { onSignal: noListener },
+      windows: {
+        getAllWindows: () => [window],
+        createMainWindow: () => window,
+      },
+      nativeTheme: { onUpdated: noListener },
+      readCurrentSettings: async () => defaultSettings,
+      checkHomeAdmission: async () => {
+        throw new HomeAdmissionError("manifest_invalid", "damaged manifest");
+      },
+      configureNetworkSession: async () => undefined,
+      acquireDaemon: async () => {
+        acquisitions += 1;
+        throw new Error("must not acquire a daemon after admission fails");
+      },
+      installDaemonCookie: async () => undefined,
+      refreshDesktopSettings: async () => defaultSettings,
+      registerIpc: (
+        options: Parameters<DesktopRuntimePorts["registerIpc"]>[0],
+      ) => {
+        ipc = options;
+        return () => undefined;
+      },
+      showDesktopNotification: () => ({ shown: true }),
+      createTray: () => ({
+        ensureTray: () => undefined,
+        hasTray: () => true,
+        updateTrayMenu: () => undefined,
+        updateTrayIcon: () => undefined,
+        dispose: () => undefined,
+      }),
+      installPerformanceMonitor: () => ({ stop: () => undefined }),
+      packagedWebDistPath: () => undefined,
+      now: Date.now,
+    } as unknown as DesktopRuntimePorts;
+    const configuration = {
+      values: { startupTimeoutMs: 100, maxOldSpaceMb: 512 },
+    };
+    const runtime = new DesktopRuntime(
+      {
+        desktopOptions: { mode: "local" },
+        desktopDataDir: "/tmp/nerve-recovery-test",
+        desktopConfigurationController: {
+          resolve: () => configuration,
+          apply: () => undefined,
+        },
+        desktopConfiguration: configuration,
+      } as unknown as DesktopRuntimeOptions,
+      ports,
+    );
+    runtime.start();
+    await shown.promise;
+    await new Promise((resolve) => setImmediate(resolve));
+    assert.equal(acquisitions, 0);
+    assert.equal(ipc?.retryStartup(), false);
+    assert.doesNotMatch(
+      decodeURIComponent(currentUrl),
+      /startFresh|start-fresh|startup-retry/,
+    );
     await runtime.dispose();
   });
 
@@ -459,6 +554,7 @@ describe("DesktopRuntime", () => {
         createMainWindow: () => window,
       },
       nativeTheme: { onUpdated: () => () => undefined },
+      checkHomeAdmission: async () => undefined,
       readCurrentSettings: async () => defaultSettings,
       configureNetworkSession: async () => undefined,
       acquireDaemon: async () => daemon,

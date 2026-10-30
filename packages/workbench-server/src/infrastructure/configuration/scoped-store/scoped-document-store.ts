@@ -71,6 +71,13 @@ export interface ScopedDocumentOptions<S, D extends SchemaDocument> {
   issues(error: unknown): readonly DocumentIssue[];
   /** Domain owner decides whether old non-security memory may be exposed explicitly. */
   retainOnInvalid?: boolean;
+  beforeLoad?(scope: S): Promise<readonly DocumentIssue[] | undefined>;
+  fromDisk?(input: unknown, scope: S): unknown;
+  toDisk?(document: D, scope: S): unknown;
+  persist?(
+    scope: S,
+    prepare: () => Promise<unknown>,
+  ): Promise<string | undefined>;
   /** Synchronous publication of one complete immutable generation. Throwing blocks the scope. */
   publish?(value: ScopeGeneration<S, D>): void;
   /** Test/host IO ports. The default writer uses the existing serialized atomic primitive. */
@@ -150,7 +157,10 @@ export class ScopedDocumentStore<S, D extends SchemaDocument> {
   }
 
   /** Capture after ensureLoaded; verify synchronously before publishing async derived work. */
-  captureGenerations(scopes: readonly S[]): () => boolean {
+  captureGenerations(
+    scopes: readonly S[],
+    allowUnavailable = false,
+  ): () => boolean {
     const vector = scopes.map((scope) => {
       const key = this.key(scope);
       if (!this.states.has(key)) throw new ScopeUnavailableError();
@@ -160,7 +170,7 @@ export class ScopedDocumentStore<S, D extends SchemaDocument> {
       vector.every(
         ([key, epoch]) =>
           this.epochs.get(key) === epoch &&
-          this.states.get(key)?.status !== "unavailable",
+          (allowUnavailable || this.states.get(key)?.status !== "unavailable"),
       );
   }
 
@@ -188,40 +198,28 @@ export class ScopedDocumentStore<S, D extends SchemaDocument> {
         )
           throw new ScopeConflictError();
         let candidate: D | undefined;
-        let bytes: string | undefined;
-        // prepare executes under the primitive's real target-file lock, before temp creation.
-        await (this.options.write ?? atomicReplaceFile)(
-          current.path,
-          async (handle) => {
-            if (bytes === undefined)
-              throw new Error("Writer did not prepare document");
-            await handle.writeFile(bytes);
-          },
-          {
-            mode: 0o600,
-            prepare: async () => {
-              if ((await sourceDigest(current.path)) !== expected.digest)
-                throw new ScopeConflictError();
-              const input = await change(current.document);
-              if (typeof input !== "object" || input === null)
-                throw new Error("Expected document object");
-              candidate = this.parse(
-                this.options.revisioned === false
-                  ? input
-                  : { ...input, revision: current.revision + 1 },
-                scope,
-              );
-              if (
-                this.options.revisioned !== false &&
-                (candidate.revision !== current.revision + 1 ||
-                  !Number.isSafeInteger(candidate.revision))
-              )
-                throw new Error("Invalid document revision");
-              bytes = `${JSON.stringify(candidate, null, 2)}\n`;
-              return undefined;
-            },
-          },
-        );
+        const bytes = await this.writeCandidate(scope, async () => {
+          if ((await sourceDigest(current.path)) !== expected.digest)
+            throw new ScopeConflictError();
+          const input = await change(current.document);
+          if (typeof input !== "object" || input === null)
+            throw new Error("Expected document object");
+          candidate = this.parse(
+            this.options.revisioned === false
+              ? input
+              : { ...input, revision: current.revision + 1 },
+            scope,
+          );
+          if (
+            this.options.revisioned !== false &&
+            (candidate.revision !== current.revision + 1 ||
+              !Number.isSafeInteger(candidate.revision))
+          )
+            throw new Error("Invalid document revision");
+          return this.options.toDisk
+            ? this.options.toDisk(candidate, scope)
+            : candidate;
+        });
         if (!candidate || bytes === undefined)
           throw new Error("Writer did not prepare document");
         return this.commit(scope, candidate, bytes);
@@ -243,27 +241,16 @@ export class ScopedDocumentStore<S, D extends SchemaDocument> {
     return this.serialize(scope, async () => {
       try {
         let candidate: D | undefined;
-        let bytes: string | undefined;
-        await (this.options.write ?? atomicReplaceFile)(
-          this.key(scope),
-          async (handle) => {
-            if (bytes === undefined)
-              throw new Error("Writer did not prepare document");
-            await handle.writeFile(bytes);
-          },
-          {
-            mode: 0o600,
-            prepare: async () => {
-              if ((await sourceDigest(this.key(scope))) !== "missing")
-                throw new ScopeConflictError();
-              candidate = this.parse(input, scope);
-              if (this.options.revisioned !== false && candidate.revision !== 1)
-                throw new Error("Created document must have revision one");
-              bytes = `${JSON.stringify(candidate, null, 2)}\n`;
-              return undefined;
-            },
-          },
-        );
+        const bytes = await this.writeCandidate(scope, async () => {
+          if ((await sourceDigest(this.key(scope))) !== "missing")
+            throw new ScopeConflictError();
+          candidate = this.parse(input, scope);
+          if (this.options.revisioned !== false && candidate.revision !== 1)
+            throw new Error("Created document must have revision one");
+          return this.options.toDisk
+            ? this.options.toDisk(candidate, scope)
+            : candidate;
+        });
         if (!candidate || bytes === undefined)
           throw new Error("Writer did not prepare document");
         return this.commit(scope, candidate, bytes);
@@ -274,6 +261,32 @@ export class ScopedDocumentStore<S, D extends SchemaDocument> {
     });
   }
 
+  private async writeCandidate(
+    scope: S,
+    prepare: () => Promise<unknown>,
+  ): Promise<string> {
+    const persisted = await this.options.persist?.(scope, prepare);
+    if (persisted !== undefined) return persisted;
+    let serialized: string | undefined;
+    await (this.options.write ?? atomicReplaceFile)(
+      this.key(scope),
+      async (handle) => {
+        if (serialized === undefined)
+          throw new Error("Writer did not prepare document");
+        await handle.writeFile(serialized);
+      },
+      {
+        mode: 0o600,
+        prepare: async () => {
+          serialized = `${JSON.stringify(await prepare(), null, 2)}\n`;
+          return undefined;
+        },
+      },
+    );
+    if (serialized === undefined)
+      throw new Error("Writer did not prepare document");
+    return serialized;
+  }
   private async commit(
     scope: S,
     candidate: D,
@@ -329,6 +342,9 @@ export class ScopedDocumentStore<S, D extends SchemaDocument> {
   }
 
   private async load(scope: S): Promise<ScopeHealth<S, D>> {
+    const preparationIssues = await this.options.beforeLoad?.(scope);
+    if (preparationIssues?.length)
+      return this.unavailable(scope, preparationIssues);
     let bytes: Buffer;
     try {
       bytes = await readFile(this.key(scope));
@@ -366,7 +382,10 @@ export class ScopedDocumentStore<S, D extends SchemaDocument> {
     }
     let document: D;
     try {
-      document = this.parse(input, scope);
+      document = this.parse(
+        this.options.fromDisk ? this.options.fromDisk(input, scope) : input,
+        scope,
+      );
     } catch (error) {
       const version =
         typeof input === "object" &&

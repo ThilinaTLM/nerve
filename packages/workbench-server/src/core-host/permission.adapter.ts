@@ -1,3 +1,5 @@
+import { ProjectMigrationService } from "../infrastructure/configuration/project-migration/project-migration.js";
+import { projectMigrationTrust } from "../infrastructure/configuration/project-migration/project-migration-trust.js";
 import type { ScopedPermissionPolicySource } from "./scoped-permission-source.js";
 import { join } from "node:path";
 import type { CoreStorage, PermissionPort } from "@nervekit/conversation-core";
@@ -16,7 +18,16 @@ export function createPermissionPort(
   home: string,
   storage: CoreStorage,
   admissionPolicy: ScopedPermissionPolicySource,
+  projectMigration?: ProjectMigrationService,
 ): PermissionPort {
+  const migrations =
+    projectMigration ??
+    new ProjectMigrationService({
+      home,
+      trust: projectMigrationTrust(() => storage, {
+        "permission-overlay": "project_permissions",
+      }),
+    });
   const paths = (conversationId: string, projectDir: string) => {
     const resolver = new ConfigurationScopePaths({
       userConfigPath: userConfigurationRoot(home),
@@ -47,19 +58,29 @@ export function createPermissionPort(
     async addRule(input) {
       const path = paths(input.conversationId, input.projectDir)[input.scope];
       const rule = permissionRuleSchema.parse(input.rule);
-      await mutatePermissionOverlay(input.scope, path, (document) => {
-        let overlay = document.overlays.find(
-          (item) => item.ruleSetId === input.ruleSetId,
-        );
-        if (!overlay) {
-          overlay = { ruleSetId: input.ruleSetId, rules: [] };
-          document.overlays.push(overlay);
-        }
-        overlay.rules = [
-          ...overlay.rules.filter((item) => item.id !== rule.id),
-          rule,
-        ];
-      });
+      const projectId = storage.conversations.get(
+        input.conversationId,
+      )?.projectId;
+      await mutatePermissionOverlay(
+        input.scope,
+        path,
+        (document) => {
+          let overlay = document.overlays.find(
+            (item) => item.ruleSetId === input.ruleSetId,
+          );
+          if (!overlay) {
+            overlay = { ruleSetId: input.ruleSetId, rules: [] };
+            document.overlays.push(overlay);
+          }
+          overlay.rules = [
+            ...overlay.rules.filter((item) => item.id !== rule.id),
+            rule,
+          ];
+        },
+        input.scope === "project" && projectId
+          ? { context: { projectId, directory: input.projectDir }, migrations }
+          : undefined,
+      );
       if (input.scope === "project") {
         const projectId = storage.conversations.get(
           input.conversationId,

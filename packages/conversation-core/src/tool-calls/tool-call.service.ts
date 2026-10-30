@@ -153,6 +153,25 @@ export class ToolCallService {
     });
   }
 
+  /** Fence workers until raw deletion is finished; do not settle corrupt history. */
+  async discard(
+    ids: readonly string[],
+    remove: () => Promise<void>,
+  ): Promise<void> {
+    for (const id of ids) this.stopping.add(id);
+    for (const id of ids) this.controllers.get(id)?.abort(shutdownReason);
+    try {
+      await Promise.allSettled(ids.flatMap((id) => this.workers.get(id) ?? []));
+      await remove();
+    } finally {
+      for (const id of ids) {
+        this.stopping.delete(id);
+        this.requestCaptures.delete(id);
+        this.presentedApprovals.delete(id);
+      }
+    }
+  }
+
   async close(): Promise<void> {
     this.closed = true;
     for (const controller of this.controllers.values())
@@ -309,9 +328,13 @@ export class ToolCallService {
     await this.start(ids);
   }
 
-  async recover(): Promise<void> {
+  async recover(conversationId?: string): Promise<void> {
     const ids: string[] = [];
-    for (const call of this.options.storage.toolCalls.listAll()) {
+    const calls =
+      conversationId === undefined
+        ? this.options.storage.toolCalls.listAll()
+        : this.options.storage.toolCalls.list(conversationId);
+    for (const call of calls) {
       if (
         call.state === "awaiting_input" ||
         call.state === "awaiting_approval"

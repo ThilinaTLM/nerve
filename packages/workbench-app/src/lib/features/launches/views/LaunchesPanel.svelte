@@ -1,5 +1,5 @@
 <script lang="ts">
-import { untrack } from "svelte";
+import { untrack, type Snippet } from "svelte";
 import ListTodo from "@lucide/svelte/icons/list-todo";
 import FolderPlus from "@lucide/svelte/icons/folder-plus";
 import Plus from "@lucide/svelte/icons/plus";
@@ -54,9 +54,12 @@ import type {
 let {
   model,
   actions: panelActions,
+  configurationNotice,
 }: {
   model: LaunchPanelModel;
   actions: LaunchPanelActions;
+  /** Host-provided notice about unusable launch configuration files. */
+  configurationNotice?: Snippet;
 } = $props();
 
 let refreshingDefinitions = $state(false);
@@ -312,7 +315,9 @@ function rerunDefinition(entry: { definition?: LaunchPanelDefinition }): void {
         projected.definitions.length > 0 ||
         projected.runs.length > 0}
     >
-      {#if model.definitionsLoading && model.definitions.length === 0}
+      {#if model.configurationBlocked}
+        <!-- The configuration notice is the only content. -->
+      {:else if model.definitionsLoading && model.definitions.length === 0}
         <p class="py-1 text-xs text-muted-foreground">Loading launches…</p>
       {:else if model.catalogError && projected.definitions.length === 0 && model.folders.length === 0}
         <!-- No snapshot to show; the banner explains why. -->
@@ -436,27 +441,30 @@ function rerunDefinition(entry: { definition?: LaunchPanelDefinition }): void {
               disabled={refreshingDefinitions || model.definitionsLoading}
               onclick={() => void refreshDefinitions()}
             />
-            <IconAction
-              icon={FolderPlus}
-              label="New folder"
-              side="bottom"
-              disabled={!canEditCatalog}
-              onclick={() =>
-                (folderDialog = { kind: "create", parentFolderId: null })}
-            />
-            <IconAction
-              icon={Plus}
-              label="New launch configuration"
-              side="bottom"
-              disabled={!canEditCatalog}
-              onclick={() => (launchDialog = { kind: "create" })}
-            />
+            {#if !model.configurationBlocked}
+              <IconAction
+                icon={FolderPlus}
+                label="New folder"
+                side="bottom"
+                disabled={!canEditCatalog}
+                onclick={() =>
+                  (folderDialog = { kind: "create", parentFolderId: null })}
+              />
+              <IconAction
+                icon={Plus}
+                label="New launch configuration"
+                side="bottom"
+                disabled={!canEditCatalog}
+                onclick={() => (launchDialog = { kind: "create" })}
+              />
+            {/if}
           {/if}
         {/snippet}
       </PanelHeader>
       {#if !model.availability.available}
         <PanelBanner tone="neutral">{model.availability.message}</PanelBanner>
       {:else}
+        {@render configurationNotice?.()}
         {#if model.catalogError}
           <PanelBanner tone="destructive">
             {model.catalogError}

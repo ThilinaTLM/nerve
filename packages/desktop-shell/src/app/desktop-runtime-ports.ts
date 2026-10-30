@@ -64,6 +64,7 @@ export interface DesktopRuntimePorts {
   nativeTheme: {
     onUpdated(listener: () => void): () => void;
   };
+  checkHomeAdmission(home: string): Promise<void>;
   readCurrentSettings(dataDir: string): Promise<Settings>;
   configureNetworkSession(): Promise<void>;
   acquireDaemon(options: EnsureDaemonOptions): Promise<ManagedDaemon>;
@@ -82,6 +83,8 @@ export interface DesktopRuntimePorts {
     };
     restartDaemon: () => Promise<void>;
     retryStartup: () => boolean;
+    homeDirectory: string;
+    startupDiagnostics: () => string;
     reportRendererCoreReady: () => void;
     quitApp: () => void;
   }): () => void;

@@ -1,3 +1,4 @@
+import { MissingAssetError } from "@nervekit/conversation-core";
 import {
   createConfigurationReload,
   resolveWithConfigurationRetry,
@@ -8,17 +9,19 @@ import {
   cachedConversationSnapshot,
   cachedAgentFields,
 } from "../../core-host/cached-agent-summary.js";
-import { moveProjectLaunchDefinitions } from "../../infrastructure/migrations/steps/0001-conversation-core/configuration.js";
 import { createId } from "@nervekit/contracts";
 import {
   previewSystemPromptParamsSchema,
   conversationChannelOperations,
+  conversationChannelEventSchemas,
   transferConversationEvent,
+  transferredConversationEventSchema,
   type ConversationEvent,
   type TransferredConversationEvent,
 } from "@nervekit/contracts/core";
 import {
   conversationStream,
+  eventEnvelopeSchema,
   parseConversationStream,
   type EventEnvelope,
 } from "@nervekit/contracts/events";
@@ -64,16 +67,17 @@ const capabilities = [
 function eventEnvelope(
   event: ConversationEvent | TransferredConversationEvent,
 ): EventEnvelope {
-  return {
+  return eventEnvelopeSchema.parse({
     seq: event.sequence,
     id: event.id,
     ts: event.createdAt,
     type: "conversation.event",
-    data:
+    data: transferredConversationEventSchema.parse(
       event.type === "tool_call_response" && "agentProjection" in event.payload
         ? transferConversationEvent(event as ConversationEvent)
         : event,
-  };
+    ),
+  });
 }
 
 export function createConversationProtocolSession(
@@ -123,6 +127,26 @@ export function createConversationProtocolSession(
       .finally(dispose)
       .catch(() => undefined);
   };
+  const unavailable = (stream: string, error: unknown) => {
+    session.removeStream(stream);
+    activatingStreams.delete(stream);
+    const id = parseConversationStream(stream);
+    if (id) {
+      delivery.invalidate(id);
+      state.coreStorage.conversations.reportFailure(
+        id,
+        "stream.projection",
+        error,
+      );
+    }
+    void state.logger
+      .warn("Conversation stream unavailable", {
+        conversationId: id ?? undefined,
+        context: { stream },
+        error: error instanceof Error ? error.message : String(error),
+      })
+      .catch(() => undefined);
+  };
   const bounds = (stream: string) => {
     const id = parseConversationStream(stream);
     if (!id) throw new Error("Unknown conversation stream");
@@ -165,7 +189,6 @@ export function createConversationProtocolSession(
       core.previewAgentProfile(conversationId, profile),
     "project.create": (input) => {
       const project = core.projects.create(input);
-      moveProjectLaunchDefinitions(project.directory);
       projects.add(project.id);
       return project;
     },
@@ -377,9 +400,11 @@ export function createConversationProtocolSession(
         sessionContext: true,
         translateError: (error) => ({
           code:
-            error instanceof ZodError
-              ? "DOMAIN_VALIDATION_FAILED"
-              : "INTERNAL_ERROR",
+            error instanceof MissingAssetError
+              ? "RESOURCE_NOT_FOUND"
+              : error instanceof ZodError
+                ? "DOMAIN_VALIDATION_FAILED"
+                : "INTERNAL_ERROR",
           message: error instanceof Error ? error.message : "Operation failed",
           retryable: false,
         }),
@@ -389,52 +414,70 @@ export function createConversationProtocolSession(
         const streams = [];
         for (const cursor of cursors) {
           try {
-            streams.push(bounds(cursor.stream));
+            const state = bounds(cursor.stream);
+            // Fail known unreadable replay before accepting this stream. Later
+            // pages/races are contained by readStream as well.
+            core
+              .getEventsSince(
+                parseConversationStream(cursor.stream)!,
+                cursor.processedSeq,
+              )
+              .map(eventEnvelope);
+            streams.push(state);
             activatingStreams.add(cursor.stream);
-          } catch {
-            /* Unknown/deleted conversations are unavailable independently. */
+          } catch (error) {
+            unavailable(cursor.stream, error);
           }
         }
         return { accepted: true, streams };
       },
       activate(_cursors, states) {
-        // Cover appends between bounds resolution and stream activation. While
-        // activating, the feed is suppressed; these facts come from the core log.
+        // Cover appends between bounds resolution and stream activation.
         for (const state of states) {
-          const id = parseConversationStream(state.stream)!;
-          let sequence = state.latestSeq;
-          for (;;) {
-            const page = core.getEventsSince(id, sequence);
-            if (!page.length) break;
-            for (const event of page)
-              void session
-                .publish(state.stream, eventEnvelope(event))
-                .catch(failed);
-            sequence = page[page.length - 1].sequence;
+          try {
+            const id = parseConversationStream(state.stream)!;
+            let sequence = state.latestSeq;
+            for (;;) {
+              const page = core.getEventsSince(id, sequence);
+              if (!page.length) break;
+              const events = page.map(eventEnvelope);
+              for (const event of events)
+                void session.publish(state.stream, event).catch(failed);
+              sequence = page[page.length - 1].sequence;
+            }
+            const compaction = core.getSnapshot(id).compaction;
+            if (compaction)
+              void notify(
+                "conversation.compaction",
+                conversationChannelEventSchemas[
+                  "conversation.compaction"
+                ].parse({ conversationId: id, compaction }),
+              );
+          } catch (error) {
+            unavailable(state.stream, error);
+          } finally {
+            activatingStreams.delete(state.stream);
           }
-          // Compaction is ephemeral, so log replay cannot cover changes between
-          // the client's snapshot and subscription activation. Read it only
-          // after the stream is active, including the latest terminal operation.
-          const compaction = core.getSnapshot(id).compaction;
-          if (compaction)
-            void notify("conversation.compaction", {
-              conversationId: id,
-              compaction,
-            });
         }
+        // Resolved streams requiring a snapshot were not activated either.
         activatingStreams.clear();
       },
     },
     readStream(stream, fromSeq, limit) {
-      const state = bounds(stream);
-      const id = parseConversationStream(stream)!;
-      return {
-        ...state,
-        events: core
-          .getEventsSince(id, Math.max(0, fromSeq - 1))
-          .slice(0, limit)
-          .map(eventEnvelope),
-      };
+      try {
+        const state = bounds(stream);
+        const id = parseConversationStream(stream)!;
+        return {
+          ...state,
+          events: core
+            .getEventsSince(id, Math.max(0, fromSeq - 1))
+            .slice(0, limit)
+            .map(eventEnvelope),
+        };
+      } catch (error) {
+        unavailable(stream, error);
+        return null;
+      }
     },
   });
   const connection: ProtocolConnection = new ProtocolConnection({
@@ -479,16 +522,20 @@ export function createConversationProtocolSession(
   );
   const unsubscribeCore = core.subscribe((change) => {
     switch (change.kind) {
-      case "event_appended":
-        if (activatingStreams.has(conversationStream(change.conversationId)))
+      case "event_appended": {
+        const stream = conversationStream(change.conversationId);
+        if (activatingStreams.has(stream) || !session.isStreamActive(stream))
           break;
-        delivery.publish(change.conversationId, change.event, () =>
-          session.publish(
-            conversationStream(change.conversationId),
-            eventEnvelope(change.event),
-          ),
-        );
+        try {
+          const event = eventEnvelope(change.event);
+          delivery.publish(change.conversationId, change.event, () =>
+            session.publish(stream, event),
+          );
+        } catch (error) {
+          unavailable(stream, error);
+        }
         break;
+      }
       case "conversation_changed": {
         const projectId = change.summary.projectId;
         owners.set(change.summary.id, projectId);
@@ -558,28 +605,32 @@ export function createConversationProtocolSession(
           asyncBash: change.asyncBash,
         });
         break;
-      case "live":
-        if (change.delta.type === "assistant_reset") {
-          const data = {
+      case "live": {
+        const stream = conversationStream(change.conversationId);
+        if (!session.isStreamActive(stream)) break;
+        try {
+          const data = conversationChannelEventSchemas[
+            "conversation.live"
+          ].parse({
             conversationId: change.conversationId,
             delta: change.delta,
-          };
-          delivery.reset(
-            change.conversationId,
-            () => notifyDirect("conversation.live", data),
-            JSON.stringify(data).length * 2,
-          );
-          break;
+          });
+          if (data.delta.type === "assistant_reset") {
+            delivery.reset(
+              change.conversationId,
+              () => notifyDirect("conversation.live", data),
+              JSON.stringify(data).length * 2,
+            );
+          } else if (data.delta.type === "tool_call_arguments") {
+            delivery.snapshot(change.conversationId, data.delta);
+          } else {
+            void notify("conversation.live", data);
+          }
+        } catch (error) {
+          unavailable(stream, error);
         }
-        if (change.delta.type === "tool_call_arguments") {
-          delivery.snapshot(change.conversationId, change.delta);
-          break;
-        }
-        void notify("conversation.live", {
-          conversationId: change.conversationId,
-          delta: change.delta,
-        });
         break;
+      }
     }
   });
   unsubscribe = () => {

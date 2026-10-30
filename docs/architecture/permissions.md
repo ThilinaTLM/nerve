@@ -52,7 +52,7 @@ For example, a user reviewing a bash call for `pnpm test` can choose “Always a
 
 ## Trust and child policy
 
-Project overlay trust binds to a **digest**, a hash of the file's exact bytes, so edits require renewed trust before they can grant permission. Untrusted project overlays are excluded with diagnostics. Unknown, disabled or malformed selected policy and malformed required overlays block affected execution because approval must not substitute for missing security configuration.
+Project overlay trust binds to a **digest**, a hash of the file's exact bytes, so edits require renewed trust before they can grant permission. Untrusted project overlays are excluded with diagnostics. Unknown, disabled or malformed selected policy and malformed required overlays block affected execution because approval must not substitute for missing security configuration. A malformed project overlay blocks tool execution in that project until it is fixed or reset; reset removes the overlay so the user-level policy applies. Model replies without tools continue, because they need no authorization.
 
 Children use an allowed rule set without Baseline or overlays. Their rule sets do not ask for human approval, and excluding overlays prevents grants made for interactive lead work from widening delegated execution. Child authorization is independent of the lead's policy; see [agent profiles and delegation](conversation-core/delegation.md#rules-enforced-for-every-sub-agent).
 

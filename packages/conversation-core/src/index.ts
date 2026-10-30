@@ -47,6 +47,7 @@ export { ProjectService } from "./conversations/project.service.js";
 export { TrustedResourceService } from "./conversations/trusted-resource.service.js";
 export {
   AssetStore,
+  MissingAssetError,
   type RegisterAsset,
   type WriteAsset,
 } from "./assets/asset-store.js";

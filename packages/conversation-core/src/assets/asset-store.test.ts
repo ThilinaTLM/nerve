@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 import { openCoreStorage } from "../storage/core-storage.js";
-import { AssetStore } from "./asset-store.js";
+import { AssetStore, MissingAssetError } from "./asset-store.js";
 
 void test("image reads require a known conversation, image category and safe image media type", async () => {
   const directory = await mkdtemp(join(tmpdir(), "nerve-image-assets-"));
@@ -72,6 +72,15 @@ void test("image reads require a known conversation, image category and safe ima
     storage.assets.update(image.id, { mediaType: "image/svg+xml" });
     assert.equal(await assets.readImage(image.id), null);
     storage.assets.update(image.id, { mediaType: "image/png" });
+    await rm(assets.path(image.logicalPath));
+    await assert.rejects(
+      assets.read(image.id),
+      (error: unknown) =>
+        error instanceof MissingAssetError &&
+        error.message === "Asset not found.",
+    );
+    await assert.rejects(assets.readImage(image.id), MissingAssetError);
+    await assert.rejects(assets.read("unknown"), MissingAssetError);
     storage.conversations.delete("conv_1");
     assert.equal(await assets.readImage(image.id), null);
   } finally {

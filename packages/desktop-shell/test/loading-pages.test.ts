@@ -1,6 +1,11 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { errorHtml, loadingHtml } from "../src/window/loading-pages.js";
+import { HomeAdmissionError } from "@nervekit/contracts/settings";
+import {
+  errorHtml,
+  loadingHtml,
+  startupErrorRetryable,
+} from "../src/window/loading-pages.js";
 
 describe("loadingHtml", () => {
   it("renders the shared splash hooks and escapes the status text", () => {
@@ -66,4 +71,42 @@ describe("errorHtml", () => {
     });
     assert.match(html, /startup-retry/);
   });
+});
+
+for (const kind of [
+  "too_old",
+  "manifest_invalid",
+  "ledger_unexpected",
+  "layout_unrecognized",
+] as const) {
+  it(`renders instructions without recovery or retry for ${kind} across child-process boundaries`, () => {
+    const error = new Error(
+      new HomeAdmissionError(kind, "preserve <data>").message,
+    );
+    const html = errorHtml(error, "/tmp/<home>", { retry: true });
+    assert.equal(startupErrorRetryable(error), false);
+    assert.match(html, /Home folder: \/tmp\/&lt;home&gt;/);
+    assert.match(
+      html,
+      /Close Nerve, delete or move this folder, then reopen Nerve to start with an empty home\./,
+    );
+    assert.doesNotMatch(
+      html,
+      /id="startup-retry"|startFresh|start-fresh|keep providers|archive|upgradeInstructions/,
+    );
+    assert.equal(
+      html.includes(
+        "To keep your conversation history, run Nerve 0.34.1 once, then reopen this version.",
+      ),
+      kind === "too_old",
+    );
+    assert.equal(html.includes("Open folder"), kind !== "too_old");
+    assert.equal(html.includes("Copy diagnostics"), kind !== "too_old");
+    assert.match(html, /preserve &lt;data&gt;/);
+    assert.doesNotMatch(html, /<home>|preserve <data>/);
+  });
+}
+
+it("does not retry unclassified failures", () => {
+  assert.equal(startupErrorRetryable(new Error("unknown failure")), false);
 });

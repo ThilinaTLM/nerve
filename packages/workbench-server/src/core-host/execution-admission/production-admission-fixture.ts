@@ -1,3 +1,4 @@
+import { ProjectMigrationService } from "../../infrastructure/configuration/project-migration/project-migration.js";
 import { EventEmitter } from "node:events";
 import { PassThrough } from "node:stream";
 import type { ChildProcess } from "node:child_process";
@@ -88,7 +89,7 @@ export async function productionAdmissionFixture(
     JSON.stringify({
       schemaVersion: 1,
       name: "worker",
-      description: "Worker",
+      whenToUse: "Worker",
       usableBy: "subagent",
       instructions: "Work independently.",
       requirements: { permissionRuleSetId: "read_only" },
@@ -209,7 +210,10 @@ export async function productionAdmissionFixture(
     return value;
   };
   const definitions = new LaunchDefinitionService(
-    new LaunchDefinitionRepository(getProject),
+    new LaunchDefinitionRepository(
+      getProject,
+      new ProjectMigrationService({ home }),
+    ),
     getProject,
   );
   const create = (): Runtime =>

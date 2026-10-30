@@ -6,6 +6,15 @@ const empty = z.object({}).optional();
 const removed = z.object({ removed: z.number().int().nonnegative() });
 export const activityOperationDefinitions = [
   defineOperation(
+    "activity.deleteConversation",
+    z.object({ conversationId: z.string().min(1) }),
+    removed,
+    "mutation",
+    "recommended",
+    ["workbench_server"] as const,
+    "operation.activity.deleteConversation",
+  ),
+  defineOperation(
     "activity.list",
     empty,
     z.object({ activities: z.array(activitySchema) }),

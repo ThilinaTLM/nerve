@@ -5,10 +5,7 @@ import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import test, { type TestContext } from "node:test";
 import { runMigrations } from "../../framework/runner.js";
-import {
-  discardFailedItems,
-  rollbackFailedMigration,
-} from "../../framework/recovery.js";
+import { rollbackFailedMigration } from "../../framework/recovery.js";
 import type { Legacy } from "./legacy.reader.js";
 import { fixture, registry, timestamp } from "./step-fixture.js";
 
@@ -210,17 +207,12 @@ void test("retains surviving user/assistant history with explicit unknown-messag
     ),
   );
   assert.deepEqual(report.setAside, []);
-  for (const id of lost.keys())
-    assert(
-      report.losses.some(
-        (loss: { reason: string; count: number }) =>
-          loss.count === 1 &&
-          loss.reason.includes(id) &&
-          loss.reason.includes(conversationId) &&
-          loss.reason.includes("Unreadable message") &&
-          loss.reason.includes("quarantine"),
-      ),
-    );
+  assert.equal(
+    report.losses.find((loss: { reason: string }) =>
+      loss.reason.includes("Unreadable message record"),
+    ).count,
+    2,
+  );
   assert(!existsSync(join(home, "data/nerve.sqlite.migrating")));
 });
 void test("salvage receipts and raw archives survive import reuse after an unrelated failed unit is set aside", async (t) => {
@@ -233,10 +225,9 @@ void test("salvage receipts and raw archives survive import reuse after an unrel
   } finally {
     db.close();
   }
-  await assert.rejects(runMigrations(home, { registry }), /1 conversation/);
+  await runMigrations(home, { registry });
   const before = await events(home);
   await assertQuarantine(home);
-  await discardFailedItems(home, ["conv_broken"]);
   const phases: string[] = [];
   await runMigrations(home, {
     registry,
@@ -255,13 +246,12 @@ void test("salvage receipts and raw archives survive import reuse after an unrel
     report.setAside.map((item: { id: string }) => item.id),
     ["conv_broken"],
   );
-  for (const id of lost.keys())
-    assert.equal(
-      report.losses.filter((loss: { reason: string }) =>
-        loss.reason.includes(id),
-      ).length,
-      1,
-    );
+  assert.equal(
+    report.losses.find((loss: { reason: string }) =>
+      loss.reason.includes("Unreadable message record"),
+    ).count,
+    2,
+  );
 });
 void test("rollback restores exact legacy database and configuration bytes after successful record salvage", async (t) => {
   const home = await homeWithDamage(t);
@@ -358,32 +348,30 @@ for (const mode of [
     } finally {
       db.close();
     }
-    await assert.rejects(runMigrations(home, { registry }));
-    const failure = JSON.parse(
-      await readFile(join(home, "migrations/last-failure.json"), "utf8"),
+    await runMigrations(home, { registry });
+    const report = JSON.parse(
+      await readFile(
+        join(home, "migrations/reports/0001-conversation-core.json"),
+        "utf8",
+      ),
     );
     assert(
-      failure.discardable.some(
+      report.setAside.some(
         (item: { id: string }) => item.id === conversationId,
       ),
     );
     assert.deepEqual(await events(home), []);
-    const summary = JSON.parse(
-      await readFile(
-        join(
-          home,
-          "migrations/work/0001-conversation-core/import-summary.json",
-        ),
-        "utf8",
-      ),
+    const item = report.setAside.find(
+      (item: { id: string }) => item.id === conversationId,
     );
-    assert.deepEqual(summary.salvagedRecords, []);
     assert(
-      !Object.keys(summary.lossyMappings).some((reason) =>
-        reason.includes("lost_user"),
-      ),
+      (
+        await readFile(
+          join(item.quarantinePath, "payload/records.jsonl"),
+          "utf8",
+        )
+      ).includes(conversationId),
     );
-    assert(!existsSync(join(home, "quarantine")));
   });
 }
 
@@ -411,73 +399,59 @@ void test("failed raw-record preservation prevents cleanup and never commits a g
       },
     },
   ];
-  await assert.rejects(runMigrations(home, { registry: guarded }));
+  await runMigrations(home, { registry: guarded });
   assert.deepEqual(await events(home), []);
-  assert(existsSync(join(home, "data/nerve.sqlite.migrating")));
-  assert(
-    !existsSync(
-      join(home, "migrations/work/0001-conversation-core/verified.json"),
+  const report = JSON.parse(
+    await readFile(
+      join(home, "migrations/reports/0001-conversation-core.json"),
+      "utf8",
     ),
   );
-  const source = new DatabaseSync(join(home, "data/nerve.sqlite.migrating"), {
-    readOnly: true,
-  });
-  try {
-    for (const [id, bytes] of lost)
-      assert.deepEqual(
-        Buffer.from(
-          source
-            .prepare("SELECT data FROM conversation_records WHERE id = ?")
-            .get(id)!.data as Uint8Array,
-        ),
-        bytes,
-      );
-  } finally {
-    source.close();
+  const item = report.setAside.find(
+    (item: { id: string }) => item.id === conversationId,
+  );
+  assert.ok(item);
+  assert.match(item.reason, /Raw archive unavailable/);
+  const rows = (
+    await readFile(join(item.quarantinePath, "payload/records.jsonl"), "utf8")
+  )
+    .trim()
+    .split("\n")
+    .map((line) => JSON.parse(line));
+  for (const [id, bytes] of lost) {
+    const row = rows.find(
+      (entry) => entry.table === "conversation_records" && entry.row.id === id,
+    );
+    assert.deepEqual(Buffer.from(row.row.data.$blob, "base64"), bytes);
   }
-  const failure = JSON.parse(
-    await readFile(join(home, "migrations/last-failure.json"), "utf8"),
-  );
-  assert.equal(failure.rollbackAvailable, true);
-  assert(
-    failure.discardable.some(
-      (item: { id: string; reason: string }) =>
-        item.id === conversationId &&
-        item.reason.includes("Raw archive unavailable"),
-    ),
-  );
 });
 
 void test("verification attributes altered placeholder text to the owning conversation", async (t) => {
   const home = await homeWithDamage(t);
-  await assert.rejects(
-    runMigrations(home, {
-      registry,
-      onProgress: ({ phase }) => {
-        if (phase !== "verify") return;
-        const db = new DatabaseSync(join(home, "data/nerve.sqlite"));
-        try {
-          db.prepare(
-            "UPDATE conversation_event SET payload = json_set(payload, '$.text', 'silenced') WHERE conversation_id = ? AND event_type = 'system_event'",
-          ).run(conversationId);
-        } finally {
-          db.close();
-        }
-      },
-    }),
-    /1 conversation/,
+  await runMigrations(home, {
+    registry,
+    onProgress: ({ phase }) => {
+      if (phase !== "verify") return;
+      const db = new DatabaseSync(join(home, "data/nerve.sqlite"));
+      try {
+        db.prepare(
+          "UPDATE conversation_event SET payload = json_set(payload, '$.text', 'silenced') WHERE conversation_id = ? AND event_type = 'system_event'",
+        ).run(conversationId);
+      } finally {
+        db.close();
+      }
+    },
+  });
+  const report = JSON.parse(
+    await readFile(
+      join(home, "migrations/reports/0001-conversation-core.json"),
+      "utf8",
+    ),
   );
-  const failure = JSON.parse(
-    await readFile(join(home, "migrations/last-failure.json"), "utf8"),
+  const item = report.setAside.find(
+    (item: { id: string }) => item.id === conversationId,
   );
-  assert.deepEqual(
-    failure.discardable.map((item: { id: string }) => item.id),
-    [conversationId],
-  );
-  assert.match(
-    failure.discardable[0].reason,
-    /Changed history-loss placeholder/,
-  );
-  assert.equal(failure.rollbackAvailable, true);
-  await assertQuarantine(home);
+  assert.ok(item);
+  assert.match(item.reason, /Changed history-loss placeholder/);
+  assert.deepEqual(await events(home), []);
 });

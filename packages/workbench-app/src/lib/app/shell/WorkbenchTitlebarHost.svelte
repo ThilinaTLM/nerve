@@ -1,5 +1,16 @@
 <script lang="ts">
+import type { UnreadableConversation } from "@nervekit/contracts/activity";
+import { workbenchStartupState } from "$lib/application/startup/workbench-startup-state.svelte";
+import {
+  UpgradeReportDialog,
+  UpgradeReportNotice,
+  upgradeReportDialog,
+  hasUpgradeReports,
+  loadUpgradeReports,
+} from "$lib/features/storage-upgrade";
 import SettingsHealthItem from "$lib/presentation/activity/SettingsHealthItem.svelte";
+import ProjectConfigurationHealthItem from "$lib/presentation/activity/ProjectConfigurationHealthItem.svelte";
+import { projectConfigurationHealth } from "$lib/application/project-configuration/project-configuration-health-state.svelte";
 import { settingsHealth } from "$lib/application/settings/settings-health-state.svelte";
 import ActivityPopover from "$lib/presentation/activity/ActivityPopover.svelte";
 import { activityInbox } from "$lib/application/activity/activity-state.svelte";
@@ -99,9 +110,13 @@ function clearFinished(): void {
   unseenResults.clear();
   void activityInbox.clear();
 }
+const projectIssues = $derived(
+  Object.values(projectConfigurationHealth.byProject).flat(),
+);
 const newConversationShortcut = getShortcutLabel("conversation.new");
 
 let pendingDelete = $state<DeleteTarget | undefined>();
+let unreadableDelete = $state<UnreadableConversation>();
 let pendingPrune = $state<PruneTarget | undefined>();
 const quickLimit = $derived(
   responsive.isPhone ? 1 : responsive.isCompact ? 2 : 5,
@@ -188,6 +203,22 @@ async function handleDesktopClose() {
       caught instanceof Error ? caught.message : String(caught);
   }
 }
+/** Every notice action that opens a dialog goes through here: the dialog is hosted below, outside the popover, and the popover closes first. */
+function fromPopover(open: () => void): void {
+  activityInbox.setOpen(false);
+  open();
+}
+let reportsLoaded = false;
+$effect(() => {
+  if (
+    !reportsLoaded &&
+    workbenchStartupState.progressiveActive &&
+    workspaceState.connection === "connected"
+  ) {
+    reportsLoaded = true;
+    void loadUpgradeReports();
+  }
+});
 </script>
 
 {#snippet settingsHealthItem()}
@@ -195,10 +226,35 @@ async function handleDesktopClose() {
     health={settingsHealth.notice.health}
     pending={settingsHealth.notice.pending}
     error={settingsHealth.notice.error}
-    onReset={(id) => (settingsHealth.resetId = id)}
+    onReset={(id) => fromPopover(() => (settingsHealth.resetId = id))}
     onReload={(id) => void settingsHealth.resolve({ id, action: "reload" })}
     onRetry={() => void settingsHealth.refresh()}
   />
+{/snippet}
+
+{#snippet attentionItems()}
+  <UpgradeReportNotice
+    onDetails={() => fromPopover(() => (upgradeReportDialog.open = true))}
+  />
+  {#if settingsHealth.notice.health.invalid.length || settingsHealth.notice.error}
+    {@render settingsHealthItem()}
+  {/if}
+  {#if projectIssues.length}
+    <ProjectConfigurationHealthItem
+      issues={projectIssues}
+      projectName={(id) =>
+        workspaceSelectors.projects.find((project) => project.id === id)?.name}
+      pending={projectConfigurationHealth.pending}
+      error={projectConfigurationHealth.error}
+      onOpen={(issue) => {
+        activityInbox.setOpen(false);
+        void projectConfigurationHealth.open(issue);
+      }}
+      onReload={(issue) => void projectConfigurationHealth.reload(issue)}
+      onReset={(issue) =>
+        fromPopover(() => projectConfigurationHealth.requestReset(issue))}
+    />
+  {/if}
 {/snippet}
 
 <Titlebar
@@ -237,8 +293,10 @@ async function handleDesktopClose() {
       unseenFailure={activityInbox.unseenFailure || unseenConversationFailure}
       muted={attentionMute.muted}
       attention={settingsHealth.notice.health.invalid.length ||
-      settingsHealth.notice.error
-        ? settingsHealthItem
+      settingsHealth.notice.error ||
+      projectIssues.length ||
+      hasUpgradeReports()
+        ? attentionItems
         : undefined}
       open={activityInbox.open}
       onOpenChange={activityInbox.setOpen}
@@ -255,6 +313,8 @@ async function handleDesktopClose() {
           }
         } else void activityInbox.action(intent, item.id);
       }}
+      onDeleteConversation={(entry) =>
+        fromPopover(() => (unreadableDelete = entry))}
       onDismiss={dismissNotification}
       onClearFinished={clearFinished}
       onToggleMute={() =>
@@ -263,6 +323,8 @@ async function handleDesktopClose() {
     />
   {/snippet}
 </Titlebar>
+
+<UpgradeReportDialog home={status?.storage.home} />
 
 <AlertDialog
   open={pendingDelete?.kind === "project"}
@@ -294,5 +356,22 @@ async function handleDesktopClose() {
   onConfirm={confirmPrune}
   onOpenChange={(open) => {
     if (!open) pendingPrune = undefined;
+  }}
+/>
+
+<AlertDialog
+  open={!!unreadableDelete}
+  title="Delete unreadable conversation?"
+  description={unreadableDelete
+    ? `Delete “${unreadableDelete.title || unreadableDelete.id}” and all its descendants? Their stored messages and files will be permanently removed.`
+    : ""}
+  confirmLabel="Delete"
+  destructive
+  onConfirm={() => {
+    if (unreadableDelete)
+      void activityInbox.deleteConversation(unreadableDelete.id);
+  }}
+  onOpenChange={(open) => {
+    if (!open) unreadableDelete = undefined;
   }}
 />

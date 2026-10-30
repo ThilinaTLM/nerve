@@ -1,4 +1,5 @@
 <script lang="ts">
+import ToolImage from "./ToolImage.svelte";
 import type { ToolCallDisplayRecord } from "../views/tool-result-view";
 import { extname } from "../views/lang";
 import type { ToolView } from "../views/tool-result-view";
@@ -29,7 +30,7 @@ const hasContent = $derived(
           onclick={() => view.path && onOpenFile?.(view.path)}
           title="Open image pane"
         >
-          <img
+          <ToolImage
             class="max-h-60 max-w-80 rounded-sm border object-contain"
             src={view.image.dataUrl}
             alt={view.relPath ?? "image"}

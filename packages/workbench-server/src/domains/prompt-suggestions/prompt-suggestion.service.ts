@@ -1,5 +1,7 @@
-import { mkdir, open, realpath } from "node:fs/promises";
-import { isAbsolute, join, relative, sep } from "node:path";
+import { ProjectMigrationService } from "../../infrastructure/configuration/project-migration/project-migration.js";
+import { suggestionConfiguration } from "./prompt-suggestion-migrations.js";
+import { mkdir, open } from "node:fs/promises";
+import { join } from "node:path";
 import type { GitService } from "@nervekit/tools/git";
 import type {
   ConversationConfig,
@@ -32,6 +34,7 @@ const NERVE_DIR_NAME = ".nerve";
 
 export type PromptSuggestionServiceDeps = {
   storage: InitializedStorage;
+  projectMigration?: ProjectMigrationService;
   events: WorkbenchNoticePublisher;
   trustRepository: PromptSuggestionTrustRepository;
   enablementRepository: PromptSuggestionEnablementService;
@@ -49,7 +52,12 @@ export type PromptSuggestionServiceDeps = {
 };
 
 export class PromptSuggestionService {
-  constructor(private readonly deps: PromptSuggestionServiceDeps) {}
+  private readonly migrations: ProjectMigrationService;
+  constructor(private readonly deps: PromptSuggestionServiceDeps) {
+    this.migrations =
+      deps.projectMigration ??
+      new ProjectMigrationService({ home: deps.storage.paths.home });
+  }
 
   async listForProject(
     projectId: string,
@@ -137,33 +145,57 @@ export class PromptSuggestionService {
     const dir = project
       ? join(project.dir, NERVE_DIR_NAME, "suggestions")
       : this.userSuggestionsDir();
-    await mkdir(dir, { recursive: true, mode: 0o700 });
-    if (project) await assertDirectoryInsideProject(project.dir, dir);
+    if (!project) await mkdir(dir, { recursive: true, mode: 0o700 });
 
     const path = join(dir, `${request.name}.md`);
-    const file = await open(path, "wx", 0o600).catch(
-      (error: NodeJS.ErrnoException) => {
-        if (error.code === "EEXIST") {
-          throw new Error(
-            `A prompt suggestion named "${request.name}" already exists in this scope.`,
-          );
-        }
-        throw error;
-      },
-    );
-    try {
-      await file.writeFile(serializePromptSuggestionMarkdown(request), "utf8");
-    } finally {
-      await file.close();
+    if (project) {
+      const type = suggestionConfiguration(`${request.name}.md`);
+      this.migrations.register(type);
+      const candidate = type.schema.parse(
+        type.decode!(serializePromptSuggestionMarkdown(request)),
+      );
+      await this.migrations.transact(
+        { projectId: project.id, directory: project.dir },
+        type,
+        (document) => {
+          if (document)
+            throw new Error(
+              `A prompt suggestion named "${request.name}" already exists in this scope.`,
+            );
+          return { value: candidate, result: undefined, changed: true };
+        },
+      );
+    } else {
+      const file = await open(path, "wx", 0o600).catch(
+        (error: NodeJS.ErrnoException) => {
+          if (error.code === "EEXIST") {
+            throw new Error(
+              `A prompt suggestion named "${request.name}" already exists in this scope.`,
+            );
+          }
+          throw error;
+        },
+      );
+      try {
+        await file.writeFile(
+          serializePromptSuggestionMarkdown(request),
+          "utf8",
+        );
+      } finally {
+        await file.close();
+      }
     }
 
-    const loaded = await loadPromptSuggestionDefinitions([
-      {
-        kind: request.scope,
-        dir,
-        ...(project ? { projectId: project.id } : {}),
-      },
-    ]);
+    const loaded = await loadPromptSuggestionDefinitions(
+      [
+        {
+          kind: request.scope,
+          dir,
+          ...(project ? { projectId: project.id } : {}),
+        },
+      ],
+      this.migrations,
+    );
     const definition = loaded.definitions.find(
       (candidate) => candidate.name === request.name,
     );
@@ -259,7 +291,10 @@ export class PromptSuggestionService {
         : []),
       { kind: "user" as const, dir: this.userSuggestionsDir() },
     ];
-    const loaded = await loadPromptSuggestionDefinitions(inputs);
+    const loaded = await loadPromptSuggestionDefinitions(
+      inputs,
+      this.migrations,
+    );
     return {
       definitions: [
         ...loaded.definitions,
@@ -271,13 +306,16 @@ export class PromptSuggestionService {
 
   private async discoverProjectDefinitions(project: SuggestionProject) {
     return (
-      await loadPromptSuggestionDefinitions([
-        {
-          kind: "project",
-          dir: join(project.dir, NERVE_DIR_NAME, "suggestions"),
-          projectId: project.id,
-        },
-      ])
+      await loadPromptSuggestionDefinitions(
+        [
+          {
+            kind: "project",
+            dir: join(project.dir, NERVE_DIR_NAME, "suggestions"),
+            projectId: project.id,
+          },
+        ],
+        this.migrations,
+      )
     ).definitions;
   }
 
@@ -424,24 +462,4 @@ function staleStatuses(
       predicateHash: record.predicateHash,
       stale: true,
     }));
-}
-
-async function assertDirectoryInsideProject(
-  projectDir: string,
-  destinationDir: string,
-): Promise<void> {
-  const [projectRoot, destination] = await Promise.all([
-    realpath(projectDir),
-    realpath(destinationDir),
-  ]);
-  const child = relative(projectRoot, destination);
-  if (
-    child === "" ||
-    (!child.startsWith(`..${sep}`) && child !== ".." && !isAbsolute(child))
-  ) {
-    return;
-  }
-  throw new Error(
-    "Prompt suggestion destination escapes the project directory.",
-  );
 }

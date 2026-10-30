@@ -9,6 +9,14 @@ import type { CoreDatabase } from "./database.js";
 export class ToolCallRepository {
   constructor(private readonly db: CoreDatabase) {}
 
+  /** Runtime cleanup must not decode damaged persisted work. */
+  ids(conversationId: string): string[] {
+    return this.db.sqlite
+      .prepare("SELECT id AS id FROM tool_call WHERE conversation_id = ?")
+      .all(conversationId)
+      .map((row) => String(row.id));
+  }
+
   get(id: string): ToolCall | null {
     const row = this.db.sqlite
       .prepare("SELECT * FROM tool_call WHERE id = ?")

@@ -22,14 +22,19 @@ import {
   LaunchDefinitionRepository,
   launchCatalogRevision,
 } from "./launch-definition.repository.js";
+import { ProjectMigrationService } from "../../infrastructure/configuration/project-migration/project-migration.js";
 import { LaunchDefinitionService } from "./launch-definition.service.js";
 
 async function fixture(t: { after(fn: () => Promise<void>): void }) {
-  const directory = await mkdtemp(join(tmpdir(), "launch-catalog-"));
-  t.after(() => rm(directory, { recursive: true, force: true }));
+  const root = await mkdtemp(join(tmpdir(), "launch-catalog-"));
+  t.after(() => rm(root, { recursive: true, force: true }));
+  const directory = join(root, "project");
+  const home = join(root, "home");
+  await mkdir(directory);
+  const migrations = new ProjectMigrationService({ home });
   const project = { id: "proj_one", directory } as Project;
   const getProject = () => project;
-  const repository = new LaunchDefinitionRepository(getProject);
+  const repository = new LaunchDefinitionRepository(getProject, migrations);
   const events: unknown[] = [];
   const service = new LaunchDefinitionService(
     repository,
@@ -40,7 +45,17 @@ async function fixture(t: { after(fn: () => Promise<void>): void }) {
   );
   const storage = join(directory, ".nerve", "launches");
   const path = join(storage, "definitions.json");
-  return { directory, project, repository, service, events, storage, path };
+  return {
+    directory,
+    home,
+    migrations,
+    project,
+    repository,
+    service,
+    events,
+    storage,
+    path,
+  };
 }
 const config = (command = "echo test") =>
   createLaunchDefinitionRequestSchema.parse({ command });
@@ -53,7 +68,7 @@ const legacyDefinition = (id: string, label?: string) => ({
   updatedAt: "2026-10-17T00:00:00.000Z",
 });
 
-void test("v1 reads are lossless and read-only; first mutation backs up exact current bytes", async (t) => {
+void test("v1 loads migrate losslessly and preserve originals outside the project", async (t) => {
   const f = await fixture(t);
   assert.deepEqual((await f.service.catalog("proj_one")).definitions, []);
   assert.deepEqual(await readdir(f.directory), []);
@@ -85,19 +100,15 @@ void test("v1 reads are lossless and read-only; first mutation backs up exact cu
       ["Same", 2, " echo test ", "proj_one"],
     ],
   );
-  assert.equal(await readFile(f.path, "utf8"), source);
-  const newerBytes = `${source}\n`;
-  await writeFile(f.path, newerBytes);
+  assert.equal(JSON.parse(await readFile(f.path, "utf8")).version, 2);
   const result = await f.service.createFolder(
     "proj_one",
     { label: " Dev ", parentFolderId: null, beforeSibling: null },
     catalog.revision,
   );
   assert.equal(result.folder.label, "Dev");
-  assert.equal(
-    await readFile(join(f.storage, "definitions.v1.backup.json"), "utf8"),
-    newerBytes,
-  );
+  assert.deepEqual(await readdir(f.storage), ["definitions.json"]);
+  assert.ok((await readdir(f.home)).includes("quarantine"));
   const saved = JSON.parse(await readFile(f.path, "utf8"));
   assert.equal(saved.version, 2);
   assert.equal(saved.definitions[0].label, undefined);
@@ -264,7 +275,7 @@ void test("mixed ordering, structural invariants, revision conflicts and true no
   assert.deepEqual((await f.service.catalog("proj_one")).folders, []);
 });
 
-void test("invalid documents and conversion backup failures never overwrite authority", async (t) => {
+void test("invalid and incompatible documents fall back without allowing mutation", async (t) => {
   const f = await fixture(t);
   await mkdir(f.storage, { recursive: true });
   for (const raw of [
@@ -291,30 +302,15 @@ void test("invalid documents and conversion backup failures never overwrite auth
   ]) {
     const bytes = JSON.stringify(raw);
     await writeFile(f.path, bytes);
+    const catalog = await f.service.catalog("proj_one");
+    assert.deepEqual(catalog.definitions, []);
     await assert.rejects(
-      f.service.catalog("proj_one"),
-      /Invalid project launch definitions/,
+      f.service.create("proj_one", config(), catalog.revision),
+      /invalid or incompatible/,
     );
+    assert.equal(f.repository.health("proj_one").issues.length, 1);
     assert.equal(await readFile(f.path, "utf8"), bytes);
   }
-  const bytes = JSON.stringify({ version: 1, definitions: [] });
-  await writeFile(f.path, bytes);
-  const revision = (await f.service.catalog("proj_one")).revision;
-  const backup = join(f.storage, "definitions.v1.backup.json");
-  await mkdir(backup);
-  await assert.rejects(f.service.create("proj_one", config(), revision));
-  assert.equal(await readFile(f.path, "utf8"), bytes);
-  await rm(backup, { recursive: true });
-  await writeFile(backup, "different");
-  await assert.rejects(
-    f.service.create("proj_one", config(), revision),
-    /backup differs/,
-  );
-  assert.equal(await readFile(f.path, "utf8"), bytes);
-  await writeFile(backup, bytes);
-  await f.service.create("proj_one", config(), revision);
-  await rm(f.path);
-  await assert.rejects(f.service.catalog("proj_one"), /Missing authoritative/);
 });
 
 void test("publication failure acknowledges committed mutation", async (t) => {
@@ -340,10 +336,13 @@ void test("canonical aliases and cooperating child process writers share fail-cl
   const f = await fixture(t);
   const alias = join(f.directory, "alias");
   await symlink(f.directory, alias);
-  const aliasRepository = new LaunchDefinitionRepository(() => ({
-    ...f.project,
-    directory: alias,
-  }));
+  const aliasRepository = new LaunchDefinitionRepository(
+    () => ({
+      ...f.project,
+      directory: alias,
+    }),
+    f.migrations,
+  );
   const revision = (await f.repository.catalog("proj_one")).revision;
   let acquired!: () => void;
   const started = new Promise<void>((resolve) => {
@@ -361,7 +360,34 @@ void test("canonical aliases and cooperating child process writers share fail-cl
       "tsx",
       "--input-type=module",
       "-e",
-      `import { existsSync } from "node:fs"; import { LaunchDefinitionRepository } from ${JSON.stringify(repositoryUrl)}; const repository = new LaunchDefinitionRepository(() => ({ directory: ${JSON.stringify(alias)} })); await repository.transact('proj_one', ${JSON.stringify(revision)}, file => { process.stdout.write('locked\\n'); const deadline = Date.now() + 10000; while (!existsSync(${JSON.stringify(join(f.directory, "release-child"))})) { if (Date.now() > deadline) throw new Error("Timed out waiting for parent"); Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 10); } file.folders.push({ id: 'launchfolder_child', label: 'Child', parentFolderId: null, order: 0 }); });`,
+      `
+        import { existsSync } from "node:fs";
+        const [repositoryUrl, migrationUrl, directory, home, revision, releasePath] = process.argv.slice(1);
+        const { LaunchDefinitionRepository } = await import(repositoryUrl);
+        const { ProjectMigrationService } = await import(migrationUrl);
+        const repository = new LaunchDefinitionRepository(
+          () => ({ directory }),
+          new ProjectMigrationService({ home }),
+        );
+        await repository.transact("proj_one", revision, file => {
+          process.stdout.write("locked\\n");
+          const deadline = Date.now() + 10000;
+          while (!existsSync(releasePath)) {
+            if (Date.now() > deadline) throw new Error("Timed out waiting for parent");
+            Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 10);
+          }
+          file.folders.push({ id: "launchfolder_child", label: "Child", parentFolderId: null, order: 0 });
+        });
+      `,
+      repositoryUrl,
+      new URL(
+        "../../infrastructure/configuration/project-migration/project-migration.ts",
+        import.meta.url,
+      ).href,
+      alias,
+      f.home,
+      revision,
+      join(f.directory, "release-child"),
     ],
     { stdio: ["ignore", "pipe", "pipe"] },
   );
@@ -472,7 +498,7 @@ void test("lock cleanup preserves an externally replaced lock instead of deletin
   );
 });
 
-void test("failed replacement retains v1 authority and completed backup is safely reusable", async (t) => {
+void test("failed migration write retains v1 authority and quarantines outside the project", async (t) => {
   const f = await fixture(t);
   await mkdir(f.storage, { recursive: true });
   const source = JSON.stringify({
@@ -482,29 +508,18 @@ void test("failed replacement retains v1 authority and completed backup is safel
   await writeFile(f.path, source);
   const failingRepository = new LaunchDefinitionRepository(
     () => f.project,
-    async () => {
-      throw new Error("injected atomic write failure");
-    },
+    new ProjectMigrationService({
+      home: f.home,
+      write: async () => {
+        throw new Error("injected atomic write failure");
+      },
+    }),
   );
-  const service = new LaunchDefinitionService(
-    failingRepository,
-    () => f.project,
-  );
-  const revision = (await service.catalog("proj_one")).revision;
-  await assert.rejects(
-    service.create("proj_one", config(), revision),
-    /injected atomic write failure/,
-  );
+  const catalog = await failingRepository.catalog("proj_one");
+  assert.deepEqual(catalog.definitions, []);
   assert.equal(await readFile(f.path, "utf8"), source);
-  assert.equal(
-    await readFile(join(f.storage, "definitions.v1.backup.json"), "utf8"),
-    source,
-  );
-  const committed = await f.service.create("proj_one", config(), revision);
-  assert.equal(
-    (await f.service.catalog("proj_one")).revision,
-    committed.revision,
-  );
+  assert.deepEqual(await readdir(f.storage), ["definitions.json"]);
+  assert.equal((await f.repository.catalog("proj_one")).definitions.length, 1);
 });
 
 void test("invalid structural intent returns client errors without changing authority", async (t) => {

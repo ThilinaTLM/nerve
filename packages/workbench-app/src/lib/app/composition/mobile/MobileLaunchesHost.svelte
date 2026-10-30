@@ -43,6 +43,7 @@ import {
 } from "$lib/app/shell/mobile/mobile-activity";
 import { openMobileLaunchOutput } from "$lib/app/shell/mobile/mobile-route-activation.svelte";
 import { backFromMobileScreen } from "$lib/app/shell/mobile/mobile-shell.svelte";
+import LaunchConfigurationNotice from "$lib/features/launches/hosts/LaunchConfigurationNotice.svelte";
 import MobileLaunchDefinitionSheet from "./MobileLaunchDefinitionSheet.svelte";
 import type { MobileScreenProps } from "./mobile-screen-registry";
 import {
@@ -306,13 +307,18 @@ const screenMenu = $derived<ContextMenuItem[]>([
     </Button>
   {/snippet}
 
-  {#if model.catalogError}
+  {#if model.configurationBlocked}
+    <div class="px-4 py-2">
+      <LaunchConfigurationNotice projectId={route.projectId} />
+    </div>
+  {/if}
+  {#if model.catalogError && !model.configurationBlocked}
     <p class="px-4 py-2 text-xs text-destructive" role="alert">
       Launch definitions unavailable: {model.catalogError}. Run controls remain
       available.
     </p>
   {/if}
-  {#if view.definitions.length}
+  {#if view.definitions.length && !model.configurationBlocked}
     <MobileSection title="Saved launches" meta={`${view.definitions.length}`}>
       {#each view.definitions as entry (entry.key)}
         {@const signal = definitionRowSignal(entry)}
@@ -355,7 +361,7 @@ const screenMenu = $derived<ContextMenuItem[]>([
       {@render runRows(runs.recent)}
     </MobileSection>
   {/if}
-  {#if !view.definitions.length && !view.runs.length && !model.definitionsLoading && !model.catalogError}
+  {#if !view.definitions.length && !view.runs.length && !model.definitionsLoading && !model.catalogError && !model.configurationBlocked}
     <Empty.Root class="px-6 py-10">
       <Empty.Header>
         <Empty.Media class="text-muted-foreground">

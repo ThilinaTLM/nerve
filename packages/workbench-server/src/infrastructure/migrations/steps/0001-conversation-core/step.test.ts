@@ -119,16 +119,13 @@ void test("0001 converts a baseline, preserves outputs/configuration and records
     keepRecentPercent: 20,
   });
   assert.equal(existsSync(join(home, "agent/subagents/explore.md")), false);
-  const projectProfiles = JSON.parse(
-    await readFile(join(home, "project/.nerve/config/subagents.json"), "utf8"),
-  );
   assert.equal(
-    projectProfiles.profiles.reviewer.instructions,
-    "Review this fixture only.",
+    existsSync(join(home, "project/.nerve/config/subagents.json")),
+    false,
   );
   assert.equal(
     existsSync(join(home, "project/.nerve/subagents/reviewer.md")),
-    false,
+    true,
   );
   assert.deepEqual(harness.defaults, { permissionRuleSetId: "autonomous" });
   assert.deepEqual(harness.lastSelection, { permissionRuleSetId: "custom" });
@@ -159,13 +156,8 @@ void test("0001 converts a baseline, preserves outputs/configuration and records
     { "user:fixture": false },
   );
   assert.equal(
-    JSON.parse(
-      await readFile(
-        join(home, "project/.nerve/launches/definitions.json"),
-        "utf8",
-      ),
-    ).definitions.length,
-    1,
+    existsSync(join(home, "project/.nerve/launches/definitions.json")),
+    false,
   );
   assert.deepEqual(
     (await runMigrations(home, { registry, dryRun: true })).pending,
@@ -209,55 +201,39 @@ void test("0001 resumes by discarding a partially imported new database", async 
   assert.equal(existsSync(join(home, "data/nerve.sqlite.migrating")), false);
 });
 
-void test("0001 verification failure keeps the source and task bundles; verified cleanup resumes before ledger", async (t) => {
+void test("0001 verification failure automatically quarantines only the damaged conversation", async (t) => {
   const home = await fixture(t);
-  let context: StepContext | undefined;
-  const captured = {
-    ...step,
-    async run(ctx: StepContext) {
-      context = ctx;
-      await step.run(ctx);
+  await runMigrations(home, {
+    registry,
+    onProgress: ({ phase }) => {
+      if (phase !== "verify") return;
+      const db = new DatabaseSync(join(home, "data/nerve.sqlite"));
+      try {
+        db.exec(
+          "UPDATE conversation_event SET payload = json_set(payload, '$.text', 'corrupted') WHERE conversation_id = 'conv_one'",
+        );
+      } finally {
+        db.close();
+      }
     },
-  };
-  await assert.rejects(
-    runMigrations(home, {
-      registry: [{ ...registry[0], step: captured }],
-      onProgress: ({ phase }) => {
-        if (phase === "verify") {
-          const db = new DatabaseSync(join(home, "data/nerve.sqlite"));
-          try {
-            db.exec(
-              "UPDATE conversation_event SET payload = json_set(payload, '$.text', 'corrupted') WHERE conversation_id = 'conv_one'",
-            );
-          } finally {
-            db.close();
-          }
-        }
-      },
-    }),
-    /1 conversation could not be upgraded/,
+  });
+  const report = JSON.parse(
+    await readFile(
+      join(home, "migrations/reports/0001-conversation-core.json"),
+      "utf8",
+    ),
   );
-  assert(context);
-  assert(existsSync(join(home, "data/nerve.sqlite.migrating")));
-  assert(existsSync(join(home, "data/tasks/task_old/stdout.txt")));
-  // Simulate the runner's commit boundary and a crash before ledger append.
-  await step.run(context);
-  await step.verify!(context);
-  assert(existsSync(join(home, "data/nerve.sqlite.migrating")));
-  await writeFile(join(context.scratchDir, "verified.json"), "{}");
-  await step.commit!(context);
-  assert.equal(existsSync(join(home, "data/nerve.sqlite.migrating")), false);
-  assert.deepEqual(
-    JSON.parse(await readFile(join(home, "manifest.json"), "utf8")).migrations,
-    [],
+  assert.equal(report.setAside.length, 1);
+  assert.equal(report.setAside[0].id, "conv_one");
+  assert(
+    (
+      await readFile(
+        join(report.setAside[0].quarantinePath, "payload/records.jsonl"),
+        "utf8",
+      )
+    ).includes("conv_one"),
   );
-  await runMigrations(home, { registry });
-  assert.equal(
-    JSON.parse(await readFile(join(home, "manifest.json"), "utf8")).migrations
-      .length,
-    1,
-  );
-  assert.deepEqual(await readdir(join(home, "migrations/work")), []);
+  assert(!existsSync(join(home, "data/nerve.sqlite.migrating")));
 });
 
 async function addToolResults(
@@ -385,47 +361,54 @@ void test("0001 externalizes inline/file results and image blocks, builds bounde
   }
 });
 
-void test("0001 rejects inline result or base64 image payloads before deleting the legacy source", async (t) => {
+void test("0001 sets aside conversations with forbidden inline result or image payloads", async (t) => {
   for (const field of ["result", "image"]) {
     const home = await fixture(t);
     await addToolResults(home);
-    await assert.rejects(
-      runMigrations(home, {
-        registry,
-        onProgress: ({ phase }) => {
-          if (phase !== "verify") return;
-          const db = new DatabaseSync(join(home, "data/nerve.sqlite"));
-          try {
-            const row = db
-              .prepare(
-                "SELECT id, payload FROM conversation_event WHERE event_type='tool_call_response' LIMIT 1",
-              )
-              .get()!;
-            const payload = JSON.parse(String(row.payload));
-            if (field === "result") payload.result = { content: "forbidden" };
-            else
-              payload.agentProjection.push({
-                type: "image",
-                mimeType: "image/png",
-                data: "Zm9v",
-              });
-            db.prepare(
-              "UPDATE conversation_event SET payload=? WHERE id=?",
-            ).run(JSON.stringify(payload), row.id);
-          } finally {
-            db.close();
-          }
-        },
-      }),
-      /1 conversation could not be upgraded/,
-    );
-    assert(existsSync(join(home, "data/nerve.sqlite.migrating")));
-    assert(
-      existsSync(
-        join(home, "data/conversations/one/tool-calls/file/result.json"),
+    await runMigrations(home, {
+      registry,
+      onProgress: ({ phase }) => {
+        if (phase !== "verify") return;
+        const db = new DatabaseSync(join(home, "data/nerve.sqlite"));
+        try {
+          const row = db
+            .prepare(
+              "SELECT id, payload FROM conversation_event WHERE event_type='tool_call_response' LIMIT 1",
+            )
+            .get();
+          if (!row) return;
+          const payload = JSON.parse(String(row.payload));
+          if (field === "result") payload.result = { content: "forbidden" };
+          else
+            payload.agentProjection.push({
+              type: "image",
+              mimeType: "image/png",
+              data: "Zm9v",
+            });
+          db.prepare("UPDATE conversation_event SET payload=? WHERE id=?").run(
+            JSON.stringify(payload),
+            row.id,
+          );
+        } finally {
+          db.close();
+        }
+      },
+    });
+    const report = JSON.parse(
+      await readFile(
+        join(home, "migrations/reports/0001-conversation-core.json"),
+        "utf8",
       ),
     );
-    await runMigrations(home, { registry });
+    assert.equal(report.setAside[0].id, "conv_one");
+    assert(
+      existsSync(
+        join(
+          report.setAside[0].quarantinePath,
+          "payload/one/tool-calls/file/result.json",
+        ),
+      ),
+    );
   }
 });
 
@@ -664,7 +647,7 @@ void test("process permissions constrain actions, convert ambiguous grants to as
   assert.equal(convertPermissionRules(document), false);
 });
 
-void test("0001 converts user/project/conversation overlays and custom rule-set files", async (t) => {
+void test("0001 converts home/conversation overlays and custom rule sets, leaving project overlays unchanged", async (t) => {
   const home = await fixture(t);
   const rule = {
     id: "legacy-status",
@@ -701,7 +684,7 @@ void test("0001 converts user/project/conversation overlays and custom rule-set 
   );
   await runMigrations(home, { registry });
   for (const file of [
-    ...files.slice(0, 2),
+    files[0],
     "data/conversations/conv_one/config/permissions.json",
   ]) {
     const document = JSON.parse(await readFile(join(home, file), "utf8"));
@@ -710,6 +693,10 @@ void test("0001 converts user/project/conversation overlays and custom rule-set 
       arguments: [{ path: "args.action", operator: "equals", value: "list" }],
     });
   }
+  assert.equal(
+    await readFile(join(home, files[1]), "utf8"),
+    JSON.stringify(overlay),
+  );
   const custom = JSON.parse(
     await readFile(join(home, "config/rule-sets/custom.json"), "utf8"),
   );

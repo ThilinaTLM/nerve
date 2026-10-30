@@ -87,6 +87,11 @@ const harness = z
     scopedModels: z.array(object).optional(),
   })
   .strict();
+/** Released conversation harness files are sparse overrides, not user v3 documents.
+ * ConversationHarnessSettings wrote { compaction } with no version field. */
+export const releasedConversationHarnessSchema = z
+  .object({ compaction: object.optional() })
+  .strict();
 const capabilities = z
   .object({
     schemaVersion: z.literal(2),
@@ -655,10 +660,7 @@ export function convertConversationV037(
     overrides = merge(overrides, convertCapabilitiesV037(input.capabilities));
   }
   if (input.harness !== undefined) {
-    const own = z
-      .object({ compaction: object.optional() })
-      .strict()
-      .parse(input.harness);
+    const own = releasedConversationHarnessSchema.parse(input.harness);
     if (own.compaction)
       overrides.compaction = compaction(own.compaction, ctx.report);
   }

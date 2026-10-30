@@ -1,3 +1,4 @@
+import { MissingAssetError } from "@nervekit/conversation-core";
 import { Hono } from "hono";
 import type { ServerAdapterContexts } from "../../../app/bootstrap/create-server-adapter-contexts.js";
 import { routeHandler } from "../responses.js";
@@ -14,8 +15,17 @@ export function createConversationAssetRoutes(
   app.get(
     "/:assetId",
     routeHandler(async (c) => {
-      const image = await state.assets.readImage(routeParam(c, "assetId"));
-      if (!image) return c.notFound();
+      let image;
+      try {
+        image = await state.assets.readImage(routeParam(c, "assetId"));
+      } catch (error) {
+        if (!(error instanceof MissingAssetError)) throw error;
+      }
+      if (!image)
+        return c.json(
+          { error: { code: "ASSET_NOT_FOUND", message: "Asset not found." } },
+          404,
+        );
       return c.body(new Uint8Array(image.bytes), 200, {
         "Content-Type": image.mediaType,
         "Cache-Control": "private, max-age=86400",

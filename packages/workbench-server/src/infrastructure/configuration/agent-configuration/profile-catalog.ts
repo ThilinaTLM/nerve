@@ -1,3 +1,13 @@
+import { projectSubagentCatalog } from "./project-chains/scoped-migrations.js";
+import { ProjectMigrationService } from "../project-migration/project-migration.js";
+import {
+  projectStorePorts,
+  projectJsonWriter,
+} from "./project-chains/store-ports.js";
+import {
+  projectProfileConfiguration,
+  profileDocumentValue,
+} from "./project-chains/profile-migrations.js";
 import { readConfigurationDigest } from "./configuration-bytes.js";
 import { readFile, readdir, unlink } from "node:fs/promises";
 import path from "node:path";
@@ -42,6 +52,7 @@ export type ProfileLookup =
   | { status: "unavailable"; diagnostics: readonly ConfigurationDiagnostic[] };
 export interface ProfileCatalogOptions {
   paths: AgentConfigurationPaths;
+  projectMigration?: ProjectMigrationService;
   prepareProject?(projectId: string): Promise<void>;
   /** Authored bundled bytes, not legacy profile formats. */
   builtins: Readonly<Record<string, string>>;
@@ -56,6 +67,7 @@ export interface ProfileCatalogOptions {
 
 /** Complete-definition shadowing: invalid/untrusted project entries never fall through. */
 export class AgentProfileCatalog {
+  private readonly migrations: ProjectMigrationService;
   private readonly store: ScopedDocumentStore<ProfileScope, ProfileDefinition>;
   private readonly extraDiagnostics = new Map<
     string,
@@ -67,8 +79,25 @@ export class AgentProfileCatalog {
     Promise<{ names: string[]; diagnostics: ConfigurationDiagnostic[] }>
   >();
   constructor(private readonly options: ProfileCatalogOptions) {
-    this.store = new ScopedDocumentStore({
+    const migrations = (this.migrations =
+      options.projectMigration ??
+      new ProjectMigrationService({
+        home: options.paths.locations.home,
+        write: options.io?.write
+          ? projectJsonWriter(options.io.write)
+          : undefined,
+      }));
+    this.store = new ScopedDocumentStore<ProfileScope, ProfileDefinition>({
       ...options.io,
+      ...projectStorePorts<ProfileScope, ProfileDefinition>(
+        migrations,
+        options.paths,
+        (scope) => projectProfileConfiguration(scope.name),
+      ),
+      fromDisk: (input, scope) =>
+        scope.scope === "project" ? profileDocumentValue(input) : input,
+      toDisk: (document, scope) =>
+        scope.scope === "project" ? { ...document, version: 2 } : document,
       resolvePath: (scope) => options.paths.profile(scope, scope.name),
       required: () => true,
       revisioned: false,
@@ -298,6 +327,15 @@ export class AgentProfileCatalog {
     return cached;
   }
 
+  private async loadProjectCatalog(projectId: string): Promise<void> {
+    const directory = this.options.paths.locations.projectDirectory(projectId);
+    if (!directory) return;
+    this.migrations.register(projectSubagentCatalog);
+    await this.migrations.load(
+      { projectId, directory },
+      projectSubagentCatalog,
+    );
+  }
   async list(
     projectId?: string,
     role: "lead" | "child" = "lead",
@@ -310,6 +348,7 @@ export class AgentProfileCatalog {
     const project = projectId
       ? await this.names({ scope: "project", projectId })
       : { names: [], diagnostics: [] };
+    if (projectId) await this.loadProjectCatalog(projectId);
     const names = [
       ...new Set([
         ...Object.keys(this.options.builtins),
@@ -436,6 +475,8 @@ export class AgentProfileCatalog {
       scope.scope === "project"
         ? await this.names(scope)
         : { names: [], diagnostics: [] };
+    if (scope.scope === "project")
+      await this.loadProjectCatalog(scope.projectId);
     const names = [
       ...new Set([
         ...Object.keys(this.options.builtins),
@@ -462,6 +503,29 @@ export class AgentProfileCatalog {
     const target = { ...scope, name };
     const file = this.options.paths.profile(scope, name);
     this.track(target);
+    if (scope.scope === "project") {
+      const directory = this.options.paths.locations.projectDirectory(
+        scope.projectId,
+      );
+      if (!directory) throw new Error("Project not found");
+      const type = projectProfileConfiguration(name);
+      this.migrations.register(type);
+      await this.migrations.transact(
+        { projectId: scope.projectId, directory },
+        type,
+        async () => {
+          if ((await readConfigurationDigest(file)) !== expectedDigest)
+            throw new ScopeConflictError();
+          return {
+            result: undefined,
+            changed: expectedDigest !== "missing",
+            remove: true,
+          };
+        },
+      );
+      await this.reload(scope, name);
+      return { status: "saved" as const, digest: "missing" };
+    }
     await withFileMutation(file, async () => {
       if ((await readConfigurationDigest(file)) !== expectedDigest)
         throw new ScopeConflictError();

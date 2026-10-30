@@ -9,7 +9,10 @@ import {
   isolateScopeTargets,
   releasedScopeTargets,
 } from "./released-scope-targets.js";
-import { convertPreferencesV037 } from "./released-format.js";
+import {
+  convertConversationV037,
+  convertPreferencesV037,
+} from "./released-format.js";
 const context = {
   builtins: releasedBuiltins,
   skillSources: {},
@@ -86,3 +89,86 @@ await test("D12 existing canonical targets isolate the scoped export without ove
   assert.equal(files.get("/project/config/capabilities.json"), source);
   assert.equal(files.get("/project/config/agent.json"), "existing bytes");
 });
+
+await test("released conversation sources use their own sparse shapes, not user preferences", () => {
+  const harness = {
+    compaction: { auto: false, profile: "custom", customTriggerPercent: 63 },
+  };
+  const capabilities = {
+    schemaVersion: 2,
+    tools: { web_search: { enabled: false } },
+  };
+  // Conversation catalogs are launch overrides, not complete authored user profiles.
+  const subagents = {
+    schemaVersion: 1,
+    profiles: { custom: { enabled: false, label: "Legacy label" } },
+  };
+  const files = new Map([
+    ["/conversation/config/harness.json", JSON.stringify(harness)],
+    ["/conversation/config/capabilities.json", JSON.stringify(capabilities)],
+    ["/conversation/config/subagents.json", JSON.stringify(subagents)],
+  ]);
+  const io = {
+    read(path: string) {
+      assert(
+        !path.endsWith("integrations.json"),
+        "Conversation conversion must not inspect unrelated accounts",
+      );
+      return files.get(path);
+    },
+  };
+  const input = readReleasedScope("/conversation", io, "conversation", context);
+  validateReleasedCatalog(input, "/conversation", "conversation", context);
+  assert.deepEqual(input.issues, []);
+  assert.deepEqual(input.before, { harness, capabilities, subagents });
+  assert.equal(input.snapshots.size, 3);
+  const agent = convertConversationV037(
+    {
+      conversation_id: "c",
+      model: '{"provider":"test","modelId":"model"}',
+      reasoning_level: "high",
+      permission_rule_set_id: "planning",
+      mode: "coding",
+      system_prompt: null,
+      instructions: null,
+      working_directory: "/project",
+    },
+    input.before,
+    context,
+  );
+  assert(!("frozenDefaults" in agent), "Expected lead conversation overrides");
+  assert.deepEqual(agent.overrides.compaction, harness.compaction);
+  assert.equal(agent.overrides.tools!.web_search!.enabled, false);
+  assert.equal(agent.overrides.subagents!.custom.enabled, false);
+  // The fix does not relax the independently versioned home harness contract.
+  const user = readReleasedScope(
+    "/conversation",
+    {
+      read: (path) =>
+        path.endsWith("harness.json") ? JSON.stringify(harness) : undefined,
+    },
+    "user",
+    context,
+  );
+  assert.equal(user.issues.length, 1);
+  assert.match(user.issues[0].reason, /version/);
+});
+
+for (const bytes of [
+  "broken JSON",
+  '{"compaction":"invalid"}',
+  '{"compaction":[]}',
+  '{"compaction":{},"unexpected":true}',
+]) {
+  await test(`conversation harness still isolates genuinely malformed input: ${bytes}`, () => {
+    const input = readReleasedScope(
+      "/conversation",
+      { read: (path) => (path.endsWith("harness.json") ? bytes : undefined) },
+      "conversation",
+      context,
+    );
+    assert.equal(input.issues.length, 1);
+    assert.equal(input.issues[0].file, "harness");
+    assert.equal(input.before.harness, undefined);
+  });
+}

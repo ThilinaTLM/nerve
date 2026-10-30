@@ -45,11 +45,8 @@ import {
 } from "./configuration.js";
 import {
   captureLegacyProfileEnablement,
-  convertProfileScope,
-  profileReceiptPath,
   convertSubagentSettings,
 } from "./subagent-profiles.js";
-import { profilesDocument } from "./subagent-profile-format.js";
 import { LegacyReader, type Legacy } from "./legacy.reader.js";
 import { CoreStorage } from "./storage.js";
 import { coreSchemaV1 } from "./schema.js";
@@ -504,10 +501,7 @@ async function convert(
     "Upgrading configuration",
   );
   await setImmediate();
-  const legacyEnabled = captureLegacyProfileEnablement(
-    ctx.paths.home,
-    ctx.scratchDir,
-  );
+  captureLegacyProfileEnablement(ctx.paths.home, ctx.scratchDir);
   const profileTarget = join(ctx.paths.home, "config", "subagents.json");
   const conversions = {
     ...(await convertConfiguration(ctx.paths.home, ctx.scratchDir, ctx)),
@@ -552,42 +546,6 @@ async function convert(
     progress: () =>
       ctx.progress("import", ++done, total, "Importing conversations"),
   });
-  const userProfiles = profilesDocument.parse(
-    readJson(join(ctx.paths.home, "config", "subagents.json"), {
-      schemaVersion: 1,
-      profiles: {},
-    }),
-  ).profiles;
-  const projectStorage = new CoreStorage(ctx.paths.sqlitePath, false);
-  try {
-    for (const row of projectStorage.sqlite
-      .prepare("SELECT directory FROM project")
-      .all()) {
-      const root = join(String(row.directory), ".nerve");
-      const target = join(root, "config", "subagents.json");
-      await ctx.unit(
-        {
-          kind: "configuration",
-          id: target,
-          title: "Project sub-agent profiles",
-        },
-        () =>
-          convertProfileScope(root, join(root, "subagents"), [], false, {
-            legacyEnabled,
-            inheritedProfiles: userProfiles,
-            receiptPath: profileReceiptPath(ctx.scratchDir, root),
-          }),
-        {
-          quarantine: {
-            files: [target, join(root, "subagents")],
-            root: String(row.directory),
-          },
-        },
-      );
-    }
-  } finally {
-    projectStorage.close();
-  }
   ctx.progress(
     "preserve-task-outputs",
     undefined,

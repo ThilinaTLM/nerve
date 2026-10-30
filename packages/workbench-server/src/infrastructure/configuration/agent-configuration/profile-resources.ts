@@ -1,8 +1,16 @@
+import {
+  canonicalSettingsEntries,
+  leadSettingsOverridesSchema,
+  type LeadSettingsOverrides,
+} from "@nervekit/contracts/agent-configuration";
+import type { ConfigurationDiagnostic } from "./document-adapters.js";
 import type { ResolutionOptions } from "@nervekit/contracts/agent-configuration";
 import type { AgentProfileCatalog } from "./profile-catalog.js";
 import { ScopeUnavailableError } from "../scoped-store/scoped-document-store.js";
 
 export interface ResourceSnapshot {
+  projectCapabilities?: LeadSettingsOverrides;
+  projectDiagnostics?: readonly ConfigurationDiagnostic[];
   options: Pick<
     ResolutionOptions,
     | "process"
@@ -40,4 +48,39 @@ export async function captureProfileResources(
     };
   }
   throw new ScopeUnavailableError();
+}
+
+/** Compose sparse settings by the resolver's canonical atomic merge units. */
+export function projectSettings(
+  resources: ResourceSnapshot,
+  overrides: LeadSettingsOverrides = {},
+): LeadSettingsOverrides {
+  const result: Record<string, unknown> = {};
+  for (const [pointer, value] of [
+    ...canonicalSettingsEntries(resources.projectCapabilities ?? {}),
+    ...canonicalSettingsEntries(overrides),
+  ]) {
+    const parts = pointer
+      .slice(1)
+      .split("/")
+      .map((part) => part.replaceAll("~1", "/").replaceAll("~0", "~"));
+    let node = result;
+    for (const part of parts.slice(0, -1)) {
+      if (!Object.hasOwn(node, part))
+        Object.defineProperty(node, part, {
+          value: {},
+          enumerable: true,
+          configurable: true,
+          writable: true,
+        });
+      node = node[part] as Record<string, unknown>;
+    }
+    Object.defineProperty(node, parts.at(-1)!, {
+      value: structuredClone(value),
+      enumerable: true,
+      configurable: true,
+      writable: true,
+    });
+  }
+  return leadSettingsOverridesSchema.parse(result);
 }

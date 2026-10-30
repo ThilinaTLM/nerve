@@ -16,6 +16,18 @@ const defineProjectMethodHandlers =
 
 export const projectMethodHandlers: WorkbenchMethodHandlerMapFor<ProjectMethodContext> =
   defineProjectMethodHandlers({
+    "project.configuration.health": (state, { projectId }) => {
+      state.getProject(projectId);
+      return state.projectMigration.health(projectId);
+    },
+    "project.configuration.resolve": (state, params) =>
+      state.projectMigration.resolve(
+        {
+          projectId: params.projectId,
+          directory: state.getProject(params.projectId).directory,
+        },
+        params,
+      ),
     "promptSuggestion.listForProject": (state, params) =>
       state.promptSuggestions.listForProject(params.projectId, params),
     "promptSuggestion.statuses.list": async (state, params) => ({

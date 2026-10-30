@@ -1,6 +1,10 @@
 import { appendFile, mkdir } from "node:fs/promises";
 import { dirname, join } from "node:path";
-import { defaultSettings, type Settings } from "@nervekit/contracts/settings";
+import {
+  homeAdmissionFailureKind,
+  defaultSettings,
+  type Settings,
+} from "@nervekit/contracts/settings";
 import type { DesktopCliOptions } from "./cli-options.js";
 import { createDesktopConfigurationController } from "./desktop-configuration.js";
 import { startRunRuntime } from "./runtime-recovery.js";
@@ -56,6 +60,8 @@ export class DesktopRuntime {
   /** True while the window shows the shell error page instead of the app. */
   #startupErrorVisible = false;
   #retryInFlight = false;
+  #startupRetryable = false;
+  #startupDiagnostics = "";
   #trayController!: TrayController;
   #shellPageUrls = new ShellPageUrlRegistry();
   #desktopConfiguration: DesktopRuntimeOptions["desktopConfiguration"];
@@ -172,9 +178,12 @@ export class DesktopRuntime {
         }
         await runtime.#managedDaemon.restart();
       },
+      homeDirectory: desktopDataDir,
+      startupDiagnostics: () => runtime.#startupDiagnostics,
       retryStartup: () => {
         const window = runtime.#mainWindow;
         if (
+          !runtime.#startupRetryable ||
           !runtime.#startupErrorVisible ||
           !window ||
           window.isDestroyed() ||
@@ -412,6 +421,8 @@ export class DesktopRuntime {
           },
           connectDaemon: async () => {
             if (!runtime.#managedDaemon) {
+              if (desktopOptions.mode !== "remote")
+                await ports.checkHomeAdmission(desktopDataDir);
               const startup = await startRunRuntime(() =>
                 ports.acquireDaemon({
                   webDistPath: ports.packagedWebDistPath(),
@@ -511,6 +522,9 @@ export class DesktopRuntime {
         });
         console.error(error);
         if (!window.isDestroyed()) {
+          runtime.#startupRetryable = startupErrorRetryable(error);
+          runtime.#startupDiagnostics =
+            error instanceof Error ? error.message : String(error);
           runtime.#startupErrorVisible = true;
           await window.loadURL(
             runtime.#shellPageUrls.create(
@@ -602,16 +616,19 @@ export class DesktopRuntime {
             runtime.#shellPageUrls.clear();
           }
         } else if (status === "failed") {
+          const error = new Error(
+            info?.error ?? "The Nerve daemon stopped and could not restart.",
+          );
+          runtime.#startupDiagnostics = error.message;
+          // Exhausted service recovery may be retried manually; admission never can.
+          runtime.#startupRetryable =
+            homeAdmissionFailureKind(error) === undefined;
           runtime.#startupErrorVisible = true;
           await window.loadURL(
             runtime.#shellPageUrls.create(
-              errorHtml(
-                new Error(
-                  info?.error ??
-                    "The Nerve daemon stopped and could not restart.",
-                ),
-                desktopDataDir,
-              ),
+              errorHtml(error, desktopDataDir, {
+                retry: runtime.#startupRetryable,
+              }),
             ),
           );
         }

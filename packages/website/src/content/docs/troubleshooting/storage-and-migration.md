@@ -5,17 +5,24 @@ sidebar:
   order: 7
 ---
 
-## Incompatible state
+## Unsupported or damaged homes
 
-Current state uses `manifest.json` with format `nerve-home`, version `1`. Nerve does not downgrade, reset malformed state, or open unknown/future versions. Nonempty homes without that manifest are unsupported; this version does not import older `nerve-workbench-state` layouts. Stop all Nerve processes and preserve the complete directory before trying a fresh, separate `NERVE_HOME`.
+The supported upgrade baseline is **Nerve 0.34.1**. New homes use `manifest.json` with format `nerve-home`, version `2`; versions `1` and `2` are accepted on read. Older layouts are not converted automatically. Do not add a manifest or change a migration checksum to make an old directory appear current.
 
-Do not add a manifest or change a migration checksum to make an old directory appear current.
+If startup identifies a home older than the baseline, choose one of these options:
+
+- **Upgrade through 0.34.1:** close Nerve and back up the complete home. Install [Nerve 0.34.1](https://github.com/ThilinaTLM/nerve/releases/tag/v0.34.1), run it once against that same home (`NERVE_HOME` if overridden), then close it and run the latest version. This route preserves conversation history.
+- **Start with an empty home:** close Nerve, delete or move the home folder shown on the startup screen, then reopen Nerve. Moving the folder keeps the original data available; deleting it permanently removes its contents. Back it up first if needed. The new home has no conversation history or provider sign-ins, so configure providers again.
+
+Damaged manifests, unreadable or unexpected ledgers, and unrecognized layouts show the same delete-or-move instruction, plus **Open folder** and **Copy diagnostics**. Running 0.34.1 is not offered as a repair for damaged metadata. Retry is offered only for failures identified as transient. Never share credential files with diagnostics.
+
+Nerve does not move or delete the folder for you, carry over providers or credentials, or track an archived-home location. Do not modify the home while Nerve is running.
 
 ## Migration aborts
 
 Read the reported stage and error before retrying. Startup upgrades check source records, schema checksums, referenced assets, and destination integrity. The current conversation-core conversion keeps resumable work until verification; do not delete its retained source database, sidecars, work directory, or ledger to bypass a failure.
 
-Back up the stopped home before an upgrade. The current conversion does not retain an automatic whole-home backup after success. If rehearsing on a copied home, also redirect project paths to copied projects: conversion can update project-resident `.nerve` configuration.
+Back up the stopped home before an upgrade. The current conversion does not retain an automatic whole-home backup after success. Home upgrades touch only the Nerve home. Project configuration is upgraded separately when its feature loads it. A copied home can still point at real projects, so use copied projects when testing those features.
 
 ## Launch configurations conflict
 

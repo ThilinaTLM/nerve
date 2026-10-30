@@ -44,7 +44,7 @@ function fixture(t: TestContext) {
   return { home, root, scratch: join(home, "scratch") };
 }
 
-void test("registered project conversion retains captured global false across an import crash", async (t) => {
+void test("home migration leaves registered project profiles untouched across an import crash", async (t) => {
   const home = await stepFixture(t);
   writeFileSync(
     join(home, "config/subagents.json"),
@@ -70,12 +70,12 @@ void test("registered project conversion retains captured global false across an
   );
   assert(existsSync(join(source, "explore.md")));
   await runMigrations(home, { registry });
-  const profiles = JSON.parse(
-    readFileSync(join(home, "project/.nerve/config/subagents.json"), "utf8"),
-  ).profiles;
-  assert.equal(profiles.developer.enabled, false);
-  assert.equal(profiles.explore.enabled, false);
-  assert(!existsSync(join(source, "developer.md")));
+  assert(!existsSync(join(home, "project/.nerve/config/subagents.json")));
+  assert.equal(readFileSync(join(source, "developer.md"), "utf8"), markdown());
+  assert.equal(
+    readFileSync(join(source, "explore.md"), "utf8"),
+    markdown("enabled: true"),
+  );
 });
 
 void test("harness Explore disable is captured before rewrite and overrides Markdown/global true", (t) => {

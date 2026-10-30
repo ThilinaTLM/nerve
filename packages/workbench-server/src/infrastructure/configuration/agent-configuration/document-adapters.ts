@@ -137,7 +137,7 @@ export function diagnostic(
           : "agent-execution",
     recoveryChoices:
       code === "future-version"
-        ? ["upgrade", "reset"]
+        ? ["upgrade", "reload"]
         : code === "io-error"
           ? ["retry", "reload"]
           : ["reload", "repair", "reset"],

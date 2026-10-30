@@ -1,12 +1,11 @@
 import baseline from "./released-baseline.json" with { type: "json" };
 import { join } from "node:path";
 import { z } from "zod";
-import {
-  legacyConfigurationFileSchema,
-  type LegacyConfigurationFile,
-} from "@nervekit/contracts/agent-configuration";
+import { type LegacyConfigurationFile } from "@nervekit/contracts/agent-configuration";
 import {
   convertPreferencesV037,
+  convertCapabilitiesV037,
+  releasedConversationHarnessSchema,
   releasedCatalogSchema,
   splitCatalogV037,
   sha256,
@@ -14,6 +13,14 @@ import {
   type Data,
 } from "./released-format.js";
 import type { ExportIO } from "./released-export.js";
+
+const releasedFiles = [
+  "harness",
+  "capabilities",
+  "subagents",
+  "integrations",
+] as const;
+type ReleasedScope = "user" | "project" | "conversation";
 
 export const releasedBuiltins = Object.fromEntries(
   baseline.builtins.map((profile) => [profile.name, profile]),
@@ -41,13 +48,15 @@ export interface ReleasedScopeInput {
 export function readReleasedScope(
   root: string,
   io: Pick<ExportIO, "read">,
-  scope: "user" | "project",
+  scope: ReleasedScope,
   context: ConversionContext,
 ): ReleasedScopeInput {
   const before: Data = {},
     issues: LegacyScopeIssue[] = [],
     snapshots = new Map<string, string>();
-  for (const file of legacyConfigurationFileSchema.options) {
+  for (const file of releasedFiles) {
+    // Conversation conversion does not consume integration account documents.
+    if (scope === "conversation" && file === "integrations") continue;
     const path = join(root, "config", file + ".json");
     let bytes: string | undefined;
     try {
@@ -57,7 +66,10 @@ export function readReleasedScope(
       // Current integration accounts are owned by their normal runtime loader.
       if (file === "integrations" && value?.version === 2) continue;
       if (file === "subagents") releasedCatalogSchema.parse(value);
-      else
+      else if (scope === "conversation") {
+        if (file === "harness") releasedConversationHarnessSchema.parse(value);
+        else convertCapabilitiesV037(value);
+      } else
         convertPreferencesV037(
           { [file]: value, scope },
           { ...context, report: () => {} },
@@ -78,7 +90,7 @@ export function readReleasedScope(
 export function validateReleasedCatalog(
   input: ReleasedScopeInput,
   root: string,
-  scope: "user" | "project",
+  scope: ReleasedScope,
   context: ConversionContext,
 ): void {
   if (!input.before.subagents) return;
@@ -103,7 +115,7 @@ export function legacyScopeFailure(
 ): unknown {
   if (error instanceof LegacyScopeError) return error;
   const issues: LegacyScopeIssue[] = [];
-  for (const file of legacyConfigurationFileSchema.options) {
+  for (const file of releasedFiles) {
     const path = join(root, "config", file + ".json");
     try {
       const bytes = io.read(path);

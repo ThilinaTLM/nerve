@@ -1,10 +1,22 @@
-import { ipcMain } from "../platform/electron/electron-api.js";
+import {
+  clipboard,
+  shell,
+  ipcMain,
+} from "../platform/electron/electron-api.js";
 
 export function registerStartupIpc(options: {
   retryStartup: () => boolean;
+  homeDirectory: string;
+  startupDiagnostics: () => string;
   reportRendererCoreReady: () => void;
   quitApp: () => void;
 }): void {
+  ipcMain.handle("desktop.startup.openHome", () =>
+    shell.openPath(options.homeDirectory),
+  );
+  ipcMain.handle("desktop.startup.copyDiagnostics", () => {
+    clipboard.writeText(options.startupDiagnostics());
+  });
   ipcMain.handle("desktop.app.quit", () => {
     options.quitApp();
     return { ok: true };

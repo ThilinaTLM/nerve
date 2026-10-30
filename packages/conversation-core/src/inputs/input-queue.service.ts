@@ -146,6 +146,13 @@ export class InputQueueService {
     this.changed(row.conversationId);
   }
 
+  discard(inputIds: readonly string[]): void {
+    for (const id of inputIds) {
+      this.preparations.get(id)?.abort();
+      this.preparations.delete(id);
+    }
+  }
+
   close(): void {
     // Fence late saves without removing prompts or rewriting uncertain outcomes.
     for (const controller of this.preparations.values()) controller.abort();
@@ -223,8 +230,12 @@ export class InputQueueService {
     );
   }
 
-  recover(): void {
-    for (const row of this.options.storage.inputs.listAll()) {
+  recover(conversationId?: string): void {
+    const rows =
+      conversationId === undefined
+        ? this.options.storage.inputs.listAll()
+        : this.options.storage.inputs.list(conversationId);
+    for (const row of rows) {
       if (row.commandPreparation && row.preparedText === null) {
         for (const block of row.commandPreparation.blocks)
           if (block.state === "running") block.state = "indeterminate";

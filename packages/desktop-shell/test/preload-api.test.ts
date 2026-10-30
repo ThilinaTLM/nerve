@@ -45,6 +45,8 @@ function preloadApiShape() {
       onStateChange: subscribe,
     },
     app: {
+      openHomeFolder: invoke,
+      copyStartupDiagnostics: invoke,
       retryStartup: invoke,
       quit: invoke,
       setBadgeCount: invoke,

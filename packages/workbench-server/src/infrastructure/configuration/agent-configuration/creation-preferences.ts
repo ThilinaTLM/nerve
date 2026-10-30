@@ -30,14 +30,16 @@ export async function readCreationPreferences(
   const diagnostics = [user, ...(project ? [project] : [])].flatMap((state) =>
     healthDiagnostics(state, "conversation-defaults"),
   );
-  if (user.status === "unavailable" || project?.status === "unavailable")
+  if (user.status === "unavailable")
     return { status: "unavailable" as const, diagnostics };
   return freezeJson({
     status: "available" as const,
     overrides: {
       ...builtinCreationPreferences,
       ...user.value.document.overrides,
-      ...project?.value.document.overrides,
+      ...(project && project.status !== "unavailable"
+        ? project.value.document.overrides
+        : {}),
     },
     diagnostics,
   });

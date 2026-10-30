@@ -257,14 +257,49 @@ export class AsyncBashService {
     this.processes.delete(bashId);
   }
 
+  private readonly discarded = new Set<string>();
+  async discard(ids: readonly string[]): Promise<void> {
+    for (const id of ids) this.discarded.add(id);
+    try {
+      for (const id of ids) {
+        const row = this.options.storage.asyncBash.get(id);
+        let process = this.processes.get(id);
+        if (!process && row?.status === "running" && row.processRef) {
+          try {
+            process =
+              (await this.options.processes.reattach(row.processRef)) ??
+              undefined;
+          } catch {
+            // Never cancel a process whose ownership cannot be verified.
+          }
+        }
+        await process?.cancel();
+      }
+      await Promise.allSettled(
+        ids.flatMap((id) => this.watchers.get(id) ?? []),
+      );
+    } finally {
+      for (const id of ids) {
+        this.discarded.delete(id);
+        this.processes.delete(id);
+      }
+    }
+  }
+
   async cancelForConversations(ids: string[]): Promise<void> {
     for (const id of ids)
       for (const row of this.list(id))
         if (row.status === "running") await this.cancel(row.id);
   }
 
-  async recover(): Promise<void> {
-    for (const row of this.options.storage.asyncBash.listByStatus("running")) {
+  async recover(conversationId?: string): Promise<void> {
+    const rows =
+      conversationId === undefined
+        ? this.options.storage.asyncBash.listByStatus("running")
+        : this.options.storage.asyncBash
+            .list(conversationId)
+            .filter((row) => row.status === "running");
+    for (const row of rows) {
       if (this.watchers.has(row.id)) continue;
       let process: BackgroundProcess | null = null;
       if (row.processRef) {
@@ -303,6 +338,7 @@ export class AsyncBashService {
     status: Exclude<AsyncBashStatus, "running">,
     exitCode: number | null,
   ): Promise<void> {
+    if (this.discarded.has(row.id)) return;
     const assets = this.options.storage.assets
       .list(row.conversationId)
       .filter((asset) => asset.asyncBashId === row.id);

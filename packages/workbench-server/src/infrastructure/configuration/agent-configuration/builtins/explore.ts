@@ -10,7 +10,7 @@ export const explore = {
   enabled: true,
   usableBy: "subagent",
   instructions:
-    "You are a read-only researcher. Investigate the assignment and report what you find; do not modify files.\n\n- Search and read the codebase, and use the web when the assignment needs it.\n- Stay within the assignment. Prefer a few targeted searches over exhaustive reading.\n- Back every claim with evidence: file paths with line numbers, command output, or URLs.\n- Say plainly when something could not be found or is uncertain.\n\nEnd with a short report using these headings: Summary, Relevant files, Evidence, Open questions.",
+    "Find the information needed to answer the assigned question. Research the codebase or web without modifying files.\n\n- Keep research scoped to the question.\n- Support findings with file paths and line numbers or URLs.\n- Distinguish verified facts from uncertainty.\n\nReturn a concise answer, supporting evidence, and any unresolved questions.",
   recommendations: {
     permissionRuleSetId: "read_only",
   },

@@ -40,9 +40,11 @@ The initial listener uses bootstrap settings. If migration changes the configure
 
 ## Failures and recovery
 
-Storage failures leave the daemon reachable so the web app can offer retry, set-aside or rollback when available. **Set-aside** preserves a damaged migration unit in quarantine while allowing healthy data to proceed. [Migration recovery](migrations.md#recovery-decisions) explains the preservation boundary.
+Admission failures happen before any upgrade runs. The daemon reports a typed kind, and the desktop startup screen shows the home path with instructions instead of a retry that cannot succeed. An old home asks the user to run 0.34.1 first or to delete or move the folder; a damaged home offers the second choice plus diagnostics. See [admission](migrations.md#admission-and-unsupported-homes).
 
-A successful rollback leaves the daemon alive in a terminal failure state. This prevents a process supervisor from immediately upgrading the restored home again. Runtime construction failures are fatal because the normal application could not be mounted. Invalid runtime-owned home settings instead use a separate, non-blocking [settings recovery](storage.md#settings-health) path.
+During an upgrade, a failure attributable to one conversation or settings document is set aside automatically and reported after startup, so it never reaches the user as a startup failure. Home-level storage failures leave the daemon reachable so the web app can offer retry or rollback when available. [Migration recovery](migrations.md#recovery-decisions) explains the preservation boundary.
+
+A successful rollback leaves the daemon alive in a terminal failure state. This prevents a process supervisor from immediately upgrading the restored home again. Runtime construction failures are fatal because the normal application could not be mounted. Invalid runtime-owned home settings instead use a separate, non-blocking [settings recovery](storage.md#settings-health) path, and a conversation whose stored data cannot be read is skipped rather than failing startup; see [unreadable conversations](storage.md#unreadable-conversations).
 
 ## Connecting and reconnecting
 
@@ -60,4 +62,5 @@ The shell hands off when HTTP is reachable, rather than waiting for full readine
 | Initialization and worker boundary | [`initializeStorage`](../../packages/workbench-server/src/infrastructure/storage-bootstrap/initialize.ts); [`runMigrationsInWorker`](../../packages/workbench-server/src/infrastructure/migrations/framework/worker-client.ts) |
 | Recovery actions                   | [`storageRecoveryControls`](../../packages/workbench-server/src/app/lifecycle/storage-recovery.ts)                                                                                                                             |
 | Web boot gate and reconnection     | [`waitForServerReady`](../../packages/workbench-app/src/lib/application/startup/server-lifecycle.svelte.ts) and its lifecycle monitor                                                                                          |
+| Admission failure page             | [`errorHtml`](../../packages/desktop-shell/src/window/loading-pages.ts)                                                                                                                                                        |
 | Shell supervision                  | [`DesktopRuntime`](../../packages/desktop-shell/src/app/desktop-runtime.ts)                                                                                                                                                    |

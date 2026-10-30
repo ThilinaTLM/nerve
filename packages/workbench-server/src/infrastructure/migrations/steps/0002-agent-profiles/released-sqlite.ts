@@ -30,7 +30,8 @@ import {
   databaseBackupReceiptSchema,
   type DatabaseBackupIO,
 } from "./released-backup.js";
-import { trustTargetId } from "./released-project-trust.js";
+const trustTargetId = (target: Plan["trust"][number]) =>
+  `trust_${sha256(`${target.projectId}|${target.kind}|${target.path}`)}`;
 
 const v2 = coreMigrations.find((migration) => migration.version === 2)!;
 

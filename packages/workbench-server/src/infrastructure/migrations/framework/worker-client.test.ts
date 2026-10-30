@@ -107,7 +107,7 @@ void test("invalid ledgers fail before cleanup or worker startup", async (t) => 
     await writeFile(marker, "{}");
     await assert.rejects(
       runMigrationsInWorker({ home, workerUrl: missingWorker }),
-      /Unknown or out-of-order|Run Nerve 0.34.1 first/,
+      /Unknown or out-of-order|NERVE_HOME_ADMISSION:/,
     );
     assert.equal(await readFile(marker, "utf8"), "{}");
   }
@@ -187,13 +187,13 @@ void test("malformed and unsupported manifests fail closed", async (t) => {
     const home = await homeFor(t, value);
     await assert.rejects(
       runMigrationsInWorker({ home, workerUrl: missingWorker }),
-      /Run Nerve 0.34.1 first/,
+      /NERVE_HOME_ADMISSION:/,
     );
   }
   const home = await homeFor(t);
   await writeFile(join(home, "manifest.json"), "{");
   await assert.rejects(
     runMigrationsInWorker({ home, workerUrl: missingWorker }),
-    /Run Nerve 0.34.1 first/,
+    /NERVE_HOME_ADMISSION:/,
   );
 });

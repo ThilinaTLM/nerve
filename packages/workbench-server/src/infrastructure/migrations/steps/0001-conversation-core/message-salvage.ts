@@ -80,7 +80,7 @@ export class MessageSalvage {
       { records: [{ table: "conversation_records", row }], setAside: false },
     );
     this.report.loss(
-      `${reason}. A visible history placeholder was inserted; original bytes: ${path}`,
+      "Unreadable message record; a visible history placeholder was inserted; original bytes preserved in quarantine",
     );
     this.#active = true;
     const data: Legacy = {

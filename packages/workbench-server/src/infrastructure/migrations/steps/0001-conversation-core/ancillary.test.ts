@@ -4,7 +4,6 @@ import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import test from "node:test";
 import { runMigrations } from "../../framework/runner.js";
-import { discardFailedItems } from "../../framework/recovery.js";
 import { fixture, registry } from "./step-fixture.js";
 
 for (const namespace of [
@@ -51,18 +50,9 @@ for (const namespace of [
     } finally {
       db.close();
     }
-    await assert.rejects(runMigrations(home, { registry }));
-    const failure = JSON.parse(
-      await readFile(join(home, "migrations/last-failure.json"), "utf8"),
-    );
+    await runMigrations(home, { registry });
     const expected =
       namespace === "task" ? "legacy-record:task/task_old" : "conv_one";
-    assert.deepEqual(
-      failure.discardable.map((item: { id: string }) => item.id),
-      [expected],
-    );
-    await discardFailedItems(home, [expected]);
-    await runMigrations(home, { registry });
     const report = JSON.parse(
       await readFile(
         join(home, "migrations/reports/0001-conversation-core.json"),
@@ -91,15 +81,6 @@ void test("setting aside an unreadable project also quarantines its reported dep
   } finally {
     db.close();
   }
-  await assert.rejects(runMigrations(home, { registry }));
-  const failure = JSON.parse(
-    await readFile(join(home, "migrations/last-failure.json"), "utf8"),
-  );
-  assert.deepEqual(
-    failure.discardable.map((item: { id: string }) => item.id),
-    ["legacy-record:project/proj_fixture", "conv_one", "conv_two"],
-  );
-  await discardFailedItems(home, ["legacy-record:project/proj_fixture"]);
   await runMigrations(home, { registry });
   const report = JSON.parse(
     await readFile(

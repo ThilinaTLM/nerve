@@ -1,3 +1,5 @@
+import { applicableAgentLayers } from "./agent-layers.js";
+import { projectSettings } from "./profile-resources.js";
 import { withoutLegacyTransition } from "./document-adapters.js";
 import {
   agentMutationSchema,
@@ -76,13 +78,10 @@ export async function saveAgentDocument(
         ...withoutLegacyTransition(document),
         overrides: applySettingsMutation(document.overrides, mutation),
       };
-      const values = dependencies
-        .map((dependency) => port.store.peek(dependency))
-        .flatMap((state) => {
-          if (!state || state.status === "unavailable")
-            throw new ScopeUnavailableError();
-          return [state.value];
-        });
+      const values = applicableAgentLayers(
+        port.options,
+        dependencies.map((dependency) => port.store.peek(dependency)),
+      );
       candidate = normalizeAgentDocument(
         port,
         scope,
@@ -102,7 +101,7 @@ export async function saveAgentDocument(
                   : values.find((value) => value.scope.scope === "user")
                       ?.document.overrides,
               ...(scope.scope === "project"
-                ? { project: candidate.overrides }
+                ? { project: projectSettings(resources, candidate.overrides) }
                 : {}),
             });
       validateAgentResolution(resolution, resources);
@@ -129,18 +128,10 @@ export async function readInheritedAgentSettings(
         ? [{ scope: "user" }, scope]
         : [scope];
   await Promise.all(scopes.map((dependency) => port.load(dependency)));
-  const values = scopes.flatMap((dependency) => {
-    const state = port.store.peek(dependency);
-    if (
-      state &&
-      scope.scope === "conversation" &&
-      isUntrustedAgentDocument(port.options, port.paths, state)
-    )
-      return [];
-    if (!state || state.status === "unavailable")
-      throw new ScopeUnavailableError();
-    return [state.value];
-  });
+  const values = applicableAgentLayers(
+    port.options,
+    scopes.map((dependency) => port.store.peek(dependency)),
+  );
   const document = port.store.peek(scope);
   if (!document || document.status === "unavailable")
     throw new ScopeUnavailableError();
@@ -185,7 +176,10 @@ export function inheritedAgentSettings(
         ? {
             user: values.find((value) => value.scope.scope === "user")?.document
               .overrides,
-            project: trustedProject ? project.document.overrides : undefined,
+            project: projectSettings(
+              resources,
+              trustedProject ? project.document.overrides : undefined,
+            ),
           }
         : {}),
       appliedProfile: document.appliedProfile,
@@ -202,6 +196,7 @@ export function inheritedAgentSettings(
       ? {
           user: values.find((value) => value.scope.scope === "user")?.document
             .overrides,
+          project: resources.projectCapabilities,
         }
       : {}),
   }).settings;
@@ -282,9 +277,7 @@ export async function resolveRepairCandidate(
       });
     else {
       const state = await port.load(dependency);
-      if (isUntrustedAgentDocument(port.options, port.paths, state)) continue;
-      if (state.status === "unavailable") throw new ScopeUnavailableError();
-      values.push(state.value);
+      values.push(...applicableAgentLayers(port.options, [state]));
     }
   }
   const resolution =
@@ -295,8 +288,10 @@ export async function resolveRepairCandidate(
           role: "lead",
           user: values.find((v) => v.scope.scope === "user")?.document
             .overrides,
-          project: values.find((v) => v.scope.scope === "project")?.document
-            .overrides,
+          project: projectSettings(
+            resources,
+            values.find((v) => v.scope.scope === "project")?.document.overrides,
+          ),
         });
   if (
     resolution.diagnostics.some(
@@ -346,8 +341,11 @@ export function resolveStoredAgent(
       ? {
           user: values.find((value) => value.scope.scope === "user")?.document
             .overrides,
-          project: values.find((value) => value.scope.scope === "project")
-            ?.document.overrides,
+          project: projectSettings(
+            resources,
+            values.find((value) => value.scope.scope === "project")?.document
+              .overrides,
+          ),
         }
       : {}),
     conversation: conversation.overrides,
@@ -416,13 +414,10 @@ export async function prepareConversationDocument(
     .dependencies(conversationId)
     .filter((scope) => scope.scope !== "conversation");
   await Promise.all(scopes.map((scope) => port.load(scope)));
-  const values = scopes
-    .map((scope) => port.store.peek(scope))
-    .flatMap((state) => {
-      if (!state || state.status === "unavailable")
-        throw new ScopeUnavailableError();
-      return [state.value];
-    });
+  const values = applicableAgentLayers(
+    port.options,
+    scopes.map((scope) => port.store.peek(scope)),
+  );
   const resources = await port.captureResources(owner.projectId, owner.role);
   document = normalizeAgentDocument(
     port,

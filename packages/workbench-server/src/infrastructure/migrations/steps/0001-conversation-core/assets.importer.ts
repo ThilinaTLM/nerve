@@ -41,25 +41,50 @@ export function collectAssets(
   ): void => {
     if (assets.has(logicalPath)) return;
     const path = resolve(root, logicalPath);
+    const preserve = (reason: string, files: string[] = []) =>
+      reader.context?.quarantine(
+        {
+          kind: "conversation",
+          id: `${oldConversationId}/asset/${row?.id ?? logicalPath}`,
+          reason,
+        },
+        {
+          records: [
+            {
+              table: "file_assets",
+              row: row ?? {
+                logical_path: logicalPath,
+                conversation_id: oldConversationId,
+              },
+            },
+          ],
+          files,
+          retainSource: true,
+          setAside: false,
+        },
+      );
     const rel = relative(root, path);
     if (isAbsolute(rel) || rel === ".." || rel.startsWith("../")) {
-      mapping.report.skip("Unsafe asset path");
+      preserve("Unsafe asset path");
+      mapping.report.loss("Unsafe asset path");
       return;
     }
     let stat;
+    let invalid = false;
     try {
       stat = lstatSync(path);
-      const resolved = relative(root, realpathSync(path));
-      if (
-        !stat.isFile() ||
-        resolved.startsWith("../") ||
-        isAbsolute(resolved)
-      ) {
-        mapping.report.skip("Linked or non-file asset");
-        return;
+      if (!stat.isFile()) invalid = true;
+      else {
+        const resolved = relative(root, realpathSync(path));
+        invalid = resolved.startsWith("../") || isAbsolute(resolved);
       }
     } catch {
       mapping.report.missingFiles++;
+    }
+    if (invalid) {
+      preserve("Linked or non-file asset", [path]);
+      mapping.report.loss("Linked or non-file asset");
+      return;
     }
     const extension = extname(logicalPath).toLowerCase();
     const category =
@@ -87,7 +112,10 @@ export function collectAssets(
         row?.media_type ?? (extension === ".json" ? "application/json" : null),
       createdAt: iso(row?.created_at_ms ?? stat?.birthtimeMs),
     });
-    if (!stat) mapping.report.missingAssetIds.push(asset.id);
+    if (!stat) {
+      preserve("Missing legacy asset");
+      mapping.report.missingAssetIds.push(asset.id);
+    }
     assets.set(logicalPath, asset);
     if (owner.toolCallId)
       mapping.toolAssets.set(owner.toolCallId, [

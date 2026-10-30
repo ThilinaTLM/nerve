@@ -1,4 +1,5 @@
 <script lang="ts">
+import ToolImage from "./ToolImage.svelte";
 import type { AgentProjectionSnapshot } from "@nervekit/contracts/tools";
 import type { ToolCallRecord } from "../../view-models/tool-records";
 type AgentPreviewSnapshot = NonNullable<ToolCallRecord["agentPreview"]>;
@@ -61,7 +62,7 @@ function supportedImageMime(mimeType: string): boolean {
                 bytes
               </p>
               {#if data && supportedImageMime(block.mimeType)}
-                <img
+                <ToolImage
                   class="max-h-80 max-w-full rounded-sm object-contain"
                   src={data}
                   alt="Supplied to the agent"

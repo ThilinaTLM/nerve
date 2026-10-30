@@ -1,7 +1,12 @@
+import { ProjectMigrationService } from "../infrastructure/configuration/project-migration/project-migration.js";
+import { projectMigrationTrust } from "../infrastructure/configuration/project-migration/project-migration-trust.js";
+import {
+  projectPermissionsConfiguration,
+  projectPermissionValue,
+} from "./project-permission-migrations.js";
 import { readFile } from "node:fs/promises";
 import type { CoreStorage } from "@nervekit/conversation-core";
 import {
-  permissionOverlayDocumentForOriginSchema,
   type PermissionOverlayDocument,
   type PermissionPolicyConfiguration,
   type PermissionRule,
@@ -52,11 +57,26 @@ function message(error: unknown): string {
 
 export function createPermissionConfigurationService(options: {
   home: string;
+  projectMigration?: ProjectMigrationService;
   storage: CoreStorage;
   projectDirectory: (projectId: string) => string | undefined;
   published?(path: string): Promise<void>;
 }): PermissionConfigurationService {
   const { home, storage } = options;
+  const migrations =
+    options.projectMigration ??
+    new ProjectMigrationService({
+      home,
+      trust: projectMigrationTrust(() => storage, {
+        "permission-overlay": "project_permissions",
+      }),
+    });
+  migrations.register(projectPermissionsConfiguration);
+  const context = (projectId: string) => {
+    const directory = options.projectDirectory(projectId);
+    if (!directory) throw new Error("Project not found");
+    return { projectId, directory };
+  };
 
   const paths = new ConfigurationScopePaths({
     userConfigPath: userConfigurationRoot(home),
@@ -68,6 +88,26 @@ export function createPermissionConfigurationService(options: {
 
   async function readProject(projectId: string): Promise<ProjectOverlayState> {
     const path = projectPath(projectId);
+    const loaded = await migrations.load(
+      context(projectId),
+      projectPermissionsConfiguration,
+    );
+    if (
+      loaded.classification === "corrupted" ||
+      loaded.classification === "incompatible"
+    )
+      return {
+        path,
+        document: emptyOverlayDocument(),
+        trust: {
+          status: "invalid",
+          digest: loaded.sourceDigest
+            ? `sha256:${loaded.sourceDigest}`
+            : "unavailable",
+          reason:
+            "Project permissions are invalid or incompatible; tool execution is blocked.",
+        },
+      };
     let content: string;
     try {
       content = await readFile(path, "utf8");
@@ -83,9 +123,7 @@ export function createPermissionConfigurationService(options: {
     const digest = overlayDigest(content);
     let document: PermissionOverlayDocument;
     try {
-      document = permissionOverlayDocumentForOriginSchema("project").parse(
-        JSON.parse(content),
-      );
+      document = projectPermissionValue(JSON.parse(content));
     } catch (error) {
       return {
         path,
@@ -166,7 +204,10 @@ export function createPermissionConfigurationService(options: {
     if (!target.projectId)
       throw new Error("A project is required to edit project permissions.");
     const project = await readProject(target.projectId);
-    if (project.trust.status === "untrusted")
+    if (
+      project.trust.status === "untrusted" ||
+      project.trust.status === "invalid"
+    )
       throw new Error(
         "Project permissions are not trusted. Review the file and trust it before editing.",
       );
@@ -183,11 +224,27 @@ export function createPermissionConfigurationService(options: {
     return get(target.projectId);
   }
 
+  async function mutateTarget(
+    target: PermissionRuleTarget,
+    path: string,
+    mutate: (document: PermissionOverlayDocument) => void,
+  ) {
+    if (target.scope === "project" && target.projectId)
+      return migrations.transact(
+        context(target.projectId),
+        projectPermissionsConfiguration,
+        (document) => {
+          mutate(document);
+          return { result: undefined, changed: true };
+        },
+      );
+    return mutatePermissionOverlay(target.scope, path, mutate);
+  }
   return {
     get,
     async saveRule(input) {
       const path = await writableTarget(input);
-      await mutatePermissionOverlay(input.scope, path, (document) => {
+      await mutateTarget(input, path, (document) => {
         let overlay = document.overlays.find(
           (item) => item.ruleSetId === input.ruleSetId,
         );
@@ -214,7 +271,7 @@ export function createPermissionConfigurationService(options: {
     },
     async deleteRule(input) {
       const path = await writableTarget(input);
-      await mutatePermissionOverlay(input.scope, path, (document) => {
+      await mutateTarget(input, path, (document) => {
         const overlay = document.overlays.find(
           (item) => item.ruleSetId === input.ruleSetId,
         );

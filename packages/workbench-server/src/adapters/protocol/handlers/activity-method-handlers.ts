@@ -3,6 +3,8 @@ import { defineWorkbenchMethodHandlersFor } from "../method-handler-registry.js"
 type ActivityContext = ServerAdapterContexts["protocol"]["activity"];
 export const activityMethodHandlers =
   defineWorkbenchMethodHandlersFor<ActivityContext>()({
+    "activity.deleteConversation": (context, params) =>
+      context.unreadableConversations.delete(params.conversationId),
     "activity.list": (context) => ({ activities: context.activities.list() }),
     "activity.cancel": (context, params) =>
       context.activities.cancel(params.activityId),

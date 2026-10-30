@@ -2,8 +2,12 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import type { UpgradeReport } from "@nervekit/contracts/status";
 import {
+  homeRelativePath,
+  setAsideGroupLabel,
   summarizeUpgradeReports,
+  upgradeReportHeadline,
   upgradeReportLosses,
+  upgradeReportSetAsideGroups,
 } from "./upgrade-report-summary";
 
 const item = (kind: "conversation" | "configuration", id: string) => ({
@@ -42,6 +46,25 @@ test("summarizes set-aside conversations and settings", () => {
   );
 });
 
+test("groups set-aside reasons with counts and bounded quarantine examples", () => {
+  const reports = [
+    report({
+      setAside: Array.from({ length: 20 }, (_, i) => ({
+        ...item("configuration", String(i)),
+        reason: `/home/test/config/${i}.json: Invalid JSON`,
+      })),
+    }),
+  ];
+  assert.deepEqual(upgradeReportSetAsideGroups(reports), [
+    {
+      kind: "configuration",
+      reason: "Invalid JSON",
+      count: 20,
+      paths: ["/q/0", "/q/1", "/q/2"],
+    },
+  ]);
+});
+
 test("describes loss-only reports and merges losses by reason", () => {
   const reports = [
     report({ losses: [{ reason: "missing asset", count: 2 }] }),
@@ -61,4 +84,32 @@ test("describes loss-only reports and merges losses by reason", () => {
     { reason: "missing asset", count: 3 },
     { reason: "lossy", count: 4 },
   ]);
+});
+
+test("headline is a short title with a one-line description", () => {
+  assert.deepEqual(
+    upgradeReportHeadline([
+      report({
+        setAside: [item("configuration", "a"), item("configuration", "b")],
+      }),
+    ]),
+    {
+      title: "Upgrade finished with issues",
+      description: "2 settings files couldn't be upgraded",
+    },
+  );
+  assert.equal(upgradeReportHeadline([report({})]).title, "Upgrade finished");
+});
+
+test("group labels are plain language and paths are home-relative", () => {
+  assert.equal(
+    setAsideGroupLabel({ kind: "configuration", count: 159 }),
+    "159 settings files couldn't be read",
+  );
+  assert.equal(
+    setAsideGroupLabel({ kind: "conversation", count: 1 }),
+    "1 conversation couldn't be read",
+  );
+  assert.equal(homeRelativePath("/h/quarantine/a", "/h"), "quarantine/a");
+  assert.equal(homeRelativePath("/x/a", "/h"), "/x/a");
 });

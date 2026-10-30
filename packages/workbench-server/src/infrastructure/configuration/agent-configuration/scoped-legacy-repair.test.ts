@@ -11,11 +11,7 @@ import {
 } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { ReleasedProjectMigration } from "../../migrations/steps/0002-agent-profiles/released-project.js";
-import {
-  readText,
-  writeProtected,
-} from "../../migrations/steps/0002-agent-profiles/files.js";
+import { digestBytes } from "../scoped-store/scoped-document-store.js";
 import { AgentConfigurationService } from "./agent-configuration-service.js";
 import { createScopedRepair } from "./scoped-repair.js";
 import { agentConfigurationOperations } from "./scoped-configuration-operations.js";
@@ -29,30 +25,56 @@ function fixture(t: { after(fn: () => Promise<void>): void }) {
     mkdirSync(join(file, ".."), { recursive: true });
     writeFileSync(file, bytes);
   };
-  const reports: string[] = [];
-  const migration = new ReleasedProjectMigration({
-    home,
-    directory: (id) => join(root, id),
-    io: {
-      read: (file) => (existsSync(file) ? readText(file) : undefined),
-      write: writeProtected,
-      remove: (file) => rmSync(file),
-    },
-    discover: async () => ({}),
-    originalTrust: () => [],
-    commitTrust: () => {},
-    report: (_, messages) => reports.push(...messages),
-  });
+  // Recovery unit fixture: simulate a failed user/project preparation port.
+  // Actual released format conversion is covered by the project chain tests.
+  async function prepare(scope: "user" | "project", id = "p") {
+    const source =
+      scope === "user"
+        ? join(home, "config/harness.json")
+        : join(root, id, ".nerve/config/capabilities.json");
+    if (!existsSync(source)) return;
+    const bytes = readFileSync(source);
+    try {
+      if (!Buffer.from(bytes.toString("utf8")).equals(bytes))
+        throw new Error("Non-UTF8 configuration");
+      const value = JSON.parse(bytes.toString("utf8"));
+      assert.equal(
+        scope === "user" ? value.version : value.schemaVersion,
+        scope === "user" ? 3 : 2,
+        "Expected released version 2 or harness 3",
+      );
+      put(
+        scope === "user"
+          ? join(home, "config/agent.json")
+          : join(root, id, ".nerve/config/agent.json"),
+        JSON.stringify({
+          ...defaults,
+          overrides:
+            scope === "user" ? { retry: value.retry } : { tools: value.tools },
+        }),
+      );
+      rmSync(source);
+    } catch (error) {
+      throw {
+        issues: [
+          {
+            path: source,
+            digest: digestBytes(bytes),
+            reason:
+              error instanceof Error ? error.message : "Invalid legacy input",
+          },
+        ],
+      };
+    }
+  }
   const service = new AgentConfigurationService({
     home,
     projectDirectory: (id) => join(root, id),
     conversationOwner: () => ({ projectId: "p", role: "lead" }),
     builtins: {},
     isProfileTrusted: () => false,
-    prepareUser: () => migration.ensureUser(),
-    retryUserMigration: () => migration.retryUser(),
-    prepareProject: (id) => migration.ensure(id),
-    retryProjectMigration: (id) => migration.retry(id),
+    prepareUser: () => prepare("user"),
+    prepareProject: (id) => prepare("project", id),
     captureResources: () => ({ options: {}, isCurrent: () => true }),
   });
   t.after(async () => {
@@ -64,7 +86,6 @@ function fixture(t: { after(fn: () => Promise<void>): void }) {
     home,
     put,
     service,
-    reports,
     source: join(root, "p/.nerve/config/capabilities.json"),
     repair: createScopedRepair(service),
     operations: agentConfigurationOperations(service),

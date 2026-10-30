@@ -1,4 +1,7 @@
-import { readCurrentSettingsForBootstrap } from "@nervekit/workbench-server";
+import {
+  checkHomeAdmission,
+  readCurrentSettingsForBootstrap,
+} from "@nervekit/workbench-server";
 import { ensureDaemon } from "../daemon/composition.js";
 import { registerDesktopIpc } from "../ipc/register-desktop-ipc.js";
 import { showDesktopNotification } from "../ipc/notifications-ipc.js";
@@ -49,6 +52,8 @@ const ipcChannels = [
   "desktop.clipboard.readText",
   "desktop.clipboard.writeText",
   "desktop.startup.retry",
+  "desktop.startup.openHome",
+  "desktop.startup.copyDiagnostics",
   "desktop.startup.rendererCoreReady",
   "desktop.app.quit",
   "desktop.app.setBadgeCount",
@@ -123,6 +128,7 @@ export function createDesktopRuntimePorts(): DesktopRuntimePorts {
         return () => nativeTheme.removeListener("updated", listener);
       },
     },
+    checkHomeAdmission,
     readCurrentSettings: readCurrentSettingsForBootstrap,
     configureNetworkSession: () =>
       configureDesktopNetworkSession(session.defaultSession, desktopLog),

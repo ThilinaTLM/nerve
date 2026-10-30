@@ -1,3 +1,9 @@
+import { ProjectMigrationService } from "../infrastructure/configuration/project-migration/project-migration.js";
+import { projectMigrationTrust } from "../infrastructure/configuration/project-migration/project-migration-trust.js";
+import {
+  projectPermissionsConfiguration,
+  projectPermissionValue,
+} from "./project-permission-migrations.js";
 import { readFile, readdir } from "node:fs/promises";
 import { join, basename } from "node:path";
 import type { CoreStorage } from "@nervekit/conversation-core";
@@ -44,11 +50,21 @@ export interface ScopedPermissionPolicySource extends AdmissionPolicySource {
 /** Lazy policy authority. Files are cached until an application save or explicit health reload. */
 export function createScopedPermissionSource(options: {
   home: string;
+  projectMigration?: ProjectMigrationService;
   storage: CoreStorage;
   agents: AgentConfigurationService;
   trustGeneration(): number;
   requestGenerations(id: string): Record<string, number> | undefined;
 }): ScopedPermissionPolicySource {
+  const migrations =
+    options.projectMigration ??
+    new ProjectMigrationService({
+      home: options.home,
+      trust: projectMigrationTrust(() => options.storage, {
+        "permission-overlay": "project_permissions",
+      }),
+    });
+  migrations.register(projectPermissionsConfiguration);
   let epoch = 0;
   const normalized = new WeakMap<
     Parameters<AdmissionPolicySource["ensureLoaded"]>[0],
@@ -235,10 +251,21 @@ export function createScopedPermissionSource(options: {
             "permissions.json",
           ),
         };
+        const projectOverlay = await migrations.load(
+          { projectId: project.id, directory: project.directory },
+          projectPermissionsConfiguration,
+        );
+        if (projectOverlay.classification === "migrated")
+          files.delete(paths.project);
         const trust = trustIdentity(project.id, paths.project);
         const trustDigest = canonicalDigest(trust);
         let result: CurrentPolicy;
         try {
+          if (
+            projectOverlay.classification === "corrupted" ||
+            projectOverlay.classification === "incompatible"
+          )
+            throw new PolicyDocumentError(paths.project);
           const definitions = await rules();
           const selectedId =
             agent.view.resolution.settings.permissionRuleSetId!;
@@ -274,9 +301,11 @@ export function createScopedPermissionSource(options: {
                 documents[origin] =
                   loaded.kind === "missing"
                     ? emptyOverlayDocument()
-                    : permissionOverlayDocumentForOriginSchema(origin).parse(
-                        JSON.parse(loaded.bytes),
-                      );
+                    : origin === "project"
+                      ? projectPermissionValue(JSON.parse(loaded.bytes))
+                      : permissionOverlayDocumentForOriginSchema(origin).parse(
+                          JSON.parse(loaded.bytes),
+                        );
               } catch {
                 throw new PolicyDocumentError(paths[origin]);
               }
@@ -371,5 +400,29 @@ export function createScopedPermissionSource(options: {
         : {};
     },
   };
+  const publishedHealth = new Map<
+    string,
+    { signature: string; path: string }
+  >();
+  migrations.onHealthChanged((health) => {
+    const issue = health.issues.find(
+      (issue) => issue.type === projectPermissionsConfiguration.id,
+    );
+    const previous = publishedHealth.get(health.projectId);
+    const signature = issue
+      ? JSON.stringify([issue.path, issue.classification])
+      : "";
+    if (signature === (previous?.signature ?? "")) return;
+    const path = issue?.path ?? previous?.path;
+    if (path) {
+      publishedHealth.set(health.projectId, { signature, path });
+      files.delete(path);
+      source.invalidate();
+    }
+  });
+  migrations.onResolved(async (context, type) => {
+    if (type.id === projectPermissionsConfiguration.id)
+      await source.reload([join(context.directory, ".nerve", type.path)]);
+  });
   return source;
 }

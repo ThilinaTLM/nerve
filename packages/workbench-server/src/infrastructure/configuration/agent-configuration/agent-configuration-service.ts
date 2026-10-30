@@ -1,3 +1,16 @@
+import { ConfigurationSignals } from "./configuration-signals.js";
+import { registerProjectRecovery } from "./project-chains/recovery.js";
+import { ProjectCapabilityLayer } from "./project-chains/capability-layer.js";
+import { projectSettings } from "./profile-resources.js";
+import { ProjectMigrationService } from "../project-migration/project-migration.js";
+import {
+  projectAgentConfiguration,
+  projectConversationDefaults,
+} from "./project-chains/scoped-migrations.js";
+import {
+  projectStorePorts,
+  projectJsonWriter,
+} from "./project-chains/store-ports.js";
 import { ProjectAgentDefaults } from "./project-agent-defaults.js";
 import { withoutLegacyTransition } from "./document-adapters.js";
 import {
@@ -6,8 +19,11 @@ import {
   saveCreationPreferences,
   type CreationMutation,
 } from "./creation-preferences.js";
-import { upgradeBlock, legacyRepairFile } from "./scoped-upgrade-health.js";
-import { conversationSummary } from "./conversation-summary.js";
+import {
+  preparePreferenceScope,
+  legacyRepairFile,
+} from "./scoped-upgrade-health.js";
+import { publishConversationSummary } from "./conversation-summary.js";
 import {
   loadConversationContext,
   readConversationContext,
@@ -63,6 +79,7 @@ import {
 export type { ResourceSnapshot } from "./profile-resources.js";
 export interface AgentConfigurationServiceOptions extends ConfigurationLocations {
   builtins: Readonly<Record<string, string>>;
+  projectMigration?: ProjectMigrationService;
   prepareUser?(): Promise<void>;
   retryUserMigration?(): void;
   prepareProject?(projectId: string): Promise<void>;
@@ -92,6 +109,8 @@ import type {
 /** Scoped configuration authority. Does not perform execution admission or load mutable profile definitions for applied snapshots. */
 export class AgentConfigurationService {
   readonly paths: AgentConfigurationPaths;
+  readonly projectMigration: ProjectMigrationService;
+  private readonly capabilityLayer: ProjectCapabilityLayer;
   readonly profiles: AgentProfileCatalog;
   readonly projectDefaults = new ProjectAgentDefaults(this);
   private readonly agents: ScopedDocumentStore<AgentScope, AgentDocument>;
@@ -99,19 +118,9 @@ export class AgentConfigurationService {
     PreferenceScope,
     CreationPreferences
   >;
-  private readonly summaryListeners = new Set<(id: string) => void>();
-  subscribeSummary(listener: (id: string) => void): () => void {
-    this.summaryListeners.add(listener);
-    return () => this.summaryListeners.delete(listener);
-  }
-  private notifySummary(id: string): void {
-    for (const listener of this.summaryListeners) {
-      try {
-        listener(id);
-      } catch {
-        /* Disposable display observers. */
-      }
-    }
+  private readonly summarySignals = new ConfigurationSignals<string>();
+  subscribeSummary(listener: (value: string) => void): () => void {
+    return this.summarySignals.subscribe(listener);
   }
   private readonly summaries: ConversationSummaryCache<Summary>;
   private readonly agentScopes = new Map<string, AgentScope>();
@@ -120,35 +129,14 @@ export class AgentConfigurationService {
     string,
     { view: EffectiveAgentView; current: () => boolean }
   >();
-  private readonly creationListeners = new Set<
-    (scope: PreferenceScope) => void
-  >();
-  subscribeCreation(listener: (scope: PreferenceScope) => void): () => void {
-    this.creationListeners.add(listener);
-    return () => this.creationListeners.delete(listener);
+  private readonly creationSignals =
+    new ConfigurationSignals<PreferenceScope>();
+  subscribeCreation(listener: (value: PreferenceScope) => void): () => void {
+    return this.creationSignals.subscribe(listener);
   }
-  private notifyCreation(scope: PreferenceScope): void {
-    for (const listener of this.creationListeners) {
-      try {
-        listener(scope);
-      } catch {
-        /* Recoverable notifications. */
-      }
-    }
-  }
-  private readonly healthListeners = new Set<(scope: AgentScope) => void>();
-  subscribeHealth(listener: (scope: AgentScope) => void): () => void {
-    this.healthListeners.add(listener);
-    return () => this.healthListeners.delete(listener);
-  }
-  private notifyHealth(scope: AgentScope): void {
-    for (const listener of this.healthListeners) {
-      try {
-        listener(scope);
-      } catch {
-        /* Observers never roll back configuration authority. */
-      }
-    }
+  private readonly healthSignals = new ConfigurationSignals<AgentScope>();
+  subscribeHealth(listener: (value: AgentScope) => void): () => void {
+    return this.healthSignals.subscribe(listener);
   }
   private readonly creatingConversations = new Set<string>();
   private readonly publicationGuards = new Map<string, () => boolean>();
@@ -159,8 +147,22 @@ export class AgentConfigurationService {
 
   constructor(private readonly options: AgentConfigurationServiceOptions) {
     this.paths = new AgentConfigurationPaths(options);
+    this.projectMigration =
+      options.projectMigration ??
+      new ProjectMigrationService({
+        home: options.home,
+        write: options.io?.write
+          ? projectJsonWriter(options.io.write)
+          : undefined,
+      });
+    this.capabilityLayer = new ProjectCapabilityLayer(this.projectMigration);
     this.agents = new ScopedDocumentStore({
       ...options.io,
+      ...projectStorePorts<AgentScope, AgentDocument>(
+        this.projectMigration,
+        this.paths,
+        () => projectAgentConfiguration,
+      ),
       resolvePath: (scope) => this.paths.agent(scope),
       required: (scope) => scope.scope === "conversation",
       supportedVersion: 1,
@@ -186,6 +188,11 @@ export class AgentConfigurationService {
     });
     this.creation = new ScopedDocumentStore({
       ...options.io,
+      ...projectStorePorts<PreferenceScope, CreationPreferences>(
+        this.projectMigration,
+        this.paths,
+        () => projectConversationDefaults,
+      ),
       resolvePath: (scope) => this.paths.creation(scope),
       required: () => false,
       supportedVersion: 1,
@@ -197,6 +204,7 @@ export class AgentConfigurationService {
     });
     this.profiles = new AgentProfileCatalog({
       paths: this.paths,
+      projectMigration: this.projectMigration,
       prepareProject: (id) => this.prepareProject(id),
       builtins: options.builtins,
       isTrusted: options.isProfileTrusted,
@@ -204,9 +212,10 @@ export class AgentConfigurationService {
       publish: (scope) => options.publish?.("profile", scope),
       invalidate: (scope) => {
         this.catalogEpoch += 1;
-        this.notifyHealth(scope);
+        this.healthSignals.publish(scope);
       },
     });
+    registerProjectRecovery(this);
     this.summaries = new ConversationSummaryCache({
       path: this.paths.summaries,
       parse: (input) => conversationAgentSummariesSchema.parse(input),
@@ -225,6 +234,8 @@ export class AgentConfigurationService {
 
   private retryScope(scope: AgentScope): void {
     const preference = this.paths.preferenceScope(scope);
+    if (preference.scope === "project")
+      this.capabilityLayer.invalidate(preference.projectId);
     if (preference.scope === "user") this.options.retryUserMigration?.();
     else this.options.retryProjectMigration?.(preference.projectId);
     this.invalidateResources();
@@ -244,7 +255,7 @@ export class AgentConfigurationService {
     if (blocked) return blocked;
     this.track(scope);
     const result = await this.agents.reload(scope);
-    this.notifyHealth(scope);
+    this.healthSignals.publish(scope);
     return result;
   }
   private track(scope: AgentScope): void {
@@ -252,7 +263,7 @@ export class AgentConfigurationService {
     if (this.agentScopes.has(key)) return;
     this.agentScopes.set(key, structuredClone(scope));
     this.agents.onInvalidate(scope, () => {
-      this.notifyHealth(scope);
+      this.healthSignals.publish(scope);
       for (const [id] of this.effective) {
         const owner = this.options.conversationOwner(id);
         if (
@@ -294,23 +305,6 @@ export class AgentConfigurationService {
   }
 
   async getEffective(conversationId: string): Promise<EffectiveAgentView> {
-    const projectIdForMigration =
-      this.options.conversationOwner(conversationId).projectId;
-    try {
-      await this.prepareProject(projectIdForMigration);
-    } catch {
-      return {
-        status: "unavailable",
-        conversationId,
-        diagnostics: healthDiagnostics(
-          this.agents.peek({
-            scope: "project",
-            projectId: projectIdForMigration,
-          })!,
-          "agent",
-        ),
-      };
-    }
     const owner = this.options.conversationOwner(conversationId);
     const projectId = owner.projectId;
     for (let attempt = 0; attempt < 3; attempt += 1) {
@@ -328,7 +322,7 @@ export class AgentConfigurationService {
       if (
         states.some(
           (state) =>
-            state.status === "unavailable" && !this.untrustedProject(state),
+            state.status === "unavailable" && state.scope.scope !== "project",
         )
       )
         return freezeJson({
@@ -337,6 +331,8 @@ export class AgentConfigurationService {
           diagnostics,
         });
       const values = states.flatMap((state) => {
+        if (state.status === "unavailable" && state.scope.scope === "project")
+          return [];
         if (this.untrustedProject(state)) {
           const scope =
             state.status === "unavailable" ? state.scope : state.value.scope;
@@ -371,10 +367,11 @@ export class AgentConfigurationService {
         }
         return state.status === "unavailable" ? [] : [state.value];
       });
-      const checkDocuments = this.agents.captureGenerations(scopes);
+      const checkDocuments = this.agents.captureGenerations(scopes, true);
       const resourceEpoch = this.resourceEpoch;
       const catalogEpoch = this.catalogEpoch;
       const resources = await this.captureResources(projectId, owner.role);
+      diagnostics.push(...(resources.projectDiagnostics ?? []));
       const resolution = this.resolve(conversationId, values, resources);
       const current = () =>
         checkDocuments() &&
@@ -408,7 +405,14 @@ export class AgentConfigurationService {
         sources: values,
       });
       this.effective.set(conversationId, { view, current });
-      this.updateSummary(conversationId, view);
+      publishConversationSummary(
+        conversationId,
+        view,
+        this.forgotten,
+        this.summaries,
+        (id) => this.summarySignals.publish(id),
+        (work) => this.project(work),
+      );
       return view;
     }
     return {
@@ -439,15 +443,22 @@ export class AgentConfigurationService {
       const values = scopes.map((scope) => {
         const state = this.agents.peek(scope)!;
         if (this.untrustedProject(state)) return {};
-        if (state.status === "unavailable") throw new ScopeUnavailableError();
+        if (state.status === "unavailable") {
+          if (scope.scope === "project") return {};
+          throw new ScopeUnavailableError();
+        }
         return state.value.document.overrides;
       });
       const resources = await this.captureResources(projectId);
-      const documentsCurrent = this.agents.captureGenerations(scopes);
+      const documentsCurrent = this.agents.captureGenerations(scopes, true);
       const epoch = this.resourceEpoch;
       const catalog = this.catalogEpoch;
       return {
-        options: { ...resources.options, user: values[0], project: values[1] },
+        options: {
+          ...resources.options,
+          user: values[0],
+          project: projectSettings(resources, values[1]),
+        },
         isCurrent: () =>
           documentsCurrent() &&
           resources.isCurrent() &&
@@ -498,16 +509,16 @@ export class AgentConfigurationService {
     const scope = { scope: "conversation" as const, conversationId: id };
     this.track(scope);
     await saveConversationContext(this.agents, id, input);
-    this.notifyHealth(scope);
+    this.healthSignals.publish(scope);
   }
 
-  private captureResources(
+  private async captureResources(
     projectId?: string,
     role = "lead",
   ): Promise<ResourceSnapshot> {
     if (role === "child")
       return Promise.resolve(this.options.captureResources(projectId));
-    return captureProfileResources(
+    const resources = await captureProfileResources(
       this.profiles,
       this.options.captureResources,
       () => {
@@ -516,6 +527,20 @@ export class AgentConfigurationService {
       },
       projectId,
     );
+    if (!projectId) return resources;
+    const directory = this.options.projectDirectory(projectId);
+    if (!directory) throw new Error("Project not found");
+    const capabilities = await this.capabilityLayer.capture(
+      { projectId, directory },
+      (file, digest) =>
+        this.options.isProjectAgentTrusted?.(projectId, file, digest) ?? true,
+    );
+    return {
+      ...resources,
+      projectCapabilities: capabilities.source.document.overrides,
+      projectDiagnostics: capabilities.diagnostics,
+      isCurrent: () => resources.isCurrent() && capabilities.current(),
+    };
   }
   private transactionPort(): TransactionPort & {
     paths: AgentConfigurationPaths;
@@ -573,7 +598,7 @@ export class AgentConfigurationService {
           }
         }
       });
-    this.notifyHealth(scope);
+    this.healthSignals.publish(scope);
     return result;
   }
 
@@ -605,7 +630,7 @@ export class AgentConfigurationService {
           });
         },
       );
-      this.notifyHealth(scope);
+      this.healthSignals.publish(scope);
       this.project(() => this.refreshSummary(id));
       return result.value;
     } finally {
@@ -652,7 +677,7 @@ export class AgentConfigurationService {
           scope,
           withoutLegacyTransition(document),
         );
-        this.notifyHealth(scope);
+        this.healthSignals.publish(scope);
         this.project(() => this.refreshSummary(conversationId));
         return result;
       } finally {
@@ -704,7 +729,7 @@ export class AgentConfigurationService {
       { scope: "project", projectId },
     ];
     await Promise.all(scopes.map((scope) => this.loadCreation(scope)));
-    const current = this.creation.captureGenerations(scopes);
+    const current = this.creation.captureGenerations(scopes, true);
     const view = await this.getCreationPreferences(projectId);
     return { view, isCurrent: current };
   }
@@ -717,20 +742,14 @@ export class AgentConfigurationService {
     );
   }
 
-  private async prepareScope(scope: PreferenceScope) {
-    try {
-      if (scope.scope === "user") await this.options.prepareUser?.();
-      else await this.options.prepareProject?.(scope.projectId);
-      return undefined;
-    } catch (error) {
-      this.track(scope);
-      // track() publishes health on a new store generation. block() reuses a
-      // cached failure, so notice-driven reads neither republish nor reload it.
-      return this.agents.block(
-        scope,
-        upgradeBlock(error, this.paths.agent(scope)),
-      );
-    }
+  private prepareScope(scope: PreferenceScope) {
+    return preparePreferenceScope(
+      this.options,
+      this.paths,
+      this.agents,
+      (scope) => this.track(scope),
+      scope,
+    );
   }
   private async prepareProject(projectId: string): Promise<void> {
     if (await this.prepareScope({ scope: "project", projectId }))
@@ -770,31 +789,6 @@ export class AgentConfigurationService {
       await this.getEffective(id);
     } catch {
       /* Display cache work never fails an acknowledged save. */
-    }
-  }
-  private updateSummary(
-    id: string,
-    view: Extract<EffectiveAgentView, { status: "available" }>,
-  ): void {
-    if (this.forgotten.has(id)) return;
-    if (
-      view.resolution.diagnostics.some(
-        (issue) => issue.code !== "reasoning-adjusted",
-      )
-    ) {
-      this.summaries.remove(id);
-      this.notifySummary(id);
-      this.project(() => this.summaries.flush());
-      return;
-    }
-    const summary = conversationSummary(view);
-    if (!summary) return;
-    try {
-      this.summaries.set(id, summary);
-      this.notifySummary(id);
-      this.project(() => this.summaries.flush());
-    } catch {
-      /* Disposable cache failure is not configuration publication failure. */
     }
   }
 }

@@ -1,18 +1,10 @@
 import { capabilityToolNameSchema } from "@nervekit/contracts/capabilities";
-import { existsSync, rmSync } from "node:fs";
-import { join } from "node:path";
-import { ReleasedProjectMigration } from "../../infrastructure/migrations/steps/0002-agent-profiles/released-project.js";
-import { commitProjectTrust } from "../../infrastructure/migrations/steps/0002-agent-profiles/released-project-trust.js";
-import { discoverReleasedSkillSources } from "../../infrastructure/migrations/steps/0002-agent-profiles/released-resources.js";
+import { ProjectMigrationService } from "../../infrastructure/configuration/project-migration/project-migration.js";
+import { projectMigrationTrust } from "../../infrastructure/configuration/project-migration/project-migration-trust.js";
 import {
-  readText,
-  safePath,
-  writeProtected,
-} from "../../infrastructure/migrations/steps/0002-agent-profiles/files.js";
-import {
-  sha256,
-  jsonBytes,
-} from "../../infrastructure/migrations/steps/0002-agent-profiles/released-format.js";
+  projectConfigurationDescriptors,
+  projectConfigurationTrustKinds,
+} from "../../infrastructure/configuration/project-migration/descriptors.js";
 import { createProfileTransitions } from "../../infrastructure/configuration/agent-configuration/profile-transitions.js";
 import { agentConfigurationOperations } from "../../infrastructure/configuration/agent-configuration/scoped-configuration-operations.js";
 import type { LeadSettingsOverrides } from "@nervekit/contracts/agent-configuration";
@@ -60,10 +52,21 @@ export function createConversationCore(
   launchServices: Pick<LaunchToolOptions, "launches" | "definitions">,
   onProjectDeleted?: ConversationCoreOptions["onProjectDeleted"],
   processHost?: CoreProcessHost,
+  migrations?: ProjectMigrationService,
+  onConversationFailure?: Parameters<typeof openCoreStorage>[1],
 ) {
   const dataDir = deps.storage.paths.dataPath;
   mkdirSync(dataDir, { recursive: true });
-  const storage = openCoreStorage(deps.storage.paths.sqlitePath);
+  const storage = openCoreStorage(deps.storage.paths.sqlitePath, (failure) => {
+    onConversationFailure?.(failure);
+    void deps.logger
+      .warn("Conversation read failed; skipped", {
+        conversationId: failure.conversationId,
+        context: { operation: failure.operation },
+        error: failure.error,
+      })
+      .catch(() => undefined);
+  });
   const models = createModelPort(deps.auth, deps.providerCatalog, (name) =>
     deps.secrets.get(name),
   );
@@ -351,54 +354,22 @@ export function createConversationCore(
     },
     launchTool,
   );
-  let migrationTrustEpoch = 0;
-  const projectMigration = new ReleasedProjectMigration({
-    home: deps.storage.paths.home,
-    directory: (id) => {
-      const project = storage.projects.get(id);
-      if (!project) throw new Error("Project not found");
-      return project.directory;
-    },
-    io: {
-      read(path) {
-        safePath(path);
-        return existsSync(path) ? readText(path) : undefined;
-      },
-      write: writeProtected,
-      remove(path) {
-        safePath(path);
-        rmSync(path, { force: true });
-      },
-    },
-    discover: (directory, inputs) =>
-      discoverReleasedSkillSources(deps.storage.paths.home, directory, inputs),
-    originalTrust: (id) => storage.trustedResources.list(id),
-    commitTrust: (id, original, targets, createdAt) => {
-      commitProjectTrust(storage, id, original, targets, createdAt);
-      migrationTrustEpoch++;
-    },
-    report: (id, messages) =>
-      writeProtected(
-        join(
-          deps.storage.paths.home,
-          "migrations/reports",
-          "0002-project-" + sha256(id) + ".json",
-        ),
-        jsonBytes({
-          step: "0002-project-" + sha256(id),
-          description: "Released project configuration conversion",
-          completedAt: new Date().toISOString(),
-          setAside: [],
-          losses: messages.map((reason) => ({ reason, count: 1 })),
-        }),
+  const projectMigration =
+    migrations ??
+    new ProjectMigrationService({
+      home: deps.storage.paths.home,
+      trust: projectMigrationTrust(
+        () => storage,
+        projectConfigurationTrustKinds,
       ),
-  });
+    });
+  for (const { type } of projectConfigurationDescriptors)
+    projectMigration.register(type);
   const discoveredSkills = new Map<string, string[]>();
   const discoveries = new Map<string, Promise<void>>();
   const resourceFingerprint = () =>
     JSON.stringify({
       discoveredSkills: [...discoveredSkills],
-      migrationTrustEpoch,
       credentialEpoch,
       providers: deps.storage.settings.providers,
       modelConfiguration: deps.storage.configuration.providers,
@@ -430,10 +401,7 @@ export function createConversationCore(
       };
     },
     builtins: bundledAgentProfiles,
-    prepareUser: () => projectMigration.ensureUser(),
-    retryUserMigration: () => projectMigration.retryUser(),
-    prepareProject: (id) => projectMigration.ensure(id),
-    retryProjectMigration: (id) => projectMigration.retry(id),
+    projectMigration,
     isProjectAgentTrusted: (id, path, digest) => {
       const row = storage.trustedResources.find(
         "project_capabilities",
@@ -553,11 +521,11 @@ export function createConversationCore(
     }),
   });
   const admissionPolicy = createScopedPermissionSource({
+    projectMigration,
     home: deps.storage.paths.home,
     storage,
     agents: agentConfiguration,
-    trustGeneration: () =>
-      core.trust.generation + core.projects.generation + migrationTrustEpoch,
+    trustGeneration: () => core.trust.generation + core.projects.generation,
     requestGenerations: (id) => scopedConfiguration.getCapture(id)?.generations,
   });
   const core: ConversationCore = new ConversationCore({
@@ -571,6 +539,7 @@ export function createConversationCore(
       deps.storage.paths.home,
       storage,
       admissionPolicy,
+      projectMigration,
     ),
     toolHost: tools.port,
     planApprovalProfile: async (id, requestCaptureId) => {
