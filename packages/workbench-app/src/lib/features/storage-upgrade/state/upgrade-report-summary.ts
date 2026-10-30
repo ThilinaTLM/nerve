@@ -92,16 +92,45 @@ export function upgradeReportHeadline(reports: readonly UpgradeReport[]): {
 export function upgradeReportSetAsideGroups(reports: readonly UpgradeReport[]) {
   const groups = new Map<
     string,
-    { reason: string; count: number; paths: string[] }
+    {
+      kind: UpgradeReportSetAside["kind"];
+      reason: string;
+      count: number;
+      paths: string[];
+    }
   >();
   for (const item of upgradeReportSetAside(reports)) {
     const reason = item.reason
       .replace(/(?<![\w])(?:[A-Za-z]:[\\/]|\/)[^\s:;,]+:?\s*/g, "")
       .trim();
-    const group = groups.get(reason) ?? { reason, count: 0, paths: [] };
+    const key = `${item.kind}\u0000${reason}`;
+    const group = groups.get(key) ?? {
+      kind: item.kind,
+      reason,
+      count: 0,
+      paths: [],
+    };
     group.count++;
     if (group.paths.length < 3) group.paths.push(item.quarantinePath);
-    groups.set(reason, group);
+    groups.set(key, group);
   }
   return [...groups.values()];
+}
+
+/** Plain-language row label, e.g. "159 settings files couldn't be read". */
+export function setAsideGroupLabel(group: {
+  kind: UpgradeReportSetAside["kind"];
+  count: number;
+}): string {
+  const subject =
+    group.kind === "conversation"
+      ? plural(group.count, "conversation", "conversations")
+      : plural(group.count, "settings file", "settings files");
+  return `${subject} couldn't be read`;
+}
+
+/** Shows a path relative to the Nerve home when it lives under it. */
+export function homeRelativePath(path: string, home: string | undefined) {
+  if (home && path.startsWith(`${home}/`)) return path.slice(home.length + 1);
+  return path;
 }

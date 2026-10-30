@@ -2,7 +2,9 @@
 import type { UnreadableConversation } from "@nervekit/contracts/activity";
 import { workbenchStartupState } from "$lib/application/startup/workbench-startup-state.svelte";
 import {
+  UpgradeReportDialog,
   UpgradeReportNotice,
+  upgradeReportDialog,
   hasUpgradeReports,
   loadUpgradeReports,
 } from "$lib/features/storage-upgrade";
@@ -201,6 +203,11 @@ async function handleDesktopClose() {
       caught instanceof Error ? caught.message : String(caught);
   }
 }
+/** Every notice action that opens a dialog goes through here: the dialog is hosted below, outside the popover, and the popover closes first. */
+function fromPopover(open: () => void): void {
+  activityInbox.setOpen(false);
+  open();
+}
 let reportsLoaded = false;
 $effect(() => {
   if (
@@ -219,17 +226,16 @@ $effect(() => {
     health={settingsHealth.notice.health}
     pending={settingsHealth.notice.pending}
     error={settingsHealth.notice.error}
-    onReset={(id) => {
-      activityInbox.setOpen(false);
-      settingsHealth.resetId = id;
-    }}
+    onReset={(id) => fromPopover(() => (settingsHealth.resetId = id))}
     onReload={(id) => void settingsHealth.resolve({ id, action: "reload" })}
     onRetry={() => void settingsHealth.refresh()}
   />
 {/snippet}
 
 {#snippet attentionItems()}
-  <UpgradeReportNotice home={status?.storage.home} />
+  <UpgradeReportNotice
+    onDetails={() => fromPopover(() => (upgradeReportDialog.open = true))}
+  />
   {#if settingsHealth.notice.health.invalid.length || settingsHealth.notice.error}
     {@render settingsHealthItem()}
   {/if}
@@ -245,10 +251,8 @@ $effect(() => {
         void projectConfigurationHealth.open(issue);
       }}
       onReload={(issue) => void projectConfigurationHealth.reload(issue)}
-      onReset={(issue) => {
-        activityInbox.setOpen(false);
-        projectConfigurationHealth.requestReset(issue);
-      }}
+      onReset={(issue) =>
+        fromPopover(() => projectConfigurationHealth.requestReset(issue))}
     />
   {/if}
 {/snippet}
@@ -309,10 +313,8 @@ $effect(() => {
           }
         } else void activityInbox.action(intent, item.id);
       }}
-      onDeleteConversation={(entry) => {
-        activityInbox.setOpen(false);
-        unreadableDelete = entry;
-      }}
+      onDeleteConversation={(entry) =>
+        fromPopover(() => (unreadableDelete = entry))}
       onDismiss={dismissNotification}
       onClearFinished={clearFinished}
       onToggleMute={() =>
@@ -321,6 +323,8 @@ $effect(() => {
     />
   {/snippet}
 </Titlebar>
+
+<UpgradeReportDialog home={status?.storage.home} />
 
 <AlertDialog
   open={pendingDelete?.kind === "project"}

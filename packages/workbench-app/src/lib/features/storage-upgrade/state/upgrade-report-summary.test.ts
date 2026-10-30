@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import type { UpgradeReport } from "@nervekit/contracts/status";
 import {
+  homeRelativePath,
+  setAsideGroupLabel,
   summarizeUpgradeReports,
   upgradeReportHeadline,
   upgradeReportLosses,
@@ -55,6 +57,7 @@ test("groups set-aside reasons with counts and bounded quarantine examples", () 
   ];
   assert.deepEqual(upgradeReportSetAsideGroups(reports), [
     {
+      kind: "configuration",
       reason: "Invalid JSON",
       count: 20,
       paths: ["/q/0", "/q/1", "/q/2"],
@@ -96,4 +99,17 @@ test("headline is a short title with a one-line description", () => {
     },
   );
   assert.equal(upgradeReportHeadline([report({})]).title, "Upgrade finished");
+});
+
+test("group labels are plain language and paths are home-relative", () => {
+  assert.equal(
+    setAsideGroupLabel({ kind: "configuration", count: 159 }),
+    "159 settings files couldn't be read",
+  );
+  assert.equal(
+    setAsideGroupLabel({ kind: "conversation", count: 1 }),
+    "1 conversation couldn't be read",
+  );
+  assert.equal(homeRelativePath("/h/quarantine/a", "/h"), "quarantine/a");
+  assert.equal(homeRelativePath("/x/a", "/h"), "/x/a");
 });

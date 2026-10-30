@@ -360,7 +360,34 @@ void test("canonical aliases and cooperating child process writers share fail-cl
       "tsx",
       "--input-type=module",
       "-e",
-      `import { existsSync } from "node:fs"; import { LaunchDefinitionRepository } from ${JSON.stringify(repositoryUrl)}; import { ProjectMigrationService } from ${JSON.stringify(new URL("../../infrastructure/configuration/project-migration/project-migration.ts", import.meta.url).href)}; const repository = new LaunchDefinitionRepository(() => ({ directory: ${JSON.stringify(alias)} }), new ProjectMigrationService({ home: ${JSON.stringify(f.home)} })); await repository.transact('proj_one', ${JSON.stringify(revision)}, file => { process.stdout.write('locked\\n'); const deadline = Date.now() + 10000; while (!existsSync(${JSON.stringify(join(f.directory, "release-child"))})) { if (Date.now() > deadline) throw new Error("Timed out waiting for parent"); Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 10); } file.folders.push({ id: 'launchfolder_child', label: 'Child', parentFolderId: null, order: 0 }); });`,
+      `
+        import { existsSync } from "node:fs";
+        const [repositoryUrl, migrationUrl, directory, home, revision, releasePath] = process.argv.slice(1);
+        const { LaunchDefinitionRepository } = await import(repositoryUrl);
+        const { ProjectMigrationService } = await import(migrationUrl);
+        const repository = new LaunchDefinitionRepository(
+          () => ({ directory }),
+          new ProjectMigrationService({ home }),
+        );
+        await repository.transact("proj_one", revision, file => {
+          process.stdout.write("locked\\n");
+          const deadline = Date.now() + 10000;
+          while (!existsSync(releasePath)) {
+            if (Date.now() > deadline) throw new Error("Timed out waiting for parent");
+            Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 10);
+          }
+          file.folders.push({ id: "launchfolder_child", label: "Child", parentFolderId: null, order: 0 });
+        });
+      `,
+      repositoryUrl,
+      new URL(
+        "../../infrastructure/configuration/project-migration/project-migration.ts",
+        import.meta.url,
+      ).href,
+      alias,
+      f.home,
+      revision,
+      join(f.directory, "release-child"),
     ],
     { stdio: ["ignore", "pipe", "pipe"] },
   );

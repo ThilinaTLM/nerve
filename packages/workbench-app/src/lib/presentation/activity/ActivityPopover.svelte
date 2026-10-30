@@ -408,7 +408,11 @@ const childLabel = {
       </ul>
     {/if}
     {#if item.children.length}
-      <Collapsible.Root bind:open={expanded[item.id]}>
+      <Collapsible.Root
+        bind:open={
+          () => expanded[item.id] ?? false, (next) => (expanded[item.id] = next)
+        }
+      >
         <Collapsible.Trigger>
           {#snippet child({ props })}
             <Button

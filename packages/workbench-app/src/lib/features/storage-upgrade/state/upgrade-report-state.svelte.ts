@@ -39,3 +39,6 @@ export async function dismissUpgradeReports(): Promise<void> {
 export function hasUpgradeReports(): boolean {
   return upgradeReportState.reports.length > 0;
 }
+
+/** The details dialog is hosted outside the activity popover; the notice only requests it. */
+export const upgradeReportDialog = $state({ open: false });
