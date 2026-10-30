@@ -100,12 +100,12 @@ function inputs(
   root: string,
   snapshots: Map<string, string>,
 ): Data {
-  const input = readReleasedScope(root, io(ctx), "user", {
+  const input = readReleasedScope(root, io(ctx), "conversation", {
     builtins,
     skillSources: {},
     report: () => {},
   });
-  validateReleasedCatalog(input, root, "user", {
+  validateReleasedCatalog(input, root, "conversation", {
     builtins,
     skillSources: {},
     report: () => {},

@@ -3,6 +3,7 @@ import { test } from "node:test";
 import type { UpgradeReport } from "@nervekit/contracts/status";
 import {
   summarizeUpgradeReports,
+  upgradeReportHeadline,
   upgradeReportLosses,
   upgradeReportSetAsideGroups,
 } from "./upgrade-report-summary";
@@ -80,4 +81,19 @@ test("describes loss-only reports and merges losses by reason", () => {
     { reason: "missing asset", count: 3 },
     { reason: "lossy", count: 4 },
   ]);
+});
+
+test("headline is a short title with a one-line description", () => {
+  assert.deepEqual(
+    upgradeReportHeadline([
+      report({
+        setAside: [item("configuration", "a"), item("configuration", "b")],
+      }),
+    ]),
+    {
+      title: "Upgrade finished with issues",
+      description: "2 settings files couldn't be upgraded",
+    },
+  );
+  assert.equal(upgradeReportHeadline([report({})]).title, "Upgrade finished");
 });

@@ -28,7 +28,7 @@ import step from "./step.js";
 import { toolkitState } from "../../framework/toolkit.js";
 import { currentMigrationArchive } from "./released-archive.js";
 
-for (const damaged of [0, 1, 2, 3])
+for (const damaged of [0, 1, 2, 3, 4])
   void test(`home conversion isolates project configuration and damaged home documents (${damaged})`, async (t) => {
     const home = mkdtempSync(join(tmpdir(), "nerve-home-only-0002-"));
     t.after(() => rmSync(home, { recursive: true, force: true }));
@@ -67,14 +67,14 @@ for (const damaged of [0, 1, 2, 3])
     db.exec(`INSERT INTO conversation (id, project_id, title, status, status_event_sequence, paused, next_input_sequence, created_at, updated_at)
     VALUES ('c', 'p', 'Conversation', 'idle', 0, 0, 1, 'now', 'now');
     INSERT INTO conversation_config VALUES ('c', '{"provider":"test","modelId":"model"}', 'high', 'system', 'instructions', 'planning', 'coding', '/project');`);
-    if (damaged === 3)
+    if (damaged === 3 || damaged === 4)
       db.exec(`
       INSERT INTO conversation (id, project_id, title, status, status_event_sequence, paused, next_input_sequence, created_at, updated_at)
         VALUES ('parent', 'p', 'Parent', 'idle', 0, 0, 1, 'now', 'now');
       INSERT INTO conversation_config SELECT 'parent', model, reasoning_level, system_prompt, instructions, permission_rule_set_id, mode, working_directory FROM conversation_config WHERE conversation_id = 'c';
       UPDATE conversation SET parent_conversation_id = 'parent' WHERE id = 'c';
     `);
-    if (damaged >= 2)
+    if (damaged === 2 || damaged === 3)
       db.exec(
         "UPDATE conversation_config SET model = '{}' WHERE conversation_id = 'c'",
       );
@@ -119,6 +119,13 @@ for (const damaged of [0, 1, 2, 3])
         tools: { web_search: { enabled: false } },
       }),
     );
+    // v0.37.0 ConversationHarnessSettings wrote compaction-only JSON, no version.
+    const compaction = {
+      auto: false,
+      profile: "custom",
+      customTriggerPercent: 63,
+    };
+    writeFileSync(join(own, "harness.json"), JSON.stringify({ compaction }));
     const damagedFiles = [
       join(home, "config/harness.json"),
       join(home, "config/permissions.json"),
@@ -214,7 +221,7 @@ for (const damaged of [0, 1, 2, 3])
     for (const file of projectFiles)
       assert.equal(readFileSync(file, "utf8"), "invalid project bytes");
     const agent = JSON.parse(readFileSync(join(own, "agent.json"), "utf8"));
-    if (damaged >= 2) {
+    if (damaged === 2 || damaged === 3) {
       assert.match(
         (agent.frozenDefaults ?? agent.overrides).permissionRuleSetId,
         /^migration-set-aside-/,
@@ -231,8 +238,13 @@ for (const damaged of [0, 1, 2, 3])
       );
       return;
     }
-    assert.equal(agent.overrides.tools.web_search.enabled, false);
-    assert.deepEqual(agent.overrides.model, {
+    const settings = agent.frozenDefaults ?? agent.overrides;
+    if (damaged === 0 || damaged === 4) {
+      assert.deepEqual(settings.compaction, compaction);
+      assert.deepEqual(toolkitState(context).setAside, []);
+    }
+    assert.equal(settings.tools.web_search.enabled, false);
+    assert.deepEqual(settings.model, {
       provider: "test",
       modelId: "model",
     });

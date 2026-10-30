@@ -18,38 +18,44 @@ let {
 } = $props();
 </script>
 
-<div class="flex flex-wrap gap-2">
-  {#if issue.classification === "migrated"}
+{#if issue.classification === "migrated"}
+  <Button
+    size="sm"
+    variant="ghost"
+    class="text-muted-foreground"
+    disabled={pending}
+    onclick={() => onReload(issue)}>Dismiss</Button
+  >
+{:else}
+  <Button
+    size="sm"
+    variant="ghost"
+    class="text-muted-foreground"
+    onclick={() => onOpen(issue)}
+    >{issue.classification === "legacy" ? "Open folder" : "Open file"}</Button
+  >
+  <Button
+    size="sm"
+    variant="ghost"
+    class="text-muted-foreground"
+    disabled={pending}
+    onclick={() => onReload(issue)}>Reload</Button
+  >
+  {#if issue.classification === "legacy"}
     <Button
       size="sm"
       variant="ghost"
+      class="text-muted-foreground"
       disabled={pending}
-      onclick={() => onReload(issue)}>Dismiss</Button
+      onclick={() => onReset(issue)}>Remove old files</Button
     >
-  {:else}
-    <Button size="sm" variant="outline" onclick={() => onOpen(issue)}
-      >{issue.classification === "legacy" ? "Open folder" : "Open file"}</Button
-    >
+  {:else if issue.classification === "corrupted" && issue.resetOffered}
     <Button
       size="sm"
       variant="ghost"
+      class="text-muted-foreground"
       disabled={pending}
-      onclick={() => onReload(issue)}>Reload</Button
+      onclick={() => onReset(issue)}>Reset</Button
     >
-    {#if issue.classification === "legacy"}
-      <Button
-        size="sm"
-        variant="ghost"
-        disabled={pending}
-        onclick={() => onReset(issue)}>Remove old files</Button
-      >
-    {:else if issue.classification === "corrupted" && issue.resetOffered}
-      <Button
-        size="sm"
-        variant="ghost"
-        disabled={pending}
-        onclick={() => onReset(issue)}>Reset</Button
-      >
-    {/if}
   {/if}
-</div>
+{/if}

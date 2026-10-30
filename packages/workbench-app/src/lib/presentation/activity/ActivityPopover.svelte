@@ -11,6 +11,7 @@ import CircleAlert from "@lucide/svelte/icons/circle-alert";
 import CircleCheck from "@lucide/svelte/icons/circle-check";
 import CircleDashed from "@lucide/svelte/icons/circle-dashed";
 import X from "@lucide/svelte/icons/x";
+import ActivityEntry from "./ActivityEntry.svelte";
 import Popover, {
   PopoverHeader,
   PopoverBody,
@@ -218,8 +219,8 @@ const childLabel = {
     {/snippet}
   </PopoverHeader>
   {#if error || attention}
-    <PopoverBody class="gap-0" ariaLabel="Notification notices">
-      {#if error}<p role="alert" class="px-2 py-2 text-xs text-destructive">
+    <PopoverBody class="gap-0 px-3" ariaLabel="Notification notices">
+      {#if error}<p role="alert" class="px-0.5 py-2 text-xs text-destructive">
           {error}
         </p>{/if}
       {#if attention}{@render attention()}{/if}
@@ -300,152 +301,128 @@ const childLabel = {
 
 {#snippet notificationDetail(item: NotificationItem)}
   {@const finished = notificationRank(item) === 2}
-  {@const clickable = item.conversationId !== undefined}
-  <div
-    class="group relative grid grid-cols-[1rem_minmax(0,1fr)] items-start gap-x-2 rounded-md py-2 pl-0.5 pr-1 {clickable
-      ? 'hover:bg-muted/60'
-      : ''} {item.kind === 'succeeded' ? 'text-muted-foreground' : ''}"
+  <ActivityEntry
+    title={item.title}
+    description={item.kind !== "succeeded" ? item.context : undefined}
+    detail={item.detail}
+    time={notificationTime(item, now)}
+    unread={item.unread}
+    muted={item.kind === "succeeded"}
+    openLabel={`${item.title}: ${item.context}`}
+    onOpen={item.conversationId ? () => onOpenItem?.(item) : undefined}
   >
-    {#if clickable}
-      <button
-        type="button"
-        class="absolute inset-0 rounded-md focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
-        aria-label={`${item.title}: ${item.context}`}
-        onclick={() => onOpenItem?.(item)}
-      ></button>
-    {/if}
-    <span class="relative mt-0.5 flex-none">
+    {#snippet icon()}
       {#if item.kind === "running"}
         <Spinner class="size-4 text-muted-foreground" />
       {:else}
         {@const Icon = icons[item.kind]}
         <Icon class="size-4 {tones[item.kind]}" aria-hidden="true" />
       {/if}
-      {#if item.unread}
-        <span
-          class="absolute -right-0.5 -top-0.5 size-2 rounded-full bg-info ring-2 ring-popover"
-          role="img"
-          aria-label="Unread"
-        ></span>
+    {/snippet}
+    {#snippet actions()}
+      {#if item.action}
+        <Button
+          variant="ghost"
+          size="sm"
+          class="relative z-10 -my-1 {item.kind === 'attention'
+            ? 'font-medium text-warning'
+            : 'text-muted-foreground group-hover:text-foreground'}"
+          onclick={() => onAction?.(item.action!.intent, item)}
+          >{item.action.label}</Button
+        >
       {/if}
-    </span>
-    <div class="min-w-0">
-      <div class="flex items-center gap-1">
-        <p class="min-w-0 flex-1 truncate text-sm">{item.title}</p>
-        {#if item.action}
-          <Button
-            variant="ghost"
-            size="sm"
-            class="relative z-10 -my-1 {item.kind === 'attention'
-              ? 'font-medium text-warning'
-              : 'text-muted-foreground group-hover:text-foreground'}"
-            onclick={() => onAction?.(item.action!.intent, item)}
-            >{item.action.label}</Button
-          >
-        {/if}
-        <div class="relative flex flex-none items-center gap-1 text-right">
-          <span class="text-xs tabular-nums text-muted-foreground"
-            >{notificationTime(item, now)}</span
-          >
-          {#if finished}
-            <Button
-              variant="ghost"
-              size="icon-sm"
-              class="relative z-10"
-              ariaLabel="Dismiss"
-              onclick={() => onDismiss?.(item.id)}
-              ><X aria-hidden="true" /></Button
-            >
-          {/if}
-        </div>
-      </div>
-      {#if item.context && item.kind !== "succeeded"}
-        <p class="truncate text-xs text-muted-foreground">
-          {item.context}
-        </p>
+    {/snippet}
+    {#snippet trailing()}
+      {#if finished}
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          class="relative z-10"
+          ariaLabel="Dismiss"
+          onclick={() => onDismiss?.(item.id)}><X aria-hidden="true" /></Button
+        >
       {/if}
-      {#if item.detail}
-        <p class="line-clamp-2 text-xs text-destructive">{item.detail}</p>
-      {/if}
-      {#if item.progress}
-        <Progress
-          class="mt-1"
-          value={Math.min(
-            100,
-            (item.progress.completed / item.progress.total) * 100,
-          )}
-        />
-      {/if}
-      {#if item.unreadableConversations?.length}
-        <ul class="mt-2 grid gap-3">
-          {#each item.unreadableConversations as entry (entry.id)}
-            <li class="grid min-w-0 gap-1">
-              <p class="break-words text-sm">{entry.title || entry.id}</p>
-              <p class="text-xs text-muted-foreground">
+    {/snippet}
+    {#if item.progress}
+      <Progress
+        class="mt-1"
+        value={Math.min(
+          100,
+          (item.progress.completed / item.progress.total) * 100,
+        )}
+      />
+    {/if}
+    {#if item.unreadableConversations?.length}
+      <ul class="mt-1 grid gap-2">
+        {#each item.unreadableConversations as entry (entry.id)}
+          <li class="flex min-w-0 items-start gap-1">
+            <div class="min-w-0 flex-1">
+              <p class="truncate text-xs">{entry.title || entry.id}</p>
+              <p class="truncate text-xs text-muted-foreground">
                 {entry.projectName || entry.projectId}
               </p>
               <p
-                class="break-words whitespace-pre-wrap text-xs text-destructive"
+                class="line-clamp-2 text-xs break-words text-destructive"
+                title={entry.error}
               >
                 {entry.error}
               </p>
-              <div>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  ariaLabel={`Delete ${entry.title || entry.id}`}
-                  onclick={() => onDeleteConversation?.(entry)}>Delete</Button
-                >
-              </div>
-            </li>
-          {/each}
-        </ul>
-      {/if}
-      {#if item.children.length}
-        <Collapsible.Root bind:open={expanded[item.id]}>
-          <Collapsible.Trigger>
-            {#snippet child({ props })}
-              <Button
-                {...props}
-                variant="ghost"
-                size="sm"
-                class="group/disc relative z-10 -ml-1.5 mt-0.5 text-muted-foreground"
-              >
-                <ChevronRight
-                  class="transition-transform group-aria-expanded/disc:rotate-90"
-                  aria-hidden="true"
-                />Show details
-              </Button>
-            {/snippet}
-          </Collapsible.Trigger>
-          <PopoverViews key={Boolean(expanded[item.id])}>
-            {#if expanded[item.id]}
-              <ul class="mt-1 grid gap-0.5 border-l pl-2">
-                {#each item.children as child (child.id)}
-                  <li class="flex items-center gap-1.5 text-xs">
-                    {#if child.status === "done"}<CircleCheck
-                        class="size-3 text-success"
-                        aria-hidden="true"
-                      />{:else if child.status === "running"}<Spinner
-                        class="size-3"
-                      />{:else if child.status === "failed"}<CircleAlert
-                        class="size-3 text-destructive"
-                        aria-hidden="true"
-                      />{:else}<CircleDashed
-                        class="size-3 text-muted-foreground"
-                        aria-hidden="true"
-                      />{/if}
-                    <span class="min-w-0 flex-1 truncate">{child.title}</span>
-                    <span class="text-muted-foreground"
-                      >{childLabel[child.status]}</span
-                    >
-                  </li>
-                {/each}
-              </ul>
-            {/if}
-          </PopoverViews>
-        </Collapsible.Root>
-      {/if}
-    </div>
-  </div>
+            </div>
+            <Button
+              variant="ghost"
+              size="sm"
+              class="relative z-10 text-muted-foreground group-hover:text-foreground"
+              ariaLabel={`Delete ${entry.title || entry.id}`}
+              onclick={() => onDeleteConversation?.(entry)}>Delete</Button
+            >
+          </li>
+        {/each}
+      </ul>
+    {/if}
+    {#if item.children.length}
+      <Collapsible.Root bind:open={expanded[item.id]}>
+        <Collapsible.Trigger>
+          {#snippet child({ props })}
+            <Button
+              {...props}
+              variant="ghost"
+              size="sm"
+              class="group/disc relative z-10 -ml-1.5 mt-0.5 text-muted-foreground"
+            >
+              <ChevronRight
+                class="transition-transform group-aria-expanded/disc:rotate-90"
+                aria-hidden="true"
+              />Show details
+            </Button>
+          {/snippet}
+        </Collapsible.Trigger>
+        <PopoverViews key={Boolean(expanded[item.id])}>
+          {#if expanded[item.id]}
+            <ul class="mt-1 grid gap-0.5 border-l pl-2">
+              {#each item.children as child (child.id)}
+                <li class="flex items-center gap-1.5 text-xs">
+                  {#if child.status === "done"}<CircleCheck
+                      class="size-3 text-success"
+                      aria-hidden="true"
+                    />{:else if child.status === "running"}<Spinner
+                      class="size-3"
+                    />{:else if child.status === "failed"}<CircleAlert
+                      class="size-3 text-destructive"
+                      aria-hidden="true"
+                    />{:else}<CircleDashed
+                      class="size-3 text-muted-foreground"
+                      aria-hidden="true"
+                    />{/if}
+                  <span class="min-w-0 flex-1 truncate">{child.title}</span>
+                  <span class="text-muted-foreground"
+                    >{childLabel[child.status]}</span
+                  >
+                </li>
+              {/each}
+            </ul>
+          {/if}
+        </PopoverViews>
+      </Collapsible.Root>
+    {/if}
+  </ActivityEntry>
 {/snippet}

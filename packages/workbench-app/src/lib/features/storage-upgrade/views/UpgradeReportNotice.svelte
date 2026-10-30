@@ -4,6 +4,7 @@ import PackageCheck from "@lucide/svelte/icons/package-check";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
 import * as Dialog from "@nervekit/ui-kit/components/ui/dialog";
 import { ScrollArea } from "@nervekit/ui-kit/components/ui/scroll-area";
+import ActivityEntry from "$lib/presentation/activity/ActivityEntry.svelte";
 import { notify } from "$lib/application/notifications/notify.svelte";
 import { writeClipboardText } from "$lib/platform/clipboard/write-text";
 import {
@@ -12,6 +13,7 @@ import {
 } from "../state/upgrade-report-state.svelte";
 import {
   summarizeUpgradeReports,
+  upgradeReportHeadline,
   upgradeReportLosses,
   upgradeReportSetAsideGroups,
 } from "../state/upgrade-report-summary";
@@ -20,6 +22,7 @@ let detailsOpen = $state(false);
 
 const reports = $derived(upgradeReportState.reports);
 const summary = $derived(summarizeUpgradeReports(reports));
+const headline = $derived(upgradeReportHeadline(reports));
 const setAside = $derived(upgradeReportSetAsideGroups(reports));
 let { home }: { home?: string } = $props();
 const losses = $derived(upgradeReportLosses(reports));
@@ -40,26 +43,34 @@ function dismiss(): void {
 </script>
 
 {#if reports.length > 0}
-  <aside
-    class="border-b border-border p-3"
-    aria-live="polite"
-    aria-label="Upgrade report"
+  <ActivityEntry
+    title={headline.title}
+    description={headline.description}
+    titleHint={summary}
   >
-    <div class="flex gap-3">
-      <div
-        class="flex size-9 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground"
+    {#snippet icon()}
+      <PackageCheck
+        class="size-4 {headline.title === 'Upgrade finished'
+          ? 'text-success'
+          : 'text-warning'}"
+        aria-hidden="true"
+      />
+    {/snippet}
+    {#snippet footer()}
+      <Button
+        variant="ghost"
+        size="sm"
+        class="text-muted-foreground"
+        onclick={() => (detailsOpen = true)}>Details</Button
       >
-        <PackageCheck class="size-4" strokeWidth={2} />
-      </div>
-      <div class="min-w-0 flex-1 space-y-3">
-        <p class="text-sm">{summary}</p>
-        <div class="flex flex-wrap justify-end gap-2">
-          <Button variant="ghost" onclick={dismiss}>Dismiss</Button>
-          <Button onclick={() => (detailsOpen = true)}>Details</Button>
-        </div>
-      </div>
-    </div>
-  </aside>
+      <Button
+        variant="ghost"
+        size="sm"
+        class="text-muted-foreground"
+        onclick={dismiss}>Dismiss</Button
+      >
+    {/snippet}
+  </ActivityEntry>
 
   <Dialog.Root bind:open={detailsOpen}>
     <Dialog.Content class="grid-cols-[minmax(0,1fr)] sm:max-w-xl">

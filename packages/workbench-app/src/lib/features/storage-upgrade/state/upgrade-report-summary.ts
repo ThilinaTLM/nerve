@@ -56,6 +56,38 @@ export function summarizeUpgradeReports(
   return `${lead}${subject} ${verb} set aside because ${total === 1 ? "it" : "they"} couldn't be upgraded.`;
 }
 
+/** Compact two-line form for the activity list. */
+export function upgradeReportHeadline(reports: readonly UpgradeReport[]): {
+  title: string;
+  description: string;
+} {
+  const setAside = upgradeReportSetAside(reports);
+  const conversations = setAside.filter(
+    (item) => item.kind === "conversation",
+  ).length;
+  const settings = setAside.length - conversations;
+  const lossCount = upgradeReportLosses(reports).reduce(
+    (total, loss) => total + loss.count,
+    0,
+  );
+  const parts: string[] = [];
+  if (conversations > 0)
+    parts.push(plural(conversations, "conversation", "conversations"));
+  if (settings > 0)
+    parts.push(plural(settings, "settings file", "settings files"));
+  if (parts.length > 0)
+    return {
+      title: "Upgrade finished with issues",
+      description: `${parts.join(" and ")} couldn't be upgraded`,
+    };
+  if (lossCount > 0)
+    return {
+      title: "Upgrade finished with issues",
+      description: `${plural(lossCount, "item", "items")} not fully upgraded`,
+    };
+  return { title: "Upgrade finished", description: "Nothing needed attention" };
+}
+
 /** Keep the activity details bounded even when many units share one failure. */
 export function upgradeReportSetAsideGroups(reports: readonly UpgradeReport[]) {
   const groups = new Map<
