@@ -10,7 +10,7 @@ Each visible root conversation appears in exactly one section, using the first r
 | **Needs you**                                   | Pending question or approval; uncleared failure or interruption; existing `result-ready` activity (green "Finished" marker) | Pending input, then failures/interruptions, then finished; most recent user prompt first within each group |
 | **Today / Yesterday / Previous 7 days / Older** | Everything else                                                                                                             | Existing day buckets and order (`last_user_message_at` descending) from `project-tree.ts`                  |
 
-- Pinned comes first and isn't duplicated: a pinned conversation that needs you stays in Pinned, and its status label shows it. There's no pin icon on cards; pin state lives in the context menu.
+- Pinned comes first and isn't duplicated: a pinned conversation that needs you stays in Pinned, and its status label shows it. There's no pin icon on rows; pin state lives in the context menu (the Pinned section header has the icon).
 - Running conversations stay in Pinned or a day section with a "Running" status. They aren't promoted above questions.
 - Empty sections are hidden. Section headers show conversation counts (conversations, not messages or child tasks).
 - Completed conversations (`completedAt`) stay hidden from the sections (existing hide-completed preference) and are found via search ("done"). A completed conversation with pending input still shows in Needs you.
@@ -24,23 +24,23 @@ There's no new acknowledgement logic. The finished part of Needs you is a groupi
 - `presentation/conversations/conversation-activity.ts` maps it to `indicator: "result-ready"` ("Finished"). Pending input, failure, running, and interruption take precedence.
 - The marker clears when the user opens or switches to the conversation (including its ancestors), on window focus/interaction while it's active, or when its notification is dismissed or "clear finished" is used (`WorkbenchTitlebarHost.svelte`).
 
-Section assignment is a pure function over the existing activity (`conversationActivityById`) plus pin and completion state, owned by the presentation layer next to `conversation-row-state.ts`. It doesn't introduce a second status predicate. Opening a Finished card acknowledges it (current behavior), so it moves to its day section while keeping its selection and scroll anchor.
+Section assignment is a pure function over the existing activity (`conversationActivityById`) plus pin and completion state, owned by the presentation layer next to `conversation-row-state.ts`. It doesn't introduce a second status predicate. Opening a Finished row acknowledges it (current behavior), so it moves to its day section while keeping its selection and scroll anchor.
 
 ## Row anatomy
 
-Each conversation is a **card** (`ItemSurface` with `tone="card"`, `hover="soft"`) on the unchanged panel surface (`PanelView`, `bg-card`), so the dock shell and other tabs stay as they are. Cards stack with a small gap. Two lines:
+The desktop list uses **G · Filled groups**: each section's rows share one borderless, rounded slab (`rounded-md bg-background/60 overflow-hidden`) on the unchanged panel surface (`PanelView`, `bg-card`). Search Results uses the same group. Section headers are small uppercase muted labels with muted counts; Pinned has a 12px `Pin` icon.
 
-1. **Title:** full card width, normal weight (not bold; selection adds `font-medium` as today), at most two lines, line-clamped. An inline image marker renders as a small `Image` icon with the accessible name "Image" (see [title-generation.md](title-generation.md#image-marker)).
-2. **Meta line:** status, references, and time on one line:
-   - **Status** (only when there is one): the existing `ConversationActivityIndicator` icon plus a short label in the status tone: `Question`, `Approval`, `Plan` (plan review), `Failed`, `Stopped`, `Finished`, `Running`. Waiting on sub-agents or background commands (`awaiting-async`) is also labelled `Running` but keeps its `ClockAlert` icon instead of the pulsing dot. These replace the longer `statusText` strings in the list. The full text ("Question for you", "Agent failed", …) stays in the accessible name and tooltip.
-   - **References:** up to two tags plus `+N`.
-   - **Time:** right-aligned relative time of the last user prompt. The exact time is in the tooltip. There are no hover actions; everything else lives in the context menu.
+Rows are flat, with no individual card fill, and have the same inset geometry (`mx-1 my-0.5`) whether selected or not. Selection draws a rounded `bg-selected` surface inside the slab, including in dark mode. Hover is subtle (`hover:bg-accent/40`). The entire row is a pointer target with visible keyboard focus.
 
-There are no leading glyph column, pin icon, planning-profile icon, sub-agent count, previews, or model/cost fields; profile and sub-agent count move to the tooltip. The idle open-tab dot is dropped; the tab strip already shows open conversations.
+1. **State rail:** a 14px-wide slot aligned to the first title line, present on every row. Idle uses a muted hollow `Circle` (12px); running a pulsing info-filled circle (10px); finished/result-ready a success-filled circle (10px). Question/approval/plan use a warning `Bell`, failed a destructive `TriangleAlert`, stopped a muted `CircleStop`, awaiting-async an info `ClockAlert`, and done a muted `CircleCheck` (all 12px). The smaller discs balance the outline glyphs optically. Tab presence does not affect this rail.
+2. **Title line:** normal-weight title, at most two lines, with last-user-prompt relative time right-aligned alongside the first line (small muted tabular numerals). The exact time stays in the tooltip. Titles in Previous 7 days and Older are muted unless selected. An inline image marker renders as a small `Image` icon with the accessible name "Image" (see [title-generation.md](title-generation.md#image-marker)); search highlights retain plain-text offsets around it.
+3. **Conditional second line:** rendered only when there is a status or reference tags. Status is text in its tone, **without a repeated icon**: `Question`, `Approval`, `Plan`, `Failed`, `Stopped`, `Finished`, `Running`, or `Done` in search. Awaiting-async is labelled `Running`; stopped is muted. Full status text remains in the accessible name and tooltip. Up to two reference tags plus `+N` follow the status.
+
+There are no row pin icons, planning-profile icons, sub-agent counts, previews, model/cost fields, or hover actions; profile and sub-agent count stay in the tooltip. All row actions remain in the context menu.
 
 ### Reference tags
 
-- Quiet, non-interactive `text-muted-foreground` tags: a typed icon (`GitPullRequest` for PRs, `CircleDot` for issues) plus `#481`. The whole card opens the conversation; GitHub is opened from the context menu.
+- Quiet, non-interactive `text-muted-foreground` tags: a typed icon (`GitPullRequest` for PRs, `CircleDot` for issues) plus `#481`. The whole row opens the conversation; GitHub is opened from the context menu.
 - Foreign repositories show a **short repository label** plus the number, e.g. `inshsc-registry#1203` for `acme-platform-engineering/internal-shared-schema-registry`. The label uses the Git panel's `repositoryLabels` algorithm (`features/git/views/repository-labels.ts`) over the repository names referenced in the project, with a 16-character budget:
   - the owner is dropped;
   - long words are abbreviated, and role words like `api` or `web` are kept;
@@ -57,8 +57,10 @@ Right-click (and long-press) opens the existing conversation menu (`buildConvers
 
 ### Implementation notes
 
-- Extend `PanelRow`/`ProjectAgentTreeNode` rather than forking markup: segmented title, and a `meta` snippet that replaces `detail` + `trailing`.
-- Fix in `ItemSurface`: with `tone="card"` in dark mode, `dark:bg-accent/35` outranks `bg-selected`, so the selected card isn't highlighted. Selection must also override the `dark:` card background.
+- Reuse `PanelRow`/`ProjectAgentTreeNode`: segmented title, inline `titleTrailing` time, leading state rail, and a conditional `meta` snippet in place of detail/trailing actions. Use flat `ItemSurface tone="row"` with inset selection rather than per-row cards.
+- `ConversationActivityIndicator` has an opt-in rail variant for the idle ring and consistent optical glyph sizes. Default indicators (including the tab strip) retain their existing appearance.
+- Uppercase counted section headings are local to this list; other panels' headers are unchanged.
+- Selection in `ItemSurface` must override dark-mode backgrounds and hover fills. Use existing theme foreground tokens for selected text.
 
 ## Ordering and stability
 
@@ -85,7 +87,7 @@ A **`SearchInput`** sits directly under the header, above the first section, and
   1. Sum of term scores: exact reference (created first) > status word > title word start > title substring > lazy match.
   2. Ties: `last_user_message_at` descending.
   3. Lazy matches whose letters are scattered are dropped. So are hits scoring below a fraction of the best hit, which keeps lazy noise out next to exact matches.
-- **Results:** a single ranked "Results" section of the same cards. Matched title letters get a subtle `bg-primary/25` mark. A matched reference tag is moved into the first visible slot and highlighted. Status matches are already visible as the status label. Search matches the full repository name as well as the short label.
+- **Results:** a single ranked "Results" section of the same rows. Matched title letters get a subtle `bg-primary/25` mark. A matched reference tag is moved into the first visible slot and highlighted. Status matches are already visible as the status label. Search matches the full repository name as well as the short label.
 - **Scope:** every root conversation in the project, including done ones (shown with a "Done" status). It runs client-side over the loaded summaries: `conversation.list` has no limit, so the 100-row cap is display-only and doesn't apply to search. Typing "done" is how completed conversations are found, replacing the hide-completed toggle for retrieval.
 - **Implementation:** the matcher is a pure function in the presentation layer (next to section assignment) with unit tests. It uses each summary's title, activity, pin/completion state, and `references`.
 - **Empty states:** the empty project, everything done ("Search “done” to find them"), and no matches (suggest a status, PR number, or part of a title) each get their own message.
@@ -96,7 +98,7 @@ All row actions live in the context menu (see above); there are no inline or hov
 
 ## Accessibility
 
-- Use a semantic list. Each card is one interactive target (opens the conversation) with a context menu; reference tags are plain text, so nothing interactive is nested.
+- Use a semantic list. Each row is one interactive target (opens the conversation) with a context menu; reference tags are plain text, so nothing interactive is nested.
 - Every status has a text label. Focus stays visible.
 - The full title and all references are in the accessible name or details even when they're visually truncated.
 - Use shadcn-svelte components, `@lucide/svelte` icons, and theme tokens. Don't add control sizes or per-row height patches.
@@ -105,7 +107,7 @@ All row actions live in the context menu (see above); there are no inline or hov
 
 - `features/projects/views/ProjectConversationNavigator.svelte`: panel, display limit
 - `features/projects/views/ProjectConversationsDialog.svelte`: replaced by the inline smart search
-- `presentation/items/ItemSurface.svelte`: card selection fix
+- `presentation/items/ItemSurface.svelte`: flat row surface and dark-mode selection precedence
 - `domain/projects/project-tree.ts`: grouping, to be replaced by section assignment
 - `features/projects/adapters/conversation-sidebar.adapter.ts`: summary mapping, references, search dispatch
 - `presentation/conversations/conversation-row-state.ts`, `conversation-activity.ts`, `ConversationActivityIndicator.svelte`: row state and status

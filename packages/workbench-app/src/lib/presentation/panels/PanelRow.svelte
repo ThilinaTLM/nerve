@@ -10,6 +10,8 @@ let {
   label,
   labelLines = 1,
   labelContent,
+  labelClass,
+  titleTrailing,
   meta,
   ariaLabel,
   description,
@@ -50,6 +52,9 @@ let {
   label: string;
   /** Segmented title (e.g. search highlights); label remains the plain accessible fallback. */
   labelContent?: Snippet;
+  labelClass?: string;
+  /** Inline metadata alongside the first title line, inside the row target. */
+  titleTrailing?: Snippet;
   /** Replaces detail and trailing with a single full-width metadata line. */
   meta?: Snippet;
   ariaLabel?: string;
@@ -184,7 +189,13 @@ const twoLine = $derived(labelLines === 2);
       title={title ?? description ?? label}
       class={cn(
         "flex min-w-0 flex-1 cursor-pointer items-center rounded-sm text-left focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none disabled:cursor-default disabled:opacity-50",
-        twoLine ? "items-start gap-1" : dense ? "gap-1" : "gap-1.5",
+        twoLine
+          ? titleTrailing
+            ? "items-start gap-2"
+            : "items-start gap-1"
+          : dense
+            ? "gap-1"
+            : "gap-1.5",
       )}
       {onclick}
     >
@@ -200,11 +211,36 @@ const twoLine = $derived(labelLines === 2);
       {/if}
       {#if twoLine}
         <span
-          class={cn("flex min-w-0 flex-1 flex-col", meta ? "gap-1" : "gap-0.5")}
+          class={cn(
+            "flex min-w-0 flex-1 flex-col",
+            meta && !titleTrailing ? "gap-1" : "gap-0.5",
+          )}
         >
-          <span class={cn(labelLayoutClass, toneClass, active && "font-medium")}
-            >{#if labelContent}{@render labelContent()}{:else}{label}{/if}</span
-          >
+          {#if titleTrailing}
+            <span class="flex min-w-0 items-start gap-2">
+              <span
+                class={cn(
+                  labelLayoutClass,
+                  "flex-1",
+                  toneClass,
+                  active && "font-medium",
+                  labelClass,
+                )}
+                >{#if labelContent}{@render labelContent()}{:else}{label}{/if}</span
+              >
+              {@render titleTrailing()}
+            </span>
+          {:else}
+            <span
+              class={cn(
+                labelLayoutClass,
+                toneClass,
+                active && "font-medium",
+                labelClass,
+              )}
+              >{#if labelContent}{@render labelContent()}{:else}{label}{/if}</span
+            >
+          {/if}
           {#if meta}
             {@render meta()}
           {:else if detail}

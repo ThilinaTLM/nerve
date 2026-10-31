@@ -4,6 +4,7 @@ import type { ConversationRow } from "$lib/domain/projects/project-tree";
 import ScrollRegion from "@nervekit/ui-kit/components/composites/scroll-region";
 import MessagesSquare from "@lucide/svelte/icons/messages-square";
 import Plus from "@lucide/svelte/icons/plus";
+import Pin from "@lucide/svelte/icons/pin";
 import Settings from "@lucide/svelte/icons/settings";
 import type { ProjectRecord } from "$lib/domain/projects/sidebar-view-models";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
@@ -13,7 +14,6 @@ import {
   PanelEmpty,
   PanelHeader,
   PanelList,
-  PanelSectionHeader,
   PanelToolbarButton,
   PanelView,
 } from "$lib/presentation/panels";
@@ -56,7 +56,6 @@ let {
   agents = [],
   selectedProjectId,
   selectedConversationId,
-  openConversationTabIds,
   conversationActivityById = {},
   searchFocusToken = 0,
   editorAvailability,
@@ -294,20 +293,27 @@ const menuContext = $derived<ProjectTreeMenuContext>({
       <ScrollRegion
         bind:viewport
         ariaLabel="Conversations"
-        topShadowClass="top-7 h-2"
+        topShadowClass="top-0 h-2"
         contentClass="pb-2"
       >
         {#each displayedSections as section (section.key)}
-          <PanelSectionHeader
-            title={section.label}
-            count={searching
-              ? searchHits.length
-              : (sections.find((candidate) => candidate.key === section.key)
-                  ?.rows.length ?? section.rows.length)}
-          />
+          <div
+            class="flex items-center gap-1.5 px-1 pt-3 pb-1 text-[0.6875rem] font-medium tracking-wide uppercase text-muted-foreground"
+          >
+            {#if section.key === "pinned"}<Pin
+                class="size-3"
+                aria-hidden="true"
+              />{/if}
+            {section.label}<span class="font-normal text-muted-foreground/70"
+              >{searching
+                ? searchHits.length
+                : (sections.find((candidate) => candidate.key === section.key)
+                    ?.rows.length ?? section.rows.length)}</span
+            >
+          </div>
           <PanelList
             ariaLabel={`${section.label} conversations`}
-            class="shrink-0 gap-1.5 pb-1"
+            class="shrink-0 overflow-hidden rounded-md bg-background/60 py-0"
           >
             {#each section.rows as row (row.conversation.id)}
               {@const rowProject =
@@ -329,8 +335,8 @@ const menuContext = $derived<ProjectTreeMenuContext>({
                 highlight={searching
                   ? highlights.get(row.conversation.id)
                   : undefined}
-                isOpen={openConversationTabIds?.has(row.conversation.id) ??
-                  false}
+                faded={section.key === "previous-7-days" ||
+                  section.key === "older"}
                 isActive={row.conversation.id === selectedConversationId}
                 activity={conversationActivityById[row.conversation.id]}
                 menuItems={buildConversationMenu(

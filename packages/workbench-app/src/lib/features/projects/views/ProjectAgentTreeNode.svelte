@@ -31,8 +31,8 @@ type Props = {
   repoLabels: ReadonlyMap<string, string>;
   currentRepository?: string;
   matchedReference?: string;
-  isOpen?: boolean;
   isActive?: boolean;
+  faded?: boolean;
   activity?: ConversationActivity;
   highlight?: number[];
   menuItems: ContextMenuItem[];
@@ -44,8 +44,8 @@ let {
   repoLabels,
   currentRepository,
   matchedReference,
-  isOpen = false,
   isActive = false,
+  faded = false,
   activity,
   highlight = [],
   menuItems,
@@ -110,12 +110,15 @@ const titleSegments = $derived(
 </script>
 
 <ItemSurface
-  tone="card"
-  hover="soft"
+  tone="row"
+  hover="none"
   selected={isActive}
   {menuItems}
   {onMenuOpenChange}
-  class="flex-col gap-1 px-2 py-1.5"
+  class={cn(
+    "mx-1 my-0.5 flex-col rounded-md px-2.5 py-2 font-normal",
+    !isActive && "hover:bg-accent/40",
+  )}
   onclick={() => onOpenConversation?.(row.conversation.id)}
 >
   <PanelRow
@@ -128,12 +131,24 @@ const titleSegments = $derived(
     hoverable={false}
     class="py-0"
     active={isActive}
-    tone={row.conversation.completedAt ? "neutral" : "accent"}
+    tone={faded && !isActive ? "neutral" : "accent"}
+    labelClass="font-normal"
     onclick={(event) => {
       event.stopPropagation();
       onOpenConversation?.(row.conversation.id);
     }}
   >
+    {#snippet leading()}
+      <span class="flex h-4 w-3.5 shrink-0 items-center justify-center">
+        <ConversationActivityIndicator activity={dotActivity} variant="rail" />
+      </span>
+    {/snippet}
+    {#snippet titleTrailing()}
+      <span
+        class="shrink-0 pt-px text-[0.6875rem] tabular-nums text-muted-foreground"
+        title={exactTime}>{age}</span
+      >
+    {/snippet}
     {#snippet labelContent()}
       {#each titleSegments as segment, index (index)}{#if segment.type === "image"}<span
             role="img"
@@ -147,63 +162,59 @@ const titleSegments = $derived(
               >{:else}{run.text}{/if}{/each}{/if}{/each}
     {/snippet}
     {#snippet meta()}
-      <span
-        class="flex h-4 min-w-0 items-center gap-2.5 text-muted-foreground font-normal"
-      >
-        {#if status}
-          <span
-            class={cn(
-              "flex shrink-0 items-center gap-1",
-              dotActivity.tone === "warning" && "text-warning",
-              dotActivity.tone === "destructive" && "text-destructive",
-              dotActivity.tone === "success" && "text-success",
-              dotActivity.tone === "info" && "text-info",
-            )}
-          >
-            <ConversationActivityIndicator
-              activity={dotActivity}
-              {isOpen}
-              size="sm"
-            />
-            {status}
-          </span>
-        {/if}
-        {#if references.shown.length}
-          <span class="flex min-w-0 items-center gap-2.5">
-            {#each references.shown as reference (reference.resourceKey)}
-              {@const Icon = referenceIcon(reference)}
-              <span
-                title={referenceDescription(reference)}
-                class={cn(
-                  "inline-flex min-w-0 items-center gap-1 rounded-sm",
-                  reference.resourceKey === matchedReference &&
-                    "bg-primary/25 px-0.5 text-foreground",
-                )}
-              >
-                <Icon class="size-3 shrink-0" aria-hidden="true" />
-                <span class="truncate"
-                  >{referenceLabel(
-                    reference,
-                    repoLabels,
-                    currentRepository,
-                  )}</span
-                >
-              </span>
-            {/each}
-            {#if references.overflow > 0}
-              <span
-                class="shrink-0"
-                title={row.conversation.references
-                  .map(referenceDescription)
-                  .join("\n")}>+{references.overflow}</span
-              >
-            {/if}
-          </span>
-        {/if}
-        <span class="ml-auto shrink-0 tabular-nums" title={exactTime}
-          >{age}</span
+      {#if status || references.shown.length}
+        <span
+          class="flex min-w-0 items-center gap-2.5 text-[0.6875rem] text-muted-foreground font-normal"
         >
-      </span>
+          {#if status}
+            <span
+              class={cn(
+                "flex shrink-0 items-center gap-1",
+                dotActivity.tone === "warning" && "text-warning",
+                dotActivity.tone === "destructive" &&
+                  dotActivity.indicator !== "aborted" &&
+                  "text-destructive",
+                dotActivity.tone === "success" && "text-success",
+                dotActivity.tone === "info" && "text-info",
+              )}
+            >
+              {status}
+            </span>
+          {/if}
+          {#if references.shown.length}
+            <span class="flex min-w-0 items-center gap-2.5">
+              {#each references.shown as reference (reference.resourceKey)}
+                {@const Icon = referenceIcon(reference)}
+                <span
+                  title={referenceDescription(reference)}
+                  class={cn(
+                    "inline-flex min-w-0 items-center gap-1 rounded-sm",
+                    reference.resourceKey === matchedReference &&
+                      "bg-primary/25 px-0.5 text-foreground",
+                  )}
+                >
+                  <Icon class="size-3 shrink-0" aria-hidden="true" />
+                  <span class="truncate"
+                    >{referenceLabel(
+                      reference,
+                      repoLabels,
+                      currentRepository,
+                    )}</span
+                  >
+                </span>
+              {/each}
+              {#if references.overflow > 0}
+                <span
+                  class="shrink-0"
+                  title={row.conversation.references
+                    .map(referenceDescription)
+                    .join("\n")}>+{references.overflow}</span
+                >
+              {/if}
+            </span>
+          {/if}
+        </span>
+      {/if}
     {/snippet}
   </PanelRow>
 </ItemSurface>
