@@ -1,4 +1,8 @@
-import type { ConversationReference } from "@nervekit/contracts/core";
+import {
+  compareConversationsByLastUserPromptDesc,
+  type ConversationReference,
+  type ConversationSummary,
+} from "@nervekit/contracts/core";
 import { repositoryLabels } from "../repository-labels";
 import type { ConversationTermMatch } from "./conversation-search";
 
@@ -166,4 +170,56 @@ export function matchConversationReference(
       best = { score, referenceKey: reference.resourceKey };
   }
   return best;
+}
+
+/** Resource key (`host/owner/repo#number`, lowercased) for a pull request URL. */
+export function pullRequestResourceKey(url: string): string | undefined {
+  try {
+    const parsed = new URL(url);
+    const match = parsed.pathname.match(/^\/([^/]+\/[^/]+)\/pull\/(\d+)\/?$/);
+    return match
+      ? `${parsed.host}/${match[1]}#${match[2]}`.toLowerCase()
+      : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+export type PullRequestConversationLink<
+  Row extends Pick<
+    ConversationSummary,
+    "id" | "createdAt" | "lastUserMessageAt" | "references"
+  >,
+> = { row: Row; relationship: ConversationReference["relationship"] };
+
+/** Conversations that created or referenced a PR: creators first, newest first. */
+export function linkedPullRequestConversations<
+  Row extends Pick<
+    ConversationSummary,
+    "id" | "createdAt" | "lastUserMessageAt" | "references"
+  >,
+>(
+  rows: readonly Row[],
+  resourceKey: string | undefined,
+): PullRequestConversationLink<Row>[] {
+  if (!resourceKey) return [];
+  const links = new Map<string, PullRequestConversationLink<Row>>();
+  for (const row of rows) {
+    const matches = row.references.filter(
+      (reference) => reference.resourceKey === resourceKey,
+    );
+    if (matches.length === 0) continue;
+    links.set(row.id, {
+      row,
+      relationship: matches.some((match) => match.relationship === "created")
+        ? "created"
+        : "referenced",
+    });
+  }
+  return [...links.values()].sort(
+    (a, b) =>
+      Number(b.relationship === "created") -
+        Number(a.relationship === "created") ||
+      compareConversationsByLastUserPromptDesc(a.row, b.row),
+  );
 }

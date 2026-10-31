@@ -1,4 +1,7 @@
-import type { GithubChecksSummary } from "@nervekit/contracts/git";
+import type {
+  GithubCheckRun,
+  GithubChecksSummary,
+} from "@nervekit/contracts/git";
 
 function isGithubHost(hostname: string): boolean {
   const normalized = hostname.toLowerCase().replace(/\.$/, "");
@@ -133,7 +136,14 @@ function findFirstWhitespace(value: string): number {
   return -1;
 }
 
-export type GithubCheckRunRaw = { name: string; state: string; link?: string };
+export type GithubCheckRunRaw = {
+  name: string;
+  state: string;
+  link?: string;
+} & Pick<
+  GithubCheckRun,
+  "workflow" | "summary" | "required" | "startedAt" | "completedAt"
+>;
 
 export function noChecksSummary(): GithubChecksSummary {
   return {
@@ -166,6 +176,10 @@ export function summarizeStatusCheckRollup(
     const state = stringValue(check.state)?.toUpperCase();
     runs.push({
       name,
+      startedAt: stringValue(check.startedAt),
+      completedAt: stringValue(check.completedAt),
+      workflow: (check.checkSuite as { app?: { name?: string } } | undefined)
+        ?.app?.name,
       state:
         state ??
         (status && status !== "COMPLETED" ? status : conclusion) ??
@@ -201,11 +215,19 @@ export function summarizeChecks(
         "CANCELLED",
         "TIMED_OUT",
         "ACTION_REQUIRED",
+        "STARTUP_FAILURE",
       ].includes(state)
     )
       failed += 1;
     else pending += 1;
     return {
+      ...(run.workflow !== undefined ? { workflow: run.workflow } : {}),
+      ...(run.summary !== undefined ? { summary: run.summary } : {}),
+      ...(run.required !== undefined ? { required: run.required } : {}),
+      ...(run.startedAt !== undefined ? { startedAt: run.startedAt } : {}),
+      ...(run.completedAt !== undefined
+        ? { completedAt: run.completedAt }
+        : {}),
       name: run.name,
       status: state.toLowerCase(),
       conclusion: state.toLowerCase(),

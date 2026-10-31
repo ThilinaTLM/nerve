@@ -1,87 +1,127 @@
 import assert from "node:assert/strict";
-import { mkdir, mkdtemp, rm, symlink } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
 import { test } from "node:test";
-import {
-  GitService,
-  type GitRemoteCacheChange,
-} from "../../src/git/git-service.js";
-const tick = () => new Promise<void>((resolve) => setImmediate(resolve));
-async function until(predicate: () => boolean) {
-  for (let count = 0; count < 100; count++) {
-    if (predicate()) return;
-    await new Promise((resolve) => setTimeout(resolve, 2));
-  }
-  assert.fail("cache did not settle");
+import { GithubApiClient } from "../../src/git/git-github-api-client.js";
+import type { GithubServiceContext } from "../../src/git/git-github-service.js";
+import { fetchPrSummaries } from "../../src/git/git-github-sync.js";
+
+const repository = {
+  hostname: "github.com" as const,
+  owner: "example",
+  repo: "repo",
+  remoteUrl: "git@github.com:example/repo.git",
+};
+const pr = (number: number, state = "OPEN") => ({
+  number,
+  title: `PR ${number}`,
+  url: `https://github.com/example/repo/pull/${number}`,
+  state,
+  isDraft: false,
+  headRefName: `feature-${number}`,
+  baseRefName: "main",
+  headRefOid: `sha-${number}`,
+  headRepository: { nameWithOwner: "fork/repo" },
+  updatedAt: "2026-11-01T00:00:00Z",
+  labels: { nodes: [{ name: "bug", color: "ffffff" }] },
+  reviewRequests: { nodes: [{ requestedReviewer: { login: "viewer" } }] },
+});
+
+function fixture(response: Record<string, unknown>) {
+  const requests: Array<{ query: string; variables: unknown }> = [];
+  const api = new GithubApiClient({
+    tokenProvider: async () => "synthetic-test-token",
+    fetch: async (_url, options) => {
+      requests.push(JSON.parse(String(options?.body)));
+      return new Response(JSON.stringify({ data: response }));
+    },
+  });
+  const context = {
+    resolveRepoDir: () => "/synthetic/repo",
+    ensureGithubRemote: async () => undefined,
+    repoRemoteState: async () => ({
+      hasRemote: true,
+      hasGithubRemote: true,
+      githubRepository: repository,
+    }),
+    githubApi: api,
+  } as GithubServiceContext;
+  return { api, context, requests };
 }
 
-void test("Git cache settlement is project-scoped across aliases and subscriptions see settled stale failures", async () => {
-  const root = await mkdtemp(join(tmpdir(), "nerve-github-cache-unit-"));
-  const events: GitRemoteCacheChange[] = [];
-  const service = new GitService(() => ({
-    dir: root,
-    name: "Synthetic project",
-  }));
-  let loads = 0;
-  let fail = false;
-  service.listOpenPrs = async () => {
-    loads++;
-    if (fail) throw new Error("token=synthetic-private-output");
-    return { prs: [] };
-  };
+void test("snapshot summary fetch reports truncation and maps head, label and viewer interests", async () => {
+  const f = fixture({
+    viewer: { login: "viewer" },
+    repository: {
+      pullRequests: {
+        totalCount: 101,
+        nodes: [
+          pr(7),
+          {
+            ...pr(8),
+            reviewRequests: {
+              nodes: [{ requestedReviewer: { login: "someone-else" } }],
+            },
+          },
+        ],
+      },
+    },
+  });
   try {
-    await mkdir(join(root, "real", ".git"), { recursive: true });
-    await symlink(
-      join(root, "real"),
-      join(root, "alias"),
-      process.platform === "win32" ? "junction" : "dir",
-    );
-    service.onRemoteCacheChanged(() => {
-      throw new Error("subscriber failure");
+    const result = await fetchPrSummaries(f.context, "proj_test", ".");
+    assert.equal(result.truncated, true);
+    assert.equal(result.viewer, "viewer");
+    assert.equal(f.requests.length, 1);
+    assert.match(f.requests[0].query, /pullRequests\(states: OPEN, first: 100/);
+    assert.deepEqual(f.requests[0].variables, {
+      owner: "example",
+      repo: "repo",
     });
-    const unsubscribe = service.onRemoteCacheChanged((change) => {
-      const snapshot = service.cachedOpenPrs(change.projectId, "alias");
-      assert.equal(snapshot.refreshing, false);
-      assert.ok(snapshot.status === "fresh" || snapshot.status === "stale");
-      events.push(change);
-    });
-    assert.equal(service.cachedOpenPrs("proj_a", "real").status, "loading");
-    assert.equal(service.cachedOpenPrs("proj_a", "alias").status, "loading");
-    assert.equal(service.cachedOpenPrs("proj_b", "alias").status, "loading");
-    await until(() => events.length === 2);
-    assert.equal(
-      loads,
-      2,
-      "same-project aliases coalesce; distinct projects retain separate scope",
-    );
-    assert.deepEqual(events.map((event) => event.projectId).sort(), [
-      "proj_a",
-      "proj_b",
-    ]);
-    assert.ok(events.every((event) => event.source === "pull_requests"));
-    const previous = service.cachedOpenPrs("proj_a", "real");
-    fail = true;
-    const pending = service.cachedOpenPrs("proj_a", "alias", true);
-    assert.equal(pending.status, "stale");
-    assert.equal(pending.refreshing, true);
-    await until(() => events.length === 3);
-    const stale = service.cachedOpenPrs("proj_a", "real");
-    assert.equal(stale.status, "stale");
-    assert.equal(stale.refreshing, false);
-    assert.deepEqual(stale.result, previous.result);
-    assert.equal(stale.updatedAt, previous.updatedAt);
-    assert.deepEqual(events[2], {
-      projectId: "proj_a",
-      source: "pull_requests",
-    });
-    unsubscribe();
-    service.cachedOpenPrs("proj_a", "real", true);
-    await tick();
-    await tick();
-    assert.equal(events.length, 3);
+    assert.equal(result.prs[0].headSha, "sha-7");
+    assert.equal(result.prs[0].headRepository, "fork/repo");
+    assert.deepEqual(result.prs[0].labels, ["bug"]);
+    assert.equal(result.prs[0].reviewRequested, true);
+    assert.equal(result.prs[1].reviewRequested, false);
   } finally {
-    await service.closeRemoteCaches();
-    await rm(root, { recursive: true, force: true });
+    await f.api.close();
+  }
+});
+
+void test("specific summaries and the latest branch PR share one batch, including merged PRs and missing numbers", async () => {
+  const f = fixture({
+    viewer: { login: "viewer" },
+    repository: {
+      pr7: pr(7),
+      pr8: pr(8, "MERGED"),
+      pr9: null,
+      branch0: { nodes: [pr(10, "CLOSED")] },
+    },
+  });
+  const branch = 'feature/"quoted"';
+  try {
+    const result = await fetchPrSummaries(
+      f.context,
+      "proj_test",
+      ".",
+      [7, 8, 9],
+      [branch],
+    );
+    assert.equal(f.requests.length, 1);
+    assert.match(f.requests[0].query, /pr7: pullRequest\(number: 7\)/);
+    assert.match(f.requests[0].query, /pr8: pullRequest\(number: 8\)/);
+    assert.ok(
+      f.requests[0].query.includes(
+        `headRefName: ${JSON.stringify(branch)}, first: 1`,
+      ),
+    );
+    assert.deepEqual(
+      result.prs.map((pr) => [pr.number, pr.state]),
+      [
+        [7, "OPEN"],
+        [8, "MERGED"],
+        [10, "CLOSED"],
+      ],
+    );
+    assert.equal(result.truncated, false);
+  } finally {
+    await f.api.close();
   }
 });

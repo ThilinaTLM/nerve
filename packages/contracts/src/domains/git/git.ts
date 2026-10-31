@@ -499,16 +499,18 @@ export const githubPrCommitSchema = z.object({
 });
 export type GithubPrCommit = z.infer<typeof githubPrCommitSchema>;
 
-export const githubPrCoreSchema = githubPrSchema.omit({ checks: true }).extend({
-  author: z.string().nullable(),
-  createdAt: z.string(),
-  additions: z.number().int().nonnegative(),
-  deletions: z.number().int().nonnegative(),
-  changedFiles: z.number().int().nonnegative(),
-  headRefOid: z.string(),
-  baseRefOid: z.string(),
-  headRepository: z.string().nullable().optional(),
-});
+export const githubPrCoreSchema = githubPrSchema
+  .omit({ checks: true, labels: true, reviewRequested: true })
+  .extend({
+    author: z.string().nullable(),
+    createdAt: z.string(),
+    additions: z.number().int().nonnegative(),
+    deletions: z.number().int().nonnegative(),
+    changedFiles: z.number().int().nonnegative(),
+    headRefOid: z.string(),
+    baseRefOid: z.string(),
+    headRepository: z.string().nullable().optional(),
+  });
 export type GithubPrCore = z.infer<typeof githubPrCoreSchema>;
 
 export const githubPrConversationSchema = z.object({
@@ -609,6 +611,8 @@ export const githubPrSnapshotSchema = githubPrRepoParamsSchema.extend({
   updatedAt: z.string().nullable(),
   /** More open PRs exist than the snapshot holds; use `github.pr.list`. */
   truncated: z.boolean(),
+  /** `https://<host>/<owner>/<name>` of the GitHub remote; null until resolved. */
+  repositoryUrl: z.string().nullable().default(null),
   viewer: z.string().nullable(),
   /** Retry hint while `status` is `rate_limited` or `error`. */
   retryAt: z.string().nullable().default(null),

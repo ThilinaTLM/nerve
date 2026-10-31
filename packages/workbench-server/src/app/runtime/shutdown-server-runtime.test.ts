@@ -39,6 +39,7 @@ void test("actual server shutdown finalizes Activity and every outer resource af
     lifecycle: {
       shutdown: () =>
         shutdownRuntimeResources({
+          prSync: { close: async () => {} },
           gitOperations: {
             close: async () => {
               order.push("git");

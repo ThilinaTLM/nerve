@@ -1,11 +1,10 @@
 export type GitAutoRefreshDemand = {
   overview?: boolean;
-  prs?: boolean;
   /** Unproven poll notice: do not supersede kept server work. */
   uncertain?: boolean;
 };
 
-export type GitAutoRefreshTarget = "overview" | "prs";
+export type GitAutoRefreshTarget = "overview";
 
 type Clock = {
   now(): number;
@@ -18,7 +17,7 @@ type Clock = {
 
 type Entry = {
   key: string;
-  pending: { overview: boolean; prs: boolean; uncertain?: boolean };
+  pending: { overview: boolean; uncertain?: boolean };
   lastStartedAt: Record<GitAutoRefreshTarget, number | undefined>;
   timer?: ReturnType<typeof setTimeout>;
 };
@@ -45,7 +44,6 @@ export class GitAutoRefreshScheduler {
         ? Boolean(entry.pending.uncertain && demand.uncertain)
         : Boolean(demand.uncertain);
     entry.pending.overview ||= Boolean(demand.overview);
-    entry.pending.prs ||= Boolean(demand.prs);
     this.#dispatchDue(entry);
   }
 
@@ -64,8 +62,8 @@ export class GitAutoRefreshScheduler {
     if (existing) return existing;
     const entry: Entry = {
       key,
-      pending: { overview: false, prs: false },
-      lastStartedAt: { overview: undefined, prs: undefined },
+      pending: { overview: false },
+      lastStartedAt: { overview: undefined },
     };
     this.#entries.set(key, entry);
     return entry;
@@ -88,7 +86,7 @@ export class GitAutoRefreshScheduler {
       }
     }
     this.#scheduleTimer(entry);
-    if (due.overview || due.prs) this.dispatch(entry.key, due);
+    if (due.overview) this.dispatch(entry.key, due);
   }
 
   #scheduleTimer(entry: Entry): void {
@@ -115,7 +113,5 @@ export class GitAutoRefreshScheduler {
 }
 
 function targets(demand: GitAutoRefreshDemand): GitAutoRefreshTarget[] {
-  return (["overview", "prs"] as const).filter((target) =>
-    Boolean(demand[target]),
-  );
+  return (["overview"] as const).filter((target) => Boolean(demand[target]));
 }

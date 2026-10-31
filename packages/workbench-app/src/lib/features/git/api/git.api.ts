@@ -10,7 +10,7 @@ import type {
   GithubPrFileDiffResponse,
   GithubPrFileStatus,
   GithubPrFilesResponse,
-  GithubPrHeadsResponse,
+  GithubPrWatchSyncRequest,
   GithubPrInitial,
   GithubPrListFilters,
   GithubPrListResponse,
@@ -257,16 +257,6 @@ export async function getGithubStatus(
   });
 }
 
-export async function listGithubPrHeads(
-  projectId: string,
-  repo: string,
-): Promise<GithubPrHeadsResponse> {
-  return await requestWorkbench("github.pr.heads.list", {
-    projectId,
-    repo,
-  });
-}
-
 export async function listGithubPrs(
   projectId: string,
   repo: string,
@@ -392,4 +382,28 @@ export async function mergeGithubPr(
     method,
     expectedHeadOid,
   });
+}
+
+export function getGithubPrSnapshot(projectId: string, repo: string) {
+  return requestWorkbench("github.pr.snapshot.get", { projectId, repo });
+}
+export function syncGithubPrWatch(input: GithubPrWatchSyncRequest) {
+  return requestWorkbench("github.pr.watch.sync", input);
+}
+export function clearGithubPrWatch(projectId: string, repo: string) {
+  return requestWorkbench("github.pr.watch.clear", { projectId, repo });
+}
+export function refreshGithubPr(
+  projectId: string,
+  repo: string,
+  number?: number,
+) {
+  return requestWorkbench("github.pr.refresh", { projectId, repo, number });
+}
+export function expectGithubPr(
+  projectId: string,
+  repo: string,
+  branch: string,
+) {
+  return requestWorkbench("github.pr.expect", { projectId, repo, branch });
 }

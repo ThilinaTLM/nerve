@@ -33,6 +33,7 @@ function setup(t: TestContext) {
 const initial: GithubPrInitial = {
   core: {
     number: 1,
+    headSha: "head",
     title: "initial",
     url: "https://github.com/example/repo/pull/1",
     state: "OPEN",

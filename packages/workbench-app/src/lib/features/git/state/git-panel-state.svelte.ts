@@ -4,10 +4,6 @@ import { gitRemoteBusy } from "./git-operation-tracking";
 import type { Project } from "@nervekit/contracts/core";
 import type {
   GitBranchSummary,
-  GithubChecksSummary,
-  GithubPr,
-  GithubPrCore,
-  GithubPrHeadsResponse,
   GithubStatusResponse,
   GitOverviewResponse,
   GitProjectReadError,
@@ -32,15 +28,12 @@ import {
   loadCollapsedGitFolders,
   saveCollapsedGitFolders,
 } from "./git-change-tree-expansion";
-import { prSummariesEqual } from "./pr-sync";
 import {
   branchesFingerprint,
   changesFingerprint,
   changesFromOverview,
   type GitChangesState,
   githubStatusFingerprint,
-  prsFingerprint,
-  prHeadsFingerprint,
   recentCommitsFingerprint,
   repoSummaryFingerprint,
   stashesFingerprint,
@@ -62,29 +55,16 @@ export type GitPanelRepoState = {
     uncertainInvalidation?: boolean;
     sequence: number;
   };
-  prsRequest: {
-    inFlight: boolean;
-    refreshQueued: boolean;
-    queuedVisible: boolean;
-    sequence: number;
-  };
   repoSummary?: GitRepoSummary;
   changes?: GitChangesState;
   recentCommits: GitRecentCommit[];
   stashes: GitStashEntry[];
   github?: GithubStatusResponse;
-  prs: GithubPr[];
-  prHeads?: GithubPrHeadsResponse;
-  prHeadsLoadedAt?: number;
-  currentBranchPr?: GithubPr;
   prFilters: GitPrFilterConfig;
   branches: GitBranchSummary[];
   collapsedChangeTreeFolders: SvelteSet<string>;
   operations: GitPanelOperationsState;
   loadingOverview: boolean;
-  loadingPrs: boolean;
-  loadingPrHeads: boolean;
-  prsError?: string;
   loadingBranches: boolean;
 
   overviewInvalidated: boolean;
@@ -93,12 +73,9 @@ export type GitPanelRepoState = {
   lastRecentCommitsFingerprint?: string;
   lastStashesFingerprint?: string;
   lastBranchesFingerprint?: string;
-  lastPrsFingerprint?: string;
-  lastPrHeadsFingerprint?: string;
   lastGithubFingerprint?: string;
   loaded: boolean;
   loadedAt?: number;
-  prsLoadedAt?: number;
 };
 
 export type GitPanelProjectState = {
@@ -142,27 +119,6 @@ export const gitPanelState = $state({
 });
 
 const MAX_PROJECT_CACHE_ENTRIES = 8;
-const mergedOpenPrTombstones = new SvelteSet<string>();
-
-function prTombstoneKey(
-  projectId: string,
-  repo: string,
-  number: number,
-): string {
-  return `${projectId}:${encodeURIComponent(repo)}:${number}`;
-}
-
-export function filterMergedOpenPrs(
-  projectId: string,
-  repo: string,
-  prs: GithubPr[],
-): GithubPr[] {
-  return prs.filter(
-    (pr) =>
-      !mergedOpenPrTombstones.has(prTombstoneKey(projectId, repo, pr.number)),
-  );
-}
-
 function createOperationsState(
   projectId?: string,
   repo?: string,
@@ -197,19 +153,8 @@ function createOperationsState(
 function createRepoState(projectId?: string, repo?: string): GitPanelRepoState {
   return {
     overviewRequest: { inFlight: false, refreshQueued: false, sequence: 0 },
-    prsRequest: {
-      inFlight: false,
-      refreshQueued: false,
-      queuedVisible: false,
-      sequence: 0,
-    },
-    repoSummary: undefined,
-    changes: undefined,
     recentCommits: [],
     stashes: [],
-    github: undefined,
-    prs: [],
-    prHeads: undefined,
     prFilters:
       projectId && repo
         ? storedPrFilters(projectId, repo)
@@ -220,23 +165,9 @@ function createRepoState(projectId?: string, repo?: string): GitPanelRepoState {
     ),
     operations: createOperationsState(projectId, repo),
     loadingOverview: false,
-    loadingPrs: false,
-    loadingPrHeads: false,
-    prsError: undefined,
     loadingBranches: false,
-
     overviewInvalidated: false,
-    lastRepoSummaryFingerprint: undefined,
-    lastChangesFingerprint: undefined,
-    lastRecentCommitsFingerprint: undefined,
-    lastStashesFingerprint: undefined,
-    lastBranchesFingerprint: undefined,
-    lastPrsFingerprint: undefined,
-    lastPrHeadsFingerprint: undefined,
-    lastGithubFingerprint: undefined,
     loaded: false,
-    loadedAt: undefined,
-    prsLoadedAt: undefined,
   };
 }
 
@@ -510,134 +441,6 @@ export function setGithubStatusIfChanged(
   return true;
 }
 
-export function setPrHeadsIfChanged(
-  state: GitPanelRepoState,
-  result: GithubPrHeadsResponse | undefined,
-): boolean {
-  const fingerprint = prHeadsFingerprint(result);
-  if (state.lastPrHeadsFingerprint === fingerprint) return false;
-  state.prHeads = result;
-  state.lastPrHeadsFingerprint = fingerprint;
-  return true;
-}
-
-export function setPrsIfChanged(
-  state: GitPanelRepoState,
-  prs: GithubPr[],
-): boolean {
-  const fingerprint = prsFingerprint(prs);
-  if (state.lastPrsFingerprint === fingerprint) return false;
-  state.prs = prs;
-  state.lastPrsFingerprint = fingerprint;
-  return true;
-}
-
-/**
- * Applies a PR summary derived from a freshly loaded PR detail so the panel
- * list never lags behind an open PR tab.
- */
-export function applyPrSummary(
-  projectId: string,
-  repo: string,
-  pr: GithubPr,
-): void {
-  const state =
-    gitPanelState.projects[gitProjectStateKey(projectId)]?.repoStates[
-      gitRepoStateKey(repo)
-    ];
-  if (!state) return;
-  const index = state.prs.findIndex((entry) => entry.number === pr.number);
-  if (index < 0) return;
-  const existing = state.prs[index];
-  if (existing && prSummariesEqual(existing, pr)) return;
-  setPrsIfChanged(
-    state,
-    state.prs.map((entry, position) => (position === index ? pr : entry)),
-  );
-}
-
-export function openPrSummary(
-  projectId: string,
-  repo: string,
-  number: number,
-): GithubPr | undefined {
-  return gitPanelState.projects[gitProjectStateKey(projectId)]?.repoStates[
-    gitRepoStateKey(repo)
-  ]?.prs.find((pr) => pr.number === number);
-}
-
-export function applyPrCore(
-  projectId: string,
-  repo: string,
-  core: GithubPrCore,
-): void {
-  const state =
-    gitPanelState.projects[gitProjectStateKey(projectId)]?.repoStates[
-      gitRepoStateKey(repo)
-    ];
-  if (!state) return;
-  const current = state.prs.find((entry) => entry.number === core.number);
-  if (!current) return;
-  setPrsIfChanged(
-    state,
-    state.prs.map((entry) =>
-      entry.number === core.number
-        ? {
-            ...entry,
-            title: core.title,
-            url: core.url,
-            state: core.state,
-            isDraft: core.isDraft,
-            headRefName: core.headRefName,
-            baseRefName: core.baseRefName,
-            updatedAt: core.updatedAt,
-          }
-        : entry,
-    ),
-  );
-}
-
-export function applyPrChecks(
-  projectId: string,
-  repo: string,
-  number: number,
-  checks: GithubChecksSummary,
-): void {
-  const state =
-    gitPanelState.projects[gitProjectStateKey(projectId)]?.repoStates[
-      gitRepoStateKey(repo)
-    ];
-  if (!state) return;
-  setPrsIfChanged(
-    state,
-    state.prs.map((entry) =>
-      entry.number === number ? { ...entry, checks } : entry,
-    ),
-  );
-}
-export function removeOpenPr(
-  projectId: string,
-  repo: string,
-  number: number,
-): void {
-  mergedOpenPrTombstones.add(prTombstoneKey(projectId, repo, number));
-  const state =
-    gitPanelState.projects[gitProjectStateKey(projectId)]?.repoStates[
-      gitRepoStateKey(repo)
-    ];
-  if (state) {
-    setPrsIfChanged(
-      state,
-      state.prs.filter((pr) => pr.number !== number),
-    );
-    if (state.prHeads)
-      setPrHeadsIfChanged(state, {
-        ...state.prHeads,
-        prs: state.prHeads.prs.filter((pr) => pr.number !== number),
-      });
-  }
-}
-
 export function mergeRepoSummary(
   projectId: string,
   next: GitRepoSummary,
@@ -693,48 +496,6 @@ export function clearGithubState(
   if (state.github !== undefined || state.lastGithubFingerprint !== undefined) {
     state.github = undefined;
     state.lastGithubFingerprint = undefined;
-    changed = true;
-  }
-  if (
-    state.prHeads !== undefined ||
-    state.lastPrHeadsFingerprint !== undefined
-  ) {
-    state.prHeads = undefined;
-    state.lastPrHeadsFingerprint = undefined;
-    changed = true;
-  }
-  if (state.loadingPrHeads) {
-    state.loadingPrHeads = false;
-    changed = true;
-  }
-  const emptyPrsFingerprint = prsFingerprint([]);
-  if (
-    state.prs.length > 0 ||
-    (state.lastPrsFingerprint !== undefined &&
-      state.lastPrsFingerprint !== emptyPrsFingerprint)
-  ) {
-    state.prs = [];
-    state.lastPrsFingerprint = emptyPrsFingerprint;
-    changed = true;
-  }
-  if (state.loadingPrs) {
-    state.loadingPrs = false;
-    changed = true;
-  }
-  if (state.prsRequest.inFlight) {
-    state.prsRequest.inFlight = false;
-    changed = true;
-  }
-  if (state.prsRequest.refreshQueued) {
-    state.prsRequest.refreshQueued = false;
-    changed = true;
-  }
-  if (state.prsRequest.queuedVisible) {
-    state.prsRequest.queuedVisible = false;
-    changed = true;
-  }
-  if (state.prsError) {
-    state.prsError = undefined;
     changed = true;
   }
   if (changed) applyGitContextFromProject(projectId);

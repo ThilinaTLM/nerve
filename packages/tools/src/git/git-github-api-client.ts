@@ -27,12 +27,25 @@ type RestOptions = {
   readonly method?: "GET" | "POST" | "PUT";
   readonly body?: unknown;
   readonly operation: string;
+  readonly etag?: string;
+  readonly conditional?: boolean;
+  readonly signal?: AbortSignal;
 };
 
 type GraphqlEnvelope<T> = {
   readonly data?: T;
   readonly errors?: readonly { readonly message?: string }[];
 };
+
+export type GithubProbeResult<T> =
+  | { status: 304; headers: Headers }
+  | { status: 200; etag: string | null; body: T; headers: Headers };
+
+export class GithubRateLimitError extends GitWorkflowError {
+  constructor(readonly headers: Headers) {
+    super(429, "GH_RATE_LIMITED", "GitHub updates paused by rate limiting.");
+  }
+}
 
 export class GithubApiClient {
   readonly #fetch: typeof fetch;
@@ -55,12 +68,14 @@ export class GithubApiClient {
     operation: string,
     query: string,
     variables: Readonly<Record<string, unknown>>,
+    signal?: AbortSignal,
   ): Promise<T> {
     const envelope = await this.#request<GraphqlEnvelope<T>>(
       repository,
       "https://api.github.com/graphql",
       {
         method: "POST",
+        signal,
         body: { query, variables },
         operation,
       },
@@ -99,6 +114,28 @@ export class GithubApiClient {
       `https://api.github.com${path}`,
       options,
     );
+  }
+
+  probe<T>(
+    repository: GithubRepositoryRef,
+    path: string,
+    etag?: string,
+    signal?: AbortSignal,
+  ): Promise<GithubProbeResult<T>> {
+    return this.#request<GithubProbeResult<T>>(
+      repository,
+      `https://api.github.com${path}`,
+      {
+        operation: "pull-request-probe",
+        conditional: true,
+        etag,
+        signal,
+      },
+    );
+  }
+
+  async authenticate(hostname: string, signal?: AbortSignal): Promise<void> {
+    await tokenForRequest(this.token(hostname), signal);
   }
 
   async token(hostname: string): Promise<string> {
@@ -153,6 +190,7 @@ export class GithubApiClient {
     const operationSignal = currentGitCommandOptions().signal;
     const signal = AbortSignal.any([
       this.#controller.signal,
+      ...(options.signal ? [options.signal] : []),
       ...(operationSignal ? [operationSignal] : []),
     ]);
     return withGitNetworkPermit(async () => {
@@ -168,6 +206,7 @@ export class GithubApiClient {
           const response = await this.#fetch(url, {
             method,
             headers: {
+              ...(options.etag ? { "If-None-Match": options.etag } : {}),
               Accept: "application/vnd.github+json",
               Authorization: `Bearer ${token}`,
               "Content-Type": "application/json",
@@ -195,8 +234,39 @@ export class GithubApiClient {
             );
             continue;
           }
+          if (options.conditional && response.status === 304) {
+            this.#observe(
+              repository,
+              options.operation,
+              method,
+              startedAt,
+              true,
+              304,
+            );
+            return { status: 304, headers: response.headers } as T;
+          }
+          if (
+            response.status === 429 ||
+            (response.status === 403 &&
+              (response.headers.get("x-ratelimit-remaining") === "0" ||
+                response.headers.has("retry-after") ||
+                /secondary rate limit|rate limit exceeded/i.test(
+                  await response.clone().text(),
+                )))
+          )
+            throw new GithubRateLimitError(response.headers);
           if (!response.ok) throw apiError(response.status, response.headers);
-          const value = (await response.json()) as T;
+          const body = await response.json();
+          const value = (
+            options.conditional
+              ? {
+                  status: 200,
+                  etag: response.headers.get("etag"),
+                  body,
+                  headers: response.headers,
+                }
+              : body
+          ) as T;
           this.#observe(
             repository,
             options.operation,

@@ -1,3 +1,4 @@
+import { SvelteMap, SvelteSet } from "svelte/reactivity";
 import type { PrResourceState } from "./pr-resource-loader";
 import {
   PrResourceLoader,
@@ -12,7 +13,7 @@ import type {
   GithubPrFileDiffResponse,
   GithubPrFilesResponse,
   GithubPrInitial,
-  GithubPrListResponse,
+  GithubPrSnapshot,
   GithubPrOverview,
 } from "@nervekit/contracts/git";
 import {
@@ -27,14 +28,15 @@ import {
 } from "../api/git.api";
 import { queryClient, queryKeys } from "$lib/platform/query/client";
 import { activityInbox } from "$lib/application/activity/activity-state.svelte";
-import { prViewKey } from "$lib/domain/navigation/view-keys";
 import { gitState, type PrViewState } from "./git-state.svelte";
 import {
-  applyPrChecks,
-  applyPrCore,
-  removeOpenPr,
-} from "./git-panel-state.svelte";
-import { GIT_STALE_MS, PR_PENDING_POLL_MS } from "./git-refresh-policy";
+  writePrChecks,
+  writePrCore,
+  pr,
+  refreshPrSnapshot,
+  watchPullRequests,
+} from "./pr-store.svelte";
+import { GIT_STALE_MS } from "./git-refresh-policy";
 import { prFileDiffStateKey } from "./pr-file-diff";
 
 export const GIT_RESOURCE_STALE_MS = GIT_STALE_MS;
@@ -117,6 +119,8 @@ export function loadPrInitial(
   });
 }
 
+const staleSections = new SvelteSet<string>();
+
 type Section = "conversation" | "overview" | "commits" | "checks" | "files";
 
 export function selectedPrFileDiffResource(
@@ -186,7 +190,7 @@ export async function loadPrFileDiff(
 }
 
 function applyCore(view: PrViewState, core: GithubPrCore): void {
-  applyPrCore(view.projectId, view.repo, core);
+  writePrCore(view.projectId, view.repo, core);
   selectAllowedMergeMethod(view);
 }
 
@@ -238,6 +242,8 @@ export async function loadPrSection(
   section: Section,
   rawOptions: PrLoadOptions = {},
 ): Promise<unknown> {
+  if (staleSections.delete(`${view.id}:${section}`))
+    rawOptions = { ...rawOptions, force: true };
   const options = withFeedback(
     view,
     `section:${section}`,
@@ -275,6 +281,7 @@ export async function loadPrSection(
     });
   }
   if (section === "checks") {
+    const headSha = view.core.data?.headRefOid;
     return prResources.load<GithubPrChecksResponse>({
       key: queryKeys.git.prSection(
         view.projectId,
@@ -290,7 +297,7 @@ export async function loadPrSection(
       resource: view.checks,
       options,
       apply: ({ checks }) =>
-        applyPrChecks(view.projectId, view.repo, view.number, checks),
+        writePrChecks(view.projectId, view.repo, view.number, checks, headSha),
     });
   }
 
@@ -354,6 +361,7 @@ export function demandPrTab(view: PrViewState): void {
 export async function refreshCurrentPr(view: PrViewState): Promise<void> {
   if (view.refreshing) return;
   view.refreshing = true;
+  await refreshPrSnapshot(view.projectId, view.repo, view.number);
   const previousBaseOid = view.core.data?.baseRefOid;
   const previousHeadOid = view.core.data?.headRefOid;
   try {
@@ -401,37 +409,24 @@ export async function refreshCurrentPr(view: PrViewState): Promise<void> {
   }
 }
 
-let activePrId: string | undefined;
-let timer: number | undefined;
+let activePrId = $state<string | undefined>();
+let started = false;
 let refreshContextOnFocus: (() => void) | undefined;
 
 export function setActivePrRefreshDemand(id: string | undefined): void {
   activePrId = id;
 }
 
-function pollActivePr(): void {
-  if (typeof document !== "undefined" && document.visibilityState !== "visible")
-    return;
-  const view = activePrId ? gitState.prViews[prViewKey(activePrId)] : undefined;
-  if (
-    view?.checks.data?.checks.status === "pending" &&
-    !view.checks.loading &&
-    !view.checks.refreshing
-  ) {
-    void loadPrSection(view, "checks", { force: true, silent: true });
-  }
-}
-
 function refreshVisibleDemand(): void {
-  pollActivePr();
   if (document.visibilityState === "visible") refreshContextOnFocus?.();
 }
 
 export function startGitRefreshCoordinator(onFocus?: () => void): () => void {
-  if (typeof window === "undefined" || timer !== undefined)
+  if (typeof window === "undefined" || started)
     return stopGitRefreshCoordinator;
+  $effect(() => watchPrTabs());
   refreshContextOnFocus = onFocus;
-  timer = window.setInterval(pollActivePr, PR_PENDING_POLL_MS);
+  started = true;
   window.addEventListener("focus", refreshVisibleDemand);
   document.addEventListener("visibilitychange", refreshVisibleDemand);
   return stopGitRefreshCoordinator;
@@ -439,8 +434,7 @@ export function startGitRefreshCoordinator(onFocus?: () => void): () => void {
 
 export function stopGitRefreshCoordinator(): void {
   if (typeof window === "undefined") return;
-  if (timer !== undefined) window.clearInterval(timer);
-  timer = undefined;
+  started = false;
   refreshContextOnFocus = undefined;
   window.removeEventListener("focus", refreshVisibleDemand);
   document.removeEventListener("visibilitychange", refreshVisibleDemand);
@@ -448,20 +442,89 @@ export function stopGitRefreshCoordinator(): void {
 
 export async function applyMergedPr(view: PrViewState): Promise<void> {
   if (view.core.data) view.core.data = { ...view.core.data, state: "MERGED" };
-  removeOpenPr(view.projectId, view.repo, view.number);
-  const prefix = ["git", view.projectId, "repo", view.repo, "prs"] as const;
-  for (const [key, data] of queryClient.getQueriesData<GithubPrListResponse>({
-    queryKey: prefix,
-  })) {
-    if (data) {
-      queryClient.setQueryData(key, {
-        ...data,
-        prs: data.prs.filter((pr) => pr.number !== view.number),
-      });
-    }
-  }
+  if (view.core.data) writePrCore(view.projectId, view.repo, view.core.data);
+  await refreshPrSnapshot(view.projectId, view.repo, view.number);
   await queryClient.invalidateQueries({
     queryKey: queryKeys.git.pr(view.projectId, view.repo, view.number),
   });
-  await queryClient.invalidateQueries({ queryKey: prefix });
+}
+
+/** Invalidation-driven detail refresh. Hidden resources are made stale, never polled. */
+export function reloadChangedPrViews(
+  projectId: string,
+  repo: string,
+  changed: number[],
+  previous?: GithubPrSnapshot,
+): void {
+  for (const view of Object.values(gitState.prViews)) {
+    if (
+      view.projectId !== projectId ||
+      view.repo !== repo ||
+      !changed.includes(view.number)
+    )
+      continue;
+    const before = previous?.prs.find((entry) => entry.number === view.number);
+    const entity = pr(projectId, repo, view.number);
+    const heavyChanged =
+      !before ||
+      before.headSha !== entity?.headSha ||
+      before.updatedAt !== entity?.updatedAt;
+    const visible =
+      activePrId === view.id && document.visibilityState === "visible";
+    if (heavyChanged) {
+      for (const section of [
+        "conversation",
+        "overview",
+        "commits",
+        "files",
+      ] as const) {
+        void queryClient.invalidateQueries({
+          queryKey: queryKeys.git.pr(view.projectId, view.repo, view.number),
+        });
+        staleSections.add(`${view.id}:${section}`);
+      }
+    }
+    void loadPrCore(view, { force: true, silent: true, report: false }).then(
+      () => {
+        if (!visible) return;
+        void loadPrSection(view, "checks", {
+          force: true,
+          silent: true,
+          report: false,
+        });
+        if (heavyChanged)
+          void loadPrSection(view, view.activeTab, {
+            force: true,
+            silent: true,
+            report: false,
+          });
+      },
+    );
+  }
+}
+
+export function watchPrTabs(): () => void {
+  const groups = new SvelteMap<
+    string,
+    { projectId: string; repo: string; prs: number[]; activePr?: number }
+  >();
+  for (const view of Object.values(gitState.prViews)) {
+    const scope = JSON.stringify([view.projectId, view.repo]);
+    const group = groups.get(scope) ?? {
+      projectId: view.projectId,
+      repo: view.repo,
+      prs: [],
+    };
+    group.prs.push(view.number);
+    if (view.id === activePrId) group.activePr = view.number;
+    groups.set(scope, group);
+  }
+  const cleanups = [...groups.values()].map((group) =>
+    watchPullRequests(() => ({
+      ...group,
+      list: false,
+      visible: Boolean(group.activePr),
+    })),
+  );
+  return () => cleanups.forEach((cleanup) => cleanup());
 }

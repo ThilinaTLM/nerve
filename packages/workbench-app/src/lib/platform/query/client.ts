@@ -26,10 +26,6 @@ export const queryKeys = {
       ["git", projectId, "repo", repo, "branches"] as const,
     githubStatus: (projectId: string, repo: string) =>
       ["git", projectId, "repo", repo, "github-status"] as const,
-    prHeads: (projectId: string, repo: string) =>
-      ["git", projectId, "repo", repo, "pr-heads"] as const,
-    prs: (projectId: string, repo: string, filters: string) =>
-      ["git", projectId, "repo", repo, "prs", filters] as const,
     pr: (projectId: string, repo: string, number: number) =>
       ["git", projectId, "repo", repo, "pr", number] as const,
     prInitial: (projectId: string, repo: string, number: number) =>

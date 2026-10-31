@@ -1,3 +1,8 @@
+import {
+  summarizeRestChecks,
+  type RestCheckRun,
+  type RestCommitStatus,
+} from "./git-github-checks.js";
 /* eslint-disable max-lines -- GitHub workflows share one typed mapping boundary across GraphQL and REST resources. */
 import type {
   GithubPr,
@@ -10,7 +15,6 @@ import type {
   GithubPrFileDiffRequest,
   GithubPrFileDiffResponse,
   GithubPrFilesResponse,
-  GithubPrHeadsResponse,
   GithubPrInitial,
   GithubPrListFilters,
   GithubPrListResponse,
@@ -67,21 +71,15 @@ type GithubCheckRollupRaw = {
 } | null;
 type GithubCommitNodeRaw = {
   oid: string;
+  additions?: number;
+  deletions?: number;
+  author?: { user?: { login?: string } | null } | null;
   messageHeadline?: string;
   authoredDate?: string;
   authors?: { nodes?: Array<{ name?: string } | null> | null } | null;
   statusCheckRollup?: GithubCheckRollupRaw;
 };
-type GithubPrHeadRaw = {
-  number: number;
-  url: string;
-  headRefName: string;
-  headRepository?: { nameWithOwner?: string } | null;
-  isDraft: boolean;
-  updatedAt: string;
-};
-
-type GithubPrDetailRaw = {
+export type GithubPrDetailRaw = {
   number: number;
   title: string;
   url: string;
@@ -154,7 +152,7 @@ type GithubRepoRaw = {
 };
 type RepositoryResponse = { repository?: GithubRepoRaw | null };
 
-const CORE_FIELDS = `
+export const CORE_FIELDS = `
   number title url state isDraft headRefName baseRefName headRefOid baseRefOid
   headRepository { nameWithOwner }
   updatedAt createdAt additions deletions changedFiles
@@ -183,7 +181,7 @@ const OVERVIEW_FIELDS = `
     }
   }
 `;
-const CHECK_FIELDS = `
+export const CHECK_FIELDS = `
   commits(last: 1) {
     nodes {
       commit {
@@ -191,7 +189,7 @@ const CHECK_FIELDS = `
           contexts(first: 100) {
             nodes {
               __typename
-              ... on CheckRun { name status conclusion detailsUrl }
+              ... on CheckRun { name status conclusion detailsUrl startedAt completedAt checkSuite { app { name } } }
               ... on StatusContext { context state targetUrl }
             }
           }
@@ -233,7 +231,7 @@ function requirePr(repository: GithubRepoRaw): GithubPrDetailRaw {
   return repository.pullRequest;
 }
 
-async function preparePr(
+export async function preparePr(
   context: GithubServiceContext,
   projectId: string,
   relativePath: string,
@@ -332,10 +330,11 @@ export function githubPrSearch(filters: GithubPrListFilters): string {
 }
 
 const PR_LIST_QUERY = `query PullRequests($query: String!) {
+  viewer { login }
   search(query: $query, type: ISSUE, first: 10) {
     nodes {
       ... on PullRequest {
-        number title url state isDraft headRefName baseRefName updatedAt
+        number title url state isDraft headRefName baseRefName headRefOid headRepository { nameWithOwner } labels(first: 100) { nodes { name color } } reviewRequests(first: 100) { nodes { requestedReviewer { ... on User { login } } } } updatedAt
         additions deletions author { login }
         commentCount: comments { totalCount }
         ${CHECK_FIELDS}
@@ -358,6 +357,7 @@ export async function listOpenPrs(
 ): Promise<GithubPrListResponse> {
   const { repository } = await preparePr(context, projectId, relativePath);
   const data = await context.githubApi.graphql<{
+    viewer?: { login?: string };
     search?: { nodes?: Array<GithubPrDetailRaw | null> | null } | null;
   }>(repository, "list-pull-requests", PR_LIST_QUERY, {
     query: `repo:${repository.owner}/${repository.repo} ${githubPrSearch(filters)}`,
@@ -379,83 +379,23 @@ export async function listOpenPrs(
               commentCount: raw.commentCount?.totalCount ?? 0,
               additions: raw.additions ?? 0,
               deletions: raw.deletions ?? 0,
+              headSha: raw.headRefOid ?? "",
+              headRepository: raw.headRepository?.nameWithOwner ?? null,
+              labels: compact(raw.labels?.nodes).map(
+                (label) => label.name ?? "",
+              ),
+              reviewRequested:
+                !!data.viewer?.login &&
+                !!raw.reviewRequests?.nodes?.some(
+                  (request) =>
+                    request?.requestedReviewer?.login === data.viewer?.login,
+                ),
               checks: summarizeStatusCheckRollup(checkRollup(raw)),
             } satisfies GithubPr,
           ]
         : [],
     ),
   };
-}
-
-const PR_HEADS_QUERY = `query PullRequestHeads(
-  $owner: String!
-  $repo: String!
-  $after: String
-) {
-  repository(owner: $owner, name: $repo) {
-    pullRequests(
-      states: OPEN
-      first: 100
-      after: $after
-      orderBy: { field: UPDATED_AT, direction: DESC }
-    ) {
-      nodes {
-        number url headRefName isDraft updatedAt
-        headRepository { nameWithOwner }
-      }
-      pageInfo { hasNextPage endCursor }
-    }
-  }
-}`;
-
-export async function listOpenPrHeads(
-  context: GithubServiceContext,
-  projectId: string,
-  relativePath: string,
-): Promise<GithubPrHeadsResponse> {
-  const { repository } = await preparePr(context, projectId, relativePath);
-  const prs: GithubPrHeadsResponse["prs"] = [];
-  let after: string | null = null;
-  let hasNextPage = true;
-  let pageCount = 0;
-  while (hasNextPage && pageCount < 10) {
-    pageCount += 1;
-    const data: {
-      repository?: {
-        pullRequests?: {
-          nodes?: Array<GithubPrHeadRaw | null> | null;
-          pageInfo?: {
-            hasNextPage?: boolean;
-            endCursor?: string | null;
-          } | null;
-        } | null;
-      } | null;
-    } = await context.githubApi.graphql(
-      repository,
-      "list-pull-request-heads",
-      PR_HEADS_QUERY,
-      {
-        owner: repository.owner,
-        repo: repository.repo,
-        after,
-      },
-    );
-    const connection = data.repository?.pullRequests;
-    for (const raw of connection?.nodes ?? []) {
-      if (!raw) continue;
-      prs.push({
-        number: raw.number,
-        url: raw.url,
-        headRefName: raw.headRefName,
-        headRepository: raw.headRepository?.nameWithOwner ?? null,
-        isDraft: raw.isDraft,
-        updatedAt: raw.updatedAt,
-      });
-    }
-    after = connection?.pageInfo?.endCursor ?? null;
-    hasNextPage = connection?.pageInfo?.hasNextPage === true && after !== null;
-  }
-  return { repository: `${repository.owner}/${repository.repo}`, prs };
 }
 
 export function allowedMergeMethods(raw: GithubRepoRaw): GithubPrMergeMethod[] {
@@ -475,6 +415,7 @@ function mapPrCore(raw: GithubPrDetailRaw): GithubPrCore {
     isDraft: raw.isDraft,
     headRefName: raw.headRefName,
     baseRefName: raw.baseRefName,
+    headSha: raw.headRefOid ?? "",
     headRefOid: raw.headRefOid ?? "",
     baseRefOid: raw.baseRefOid ?? "",
     headRepository: raw.headRepository?.nameWithOwner ?? null,
@@ -571,7 +512,10 @@ async function loadPr(
   fields: string,
   operation: string,
   includeSettings = false,
-): Promise<{ raw: GithubPrDetailRaw; settings: GithubRepoRaw }> {
+): Promise<{
+  raw: GithubPrDetailRaw;
+  settings: GithubRepoRaw;
+}> {
   const data = await context.githubApi.graphql<RepositoryResponse>(
     repository,
     operation,
@@ -617,17 +561,14 @@ export async function prCore(
   number: number,
 ): Promise<GithubPrCore> {
   const { repository } = await preparePr(context, projectId, relativePath);
-  return mapPrCore(
-    (
-      await loadPr(
-        context,
-        repository,
-        number,
-        CORE_FIELDS,
-        "pull-request-core",
-      )
-    ).raw,
+  const result = await loadPr(
+    context,
+    repository,
+    number,
+    CORE_FIELDS,
+    "pull-request-core",
   );
+  return mapPrCore(result.raw);
 }
 
 export async function prConversation(
@@ -678,7 +619,7 @@ export async function prOverview(
 }
 
 const COMMITS_FIELDS = `commits(first: 100) {
-  nodes { commit { oid messageHeadline authoredDate authors(first: 1) { nodes { name } } } }
+  nodes { commit { oid messageHeadline authoredDate additions deletions author { user { login } } authors(first: 1) { nodes { name } } } }
 }`;
 
 export async function prCommits(
@@ -708,6 +649,9 @@ export async function prCommits(
               messageHeadline: commit.messageHeadline ?? "",
               authoredDate: commit.authoredDate,
               authorName: compact(commit.authors?.nodes)[0]?.name,
+              authorLogin: commit.author?.user?.login,
+              additions: commit.additions,
+              deletions: commit.deletions,
             },
           ]
         : [];
@@ -722,20 +666,26 @@ export async function prChecks(
   number: number,
 ): Promise<GithubPrChecksResponse> {
   const { repository } = await preparePr(context, projectId, relativePath);
-  const raw = (
-    await loadPr(
-      context,
-      repository,
-      number,
-      CHECK_FIELDS,
-      "pull-request-checks",
-    )
-  ).raw;
-  return {
-    checks: raw.commits
-      ? summarizeStatusCheckRollup(checkRollup(raw))
-      : noChecksSummary(),
-  };
+  const { raw } = await loadPr(
+    context,
+    repository,
+    number,
+    "headRefOid",
+    "pull-request-checks",
+  );
+  if (!raw.headRefOid) return { checks: noChecksSummary() };
+  const path = `/repos/${repository.owner}/${repository.repo}/commits/${encodeURIComponent(raw.headRefOid)}`;
+  const runs = await context.githubApi.rest<{ check_runs: RestCheckRun[] }>(
+    repository,
+    `${path}/check-runs?per_page=100`,
+    { operation: "pull-request-check-runs" },
+  );
+  const status = await context.githubApi.rest<RestCommitStatus>(
+    repository,
+    `${path}/status`,
+    { operation: "pull-request-status" },
+  );
+  return { checks: summarizeRestChecks(runs.check_runs, status) };
 }
 
 const MAX_PR_FILES = 300;

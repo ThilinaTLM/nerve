@@ -1,3 +1,4 @@
+import { remoteRefBranches } from "../git/pr-sync/pr-remote-ref-signal.js";
 import { lstat, realpath } from "node:fs/promises";
 import { dirname, relative, resolve, sep } from "node:path";
 import {
@@ -91,6 +92,11 @@ export class WorkspaceMonitor {
         onNotice: (notice: ChangeNotice) => void,
       ) => NativeChangeMonitorPort;
       onWarning?: (message: string, error: unknown) => void;
+      onRemoteRefsChanged?: (
+        projectId: string,
+        repo: string,
+        branches: string[],
+      ) => void;
       onRepositoryChanged?: (
         repoDir: string,
         options?: WorkspaceRefreshOptions,
@@ -107,6 +113,11 @@ export class WorkspaceMonitor {
       onNotice: (notice: ChangeNotice) => void,
     ) => NativeChangeMonitorPort;
     onWarning?: (message: string, error: unknown) => void;
+    onRemoteRefsChanged?: (
+      projectId: string,
+      repo: string,
+      branches: string[],
+    ) => void;
     onRepositoryChanged?: (
       repoDir: string,
       options?: WorkspaceRefreshOptions,
@@ -397,6 +408,17 @@ export class WorkspaceMonitor {
         repositoryScopeId(resource.projectId, resource.repo) === notice.scopeId,
     );
     if (!repository) return;
+    const branches = remoteRefBranches(notice.paths);
+    if (
+      branches !== null ||
+      (notice.fullRefreshRequired &&
+        workspaceRefreshCause("git", notice.causes) !== "uncertain_poll")
+    )
+      this.options.onRemoteRefsChanged?.(
+        repository.projectId,
+        repository.repo,
+        branches ?? [],
+      );
     try {
       const refreshCause = workspaceRefreshCause("git", notice.causes);
       this.options.onRepositoryChanged?.(

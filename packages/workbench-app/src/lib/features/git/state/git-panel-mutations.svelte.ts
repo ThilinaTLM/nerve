@@ -39,7 +39,6 @@ import {
 function refreshAfterRemoteMutation(projectId: string, repo: string): void {
   scheduleAutomaticGitRefresh(projectId, repo, {
     overview: true,
-    prs: true,
   });
 }
 

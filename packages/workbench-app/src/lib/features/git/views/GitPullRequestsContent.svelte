@@ -90,15 +90,11 @@ const showQuickFilter = $derived(
   selectedRepoHasGithubRemote && Boolean(github?.authenticated),
 );
 
-// Repository URLs are not part of the repo summary, so they are derived from
-// GitHub data already loaded: PR URLs (selected repo) or PR heads.
+// The snapshot carries repository identity even when there are no PRs.
 const selectedRepoKey = $derived(selectedRepoSummary?.relativePath);
 function repoUrlOf(repo: GitRepoSummary): string | undefined {
   if (!repo.hasGithubRemote || !github?.authenticated) return undefined;
-  const heads = model.repoBranchState(repo.relativePath).prHeads;
-  if (heads?.repository) return `https://github.com/${heads.repository}`;
-  const prUrl = repo.relativePath === selectedRepoKey ? prs[0]?.url : undefined;
-  return prUrl?.match(/^(https:\/\/[^/]+\/[^/]+\/[^/]+)\/pull\//)?.[1];
+  return model.repoBranchState(repo.relativePath).repositoryUrl;
 }
 
 /** Open PR number for a repo's current branch (filter-independent via heads). */
@@ -195,7 +191,17 @@ function toggleChecks(pr: GithubPr) {
   <ContextMenu.Item disabled={!url} onclick={() => openExternal(url)}
     ><ExternalLink />Open repository on GitHub</ContextMenu.Item
   >
-  <ContextMenu.Item disabled={!compare} onclick={() => openExternal(compare)}
+  <ContextMenu.Item
+    disabled={!compare}
+    onclick={() => {
+      openExternal(compare);
+      if (compare && repo.currentBranch)
+        actions.expectPullRequest?.(
+          repo.relativePath,
+          repo.currentBranch,
+          compare,
+        );
+    }}
     ><GitPullRequestCreate />Create pull request{repo.currentBranch
       ? ` for ${repo.currentBranch}`
       : ""}</ContextMenu.Item
@@ -250,7 +256,7 @@ function toggleChecks(pr: GithubPr) {
 
   {#if refreshError}
     <PanelBanner tone="destructive" icon={TriangleAlert}>
-      Could not refresh PRs: {refreshError}
+      {refreshError}
       {#snippet actions()}
         <PanelToolbarButton
           icon={RotateCcw}

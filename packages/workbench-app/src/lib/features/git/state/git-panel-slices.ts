@@ -1,8 +1,5 @@
-import { prSummaryFingerprint } from "./pr-sync";
 import type {
   GitBranchSummary,
-  GithubPr,
-  GithubPrHeadsResponse,
   GithubStatusResponse,
   GitOverviewResponse,
   GitRecentCommit,
@@ -107,13 +104,6 @@ export function branchesFingerprint(branches: GitBranchSummary[]): string {
   );
 }
 
-export function prHeadsFingerprint(
-  result: GithubPrHeadsResponse | undefined,
-): string | undefined {
-  if (!result) return undefined;
-  return JSON.stringify(result);
-}
-
 export function githubStatusFingerprint(
   github: GithubStatusResponse | undefined,
 ): string | undefined {
@@ -124,10 +114,6 @@ export function githubStatusFingerprint(
     login: github.login,
     reason: github.reason,
   });
-}
-
-export function prsFingerprint(prs: GithubPr[]): string {
-  return prs.map(prSummaryFingerprint).join("\n");
 }
 
 export function reposFingerprint(repos: GitRepoSummary[]): string {

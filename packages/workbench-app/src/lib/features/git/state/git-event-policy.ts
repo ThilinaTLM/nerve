@@ -1,19 +1,6 @@
 import type { WorkbenchEvent } from "$lib/application/events/workbench-event-bus";
 import type { GitAutoRefreshDemand } from "./git-auto-refresh-scheduler";
 
-const PR_RELEVANT_REASONS = new Set([
-  "branch.created",
-  "branch.switched",
-  "branch.synced",
-  "base.updated",
-  "remote.fetched",
-  "remote.pulled",
-  "remote.pushed",
-  "github.pr.checked_out",
-  "github.pr.merged",
-  "repository.cloned",
-]);
-
 export type GitEventRefreshRequest = {
   projectId: string;
   repo: string;
@@ -48,7 +35,6 @@ export function gitEventRefreshRequest(
     ...(reason === "repository.cloned" ? { refreshDiscovery: true } : {}),
     demand: {
       overview: true,
-      ...(reason && PR_RELEVANT_REASONS.has(reason) ? { prs: true } : {}),
     },
   };
 }

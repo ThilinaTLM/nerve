@@ -71,6 +71,7 @@ export function createServerAdapterContexts(
       configurationOperations: services.configurationOperations,
       admissionPolicy: services.admissionPolicy,
       workspaceMonitor: services.workspaceMonitor,
+      prSync: services.prSync,
       integrationHealth: services.integrationHealth,
     },
     projects: {
@@ -93,6 +94,7 @@ export function createServerAdapterContexts(
     },
     git: {
       git: services.git,
+      prSync: services.prSync,
       gitOperations: services.gitOperations,
       workspaceMonitor: services.workspaceMonitor,
     },

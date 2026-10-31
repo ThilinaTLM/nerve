@@ -1,3 +1,4 @@
+import { registerPrStoreEvents } from "./pr-store.svelte";
 import {
   onEvent,
   onWorkbenchReconnect,
@@ -22,6 +23,7 @@ type ScheduleRefresh = (
 export function registerGitEventHandlers(
   schedule: ScheduleRefresh = scheduleAutomaticGitRefresh,
 ): () => void {
+  const unregisterPrs = registerPrStoreEvents();
   const handle = (event: WorkbenchEvent): void => {
     try {
       const request = gitEventRefreshRequest(event);
@@ -45,6 +47,7 @@ export function registerGitEventHandlers(
   const unregisterInvalidated = onEvent("git.repository.invalidated", handle);
   const unregisterChanged = onEvent("git.repository.changed", handle);
   return () => {
+    unregisterPrs();
     unregisterReconnect();
     unregisterInvalidated();
     unregisterChanged();

@@ -255,9 +255,11 @@ export function createGitPanelActions(
       if (available() && model().capabilities.refresh.enabled)
         return host.refreshBranches(repository);
     },
-    refreshPrHeads: (repository) => {
+    expectPullRequest: (repository, branch, url) =>
+      host.expectPullRequest?.(repository, branch, url),
+    loadPullRequestBadges: (repository) => {
       if (available() && model().capabilities.refresh.enabled)
-        return host.refreshPrHeads(repository);
+        return host.loadPullRequestBadges(repository);
     },
     refreshPullRequests: (repository) => {
       if (available() && model().capabilities.refresh.enabled)

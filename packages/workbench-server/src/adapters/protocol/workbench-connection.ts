@@ -5,6 +5,7 @@ import type { ProtocolV1Message } from "@nervekit/contracts/wire";
 /** Project notices follow this socket's filesystem/repository monitor demand. */
 export class WorkbenchConnection {
   readonly #projects = new Set<string>();
+  readonly #pullRequests = new Set<string>();
   readonly #repositories = new Set<string>();
 
   receive(message: ProtocolV1Message): void {
@@ -19,6 +20,8 @@ export class WorkbenchConnection {
       this.#projects.delete(input.projectId);
     if (typeof input.repo === "string") {
       const key = `${input.projectId}\0${input.repo}`;
+      if (method === "github.pr.watch.sync") this.#pullRequests.add(key);
+      if (method === "github.pr.watch.clear") this.#pullRequests.delete(key);
       if (method === "git.repository.monitor.sync") this.#repositories.add(key);
       if (method === "git.repository.monitor.clear")
         this.#repositories.delete(key);
@@ -33,6 +36,8 @@ export class WorkbenchConnection {
         typeof data.projectId === "string" && this.#projects.has(data.projectId)
       );
     }
+    if (event.type === "github.pr.changed")
+      return this.#pullRequests.has(`${data.projectId}\0${data.repo}`);
     if (event.type.startsWith("git.repository.")) {
       return (
         this.#repositories.has(`${data.projectId}\0${data.repo}`) ||
