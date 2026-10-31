@@ -7,6 +7,7 @@ import SettingsHealthWatcher from "$lib/app/shell/SettingsHealthWatcher.svelte";
 import ProjectConfigurationHealthWatcher from "$lib/app/shell/ProjectConfigurationHealthWatcher.svelte";
 import WorkbenchEditorHost from "$lib/app/shell/WorkbenchEditorHost.svelte";
 import WorkbenchPanelHost from "$lib/app/composition/hosts/WorkbenchPanelHost.svelte";
+import DropToOpenHost from "$lib/app/composition/dialogs/DropToOpenHost.svelte";
 import ProjectDialogHost from "$lib/app/shell/ProjectDialogHost.svelte";
 import WorkbenchStatusBarHost from "$lib/app/shell/WorkbenchStatusBarHost.svelte";
 import WorkbenchTitlebarHost from "$lib/app/shell/WorkbenchTitlebarHost.svelte";
@@ -151,3 +152,4 @@ $effect(() => {
 {/if}
 
 <ProjectDialogHost />
+<DropToOpenHost />

@@ -37,6 +37,38 @@ export type FilesystemDirectoryQuery = z.infer<
   typeof filesystemDirectoryQuerySchema
 >;
 
+export const filesystemPlaceSchema = z.object({
+  id: z.enum(["home", "desktop", "documents", "downloads", "projects"]),
+  label: z.string().min(1),
+  path: z.string().min(1),
+});
+export type FilesystemPlace = z.infer<typeof filesystemPlaceSchema>;
+
+export const filesystemLocationSchema = z.object({
+  kind: z.enum(["root", "drive", "volume", "removable", "network"]),
+  label: z.string().min(1),
+  path: z.string().min(1),
+});
+export type FilesystemLocation = z.infer<typeof filesystemLocationSchema>;
+
+export const filesystemLocationsSchema = z.object({
+  platform: z.enum(["linux", "darwin", "win32", "other"]),
+  separator: z.enum(["/", "\\"]),
+  home: z.string().min(1),
+  caseInsensitive: z.boolean(),
+  places: z.array(filesystemPlaceSchema),
+  locations: z.array(filesystemLocationSchema),
+});
+export type FilesystemLocations = z.infer<typeof filesystemLocationsSchema>;
+
+export const filesystemDirectoryCreateRequestSchema = z.object({
+  parent: z.string().min(1),
+  name: z.string().min(1),
+});
+export const filesystemDirectoryCreateResponseSchema = z.object({
+  path: z.string().min(1),
+});
+
 export const filesystemProjectEntrySchema = z.object({
   name: z.string().min(1),
   path: z.string().min(1),

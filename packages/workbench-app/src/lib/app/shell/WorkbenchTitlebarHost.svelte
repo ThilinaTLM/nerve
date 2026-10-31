@@ -68,6 +68,12 @@ import {
 import { quickProjectItems } from "$lib/features/projects";
 import { responsive } from "$lib/app/shell/responsive.svelte";
 import { resolveHeaderType } from "$lib/app/shell/header-type";
+import {
+  canUseSystemPicker,
+  openFolderBrowser,
+  openFolderPath,
+  openFolderWithSystemPicker,
+} from "$lib/app/composition/dialogs/open-folder";
 
 const projectItems = $derived(workspaceSelectors.projectSwitcherItems);
 const status = $derived(workspaceSelectors.status);
@@ -190,8 +196,22 @@ function confirmPrune(
 }
 
 function openProjectBrowser() {
-  workspaceState.projectPickerMode = "browse";
-  workspaceState.projectPickerOpen = true;
+  openFolderBrowser();
+}
+
+let systemPickerAvailable = $state(false);
+$effect(() => {
+  let current = true;
+  void canUseSystemPicker().then((available) => {
+    if (current) systemPickerAvailable = available;
+  });
+  return () => {
+    current = false;
+  };
+});
+
+function useSystemPicker() {
+  void openFolderWithSystemPicker(workspaceSelectors.activeProject?.directory);
 }
 
 async function handleDesktopClose() {
@@ -285,7 +305,10 @@ $effect(() => {
   currentVersion={status?.version}
   latestRelease={releaseSelectors.latest}
   buildProjectMenuItems={projectMenuItems}
+  bind:projectSwitcherOpen={workspaceState.projectSwitcherOpen}
   onOpenProject={openProjectBrowser}
+  onOpenProjectPath={(path) => void openFolderPath(path)}
+  onUseSystemPicker={systemPickerAvailable ? useSystemPicker : undefined}
   onSelectProject={(projectId) => void selectProject(projectId)}
   onOpenLogs={() => openLogsPane()}
   onOpenDiscover={openDiscoverPane}

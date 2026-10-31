@@ -1,5 +1,5 @@
 <script lang="ts">
-import FolderSearch from "@lucide/svelte/icons/folder-search";
+import FolderOpen from "@lucide/svelte/icons/folder-open";
 import Plus from "@lucide/svelte/icons/plus";
 import Settings from "@lucide/svelte/icons/settings";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
@@ -40,10 +40,10 @@ const pickerItems = $derived.by((): ContextMenuItem[] => {
     ...recent,
     { type: "separator" },
     {
-      label: "Browse for a project",
-      icon: FolderSearch,
+      label: "Open folder",
+      icon: FolderOpen,
       onSelect: () => {
-        workspaceState.projectPickerMode = "browse";
+        workspaceState.projectPickerPath = undefined;
         workspaceState.projectPickerOpen = true;
       },
     },

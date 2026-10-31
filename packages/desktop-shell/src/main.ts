@@ -7,6 +7,26 @@ import { createDesktopRuntime } from "./app/create-desktop-runtime.js";
 import { DESKTOP_APP_ID, DESKTOP_APP_NAME } from "./desktop-identity.js";
 import { app } from "./platform/electron/electron-api.js";
 
+import {
+  directoryPathsFromArgv,
+  filterOpenPaths,
+  openPathRequests,
+} from "./ipc/open-path-requests.js";
+
+// macOS can deliver Dock/Finder requests before app readiness or window creation.
+app.on("open-file", (event, path) => {
+  event.preventDefault();
+  openPathRequests.enqueue(filterOpenPaths([path]));
+});
+app.on("second-instance", (_event, argv, workingDirectory) => {
+  openPathRequests.enqueue(
+    directoryPathsFromArgv(
+      argv.slice(app.isPackaged ? 1 : 2),
+      workingDirectory,
+    ),
+  );
+});
+
 const desktopOptions = parseDesktopOptions(process.argv.slice(1));
 const explicitElectronProfile = process.env.NERVE_ELECTRON_USER_DATA?.trim();
 if (explicitElectronProfile) {

@@ -47,5 +47,8 @@ export const workspaceState = $state({
   activeCenterTab: undefined as CenterTabIdentity | undefined,
   centerTabMru: [] as string[],
   projectPickerOpen: false,
-  projectPickerMode: "recent" as "recent" | "browse",
+  /** Folder the picker shows first (e.g. the parent of a failed open). */
+  projectPickerPath: undefined as string | undefined,
+  /** The titlebar project switcher popover. */
+  projectSwitcherOpen: false,
 });

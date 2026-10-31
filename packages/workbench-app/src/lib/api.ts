@@ -42,6 +42,9 @@ export type {
 export type {
   AttachmentUploadResponse,
   FilesystemDirectoryResponse,
+  FilesystemLocations,
+  FilesystemLocation,
+  FilesystemPlace,
   FilesystemFileResponse,
   FilesystemSignal,
 } from "@nervekit/contracts/filesystem";

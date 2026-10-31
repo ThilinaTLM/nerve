@@ -1,5 +1,5 @@
 <script lang="ts">
-import FolderSearch from "@lucide/svelte/icons/folder-search";
+import FolderOpen from "@lucide/svelte/icons/folder-open";
 import SearchInput from "@nervekit/ui-kit/components/composites/search-input";
 import {
   MobileListRow,
@@ -60,7 +60,7 @@ function choose(item: ProjectSwitcherItem) {
 }
 
 function browse() {
-  workspaceState.projectPickerMode = "browse";
+  workspaceState.projectPickerPath = undefined;
   workspaceState.projectPickerOpen = true;
 }
 </script>
@@ -105,9 +105,9 @@ function browse() {
 
   <MobileSection>
     <MobileListRow
-      title="Browse for a project"
-      detail="Open a directory from the filesystem"
-      icon={FolderSearch}
+      title="Open folder"
+      detail="Choose a folder to open as a project"
+      icon={FolderOpen}
       onclick={browse}
     />
   </MobileSection>

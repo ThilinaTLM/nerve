@@ -1,3 +1,4 @@
+import { isHiddenDirectory } from "./filesystem-browser.js";
 import { createHash } from "node:crypto";
 import { createReadStream } from "node:fs";
 import {
@@ -214,7 +215,9 @@ export async function directoryListing(
   const root = parse(target).root;
   const entries = (await readdir(target, { withFileTypes: true }))
     .filter((entry) => entry.isDirectory())
-    .filter((entry) => showHidden || !entry.name.startsWith("."))
+    .filter(
+      (entry) => showHidden || !isHiddenDirectory(join(target, entry.name)),
+    )
     .sort((a, b) => a.name.localeCompare(b.name));
 
   return {
@@ -227,7 +230,7 @@ export async function directoryListing(
         name: entry.name,
         path: entryPath,
         kind: "directory" as const,
-        hidden: entry.name.startsWith("."),
+        hidden: isHiddenDirectory(entryPath),
         signals: await detectDirectorySignals(entryPath),
       };
     }),

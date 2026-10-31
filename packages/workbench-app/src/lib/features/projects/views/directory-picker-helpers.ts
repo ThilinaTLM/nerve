@@ -28,14 +28,3 @@ export function uniqueSignals(
 ): FilesystemSignal[] {
   return [...new Set(signals ?? [])];
 }
-
-export function expandHome(value: string, homeDir?: string): string {
-  const v = value.trim();
-  if (!homeDir) return v;
-  if (v === "~") return homeDir;
-  if (v.startsWith("~/") || v.startsWith("~\\")) {
-    const sep = homeDir.includes("\\") ? "\\" : "/";
-    return `${homeDir.replace(/[\\/]+$/, "")}${sep}${v.slice(2)}`;
-  }
-  return v;
-}

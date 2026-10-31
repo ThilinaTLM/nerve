@@ -41,9 +41,11 @@ function normalizeDisplayPath(path: string): string {
   return path.replace(/\\/g, "/").replace(/\/+$/, "") || path;
 }
 
-function comparablePath(path: string): string {
+function comparablePath(path: string, caseInsensitive = false): string {
   const normalized = normalizeDisplayPath(path);
-  return /^[A-Za-z]:\//.test(normalized) || normalized.startsWith("//")
+  return caseInsensitive ||
+    /^[A-Za-z]:\//.test(normalized) ||
+    normalized.startsWith("//")
     ? normalized.toLowerCase()
     : normalized;
 }
@@ -91,15 +93,23 @@ export function tildePath(dir?: string, home?: string): string {
 
 /**
  * Stable, case-correct key for a filesystem path. Drive-letter and UNC Windows
- * paths are lower-cased for case-insensitive matching; POSIX paths stay case-sensitive.
+ * paths are always lower-cased; other paths are lower-cased only when the
+ * daemon's filesystem is case-insensitive (`FilesystemLocations.caseInsensitive`,
+ * e.g. default macOS volumes).
  */
-export function pathKey(path: string): string {
-  return comparablePath(path);
+export function pathKey(path: string, caseInsensitive = false): string {
+  return comparablePath(path, caseInsensitive);
 }
 
 /** True when two paths refer to the same location (platform-aware casing). */
-export function samePath(a: string, b: string): boolean {
-  return comparablePath(a) === comparablePath(b);
+export function samePath(
+  a: string,
+  b: string,
+  caseInsensitive = false,
+): boolean {
+  return (
+    comparablePath(a, caseInsensitive) === comparablePath(b, caseInsensitive)
+  );
 }
 
 /**
