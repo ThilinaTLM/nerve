@@ -8,6 +8,7 @@ import {
 } from "$lib/presentation/shell";
 import { ProjectIcon, type ProjectSwitcherItem } from "$lib/features/projects";
 import { tildePath } from "$lib/domain/filesystem/project-path";
+import { conversationRowStatusLabel } from "$lib/presentation/conversations/conversation-row-state";
 import { workspaceSelectors, workspaceState } from "$lib/application/workspace";
 import MobileRootActions from "./MobileRootActions.svelte";
 import { pushMobileScreen } from "./mobile-shell.svelte";
@@ -32,26 +33,17 @@ const filtered = $derived.by(() => {
   );
 });
 
+// Same vocabulary as the desktop header: one status per project, taken from
+// its most urgent conversation; text only when it needs the user.
 function activityDetail(item: ProjectSwitcherItem): string {
-  const parts: string[] = [];
-  if (item.activity.needsUser) parts.push(`${item.activity.needsUser} waiting`);
-  if (item.activity.failed) parts.push(`${item.activity.failed} failed`);
-  if (item.activity.running) parts.push(`${item.activity.running} running`);
-  if (item.launches.running)
-    parts.push(
-      item.launches.running === 1
-        ? "1 launch"
-        : `${item.launches.running} launches`,
-    );
-  if (parts.length) return parts.join(" · ");
-  return tildePath(item.project.directory, homeDir);
+  return (
+    conversationRowStatusLabel(item.activity) ??
+    tildePath(item.project.directory, homeDir)
+  );
 }
 
 function activityTone(item: ProjectSwitcherItem) {
-  if (item.activity.failed) return "destructive" as const;
-  if (item.activity.needsUser) return "warning" as const;
-  if (item.activity.running || item.launches.running) return "info" as const;
-  return undefined;
+  return item.activity.tone === "neutral" ? undefined : item.activity.tone;
 }
 
 function choose(item: ProjectSwitcherItem) {
@@ -87,7 +79,7 @@ function browse() {
             ? "1 chat"
             : `${item.conversationCount} chats`}
           tone={activityTone(item)}
-          pulse={Boolean(item.activity.running || item.launches.running)}
+          pulse={item.activity.pulse}
           selected={item.key === workspaceState.selectedProjectKey}
           onclick={() => choose(item)}
         >

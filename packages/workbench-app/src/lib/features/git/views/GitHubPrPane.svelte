@@ -78,10 +78,6 @@ const checkedOut = $derived(
 );
 let checkoutOpen = $state(false);
 
-/* Tabs match the rest of the workbench: an underline strip, not a pill group. */
-const tabTriggerClass =
-  "h-full flex-none gap-1.5 rounded-none px-2.5 text-xs font-medium";
-
 function changeTab(value: string) {
   if (
     value === "conversation" ||
@@ -94,10 +90,7 @@ function changeTab(value: string) {
 </script>
 
 {#snippet tabCount(count: number)}
-  <span
-    class="rounded-full bg-muted px-1.5 text-[0.6875rem] text-muted-foreground tabular-nums"
-    >{count}</span
-  >
+  <span class="text-muted-foreground tabular-nums">{count}</span>
 {/snippet}
 
 <!-- Failure details live in header Activity; this is a neutral retry state. -->
@@ -176,27 +169,25 @@ function changeTab(value: string) {
       onValueChange={changeTab}
       class="min-h-0 flex-1 gap-0"
     >
-      <div class="shrink-0 border-b px-4">
-        <Tabs.List class="h-9 gap-0 p-0">
-          <Tabs.Trigger value="conversation" class={tabTriggerClass}>
-            Conversation
-            {#if conversation}{@render tabCount(
-                conversation.comments.length + conversation.reviews.length,
-              )}{/if}
-          </Tabs.Trigger>
-          <Tabs.Trigger value="commits" class={tabTriggerClass}>
-            Commits
-            {#if commits}{@render tabCount(commits.commits.length)}{/if}
-          </Tabs.Trigger>
-          <Tabs.Trigger value="checks" class={tabTriggerClass}>
-            Checks
-            {#if checks}{@render tabCount(checks.total)}{/if}
-          </Tabs.Trigger>
-          <Tabs.Trigger value="files" class={tabTriggerClass}>
-            Files changed {@render tabCount(core.changedFiles)}
-          </Tabs.Trigger>
-        </Tabs.List>
-      </div>
+      <Tabs.List>
+        <Tabs.Trigger value="conversation">
+          Conversation
+          {#if conversation}{@render tabCount(
+              conversation.comments.length + conversation.reviews.length,
+            )}{/if}
+        </Tabs.Trigger>
+        <Tabs.Trigger value="commits">
+          Commits
+          {#if commits}{@render tabCount(commits.commits.length)}{/if}
+        </Tabs.Trigger>
+        <Tabs.Trigger value="checks">
+          Checks
+          {#if checks}{@render tabCount(checks.total)}{/if}
+        </Tabs.Trigger>
+        <Tabs.Trigger value="files">
+          Files changed {@render tabCount(core.changedFiles)}
+        </Tabs.Trigger>
+      </Tabs.List>
 
       <Tabs.Content value="conversation" class="min-h-0 flex-1">
         <ScrollArea

@@ -59,14 +59,10 @@ let {
   openConversationTabIds,
   conversationActivityById = {},
   searchFocusToken = 0,
-  editorAvailability,
-  terminalAvailability,
   maintenanceActive = false,
   homeDir,
   onOpenConversation,
   onNewConversationInProject,
-  onOpenProjectInEditor,
-  onOpenProjectInTerminal,
   onOpenProjectSettings,
   onDeleteProject,
   onDeleteConversation,
@@ -198,8 +194,6 @@ $effect(() => {
 const menuContext = $derived<ProjectTreeMenuContext>({
   homeDir,
   newConversationShortcut,
-  editorAvailability,
-  terminalAvailability,
   conversationCount: (projectId) =>
     conversations.filter((conversation) => conversation.projectId === projectId)
       .length,
@@ -209,8 +203,6 @@ const menuContext = $derived<ProjectTreeMenuContext>({
     conversationActivityById[conversationId],
   onUpdateConversationState,
   onNewConversationInProject,
-  onOpenProjectInEditor,
-  onOpenProjectInTerminal,
   onOpenProjectSettings,
   requestPrune: (project: ProjectRecord) =>
     onPruneProjectConversations?.(project.id, {

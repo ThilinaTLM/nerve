@@ -3,63 +3,70 @@ import { test } from "node:test";
 import type { ConversationSummary } from "@nervekit/contracts/core";
 import { summaryActivity } from "$lib/presentation/conversations/conversation-activity";
 import {
-  projectActivitySignal,
-  summarizeProjectActivity,
+  projectActivity,
+  quickProjectItems,
+  type ProjectSwitcherItem,
 } from "./project-switcher.js";
 
-test("pending async work alone has an unfinished blue project signal", () => {
-  const signal = projectActivitySignal(
-    { needsUser: 0, failed: 0, running: 0, awaitingAsync: 2, resultReady: 0 },
-    { running: 0 },
-  );
-  assert.equal(signal?.tone, "info");
-  assert.equal(signal?.count, 2);
-  assert.equal(signal?.summary, "2 waiting for background work");
-});
+const row = (
+  id: string,
+  status: ConversationSummary["status"],
+  extra: Partial<ConversationSummary> = {},
+) =>
+  ({
+    id,
+    status,
+    pendingWork: false,
+    pendingInput: null,
+    ...extra,
+  }) as ConversationSummary;
 
-test("human action and failures outrank async work in project signals", () => {
-  const activity = {
-    needsUser: 1,
-    failed: 1,
-    running: 1,
-    awaitingAsync: 1,
-    resultReady: 0,
-  };
-  assert.equal(
-    projectActivitySignal(activity, { running: 0 })?.tone,
-    "warning",
-  );
-  assert.equal(
-    projectActivitySignal({ ...activity, needsUser: 0 }, { running: 0 })?.tone,
-    "destructive",
-  );
-});
-
-test("project summary counts interrupted as failed and unseen results separately", () => {
-  const row = (id: string, status: ConversationSummary["status"]) =>
-    ({
-      id,
-      status,
-      pendingWork: false,
-      pendingInput: null,
-    }) as ConversationSummary;
+test("a question outranks running and finished conversations", () => {
   const rows = [
-    row("a", "interrupted"),
-    row("b", "failed"),
-    row("c", "idle"),
-    row("d", "idle"),
+    row("a", "running"),
+    row("b", "idle"),
+    row("c", "waiting"),
+    row("d", "failed"),
   ];
   const activityById = {
     a: summaryActivity(rows[0]),
-    b: summaryActivity(rows[1]),
-    c: summaryActivity(rows[2], { resultReady: true }),
+    b: summaryActivity(rows[1], { resultReady: true }),
+    c: summaryActivity(rows[2]),
     d: summaryActivity(rows[3]),
   };
-  assert.deepEqual(summarizeProjectActivity(rows, activityById), {
-    needsUser: 0,
-    failed: 2,
-    running: 0,
-    awaitingAsync: 0,
-    resultReady: 1,
-  });
+  assert.equal(projectActivity(rows, activityById).indicator, "needs-user");
+  assert.equal(
+    projectActivity([rows[0], rows[1], rows[3]], activityById).indicator,
+    "error",
+  );
+  assert.equal(
+    projectActivity([rows[0], rows[1]], activityById).indicator,
+    "running",
+  );
+  assert.equal(
+    projectActivity([rows[1]], activityById).indicator,
+    "result-ready",
+  );
+});
+
+test("completed conversations leave a project quiet", () => {
+  const rows = [row("a", "idle", { completedAt: "2026-01-01T00:00:00Z" })];
+  assert.equal(
+    projectActivity(rows, { a: summaryActivity(rows[0]) }).indicator,
+    "idle",
+  );
+});
+
+test("the header promotes stale projects that need the user", () => {
+  const item = (key: string, indicator: "idle" | "needs-user" = "idle") =>
+    ({
+      key,
+      label: key,
+      activity: { indicator },
+    }) as ProjectSwitcherItem;
+  const items = [item("c"), item("a"), item("d"), item("b", "needs-user")];
+  assert.deepEqual(
+    quickProjectItems(items, "c", 2).map((entry) => entry.key),
+    ["a", "b", "c"],
+  );
 });

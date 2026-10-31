@@ -1,33 +1,16 @@
 import { conversationLastUserPromptAt } from "@nervekit/contracts/core";
-import type { StatusTone } from "@nervekit/ui-kit/display/status";
-import type { LaunchRecord } from "$lib/api";
 import type { ConversationSummary } from "@nervekit/contracts/core";
 import type { Project } from "@nervekit/contracts/core";
 import type { ProjectRecord } from "$lib/domain/projects/sidebar-view-models";
-import { isPathInDirectory } from "$lib/domain/filesystem/project-path";
 import {
   projectFolderName,
   projectKey,
   shortProjectLabel,
 } from "$lib/domain/projects/project-tree";
-import type { ConversationActivity as ConversationActivityModel } from "$lib/presentation/conversations/conversation-activity";
-type ConversationActivity = Pick<
-  ConversationActivityModel,
-  "indicator" | "tone" | "busy" | "needsUser"
->;
-
-export type ProjectActivitySummary = {
-  needsUser: number;
-  failed: number;
-  running: number;
-  awaitingAsync: number;
-  /** Conversations with an unseen finished result. */
-  resultReady: number;
-};
-
-export type ProjectLaunchSummary = {
-  running: number;
-};
+import {
+  idleConversationActivity,
+  type ConversationActivity,
+} from "$lib/presentation/conversations/conversation-activity";
 
 export type ProjectSwitcherItem = {
   key: string;
@@ -37,81 +20,53 @@ export type ProjectSwitcherItem = {
   sortAt: string;
   lastAccessedAt?: number;
   conversationCount: number;
-  activity: ProjectActivitySummary;
-  launches: ProjectLaunchSummary;
+  /** The project's most urgent conversation activity, shown with the same
+   * glyph and label as that conversation in the conversation list. */
+  activity: ConversationActivity;
 };
 
-export function summarizeProjectActivity(
-  conversations: ConversationSummary[],
+/** Most urgent first; `completed` and `idle` never surface on a project. */
+const PROJECT_ACTIVITY_PRIORITY: readonly ConversationActivity["indicator"][] =
+  [
+    "needs-user",
+    "error",
+    "aborted",
+    "running",
+    "awaiting-async",
+    "result-ready",
+  ];
+
+export function projectActivity(
+  conversations: readonly ConversationSummary[],
   activityById: Record<string, ConversationActivity>,
-): ProjectActivitySummary {
-  const summary: ProjectActivitySummary = {
-    needsUser: 0,
-    failed: 0,
-    running: 0,
-    awaitingAsync: 0,
-    resultReady: 0,
-  };
+): ConversationActivity {
+  let winner: ConversationActivity | undefined;
+  let winnerRank = PROJECT_ACTIVITY_PRIORITY.length;
   for (const conversation of conversations) {
     const activity = activityById[conversation.id];
     if (!activity) continue;
-    if (activity.needsUser) summary.needsUser += 1;
-    else if (activity.tone === "destructive") summary.failed += 1;
-    else if (activity.indicator === "awaiting-async")
-      summary.awaitingAsync += 1;
-    else if (activity.busy) summary.running += 1;
-    else if (activity.indicator === "result-ready") summary.resultReady += 1;
+    const rank = PROJECT_ACTIVITY_PRIORITY.indexOf(activity.indicator);
+    if (rank >= 0 && rank < winnerRank) {
+      winner = activity;
+      winnerRank = rank;
+    }
   }
-  return summary;
+  return winner ?? idleConversationActivity;
 }
 
-export type ProjectActivitySignal = {
-  tone: Extract<StatusTone, "warning" | "destructive" | "info">;
-  count: number;
-  /** Human-readable breakdown of current actionable activity. */
-  summary: string;
-};
-
-export function projectActivitySignal(
-  activity: ProjectActivitySummary,
-  launches: ProjectLaunchSummary,
-): ProjectActivitySignal | undefined {
-  const parts = [
-    activity.needsUser ? `${activity.needsUser} waiting for you` : "",
-    activity.failed ? `${activity.failed} failed` : "",
-    activity.running
-      ? `${activity.running} conversation${activity.running === 1 ? "" : "s"} running`
-      : "",
-    activity.awaitingAsync
-      ? `${activity.awaitingAsync} waiting for background work`
-      : "",
-    activity.resultReady ? `${activity.resultReady} finished` : "",
-    launches.running
-      ? `${launches.running} background launch${launches.running === 1 ? "" : "s"} running`
-      : "",
-  ].filter(Boolean);
-  if (!parts.length) return undefined;
-  const tone: ProjectActivitySignal["tone"] = activity.needsUser
-    ? "warning"
-    : activity.failed
-      ? "destructive"
-      : "info";
-  return {
-    tone,
-    count:
-      activity.needsUser +
-      activity.failed +
-      activity.running +
-      activity.awaitingAsync +
-      launches.running,
-    summary: parts.join(", "),
-  };
+/** Waiting on the user, failed, or interrupted. */
+export function projectNeedsAttention(item: ProjectSwitcherItem): boolean {
+  const { indicator } = item.activity;
+  return (
+    indicator === "needs-user" ||
+    indicator === "error" ||
+    indicator === "aborted"
+  );
 }
 
 export function buildProjectSwitcherItems(input: {
   projects: Project[];
   conversations: ConversationSummary[];
-  launches: readonly LaunchRecord[];
   activityById: Record<string, ConversationActivity>;
   homeDir?: string;
   recency?: Record<string, number>;
@@ -125,43 +80,6 @@ export function buildProjectSwitcherItems(input: {
   const projectKeyById = new Map<string, string>();
   for (const [key, projects] of byKey) {
     for (const project of projects) projectKeyById.set(project.id, key);
-  }
-
-  const runningLaunchesByKey = new Map<string, number>();
-  const activeLaunchStatuses = new Set<LaunchRecord["status"]>([
-    "starting",
-    "running",
-    "ready",
-    "stopping",
-  ]);
-  for (const launch of input.launches) {
-    if (
-      launch.visibility !== "background" ||
-      !activeLaunchStatuses.has(launch.status)
-    ) {
-      continue;
-    }
-
-    let key = launch.projectId
-      ? projectKeyById.get(launch.projectId)
-      : undefined;
-    if (!key) {
-      let longestMatch = -1;
-      for (const [candidateKey, projects] of byKey) {
-        const dir = projects[0]?.directory;
-        if (
-          dir &&
-          dir.length > longestMatch &&
-          isPathInDirectory(launch.cwd, dir)
-        ) {
-          key = candidateKey;
-          longestMatch = dir.length;
-        }
-      }
-    }
-    if (key) {
-      runningLaunchesByKey.set(key, (runningLaunchesByKey.get(key) ?? 0) + 1);
-    }
   }
 
   const folderCounts = new Map<string, number>();
@@ -199,8 +117,7 @@ export function buildProjectSwitcherItems(input: {
           : project.updatedAt,
       lastAccessedAt: input.recency?.[key],
       conversationCount: conversations.length,
-      activity: summarizeProjectActivity(conversations, input.activityById),
-      launches: { running: runningLaunchesByKey.get(key) ?? 0 },
+      activity: projectActivity(conversations, input.activityById),
     };
   });
 
@@ -213,6 +130,11 @@ export function buildProjectSwitcherItems(input: {
   });
 }
 
+/**
+ * Header strip: the most recent projects plus the active one, and any project
+ * that needs the user even when it has not been visited lately. Alphabetical,
+ * so a project keeps its place while recency shifts underneath it.
+ */
 export function quickProjectItems(
   items: ProjectSwitcherItem[],
   activeKey: string | undefined,
@@ -224,7 +146,10 @@ export function quickProjectItems(
   if (active && !recent.some((item) => item.key === active.key)) {
     recent.splice(Math.max(0, recent.length - 1), 1, active);
   }
-  return recent.sort((a, b) =>
+  const promoted = items.filter(
+    (item) => projectNeedsAttention(item) && !recent.includes(item),
+  );
+  return [...recent, ...promoted].sort((a, b) =>
     a.label.localeCompare(b.label, undefined, { sensitivity: "base" }),
   );
 }

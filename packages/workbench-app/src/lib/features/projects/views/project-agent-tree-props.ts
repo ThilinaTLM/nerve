@@ -5,7 +5,6 @@ import type {
   PruneProjectConversationsRequest,
   UpdateConversationStateRequest,
 } from "$lib/domain/projects/sidebar-view-models";
-import type { ProjectEditor, StatusResponse } from "$lib/api";
 import type { ConversationActivity } from "$lib/presentation/conversations/conversation-activity";
 
 export type DeleteTarget = {
@@ -30,14 +29,10 @@ export type ProjectAgentTreeProps = {
   openConversationTabIds?: Set<string>;
   conversationActivityById?: Record<string, ConversationActivity>;
   searchFocusToken?: number;
-  editorAvailability?: StatusResponse["runtime"]["editors"];
-  terminalAvailability?: StatusResponse["runtime"]["terminal"];
   maintenanceActive?: boolean;
   onOpenConversation?: (conversationId: string) => void;
   onNewConversationInProject?: (projectDir: string) => void;
-  onOpenProjectInEditor?: (projectId: string, editor: ProjectEditor) => void;
   onOpenProjectSettings?: (projectId: string) => void;
-  onOpenProjectInTerminal?: (projectId: string) => void;
   onDeleteProject?: (projectId: string) => void;
   onDeleteConversation?: (conversationId: string) => void;
   onUpdateConversationState?: (

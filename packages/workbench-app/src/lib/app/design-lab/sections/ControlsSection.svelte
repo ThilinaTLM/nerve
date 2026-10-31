@@ -588,7 +588,7 @@ $effect(() => {
   <GalleryGroup title="Navigation & disclosure">
     <GallerySpecimen
       title="Tabs"
-      description="Underline-only: the active tab carries a primary rule along its top edge. Plain and with an icon."
+      description="Chrome tab strip like the editor and dock tabs: the active tab takes the content surface under a primary top rule. Plain and with an icon."
       source="ui/tabs"
       usage="3 files · git, settings"
       layout="stack"

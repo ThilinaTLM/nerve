@@ -28,16 +28,11 @@ export {
 } from "./views/project-tree-menus";
 export {
   buildProjectSwitcherItems,
-  projectActivitySignal,
+  projectActivity,
+  projectNeedsAttention,
   quickProjectItems,
-  summarizeProjectActivity,
 } from "./state/project-switcher";
-export type {
-  ProjectActivitySignal,
-  ProjectActivitySummary,
-  ProjectSwitcherItem,
-  ProjectLaunchSummary,
-} from "./state/project-switcher";
+export type { ProjectSwitcherItem } from "./state/project-switcher";
 export {
   focusProjectSearch,
   projectNavigatorSignals,

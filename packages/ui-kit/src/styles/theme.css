@@ -560,6 +560,12 @@
   --spacing-control-sm: 1.5rem;
 }
 
+/* Every tab row (editor, dock, Tabs) shares one track shade a short step under
+ * the content it opens onto; an active tab takes the content surface. */
+:root {
+  --chrome-track: color-mix(in oklab, var(--muted) 45%, var(--card));
+}
+
 @media (pointer: coarse) {
   :root {
     --spacing-control: 2.25rem;
@@ -583,6 +589,7 @@
   --tracking-normal: var(--tracking-normal);
   --color-well: var(--well);
   --color-panel: var(--panel);
+  --color-chrome-track: var(--chrome-track);
   --color-chart-5: var(--chart-5);
   --color-chart-4: var(--chart-4);
   --color-chart-3: var(--chart-3);
