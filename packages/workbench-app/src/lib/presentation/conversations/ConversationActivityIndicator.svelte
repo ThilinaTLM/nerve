@@ -57,7 +57,13 @@ const Icon = $derived(
   title={activity.label ?? "Conversation idle"}
 >
   {#if variant === "rail" && activity.indicator === "idle"}
-    <Circle class="size-3 text-muted-foreground/45" aria-hidden="true" />
+    <!-- Same open-tab cue as the tab strip: filled when open, hollow when not. -->
+    <Circle
+      class={isOpen
+        ? "size-2.5 fill-current text-muted-foreground"
+        : "size-3 text-muted-foreground/45"}
+      aria-hidden="true"
+    />
   {:else if variant === "rail" && (activity.indicator === "running" || activity.indicator === "result-ready")}
     <Circle
       class={`size-2.5 fill-current ${activity.indicator === "running" ? "text-info animate-pulse" : "text-success"}`}

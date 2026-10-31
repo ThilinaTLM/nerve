@@ -32,6 +32,8 @@ type Props = {
   currentRepository?: string;
   matchedReference?: string;
   isActive?: boolean;
+  /** An open tab fills the idle ring. */
+  isOpen?: boolean;
   faded?: boolean;
   activity?: ConversationActivity;
   highlight?: number[];
@@ -45,6 +47,7 @@ let {
   currentRepository,
   matchedReference,
   isActive = false,
+  isOpen = false,
   faded = false,
   activity,
   highlight = [],
@@ -140,7 +143,11 @@ const titleSegments = $derived(
   >
     {#snippet leading()}
       <span class="flex h-4 w-3.5 shrink-0 items-center justify-center">
-        <ConversationActivityIndicator activity={dotActivity} variant="rail" />
+        <ConversationActivityIndicator
+          activity={dotActivity}
+          variant="rail"
+          {isOpen}
+        />
       </span>
     {/snippet}
     {#snippet titleTrailing()}

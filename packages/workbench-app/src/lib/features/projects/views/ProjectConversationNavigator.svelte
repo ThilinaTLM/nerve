@@ -56,6 +56,7 @@ let {
   agents = [],
   selectedProjectId,
   selectedConversationId,
+  openConversationTabIds,
   conversationActivityById = {},
   searchFocusToken = 0,
   editorAvailability,
@@ -338,6 +339,8 @@ const menuContext = $derived<ProjectTreeMenuContext>({
                 faded={section.key === "previous-7-days" ||
                   section.key === "older"}
                 isActive={row.conversation.id === selectedConversationId}
+                isOpen={openConversationTabIds?.has(row.conversation.id) ??
+                  false}
                 activity={conversationActivityById[row.conversation.id]}
                 menuItems={buildConversationMenu(
                   rowProject,
