@@ -4,11 +4,11 @@
 
 Each visible root conversation appears in exactly one section, using the first rule that matches:
 
-| Section                                         | Membership                                                                                                                  | Order                                                                                                      |
-| ----------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
-| **Pinned**                                      | Pinned, whatever its status                                                                                                 | Most recent user prompt first (current behavior)                                                           |
-| **Needs you**                                   | Pending question or approval; uncleared failure or interruption; existing `result-ready` activity (green "Finished" marker) | Pending input, then failures/interruptions, then finished; most recent user prompt first within each group |
-| **Today / Yesterday / Previous 7 days / Older** | Everything else                                                                                                             | Existing day buckets and order (`last_user_message_at` descending) from `project-tree.ts`                  |
+| Section                                         | Membership                                                                                        | Order                                                                                       |
+| ----------------------------------------------- | ------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
+| **Pinned**                                      | Pinned, whatever its status                                                                       | Most recent user prompt first (current behavior)                                            |
+| **Needs you**                                   | Waiting on the user: pending question, approval or plan review; uncleared failure or interruption | Pending input, then failures/interruptions; most recent user prompt first within each group |
+| **Today / Yesterday / Previous 7 days / Older** | Everything else                                                                                   | Existing day buckets and order (`last_user_message_at` descending) from `project-tree.ts`   |
 
 - Pinned comes first and isn't duplicated: a pinned conversation that needs you stays in Pinned, and its status label shows it. There's no pin icon on rows; pin state lives in the context menu (the Pinned section header has the icon).
 - Running conversations stay in Pinned or a day section with a "Running" status. They aren't promoted above questions.
@@ -18,13 +18,13 @@ Each visible root conversation appears in exactly one section, using the first r
 
 ### Attention state we reuse
 
-There's no new acknowledgement logic. The finished part of Needs you is a grouping of what the client already tracks:
+Finished results are **not** in Needs you: they aren't waiting on the user. They stay in their day section with the green Finished marker, which reuses what the client already tracks:
 
 - `application/activity/conversation-attention.ts` emits a `finished` edge on root busy → idle transitions. The edge is recorded in `unseenResults` (session-local, `unseen-results.svelte.ts`) unless the user is watching that conversation.
 - `presentation/conversations/conversation-activity.ts` maps it to `indicator: "result-ready"` ("Finished"). Pending input, failure, running, and interruption take precedence.
 - The marker clears when the user opens or switches to the conversation (including its ancestors), on window focus/interaction while it's active, or when its notification is dismissed or "clear finished" is used (`WorkbenchTitlebarHost.svelte`).
 
-Section assignment is a pure function over the existing activity (`conversationActivityById`) plus pin and completion state, owned by the presentation layer next to `conversation-row-state.ts`. It doesn't introduce a second status predicate. Opening a Finished row acknowledges it (current behavior), so it moves to its day section while keeping its selection and scroll anchor.
+Section assignment is a pure function over the existing activity (`conversationActivityById`) plus pin and completion state, owned by the presentation layer next to `conversation-row-state.ts`. It doesn't introduce a second status predicate. Opening a Finished row acknowledges it (current behavior); the marker clears in place without moving the row.
 
 ## Row anatomy
 
@@ -33,7 +33,7 @@ The desktop list uses **G · Filled groups**: each section's rows share one bord
 Rows are flat, with no individual card fill, and have the same inset geometry (`mx-1 my-0.5`) whether selected or not. Selection draws a rounded `bg-selected` surface inside the slab, including in dark mode. Hover is subtle (`hover:bg-accent/40`). The entire row is a pointer target with visible keyboard focus.
 
 1. **State rail:** a 14px-wide slot aligned to the first title line, present on every row. Idle uses a muted hollow `Circle` (12px), filled (10px) while the conversation is open in a tab, matching the tab strip; running a pulsing info-filled circle (10px); finished/result-ready a success-filled circle (10px). Question/approval/plan use a warning `Bell`, failed a destructive `TriangleAlert`, stopped a muted `CircleStop`, awaiting-async an info `ClockAlert`, and done a muted `CircleCheck` (all 12px). The smaller discs balance the outline glyphs optically.
-2. **Title line:** normal-weight title, at most two lines, with last-user-prompt relative time right-aligned alongside the first line (small muted tabular numerals). The exact time stays in the tooltip. Titles in Previous 7 days and Older are muted unless selected. An inline image marker renders as a small `Image` icon with the accessible name "Image" (see [title-generation.md](title-generation.md#image-marker)); search highlights retain plain-text offsets around it.
+2. **Title line:** normal-weight title, at most two lines, with last-user-prompt relative time right-aligned alongside the first line (muted tabular numerals at the title size, `text-xs`). The exact time stays in the tooltip. Titles in Previous 7 days and Older are muted unless selected. An inline image marker renders as a small `Image` icon with the accessible name "Image" (see [title-generation.md](title-generation.md#image-marker)); search highlights retain plain-text offsets around it.
 3. **Conditional second line:** rendered only when there is a status or reference tags. Status is text in its tone, **without a repeated icon**: `Question`, `Approval`, `Plan`, `Failed`, `Stopped`, `Finished`, `Running`, or `Done` in search. Awaiting-async is labelled `Running`; stopped is muted. Full status text remains in the accessible name and tooltip. Up to two reference tags plus `+N` follow the status.
 
 There are no row pin icons, planning-profile icons, sub-agent counts, previews, model/cost fields, or hover actions; profile and sub-agent count stay in the tooltip. All row actions remain in the context menu.
@@ -116,7 +116,7 @@ All row actions live in the context menu (see above); there are no inline or hov
 
 - Section assignment: each conversation appears exactly once; precedence order; pinned rows aren't duplicated; running rows aren't promoted; completed rows with pending input stay visible.
 - Recent order uses `last_user_message_at` with a `created_at` fallback. Title/reference/status updates don't reorder rows.
-- Acknowledging a Ready row moves it without losing the selection.
+- Finished results stay in their day section; Needs you holds only input requests and failures.
 - Existing unseen behavior doesn't change: watching suppresses the marker, open/focus/dismiss clear it, ancestors are handled, and baseline loads are quiet. Metadata-only updates create no `finished` edge.
 - Reference slot allocation (one created and one referenced slot, `+N`, matched reference first) and short status labels.
 - Smart search: each term must match; status prefixes; reference forms; title substring and lazy subsequence with word-start preference; scattered lazy matches dropped; ranking and relative cut-off; done conversations included.

@@ -19,10 +19,9 @@ function attentionRank(activity: ConversationActivity | undefined): number {
     case "error":
     case "aborted":
       return 1;
-    case "result-ready":
-      return 2;
+    // Finished results aren't waiting on the user; they stay in their day.
     default:
-      return 3;
+      return 2;
   }
 }
 
@@ -106,7 +105,7 @@ export function buildConversationSections<
   for (const row of rows) {
     const key = row.conversation.pinned
       ? "pinned"
-      : attentionRank(activityById[row.conversation.id]) < 3
+      : attentionRank(activityById[row.conversation.id]) < 2
         ? "needs-you"
         : conversationDateSectionKey(row.conversation, now);
     const sectionRows = byKey.get(key) ?? [];

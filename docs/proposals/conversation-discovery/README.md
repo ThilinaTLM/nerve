@@ -11,7 +11,7 @@ Rows in the conversation list are hard to scan. Titles often start with filler (
 The list answers three questions at a glance:
 
 1. **Which conversation is this?** Better titles: an instant local title, optionally improved in the background by a small AI model the user picks.
-2. **Does it need me?** Sections you can predict (Pinned → Needs you, which includes unseen "Finished" results → Today / Yesterday / Previous 7 days / Older), built on the existing attention state.
+2. **Does it need me?** Sections you can predict (Pinned → Needs you, for questions, approvals and failures → Today / Yesterday / Previous 7 days / Older, where unseen "Finished" results keep their marker), built on the existing attention state.
 3. **Where is the work?** PR/issue tags that show whether the user _referenced_ a resource or the conversation _created_ it, plus one smart search input over titles, statuses, and references.
 
 It also follows two rules:

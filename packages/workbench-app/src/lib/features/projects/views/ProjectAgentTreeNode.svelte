@@ -152,7 +152,7 @@ const titleSegments = $derived(
     {/snippet}
     {#snippet titleTrailing()}
       <span
-        class="shrink-0 pt-px text-[0.6875rem] tabular-nums text-muted-foreground"
+        class="shrink-0 text-xs tabular-nums text-muted-foreground"
         title={exactTime}>{age}</span
       >
     {/snippet}
@@ -171,7 +171,7 @@ const titleSegments = $derived(
     {#snippet meta()}
       {#if status || references.shown.length}
         <span
-          class="flex min-w-0 items-center gap-2.5 text-[0.6875rem] text-muted-foreground font-normal"
+          class="flex min-w-0 items-center gap-2.5 text-xs text-muted-foreground font-normal"
         >
           {#if status}
             <span

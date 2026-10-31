@@ -59,8 +59,8 @@ test("sections are exclusive, prioritize pinned and attention, and leave running
     ]),
     [
       ["Pinned", ["pinned"]],
-      ["Needs you", ["question", "failed", "finished"]],
-      ["Today", ["running"]],
+      ["Needs you", ["question", "failed"]],
+      ["Today", ["finished", "running"]],
       ["Yesterday", ["yesterday"]],
       ["Previous 7 days", ["week"]],
       ["Older", ["old"]],
@@ -72,35 +72,30 @@ test("sections are exclusive, prioritize pinned and attention, and leave running
   );
 });
 
-test("completed pending input stays visible; acknowledgement moves the same selected identity", () => {
-  const selected = row("selected", 1);
+test("completed pending input stays visible; finished results keep their day section", () => {
   const rows = [
     row("done", 0, { completedAt: "done" }),
     row("pending", 0, { completedAt: "done" }),
-    selected,
+    row("finished", 1),
   ];
-  const before = buildConversationSections({
+  const sections = buildConversationSections({
     rows,
     now,
     hideCompleted: true,
     activityById: {
       pending: activity("needs-user"),
-      selected: activity("result-ready"),
+      finished: activity("result-ready"),
     },
   });
   assert.deepEqual(
-    before.flatMap((section) => section.rows.map((row) => row.conversation.id)),
-    ["pending", "selected"],
-  );
-  const after = buildConversationSections({
-    rows,
-    now,
-    hideCompleted: true,
-    activityById: { pending: activity("needs-user") },
-  });
-  assert.equal(
-    after.find((section) => section.key === "yesterday")?.rows[0],
-    selected,
+    sections.map((section) => [
+      section.key,
+      section.rows.map((row) => row.conversation.id),
+    ]),
+    [
+      ["needs-you", ["pending"]],
+      ["yesterday", ["finished"]],
+    ],
   );
 });
 
