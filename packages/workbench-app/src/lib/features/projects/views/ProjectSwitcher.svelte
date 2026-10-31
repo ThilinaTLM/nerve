@@ -3,7 +3,6 @@ import AppWindow from "@lucide/svelte/icons/app-window";
 import FolderOpen from "@lucide/svelte/icons/folder-open";
 import LayoutGrid from "@lucide/svelte/icons/layout-grid";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
-import { IconAction } from "@nervekit/ui-kit/components/composites/icon-action";
 import { Kbd } from "@nervekit/ui-kit/components/ui/kbd";
 import type { ContextMenuItem } from "@nervekit/ui-kit/components/composites/context-menu-list";
 import Popover, {
@@ -203,22 +202,20 @@ function useSystemPicker() {
       <Button
         variant="ghost"
         size="sm"
-        class="justify-start"
         data-tour-id="guide-project-browse"
         onclick={openFolder}
       >
-        <FolderOpen class="size-4" aria-hidden="true" />
+        <FolderOpen aria-hidden="true" />
         Open folder
         {#if openFolderShortcut}
-          <Kbd class="ml-auto">{openFolderShortcut}</Kbd>
+          <Kbd>{openFolderShortcut}</Kbd>
         {/if}
       </Button>
       {#if onUseSystemPicker}
-        <IconAction
-          icon={AppWindow}
-          label="Use system picker"
-          onclick={useSystemPicker}
-        />
+        <Button variant="ghost" size="sm" onclick={useSystemPicker}>
+          <AppWindow aria-hidden="true" />
+          System picker
+        </Button>
       {/if}
     </PopoverFooter>
   </Popover>
