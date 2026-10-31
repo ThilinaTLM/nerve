@@ -63,6 +63,17 @@ test("concurrent independent and nested settings patches survive save/reload", a
   await assertReload(storage);
 });
 
+test("conversation title settings persist across reload", async () => {
+  const storage = await createStorage();
+  const conversationTitles = {
+    enabled: true,
+    model: { provider: "google", modelId: "gemini-2.5-flash-lite" },
+  };
+  await writeSettings(storage, { conversationTitles });
+  assert.deepEqual(storage.settings.conversationTitles, conversationTitles);
+  await assertReload(storage);
+});
+
 test("validation rejection leaves authoritative state unchanged and queue usable", async () => {
   const storage = await createStorage();
   const before = storage.settings;
