@@ -64,13 +64,13 @@ async function remove(): Promise<void> {
 
 <SettingsEntityListSection
   sectionId="tavily-accounts"
-  title="Tavily accounts"
+  title="Tavily (web search)"
   addLabel="Add account"
   addTourId="setup-tavily-add-profile"
   emptyTitle="No Tavily accounts"
   emptyDescription="Add a named Tavily API key for web search."
   items={settingsDraft.providers.tavilyProfiles}
-  listAriaLabel="Tavily accounts"
+  listAriaLabel="Tavily (web search)"
   itemKey={(profile) => profile.id}
   onAdd={openAdd}
 >

@@ -1,5 +1,4 @@
 <script lang="ts">
-import { sameConfigurationSource } from "$lib/presentation/settings/configuration-source";
 import ConfigurationRepairDialog from "../capabilities/ConfigurationRepairDialog.svelte";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
 import type { PreferenceScope } from "@nervekit/contracts/agent-configuration";
@@ -21,10 +20,8 @@ import { ScopedAgentState } from "$lib/application/agent-configuration/scoped-ag
 import { workbenchStartupState } from "$lib/application/startup/workbench-startup-state.svelte";
 import { CreationPreferencesState } from "../../../state/creation-preferences.svelte";
 import ModelPicker from "$lib/presentation/model-picker/ModelPicker.svelte";
-import ConfigurationSource from "$lib/presentation/settings/ConfigurationSource.svelte";
 import {
   SettingsChangeIndicator,
-  SettingsDiffBanner,
   SettingsInlineMessage,
   SettingsRow,
   SettingsSection,
@@ -137,9 +134,6 @@ const pointers: Record<Key, string> = {
   strategy: "/compaction/profile",
   percent: "/compaction/customTriggerPercent",
 };
-const changedCount = $derived(
-  Object.values(changedKeys).filter(Boolean).length,
-);
 const usableModels = $derived(
   authenticatedRealModelOptions(models, authProviders),
 );
@@ -202,32 +196,17 @@ function reset(key: Key) {
         : [`/overrides${pointers[key]}`],
     );
 }
-async function resetAll() {
-  await projectState.save({}, [
-    "/overrides/model",
-    "/overrides/reasoningLevel",
-    "/overrides/permissionRuleSetId",
-    "/overrides/compaction",
-  ]);
-  await preferences.save({}, ["/overrides/defaultAgentProfile"]);
-}
 </script>
 
 {#snippet dot(key: Key, from: string, to: string)}
-  <ConfigurationSource
-    emptyLabel={key === "startProfile" ? "Inherited" : "Unavailable"}
-    provenance={key === "startProfile"
-      ? changedKeys.startProfile
-        ? { source: scope }
-        : undefined
-      : projectState.resolution?.provenance[pointers[key]]}
-  />
-  {#if key === "model" && !sameConfigurationSource(projectState.resolution?.provenance["/model"], projectState.resolution?.provenance["/reasoningLevel"])}<ConfigurationSource
-      provenance={projectState.resolution?.provenance["/reasoningLevel"]}
-      modelLabel={values ? modelText(values.defaults) : undefined}
-    />{/if}
   {#if changedKeys[key]}
-    <SettingsChangeIndicator compact {from} {to} onReset={() => reset(key)} />
+    <SettingsChangeIndicator
+      compact
+      {scope}
+      {from}
+      {to}
+      onReset={() => reset(key)}
+    />
   {/if}
 {/snippet}
 
@@ -271,10 +250,6 @@ async function resetAll() {
   <Skeleton class="h-10 w-full" />
   <Skeleton class="h-10 w-full" />
 {:else if values}
-  {#if project && changedCount > 0}
-    <SettingsDiffBanner count={changedCount} onResetAll={resetAll} />
-  {/if}
-
   <SettingsSection id="new-conversations" title="New conversations" divided>
     <SettingsRow
       label="Start new conversations with"
@@ -283,8 +258,8 @@ async function resetAll() {
       {#snippet badges()}
         {@render dot(
           "startProfile",
-          `${project ? "User" : "Default"}: ${profileLabelFor(inherited.startProfile ?? DEFAULT_AGENT_PROFILE)}`,
-          `${project ? "This project" : "User"}: ${profileLabelFor(values.startProfile ?? DEFAULT_AGENT_PROFILE)}`,
+          `${profileLabelFor(inherited.startProfile ?? DEFAULT_AGENT_PROFILE)}`,
+          `${profileLabelFor(values.startProfile ?? DEFAULT_AGENT_PROFILE)}`,
         )}
       {/snippet}
       {#snippet control()}
@@ -309,8 +284,8 @@ async function resetAll() {
       {#snippet badges()}
         {@render dot(
           "model",
-          `${project ? "User" : "Default"}: ${modelText(inherited.defaults)}`,
-          `${project ? "This project" : "User"}: ${modelText(values.defaults)}`,
+          `${modelText(inherited.defaults)}`,
+          `${modelText(values.defaults)}`,
         )}
       {/snippet}
       {#snippet hint()}
@@ -342,8 +317,8 @@ async function resetAll() {
       {#snippet badges()}
         {@render dot(
           "permission",
-          `${project ? "User" : "Default"}: ${ruleSetText(inherited.defaults.permissionRuleSetId)}`,
-          `${project ? "This project" : "User"}: ${ruleSetText(values.defaults.permissionRuleSetId)}`,
+          `${ruleSetText(inherited.defaults.permissionRuleSetId)}`,
+          `${ruleSetText(values.defaults.permissionRuleSetId)}`,
         )}
       {/snippet}
       {#snippet hint()}
@@ -379,8 +354,8 @@ async function resetAll() {
       {#snippet badges()}
         {@render dot(
           "auto",
-          `${project ? "User" : "Default"}: ${inherited.compaction.auto ? "On" : "Off"}`,
-          `${project ? "This project" : "User"}: ${values.compaction.auto ? "On" : "Off"}`,
+          `${inherited.compaction.auto ? "On" : "Off"}`,
+          `${values.compaction.auto ? "On" : "Off"}`,
         )}
       {/snippet}
       {#snippet control()}
@@ -400,8 +375,8 @@ async function resetAll() {
         {#snippet badges()}
           {@render dot(
             "strategy",
-            `${project ? "User" : "Default"}: ${strategyText(inherited.compaction.profile)}`,
-            `${project ? "This project" : "User"}: ${strategyText(values.compaction.profile)}`,
+            `${strategyText(inherited.compaction.profile)}`,
+            `${strategyText(values.compaction.profile)}`,
           )}
         {/snippet}
         {#snippet control()}
@@ -429,8 +404,8 @@ async function resetAll() {
           {#snippet badges()}
             {@render dot(
               "percent",
-              `${project ? "User" : "Default"}: ${inherited.compaction.customTriggerPercent}%`,
-              `${project ? "This project" : "User"}: ${values.compaction.customTriggerPercent}%`,
+              `${inherited.compaction.customTriggerPercent}%`,
+              `${values.compaction.customTriggerPercent}%`,
             )}
           {/snippet}
           {#snippet control()}

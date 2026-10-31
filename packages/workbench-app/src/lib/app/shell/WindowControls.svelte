@@ -24,7 +24,7 @@ type Props = {
 let {
   headerType,
   maximized = false,
-  closeToTray = true,
+  closeToTray = false,
   quitting = false,
   onMinimize,
   onToggleMaximize,

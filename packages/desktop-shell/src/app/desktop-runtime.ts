@@ -51,7 +51,7 @@ export class DesktopRuntime {
   #managedDaemon: ManagedDaemon | undefined;
   #daemonStopped = false;
   #appQuitting = false;
-  #closeToTray = true;
+  #closeToTray = false;
   #stopDaemonPromise: Promise<void> | undefined;
   #unsubscribeDaemonStatus: (() => void) | undefined;
   #desktopNetworkReady: Promise<void> = Promise.resolve();

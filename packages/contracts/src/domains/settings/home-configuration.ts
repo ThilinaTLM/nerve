@@ -173,7 +173,7 @@ export type UiConfig = z.infer<typeof uiConfigSchema>;
 export const defaultUiConfig: UiConfig = {
   version: 1,
   appearance: { theme: "nerve", colorMode: "system", zoomLevel: 0 },
-  desktop: { closeToTray: true, headerType: "auto" },
+  desktop: { closeToTray: false, headerType: "auto" },
   notifications: {
     systemEnabled: true,
     soundsEnabled: true,

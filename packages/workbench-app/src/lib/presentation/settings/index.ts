@@ -1,7 +1,6 @@
 export { default as SettingsShell } from "./SettingsShell.svelte";
 export { default as SettingsNav } from "./SettingsNav.svelte";
 export { default as SettingsChangeIndicator } from "./SettingsChangeIndicator.svelte";
-export { default as SettingsDiffBanner } from "./SettingsDiffBanner.svelte";
 export { default as EntityCard } from "./EntityCard.svelte";
 export { default as EntityRow } from "./EntityRow.svelte";
 export { default as SettingsSidebarStatus } from "./SettingsSidebarStatus.svelte";

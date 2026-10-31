@@ -15,16 +15,13 @@ import { workbenchStartupState } from "$lib/application/startup/workbench-startu
 import { writeClipboardText } from "$lib/platform/clipboard/write-text";
 import {
   SettingsChangeIndicator,
-  SettingsDiffBanner,
   SettingsDisclosureItem,
   SettingsEmptyState,
   SettingsInlineMessage,
   SettingsList,
   SettingsSection,
   SettingsToolbar,
-  SettingsRow,
 } from "$lib/presentation/settings";
-import ConfigurationSource from "$lib/presentation/settings/ConfigurationSource.svelte";
 import {
   filterSkills,
   shadowNote,
@@ -112,12 +109,6 @@ const orphans = $derived.by(() => {
         result.push({ kind, name, enabled });
   return result;
 });
-const overrideCount = $derived(
-  Object.values(editor.overrides.skills ?? {}).reduce(
-    (n, group) => n + Object.keys(group).length,
-    0,
-  ),
-);
 function toggleEntry(entry: SkillEntry, enabled: boolean) {
   void editor.save({
     skills: { [entry.kind]: { [entry.skill.name]: enabled } },
@@ -131,9 +122,6 @@ function applyBulk(enabled: boolean) {
   for (const e of visibleEntries)
     skills[e.kind] = { ...skills[e.kind], [e.skill.name]: enabled };
   void editor.save({ skills });
-}
-function resetAllSkills() {
-  void editor.save({}, ["/overrides/skills"]);
 }
 function clearOrphans(values: typeof orphans) {
   void editor.save(
@@ -165,7 +153,6 @@ function onRetry() {
   </SettingsInlineMessage>
 {/if}
 
-<SettingsDiffBanner count={overrideCount} onResetAll={resetAllSkills} />
 {#if !editor.resolution && !error}
   <Skeleton class="h-8 w-full" />
 {:else if editor.resolution}
@@ -230,27 +217,6 @@ function onRetry() {
         ? "Skills without a project override follow your user settings."
         : undefined}
     >
-      {#if group.source !== "project"}
-        {@const kind = skillOverrideKind(group.source)}
-        <SettingsRow
-          label="Default for new skills"
-          description="Explicit skill choices below take precedence."
-        >
-          {#snippet badges()}<ConfigurationSource
-              provenance={editor.resolution?.provenance[
-                `/skills/defaults/${kind}`
-              ]}
-            />{/snippet}
-          {#snippet control()}<Switch
-              checked={editor.resolution?.settings.skills?.defaults?.[kind] ??
-                false}
-              disabled={locked}
-              aria-label={`Default for ${skillSourceLabels[group.source]}`}
-              onCheckedChange={(enabled) =>
-                editor.save({ skills: { defaults: { [kind]: enabled } } })}
-            />{/snippet}
-        </SettingsRow>
-      {/if}
       <SettingsList ariaLabel={skillSourceLabels[group.source]}>
         {#each group.entries as entry (entry.skill.filePath)}
           <SettingsDisclosureItem
@@ -258,12 +224,6 @@ function onRetry() {
             description={entry.skill.description}
           >
             {#snippet badges()}
-              <ConfigurationSource
-                provenance={editor.resolution?.provenance[pointer(entry)] ??
-                  editor.resolution?.provenance[
-                    `/skills/defaults/${entry.kind}`
-                  ]}
-              />
               {#if shadowNote(entry)}
                 <Badge variant="neutral">{shadowNote(entry)}</Badge>
               {/if}
@@ -271,9 +231,9 @@ function onRetry() {
             {#snippet actions()}
               {#if entry.overridden}
                 <SettingsChangeIndicator
-                  from={`User: ${entry.inherited ? "On" : "Off"}`}
-                  to={`This project: ${entry.enabled ? "On" : "Off"}`}
-                  resetLabel={`Reset ${entry.skill.name} to your user setting`}
+                  {scope}
+                  from={entry.inherited ? "On" : "Off"}
+                  to={entry.enabled ? "On" : "Off"}
                   onReset={() => resetEntry(entry)}
                 />
               {/if}

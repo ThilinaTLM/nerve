@@ -20,12 +20,10 @@ import { ScopedAgentState } from "$lib/application/agent-configuration/scoped-ag
 import { workbenchStartupState } from "$lib/application/startup/workbench-startup-state.svelte";
 import {
   SettingsChangeIndicator,
-  SettingsDiffBanner,
   SettingsInlineMessage,
   SettingsRow,
   SettingsSection,
 } from "$lib/presentation/settings";
-import ConfigurationSource from "$lib/presentation/settings/ConfigurationSource.svelte";
 import {
   authenticatedRealModelOptions,
   modelDisplayName,
@@ -140,9 +138,6 @@ function toggle(id: ToolId, enabled: boolean) {
 function reset(id: ToolId) {
   void editor.save({}, [`/overrides/tools/${id}`]);
 }
-function resetAll() {
-  void editor.save({}, ["/overrides/tools"]);
-}
 function onRetry() {
   return editor.reload();
 }
@@ -170,10 +165,6 @@ const python = $derived(status?.runtime.python);
 {/if}
 {#if loading}<Skeleton class="h-10 w-full" />
 {:else if editor.resolution}
-  <SettingsDiffBanner
-    count={Object.keys(editor.overrides.tools ?? {}).length}
-    onResetAll={resetAll}
-  />
   <SettingsSection
     id="tools"
     description="Read, edit, ask_user, process and todo tools are always on. Permissions govern them."
@@ -191,20 +182,12 @@ const python = $derived(status?.runtime.python);
       {@const unavailable = false}
       <SettingsRow label={row.label} description={summary(row.id, value)}>
         {#snippet badges()}
-          <ConfigurationSource
-            provenance={editor.resolution?.provenance[
-              `/tools/${row.id}/enabled`
-            ] ??
-              editor.resolution?.provenance[`/tools/${row.id}/settings`] ??
-              Object.entries(editor.resolution?.provenance ?? {}).find(
-                ([pointer]) => pointer.startsWith(`/tools/${row.id}/settings/`),
-              )?.[1]}
-          />
           {#if changed(row.id)}
             <SettingsChangeIndicator
               compact
-              from={`User: ${summary(row.id, inheritedPayload(row.id))}`}
-              to={`This project: ${summary(row.id, value)}`}
+              {scope}
+              from={summary(row.id, inheritedPayload(row.id))}
+              to={summary(row.id, value)}
               onReset={() => reset(row.id)}
             />
           {/if}
@@ -230,7 +213,8 @@ const python = $derived(status?.runtime.python);
             </Button>
           {/if}
           {#if row.always}
-            <span class="w-9" aria-hidden="true"></span>
+            <!-- Same width as Switch so Configure buttons line up. -->
+            <span class="w-7 flex-none" aria-hidden="true"></span>
           {:else}
             <Switch
               checked={value.enabled === true}

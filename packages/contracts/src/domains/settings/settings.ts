@@ -426,7 +426,7 @@ export const defaultSettings: Settings = {
     zoomLevel: 0,
   },
   desktop: {
-    closeToTray: true,
+    closeToTray: false,
     headerType: "auto",
   },
   notifications: {

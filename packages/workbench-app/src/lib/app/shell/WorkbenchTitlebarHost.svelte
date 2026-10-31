@@ -195,7 +195,7 @@ function openProjectBrowser() {
 }
 
 async function handleDesktopClose() {
-  const closeToTray = settingsDraft?.desktop.closeToTray ?? true;
+  const closeToTray = settingsDraft?.desktop.closeToTray ?? false;
   if (!closeToTray) {
     desktopShutdownState.quitRequested = true;
     desktopRuntime.quitting = true;
@@ -274,7 +274,7 @@ $effect(() => {
   developmentSlot={desktopRuntime.developmentSlot}
   {headerType}
   maximized={desktopRuntime.windowState.maximized}
-  closeToTray={settingsDraft?.desktop.closeToTray ?? true}
+  closeToTray={settingsDraft?.desktop.closeToTray ?? false}
   quitting={desktopQuitting}
   settingsActive={activeCenterTab?.kind === "settings"}
   discoverActive={activeCenterTab?.kind === "discover" ||
