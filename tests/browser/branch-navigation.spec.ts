@@ -1,6 +1,7 @@
 import { expect, test, type Page } from "@playwright/test";
 import {
   conversationFixture,
+  promptEditor,
   coreRpc,
   submit,
 } from "./conversation.helpers.js";
@@ -27,7 +28,7 @@ test("editing an earlier prompt creates a branch while retaining durable history
       page.getByText("Original browser prompt", { exact: true }).first(),
     ).toBeVisible();
     await menu(page, "Original browser prompt", "Edit message");
-    const composer = page.getByRole("textbox").first();
+    const composer = promptEditor(page);
     await expect(composer).toHaveText("Original browser prompt");
     await composer.fill("Edited browser prompt");
     await composer.press("Enter");

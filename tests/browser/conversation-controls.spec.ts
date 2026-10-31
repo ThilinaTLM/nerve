@@ -1,6 +1,7 @@
 import { expect, test } from "@playwright/test";
 import {
   conversationFixture,
+  promptEditor,
   coreRpc,
   setAgentProfile,
   submit,
@@ -14,7 +15,7 @@ for (const width of [1440, 390]) {
     const f = await conversationFixture(page);
     try {
       const prompt = `Browser prompt ${width}`;
-      const composer = page.getByRole("textbox").first();
+      const composer = promptEditor(page);
       await composer.fill(prompt);
       await composer.press("Enter");
       await expect(
@@ -33,9 +34,7 @@ for (const width of [1440, 390]) {
       await expect(
         page.getByText(prompt, { exact: true }).first(),
       ).toBeVisible();
-      await expect(
-        page.getByRole("textbox").first().locator(".cm-placeholder"),
-      ).toBeVisible();
+      await expect(promptEditor(page).locator(".cm-placeholder")).toBeVisible();
     } finally {
       await f.close();
     }
