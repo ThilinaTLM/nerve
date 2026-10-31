@@ -1,5 +1,6 @@
 <script lang="ts">
 import BookOpenText from "@lucide/svelte/icons/book-open-text";
+import CircleCheck from "@lucide/svelte/icons/circle-check";
 import Code2 from "@lucide/svelte/icons/code-2";
 import Copy from "@lucide/svelte/icons/copy";
 import Compass from "@lucide/svelte/icons/compass";
@@ -7,6 +8,9 @@ import FileDiff from "@lucide/svelte/icons/file-diff";
 import FileText from "@lucide/svelte/icons/file-text";
 import GitPullRequest from "@lucide/svelte/icons/git-pull-request";
 import Logs from "@lucide/svelte/icons/logs";
+import Pin from "@lucide/svelte/icons/pin";
+import PinOff from "@lucide/svelte/icons/pin-off";
+import RotateCcw from "@lucide/svelte/icons/rotate-ccw";
 import MoveLeft from "@lucide/svelte/icons/move-left";
 import MoveRight from "@lucide/svelte/icons/move-right";
 import RefreshCw from "@lucide/svelte/icons/refresh-cw";
@@ -26,6 +30,7 @@ import type {
   CenterTabIdentity,
   CenterTabModel,
 } from "$lib/application/workspace";
+import type { ConversationUpdate } from "$lib/application/workspace/workspace-actions.svelte";
 import { notify } from "$lib/application/notifications/notify.svelte";
 import {
   getShortcutAriaLabel,
@@ -54,6 +59,10 @@ type Props = {
   onToggleFileLineWrap?: (id: string) => void;
   onNew?: () => void;
   onReorder?: (tab: CenterTabIdentity, targetIndex: number) => void;
+  onUpdateConversationState?: (
+    conversationId: string,
+    request: ConversationUpdate,
+  ) => void;
 };
 
 let {
@@ -69,6 +78,7 @@ let {
   onToggleFileLineWrap,
   onNew,
   onReorder,
+  onUpdateConversationState,
 }: Props = $props();
 
 const refreshShortcut = getShortcutLabel("pane.refresh");
@@ -201,6 +211,38 @@ function tabMenu(tab: WorkbenchTabModel): ContextMenuItem[] {
         onSelect: () => onToggleFileLineWrap?.(source.id),
       });
     }
+  }
+
+  if (source.kind === "conversation") {
+    // Same state actions as the conversation list's context menu.
+    const { conversation } = source;
+    items.push(
+      {
+        label: conversation.pinnedAt ? "Unpin" : "Pin",
+        icon: conversation.pinnedAt ? PinOff : Pin,
+        disabled: !onUpdateConversationState,
+        onSelect: () =>
+          onUpdateConversationState?.(conversation.id, {
+            pinned: !conversation.pinnedAt,
+          }),
+      },
+      {
+        label: conversation.completedAt ? "Reopen" : "Mark done",
+        icon: conversation.completedAt ? RotateCcw : CircleCheck,
+        disabled: !onUpdateConversationState,
+        onSelect: () =>
+          onUpdateConversationState?.(conversation.id, {
+            completed: !conversation.completedAt,
+          }),
+      },
+      {
+        label: "Copy ID",
+        icon: Copy,
+        onSelect: () =>
+          void copyToClipboard(conversation.id, "conversation id"),
+      },
+      { type: "separator" },
+    );
   }
 
   items.push({

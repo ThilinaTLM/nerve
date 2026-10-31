@@ -27,7 +27,10 @@ import {
   toggleFileDisplayMode,
   toggleFileLineWrap,
 } from "$lib/features/filesystem";
-import type { CenterTabIdentity } from "$lib/application/workspace";
+import {
+  updateConversationStateAndRefresh,
+  type CenterTabIdentity,
+} from "$lib/application/workspace";
 import {
   conversationPaneTabKey,
   conversationPaneTabListsEqual,
@@ -121,6 +124,8 @@ function closeCenterTabsLeft(tab: CenterTabIdentity) {
       onToggleFileLineWrap={toggleFileLineWrap}
       onNew={newConversation}
       onReorder={reorderCenterTab}
+      onUpdateConversationState={(id, request) =>
+        void updateConversationStateAndRefresh(id, request)}
     />
   {/snippet}
   {#snippet content()}
