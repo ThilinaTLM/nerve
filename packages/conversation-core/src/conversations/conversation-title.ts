@@ -637,15 +637,24 @@ function finalClean(title: string, references: TitleReference[]): string {
     .replace(/\s+/gu, " ")
     .trim();
   if (!cleaned) return "";
-  // Remove duplicates only across an unambiguous list connector.
+  // Deduplicate reference labels at prose boundaries, never inside identifiers.
   const seen = new Set<string>();
   cleaned = cleaned.replace(
-    /(?:\s+and\s+|,\s*)?\uE000(\d+)\uE001/gu,
-    (match, index: string) => {
-      const identity = references[Number(index)]?.identity ?? index;
+    /(?:\s+and\s+|,\s*|(^|\s)([\p{L}\p{N}_-]+)\s+)?\uE000(\d+)\uE001/gu,
+    (
+      match,
+      space: string | undefined,
+      word: string | undefined,
+      index: string,
+    ) => {
+      const reference = references[Number(index)];
+      const identity = reference?.identity ?? index;
       if (seen.has(identity) && /^(?:\s+and\s+|,)/u.test(match)) return "";
       seen.add(identity);
-      return match;
+      return word?.toLowerCase() ===
+        reference?.display.split(/\s/u)[0]?.toLowerCase()
+        ? (space ?? "") + placeholder(Number(index))
+        : match;
     },
   );
   const distinct = new Set(

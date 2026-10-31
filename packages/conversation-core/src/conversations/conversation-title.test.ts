@@ -433,3 +433,33 @@ describe("image markers", () => {
     );
   });
 });
+
+describe("duplicate words at protected reference boundaries", () => {
+  for (const [prompt, expected] of [
+    [
+      "Can you review this github issue https://github.com/ThilinaTLM/nerve/issues/477",
+      "Review this github issue ThilinaTLM/nerve#477",
+    ],
+    [
+      "Review changes in PR https://github.com/ThilinaTLM/nerve/pull/470",
+      "Review changes in PR ThilinaTLM/nerve#470",
+    ],
+    [
+      "Review changes in pr https://github.com/acme/api/pull/470",
+      "Review changes in PR acme/api#470",
+    ],
+    [
+      "Review this issue ISSUE https://github.com/acme/api/issues/477",
+      "Review this issue acme/api#477",
+    ],
+    ["Review review this issue", "Review this issue"],
+    [
+      "Review https://github.com/issue/issue/issues/477",
+      "Review issue issue/issue#477",
+    ],
+    ["Review PR https://github.com/PR/PR/pull/470", "Review PR PR/PR#470"],
+    ["Review src/issue/issue.ts", "Review issue.ts"],
+  ] as const) {
+    it(prompt, () => assert.equal(deriveConversationTitle(prompt), expected));
+  }
+});
