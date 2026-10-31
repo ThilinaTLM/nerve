@@ -1,3 +1,4 @@
+import TextCursorInput from "@lucide/svelte/icons/text-cursor-input";
 import type { Component } from "svelte";
 import Bell from "@lucide/svelte/icons/bell";
 import Bot from "@lucide/svelte/icons/bot";
@@ -50,6 +51,7 @@ const icons: Record<string, Component> = {
   notifications: Bell,
   shortcuts: Keyboard,
   voice: Mic,
+  titles: TextCursorInput,
   suggestions: Lightbulb,
   storage: HardDrive,
   system: Server,

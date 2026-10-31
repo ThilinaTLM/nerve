@@ -1,6 +1,7 @@
 import { expect, test } from "@playwright/test";
 import {
   conversationFixture,
+  promptEditor,
   effectiveAgent,
   saveAgentSettings,
   setAgentProfile,
@@ -44,7 +45,7 @@ test("configuration notices update the open composer without replacing its draft
 }) => {
   const f = await conversationFixture(page);
   try {
-    const composer = page.getByRole("textbox").first();
+    const composer = promptEditor(page);
     const conversationId = f.snapshot.conversation.id;
     await composer.fill("Keep this unsent draft");
     await saveAgentSettings(page, conversationId, {

@@ -79,9 +79,9 @@ let {
     <div
       class={cn(
         "min-w-0",
-        layout === "inline" && "flex justify-end",
-        "group-data-settings-divided/surface:flex group-data-settings-divided/surface:justify-end group-data-settings-divided/surface:gap-2",
-        layout === "responsive" && "sm:flex sm:justify-end",
+        layout === "inline" && "flex items-center justify-end",
+        "group-data-settings-divided/surface:flex group-data-settings-divided/surface:items-center group-data-settings-divided/surface:justify-end group-data-settings-divided/surface:gap-2",
+        layout === "responsive" && "sm:flex sm:items-center sm:justify-end",
       )}
     >
       {@render control()}

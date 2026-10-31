@@ -61,6 +61,7 @@ export function isWorkbenchOperation(method: string): boolean {
     "launchFolder.",
     "launchCatalog.",
     "settings.",
+    "conversationTitles.",
     "projectSettings.",
     "applicationConfiguration.",
     "auth.",

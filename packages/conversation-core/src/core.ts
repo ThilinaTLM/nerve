@@ -1,3 +1,5 @@
+import type { ConversationTitleCapability } from "./conversations/ai-title.js";
+import { ReferenceExtraction } from "./conversations/references/reference-extraction.js";
 import { publishSummary } from "./runtime/publish-summary.js";
 import type { AgentConfigurationPort } from "./configuration.js";
 import { createId } from "@nervekit/contracts";
@@ -54,6 +56,9 @@ import { ConversationScheduler } from "./runtime/scheduler.js";
 import { openExecutionId, StatusService } from "./runtime/status.js";
 
 export interface ConversationCoreOptions {
+  /** Read project git remote URLs locally, without contacting the remote. */
+  gitRemotes?(projectId: string): Promise<string[]>;
+  titles?: ConversationTitleCapability;
   configuration: AgentConfigurationPort;
   storage: CoreStorage;
   dataDir: string;
@@ -102,6 +107,7 @@ export class ConversationCore {
   private readonly modelTurn: ModelTurn;
   private readonly status: StatusService;
   private readonly creations = new Map<string, Promise<ConversationSnapshot>>();
+  private readonly referenceTasks = new Set<Promise<void>>();
   private starting?: Promise<void>;
   private closing?: Promise<void>;
   constructor(private readonly options: ConversationCoreOptions) {
@@ -132,7 +138,25 @@ export class ConversationCore {
       },
       (id) => this.scheduler?.isProcessing(id) ?? false,
     );
+    const references = new ReferenceExtraction({
+      storage: options.storage,
+      emit: publish,
+      gitRemotes: options.gitRemotes,
+    });
     const emit = (change: CoreChange) => {
+      if (change.kind === "event_appended") {
+        const task = references
+          .committed(change.event)
+          .catch((error: unknown) =>
+            options.storage.conversations.reportFailure(
+              change.conversationId,
+              "references.extract",
+              error,
+            ),
+          );
+        this.referenceTasks.add(task);
+        void task.finally(() => this.referenceTasks.delete(task));
+      }
       if (change.kind === "event_appended")
         this.status.refresh(change.conversationId);
       if (change.kind === "tool_call_changed") {
@@ -239,6 +263,7 @@ export class ConversationCore {
       emit,
     });
     this.conversations = new ConversationService({
+      titles: options.titles,
       storage: options.storage,
       summary: (id) => options.configuration.summary?.(id) ?? {},
       historyContext: (id) => options.configuration.historyContext?.(id) ?? {},
@@ -607,6 +632,7 @@ export class ConversationCore {
         .listAll()
         .map((conversation) => conversation.id),
     );
+    await Promise.all(this.referenceTasks);
     this.options.storage.close();
   }
 }

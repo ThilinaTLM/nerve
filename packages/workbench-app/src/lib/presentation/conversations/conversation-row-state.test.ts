@@ -8,6 +8,8 @@ import {
 } from "./conversation-activity";
 import {
   conversationNeedsAttention,
+  conversationRowStatusLabel,
+  conversationStatusLabel,
   conversationRowDetail,
   conversationRowGlyph,
 } from "./conversation-row-state";
@@ -70,5 +72,70 @@ test("detail line explains attention states and unseen results only", () => {
   assert.equal(
     conversationNeedsAttention({ ...running, indicator: "result-ready" }),
     false,
+  );
+});
+
+test("short card labels preserve input kind and async running meaning", () => {
+  const cases: [ConversationActivity["indicator"], string | undefined][] = [
+    ["idle", undefined],
+    ["running", "Running"],
+    ["awaiting-async", "Running"],
+    ["error", "Failed"],
+    ["aborted", "Stopped"],
+    ["result-ready", "Finished"],
+    ["completed", "Done"],
+  ];
+  for (const [indicator, expected] of cases)
+    assert.equal(
+      conversationStatusLabel({ ...idleConversationActivity, indicator }),
+      expected,
+    );
+  for (const [statusText, expected] of [
+    ["Question for you", "Question"],
+    ["Researcher · approval needed", "Approval"],
+    ["Planning researcher · approval needed", "Approval"],
+    ["Plan ready for review", "Plan"],
+  ]) {
+    assert.equal(
+      conversationStatusLabel({
+        ...idleConversationActivity,
+        indicator: "needs-user",
+        statusText,
+      }),
+      expected,
+    );
+  }
+});
+
+test("rows label only states that need the user", () => {
+  const labels = (
+    [
+      "running",
+      "awaiting-async",
+      "result-ready",
+      "completed",
+      "idle",
+      "error",
+      "aborted",
+    ] as const
+  ).map((indicator) =>
+    conversationRowStatusLabel({ ...idleConversationActivity, indicator }),
+  );
+  assert.deepEqual(labels, [
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    "Failed",
+    "Stopped",
+  ]);
+  assert.equal(
+    conversationRowStatusLabel({
+      ...idleConversationActivity,
+      indicator: "needs-user",
+      statusText: "Question for you",
+    }),
+    "Question",
   );
 });

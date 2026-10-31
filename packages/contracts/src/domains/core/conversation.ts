@@ -69,6 +69,21 @@ export type ConversationContextConfig = z.infer<
 export type ConversationHistoryConfig = z.infer<
   typeof conversationHistoryConfigSchema
 >;
+export const conversationReferenceSchema = z.object({
+  provider: z.string().min(1),
+  resourceKey: z.string().min(1),
+  kind: z.string().min(1),
+  relationship: z.enum(["referenced", "created"]),
+  url: z
+    .string()
+    .url()
+    .refine((value) => value.startsWith("https://"))
+    .nullable(),
+  container: z.string(),
+  identifier: z.string(),
+});
+export type ConversationReference = z.infer<typeof conversationReferenceSchema>;
+
 export const conversationSummarySchema = conversationSchema
   .omit({
     headEventId: true,
@@ -78,6 +93,7 @@ export const conversationSummarySchema = conversationSchema
   .extend({
     /** Latest input from the parent, including prompts still queued for delivery. */
     lastParentPromptAt: z.string().datetime().nullable().optional(),
+    references: z.array(conversationReferenceSchema),
     childCount: z.number().int().nonnegative(),
     /** Derived from live background work and recursive descendants; never stored. */
     pendingWork: z.boolean(),

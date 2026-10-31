@@ -1,5 +1,6 @@
 <script lang="ts">
 import BookOpenText from "@lucide/svelte/icons/book-open-text";
+import CircleCheck from "@lucide/svelte/icons/circle-check";
 import Code2 from "@lucide/svelte/icons/code-2";
 import Copy from "@lucide/svelte/icons/copy";
 import Compass from "@lucide/svelte/icons/compass";
@@ -7,6 +8,9 @@ import FileDiff from "@lucide/svelte/icons/file-diff";
 import FileText from "@lucide/svelte/icons/file-text";
 import GitPullRequest from "@lucide/svelte/icons/git-pull-request";
 import Logs from "@lucide/svelte/icons/logs";
+import Pin from "@lucide/svelte/icons/pin";
+import PinOff from "@lucide/svelte/icons/pin-off";
+import RotateCcw from "@lucide/svelte/icons/rotate-ccw";
 import MoveLeft from "@lucide/svelte/icons/move-left";
 import MoveRight from "@lucide/svelte/icons/move-right";
 import RefreshCw from "@lucide/svelte/icons/refresh-cw";
@@ -26,6 +30,7 @@ import type {
   CenterTabIdentity,
   CenterTabModel,
 } from "$lib/application/workspace";
+import type { ConversationUpdate } from "$lib/application/workspace/workspace-actions.svelte";
 import { notify } from "$lib/application/notifications/notify.svelte";
 import {
   getShortcutAriaLabel,
@@ -54,6 +59,10 @@ type Props = {
   onToggleFileLineWrap?: (id: string) => void;
   onNew?: () => void;
   onReorder?: (tab: CenterTabIdentity, targetIndex: number) => void;
+  onUpdateConversationState?: (
+    conversationId: string,
+    request: ConversationUpdate,
+  ) => void;
 };
 
 let {
@@ -69,6 +78,7 @@ let {
   onToggleFileLineWrap,
   onNew,
   onReorder,
+  onUpdateConversationState,
 }: Props = $props();
 
 const refreshShortcut = getShortcutLabel("pane.refresh");
@@ -169,7 +179,50 @@ function tabMenu(tab: WorkbenchTabModel): ContextMenuItem[] {
   const index = tabIndex(tabs, source);
   const hasLeft = index > 0;
   const hasRight = index !== -1 && index < tabs.length - 1;
-  const items: ContextMenuItem[] = [];
+
+  // Groups ordered by scope and frequency: the tab's content, closing,
+  // arranging, then rarely used utilities.
+  const content: ContextMenuItem[] = [];
+  const utilities: ContextMenuItem[] = [
+    {
+      label: "Refresh",
+      icon: RefreshCw,
+      shortcut: refreshShortcut,
+      // A prompt snapshot cannot be refreshed in place; reopen it from the composer.
+      disabled: !onRefresh || source.kind === "system-prompt",
+      onSelect: () => onRefresh?.(identity),
+    },
+  ];
+
+  if (source.kind === "conversation") {
+    // Same state actions as the conversation list's context menu.
+    const { conversation } = source;
+    content.push(
+      {
+        label: conversation.pinnedAt ? "Unpin" : "Pin",
+        icon: conversation.pinnedAt ? PinOff : Pin,
+        disabled: !onUpdateConversationState,
+        onSelect: () =>
+          onUpdateConversationState?.(conversation.id, {
+            pinned: !conversation.pinnedAt,
+          }),
+      },
+      {
+        label: conversation.completedAt ? "Reopen" : "Mark done",
+        icon: conversation.completedAt ? RotateCcw : CircleCheck,
+        disabled: !onUpdateConversationState,
+        onSelect: () =>
+          onUpdateConversationState?.(conversation.id, {
+            completed: !conversation.completedAt,
+          }),
+      },
+    );
+    utilities.push({
+      label: "Copy ID",
+      icon: Copy,
+      onSelect: () => void copyToClipboard(conversation.id, "conversation id"),
+    });
+  }
 
   if (source.kind === "file" || source.kind === "mermaid") {
     const absolutePath =
@@ -178,7 +231,7 @@ function tabMenu(tab: WorkbenchTabModel): ContextMenuItem[] {
       source.kind === "file"
         ? (source.relativePath ?? source.file?.relativePath)
         : source.relativePath;
-    items.push(
+    content.push(
       {
         label: "Copy path",
         icon: Copy,
@@ -191,10 +244,9 @@ function tabMenu(tab: WorkbenchTabModel): ContextMenuItem[] {
         disabled: !relativePath,
         onSelect: () => void copyToClipboard(relativePath, "relative path"),
       },
-      { type: "separator" },
     );
     if (source.kind === "file") {
-      items.push({
+      content.push({
         label: fileWrapLabel(source),
         icon: TextAlignStart,
         disabled: !onToggleFileLineWrap,
@@ -203,35 +255,7 @@ function tabMenu(tab: WorkbenchTabModel): ContextMenuItem[] {
     }
   }
 
-  items.push({
-    label: "Refresh",
-    icon: RefreshCw,
-    shortcut: refreshShortcut,
-    // A prompt snapshot cannot be refreshed in place; reopen it from the composer.
-    disabled: !onRefresh || source.kind === "system-prompt",
-    onSelect: () => onRefresh?.(identity),
-  });
-
-  if (onReorder) {
-    items.push(
-      { type: "separator" },
-      {
-        label: "Move left",
-        icon: MoveLeft,
-        disabled: !hasLeft,
-        onSelect: () => onReorder(identity, index - 1),
-      },
-      {
-        label: "Move right",
-        icon: MoveRight,
-        disabled: !hasRight,
-        onSelect: () => onReorder(identity, index + 1),
-      },
-    );
-  }
-
-  items.push(
-    { type: "separator" },
+  const close: ContextMenuItem[] = [
     {
       label: "Close pane",
       icon: X,
@@ -257,9 +281,30 @@ function tabMenu(tab: WorkbenchTabModel): ContextMenuItem[] {
       disabled: !hasLeft || !onCloseLeft,
       onSelect: () => onCloseLeft?.(identity),
     },
-  );
+  ];
 
-  return items;
+  const arrange: ContextMenuItem[] = onReorder
+    ? [
+        {
+          label: "Move left",
+          icon: MoveLeft,
+          disabled: !hasLeft,
+          onSelect: () => onReorder(identity, index - 1),
+        },
+        {
+          label: "Move right",
+          icon: MoveRight,
+          disabled: !hasRight,
+          onSelect: () => onReorder(identity, index + 1),
+        },
+      ]
+    : [];
+
+  return [content, close, arrange, utilities]
+    .filter((group) => group.length > 0)
+    .flatMap((group, groupIndex) =>
+      groupIndex === 0 ? group : [{ type: "separator" as const }, ...group],
+    );
 }
 </script>
 

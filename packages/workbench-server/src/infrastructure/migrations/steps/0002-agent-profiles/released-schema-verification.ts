@@ -21,6 +21,31 @@ function normalizedSql(sql: unknown): string {
     .join(" ");
 }
 
+/** New final tables introduced by the reviewed SQL, excluding rebuilt originals. */
+export function reviewedNewTables(
+  original: readonly TableSql[],
+  reviewedSql: string,
+): TableSql[] {
+  const existing = new Set(original.map((table) => table.name));
+  const renames = new Map(
+    [...reviewedSql.matchAll(/ALTER TABLE (\w+) RENAME TO (\w+);/g)].map(
+      (match) => [match[1], match[2]],
+    ),
+  );
+  return [...reviewedSql.matchAll(/CREATE TABLE (\w+) \([\s\S]*?\) STRICT;/g)]
+    .map((match) => {
+      const name = renames.get(match[1]) ?? match[1];
+      return {
+        name,
+        sql: match[0].replace(
+          `CREATE TABLE ${match[1]} (`,
+          `CREATE TABLE ${name} (`,
+        ),
+      };
+    })
+    .filter((table) => !existing.has(table.name));
+}
+
 /** Compare complete sqlite_master table definitions, not just foreign_key_list:
  * that PRAGMA omits DEFERRABLE / INITIALLY DEFERRED. All surviving original
  * tables are checked, so inbound FKs cannot evade this check by being removed. */
@@ -37,6 +62,8 @@ export function verifyConvertedTableSql(
     baseline.delete("conversation_config"),
     "Released configuration table missing",
   );
+  for (const table of reviewedNewTables(original, reviewedSql))
+    baseline.set(table.name, table.sql);
   assert.deepEqual(
     [...current.keys()].sort(),
     [...baseline.keys()].sort(),

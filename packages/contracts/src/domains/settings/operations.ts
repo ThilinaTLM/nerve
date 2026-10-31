@@ -2,13 +2,26 @@ import {
   applicationConfigurationSnapshotSchema,
   updateApplicationConfigurationRequestSchema,
 } from "./application-configuration.js";
-import { settingsSchema, updateSettingsRequestSchema } from "./settings.js";
+import {
+  titleTestResultSchema,
+  settingsSchema,
+  updateSettingsRequestSchema,
+} from "./settings.js";
 import { z } from "zod";
 import { defineOperation } from "../../operations/definition.js";
 
 const emptyParamsSchema = z.object({}).optional();
 
 export const settingsOperationDefinitions = [
+  defineOperation(
+    "conversationTitles.test",
+    z.strictObject({}).optional(),
+    titleTestResultSchema,
+    "mutation",
+    "recommended",
+    ["workbench_server"] as const,
+    "operation.conversationTitles.test",
+  ),
   defineOperation(
     "settings.get",
     emptyParamsSchema,

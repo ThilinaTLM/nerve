@@ -55,4 +55,13 @@ await test("D10 rebuild preserves the complete released conversation definition 
   );
   assert(!coreSchemaV2.includes("CREATE TABLE conversation_config"));
   assert(!coreSchemaV2.includes("CREATE TABLE conversation_config_new"));
+  assert.match(coreSchemaV2, /CREATE TABLE conversation_reference \(/);
+  assert.match(
+    coreSchemaV2,
+    /conversation_id TEXT NOT NULL REFERENCES conversation\(id\) ON DELETE CASCADE/,
+  );
+  assert.match(
+    coreSchemaV2,
+    /PRIMARY KEY \(conversation_id, provider, resource_key\)/,
+  );
 });

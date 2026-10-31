@@ -58,11 +58,12 @@ Application `*Host` components are state/effect adapters around canonical featur
   `SettingsEmptyState variant="card"`, the model catalog). Group related
   controls into few sections.
 - **Show provenance only when it differs.** A setting that matches where it
-  would otherwise come from shows nothing. One that differs (a project value
+  would otherwise come from shows nothing: no per-row source badges. One that
+  differs (a user value that differs from the built-in default, a project value
   that differs from the user's, a conversation value that differs from its
   profile) gets `SettingsChangeIndicator` (a `bg-info` dot opening a popover,
-  plus ↺ to reset) in the row's `badges` slot, and pages summarise them with
-  `SettingsDiffBanner` ("N settings differ · Reset all"). Fixed values say who
+  plus ↺ to reset) in the row's `badges` slot. Project pages summarise them in
+  the page header ("N differ · Reset all"). Fixed values say who
   fixed them in a tooltip ("Locked by Planning"), not a disabled-looking input.
 - **Entity cards.** `EntityCard` is one card per entity: header (title, then
   badges, actions on the right), muted description, `EntityRow` changes divided

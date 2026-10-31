@@ -131,6 +131,13 @@ async function workbenchRpc<M extends OperationName>(
   return envelope.data.result;
 }
 
+/** Target the prompt editor, not search fields elsewhere in the workbench. */
+export function promptEditor(page: Page) {
+  return page
+    .getByRole("group", { name: "Prompt editor drop area", exact: true })
+    .getByRole("textbox");
+}
+
 export async function conversationFixture(page: Page) {
   // A tiny real provider keeps composer/model-picker behavior on the public path.
   const server = createServer(async (request, response) => {
@@ -233,11 +240,7 @@ export async function conversationFixture(page: Page) {
           page.getByRole("tab", { name: title, exact: true }),
         ).toHaveAttribute("aria-selected", "true");
       }
-      await expect(
-        page
-          .getByRole("group", { name: "Prompt editor drop area", exact: true })
-          .getByRole("textbox"),
-      ).toBeVisible();
+      await expect(promptEditor(page)).toBeVisible();
     };
     await open(snapshot.conversation.title);
     return {

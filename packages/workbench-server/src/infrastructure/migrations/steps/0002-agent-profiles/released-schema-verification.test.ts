@@ -1,7 +1,10 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { coreMigrations } from "@nervekit/conversation-core";
-import { verifyConvertedTableSql } from "./released-schema-verification.js";
+import {
+  reviewedNewTables,
+  verifyConvertedTableSql,
+} from "./released-schema-verification.js";
 
 // Released/reviewed SQL text only. No SQLite fixture, handles or DDL execution.
 const originalSql = coreMigrations.find(
@@ -26,7 +29,13 @@ function converted() {
         name: table.name,
         sql: statement.replace(`${table.name}_new`, `"${table.name}"`),
       };
-    });
+    })
+    .concat(
+      reviewedNewTables(original, reviewed).map((table) => ({
+        name: table.name,
+        sql: String(table.sql),
+      })),
+    );
 }
 
 await test("converted sqlite_master definitions preserve reviewed conversation deferral and original inbound table SQL", () => {
@@ -125,5 +134,54 @@ await test("comment normalization cannot hide a deferred inbound FK becoming imm
   assert.throws(
     () => verifyConvertedTableSql(current, source, reviewed),
     /table SQL changed: inbound/,
+  );
+});
+
+await test("new tables must be present with the exact reviewed definition, including cascading foreign keys", () => {
+  const added = reviewedNewTables(original, reviewed);
+  assert.deepEqual(
+    added.map((table) => table.name),
+    ["conversation_reference"],
+  );
+  assert.throws(
+    () =>
+      verifyConvertedTableSql(
+        converted().filter((table) => table.name !== "conversation_reference"),
+        original,
+        reviewed,
+      ),
+    /table set/,
+  );
+  for (const mutate of [
+    (sql: string) => sql.replace("ON DELETE CASCADE", "ON DELETE RESTRICT"),
+    (sql: string) =>
+      sql.replace("REFERENCES conversation(id)", "REFERENCES project(id)"),
+    (sql: string) =>
+      sql.replace("source_event_id TEXT NOT NULL", "source_event_id TEXT"),
+  ]) {
+    const changed = converted();
+    const reference = changed.find(
+      (table) => table.name === "conversation_reference",
+    )!;
+    reference.sql = mutate(reference.sql);
+    assert.throws(
+      () => verifyConvertedTableSql(changed, original, reviewed),
+      /table SQL changed: conversation_reference/,
+    );
+  }
+  assert.throws(
+    () =>
+      verifyConvertedTableSql(
+        [
+          ...converted(),
+          {
+            name: "unreviewed",
+            sql: "CREATE TABLE unreviewed (id TEXT) STRICT;",
+          },
+        ],
+        original,
+        reviewed,
+      ),
+    /table set/,
   );
 });

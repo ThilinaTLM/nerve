@@ -35,7 +35,7 @@ let {
 
 {#if header}
   <div
-    class="grid flex-none gap-0.5 border-b px-2 pb-3 @max-[46rem]/settings-page:border-b-0 @max-[46rem]/settings-page:pb-1"
+    class="grid flex-none gap-0.5 border-b px-2 pb-2 @max-[46rem]/settings-page:border-b-0 @max-[46rem]/settings-page:pb-1"
   >
     <p class="text-sm font-semibold text-foreground">{header.title}</p>
     {#if header.subtitle}
@@ -58,13 +58,13 @@ let {
 
 <nav
   aria-label={ariaLabel}
-  class="grid min-h-0 flex-1 content-start gap-4 overflow-y-auto pt-0 @max-[46rem]/settings-page:flex @max-[46rem]/settings-page:gap-1 @max-[46rem]/settings-page:overflow-x-auto @max-[46rem]/settings-page:pt-0"
+  class="grid min-h-0 flex-1 content-start gap-3 overflow-y-auto pt-0 @max-[46rem]/settings-page:flex @max-[46rem]/settings-page:gap-1 @max-[46rem]/settings-page:overflow-x-auto @max-[46rem]/settings-page:pt-0"
 >
   {#each groups as group (group.id)}
     <div class="grid gap-0.5 @max-[46rem]/settings-page:flex">
       {#if group.title}
         <p
-          class="px-2 pb-1 text-xs font-medium text-muted-foreground @max-[46rem]/settings-page:hidden"
+          class="px-2 pb-0.5 text-xs font-medium text-muted-foreground @max-[46rem]/settings-page:hidden"
         >
           {group.title}
         </p>
@@ -77,7 +77,7 @@ let {
           disabled={item.disabled}
           aria-current={current ? "page" : undefined}
           class={cn(
-            "group/nav flex w-full min-w-0 cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm text-foreground outline-none transition-colors hover:bg-accent/60 focus-visible:ring-3 focus-visible:ring-ring/50 disabled:pointer-events-none disabled:opacity-50 @max-[46rem]/settings-page:w-auto @max-[46rem]/settings-page:flex-none",
+            "group/nav flex w-full min-w-0 cursor-pointer items-center gap-2 h-control rounded-md px-2 text-left text-sm text-foreground outline-none transition-colors hover:bg-accent/60 focus-visible:ring-3 focus-visible:ring-ring/50 disabled:pointer-events-none disabled:opacity-50 @max-[46rem]/settings-page:w-auto @max-[46rem]/settings-page:flex-none",
             current && "bg-selected font-medium hover:bg-selected",
           )}
           onclick={() => onSelect(item.id)}

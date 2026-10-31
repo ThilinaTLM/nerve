@@ -38,3 +38,50 @@ export function conversationRowDetail(
     return undefined;
   return { text: activity.statusText, tone: activity.tone };
 }
+
+/** Compact card label; full activity text remains available to assistive technology. */
+/**
+ * Short label shown on a row's second line. Routine states (running, waiting
+ * on background work, finished, done) rely on the rail glyph alone; only
+ * states that need the user get text. Search still matches every label.
+ */
+export function conversationRowStatusLabel(
+  activity: ConversationActivity,
+): string | undefined {
+  switch (activity.indicator) {
+    case "needs-user":
+    case "error":
+    case "aborted":
+      return conversationStatusLabel(activity);
+    default:
+      return undefined;
+  }
+}
+
+export function conversationStatusLabel(
+  activity: ConversationActivity,
+): string | undefined {
+  switch (activity.indicator) {
+    case "needs-user": {
+      const text = activity.statusText?.toLowerCase() ?? "";
+      return text.endsWith("plan ready for review")
+        ? "Plan"
+        : text.endsWith("question for you")
+          ? "Question"
+          : "Approval";
+    }
+    case "error":
+      return "Failed";
+    case "aborted":
+      return "Stopped";
+    case "result-ready":
+      return "Finished";
+    case "running":
+    case "awaiting-async":
+      return "Running";
+    case "completed":
+      return "Done";
+    default:
+      return undefined;
+  }
+}

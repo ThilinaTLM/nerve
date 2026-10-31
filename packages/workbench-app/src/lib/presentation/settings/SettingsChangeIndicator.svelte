@@ -1,7 +1,8 @@
 <!--
-  Shown only when a value differs from where it would otherwise come from (for
-  example, a project setting that differs from the user's). The dot opens a
-  popover that explains why; ↺ puts the inherited value back.
+  Shown only when a value differs from where it would otherwise come from: a
+  user setting that differs from the built-in default, or a project setting
+  that differs from the user's. The dot opens a popover that explains why; ↺
+  puts the inherited value back.
 -->
 <script lang="ts">
 import ArrowRight from "@lucide/svelte/icons/arrow-right";
@@ -14,25 +15,38 @@ import Popover, {
 import { Button } from "@nervekit/ui-kit/components/ui/button";
 
 type Props = {
-  /** What the value would be otherwise, e.g. "User: Claude Sonnet 4.5". */
+  /** The scope being edited; decides the inherited layer's name. */
+  scope: "user" | "project";
+  /** The inherited value, e.g. "Claude Sonnet 4.5". */
   from: string;
-  /** The current value with its source, e.g. "This project: GPT-5". */
+  /** The value set at this scope, e.g. "GPT-5". */
   to: string;
-  title?: string;
-  resetLabel?: string;
   onReset: () => void;
   /** Dot only; the reset lives in the popover (dense grids). */
   compact?: boolean;
 };
 
-let {
-  from,
-  to,
-  title = "Changed for this project",
-  resetLabel = "Reset to user setting",
-  onReset,
-  compact = false,
-}: Props = $props();
+let { scope, from, to, onReset, compact = false }: Props = $props();
+
+const labels = $derived(
+  scope === "project"
+    ? {
+        title: "Changed for this project",
+        from: "User",
+        to: "This project",
+        reset: "Reset to user setting",
+      }
+    : {
+        title: "Changed from default",
+        from: "Default",
+        to: "User",
+        reset: "Reset to default",
+      },
+);
+const title = $derived(labels.title);
+const resetLabel = $derived(labels.reset);
+const fromText = $derived(`${labels.from}: ${from}`);
+const toText = $derived(`${labels.to}: ${to}`);
 
 let open = $state(false);
 </script>
@@ -42,7 +56,7 @@ let open = $state(false);
     bind:open
     size="sm"
     align="start"
-    ariaLabel={`${title}. ${from} → ${to}`}
+    ariaLabel={`${title}. ${fromText} → ${toText}`}
     triggerClass="inline-flex size-4 cursor-pointer items-center justify-center rounded-full focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
   >
     {#snippet trigger()}
@@ -51,13 +65,13 @@ let open = $state(false);
     <PopoverHeader {title} />
     <PopoverBody>
       <div class="grid gap-2 px-2.5 pb-2 text-xs">
-        <p class="text-muted-foreground">{from}</p>
+        <p class="text-muted-foreground">{fromText}</p>
         <p class="flex items-center gap-1.5 text-foreground">
           <ArrowRight
             class="size-3 flex-none text-muted-foreground"
             aria-hidden="true"
           />
-          {to}
+          {toText}
         </p>
         <Button
           size="sm"

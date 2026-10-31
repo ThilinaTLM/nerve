@@ -36,7 +36,15 @@ function settingsDocumentsTouched(
   const ids = new Set<HomeConfigurationDocumentId>();
   for (const key of Object.keys(patch)) {
     if (["application", "logging"].includes(key)) ids.add("daemon");
-    else if (["ui", "desktop", "notifications", "transcription"].includes(key))
+    else if (
+      [
+        "ui",
+        "desktop",
+        "notifications",
+        "transcription",
+        "conversationTitles",
+      ].includes(key)
+    )
       ids.add("ui");
     else if (key === "providers") ids.add("integrations");
     else if (key === "permissions") ids.add("permissions");

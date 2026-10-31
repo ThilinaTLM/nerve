@@ -1,3 +1,9 @@
+import { conversationTitleToPlainText } from "@nervekit/contracts/core";
+import ExternalLink from "@lucide/svelte/icons/external-link";
+import {
+  referenceDescription,
+  referenceHttpsUrl,
+} from "$lib/presentation/conversations/conversation-references";
 import MessageSquarePlus from "@lucide/svelte/icons/message-square-plus";
 import MessageSquareText from "@lucide/svelte/icons/message-square-text";
 import Copy from "@lucide/svelte/icons/copy";
@@ -201,6 +207,22 @@ export function buildConversationMenu(
         }),
     });
   }
+  const referenceItems: ContextMenuItem[] = conversation.references.flatMap(
+    (reference) => {
+      const url = referenceHttpsUrl(reference);
+      return url
+        ? [
+            {
+              label: referenceDescription(reference),
+              icon: ExternalLink,
+              onSelect: () => {
+                window.open(url, "_blank", "noopener,noreferrer");
+              },
+            },
+          ]
+        : [];
+    },
+  );
   return [
     {
       label: "Open",
@@ -215,6 +237,16 @@ export function buildConversationMenu(
     },
     { type: "separator" },
     ...stateItems,
+    ...(referenceItems.length
+      ? [
+          {
+            type: "submenu" as const,
+            label: "Open on GitHub",
+            icon: ExternalLink,
+            items: referenceItems,
+          },
+        ]
+      : []),
     { type: "separator" },
     {
       label: "Copy ID",
@@ -229,7 +261,7 @@ export function buildConversationMenu(
         ctx.requestDelete({
           kind: "conversation",
           id: conversation.id,
-          label: conversation.title,
+          label: conversationTitleToPlainText(conversation.title),
         }),
     },
   ];

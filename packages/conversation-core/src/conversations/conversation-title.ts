@@ -1,3 +1,9 @@
+import {
+  IMAGE_FILE_EXTENSIONS,
+  hasImageReference,
+  normalizeTitleImages,
+} from "./conversation-title-images.js";
+import { CONVERSATION_TITLE_IMAGE_MARKER } from "@nervekit/contracts/core";
 const DEFAULT_CONVERSATION_TITLE = "New Conversation";
 const IMAGE_REVIEW_TITLE = "Image Review";
 const FILE_REVIEW_TITLE = "File Review";
@@ -100,7 +106,11 @@ function protectReferences(input: string): {
     references.push(reference);
     return placeholder(references.length - 1);
   };
-  let text = stripCodeBlocks(input).replace(/!\[[^\]\n]*\]\([^)\n]*\)/gu, " ");
+  let text = normalizeTitleImages(stripCodeBlocks(input)).replaceAll(
+    CONVERSATION_TITLE_IMAGE_MARKER,
+    () =>
+      record({ display: CONVERSATION_TITLE_IMAGE_MARKER, identity: "image" }),
+  );
   text = text.replace(
     /\[([^\]\n]*)\]\((https?:\/\/[^\s)]+)\)/giu,
     (original, label: string, destination: string) => {
@@ -269,18 +279,6 @@ const COMMON_FILE_EXTENSIONS = [
   "xml",
   "yaml",
   "yml",
-].join("|");
-
-const IMAGE_FILE_EXTENSIONS = [
-  "avif",
-  "bmp",
-  "gif",
-  "jpeg",
-  "jpg",
-  "png",
-  "svg",
-  "tiff",
-  "webp",
 ].join("|");
 
 const ACTION_WORDS = [
@@ -639,15 +637,24 @@ function finalClean(title: string, references: TitleReference[]): string {
     .replace(/\s+/gu, " ")
     .trim();
   if (!cleaned) return "";
-  // Remove duplicates only across an unambiguous list connector.
+  // Deduplicate reference labels at prose boundaries, never inside identifiers.
   const seen = new Set<string>();
   cleaned = cleaned.replace(
-    /(?:\s+and\s+|,\s*)?\uE000(\d+)\uE001/gu,
-    (match, index: string) => {
-      const identity = references[Number(index)]?.identity ?? index;
+    /(?:\s+and\s+|,\s*|(^|\s)([\p{L}\p{N}_-]+)\s+)?\uE000(\d+)\uE001/gu,
+    (
+      match,
+      space: string | undefined,
+      word: string | undefined,
+      index: string,
+    ) => {
+      const reference = references[Number(index)];
+      const identity = reference?.identity ?? index;
       if (seen.has(identity) && /^(?:\s+and\s+|,)/u.test(match)) return "";
       seen.add(identity);
-      return match;
+      return word?.toLowerCase() ===
+        reference?.display.split(/\s/u)[0]?.toLowerCase()
+        ? (space ?? "") + placeholder(Number(index))
+        : match;
     },
   );
   const distinct = new Set(
@@ -726,13 +733,6 @@ function finalClean(title: string, references: TitleReference[]): string {
     : capitalizeSafely(result);
 }
 
-function hasImageReference(text: string): boolean {
-  return new RegExp(
-    String.raw`(?:!\[[^\]]*\]\([^)]*\.(?:${IMAGE_FILE_EXTENSIONS})(?:[?#][^)]*)?\)|\b[A-Za-z]:[\\/][^\s),;]+\.(?:${IMAGE_FILE_EXTENSIONS})(?::\d+(?::\d+)?)?|(?:^|\s)(?:~|\.{1,2}|/)?(?:[\w.-]+[\\/])+[\w.-]+\.(?:${IMAGE_FILE_EXTENSIONS})(?::\d+(?::\d+)?)?|\b[\w.-]+\.(?:${IMAGE_FILE_EXTENSIONS})(?::\d+(?::\d+)?)?)`,
-    "i",
-  ).test(text);
-}
-
 function hasFileReference(text: string): boolean {
   return fileReferencePattern().test(text);
 }
@@ -763,22 +763,38 @@ function fallbackTitle(text: string): string {
 
 export function deriveConversationTitle(text: string): string {
   // Cap every downstream scan, including malformed/unclosed code fences.
-  text = text.slice(0, MAX_INPUT_LENGTH).replace(/[\uE000\uE001]/gu, "");
+  text = text.slice(0, MAX_INPUT_LENGTH).replace(/[\uE000\uE001\uE002]/gu, "");
   if (isGreetingOnly(text)) return GENERAL_CHAT_TITLE;
   const protectedPrompt = protectReferences(text);
+  if (
+    !protectedPrompt.text
+      .replace(PLACEHOLDER, "")
+      .replace(/[^\p{L}\p{N}]/gu, "") &&
+    (hasImageReference(text) || /!\[[^\]]*\]\(/u.test(text))
+  )
+    return IMAGE_REVIEW_TITLE;
   const entities = collectExplicitEntities(protectedPrompt.text);
   const candidates = candidateFragments(protectedPrompt.text, entities);
+  const imageIndex = protectedPrompt.references.findIndex(
+    (reference) => reference.identity === "image",
+  );
   let best: TitleCandidate | undefined;
   let bestScore = Number.NEGATIVE_INFINITY;
   for (const candidate of candidates) {
+    if (imageIndex >= 0 && candidate.text.trim() === placeholder(imageIndex))
+      continue;
     const score = scoreCandidate(candidate);
     if (score > bestScore) {
       best = candidate;
       bestScore = score;
     }
   }
+  const bestText =
+    best && imageIndex >= 0 && !best.text.includes(placeholder(imageIndex))
+      ? `${best.text} ${placeholder(imageIndex)}`
+      : best?.text;
   return (
-    (best && finalClean(best.text, protectedPrompt.references)) ||
+    (bestText && finalClean(bestText, protectedPrompt.references)) ||
     fallbackTitle(text)
   );
 }

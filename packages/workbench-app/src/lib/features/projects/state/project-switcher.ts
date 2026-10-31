@@ -1,3 +1,4 @@
+import { conversationLastUserPromptAt } from "@nervekit/contracts/core";
 import type { StatusTone } from "@nervekit/ui-kit/display/status";
 import type { LaunchRecord } from "$lib/api";
 import type { ConversationSummary } from "@nervekit/contracts/core";
@@ -5,7 +6,6 @@ import type { Project } from "@nervekit/contracts/core";
 import type { ProjectRecord } from "$lib/domain/projects/sidebar-view-models";
 import { isPathInDirectory } from "$lib/domain/filesystem/project-path";
 import {
-  conversationLastUserPromptAt,
   projectFolderName,
   projectKey,
   shortProjectLabel,

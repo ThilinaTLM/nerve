@@ -1,3 +1,4 @@
+import { conversationTitleToPlainText } from "@nervekit/contracts/core";
 import { ProjectMigrationService } from "../../infrastructure/configuration/project-migration/project-migration.js";
 import { suggestionConfiguration } from "./prompt-suggestion-migrations.js";
 import { mkdir, open } from "node:fs/promises";
@@ -83,7 +84,7 @@ export class PromptSuggestionService {
     const conversation = snapshot
       ? {
           id: snapshot.conversation.id,
-          title: snapshot.conversation.title,
+          title: conversationTitleToPlainText(snapshot.conversation.title),
           status: snapshot.conversation.status,
           permissionRuleSetId: agent!.permissionRuleSetId,
           reasoningLevel: agent!.reasoningLevel,

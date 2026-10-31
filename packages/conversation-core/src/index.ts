@@ -96,3 +96,11 @@ export type {
   ConversationContext,
   ConfigurationPreviewInput,
 } from "./configuration.js";
+
+export {
+  TITLE_SYSTEM_INSTRUCTION,
+  prepareTitleInput,
+  validateGeneratedTitle,
+  type TitleGenerationInput,
+  type ConversationTitleCapability,
+} from "./conversations/ai-title.js";

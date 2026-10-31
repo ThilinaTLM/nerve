@@ -1,4 +1,5 @@
 <script lang="ts">
+import { gitSelectors } from "$lib/features/git";
 import ProjectConversationNavigator from "$lib/features/projects/views/ProjectConversationNavigator.svelte";
 import { projectNavigatorSignals } from "$lib/features/projects/state/project-navigator-signals.svelte";
 import {
@@ -44,6 +45,12 @@ const conversationActivityById = $derived(
   {projects}
   {conversations}
   {agents}
+  currentRepositories={Object.fromEntries(
+    projects.map((project) => [
+      project.id,
+      gitSelectors.githubRepository(project.id),
+    ]),
+  )}
   homeDir={status?.storage.userHome}
   selectedProjectId={selection.projectId}
   selectedConversationId={selection.conversationId}

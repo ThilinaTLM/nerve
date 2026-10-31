@@ -1,4 +1,5 @@
 <script lang="ts">
+import TitlesSettingsPage from "$lib/features/settings/views/pages/titles/TitlesSettingsPage.svelte";
 import ToolsSettingsPage from "$lib/features/settings/views/pages/tools/ToolsSettingsPage.svelte";
 import SkillsSettingsPage from "$lib/features/settings/views/pages/skills/SkillsSettingsPage.svelte";
 import ProfilesSettingsPage from "$lib/features/settings/views/pages/agent-profiles/ProfilesSettingsPage.svelte";
@@ -134,6 +135,13 @@ const projectId = $derived(
     />
   {:else if page.id === "notifications"}
     <NotificationsSettingsPage {settingsDraft} {onSettingsChange} />
+  {:else if page.id === "titles"}
+    <TitlesSettingsPage
+      {settingsDraft}
+      {onSettingsChange}
+      {models}
+      {authProviders}
+    />
   {:else if page.id === "voice"}
     <VoiceSettingsPage {settingsDraft} {onSettingsChange} />
   {:else if page.id === "shortcuts"}

@@ -20,7 +20,7 @@ describe("settings page registry", () => {
         "Catalog",
         ["agents", "sub-agents", "permission-rules", "models", "suggestions"],
       ],
-      ["App", ["workbench", "notifications", "shortcuts", "voice"]],
+      ["App", ["workbench", "notifications", "shortcuts", "voice", "titles"]],
       ["System", ["storage", "system"]],
     ]);
   });

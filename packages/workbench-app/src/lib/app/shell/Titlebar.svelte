@@ -59,7 +59,7 @@ let {
   developmentSlot,
   headerType = "linux",
   maximized = false,
-  closeToTray = true,
+  closeToTray = false,
   quitting = false,
   settingsActive = false,
   discoverActive = false,
