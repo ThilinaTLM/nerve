@@ -39,7 +39,11 @@ type Props = {
   currentVersion?: string;
   latestRelease?: LatestRelease;
   buildProjectMenuItems?: (item: ProjectSwitcherItem) => ContextMenuItem[];
+  projectSwitcherOpen?: boolean;
   onOpenProject?: () => void;
+  onOpenProjectPath?: (path: string) => void;
+  /** Set only where the OS folder picker is truthful (desktop + local daemon). */
+  onUseSystemPicker?: () => void;
   onSelectProject?: (projectId: string) => void;
   onOpenLogs?: () => void;
   onOpenDiscover?: () => void;
@@ -69,7 +73,10 @@ let {
   currentVersion,
   latestRelease,
   buildProjectMenuItems,
+  projectSwitcherOpen = $bindable(false),
   onOpenProject,
+  onOpenProjectPath,
+  onUseSystemPicker,
   onSelectProject,
   onOpenLogs,
   onOpenDiscover,
@@ -104,8 +111,11 @@ let {
       activeKey={activeProjectKey}
       {homeDir}
       buildMenuItems={buildProjectMenuItems}
+      bind:open={projectSwitcherOpen}
       onSelect={onSelectProject}
       onOpenPicker={onOpenProject}
+      onOpenPath={onOpenProjectPath}
+      {onUseSystemPicker}
     />
   {/snippet}
 

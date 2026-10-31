@@ -1,3 +1,7 @@
+import {
+  createDirectory,
+  getFilesystemLocations,
+} from "../../../domains/filesystem/filesystem-browser.js";
 import { type UpdateApplicationConfigurationRequest } from "@nervekit/contracts/settings";
 import {
   providerApiKeySecretName,
@@ -104,6 +108,9 @@ export const platformMethodHandlers: WorkbenchMethodHandlerMapFor<PlatformMethod
     "usage.subscription.get": async (state) => ({
       usage: await state.subscriptionUsage.getSnapshots({ refresh: true }),
     }),
+    "filesystem.locations.get": () => getFilesystemLocations(),
+    "filesystem.directories.create": (_state, params) =>
+      createDirectory(params.parent, params.name),
     "filesystem.directories.list": (_state, params) =>
       directoryListing(params?.path, params?.showHidden as boolean | undefined),
     "filesystem.project.entries.list": (state, params) =>

@@ -58,6 +58,7 @@ function shortcutOptions(
     selectCenterTab: () => undefined,
     newConversation: () => undefined,
     openProjectPicker: () => undefined,
+    openFolder: () => undefined,
     closeCenterTab,
     closeCenterTabs: () => undefined,
     centerTabsExcept: () => [],

@@ -1,4 +1,8 @@
+import { z } from "zod";
 import {
+  filesystemLocationsSchema,
+  filesystemDirectoryCreateRequestSchema,
+  filesystemDirectoryCreateResponseSchema,
   filesystemDirectoryQuerySchema,
   filesystemDirectoryResponseSchema,
   filesystemProjectEntriesQuerySchema,
@@ -14,6 +18,24 @@ import {
 import { defineOperation } from "../../operations/definition.js";
 
 export const filesystemOperationDefinitions = [
+  defineOperation(
+    "filesystem.locations.get",
+    z.undefined(),
+    filesystemLocationsSchema,
+    "read",
+    "none",
+    ["workbench_server"] as const,
+    "operation.filesystem.locations.get",
+  ),
+  defineOperation(
+    "filesystem.directories.create",
+    filesystemDirectoryCreateRequestSchema,
+    filesystemDirectoryCreateResponseSchema,
+    "mutation",
+    "recommended",
+    ["workbench_server"] as const,
+    "operation.filesystem.directories.create",
+  ),
   defineOperation(
     "filesystem.directories.list",
     filesystemDirectoryQuerySchema.optional(),

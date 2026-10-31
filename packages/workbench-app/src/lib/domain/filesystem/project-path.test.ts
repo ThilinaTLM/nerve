@@ -40,4 +40,9 @@ describe("workbench path helpers", () => {
     assert.equal(samePath("/Users/Alice", "/users/alice"), false);
     assert.equal(isPathInDirectory("/repo-old", "/repo"), false);
   });
+
+  it("honours a case-insensitive daemon filesystem", () => {
+    assert.equal(samePath("/Users/Alice", "/users/alice", true), true);
+    assert.equal(pathKey("/Users/Alice/", true), "/users/alice");
+  });
 });

@@ -4,6 +4,7 @@ import type {
   HtmlPreviewCreateResponse,
   AttachmentUploadResponse,
   FilesystemDirectoryResponse,
+  FilesystemLocations,
   FilesystemFileResponse,
   FilesystemFileSaveRequest,
   FilesystemProjectEntriesQuery,
@@ -48,6 +49,20 @@ export async function uploadAttachment(file: File): Promise<string> {
     },
   );
   return response.path;
+}
+
+export async function getFilesystemLocations(): Promise<FilesystemLocations> {
+  return await requestWorkbench("filesystem.locations.get", undefined);
+}
+
+export async function createDirectory(
+  parent: string,
+  name: string,
+): Promise<{ path: string }> {
+  return await requestWorkbench("filesystem.directories.create", {
+    parent,
+    name,
+  });
 }
 
 export async function listDirectories(

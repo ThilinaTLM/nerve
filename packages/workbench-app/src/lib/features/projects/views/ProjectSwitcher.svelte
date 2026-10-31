@@ -1,7 +1,9 @@
 <script lang="ts">
-import FolderSearch from "@lucide/svelte/icons/folder-search";
+import AppWindow from "@lucide/svelte/icons/app-window";
+import FolderOpen from "@lucide/svelte/icons/folder-open";
 import LayoutGrid from "@lucide/svelte/icons/layout-grid";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
+import { Kbd } from "@nervekit/ui-kit/components/ui/kbd";
 import type { ContextMenuItem } from "@nervekit/ui-kit/components/composites/context-menu-list";
 import Popover, {
   PopoverCommandList,
@@ -10,8 +12,11 @@ import Popover, {
 } from "@nervekit/ui-kit/components/composites/popover-panel";
 import * as Tooltip from "@nervekit/ui-kit/components/ui/tooltip";
 import { ItemSurface } from "$lib/presentation";
-import { getShortcutAriaLabel } from "$lib/application/commands/command-registry";
-import { tildePath } from "$lib/domain/filesystem/project-path";
+import {
+  getShortcutAriaLabel,
+  getShortcutLabel,
+} from "$lib/application/commands/command-registry";
+import { looksLikePath, tildePath } from "$lib/domain/filesystem/project-path";
 import {
   projectActivitySignal,
   type ProjectActivitySignal,
@@ -26,8 +31,15 @@ type Props = {
   activeKey?: string;
   homeDir?: string;
   buildMenuItems?: (item: ProjectSwitcherItem) => ContextMenuItem[];
+  /** Popover state; bindable so shortcuts can open the switcher. */
+  open?: boolean;
   onSelect?: (projectId: string) => void;
+  /** Open Nerve's folder browser. */
   onOpenPicker?: () => void;
+  /** Open a typed path directly. */
+  onOpenPath?: (path: string) => void;
+  /** Present only where the OS picker is truthful (desktop + local daemon). */
+  onUseSystemPicker?: () => void;
 };
 
 let {
@@ -36,13 +48,27 @@ let {
   activeKey,
   homeDir,
   buildMenuItems,
+  open: popoverOpen = $bindable(false),
   onSelect,
   onOpenPicker,
+  onOpenPath,
+  onUseSystemPicker,
 }: Props = $props();
 
-let popoverOpen = $state(false);
 let query = $state("");
-const commandItems = $derived(
+const typedPath = $derived(query.trim());
+const openPathItem = $derived(
+  onOpenPath && looksLikePath(typedPath)
+    ? {
+        key: "open-path",
+        openPath: typedPath,
+        label: `Open ${typedPath}`,
+        group: "Open",
+        keywords: [typedPath],
+      }
+    : undefined,
+);
+const projectRows = $derived(
   popoverItems.map((item) => ({
     ...item,
     group:
@@ -56,6 +82,10 @@ const commandItems = $derived(
     keywords: [item.project.name, item.project.dir],
   })),
 );
+const commandItems = $derived(
+  openPathItem ? [openPathItem, ...projectRows] : projectRows,
+);
+const openFolderShortcut = getShortcutLabel("project.openFolder");
 
 const switchAria = getShortcutAriaLabel("conversation.newFromProject");
 function tabLabel(item: ProjectSwitcherItem): string {
@@ -75,14 +105,20 @@ function handleOpenChange(open: boolean) {
   query = "";
 }
 
-function chooseProject(item: ProjectSwitcherItem) {
+function chooseProject(item: (typeof commandItems)[number]) {
   popoverOpen = false;
-  onSelect?.(item.project.id);
+  if ("openPath" in item) onOpenPath?.(item.openPath);
+  else onSelect?.(item.project.id);
 }
 
-function browseProjects() {
+function openFolder() {
   popoverOpen = false;
   onOpenPicker?.();
+}
+
+function useSystemPicker() {
+  popoverOpen = false;
+  onUseSystemPicker?.();
 }
 </script>
 
@@ -122,30 +158,42 @@ function browseProjects() {
           : "No recent projects yet."}
       >
         {#snippet row(item, { selected: current })}
-          <ItemSurface
-            ariaLabel={`${item.project.name}${current ? ", current project" : ""}`}
-            tone="row"
-            menuItems={buildMenuItems?.(item) ?? []}
-            menuDisabled={!buildMenuItems}
-            class="w-full items-center gap-2 text-left"
-          >
-            <!-- Sized to the two-line text block beside it, not to the
-                   single-line icons used elsewhere in the panel. -->
-            <ProjectIcon projectId={item.project.id} class="size-7" />
-            <span class="grid min-w-0 flex-1 gap-0.5">
-              <span class="flex min-w-0 items-center gap-1.5">
-                <span class="min-w-0 flex-1 truncate">
-                  {item.project.name}
-                </span>
-                <span class="ml-auto min-w-0 flex-none">
-                  <ProjectActivityStatus {item} />
-                </span>
-              </span>
-              <span class="min-w-0 truncate font-mono text-muted-foreground">
-                {tildePath(item.project.dir, homeDir)}
-              </span>
+          {#if "openPath" in item}
+            <span class="flex min-w-0 items-center gap-2 text-left">
+              <FolderOpen
+                class="size-4 shrink-0 text-muted-foreground"
+                aria-hidden="true"
+              />
+              <span class="min-w-0 truncate"
+                >Open <span class="font-mono">{item.openPath}</span></span
+              >
             </span>
-          </ItemSurface>
+          {:else}
+            <ItemSurface
+              ariaLabel={`${item.project.name}${current ? ", current project" : ""}`}
+              tone="row"
+              menuItems={buildMenuItems?.(item) ?? []}
+              menuDisabled={!buildMenuItems}
+              class="w-full items-center gap-2 text-left"
+            >
+              <!-- Sized to the two-line text block beside it, not to the
+                   single-line icons used elsewhere in the panel. -->
+              <ProjectIcon projectId={item.project.id} class="size-7" />
+              <span class="grid min-w-0 flex-1 gap-0.5">
+                <span class="flex min-w-0 items-center gap-1.5">
+                  <span class="min-w-0 flex-1 truncate">
+                    {item.project.name}
+                  </span>
+                  <span class="ml-auto min-w-0 flex-none">
+                    <ProjectActivityStatus {item} />
+                  </span>
+                </span>
+                <span class="min-w-0 truncate font-mono text-muted-foreground">
+                  {tildePath(item.project.dir, homeDir)}
+                </span>
+              </span>
+            </ItemSurface>
+          {/if}
         {/snippet}
       </PopoverCommandList>
     </Tooltip.Provider>
@@ -154,13 +202,21 @@ function browseProjects() {
       <Button
         variant="ghost"
         size="sm"
-        class="justify-start"
         data-tour-id="guide-project-browse"
-        onclick={browseProjects}
+        onclick={openFolder}
       >
-        <FolderSearch class="size-4" aria-hidden="true" />
-        Browse for a project
+        <FolderOpen aria-hidden="true" />
+        Open folder
+        {#if openFolderShortcut}
+          <Kbd>{openFolderShortcut}</Kbd>
+        {/if}
       </Button>
+      {#if onUseSystemPicker}
+        <Button variant="ghost" size="sm" onclick={useSystemPicker}>
+          <AppWindow aria-hidden="true" />
+          System picker
+        </Button>
+      {/if}
     </PopoverFooter>
   </Popover>
 

@@ -161,7 +161,17 @@ $effect(() => {
 });
 
 function openProjectPicker() {
-  workspaceState.projectPickerMode = "recent";
+  // Phones have no titlebar switcher, so they go straight to the browser.
+  if (responsive.isPhone) {
+    workspaceState.projectPickerPath = undefined;
+    workspaceState.projectPickerOpen = true;
+  } else {
+    workspaceState.projectSwitcherOpen = true;
+  }
+}
+
+function openFolder() {
+  workspaceState.projectPickerPath = undefined;
   workspaceState.projectPickerOpen = true;
 }
 
@@ -178,6 +188,7 @@ const appShortcuts = createAppShortcuts({
   selectCenterTab,
   newConversation,
   openProjectPicker,
+  openFolder,
   closeCenterTab: requestCloseCenterTab,
   closeCenterTabs: requestCloseCenterTabs,
   centerTabsExcept,

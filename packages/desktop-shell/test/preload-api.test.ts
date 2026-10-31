@@ -57,7 +57,9 @@ function preloadApiShape() {
     settings: { setCloseToTray: invoke },
     notifications: { show: invoke },
     clipboard: { readText: invoke, writeText: invoke },
+    dialog: { pickDirectory: invoke },
     files: {
+      onOpenPathRequest: subscribe,
       getPathForFile: (...args: unknown[]) => {
         void args;
         return "";
@@ -126,12 +128,39 @@ describe("desktop preload API", () => {
       "notifications",
       "clipboard",
       "files",
+      "dialog",
     ] as const) {
       assert.deepEqual(
         Object.keys(api[group]).sort(),
         Object.keys(preloadApiShape()[group]).sort(),
       );
     }
+  });
+
+  it("keeps OS requests subscribed until the last renderer listener leaves", () => {
+    const { api, listeners, invocations } = fixture();
+    const received: unknown[] = [];
+    const offFirst = api.files.onOpenPathRequest((paths) =>
+      received.push(paths),
+    );
+    const offSecond = api.files.onOpenPathRequest((paths) =>
+      received.push(paths),
+    );
+    listeners.get("desktop.files.openPathRequest")?.({}, ["/project"]);
+    offFirst();
+    assert.deepEqual(received, [["/project"], ["/project"]]);
+    assert.deepEqual(
+      invocations.map(({ channel }) => channel),
+      ["desktop.files.subscribeOpenPathRequests"],
+    );
+    offSecond();
+    assert.deepEqual(
+      invocations.map(({ channel }) => channel),
+      [
+        "desktop.files.subscribeOpenPathRequests",
+        "desktop.files.unsubscribeOpenPathRequests",
+      ],
+    );
   });
 
   it("forwards every invoke channel, argument, and returned value", async () => {

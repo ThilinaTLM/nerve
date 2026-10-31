@@ -2,6 +2,7 @@ import type { BrowserWindowType } from "../platform/electron/electron-api.js";
 import type { QuitSource } from "../app/quit-contracts.js";
 import { registerClipboardIpc } from "./clipboard-ipc.js";
 import { registerDaemonIpc, type DaemonCapability } from "./daemon-ipc.js";
+import { registerDirectoryDialogIpc } from "./directory-dialog-ipc.js";
 import { registerFilesIpc } from "./files-ipc.js";
 import { registerNotificationsIpc } from "./notifications-ipc.js";
 import { registerSettingsIpc } from "./settings-ipc.js";
@@ -28,5 +29,6 @@ export function registerDesktopIpc(options: {
   registerNotificationsIpc(options.showDesktopNotification);
   registerClipboardIpc();
   registerFilesIpc();
+  registerDirectoryDialogIpc();
   registerStartupIpc(options);
 }

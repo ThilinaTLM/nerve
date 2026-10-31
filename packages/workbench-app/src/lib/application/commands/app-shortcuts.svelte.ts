@@ -24,6 +24,7 @@ type AppShortcutsOptions = {
   selectCenterTab: (tab: CenterTabIdentity) => void | Promise<void>;
   newConversation: () => void;
   openProjectPicker: () => void;
+  openFolder: () => void;
   closeCenterTab: (tab: CenterTabIdentity) => void | Promise<void>;
   closeCenterTabs: (
     tabs: CenterTabIdentity[],
@@ -189,6 +190,9 @@ export function createAppShortcuts(options: AppShortcutsOptions) {
         return true;
       case "conversation.newFromProject":
         options.openProjectPicker();
+        return true;
+      case "project.openFolder":
+        options.openFolder();
         return true;
       case "pane.close":
         if (!activeCenterTab) return false;

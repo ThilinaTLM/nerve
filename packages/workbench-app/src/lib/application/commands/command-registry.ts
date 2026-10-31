@@ -4,11 +4,17 @@ import {
   type ShortcutBinding,
 } from "./keyboard";
 
-export type ShortcutCategory = "Conversation" | "Composer" | "Panes" | "View";
+export type ShortcutCategory =
+  | "Conversation"
+  | "Project"
+  | "Composer"
+  | "Panes"
+  | "View";
 
 export type ShortcutCommandId =
   | "conversation.new"
   | "conversation.newFromProject"
+  | "project.openFolder"
   | "pane.close"
   | "pane.closeOthers"
   | "pane.refresh"
@@ -64,6 +70,13 @@ export const DEFAULT_SHORTCUTS: ShortcutCommand[] = [
     label: "New chat from project",
     category: "Conversation",
     defaultBinding: { key: "n", mod: true, shift: true },
+  },
+  {
+    id: "project.openFolder",
+    label: "Open folder",
+    category: "Project",
+    defaultBinding: { key: "o", mod: true },
+    allowInEditable: true,
   },
   {
     id: "pane.close",

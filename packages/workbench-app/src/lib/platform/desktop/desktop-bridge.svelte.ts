@@ -54,7 +54,16 @@ export interface NerveDesktopBridge {
     readText: () => Promise<string>;
     writeText: (text: string) => Promise<{ ok: true }>;
   };
+  /** Optional on older desktop shells. */
+  dialog?: {
+    pickDirectory: (options?: {
+      defaultPath?: string;
+      title?: string;
+    }) => Promise<{ path?: string }>;
+  };
   files: {
+    /** Optional on older desktop shells. */
+    onOpenPathRequest?: (listener: (paths: string[]) => void) => () => void;
     getPathForFile: (file: File) => string;
     openProjectEntry: (
       target: DesktopProjectEntryTarget,
@@ -162,6 +171,16 @@ export async function getDesktopDaemonCapability(): Promise<{
       canRestart: false,
     }
   );
+}
+
+export async function isLocalDesktopDaemon(): Promise<boolean> {
+  const bridge = getDesktopBridge();
+  if (!bridge) return false;
+  try {
+    return (await bridge.daemon.getCapability()).mode === "local";
+  } catch {
+    return false;
+  }
 }
 
 export async function restartDesktopDaemon(): Promise<boolean> {

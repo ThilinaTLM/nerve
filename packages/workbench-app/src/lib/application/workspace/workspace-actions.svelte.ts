@@ -212,7 +212,7 @@ export function newConversation() {
     (project) => project.id === workspaceState.selectedProjectId,
   );
   if (!activeProject) {
-    workspaceState.projectPickerMode = "recent";
+    workspaceState.projectPickerPath = undefined;
     workspaceState.projectPickerOpen = true;
     return;
   }

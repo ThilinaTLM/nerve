@@ -23,6 +23,34 @@ function createDesktopPreloadApi({
   platform,
   argv = [],
 }) {
+  const openPathListeners = new Set();
+  let unsubscribeOpenPaths;
+  function onOpenPathRequest(listener) {
+    openPathListeners.add(listener);
+    if (!unsubscribeOpenPaths) {
+      unsubscribeOpenPaths = subscribe(
+        ipcRenderer,
+        "desktop.files.openPathRequest",
+        (paths) => {
+          for (const callback of openPathListeners) callback(paths);
+        },
+        (_event, paths) => paths,
+      );
+      void ipcRenderer
+        .invoke("desktop.files.subscribeOpenPathRequests")
+        .catch(() => undefined);
+    }
+    return () => {
+      openPathListeners.delete(listener);
+      if (openPathListeners.size === 0 && unsubscribeOpenPaths) {
+        unsubscribeOpenPaths();
+        unsubscribeOpenPaths = undefined;
+        void ipcRenderer
+          .invoke("desktop.files.unsubscribeOpenPathRequests")
+          .catch(() => undefined);
+      }
+    };
+  }
   return {
     kind: "electron",
     platform,
@@ -75,7 +103,12 @@ function createDesktopPreloadApi({
       writeText: (text) =>
         ipcRenderer.invoke("desktop.clipboard.writeText", text),
     },
+    dialog: {
+      pickDirectory: (options) =>
+        ipcRenderer.invoke("desktop.dialog.pickDirectory", options),
+    },
     files: {
+      onOpenPathRequest,
       getPathForFile: (file) => webUtils.getPathForFile(file),
       openProjectEntry: (target) =>
         ipcRenderer.invoke("desktop.files.openProjectEntry", target),
