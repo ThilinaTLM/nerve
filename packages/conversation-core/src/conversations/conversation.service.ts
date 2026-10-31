@@ -131,7 +131,11 @@ export class ConversationService {
       },
       config,
     );
-    if (!input.parentConversationId && !input.title)
+    // Clients create with the placeholder title; only a real name opts out.
+    if (
+      !input.parentConversationId &&
+      (input.title ?? "New Conversation") === "New Conversation"
+    )
       this.newTitleCandidates.add(id);
     publishSummary(storage, this.options.emit, id);
     this.options.emit({

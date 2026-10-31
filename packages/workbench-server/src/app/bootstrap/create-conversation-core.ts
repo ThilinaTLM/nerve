@@ -534,9 +534,11 @@ export function createConversationCore(
     settings: () => deps.storage.settings.conversationTitles,
     resolve: (selection) => models.resolve(selection),
     log: (context) => {
-      void deps.logger
-        .info("Conversation title generation", { context })
-        .catch(() => undefined);
+      // Failures are warnings so they surface at the default log level.
+      const level = context.category === "ready" ? "info" : "warn";
+      void deps.logger[level]("Conversation title generation", {
+        context,
+      }).catch(() => undefined);
     },
   });
   deps.events.subscribeNotify((event) => {

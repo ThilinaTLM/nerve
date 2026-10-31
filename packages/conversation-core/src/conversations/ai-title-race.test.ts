@@ -11,6 +11,7 @@ async function setup({
   enabled = true,
   parent = false,
   prompt = "Fix the settings focus regression",
+  title = undefined as string | undefined,
 } = {}) {
   const rows = new Map<string, Conversation>();
   const configs = new Map<string, ConversationConfig>();
@@ -80,6 +81,7 @@ async function setup({
       id: "c",
       projectId: "p",
       parentConversationId: parent ? "root" : undefined,
+      title,
     },
     config,
   );
@@ -137,6 +139,16 @@ for (const scenario of [
     assert.equal(rows.get("c")?.title, before);
   });
 }
+test("clients creating with the placeholder title still get an AI title", async () => {
+  const { service, pending } = await setup({ title: "New Conversation" });
+  service.autoTitle("c");
+  assert.equal(pending.length, 1);
+});
+test("an explicit title at creation prevents generation", async () => {
+  const { service, pending } = await setup({ title: "Release notes" });
+  service.autoTitle("c");
+  assert.equal(pending.length, 0);
+});
 test("disabled, children and meaningless prompts skip generation", async () => {
   for (const options of [
     { enabled: false },
