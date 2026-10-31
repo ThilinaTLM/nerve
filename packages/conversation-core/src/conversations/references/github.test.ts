@@ -94,3 +94,29 @@ test("creation requires an actual successful gh create command and matching URL,
   ] as const)
     assert.equal(created(command, code, text), null);
 });
+
+test("URL punctuation trimming handles long suffixes without dropping references", () => {
+  const refs = prompts(`https://github.com/a/b/pull/7${"!".repeat(100_000)}`);
+  assert.equal(refs.length, 1);
+  assert.equal(refs[0].url, "https://github.com/a/b/pull/7");
+});
+
+test("quoted and unterminated shell text cannot introduce create commands", () => {
+  const output = "https://github.com/a/b/pull/7";
+  for (const command of [
+    `echo "${'\\"'.repeat(100_000)}; gh pr create`,
+    "echo 'unterminated; gh pr create",
+    String.raw`echo "escaped \"; gh pr create"`,
+    `echo "first" 'second; gh pr create'`,
+  ]) {
+    assert.equal(created(command, 0, output), null);
+  }
+  assert.equal(
+    created(
+      String.raw`echo "quoted; gh issue create" && gh pr create --title "a \"quote\""`,
+      0,
+      output,
+    )?.identifier,
+    "7",
+  );
+});

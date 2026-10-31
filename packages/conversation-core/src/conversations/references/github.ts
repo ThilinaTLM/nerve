@@ -77,6 +77,31 @@ function cue(text: string): string {
       ? "issue"
       : "unknown";
 }
+function trimUrlPunctuation(value: string): string {
+  let end = value.length;
+  while (end > 0 && ").,;!]}".includes(value[end - 1])) end--;
+  return value.slice(0, end);
+}
+
+/** Mask shell quotes in one pass so quoted prose cannot look like a command. */
+function maskShellQuotes(command: string): string {
+  const parts: string[] = [];
+  let start = 0;
+  for (let index = 0; index < command.length; index++) {
+    const quote = command[index];
+    if (quote !== "'" && quote !== '"') continue;
+    parts.push(command.slice(start, index), "''");
+    index++;
+    while (index < command.length && command[index] !== quote) {
+      if (quote === '"' && command[index] === "\\") index++;
+      index++;
+    }
+    start = index + 1;
+  }
+  parts.push(command.slice(start));
+  return parts.join("");
+}
+
 function urls(
   text: string,
   remotes: GitHubRepository[],
@@ -89,7 +114,7 @@ function urls(
   const result: ConversationReference[] = [];
   for (const match of text.matchAll(/https?:\/\/[^\s<>"'`]+/gi)) {
     try {
-      const url = new URL(match[0].replace(/[).,;!\]}]+$/, ""));
+      const url = new URL(trimUrlPunctuation(match[0]));
       const path =
         /^\/([^/]+)\/([^/]+)\/(pull|issues)\/([1-9]\d*)(?:\/|$)/.exec(
           url.pathname,
@@ -166,7 +191,7 @@ export function extractCreatedReference(
 ): ConversationReference | null {
   if (exitCode !== 0) return null;
   // Accept an actual simple gh command, not quoted prose, echo, wrappers, or scripts.
-  const unquoted = command.replace(/'[^']*'|"(?:\\.|[^"\\])*"/g, "''");
+  const unquoted = maskShellQuotes(command);
   const commands = [
     ...unquoted.matchAll(
       /(?:^|&&|\|\||;|\n)\s*gh\s+(pr|issue)\s+create(?=\s|$)/g,
