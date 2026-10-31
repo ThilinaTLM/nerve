@@ -54,6 +54,33 @@ test("output validation rejects invalid content without truncating", () => {
   );
 });
 
+test("a title in a writing system the prompt doesn't use is rejected", () => {
+  const prompt =
+    "[image] What do you think about the current conversation list, the side panel?";
+  assert.equal(
+    validateGeneratedTitle(
+      "Оценить текущий список бесед в боковой панели",
+      prompt,
+    ),
+    null,
+  );
+  assert.equal(
+    validateGeneratedTitle("Evaluate the conversation list side panel", prompt),
+    "Evaluate the conversation list side panel",
+  );
+  assert.equal(
+    validateGeneratedTitle(
+      "ログイン画面のボタンを修正",
+      "ログイン画面のボタンを直して",
+    ),
+    "ログイン画面のボタンを修正",
+  );
+  assert.equal(
+    validateGeneratedTitle("Исправить README", "Исправь опечатку в README"),
+    "Исправить README",
+  );
+});
+
 test("common prefixed credentials and authorization schemes are masked", () => {
   const result = prepareTitleInput(
     "Fix auth with OPENAI_API_KEY=superprivate ACCESS_TOKEN=anotherprivate Authorization: Bearer privatebearer Authorization: Basic cHJpdmF0ZQ== postgres://user:databasepassword@db.local/app",
