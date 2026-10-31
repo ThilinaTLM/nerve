@@ -267,6 +267,13 @@ export const githubCheckRunSchema = z.object({
   status: z.string(),
   conclusion: z.string().nullable(),
   url: z.string().optional(),
+  /** Workflow (Actions) or app name, for grouping and secondary text. */
+  workflow: z.string().optional(),
+  /** First failure line (check-run `output.title`). */
+  summary: z.string().max(500).optional(),
+  required: z.boolean().optional(),
+  startedAt: z.string().optional(),
+  completedAt: z.string().optional(),
 });
 export type GithubCheckRun = z.infer<typeof githubCheckRunSchema>;
 
@@ -311,6 +318,13 @@ export const githubPrSchema = z.object({
   commentCount: z.number().int().nonnegative().default(0),
   additions: z.number().int().nonnegative().default(0),
   deletions: z.number().int().nonnegative().default(0),
+  /** Head commit; checks are probed per head SHA. Empty when unknown. */
+  headSha: z.string().max(64).default(""),
+  /** `owner/name` of the head repository; null for deleted forks. */
+  headRepository: z.string().nullable().default(null),
+  labels: z.array(z.string()).default([]),
+  /** The signed-in viewer is a requested reviewer. */
+  reviewRequested: z.boolean().default(false),
   checks: githubChecksSummarySchema,
 });
 export type GithubPr = z.infer<typeof githubPrSchema>;
@@ -479,6 +493,9 @@ export const githubPrCommitSchema = z.object({
   messageHeadline: z.string(),
   authoredDate: z.string().optional(),
   authorName: z.string().optional(),
+  authorLogin: z.string().optional(),
+  additions: z.number().int().nonnegative().optional(),
+  deletions: z.number().int().nonnegative().optional(),
 });
 export type GithubPrCommit = z.infer<typeof githubPrCommitSchema>;
 
@@ -559,3 +576,92 @@ export const githubPrMergeResponseSchema = z.object({
   url: z.string(),
 });
 export type GithubPrMergeResponse = z.infer<typeof githubPrMergeResponseSchema>;
+
+// --- Live pull request sync ---
+
+export const githubPrSyncStatusSchema = z.enum([
+  /** Snapshot reflects the latest probe. */
+  "fresh",
+  /** No successful probe yet, or the last one is older than its tier allows. */
+  "stale",
+  "rate_limited",
+  "unauthenticated",
+  /** No GitHub remote, or gh/token unavailable. */
+  "unavailable",
+  "error",
+]);
+export type GithubPrSyncStatus = z.infer<typeof githubPrSyncStatusSchema>;
+
+const githubPrRepoParamsSchema = z.object({
+  projectId: z.string().startsWith("proj_"),
+  repo: z.string().min(1).max(1_024),
+});
+
+/**
+ * Server-owned, in-memory view of one repository's pull requests. `prs` holds
+ * up to 100 open PRs plus retained closed/merged PRs (watched tabs and the
+ * current branch's latest PR); clients filter it locally.
+ */
+export const githubPrSnapshotSchema = githubPrRepoParamsSchema.extend({
+  revision: z.number().int().nonnegative(),
+  status: githubPrSyncStatusSchema,
+  /** ISO time of the last successful probe. */
+  updatedAt: z.string().nullable(),
+  /** More open PRs exist than the snapshot holds; use `github.pr.list`. */
+  truncated: z.boolean(),
+  viewer: z.string().nullable(),
+  /** Retry hint while `status` is `rate_limited` or `error`. */
+  retryAt: z.string().nullable().default(null),
+  prs: z.array(githubPrSchema),
+});
+export type GithubPrSnapshot = z.infer<typeof githubPrSnapshotSchema>;
+
+export const githubPrSnapshotRequestSchema = githubPrRepoParamsSchema;
+export type GithubPrSnapshotRequest = z.infer<
+  typeof githubPrSnapshotRequestSchema
+>;
+
+/** This connection's demand for one repository; replaces earlier demand. */
+export const githubPrWatchSyncRequestSchema = githubPrRepoParamsSchema.extend({
+  /** Some surface showing this repository's PRs is on screen. */
+  visible: z.boolean(),
+  /** The PR list is shown. */
+  list: z.boolean().default(false),
+  /** Branch whose PR is shown (Git Changes card, branch row). */
+  branch: z.string().min(1).max(255).optional(),
+  /** PRs open in tabs, including closed or merged ones to retain. */
+  prs: z.array(z.number().int().positive()).max(50).default([]),
+  /** Focused PR tab; its checks are probed at the hot tier when pending. */
+  activePr: z.number().int().positive().optional(),
+});
+export type GithubPrWatchSyncRequest = z.infer<
+  typeof githubPrWatchSyncRequestSchema
+>;
+
+export const githubPrWatchClearRequestSchema = githubPrRepoParamsSchema;
+export type GithubPrWatchClearRequest = z.infer<
+  typeof githubPrWatchClearRequestSchema
+>;
+
+export const githubPrWatchStateSchema = z.object({
+  revision: z.number().int(),
+});
+export type GithubPrWatchState = z.infer<typeof githubPrWatchStateSchema>;
+
+/** Probe now (bypasses the tier interval, never rate-limit backoff). */
+export const githubPrRefreshRequestSchema = githubPrRepoParamsSchema.extend({
+  /** Also refetch this PR's summary even when the list probe is unchanged. */
+  number: z.number().int().positive().optional(),
+});
+export type GithubPrRefreshRequest = z.infer<
+  typeof githubPrRefreshRequestSchema
+>;
+
+/** A PR is likely to be created for `branch` soon (compare URL opened). */
+export const githubPrExpectRequestSchema = githubPrRepoParamsSchema.extend({
+  branch: z.string().min(1).max(255),
+});
+export type GithubPrExpectRequest = z.infer<typeof githubPrExpectRequestSchema>;
+
+export const githubPrAckSchema = z.object({ accepted: z.boolean() });
+export type GithubPrAck = z.infer<typeof githubPrAckSchema>;
