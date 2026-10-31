@@ -179,44 +179,25 @@ function tabMenu(tab: WorkbenchTabModel): ContextMenuItem[] {
   const index = tabIndex(tabs, source);
   const hasLeft = index > 0;
   const hasRight = index !== -1 && index < tabs.length - 1;
-  const items: ContextMenuItem[] = [];
 
-  if (source.kind === "file" || source.kind === "mermaid") {
-    const absolutePath =
-      source.kind === "file" ? (source.file?.path ?? source.path) : source.path;
-    const relativePath =
-      source.kind === "file"
-        ? (source.relativePath ?? source.file?.relativePath)
-        : source.relativePath;
-    items.push(
-      {
-        label: "Copy path",
-        icon: Copy,
-        disabled: !absolutePath,
-        onSelect: () => void copyToClipboard(absolutePath, "path"),
-      },
-      {
-        label: "Copy relative path",
-        icon: Copy,
-        disabled: !relativePath,
-        onSelect: () => void copyToClipboard(relativePath, "relative path"),
-      },
-      { type: "separator" },
-    );
-    if (source.kind === "file") {
-      items.push({
-        label: fileWrapLabel(source),
-        icon: TextAlignStart,
-        disabled: !onToggleFileLineWrap,
-        onSelect: () => onToggleFileLineWrap?.(source.id),
-      });
-    }
-  }
+  // Groups ordered by scope and frequency: the tab's content, closing,
+  // arranging, then rarely used utilities.
+  const content: ContextMenuItem[] = [];
+  const utilities: ContextMenuItem[] = [
+    {
+      label: "Refresh",
+      icon: RefreshCw,
+      shortcut: refreshShortcut,
+      // A prompt snapshot cannot be refreshed in place; reopen it from the composer.
+      disabled: !onRefresh || source.kind === "system-prompt",
+      onSelect: () => onRefresh?.(identity),
+    },
+  ];
 
   if (source.kind === "conversation") {
     // Same state actions as the conversation list's context menu.
     const { conversation } = source;
-    items.push(
+    content.push(
       {
         label: conversation.pinnedAt ? "Unpin" : "Pin",
         icon: conversation.pinnedAt ? PinOff : Pin,
@@ -235,45 +216,46 @@ function tabMenu(tab: WorkbenchTabModel): ContextMenuItem[] {
             completed: !conversation.completedAt,
           }),
       },
+    );
+    utilities.push({
+      label: "Copy ID",
+      icon: Copy,
+      onSelect: () => void copyToClipboard(conversation.id, "conversation id"),
+    });
+  }
+
+  if (source.kind === "file" || source.kind === "mermaid") {
+    const absolutePath =
+      source.kind === "file" ? (source.file?.path ?? source.path) : source.path;
+    const relativePath =
+      source.kind === "file"
+        ? (source.relativePath ?? source.file?.relativePath)
+        : source.relativePath;
+    content.push(
       {
-        label: "Copy ID",
+        label: "Copy path",
         icon: Copy,
-        onSelect: () =>
-          void copyToClipboard(conversation.id, "conversation id"),
-      },
-      { type: "separator" },
-    );
-  }
-
-  items.push({
-    label: "Refresh",
-    icon: RefreshCw,
-    shortcut: refreshShortcut,
-    // A prompt snapshot cannot be refreshed in place; reopen it from the composer.
-    disabled: !onRefresh || source.kind === "system-prompt",
-    onSelect: () => onRefresh?.(identity),
-  });
-
-  if (onReorder) {
-    items.push(
-      { type: "separator" },
-      {
-        label: "Move left",
-        icon: MoveLeft,
-        disabled: !hasLeft,
-        onSelect: () => onReorder(identity, index - 1),
+        disabled: !absolutePath,
+        onSelect: () => void copyToClipboard(absolutePath, "path"),
       },
       {
-        label: "Move right",
-        icon: MoveRight,
-        disabled: !hasRight,
-        onSelect: () => onReorder(identity, index + 1),
+        label: "Copy relative path",
+        icon: Copy,
+        disabled: !relativePath,
+        onSelect: () => void copyToClipboard(relativePath, "relative path"),
       },
     );
+    if (source.kind === "file") {
+      content.push({
+        label: fileWrapLabel(source),
+        icon: TextAlignStart,
+        disabled: !onToggleFileLineWrap,
+        onSelect: () => onToggleFileLineWrap?.(source.id),
+      });
+    }
   }
 
-  items.push(
-    { type: "separator" },
+  const close: ContextMenuItem[] = [
     {
       label: "Close pane",
       icon: X,
@@ -299,9 +281,30 @@ function tabMenu(tab: WorkbenchTabModel): ContextMenuItem[] {
       disabled: !hasLeft || !onCloseLeft,
       onSelect: () => onCloseLeft?.(identity),
     },
-  );
+  ];
 
-  return items;
+  const arrange: ContextMenuItem[] = onReorder
+    ? [
+        {
+          label: "Move left",
+          icon: MoveLeft,
+          disabled: !hasLeft,
+          onSelect: () => onReorder(identity, index - 1),
+        },
+        {
+          label: "Move right",
+          icon: MoveRight,
+          disabled: !hasRight,
+          onSelect: () => onReorder(identity, index + 1),
+        },
+      ]
+    : [];
+
+  return [content, close, arrange, utilities]
+    .filter((group) => group.length > 0)
+    .flatMap((group, groupIndex) =>
+      groupIndex === 0 ? group : [{ type: "separator" as const }, ...group],
+    );
 }
 </script>
 
