@@ -14,6 +14,7 @@ import {
   headerTypeSchema,
   notificationToneSchema,
   transcriptionModelSchema,
+  conversationTitlesSettingsSchema,
 } from "./settings.js";
 import {
   electronFontRenderHintingSchema,
@@ -154,6 +155,10 @@ export const uiConfigSchema = z
           .strict(),
       })
       .strict(),
+    conversationTitles: conversationTitlesSettingsSchema.default({
+      enabled: false,
+      model: null,
+    }),
     transcription: z
       .object({
         model: transcriptionModelSchema,
@@ -180,6 +185,7 @@ export const defaultUiConfig: UiConfig = {
       failed: "alert",
     },
   },
+  conversationTitles: { enabled: false, model: null },
   transcription: {
     model: "gpt-4o-transcribe",
     languages: [],

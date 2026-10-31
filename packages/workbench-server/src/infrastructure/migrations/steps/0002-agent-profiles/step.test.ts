@@ -144,6 +144,43 @@ for (const damaged of [0, 1, 2, 3, 4])
     await step.verify!(context);
     const migratedDb = new DatabaseSync(paths.sqlitePath, { readOnly: true });
     try {
+      assert.equal(
+        migratedDb
+          .prepare("SELECT count(*) AS n FROM conversation_reference")
+          .get()?.n,
+        0,
+      );
+      assert.deepEqual(
+        migratedDb
+          .prepare("PRAGMA foreign_key_list(conversation_reference)")
+          .all()
+          .map((row) => ({ ...row })),
+        [
+          {
+            id: 0,
+            seq: 0,
+            table: "conversation",
+            from: "conversation_id",
+            to: "id",
+            on_update: "NO ACTION",
+            on_delete: "CASCADE",
+            match: "NONE",
+          },
+        ],
+      );
+      const reviewedReferenceSql = coreMigrations
+        .find((migration) => migration.version === 2)!
+        .sql.match(
+          /CREATE TABLE conversation_reference \([\s\S]*?\) STRICT;/,
+        )![0];
+      assert.equal(
+        migratedDb
+          .prepare(
+            "SELECT sql FROM sqlite_schema WHERE name='conversation_reference'",
+          )
+          .get()?.sql,
+        reviewedReferenceSql.slice(0, -1),
+      );
       const event = toolCallResponsePayloadSchema.parse(
         JSON.parse(
           String(
@@ -252,6 +289,31 @@ for (const damaged of [0, 1, 2, 3, 4])
       systemPrompt: "system",
       instructions: "instructions",
     });
+
+    if (damaged === 0) {
+      const changedDb = new DatabaseSync(paths.sqlitePath);
+      try {
+        changedDb.exec(
+          "INSERT INTO conversation_reference VALUES ('c', 'github', 'github.com/acme/api#1', 'issue', 'referenced', 'review-event', 'now')",
+        );
+        await assert.rejects(
+          step.verify!(context),
+          /New table must be empty: conversation_reference/,
+        );
+        changedDb.exec("DROP TABLE conversation_reference");
+        await assert.rejects(step.verify!(context), /table set/);
+        changedDb.exec(
+          coreMigrations
+            .find((migration) => migration.version === 2)!
+            .sql.match(
+              /CREATE TABLE conversation_reference \([\s\S]*?\) STRICT;/,
+            )![0],
+        );
+        await step.verify!(context);
+      } finally {
+        changedDb.close();
+      }
+    }
 
     // An archive created by the previous implementation must not replay project IO.
     const planPath = join(

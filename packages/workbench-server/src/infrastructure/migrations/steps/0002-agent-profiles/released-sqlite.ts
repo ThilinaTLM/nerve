@@ -1,6 +1,9 @@
 import { phaseProgress } from "./progress.js";
 import { verifyConvertedConversationData } from "./released-verification.js";
-import { verifyConvertedTableSql } from "./released-schema-verification.js";
+import {
+  reviewedNewTables,
+  verifyConvertedTableSql,
+} from "./released-schema-verification.js";
 import assert from "node:assert/strict";
 import { backup, DatabaseSync } from "node:sqlite";
 import {
@@ -361,6 +364,7 @@ export class ReleasedSqliteBackend implements MigrationBackend {
       "Checking conversation history",
     )();
     const original = new DatabaseSync(this.backupPath, { readOnly: true });
+    const reviewed = new DatabaseSync(":memory:");
     try {
       const originalRows = original
         .prepare(
@@ -381,11 +385,6 @@ export class ReleasedSqliteBackend implements MigrationBackend {
           )
           .all()
           .map((row) => String(row.name));
-      assert.deepEqual(
-        names(this.db),
-        names(original).filter((name) => name !== "conversation_config"),
-        "Unexpected table set changed during migration",
-      );
       const otherSchema = (db: DatabaseSync) =>
         db
           .prepare(
@@ -404,7 +403,29 @@ export class ReleasedSqliteBackend implements MigrationBackend {
           )
           .all()
           .map((row) => ({ name: String(row.name), sql: row.sql }));
-      verifyConvertedTableSql(tableSql(this.db), tableSql(original), v2.sql);
+      const originalTables = tableSql(original);
+      const addedTables = reviewedNewTables(originalTables, v2.sql);
+      const addedNames = new Set(addedTables.map((table) => table.name));
+      assert.deepEqual(
+        names(this.db),
+        [
+          ...names(original).filter((name) => name !== "conversation_config"),
+          ...addedNames,
+        ].sort(),
+        "Unexpected table set changed during migration",
+      );
+      verifyConvertedTableSql(tableSql(this.db), originalTables, v2.sql);
+      for (const table of addedTables) {
+        assert.equal(typeof table.sql, "string");
+        reviewed.exec(String(table.sql));
+        assert.equal(
+          this.db
+            .prepare("SELECT count(*) AS n FROM " + quote(table.name))
+            .get()?.n,
+          0,
+          "New table must be empty: " + table.name,
+        );
+      }
       for (const table of names(original)) {
         if (
           [
@@ -434,7 +455,7 @@ export class ReleasedSqliteBackend implements MigrationBackend {
         const links = this.db.prepare(pragma).all();
         assert.deepEqual(
           links,
-          original.prepare(pragma).all(),
+          (addedNames.has(table) ? reviewed : original).prepare(pragma).all(),
           "Foreign key definitions changed: " + table,
         );
         for (const link of links) {
@@ -463,6 +484,7 @@ export class ReleasedSqliteBackend implements MigrationBackend {
         "Released migration ledger changed",
       );
     } finally {
+      reviewed.close();
       original.close();
     }
   }

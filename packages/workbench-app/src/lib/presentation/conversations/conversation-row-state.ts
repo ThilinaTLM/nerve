@@ -38,3 +38,32 @@ export function conversationRowDetail(
     return undefined;
   return { text: activity.statusText, tone: activity.tone };
 }
+
+/** Compact card label; full activity text remains available to assistive technology. */
+export function conversationStatusLabel(
+  activity: ConversationActivity,
+): string | undefined {
+  switch (activity.indicator) {
+    case "needs-user": {
+      const text = activity.statusText?.toLowerCase() ?? "";
+      return text.endsWith("plan ready for review")
+        ? "Plan"
+        : text.endsWith("question for you")
+          ? "Question"
+          : "Approval";
+    }
+    case "error":
+      return "Failed";
+    case "aborted":
+      return "Stopped";
+    case "result-ready":
+      return "Finished";
+    case "running":
+    case "awaiting-async":
+      return "Running";
+    case "completed":
+      return "Done";
+    default:
+      return undefined;
+  }
+}

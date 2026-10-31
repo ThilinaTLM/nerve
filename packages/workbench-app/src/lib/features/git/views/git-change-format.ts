@@ -7,7 +7,7 @@ import type { StatusTone } from "@nervekit/ui-kit/display/status";
 import {
   repositoryLabels,
   type RepositoryLabelOptions,
-} from "./repository-labels";
+} from "$lib/presentation/repository-labels";
 
 const REPO_LABEL_SHORTENING = [
   { minCount: 9, maxLength: 12 },

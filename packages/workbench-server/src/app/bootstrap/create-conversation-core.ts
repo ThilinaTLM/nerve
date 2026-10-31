@@ -1,3 +1,5 @@
+import { ConversationTitleService } from "../../domains/conversation-titles/title.service.js";
+import { projectGitRemotes } from "../../core-host/project-git-remotes.js";
 import { capabilityToolNameSchema } from "@nervekit/contracts/capabilities";
 import { ProjectMigrationService } from "../../infrastructure/configuration/project-migration/project-migration.js";
 import { projectMigrationTrust } from "../../infrastructure/configuration/project-migration/project-migration-trust.js";
@@ -528,7 +530,28 @@ export function createConversationCore(
     trustGeneration: () => core.trust.generation + core.projects.generation,
     requestGenerations: (id) => scopedConfiguration.getCapture(id)?.generations,
   });
+  const conversationTitles = new ConversationTitleService({
+    settings: () => deps.storage.settings.conversationTitles,
+    resolve: (selection) => models.resolve(selection),
+    log: (context) => {
+      void deps.logger
+        .info("Conversation title generation", { context })
+        .catch(() => undefined);
+    },
+  });
+  deps.events.subscribeNotify((event) => {
+    if (
+      event.type === "settings.updated" &&
+      !deps.storage.settings.conversationTitles.enabled
+    )
+      conversationTitles.cancelQueued();
+  });
   const core: ConversationCore = new ConversationCore({
+    gitRemotes: async (projectId) => {
+      const project = storage.projects.get(projectId);
+      return project ? projectGitRemotes(project.directory) : [];
+    },
+    titles: conversationTitles,
     configuration: scopedConfiguration.port,
     storage,
     dataDir,
@@ -633,6 +656,7 @@ export function createConversationCore(
   ])
     core.registerCoreTool(handler);
   return {
+    conversationTitles,
     core,
     storage,
     agentConfiguration,

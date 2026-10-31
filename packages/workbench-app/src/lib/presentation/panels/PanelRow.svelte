@@ -9,6 +9,9 @@ import { cn } from "@nervekit/ui-kit/utils";
 let {
   label,
   labelLines = 1,
+  labelContent,
+  meta,
+  ariaLabel,
   description,
   detail,
   detailTone = "neutral",
@@ -45,6 +48,11 @@ let {
   onclick,
 }: {
   label: string;
+  /** Segmented title (e.g. search highlights); label remains the plain accessible fallback. */
+  labelContent?: Snippet;
+  /** Replaces detail and trailing with a single full-width metadata line. */
+  meta?: Snippet;
+  ariaLabel?: string;
   /** Maximum visible lines for the primary label. */
   labelLines?: 1 | 2;
   description?: string;
@@ -172,6 +180,7 @@ const twoLine = $derived(labelLines === 2);
       tabindex={contentTabindex}
       aria-expanded={role === "treeitem" ? undefined : ariaExpanded}
       aria-current={active ? "true" : undefined}
+      aria-label={ariaLabel}
       title={title ?? description ?? label}
       class={cn(
         "flex min-w-0 flex-1 cursor-pointer items-center rounded-sm text-left focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none disabled:cursor-default disabled:opacity-50",
@@ -190,11 +199,15 @@ const twoLine = $derived(labelLines === 2);
         </span>
       {/if}
       {#if twoLine}
-        <span class="flex min-w-0 flex-1 flex-col gap-0.5">
+        <span
+          class={cn("flex min-w-0 flex-1 flex-col", meta ? "gap-1" : "gap-0.5")}
+        >
           <span class={cn(labelLayoutClass, toneClass, active && "font-medium")}
-            >{label}</span
+            >{#if labelContent}{@render labelContent()}{:else}{label}{/if}</span
           >
-          {#if detail}
+          {#if meta}
+            {@render meta()}
+          {:else if detail}
             <span class={cn("truncate leading-4", toneTextClass(detailTone))}
               >{detail}</span
             >
@@ -225,7 +238,7 @@ const twoLine = $derived(labelLines === 2);
       <!-- Facts and actions stack in one grid cell, so the column is as wide as
            the wider of the two and the label never reflows or gets covered. -->
       <div class="grid shrink-0 items-center justify-items-end">
-        {#if trailing}
+        {#if trailing && !meta}
           <span
             class={cn(
               "col-start-1 row-start-1 flex h-4 items-center gap-1.5 text-muted-foreground tabular-nums",

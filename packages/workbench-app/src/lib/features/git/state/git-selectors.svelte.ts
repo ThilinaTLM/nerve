@@ -29,6 +29,17 @@ import { gitPanelState } from "./git-panel.svelte";
 import { gitState } from "./git-state.svelte";
 
 export const gitSelectors = {
+  /** Root repository identity already loaded by the Git panel; never fetches. */
+  githubRepository(projectId: string): string | undefined {
+    const project = gitPanelState.projects[gitProjectStateKey(projectId)];
+    const root = project?.repoStates[gitRepoStateKey(".")];
+    const repository = root?.prHeads?.repository;
+    if (repository) return `github.com/${repository.toLowerCase()}`;
+    const prUrl = root?.currentBranchPr?.url ?? root?.prs[0]?.url;
+    return prUrl
+      ?.match(/^https:\/\/([^/]+\/[^/]+\/[^/]+)\/pull\//)?.[1]
+      ?.toLowerCase();
+  },
   get activeCenterPrView() {
     const active = workspaceReadModel.activeCenterTab;
     if (active?.kind !== "pr") return undefined;

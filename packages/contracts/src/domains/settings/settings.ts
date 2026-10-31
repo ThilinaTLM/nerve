@@ -360,6 +360,14 @@ export const transcriptionSettingsSchema = z.object({
 });
 export type TranscriptionSettings = z.infer<typeof transcriptionSettingsSchema>;
 
+export const conversationTitlesSettingsSchema = z.object({
+  enabled: z.boolean(),
+  model: modelSelectionSchema.nullable(),
+});
+export type ConversationTitlesSettings = z.infer<
+  typeof conversationTitlesSettingsSchema
+>;
+
 export const settingsSchema = z.object({
   defaultAgentProfile: agentProfileNameSchema.optional(),
   defaultPermissionRuleSetId: permissionRuleSetIdSchema,
@@ -379,6 +387,10 @@ export const settingsSchema = z.object({
     systemEnabled: z.boolean(),
     soundsEnabled: z.boolean(),
     events: notificationEventSoundSettingsSchema,
+  }),
+  conversationTitles: conversationTitlesSettingsSchema.default({
+    enabled: false,
+    model: null,
   }),
   transcription: transcriptionSettingsSchema,
   compaction: autoCompactionSettingsSchema,
@@ -422,6 +434,7 @@ export const defaultSettings: Settings = {
     soundsEnabled: true,
     events: defaultNotificationEventSounds,
   },
+  conversationTitles: { enabled: false, model: null },
   transcription: {
     model: "gpt-4o-transcribe",
     languages: [],
@@ -478,6 +491,7 @@ export const defaultSettings: Settings = {
 };
 
 export const updateSettingsRequestSchema = z.strictObject({
+  conversationTitles: conversationTitlesSettingsSchema.optional(),
   application: applicationSettingsPatchSchema.optional(),
   ui: z
     .object({
@@ -534,3 +548,23 @@ export const updateSettingsRequestSchema = z.strictObject({
     .optional(),
 });
 export type UpdateSettingsRequest = z.infer<typeof updateSettingsRequestSchema>;
+
+export const TITLE_TEST_PROMPT =
+  "Can you look at why the websocket reconnect backoff never resets after a successful reconnect?";
+export const titleTestResultSchema = z.discriminatedUnion("category", [
+  z.object({
+    category: z.literal("success"),
+    title: z.string(),
+    latencyMs: z.number(),
+  }),
+  z.object({
+    category: z.enum([
+      "timeout",
+      "auth",
+      "rate limit",
+      "invalid output",
+      "unavailable",
+    ]),
+  }),
+]);
+export type TitleTestResult = z.infer<typeof titleTestResultSchema>;

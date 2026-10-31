@@ -2,10 +2,10 @@
 
 There are two independent paths:
 
-| Path | Mechanism | When |
-| --- | --- | --- |
-| **Immediate** | Local rule-based `deriveConversationTitle` (no network) | On the first user message, always |
-| **Background AI** | One small LLM request to the user-selected model | Asynchronously, only when enabled in [settings](title-settings.md) and the model is available |
+| Path              | Mechanism                                               | When                                                                                          |
+| ----------------- | ------------------------------------------------------- | --------------------------------------------------------------------------------------------- |
+| **Immediate**     | Local rule-based `deriveConversationTitle` (no network) | On the first user message, always                                                             |
+| **Background AI** | One small LLM request to the user-selected model        | Asynchronously, only when enabled in [settings](title-settings.md) and the model is available |
 
 The immediate title never waits for the AI path. If the AI path is disabled, unavailable, invalid, or too slow, the immediate title stays. A manual rename always wins.
 

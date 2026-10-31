@@ -1,3 +1,4 @@
+import { conversationTitleToPlainText } from "@nervekit/contracts/core";
 import type { ConversationSummary } from "@nervekit/contracts/core";
 import type { AttentionEvent } from "$lib/application/notifications/attention-delivery.svelte";
 import {
@@ -127,12 +128,15 @@ export class ConversationAttention {
       title: input
         ? pendingInputTitle(summary.id, input)
         : titles[edge.kind as AttentionKind & keyof typeof titles],
-      body: [this.deps.projectName(summary.projectId), summary.title]
+      body: [
+        this.deps.projectName(summary.projectId),
+        conversationTitleToPlainText(summary.title),
+      ]
         .filter(Boolean)
         .join(" · "),
       subAgentName:
         input && input.conversationId !== summary.id
-          ? input.conversationTitle
+          ? conversationTitleToPlainText(input.conversationTitle)
           : undefined,
       open: () => this.deps.open(target),
     };

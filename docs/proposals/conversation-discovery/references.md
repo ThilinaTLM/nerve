@@ -6,13 +6,13 @@ v1 supports GitHub only. Identity, storage, and extraction are provider-neutral 
 
 A reference links one conversation to one external resource with one relationship.
 
-| Field | Meaning | GitHub v1 |
-| --- | --- | --- |
-| `provider` | Resource system | `github` |
-| `resource_key` | Canonical, provider-specific identity, unique within the provider | `<host>/<owner>/<repo>#<number>`, lowercased host/owner/repo. Example: `github.com/acme/api#481` |
-| `kind` | Resource type | `pull_request`, `issue`, `unknown` (a qualified ref with no type cue; GitHub shares issue and PR numbers) |
-| `relationship` | How the conversation relates to it | `referenced` (a user prompt pointed to it) or `created` (this conversation created it) |
-| `source_event_id` | The event that last set or upgraded the reference | user message or tool response event |
+| Field             | Meaning                                                           | GitHub v1                                                                                                 |
+| ----------------- | ----------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
+| `provider`        | Resource system                                                   | `github`                                                                                                  |
+| `resource_key`    | Canonical, provider-specific identity, unique within the provider | `<host>/<owner>/<repo>#<number>`, lowercased host/owner/repo. Example: `github.com/acme/api#481`          |
+| `kind`            | Resource type                                                     | `pull_request`, `issue`, `unknown` (a qualified ref with no type cue; GitHub shares issue and PR numbers) |
+| `relationship`    | How the conversation relates to it                                | `referenced` (a user prompt pointed to it) or `created` (this conversation created it)                    |
+| `source_event_id` | The event that last set or upgraded the reference                 | user message or tool response event                                                                       |
 
 Rules:
 

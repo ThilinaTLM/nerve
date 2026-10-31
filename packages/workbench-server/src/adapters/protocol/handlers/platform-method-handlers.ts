@@ -31,6 +31,7 @@ export const platformMethodHandlers: WorkbenchMethodHandlerMapFor<PlatformMethod
   definePlatformMethodHandlers({
     "status.latestRelease.get": (state) =>
       state.latestRelease.getLatestRelease(),
+    "conversationTitles.test": (state) => state.conversationTitles.test(),
     "settings.get": (state) => state.storage.settings,
     "settings.update": (state, params) =>
       updateSettings(state, params as Record<string, unknown>),

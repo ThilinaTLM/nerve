@@ -111,6 +111,14 @@ const userPages: Record<string, PageData> = {
       "Shortcuts are fixed and use the primary modifier for your platform.",
     sections: [{ id: "shortcuts", label: "Shortcuts" }],
   },
+  titles: {
+    label: "Titles",
+    description: "Name new conversations with a small AI model.",
+    sections: [
+      { id: "ai-titles", label: "AI titles" },
+      { id: "test", label: "Test" },
+    ],
+  },
   voice: {
     label: "Voice",
     description:
@@ -221,7 +229,7 @@ const userLayout: NavLayout = [
   {
     id: "app",
     title: "App",
-    pages: ["workbench", "notifications", "shortcuts", "voice"],
+    pages: ["workbench", "notifications", "shortcuts", "voice", "titles"],
   },
   { id: "system", title: "System", pages: ["storage", "system"] },
 ];

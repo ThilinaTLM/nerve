@@ -1,152 +1,209 @@
 <script lang="ts">
-import CircleCheck from "@lucide/svelte/icons/circle-check";
-import ClipboardList from "@lucide/svelte/icons/clipboard-list";
-import Pin from "@lucide/svelte/icons/pin";
-import PinOff from "@lucide/svelte/icons/pin-off";
-import RotateCcw from "@lucide/svelte/icons/rotate-ccw";
-import Users from "@lucide/svelte/icons/users";
-import { IconAction } from "@nervekit/ui-kit/components/composites/icon-action";
+import Image from "@lucide/svelte/icons/image";
+import { conversationTitleToPlainText } from "@nervekit/contracts/core";
+import GitPullRequest from "@lucide/svelte/icons/git-pull-request";
+import GitPullRequestCreateArrow from "@lucide/svelte/icons/git-pull-request-create-arrow";
+import CircleDot from "@lucide/svelte/icons/circle-dot";
+import CirclePlus from "@lucide/svelte/icons/circle-plus";
+import Hash from "@lucide/svelte/icons/hash";
+import type { ConversationReference } from "@nervekit/contracts/core";
+import {
+  referenceSlots,
+  referenceLabel,
+  referenceDescription,
+} from "$lib/presentation/conversations/conversation-references";
 import { relativeTimeLabel } from "@nervekit/ui-kit/display/time";
-import { type ContextMenuItem } from "@nervekit/ui-kit/components/composites/context-menu-list";
-import { PanelRow, PanelRowCard } from "$lib/presentation/panels";
+import type { ContextMenuItem } from "@nervekit/ui-kit/components/composites/context-menu-list";
+import { cn } from "@nervekit/ui-kit/utils";
+import { PanelRow } from "$lib/presentation/panels";
+import { ItemSurface } from "$lib/presentation/items";
 import type { ConversationActivity } from "$lib/presentation/conversations/conversation-activity";
 import { idleConversationActivity } from "$lib/presentation/conversations/conversation-activity";
 import type { ConversationRow } from "$lib/domain/projects/project-tree";
 import { shortAgentModel } from "$lib/domain/projects/project-tree";
 import { permissionRuleSetDisplayName } from "$lib/domain/permissions/rule-set-options";
 import ConversationActivityIndicator from "$lib/presentation/conversations/ConversationActivityIndicator.svelte";
-import {
-  conversationRowDetail,
-  conversationRowGlyph,
-} from "$lib/presentation/conversations/conversation-row-state";
-import type { UpdateConversationStateRequest } from "$lib/domain/projects/sidebar-view-models";
+import { conversationStatusLabel } from "$lib/presentation/conversations/conversation-row-state";
+import { conversationTitleDisplaySegments } from "$lib/presentation/conversations/conversation-search";
 
 type Props = {
   row: ConversationRow;
-  /** Conversation has an open center tab; fills dot-based indicators. */
+  repoLabels: ReadonlyMap<string, string>;
+  currentRepository?: string;
+  matchedReference?: string;
   isOpen?: boolean;
-  /** Conversation currently shown in the main pane. */
   isActive?: boolean;
   activity?: ConversationActivity;
+  highlight?: number[];
   menuItems: ContextMenuItem[];
+  onMenuOpenChange?: (open: boolean) => void;
   onOpenConversation?: (conversationId: string) => void;
-  /** Enables the hover Pin and Mark done actions; same handler as the menu. */
-  onUpdateConversationState?: (
-    conversationId: string,
-    request: UpdateConversationStateRequest,
-  ) => void;
 };
-
 let {
   row,
+  repoLabels,
+  currentRepository,
+  matchedReference,
   isOpen = false,
   isActive = false,
   activity,
+  highlight = [],
   menuItems,
+  onMenuOpenChange,
   onOpenConversation,
-  onUpdateConversationState,
 }: Props = $props();
-
-const dotActivity = $derived(activity ?? idleConversationActivity);
+const dotActivity = $derived(
+  activity ??
+    (row.conversation.completedAt
+      ? { ...idleConversationActivity, indicator: "completed" as const }
+      : idleConversationActivity),
+);
+const references = $derived(
+  referenceSlots(row.conversation.references, matchedReference),
+);
+function referenceIcon(reference: ConversationReference) {
+  return reference.kind === "pull_request"
+    ? reference.relationship === "created"
+      ? GitPullRequestCreateArrow
+      : GitPullRequest
+    : reference.kind === "issue"
+      ? reference.relationship === "created"
+        ? CirclePlus
+        : CircleDot
+      : Hash;
+}
+const status = $derived(conversationStatusLabel(dotActivity));
 const profile = $derived(
   row.agent?.agentProfile ?? row.conversation.agentProfile,
 );
 const permission = $derived(
   row.agent?.permissionRuleSetId ?? row.conversation.permissionRuleSetId,
 );
-const glyph = $derived(conversationRowGlyph(dotActivity, isOpen));
-const detail = $derived(conversationRowDetail(dotActivity));
-const completed = $derived(Boolean(row.conversation.completedAt));
-const pinned = $derived(row.conversation.pinned);
-const childCount = $derived(row.conversation.childCount);
-const age = $derived(
-  relativeTimeLabel(
-    row.conversation.lastUserMessageAt ?? row.conversation.createdAt,
-  ),
+const promptAt = $derived(
+  row.conversation.lastUserMessageAt ?? row.conversation.createdAt,
+);
+const exactTime = $derived(
+  new Date(promptAt).toLocaleString(undefined, {
+    dateStyle: "medium",
+    timeStyle: "short",
+  }),
+);
+const age = $derived(relativeTimeLabel(promptAt));
+const plainTitle = $derived(
+  conversationTitleToPlainText(row.conversation.title),
 );
 const tooltip = $derived(
   [
-    row.conversation.title,
-    `status: ${dotActivity.label ?? "idle"}`,
+    plainTitle,
+    ...row.conversation.references.map(referenceDescription),
+    dotActivity.statusText ?? dotActivity.label ?? "Idle",
     `profile: ${profile ?? "unknown"} · rule set: ${permission ? permissionRuleSetDisplayName(permission) : "unknown"}`,
     `model: ${shortAgentModel(row.agent)}`,
+    `${row.conversation.childCount} sub-agents`,
+    exactTime,
     row.conversation.id,
   ].join("\n"),
 );
+const titleSegments = $derived(
+  conversationTitleDisplaySegments(row.conversation.title, highlight),
+);
 </script>
 
-{#snippet rowActions()}
-  <IconAction
-    icon={pinned ? PinOff : Pin}
-    label={pinned ? "Unpin" : "Pin"}
-    onclick={(event: MouseEvent) => {
-      event.stopPropagation();
-      onUpdateConversationState?.(row.conversation.id, {
-        pinned: !pinned,
-      });
-    }}
-  />
-  <IconAction
-    icon={completed ? RotateCcw : CircleCheck}
-    label={completed ? "Reopen" : "Mark done"}
-    onclick={(event: MouseEvent) => {
-      event.stopPropagation();
-      onUpdateConversationState?.(row.conversation.id, {
-        completed: !completed,
-      });
-    }}
-  />
-{/snippet}
-
-<PanelRowCard
+<ItemSurface
+  tone="card"
+  hover="soft"
   selected={isActive}
   {menuItems}
+  {onMenuOpenChange}
+  class="flex-col gap-1 px-2 py-1.5"
   onclick={() => onOpenConversation?.(row.conversation.id)}
 >
   <PanelRow
-    label={row.conversation.title}
+    label={plainTitle}
     labelLines={2}
     dataId={row.conversation.id}
     title={tooltip}
+    ariaLabel={tooltip}
     flush
     hoverable={false}
-    class="pl-0"
+    class="py-0"
     active={isActive}
-    tone={completed ? "neutral" : "accent"}
-    detail={detail?.text}
-    detailTone={detail?.tone}
-    actions={onUpdateConversationState ? rowActions : undefined}
+    tone={row.conversation.completedAt ? "neutral" : "accent"}
+    onclick={(event) => {
+      event.stopPropagation();
+      onOpenConversation?.(row.conversation.id);
+    }}
   >
-    {#snippet leading()}
-      <span class="flex h-4 w-3 items-center justify-center">
-        {#if glyph === "activity"}
-          <ConversationActivityIndicator
-            activity={dotActivity}
-            {isOpen}
-            size="sm"
-          />
-        {:else if glyph === "open-dot"}
-          <ConversationActivityIndicator
-            activity={dotActivity}
-            isOpen
-            size="xs"
-          />
+    {#snippet labelContent()}
+      {#each titleSegments as segment, index (index)}{#if segment.type === "image"}<span
+            role="img"
+            aria-label="Image"
+            title="Image"
+            class="inline-flex align-[-2px] text-muted-foreground"
+            ><Image class="size-3" aria-hidden="true" /></span
+          >{:else}{#each segment.runs as run, runIndex (runIndex)}{#if run.hit}<mark
+                class="rounded-xs bg-primary/25 text-foreground"
+                >{run.text}</mark
+              >{:else}{run.text}{/if}{/each}{/if}{/each}
+    {/snippet}
+    {#snippet meta()}
+      <span
+        class="flex h-4 min-w-0 items-center gap-2.5 text-muted-foreground font-normal"
+      >
+        {#if status}
+          <span
+            class={cn(
+              "flex shrink-0 items-center gap-1",
+              dotActivity.tone === "warning" && "text-warning",
+              dotActivity.tone === "destructive" && "text-destructive",
+              dotActivity.tone === "success" && "text-success",
+              dotActivity.tone === "info" && "text-info",
+            )}
+          >
+            <ConversationActivityIndicator
+              activity={dotActivity}
+              {isOpen}
+              size="sm"
+            />
+            {status}
+          </span>
         {/if}
+        {#if references.shown.length}
+          <span class="flex min-w-0 items-center gap-2.5">
+            {#each references.shown as reference (reference.resourceKey)}
+              {@const Icon = referenceIcon(reference)}
+              <span
+                title={referenceDescription(reference)}
+                class={cn(
+                  "inline-flex min-w-0 items-center gap-1 rounded-sm",
+                  reference.resourceKey === matchedReference &&
+                    "bg-primary/25 px-0.5 text-foreground",
+                )}
+              >
+                <Icon class="size-3 shrink-0" aria-hidden="true" />
+                <span class="truncate"
+                  >{referenceLabel(
+                    reference,
+                    repoLabels,
+                    currentRepository,
+                  )}</span
+                >
+              </span>
+            {/each}
+            {#if references.overflow > 0}
+              <span
+                class="shrink-0"
+                title={row.conversation.references
+                  .map(referenceDescription)
+                  .join("\n")}>+{references.overflow}</span
+              >
+            {/if}
+          </span>
+        {/if}
+        <span class="ml-auto shrink-0 tabular-nums" title={exactTime}
+          >{age}</span
+        >
       </span>
     {/snippet}
-    {#snippet trailing()}
-      {#if profile === "planning"}
-        <ClipboardList class="size-3" aria-label="Planning profile" />
-      {/if}
-      {#if childCount > 0}
-        <span
-          class="flex items-center gap-0.5"
-          aria-label={`${childCount} sub-agents`}
-        >
-          <Users class="size-3" aria-hidden="true" />{childCount}
-        </span>
-      {/if}
-      {#if age}<span>{age}</span>{/if}
-    {/snippet}
   </PanelRow>
-</PanelRowCard>
+</ItemSurface>

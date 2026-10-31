@@ -11,9 +11,11 @@ import { ToolCallRepository } from "./tool-call.repository.js";
 import { InputQueueRepository } from "./input-queue.repository.js";
 import { AssetRepository } from "./asset.repository.js";
 import { AsyncBashRepository } from "./async-bash.repository.js";
+import { ConversationReferenceRepository } from "./conversation-reference.repository.js";
 import { ScratchNoteRepository } from "./scratch-note.repository.js";
 
 export class CoreStorage {
+  readonly references: ConversationReferenceRepository;
   readonly projects: ProjectRepository;
   readonly trustedResources: TrustedResourceRepository;
   readonly conversations: ConversationRepository;
@@ -28,6 +30,7 @@ export class CoreStorage {
     private readonly db: CoreDatabase,
     onConversationFailure?: ConversationFailureReporter,
   ) {
+    this.references = new ConversationReferenceRepository(db);
     this.projects = new ProjectRepository(db);
     this.trustedResources = new TrustedResourceRepository(db);
     this.conversations = new ConversationRepository(db, onConversationFailure);

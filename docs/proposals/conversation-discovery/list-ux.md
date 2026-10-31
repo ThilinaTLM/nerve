@@ -4,11 +4,11 @@
 
 Each visible root conversation appears in exactly one section, using the first rule that matches:
 
-| Section | Membership | Order |
-| --- | --- | --- |
-| **Pinned** | Pinned, whatever its status | Most recent user prompt first (current behavior) |
-| **Needs you** | Pending question or approval; uncleared failure or interruption; existing `result-ready` activity (green "Finished" marker) | Pending input, then failures/interruptions, then finished; most recent user prompt first within each group |
-| **Today / Yesterday / Previous 7 days / Older** | Everything else | Existing day buckets and order (`last_user_message_at` descending) from `project-tree.ts` |
+| Section                                         | Membership                                                                                                                  | Order                                                                                                      |
+| ----------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| **Pinned**                                      | Pinned, whatever its status                                                                                                 | Most recent user prompt first (current behavior)                                                           |
+| **Needs you**                                   | Pending question or approval; uncleared failure or interruption; existing `result-ready` activity (green "Finished" marker) | Pending input, then failures/interruptions, then finished; most recent user prompt first within each group |
+| **Today / Yesterday / Previous 7 days / Older** | Everything else                                                                                                             | Existing day buckets and order (`last_user_message_at` descending) from `project-tree.ts`                  |
 
 - Pinned comes first and isn't duplicated: a pinned conversation that needs you stays in Pinned, and its status label shows it. There's no pin icon on cards; pin state lives in the context menu.
 - Running conversations stay in Pinned or a day section with a "Running" status. They aren't promoted above questions.
@@ -47,6 +47,7 @@ There are no leading glyph column, pin icon, planning-profile icon, sub-agent co
   - the owner is added back only to tell apart same-named repos (`acme-api#481` vs `contoso-api#77`).
 
   Move that module to a shared location (for example `presentation/`) instead of importing it across features. The full `owner/repo#n` is in the tooltip and the accessible name.
+
 - Created vs referenced is shown by the icon alone, with no text prefix: created PRs use `GitPullRequestCreateArrow` and created issues use `CirclePlus`. The tooltip and accessible name say "Created pull request …" / "Referenced pull request …".
 - When both kinds exist, one visible slot goes to created and one to referenced. Within a kind, tags keep their first-seen order. `+N` is plain text, and its tooltip lists every reference.
 
@@ -73,12 +74,12 @@ A **`SearchInput`** sits directly under the header, above the first section, and
 
 **One input, no syntax.** Each whitespace-separated term must match at least one of the following, and the best-scoring field counts:
 
-| Field | Matches | Example terms |
-| --- | --- | --- |
-| Reference | Exact number, `owner/repo#n`, or a GitHub URL; kind words | `481`, `#481`, `acme/api#481`, `https://github.com/acme/web/pull/492`, `pr`, `issue`, `created` |
-| Status | Prefix of a status word | `question`, `approval`, `fail`/`error`, `stopped`, `fin`/`ready`/`review`, `running`, `done`, `pinned`, `needs`/`attention` |
-| Image | Titles that contain the image marker | `image`, `screenshot` |
-| Title | Substring (word starts score higher), then **lazy** in-order subsequence that prefers consecutive letters and word starts | `dash`, `wsback` → "**w**eb**s**ocket … **back**off" |
+| Field     | Matches                                                                                                                   | Example terms                                                                                                               |
+| --------- | ------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| Reference | Exact number, `owner/repo#n`, or a GitHub URL; kind words                                                                 | `481`, `#481`, `acme/api#481`, `https://github.com/acme/web/pull/492`, `pr`, `issue`, `created`                             |
+| Status    | Prefix of a status word                                                                                                   | `question`, `approval`, `fail`/`error`, `stopped`, `fin`/`ready`/`review`, `running`, `done`, `pinned`, `needs`/`attention` |
+| Image     | Titles that contain the image marker                                                                                      | `image`, `screenshot`                                                                                                       |
+| Title     | Substring (word starts score higher), then **lazy** in-order subsequence that prefers consecutive letters and word starts | `dash`, `wsback` → "**w**eb**s**ocket … **back**off"                                                                        |
 
 - **Ranking:**
   1. Sum of term scores: exact reference (created first) > status word > title word start > title substring > lazy match.

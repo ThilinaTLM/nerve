@@ -49,6 +49,27 @@ test("empty released core upgrades to the identical fresh D10 schema, preserving
     assert.deepEqual(schema(upgraded), schema(fresh));
     assert.deepEqual(
       upgraded.sqlite
+        .prepare("PRAGMA table_info(conversation_reference)")
+        .all()
+        .map((column) => column.name),
+      [
+        "conversation_id",
+        "provider",
+        "resource_key",
+        "kind",
+        "relationship",
+        "source_event_id",
+        "created_at",
+      ],
+    );
+    assert.equal(
+      upgraded.sqlite
+        .prepare("SELECT count(*) AS n FROM conversation_reference")
+        .get()?.n,
+      0,
+    );
+    assert.deepEqual(
+      upgraded.sqlite
         .prepare("SELECT * FROM schema_migrations WHERE version=1")
         .get(),
       original,

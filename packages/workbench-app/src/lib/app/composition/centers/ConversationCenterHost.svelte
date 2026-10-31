@@ -559,6 +559,7 @@ async function submitPrompt(
         ...workspaceState.conversations,
         {
           ...snapshot.conversation,
+          references: [],
           childCount: 0,
           pendingWork: false,
           pendingInput: null,

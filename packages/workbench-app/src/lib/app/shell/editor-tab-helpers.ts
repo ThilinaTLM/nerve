@@ -1,3 +1,4 @@
+import { conversationTitleToPlainText } from "@nervekit/contracts/core";
 import { shortenPath } from "$lib/domain/filesystem/project-path";
 import { shortProjectLabel } from "$lib/domain/projects/project-tree";
 import type {
@@ -64,7 +65,7 @@ export function tabLabel(tab: CenterTabModel): string {
   if (tab.kind === "logs") return "Nerve Logs";
   if (tab.kind === "discover") return "Discover";
   if (tab.kind === "pending-conversation") return tab.title;
-  return tab.conversation.title;
+  return conversationTitleToPlainText(tab.conversation.title);
 }
 
 export function tabTitle(tab: CenterTabModel, homeDir?: string): string {
@@ -98,7 +99,7 @@ export function tabTitle(tab: CenterTabModel, homeDir?: string): string {
       : "Unknown project";
   if (tab.kind === "pending-conversation")
     return `${tab.title} · ${project} · created on first send`;
-  return `${tab.conversation.title} · ${project} · ${tab.conversation.id}`;
+  return `${conversationTitleToPlainText(tab.conversation.title)} · ${project} · ${tab.conversation.id}`;
 }
 
 export function statusLabel(tab: CenterTabModel): string | undefined {

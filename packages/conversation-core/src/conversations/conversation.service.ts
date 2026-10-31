@@ -1,3 +1,9 @@
+import {
+  prepareTitleInput,
+  hasMeaningfulTitleInput,
+  validateGeneratedTitle,
+  type ConversationTitleCapability,
+} from "./ai-title.js";
 import { publishSummary } from "../runtime/publish-summary.js";
 import type {
   LeadSettingsOverrides,
@@ -43,9 +49,17 @@ export interface CreateConversationInput {
   >["application"];
 }
 export class ConversationService {
+  private readonly newTitleCandidates = new Set<string>();
+  private readonly titleTokens = new Map<string, number>();
+  private advanceTitleToken(id: string): number {
+    const token = (this.titleTokens.get(id) ?? 0) + 1;
+    this.titleTokens.set(id, token);
+    return token;
+  }
   constructor(
     private readonly options: {
       storage: CoreStorage;
+      titles?: ConversationTitleCapability;
       summary?(
         id: string,
       ): Partial<
@@ -117,6 +131,8 @@ export class ConversationService {
       },
       config,
     );
+    if (!input.parentConversationId && !input.title)
+      this.newTitleCandidates.add(id);
     publishSummary(storage, this.options.emit, id);
     this.options.emit({
       kind: "config_changed",
@@ -146,6 +162,10 @@ export class ConversationService {
     };
   }
   update(id: string, patch: UpdateConversationRequest["patch"]): void {
+    if (patch.title !== undefined) {
+      this.advanceTitleToken(id);
+      this.newTitleCandidates.delete(id);
+    }
     const now = this.options.now();
     this.options.storage.conversations.update(id, {
       ...(patch.title !== undefined ? { title: patch.title } : {}),
@@ -234,9 +254,51 @@ export class ConversationService {
     const messages = this.options.storage.events
       .since(id, 0)
       .filter((event) => event.type === "user_message");
-    if (messages[0]?.type === "user_message")
-      this.update(id, {
-        title: deriveConversationTitle(messages[0].payload.originalText),
+    const first = messages[0];
+    if (first?.type !== "user_message") return;
+    const candidate = this.newTitleCandidates.delete(id);
+    this.update(id, {
+      title: deriveConversationTitle(first.payload.originalText),
+    });
+    const titles = this.options.titles;
+    const setting = titles?.settings();
+    if (
+      !candidate ||
+      messages.length !== 1 ||
+      !titles ||
+      !setting?.enabled ||
+      !setting.model
+    )
+      return;
+    const model = { ...setting.model };
+    const text = prepareTitleInput(first.payload.originalText);
+    if (!hasMeaningfulTitleInput(text)) return;
+    const token = this.titleTokens.get(id);
+    const controller = new AbortController();
+    void titles
+      .generateTitle(
+        { conversationId: id, sourceMessageId: first.id, model, text },
+        controller.signal,
+      )
+      .then((output) => {
+        const title = validateGeneratedTitle(output, text);
+        const current = titles.settings();
+        // No awaits: guard and metadata update are one serialized JS step.
+        if (
+          !title ||
+          !this.options.storage.conversations.get(id) ||
+          this.titleTokens.get(id) !== token ||
+          !current.enabled ||
+          current.model?.provider !== model.provider ||
+          current.model?.modelId !== model.modelId
+        )
+          return;
+        this.advanceTitleToken(id);
+        this.options.storage.conversations.update(id, { title });
+        publishSummary(this.options.storage, this.options.emit, id);
+      })
+      .catch(() => {
+        /* Background failures never affect an agent run. */
       });
   }
   async delete(id: string): Promise<void> {
@@ -250,6 +312,8 @@ export class ConversationService {
       this.options.storage.conversations.delete(id);
     });
     for (const conversationId of ids) {
+      this.advanceTitleToken(conversationId);
+      this.newTitleCandidates.delete(conversationId);
       this.options.compactions.delete(conversationId);
       this.options.emit({ kind: "conversation_deleted", conversationId });
     }

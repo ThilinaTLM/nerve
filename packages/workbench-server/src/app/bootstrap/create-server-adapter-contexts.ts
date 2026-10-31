@@ -63,6 +63,7 @@ export function createServerAdapterContexts(
     },
     completions: { completions: services.completions },
     platform: {
+      conversationTitles: services.conversationTitles,
       ...infrastructure,
       git: services.git,
       conversationCore: services.conversationCore,

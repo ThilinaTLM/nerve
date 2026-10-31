@@ -1,3 +1,7 @@
+import {
+  conversationLastUserPromptAt,
+  compareConversationsByLastUserPromptDesc,
+} from "@nervekit/contracts/core";
 import type { AgentRecord } from "$lib/domain/projects/sidebar-view-models";
 import type { ConversationRecord } from "$lib/domain/projects/sidebar-view-models";
 import type { ProjectRecord } from "$lib/domain/projects/sidebar-view-models";
@@ -124,27 +128,6 @@ export function activeConversationAgent(
   );
 }
 
-export function conversationLastUserPromptAt(
-  conversation: Pick<ConversationRecord, "lastUserMessageAt" | "createdAt">,
-): string {
-  return conversation.lastUserMessageAt ?? conversation.createdAt;
-}
-
-function compareConversationsByLastUserPromptDesc(
-  a: ConversationRecord,
-  b: ConversationRecord,
-): number {
-  const sortCompare = conversationLastUserPromptAt(b).localeCompare(
-    conversationLastUserPromptAt(a),
-  );
-  if (sortCompare !== 0) return sortCompare;
-  const createdCompare = b.createdAt.localeCompare(a.createdAt);
-  if (createdCompare !== 0) return createdCompare;
-  const titleCompare = a.title.localeCompare(b.title);
-  if (titleCompare !== 0) return titleCompare;
-  return a.id.localeCompare(b.id);
-}
-
 function compareProjectGroupsDesc(a: ProjectGroup, b: ProjectGroup): number {
   const sortCompare = b.sortAt.localeCompare(a.sortAt);
   if (sortCompare !== 0) return sortCompare;
@@ -177,114 +160,6 @@ export function buildConversationRows(options: {
     .sort((a, b) =>
       compareConversationsByLastUserPromptDesc(a.conversation, b.conversation),
     );
-}
-
-function compareConversationRowsByCompletionThenUserPrompt(
-  a: ConversationRow,
-  b: ConversationRow,
-): number {
-  const completionCompare =
-    Number(Boolean(a.conversation.completedAt)) -
-    Number(Boolean(b.conversation.completedAt));
-  return (
-    completionCompare ||
-    compareConversationsByLastUserPromptDesc(a.conversation, b.conversation)
-  );
-}
-
-export type ConversationSection = {
-  key: "pinned" | "today" | "yesterday" | "previous-7-days" | "older";
-  label: string;
-  rows: ConversationRow[];
-};
-
-const CONVERSATION_SECTION_LABELS: Record<ConversationSection["key"], string> =
-  {
-    pinned: "Pinned",
-    today: "Today",
-    yesterday: "Yesterday",
-    "previous-7-days": "Previous 7 days",
-    older: "Older",
-  };
-
-function startOfLocalDay(value: Date): Date {
-  return new Date(value.getFullYear(), value.getMonth(), value.getDate());
-}
-
-function conversationDateSectionKey(
-  conversation: ConversationRecord,
-  now: Date,
-): Exclude<ConversationSection["key"], "pinned"> {
-  const lastUserPrompt = new Date(conversationLastUserPromptAt(conversation));
-  if (Number.isNaN(lastUserPrompt.getTime())) return "older";
-  const today = startOfLocalDay(now);
-  const lastUserPromptDay = startOfLocalDay(lastUserPrompt);
-  if (lastUserPromptDay.getTime() >= today.getTime()) return "today";
-  const yesterday = new Date(today);
-  yesterday.setDate(yesterday.getDate() - 1);
-  if (lastUserPromptDay.getTime() >= yesterday.getTime()) return "yesterday";
-  const previousWeek = new Date(today);
-  previousWeek.setDate(previousWeek.getDate() - 7);
-  return lastUserPromptDay.getTime() >= previousWeek.getTime()
-    ? "previous-7-days"
-    : "older";
-}
-
-export function buildConversationSections(options: {
-  conversations: ConversationRecord[];
-  agents: AgentRecord[];
-  projectIds: Iterable<string>;
-  filter?: string;
-  now?: Date;
-  hideCompleted?: boolean;
-}): ConversationSection[] {
-  const rows = buildConversationRows(options).filter(
-    (row) => !options.hideCompleted || !row.conversation.completedAt,
-  );
-  const now = options.now ?? new Date();
-  const byKey = new Map<ConversationSection["key"], ConversationRow[]>();
-  for (const row of rows) {
-    const key = row.conversation.pinned
-      ? "pinned"
-      : conversationDateSectionKey(row.conversation, now);
-    const sectionRows = byKey.get(key) ?? [];
-    sectionRows.push(row);
-    byKey.set(key, sectionRows);
-  }
-  const order: ConversationSection["key"][] = [
-    "pinned",
-    "today",
-    "yesterday",
-    "previous-7-days",
-    "older",
-  ];
-  return order.flatMap((key) => {
-    const sectionRows = byKey.get(key);
-    return sectionRows?.length
-      ? [
-          {
-            key,
-            label: CONVERSATION_SECTION_LABELS[key],
-            rows: sectionRows.sort(
-              compareConversationRowsByCompletionThenUserPrompt,
-            ),
-          },
-        ]
-      : [];
-  });
-}
-
-export function limitConversationSections(
-  sections: ConversationSection[],
-  limit: number,
-): ConversationSection[] {
-  let remaining = limit;
-  return sections.flatMap((section) => {
-    if (remaining <= 0) return [];
-    const rows = section.rows.slice(0, remaining);
-    remaining -= rows.length;
-    return rows.length ? [{ ...section, rows }] : [];
-  });
 }
 
 export function buildProjectGroups(options: {

@@ -8,10 +8,9 @@ import {
   MobileSection,
   MobileScreen,
 } from "$lib/presentation/shell";
-import {
-  buildConversationSections,
-  conversationLastUserPromptAt,
-} from "$lib/domain/projects/project-tree";
+import { buildConversationSections } from "$lib/presentation/conversations/conversation-list";
+import { conversationLastUserPromptAt } from "@nervekit/contracts/core";
+import { buildConversationRows } from "$lib/domain/projects/project-tree";
 import { sidebarConversations, sidebarAgents } from "$lib/features/projects";
 import { conversationListPreferences } from "$lib/features/projects";
 import { selection } from "$lib/application/workspace/selection.svelte";
@@ -50,10 +49,12 @@ const conversations = $derived(
 const activityById = $derived(workspaceSelectors.conversationActivityById);
 const sections = $derived(
   buildConversationSections({
-    conversations,
-    agents: sidebarAgents(conversations),
-    projectIds,
-    filter: query,
+    rows: buildConversationRows({
+      conversations,
+      agents: sidebarAgents(conversations),
+      projectIds,
+      filter: query,
+    }),
     hideCompleted: conversationListPreferences.hideCompleted,
   }),
 );

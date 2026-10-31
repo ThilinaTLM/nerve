@@ -1,6 +1,7 @@
 <script lang="ts">
+import { tick, untrack } from "svelte";
+import type { ConversationRow } from "$lib/domain/projects/project-tree";
 import ScrollRegion from "@nervekit/ui-kit/components/composites/scroll-region";
-import Bell from "@lucide/svelte/icons/bell";
 import MessagesSquare from "@lucide/svelte/icons/messages-square";
 import Plus from "@lucide/svelte/icons/plus";
 import Settings from "@lucide/svelte/icons/settings";
@@ -19,10 +20,15 @@ import {
 import {
   buildConversationSections,
   limitConversationSections,
-} from "$lib/domain/projects/project-tree";
-import { conversationNeedsAttention } from "$lib/presentation/conversations/conversation-row-state";
+} from "$lib/presentation/conversations/conversation-list";
+import { buildConversationRows } from "$lib/domain/projects/project-tree";
+import {
+  matchConversationReference,
+  referenceRepositoryLabels,
+} from "$lib/presentation/conversations/conversation-references";
+import { searchConversations } from "$lib/presentation/conversations/conversation-search";
+import SearchInput from "@nervekit/ui-kit/components/composites/search-input";
 import ProjectAgentTreeNode from "./ProjectAgentTreeNode.svelte";
-import ProjectConversationsDialog from "./ProjectConversationsDialog.svelte";
 import ConversationListSettingsDialog from "./ConversationListSettingsDialog.svelte";
 import PruneConversationsDialog from "./PruneConversationsDialog.svelte";
 import { getShortcutLabel } from "$lib/application/commands/command-registry";
@@ -44,6 +50,7 @@ import {
 } from "$lib/features/projects/state/conversation-list-preferences.svelte";
 
 let {
+  currentRepositories = {},
   projects = [],
   conversations = [],
   agents = [],
@@ -70,7 +77,8 @@ let {
 const MAX_LISTED_CONVERSATIONS = 100;
 
 let pendingDelete = $state<DeleteTarget | undefined>();
-let allConversationsOpen = $state(false);
+let search = $state("");
+let searchInput = $state<HTMLInputElement | null>(null);
 let settingsOpen = $state(false);
 let cleanUpOpen = $state(false);
 
@@ -78,44 +86,96 @@ const activeProject = $derived(
   projects.find((project) => project.id === selectedProjectId) ?? projects[0],
 );
 const projectIds = $derived(projects.map((project) => project.id));
+const allRows = $derived(
+  buildConversationRows({ conversations, agents, projectIds }),
+);
+const searching = $derived(Boolean(search.trim()));
+const repoLabels = $derived(
+  referenceRepositoryLabels(
+    allRows.flatMap((row) => row.conversation.references),
+  ),
+);
+const searchHits = $derived(
+  searchConversations(allRows, search, {
+    activityById: conversationActivityById,
+    matchField: (row, term) =>
+      matchConversationReference(row.conversation.references, term, repoLabels),
+  }),
+);
 const sections = $derived(
   buildConversationSections({
-    conversations,
-    agents,
-    projectIds,
+    rows: allRows,
+    activityById: conversationActivityById,
     hideCompleted: conversationListPreferences.hideCompleted,
   }),
 );
 const rowCount = $derived(
-  sections.reduce((count, section) => count + section.rows.length, 0),
+  searching
+    ? searchHits.length
+    : sections.reduce((count, section) => count + section.rows.length, 0),
 );
-const displayedSections = $derived(
-  limitConversationSections(sections, MAX_LISTED_CONVERSATIONS),
+const liveSections = $derived(
+  searching
+    ? [
+        {
+          key: "results",
+          label: "Results",
+          rows: searchHits
+            .slice(0, MAX_LISTED_CONVERSATIONS)
+            .map((hit) => hit.row),
+        },
+      ]
+    : limitConversationSections(sections, MAX_LISTED_CONVERSATIONS),
 );
-// Listed rows that need the user (waiting or failed), in list order.
-const attentionIds = $derived(
-  displayedSections
-    .flatMap((section) => section.rows)
-    .map((row) => row.conversation.id)
-    .filter((id) => conversationNeedsAttention(conversationActivityById[id])),
+let menuSections = $state<
+  { key: string; label: string; rows: ConversationRow[] }[] | undefined
+>();
+const displayedSections = $derived(menuSections ?? liveSections);
+let viewport = $state<HTMLDivElement>();
+// Section changes recreate a row's DOM. Preserve its viewport offset and keyboard focus.
+$effect.pre(() => {
+  const next = displayedSections;
+  untrack(() => {
+    if (!viewport) return;
+    const focused =
+      document.activeElement instanceof HTMLElement &&
+      viewport.contains(document.activeElement)
+        ? document.activeElement.closest<HTMLElement>("[data-panel-row-id]")
+        : null;
+    const anchor =
+      focused ??
+      [...viewport.querySelectorAll<HTMLElement>("[data-panel-row-id]")].find(
+        (row) =>
+          row.getBoundingClientRect().bottom >=
+          viewport!.getBoundingClientRect().top,
+      );
+    const id = anchor?.dataset.panelRowId;
+    if (
+      !anchor ||
+      !id ||
+      !next.some((section) =>
+        section.rows.some((row) => row.conversation.id === id),
+      )
+    )
+      return;
+    const top = anchor.getBoundingClientRect().top;
+    void tick().then(() => {
+      const replacement = viewport?.querySelector<HTMLElement>(
+        `[data-panel-row-id="${CSS.escape(id)}"]`,
+      );
+      if (!replacement || !viewport) return;
+      viewport.scrollTop += replacement.getBoundingClientRect().top - top;
+      if (focused && document.activeElement === document.body)
+        replacement.querySelector("button")?.focus({ preventScroll: true });
+    });
+  });
+});
+const matchedReferences = $derived(
+  new Map(searchHits.map((hit) => [hit.row.conversation.id, hit.referenceKey])),
 );
-
-/**
- * Opens the next attention row after the current selection (wrapping), so
- * repeated clicks walk the queue; opening also scrolls it into view.
- */
-function openNextAttention() {
-  if (attentionIds.length === 0) return;
-  const at = selectedConversationId
-    ? attentionIds.indexOf(selectedConversationId)
-    : -1;
-  const nextId = attentionIds[(at + 1) % attentionIds.length];
-  if (!nextId) return;
-  onOpenConversation?.(nextId);
-  document
-    .querySelector(`[data-panel-row-id="${CSS.escape(nextId)}"]`)
-    ?.scrollIntoView({ block: "nearest" });
-}
+const highlights = $derived(
+  new Map(searchHits.map((hit) => [hit.row.conversation.id, hit.titleIndexes])),
+);
 
 const hasProjectConversations = $derived(
   conversations.some((conversation) =>
@@ -130,9 +190,9 @@ const emptyStateHint = switchProjectShortcut
 
 let lastSearchFocusToken = 0;
 $effect(() => {
-  if (searchFocusToken === lastSearchFocusToken) return;
+  if (searchFocusToken === lastSearchFocusToken || !searchInput) return;
   lastSearchFocusToken = searchFocusToken;
-  allConversationsOpen = true;
+  searchInput?.focus();
 });
 
 const menuContext = $derived<ProjectTreeMenuContext>({
@@ -165,18 +225,6 @@ const menuContext = $derived<ProjectTreeMenuContext>({
   <PanelView>
     <PanelHeader title="Conversations" count={rowCount}>
       {#snippet trailing()}
-        {#if attentionIds.length > 0}
-          <Button
-            variant="ghost"
-            size="sm"
-            class="text-warning"
-            title="Open the next conversation that needs you"
-            onclick={openNextAttention}
-          >
-            <Bell />
-            {attentionIds.length} need you
-          </Button>
-        {/if}
         <PanelToolbarButton
           icon={Settings}
           label="Conversation settings"
@@ -199,17 +247,37 @@ const menuContext = $derived<ProjectTreeMenuContext>({
       {/snippet}
     </PanelHeader>
 
+    <div class="shrink-0 pb-1.5">
+      <SearchInput
+        bind:value={search}
+        bind:ref={searchInput}
+        ariaLabel="Search conversations"
+        placeholder="Search conversations"
+        onkeydown={(event) => {
+          if (event.key === "Escape") {
+            event.preventDefault();
+            event.stopPropagation();
+            search = "";
+          }
+        }}
+      />
+    </div>
+
     {#if !activeProject}
       <PanelEmpty title="No project selected." description={emptyStateHint} />
     {:else if rowCount === 0}
       <PanelEmpty
         icon={MessagesSquare}
-        title={hasProjectConversations
-          ? "No conversations to show"
-          : "No conversations yet"}
-        description={hasProjectConversations
-          ? "Completed conversations are hidden."
-          : "Conversations are scoped to this project."}
+        title={searching
+          ? "No matches"
+          : hasProjectConversations
+            ? "Everything is done"
+            : "No conversations yet"}
+        description={searching
+          ? "Try a status, PR number, or part of a title."
+          : hasProjectConversations
+            ? "Search “done” to find them."
+            : "Conversations are scoped to this project."}
       >
         {#snippet action()}
           <Button
@@ -224,6 +292,7 @@ const menuContext = $derived<ProjectTreeMenuContext>({
       </PanelEmpty>
     {:else}
       <ScrollRegion
+        bind:viewport
         ariaLabel="Conversations"
         topShadowClass="top-7 h-2"
         contentClass="pb-2"
@@ -231,11 +300,14 @@ const menuContext = $derived<ProjectTreeMenuContext>({
         {#each displayedSections as section (section.key)}
           <PanelSectionHeader
             title={section.label}
-            count={section.rows.length}
+            count={searching
+              ? searchHits.length
+              : (sections.find((candidate) => candidate.key === section.key)
+                  ?.rows.length ?? section.rows.length)}
           />
           <PanelList
             ariaLabel={`${section.label} conversations`}
-            class="shrink-0 gap-1 pb-0"
+            class="shrink-0 gap-1.5 pb-1"
           >
             {#each section.rows as row (row.conversation.id)}
               {@const rowProject =
@@ -244,6 +316,19 @@ const menuContext = $derived<ProjectTreeMenuContext>({
                 ) ?? activeProject}
               <ProjectAgentTreeNode
                 {row}
+                {repoLabels}
+                currentRepository={currentRepositories[
+                  row.conversation.projectId
+                ]}
+                matchedReference={searching
+                  ? matchedReferences.get(row.conversation.id)
+                  : undefined}
+                onMenuOpenChange={(open) => {
+                  menuSections = open ? displayedSections : undefined;
+                }}
+                highlight={searching
+                  ? highlights.get(row.conversation.id)
+                  : undefined}
                 isOpen={openConversationTabIds?.has(row.conversation.id) ??
                   false}
                 isActive={row.conversation.id === selectedConversationId}
@@ -254,7 +339,6 @@ const menuContext = $derived<ProjectTreeMenuContext>({
                   menuContext,
                 )}
                 {onOpenConversation}
-                {onUpdateConversationState}
               />
             {/each}
           </PanelList>
@@ -325,28 +409,3 @@ const menuContext = $derived<ProjectTreeMenuContext>({
     if (!open) pendingDelete = undefined;
   }}
 />
-
-{#if activeProject}
-  <ProjectConversationsDialog
-    open={allConversationsOpen}
-    projectLabel={activeProject.name}
-    project={activeProject}
-    {projectIds}
-    {conversations}
-    {agents}
-    {selectedConversationId}
-    {openConversationTabIds}
-    {conversationActivityById}
-    hideCompleted={conversationListPreferences.hideCompleted}
-    {onOpenConversation}
-    {onUpdateConversationState}
-    buildMenu={(conversation) =>
-      buildConversationMenu(
-        projects.find((project) => project.id === conversation.projectId) ??
-          activeProject,
-        conversation,
-        menuContext,
-      )}
-    onOpenChange={(open) => (allConversationsOpen = open)}
-  />
-{/if}

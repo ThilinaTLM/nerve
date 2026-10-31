@@ -1,4 +1,8 @@
 export { projectSchema } from "./project.js";
+export {
+  compareConversationsByLastUserPromptDesc,
+  conversationLastUserPromptAt,
+} from "./conversation-recency.js";
 export type { Project } from "./project.js";
 export {
   trustedResourceKindSchema,
@@ -16,6 +20,7 @@ export {
   conversationConfigSchema,
   conversationContextSchema,
   conversationHistoryConfigSchema,
+  conversationReferenceSchema,
   conversationSummarySchema,
   conversationSnapshotSchema,
 } from "./conversation.js";
@@ -25,6 +30,7 @@ export type {
   ConversationConfig,
   ConversationContextConfig,
   ConversationHistoryConfig,
+  ConversationReference,
   ConversationSummary,
   ConversationSnapshot,
 } from "./conversation.js";
@@ -206,3 +212,5 @@ export {
 
 export { setConversationAgentProfileRequestSchema } from "./core-operations.js";
 export type { SetConversationAgentProfileRequest } from "./core-operations.js";
+
+export * from "./conversation-title.js";

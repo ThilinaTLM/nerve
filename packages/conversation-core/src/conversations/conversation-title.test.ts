@@ -1,3 +1,4 @@
+import { CONVERSATION_TITLE_IMAGE_MARKER as IMAGE } from "@nervekit/contracts/core";
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { deriveConversationTitle } from "./conversation-title.js";
@@ -195,11 +196,11 @@ describe("conversation title proposal", () => {
 const mentionCases: [string, string][] = [
   [
     "@image-20261019T173104Z.png Shall we remove the outline from our button",
-    "Remove the outline from our button",
+    `Remove the outline from our button ${IMAGE}`,
   ],
   [
     "@image-20261019T154725Z.png @image-20261019T154740Z.png Are these two pull requests related?",
-    "Are these two pull requests related?",
+    `Are these two pull requests related ${IMAGE}?`,
   ],
   ["@queued-compaction.md Review this", "Review queued-compaction.md"],
   [
@@ -223,7 +224,7 @@ const referenceEdgeCases: [string, string][] = [
     "Review https://github.com/acme/api/pull/1, https://github.com/acme/api/pull/2 and https://github.com/acme/api/pull/3",
     "Review PR acme/api#1, PR acme/api#2 and PR acme/api#3",
   ],
-  ["@image-utils.png Review this", "Review image-utils.png"],
+  ["@image-utils.png Review this", `Review this ${IMAGE}`],
   [
     "Review https://www.github.com/acme/api/pull/12/checks?token=secret",
     "Review PR acme/api#12",
@@ -400,5 +401,35 @@ describe("protected reference edge cases", () => {
       assert.ok(Array.from(title).length <= 100);
       assert.doesNotMatch(title, /[\uE000\uE001]/u);
     }
+  });
+});
+
+describe("image markers", () => {
+  for (const image of [
+    "@/path/screenshot.png",
+    "![screen](https://example.com/screen.png)",
+    "/tmp/screen.webp",
+    "@image-20261019T173104Z.png",
+  ]) {
+    it(image, () => {
+      assert.equal(
+        deriveConversationTitle(`Please check this screenshot ${image}`),
+        `Check this screenshot ${IMAGE}`,
+      );
+      assert.equal(deriveConversationTitle(image), "Image Review");
+    });
+  }
+  it("collapses repeated images and preserves the marker under truncation", () => {
+    const title = deriveConversationTitle(
+      `Review ${"the settings panel ".repeat(15)} @/a.png @/b.png`,
+    );
+    assert.equal(title.split(IMAGE).length - 1, 1);
+    assert.ok([...title].length <= 100);
+  });
+  it("does not allow prompt text to inject a reserved marker", () => {
+    assert.equal(
+      deriveConversationTitle(`Fix the button ${IMAGE}`),
+      "Fix the button",
+    );
   });
 });

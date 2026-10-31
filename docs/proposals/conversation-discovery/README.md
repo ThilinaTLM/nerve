@@ -12,7 +12,7 @@ The list answers three questions at a glance:
 
 1. **Which conversation is this?** Better titles: an instant local title, optionally improved in the background by a small AI model the user picks.
 2. **Does it need me?** Sections you can predict (Pinned → Needs you, which includes unseen "Finished" results → Today / Yesterday / Previous 7 days / Older), built on the existing attention state.
-3. **Where is the work?** PR/issue tags that show whether the user *referenced* a resource or the conversation *created* it, plus one smart search input over titles, statuses, and references.
+3. **Where is the work?** PR/issue tags that show whether the user _referenced_ a resource or the conversation _created_ it, plus one smart search input over titles, statuses, and references.
 
 It also follows two rules:
 
@@ -21,14 +21,14 @@ It also follows two rules:
 
 ## Solution overview
 
-| Area | Decision | Doc |
-| --- | --- | --- |
-| List UX | Sections, one card per conversation: a two-line title, then one meta line (short status, up to 2 references + `+N`, time). Context menu for actions. Inline smart search with lazy matching | [list-ux.md](list-ux.md) |
-| Recency | Keep the existing client ordering by `last_user_message_at` (actual user prompts only) | [list-ux.md](list-ux.md#ordering-and-stability) |
-| References | GitHub PR/issue references from user prompts. "Created" comes from successful `gh pr create` / `gh issue create`. The model is provider-neutral for later Jira/Linear support | [references.md](references.md) |
-| Storage | One new table, `conversation_reference`, added to the unreleased schema v2 step. No other schema changes | [storage.md](storage.md) |
-| Titles | The rule-based title stays instant and gains an inline image marker. Opt-in background AI title runs once per new conversation, guarded against manual renames | [title-generation.md](title-generation.md) |
-| Settings | New user-level "Titles" settings page (App group, no project override): opt-in switch, existing `ModelPicker`, disclosure, test | [title-settings.md](title-settings.md) |
+| Area       | Decision                                                                                                                                                                                    | Doc                                             |
+| ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------- |
+| List UX    | Sections, one card per conversation: a two-line title, then one meta line (short status, up to 2 references + `+N`, time). Context menu for actions. Inline smart search with lazy matching | [list-ux.md](list-ux.md)                        |
+| Recency    | Keep the existing client ordering by `last_user_message_at` (actual user prompts only)                                                                                                      | [list-ux.md](list-ux.md#ordering-and-stability) |
+| References | GitHub PR/issue references from user prompts. "Created" comes from successful `gh pr create` / `gh issue create`. The model is provider-neutral for later Jira/Linear support               | [references.md](references.md)                  |
+| Storage    | One new table, `conversation_reference`, added to the unreleased schema v2 step. No other schema changes                                                                                    | [storage.md](storage.md)                        |
+| Titles     | The rule-based title stays instant and gains an inline image marker. Opt-in background AI title runs once per new conversation, guarded against manual renames                              | [title-generation.md](title-generation.md)      |
+| Settings   | New user-level "Titles" settings page (App group, no project override): opt-in switch, existing `ModelPicker`, disclosure, test                                                             | [title-settings.md](title-settings.md)          |
 
 Wireframes (local and mock-only, served in dev):
 

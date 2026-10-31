@@ -7,6 +7,7 @@ import {
   conversationSummarySchema,
 } from "@nervekit/contracts/core";
 import type { CoreDatabase } from "./database.js";
+import { ConversationReferenceRepository } from "./conversation-reference.repository.js";
 
 // Queue rows disappear on delivery. Keep the original acceptance timestamp in
 // user-message payloads, falling back to event time for historical messages.
@@ -225,7 +226,10 @@ export class ConversationRepository {
     const row = this.db.sqlite.prepare(summaryQuery("id = ?")).get(id);
     if (!row) return null;
     try {
-      return mapSummary(row);
+      return mapSummary(
+        row,
+        new ConversationReferenceRepository(this.db).load([id]).get(id) ?? [],
+      );
     } catch (error) {
       this.reportFailure(id, "getSummary", error);
       throw error;
@@ -241,7 +245,12 @@ export class ConversationRepository {
         `${summaryQuery("project_id = ? AND parent_conversation_id IS ?")} ORDER BY c.pinned_at DESC, c.updated_at DESC, c.id`,
       )
       .all(input.projectId, input.parentConversationId ?? null);
-    return this.mapRows(rows, "list", mapSummary);
+    const references = new ConversationReferenceRepository(this.db).load(
+      rows.map((row) => String(row.id)),
+    );
+    return this.mapRows(rows, "list", (row) =>
+      mapSummary(row, references.get(String(row.id)) ?? []),
+    );
   }
 
   listAll(): Conversation[] {
@@ -300,9 +309,13 @@ export class ConversationRepository {
   }
 }
 
-function mapSummary(row: Record<string, SQLOutputValue>): ConversationSummary {
+function mapSummary(
+  row: Record<string, SQLOutputValue>,
+  references: ConversationSummary["references"],
+): ConversationSummary {
   return conversationSummarySchema.parse({
     ...mapConversation(row),
+    references,
     lastParentPromptAt: row.last_parent_prompt_at,
     childCount: row.child_count,
     pendingWork: row.pending_work === 1,

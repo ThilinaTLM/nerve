@@ -28,6 +28,16 @@ ALTER TABLE conversation_new RENAME TO conversation;
 CREATE INDEX conversation_project_parent_updated ON conversation(project_id, parent_conversation_id, updated_at, id);
 CREATE INDEX conversation_parent ON conversation(parent_conversation_id);
 CREATE INDEX conversation_pinned ON conversation(project_id, pinned_at) WHERE pinned_at IS NOT NULL;
+CREATE TABLE conversation_reference (
+  conversation_id TEXT NOT NULL REFERENCES conversation(id) ON DELETE CASCADE,
+  provider TEXT NOT NULL,
+  resource_key TEXT NOT NULL,
+  kind TEXT NOT NULL,
+  relationship TEXT NOT NULL CHECK(relationship IN ('referenced','created')),
+  source_event_id TEXT NOT NULL,
+  created_at TEXT NOT NULL,
+  PRIMARY KEY (conversation_id, provider, resource_key)
+) STRICT;
 CREATE TABLE trusted_resource_new (
   id TEXT PRIMARY KEY,
   kind TEXT NOT NULL CHECK(kind IN ('prompt_suggestion','skill','project_permissions','project_capabilities','agent_profile')),

@@ -20,6 +20,7 @@ export type PruneTarget = {
 };
 
 export type ProjectAgentTreeProps = {
+  currentRepositories?: Readonly<Record<string, string | undefined>>;
   projects?: ProjectRecord[];
   conversations?: ConversationRecord[];
   agents?: AgentRecord[];

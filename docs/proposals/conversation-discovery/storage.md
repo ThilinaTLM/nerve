@@ -36,12 +36,12 @@ No schema change and no server change. The client already orders and groups by t
 
 ## Not stored
 
-| Concern | Where it lives |
-| --- | --- |
-| AI title result | Existing `conversation.title` |
-| Title job and ownership token | Daemon memory. In-flight jobs are dropped on restart and not retried |
-| Title AI setting (enabled, provider/model) | Existing user settings mechanism |
-| Unseen/"Finished" marker | Existing client-session `unseenResults` |
+| Concern                                    | Where it lives                                                       |
+| ------------------------------------------ | -------------------------------------------------------------------- |
+| AI title result                            | Existing `conversation.title`                                        |
+| Title job and ownership token              | Daemon memory. In-flight jobs are dropped on restart and not retried |
+| Title AI setting (enabled, provider/model) | Existing user settings mechanism                                     |
+| Unseen/"Finished" marker                   | Existing client-session `unseenResults`                              |
 
 ## Testing
 

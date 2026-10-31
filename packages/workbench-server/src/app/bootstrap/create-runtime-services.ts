@@ -104,6 +104,7 @@ export function createRuntimeServices(deps: RuntimeDeps) {
     },
   );
   const {
+    conversationTitles,
     core: conversationCore,
     storage: coreStorage,
     agentConfiguration,
@@ -256,6 +257,7 @@ export function createRuntimeServices(deps: RuntimeDeps) {
     activities,
     promptSuggestionEnablement,
     promptSuggestions,
+    conversationTitles,
     conversationCore,
     agentConfiguration,
     configurationOperations,
