@@ -8,6 +8,7 @@ import {
 } from "./conversation-activity";
 import {
   conversationNeedsAttention,
+  conversationRowStatusLabel,
   conversationStatusLabel,
   conversationRowDetail,
   conversationRowGlyph,
@@ -104,4 +105,37 @@ test("short card labels preserve input kind and async running meaning", () => {
       expected,
     );
   }
+});
+
+test("rows label only states that need the user", () => {
+  const labels = (
+    [
+      "running",
+      "awaiting-async",
+      "result-ready",
+      "completed",
+      "idle",
+      "error",
+      "aborted",
+    ] as const
+  ).map((indicator) =>
+    conversationRowStatusLabel({ ...idleConversationActivity, indicator }),
+  );
+  assert.deepEqual(labels, [
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    "Failed",
+    "Stopped",
+  ]);
+  assert.equal(
+    conversationRowStatusLabel({
+      ...idleConversationActivity,
+      indicator: "needs-user",
+      statusText: "Question for you",
+    }),
+    "Question",
+  );
 });

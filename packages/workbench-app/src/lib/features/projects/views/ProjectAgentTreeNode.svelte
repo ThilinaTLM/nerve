@@ -23,7 +23,7 @@ import type { ConversationRow } from "$lib/domain/projects/project-tree";
 import { shortAgentModel } from "$lib/domain/projects/project-tree";
 import { permissionRuleSetDisplayName } from "$lib/domain/permissions/rule-set-options";
 import ConversationActivityIndicator from "$lib/presentation/conversations/ConversationActivityIndicator.svelte";
-import { conversationStatusLabel } from "$lib/presentation/conversations/conversation-row-state";
+import { conversationRowStatusLabel } from "$lib/presentation/conversations/conversation-row-state";
 import { conversationTitleDisplaySegments } from "$lib/presentation/conversations/conversation-search";
 
 type Props = {
@@ -75,7 +75,7 @@ function referenceIcon(reference: ConversationReference) {
         : CircleDot
       : Hash;
 }
-const status = $derived(conversationStatusLabel(dotActivity));
+const status = $derived(conversationRowStatusLabel(dotActivity));
 const profile = $derived(
   row.agent?.agentProfile ?? row.conversation.agentProfile,
 );
