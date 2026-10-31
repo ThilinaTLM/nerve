@@ -43,6 +43,7 @@ erDiagram
     CONVERSATION_EVENT o|--o{ INPUT_QUEUE : targets_execution
     CONVERSATION ||--o{ ASYNC_BASH : owns
     CONVERSATION ||--o{ ASSET : owns
+    CONVERSATION ||--o{ CONVERSATION_REFERENCE : links
     CONVERSATION_EVENT o|--o{ ASSET : references
     ASYNC_BASH o|--o{ ASSET : produces
 ```
@@ -51,18 +52,19 @@ Event predecessors, selected heads, tool-call assistant references and asset ref
 
 ## What the tables own
 
-| Table                | Purpose                                                                                  |
-| -------------------- | ---------------------------------------------------------------------------------------- |
-| `project`            | Groups conversations and project-scoped resources.                                       |
-| `trusted_resource`   | Records approval of file content using a digest, a hash identifying those exact bytes.   |
-| `schema_migrations`  | Records applied core schema steps so database opening can verify them.                   |
-| `conversation`       | Owns identity, parent relationship, selected history head and current runtime controls.  |
-| `conversation_event` | Stores durable facts, with predecessor links for branches and sequence order for replay. |
-| `tool_call`          | Checkpoints unfinished tool work across execution and interaction waits.                 |
-| `input_queue`        | Holds accepted inputs until safe delivery.                                               |
-| `async_bash`         | Tracks conversation-owned background commands beyond foreground tool completion.         |
-| `asset`              | Tracks managed files and their producers so results can be referenced and cleaned up.    |
-| `scratch_note`       | Stores project-owned workbench notes independently of agent history.                     |
+| Table                    | Purpose                                                                                                             |
+| ------------------------ | ------------------------------------------------------------------------------------------------------------------- |
+| `project`                | Groups conversations and project-scoped resources.                                                                  |
+| `trusted_resource`       | Records approval of file content using a digest, a hash identifying those exact bytes.                              |
+| `schema_migrations`      | Records applied core schema steps so database opening can verify them.                                              |
+| `conversation`           | Owns identity, parent relationship, selected history head and current runtime controls.                             |
+| `conversation_event`     | Stores durable facts, with predecessor links for branches and sequence order for replay.                            |
+| `tool_call`              | Checkpoints unfinished tool work across execution and interaction waits.                                            |
+| `input_queue`            | Holds accepted inputs until safe delivery.                                                                          |
+| `async_bash`             | Tracks conversation-owned background commands beyond foreground tool completion.                                    |
+| `asset`                  | Tracks managed files and their producers so results can be referenced and cleaned up.                               |
+| `conversation_reference` | Links a conversation to external resources it referenced or created; see [discovery](../conversation-discovery.md). |
+| `scratch_note`           | Stores project-owned workbench notes independently of agent history.                                                |
 
 ## Durability and identity
 

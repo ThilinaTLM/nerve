@@ -22,6 +22,7 @@ Start with the codebase overview, then the conversation core.
 - [System prompt and tool descriptions](architecture/system-prompt.md) — prompt assembly and tool-writing rules.
 - [Tool-result projection](architecture/tool-result-projection.md) — complete payload, agent projection and user projection.
 - [Conversation state and attention](architecture/conversation-state-and-attention.md) — composer and drafts, execution status, summary activity and notifications.
+- [Conversation discovery](architecture/conversation-discovery.md) — local and AI titles, PR/issue references, list sections, stable ordering and smart search.
 
 **Workbench**
 
