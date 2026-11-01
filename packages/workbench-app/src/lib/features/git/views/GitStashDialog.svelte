@@ -1,6 +1,7 @@
 <script lang="ts">
 import type { GitStashEntry } from "@nervekit/contracts/git";
-import { Button } from "@nervekit/ui-kit/components/ui/button";
+import Archive from "@lucide/svelte/icons/archive";
+import * as Empty from "@nervekit/ui-kit/components/ui/empty";
 import Dialog from "@nervekit/ui-kit/components/composites/dialog-shell";
 import ScrollRegion from "@nervekit/ui-kit/components/composites/scroll-region";
 import GitStashRow from "./GitStashRow.svelte";
@@ -26,50 +27,60 @@ let {
 
 let dropCandidate = $state<GitStashEntry>();
 const busy = $derived(Boolean(mutation));
+const count = $derived(stashes.length);
 
-function confirmDrop(): void {
-  const candidate = dropCandidate;
-  if (!candidate) return;
+function confirmDrop(stash: GitStashEntry): void {
   dropCandidate = undefined;
-  onDrop(candidate);
+  onDrop(stash);
+}
+
+function cancelDropOnEscape(event: KeyboardEvent): void {
+  if (event.key !== "Escape" || !dropCandidate) return;
+  event.preventDefault();
+  event.stopPropagation();
+  dropCandidate = undefined;
 }
 </script>
+
+<svelte:window onkeydowncapture={cancelDropOnEscape} />
 
 <Dialog
   bind:open
   flush
-  title={dropCandidate ? "Drop stash?" : "Stashes"}
-  description={dropCandidate
-    ? "This action cannot be undone."
-    : `Saved changes for ${repositoryName}`}
+  title="Stashes"
+  description={`${repositoryName} · ${count} ${count === 1 ? "stash" : "stashes"}`}
   size="md"
   onOpenChange={(next) => {
     if (!next) dropCandidate = undefined;
   }}
 >
-  {#if dropCandidate}
-    <p class="p-4 text-ui text-muted-foreground">
-      This permanently removes
-      <span class="font-mono text-foreground">{dropCandidate.ref}</span>:
-      {dropCandidate.message}
-    </p>
-  {:else if stashes.length === 0}
-    <p class="p-8 text-center text-ui text-muted-foreground">
-      No stashes in this repository.
-    </p>
+  {#if stashes.length === 0}
+    <Empty.Root class="py-10">
+      <Empty.Header>
+        <Empty.Media variant="icon"><Archive /></Empty.Media>
+        <Empty.Title>No stashes</Empty.Title>
+        <Empty.Description
+          >Stash changes from the Git panel to set them aside without
+          committing.</Empty.Description
+        >
+      </Empty.Header>
+    </Empty.Root>
   {:else}
-    <div class="flex max-h-80 min-h-0 flex-col p-1.5">
+    <div class="flex max-h-96 min-h-0 flex-col p-1.5">
       <ScrollRegion
         ariaLabel="Stashes"
-        contentClass="flex min-w-0 shrink-0 flex-col gap-1.5 py-0.5"
+        contentClass="flex min-w-0 shrink-0 flex-col gap-0.5"
       >
         {#each stashes.slice(0, 100) as stash (stash.hash)}
           <GitStashRow
             {stash}
             {busy}
             {mutation}
+            confirmingDrop={dropCandidate?.hash === stash.hash}
             {onApply}
-            onDrop={(candidate) => (dropCandidate = candidate)}
+            onRequestDrop={(candidate) => (dropCandidate = candidate)}
+            onCancelDrop={() => (dropCandidate = undefined)}
+            onConfirmDrop={confirmDrop}
           />
         {/each}
       </ScrollRegion>
@@ -80,15 +91,4 @@ function confirmDrop(): void {
       </p>
     {/if}
   {/if}
-
-  {#snippet footer()}
-    {#if dropCandidate}
-      <Button variant="ghost" onclick={() => (dropCandidate = undefined)}
-        >Cancel</Button
-      >
-      <Button variant="destructive" onclick={confirmDrop}>Drop stash</Button>
-    {:else}
-      <Button variant="ghost" onclick={() => (open = false)}>Close</Button>
-    {/if}
-  {/snippet}
 </Dialog>

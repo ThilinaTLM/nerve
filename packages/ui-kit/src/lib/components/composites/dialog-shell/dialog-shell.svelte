@@ -8,6 +8,10 @@ type Props = {
   children?: Snippet;
   footer?: Snippet;
   headerActions?: Snippet;
+  /** Leading icon/glyph rendered before the title block. */
+  leading?: Snippet;
+  /** Inline content beside the title, e.g. a status Badge. */
+  titleExtra?: Snippet;
   open?: boolean;
   title?: string;
   description?: string;
@@ -24,6 +28,8 @@ let {
   children,
   footer,
   headerActions,
+  leading,
+  titleExtra,
   open = $bindable(false),
   title = "Dialog",
   description,
@@ -58,8 +64,18 @@ function handleOpenChange(next: boolean) {
     )}
   >
     <header class="dialog-header">
+      {#if leading}
+        <span class="flex shrink-0 items-center">{@render leading()}</span>
+      {/if}
       <div class="dialog-title-block">
-        <Dialog.Title class="dialog-title">{title}</Dialog.Title>
+        {#if titleExtra}
+          <div class="flex min-w-0 items-center gap-2">
+            <Dialog.Title class="dialog-title truncate">{title}</Dialog.Title>
+            {@render titleExtra()}
+          </div>
+        {:else}
+          <Dialog.Title class="dialog-title">{title}</Dialog.Title>
+        {/if}
         {#if description}
           <Dialog.Description class="dialog-description">
             {description}

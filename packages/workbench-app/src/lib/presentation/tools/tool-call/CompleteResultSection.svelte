@@ -16,12 +16,20 @@ type Props = {
     byteOffset: number,
     byteLimit?: number,
   ) => Promise<ToolCallResultChunk>;
+  wrap?: boolean;
+  /** Text loaded so far, for the pane's copy action. */
+  onTextChange?: (text: string) => void;
 };
-let { toolCallId, descriptor, read }: Props = $props();
+let {
+  toolCallId,
+  descriptor,
+  read,
+  wrap = true,
+  onTextChange,
+}: Props = $props();
 
 const CHUNK_BYTES = 64 * 1024;
 const SMALL_RESULT_BYTES = 256 * 1024;
-let activated = $state(false);
 let loading = $state(false);
 let text = $state("");
 let nextByteOffset = $state(0);
@@ -30,17 +38,27 @@ let status = $state(untrack(() => descriptor.status));
 let error = $state<string | undefined>(undefined);
 let requestGeneration = 0;
 
+// The pane mounts this section the first time its tab is opened, so loading
+// starts as soon as the descriptor is known and restarts when it changes.
 $effect(() => {
   void toolCallId;
   void descriptor.digest;
-  requestGeneration += 1;
-  activated = false;
-  loading = false;
-  text = "";
-  nextByteOffset = 0;
-  done = !descriptor.hasResult;
-  status = descriptor.status;
-  error = undefined;
+  const hasResult = descriptor.hasResult;
+  const nextStatus = descriptor.status;
+  untrack(() => {
+    requestGeneration += 1;
+    loading = false;
+    text = "";
+    nextByteOffset = 0;
+    done = !hasResult;
+    status = nextStatus;
+    error = undefined;
+    void loadInitial();
+  });
+});
+
+$effect(() => {
+  onTextChange?.(text);
 });
 
 async function loadOne(generation: number): Promise<boolean> {
@@ -111,71 +129,61 @@ const notice = $derived(
 const large = $derived(descriptor.byteLength > SMALL_RESULT_BYTES);
 </script>
 
-<details
-  ontoggle={(event) => {
-    if (event.currentTarget.open && !activated) {
-      activated = true;
-      void loadInitial();
-    }
-  }}
->
-  <summary class="cursor-pointer px-2.5 py-2 text-ui text-muted-foreground">
-    Complete result
-    <span>· {descriptor.byteLength.toLocaleString()} bytes</span>
-  </summary>
-  <div class="grid gap-2 px-2.5 pb-2.5">
-    {#if !descriptor.hasResult}
-      <p class="m-0 text-ui text-muted-foreground">
-        This tool call has no result.
-      </p>
-    {:else if notice}
-      <p class="m-0 text-ui text-warning">{notice}</p>
-    {:else if !read}
-      <p class="m-0 text-ui text-muted-foreground">
-        Complete result loading is unavailable here.
-      </p>
-    {:else if error}
-      <p class="m-0 text-ui text-destructive">{error}</p>
-      <Button variant="outline" class="w-fit" onclick={() => void loadInitial()}
-        >Retry</Button
-      >
-    {:else if activated && done && text.length === 0}
-      <p class="m-0 text-ui text-muted-foreground">
-        The complete result is empty.
-      </p>
-    {:else if activated && text.length > 0}
-      {#if large}
-        <LargeResultViewer {text} />
-      {:else}
-        <ResultCodeBlock
-          code={text}
-          language="json"
-          maxHeight="22rem"
-          trim={false}
-        />
-      {/if}
-      {#if !done}
-        <div class="flex flex-wrap items-center gap-2">
-          <Button
-            variant="outline"
-            disabled={loading}
-            onclick={() => void loadOne(requestGeneration)}
-          >
-            {loading ? "Loading…" : "Load next chunk"}
-          </Button>
-          <Button
-            variant="ghost"
-            disabled={loading}
-            onclick={() => void loadAll()}>Load all</Button
-          >
-          <span class="text-ui text-muted-foreground">
-            {nextByteOffset.toLocaleString()} of {descriptor.byteLength.toLocaleString()}
-            bytes loaded
-          </span>
-        </div>
-      {/if}
-    {:else if loading}
-      <p class="m-0 text-ui text-muted-foreground">Loading complete result…</p>
+<div class="grid gap-2 p-3">
+  {#if !descriptor.hasResult}
+    <p class="m-0 text-ui text-muted-foreground">
+      This tool call has no result.
+    </p>
+  {:else if notice}
+    <p class="m-0 text-ui text-warning">{notice}</p>
+  {:else if !read}
+    <p class="m-0 text-ui text-muted-foreground">
+      Complete result loading is unavailable here.
+    </p>
+  {:else if error}
+    <p class="m-0 text-ui text-destructive">{error}</p>
+    <Button variant="outline" class="w-fit" onclick={() => void loadInitial()}
+      >Retry</Button
+    >
+  {:else if done && text.length === 0}
+    <p class="m-0 text-ui text-muted-foreground">
+      The complete result is empty.
+    </p>
+  {:else if text.length > 0}
+    {#if large}
+      <!-- A virtual list needs its own bounded viewport. -->
+      <LargeResultViewer {text} {wrap} maxHeight="min(32rem, 55vh)" />
+    {:else}
+      <ResultCodeBlock
+        bare
+        code={text}
+        language="json"
+        {wrap}
+        maxHeight="none"
+        trim={false}
+      />
     {/if}
-  </div>
-</details>
+    {#if !done}
+      <div class="flex flex-wrap items-center gap-2">
+        <Button
+          variant="outline"
+          disabled={loading}
+          onclick={() => void loadOne(requestGeneration)}
+        >
+          {loading ? "Loading…" : "Load next chunk"}
+        </Button>
+        <Button
+          variant="ghost"
+          disabled={loading}
+          onclick={() => void loadAll()}>Load all</Button
+        >
+        <span class="text-ui text-muted-foreground">
+          {nextByteOffset.toLocaleString()} of {descriptor.byteLength.toLocaleString()}
+          bytes loaded
+        </span>
+      </div>
+    {/if}
+  {:else if loading}
+    <p class="m-0 text-ui text-muted-foreground">Loading complete result…</p>
+  {/if}
+</div>

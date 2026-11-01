@@ -1,61 +1,49 @@
 <script lang="ts">
-import { Badge } from "@nervekit/ui-kit/components/ui/badge";
 import Copy from "@lucide/svelte/icons/copy";
 import GitBranch from "@lucide/svelte/icons/git-branch";
 import Pencil from "@lucide/svelte/icons/pencil";
-import Sparkles from "@lucide/svelte/icons/sparkles";
-import UnfoldVertical from "@lucide/svelte/icons/unfold-vertical";
-
-import type {
-  ConversationEntry,
-  ToolCallTranscriptRecord,
-} from "$lib/presentation/view-models/conversation";
+import Wrench from "@lucide/svelte/icons/wrench";
+import { Badge } from "@nervekit/ui-kit/components/ui/badge";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
+import { GroupLabel } from "@nervekit/ui-kit/components/composites/group-label";
+import { IconAction } from "@nervekit/ui-kit/components/composites/icon-action";
 import Markdown from "@nervekit/ui-kit/renderers/markdown/Markdown.svelte";
 import PlainText from "@nervekit/ui-kit/renderers/plain-text/PlainText.svelte";
-import { writeClipboardText } from "$lib/platform/clipboard/write-text";
 import {
   dateTimeLabel,
   relativeTimeLabel,
 } from "@nervekit/ui-kit/display/time";
+import type {
+  ConversationEntry,
+  ToolCallTranscriptRecord,
+} from "$lib/presentation/view-models/conversation";
 import { notify } from "$lib/application/notifications/notify.svelte";
-import type { HistoryGraphRow } from "./history-graph";
+import { writeClipboardText } from "$lib/platform/clipboard/write-text";
 import { buildHistoryEntryView } from "./history-entry-view";
-import { HISTORY_ICONS, HISTORY_TONE_TEXT } from "./history-icons";
-import type { HistorySelection } from "./history-segments";
+import { HISTORY_ICONS } from "./history-icons";
+import type { HistoryTreeNode } from "./history-tree";
 
 type Props = {
-  selection?: HistorySelection;
+  node: HistoryTreeNode;
   toolCallsById: Map<string, ToolCallTranscriptRecord>;
   onNavigateToEntry?: (entryId: string | undefined) => void;
   onEditEntry?: (entry: ConversationEntry) => void;
-  onSelectRow?: (row: HistoryGraphRow) => void;
-  onExpandSegment?: (id: string) => void;
 };
 
-let {
-  selection,
-  toolCallsById,
-  onNavigateToEntry,
-  onEditEntry,
-  onSelectRow,
-  onExpandSegment,
-}: Props = $props();
+let { node, toolCallsById, onNavigateToEntry, onEditEntry }: Props = $props();
 
-const entry = $derived(
-  selection?.kind === "entry" ? selection.row.node.entry : undefined,
-);
+const entry = $derived(node.entry);
 const view = $derived(
-  entry && selection?.kind === "entry"
-    ? buildHistoryEntryView(
-        entry,
-        toolCallsById,
-        selection.row.pairedResultEntry,
-      )
-    : undefined,
+  entry ? buildHistoryEntryView(entry, toolCallsById) : undefined,
 );
-const desc = $derived(view?.descriptor);
-const record = $derived(view?.record);
+const roleLabel = $derived(
+  node.kind === "start"
+    ? "Start of conversation"
+    : node.kind === "user"
+      ? "You"
+      : (node.descriptor?.label ?? "Assistant"),
+);
+const isLast = $derived(node.role === "tip" || node.head);
 
 async function copyId(id: string) {
   try {
@@ -67,210 +55,106 @@ async function copyId(id: string) {
 }
 </script>
 
-{#if !selection}
-  <div
-    class="flex h-full items-center justify-center p-6 text-center text-ui text-muted-foreground"
-  >
-    Select an entry on the left to preview it here.
-  </div>
-{:else if selection.kind === "root"}
-  <div class="flex h-full flex-col gap-4 overflow-y-auto p-5">
-    <div class="flex items-center gap-2 text-primary">
-      <GitBranch class="size-5" strokeWidth={2} />
-      <h3 class="text-ui font-medium text-foreground">Start of conversation</h3>
-    </div>
-    <p class="text-ui text-muted-foreground">
-      Branch from the beginning to start a new path. Your next message becomes
-      the first entry of that branch; the existing history stays available in
-      the tree.
-    </p>
-    <div>
-      <Button onclick={() => onNavigateToEntry?.(undefined)}>
-        <GitBranch class="size-4" strokeWidth={2} />
-        New branch from beginning
-      </Button>
-    </div>
-  </div>
-{:else if selection.kind === "segment"}
-  {@const segment = selection.segment}
-  <div class="flex h-full flex-col gap-4 overflow-y-auto p-5">
-    <div class="flex flex-col gap-1">
-      <h3 class="text-ui font-medium text-foreground">
-        {segment.total} collapsed steps
-      </h3>
-      <p class="text-ui text-muted-foreground">
-        {dateTimeLabel(segment.startedAt)} — {dateTimeLabel(segment.endedAt)}
-      </p>
-    </div>
-    <div class="flex flex-wrap gap-1.5">
-      {#each segment.parts as part, i (i)}
-        {@const PartIcon = HISTORY_ICONS[part.icon]}
-        <Badge>
-          <PartIcon class="size-3.5" strokeWidth={2} />
-          <span class="text-foreground">{part.count}</span>
-          {part.label}
-        </Badge>
-      {/each}
-    </div>
-    <div class="flex">
-      <Button variant="outline" onclick={() => onExpandSegment?.(segment.id)}>
-        <UnfoldVertical class="size-4" strokeWidth={2} />
-        Expand in tree
-      </Button>
-    </div>
-    <div class="flex flex-col gap-0.5 border-t pt-3">
-      {#each segment.rows as row (row.node.entry.id)}
-        {@const stepDesc = buildHistoryEntryView(
-          row.node.entry,
-          toolCallsById,
-          row.pairedResultEntry,
-        ).descriptor}
-        {@const StepIcon = HISTORY_ICONS[stepDesc.icon]}
-        <button
-          class="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left transition-colors hover:bg-hover"
-          type="button"
-          onclick={() => onSelectRow?.(row)}
-        >
-          <span
-            class={`flex size-4 shrink-0 items-center justify-center ${HISTORY_TONE_TEXT[stepDesc.tone]}`}
-          >
-            <StepIcon class="size-3.5" strokeWidth={2} />
-          </span>
-          <span class="shrink-0 text-ui text-foreground">{stepDesc.label}</span>
-          <span
-            class="min-w-0 flex-1 truncate text-ui text-muted-foreground"
-            class:font-mono={stepDesc.mono}
-          >
-            {stepDesc.preview}
-          </span>
-        </button>
-      {/each}
-    </div>
-  </div>
-{:else if entry && desc}
-  {@const Icon = HISTORY_ICONS[desc.icon]}
-  {@const thinking = view?.thinkingText ?? ""}
-  <div class="flex h-full flex-col">
-    <div class="flex flex-col gap-3 border-b p-5">
-      <div class="flex items-center gap-2">
+<div class="flex h-full min-h-0 flex-col">
+  <div class="grid gap-2 border-b border-border-subtle p-3">
+    <div class="flex flex-wrap items-center gap-x-2 gap-y-1">
+      <span class="text-ui font-medium">{roleLabel}</span>
+      {#if node.head}
+        <Badge variant="brand">Current</Badge>
+      {:else if node.role === "fork"}
+        <Badge>{node.childIds.length} branches</Badge>
+      {:else if node.role === "tip"}
+        <Badge>Branch tip</Badge>
+      {:else if !node.current && node.kind !== "start"}
+        <Badge>Side branch</Badge>
+      {/if}
+      <span class="flex-1"></span>
+      {#if entry}
         <span
-          class={`flex size-5 shrink-0 items-center justify-center ${HISTORY_TONE_TEXT[desc.tone]}`}
-        >
-          <Icon class="size-5" strokeWidth={2} />
-        </span>
-        <h3 class="text-ui font-medium text-foreground">{desc.label}</h3>
-        {#each desc.badges as badge, b (b)}
-          {@const BadgeIcon = HISTORY_ICONS[badge.icon]}
-          <span
-            class={`flex items-center gap-0.5 text-ui ${HISTORY_TONE_TEXT[badge.tone]}`}
-            title={badge.title ?? badge.label}
-          >
-            <BadgeIcon class="size-3.5" strokeWidth={2} />
-            {#if badge.label}{badge.label}{/if}
-          </span>
-        {/each}
-      </div>
-      <div
-        class="flex flex-wrap items-center gap-x-3 gap-y-1 text-ui text-muted-foreground"
-      >
-        <span title={dateTimeLabel(entry.createdAt)}
+          class="text-caption text-muted-foreground"
+          title={dateTimeLabel(entry.createdAt)}
           >{relativeTimeLabel(entry.createdAt)} ago</span
         >
-        {#if entry.usage?.totalTokens}
-          <span class="flex items-center gap-1">
-            <Sparkles class="size-3.5" strokeWidth={2} />
-            {entry.usage.totalTokens.toLocaleString()} tokens
-          </span>
-        {/if}
-        <button
-          class="flex min-w-0 max-w-full items-center gap-1 font-mono hover:text-foreground"
-          type="button"
-          title={entry.id}
-          aria-label="Copy entry id"
-          onclick={() => copyId(entry.id)}
-        >
-          <Copy class="size-3 shrink-0" strokeWidth={2} />
-          <span class="truncate">{entry.id}</span>
-        </button>
-      </div>
-      <div class="flex flex-wrap gap-2">
+        <IconAction
+          icon={Copy}
+          label="Copy entry id"
+          onclick={() => void copyId(entry.id)}
+        />
+      {/if}
+    </div>
+    <div class="flex flex-wrap gap-1.5">
+      {#if entry}
         <Button onclick={() => onNavigateToEntry?.(entry.id)}>
-          <GitBranch class="size-4" strokeWidth={2} />
-          Branch from here
+          <GitBranch />{isLast ? "Continue here" : "Branch from here"}
         </Button>
         {#if entry.role === "user"}
           <Button variant="outline" onclick={() => onEditEntry?.(entry)}>
-            <Pencil class="size-4" strokeWidth={2} />
-            Edit & resend
+            <Pencil />Edit & resend
           </Button>
         {/if}
-      </div>
-    </div>
-
-    <div class="min-h-0 flex-1 overflow-y-auto p-5">
-      {#if view?.isToolEntry}
-        <div class="flex flex-col gap-3">
-          {#if view.toolName}
-            <div class="flex items-center gap-2 text-ui text-muted-foreground">
-              <span class="text-foreground">Tool</span>
-              <span class="font-mono">{view.toolName}</span>
-              {#if record?.status}<Badge>{record.status}</Badge>{/if}
-              {#if view.timingText}<span>{view.timingText}</span>{/if}
-            </div>
-          {/if}
-          {#if view.argsText}
-            <div class="flex flex-col gap-1">
-              <span class="text-ui text-muted-foreground">Arguments</span>
-              <pre
-                class="overflow-x-auto rounded-md border bg-well p-3 font-mono text-ui whitespace-pre-wrap break-words">{view.argsText}</pre>
-            </div>
-          {/if}
-          {#if view.resultText}
-            <div class="flex flex-col gap-1">
-              <span class="text-ui text-muted-foreground">Result</span>
-              <pre
-                class="overflow-x-auto rounded-md border bg-well p-3 font-mono text-ui whitespace-pre-wrap break-words">{view.resultText}</pre>
-            </div>
-          {/if}
-          {#if view.errorText}
-            <div class="flex flex-col gap-1">
-              <span class="text-ui text-destructive">Error</span>
-              <pre
-                class="overflow-x-auto rounded-md border border-destructive-strong bg-destructive-subtle p-3 font-mono text-ui whitespace-pre-wrap break-words">{view.errorText}</pre>
-            </div>
-          {/if}
-          {#if !view.argsText && !view.resultText && !view.errorText}
-            <p class="text-ui text-muted-foreground">
-              No tool details available for this entry.
-            </p>
-          {/if}
-        </div>
-      {:else if thinking && !entry.text}
-        <div class="text-ui text-muted-foreground">
-          <Markdown text={thinking} />
-        </div>
-      {:else if entry.summary || entry.text}
-        <div class="text-ui text-foreground">
-          {#if entry.role === "user"}
-            <PlainText text={entry.summary || entry.text} />
-          {:else}
-            <Markdown
-              text={entry.summary || entry.text}
-              trimCodeBlocks={entry.role !== "assistant"}
-            />
-          {/if}
-        </div>
-        {#if thinking}
-          <div class="mt-4 text-ui text-muted-foreground">
-            <span class="mb-1 block text-ui">Thinking</span>
-            <Markdown text={thinking} />
-          </div>
-        {/if}
       {:else}
-        <p class="text-ui text-muted-foreground">
-          This entry has no text content.
-        </p>
+        <Button onclick={() => onNavigateToEntry?.(undefined)}>
+          <GitBranch />Branch from beginning
+        </Button>
       {/if}
     </div>
   </div>
-{/if}
+
+  <div class="grid min-h-0 flex-1 content-start gap-3 overflow-y-auto p-3">
+    {#if node.steps.length > 0}
+      <!-- Folded steps: summarized here, never in the tree. -->
+      <div class="grid gap-1">
+        <GroupLabel
+          label={node.toolCount > 0
+            ? `${node.toolCount} tool ${node.toolCount === 1 ? "step" : "steps"} before this reply`
+            : "Steps before this reply"}
+        />
+        <div class="flex flex-wrap gap-1">
+          {#each node.steps as step (step.key)}
+            {@const StepIcon = step.tool ? Wrench : HISTORY_ICONS[step.icon]}
+            <Badge variant={step.tone}>
+              <StepIcon aria-hidden="true" />{step.label}{step.count > 1
+                ? ` ×${step.count}`
+                : ""}
+            </Badge>
+          {/each}
+        </div>
+      </div>
+    {/if}
+
+    {#if !entry}
+      <p class="text-body text-muted-foreground">
+        Branch from the beginning to start a new path. Your next message becomes
+        the first entry of that branch; the existing history stays available in
+        the tree.
+      </p>
+    {:else if view}
+      <div class="rounded-md bg-well px-3 py-2.5 text-body">
+        {#if view.isToolEntry}
+          <pre
+            class="font-mono text-ui whitespace-pre-wrap break-words">{view.messageText ||
+              view.descriptor.preview}</pre>
+        {:else if view.messageText}
+          {#if entry.role === "user"}
+            <PlainText text={view.messageText} />
+          {:else}
+            <Markdown
+              text={view.messageText}
+              trimCodeBlocks={entry.role !== "assistant"}
+            />
+          {/if}
+        {:else if !view.thinkingText}
+          <span class="text-muted-foreground">
+            This entry has no text content.
+          </span>
+        {/if}
+        {#if view.thinkingText}
+          <div class="text-muted-foreground" class:mt-3={view.messageText}>
+            <span class="mb-1 block text-caption">Thinking</span>
+            <Markdown text={view.thinkingText} />
+          </div>
+        {/if}
+      </div>
+    {/if}
+  </div>
+</div>

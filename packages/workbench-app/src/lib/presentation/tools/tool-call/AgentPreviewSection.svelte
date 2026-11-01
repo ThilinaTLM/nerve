@@ -10,9 +10,9 @@ type Props = {
   preview?: AgentPreviewSnapshot;
   projection?: AgentProjectionSnapshot;
   result?: unknown;
-  open?: boolean;
+  wrap?: boolean;
 };
-let { preview, projection, result, open = false }: Props = $props();
+let { preview, projection, result, wrap = true }: Props = $props();
 
 function imageData(index: number, mimeType: string): string | undefined {
   if (!result || typeof result !== "object" || Array.isArray(result)) return;
@@ -36,58 +36,59 @@ function supportedImageMime(mimeType: string): boolean {
 }
 </script>
 
-<details {open}>
-  <summary class="cursor-pointer px-2.5 py-2 text-ui text-muted-foreground">
-    Agent preview
-  </summary>
-  <div class="grid gap-2 px-2.5 pb-2.5">
-    {#if preview}
-      {#if preview.blocks.length === 0}
-        <p class="m-0 text-ui text-muted-foreground">
-          The agent received an empty result.
-        </p>
-      {:else}
-        {#each preview.blocks as block, index (`${block.type}:${index}`)}
-          {#if block.type === "text"}
-            <ResultCodeBlock code={block.text} maxHeight="22rem" trim={false} />
-          {:else}
-            {@const data = imageData(
-              block.resultContentBlockIndex,
-              block.mimeType,
-            )}
-            <div class="grid gap-2">
-              <p class="m-0 text-ui text-muted-foreground">
-                Image supplied to the agent · {block.mimeType} · {block.byteLength.toLocaleString()}
-                bytes
-              </p>
-              {#if data && supportedImageMime(block.mimeType)}
-                <ToolImage
-                  class="max-h-80 max-w-full rounded-sm object-contain"
-                  src={data}
-                  alt="Supplied to the agent"
-                />
-              {/if}
-            </div>
-          {/if}
-        {/each}
-      {/if}
-    {:else}
+<div class="grid gap-2 p-3">
+  {#if preview}
+    {#if preview.blocks.length === 0}
       <p class="m-0 text-ui text-muted-foreground">
-        No retained agent preview is available for this tool call.
+        The agent received an empty result.
       </p>
-    {/if}
-    {#if projection}
-      <div class="flex flex-wrap gap-1.5 text-ui text-muted-foreground">
-        <Badge>{projection.profile}</Badge>
-        <Badge>{projection.strategy}</Badge>
-        <Badge>
-          {projection.displayedTextLines.toLocaleString()} of {projection.originalTextLines.toLocaleString()}
-          lines
-        </Badge>
-        {#if projection.recovery !== "none"}
-          <Badge>Recovery: {projection.recovery.replace("_", " ")}</Badge>
+    {:else}
+      {#each preview.blocks as block, index (`${block.type}:${index}`)}
+        {#if block.type === "text"}
+          <ResultCodeBlock
+            bare
+            code={block.text}
+            {wrap}
+            maxHeight="none"
+            trim={false}
+          />
+        {:else}
+          {@const data = imageData(
+            block.resultContentBlockIndex,
+            block.mimeType,
+          )}
+          <div class="grid gap-2">
+            <p class="m-0 text-ui text-muted-foreground">
+              Image supplied to the agent · {block.mimeType} · {block.byteLength.toLocaleString()}
+              bytes
+            </p>
+            {#if data && supportedImageMime(block.mimeType)}
+              <ToolImage
+                class="max-h-80 max-w-full rounded-sm object-contain"
+                src={data}
+                alt="Supplied to the agent"
+              />
+            {/if}
+          </div>
         {/if}
-      </div>
+      {/each}
     {/if}
-  </div>
-</details>
+  {:else}
+    <p class="m-0 text-ui text-muted-foreground">
+      No retained agent preview is available for this tool call.
+    </p>
+  {/if}
+  {#if projection}
+    <div class="flex flex-wrap gap-1.5 text-ui text-muted-foreground">
+      <Badge>{projection.profile}</Badge>
+      <Badge>{projection.strategy}</Badge>
+      <Badge>
+        {projection.displayedTextLines.toLocaleString()} of {projection.originalTextLines.toLocaleString()}
+        lines
+      </Badge>
+      {#if projection.recovery !== "none"}
+        <Badge>Recovery: {projection.recovery.replace("_", " ")}</Badge>
+      {/if}
+    </div>
+  {/if}
+</div>

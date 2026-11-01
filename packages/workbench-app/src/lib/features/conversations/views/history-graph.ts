@@ -2,13 +2,12 @@ import type { StatusTone } from "@nervekit/ui-kit/display/status";
 
 import type {
   ConversationEntry,
-  ConversationTreeNode,
   ToolCallTranscriptRecord,
 } from "$lib/presentation/view-models/conversation";
 
 /**
  * Stable icon identifiers. The Svelte layer maps these to `@lucide/svelte`
- * components (see HistoryGraphNode.svelte). Keeping this module free of component
+ * components (see HistoryPoint.svelte). Keeping this module free of component
  * imports lets it stay pure and unit-testable under `node:test`.
  */
 export type HistoryIconName =
@@ -154,19 +153,18 @@ function resolveToolRecord(
   );
 }
 
-/** Resolve the {@link ToolCallTranscriptRecord} backing a conversation entry, if any. */
-export function resolveToolCallForEntry(
-  entry: ConversationEntry,
-  toolCallsById: Map<string, ToolCallTranscriptRecord>,
-): ToolCallTranscriptRecord | undefined {
-  return resolveToolRecord(asRecord(entry.details), toolCallsById);
-}
-
-/** Parse the tool name(s) out of an assistant "[Tool call: name(...)]" placeholder. */
+/** Parse the tool name(s) out of an assistant "[Tool call: ...]" placeholder. */
 export function parseToolCallNames(text: string): string[] {
   const match = text.trim().match(TOOL_CALL_PLACEHOLDER);
   if (!match) return [];
-  return [...match[1].matchAll(/([a-z_][a-z0-9_]*)\s*\(/gi)].map((m) => m[1]);
+  // Live placeholders list bare names ("[Tool call: bash, edit]"); stored
+  // ones may carry arguments ("[Tool call: bash(...)]").
+  const withArgs = [...match[1].matchAll(/([a-z_][a-z0-9_]*)\s*\(/gi)];
+  if (withArgs.length > 0) return withArgs.map((m) => m[1]!);
+  return match[1]
+    .split(",")
+    .map((name) => name.trim())
+    .filter((name) => /^[a-z_][a-z0-9_]*$/i.test(name));
 }
 
 function trimPreview(text: string): string {
@@ -303,155 +301,4 @@ export function classifyHistoryEntry(
     mono: false,
     badges,
   };
-}
-
-export type HistoryGraphRow = {
-  /** The request entry remains the branch/navigation anchor for a paired tool. */
-  node: ConversationTreeNode;
-  pairedResultEntry?: ConversationEntry;
-  /** Every stored entry represented by this presentation row. */
-  underlyingEntryIds: string[];
-  index: number;
-  isOnActivePath: boolean;
-  isActive: boolean;
-  isLeaf: boolean;
-  isBranchPoint: boolean;
-};
-
-export type HistoryGraph = {
-  rows: HistoryGraphRow[];
-};
-
-/**
- * Build renderer-neutral metadata for the conversation tree.
- *
- * Rows are emitted in deterministic depth-first chronological order. Layout is
- * deliberately left to the renderer so this model can drive lists, diagrams,
- * and tests without carrying presentation-specific coordinates.
- */
-export function buildHistoryGraph(
-  treeNodes: ConversationTreeNode[],
-  activeEntryId: string | undefined,
-  toolCallsById: Map<string, ToolCallTranscriptRecord> = new Map(),
-): HistoryGraph {
-  const byId = new Map(treeNodes.map((node) => [node.entry.id, node]));
-  const hasParent = (node: ConversationTreeNode) =>
-    node.entry.parentEntryId !== undefined &&
-    byId.has(node.entry.parentEntryId);
-  const roots = treeNodes.filter((node) => !hasParent(node));
-
-  // Ancestor-or-self chain of the active entry.
-  const activePath = new Set<string>();
-  if (activeEntryId) {
-    let cursor: string | undefined = activeEntryId;
-    while (cursor) {
-      const node = byId.get(cursor);
-      if (!node) break;
-      activePath.add(node.entry.id);
-      cursor = node.entry.parentEntryId;
-    }
-  }
-
-  const rows: HistoryGraphRow[] = [];
-  const visited = new Set<string>();
-  let index = 0;
-
-  const childrenOf = (node: ConversationTreeNode): ConversationTreeNode[] =>
-    node.childEntryIds
-      .map((id) => byId.get(id))
-      .filter((child): child is ConversationTreeNode => Boolean(child));
-
-  const walk = (node: ConversationTreeNode) => {
-    if (visited.has(node.entry.id)) return;
-    visited.add(node.entry.id);
-    const children = childrenOf(node);
-    rows.push({
-      node,
-      underlyingEntryIds: [node.entry.id],
-      index: ++index,
-      isOnActivePath: activePath.has(node.entry.id),
-      isActive: node.entry.id === activeEntryId,
-      isLeaf: children.length === 0,
-      isBranchPoint: children.length > 1,
-    });
-    children.forEach(walk);
-  };
-
-  roots.forEach(walk);
-  // Detached entries (parent missing from the set) render as extra roots.
-  treeNodes.forEach(walk);
-
-  return { rows: pairToolHistoryRows(rows, toolCallsById) };
-}
-
-/** Pair only an unbranched, direct request/result chain for one canonical tool. */
-export function pairToolHistoryRows(
-  rows: HistoryGraphRow[],
-  toolCallsById: Map<string, ToolCallTranscriptRecord>,
-): HistoryGraphRow[] {
-  const rowById = new Map(rows.map((row) => [row.node.entry.id, row]));
-  const consumed = new Set<string>();
-  const paired: HistoryGraphRow[] = [];
-
-  for (const row of rows) {
-    const request = row.node.entry;
-    if (consumed.has(request.id)) continue;
-    const requestRecord = resolveToolCallForEntry(request, toolCallsById);
-    const childIds = row.node.childEntryIds;
-    if (
-      request.role !== "assistant" ||
-      !requestRecord ||
-      childIds.length !== 1
-    ) {
-      paired.push({ ...row, index: paired.length + 1 });
-      continue;
-    }
-    const resultRow = rowById.get(childIds[0]);
-    const result = resultRow?.node.entry;
-    const resultRecord = result
-      ? resolveToolCallForEntry(result, toolCallsById)
-      : undefined;
-    const requestProviderId = toolIdentity(
-      asRecord(request.details),
-    ).providerId;
-    const resultProviderId = result
-      ? toolIdentity(asRecord(result.details)).providerId
-      : undefined;
-    const providerMatches = (providerId: string | undefined) =>
-      providerId === undefined ||
-      requestRecord.providerToolCallId === providerId ||
-      requestRecord.sourceToolCallId === providerId;
-    const providerMismatch =
-      !providerMatches(requestProviderId) ||
-      !providerMatches(resultProviderId) ||
-      (requestProviderId !== undefined &&
-        resultProviderId !== undefined &&
-        requestProviderId !== resultProviderId);
-    if (
-      !resultRow ||
-      !result ||
-      result.role !== "system" ||
-      result.parentEntryId !== request.id ||
-      resultRow.isBranchPoint ||
-      !resultRecord ||
-      resultRecord.id !== requestRecord.id ||
-      providerMismatch
-    ) {
-      paired.push({ ...row, index: paired.length + 1 });
-      continue;
-    }
-
-    consumed.add(result.id);
-    paired.push({
-      ...row,
-      pairedResultEntry: result,
-      underlyingEntryIds: [request.id, result.id],
-      index: paired.length + 1,
-      isOnActivePath: row.isOnActivePath || resultRow.isOnActivePath,
-      isActive: row.isActive || resultRow.isActive,
-      isLeaf: resultRow.isLeaf,
-      isBranchPoint: resultRow.isBranchPoint,
-    });
-  }
-  return paired;
 }
