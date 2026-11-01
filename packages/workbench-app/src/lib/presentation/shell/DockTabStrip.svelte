@@ -381,11 +381,15 @@ const tourIdByView: Record<string, string> = {
 }
 
 /* The active tab is the panel surface filling the track, marked by the same
- * `primary` top rule the editor tabs use. */
+ * `primary` top rule the editor tabs use. Inset side hairlines frame it like
+ * an editor tab without changing the 2rem rail width. */
 .dock-tab.active {
   z-index: 2;
   border-top-color: var(--primary);
   background: var(--panel);
+  box-shadow:
+    inset 1px 0 var(--border),
+    inset -1px 0 var(--border);
   color: var(--foreground);
 }
 
