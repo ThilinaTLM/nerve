@@ -326,6 +326,53 @@ fn read_stashes(
     Ok(stashes)
 }
 
+/// Commits reachable from HEAD but from no `refs/remotes/<remote>/*` ref: what
+/// publishing the current branch to that remote would upload.
+pub fn count_unpublished(path: &str, remote: &str) -> Result<u32, GitReadError> {
+    if remote.is_empty() || remote.contains('/') {
+        return Err(GitReadError::new(
+            ErrorKind::InvalidInput,
+            "remote must be a single remote name",
+        ));
+    }
+    let token = CancellationToken::default();
+    let context = ReadContext::bounded(&token);
+    let repo = gix::open(Path::new(path))
+        .map_err(|error| GitReadError::from_gix("open repository", error))?;
+    let head = repo
+        .head()
+        .map_err(|error| GitReadError::from_gix("read HEAD", error))?;
+    if head.is_unborn() {
+        return Ok(0);
+    }
+    let head = repo
+        .head_id()
+        .map_err(|error| GitReadError::from_gix("resolve HEAD", error))?;
+    let platform = repo
+        .references()
+        .map_err(|error| GitReadError::from_gix("open references", error))?;
+    let prefix = format!("refs/remotes/{remote}/");
+    let iterator = platform
+        .prefixed(prefix.as_str())
+        .map_err(|error| GitReadError::from_gix("iterate remote references", error))?;
+    let mut hidden = Vec::new();
+    for item in iterator {
+        context.check()?;
+        let mut reference =
+            item.map_err(|error| GitReadError::from_gix("read remote reference", error))?;
+        // Unpeelable tips (dangling or non-commit) simply do not hide anything.
+        if let Ok(id) = reference.peel_to_id() {
+            hidden.push(id.detach());
+        }
+    }
+    let walk = repo
+        .rev_walk([head.detach()])
+        .with_hidden(hidden)
+        .all()
+        .map_err(|error| GitReadError::from_gix("walk unpublished commits", error))?;
+    to_u32(count_walk(walk, "walk unpublished commits", &context)?)
+}
+
 fn ahead_behind(
     repo: &gix::Repository,
     head: &str,

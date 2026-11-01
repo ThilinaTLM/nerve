@@ -183,4 +183,44 @@ describe("Git stash workflow", () => {
       await rm(root, { recursive: true, force: true });
     }
   });
+
+  it("reports stashes and unpublished commits in the repository summary", async () => {
+    const root = await repository();
+    try {
+      const instance = service(root);
+      const summary = () => instance.summarizeRepo(root, ".", "repo");
+      assert.equal((await summary()).hasStashes, false);
+      await writeFile(join(root, "unstaged.txt"), "first\n");
+      const created = await instance.createStash("proj_test", ".", "unstaged");
+      assert.equal(created.repo.hasStashes, true);
+      const [entry] = await listStashes(instance, root);
+      assert.ok(entry);
+      const dropped = await instance.dropStash(
+        "proj_test",
+        ".",
+        entry.index,
+        entry.hash,
+      );
+      assert.equal(dropped.repo.hasStashes, false);
+
+      // No remote: nothing can be published.
+      assert.equal((await summary()).unpublishedCount, null);
+      await git(root, "remote", "add", "origin", join(root, "missing-remote"));
+      await git(root, "update-ref", "refs/remotes/origin/main", "HEAD");
+      await git(root, "switch", "-c", "feature");
+      for (const content of ["one\n", "two\n"]) {
+        await writeFile(join(root, "unstaged.txt"), content);
+        await git(root, "add", "unstaged.txt");
+        await git(root, "commit", "-m", content.trim());
+      }
+      instance.invalidateStableRepoMetadata(root);
+      const feature = await summary();
+      assert.equal(feature.hasUpstream, false);
+      assert.equal(feature.unpublishedCount, 2);
+      await git(root, "branch", "--set-upstream-to=origin/main");
+      assert.equal((await summary()).unpublishedCount, null);
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
 });

@@ -7,6 +7,7 @@ import { promisify } from "node:util";
 import { describe, it } from "node:test";
 import {
   checkGitAncestry,
+  countUnpublishedGitCommits,
   NativeGitReadError,
   readGitFileDiff,
   readGitRepositoryInfo,
@@ -91,6 +92,9 @@ describe("native Git reads", () => {
         (await checkGitAncestry(repo, "HEAD", "HEAD")).isAncestor,
         true,
       );
+      assert.equal(await countUnpublishedGitCommits(repo, "origin"), 1);
+      await git(repo, ["update-ref", "refs/remotes/origin/main", "HEAD"]);
+      assert.equal(await countUnpublishedGitCommits(repo, "origin"), 0);
       assert.equal(validateGitBranchName("feature/native-read"), true);
       assert.equal(validateGitBranchName("bad..name"), false);
     });

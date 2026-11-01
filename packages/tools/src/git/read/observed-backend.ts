@@ -91,6 +91,13 @@ export class ObservedGitReadBackend implements GitReadBackend {
       repoDir,
     );
   }
+  countUnpublishedCommits(repoDir: string, remote: string): Promise<number> {
+    return this.run(
+      "unpublished-count",
+      () => this.backend.countUnpublishedCommits(repoDir, remote),
+      repoDir,
+    );
+  }
   validateBranchName(name: string): Promise<boolean> {
     return this.run("validate-branch", () =>
       this.backend.validateBranchName(name),

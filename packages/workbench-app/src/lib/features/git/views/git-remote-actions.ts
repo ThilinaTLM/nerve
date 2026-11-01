@@ -54,23 +54,53 @@ export function repositoryRemoteBusy(
 const plural = (count: number) =>
   `${count} ${count === 1 ? "commit" : "commits"}`;
 
-/** What Sync will do: the diverged counts for the button and its tooltip. */
-export function syncSummary(repo: GitRepoSummary): {
+/** The single remote button a repository row shows, chosen from its state. */
+export type PrimaryRemoteAction = {
+  operation: Extract<GitRemoteOperation, "sync" | "pull" | "push">;
+  /** Count badges next to the icon; arrows only when the icon shows both ways. */
   parts: string[];
+  label: string;
   help: string;
-} {
+};
+
+export function primaryRemoteAction(repo: GitRepoSummary): PrimaryRemoteAction {
+  if (!repo.detached && repo.currentBranch && !repo.hasUpstream) {
+    const count = repo.unpublishedCount ?? 0;
+    return {
+      operation: "push",
+      parts: count > 0 ? [`${count}`] : [],
+      label: "Publish branch",
+      help: `Publish ${repo.currentBranch} to origin${count > 0 ? ` (${plural(count)})` : ""}`,
+    };
+  }
   const behind = repo.behind ?? 0;
   const ahead = repo.ahead ?? 0;
-  const parts = [behind > 0 ? `↓${behind}` : "", ahead > 0 ? `↑${ahead}` : ""];
-  const steps = [
-    behind > 0 ? `pull ${plural(behind)}` : "",
-    ahead > 0 ? `push ${plural(ahead)}` : "",
-  ].filter(Boolean);
+  if (behind > 0 && ahead === 0)
+    return {
+      operation: "pull",
+      parts: [`${behind}`],
+      label: "Pull",
+      help: `Pull ${plural(behind)}`,
+    };
+  if (ahead > 0 && behind === 0)
+    return {
+      operation: "push",
+      parts: [`${ahead}`],
+      label: "Push",
+      help: `Push ${plural(ahead)}`,
+    };
+  if (ahead > 0 && behind > 0)
+    return {
+      operation: "sync",
+      parts: [`↓${behind}`, `↑${ahead}`],
+      label: "Sync",
+      help: `Sync: pull ${plural(behind)}, push ${plural(ahead)}`,
+    };
   return {
-    parts: parts.filter(Boolean),
-    help: steps.length
-      ? `Sync: ${steps.join(", ")}`
-      : "Up to date · Sync fetches remote changes",
+    operation: "sync",
+    parts: [],
+    label: "Sync",
+    help: "Up to date · Sync fetches remote changes",
   };
 }
 

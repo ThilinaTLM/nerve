@@ -7,7 +7,7 @@ import {
   lastRemoteFailure,
   repositoryRemoteBusy,
   runningRemoteActivity,
-  syncSummary,
+  primaryRemoteAction,
 } from "./git-remote-actions.js";
 
 function repo(overrides: Partial<GitRepoSummary> = {}): GitRepoSummary {
@@ -21,6 +21,8 @@ function repo(overrides: Partial<GitRepoSummary> = {}): GitRepoSummary {
     ahead: 0,
     behind: 1,
     hasUpstream: true,
+    unpublishedCount: null,
+    hasStashes: false,
     hasRemote: true,
     hasGithubRemote: false,
     baseBranch: "main",
@@ -92,16 +94,39 @@ test("a noncancellable running operation is retained instead of incorrectly stop
   );
 });
 
-test("sync summary lists only the diverged directions", () => {
-  assert.deepEqual(syncSummary(repo({ behind: 1, ahead: 2 })), {
-    parts: ["↓1", "↑2"],
-    help: "Sync: pull 1 commit, push 2 commits",
-  });
-  assert.deepEqual(syncSummary(repo({ behind: 0, ahead: 3 })).parts, ["↑3"]);
-  assert.deepEqual(syncSummary(repo({ behind: 0, ahead: 0 })), {
+test("the primary remote action follows the branch state", () => {
+  const pick = (overrides: Partial<GitRepoSummary>) => {
+    const action = primaryRemoteAction(repo(overrides));
+    return [action.operation, action.parts];
+  };
+  assert.deepEqual(pick({ behind: 3, ahead: 0 }), ["pull", ["3"]]);
+  assert.deepEqual(pick({ behind: 0, ahead: 2 }), ["push", ["2"]]);
+  assert.deepEqual(pick({ behind: 1, ahead: 2 }), ["sync", ["↓1", "↑2"]]);
+  assert.deepEqual(primaryRemoteAction(repo({ behind: 0, ahead: 0 })), {
+    operation: "sync",
     parts: [],
+    label: "Sync",
     help: "Up to date · Sync fetches remote changes",
   });
+  const unpublished = {
+    hasUpstream: false,
+    ahead: null,
+    behind: null,
+  } as const;
+  assert.deepEqual(
+    primaryRemoteAction(repo({ ...unpublished, unpublishedCount: 2 })),
+    {
+      operation: "push",
+      parts: ["2"],
+      label: "Publish branch",
+      help: "Publish feature to origin (2 commits)",
+    },
+  );
+  assert.deepEqual(pick({ ...unpublished, unpublishedCount: 0 }), ["push", []]);
+  assert.deepEqual(
+    pick({ ...unpublished, detached: true, currentBranch: null }),
+    ["sync", []],
+  );
 });
 
 test("queued and running work is found only on its own repository", () => {

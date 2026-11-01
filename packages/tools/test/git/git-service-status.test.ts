@@ -81,6 +81,7 @@ function statusBackend(
       ),
     isAncestor: async () => false,
     resolveRevision: async (_repoDir: string, revision: string) => revision,
+    countUnpublishedCommits: async () => 0,
     validateBranchName: async () => true,
   };
 }

@@ -80,6 +80,8 @@ export interface GitReadBackend {
     descendant: string,
   ): Promise<boolean>;
   resolveRevision(repoDir: string, revision: string): Promise<string>;
+  /** Commits on HEAD that no `refs/remotes/<remote>/*` ref contains. */
+  countUnpublishedCommits(repoDir: string, remote: string): Promise<number>;
   validateBranchName(name: string): Promise<boolean>;
   fileDiff(
     repoDir: string,

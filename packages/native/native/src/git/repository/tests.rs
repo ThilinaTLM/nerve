@@ -202,3 +202,29 @@ fn selected_filter_is_not_executed_by_metadata_or_guarded_monitor() {
     );
     assert!(!marker.exists());
 }
+
+#[test]
+fn unpublished_counts_commits_not_on_any_remote_ref() {
+    let f = Fixture::new();
+    f.commit();
+    assert_eq!(count_unpublished(f.path(), "origin").unwrap(), 1);
+    f.git(&["update-ref", "refs/remotes/origin/main", "HEAD"]);
+    f.git(&["switch", "-qc", "feature"]);
+    assert_eq!(count_unpublished(f.path(), "origin").unwrap(), 0);
+    write(f.path.join("tracked.txt"), "one\n");
+    f.git(&["commit", "-qam", "one"]);
+    f.git(&["update-ref", "refs/remotes/origin/stacked", "HEAD"]);
+    write(f.path.join("tracked.txt"), "two\n");
+    f.git(&["commit", "-qam", "two"]);
+    write(f.path.join("tracked.txt"), "three\n");
+    f.git(&["commit", "-qam", "three"]);
+    assert_eq!(count_unpublished(f.path(), "origin").unwrap(), 2);
+    assert_eq!(count_unpublished(f.path(), "upstream").unwrap(), 4);
+    assert!(count_unpublished(f.path(), "a/b").is_err());
+}
+
+#[test]
+fn unpublished_is_zero_for_unborn_head() {
+    let f = Fixture::new();
+    assert_eq!(count_unpublished(f.path(), "origin").unwrap(), 0);
+}

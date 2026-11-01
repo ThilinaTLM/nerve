@@ -145,6 +145,12 @@ pub struct NativeGitRevisionResult {
     pub error: Option<NativeGitError>,
 }
 
+#[napi(object)]
+pub struct NativeGitCountResult {
+    pub count: Option<u32>,
+    pub error: Option<NativeGitError>,
+}
+
 pub struct RepositoryInfoTask {
     path: String,
 }
@@ -293,6 +299,38 @@ impl Task for RevisionTask {
 #[napi]
 pub fn resolve_git_revision(path: String, revision: String) -> AsyncTask<RevisionTask> {
     AsyncTask::new(RevisionTask { path, revision })
+}
+
+pub struct UnpublishedTask {
+    path: String,
+    remote: String,
+}
+
+impl Task for UnpublishedTask {
+    type Output = std::result::Result<u32, GitReadError>;
+    type JsValue = NativeGitCountResult;
+
+    fn compute(&mut self) -> Result<Self::Output> {
+        Ok(git::count_unpublished(&self.path, &self.remote))
+    }
+
+    fn resolve(&mut self, _env: Env, output: Self::Output) -> Result<Self::JsValue> {
+        Ok(match output {
+            Ok(count) => NativeGitCountResult {
+                count: Some(count),
+                error: None,
+            },
+            Err(error) => NativeGitCountResult {
+                count: None,
+                error: Some(error.into()),
+            },
+        })
+    }
+}
+
+#[napi]
+pub fn count_unpublished_git_commits(path: String, remote: String) -> AsyncTask<UnpublishedTask> {
+    AsyncTask::new(UnpublishedTask { path, remote })
 }
 
 pub struct FileDiffTask {

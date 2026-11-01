@@ -12,7 +12,7 @@ pub use ancestry::{check as check_ancestry, resolve_revision, validate_branch_na
 pub use error::{ErrorKind, GitReadError};
 pub use file_diff::read as read_file_diff;
 pub use model::*;
-pub use repository::{read_info as read_repository_info, read_snapshot};
+pub use repository::{count_unpublished, read_info as read_repository_info, read_snapshot};
 
 pub(crate) use repository::read_monitor_snapshot;
 

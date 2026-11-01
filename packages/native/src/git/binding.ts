@@ -1,5 +1,6 @@
 import type {
   NativeGitAncestryResult,
+  NativeGitCountResult,
   NativeGitDocumentSource,
   NativeGitFileDiffResult,
   NativeGitRepositoryInfoResult,
@@ -45,6 +46,10 @@ export interface NativeGitBinding
     path: string,
     revision: string,
   ): Promise<NativeGitRevisionResult>;
+  countUnpublishedGitCommits(
+    path: string,
+    remote: string,
+  ): Promise<NativeGitCountResult>;
   readGitFileDiff(
     path: string,
     original: NativeGitDocumentSource,

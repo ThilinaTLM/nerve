@@ -35,6 +35,14 @@ export const gitRepoSummarySchema = z.object({
   /** Commits behind upstream; null when there is no upstream. */
   behind: z.number().int().nullable(),
   hasUpstream: z.boolean(),
+  /**
+   * Commits on HEAD that no `origin/*` ref contains (what publishing the branch
+   * would upload). Only for an attached branch without upstream in a repository
+   * with a remote; null otherwise.
+   */
+  unpublishedCount: z.number().int().nonnegative().nullable(),
+  /** True when the repository has at least one stash entry. */
+  hasStashes: z.boolean(),
   /** True when at least one remote is configured (`git remote`). */
   hasRemote: z.boolean(),
   /**

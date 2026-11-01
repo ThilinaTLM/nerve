@@ -22,6 +22,7 @@ export type StableRepoMetadata = {
   readonly refSnapshot: GitRefSnapshot;
   readonly baseBranch: string;
   readonly comparisonBaseRef: string;
+  readonly hasStash: boolean;
   readonly remoteState: {
     hasRemote: boolean;
     hasGithubRemote: boolean;
@@ -170,6 +171,7 @@ export function stableMetadataFromRead(
     refSnapshot,
     baseBranch,
     comparisonBaseRef: comparisonBaseRefFromSnapshot(refSnapshot, baseBranch),
+    hasStash: snapshot.refs.some((ref) => ref.name === "refs/stash"),
     remoteState,
   };
 }

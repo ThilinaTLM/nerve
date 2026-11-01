@@ -30,6 +30,11 @@ export async function summarizeRepo(
       : await service.stableRepoMetadata(repoDir);
   const { branch, files } = read ?? parsePorcelainV2(statusOutput ?? "");
   const onBaseBranch = branch.head === stable.baseBranch;
+  const hasRemote = stable.remoteState.hasRemote;
+  const unpublishedCount =
+    hasRemote && !branch.detached && branch.head && branch.upstream === null
+      ? await service.unpublishedCommitCount(repoDir)
+      : null;
   return {
     relativePath,
     absDir: repoDir,
@@ -40,7 +45,9 @@ export async function summarizeRepo(
     ahead: branch.upstream ? (branch.ahead ?? 0) : null,
     behind: branch.upstream ? (branch.behind ?? 0) : null,
     hasUpstream: branch.upstream !== null,
-    hasRemote: stable.remoteState.hasRemote,
+    unpublishedCount,
+    hasStashes: stable.hasStash,
+    hasRemote,
     hasGithubRemote: stable.remoteState.hasGithubRemote,
     baseBranch: stable.baseBranch,
     onBaseBranch,
