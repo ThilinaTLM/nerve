@@ -4,7 +4,6 @@ import { DEFAULT_AGENT_PROFILE } from "@nervekit/contracts/agent-profiles";
 import { writeClipboardText } from "$lib/platform/clipboard/write-text";
 import { notify } from "$lib/application/notifications/notify.svelte";
 import type { WorkbenchConversationAdapterProps } from "$lib/features/conversations/views/workbench-conversation-adapter-props";
-import { shortProjectLabel } from "$lib/domain/projects/project-tree";
 import {
   activeRunStreamingText,
   buildActiveRunTimeline,
@@ -49,7 +48,6 @@ let {
   activeConversation,
   activeAgent,
   activePendingConversation,
-  homeDir,
   pendingConversationActive = false,
   conversationLoading = false,
   approvals = [],
@@ -150,9 +148,7 @@ const composerTodos = $derived(
 const conversationOpen = $derived(
   Boolean(activeConversation || pendingConversationActive),
 );
-const activeProjectLabel = $derived(
-  activeProject ? shortProjectLabel(activeProject.dir, homeDir) : undefined,
-);
+const activeProjectLabel = $derived(activeProject?.name);
 const scrollConversationId = $derived(
   activeConversation?.id ??
     (pendingConversationActive

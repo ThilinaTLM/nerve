@@ -9,7 +9,6 @@ import Markdown from "@nervekit/ui-kit/renderers/markdown/Markdown.svelte";
 import ConversationBanner from "$lib/presentation/conversations/ConversationBanner.svelte";
 import ConversationEmptyState from "$lib/presentation/conversations/ConversationEmptyState.svelte";
 import ConversationWelcome from "$lib/features/conversations/views/ConversationWelcome.svelte";
-import { shortProjectLabel } from "$lib/domain/projects/project-tree";
 import type { ProjectRecord } from "$lib/domain/projects/sidebar-view-models";
 import type { TimelineItem } from "$lib/presentation/state/timeline";
 import type {
@@ -46,7 +45,7 @@ const welcomeProject: ProjectRecord = {
   createdAt: stamp,
   updatedAt: stamp,
 };
-const welcomeLabel = shortProjectLabel(welcomeProject.dir, "/home/user");
+const welcomeLabel = welcomeProject.name;
 
 const transcriptMenu = (): ContextMenuItem[] => [
   { label: "Copy", onSelect: noop },
