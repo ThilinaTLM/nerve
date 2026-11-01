@@ -123,7 +123,7 @@ function select(item: MenuAction) {
 }
 
 .action-sheet-item:active {
-  background: var(--accent);
+  background: var(--muted);
 }
 
 .action-sheet-item.destructive {

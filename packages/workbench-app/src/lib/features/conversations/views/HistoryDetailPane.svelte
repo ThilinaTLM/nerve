@@ -107,7 +107,7 @@ async function copyId(id: string) {
       {#each segment.parts as part, i (i)}
         {@const PartIcon = HISTORY_ICONS[part.icon]}
         <span
-          class="flex items-center gap-1 rounded-md border bg-muted/40 px-2 py-0.5 text-ui text-muted-foreground"
+          class="flex items-center gap-1 rounded-md border bg-muted px-2 py-0.5 text-ui text-muted-foreground"
         >
           <PartIcon class="size-3.5" strokeWidth={2} />
           <span class="font-medium text-foreground">{part.count}</span>
@@ -231,7 +231,7 @@ async function copyId(id: string) {
                 >Arguments</span
               >
               <pre
-                class="overflow-x-auto rounded-md border bg-muted/40 p-3 font-mono text-ui whitespace-pre-wrap break-words">{view.argsText}</pre>
+                class="overflow-x-auto rounded-md border bg-well p-3 font-mono text-ui whitespace-pre-wrap break-words">{view.argsText}</pre>
             </div>
           {/if}
           {#if view.resultText}
@@ -240,14 +240,14 @@ async function copyId(id: string) {
                 >Result</span
               >
               <pre
-                class="overflow-x-auto rounded-md border bg-muted/40 p-3 font-mono text-ui whitespace-pre-wrap break-words">{view.resultText}</pre>
+                class="overflow-x-auto rounded-md border bg-well p-3 font-mono text-ui whitespace-pre-wrap break-words">{view.resultText}</pre>
             </div>
           {/if}
           {#if view.errorText}
             <div class="flex flex-col gap-1">
               <span class="text-ui font-medium text-destructive">Error</span>
               <pre
-                class="overflow-x-auto rounded-md border border-destructive/40 bg-destructive/10 p-3 font-mono text-ui whitespace-pre-wrap break-words">{view.errorText}</pre>
+                class="overflow-x-auto rounded-md border border-destructive-strong bg-destructive-subtle p-3 font-mono text-ui whitespace-pre-wrap break-words">{view.errorText}</pre>
             </div>
           {/if}
           {#if !view.argsText && !view.resultText && !view.errorText}

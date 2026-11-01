@@ -407,7 +407,7 @@ $effect(() => {
             {/if}
             {#if node.item.stopReason === "error" && node.item.errorMessage?.trim()}
               <pre
-                class="mt-2 whitespace-pre-wrap break-words rounded-md border border-destructive/40 bg-destructive/10 p-3 font-mono text-ui text-destructive">{node.item.errorMessage.trim()}</pre>
+                class="mt-2 whitespace-pre-wrap break-words rounded-md border border-destructive-strong bg-destructive-subtle p-3 font-mono text-ui text-destructive">{node.item.errorMessage.trim()}</pre>
             {/if}
           </div>
         </article>
@@ -438,7 +438,7 @@ $effect(() => {
 
 .message-content {
   min-width: 0;
-  color: color-mix(in oklab, var(--foreground) 92%, transparent);
+  color: var(--foreground);
   font-size: var(--text-body);
 }
 </style>

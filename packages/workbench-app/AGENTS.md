@@ -30,8 +30,8 @@ Application `*Host` components are state/effect adapters around canonical featur
   owns colour only: radius, elevation strength and shadow recipes are global,
   a theme has exactly one block (`:root[data-theme="<id>"],
 [data-theme-preview="<id>"]`) in `theme.css`, and the
-  `card`/`popover`/`accent` foregrounds and the syntax diff/link roles are
-  aliases of `foreground` and the status tokens. Mode-dependent globals (shadow
+  `card`/`popover` foregrounds, `ring` (= `primary`), the derived recipes and
+  the syntax diff/link roles are aliases of `foreground` and the status tokens. Mode-dependent globals (shadow
   colour, input fill, overlay edge) key on `.dark` /
   `[data-color-mode="dark"]`, so a preview root sets `data-color-mode` from
   the theme's kind. Legacy single-theme ids map to a light/dark pair in
@@ -42,10 +42,21 @@ Application `*Host` components are state/effect adapters around canonical featur
   field fills (transparent in light, a faint lift in dark) and one
   `aria-invalid` ring/border alpha that works in both modes.
 - **Neutral hover is `hover:bg-hover`** (`--hover`, a translucent foreground
-  overlay that works on any surface). Do not hand-roll opacity recipes such as
-  `hover:bg-accent/50` or `hover:bg-muted/60`; keep opaque `accent`/`muted`
-  fills for resting or pressed states, and semantic tints (`destructive/…`)
-  where the meaning is not neutral.
+  overlay that works on any surface), including menu highlights. Keep the
+  opaque `muted` fill for resting or pressed states.
+- **Colours are tokens or derived recipes, never local alphas.** App code
+  (`workbench-app`) may not use opacity modifiers (`bg-destructive/10`,
+  `border-border/60`) or `color-mix()`; the style policy rejects them.
+  `theme.css` derives the recipes once: `bg-<tone>-subtle` (8% tint for
+  callouts, chips and soft fills), `border-<tone>-strong` / `ring-<tone>-strong`
+  (40% for tinted edges and highlight marks), `border-border-subtle` (inner
+  hairlines), `ring-focus` / `outline-focus` (focus halo) and `bg-scrim`
+  (behind overlays); `<tone>` is `primary`, `info`, `success`, `warning` or
+  `destructive`. Only ui-kit primitives compose their own alphas, and
+  illustrations (`DiscoverNewsArtwork`, theme previews) are exempt.
+- **Two elevations:** controls are flat (border only); `shadow-sm` for raised cards,
+  `shadow-overlay` for anything floating (popovers, menus, dialogs, sheets,
+  tooltips, floating toolbars).
 - **Type scale has four roles, 12–16px** (defined in `ui-kit` `theme.css`;
   Tailwind's default sizes are cleared and the style-policy check rejects them
   and arbitrary `text-[…]` sizes): `text-caption` 12px for glanceable extras
@@ -61,12 +72,13 @@ Application `*Host` components are state/effect adapters around canonical featur
   `font-medium` and, where it has one, renders its leading icon or idle dot in
   `text-primary`; status-coloured glyphs keep their tone. Never add a stronger
   fill, border, or bar to signal selection.
-- **Quiet fills** (`muted`, `accent`) are meant to sit beyond the surface
-  ladder on the foreground side so they stay visible on every surface (dark:
-  `popover < muted < accent`; light: `accent < muted < well`). Every
+- **The quiet fill** (`muted`) sits beyond the surface ladder on the
+  foreground side so it stays visible on every surface (dark:
+  `popover < muted`; light: `muted < well`). Every
   theme follows this, and `theme-contrast.test.ts` enforces it. For recessed tracks and output use `well`; for interaction states
   prefer `bg-hover` or `bg-selected`.
-- **Status colour has one vocabulary**: `neutral`, `accent`, `info`, `success`,
+- **Status colour has one vocabulary**: `neutral`, `brand` (primary, for what
+  the app highlights: Default markers, meters), `info`, `success`,
   `warning`, `destructive` (`StatusTone` in `@nervekit/ui-kit/display/status`).
   `StatusDot`, `Badge`, `ProgressRing`, `PanelRow`, `PanelBanner`, and the
   status helpers all speak it, so a tone computed once can drive any of them.
@@ -74,6 +86,8 @@ Application `*Host` components are state/effect adapters around canonical featur
   `muted`/`default` are all spellings of tones that already exist). Domain
   vocabularies that are genuinely not status — diff line kinds, notification
   sounds — stay separate.
+  Text strength (foreground vs `muted-foreground`) is not a tone; set it
+  with text colour, never by picking a tone.
 - **Settings has three heading levels.** Page title `text-title` semibold
   foreground (`SettingsPageHeader`, `pb-2` of space below); section heading
   `text-ui` semibold foreground, optionally followed by ONE `text-caption` muted
@@ -173,10 +187,9 @@ that maps cleanly to utilities. Convert it to Tier 1.
 6. `[data-state]` / `[data-tone]` / `[data-*]` styling that reassigns custom
    properties.
 7. Platform CSS (`-webkit-app-region: drag/no-drag`).
-8. Two-color `color-mix()` **blends** (e.g.
-   `color-mix(in oklab, var(--primary) 40%, var(--border))`). A mix with
-   `transparent` is just opacity — in markup always prefer the Tailwind opacity
-   modifier (`bg-primary/40`, `border-border/60`) instead.
+8. Derived colour recipes in scoped CSS: use the token variables
+   (`var(--warning-subtle)`, `var(--border-subtle)`, `var(--scrim)`); new
+   recipes are added to `theme.css`, not mixed locally.
 9. Virtualizer / measured-layout internals: the viewport, spacer, and
    absolutely positioned rows generated by
    `packages/ui-kit/src/lib/components/composites/virtual-list/virtual-scroller.svelte`.

@@ -49,7 +49,6 @@ const tokenNames = [
   "destructive-solid",
   "destructive-solid-foreground",
   "border",
-  "accent",
 ] as const;
 type TokenName = (typeof tokenNames)[number];
 
@@ -187,6 +186,7 @@ const surfaceTokens = [
   "panel",
   "well",
 ] as const;
+/* Matches `--<tone>-subtle` in theme.css (asserted below). */
 const subtleSurfaceAlpha = 0.08;
 /* Surfaces stay subdued, but a theme's hue has to be visible in its chrome to
  * be a theme rather than an accent swap; these are the ceilings that keep the
@@ -345,7 +345,7 @@ describe("theme text contrast", () => {
             themeName,
             semanticName,
             semantic,
-            `${semanticName}/${subtleSurfaceAlpha * 100} on ${surfaceName}`,
+            `${semanticName}-subtle on ${surfaceName}`,
             subtleSurface,
           );
         }
@@ -419,10 +419,7 @@ describe("theme text contrast", () => {
       /neutral:\s*"[^"]*bg-muted text-foreground[^"]*"/,
     );
     for (const token of semanticTokens) {
-      assert.match(
-        badgeSource,
-        new RegExp(`bg-${token}/${subtleSurfaceAlpha * 100} text-${token}`),
-      );
+      assert.match(badgeSource, new RegExp(`bg-${token}-subtle text-${token}`));
     }
   });
 });
@@ -481,15 +478,7 @@ describe("surface ladder", () => {
           tokens.muted[0] - tokens.popover[0] >= minimumQuietFillStep,
           `${theme} muted must sit above popover`,
         );
-        assert.ok(
-          tokens.accent[0] - tokens.muted[0] >= minimumQuietFillStep,
-          `${theme} accent must sit above muted`,
-        );
       } else {
-        assert.ok(
-          tokens.muted[0] - tokens.accent[0] >= minimumQuietFillStep,
-          `${theme} muted must sit above accent`,
-        );
         assert.ok(
           tokens.well[0] - tokens.muted[0] >= minimumQuietFillStep,
           `${theme} well must sit above muted`,
@@ -520,7 +509,7 @@ describe("surface ladder", () => {
   it("keeps muted text readable on the quiet fills", () => {
     for (const theme of ladderThemes) {
       const tokens = ladderTokens(theme);
-      for (const fill of ["muted", "accent"] as const) {
+      for (const fill of ["muted"] as const) {
         assertContrast(
           theme,
           "muted-foreground",
@@ -590,9 +579,19 @@ describe("token structure", () => {
     );
   });
 
+  it("derives tone tints at the alpha the contrast checks measure", () => {
+    const global = globalBlock();
+    for (const token of semanticTokens) {
+      assert.equal(
+        declarationOf(global, `${token}-subtle`),
+        `color-mix(in oklab, var(--${token}) ${subtleSurfaceAlpha * 100}%, transparent)`,
+      );
+    }
+  });
+
   it("points text and diff aliases at their source tokens", () => {
     const global = globalBlock();
-    for (const name of ["card", "popover", "accent"]) {
+    for (const name of ["card", "popover"]) {
       assert.equal(
         declarationOf(global, `${name}-foreground`),
         "var(--foreground)",

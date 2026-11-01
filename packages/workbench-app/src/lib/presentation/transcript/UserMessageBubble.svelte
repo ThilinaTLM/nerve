@@ -66,11 +66,11 @@ let {
 
 <style>
 .delivered-skin {
-  border-color: color-mix(in oklab, var(--primary) 16%, var(--border));
-  background: color-mix(in oklab, var(--primary) 12%, var(--card));
+  border-color: var(--border);
+  background: var(--primary-subtle);
 }
 
 .queued-skin {
-  border-color: color-mix(in oklab, var(--muted-foreground) 28%, var(--border));
+  border-color: var(--border);
 }
 </style>

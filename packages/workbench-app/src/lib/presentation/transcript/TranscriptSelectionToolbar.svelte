@@ -156,7 +156,7 @@ onDestroy(clearTimer);
     role="toolbar"
     aria-label="Selection actions"
     tabindex="-1"
-    class="absolute z-20 flex -translate-x-1/2 items-center gap-0.5 rounded-md border bg-popover p-0.5 text-popover-foreground shadow-md animate-in fade-in-0 zoom-in-95 duration-150"
+    class="absolute z-20 flex -translate-x-1/2 items-center gap-0.5 rounded-md border bg-popover p-0.5 text-popover-foreground shadow-overlay animate-in fade-in-0 zoom-in-95 duration-150"
     style:left="{placement.x}px"
     style:top="{placement.y}px"
     onpointerdown={(event) => event.preventDefault()}

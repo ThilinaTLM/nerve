@@ -76,7 +76,7 @@ function openRun(launchId: string): void {
   onOpenChange={handleOpenChange}
 >
   <div class="flex min-h-0 flex-col">
-    <div class="flex shrink-0 items-center border-b border-border/60 p-2">
+    <div class="flex shrink-0 items-center border-b border-border-subtle p-2">
       <SearchInput
         bind:value={filter}
         class="flex-1"

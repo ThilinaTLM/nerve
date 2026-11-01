@@ -68,7 +68,7 @@ let { items }: Props = $props();
 /* Reasoning summaries often open sections with a bold-only paragraph
    (`**Title**`); render those as quiet step headings instead of rules. */
 .thinking-content :global(.markdown > p:has(> strong:only-child)) {
-  color: color-mix(in oklab, var(--foreground) 75%, transparent);
+  color: var(--muted-foreground);
   font-style: normal;
   font-weight: 500;
 }

@@ -21,11 +21,12 @@ let {
 
 const toneClasses: Record<StatusTone, string> = {
   neutral: "border-border bg-muted text-foreground",
-  accent: "border-border bg-accent text-foreground",
-  info: "border-info/40 bg-info/10 text-foreground",
-  success: "border-success/40 bg-success/10 text-foreground",
-  warning: "border-warning/40 bg-warning/10 text-foreground",
-  destructive: "border-destructive/40 bg-destructive/10 text-foreground",
+  brand: "border-primary-strong bg-primary-subtle text-foreground",
+  info: "border-info-strong bg-info-subtle text-foreground",
+  success: "border-success-strong bg-success-subtle text-foreground",
+  warning: "border-warning-strong bg-warning-subtle text-foreground",
+  destructive:
+    "border-destructive-strong bg-destructive-subtle text-foreground",
 };
 </script>
 

@@ -84,7 +84,7 @@ const description = $derived(
         <div class="flex flex-wrap gap-1.5">
           {#each presentation.meta as item, index (index)}
             <span
-              class="rounded-sm border bg-muted/30 px-1.5 py-0.5 text-ui text-muted-foreground"
+              class="rounded-sm border bg-muted px-1.5 py-0.5 text-ui text-muted-foreground"
               class:font-mono={item.mono}>{item.text}</span
             >
           {/each}
@@ -93,7 +93,7 @@ const description = $derived(
 
       {#if displayToolCall.error}
         <p
-          class="m-0 rounded-sm border border-destructive/30 bg-destructive/10 p-2 text-ui text-destructive"
+          class="m-0 rounded-sm border border-destructive-strong bg-destructive-subtle p-2 text-ui text-destructive"
         >
           {displayToolCall.error}
         </p>
@@ -101,7 +101,7 @@ const description = $derived(
 
       {#if formatted}
         <details
-          class="rounded-sm border bg-muted/20"
+          class="rounded-sm border bg-well"
           open={initialSection === "formatted"}
         >
           <summary

@@ -124,7 +124,7 @@ let {
 }
 
 .mobile-screen-title:active {
-  background: var(--accent);
+  background: var(--muted);
 }
 
 .mobile-screen-body {

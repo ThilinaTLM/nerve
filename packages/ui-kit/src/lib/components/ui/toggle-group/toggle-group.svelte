@@ -4,10 +4,10 @@ import type { VariantProps } from "tailwind-variants";
 import { cn, tv } from "@nervekit/ui-kit/utils";
 
 export const toggleVariants = tv({
-  base: "hover:text-foreground aria-pressed:bg-selected aria-pressed:text-foreground aria-pressed:hover:bg-selected focus-visible:border-ring focus-visible:ring-ring/50 aria-invalid:ring-destructive/30 aria-invalid:border-destructive gap-1 rounded-md text-ui font-medium transition-[color,box-shadow] [&_svg:not([class*='size-'])]:size-4 group/toggle hover:bg-muted inline-flex items-center justify-center whitespace-nowrap outline-none focus-visible:ring-3 disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_[data-slot=toggle-count]]:text-caption [&_[data-slot=toggle-count]]:font-normal [&_[data-slot=toggle-count]]:tabular-nums [&_[data-slot=toggle-count]]:text-muted-foreground",
+  base: "hover:text-foreground aria-pressed:bg-selected aria-pressed:text-foreground aria-pressed:hover:bg-selected focus-visible:border-ring focus-visible:ring-focus aria-invalid:ring-destructive-strong aria-invalid:border-destructive gap-1 rounded-md text-ui font-medium transition-[color,box-shadow] [&_svg:not([class*='size-'])]:size-4 group/toggle hover:bg-muted inline-flex items-center justify-center whitespace-nowrap outline-none focus-visible:ring-3 disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_[data-slot=toggle-count]]:text-caption [&_[data-slot=toggle-count]]:font-normal [&_[data-slot=toggle-count]]:tabular-nums [&_[data-slot=toggle-count]]:text-muted-foreground",
   variants: {
     variant: {
-      outline: "border-input hover:bg-muted border bg-transparent shadow-xs",
+      outline: "border-input hover:bg-muted border bg-transparent ",
       // Segmented chip: pick from a short set, optionally carrying a count.
       // Selection uses the shared fill without a border; keyboard focus keeps
       // the base focus-visible ring.
@@ -89,7 +89,7 @@ get along, so we shut typescript up by casting `value` to `never`.
   data-spacing={spacing}
   style={`--gap: ${spacing}`}
   class={cn(
-    "rounded-md data-[spacing=0]:data-[variant=outline]:shadow-xs group/toggle-group flex w-fit flex-row items-center gap-[--spacing(var(--gap))] data-vertical:flex-col data-vertical:items-stretch",
+    "rounded-md group/toggle-group flex w-fit flex-row items-center gap-[--spacing(var(--gap))] data-vertical:flex-col data-vertical:items-stretch",
     className,
   )}
   {...restProps}

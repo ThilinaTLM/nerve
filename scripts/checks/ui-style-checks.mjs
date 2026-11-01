@@ -6,6 +6,7 @@ import {
   findDarkUtilities,
   findInertClassNames,
   findOffScaleTextSizes,
+  findOffTokenColours,
   isDynamicClass,
 } from "./style-policy.mjs";
 import { sourceExtensions } from "./repository-source-inventory.mjs";
@@ -47,6 +48,7 @@ export function checkUiStyles({ files: trackedFiles, read }, fail) {
 
     checkNoDarkUtilities();
     checkTypeScale();
+    checkAppColours();
     checkGlobalStylePartials();
     checkBareGlobalSelectors();
     checkInertClassNames();
@@ -95,6 +97,35 @@ export function checkUiStyles({ files: trackedFiles, read }, fail) {
         fail(
           file,
           `off-scale font size (${offenders[0]}); use text-caption, text-ui, text-body or text-title`,
+        );
+    }
+  }
+
+  /**
+   * App colours come from tokens and their derived recipes, never from local
+   * opacity modifiers or color-mix(). Illustrations draw with free alphas.
+   */
+  function checkAppColours() {
+    const illustrations =
+      /\/(?:DiscoverNewsArtwork|ThemePreviewPicker|SettingsPreviewCards)\.svelte$/;
+    for (const file of trackedFiles) {
+      if (
+        !/packages\/workbench-app\/src\/lib\/.*\.svelte$/.test(file) ||
+        file.includes("/design-lab/") ||
+        illustrations.test(file)
+      )
+        continue;
+      const text = read(file);
+      const offenders = findOffTokenColours(text);
+      if (offenders.length > 0)
+        fail(
+          file,
+          `off-token colour (${offenders[0]}); use a token or its -subtle/-strong recipe`,
+        );
+      if (/color-mix\(/.test(text))
+        fail(
+          file,
+          "color-mix() belongs in ui-kit theme tokens; use a derived token",
         );
     }
   }

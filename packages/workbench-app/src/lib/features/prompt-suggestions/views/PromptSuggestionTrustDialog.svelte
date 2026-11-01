@@ -49,7 +49,7 @@ function decideLater() {
 >
   <div class="grid gap-4">
     <div
-      class="flex gap-3 rounded-md border border-warning/40 bg-warning/10 p-3 text-ui"
+      class="flex gap-3 rounded-md border border-warning-strong bg-warning-subtle p-3 text-ui"
     >
       <AlertTriangle
         class="mt-0.5 size-4 flex-none text-warning"

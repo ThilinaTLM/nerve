@@ -323,13 +323,13 @@ function dropOnStrip(event: DragEvent, dock: DockId) {
   z-index: 20;
   display: grid;
   place-items: center;
-  border: 2px dashed color-mix(in oklab, var(--primary) 45%, transparent);
-  background: color-mix(in oklab, var(--primary) 8%, transparent);
+  border: 2px dashed var(--primary-strong);
+  background: var(--primary-subtle);
 }
 
 .dock-drop-strip.hovered {
   border-style: solid;
-  background: color-mix(in oklab, var(--primary) 18%, transparent);
+  background: var(--primary-strong);
 }
 
 .dock-drop-strip[data-dock="left"] {

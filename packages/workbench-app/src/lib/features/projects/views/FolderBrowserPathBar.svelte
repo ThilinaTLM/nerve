@@ -189,7 +189,7 @@ export function beginEditing() {
     </div>
     {#if pathError}
       <p
-        class="absolute top-full right-0 left-0 z-10 mt-1 rounded-md border bg-popover px-2 py-1 text-ui text-destructive shadow-md"
+        class="absolute top-full right-0 left-0 z-10 mt-1 rounded-md border bg-popover px-2 py-1 text-ui text-destructive shadow-overlay"
         role="alert"
       >
         {pathError}
@@ -199,7 +199,7 @@ export function beginEditing() {
         id={listboxId}
         role="listbox"
         aria-label="Path suggestions"
-        class="absolute top-full right-0 left-0 z-10 mt-1 flex flex-col rounded-md border bg-popover p-1 shadow-md"
+        class="absolute top-full right-0 left-0 z-10 mt-1 flex flex-col rounded-md border bg-popover p-1 shadow-overlay"
       >
         {#each completions as path, index (path)}
           <li role="option" aria-selected={index === highlighted}>
@@ -229,7 +229,7 @@ export function beginEditing() {
     <!-- svelte-ignore a11y_click_events_have_key_events -->
     <!-- svelte-ignore a11y_no_static_element_interactions -->
     <div
-      class="group flex h-control cursor-text items-center gap-0.5 overflow-hidden rounded-md border border-input bg-input/30 px-1"
+      class="group flex h-control cursor-text items-center gap-0.5 overflow-hidden rounded-md border border-input bg-input-background px-1"
       onclick={(event) => {
         if (event.target === event.currentTarget) start();
       }}

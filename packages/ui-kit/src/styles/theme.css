@@ -29,16 +29,45 @@
 [data-theme-preview] {
   --elevation-hsl: 35 25% 25%;
 
+  /* Focus follows the brand colour in every theme. */
+  --ring: var(--primary);
+
   /* Text on shared surfaces is always the foreground colour. */
   --card-foreground: var(--foreground);
   --popover-foreground: var(--foreground);
-  --accent-foreground: var(--foreground);
 
   /* Diff and link roles reuse the status palette. */
   --syntax-added: var(--success);
   --syntax-removed: var(--destructive);
   --syntax-changed: var(--warning);
   --syntax-link: var(--info);
+
+  /* Derived colours: recipes over the theme tokens, declared once so a theme
+   * stays colour inputs only. Components use these instead of opacity
+   * modifiers (`bg-destructive/10`) or ad-hoc color-mix(), which the style
+   * policy rejects in the app.
+   * - <tone>-subtle: 8% tint (the alpha theme-contrast.test.ts measures) for callouts, chips and soft fills.
+   * - <tone>-strong: 40% for tinted borders, rings and highlight marks.
+   * - border-subtle: hairline dividers inside an already bordered surface.
+   * - focus: the focus halo (`ring-focus`, `outline-focus`).
+   * - scrim: the dim layer behind modal overlays. */
+  --border-subtle: color-mix(in oklab, var(--border) 60%, transparent);
+  --focus: color-mix(in oklab, var(--ring) 50%, transparent);
+  --scrim: color-mix(in oklab, var(--background) 60%, transparent);
+  --primary-subtle: color-mix(in oklab, var(--primary) 8%, transparent);
+  --primary-strong: color-mix(in oklab, var(--primary) 40%, transparent);
+  --info-subtle: color-mix(in oklab, var(--info) 8%, transparent);
+  --info-strong: color-mix(in oklab, var(--info) 40%, transparent);
+  --success-subtle: color-mix(in oklab, var(--success) 8%, transparent);
+  --success-strong: color-mix(in oklab, var(--success) 40%, transparent);
+  --warning-subtle: color-mix(in oklab, var(--warning) 8%, transparent);
+  --warning-strong: color-mix(in oklab, var(--warning) 40%, transparent);
+  --destructive-subtle: color-mix(in oklab, var(--destructive) 8%, transparent);
+  --destructive-strong: color-mix(
+    in oklab,
+    var(--destructive) 40%,
+    transparent
+  );
 
   /* Neutral hover overlay: works on any surface in either mode. */
   --hover: color-mix(in oklab, var(--foreground) 6%, transparent);
@@ -50,32 +79,17 @@
    * under the content it opens onto; an active tab takes the content surface. */
   --chrome-track: color-mix(in oklab, var(--well) 50%, var(--panel));
 
-  --elevation-1: calc(0.05 * var(--elevation-strength));
   --elevation-2: calc(0.1 * var(--elevation-strength));
-  --shadow-2xs: 0 1px 3px 0px hsl(var(--elevation-hsl) / var(--elevation-1));
-  --shadow-xs: 0 1px 3px 0px hsl(var(--elevation-hsl) / var(--elevation-1));
+  /* Two elevations: `shadow-sm` lifts raised cards (controls stay flat), `shadow-overlay`
+   * floats popovers, menus, dialogs and toolbars (below). */
   --shadow-sm:
     0 1px 3px 0px hsl(var(--elevation-hsl) / var(--elevation-2)),
     0 1px 2px -1px hsl(var(--elevation-hsl) / var(--elevation-2));
-  --shadow:
-    0 1px 3px 0px hsl(var(--elevation-hsl) / var(--elevation-2)),
-    0 1px 2px -1px hsl(var(--elevation-hsl) / var(--elevation-2));
-  --shadow-md:
-    0 1px 3px 0px hsl(var(--elevation-hsl) / var(--elevation-2)),
-    0 2px 4px -1px hsl(var(--elevation-hsl) / var(--elevation-2));
-  --shadow-lg:
-    0 1px 3px 0px hsl(var(--elevation-hsl) / var(--elevation-2)),
-    0 4px 6px -1px hsl(var(--elevation-hsl) / var(--elevation-2));
-  --shadow-xl:
-    0 1px 3px 0px hsl(var(--elevation-hsl) / var(--elevation-2)),
-    0 8px 10px -1px hsl(var(--elevation-hsl) / var(--elevation-2));
-  --shadow-2xl: 0 1px 3px 0px
-    hsl(var(--elevation-hsl) / calc(0.25 * var(--elevation-strength)));
 
   /* Overlay elevation. Floating layers (popover, dropdown, context menu,
    * select, and pane-positioned floating panels) sit above every inline
    * surface, so they get their own recipe instead of borrowing a card's
-   * `--shadow-lg`: a hairline ring, a tight contact shadow, and a wide ambient
+   * shadow: a hairline ring, a tight contact shadow, and a wide ambient
    * one. It scales with `--elevation-strength`, so a deliberately flat theme
    * keeps separating its layers with hairlines rather than a fake shadow. */
   --elevation-overlay: calc(0.22 * var(--elevation-strength));
@@ -101,7 +115,7 @@
  * `colorThemeKind` in contracts). Every theme owns exactly one block; the
  * document root selects it through `data-theme`, and previews through
  * `data-theme-preview`. Surfaces rise well < panel < background < card <
- * popover; muted and accent sit beyond the ladder, on the foreground side.
+ * popover; muted, the quiet fill, sits beyond the ladder on the foreground side.
  * Mode-dependent globals above key on `.dark` / `[data-color-mode="dark"]`.
  * The unthemed root falls back to Nerve Light, and `.dark` to Nerve Dark, until
  * the bootstrap script sets `data-theme`. */
@@ -119,7 +133,6 @@
   --primary-foreground: oklch(1 0 0);
   --muted: oklch(0.924 0.018 91);
   --muted-foreground: oklch(0.49 0.0078 97.5);
-  --accent: oklch(0.91 0.026 92);
   --selected: color-mix(in oklab, var(--primary) 10%, transparent);
   --destructive: oklch(0.5 0.19 27);
   --destructive-foreground: oklch(1 0 0);
@@ -133,7 +146,6 @@
   --info-foreground: oklch(0.986 0.002 67.8);
   --border: oklch(0.872 0.017 95);
   --input: oklch(0.75 0.024 96);
-  --ring: oklch(0.6171 0.1375 39);
   --chart-1: oklch(0.5583 0.1276 43);
   --chart-2: oklch(0.62 0.13 75);
   --chart-3: oklch(0.58 0.12 25);
@@ -176,7 +188,6 @@
   --primary-foreground: oklch(0.1908 0.008 80);
   --muted: oklch(0.322 0.018 78);
   --muted-foreground: oklch(0.7713 0.017 99);
-  --accent: oklch(0.336 0.022 78);
   --selected: color-mix(in oklab, var(--primary) 10%, transparent);
   --destructive: oklch(0.8 0.114 25.5);
   --destructive-foreground: oklch(0.147 0.004 49.3);
@@ -190,7 +201,6 @@
   --info-foreground: oklch(0.147 0.004 49.3);
   --border: oklch(0.385 0.022 82);
   --input: oklch(0.44 0.024 82);
-  --ring: oklch(0.6724 0.1308 38.8);
   --chart-1: oklch(0.72 0.13 45);
   --chart-2: oklch(0.75 0.13 80);
   --chart-3: oklch(0.7 0.12 25);
@@ -225,7 +235,6 @@
   --primary-foreground: oklch(0.17 0.01 40);
   --muted: oklch(0.292 0.008 65);
   --muted-foreground: oklch(0.715 0.01 75);
-  --accent: oklch(0.312 0.009 65);
   --selected: color-mix(in oklab, var(--primary) 10%, transparent);
   --destructive: oklch(0.76 0.13 25);
   --destructive-foreground: oklch(0.147 0.004 49.3);
@@ -239,7 +248,6 @@
   --info-foreground: oklch(0.147 0.004 49.3);
   --border: oklch(0.35 0.009 65);
   --input: oklch(0.41 0.01 65);
-  --ring: var(--primary);
   --chart-1: oklch(0.72 0.14 42);
   --chart-2: oklch(0.75 0.13 80);
   --chart-3: oklch(0.7 0.12 25);
@@ -277,7 +285,6 @@
   --primary-foreground: oklch(1 0 0);
   --muted: oklch(0.895 0.011 61);
   --muted-foreground: oklch(0.46 0.035 53);
-  --accent: oklch(0.87 0.01 62.6);
   --selected: color-mix(in oklab, var(--primary) 10%, transparent);
   --destructive: oklch(0.507 0.205 24.2);
   --destructive-foreground: oklch(1 0 0);
@@ -291,7 +298,6 @@
   --info-foreground: oklch(1 0 0);
   --border: oklch(0.82 0.016 60);
   --input: oklch(0.7 0.03 55);
-  --ring: var(--primary);
   --chart-1: oklch(0.581 0.148 52.6);
   --chart-2: oklch(0.574 0.12 76.5);
   --chart-3: oklch(0.55 0.071 154.2);
@@ -330,7 +336,6 @@
   --primary-foreground: oklch(0.2 0.008 60);
   --muted: oklch(0.332 0.01 62);
   --muted-foreground: oklch(0.745 0.046 65.9);
-  --accent: oklch(0.353 0.011 56);
   --selected: color-mix(in oklab, var(--primary) 10%, transparent);
   --destructive: oklch(0.8 0.105 31.4);
   --destructive-foreground: oklch(0.2 0.008 60);
@@ -344,7 +349,6 @@
   --info-foreground: oklch(0.2 0.008 60);
   --border: oklch(0.42 0.014 62);
   --input: oklch(0.48 0.02 64);
-  --ring: var(--primary);
   --chart-1: oklch(0.749 0.117 59.9);
   --chart-2: oklch(0.829 0.113 82.5);
   --chart-3: oklch(0.732 0.071 154.9);
@@ -387,6 +391,7 @@
    *   `font-semibold` (or `font-medium` for a welcome line), since it sits
    *   only 1px above body. */
   --text-*: initial;
+  --shadow-*: initial;
   --text-caption: 0.75rem;
   --text-caption--line-height: 1rem;
   --text-ui: 0.8125rem;
@@ -412,6 +417,19 @@
     "Iosevka", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
   --font-serif: ui-serif, Georgia, Cambria, "Times New Roman", Times, serif;
   --tracking-normal: var(--tracking-normal);
+  --color-border-subtle: var(--border-subtle);
+  --color-focus: var(--focus);
+  --color-scrim: var(--scrim);
+  --color-primary-subtle: var(--primary-subtle);
+  --color-primary-strong: var(--primary-strong);
+  --color-info-subtle: var(--info-subtle);
+  --color-info-strong: var(--info-strong);
+  --color-success-subtle: var(--success-subtle);
+  --color-success-strong: var(--success-strong);
+  --color-warning-subtle: var(--warning-subtle);
+  --color-warning-strong: var(--warning-strong);
+  --color-destructive-subtle: var(--destructive-subtle);
+  --color-destructive-strong: var(--destructive-strong);
   --color-well: var(--well);
   --color-panel: var(--panel);
   --color-chrome-track: var(--chrome-track);
@@ -438,8 +456,6 @@
   /* Persistent selection: a soft brand tint. Selected rows pair it with a brand
    * marker (leading icon or dot) and medium weight; see workbench-app AGENTS.md. */
   --color-selected: var(--selected);
-  --color-accent-foreground: var(--accent-foreground);
-  --color-accent: var(--accent);
   --color-muted-foreground: var(--muted-foreground);
   --color-muted: var(--muted);
   --color-primary-foreground: var(--primary-foreground);
@@ -458,14 +474,7 @@
   --radius-2xl: calc(var(--radius) * 1.667);
   --radius-3xl: calc(var(--radius) * 2);
   --radius-4xl: calc(var(--radius) * 2.333);
-  --shadow-2xs: var(--shadow-2xs);
-  --shadow-xs: var(--shadow-xs);
   --shadow-sm: var(--shadow-sm);
-  --shadow: var(--shadow);
-  --shadow-md: var(--shadow-md);
-  --shadow-lg: var(--shadow-lg);
-  --shadow-xl: var(--shadow-xl);
-  --shadow-2xl: var(--shadow-2xl);
   --shadow-overlay: var(--shadow-overlay);
   /* Keyframes live in animation.css; these expose Tailwind animate-* utilities. */
   --animate-collapsible-down: collapsible-down 150ms ease-out;

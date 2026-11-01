@@ -100,7 +100,7 @@ const canDelete = $derived(enabled && canDeleteBranch(branch, baseBranch));
       <Button
         variant="ghost"
         size="icon-sm"
-        class="text-destructive hover:bg-destructive/10 hover:text-destructive"
+        class="text-destructive hover:bg-destructive-subtle hover:text-destructive"
         disabled={!canDelete}
         ariaLabel={`Delete branch ${branch.name}`}
         title={branch.remote

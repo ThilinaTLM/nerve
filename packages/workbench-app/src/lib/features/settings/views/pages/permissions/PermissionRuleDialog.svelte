@@ -117,13 +117,13 @@ const errorText = $derived(validation.error ?? serverError);
       <p
         id="permission-rule-error"
         role="alert"
-        class="whitespace-pre-wrap rounded-md bg-destructive/10 p-3 text-ui text-destructive"
+        class="whitespace-pre-wrap rounded-md bg-destructive-subtle p-3 text-ui text-destructive"
       >
         {errorText}
       </p>
     {/if}
     {#if validation.rule && Object.keys(validation.rule.when).length === 0}
-      <p class="rounded-md bg-warning/10 p-3 text-ui text-warning">
+      <p class="rounded-md bg-warning-subtle p-3 text-ui text-warning">
         An empty “when” matches every request. Add conditions if this is not
         intentional.
       </p>

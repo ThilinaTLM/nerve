@@ -65,7 +65,7 @@ const buttonVariants: ButtonVariant[] = [
 const buttonSizes: ButtonSize[] = ["default", "sm"];
 const badgeVariants: BadgeVariant[] = [
   "neutral",
-  "accent",
+  "brand",
   "outline",
   "info",
   "success",

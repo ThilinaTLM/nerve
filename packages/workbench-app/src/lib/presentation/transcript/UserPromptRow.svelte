@@ -145,7 +145,7 @@ const menuTarget = $derived(
       {/snippet}
       {#if item?.stopReason === "error" && item.errorMessage?.trim()}
         <pre
-          class="mt-2 whitespace-pre-wrap break-words rounded-md border border-destructive/40 bg-destructive/10 p-3 font-mono text-ui text-destructive">{item.errorMessage.trim()}</pre>
+          class="mt-2 whitespace-pre-wrap break-words rounded-md border border-destructive-strong bg-destructive-subtle p-3 font-mono text-ui text-destructive">{item.errorMessage.trim()}</pre>
       {/if}
     </UserMessageBubble>
   </TranscriptContextMenu>

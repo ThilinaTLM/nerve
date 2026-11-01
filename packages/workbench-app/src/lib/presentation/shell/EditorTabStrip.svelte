@@ -336,7 +336,7 @@ function menuItems(tab: WorkbenchTabModel, index: number): ContextMenuItem[] {
     <Button
       variant="ghost"
       size="icon"
-      class="rounded-none border-r-border/62"
+      class="rounded-none border-r-border-subtle"
       ariaLabel="Scroll tabs left"
       disabled={!canScrollLeft}
       onclick={() => scrollTabs(-1)}
@@ -358,7 +358,7 @@ function menuItems(tab: WorkbenchTabModel, index: number): ContextMenuItem[] {
         triggerClass={`h-8 min-w-0 flex-none ${tab.active ? "relative z-2" : ""} ${tab.wide ? "w-54 basis-54" : "w-50 basis-50"}`}
       >
         <div
-          class="editor-tab group relative inline-grid h-8 w-full touch-pan-y grid-cols-[auto_minmax(0,1fr)_auto] border-t-2 border-r border-t-transparent border-r-border/45 text-muted-foreground data-[active]:border-t-primary data-[active]:bg-background data-[active]:text-foreground data-[placeholder]:bg-primary/10 data-[placeholder]:text-transparent data-[placeholder]:[&>*]:invisible not-data-[active]:not-data-[placeholder]:hover:bg-hover not-data-[active]:not-data-[placeholder]:hover:text-foreground"
+          class="editor-tab group relative inline-grid h-8 w-full touch-pan-y grid-cols-[auto_minmax(0,1fr)_auto] border-t-2 border-r border-t-transparent border-r-border-subtle text-muted-foreground data-[active]:border-t-primary data-[active]:bg-background data-[active]:text-foreground data-[placeholder]:bg-primary-subtle data-[placeholder]:text-transparent data-[placeholder]:[&>*]:invisible not-data-[active]:not-data-[placeholder]:hover:bg-hover not-data-[active]:not-data-[placeholder]:hover:text-foreground"
           data-active={tab.active ? "" : undefined}
           data-running={tab.running ? "" : undefined}
           data-errored={tab.error ? "" : undefined}
@@ -439,7 +439,7 @@ function menuItems(tab: WorkbenchTabModel, index: number): ContextMenuItem[] {
           </button>
           <button
             type="button"
-            class="inline-grid w-5.5 cursor-pointer place-items-center rounded-none border-0 bg-transparent text-inherit opacity-62 hover:bg-destructive/12 hover:text-destructive hover:opacity-100 focus-visible:z-1 focus-visible:-outline-offset-1 focus-visible:outline-1 focus-visible:outline-ring"
+            class="inline-grid w-5.5 cursor-pointer place-items-center rounded-none border-0 bg-transparent text-inherit opacity-62 hover:bg-destructive-subtle hover:text-destructive hover:opacity-100 focus-visible:z-1 focus-visible:-outline-offset-1 focus-visible:outline-1 focus-visible:outline-ring"
             data-no-tab-drag
             aria-label={`Close ${tab.label}`}
             title="Close tab"
@@ -456,7 +456,7 @@ function menuItems(tab: WorkbenchTabModel, index: number): ContextMenuItem[] {
     <Button
       variant="ghost"
       size="icon"
-      class="rounded-none border-l-border/62"
+      class="rounded-none border-l-border-subtle"
       ariaLabel="Scroll tabs right"
       disabled={!canScrollRight}
       onclick={() => scrollTabs(1)}
@@ -487,7 +487,7 @@ function menuItems(tab: WorkbenchTabModel, index: number): ContextMenuItem[] {
   {@const PreviewIcon = draggedTab.icon}
   {@const PreviewSelectIcon = draggedTab.selectIcon}
   <div
-    class="pointer-events-none fixed z-50 inline-grid h-8 grid-cols-[auto_minmax(0,1fr)_auto] border-t-2 border-t-primary bg-background text-foreground opacity-90 shadow-lg"
+    class="pointer-events-none fixed z-50 inline-grid h-8 grid-cols-[auto_minmax(0,1fr)_auto] border-t-2 border-t-primary bg-background text-foreground opacity-90 shadow-overlay"
     style:top={`${pointerDrag.top}px`}
     style:left={`${previewLeft}px`}
     style:width={`${pointerDrag.width}px`}
@@ -534,13 +534,13 @@ function menuItems(tab: WorkbenchTabModel, index: number): ContextMenuItem[] {
   width: 0.42rem;
   height: 0.42rem;
   border-radius: 999px;
-  background: color-mix(in oklab, var(--muted-foreground) 50%, transparent);
+  background: var(--muted-foreground);
 }
 
 /* Running pulse binds the shared tab-pulse keyframe (escape-hatch reason 1). */
 .editor-tab[data-running] .tab-status {
   background: var(--info);
-  box-shadow: 0 0 0 0 color-mix(in oklab, var(--info) 45%, transparent);
+  box-shadow: 0 0 0 0 var(--info-strong);
   animation: tab-pulse 1.3s ease-out infinite;
 }
 
@@ -566,7 +566,7 @@ function menuItems(tab: WorkbenchTabModel, index: number): ContextMenuItem[] {
   border: 0;
   border-radius: var(--radius-sm);
   background: transparent;
-  color: color-mix(in oklab, var(--muted-foreground) 82%, transparent);
+  color: var(--muted-foreground);
   cursor: pointer;
 }
 
@@ -577,7 +577,7 @@ function menuItems(tab: WorkbenchTabModel, index: number): ContextMenuItem[] {
 }
 
 .tab-kind-icon {
-  color: color-mix(in oklab, var(--muted-foreground) 82%, transparent);
+  color: var(--muted-foreground);
 }
 
 .editor-tab[data-active] .tab-file-toggle,
@@ -588,8 +588,8 @@ function menuItems(tab: WorkbenchTabModel, index: number): ContextMenuItem[] {
 }
 
 .tab-file-toggle:hover:not(:disabled) {
-  background: var(--accent);
-  color: var(--accent-foreground);
+  background: var(--muted);
+  color: var(--foreground);
 }
 
 .tab-file-toggle:disabled {

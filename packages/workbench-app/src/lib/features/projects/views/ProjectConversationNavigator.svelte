@@ -301,7 +301,7 @@ const menuContext = $derived<ProjectTreeMenuContext>({
                 class="size-3"
                 aria-hidden="true"
               />{/if}
-            {section.label}<span class="font-normal text-muted-foreground/70"
+            {section.label}<span class="font-normal text-muted-foreground"
               >{searching
                 ? searchHits.length
                 : (sections.find((candidate) => candidate.key === section.key)

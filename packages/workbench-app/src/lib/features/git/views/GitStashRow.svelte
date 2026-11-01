@@ -54,7 +54,7 @@ let { stash, busy, mutation, onApply, onDrop }: Props = $props();
     <Button
       size="icon-sm"
       variant="ghost"
-      class="text-destructive hover:bg-destructive/10 hover:text-destructive"
+      class="text-destructive hover:bg-destructive-subtle hover:text-destructive"
       aria-label={`Drop ${stash.ref}`}
       title="Drop stash"
       disabled={busy}

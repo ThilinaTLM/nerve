@@ -96,7 +96,9 @@ const hasChanges = $derived(
     </ScrollArea>
   {/if}
   {#if view?.data && view.error}
-    <p class="m-0 border-t border-border/60 px-3 py-2 text-ui text-destructive">
+    <p
+      class="m-0 border-t border-border-subtle px-3 py-2 text-ui text-destructive"
+    >
       Refresh failed: {view.error}
     </p>
   {/if}

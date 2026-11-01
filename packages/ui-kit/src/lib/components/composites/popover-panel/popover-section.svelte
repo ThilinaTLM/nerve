@@ -22,7 +22,7 @@ let {
 <section
   class={cn(
     "grid grid-cols-1 gap-1",
-    separated && "border-t border-border/60 pt-2",
+    separated && "border-t border-border-subtle pt-2",
     className,
   )}
 >

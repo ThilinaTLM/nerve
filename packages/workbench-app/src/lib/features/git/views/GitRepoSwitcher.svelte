@@ -172,7 +172,7 @@ async function createBranch(repository: string): Promise<void> {
           <!-- Where the repository lives: GitHub, another remote, or local only. -->
           {#if !repo.hasRemote}
             <CloudOff
-              class="size-3.5 shrink-0 text-muted-foreground/60"
+              class="size-3.5 shrink-0 text-muted-foreground"
               aria-label="No remote"
             />
           {:else if repo.hasGithubRemote}
@@ -198,7 +198,7 @@ async function createBranch(repository: string): Promise<void> {
                   aria-label={`Select repository ${repo.name}`}
                   disabled={!canSelect}
                   class={[
-                    "min-w-0 cursor-pointer rounded-sm text-left whitespace-nowrap outline-none focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-default",
+                    "min-w-0 cursor-pointer rounded-sm text-left whitespace-nowrap outline-none focus-visible:ring-3 focus-visible:ring-focus disabled:cursor-default",
                     selected && "font-medium",
                   ]}>{listLabels.get(repo.relativePath)}</button
                 >
@@ -266,7 +266,7 @@ async function createBranch(repository: string): Promise<void> {
               enabled={model.capabilities.branches.enabled}
               switchingBranch={model.repoBranchState(selectedRepo)
                 .switchingBranch}
-              triggerClass="flex min-w-0 cursor-pointer items-center gap-1.5 rounded-sm px-0.5 text-ui text-muted-foreground hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50"
+              triggerClass="flex min-w-0 cursor-pointer items-center gap-1.5 rounded-sm px-0.5 text-ui text-muted-foreground hover:text-foreground focus-visible:ring-3 focus-visible:ring-focus focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50"
               triggerTitle={`Switch branch in ${repoPathLabel(repoSummary)}`}
               onOpen={() => loadBranches(selectedRepo)}
               onSwitch={(branch) => void switchBranch(selectedRepo, branch)}

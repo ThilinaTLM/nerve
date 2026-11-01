@@ -56,7 +56,7 @@ const segments = $derived(
       count: summary.counts.running + summary.counts.queued,
     },
     { tone: "bg-success", count: summary.counts.passed },
-    { tone: "bg-muted-foreground/30", count: summary.counts.skipped },
+    { tone: "bg-border", count: summary.counts.skipped },
   ].filter((segment) => segment.count > 0),
 );
 
@@ -117,7 +117,7 @@ function duration(run: GithubCheckRun): string {
       <IconAction
         icon={ExternalLink}
         label="Open details"
-        class="-my-0.5 text-muted-foreground/60 group-hover/row:text-foreground"
+        class="-my-0.5 text-muted-foreground group-hover/row:text-foreground"
         onclick={() => window.open(url, "_blank", "noopener")}
       />
     {:else}

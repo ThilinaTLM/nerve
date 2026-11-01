@@ -23,7 +23,7 @@ let { items, class: className }: Props = $props();
   {#each items as item (item.label)}
     <div
       class={cn(
-        "grid min-w-0 gap-0.5 rounded-md bg-foreground/4 px-2.5 py-2",
+        "grid min-w-0 gap-0.5 rounded-md bg-muted px-2.5 py-2",
         item.wide && "md:col-span-2",
       )}
     >

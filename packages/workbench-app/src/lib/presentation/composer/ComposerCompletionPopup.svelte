@@ -119,7 +119,7 @@ const listboxId = "composer-suggestions";
   >
     {#if model.scope}
       <span
-        class="inline-flex h-5 shrink-0 items-center gap-1 rounded-md bg-accent pr-0.5 pl-1.5 font-medium text-foreground"
+        class="inline-flex h-5 shrink-0 items-center gap-1 rounded-md bg-muted pr-0.5 pl-1.5 font-medium text-foreground"
       >
         <AtSign class="size-3 text-muted-foreground" />{model.scope.label}
         <button
@@ -237,7 +237,7 @@ const listboxId = "composer-suggestions";
             aria-disabled={row.state === "unavailable"}
             title={row.title}
             class="flex h-7 w-full min-w-0 shrink-0 cursor-default items-center gap-2 rounded-md px-2 text-left text-ui {isSelected
-              ? 'bg-accent text-accent-foreground'
+              ? 'bg-muted text-foreground'
               : 'hover:bg-muted'} {row.state === 'unavailable'
               ? 'opacity-60'
               : ''}"

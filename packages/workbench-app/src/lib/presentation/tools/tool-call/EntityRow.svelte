@@ -52,7 +52,7 @@ const pill =
           <Tooltip.Root>
             <Tooltip.Trigger
               aria-label={`${title ?? "Item"}: ${status.label}`}
-              class="inline-flex cursor-help items-center rounded-sm focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
+              class="inline-flex cursor-help items-center rounded-sm focus-visible:ring-3 focus-visible:ring-focus focus-visible:outline-none"
             >
               <StatusDot
                 tone={status.tone}
@@ -64,7 +64,7 @@ const pill =
           </Tooltip.Root>
         </Tooltip.Provider>
       {:else if streaming || title === undefined}
-        <Skeleton class="size-2 rounded-full bg-foreground/10" />
+        <Skeleton class="size-2 rounded-full" />
       {/if}
     </span>
     <SlotText
@@ -86,7 +86,7 @@ const pill =
         <Tooltip.Root>
           <Tooltip.Trigger
             aria-label="Follow-up to existing subagent"
-            class="inline-flex flex-none cursor-help items-center rounded-sm text-muted-foreground focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
+            class="inline-flex flex-none cursor-help items-center rounded-sm text-muted-foreground focus-visible:ring-3 focus-visible:ring-focus focus-visible:outline-none"
           >
             <ListEnd class="size-3.5" aria-hidden="true" />
           </Tooltip.Trigger>

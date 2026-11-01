@@ -22,7 +22,7 @@ const tonePriority: Record<StatusTone, number> = {
   success: 2,
   info: 1,
   neutral: 0,
-  accent: 0,
+  brand: 0,
 };
 
 export function indexFileTreeGitDecorations(

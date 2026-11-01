@@ -28,7 +28,7 @@ const allowed = $derived(field.allowedValues ?? []);
         <Badge variant="warning">required</Badge>
       {/if}
       {#if field.custom}
-        <Badge variant="accent">custom</Badge>
+        <Badge variant="neutral">custom</Badge>
       {/if}
       {#if allowed.length > 0}
         <span

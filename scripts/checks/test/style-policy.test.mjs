@@ -6,6 +6,7 @@ import {
   findBareGlobalSelectors,
   findDarkUtilities,
   findOffScaleTextSizes,
+  findOffTokenColours,
   isDynamicClass,
   markupClassNames,
 } from "../style-policy.mjs";
@@ -134,5 +135,14 @@ test("off-scale font sizes are reported; type roles and colours are not", () => 
       '<p class="text-xs md:text-lg text-[11px] text-2xl text-ui text-caption text-muted-foreground text-xs/relaxed">',
     ),
     ["text-xs", "text-lg", "text-[11px]", "text-2xl", "text-xs"],
+  );
+});
+
+test("opacity modifiers and removed tokens are reported; recipes are not", () => {
+  assert.deepEqual(
+    findOffTokenColours(
+      '<div class="bg-destructive/10 hover:border-border/60 bg-destructive-subtle border-border-subtle ring-focus bg-accent shadow-md shadow-sm w-1/2">',
+    ),
+    ["bg-destructive/10", "border-border/60", "bg-accent", "shadow-md"],
   );
 });

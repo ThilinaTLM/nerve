@@ -167,8 +167,8 @@ const windowLabel = $derived(
 const compactActionDisabled = $derived(
   compacting || compactDisabled || !onCompact,
 );
-const meterTone = $derived<"accent" | "warning" | "destructive">(
-  tone === "error" ? "destructive" : tone === "warning" ? "warning" : "accent",
+const meterTone = $derived<"brand" | "warning" | "destructive">(
+  tone === "error" ? "destructive" : tone === "warning" ? "warning" : "brand",
 );
 
 async function openSystemPrompt(): Promise<void> {

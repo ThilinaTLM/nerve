@@ -17,12 +17,12 @@ let {
 
 const toneClass = $derived(
   tone === "info"
-    ? "bg-info/10 text-info"
+    ? "bg-info-subtle text-info"
     : tone === "warning"
-      ? "bg-warning/10 text-warning"
+      ? "bg-warning-subtle text-warning"
       : tone === "destructive"
-        ? "bg-destructive/10 text-destructive"
-        : "bg-muted/50 text-muted-foreground",
+        ? "bg-destructive-subtle text-destructive"
+        : "bg-muted text-muted-foreground",
 );
 </script>
 

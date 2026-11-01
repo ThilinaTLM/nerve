@@ -170,7 +170,7 @@ function selectPage(id: string): void {
 
 .settings-sidebar {
   min-height: 0;
-  border-right: 1px solid color-mix(in oklab, var(--border) 60%, transparent);
+  border-right: 1px solid var(--border-subtle);
   background: var(--panel);
   color: var(--foreground);
   padding: 0.9rem 0.7rem;

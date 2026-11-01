@@ -3,5 +3,5 @@
  * PanelRow (standalone rows); PanelRowCard paints its own via ItemSurface. */
 
 .panel-row-hoverable:hover {
-  background: color-mix(in oklab, var(--accent) 55%, transparent);
+  background: var(--hover);
 }

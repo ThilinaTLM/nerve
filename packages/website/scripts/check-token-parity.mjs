@@ -11,7 +11,6 @@ export const sharedThemeTokens = Object.freeze([
   "primary",
   "primary-foreground",
   "border",
-  "ring",
   "success",
   "warning",
   "info",

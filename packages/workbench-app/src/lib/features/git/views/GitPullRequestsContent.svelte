@@ -342,7 +342,7 @@ function toggleChecks(pr: GithubPr) {
             class={[
               "relative rounded-md",
               flashed === pr.number &&
-                "after:pointer-events-none after:absolute after:inset-0 after:rounded-md after:ring-2 after:ring-inset after:ring-ring/60",
+                "after:pointer-events-none after:absolute after:inset-0 after:rounded-md after:ring-2 after:ring-inset after:ring-focus",
             ]}
           >
             <GitPullRequestRow

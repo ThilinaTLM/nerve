@@ -40,11 +40,11 @@ const launchpad = $derived(variant === "launchpad");
       class={`relative flex items-center justify-center ${launchpad ? "size-20" : "size-14"}`}
     >
       <div
-        class={`absolute rotate-6 rounded-lg border bg-muted/50 ${launchpad ? "size-16" : "size-12"}`}
+        class={`absolute rotate-6 rounded-lg border bg-muted ${launchpad ? "size-16" : "size-12"}`}
         aria-hidden="true"
       ></div>
       <div
-        class={`absolute -rotate-6 rounded-lg border border-border/70 bg-background ${launchpad ? "size-14" : "size-10"}`}
+        class={`absolute -rotate-6 rounded-lg border border-border-subtle bg-background ${launchpad ? "size-14" : "size-10"}`}
         aria-hidden="true"
       ></div>
       <NerveBadge
@@ -79,7 +79,7 @@ const launchpad = $derived(variant === "launchpad");
           <Button
             type="button"
             variant="outline"
-            class="group gap-2 bg-card text-ui shadow-sm hover:border-primary/40"
+            class="group gap-2 bg-card text-ui shadow-sm hover:border-primary-strong"
             disabled={startersDisabled}
             onclick={() => onSelectStarter?.(starter)}
           >
@@ -96,7 +96,7 @@ const launchpad = $derived(variant === "launchpad");
 
     {#if projectLabel}
       <div
-        class={`${starters.length > 0 || launchpad ? "mt-4" : "mt-3"} inline-flex max-w-md items-center gap-1.5 rounded-md border bg-muted/60 px-3 py-1.5 text-ui text-muted-foreground`}
+        class={`${starters.length > 0 || launchpad ? "mt-4" : "mt-3"} inline-flex max-w-md items-center gap-1.5 rounded-md border bg-muted px-3 py-1.5 text-ui text-muted-foreground`}
         title={projectPath}
         aria-label={projectPath
           ? `Current project ${projectPath}`

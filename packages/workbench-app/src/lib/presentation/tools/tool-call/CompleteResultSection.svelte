@@ -112,7 +112,7 @@ const large = $derived(descriptor.byteLength > SMALL_RESULT_BYTES);
 </script>
 
 <details
-  class="rounded-sm border bg-muted/20"
+  class="rounded-sm border bg-well"
   ontoggle={(event) => {
     if (event.currentTarget.open && !activated) {
       activated = true;

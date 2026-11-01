@@ -111,7 +111,7 @@ async function copyDiagnostics() {
     ]}
   >
     <div
-      class="grid w-full max-w-xl gap-4 rounded-lg border bg-card p-6 shadow-md [-webkit-app-region:no-drag]"
+      class="grid w-full max-w-xl gap-4 rounded-lg border bg-card p-6 shadow-overlay [-webkit-app-region:no-drag]"
     >
       {#if retrying}
         <ServerLifecycleStatus

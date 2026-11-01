@@ -38,13 +38,13 @@ const textWidths = ["w-full", "w-2/3"];
     {#each bars as bar (bar)}
       <div class="grid gap-1 px-2.5 py-1.5">
         <div class="flex min-w-0 items-center gap-2">
-          <Skeleton class="h-2.5 w-4 flex-none rounded-sm bg-foreground/10" />
-          <Skeleton class="h-2.5 flex-1 rounded-sm bg-foreground/10" />
-          <Skeleton class="h-2.5 w-20 flex-none rounded-sm bg-foreground/10" />
+          <Skeleton class="h-2.5 w-4 flex-none rounded-sm" />
+          <Skeleton class="h-2.5 flex-1 rounded-sm" />
+          <Skeleton class="h-2.5 w-20 flex-none rounded-sm" />
         </div>
         <div class="grid gap-1 pl-6">
-          <Skeleton class="h-2.5 w-full rounded-sm bg-foreground/10" />
-          <Skeleton class="h-2.5 w-3/4 rounded-sm bg-foreground/10" />
+          <Skeleton class="h-2.5 w-full rounded-sm" />
+          <Skeleton class="h-2.5 w-3/4 rounded-sm" />
         </div>
       </div>
     {/each}
@@ -53,14 +53,14 @@ const textWidths = ["w-full", "w-2/3"];
   <div class="divide-y" aria-hidden="true">
     {#each bars as bar (bar)}
       <div class="px-2.5 py-2">
-        <Skeleton class="h-5 w-full rounded-sm bg-foreground/10" />
+        <Skeleton class="h-5 w-full rounded-sm" />
       </div>
     {/each}
   </div>
 {:else}
   <div class="grid gap-1.5 px-2.5 py-2" aria-hidden="true">
     {#each bars as bar (bar)}
-      <Skeleton class={`h-3 bg-foreground/10 ${textWidths[bar % 2]}`} />
+      <Skeleton class={`h-3 ${textWidths[bar % 2]}`} />
     {/each}
   </div>
 {/if}

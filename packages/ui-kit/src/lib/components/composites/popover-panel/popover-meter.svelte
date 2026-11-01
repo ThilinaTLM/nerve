@@ -6,7 +6,7 @@ let {
   label,
   value,
   percent,
-  tone = "accent",
+  tone = "brand",
   caption,
   class: className,
 }: {
@@ -15,14 +15,14 @@ let {
   value: string;
   /** Fill ratio 0–100. Omit while the measurement is unavailable. */
   percent?: number;
-  tone?: Extract<StatusTone, "accent" | "success" | "warning" | "destructive">;
+  tone?: Extract<StatusTone, "brand" | "success" | "warning" | "destructive">;
   /** Muted supporting line (e.g. "resets in 19m"). */
   caption?: string;
   class?: string;
 } = $props();
 
 const fillClass: Record<string, string> = {
-  accent: "bg-primary",
+  brand: "bg-primary",
   success: "bg-success",
   warning: "bg-warning",
   destructive: "bg-destructive",

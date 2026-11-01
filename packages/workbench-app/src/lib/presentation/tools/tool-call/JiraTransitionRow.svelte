@@ -20,7 +20,7 @@ const showTarget = $derived(
 
 <div class="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 px-2.5 py-2">
   <span
-    class="rounded-sm border bg-muted/40 px-1.5 py-0.5 font-mono text-ui text-muted-foreground"
+    class="rounded-sm border bg-muted px-1.5 py-0.5 font-mono text-ui text-muted-foreground"
     >{transition.id}</span
   >
   <span class="text-ui font-medium text-foreground">{name}</span>

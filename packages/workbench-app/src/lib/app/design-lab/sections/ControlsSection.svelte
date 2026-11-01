@@ -68,14 +68,14 @@ const badgeVariants: BadgeVariant[] = [
   "warning",
   "outline",
   "info",
-  "accent",
+  "brand",
   "success",
   "destructive",
 ];
 
 const tones: StatusTone[] = [
   "neutral",
-  "accent",
+  "brand",
   "info",
   "success",
   "warning",

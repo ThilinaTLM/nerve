@@ -87,6 +87,27 @@ export function findOffScaleTextSizes(source) {
   return offenders;
 }
 
+/**
+ * Finds colour opacity modifiers (`bg-destructive/10`, `border-border/60`) and
+ * utilities whose token no longer exists (`bg-accent`, `shadow-md`). App code
+ * uses the derived recipes in theme.css (`bg-<tone>-subtle`,
+ * `border-<tone>-strong`, `border-border-subtle`, `ring-focus`, `bg-scrim`)
+ * and the two elevations (`shadow-sm`, `shadow-overlay`); only ui-kit
+ * primitives may compose their own alphas.
+ */
+export function findOffTokenColours(source) {
+  const offenders = [];
+  for (const match of source.matchAll(
+    /(?<![\w-])(?:bg|text|border|ring|outline|fill|stroke|divide|decoration|from|to|via|caret|placeholder)(?:-[trblxy])?-[a-z]+(?:-[a-z0-9]+)*\/\d+(?![\w-])/g,
+  ))
+    offenders.push(match[0]);
+  for (const match of source.matchAll(
+    /(?<![\w-])(?:(?:bg|text|border|ring)-accent(?:-foreground)?|shadow-(?:2xs|xs|md|lg|xl|2xl))(?![\w/-])/g,
+  ))
+    offenders.push(match[0]);
+  return offenders;
+}
+
 const CLASS_TOKEN = /-?[_a-zA-Z][\w-]*/;
 
 /** Strips comments and at-rule preludes, then collects class selectors. */

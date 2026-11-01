@@ -43,7 +43,7 @@ let {
     />
     {#if truncated}
       <p
-        class="absolute bottom-3 left-3 m-0 rounded-md border border-border bg-background/90 px-3 py-2 text-ui text-muted-foreground shadow-sm backdrop-blur-sm"
+        class="absolute bottom-3 left-3 m-0 rounded-md border border-border bg-popover px-3 py-2 text-ui text-muted-foreground shadow-sm backdrop-blur-sm"
       >
         Preview loaded from a truncated file window.
       </p>

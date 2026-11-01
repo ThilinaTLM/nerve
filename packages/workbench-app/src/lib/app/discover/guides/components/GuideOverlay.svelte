@@ -163,27 +163,27 @@ function handleKeydown(event: KeyboardEvent): void {
 >
   {#if targetRect}
     <div
-      class={`fixed left-0 right-0 top-0 ${modal ? "bg-background/60" : "bg-background/30"}`}
+      class="fixed left-0 right-0 top-0 bg-scrim"
       style:height={`${targetRect.top}px`}
     ></div>
     <div
-      class={`fixed bottom-0 left-0 right-0 ${modal ? "bg-background/60" : "bg-background/30"}`}
+      class="fixed bottom-0 left-0 right-0 bg-scrim"
       style:top={`${targetRect.bottom}px`}
     ></div>
     <div
-      class={`fixed left-0 ${modal ? "bg-background/60" : "bg-background/30"}`}
+      class="fixed left-0 bg-scrim"
       style:top={`${targetRect.top}px`}
       style:width={`${targetRect.left}px`}
       style:height={`${targetRect.height}px`}
     ></div>
     <div
-      class={`fixed right-0 ${modal ? "bg-background/60" : "bg-background/30"}`}
+      class="fixed right-0 bg-scrim"
       style:top={`${targetRect.top}px`}
       style:left={`${targetRect.right}px`}
       style:height={`${targetRect.height}px`}
     ></div>
     <div
-      class="fixed rounded-lg ring-2 ring-primary ring-offset-2 ring-offset-background/80"
+      class="fixed rounded-lg ring-2 ring-primary ring-offset-2 ring-offset-background"
       style:top={`${targetRect.top}px`}
       style:left={`${targetRect.left}px`}
       style:width={`${targetRect.width}px`}
@@ -191,14 +191,12 @@ function handleKeydown(event: KeyboardEvent): void {
       aria-hidden="true"
     ></div>
   {:else}
-    <div
-      class={`fixed inset-0 ${modal ? "bg-background/60" : "bg-background/30"}`}
-    ></div>
+    <div class="fixed inset-0 bg-scrim"></div>
   {/if}
 
   <div
     bind:this={calloutElement}
-    class={`fixed grid max-w-[calc(100vw-1.5rem)] gap-4 rounded-xl border border-border bg-popover p-5 text-popover-foreground shadow-xl outline-none ${modal ? "w-96" : "pointer-events-auto w-80"}`}
+    class={`fixed grid max-w-[calc(100vw-1.5rem)] gap-4 rounded-xl border border-border bg-popover p-5 text-popover-foreground shadow-overlay outline-none ${modal ? "w-96" : "pointer-events-auto w-80"}`}
     style:top={`${placement.top}px`}
     style:left={`${placement.left}px`}
     role="dialog"

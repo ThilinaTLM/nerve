@@ -91,7 +91,10 @@ function saveVocabulary(): void {
   title="Model"
   info="Choose the OpenAI speech-to-text model used for voice input."
 >
-  <SettingsInlineMessage tone="info" class="border-primary/40 bg-primary/10">
+  <SettingsInlineMessage
+    tone="info"
+    class="border-primary-strong bg-primary-subtle"
+  >
     OpenAI Codex OAuth remains the transcription provider. Nerve uses ChatGPT's
     subscription endpoint, so model availability depends on the connected
     account.

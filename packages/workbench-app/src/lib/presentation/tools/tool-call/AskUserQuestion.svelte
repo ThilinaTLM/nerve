@@ -348,11 +348,13 @@ function pick(label: string | undefined) {
           onclick={() => pick(option.label)}
           class={cn(
             "inline-flex max-w-full min-w-0 items-baseline gap-1.5 rounded-sm border bg-background px-2 py-1 text-left text-ui transition-[color,border-color,opacity] duration-300",
-            interactive && !busy && "cursor-pointer hover:border-primary/50",
+            interactive &&
+              !busy &&
+              "cursor-pointer hover:border-primary-strong",
             chosen
               ? settled
-                ? "border-success/40 text-success"
-                : "border-primary/60 text-foreground"
+                ? "border-success-strong text-success"
+                : "border-primary-strong text-foreground"
               : "border-border text-foreground",
             settled && !chosen && "opacity-50",
           )}
@@ -360,9 +362,7 @@ function pick(label: string | undefined) {
         >
           {#if chosen}<Check class="size-3 flex-none self-center" />{/if}
           {#if option.label === undefined}
-            <Skeleton
-              class="h-[0.7em] w-20 self-center rounded-sm bg-foreground/10"
-            />
+            <Skeleton class="h-[0.7em] w-20 self-center rounded-sm bg-hover" />
           {:else}
             <span class="font-medium">{option.label}</span>
           {/if}
@@ -441,7 +441,7 @@ function pick(label: string | undefined) {
     </div>
   {:else if phase === "answered" && settledText}
     <div
-      class="min-w-0 border-l-2 border-primary/40 pl-2 text-body text-foreground"
+      class="min-w-0 border-l-2 border-primary-strong pl-2 text-body text-foreground"
       in:fade={{ duration: 220 }}
     >
       <Markdown text={settledText} preserveLineBreaks {onOpenFile} />

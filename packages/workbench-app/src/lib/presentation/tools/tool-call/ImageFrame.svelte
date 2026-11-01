@@ -83,7 +83,7 @@ $effect(() => {
         </div>
       {:else}
         <Skeleton
-          class="col-start-1 row-start-1 size-full rounded-sm bg-foreground/10"
+          class="col-start-1 row-start-1 size-full rounded-sm bg-hover"
         />
       {/if}
     </div>

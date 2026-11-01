@@ -867,7 +867,7 @@ $effect(() => () => {
 }
 
 .markdown :global(tbody tr:hover) {
-  background: color-mix(in oklab, var(--accent) 45%, transparent);
+  background: var(--hover);
 }
 
 .markdown :global(th) {

@@ -29,7 +29,7 @@ let {
 
 .dock-drop-indicator.hovered {
   border-color: var(--primary);
-  background: color-mix(in oklab, var(--primary) 12%, transparent);
+  background: var(--primary-subtle);
 }
 
 .dock-drop-label {

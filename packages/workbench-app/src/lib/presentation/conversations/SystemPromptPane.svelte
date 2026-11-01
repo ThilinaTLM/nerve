@@ -7,7 +7,7 @@ let { text }: { text: string } = $props();
 
 <section class="flex h-full min-h-0 min-w-0 flex-col bg-background">
   <p
-    class="m-0 border-b border-border/60 px-4 py-2 text-ui text-muted-foreground"
+    class="m-0 border-b border-border-subtle px-4 py-2 text-ui text-muted-foreground"
   >
     System prompt for the next request. Snapshot from when this pane was opened.
   </p>

@@ -113,7 +113,7 @@ function onCreateKeydown(event: KeyboardEvent) {
   {#if browser.loading && !browser.listing && !browser.atThisPC}
     <div class="flex flex-col gap-1 p-1" role="status" aria-label="Loading">
       {#each [0, 1, 2, 3, 4, 5, 6, 7] as index (index)}
-        <Skeleton class="h-8 bg-muted/50" />
+        <Skeleton class="h-8" />
       {/each}
     </div>
   {:else if browser.error}

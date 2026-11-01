@@ -81,19 +81,19 @@ const showMermaidPreview = $derived(
       />
       {#if view?.saveError}
         <p
-          class="m-0 border-t border-destructive/40 bg-destructive/8 px-4 py-2 text-ui text-destructive"
+          class="m-0 border-t border-destructive-strong bg-destructive-subtle px-4 py-2 text-ui text-destructive"
         >
           Save failed: {view.saveError}
         </p>
       {:else if view?.saving}
         <p
-          class="m-0 border-t border-border/60 px-4 py-2 text-ui text-muted-foreground"
+          class="m-0 border-t border-border-subtle px-4 py-2 text-ui text-muted-foreground"
         >
           Saving…
         </p>
       {:else if file.truncated}
         <p
-          class="m-0 border-t border-border/60 px-4 py-2 text-ui text-muted-foreground"
+          class="m-0 border-t border-border-subtle px-4 py-2 text-ui text-muted-foreground"
         >
           Preview truncated{resolved.targetLine
             ? " around the selected line"
@@ -101,7 +101,7 @@ const showMermaidPreview = $derived(
         </p>
       {:else if !file.editable}
         <p
-          class="m-0 border-t border-border/60 px-4 py-2 text-ui text-muted-foreground"
+          class="m-0 border-t border-border-subtle px-4 py-2 text-ui text-muted-foreground"
         >
           Read-only: only small, regular text files inside the project can be
           edited.
@@ -125,7 +125,7 @@ const showMermaidPreview = $derived(
     />
     {#if view?.dirty}
       <p
-        class="m-0 border-t border-border/60 px-4 py-2 text-ui text-muted-foreground"
+        class="m-0 border-t border-border-subtle px-4 py-2 text-ui text-muted-foreground"
       >
         Previewing unsaved changes.
       </p>

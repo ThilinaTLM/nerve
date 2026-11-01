@@ -101,7 +101,7 @@ function handleSearchKeydown(event: KeyboardEvent): void {
 <div
   class="overflow-hidden rounded-md border border-border bg-card group-data-settings-surface/surface:-mx-3 group-data-settings-surface/surface:rounded-none group-data-settings-surface/surface:border-x-0 group-data-settings-surface/surface:border-t-0"
 >
-  <div class="flex items-center gap-1.5 border-b border-border/60 p-2">
+  <div class="flex items-center gap-1.5 border-b border-border-subtle p-2">
     <ToggleGroup.Root
       type="single"
       spacing={1}
@@ -219,7 +219,7 @@ function handleSearchKeydown(event: KeyboardEvent): void {
   </div>
 
   <p
-    class="flex items-center gap-1.5 border-t border-border/60 px-3 py-1.5 text-ui text-muted-foreground"
+    class="flex items-center gap-1.5 border-t border-border-subtle px-3 py-1.5 text-ui text-muted-foreground"
     data-tour-id="setup-scoped-models-default"
   >
     <span class="tabular-nums">{rows.length} shown</span>

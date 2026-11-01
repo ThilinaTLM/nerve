@@ -41,7 +41,7 @@ function receive(event: MessageEvent) {
 <svelte:window onmessage={receive} />
 <div class="flex min-h-0 min-w-0 flex-col">
   <div
-    class="border-b border-border/60 bg-panel px-4 py-2 text-ui text-muted-foreground"
+    class="border-b border-border-subtle bg-panel px-4 py-2 text-ui text-muted-foreground"
   >
     {#if dirty}<p class="m-0 mb-1">Previewing unsaved changes.</p>{/if}
     <div class="flex items-start justify-between gap-2">

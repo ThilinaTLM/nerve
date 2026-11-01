@@ -39,7 +39,7 @@ const fill = $derived(Math.min(100, Math.max(0, percent ?? 0)));
     inset;
 }
 
-.progress-ring[data-tone="accent"] {
+.progress-ring[data-tone="brand"] {
   --progress-ring-color: var(--foreground);
 }
 

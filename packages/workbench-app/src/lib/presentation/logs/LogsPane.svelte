@@ -180,7 +180,7 @@ $effect(() => {
           class={`pointer-events-none absolute inset-x-3 z-20 flex justify-center ${toolbarVisible ? "top-20" : "top-3"}`}
         >
           <div
-            class="pointer-events-auto max-w-2xl rounded-md border border-destructive/40 bg-background px-2.5 py-2 text-ui text-destructive shadow-sm"
+            class="pointer-events-auto max-w-2xl rounded-md border border-destructive-strong bg-background px-2.5 py-2 text-ui text-destructive shadow-sm"
             role="alert"
           >
             {model.error}

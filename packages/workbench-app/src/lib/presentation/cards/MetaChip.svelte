@@ -12,11 +12,11 @@ let { item, onOpenFile }: Props = $props();
 
 const toneClass: Record<StatusTone, string> = {
   neutral: "text-muted-foreground",
-  accent: "text-muted-foreground",
-  info: "border-info/35 text-info",
-  success: "border-success/35 text-success",
-  warning: "border-warning/35 text-warning",
-  destructive: "border-destructive/35 text-destructive",
+  brand: "border-primary-strong text-primary",
+  info: "border-info-strong text-info",
+  success: "border-success-strong text-success",
+  warning: "border-warning-strong text-warning",
+  destructive: "border-destructive-strong text-destructive",
 };
 
 const chipClass = $derived(

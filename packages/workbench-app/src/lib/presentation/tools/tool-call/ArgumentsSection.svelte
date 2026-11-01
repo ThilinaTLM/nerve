@@ -22,7 +22,7 @@ const content = $derived(activated ? serialize(value) : undefined);
 </script>
 
 <details
-  class="rounded-sm border bg-muted/20"
+  class="rounded-sm border bg-well"
   {open}
   ontoggle={(event) => {
     if (event.currentTarget.open) activated = true;

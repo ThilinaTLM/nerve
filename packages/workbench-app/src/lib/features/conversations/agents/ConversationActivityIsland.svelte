@@ -376,7 +376,7 @@ const agentStatus: Record<AgentRowState, string> = {
           bind:this={panel}
           id={`${componentId}-list`}
           aria-label={open === "agents" ? "Agents" : "Commands"}
-          class="absolute right-0 bottom-full flex max-h-[min(calc(var(--spacing)*80),var(--conversation-activity-height,100vh))] w-full flex-col overflow-hidden rounded-t-md border border-b-0 bg-popover text-popover-foreground shadow-md will-change-[clip-path,opacity,transform]"
+          class="absolute right-0 bottom-full flex max-h-[min(calc(var(--spacing)*80),var(--conversation-activity-height,100vh))] w-full flex-col overflow-hidden rounded-t-md border border-b-0 bg-popover text-popover-foreground shadow-overlay will-change-[clip-path,opacity,transform]"
           in:reveal
           out:reveal={{ leaving: true }}
           onintrostart={() => (panelShown = true)}

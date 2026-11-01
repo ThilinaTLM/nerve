@@ -32,7 +32,7 @@ const name = $derived(user.displayName ?? user.emailAddress ?? user.accountId);
         <Badge variant="warning">inactive</Badge>
       {/if}
     </div>
-    <span class="truncate font-mono text-ui text-muted-foreground/80"
+    <span class="truncate font-mono text-ui text-muted-foreground"
       >{user.accountId}</span
     >
   </div>

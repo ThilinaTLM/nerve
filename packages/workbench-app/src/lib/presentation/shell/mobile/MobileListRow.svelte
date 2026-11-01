@@ -124,7 +124,7 @@ let menuOpen = $state(false);
 }
 
 .mobile-row.selected {
-  background: color-mix(in oklab, var(--accent) 65%, transparent);
+  background: var(--hover);
 }
 
 .mobile-row-main {
@@ -138,7 +138,7 @@ let menuOpen = $state(false);
 }
 
 .mobile-row-main:active {
-  background: var(--accent);
+  background: var(--muted);
 }
 
 /* A separate 44px target so the row tap and the menu tap never overlap. */
@@ -153,7 +153,7 @@ let menuOpen = $state(false);
 
 .mobile-row-action:active {
   color: var(--foreground);
-  background: var(--accent);
+  background: var(--muted);
 }
 
 .mobile-row-chevron {

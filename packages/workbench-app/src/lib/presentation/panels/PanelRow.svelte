@@ -137,9 +137,9 @@ function toneTextClass(tone: StatusTone): string {
         ? "text-warning"
         : tone === "info"
           ? "text-info"
-          : tone === "neutral"
-            ? "text-muted-foreground"
-            : "text-foreground";
+          : tone === "brand"
+            ? "text-primary"
+            : "text-muted-foreground";
 }
 
 const toneClass = $derived(toneTextClass(tone));
@@ -163,7 +163,7 @@ const twoLine = $derived(labelLines === 2);
           : "h-7 gap-1.5 pr-1.5 text-ui",
       selected && "bg-selected text-foreground",
       tabindex !== undefined &&
-        "focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none",
+        "focus-visible:ring-3 focus-visible:ring-focus focus-visible:outline-none",
       className,
     )}
     style={rowStyle}
@@ -188,7 +188,7 @@ const twoLine = $derived(labelLines === 2);
       aria-label={ariaLabel}
       title={title ?? description ?? label}
       class={cn(
-        "flex min-w-0 flex-1 cursor-pointer items-center rounded-sm text-left focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none disabled:cursor-default disabled:opacity-50",
+        "flex min-w-0 flex-1 cursor-pointer items-center rounded-sm text-left focus-visible:ring-3 focus-visible:ring-focus focus-visible:outline-none disabled:cursor-default disabled:opacity-50",
         twoLine
           ? titleTrailing
             ? "items-start gap-2"
@@ -301,7 +301,7 @@ const twoLine = $derived(labelLines === 2);
             "opacity-0 transition-opacity duration-120 ease-[ease] group-focus-within/panel-row:opacity-100 group-hover/panel-row:opacity-100 pointer-coarse:opacity-100",
           !alwaysShowActions &&
             overlayActions &&
-            "pointer-events-none absolute top-1/2 right-1 z-10 -translate-y-1/2 rounded-sm bg-panel/95 pl-1 shadow-sm group-focus-within/panel-row:pointer-events-auto group-hover/panel-row:pointer-events-auto",
+            "pointer-events-none absolute top-1/2 right-1 z-10 -translate-y-1/2 rounded-sm bg-panel pl-1 shadow-sm group-focus-within/panel-row:pointer-events-auto group-hover/panel-row:pointer-events-auto",
         )}
       >
         {@render actions()}

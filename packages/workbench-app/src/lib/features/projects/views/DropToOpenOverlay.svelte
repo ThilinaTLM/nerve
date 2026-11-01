@@ -26,7 +26,7 @@ let { over, ondragover, ondragleave, ondrop }: Props = $props();
   <div
     class={`pointer-events-none flex h-full items-center justify-center gap-2 rounded-md border-2 border-dashed text-ui transition-colors ${
       over
-        ? "border-primary bg-primary/10 text-foreground"
+        ? "border-primary bg-primary-subtle text-foreground"
         : "border-border text-muted-foreground"
     }`}
   >

@@ -104,7 +104,7 @@ function start(): void {
 >
   <div class="grid gap-2">
     <div
-      class="flex flex-wrap items-center justify-between gap-2 border-b border-border/50 px-1 pb-2"
+      class="flex flex-wrap items-center justify-between gap-2 border-b border-border-subtle px-1 pb-2"
     >
       <div class="grid gap-0.5">
         <span class="text-ui font-medium">
@@ -142,7 +142,7 @@ function start(): void {
         "Permanent conversation and message removal.",
       )}
       <Collapsible.Content
-        class="mt-0.5 divide-y divide-border/60 rounded-md border border-border/60"
+        class="mt-0.5 divide-y divide-border-subtle rounded-md border border-border-subtle"
       >
         <StorageCleanupChoice
           id="cleanup-conversations"
@@ -163,7 +163,7 @@ function start(): void {
         "Diagnostic history that is not required for conversations.",
       )}
       <Collapsible.Content
-        class="mt-0.5 divide-y divide-border/60 rounded-md border border-border/60"
+        class="mt-0.5 divide-y divide-border-subtle rounded-md border border-border-subtle"
       >
         <StorageCleanupChoice
           id="cleanup-dated-logs"
@@ -190,7 +190,7 @@ function start(): void {
         "Generated output that Nerve can operate without.",
       )}
       <Collapsible.Content
-        class="mt-0.5 divide-y divide-border/60 rounded-md border border-border/60"
+        class="mt-0.5 divide-y divide-border-subtle rounded-md border border-border-subtle"
       >
         <StorageCleanupChoice
           id="cleanup-crash-reports"

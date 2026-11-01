@@ -50,9 +50,9 @@ let {
   {title}
   aria-pressed={role === "option" ? undefined : selected}
   class={cn(
-    "grid min-h-control w-full cursor-pointer grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-x-2 gap-y-0.5 rounded-md px-1.5 py-1 text-left text-ui transition-colors hover:bg-accent",
+    "grid min-h-control w-full cursor-pointer grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-x-2 gap-y-0.5 rounded-md px-1.5 py-1 text-left text-ui transition-colors hover:bg-hover",
     selected && "bg-selected hover:bg-selected",
-    active && "outline outline-1 -outline-offset-1 outline-ring/55",
+    active && "outline outline-1 -outline-offset-1 outline-focus",
     disabled && "pointer-events-none opacity-55",
     className,
   )}

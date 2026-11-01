@@ -31,7 +31,7 @@ let {
 
 const colorClass: Record<StatusTone, string> = {
   neutral: "text-muted-foreground",
-  accent: "text-foreground",
+  brand: "text-primary",
   info: "text-info",
   success: "text-success",
   warning: "text-warning",
@@ -66,7 +66,7 @@ const Icon = $derived(
         ? "size-2.5 fill-current text-primary"
         : isOpen
           ? "size-2.5 fill-current text-muted-foreground"
-          : "size-3 text-muted-foreground/45"}
+          : "size-3 text-muted-foreground"}
       aria-hidden="true"
     />
   {:else if variant === "rail" && (activity.indicator === "running" || activity.indicator === "result-ready")}

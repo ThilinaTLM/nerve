@@ -70,7 +70,10 @@ async function runTest() {
   title="AI titles"
   info="New conversations always get an instant local title first. An AI title replaces it in the background, once, and never overrides a name you set."
 >
-  <SettingsInlineMessage tone="info" class="border-primary/40 bg-primary/10">
+  <SettingsInlineMessage
+    tone="info"
+    class="border-primary-strong bg-primary-subtle"
+  >
     Sends a shortened version of each new conversation's first prompt to the
     selected provider, which may bill for usage. It can differ from your coding
     agent's provider.

@@ -57,7 +57,7 @@ let open = $state(false);
     size="sm"
     align="start"
     ariaLabel={`${title}. ${fromText} → ${toText}`}
-    triggerClass="inline-flex size-4 cursor-pointer items-center justify-center rounded-full focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
+    triggerClass="inline-flex size-4 cursor-pointer items-center justify-center rounded-full focus-visible:ring-3 focus-visible:ring-focus focus-visible:outline-none"
   >
     {#snippet trigger()}
       <span class="size-2 rounded-full bg-info" aria-hidden="true"></span>

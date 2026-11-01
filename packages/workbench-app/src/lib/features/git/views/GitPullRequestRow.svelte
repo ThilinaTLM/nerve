@@ -59,7 +59,7 @@ const stateClass = $derived(
   {
     success: "text-success",
     destructive: "text-destructive",
-    accent: "text-foreground",
+    brand: "text-primary",
     neutral: "text-muted-foreground",
     warning: "text-warning",
     info: "text-info",
@@ -182,7 +182,7 @@ const menuItems = $derived<ContextMenuItem[]>([
     title={disabled
       ? disabledReason
       : `${pr.title} · ${pr.baseRefName} ← ${pr.headRefName}`}
-    class="cursor-pointer rounded-sm text-left focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50"
+    class="cursor-pointer rounded-sm text-left focus-visible:ring-3 focus-visible:ring-focus focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50"
     onclick={(event) => {
       event.stopPropagation();
       onOpen();
@@ -199,7 +199,7 @@ const menuItems = $derived<ContextMenuItem[]>([
       title={hasCheckDetails
         ? `${expanded ? "Collapse" : "Expand"} check details`
         : "No check details"}
-      class="shrink-0 rounded-sm focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none disabled:pointer-events-none"
+      class="shrink-0 rounded-sm focus-visible:ring-3 focus-visible:ring-focus focus-visible:outline-none disabled:pointer-events-none"
       onclick={(event) => {
         event.stopPropagation();
         onToggleChecks();

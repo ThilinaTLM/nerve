@@ -65,7 +65,7 @@ const visibleGroups = $derived.by(() => {
               )}
             title={`Open ${group.path}:${match.line}`}
           >
-            <span class="text-right text-muted-foreground/75">{match.line}</span
+            <span class="text-right text-muted-foreground">{match.line}</span
             ><span
               class="break-words whitespace-pre-wrap text-foreground group-hover:underline"
               >{match.text}</span

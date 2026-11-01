@@ -146,7 +146,7 @@ const REVIEW_STATE: Record<
                 </span>
                 <div class="overflow-hidden rounded-md border bg-card">
                   <p
-                    class="flex min-h-8 flex-wrap items-center gap-x-2 gap-y-0.5 border-b bg-muted/40 px-3 py-1"
+                    class="flex min-h-8 flex-wrap items-center gap-x-2 gap-y-0.5 border-b bg-muted px-3 py-1"
                   >
                     <span class="text-ui font-medium"
                       >{entry.value.author ?? "Deleted user"}</span

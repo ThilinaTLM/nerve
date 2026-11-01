@@ -131,9 +131,9 @@ const reasoning = $derived(model ? modelSupportsReasoning(model) : false);
     aria-selected={selected}
     aria-disabled={disabled || undefined}
     class={cn(
-      "cursor-pointer rounded-md transition-colors hover:bg-accent",
+      "cursor-pointer rounded-md transition-colors hover:bg-hover",
       selected && "bg-selected hover:bg-selected",
-      active && "outline outline-1 -outline-offset-1 outline-ring/55",
+      active && "outline outline-1 -outline-offset-1 outline-focus",
       disabled && "cursor-default opacity-70 hover:bg-transparent",
       className,
     )}
@@ -167,7 +167,7 @@ const reasoning = $derived(model ? modelSupportsReasoning(model) : false);
     aria-selected={selected}
     class={cn(
       "flex h-8 min-w-0 items-center gap-2 rounded-md pr-2 pl-2 transition-colors hover:bg-hover",
-      active && "outline outline-1 -outline-offset-1 outline-ring/55",
+      active && "outline outline-1 -outline-offset-1 outline-focus",
       disabled && "opacity-70",
       className,
     )}

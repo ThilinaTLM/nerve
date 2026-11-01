@@ -14,7 +14,7 @@ let { entry, onAction }: Props = $props();
 </script>
 
 <div
-  class="grid items-center gap-4 overflow-hidden rounded-md bg-card p-4 text-body text-card-foreground shadow-xs ring-1 ring-foreground/10 sm:grid-cols-[minmax(0,1fr)_13rem]"
+  class="grid items-center gap-4 overflow-hidden rounded-md bg-card p-4 text-body text-card-foreground ring-1 ring-border sm:grid-cols-[minmax(0,1fr)_13rem]"
 >
   <div class="grid min-w-0 gap-2">
     <div class="flex flex-wrap items-center gap-1.5">

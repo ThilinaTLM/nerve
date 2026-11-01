@@ -35,7 +35,7 @@
   border-radius: var(--radius-lg);
   background: var(--card);
   color: var(--foreground);
-  box-shadow: var(--shadow-xl);
+  box-shadow: var(--shadow-overlay);
 }
 
 .dialog-content-sm {
@@ -140,7 +140,7 @@
 }
 
 .dialog-close:hover {
-  background: var(--accent);
+  background: var(--muted);
   color: var(--foreground);
 }
 

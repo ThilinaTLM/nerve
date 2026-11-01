@@ -53,7 +53,7 @@ const showText = $derived(
             >
           {:else}
             <span class="inline-flex h-[1lh] items-center align-bottom">
-              <Skeleton class="h-[0.7em] w-20 rounded-sm bg-foreground/10" />
+              <Skeleton class="h-[0.7em] w-20 rounded-sm" />
             </span>
           {/if}
         </dd>
@@ -93,9 +93,7 @@ const showText = $derived(
             >
           {:else}
             <span class="inline-flex h-[1lh] items-center align-bottom">
-              <Skeleton
-                class="h-[0.7em] w-64 max-w-full rounded-sm bg-foreground/10"
-              />
+              <Skeleton class="h-[0.7em] w-64 max-w-full rounded-sm" />
             </span>
           {/if}
         </p>

@@ -152,7 +152,7 @@ function roll(_node: Element, { direction }: { direction: 1 | -1 }) {
               cy="8"
               r={RING_RADIUS}
               stroke-width="1.5"
-              class="stroke-primary/20"
+              class="stroke-primary-subtle"
             />
             <g
               class="origin-center [transform-box:fill-box]"
@@ -178,7 +178,7 @@ function roll(_node: Element, { direction }: { direction: 1 | -1 }) {
               cy="8"
               r={RING_RADIUS}
               stroke-width="2"
-              class="stroke-warning/20"
+              class="stroke-warning-subtle"
             />
             <circle
               cx="8"
@@ -224,7 +224,7 @@ function roll(_node: Element, { direction }: { direction: 1 | -1 }) {
           {#each chips as item (item.kind + item.id)}
             <button
               type="button"
-              class="inline-flex h-5 max-w-48 flex-none cursor-pointer items-center gap-1 rounded-md border border-border bg-muted px-1.5 text-ui text-foreground transition-colors hover:bg-accent"
+              class="inline-flex h-5 max-w-48 flex-none cursor-pointer items-center gap-1 rounded-md border border-border bg-muted px-1.5 text-ui text-foreground transition-colors hover:bg-hover"
               title={item.kind === "agent"
                 ? `Open ${item.label}`
                 : `Background command: ${item.label}`}
@@ -242,7 +242,7 @@ function roll(_node: Element, { direction }: { direction: 1 | -1 }) {
           {#if overflow > 0}
             <button
               type="button"
-              class="inline-flex h-5 flex-none cursor-pointer items-center rounded-md border border-border bg-muted px-1.5 text-ui text-muted-foreground hover:bg-accent"
+              class="inline-flex h-5 flex-none cursor-pointer items-center rounded-md border border-border bg-muted px-1.5 text-ui text-muted-foreground hover:bg-hover"
               onclick={() => {
                 const hidden = view.pending?.[MAX_CHIPS];
                 if (hidden) onOpenPending?.(hidden);

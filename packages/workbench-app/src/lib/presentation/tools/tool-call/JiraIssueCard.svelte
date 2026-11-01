@@ -32,7 +32,7 @@ const hasChips = $derived(
 
 const toneText: Record<StatusTone, string> = {
   neutral: "text-muted-foreground",
-  accent: "text-foreground",
+  brand: "text-primary",
   info: "text-info",
   success: "text-success",
   warning: "text-warning",

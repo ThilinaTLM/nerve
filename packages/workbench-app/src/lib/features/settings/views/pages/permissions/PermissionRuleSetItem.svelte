@@ -66,7 +66,7 @@ const roleNote = $derived(
     <Badge variant="neutral"
       >{ruleSet.source === "builtin" ? "Built-in" : "User-defined"}</Badge
     >
-    {#if isDefault}<Badge variant="accent">Default</Badge>{/if}
+    {#if isDefault}<Badge variant="brand">Default</Badge>{/if}
     {#if !ruleSet.enabled}<Badge variant="neutral">Disabled</Badge>{/if}
   {/snippet}
   {#snippet detail()}

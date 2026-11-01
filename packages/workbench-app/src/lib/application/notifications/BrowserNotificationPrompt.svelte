@@ -10,7 +10,7 @@ import {
 
 {#if notificationState.promptVisible}
   <aside
-    class="fixed right-4 bottom-4 z-50 w-[min(24rem,calc(100vw-2rem))] rounded-lg border border-border bg-card p-4 text-card-foreground shadow-lg"
+    class="fixed right-4 bottom-4 z-50 w-[min(24rem,calc(100vw-2rem))] rounded-lg border border-border bg-card p-4 text-card-foreground shadow-overlay"
     aria-live="polite"
     aria-label="Notification permission"
   >

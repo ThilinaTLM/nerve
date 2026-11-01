@@ -19,7 +19,7 @@ let {
   bind:checked
   data-slot="switch"
   class={cn(
-    "data-checked:bg-primary data-unchecked:bg-input focus-visible:border-ring focus-visible:ring-ring/50 aria-invalid:ring-destructive/30 aria-invalid:border-destructive shrink-0 rounded-full border border-transparent shadow-xs focus-visible:ring-3 aria-invalid:ring-3 h-4 w-7 p-0.5 peer group/switch relative inline-flex items-center transition-all outline-none after:absolute after:-inset-x-3 after:-inset-y-2 data-disabled:cursor-not-allowed",
+    "data-checked:bg-primary data-unchecked:bg-input focus-visible:border-ring focus-visible:ring-focus aria-invalid:ring-destructive-strong aria-invalid:border-destructive shrink-0 rounded-full border border-transparent focus-visible:ring-3 aria-invalid:ring-3 h-4 w-7 p-0.5 peer group/switch relative inline-flex items-center transition-all outline-none after:absolute after:-inset-x-3 after:-inset-y-2 data-disabled:cursor-not-allowed",
     disabled && "data-disabled:opacity-50",
     className,
   )}

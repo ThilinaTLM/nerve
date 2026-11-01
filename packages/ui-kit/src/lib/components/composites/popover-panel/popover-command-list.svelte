@@ -126,7 +126,7 @@ function keydown(event: KeyboardEvent) {
               "min-h-control rounded-md text-ui",
               isSelected(item) && "bg-selected",
               navigation.activeDescendant === rowId(item) &&
-                "outline outline-1 -outline-offset-1 outline-ring/55",
+                "outline outline-1 -outline-offset-1 outline-focus",
             ]}
             onclick={(event) => chooseContainer(event, item)}
             onkeydown={(event) => {

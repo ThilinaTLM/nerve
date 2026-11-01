@@ -222,8 +222,8 @@ $effect(() => {
                   type="button"
                   class={`flex w-full items-center justify-between gap-3 rounded-md border px-2.5 py-1.5 text-left text-ui transition-colors disabled:opacity-50 ${
                     active
-                      ? "border-primary/40 bg-selected text-foreground"
-                      : "border-transparent text-foreground hover:bg-accent"
+                      ? "border-primary-strong bg-selected text-foreground"
+                      : "border-transparent text-foreground hover:bg-hover"
                   }`}
                   aria-selected={active}
                   role="option"
@@ -247,7 +247,7 @@ $effect(() => {
     </section>
 
     {#if selectedModel}
-      <section class="grid gap-2 border-t border-border/60 pt-3">
+      <section class="grid gap-2 border-t border-border-subtle pt-3">
         <p
           class="m-0 text-ui font-semibold uppercase tracking-wide text-muted-foreground"
         >
@@ -265,7 +265,7 @@ $effect(() => {
               class={`rounded-md border px-3 py-1 text-ui font-medium transition-colors disabled:opacity-50 ${
                 active
                   ? "border-primary bg-selected text-foreground"
-                  : "border-border bg-input text-muted-foreground hover:border-primary/40 hover:text-foreground"
+                  : "border-border bg-input text-muted-foreground hover:border-primary-strong hover:text-foreground"
               }`}
               disabled={requirements.reasoningLevel !== undefined}
               aria-pressed={active}

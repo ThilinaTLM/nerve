@@ -194,9 +194,7 @@ const title = $derived.by(() => {
           {@const percent = item.window.usedPercent}
           <span class="inline-flex items-center gap-1">
             <span>{item.abbreviation}</span>
-            <span
-              class="h-1 w-6 overflow-hidden rounded-full bg-muted-foreground/30"
-            >
+            <span class="h-1 w-6 overflow-hidden rounded-full bg-border">
               <span
                 class={cn("block h-full rounded-full", toneBarClass(percent))}
                 style="width: {clampPercent(percent)}%"

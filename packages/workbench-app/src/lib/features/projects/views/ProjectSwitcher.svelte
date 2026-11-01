@@ -134,7 +134,7 @@ function useSystemPicker() {
     ariaLabel="Switch project"
     triggerTitle="Switch project"
     triggerAriaKeyShortcuts={switchAria}
-    triggerClass="inline-flex size-8 shrink-0 items-center justify-center rounded-md text-muted-foreground [-webkit-app-region:no-drag] hover:bg-accent hover:text-foreground"
+    triggerClass="inline-flex size-8 shrink-0 items-center justify-center rounded-md text-muted-foreground [-webkit-app-region:no-drag] hover:bg-hover hover:text-foreground"
   >
     {#snippet trigger()}
       <span data-tour-id="guide-project-open">

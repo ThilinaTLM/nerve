@@ -67,7 +67,7 @@ const skeletonWidths = ["w-11/12", "w-3/4", "w-5/6"];
     {#if section.text === undefined}
       <div class="grid gap-1.5 py-0.5">
         {#each skeletonWidths as width (width)}
-          <Skeleton class={cn("h-2.5 rounded-sm bg-foreground/10", width)} />
+          <Skeleton class={cn("h-2.5 rounded-sm", width)} />
         {/each}
       </div>
     {:else}

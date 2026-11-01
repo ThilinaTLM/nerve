@@ -161,7 +161,7 @@ function handleOpenChange(next: boolean): void {
   ariaLabel={label}
   {triggerTitle}
   triggerClass={cn(
-    "flex min-w-0 justify-start gap-1.5 rounded-md border border-input bg-input-background pr-1.5 pl-2 text-left text-ui shadow-xs transition-colors hover:bg-hover ",
+    "flex min-w-0 justify-start gap-1.5 rounded-md border border-input bg-input-background pr-1.5 pl-2 text-left text-ui transition-colors hover:bg-hover ",
     "h-control",
     fullyLocked && "pointer-events-none opacity-50",
     className,
@@ -205,7 +205,7 @@ function handleOpenChange(next: boolean): void {
     {/if}
     {#if showLevel}
       <Badge
-        variant="accent"
+        variant="neutral"
         class={cn("capitalize", thinkingDisabled && "opacity-60")}
         >{thinkingLevel}</Badge
       >
