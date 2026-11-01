@@ -1,6 +1,5 @@
 <script lang="ts">
 import EyeOff from "@lucide/svelte/icons/eye-off";
-import { Badge } from "@nervekit/ui-kit/components/ui/badge";
 import MoveLeft from "@lucide/svelte/icons/move-left";
 import MoveRight from "@lucide/svelte/icons/move-right";
 import PanelBottom from "@lucide/svelte/icons/panel-bottom";
@@ -303,12 +302,10 @@ const tourIdByView: Record<string, string> = {
         >
           <Icon size={14} strokeWidth={2.1} aria-hidden="true" />
           {#if activity}
-            <Badge
-              variant="info"
-              class="pointer-events-none absolute right-0 top-0 origin-top-right scale-75 rounded-full"
+            <span
+              class="pointer-events-none absolute right-1 top-1 size-1.5 rounded-full bg-info"
               aria-hidden="true"
-              >{activity.count > 99 ? "99+" : activity.count}</Badge
-            >
+            ></span>
           {/if}
         </button>
       </ContextMenu>

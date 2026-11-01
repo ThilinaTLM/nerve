@@ -1,1 +1,1 @@
-export const VIEW_TOOL_DETAILS_LABEL = "View details";
+export const VIEW_TOOL_DETAILS_LABEL = "See Details";

@@ -252,6 +252,9 @@ importers:
       '@fontsource/iosevka':
         specifier: ^5.2.5
         version: 5.2.5
+      '@fontsource/outfit':
+        specifier: 5.2.8
+        version: 5.2.8
       '@lucide/svelte':
         specifier: ^1.24.0
         version: 1.24.0(svelte@5.56.3(@typescript-eslint/types@8.63.0))

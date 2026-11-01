@@ -44,9 +44,8 @@ let {
     {glyph}
     size={14}
     class="mr-1.5 align-middle"
-  />
-  <span class="badge">{badge}</span>
-  {#if argPending && !arg}
+  /><span class="badge">{badge}</span
+  >{#if argPending && !arg}
     <SlotText
       width="w-40"
       streaming

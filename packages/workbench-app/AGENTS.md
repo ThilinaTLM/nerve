@@ -63,7 +63,7 @@ Application `*Host` components are state/effect adapters around canonical featur
   Tailwind's default sizes are cleared and the style-policy check rejects them
   and arbitrary `text-[…]` sizes): `text-caption` 13px for glanceable extras
   (timestamps, counts, chips, kbd, section captions, settings supporting
-  text; never errors or instructions), `text-ui` 14px for everything
+  text; never errors or instructions), `text-ui` 13px for everything
   interactive or list-like, `text-body` 15px for prose the user reads
   (transcript, markdown, PR descriptions), `text-title` 16px for page,
   dialog and card titles and headline numbers, always `font-medium` (regular

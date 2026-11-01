@@ -390,7 +390,7 @@
   --shadow-*: initial;
   --text-caption: 0.8125rem;
   --text-caption--line-height: 1.125rem;
-  --text-ui: 0.875rem;
+  --text-ui: 0.8125rem;
   --text-ui--line-height: 1.25rem;
   --text-body: 0.9375rem;
   --text-body--line-height: 1.375rem;
@@ -407,7 +407,7 @@
 
 @theme inline {
   --font-sans:
-    "IBM Plex Sans", ui-sans-serif, system-ui, -apple-system,
+    "Outfit", ui-sans-serif, system-ui, -apple-system,
     BlinkMacSystemFont, "Segoe UI", sans-serif;
   --font-mono:
     "Iosevka", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;

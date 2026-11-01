@@ -140,7 +140,6 @@ const titleSegments = $derived(
           activity={dotActivity}
           variant="rail"
           {isOpen}
-          selected={isActive}
         />
       </span>
     {/snippet}
