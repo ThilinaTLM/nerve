@@ -1,4 +1,5 @@
 <script lang="ts">
+import Coffee from "@lucide/svelte/icons/coffee";
 import Flame from "@lucide/svelte/icons/flame";
 import Layers from "@lucide/svelte/icons/layers";
 import {
@@ -26,6 +27,16 @@ const themeOptions: Record<ColorTheme, Omit<SettingsPreviewOption, "value">> = {
     label: "Graphite",
     description: "Neutral near-black with an ember accent",
     icon: Layers,
+  },
+  "melange-light": {
+    label: "Melange Light",
+    description: "Warm paper with soft orange and pastels",
+    icon: Coffee,
+  },
+  "melange-dark": {
+    label: "Melange Dark",
+    description: "Warm cocoa with soft orange and pastels",
+    icon: Coffee,
   },
 };
 

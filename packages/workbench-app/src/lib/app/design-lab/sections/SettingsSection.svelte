@@ -88,6 +88,12 @@ const lightThemeOptions: SettingsPreviewOption[] = [
     icon: SunIcon,
     previews: ["light"],
   },
+  {
+    value: "melange-light",
+    label: "Melange Light",
+    icon: SunIcon,
+    previews: ["light"],
+  },
 ];
 const darkThemeOptions: SettingsPreviewOption[] = [
   {
@@ -97,6 +103,12 @@ const darkThemeOptions: SettingsPreviewOption[] = [
     previews: ["dark"],
   },
   { value: "graphite", label: "Graphite", icon: MoonIcon, previews: ["dark"] },
+  {
+    value: "melange-dark",
+    label: "Melange Dark",
+    icon: MoonIcon,
+    previews: ["dark"],
+  },
 ];
 const colorModeOptions: SettingsPreviewOption[] = [
   { value: "system", label: "System", icon: MonitorIcon },

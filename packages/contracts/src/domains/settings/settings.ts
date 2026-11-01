@@ -18,6 +18,8 @@ export const colorThemeSchema = z.enum([
   "nerve-light",
   "nerve-dark",
   "graphite",
+  "melange-light",
+  "melange-dark",
 ]);
 export type ColorTheme = z.infer<typeof colorThemeSchema>;
 
@@ -31,6 +33,8 @@ export const colorThemeKind: Record<ColorTheme, ColorThemeKind> = {
   "nerve-light": "light",
   "nerve-dark": "dark",
   graphite: "dark",
+  "melange-light": "light",
+  "melange-dark": "dark",
 };
 export const lightColorThemes = colorThemeSchema.options.filter(
   (theme) => colorThemeKind[theme] === "light",
