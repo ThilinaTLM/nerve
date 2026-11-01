@@ -79,6 +79,7 @@ describe("GitService overview snapshots", () => {
         },
         isAncestor: async () => false,
         resolveRevision: async (_repoDir, revision) => revision,
+        countUnpublishedCommits: async () => 0,
         validateBranchName: async () => true,
       },
     });

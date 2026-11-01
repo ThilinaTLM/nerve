@@ -47,7 +47,7 @@ import {
   remoteOperationOf,
   repositoryRemoteBusy,
   runningRemoteActivity,
-  syncSummary,
+  primaryRemoteAction,
 } from "./git-remote-actions";
 
 let {
@@ -169,8 +169,10 @@ function actionLabel(
     return `Switch to ${repo.baseBranch} and pull`;
   if (operation === "pull")
     return `Pull${repo.behind ? ` (${repo.behind})` : ""}`;
-  if (operation === "push")
-    return `Push${repo.ahead ? ` (${repo.ahead})` : ""}`;
+  if (operation === "push") {
+    const count = repo.hasUpstream ? repo.ahead : repo.unpublishedCount;
+    return `Push${count ? ` (${count})` : ""}`;
+  }
   return operation === "fetch" ? "Fetch" : "Sync";
 }
 function rowState(repo: GitRepoSummary, operation: GitRemoteOperation) {
@@ -197,14 +199,22 @@ function rowState(repo: GitRepoSummary, operation: GitRemoteOperation) {
     reason = "Configure an upstream first.";
   if (!reason && operation === "pull" && !(repo.behind && repo.behind > 0))
     reason = "No incoming commits.";
-  if (!reason && operation === "push" && !(repo.ahead && repo.ahead > 0))
+  // Without an upstream, Push publishes the branch, even with nothing new.
+  if (
+    !reason &&
+    operation === "push" &&
+    repo.hasUpstream &&
+    !(repo.ahead && repo.ahead > 0)
+  )
     reason = "No outgoing commits.";
   if (!reason && operation === "switch-base-and-pull" && repo.onBaseBranch)
     reason = `Already on ${repo.baseBranch}.`;
   const descriptions = {
     fetch: "Fetch remote updates without changing local files.",
     pull: "Pull incoming commits (fast-forward only).",
-    push: "Push outgoing commits.",
+    push: repo.hasUpstream
+      ? "Push outgoing commits."
+      : "Publish this branch to origin under the same name.",
     sync: "Fetch, then pull and push when needed.",
     "switch-base-and-pull": `Switch to ${repo.baseBranch}, then pull (fast-forward only).`,
   };
@@ -265,12 +275,9 @@ function activate(repo: GitRepoSummary, operation: GitRemoteOperation): void {
   >
 {/snippet}
 
-<!-- One Sync button per repository (fetch, pull, push). Any running remote
-     operation of the repository shows here as a spinner that becomes Stop on
-     hover or focus. Without a remote there is nothing to sync. -->
 {#snippet failureAlert(repo: GitRepoSummary, failure: Activity)}
   {@const operation = remoteOperationOf(failure) ?? "sync"}
-  {@const title = `${operation === "switch-base-and-pull" ? "Switch to base and pull" : actionLabel({ ...repo, ahead: 0, behind: 0 }, operation)} failed`}
+  {@const title = `${operation === "switch-base-and-pull" ? "Switch to base and pull" : actionLabel({ ...repo, ahead: 0, behind: 0, unpublishedCount: null }, operation)} failed`}
   {@const message =
     failure.error?.message ?? failure.message ?? "Unknown error."}
   <Tooltip.Root>
@@ -318,74 +325,148 @@ function activate(repo: GitRepoSummary, operation: GitRemoteOperation): void {
   </Tooltip.Root>
 {/snippet}
 
+<!-- A remote action button. When `owns` it shows the repository's running
+     operation as a spinner that becomes Stop on hover or focus; while another
+     button owns the running work it is disabled. -->
+{#snippet remoteButton(
+  repo: GitRepoSummary,
+  spec: {
+    operation: GitRemoteOperation;
+    icon: typeof ArrowDown;
+    parts: string[];
+    label: string;
+    help: string;
+  },
+  running: Activity | undefined,
+  owns: boolean,
+)}
+  {@const stopping = Boolean(owns && running && cancellingIds.has(running.id))}
+  {@const canStop = Boolean(
+    owns && running?.actions.cancel && actions.cancelOperation && !stopping,
+  )}
+  {@const state = rowState(repo, spec.operation)}
+  {@const disabled = running ? !canStop : state.disabled}
+  {@const help = !running
+    ? spec.help
+    : stopping
+      ? "Stopping. Waiting for the process to close."
+      : canStop
+        ? "Stop this operation. Completed steps are not undone; remote updates may already have completed."
+        : "Another operation is running in this repository."}
+  {@const Icon = spec.icon}
+  <Tooltip.Root>
+    <Tooltip.Trigger>
+      {#snippet child({ props })}
+        <Button
+          {...props}
+          variant="ghost"
+          size={spec.parts.length && !(owns && running) ? "sm" : "icon-sm"}
+          aria-label={`${canStop ? "Stop" : spec.label} ${repo.name}`}
+          aria-disabled={disabled}
+          class={disabled
+            ? "cursor-default text-muted-foreground opacity-40"
+            : "text-muted-foreground hover:text-foreground"}
+          onclick={() => {
+            if (disabled) return;
+            if (running) void requestCancellation(running.id).catch(() => {});
+            else
+              void actions.runRemoteOperation(
+                repo.relativePath,
+                spec.operation,
+              );
+          }}
+        >
+          {#if owns && running}
+            {#if canStop}
+              <Spinner
+                class="group-focus-visible/button:hidden group-hover/button:hidden"
+              />
+              <Square
+                class="hidden fill-current group-focus-visible/button:block group-hover/button:block"
+                aria-hidden="true"
+              />
+            {:else}
+              <Spinner />
+            {/if}
+          {:else}
+            <Icon aria-hidden="true" />
+            {#if spec.parts.length}
+              <span class="tabular-nums">{spec.parts.join(" ")}</span>
+            {/if}
+          {/if}
+        </Button>
+      {/snippet}
+    </Tooltip.Trigger>
+    <Tooltip.Content>
+      <p>{help}</p>
+      {#if !running && state.disabled}
+        <p class="text-muted-foreground">{state.help}</p>
+      {/if}
+    </Tooltip.Content>
+  </Tooltip.Root>
+{/snippet}
+
+<!-- Row actions in priority order: stashes (when any), switch to base and
+     pull (off the base branch), then one state-dependent remote action:
+     publish a new branch, pull, push, or sync. -->
 {#snippet rowActions(repo: GitRepoSummary)}
   {@const failure = model.lastRemoteFailure?.(repo.relativePath)}
   {#if failure}{@render failureAlert(repo, failure)}{/if}
-  {#if repo.hasRemote}
-    {@const running = runningRemoteActivity(
-      model.activeOperations ?? [],
-      repo.relativePath,
-    )}
-    {@const stopping = Boolean(running && cancellingIds.has(running.id))}
-    {@const canStop = Boolean(
-      running?.actions.cancel && actions.cancelOperation && !stopping,
-    )}
-    {@const sync = syncSummary(repo)}
-    {@const syncState = rowState(repo, "sync")}
-    {@const disabled = running ? !canStop : syncState.disabled}
-    {@const help = stopping
-      ? "Stopping. Waiting for the process to close."
-      : running
-        ? canStop
-          ? "Stop this operation. Completed steps are not undone; remote updates may already have completed."
-          : "Another operation is running in this repository."
-        : sync.help}
+  {#if repo.hasStashes}
+    {@const disabled =
+      !model.capabilities.stashes.enabled ||
+      repositoryRemoteBusy(model.activeOperations ?? [], repo.relativePath)}
     <Tooltip.Root>
       <Tooltip.Trigger>
         {#snippet child({ props })}
           <Button
             {...props}
             variant="ghost"
-            size={sync.parts.length && !running ? "sm" : "icon-sm"}
-            aria-label={`${running ? "Stop" : "Sync"} ${repo.name}`}
+            size="icon-sm"
+            aria-label={`Stashes in ${repo.name}`}
             aria-disabled={disabled}
             class={disabled
               ? "cursor-default text-muted-foreground opacity-40"
               : "text-muted-foreground hover:text-foreground"}
             onclick={() => {
-              if (disabled) return;
-              if (running) void requestCancellation(running.id).catch(() => {});
-              else void actions.runRemoteOperation(repo.relativePath, "sync");
-            }}
+              if (!disabled) void openStashes(repo);
+            }}><ArchiveRestore aria-hidden="true" /></Button
           >
-            {#if running}
-              {#if canStop}
-                <Spinner
-                  class="group-focus-visible/button:hidden group-hover/button:hidden"
-                />
-                <Square
-                  class="hidden fill-current group-focus-visible/button:block group-hover/button:block"
-                  aria-hidden="true"
-                />
-              {:else}
-                <Spinner />
-              {/if}
-            {:else}
-              <ArrowDownUp aria-hidden="true" />
-              {#if sync.parts.length}
-                <span class="tabular-nums">{sync.parts.join(" ")}</span>
-              {/if}
-            {/if}
-          </Button>
         {/snippet}
       </Tooltip.Trigger>
-      <Tooltip.Content>
-        <p>{help}</p>
-        {#if !running && syncState.disabled}
-          <p class="text-muted-foreground">{syncState.help}</p>
-        {/if}
-      </Tooltip.Content>
+      <Tooltip.Content>Stashes</Tooltip.Content>
     </Tooltip.Root>
+  {/if}
+  {#if repo.hasRemote}
+    {@const running = runningRemoteActivity(
+      model.activeOperations ?? [],
+      repo.relativePath,
+    )}
+    {@const switchOwns = Boolean(
+      running && remoteOperationOf(running) === "switch-base-and-pull",
+    )}
+    {@const primary = primaryRemoteAction(repo)}
+    <!-- Stays while its run finishes, even once the switch reached the base. -->
+    {#if !repo.onBaseBranch || switchOwns}
+      {@render remoteButton(
+        repo,
+        {
+          operation: "switch-base-and-pull",
+          icon: GitCompareArrows,
+          parts: [],
+          label: `Switch to ${repo.baseBranch} and pull`,
+          help: `Switch to ${repo.baseBranch} and pull`,
+        },
+        running,
+        switchOwns,
+      )}
+    {/if}
+    {@render remoteButton(
+      repo,
+      { ...primary, icon: icons[primary.operation] },
+      running,
+      Boolean(running) && !switchOwns,
+    )}
   {/if}
 {/snippet}
 

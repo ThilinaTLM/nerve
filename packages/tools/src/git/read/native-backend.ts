@@ -3,6 +3,7 @@ import { toNamespacedPath } from "node:path";
 import type { GitFileChange } from "@nervekit/contracts/git";
 import {
   checkGitAncestry,
+  countUnpublishedGitCommits,
   discoverGitRepositories,
   readGitProjectSnapshots,
   NativeOperationError,
@@ -408,6 +409,12 @@ export class NativeGitReadBackend implements GitReadBackend {
   resolveRevision(repoDir: string, revision: string): Promise<string> {
     return this.owned(
       () => resolveGitRevision(repoDir, revision),
+      currentGitCommandOptions().signal,
+    );
+  }
+  countUnpublishedCommits(repoDir: string, remote: string): Promise<number> {
+    return this.owned(
+      () => countUnpublishedGitCommits(repoDir, remote),
       currentGitCommandOptions().signal,
     );
   }

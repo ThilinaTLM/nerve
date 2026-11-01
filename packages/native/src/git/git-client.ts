@@ -67,6 +67,18 @@ export async function resolveGitRevision(
   return result.oid;
 }
 
+/** Commits reachable from HEAD but from no `refs/remotes/<remote>/*` ref. */
+export async function countUnpublishedGitCommits(
+  path: string,
+  remote: string,
+): Promise<number> {
+  const result = await binding.countUnpublishedGitCommits(path, remote);
+  if (result.error) throw nativeGitError(result.error);
+  if (result.count === undefined)
+    throw new NativeGitReadError("internal", "Native Git count was empty.");
+  return result.count;
+}
+
 export async function readGitFileDiff(
   path: string,
   original: NativeGitDocumentSource,

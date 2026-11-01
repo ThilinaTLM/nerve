@@ -11,6 +11,8 @@ export function gitContextFingerprint(ctx: GitContext): string {
       ahead: repo.ahead,
       behind: repo.behind,
       hasUpstream: repo.hasUpstream,
+      unpublishedCount: repo.unpublishedCount,
+      hasStashes: repo.hasStashes,
       hasRemote: repo.hasRemote,
       hasGithubRemote: repo.hasGithubRemote,
       baseBranch: repo.baseBranch,

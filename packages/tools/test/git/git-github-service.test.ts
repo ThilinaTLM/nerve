@@ -423,6 +423,7 @@ describe("GitHub PR checkout", () => {
           return { stdout: "", stderr: "" };
         },
         resolveRevision: async () => "abc123",
+        countUnpublishedCommits: async () => 0,
         isAncestor: async () => false,
         summarizeRepo: async () => ({ currentBranch: "feature/source-name" }),
         repoName: () => "repo",
@@ -482,6 +483,7 @@ describe("GitHub PR checkout", () => {
           return { stdout: "", stderr: "" };
         },
         resolveRevision: async () => "fork-head",
+        countUnpublishedCommits: async () => 0,
         isAncestor: async () => false,
         summarizeRepo: async () => ({ currentBranch: "feature" }),
         repoName: () => "repo",
@@ -530,6 +532,7 @@ describe("GitHub PR checkout", () => {
             return { stdout: "", stderr: "" };
           },
           resolveRevision: async () => "new-head",
+          countUnpublishedCommits: async () => 0,
           isAncestor: async () => false,
           summarizeRepo: async () => ({ currentBranch: "feature" }),
           repoName: () => "repo",

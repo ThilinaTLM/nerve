@@ -680,6 +680,21 @@ export class GitService {
     }
   }
 
+  /** Commits a first push of the current branch would upload; null when unknown. */
+  async unpublishedCommitCount(repoDir: string): Promise<number | null> {
+    try {
+      return await this.#readBackend.countUnpublishedCommits(repoDir, "origin");
+    } catch (error) {
+      if (
+        error instanceof Error &&
+        (error.name === "AbortError" ||
+          ("category" in error && error.category === "cancelled"))
+      )
+        throw error;
+      return null;
+    }
+  }
+
   async createBranch(
     projectId: string,
     relativePath: string,
@@ -945,6 +960,7 @@ export class GitService {
       async () => {
         const repoDir = this.resolveRepoDir(projectId, relativePath);
         await this.mapGit(() => createAreaStash(this, repoDir, area, paths));
+        this.invalidateStableRepoMetadata(repoDir);
         return {
           repo: await this.summarizeRepo(
             repoDir,
@@ -971,6 +987,7 @@ export class GitService {
         await this.mapGit(async () =>
           this.runGit(repoDir, await stashApplyArgs(this, repoDir, ref)),
         );
+        this.invalidateStableRepoMetadata(repoDir);
         return {
           repo: await this.summarizeRepo(
             repoDir,
@@ -995,6 +1012,7 @@ export class GitService {
         const repoDir = this.resolveRepoDir(projectId, relativePath);
         const ref = await verifyStashTarget(this, repoDir, index, expectedHash);
         await this.mapGit(() => this.runGit(repoDir, ["stash", "drop", ref]));
+        this.invalidateStableRepoMetadata(repoDir);
         return {
           repo: await this.summarizeRepo(
             repoDir,

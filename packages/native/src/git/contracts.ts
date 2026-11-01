@@ -129,6 +129,11 @@ export interface NativeGitRevisionResult {
   error?: NativeGitErrorDetail;
 }
 
+export interface NativeGitCountResult {
+  count?: number;
+  error?: NativeGitErrorDetail;
+}
+
 /** Full metadata without status, index traversal, filters or worktree scanning. */
 export type NativeGitMetadataSnapshot = Omit<NativeGitSnapshot, "files">;
 export interface NativeGitMetadataSnapshotOptions {

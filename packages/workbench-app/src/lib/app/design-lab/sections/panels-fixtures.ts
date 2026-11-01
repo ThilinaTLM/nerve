@@ -236,6 +236,8 @@ function repo(
     ahead: 0,
     behind: 0,
     hasUpstream: true,
+    unpublishedCount: null,
+    hasStashes: false,
     hasRemote: true,
     hasGithubRemote: true,
     baseBranch: "main",
@@ -261,8 +263,17 @@ const repositories: GitRepoSummary[] = [
     name: "ui-kit",
     currentBranch: "feat/panel-density",
     ahead: 1,
+    hasStashes: true,
   }),
-  repo({ relativePath: "docs", name: "docs", currentBranch: "main" }),
+  repo({
+    relativePath: "docs",
+    name: "docs",
+    currentBranch: "docs/new-guide",
+    ahead: null,
+    behind: null,
+    hasUpstream: false,
+    unpublishedCount: 2,
+  }),
 ];
 const [rootRepo, uiKitRepo] = repositories as [GitRepoSummary, GitRepoSummary];
 
