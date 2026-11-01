@@ -289,8 +289,9 @@ const menuContext = $derived<ProjectTreeMenuContext>({
       <ScrollRegion
         bind:viewport
         ariaLabel="Conversations"
-        topShadowClass="top-0 h-2"
-        contentClass="pb-2"
+        surface="panel"
+        class="-mx-2"
+        contentClass="px-2 pb-2"
       >
         {#each displayedSections as section (section.key)}
           <div
