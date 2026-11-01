@@ -1,5 +1,4 @@
 <script lang="ts">
-import Folder from "@lucide/svelte/icons/folder";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
 import type { Snippet } from "svelte";
 import NerveBadge from "../brand/NerveBadge.svelte";
@@ -33,8 +32,9 @@ const launchpad = $derived(variant === "launchpad");
 <div
   class="@container relative flex h-full min-h-full items-center justify-center overflow-hidden p-6 text-center"
 >
+  <div class="signal-field absolute inset-0" aria-hidden="true"></div>
   <div
-    class={`brand-signal-enter relative flex w-full flex-col items-center ${launchpad ? "max-w-3xl" : "max-w-2xl"}`}
+    class={`relative flex w-full flex-col items-center ${launchpad ? "max-w-3xl" : "max-w-2xl"}`}
   >
     <div
       class={`relative flex items-center justify-center ${launchpad ? "size-20" : "size-14"}`}
@@ -52,16 +52,21 @@ const launchpad = $derived(variant === "launchpad");
       />
     </div>
 
-    {#if launchpad}
-      <p class="mt-4 text-caption text-muted-foreground">Workspace ready</p>
-    {/if}
-    <h2 class={`${launchpad ? "mt-2" : "mt-4"} text-title text-foreground`}>
+    <h2 class="mt-4 text-title text-foreground">
       {title}
     </h2>
     <p class="mt-2 max-w-sm text-ui leading-relaxed text-muted-foreground">
       {message}
     </p>
-
+    {#if projectLabel}
+      <p
+        class="mt-3 max-w-md truncate text-caption font-medium text-foreground"
+        title={projectPath}
+      >
+        <span class="sr-only">Current project</span>
+        {projectLabel}
+      </p>
+    {/if}
     {#if starters.length > 0}
       <div
         class="mt-6 flex flex-wrap justify-center gap-2"
@@ -88,23 +93,6 @@ const launchpad = $derived(variant === "launchpad");
       </div>
     {/if}
 
-    {#if projectLabel}
-      <div
-        class={`${starters.length > 0 || launchpad ? "mt-4" : "mt-3"} inline-flex max-w-md items-center gap-1.5 rounded-md border bg-muted px-3 py-1.5 text-ui text-muted-foreground`}
-        title={projectPath}
-        aria-label={projectPath
-          ? `Current project ${projectPath}`
-          : `Current project ${projectLabel}`}
-      >
-        <Folder
-          class="size-3.5 shrink-0"
-          strokeWidth={2.2}
-          aria-hidden="true"
-        />
-        <span class="truncate font-mono text-foreground">{projectLabel}</span>
-      </div>
-    {/if}
-
     {#if footer}
       <div class={`${launchpad ? "mt-6" : "mt-5"} flex flex-col items-center`}>
         {@render footer()}
@@ -112,3 +100,14 @@ const launchpad = $derived(variant === "launchpad");
     {/if}
   </div>
 </div>
+
+<style>
+/* Static dot field behind the empty state, fading out from the centre. Idle
+   views must not animate. */
+.signal-field {
+  background-image: radial-gradient(var(--border) 1px, transparent 1.5px);
+  background-position: center;
+  background-size: 1.375rem 1.375rem;
+  mask-image: radial-gradient(circle at center, black, transparent 60%);
+}
+</style>

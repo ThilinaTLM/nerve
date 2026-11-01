@@ -63,7 +63,6 @@ export type WorkbenchConversationAdapterProps = {
   /** An existing conversation whose snapshot is still loading: render nothing
    * rather than the new-conversation welcome. */
   conversationLoading?: boolean;
-  homeDir?: string;
   approvals?: ApprovalWithToolCall[];
   pendingUserQuestions?: UserQuestionRecord[];
   pendingPlanReviews?: PlanReviewRecord[];
