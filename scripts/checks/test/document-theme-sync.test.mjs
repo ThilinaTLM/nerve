@@ -3,6 +3,11 @@ import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, it } from "node:test";
+import {
+  parseOklch,
+  resolveThemeToken,
+  sameOklch,
+} from "../theme-resolver.mjs";
 
 /* Standalone documents (daemon setup pages, conversation exports, the Electron
  * loading window) cannot import the ui-kit stylesheet, so they mirror the Nerve
@@ -16,26 +21,18 @@ const read = (...segments) => readFileSync(join(repoRoot, ...segments), "utf8");
 const themeCss = read("packages", "ui-kit", "src", "styles", "theme.css");
 
 /* Nerve's two themes are independent: light mirrors nerve-light, dark mirrors
- * nerve-dark. */
-function themeTokens(mode) {
-  const selector = `[data-theme-preview="nerve-${mode}"]`;
-  const block = themeCss.slice(themeCss.indexOf(selector));
-  const body = block.slice(0, block.indexOf("\n}"));
-  const tokens = new Map();
-  for (const [, name, value] of body.matchAll(/--([\w-]+): ([^;]+);/g))
-    tokens.set(name, value.trim());
-  return tokens;
-}
-
-const canonical = { light: themeTokens("light"), dark: themeTokens("dark") };
+ * nerve-dark. Derived tokens (card, border, ...) are resolved from the theme's
+ * inputs and the shared recipes, exactly as the browser does. */
+const canonical = {
+  light: (name) => resolveThemeToken(themeCss, "nerve-light", name),
+  dark: (name) => resolveThemeToken(themeCss, "nerve-dark", name),
+};
 
 describe("standalone document theme mirrors", () => {
   it("resolves the canonical nerve tokens", () => {
     for (const mode of ["light", "dark"])
-      assert.ok(
-        canonical[mode].size > 10,
-        `expected nerve ${mode} tokens in theme.css`,
-      );
+      for (const name of ["background", "card", "border", "muted-foreground"])
+        assert.equal(canonical[mode](name).length, 3, `${mode} --${name}`);
   });
 
   it("keeps the daemon document tokens in sync with theme.css", () => {
@@ -55,9 +52,8 @@ describe("standalone document theme mirrors", () => {
       const declarations = [...block.matchAll(/"?([\w-]+)"?: "([^"]+)"/g)];
       assert.ok(declarations.length > 0, `no ${mode} tokens found`);
       for (const [, name, value] of declarations)
-        assert.equal(
-          value,
-          canonical[mode].get(name),
+        assert.ok(
+          sameOklch(parseOklch(value), canonical[mode](name)),
           `document-theme.ts ${mode} --${name} drifted from theme.css`,
         );
     }
@@ -128,9 +124,8 @@ describe("standalone document theme mirrors", () => {
           new RegExp(`--${name}: (oklch\\([^)]*\\));`),
         );
         assert.ok(match, `loading-pages.ts is missing ${mode} --${name}`);
-        assert.equal(
-          match[1],
-          canonical[mode].get(name),
+        assert.ok(
+          sameOklch(parseOklch(match[1]), canonical[mode](name)),
           `loading-pages.ts ${mode} --${name} drifted from theme.css`,
         );
       }

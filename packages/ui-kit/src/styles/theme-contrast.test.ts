@@ -62,9 +62,9 @@ function themeBlock(theme: ColorTheme): string {
   return match[1];
 }
 
-/* Declarations shared by every theme (`:root, [data-theme-preview]`): aliases
- * such as `--card-foreground: var(--foreground)` resolve against the theme block
- * first, then against this one. */
+/* Declarations shared by every theme (`:root, [data-theme-preview]`): derived
+ * tokens and aliases resolve against the theme block first, then the mode
+ * blocks, then this one. */
 function globalBlock(): string {
   const match = themeCss.match(
     /:root,\s*\[data-theme-preview\]\s*\{([\s\S]*?)\n\}/,
@@ -73,32 +73,135 @@ function globalBlock(): string {
   return match[1];
 }
 
+/* Mode blocks: step/mix defaults (`:where(...)`, zero specificity) and the
+ * dark-only globals such as `--on-solid`. */
+function modeBlocks(mode: ColorMode): string[] {
+  const where = (selector: string): string => {
+    const match = themeCss.match(
+      new RegExp(`:where\\(${selector}\\)\\s*\\{([\\s\\S]*?)\\n\\}`),
+    );
+    assert.ok(match, `Missing :where(${selector}) block`);
+    return match[1];
+  };
+  const light = where(":root, \\[data-theme-preview\\]");
+  if (mode === "light") return [light];
+  const darkGlobals = themeCss.match(
+    /\n\.dark,\s*\[data-theme-preview\]\[data-color-mode="dark"\]\s*\{([\s\S]*?)\n\}/,
+  );
+  assert.ok(darkGlobals, "Missing dark mode globals block");
+  return [
+    darkGlobals[1],
+    where('\\.dark, \\[data-theme-preview\\]\\[data-color-mode="dark"\\]'),
+    light,
+  ];
+}
+
 function declarationOf(block: string, name: string): string | undefined {
   return block.match(new RegExp(`--${name}:\\s*([^;]+);`))?.[1]?.trim();
 }
 
-function resolveOklch(block: string, name: string, label: string): Oklch {
-  let value = declarationOf(block, name) ?? declarationOf(globalBlock(), name);
-  const seen = new Set<string>();
-  while (value !== undefined) {
-    const alias = value.match(/^var\(--([\w-]+)\)$/);
-    if (!alias) break;
-    assert.ok(!seen.has(alias[1]!), `Circular alias --${name} in ${label}`);
-    seen.add(alias[1]!);
-    // An alias resolves where it is declared: the theme block wins over global.
-    value =
-      declarationOf(block, alias[1]!) ??
-      declarationOf(globalBlock(), alias[1]!);
+/* Cascade for one theme: its own block, then its mode's blocks, then the
+ * shared block. Declarations are resolved on the element that declares them,
+ * which is what `var()` does when everything lives on one root. */
+function lookupFor(theme: ColorTheme): (name: string) => string | undefined {
+  const blocks = [
+    themeBlock(theme),
+    ...modeBlocks(colorThemeKind[theme]),
+    globalBlock(),
+  ];
+  return (name) => {
+    for (const block of blocks) {
+      const value = declarationOf(block, name);
+      if (value !== undefined) return value;
+    }
+    return undefined;
+  };
+}
+
+function oklabFrom([lightness, chroma, hue]: Oklch): readonly [
+  number,
+  number,
+  number,
+] {
+  const radians = (hue * Math.PI) / 180;
+  return [lightness, chroma * Math.cos(radians), chroma * Math.sin(radians)];
+}
+
+function oklchFrom([lightness, a, b]: readonly [
+  number,
+  number,
+  number,
+]): Oklch {
+  const hue = (Math.atan2(b, a) * 180) / Math.PI;
+  return [lightness, Math.hypot(a, b), (hue + 360) % 360];
+}
+
+/* Evaluates the three colour recipes theme.css uses: `oklch()` literals,
+ * `var()` aliases, relative lightness shifts of another token, and oklab
+ * `color-mix()` of two tokens. Anything else fails loudly. */
+function evaluateColor(
+  value: string,
+  lookup: (name: string) => string | undefined,
+  label: string,
+  trail: readonly string[] = [],
+): Oklch {
+  const text = value.replace(/\s+/g, " ").trim();
+  const token = (name: string): string => {
+    assert.ok(!trail.includes(name), `Circular token --${name} in ${label}`);
+    const declared = lookup(name);
+    assert.ok(declared !== undefined, `Missing token --${name} in ${label}`);
+    return declared;
+  };
+  const colorOf = (name: string): Oklch =>
+    evaluateColor(token(name), lookup, label, [...trail, name]);
+  const numberOf = (text: string, unit: "" | "%"): number => {
+    const reference = text.match(/^var\(--([\w-]+)\)$/);
+    const raw = reference ? token(reference[1]!) : text;
+    const match = raw.match(/^(-?[\d.]+)(%?)$/);
+    assert.ok(match && match[2] === unit, `Bad number "${raw}" in ${label}`);
+    return Number(match[1]);
+  };
+
+  const literal = text.match(/^oklch\( ?([\d.]+) ([\d.]+) ([\d.]+) ?\)$/);
+  if (literal) return literal.slice(1, 4).map(Number) as unknown as Oklch;
+
+  const alias = text.match(/^var\(--([\w-]+)\)$/);
+  if (alias) return colorOf(alias[1]!);
+
+  const relative = text.match(
+    /^oklch\(from var\(--([\w-]+)\) calc\(l \+ (var\(--[\w-]+\)|-?[\d.]+)\) c h\)$/,
+  );
+  if (relative) {
+    const [lightness, chroma, hue] = colorOf(relative[1]!);
+    return [lightness + numberOf(relative[2]!, ""), chroma, hue];
   }
-  const match = value?.match(/^oklch\(\s*([\d.]+)\s+([\d.]+)\s+([\d.]+)\s*\)$/);
-  assert.ok(match, `Missing OKLCH token --${name} in ${label}`);
-  return match.slice(1, 4).map(Number) as unknown as Oklch;
+
+  const mix = text.match(
+    /^color-mix\( ?in oklab, var\(--([\w-]+)\) (var\(--[\w-]+\)|[\d.]+%), ?var\(--([\w-]+)\) ?\)$/,
+  );
+  if (mix) {
+    const share = numberOf(mix[2]!, "%") / 100;
+    const near = oklabFrom(colorOf(mix[1]!));
+    const far = oklabFrom(colorOf(mix[3]!));
+    return oklchFrom([
+      near[0] * share + far[0] * (1 - share),
+      near[1] * share + far[1] * (1 - share),
+      near[2] * share + far[2] * (1 - share),
+    ]);
+  }
+  assert.fail(`Unsupported colour recipe "${text}" in ${label}`);
+}
+
+function resolveOklch(theme: ColorTheme, name: string): Oklch {
+  const lookup = lookupFor(theme);
+  const declared = lookup(name);
+  assert.ok(declared !== undefined, `Missing token --${name} in ${theme}`);
+  return evaluateColor(declared, lookup, `${theme} --${name}`, [name]);
 }
 
 function parseTokens(theme: ColorTheme): Record<TokenName, Oklch> {
-  const block = themeBlock(theme);
   return Object.fromEntries(
-    tokenNames.map((name) => [name, resolveOklch(block, name, theme)]),
+    tokenNames.map((name) => [name, resolveOklch(theme, name)]),
   ) as Record<TokenName, Oklch>;
 }
 
@@ -246,12 +349,8 @@ const distinguishableSyntaxRoles = [
 const minimumSyntaxRoleDistance = 0.08;
 
 function parseSyntaxRoles(theme: ColorTheme): Record<SyntaxRole, Oklch> {
-  const block = themeBlock(theme);
   return Object.fromEntries(
-    syntaxRoles.map((role) => [
-      role,
-      resolveOklch(block, `syntax-${role}`, theme),
-    ]),
+    syntaxRoles.map((role) => [role, resolveOklch(theme, `syntax-${role}`)]),
   ) as Record<SyntaxRole, Oklch>;
 }
 
@@ -445,11 +544,10 @@ const ladderExtraTokens = ["muted-foreground", "border", "input"] as const;
 function ladderTokens(
   theme: ColorTheme,
 ): Record<TokenName | (typeof ladderExtraTokens)[number], Oklch> {
-  const block = themeBlock(theme);
   return {
     ...themes[theme],
     ...Object.fromEntries(
-      ladderExtraTokens.map((name) => [name, resolveOklch(block, name, theme)]),
+      ladderExtraTokens.map((name) => [name, resolveOklch(theme, name)]),
     ),
   } as Record<TokenName | (typeof ladderExtraTokens)[number], Oklch>;
 }
@@ -545,6 +643,56 @@ describe("token structure", () => {
           undefined,
           `${theme} must not set --${name}; it is global or an alias`,
         );
+      }
+    }
+  });
+
+  it("limits theme blocks to colour inputs and step overrides", () => {
+    const allowed = new Set<string>([
+      "background",
+      "foreground",
+      "primary",
+      "success",
+      "warning",
+      "info",
+      "destructive",
+      "destructive-solid",
+      ...syntaxRoles
+        .filter(
+          (role) =>
+            !["plain", "added", "removed", "changed", "link"].includes(role),
+        )
+        .map((role) => `syntax-${role}`),
+      "step-card",
+      "step-popover",
+      "step-panel",
+      "step-well",
+      "mix-muted",
+      "mix-border",
+      "mix-input",
+      "mix-muted-foreground",
+    ]);
+    for (const theme of colorThemes) {
+      const declared = [...themeBlock(theme).matchAll(/--([\w-]+)\s*:/g)].map(
+        (match) => match[1]!,
+      );
+      for (const name of declared) {
+        assert.ok(
+          allowed.has(name),
+          `${theme} declares --${name}, which is derived or global`,
+        );
+      }
+      for (const name of [
+        "background",
+        "foreground",
+        "primary",
+        "success",
+        "warning",
+        "info",
+        "destructive",
+        "destructive-solid",
+      ]) {
+        assert.ok(declared.includes(name), `${theme} must declare --${name}`);
       }
     }
   });
