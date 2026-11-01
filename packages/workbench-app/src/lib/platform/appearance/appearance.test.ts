@@ -156,11 +156,14 @@ test("pre-paint bootstrap resolves the theme for the stored or system mode", asy
     new URL("../../../../index.html", import.meta.url),
     "utf8",
   );
-  const bootstrapScript = [...html.matchAll(/<script>([\s\S]*?)<\/script>/g)]
-    .map((match) => match[1])
-    .find((script) => script?.includes('"nerve-light-theme"'));
-  assert.ok(bootstrapScript);
-  const bootstrap: string = bootstrapScript;
+  // Slice the inline script around its storage key rather than parsing HTML.
+  const marker = html.indexOf('"nerve-light-theme"');
+  assert.ok(marker >= 0);
+  const open = "<script>";
+  const start = html.lastIndexOf(open, marker) + open.length;
+  const end = html.indexOf("</script>", marker);
+  assert.ok(start >= open.length && end > start);
+  const bootstrap = html.slice(start, end);
 
   function run(
     stored: Record<string, string>,
