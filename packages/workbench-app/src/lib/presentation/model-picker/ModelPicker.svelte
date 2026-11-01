@@ -161,7 +161,7 @@ function handleOpenChange(next: boolean): void {
   ariaLabel={label}
   {triggerTitle}
   triggerClass={cn(
-    "flex min-w-0 justify-start gap-1.5 rounded-md border border-input pr-1.5 pl-2 text-left text-sm shadow-xs transition-colors hover:bg-accent/50 dark:bg-input/30",
+    "flex min-w-0 justify-start gap-1.5 rounded-md border border-input bg-input-background pr-1.5 pl-2 text-left text-sm shadow-xs transition-colors hover:bg-hover ",
     "h-control",
     fullyLocked && "pointer-events-none opacity-50",
     className,

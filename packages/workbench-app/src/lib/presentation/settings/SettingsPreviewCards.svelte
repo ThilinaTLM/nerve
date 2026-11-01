@@ -67,7 +67,7 @@ function choose(next: string): void {
       aria-checked={active}
       aria-label={option.label}
       class={cn(
-        "group/opt grid min-w-0 cursor-pointer gap-1.5 rounded-md border bg-card p-1.5 text-left transition-colors hover:bg-accent/50  focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50",
+        "group/opt grid min-w-0 cursor-pointer gap-1.5 rounded-md border bg-card p-1.5 text-left transition-colors hover:bg-hover  focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50",
         active
           ? "border-primary bg-selected hover:bg-selected"
           : "border-transparent",

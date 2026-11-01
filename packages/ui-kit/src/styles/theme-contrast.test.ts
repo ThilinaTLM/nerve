@@ -58,21 +58,49 @@ function themeBlock(theme: ColorTheme, mode: ColorMode): string {
   return match[1];
 }
 
+/* Declarations shared by every theme (`:root, [data-theme-preview]`): aliases
+ * such as `--card-foreground: var(--foreground)` resolve against the theme block
+ * first, then against this one. */
+function globalBlock(): string {
+  const match = themeCss.match(
+    /:root,\s*\[data-theme-preview\]\s*\{([\s\S]*?)\n\}/,
+  );
+  assert.ok(match, "Missing global `:root, [data-theme-preview]` block");
+  return match[1];
+}
+
+function declarationOf(block: string, name: string): string | undefined {
+  return block.match(new RegExp(`--${name}:\\s*([^;]+);`))?.[1]?.trim();
+}
+
+function resolveOklch(block: string, name: string, label: string): Oklch {
+  let value = declarationOf(block, name) ?? declarationOf(globalBlock(), name);
+  const seen = new Set<string>();
+  while (value !== undefined) {
+    const alias = value.match(/^var\(--([\w-]+)\)$/);
+    if (!alias) break;
+    assert.ok(!seen.has(alias[1]!), `Circular alias --${name} in ${label}`);
+    seen.add(alias[1]!);
+    // An alias resolves where it is declared: the theme block wins over global.
+    value =
+      declarationOf(block, alias[1]!) ??
+      declarationOf(globalBlock(), alias[1]!);
+  }
+  const match = value?.match(/^oklch\(\s*([\d.]+)\s+([\d.]+)\s+([\d.]+)\s*\)$/);
+  assert.ok(match, `Missing OKLCH token --${name} in ${label}`);
+  return match.slice(1, 4).map(Number) as unknown as Oklch;
+}
+
 function parseTokens(
   theme: ColorTheme,
   mode: ColorMode,
 ): Record<TokenName, Oklch> {
   const block = themeBlock(theme, mode);
   return Object.fromEntries(
-    tokenNames.map((name) => {
-      const match = block.match(
-        new RegExp(
-          `--${name}:\\s*oklch\\(\\s*([\\d.]+)\\s+([\\d.]+)\\s+([\\d.]+)\\s*\\)`,
-        ),
-      );
-      assert.ok(match, `Missing OKLCH token --${name} in ${theme} ${mode}`);
-      return [name, match.slice(1, 4).map(Number) as unknown as Oklch];
-    }),
+    tokenNames.map((name) => [
+      name,
+      resolveOklch(block, name, `${theme} ${mode}`),
+    ]),
   ) as Record<TokenName, Oklch>;
 }
 
@@ -165,35 +193,6 @@ const maximumSurfaceChroma: Record<ColorMode, number> = {
 };
 const minimumPrimaryChroma = 0.09;
 
-type CharacterTokens = {
-  radiusRem: number;
-  elevationLightness: number;
-  elevationStrength: number;
-};
-
-function parseCharacter(theme: ColorTheme, mode: ColorMode): CharacterTokens {
-  const block = themeBlock(theme, mode);
-  const radius = block.match(/--radius:\s*([\d.]+)rem/);
-  const elevation = block.match(
-    /--elevation-hsl:\s*[\d.-]+\s+[\d.]+%\s+([\d.]+)%/,
-  );
-  const strength = block.match(/--elevation-strength:\s*([\d.]+)/);
-  assert.ok(radius, `Missing --radius in ${theme} ${mode}`);
-  assert.ok(elevation, `Missing --elevation-hsl in ${theme} ${mode}`);
-  assert.ok(strength, `Missing --elevation-strength in ${theme} ${mode}`);
-  return {
-    radiusRem: Number(radius[1]),
-    elevationLightness: Number(elevation[1]),
-    elevationStrength: Number(strength[1]),
-  };
-}
-
-const characters = Object.fromEntries(
-  colorThemes.flatMap((theme) =>
-    colorModes.map((mode) => [`${theme}-${mode}`, parseCharacter(theme, mode)]),
-  ),
-) as Record<ThemeName, CharacterTokens>;
-
 function oklabOf([lightness, chroma, hue]: Oklch): readonly [
   number,
   number,
@@ -248,15 +247,10 @@ function parseSyntaxRoles(
 ): Record<SyntaxRole, Oklch> {
   const block = themeBlock(theme, mode);
   return Object.fromEntries(
-    syntaxRoles.map((role) => {
-      const match = block.match(
-        new RegExp(
-          `--syntax-${role}:\\s*oklch\\(\\s*([\\d.]+)\\s+([\\d.]+)\\s+([\\d.]+)\\s*\\)`,
-        ),
-      );
-      assert.ok(match, `Missing --syntax-${role} in ${theme} ${mode}`);
-      return [role, match.slice(1, 4).map(Number) as unknown as Oklch];
-    }),
+    syntaxRoles.map((role) => [
+      role,
+      resolveOklch(block, `syntax-${role}`, `${theme} ${mode}`),
+    ]),
   ) as Record<SyntaxRole, Oklch>;
 }
 
@@ -486,41 +480,6 @@ describe("theme text contrast", () => {
     }
   });
 
-  it("declares character tokens that actually vary between themes", () => {
-    const maximumRadiusRem = 0.75;
-    const maximumElevationStrength = 1.5;
-    const maximumElevationLightnessPercent = 30;
-
-    for (const [themeName, character] of Object.entries(characters) as [
-      ThemeName,
-      CharacterTokens,
-    ][]) {
-      assert.ok(
-        character.radiusRem >= 0 && character.radiusRem <= maximumRadiusRem,
-        `${themeName} --radius ${character.radiusRem}rem is outside [0, ${maximumRadiusRem}]`,
-      );
-      assert.ok(
-        character.elevationStrength >= 0 &&
-          character.elevationStrength <= maximumElevationStrength,
-        `${themeName} --elevation-strength ${character.elevationStrength} is outside [0, ${maximumElevationStrength}]`,
-      );
-      if (character.elevationStrength > 0) {
-        assert.ok(
-          character.elevationLightness <= maximumElevationLightnessPercent,
-          `${themeName} elevation lightness ${character.elevationLightness}% would wash surfaces out instead of shading them`,
-        );
-      }
-    }
-
-    const radii = new Set(
-      colorThemes.map((theme) => characters[`${theme}-dark`].radiusRem),
-    );
-    assert.ok(
-      radii.size >= 3,
-      `only ${radii.size} distinct radii across ${colorThemes.length} themes; shape is part of a theme's character`,
-    );
-  });
-
   it("keeps the surface hierarchy legible in every theme", () => {
     // Chrome-vs-workspace and the hover/selected fills are the steps a reader
     // relies on to tell regions apart, and contrast ratio compresses badly at
@@ -551,28 +510,6 @@ describe("theme text contrast", () => {
     }
   });
 
-  it("keeps flat themes structured with visible hairlines", () => {
-    // A theme that opts out of shadows has only its borders left to separate
-    // surfaces, so those borders have to carry more contrast than usual.
-    const minimumFlatBorderContrast = 1.35;
-
-    for (const [themeName, character] of Object.entries(characters) as [
-      ThemeName,
-      CharacterTokens,
-    ][]) {
-      if (character.elevationStrength > 0) continue;
-      const tokens = themes[themeName];
-      const ratio = contrast(
-        oklchToLinearRgb(tokens.border),
-        oklchToLinearRgb(tokens.card),
-      );
-      assert.ok(
-        ratio >= minimumFlatBorderContrast,
-        `${themeName} is flat but its border/card contrast ${ratio.toFixed(2)}:1 is below ${minimumFlatBorderContrast}:1`,
-      );
-    }
-  });
-
   it("uses the measured token pairs and tint in the shared badge", () => {
     assert.match(
       badgeSource,
@@ -584,5 +521,80 @@ describe("theme text contrast", () => {
         new RegExp(`bg-${token}/${subtleSurfaceAlpha * 100} text-${token}`),
       );
     }
+  });
+});
+
+describe("token structure", () => {
+  const forbiddenInThemeBlocks = [
+    "radius",
+    "elevation-hsl",
+    "elevation-strength",
+    "card-foreground",
+    "popover-foreground",
+    "accent-foreground",
+    "syntax-added",
+    "syntax-removed",
+    "syntax-changed",
+    "syntax-link",
+  ] as const;
+
+  it("keeps themes colour-only and leaves aliases to the global block", () => {
+    for (const theme of colorThemes) {
+      for (const mode of colorModes) {
+        const block = themeBlock(theme, mode);
+        for (const name of forbiddenInThemeBlocks) {
+          assert.equal(
+            declarationOf(block, name),
+            undefined,
+            `${theme} ${mode} must not set --${name}; it is global or an alias`,
+          );
+        }
+      }
+    }
+  });
+
+  it("declares geometry and elevation once, globally", () => {
+    const root = themeCss.match(/^:root\s*\{([\s\S]*?)\n\}/m)?.[1] ?? "";
+    assert.equal(declarationOf(root, "radius"), "0.375rem");
+    assert.equal(declarationOf(root, "elevation-strength"), "1");
+    assert.ok(declarationOf(globalBlock(), "elevation-hsl"));
+    assert.ok(
+      /\.dark,\s*\[data-theme-preview\]\[data-color-mode="dark"\]\s*\{[^}]*--elevation-hsl:/.test(
+        themeCss,
+      ),
+      "dark elevation colour must be declared for .dark and dark previews",
+    );
+  });
+
+  it("points text and diff aliases at their source tokens", () => {
+    const global = globalBlock();
+    for (const name of ["card", "popover", "accent"]) {
+      assert.equal(
+        declarationOf(global, `${name}-foreground`),
+        "var(--foreground)",
+      );
+    }
+    assert.equal(declarationOf(global, "syntax-added"), "var(--success)");
+    assert.equal(declarationOf(global, "syntax-removed"), "var(--destructive)");
+    assert.equal(declarationOf(global, "syntax-changed"), "var(--warning)");
+    assert.equal(declarationOf(global, "syntax-link"), "var(--info)");
+  });
+
+  it("declares derived state tokens per preview root", () => {
+    const global = globalBlock();
+    for (const name of ["hover", "input-background", "chrome-track"]) {
+      assert.ok(
+        declarationOf(global, name),
+        `--${name} must be declared on \`:root, [data-theme-preview]\``,
+      );
+    }
+    assert.equal(
+      declarationOf(global, "chrome-track"),
+      "color-mix(in oklab, var(--panel) 50%, var(--background))",
+    );
+  });
+
+  it("removes the dark custom variant", () => {
+    assert.doesNotMatch(themeCss, /@custom-variant\s+dark/);
   });
 });

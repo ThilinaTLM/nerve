@@ -160,7 +160,7 @@ async function createBranch(repository: string): Promise<void> {
           "flex min-w-0 flex-col rounded-md",
           selected
             ? "bg-selected"
-            : canSelect && "cursor-pointer hover:bg-muted/60",
+            : canSelect && "cursor-pointer hover:bg-hover",
         ]}
         onclick={() => {
           if (canSelect) selectRepository(repo.relativePath);

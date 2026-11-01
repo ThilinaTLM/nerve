@@ -38,7 +38,7 @@ function hostname(url: string): string {
 
   {#each results as result, index (index)}
     <a
-      class="group grid gap-0.5 px-2.5 py-1.5 text-inherit no-underline hover:bg-muted/40"
+      class="group grid gap-0.5 px-2.5 py-1.5 text-inherit no-underline hover:bg-hover"
       href={result.url}
       target="_blank"
       rel="noreferrer"

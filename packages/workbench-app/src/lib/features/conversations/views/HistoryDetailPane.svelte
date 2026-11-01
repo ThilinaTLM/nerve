@@ -130,7 +130,7 @@ async function copyId(id: string) {
         ).descriptor}
         {@const StepIcon = HISTORY_ICONS[stepDesc.icon]}
         <button
-          class="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left transition-colors hover:bg-muted/60"
+          class="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left transition-colors hover:bg-hover"
           type="button"
           onclick={() => onSelectRow?.(row)}
         >

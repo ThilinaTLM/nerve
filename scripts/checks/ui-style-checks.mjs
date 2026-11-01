@@ -3,6 +3,7 @@ import {
   countClassConsumers,
   extractClassSelectors,
   findBareGlobalSelectors,
+  findDarkUtilities,
   findInertClassNames,
   isDynamicClass,
 } from "./style-policy.mjs";
@@ -43,9 +44,28 @@ export function checkUiStyles({ files: trackedFiles, read }, fail) {
         fail(file, "CSS imports are allowed only from app src/main.ts entries");
     }
 
+    checkNoDarkUtilities();
     checkGlobalStylePartials();
     checkBareGlobalSelectors();
     checkInertClassNames();
+  }
+
+  /** Themes and previews are colour-only: mode differences live in tokens. */
+  function checkNoDarkUtilities() {
+    for (const file of trackedFiles) {
+      if (
+        !/packages\/(?:ui-kit|workbench-app)\/src\//.test(file) ||
+        !sourceExtensions.test(file) ||
+        file.includes("/design-lab/wireframes/")
+      )
+        continue;
+      const offenders = findDarkUtilities(read(file));
+      if (offenders.length > 0)
+        fail(
+          file,
+          `dark: utilities are banned (${offenders[0]}); move the mode difference into a token`,
+        );
+    }
   }
 
   /**

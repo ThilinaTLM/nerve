@@ -5,7 +5,7 @@ import { type VariantProps, tv } from "tailwind-variants";
  * the semantic tokens it paints with, and a single height. Status meaning is
  * always carried by the text or an icon, never by colour alone. */
 export const badgeVariants = tv({
-  base: "h-5 gap-1 rounded-md border border-transparent px-1.5 py-px text-xs font-medium transition-all has-data-[icon=inline-end]:pr-1 has-data-[icon=inline-start]:pl-1 [&>svg]:size-3! focus-visible:border-ring focus-visible:ring-ring/50 aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive aria-invalid:ring-3 group/badge inline-flex w-fit shrink-0 items-center justify-center overflow-hidden whitespace-nowrap transition-colors focus-visible:ring-3 [&>svg]:pointer-events-none",
+  base: "h-5 gap-1 rounded-md border border-transparent px-1.5 py-px text-xs font-medium transition-all has-data-[icon=inline-end]:pr-1 has-data-[icon=inline-start]:pl-1 [&>svg]:size-3! focus-visible:border-ring focus-visible:ring-ring/50 aria-invalid:ring-destructive/30 aria-invalid:border-destructive aria-invalid:ring-3 group/badge inline-flex w-fit shrink-0 items-center justify-center overflow-hidden whitespace-nowrap transition-colors focus-visible:ring-3 [&>svg]:pointer-events-none",
   variants: {
     variant: {
       neutral: "border-border bg-muted text-foreground",
@@ -16,7 +16,7 @@ export const badgeVariants = tv({
       success: "border-success/40 bg-success/8 text-success",
       warning: "border-warning/40 bg-warning/8 text-warning",
       destructive:
-        "border-destructive/40 bg-destructive/8 text-destructive focus-visible:ring-destructive/20 dark:focus-visible:ring-destructive/40",
+        "border-destructive/40 bg-destructive/8 text-destructive focus-visible:ring-destructive/30",
     },
   },
   defaultVariants: {

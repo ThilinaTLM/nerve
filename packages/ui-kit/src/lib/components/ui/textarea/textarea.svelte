@@ -19,7 +19,7 @@ let {
   bind:this={ref}
   data-slot={dataSlot}
   class={cn(
-    "border-input dark:bg-input/30 focus-visible:border-ring focus-visible:ring-ring/50 aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive dark:aria-invalid:border-destructive/50 rounded-md border bg-transparent px-2 py-1 text-xs shadow-xs transition-[color,box-shadow] focus-visible:ring-3 aria-invalid:ring-3 placeholder:text-muted-foreground flex field-sizing-content min-h-control w-full outline-none disabled:cursor-not-allowed disabled:opacity-50",
+    "border-input focus-visible:border-ring focus-visible:ring-ring/50 aria-invalid:ring-destructive/30 aria-invalid:border-destructive rounded-md border bg-input-background px-2 py-1 text-xs shadow-xs transition-[color,box-shadow] focus-visible:ring-3 aria-invalid:ring-3 placeholder:text-muted-foreground flex field-sizing-content min-h-control w-full outline-none disabled:cursor-not-allowed disabled:opacity-50",
     className,
   )}
   bind:value

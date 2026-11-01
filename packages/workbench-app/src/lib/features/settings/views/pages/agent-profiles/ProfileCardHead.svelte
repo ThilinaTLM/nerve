@@ -123,7 +123,7 @@ function keydown(event: KeyboardEvent) {
 }
 
 const editable =
-  "-mx-1 cursor-text rounded-sm px-1 text-left hover:bg-muted/60 focus-visible:bg-muted/60 focus-visible:outline-none disabled:cursor-default disabled:hover:bg-transparent";
+  "-mx-1 cursor-text rounded-sm px-1 text-left hover:bg-hover focus-visible:bg-hover focus-visible:outline-none disabled:cursor-default disabled:hover:bg-transparent";
 </script>
 
 {#if isNew}

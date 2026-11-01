@@ -77,7 +77,7 @@ let {
           disabled={item.disabled}
           aria-current={current ? "page" : undefined}
           class={cn(
-            "group/nav flex w-full min-w-0 cursor-pointer items-center gap-2 h-control rounded-md px-2 text-left text-sm text-foreground outline-none transition-colors hover:bg-accent/60 focus-visible:ring-3 focus-visible:ring-ring/50 disabled:pointer-events-none disabled:opacity-50 @max-[46rem]/settings-page:w-auto @max-[46rem]/settings-page:flex-none",
+            "group/nav flex w-full min-w-0 cursor-pointer items-center gap-2 h-control rounded-md px-2 text-left text-sm text-foreground outline-none transition-colors hover:bg-hover focus-visible:ring-3 focus-visible:ring-ring/50 disabled:pointer-events-none disabled:opacity-50 @max-[46rem]/settings-page:w-auto @max-[46rem]/settings-page:flex-none",
             current && "bg-selected font-medium hover:bg-selected",
           )}
           onclick={() => onSelect(item.id)}

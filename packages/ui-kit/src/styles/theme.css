@@ -1,18 +1,11 @@
 /* Design tokens and Tailwind theme mapping.
  * Imported first by app.css so base/animation/components can rely on tokens. */
 
-@custom-variant dark (&:is(.dark *));
-
 :root {
   /* Compact desktop geometry: the base radius stays small so dense toolbars,
-   * rows, and chips read as crisp rectangles rather than pills. Each theme
-   * overrides it — radius is part of a theme's character, not a global. */
+   * rows, and chips read as crisp rectangles rather than pills. Themes own
+   * colour only, so radius and elevation strength are global. */
   --radius: 0.375rem;
-
-  /* Elevation character. Themes own the shadow's colour and how strongly it
-   * prints; a theme with strength 0 is deliberately flat and separates its
-   * surfaces with hairlines instead. */
-  --elevation-hsl: 0 0% 0%;
   --elevation-strength: 1;
 
   /* Motion: adaptive one-shot timing for live transcript content. */
@@ -29,11 +22,34 @@
   --tracking-normal: 0em;
 }
 
-/* The shadow recipe resolves `--elevation-*` on the element that declares it,
- * so preview swatches need their own copy to render their theme's elevation
- * rather than the document root's. */
+/* Derived tokens resolve on the element that declares them, so everything that
+ * depends on a theme's colours (shadows, aliases, state fills) is declared on
+ * both the document root and every preview root. */
 :root,
 [data-theme-preview] {
+  --elevation-hsl: 35 25% 25%;
+
+  /* Text on shared surfaces is always the foreground colour. */
+  --card-foreground: var(--foreground);
+  --popover-foreground: var(--foreground);
+  --accent-foreground: var(--foreground);
+
+  /* Diff and link roles reuse the status palette. */
+  --syntax-added: var(--success);
+  --syntax-removed: var(--destructive);
+  --syntax-changed: var(--warning);
+  --syntax-link: var(--info);
+
+  /* Neutral hover overlay: works on any surface in either mode. */
+  --hover: color-mix(in oklab, var(--foreground) 6%, transparent);
+
+  /* Field fill: transparent on light surfaces, a faint lift in dark mode. */
+  --input-background: transparent;
+
+  /* Every tab row (editor, dock, Tabs) shares one track shade a short step
+   * under the content it opens onto; an active tab takes the content surface. */
+  --chrome-track: color-mix(in oklab, var(--panel) 50%, var(--background));
+
   --elevation-1: calc(0.05 * var(--elevation-strength));
   --elevation-2: calc(0.1 * var(--elevation-strength));
   --shadow-2xs: 0 1px 3px 0px hsl(var(--elevation-hsl) / var(--elevation-1));
@@ -76,6 +92,8 @@
 
 .dark,
 [data-theme-preview][data-color-mode="dark"] {
+  --elevation-hsl: 35 30% 4%;
+  --input-background: color-mix(in oklab, var(--input) 30%, transparent);
   --overlay-highlight: color-mix(in oklab, var(--foreground) 7%, transparent);
 }
 
@@ -88,15 +106,12 @@
   --background: oklch(0.979 0.012 92);
   --foreground: oklch(0.3438 0.0269 95.7);
   --card: oklch(0.958 0.013 94);
-  --card-foreground: oklch(0.1908 0.002 106.6);
   --popover: oklch(0.99 0.005 95);
-  --popover-foreground: oklch(0.2671 0.0196 98.9);
   --primary: oklch(0.57 0.1375 39);
   --primary-foreground: oklch(1 0 0);
   --muted: oklch(0.928 0.018 91);
   --muted-foreground: oklch(0.5341 0.0078 97.5);
   --accent: oklch(0.918 0.026 92);
-  --accent-foreground: oklch(0.2671 0.0196 98.9);
   --selected: color-mix(in oklab, var(--primary) 14%, transparent);
   --destructive: oklch(0.5 0.19 27);
   --destructive-foreground: oklch(1 0 0);
@@ -118,9 +133,6 @@
   --chart-5: oklch(0.56 0.13 300);
   --panel: oklch(0.952 0.018 95);
   --well: oklch(0.938 0.014 95);
-  --radius: 0.375rem;
-  --elevation-hsl: 35 25% 25%;
-  --elevation-strength: 1;
 
   /* Code palette. Both highlighters (Shiki in the transcript, CodeMirror in the
    * editor) resolve these at paint time, so a theme owns its code colours the
@@ -141,10 +153,6 @@
   --syntax-function: oklch(0.48 0.14 265);
   --syntax-type: oklch(0.47 0.09 210);
   --syntax-property: oklch(0.49 0.13 78);
-  --syntax-added: oklch(0.47 0.15 149);
-  --syntax-removed: oklch(0.5 0.19 27);
-  --syntax-changed: oklch(0.5 0.16 70);
-  --syntax-link: oklch(0.49 0.158 254);
 }
 
 :root.dark,
@@ -153,15 +161,12 @@
   --background: oklch(0.264 0.018 80);
   --foreground: oklch(0.9 0.012 95);
   --card: oklch(0.289 0.02 82);
-  --card-foreground: oklch(0.9818 0.008 95);
   --popover: oklch(0.305 0.02 82);
-  --popover-foreground: oklch(0.9211 0.008 95);
   --primary: oklch(0.6724 0.1308 38.8);
   --primary-foreground: oklch(0.1908 0.008 80);
   --muted: oklch(0.218 0.018 78);
   --muted-foreground: oklch(0.7713 0.017 99);
   --accent: oklch(0.21 0.022 78);
-  --accent-foreground: oklch(0.9663 0.008 98.9);
   --selected: color-mix(in oklab, var(--primary) 22%, transparent);
   --destructive: oklch(0.8 0.114 25.5);
   --destructive-foreground: oklch(0.147 0.004 49.3);
@@ -183,9 +188,6 @@
   --chart-5: oklch(0.7 0.13 300);
   --panel: oklch(0.228 0.02 70);
   --well: oklch(0.205 0.018 78);
-  --radius: 0.375rem;
-  --elevation-hsl: 35 30% 4%;
-  --elevation-strength: 1;
 
   /* Dark code palette: same hue family as light, lifted in lightness and pulled
    * back in chroma so dense code does not vibrate against the warm dark well. */
@@ -199,10 +201,6 @@
   --syntax-function: oklch(0.78 0.12 265);
   --syntax-type: oklch(0.8 0.09 210);
   --syntax-property: oklch(0.82 0.11 85);
-  --syntax-added: oklch(0.78 0.176 149);
-  --syntax-removed: oklch(0.78 0.13 25);
-  --syntax-changed: oklch(0.83 0.16 70);
-  --syntax-link: oklch(0.8 0.134 254);
 }
 
 /* Rosé: muted plum and blush. The only theme whose surfaces carry real,
@@ -214,15 +212,12 @@
   --background: oklch(0.955 0.02 340);
   --foreground: oklch(0.42 0.055 300);
   --card: oklch(0.935 0.02 340);
-  --card-foreground: oklch(0.42 0.055 300);
   --popover: oklch(0.977 0.014 340);
-  --popover-foreground: oklch(0.42 0.055 300);
   --primary: oklch(0.52 0.115 305);
   --primary-foreground: oklch(1 0 0);
   --muted: oklch(0.906 0.024 340);
   --muted-foreground: oklch(0.545 0.05 300);
   --accent: oklch(0.894 0.026 340);
-  --accent-foreground: oklch(0.42 0.055 300);
   --selected: color-mix(in oklab, var(--primary) 14%, transparent);
   --destructive: oklch(0.5 0.14 10);
   --destructive-foreground: oklch(1 0 0);
@@ -244,9 +239,6 @@
   --chart-5: oklch(0.5 0.08 225);
   --panel: oklch(0.925 0.021 340);
   --well: oklch(0.912 0.022 340);
-  --radius: 0.5rem;
-  --elevation-hsl: 330 30% 26%;
-  --elevation-strength: 1.1;
 
   /* Plum keywords, jade strings and rose constants on the blush/plum surfaces. */
   --syntax-plain: oklch(0.36 0.025 300);
@@ -259,10 +251,6 @@
   --syntax-function: oklch(0.44 0.12 250);
   --syntax-type: oklch(0.46 0.11 125);
   --syntax-property: oklch(0.47 0.12 80);
-  --syntax-added: oklch(0.455 0.09 190);
-  --syntax-removed: oklch(0.5 0.14 10);
-  --syntax-changed: oklch(0.478 0.115 65);
-  --syntax-link: oklch(0.445 0.08 225);
 }
 
 :root[data-theme="rose"].dark,
@@ -270,15 +258,12 @@
   --background: oklch(0.239 0.035 300);
   --foreground: oklch(0.9 0.03 295);
   --card: oklch(0.269 0.038 300);
-  --card-foreground: oklch(0.9 0.03 295);
   --popover: oklch(0.289 0.04 300);
-  --popover-foreground: oklch(0.9 0.03 295);
   --primary: oklch(0.76 0.11 305);
   --primary-foreground: oklch(0.2 0.03 300);
   --muted: oklch(0.197 0.03 300);
   --muted-foreground: oklch(0.745 0.03 295);
   --accent: oklch(0.186 0.033 300);
-  --accent-foreground: oklch(0.9 0.03 295);
   --selected: color-mix(in oklab, var(--primary) 22%, transparent);
   --destructive: oklch(0.78 0.14 5);
   --destructive-foreground: oklch(0.19 0.02 5);
@@ -300,9 +285,6 @@
   --chart-5: oklch(0.78 0.08 215);
   --panel: oklch(0.199 0.031 300);
   --well: oklch(0.176 0.028 300);
-  --radius: 0.5rem;
-  --elevation-hsl: 310 40% 5%;
-  --elevation-strength: 1.1;
 
   /* Plum keywords, jade strings and rose constants on the blush/plum surfaces. */
   --syntax-plain: oklch(0.9 0.025 295);
@@ -315,10 +297,6 @@
   --syntax-function: oklch(0.79 0.12 250);
   --syntax-type: oklch(0.81 0.11 125);
   --syntax-property: oklch(0.84 0.12 80);
-  --syntax-added: oklch(0.83 0.09 175);
-  --syntax-removed: oklch(0.78 0.14 5);
-  --syntax-changed: oklch(0.85 0.13 80);
-  --syntax-link: oklch(0.83 0.08 215);
 }
 
 /* Solar: deep teal slate on the Solarized accent family. Cool and precise
@@ -330,15 +308,12 @@
   --background: oklch(0.952 0.02 190);
   --foreground: oklch(0.4 0.03 200);
   --card: oklch(0.932 0.021 190);
-  --card-foreground: oklch(0.4 0.03 200);
   --popover: oklch(0.975 0.014 190);
-  --popover-foreground: oklch(0.4 0.03 200);
   --primary: oklch(0.5 0.13 248);
   --primary-foreground: oklch(1 0 0);
   --muted: oklch(0.903 0.024 190);
   --muted-foreground: oklch(0.525 0.03 200);
   --accent: oklch(0.891 0.026 190);
-  --accent-foreground: oklch(0.4 0.03 200);
   --selected: color-mix(in oklab, var(--primary) 14%, transparent);
   --destructive: oklch(0.478 0.165 28);
   --destructive-foreground: oklch(1 0 0);
@@ -360,9 +335,6 @@
   --chart-5: oklch(0.5 0.15 340);
   --panel: oklch(0.922 0.022 190);
   --well: oklch(0.905 0.024 190);
-  --radius: 0.25rem;
-  --elevation-hsl: 195 35% 30%;
-  --elevation-strength: 0;
 
   /* Olive keywords, teal strings and blue functions against the cool slate. */
   --syntax-plain: oklch(0.35 0.025 200);
@@ -375,10 +347,6 @@
   --syntax-function: oklch(0.45 0.14 255);
   --syntax-type: oklch(0.46 0.14 35);
   --syntax-property: oklch(0.47 0.12 80);
-  --syntax-added: oklch(0.458 0.115 125);
-  --syntax-removed: oklch(0.478 0.165 28);
-  --syntax-changed: oklch(0.472 0.115 80);
-  --syntax-link: oklch(0.452 0.09 190);
 }
 
 :root[data-theme="solar"].dark,
@@ -386,15 +354,12 @@
   --background: oklch(0.269 0.045 205);
   --foreground: oklch(0.865 0.025 200);
   --card: oklch(0.299 0.046 205);
-  --card-foreground: oklch(0.865 0.025 200);
   --popover: oklch(0.319 0.047 205);
-  --popover-foreground: oklch(0.865 0.025 200);
   --primary: oklch(0.72 0.12 245);
   --primary-foreground: oklch(0.2 0.03 205);
   --muted: oklch(0.227 0.043 205);
   --muted-foreground: oklch(0.705 0.03 200);
   --accent: oklch(0.216 0.044 205);
-  --accent-foreground: oklch(0.865 0.025 200);
   --selected: color-mix(in oklab, var(--primary) 22%, transparent);
   --destructive: oklch(0.855 0.15 25);
   --destructive-foreground: oklch(0.19 0.02 25);
@@ -416,9 +381,6 @@
   --chart-5: oklch(0.78 0.14 340);
   --panel: oklch(0.229 0.044 205);
   --well: oklch(0.206 0.042 205);
-  --radius: 0.25rem;
-  --elevation-hsl: 200 45% 4%;
-  --elevation-strength: 0;
 
   /* Olive keywords, teal strings and blue functions against the cool slate. */
   --syntax-plain: oklch(0.88 0.025 200);
@@ -431,10 +393,6 @@
   --syntax-function: oklch(0.79 0.14 255);
   --syntax-type: oklch(0.81 0.14 35);
   --syntax-property: oklch(0.84 0.12 80);
-  --syntax-added: oklch(0.8 0.14 120);
-  --syntax-removed: oklch(0.855 0.15 25);
-  --syntax-changed: oklch(0.84 0.13 85);
-  --syntax-link: oklch(0.82 0.1 185);
 }
 
 /* Midnight: near-black, maximal contrast for low-light work. Near-square
@@ -445,15 +403,12 @@
   --background: oklch(0.995 0.001 265);
   --foreground: oklch(0.175 0.008 265);
   --card: oklch(0.972 0.002 265);
-  --card-foreground: oklch(0.16 0.008 265);
   --popover: oklch(1 0 265);
-  --popover-foreground: oklch(0.175 0.008 265);
   --primary: oklch(0.52 0.163 40);
   --primary-foreground: oklch(1 0 0);
   --muted: oklch(0.945 0.003 265);
   --muted-foreground: oklch(0.42 0.012 265);
   --accent: oklch(0.925 0.006 265);
-  --accent-foreground: oklch(0.175 0.008 265);
   --selected: color-mix(in oklab, var(--primary) 14%, transparent);
   --destructive: oklch(0.45 0.183 27);
   --destructive-foreground: oklch(1 0 0);
@@ -475,9 +430,6 @@
   --chart-5: oklch(0.5 0.15 20);
   --panel: oklch(0.955 0.003 265);
   --well: oklch(0.94 0.003 265);
-  --radius: 0.125rem;
-  --elevation-hsl: 0 0% 0%;
-  --elevation-strength: 0;
 
   /* Cool violet/blue accents with crisp neutrals and stronger text contrast. */
   --syntax-plain: oklch(0.175 0.008 265);
@@ -490,10 +442,6 @@
   --syntax-function: oklch(0.42 0.15 250);
   --syntax-type: oklch(0.41 0.1 200);
   --syntax-property: oklch(0.44 0.12 85);
-  --syntax-added: oklch(0.42 0.115 150);
-  --syntax-removed: oklch(0.45 0.183 27);
-  --syntax-changed: oklch(0.44 0.095 70);
-  --syntax-link: oklch(0.44 0.14 254);
 }
 
 :root[data-theme="midnight"].dark,
@@ -501,15 +449,12 @@
   --background: oklch(0.145 0.005 265);
   --foreground: oklch(0.972 0.003 265);
   --card: oklch(0.185 0.006 265);
-  --card-foreground: oklch(0.985 0.003 265);
   --popover: oklch(0.205 0.007 265);
-  --popover-foreground: oklch(0.972 0.003 265);
   --primary: oklch(0.78 0.145 62);
   --primary-foreground: oklch(0.16 0.008 62);
   --muted: oklch(0.175 0.006 265);
   --muted-foreground: oklch(0.79 0.01 265);
   --accent: oklch(0.245 0.009 265);
-  --accent-foreground: oklch(0.985 0.003 265);
   --selected: color-mix(in oklab, var(--primary) 18%, transparent);
   --destructive: oklch(0.75 0.145 25.5);
   --destructive-foreground: oklch(0.14 0.005 25.5);
@@ -531,9 +476,6 @@
   --chart-5: oklch(0.72 0.15 20);
   --panel: oklch(0.118 0.005 265);
   --well: oklch(0.105 0.004 265);
-  --radius: 0.125rem;
-  --elevation-hsl: 0 0% 0%;
-  --elevation-strength: 0;
 
   /* Cool violet/blue accents with crisp neutrals and stronger text contrast. */
   --syntax-plain: oklch(0.972 0.003 265);
@@ -546,10 +488,6 @@
   --syntax-function: oklch(0.83 0.12 250);
   --syntax-type: oklch(0.86 0.1 200);
   --syntax-property: oklch(0.88 0.12 85);
-  --syntax-added: oklch(0.86 0.12 150);
-  --syntax-removed: oklch(0.84 0.13 27);
-  --syntax-changed: oklch(0.88 0.12 70);
-  --syntax-link: oklch(0.85 0.12 254);
 }
 
 /* Control heights. A non-inline @theme keeps the utilities (`h-control`,
@@ -558,12 +496,6 @@
 @theme {
   --spacing-control: 1.75rem;
   --spacing-control-sm: 1.5rem;
-}
-
-/* Every tab row (editor, dock, Tabs) shares one track shade a short step under
- * the content it opens onto; an active tab takes the content surface. */
-:root {
-  --chrome-track: color-mix(in oklab, var(--muted) 45%, var(--card));
 }
 
 @media (pointer: coarse) {
@@ -590,6 +522,8 @@
   --color-well: var(--well);
   --color-panel: var(--panel);
   --color-chrome-track: var(--chrome-track);
+  --color-hover: var(--hover);
+  --color-input-background: var(--input-background);
   --color-chart-5: var(--chart-5);
   --color-chart-4: var(--chart-4);
   --color-chart-3: var(--chart-3);

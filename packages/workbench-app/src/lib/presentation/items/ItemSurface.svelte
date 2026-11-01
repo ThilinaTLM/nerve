@@ -57,16 +57,18 @@ let {
 const surfaceClass = $derived(
   cn(
     "flex min-w-0 rounded-md transition-colors",
-    tone === "card" && "bg-accent/60 dark:bg-accent/35",
-    hover === "soft" && "hover:bg-accent/80 dark:hover:bg-accent/40",
-    hover === "row" && "hover:bg-accent/55",
-    hover === "default" && "hover:bg-accent/90 dark:hover:bg-accent/60",
+    tone === "card" && "bg-accent/60",
+    hover === "soft" && "hover:bg-hover",
+    hover === "row" && "hover:bg-hover",
+    hover === "default" && "hover:bg-hover",
+    // Filled card surfaces step to the opaque accent instead of a translucent overlay.
+    tone === "card" && hover !== "none" && "hover:bg-accent",
     // A clickable surface is clickable across its padding too.
     onclick && "cursor-pointer",
-    focusWithin && "focus-within:bg-accent/90 dark:focus-within:bg-accent/60",
+    focusWithin && "focus-within:bg-hover",
     // Selection wins over both tones and any hover step.
     selected &&
-      "bg-selected font-medium text-foreground hover:bg-selected focus-within:bg-selected dark:bg-selected dark:hover:bg-selected dark:focus-within:bg-selected",
+      "bg-selected font-medium text-foreground hover:bg-selected focus-within:bg-selected",
     className,
   ),
 );

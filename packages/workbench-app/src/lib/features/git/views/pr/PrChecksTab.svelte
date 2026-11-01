@@ -67,7 +67,7 @@ function duration(run: GithubCheckRun): string {
 </script>
 
 {#snippet row(run: GithubCheckRun, group: CheckGroupStatus)}
-  <li class="group/row flex items-start gap-2.5 px-3 py-2 hover:bg-accent/40">
+  <li class="group/row flex items-start gap-2.5 px-3 py-2 hover:bg-hover">
     <span class="flex h-5 items-center">
       {#if group === "running"}
         <Spinner class="size-3.5 text-warning" />

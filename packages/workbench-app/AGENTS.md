@@ -20,6 +20,27 @@ Application `*Host` components are state/effect adapters around canonical featur
   global `foreground` / `muted-foreground`; they deliberately have no foreground
   tokens of their own. Never reach for a surface to get a shade you like — pick
   the one that matches the role.
+- **Themes own colour only.** Radius, elevation strength and shadow recipes
+  are global; a theme block sets colours and nothing else, and the
+  `card`/`popover`/`accent` foregrounds and the syntax diff/link roles are
+  aliases of `foreground` and the status tokens. A component that looks right in
+  one theme must look right in all of them.
+- **No `dark:` utilities** (enforced by the style-policy check in `ui-kit` and
+  `workbench-app`). Mode differences live in token values so previews and
+  portalled content resolve them correctly. Use `bg-input-background` for
+  field fills (transparent in light, a faint lift in dark) and one
+  `aria-invalid` ring/border alpha that works in both modes.
+- **Neutral hover is `hover:bg-hover`** (`--hover`, a translucent foreground
+  overlay that works on any surface). Do not hand-roll opacity recipes such as
+  `hover:bg-accent/50` or `hover:bg-muted/60`; keep opaque `accent`/`muted`
+  fills for resting or pressed states, and semantic tints (`destructive/…`)
+  where the meaning is not neutral.
+- **Quiet fills** (`muted`, `accent`) are meant to sit beyond the surface
+  ladder on the foreground side so they stay visible on every surface (dark:
+  `popover < muted < accent`; light: `accent < muted < well`). Those values
+  land with the Nerve refresh; until then do not rely on them being lighter or
+  darker than a given surface in dark mode, and prefer `bg-hover` or
+  `bg-selected` for interaction states.
 - **Status colour has one vocabulary**: `neutral`, `accent`, `info`, `success`,
   `warning`, `destructive` (`StatusTone` in `@nervekit/ui-kit/display/status`).
   `StatusDot`, `Badge`, `ProgressRing`, `PanelRow`, `PanelBanner`, and the
@@ -43,8 +64,8 @@ Application `*Host` components are state/effect adapters around canonical featur
   (optional quiet caption `text-xs font-medium text-muted-foreground`, no hover
   or icon; items `text-sm` with a lucide icon, muted until active) and a
   `SettingsScopeHeader` (User settings, or project name and path) separated by a
-  rule. The active item is `bg-selected font-medium`: `muted`/`accent` are
-  darker than `panel` in dark themes and disappear. Never reuse a group title as
+  rule. The active item is `bg-selected font-medium`, a persistent state
+  that should not depend on the quiet fills. Never reuse a group title as
   an item name.
 - **Settings sections are surfaces.** `SettingsSection` draws its body as a
   bordered `card` (`rounded-lg`) with the heading outside, above it; the
@@ -224,7 +245,9 @@ src/styles/
                    #   (composer.css, panel.css, shell.css)
 ```
 
-- Design tokens (`:root`/`.dark` + `@theme inline`) live ONLY in
+- Design tokens (`:root`/`.dark` + `@theme inline`; derived tokens such as
+  `--hover`, `--input-background` and `--chrome-track` are declared on
+  `:root, [data-theme-preview]` so previews re-resolve them) live ONLY in
   `packages/ui-kit/src/styles/theme.css`; never redefine them here.
 - Keyframes belong in `packages/ui-kit/src/styles/animation.css` (never in a
   component).

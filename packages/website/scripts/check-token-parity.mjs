@@ -6,7 +6,6 @@ export const sharedThemeTokens = Object.freeze([
   "background",
   "foreground",
   "card",
-  "card-foreground",
   "muted",
   "muted-foreground",
   "primary",

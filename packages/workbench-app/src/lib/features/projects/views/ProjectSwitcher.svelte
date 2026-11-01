@@ -240,7 +240,7 @@ function useSystemPicker() {
       >
         <Button
           variant="ghost"
-          class={`w-full min-w-0 gap-1.5 rounded-md bg-transparent px-2 hover:bg-transparent dark:hover:bg-transparent ${active ? "text-foreground data-[active]:bg-transparent" : "text-muted-foreground hover:text-foreground"}`}
+          class={`w-full min-w-0 gap-1.5 rounded-md bg-transparent px-2 hover:bg-transparent ${active ? "text-foreground data-[active]:bg-transparent" : "text-muted-foreground hover:text-foreground"}`}
           pressed={active}
           aria-current={active ? "page" : undefined}
           ariaLabel={tabLabel(item)}

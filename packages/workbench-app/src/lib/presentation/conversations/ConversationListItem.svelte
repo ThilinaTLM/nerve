@@ -114,7 +114,7 @@ const titleSegments = $derived(
   {onMenuOpenChange}
   class={cn(
     "mx-1 my-0.5 flex-col rounded-md px-2.5 py-2 font-normal",
-    !isActive && "hover:bg-accent/40",
+    !isActive && "hover:bg-hover",
   )}
   onclick={() => onOpenConversation?.(conversation.id)}
 >

@@ -34,7 +34,7 @@ const hasAmount = $derived(amount !== undefined);
 
 <div
   class={cn(
-    "flex items-center gap-2 px-2 py-1.5 transition-colors hover:bg-accent/40",
+    "flex items-center gap-2 px-2 py-1.5 transition-colors hover:bg-hover",
     checked && "bg-selected hover:bg-selected",
   )}
 >
