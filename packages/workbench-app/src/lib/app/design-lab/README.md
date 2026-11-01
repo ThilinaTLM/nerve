@@ -21,7 +21,7 @@ A fresh checkout shows an empty index until you create a prototype. The runner a
 
 Reuse official `@nervekit/ui-kit` controls, `$lib/presentation` components, and feature-owned stateless views where appropriate. Follow the workbench styling rules: theme-token utilities, shared control sizes, and existing panel/card anatomy. Keep fixtures and interaction state local. Do not mount application hosts, start polling, or call mutation APIs. Promote reusable improvements into their owning production component, not a lab-only copy.
 
-The component catalog remains curated documentation of actual application UI; speculative compositions belong in wireframes.
+The component catalog remains curated documentation of actual application UI, showing only the components and variants in use. The Foundations → Primitives page is the exception: it is a reference for every `ui-kit` primitive with its full variant × size × state matrix. Every specimen has a **Compare** toggle that renders it across all themes in light and dark. `section-coverage.test.ts` fails when a `ui-kit` `ui/*` or `composites/*` component is not imported by any section. Speculative compositions belong in wireframes.
 
 ## Production boundary
 

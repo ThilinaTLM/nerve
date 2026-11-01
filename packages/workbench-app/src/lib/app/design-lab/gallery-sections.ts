@@ -19,8 +19,10 @@ export const GALLERY_GROUPS: readonly GalleryGroup[] = [
 
 /**
  * The gallery mirrors the real desktop workbench: one page per IDE area,
- * showing only the components and variants the app actually renders.
- * Sections are lazy so heavy renderers only load when opened.
+ * showing only the components and variants the app actually renders. The
+ * Primitives page is the exception: it is a reference for every ui-kit
+ * primitive with its full variant × size matrix. Sections are lazy so heavy
+ * renderers only load when opened.
  */
 export const GALLERY_SECTIONS: readonly GallerySectionEntry[] = [
   {
@@ -30,6 +32,14 @@ export const GALLERY_SECTIONS: readonly GallerySectionEntry[] = [
     summary:
       "Surface ladder, status tones, and the radius and elevation values in use.",
     load: () => import("./sections/TokensSection.svelte"),
+  },
+  {
+    id: "primitives",
+    title: "Primitives",
+    group: "Foundations",
+    summary:
+      "Every ui-kit primitive with its variants, sizes, and prop-driven states (reference; not limited to variants in use).",
+    load: () => import("./sections/PrimitivesSection.svelte"),
   },
   {
     id: "typography",
@@ -45,6 +55,14 @@ export const GALLERY_SECTIONS: readonly GallerySectionEntry[] = [
     summary:
       "Buttons, badges, fields, toggles, switches, and status indicators — only the variants in use.",
     load: () => import("./sections/ControlsSection.svelte"),
+  },
+  {
+    id: "composites",
+    title: "Composites",
+    group: "Shared",
+    summary:
+      "ScrollRegion, VirtualScroller, FloatingToolbar, StreamingText, HeightFollow, SelectRow, GithubMark, and the Markdown, Mermaid and plain-text renderers.",
+    load: () => import("./sections/CompositesSection.svelte"),
   },
   {
     id: "overlays",
