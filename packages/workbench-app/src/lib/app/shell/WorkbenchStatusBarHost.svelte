@@ -102,4 +102,5 @@ const dockToggles = $derived<DockToggle[]>(
   {dockToggles}
   phone={isPhone}
   onZoomLevelChange={setUiZoomLevel}
+  onCancelMaintenance={() => void maintenance.cancel()}
 />

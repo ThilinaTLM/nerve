@@ -22,9 +22,10 @@ type Props = {
   usages?: SubscriptionUsageEntry[];
   /** Phone widths: show only the most-used window, without the reset time. */
   compact?: boolean;
+  open?: boolean;
 };
 
-let { usages = [], compact = false }: Props = $props();
+let { usages = [], compact = false, open = $bindable(false) }: Props = $props();
 
 function windowReset(
   window: SubscriptionWindow | null | undefined,
@@ -178,6 +179,7 @@ const title = $derived.by(() => {
 
 {#if triggerEntry}
   <Popover
+    bind:open
     size="md"
     triggerClass={STATUS_BAR_CHIP_BUTTON}
     ariaLabel="Open subscription usage details"

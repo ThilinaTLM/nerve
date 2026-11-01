@@ -18,6 +18,7 @@ type Props = {
   side?: "top" | "bottom";
   /** Phone widths: show the dot alone; the popover carries the detail. */
   compact?: boolean;
+  open?: boolean;
 };
 
 let {
@@ -26,6 +27,7 @@ let {
   status,
   side = "top",
   compact = false,
+  open = $bindable(false),
 }: Props = $props();
 
 const connectionTone = $derived<StatusTone>(
@@ -53,6 +55,7 @@ const uptime = $derived.by(() => {
 </script>
 
 <Popover
+  bind:open
   size="sm"
   triggerClass={STATUS_BAR_CHIP_BUTTON}
   ariaLabel="Open daemon status"

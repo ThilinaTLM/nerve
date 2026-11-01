@@ -7,7 +7,7 @@ import {
   parseOklch,
   resolveThemeToken,
   sameOklch,
-} from "../theme-resolver.mjs";
+} from "../../../packages/ui-kit/src/styles/theme-resolver.mjs";
 
 /* Standalone documents (daemon setup pages, conversation exports, the Electron
  * loading window) cannot import the ui-kit stylesheet, so they mirror the Nerve

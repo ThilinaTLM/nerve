@@ -12,19 +12,15 @@ import NotebookIcon from "@lucide/svelte/icons/notebook";
 import SettingsIcon from "@lucide/svelte/icons/settings";
 import SquareTerminalIcon from "@lucide/svelte/icons/square-terminal";
 import type { MaintenanceOperation } from "@nervekit/contracts/maintenance";
-import { Badge } from "@nervekit/ui-kit/components/ui/badge";
+import type { Attachment } from "svelte/attachments";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
-import {
-  PopoverBody,
-  PopoverHeader,
-  PopoverMeter,
-  PopoverProperties,
-  PopoverProperty,
-  PopoverSection,
-} from "@nervekit/ui-kit/components/composites/popover-panel";
 import { StatusDot } from "@nervekit/ui-kit/components/composites/status-dot";
 import DiscoverView from "$lib/app/discover/components/DiscoverView.svelte";
+import LayoutControl from "$lib/app/shell/LayoutControl.svelte";
+import MaintenanceStatus from "$lib/app/shell/MaintenanceStatus.svelte";
 import StatusBar from "$lib/app/shell/StatusBar.svelte";
+import StatusPopover from "$lib/app/shell/StatusPopover.svelte";
+import { SubscriptionUsageChip } from "$lib/features/usage";
 import Titlebar from "$lib/app/shell/Titlebar.svelte";
 import ActivityPopover from "$lib/presentation/activity/ActivityPopover.svelte";
 import NerveMark from "$lib/presentation/brand/NerveMark.svelte";
@@ -298,6 +294,19 @@ const baseOperation = {
   warnings: [],
 } as const satisfies MaintenanceOperation;
 
+const runningOperation: MaintenanceOperation = {
+  ...baseOperation,
+  warnings: [],
+  currentItem: {
+    conversationId: "conv_01HZYABCDEF",
+    title:
+      "Refactor session store and a very long conversation title that truncates",
+    stage: "tool_projections",
+    removedRows: 18420,
+    detachedLinks: 2,
+  },
+};
+
 const operations: { title: string; operation: MaintenanceOperation }[] = [
   {
     title: "Preparing (indeterminate)",
@@ -312,21 +321,7 @@ const operations: { title: string; operation: MaintenanceOperation }[] = [
       warnings: [],
     },
   },
-  {
-    title: "Running with current item",
-    operation: {
-      ...baseOperation,
-      warnings: [],
-      currentItem: {
-        conversationId: "conv_01HZYABCDEF",
-        title:
-          "Refactor session store and a very long conversation title that truncates",
-        stage: "tool_projections",
-        removedRows: 18420,
-        detachedLinks: 2,
-      },
-    },
-  },
+  { title: "Running with current item", operation: runningOperation },
   {
     title: "Failed",
     operation: {
@@ -340,6 +335,28 @@ const operations: { title: string; operation: MaintenanceOperation }[] = [
   },
 ];
 let mobileActionsOpen = $state(false);
+
+// The status popovers and the maintenance chip show their real panels open
+// without a click. Open panels portal to the page body, so they open only
+// while their frame is fully on screen: off-screen they would stretch the
+// page, and they would trail their chips out of the catalog as it scrolls.
+let usageOpen = $state(false);
+let layoutOpen = $state(false);
+let daemonOpen = $state(false);
+let maintenanceOpen = $state(false);
+
+function openWhileVisible(
+  setOpen: (open: boolean) => void,
+): Attachment<HTMLElement> {
+  return (frame) => {
+    const observer = new IntersectionObserver(
+      ([entry]) => setOpen(entry?.isIntersecting ?? false),
+      { threshold: 0.95 },
+    );
+    observer.observe(frame);
+    return () => observer.disconnect();
+  };
+}
 </script>
 
 <div class="flex flex-col gap-10">
@@ -472,21 +489,39 @@ let mobileActionsOpen = $state(false);
 
     <GallerySpecimen
       title="Status popovers"
-      source="composites/popover-panel"
-      usage="17 files · composer, shell, settings, git, projects"
-      description="Usage (md), layout (sm) and daemon (sm) panels as opened from the status bar. Static replicas of the open state: the real chips own their popover state, so open them from the status bar above to see the real panels."
+      source="features/usage/SubscriptionUsageChip · app/shell/LayoutControl · app/shell/StatusPopover"
+      usage="2 files · shell, mobile"
+      description="The real status-bar chips with their panels open: usage (md), layout (sm) and daemon (sm) rise from their chips while this frame is on screen. Clicking outside closes them; click a chip to reopen."
       surface="panel"
       layout="bare"
     >
-      <div class="flex flex-wrap items-start gap-6">
-        <div class="floating-surface popover-content popover-md">
-          {@render usagePanel()}
+      <div
+        class="flex min-h-104 flex-wrap items-end justify-center gap-4 rounded-md border bg-panel p-2"
+        {@attach openWhileVisible((open) => {
+          usageOpen = open;
+          layoutOpen = open;
+          daemonOpen = open;
+        })}
+      >
+        <!-- Each slot is as wide as its panel, which opens end-aligned. -->
+        <div class="flex w-80 justify-end">
+          <SubscriptionUsageChip usages={labUsages} bind:open={usageOpen} />
         </div>
-        <div class="floating-surface popover-content popover-md">
-          {@render layoutPanel()}
+        <div class="flex w-64 justify-end">
+          <LayoutControl
+            {zoomLevel}
+            {dockToggles}
+            onZoomLevelChange={(level) => (zoomLevel = level)}
+            bind:open={layoutOpen}
+          />
         </div>
-        <div class="floating-surface popover-content popover-sm">
-          {@render daemonPanel()}
+        <div class="flex w-64 justify-end">
+          <StatusPopover
+            connection="connected"
+            live
+            status={labStatus}
+            bind:open={daemonOpen}
+          />
         </div>
       </div>
     </GallerySpecimen>
@@ -620,6 +655,26 @@ let mobileActionsOpen = $state(false);
             />
           </div>
         {/each}
+      </div>
+    </GallerySpecimen>
+
+    <GallerySpecimen
+      title="MaintenanceStatus"
+      source="app/shell/MaintenanceStatus"
+      usage="2 files · shell, mobile"
+      description="The status-bar chip for a running cleanup (3/12 items), open on its real progress panel while this frame is on screen. Cancel is a no-op."
+      surface="panel"
+      layout="bare"
+    >
+      <div
+        class="flex min-h-88 items-end justify-center rounded-md border bg-panel p-2"
+        {@attach openWhileVisible((open) => (maintenanceOpen = open))}
+      >
+        <MaintenanceStatus
+          operation={runningOperation}
+          onCancel={noop}
+          bind:open={maintenanceOpen}
+        />
       </div>
     </GallerySpecimen>
 
@@ -781,64 +836,6 @@ let mobileActionsOpen = $state(false);
     {dockToggles}
     onZoomLevelChange={(level) => (zoomLevel = level)}
   />
-{/snippet}
-
-{#snippet usagePanel()}
-  <PopoverHeader title="Subscription usage" meta="Updated 07:28 PM" />
-  <PopoverBody>
-    <PopoverSection label="Anthropic">
-      <PopoverMeter
-        label="Session"
-        value="38%"
-        percent={38}
-        caption="resets in 4h"
-      />
-      <PopoverMeter
-        label="Weekly"
-        value="21%"
-        percent={21}
-        caption="resets in 5d 11h"
-      />
-    </PopoverSection>
-    <PopoverSection label="Codex · prolite" separated>
-      {#snippet action()}<Badge variant="neutral">Active</Badge>{/snippet}
-      <PopoverMeter
-        label="Weekly"
-        value="22%"
-        percent={22}
-        caption="resets in 5d 15h"
-      />
-    </PopoverSection>
-  </PopoverBody>
-{/snippet}
-
-{#snippet layoutPanel()}
-  <PopoverHeader title="Layout" meta="Zoom 100%" />
-  <PopoverBody>
-    <PopoverSection label="Panels">
-      <PopoverProperties>
-        <PopoverProperty label="Left Panel" value="Ctrl+B" />
-        <PopoverProperty label="Right Panel" value="Ctrl+Alt+B" />
-      </PopoverProperties>
-    </PopoverSection>
-  </PopoverBody>
-{/snippet}
-
-{#snippet daemonPanel()}
-  <PopoverHeader title="Nerve daemon" meta="v0.34.1" />
-  <PopoverBody>
-    <PopoverProperties>
-      <PopoverProperty label="Uptime" value="1h 26m" />
-      <PopoverProperty label="Index">
-        <Badge variant="success">Healthy</Badge>
-      </PopoverProperty>
-      <PopoverProperty
-        label="Data dir"
-        value="/home/tlm/Projects/nerve/data/storage-1"
-        title="Data directory"
-      />
-    </PopoverProperties>
-  </PopoverBody>
 {/snippet}
 
 {#snippet panelBody(viewId: string)}

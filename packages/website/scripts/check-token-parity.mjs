@@ -1,6 +1,11 @@
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import {
+  declarationOf,
+  themeBlock,
+  themeLookup,
+} from "../../ui-kit/src/styles/theme-resolver.mjs";
 
 /* The website follows ui-kit's token model (see the header of ui-kit's
  * theme.css): a theme is a few colour inputs, and the rest is derived by shared
@@ -42,35 +47,17 @@ export function compareTokenParity(uiKitCss, websiteCss) {
     uiKitCss,
     /:root,\s*\[data-theme-preview\]\s*\{/,
   );
-  const modeDefaults = {
-    light: [
-      declarationsAt(uiKitCss, /:where\(:root, \[data-theme-preview\]\)\s*\{/),
-      shared,
-    ],
-    dark: [
-      declarationsAt(
-        uiKitCss,
-        /\n\.dark,\s*\[data-theme-preview\]\[data-color-mode="dark"\]\s*\{/,
-      ),
-      declarationsAt(
-        uiKitCss,
-        /:where\(\.dark, \[data-theme-preview\]\[data-color-mode="dark"\]\)\s*\{/,
-      ),
-      shared,
-    ],
-  };
   const failures = [];
 
-  for (const [mode, uiSelector, websiteSelector] of [
-    ["light", ':root[data-theme="nerve-light"]', ':root[data-theme="light"]'],
-    ["dark", ':root[data-theme="nerve-dark"]', ':root[data-theme="dark"]'],
+  for (const [mode, uiTheme, websiteSelector] of [
+    ["light", "nerve-light", ':root[data-theme="light"]'],
+    ["dark", "nerve-dark", ':root[data-theme="dark"]'],
   ]) {
-    const uiTheme = themeDeclarations(uiKitCss, uiSelector);
     const website = themeDeclarations(websiteCss, websiteSelector);
-    const resolveUi = (token) =>
-      [uiTheme, ...modeDefaults[mode]]
-        .map((declarations) => declarations.get(token))
-        .find((value) => value !== undefined);
+    const uiBlock = themeBlock(uiKitCss, uiTheme);
+    const uiInput = (token) => normalizeOptional(declarationOf(uiBlock, token));
+    const lookupUi = themeLookup(uiKitCss, uiTheme);
+    const resolveUi = (token) => normalizeOptional(lookupUi(token));
     const report = (token, expected, actual) => {
       if (expected !== actual)
         failures.push(
@@ -79,7 +66,7 @@ export function compareTokenParity(uiKitCss, websiteCss) {
     };
 
     for (const token of sharedInputTokens)
-      report(token, uiTheme.get(token), website.get(token));
+      report(token, uiInput(token), website.get(token));
     for (const token of sharedStepTokens)
       report(token, resolveUi(token), website.get(token));
     for (const token of sharedRecipeTokens)
@@ -110,6 +97,10 @@ function declarationsFrom(css, blockStart) {
     .matchAll(/--([a-z0-9-]+)\s*:\s*([^;]+);/g))
     declarations.set(match[1], normalizeValue(match[2]));
   return declarations;
+}
+
+function normalizeOptional(value) {
+  return value === undefined ? undefined : normalizeValue(value);
 }
 
 function normalizeValue(value) {

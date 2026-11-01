@@ -55,6 +55,7 @@ type Props = {
   dockToggles?: DockToggle[];
   phone?: boolean;
   onZoomLevelChange?: (level: number) => void;
+  onCancelMaintenance?: () => void;
 };
 
 let {
@@ -73,6 +74,7 @@ let {
   dockToggles = [],
   phone = false,
   onZoomLevelChange,
+  onCancelMaintenance,
 }: Props = $props();
 
 const activeLaunches = $derived(
@@ -211,7 +213,10 @@ function gitStatusTitle(status: GitStatus): string {
       data-tour-id="status-controls"
     >
       {#if maintenanceOperation}
-        <MaintenanceStatus operation={maintenanceOperation} />
+        <MaintenanceStatus
+          operation={maintenanceOperation}
+          onCancel={() => onCancelMaintenance?.()}
+        />
       {/if}
 
       <SubscriptionUsageChip usages={subscriptionUsages} compact={phone} />

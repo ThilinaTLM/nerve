@@ -6,9 +6,16 @@ import Popover, {
 } from "@nervekit/ui-kit/components/composites/popover-panel";
 import { Spinner } from "@nervekit/ui-kit/components/ui/spinner";
 import MaintenanceProgressView from "$lib/presentation/maintenance/MaintenanceProgressView.svelte";
-import { maintenance } from "$lib/application/maintenance/maintenance-state.svelte";
 import { STATUS_BAR_CHIP_BUTTON } from "$lib/presentation/shell";
-let { operation }: { operation: MaintenanceOperation } = $props();
+let {
+  operation,
+  open = $bindable(false),
+  onCancel,
+}: {
+  operation: MaintenanceOperation;
+  open?: boolean;
+  onCancel: () => void;
+} = $props();
 const label = $derived(
   operation.totalItems === undefined
     ? "Cleanup in progress"
@@ -17,6 +24,7 @@ const label = $derived(
 </script>
 
 <Popover
+  bind:open
   size="lg"
   side="top"
   align="end"
@@ -33,9 +41,6 @@ const label = $derived(
 
   <PopoverHeader title="Maintenance" />
   <PopoverBody>
-    <MaintenanceProgressView
-      {operation}
-      onCancel={() => void maintenance.cancel()}
-    />
+    <MaintenanceProgressView {operation} {onCancel} />
   </PopoverBody>
 </Popover>
