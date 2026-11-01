@@ -38,7 +38,7 @@ describe("desktop main window", () => {
           options = value;
           return window;
         },
-        shouldUseDarkColors: () => true,
+        windowAppearance: () => ({ background: "#272521", dark: true }),
         resolveAppIconPath: () => "/test/icon.png",
         resolvePreloadPath: () => "/test/preload.cjs",
         platform: "linux",
@@ -58,6 +58,7 @@ describe("desktop main window", () => {
     assert.equal(options?.webPreferences?.nodeIntegration, false);
     assert.equal(options?.icon, "/test/icon.png");
     assert.equal(options?.webPreferences?.preload, "/test/preload.cjs");
+    assert.equal(options?.backgroundColor, "#272521");
     assert.equal(options?.title, "Nerve");
     assert.equal(options?.webPreferences?.additionalArguments, undefined);
     assert.equal(navigationInstalled, 1);
@@ -93,7 +94,7 @@ describe("desktop main window", () => {
           options = value;
           return window;
         },
-        shouldUseDarkColors: () => false,
+        windowAppearance: () => ({ background: "#faf8f1", dark: false }),
         resolveAppIconPath: () => "/test/icon.png",
         resolvePreloadPath: () => "/test/preload.cjs",
         platform: "linux",
@@ -103,6 +104,7 @@ describe("desktop main window", () => {
         installNavigationGuards: () => undefined,
       },
     );
+    assert.equal(options?.backgroundColor, "#faf8f1");
     assert.equal(options?.title, "Nerve (Dev 3)");
     assert.deepEqual(options?.webPreferences?.additionalArguments, [
       "--nerve-dev-slot=3",

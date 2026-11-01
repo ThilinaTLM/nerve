@@ -32,6 +32,8 @@ import { Separator } from "@nervekit/ui-kit/components/ui/separator";
 import * as Sheet from "@nervekit/ui-kit/components/ui/sheet";
 import { Skeleton } from "@nervekit/ui-kit/components/ui/skeleton";
 import { Toaster } from "@nervekit/ui-kit/components/ui/sonner";
+import { colorThemeKind } from "@nervekit/contracts/settings";
+import { appearanceState } from "$lib/platform/appearance/appearance.svelte";
 import { Spinner } from "@nervekit/ui-kit/components/ui/spinner";
 import { Switch } from "@nervekit/ui-kit/components/ui/switch";
 import * as Tabs from "@nervekit/ui-kit/components/ui/tabs";
@@ -105,7 +107,11 @@ const rows = Array.from({ length: 14 }, (_, i) => `Row ${i + 1}`);
 
 {#if desktopRuntime.isDesktop}
   <!-- The desktop shell uses native notifications and mounts no Toaster. -->
-  <Toaster position="bottom-right" closeButton />
+  <Toaster
+    position="bottom-right"
+    closeButton
+    theme={colorThemeKind[appearanceState.theme]}
+  />
 {/if}
 
 <Tooltip.Provider>

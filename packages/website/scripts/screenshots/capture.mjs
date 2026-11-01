@@ -46,8 +46,7 @@ const themes = values.theme === "both" ? ["light", "dark"] : [values.theme];
 function themeBootstrap(mode) {
   return `
     try {
-      localStorage.setItem("nerve-color-theme", "nerve");
-      localStorage.setItem("mode-watcher-mode", ${JSON.stringify(mode)});
+      localStorage.setItem("nerve-theme", ${JSON.stringify(`nerve-${mode}`)});
       document.documentElement.classList.toggle("dark", ${mode === "dark"});
       document.documentElement.style.colorScheme = ${JSON.stringify(mode)};
     } catch {}

@@ -16,7 +16,6 @@ export type { ToolDescriptor } from "@nervekit/contracts/tools";
 export { openAiCodexImageSizeSchema } from "@nervekit/contracts/settings";
 export type {
   AtlassianProfile,
-  ColorMode,
   ColorTheme,
   ImageGenerationProvider,
   OpenAiCodexImageBackground,

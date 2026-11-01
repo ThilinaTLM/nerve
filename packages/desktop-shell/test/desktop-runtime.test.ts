@@ -53,6 +53,7 @@ describe("DesktopRuntime", () => {
           register(signal, listener),
       },
       windows: {
+        appearance: () => ({ background: "#272521", dark: true }),
         getAllWindows: () => [],
         createMainWindow: () => {
           calls.push("create-window");
@@ -113,6 +114,7 @@ describe("DesktopRuntime", () => {
       },
       signals: { onSignal: () => () => undefined },
       windows: {
+        appearance: () => ({ background: "#272521", dark: true }),
         getAllWindows: () => [window],
         createMainWindow: () => window,
       },
@@ -214,6 +216,7 @@ describe("DesktopRuntime", () => {
       },
       signals: { onSignal: () => () => undefined },
       windows: {
+        appearance: () => ({ background: "#272521", dark: true }),
         getAllWindows: () => [window],
         createMainWindow: () => window,
       },
@@ -349,6 +352,7 @@ describe("DesktopRuntime", () => {
       },
       signals: { onSignal: () => () => undefined },
       windows: {
+        appearance: () => ({ background: "#272521", dark: true }),
         getAllWindows: () => [window],
         createMainWindow: () => window,
       },
@@ -436,6 +440,7 @@ describe("DesktopRuntime", () => {
       },
       signals: { onSignal: noListener },
       windows: {
+        appearance: () => ({ background: "#272521", dark: true }),
         getAllWindows: () => [window],
         createMainWindow: () => window,
       },
@@ -550,6 +555,7 @@ describe("DesktopRuntime", () => {
           register(signal, listener),
       },
       windows: {
+        appearance: () => ({ background: "#272521", dark: true }),
         getAllWindows: () => [window],
         createMainWindow: () => window,
       },

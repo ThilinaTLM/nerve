@@ -12,8 +12,6 @@ export {
   restartOwnedDaemon,
   saveApplicationConfiguration,
   selectCenterSettingsTab,
-  setColorMode,
-  setDarkTheme,
-  setLightTheme,
+  setTheme,
   setUiZoomLevel,
 } from "./settings-actions.svelte";

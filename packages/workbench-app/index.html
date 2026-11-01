@@ -2,6 +2,8 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
+    <!-- Before the theme bootstrap, which sets it to the theme's background. -->
+    <meta name="theme-color" content="#272521" />
     <script>
       // Consumes the desktop shell hand-off parameters before anything paints:
       // the saved zoom level, and how far the shell already played the startup
@@ -58,59 +60,90 @@
       })();
     </script>
     <script>
-      // Applies the stored theme and colour mode before the stylesheet loads so
-      // the startup splash matches the workspace. Themes are independent: the
-      // resolved mode picks the light or dark theme.
+      // Applies the stored theme before the stylesheet loads so the startup
+      // splash matches the workspace. Mirrors `migrateStoredTheme` in
+      // src/lib/platform/appearance/theme-preference.ts, including the one-time
+      // migration from the light/dark/colour-mode keys.
       (() => {
+        const storage = (() => {
+          try {
+            return window.localStorage;
+          } catch {
+            return null; // The default theme applies without storage.
+          }
+        })();
         const read = (key) => {
           try {
-            return window.localStorage.getItem(key);
+            return storage?.getItem(key) ?? null;
           } catch {
-            return null; // Defaults still apply when storage is unavailable.
+            return null;
           }
         };
-        // Keep in sync with `legacyColorThemes` in contracts/settings.
-        const legacy = {
-          nerve: ["nerve-light", "nerve-dark"],
-          rose: ["nerve-light", "nerve-dark"],
-          forest: ["nerve-light", "nerve-dark"],
-          slate: ["nerve-light", "nerve-dark"],
-          solar: ["nerve-light", "graphite"],
-          ocean: ["nerve-light", "graphite"],
-          midnight: ["nerve-light", "graphite"],
-        };
-        const pair = Object.hasOwn(legacy, read("nerve-color-theme"))
-          ? legacy[read("nerve-color-theme")]
-          : [];
-        const light = ["nerve-light", "melange-light"];
-        const dark = ["nerve-dark", "graphite", "melange-dark"];
-        const pick = (stored, fallback, kind) =>
-          kind.includes(stored)
-            ? stored
-            : kind.includes(fallback)
-              ? fallback
-              : kind[0];
-        const lightTheme = pick(read("nerve-light-theme"), pair[0], light);
-        const darkTheme = pick(read("nerve-dark-theme"), pair[1], dark);
-        const mode = read("mode-watcher-mode");
-        const isDark =
-          mode === "dark" ||
-          (mode !== "light" &&
-            window.matchMedia("(prefers-color-scheme: dark)").matches);
-        document.documentElement.classList.toggle("dark", isDark);
-        const theme = isDark ? darkTheme : lightTheme;
-        document.documentElement.dataset.theme = theme;
         // Keep in sync with each theme's `--background` in ui-kit theme.css.
-        const background = {
+        const backgrounds = {
           "nerve-light": "#faf8f1",
           "nerve-dark": "#272521",
-          graphite: "#1d1a18",
           "melange-light": "#f4f0ed",
           "melange-dark": "#292522",
-        }[theme];
+          graphite: "#1d1a18",
+        };
+        const light = ["nerve-light", "melange-light"];
+        const valid = (theme) => Object.hasOwn(backgrounds, theme);
+        const migrate = () => {
+          const graphitePair = ["nerve-light", "graphite"];
+          const nervePair = ["nerve-light", "nerve-dark"];
+          const pair = {
+            nerve: nervePair,
+            rose: nervePair,
+            forest: nervePair,
+            slate: nervePair,
+            solar: graphitePair,
+            ocean: graphitePair,
+            midnight: graphitePair,
+          }[read("nerve-color-theme")];
+          const stored = (dark) => {
+            const theme =
+              read(dark ? "nerve-dark-theme" : "nerve-light-theme") ??
+              pair?.[dark ? 1 : 0];
+            return valid(theme) && light.includes(theme) !== dark
+              ? theme
+              : null;
+          };
+          const slot = (dark) =>
+            stored(dark) ?? (dark ? "nerve-dark" : "nerve-light");
+          const mode = read("mode-watcher-mode");
+          if (mode === "light" || mode === "dark") return slot(mode === "dark");
+          if (!stored(false) && !stored(true)) return "nerve-dark";
+          return slot(
+            window.matchMedia("(prefers-color-scheme: dark)").matches,
+          );
+        };
+        const saved = read("nerve-theme");
+        let theme = saved ?? migrate();
+        if (!valid(theme)) theme = "nerve-dark";
+        if (saved === null && storage) {
+          try {
+            storage.setItem("nerve-theme", theme);
+            for (const key of [
+              "nerve-light-theme",
+              "nerve-dark-theme",
+              "nerve-color-theme",
+              "mode-watcher-mode",
+              "mode-watcher-theme",
+            ])
+              storage.removeItem(key);
+          } catch {
+            // The app retries the migration on load.
+          }
+        }
+        const kind = light.includes(theme) ? "light" : "dark";
+        const root = document.documentElement;
+        root.dataset.theme = theme;
+        root.classList.toggle("dark", kind === "dark");
+        root.style.colorScheme = kind;
         document
           .querySelector('meta[name="theme-color"]')
-          ?.setAttribute("content", background);
+          ?.setAttribute("content", backgrounds[theme]);
       })();
     </script>
     <meta
@@ -121,7 +154,6 @@
     <link rel="icon" href="/favicon-32.png" sizes="32x32" type="image/png" />
     <link rel="icon" href="/favicon-16.png" sizes="16x16" type="image/png" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
-    <meta name="theme-color" content="#faf8f1" />
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta
@@ -154,8 +186,8 @@
           --splash-border: oklch(0.3848 0.01679 82.01);
         }
       }
-      /* The bootstrap script always sets data-theme from the resolved mode, so
-         each theme pins its own palette regardless of the system preference. */
+      /* The bootstrap script always sets data-theme, so each theme pins its
+         own palette regardless of the system preference. */
       :root[data-theme="nerve-light"] {
         --splash-bg: oklch(0.979 0.012 92);
         --splash-fg: oklch(0.3438 0.0269 95.7);

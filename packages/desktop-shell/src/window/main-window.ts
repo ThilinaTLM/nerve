@@ -3,7 +3,7 @@ import { DEVELOPMENT_SLOT_ARGUMENT } from "../app/development-marker.js";
 import type { BrowserWindowConstructorOptions } from "electron";
 import type { BrowserWindowType } from "../platform/electron/electron-api.js";
 import type { QuitSource } from "../app/quit-contracts.js";
-import { loadingWindowBackground } from "./loading-pages.js";
+import type { WindowAppearance } from "./window-appearance.js";
 
 export interface MainWindowCallbacks {
   daemonUrl(): string | undefined;
@@ -15,7 +15,8 @@ export interface MainWindowCallbacks {
 
 export interface MainWindowDependencies {
   createWindow(options: BrowserWindowConstructorOptions): BrowserWindowType;
-  shouldUseDarkColors(): boolean;
+  /** The last theme the renderer reported (or the default). */
+  windowAppearance(): WindowAppearance;
   resolveAppIconPath(): string;
   resolvePreloadPath(): string;
   readonly platform: NodeJS.Platform;
@@ -50,9 +51,7 @@ export function createDesktopMainWindow(
     title: developmentSlot
       ? `${DESKTOP_APP_NAME} (Dev ${developmentSlot})`
       : DESKTOP_APP_NAME,
-    backgroundColor: loadingWindowBackground(
-      dependencies.shouldUseDarkColors(),
-    ),
+    backgroundColor: dependencies.windowAppearance().background,
     ...(dependencies.platform === "darwin"
       ? {}
       : { icon: dependencies.resolveAppIconPath() }),

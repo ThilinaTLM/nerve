@@ -5,11 +5,7 @@ import {
   autoCompactionSettingsSchema,
   colorThemeKind,
   colorThemeSchema,
-  darkColorThemes,
-  defaultDarkColorTheme,
-  defaultLightColorTheme,
-  legacyColorThemes,
-  lightColorThemes,
+  defaultColorTheme,
   defaultUiConfig,
   uiConfigSchema,
   defaultSettings,
@@ -19,17 +15,12 @@ import {
 } from "../../src/domains/settings/index.js";
 
 describe("settings schema", () => {
-  it("classifies every colour theme as light or dark and maps legacy ids to a pair", () => {
+  it("classifies every colour theme as light or dark and defaults to Nerve Dark", () => {
     assert.deepEqual(
-      [...lightColorThemes, ...darkColorThemes].sort(),
+      Object.keys(colorThemeKind).sort(),
       [...colorThemeSchema.options].sort(),
     );
-    assert.equal(colorThemeKind[defaultLightColorTheme], "light");
-    assert.equal(colorThemeKind[defaultDarkColorTheme], "dark");
-    for (const pair of Object.values(legacyColorThemes)) {
-      assert.equal(colorThemeKind[pair.light], "light");
-      assert.equal(colorThemeKind[pair.dark], "dark");
-    }
+    assert.equal(defaultColorTheme, "nerve-dark");
   });
 
   it("keeps only zoom in daemon appearance and drops client preference patches", () => {

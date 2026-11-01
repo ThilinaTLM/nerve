@@ -1,5 +1,5 @@
 <script lang="ts">
-import type { ColorMode, ColorTheme, HeaderType, Settings } from "$lib/api";
+import type { ColorTheme, HeaderType, Settings } from "$lib/api";
 import {
   SettingsRow,
   SettingsSection,
@@ -7,7 +7,6 @@ import {
   SettingsToggleRow,
 } from "$lib/presentation/settings";
 import type { SettingsChange } from "../settings-change";
-import ColorModePicker from "./ColorModePicker.svelte";
 import ThemePreviewPicker from "./ThemePreviewPicker.svelte";
 import SelectField from "@nervekit/ui-kit/components/composites/select-field";
 
@@ -20,37 +19,15 @@ const headerTypeOptions = [
 
 type Props = {
   settingsDraft: Settings;
-  lightTheme: ColorTheme;
-  darkTheme: ColorTheme;
-  colorMode: ColorMode;
-  onLightThemeChange?: (theme: ColorTheme) => void;
-  onDarkThemeChange?: (theme: ColorTheme) => void;
-  onColorModeChange?: (colorMode: ColorMode) => void;
+  theme: ColorTheme;
+  onThemeChange?: (theme: ColorTheme) => void;
   onSettingsChange?: SettingsChange;
 };
 
-let {
-  settingsDraft,
-  lightTheme,
-  darkTheme,
-  colorMode,
-  onLightThemeChange,
-  onDarkThemeChange,
-  onColorModeChange,
-  onSettingsChange,
-}: Props = $props();
+let { settingsDraft, theme, onThemeChange, onSettingsChange }: Props = $props();
 
-function setLightTheme(value: string): void {
-  onLightThemeChange?.(value as ColorTheme);
-}
-
-function setDarkTheme(value: string): void {
-  onDarkThemeChange?.(value as ColorTheme);
-}
-
-function setColorMode(value: string): void {
-  const colorMode = value as ColorMode;
-  onColorModeChange?.(colorMode);
+function setTheme(value: string): void {
+  onThemeChange?.(value as ColorTheme);
 }
 
 function setHeaderType(value: string): void {
@@ -69,27 +46,8 @@ function setCloseToTray(checked: boolean): void {
 </script>
 
 <SettingsSection id="appearance" title="Appearance">
-  <SettingsRow label="Color mode" layout="stacked">
-    <ColorModePicker
-      value={colorMode}
-      {lightTheme}
-      {darkTheme}
-      onValueChange={setColorMode}
-    />
-  </SettingsRow>
-  <SettingsRow label="Light theme" layout="stacked">
-    <ThemePreviewPicker
-      kind="light"
-      value={lightTheme}
-      onValueChange={setLightTheme}
-    />
-  </SettingsRow>
-  <SettingsRow label="Dark theme" layout="stacked">
-    <ThemePreviewPicker
-      kind="dark"
-      value={darkTheme}
-      onValueChange={setDarkTheme}
-    />
+  <SettingsRow label="Theme" layout="stacked">
+    <ThemePreviewPicker value={theme} onValueChange={setTheme} />
   </SettingsRow>
 </SettingsSection>
 

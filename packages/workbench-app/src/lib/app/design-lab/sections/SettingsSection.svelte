@@ -9,14 +9,12 @@ import FolderIcon from "@lucide/svelte/icons/folder";
 import KeyRoundIcon from "@lucide/svelte/icons/key-round";
 import KeyboardIcon from "@lucide/svelte/icons/keyboard";
 import MonitorIcon from "@lucide/svelte/icons/monitor";
-import MoonIcon from "@lucide/svelte/icons/moon";
 import PencilIcon from "@lucide/svelte/icons/pencil";
 import PlusIcon from "@lucide/svelte/icons/plus";
 import RefreshCwIcon from "@lucide/svelte/icons/refresh-cw";
 import ServerIcon from "@lucide/svelte/icons/server";
 import SlidersHorizontalIcon from "@lucide/svelte/icons/sliders-horizontal";
 import StarIcon from "@lucide/svelte/icons/star";
-import SunIcon from "@lucide/svelte/icons/sun";
 import Trash2Icon from "@lucide/svelte/icons/trash-2";
 import WrenchIcon from "@lucide/svelte/icons/wrench";
 import { Badge } from "@nervekit/ui-kit/components/ui/badge";
@@ -32,7 +30,6 @@ import {
   SettingsList,
   SettingsListItem,
   SettingsPageHeader,
-  SettingsPreviewCards,
   SettingsRow,
   SettingsSection,
   SettingsSelectRow,
@@ -42,9 +39,10 @@ import {
   SettingsToggleRow,
   SettingsToolbar,
   type SettingsPageDef,
-  type SettingsPreviewOption,
   type SettingsStat,
 } from "$lib/presentation/settings";
+import ThemePreviewPicker from "$lib/features/settings/views/pages/workbench/ThemePreviewPicker.svelte";
+import { defaultColorTheme } from "@nervekit/contracts/settings";
 import GalleryGroup from "../GalleryGroup.svelte";
 import GallerySpecimen from "../GallerySpecimen.svelte";
 
@@ -59,41 +57,6 @@ const saveText: Record<(typeof saveStatuses)[number], string> = {
 
 const longText =
   "/home/someone/Projects/a-monorepo-with-a-very-long-name/packages/workbench-app/src/lib/presentation/settings";
-
-const lightThemeOptions: SettingsPreviewOption[] = [
-  {
-    value: "nerve-light",
-    label: "Nerve Light",
-    icon: SunIcon,
-    previews: ["light"],
-  },
-  {
-    value: "melange-light",
-    label: "Melange Light",
-    icon: SunIcon,
-    previews: ["light"],
-  },
-];
-const darkThemeOptions: SettingsPreviewOption[] = [
-  {
-    value: "nerve-dark",
-    label: "Nerve Dark",
-    icon: MoonIcon,
-    previews: ["dark"],
-  },
-  { value: "graphite", label: "Graphite", icon: MoonIcon, previews: ["dark"] },
-  {
-    value: "melange-dark",
-    label: "Melange Dark",
-    icon: MoonIcon,
-    previews: ["dark"],
-  },
-];
-const colorModeOptions: SettingsPreviewOption[] = [
-  { value: "system", label: "System", icon: MonitorIcon },
-  { value: "light", label: "Light", icon: SunIcon, previews: ["light"] },
-  { value: "dark", label: "Dark", icon: MoonIcon, previews: ["dark"] },
-];
 
 const headerStyles = [
   { value: "auto", label: "Auto" },
@@ -114,20 +77,9 @@ let toggleB = $state(false);
 let selectValue = $state("auto");
 let fieldText = $state("127.0.0.1");
 let fieldNumber = $state("43967");
-let lightTheme = $state("nerve-light");
-let darkTheme = $state("nerve-dark");
-let colorMode = $state("dark");
-
-// Swatch colours come from theme.css via these attributes, as in
-// ThemePreviewPicker and ColorModePicker.
-const themePreviewAttrs = (option: SettingsPreviewOption, mode: string) => ({
-  "data-theme-preview": option.value,
-  "data-color-mode": mode,
-});
-const modePreviewAttrs = (_option: SettingsPreviewOption, mode: string) => ({
-  "data-theme-preview": mode === "light" ? lightTheme : darkTheme,
-  "data-color-mode": mode,
-});
+// Local only: picking a card here never changes the lab or app theme.
+let theme = $state<string>(defaultColorTheme);
+let specimenTheme = $state("melange-light");
 let discA = $state(false);
 let discB = $state(true);
 
@@ -270,29 +222,8 @@ let headerStyle = $state("auto");
           {#snippet children(page)}
             {#if page.id === "workbench"}
               <SettingsSection id="appearance" title="Appearance">
-                <SettingsRow label="Color mode" layout="stacked">
-                  <SettingsPreviewCards
-                    options={colorModeOptions}
-                    previewAttrs={modePreviewAttrs}
-                    bind:value={colorMode}
-                    ariaLabel="Color mode"
-                  />
-                </SettingsRow>
-                <SettingsRow label="Light theme" layout="stacked">
-                  <SettingsPreviewCards
-                    options={lightThemeOptions}
-                    previewAttrs={themePreviewAttrs}
-                    bind:value={lightTheme}
-                    ariaLabel="Light theme"
-                  />
-                </SettingsRow>
-                <SettingsRow label="Dark theme" layout="stacked">
-                  <SettingsPreviewCards
-                    options={darkThemeOptions}
-                    previewAttrs={themePreviewAttrs}
-                    bind:value={darkTheme}
-                    ariaLabel="Dark theme"
-                  />
+                <SettingsRow label="Theme" layout="stacked">
+                  <ThemePreviewPicker bind:value={theme} />
                 </SettingsRow>
               </SettingsSection>
               <SettingsSection id="desktop" title="Desktop">
@@ -688,28 +619,11 @@ let headerStyle = $state("auto");
     <GallerySpecimen
       title="SettingsPreviewCards"
       source="settings/SettingsPreviewCards"
-      usage="2 files · settings"
+      usage="1 file · settings"
       layout="stack"
-      description="Swatch cards for the light theme, dark theme, and color mode."
+      description="Equal-width swatch cards; the theme picker renders each theme from data-theme-preview. Arrow keys move the selection."
     >
-      <SettingsPreviewCards
-        options={lightThemeOptions}
-        previewAttrs={themePreviewAttrs}
-        bind:value={lightTheme}
-        ariaLabel="Light theme"
-      />
-      <SettingsPreviewCards
-        options={darkThemeOptions}
-        previewAttrs={themePreviewAttrs}
-        bind:value={darkTheme}
-        ariaLabel="Dark theme"
-      />
-      <SettingsPreviewCards
-        options={colorModeOptions}
-        previewAttrs={modePreviewAttrs}
-        bind:value={colorMode}
-        ariaLabel="Color mode"
-      />
+      <ThemePreviewPicker bind:value={specimenTheme} />
     </GallerySpecimen>
   </GalleryGroup>
 

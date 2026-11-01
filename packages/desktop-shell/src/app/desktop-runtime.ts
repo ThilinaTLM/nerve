@@ -253,7 +253,11 @@ export class DesktopRuntime {
         runtime.#listenerDisposers.push(
           ports.nativeTheme.onUpdated(runtime.#trayController.updateTrayIcon),
         );
-        await window.loadURL(runtime.#shellPageUrls.create(loadingHtml()));
+        await window.loadURL(
+          runtime.#shellPageUrls.create(
+            loadingHtml({ appearance: ports.windows.appearance() }),
+          ),
+        );
         const currentSettings = await readStartupSettings();
         runtime.#desktopConfiguration =
           desktopConfigurationController.resolve(currentSettings);
@@ -417,7 +421,11 @@ export class DesktopRuntime {
           showLoadingWindow: () => {
             if (splashShownAt !== undefined) return Promise.resolve();
             splashShownAt = ports.now();
-            return window.loadURL(runtime.#shellPageUrls.create(loadingHtml()));
+            return window.loadURL(
+              runtime.#shellPageUrls.create(
+                loadingHtml({ appearance: ports.windows.appearance() }),
+              ),
+            );
           },
           connectDaemon: async () => {
             if (!runtime.#managedDaemon) {
@@ -531,6 +539,7 @@ export class DesktopRuntime {
               errorHtml(error, desktopDataDir, {
                 retry: startupErrorRetryable(error),
                 title: "Nerve couldn't start",
+                appearance: ports.windows.appearance(),
               }),
             ),
           );

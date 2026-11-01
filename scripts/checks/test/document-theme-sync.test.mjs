@@ -105,7 +105,7 @@ describe("standalone document theme mirrors", () => {
       "loading-pages.ts",
     );
     const styles = source.slice(source.indexOf("function shellStyles"));
-    const darkStart = styles.indexOf("prefers-color-scheme: dark");
+    const darkStart = styles.indexOf('data-mode="dark"');
     const sections = {
       light: styles.slice(0, darkStart),
       dark: styles.slice(darkStart),

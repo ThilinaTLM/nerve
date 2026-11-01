@@ -60,6 +60,8 @@ function createDesktopPreloadApi({
       toggleMaximize: () => ipcRenderer.invoke("desktop.window.toggleMaximize"),
       close: (options) => ipcRenderer.invoke("desktop.window.close", options),
       getState: () => ipcRenderer.invoke("desktop.window.getState"),
+      setTheme: (appearance) =>
+        ipcRenderer.invoke("desktop.window.setTheme", appearance),
       onStateChange: (listener) =>
         subscribe(
           ipcRenderer,

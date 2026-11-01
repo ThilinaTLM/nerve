@@ -2,7 +2,6 @@
 import {
   colorThemeKind,
   colorThemeSchema,
-  defaultLightColorTheme,
   type ColorTheme,
 } from "@nervekit/contracts/settings";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
@@ -11,8 +10,11 @@ import * as Tooltip from "@nervekit/ui-kit/components/ui/tooltip";
 import { cn } from "@nervekit/ui-kit/utils";
 import MoonIcon from "@lucide/svelte/icons/moon";
 import SunIcon from "@lucide/svelte/icons/sun";
-import { mode, setMode } from "mode-watcher";
-import { onMount, untrack } from "svelte";
+import { onMount } from "svelte";
+import {
+  appearanceState,
+  applyAppearance,
+} from "$lib/platform/appearance/appearance.svelte";
 import { dismissStartupSplash } from "$lib/app/shell/startup-splash";
 import ComponentCatalog from "./ComponentCatalog.svelte";
 import {
@@ -23,18 +25,15 @@ import {
 import Wireframes from "./Wireframes.svelte";
 
 const route = labRouteFromPath(window.location.pathname);
+// The bootstrap already applied the user's theme; the lab starts from it.
 let theme = $state<ColorTheme>(
   colorThemeSchema.safeParse(document.documentElement.dataset.theme).data ??
-    defaultLightColorTheme,
+    appearanceState.theme,
 );
+const dark = $derived(colorThemeKind[theme] === "dark");
 
-// Lab theme selection never writes application settings. A theme is either
-// light or dark, so choosing one also sets the matching colour mode.
-$effect(() => {
-  document.documentElement.dataset.theme = theme;
-  const kind = colorThemeKind[theme];
-  untrack(() => setMode(kind));
-});
+// Lab theme selection applies to the document but is never persisted.
+$effect(() => applyAppearance(theme));
 onMount(dismissStartupSplash);
 </script>
 
@@ -79,16 +78,12 @@ onMount(dismissStartupSplash);
         <Button
           variant="outline"
           size="icon"
-          ariaLabel="Toggle color mode"
+          ariaLabel={dark ? "Switch to Nerve Light" : "Switch to Nerve Dark"}
           onclick={() => {
-            // The lab mirrors the app: the mode picks the theme of that kind.
-            const next = mode.current === "dark" ? "light" : "dark";
-            theme = colorThemeSchema.options.find(
-              (option) => colorThemeKind[option] === next,
-            )!;
+            theme = dark ? "nerve-light" : "nerve-dark";
           }}
         >
-          {#if mode.current === "dark"}<SunIcon />{:else}<MoonIcon />{/if}
+          {#if dark}<SunIcon />{:else}<MoonIcon />{/if}
         </Button>
       </div>
     </header>

@@ -46,7 +46,6 @@
     "clsx": "^2.1.1",
     "dompurify": "3.4.16",
     "mermaid": "11.16.1",
-    "mode-watcher": "^1.1.0",
     "paneforge": "^1.0.2",
     "rehype-sanitize": "^6.0.0",
     "rehype-stringify": "^10.0.1",

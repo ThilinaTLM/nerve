@@ -3,9 +3,9 @@ export type Oklab = readonly [lightness: number, a: number, b: number];
 export type ColorTheme =
   | "nerve-light"
   | "nerve-dark"
-  | "graphite"
   | "melange-light"
-  | "melange-dark";
+  | "melange-dark"
+  | "graphite";
 export type ColorMode = "light" | "dark";
 
 export const colorThemeKind: Readonly<Record<ColorTheme, ColorMode>>;

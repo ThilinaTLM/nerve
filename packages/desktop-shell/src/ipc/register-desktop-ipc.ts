@@ -7,6 +7,7 @@ import { registerFilesIpc } from "./files-ipc.js";
 import { registerNotificationsIpc } from "./notifications-ipc.js";
 import { registerSettingsIpc } from "./settings-ipc.js";
 import { registerStartupIpc } from "./startup-ipc.js";
+import type { WindowAppearanceStore } from "../window/window-appearance.js";
 import { registerWindowIpc } from "./window-ipc.js";
 
 export function registerDesktopIpc(options: {
@@ -22,6 +23,7 @@ export function registerDesktopIpc(options: {
   startupDiagnostics: () => string;
   reportRendererCoreReady: () => void;
   quitApp: () => void;
+  windowAppearance: WindowAppearanceStore;
 }): void {
   registerWindowIpc(options);
   registerDaemonIpc(options);
