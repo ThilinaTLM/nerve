@@ -1,3 +1,4 @@
+import { desktopLog } from "../logging.js";
 import type { ManagedDaemon } from "../daemon/composition.js";
 import { DESKTOP_APP_NAME, MACOS_TRAY_GUID } from "../desktop-identity.js";
 import type {
@@ -98,7 +99,7 @@ export function createTrayController(
           click: () => {
             const url =
               managedDaemon?.mobileSetupUrl ?? managedDaemon?.shareUrl;
-            if (url) clipboard.writeText(url);
+            if (url) copyUrl(url);
           },
         },
         {
@@ -106,15 +107,14 @@ export function createTrayController(
           enabled: Boolean(managedDaemon?.secureShareUrl),
           click: () => {
             if (managedDaemon?.secureShareUrl)
-              clipboard.writeText(managedDaemon.secureShareUrl);
+              copyUrl(managedDaemon.secureShareUrl);
           },
         },
         {
           label: "Copy CA Certificate URL",
           enabled: Boolean(managedDaemon?.caCertUrl),
           click: () => {
-            if (managedDaemon?.caCertUrl)
-              clipboard.writeText(managedDaemon.caCertUrl);
+            if (managedDaemon?.caCertUrl) copyUrl(managedDaemon.caCertUrl);
           },
         },
         { type: "separator" },
@@ -128,6 +128,14 @@ export function createTrayController(
         },
       ]),
     );
+  }
+
+  function copyUrl(url: string): void {
+    void clipboard.writeText(url).catch((error: unknown) => {
+      void desktopLog("error", "tray", "Failed to copy URL to clipboard", {
+        error,
+      });
+    });
   }
 
   function updateTrayIcon(): void {
