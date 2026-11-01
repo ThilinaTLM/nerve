@@ -121,6 +121,17 @@ export class ConversationEventRepository {
     return Number(row.sequence);
   }
 
+  /** Settled-call lookup without loading every conversation's history. */
+  findToolCallResponse(toolCallId: string): ConversationEvent | null {
+    const row = this.db.sqlite
+      .prepare(`SELECT * FROM conversation_event
+        WHERE event_type = 'tool_call_response'
+          AND json_extract(payload, '$.toolCallId') = ?
+        LIMIT 1`)
+      .get(toolCallId);
+    return row ? this.mapEvent(row) : null;
+  }
+
   findByInputId(inputId: string): ConversationEvent | null {
     const row = this.db.sqlite
       .prepare("SELECT * FROM conversation_event WHERE input_id = ?")
