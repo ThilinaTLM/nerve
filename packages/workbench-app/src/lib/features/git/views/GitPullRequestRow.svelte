@@ -2,7 +2,11 @@
 import Check from "@lucide/svelte/icons/check";
 import CircleCheck from "@lucide/svelte/icons/circle-check";
 import CircleSlash from "@lucide/svelte/icons/circle-slash";
+import Copy from "@lucide/svelte/icons/copy";
 import ExternalLink from "@lucide/svelte/icons/external-link";
+import GitBranch from "@lucide/svelte/icons/git-branch";
+import ListChecks from "@lucide/svelte/icons/list-checks";
+import PanelRightOpen from "@lucide/svelte/icons/panel-right-open";
 import GitMerge from "@lucide/svelte/icons/git-merge";
 import GitPullRequest from "@lucide/svelte/icons/git-pull-request";
 import GitPullRequestDraft from "@lucide/svelte/icons/git-pull-request-draft";
@@ -12,6 +16,7 @@ import X from "@lucide/svelte/icons/x";
 import type { GithubPr } from "@nervekit/contracts/git";
 import { Badge } from "@nervekit/ui-kit/components/ui/badge";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
+import type { ContextMenuItem } from "@nervekit/ui-kit/components/composites/context-menu-list";
 import { Spinner } from "@nervekit/ui-kit/components/ui/spinner";
 import { notify } from "$lib/application/notifications/notify.svelte";
 import { writeClipboardText } from "$lib/platform/clipboard/write-text";
@@ -62,20 +67,60 @@ const stateClass = $derived(
 );
 const age = $derived(formatCompactAge(pr.updatedAt));
 
-async function copyLink() {
+async function copy(text: string, success: string) {
   try {
-    await writeClipboardText(pr.url);
-    notify.success(`Copied link to PR #${pr.number}`);
+    await writeClipboardText(text);
+    notify.success(success);
   } catch {
     notify.error("Could not copy to clipboard");
   }
 }
+const copyLink = () => copy(pr.url, `Copied link to PR #${pr.number}`);
+
+const menuItems = $derived<ContextMenuItem[]>([
+  {
+    label: "Open pull request",
+    icon: PanelRightOpen,
+    disabled,
+    onSelect: onOpen,
+  },
+  {
+    label: "Open on GitHub",
+    icon: ExternalLink,
+    onSelect: () => window.open(pr.url, "_blank", "noreferrer"),
+  },
+  { type: "separator" },
+  { label: "Copy link", icon: Link, onSelect: () => void copyLink() },
+  {
+    label: "Copy branch name",
+    icon: GitBranch,
+    onSelect: () =>
+      void copy(pr.headRefName, `Copied branch ${pr.headRefName}`),
+  },
+  {
+    label: "Copy title",
+    icon: Copy,
+    onSelect: () => void copy(pr.title, `Copied title of PR #${pr.number}`),
+  },
+  ...(hasCheckDetails
+    ? ([
+        { type: "separator" },
+        {
+          label: expanded ? "Hide check details" : "Show check details",
+          icon: ListChecks,
+          onSelect: onToggleChecks,
+        },
+      ] satisfies ContextMenuItem[])
+    : []),
+]);
 </script>
 
 <ItemSurface
   role="listitem"
   hover="default"
+  {menuItems}
   class="group flex-col gap-1 px-2.5 py-2 text-xs leading-tight"
+  onclick={disabled ? undefined : onOpen}
 >
   <!-- Header line: identity and actions, so the title below keeps full width. -->
   <div class="flex min-w-0 items-center gap-1.5">
@@ -109,7 +154,10 @@ async function copyLink() {
         variant="ghost"
         title="Copy pull request link"
         aria-label={`Copy link to PR #${pr.number}`}
-        onclick={() => void copyLink()}
+        onclick={(event: MouseEvent) => {
+          event.stopPropagation();
+          void copyLink();
+        }}
       >
         <Link aria-hidden="true" />
       </Button>
@@ -121,6 +169,7 @@ async function copyLink() {
         rel="noreferrer"
         title="Open on GitHub"
         aria-label={`Open PR #${pr.number} on GitHub`}
+        onclick={(event: MouseEvent) => event.stopPropagation()}
       >
         <ExternalLink aria-hidden="true" />
       </Button>
@@ -134,12 +183,12 @@ async function copyLink() {
       ? disabledReason
       : `${pr.title} · ${pr.baseRefName} ← ${pr.headRefName}`}
     class="cursor-pointer rounded-sm text-left focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50"
-    onclick={onOpen}
+    onclick={(event) => {
+      event.stopPropagation();
+      onOpen();
+    }}
   >
-    <span
-      class="line-clamp-2 break-words text-foreground underline-offset-2 hover:underline"
-      >{pr.title}</span
-    >
+    <span class="line-clamp-2 break-words text-foreground">{pr.title}</span>
   </button>
 
   <div class="flex min-w-0 items-center gap-2">
@@ -151,7 +200,10 @@ async function copyLink() {
         ? `${expanded ? "Collapse" : "Expand"} check details`
         : "No check details"}
       class="shrink-0 rounded-sm focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none disabled:pointer-events-none"
-      onclick={onToggleChecks}
+      onclick={(event) => {
+        event.stopPropagation();
+        onToggleChecks();
+      }}
     >
       <Badge variant={checksTone(pr.checks)}>
         {#if pr.checks.status === "passing"}
