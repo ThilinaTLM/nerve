@@ -37,10 +37,11 @@ Application `*Host` components are state/effect adapters around canonical featur
   where the meaning is not neutral.
 - **Quiet fills** (`muted`, `accent`) are meant to sit beyond the surface
   ladder on the foreground side so they stay visible on every surface (dark:
-  `popover < muted < accent`; light: `accent < muted < well`). Those values
-  land with the Nerve refresh; until then do not rely on them being lighter or
-  darker than a given surface in dark mode, and prefer `bg-hover` or
-  `bg-selected` for interaction states.
+  `popover < muted < accent`; light: `accent < muted < well`). Nerve
+  follows this; the legacy themes (Rosé, Solar, Midnight, removed next) still
+  put them darker than the background in dark mode, so do not depend on the
+  direction. For recessed tracks and output use `well`; for interaction states
+  prefer `bg-hover` or `bg-selected`.
 - **Status colour has one vocabulary**: `neutral`, `accent`, `info`, `success`,
   `warning`, `destructive` (`StatusTone` in `@nervekit/ui-kit/display/status`).
   `StatusDot`, `Badge`, `ProgressRing`, `PanelRow`, `PanelBanner`, and the

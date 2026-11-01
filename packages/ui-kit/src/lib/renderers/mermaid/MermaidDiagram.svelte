@@ -219,7 +219,7 @@ $effect(() => {
         <p class="m-0 text-sm text-destructive">
           Diagram could not be rendered
         </p>
-        <pre class="m-0 overflow-auto rounded-md bg-muted p-3 text-xs"><code
+        <pre class="m-0 overflow-auto rounded-md bg-well p-3 text-xs"><code
             >{source}</code
           ></pre>
       </div>

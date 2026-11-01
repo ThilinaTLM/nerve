@@ -6,34 +6,34 @@
 
 export const documentThemeTokens = {
   light: {
-    background: "oklch(0.979 0.012 92)",
-    foreground: "oklch(0.3438 0.0269 95.7)",
-    card: "oklch(0.958 0.013 94)",
-    well: "oklch(0.938 0.014 95)",
-    "muted-foreground": "oklch(0.5341 0.0078 97.5)",
-    border: "oklch(0.872 0.017 95)",
-    primary: "oklch(0.57 0.1375 39)",
+    background: "oklch(0.982 0.003 85)",
+    foreground: "oklch(0.24 0.008 70)",
+    card: "oklch(0.992 0.002 85)",
+    well: "oklch(0.945 0.004 80)",
+    "muted-foreground": "oklch(0.5 0.01 70)",
+    border: "oklch(0.89 0.006 80)",
+    primary: "oklch(0.54 0.155 38)",
     "primary-foreground": "oklch(1 0 0)",
     warning: "oklch(0.5 0.16 70.1)",
   },
   dark: {
-    background: "oklch(0.264 0.018 80)",
-    foreground: "oklch(0.9 0.012 95)",
-    card: "oklch(0.289 0.02 82)",
-    well: "oklch(0.205 0.018 78)",
-    "muted-foreground": "oklch(0.7713 0.017 99)",
-    border: "oklch(0.353 0.022 82)",
-    primary: "oklch(0.6724 0.1308 38.8)",
-    "primary-foreground": "oklch(0.1908 0.008 80)",
-    warning: "oklch(0.828 0.16 70.1)",
+    background: "oklch(0.205 0.006 65)",
+    foreground: "oklch(0.91 0.006 80)",
+    card: "oklch(0.228 0.007 65)",
+    well: "oklch(0.165 0.005 65)",
+    "muted-foreground": "oklch(0.715 0.01 75)",
+    border: "oklch(0.33 0.009 65)",
+    primary: "oklch(0.7 0.15 40)",
+    "primary-foreground": "oklch(0.17 0.01 40)",
+    warning: "oklch(0.82 0.14 75)",
   },
 } as const;
 
 /* sRGB fallbacks for hosts that need a plain colour, such as the Electron
  * window background painted before any document loads. */
 export const documentBackgroundHex = {
-  light: "#faf8f1",
-  dark: "#272521",
+  light: "#faf9f7",
+  dark: "#191714",
 } as const;
 
 function tokenBlock(mode: keyof typeof documentThemeTokens): string {

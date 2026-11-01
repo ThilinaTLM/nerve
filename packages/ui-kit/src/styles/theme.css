@@ -97,21 +97,21 @@
   --overlay-highlight: color-mix(in oklab, var(--foreground) 7%, transparent);
 }
 
-/* Nerve: warm paper and ember. Layered surfaces with a soft warm shadow;
- * the medium radius keeps dense chrome crisp without feeling sharp. */
+/* Nerve: warm graphite, paper white, and ember. Surfaces rise well < panel <
+ * background < card < popover; muted and accent sit beyond the ladder. */
 
 :root,
 :root[data-theme="nerve"],
 [data-theme-preview="nerve"][data-color-mode="light"] {
-  --background: oklch(0.979 0.012 92);
-  --foreground: oklch(0.3438 0.0269 95.7);
-  --card: oklch(0.958 0.013 94);
-  --popover: oklch(0.99 0.005 95);
-  --primary: oklch(0.57 0.1375 39);
+  --background: oklch(0.982 0.003 85);
+  --foreground: oklch(0.24 0.008 70);
+  --card: oklch(0.992 0.002 85);
+  --popover: oklch(1 0 0);
+  --primary: oklch(0.54 0.155 38);
   --primary-foreground: oklch(1 0 0);
-  --muted: oklch(0.928 0.018 91);
-  --muted-foreground: oklch(0.5341 0.0078 97.5);
-  --accent: oklch(0.918 0.026 92);
+  --muted: oklch(0.93 0.005 80);
+  --muted-foreground: oklch(0.5 0.01 70);
+  --accent: oklch(0.912 0.006 80);
   --selected: color-mix(in oklab, var(--primary) 14%, transparent);
   --destructive: oklch(0.5 0.19 27);
   --destructive-foreground: oklch(1 0 0);
@@ -123,16 +123,16 @@
   --warning-foreground: oklch(0.986 0.002 67.8);
   --info: oklch(0.49 0.158 254.1);
   --info-foreground: oklch(0.986 0.002 67.8);
-  --border: oklch(0.872 0.017 95);
-  --input: oklch(0.75 0.024 96);
-  --ring: oklch(0.6171 0.1375 39);
-  --chart-1: oklch(0.5583 0.1276 43);
+  --border: oklch(0.89 0.006 80);
+  --input: oklch(0.78 0.008 80);
+  --ring: var(--primary);
+  --chart-1: oklch(0.56 0.15 40);
   --chart-2: oklch(0.62 0.13 75);
   --chart-3: oklch(0.58 0.12 25);
   --chart-4: oklch(0.6 0.11 120);
   --chart-5: oklch(0.56 0.13 300);
-  --panel: oklch(0.952 0.018 95);
-  --well: oklch(0.938 0.014 95);
+  --panel: oklch(0.958 0.004 80);
+  --well: oklch(0.945 0.004 80);
 
   /* Code palette. Both highlighters (Shiki in the transcript, CodeMirror in the
    * editor) resolve these at paint time, so a theme owns its code colours the
@@ -143,10 +143,10 @@
    * Identifiers and punctuation sit near the foreground so only meaningful
    * tokens carry hue; ember keywords keep code in the theme's warm family.
    * Each theme defines the full role set in both colour modes. */
-  --syntax-plain: oklch(0.3438 0.0269 95.7);
-  --syntax-variable: oklch(0.4 0.03 96);
-  --syntax-punctuation: oklch(0.51 0.02 96);
-  --syntax-comment: oklch(0.51 0.032 110);
+  --syntax-plain: oklch(0.24 0.008 70);
+  --syntax-variable: oklch(0.33 0.01 72);
+  --syntax-punctuation: oklch(0.45 0.01 72);
+  --syntax-comment: oklch(0.5 0.02 100);
   --syntax-keyword: oklch(0.49 0.15 25);
   --syntax-string: oklch(0.47 0.11 150);
   --syntax-number: oklch(0.48 0.14 310);
@@ -158,49 +158,49 @@
 :root.dark,
 :root[data-theme="nerve"].dark,
 [data-theme-preview="nerve"][data-color-mode="dark"] {
-  --background: oklch(0.264 0.018 80);
-  --foreground: oklch(0.9 0.012 95);
-  --card: oklch(0.289 0.02 82);
-  --popover: oklch(0.305 0.02 82);
-  --primary: oklch(0.6724 0.1308 38.8);
-  --primary-foreground: oklch(0.1908 0.008 80);
-  --muted: oklch(0.218 0.018 78);
-  --muted-foreground: oklch(0.7713 0.017 99);
-  --accent: oklch(0.21 0.022 78);
-  --selected: color-mix(in oklab, var(--primary) 22%, transparent);
-  --destructive: oklch(0.8 0.114 25.5);
+  --background: oklch(0.205 0.006 65);
+  --foreground: oklch(0.91 0.006 80);
+  --card: oklch(0.228 0.007 65);
+  --popover: oklch(0.25 0.008 65);
+  --primary: oklch(0.7 0.15 40);
+  --primary-foreground: oklch(0.17 0.01 40);
+  --muted: oklch(0.272 0.008 65);
+  --muted-foreground: oklch(0.715 0.01 75);
+  --accent: oklch(0.292 0.009 65);
+  --selected: color-mix(in oklab, var(--primary) 16%, transparent);
+  --destructive: oklch(0.76 0.13 25);
   --destructive-foreground: oklch(0.147 0.004 49.3);
-  --destructive-solid: oklch(0.58 0.21 27.5);
+  --destructive-solid: oklch(0.58 0.2 27);
   --destructive-solid-foreground: oklch(1 0 0);
-  --success: oklch(0.78 0.176 149.2);
+  --success: oklch(0.78 0.15 150);
   --success-foreground: oklch(0.147 0.004 49.3);
-  --warning: oklch(0.828 0.16 70.1);
+  --warning: oklch(0.82 0.14 75);
   --warning-foreground: oklch(0.147 0.004 49.3);
-  --info: oklch(0.8 0.134 254.1);
+  --info: oklch(0.78 0.12 250);
   --info-foreground: oklch(0.147 0.004 49.3);
-  --border: oklch(0.353 0.022 82);
-  --input: oklch(0.425 0.024 82);
-  --ring: oklch(0.6724 0.1308 38.8);
-  --chart-1: oklch(0.72 0.13 45);
+  --border: oklch(0.33 0.009 65);
+  --input: oklch(0.39 0.01 65);
+  --ring: var(--primary);
+  --chart-1: oklch(0.72 0.14 42);
   --chart-2: oklch(0.75 0.13 80);
   --chart-3: oklch(0.7 0.12 25);
   --chart-4: oklch(0.74 0.11 125);
   --chart-5: oklch(0.7 0.13 300);
-  --panel: oklch(0.228 0.02 70);
-  --well: oklch(0.205 0.018 78);
+  --panel: oklch(0.185 0.006 65);
+  --well: oklch(0.165 0.005 65);
 
   /* Dark code palette: same hue family as light, lifted in lightness and pulled
    * back in chroma so dense code does not vibrate against the warm dark well. */
-  --syntax-plain: oklch(0.9 0.012 95);
-  --syntax-variable: oklch(0.88 0.015 95);
-  --syntax-punctuation: oklch(0.7 0.02 95);
-  --syntax-comment: oklch(0.66 0.03 110);
-  --syntax-keyword: oklch(0.76 0.13 32);
-  --syntax-string: oklch(0.78 0.13 150);
-  --syntax-number: oklch(0.79 0.12 315);
-  --syntax-function: oklch(0.78 0.12 265);
-  --syntax-type: oklch(0.8 0.09 210);
-  --syntax-property: oklch(0.82 0.11 85);
+  --syntax-plain: oklch(0.91 0.006 80);
+  --syntax-variable: oklch(0.89 0.008 78);
+  --syntax-punctuation: oklch(0.72 0.01 75);
+  --syntax-comment: oklch(0.68 0.02 100);
+  --syntax-keyword: oklch(0.76 0.117 32);
+  --syntax-string: oklch(0.78 0.117 150);
+  --syntax-number: oklch(0.79 0.108 315);
+  --syntax-function: oklch(0.78 0.108 265);
+  --syntax-type: oklch(0.8 0.081 210);
+  --syntax-property: oklch(0.82 0.1 85);
 }
 
 /* Rosé: muted plum and blush. The only theme whose surfaces carry real,

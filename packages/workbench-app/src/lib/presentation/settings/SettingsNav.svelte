@@ -1,8 +1,8 @@
 <!--
   Grouped settings navigation. Group titles are quiet captions (no hover, no
   icon); items are the interactive text, so icons and weight carry the
-  hierarchy. The active item uses `bg-selected`: `muted`/`accent` are darker
-  than `panel` in dark themes and would disappear. In a narrow settings pane
+  hierarchy. The active item uses `bg-selected`: the ember tint reads as
+  selection where a neutral `muted`/`accent` fill would look like hover. In a narrow settings pane
   (`settings-page` container) the groups flow into one scrollable row.
 -->
 <script lang="ts">
