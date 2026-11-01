@@ -52,7 +52,7 @@ const longPath =
 <div class="flex flex-col gap-10">
   <GalleryGroup
     title="Type scale"
-    description="Four roles: text-caption 12px/16px, text-ui 13px/18px, text-body 15px/22px, text-title 16px/24px. Sans (Outfit) for UI; monospace (Iosevka) only for code, logs, and paths."
+    description="Four roles: text-caption 13px/18px, text-ui 14px/20px, text-body 15px/22px, text-title 16px/24px. Sans (Outfit) for UI; monospace (Iosevka) only for code, logs, and paths."
   >
     <GallerySpecimen title="Sizes" usage="all areas" layout="stack">
       {#each sizes as size (size.name)}

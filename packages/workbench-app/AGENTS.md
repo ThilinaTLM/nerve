@@ -57,18 +57,20 @@ Application `*Host` components are state/effect adapters around canonical featur
 - **Two elevations:** controls are flat (border only); `shadow-sm` for raised cards,
   `shadow-overlay` for anything floating (popovers, menus, dialogs, sheets,
   tooltips, floating toolbars).
-- **Type scale has four roles, 12–16px** (defined in `ui-kit` `theme.css`;
+- **Type scale has four roles, 13–16px** (defined in `ui-kit` `theme.css`;
   Tailwind's default sizes are cleared and the style-policy check rejects them
-  and arbitrary `text-[…]` sizes): `text-caption` 12px for glanceable extras
+  and arbitrary `text-[…]` sizes): `text-caption` 13px for glanceable extras
   (timestamps, counts, chips, kbd, section captions, settings supporting
-  text; never errors or instructions), `text-ui` 13px for everything
+  text; never errors or instructions), `text-ui` 14px for everything
   interactive or list-like, `text-body` 15px for prose the user reads
   (transcript, markdown, PR descriptions), `text-title` 16px for page,
   dialog and card titles and headline numbers, always `font-semibold` (or
   `font-medium` for a welcome line). The only exception is the phone composer,
   which stays at 16px so iOS does not zoom on focus.
-- **Selection is `bg-selected` plus a brand marker.** `--selected` is a soft
-  brand tint (10% `primary`) in every theme. A selected row also takes
+- **Selection is `bg-selected` plus a brand marker.** `--selected` is a
+  brand tint (22% `primary`) in every theme; inside a `bg-selected` surface
+  `text-muted-foreground` renders at full foreground (theme.css), so never
+  re-colour secondary text by hand. A selected row also takes
   `font-medium` and, where it has one, renders its leading icon or idle dot in
   `text-primary`; status-coloured glyphs keep their tone. Never add a stronger
   fill, border, or bar to signal selection.

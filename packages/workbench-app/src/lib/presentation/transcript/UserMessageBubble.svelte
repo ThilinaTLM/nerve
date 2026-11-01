@@ -65,9 +65,14 @@ let {
 </article>
 
 <style>
+/* Delivered bubbles sit on the selected tint: lift grey text, as `.bg-selected` does. */
+article:not([data-queued="true"]) {
+  --muted-foreground: var(--foreground);
+}
+
 .delivered-skin {
   border-color: var(--border);
-  background: var(--primary-subtle);
+  background: var(--selected);
 }
 
 .queued-skin {

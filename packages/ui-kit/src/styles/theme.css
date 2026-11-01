@@ -59,8 +59,11 @@
     var(--background)
   );
 
-  /* Selection is a soft brand tint in every theme. */
-  --selected: color-mix(in oklab, var(--primary) 10%, transparent);
+  /* Selection is a brand tint in every theme, strong enough to read as the
+   * primary (not as a muddy shade) on dark surfaces. Also fills the user's
+   * message bubble. Grey text loses contrast on it, so selected surfaces lift
+   * `muted-foreground` to the foreground (rule below). */
+  --selected: color-mix(in oklab, var(--primary) 22%, transparent);
 
   /* Text on solid fills: one near-white (light) or near-black (dark) per mode,
    * except on `destructive-solid`, which is white in both. */
@@ -384,10 +387,10 @@
    *   only 1px above body. */
   --text-*: initial;
   --shadow-*: initial;
-  --text-caption: 0.75rem;
-  --text-caption--line-height: 1rem;
-  --text-ui: 0.8125rem;
-  --text-ui--line-height: 1.125rem;
+  --text-caption: 0.8125rem;
+  --text-caption--line-height: 1.125rem;
+  --text-ui: 0.875rem;
+  --text-ui--line-height: 1.25rem;
   --text-body: 0.9375rem;
   --text-body--line-height: 1.375rem;
   --text-title: 1rem;
@@ -471,4 +474,13 @@
   /* Keyframes live in animation.css; these expose Tailwind animate-* utilities. */
   --animate-collapsible-down: collapsible-down 150ms ease-out;
   --animate-collapsible-up: collapsible-up 150ms ease-in;
+}
+
+/* Inside a selected surface, secondary text reads at full foreground: the
+ * selected tint is too strong for grey text to stay legible. Status colours
+ * keep their tone (checked at 3:1 in theme-contrast.test.ts). */
+@layer utilities {
+  .bg-selected {
+    --muted-foreground: var(--foreground);
+  }
 }

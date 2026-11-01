@@ -304,6 +304,50 @@ describe("theme text contrast", () => {
     }
   });
 
+  it("keeps text readable on the selected tint", () => {
+    // Text at full foreground, and status tones at the 3:1 non-text bar
+    // (labels such as git M/A letters and status dots). Grey text is lifted
+    // to the foreground inside selected surfaces, asserted below.
+    const selectedAlpha = 0.22;
+    const minimumStatusContrast = 3;
+    for (const [themeName, tokens] of Object.entries(themes) as [
+      ThemeName,
+      Record<TokenName, Oklch>,
+    ][]) {
+      for (const surfaceName of surfaceTokens) {
+        const selected = composite(
+          oklchToLinearRgb(tokens.primary),
+          oklchToLinearRgb(tokens[surfaceName]),
+          selectedAlpha,
+        );
+        assertContrast(
+          themeName,
+          "foreground",
+          oklchToLinearRgb(tokens.foreground),
+          `selected on ${surfaceName}`,
+          selected,
+        );
+        for (const tone of semanticTokens) {
+          const ratio = contrast(oklchToLinearRgb(tokens[tone]), selected);
+          assert.ok(
+            ratio >= minimumStatusContrast,
+            `${themeName} ${tone} on selected on ${surfaceName} contrast ${ratio.toFixed(2)}:1 is below ${minimumStatusContrast}:1`,
+          );
+        }
+      }
+    }
+    assert.match(
+      themeCss,
+      new RegExp(
+        `--selected: color-mix\\(in oklab, var\\(--primary\\) ${selectedAlpha * 100}%, transparent\\);`,
+      ),
+    );
+    assert.match(
+      themeCss,
+      /\.bg-selected \{\s*--muted-foreground: var\(--foreground\);/,
+    );
+  });
+
   it("keeps large surfaces subdued and primary accents identifiable", () => {
     for (const [themeName, tokens] of Object.entries(themes) as [
       ThemeName,
