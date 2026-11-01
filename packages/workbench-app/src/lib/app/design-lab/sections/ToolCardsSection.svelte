@@ -445,6 +445,7 @@ let failedDetailsOpen = $state(false);
         dotPulse
         statusLabel="Running"
         badge="grep"
+        mono
         arg={{ text: "dotTone", openPath: "/home/dev/nerve/src" }}
         onOpenFile={noop}
       />
@@ -452,6 +453,7 @@ let failedDetailsOpen = $state(false);
         dotTone="success"
         statusLabel="Completed"
         badge="read"
+        mono
         arg={{
           text: "src/lib/presentation/cards/CardShell.svelte",
           openPath:
@@ -463,6 +465,7 @@ let failedDetailsOpen = $state(false);
         dotTone="warning"
         statusLabel="Needs approval"
         badge="bash"
+        mono
         arg={{ text: "rm -rf node_modules" }}
         waitingForUser
       />
@@ -470,6 +473,7 @@ let failedDetailsOpen = $state(false);
         dotTone="success"
         statusLabel="Completed"
         badge="bash"
+        mono
         arg={{ text: fx.LONG_COMMAND }}
       />
     </GallerySpecimen>

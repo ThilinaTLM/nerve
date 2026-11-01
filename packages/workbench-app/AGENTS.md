@@ -150,10 +150,10 @@ Application `*Host` components are state/effect adapters around canonical featur
   composer). `ModelMultiSelect` chooses several (the model scope). They are
   not interchangeable.
 - **Monospace is only for code, logs and paths.** Tool, skill and setting
-  names, counts and other metadata use the sans face. Tool call card headers
-  (`CardHeader`: tool name and argument summary) use the sans font even when
-  they show a command or path; the card body keeps code, output, diffs and
-  file lists monospace.
+  names, counts and other metadata use the sans face. The exception is tool
+  call card headers (`CardHeader` with `mono`: tool name and argument
+  summary), which are monospace like the card body's code, output, diffs and
+  file lists; notice cards keep a sans header.
 - **Settings uses one set of list patterns.** Entity lists are a single
   `SettingsList` (bordered `card` surface, hairline-divided rows) holding
   `SettingsListItem` rows, never a stack of individually tinted cards. A row's
@@ -369,7 +369,7 @@ src/styles/
   spinners use the shared `Spinner` component
   (`@nervekit/ui-kit/components/ui/spinner`), not ad-hoc spinning loader icons.
 - Monospace (`font-mono`) is for code, logs, and paths only; tool call card
-  headers use the sans font even when they show a command or path.
+  headers (tool name and argument) are monospace, notice card headers sans.
 - Validate with `pnpm check`; verify visuals (light + dark) with the
   `agent-browser` skill.
 - Guardrails (should stay clean): no `import "*.css"` outside `styles/app.css`;

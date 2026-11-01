@@ -16,6 +16,8 @@ type Props = {
   arg?: PrimaryArg;
   /** The argument is not known yet: reserve its slot with a skeleton. */
   argPending?: boolean;
+  /** Tool call headers set the name and argument in monospace. */
+  mono?: boolean;
   onOpenFile?: (path: string, line?: number) => void;
 };
 
@@ -28,11 +30,12 @@ let {
   badge,
   arg,
   argPending = false,
+  mono = false,
   onOpenFile,
 }: Props = $props();
 </script>
 
-<div class="card-header">
+<div class="card-header" class:mono>
   <StatusGlyph
     tone={dotTone}
     pulse={dotPulse}
@@ -78,12 +81,16 @@ let {
 </div>
 
 <style>
-/* Inline flow lets long arguments wrap flush to the left edge. The header is
- * sans like the rest of the transcript, even when the argument is a command
- * or a path; the card body keeps code, output and diffs monospace. */
+/* Inline flow lets long arguments wrap flush to the left edge. Tool call
+ * headers (`mono`) show tool names, commands and paths in monospace; notices
+ * keep the sans face. */
 .card-header {
   min-width: 0;
   line-height: 1.5;
+}
+
+.card-header.mono {
+  font-family: var(--font-mono);
 }
 
 .badge {
