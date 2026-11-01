@@ -33,6 +33,9 @@ type Props = {
    * trigger. Field variants are at least as wide as their trigger and use the
    * preset as their minimum width (anchor and md: 20rem). */
   size?: "sm" | "md" | "lg" | "anchor";
+  /** Maximum height preset: default 32rem; tall 44rem for feeds whose length
+   * grows with activity (e.g. notifications). Both yield to the viewport. */
+  height?: "default" | "tall";
   /** Fields match their trigger; panels have a fixed width and an anchor arrow. */
   variant?: "panel" | "field";
   side?: "top" | "bottom";
@@ -58,6 +61,7 @@ let {
   triggerClass = "",
   triggerWidthKey,
   size = "md",
+  height = "default",
   variant = "panel",
   side = "bottom",
   align,
@@ -205,6 +209,7 @@ function handleOpenChange(next: boolean) {
           variant === "field"
             ? `popover-anchor popover-field-${size === "anchor" ? "md" : size}`
             : `popover-${size}`,
+          height === "tall" && "popover-tall",
           className,
         )}
         {side}

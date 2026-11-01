@@ -45,7 +45,8 @@ export function gitOperationTitle(
   input: Pick<GitOperationStartRequest, "kind" | "repo"> & { number?: number },
 ): string {
   const label = operationLabels[input.kind];
-  return `${label}${input.kind === "checkout" && input.number ? ` #${input.number}` : ""} · ${input.repo}`;
+  // The project root (".") is implied by the project; naming it adds noise.
+  return `${label}${input.kind === "checkout" && input.number ? ` #${input.number}` : ""}${input.repo === "." ? "" : ` · ${input.repo}`}`;
 }
 export function gitBulkOperationTitle(
   kind: GitOperationBulkStartRequest["kind"],

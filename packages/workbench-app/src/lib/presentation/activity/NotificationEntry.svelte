@@ -98,7 +98,7 @@ const Icon = $derived(tone === "running" ? undefined : icons[tone]);
 
 <div
   class={[
-    "grid grid-cols-[1rem_minmax(0,1fr)] items-start gap-x-2 rounded-md py-2 pl-1.5 pr-1 text-left",
+    "group/entry grid grid-cols-[1rem_minmax(0,1fr)] items-start gap-x-2 rounded-md py-2 pl-1.5 pr-1 text-left",
     interactive && "cursor-pointer hover:bg-hover",
   ]}
 >
@@ -107,7 +107,7 @@ const Icon = $derived(tone === "running" ? undefined : icons[tone]);
         class="size-4"
       />{/if}
   </span>
-  <div class="grid min-w-0 gap-0.5">
+  <div class="grid min-w-0 grid-cols-1 gap-0.5">
     <div class="flex min-h-5 items-center gap-2">
       <p
         class="min-w-0 flex-1 truncate text-ui {tone === 'cancelled'
@@ -122,20 +122,35 @@ const Icon = $derived(tone === "running" ? undefined : icons[tone]);
           role="img"
           aria-label="Unread"
         ></span>{/if}
-      {#if time}<span
-          class="flex-none text-ui tabular-nums text-muted-foreground"
-          >{time}</span
-        >{/if}
-      {#if onDismiss}<Button
-          variant="ghost"
-          size="icon-sm"
-          class="-my-1 -mr-0.5 text-muted-foreground"
-          ariaLabel={`Dismiss ${title}`}
-          onclick={onDismiss}><X aria-hidden="true" /></Button
-        >{/if}
+      {#if time || onDismiss}
+        <!-- With a mouse, dismiss takes the time's cell on hover or focus so the
+             title never reflows; touch has no hover, so both stay visible. -->
+        <span
+          class="-my-1 grid flex-none grid-flow-col items-center justify-items-end gap-1"
+        >
+          {#if time}<span
+              class={[
+                "col-start-1 row-start-1 text-caption tabular-nums text-muted-foreground",
+                onDismiss &&
+                  "pointer-fine:group-hover/entry:invisible pointer-fine:group-focus-within/entry:invisible",
+              ]}>{time}</span
+            >{/if}
+          {#if onDismiss}<Button
+              variant="ghost"
+              size="icon-sm"
+              class="row-start-1 text-muted-foreground pointer-coarse:col-start-2 pointer-fine:col-start-1 pointer-fine:opacity-0 pointer-fine:group-hover/entry:opacity-100 pointer-fine:group-focus-within/entry:opacity-100"
+              ariaLabel={`Dismiss ${title}`}
+              title="Dismiss"
+              onclick={onDismiss}><X aria-hidden="true" /></Button
+            >{/if}
+        </span>
+      {/if}
     </div>
     {#if context}
-      <p class="truncate text-ui text-muted-foreground" title={context}>
+      <p
+        class="line-clamp-2 text-ui break-words text-muted-foreground"
+        title={context}
+      >
         {context}
       </p>
     {/if}

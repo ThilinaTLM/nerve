@@ -49,6 +49,11 @@
     overflow: visible;
   }
 
+  /* Height preset, selected through PopoverPanel's `height` prop. */
+  .popover-content.popover-tall {
+    max-height: min(44rem, var(--bits-popover-content-available-height, 44rem));
+  }
+
   .popover-content:focus-visible {
     outline: none;
   }

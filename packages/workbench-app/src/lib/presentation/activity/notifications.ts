@@ -74,7 +74,9 @@ const isFailure = (activity: Activity) =>
   activity.status === "failed" || activity.status === "interrupted";
 
 function repositoryName(path: string | undefined): string | undefined {
-  return path?.split(/[\\/]/).filter(Boolean).pop();
+  // "." is the project root; the project name already covers it.
+  const name = path?.split(/[\\/]/).filter(Boolean).pop();
+  return name === "." ? undefined : name;
 }
 
 export type UnreadableConversationEntry = NonNullable<
