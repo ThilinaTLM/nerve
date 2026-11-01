@@ -18,7 +18,7 @@ let {
 </script>
 
 <!-- The view never scrolls itself; content owns its scroll region. -->
-<div class="flex h-full min-h-0 min-w-0 flex-col bg-card px-2">
+<div class="flex h-full min-h-0 min-w-0 flex-col bg-panel px-2">
   {#if toolbar}
     {@render toolbar()}
   {/if}

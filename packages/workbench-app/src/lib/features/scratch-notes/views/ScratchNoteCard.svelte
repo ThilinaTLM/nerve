@@ -86,6 +86,6 @@ const status = $derived.by(() => {
     spellcheck={false}
     disabled={note.deleting}
     placeholder="Jot down notes for this project…"
-    class="min-h-16 resize-none rounded-none border-0 bg-transparent px-3 py-2 text-xs font-normal leading-relaxed shadow-none focus-visible:ring-0 md:text-xs dark:bg-transparent [field-sizing:content]"
+    class="min-h-16 resize-none rounded-none border-0 bg-transparent px-3 py-2 text-xs font-normal leading-relaxed shadow-none focus-visible:ring-0 md:text-xs [field-sizing:content]"
   />
 </PanelCard>

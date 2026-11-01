@@ -16,10 +16,40 @@ Application `*Host` components are state/effect adapters around canonical featur
 - **Surfaces are a five-step ladder**, deepest to highest: `well` (recessed
   output — terminal, logs, tool results, code blocks), `panel` (movable panel and
   shell chrome), `background` (workspace), `card` (raised content), `popover`
-  (floating layers). `well` and `panel` are Nerve-specific and pair with the
+  (floating layers). `well` and `panel` pair with the
   global `foreground` / `muted-foreground`; they deliberately have no foreground
   tokens of their own. Never reach for a surface to get a shade you like — pick
   the one that matches the role.
+- **Themes are independent and each is either light or dark** (VS Code model):
+  `nerve-light`, `nerve-dark` and `graphite` (dark), with `colorThemeKind`
+  in `contracts/settings` as the source of truth. The client stores a light
+  theme and a dark theme (`nerve-light-theme`, `nerve-dark-theme`) plus the
+  colour mode; the resolved mode picks which one applies, so Settings offers
+  "Light theme" and "Dark theme" pickers next to System/Light/Dark. A theme
+  owns colour only: radius, elevation strength and shadow recipes are global,
+  a theme has exactly one block (`:root[data-theme="<id>"],
+[data-theme-preview="<id>"]`) in `theme.css`, and the
+  `card`/`popover`/`accent` foregrounds and the syntax diff/link roles are
+  aliases of `foreground` and the status tokens. Mode-dependent globals (shadow
+  colour, input fill, overlay edge) key on `.dark` /
+  `[data-color-mode="dark"]`, so a preview root sets `data-color-mode` from
+  the theme's kind. Legacy single-theme ids map to a light/dark pair in
+  `legacyColorThemes` (`contracts/settings`).
+- **No `dark:` utilities** (enforced by the style-policy check in `ui-kit` and
+  `workbench-app`). Mode differences live in token values so previews and
+  portalled content resolve them correctly. Use `bg-input-background` for
+  field fills (transparent in light, a faint lift in dark) and one
+  `aria-invalid` ring/border alpha that works in both modes.
+- **Neutral hover is `hover:bg-hover`** (`--hover`, a translucent foreground
+  overlay that works on any surface). Do not hand-roll opacity recipes such as
+  `hover:bg-accent/50` or `hover:bg-muted/60`; keep opaque `accent`/`muted`
+  fills for resting or pressed states, and semantic tints (`destructive/…`)
+  where the meaning is not neutral.
+- **Quiet fills** (`muted`, `accent`) are meant to sit beyond the surface
+  ladder on the foreground side so they stay visible on every surface (dark:
+  `popover < muted < accent`; light: `accent < muted < well`). Every
+  theme follows this, and `theme-contrast.test.ts` enforces it. For recessed tracks and output use `well`; for interaction states
+  prefer `bg-hover` or `bg-selected`.
 - **Status colour has one vocabulary**: `neutral`, `accent`, `info`, `success`,
   `warning`, `destructive` (`StatusTone` in `@nervekit/ui-kit/display/status`).
   `StatusDot`, `Badge`, `ProgressRing`, `PanelRow`, `PanelBanner`, and the
@@ -43,8 +73,8 @@ Application `*Host` components are state/effect adapters around canonical featur
   (optional quiet caption `text-xs font-medium text-muted-foreground`, no hover
   or icon; items `text-sm` with a lucide icon, muted until active) and a
   `SettingsScopeHeader` (User settings, or project name and path) separated by a
-  rule. The active item is `bg-selected font-medium`: `muted`/`accent` are
-  darker than `panel` in dark themes and disappear. Never reuse a group title as
+  rule. The active item is `bg-selected font-medium`, a persistent state
+  that should not depend on the quiet fills. Never reuse a group title as
   an item name.
 - **Settings sections are surfaces.** `SettingsSection` draws its body as a
   bordered `card` (`rounded-lg`) with the heading outside, above it; the
@@ -224,7 +254,9 @@ src/styles/
                    #   (composer.css, panel.css, shell.css)
 ```
 
-- Design tokens (`:root`/`.dark` + `@theme inline`) live ONLY in
+- Design tokens (`:root`/`.dark` + `@theme inline`; derived tokens such as
+  `--hover`, `--input-background` and `--chrome-track` are declared on
+  `:root, [data-theme-preview]` so previews re-resolve them) live ONLY in
   `packages/ui-kit/src/styles/theme.css`; never redefine them here.
 - Keyframes belong in `packages/ui-kit/src/styles/animation.css` (never in a
   component).

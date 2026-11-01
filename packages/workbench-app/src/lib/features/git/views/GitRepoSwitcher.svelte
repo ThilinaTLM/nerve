@@ -160,7 +160,7 @@ async function createBranch(repository: string): Promise<void> {
           "flex min-w-0 flex-col rounded-md",
           selected
             ? "bg-selected"
-            : canSelect && "cursor-pointer hover:bg-muted/60",
+            : canSelect && "cursor-pointer hover:bg-hover",
         ]}
         onclick={() => {
           if (canSelect) selectRepository(repo.relativePath);
@@ -292,8 +292,10 @@ async function createBranch(repository: string): Promise<void> {
       <!-- About six rows (the selected one is taller); the rest scrolls. -->
       <ScrollRegion
         ariaLabel="Repositories"
+        surface="panel"
         height="calc(7 * var(--spacing-control-sm) + 5 * 0.125rem + 1rem)"
-        contentClass="flex flex-col gap-0.5"
+        class="-mx-2"
+        contentClass="flex flex-col gap-0.5 px-2"
       >
         {#each repos as repo (repo.relativePath)}{@render listRow(repo)}{/each}
       </ScrollRegion>

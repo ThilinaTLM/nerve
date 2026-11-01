@@ -298,11 +298,10 @@ const twoLine = $derived(labelLines === 2);
         class={cn(
           "flex shrink-0 items-center gap-0.5",
           !alwaysShowActions &&
-            !alwaysShowActions &&
             "opacity-0 transition-opacity duration-120 ease-[ease] group-focus-within/panel-row:opacity-100 group-hover/panel-row:opacity-100 pointer-coarse:opacity-100",
           !alwaysShowActions &&
             overlayActions &&
-            "pointer-events-none absolute top-1/2 right-1 z-10 -translate-y-1/2 rounded-sm bg-background/95 pl-1 shadow-sm group-focus-within/panel-row:pointer-events-auto group-hover/panel-row:pointer-events-auto",
+            "pointer-events-none absolute top-1/2 right-1 z-10 -translate-y-1/2 rounded-sm bg-panel/95 pl-1 shadow-sm group-focus-within/panel-row:pointer-events-auto group-hover/panel-row:pointer-events-auto",
         )}
       >
         {@render actions()}

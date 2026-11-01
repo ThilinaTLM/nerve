@@ -4,6 +4,7 @@ import {
   countClassConsumers,
   extractClassSelectors,
   findBareGlobalSelectors,
+  findDarkUtilities,
   isDynamicClass,
   markupClassNames,
 } from "../style-policy.mjs";
@@ -108,4 +109,20 @@ test("a bare :global inside a media query is still reported", () => {
 }
 </style>`;
   assert.deepEqual(findBareGlobalSelectors(source), [".leaky"]);
+});
+
+test("dark: utilities are reported, including stacked variants", () => {
+  assert.deepEqual(
+    findDarkUtilities(
+      '<div class="bg-card dark:bg-input/30 hover:x dark:hover:bg-accent/40">',
+    ),
+    ["dark:bg-input/30", "dark:hover:bg-accent/40"],
+  );
+});
+
+test("dark as a property name is not a dark: utility", () => {
+  assert.deepEqual(
+    findDarkUtilities("type T = { dark: boolean };\nconst x = { dark: true };"),
+    [],
+  );
 });

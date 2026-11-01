@@ -358,7 +358,7 @@ function menuItems(tab: WorkbenchTabModel, index: number): ContextMenuItem[] {
         triggerClass={`h-8 min-w-0 flex-none ${tab.active ? "relative z-2" : ""} ${tab.wide ? "w-54 basis-54" : "w-50 basis-50"}`}
       >
         <div
-          class="editor-tab group relative inline-grid h-8 w-full touch-pan-y grid-cols-[auto_minmax(0,1fr)_auto] border-t-2 border-r border-t-transparent border-r-border/45 text-muted-foreground data-[active]:border-t-primary data-[active]:bg-background data-[active]:text-foreground data-[placeholder]:bg-primary/10 data-[placeholder]:text-transparent data-[placeholder]:[&>*]:invisible not-data-[active]:not-data-[placeholder]:hover:bg-accent/45 not-data-[active]:not-data-[placeholder]:hover:text-foreground"
+          class="editor-tab group relative inline-grid h-8 w-full touch-pan-y grid-cols-[auto_minmax(0,1fr)_auto] border-t-2 border-r border-t-transparent border-r-border/45 text-muted-foreground data-[active]:border-t-primary data-[active]:bg-background data-[active]:text-foreground data-[placeholder]:bg-primary/10 data-[placeholder]:text-transparent data-[placeholder]:[&>*]:invisible not-data-[active]:not-data-[placeholder]:hover:bg-hover not-data-[active]:not-data-[placeholder]:hover:text-foreground"
           data-active={tab.active ? "" : undefined}
           data-running={tab.running ? "" : undefined}
           data-errored={tab.error ? "" : undefined}

@@ -94,7 +94,7 @@ function onCreateKeydown(event: KeyboardEvent) {
           bind:value={newName}
           ariaLabel="New folder name"
           placeholder="New folder name"
-          class="border-0 bg-transparent px-0 shadow-none focus-visible:ring-0 dark:bg-transparent"
+          class="border-0 bg-transparent px-0 shadow-none focus-visible:ring-0"
           disabled={browser.creatingBusy}
           onkeydown={onCreateKeydown}
         />

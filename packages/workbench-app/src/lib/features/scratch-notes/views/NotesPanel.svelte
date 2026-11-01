@@ -97,7 +97,9 @@ $effect(() => {
     {:else}
       <ScrollRegion
         ariaLabel="Scratch notes"
-        contentClass="flex min-w-0 shrink-0 flex-col gap-1.5 py-1"
+        surface="panel"
+        class="-mx-2"
+        contentClass="flex min-w-0 shrink-0 flex-col gap-1.5 px-2 py-1"
       >
         {#each project.notes as note (note.id)}
           <ScratchNoteCard

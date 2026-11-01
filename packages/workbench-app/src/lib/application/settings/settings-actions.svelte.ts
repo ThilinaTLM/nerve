@@ -1,4 +1,3 @@
-import type { ColorMode, ColorTheme } from "$lib/api";
 import {
   getApplicationConfiguration,
   getAuthProviders,
@@ -12,9 +11,6 @@ import {
   updateSettings,
 } from "$lib/api";
 import {
-  applyAppearance,
-  applyColorMode,
-  applyColorTheme,
   applyZoomLevel,
   clampZoomLevel,
 } from "$lib/platform/appearance/appearance.svelte";
@@ -141,7 +137,6 @@ async function performCoreSettingsLoad(): Promise<void> {
   settingsState.settingsDraft = settings;
   settingsState.applicationConfiguration = applicationConfiguration;
   settingsState.daemonCapability = capability;
-  applyAppearance(settings.ui.theme, settings.ui.colorMode);
   applyZoomLevel(settings.ui.zoomLevel);
   settingsState.models = modelList;
   settingsState.authProviders = auth;
@@ -376,13 +371,11 @@ export async function restartOwnedDaemon(): Promise<void> {
   }
 }
 
-export function setColorTheme(theme: ColorTheme): void {
-  applyColorTheme(theme);
-}
-
-export function setColorMode(colorMode: ColorMode): void {
-  applyColorMode(colorMode);
-}
+export {
+  setDarkTheme,
+  setLightTheme,
+  setColorMode,
+} from "$lib/platform/appearance/appearance.svelte";
 
 export function setUiZoomLevel(level: number) {
   const next = clampZoomLevel(level);

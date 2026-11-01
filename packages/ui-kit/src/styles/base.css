@@ -42,6 +42,13 @@
     overflow: hidden;
   }
 
+  /* Text selection uses the theme's primary instead of the platform's blue,
+   * matching the website. */
+  ::selection {
+    background-color: color-mix(in oklab, var(--primary) 30%, transparent);
+    color: var(--foreground);
+  }
+
   /* Thin, theme-aware scrollbars. */
   * {
     scrollbar-width: thin;

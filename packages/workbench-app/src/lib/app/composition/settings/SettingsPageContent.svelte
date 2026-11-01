@@ -66,7 +66,11 @@ let {
   onSettingsChange,
   onApplicationConfigurationChange,
   onRestartDaemon,
-  onColorThemeChange,
+  lightTheme,
+  darkTheme,
+  colorMode,
+  onLightThemeChange,
+  onDarkThemeChange,
   onColorModeChange,
 }: {
   page: SettingsPageDef;
@@ -93,7 +97,11 @@ let {
     patch: UpdateApplicationConfigurationRequest,
   ) => void;
   onRestartDaemon?: () => void;
-  onColorThemeChange?: (theme: ColorTheme) => void;
+  lightTheme: ColorTheme;
+  darkTheme: ColorTheme;
+  colorMode: ColorMode;
+  onLightThemeChange?: (theme: ColorTheme) => void;
+  onDarkThemeChange?: (theme: ColorTheme) => void;
   onColorModeChange?: (colorMode: ColorMode) => void;
   onSkillsRetry?: () => void;
 } = $props();
@@ -129,7 +137,11 @@ const projectId = $derived(
   {:else if page.id === "workbench"}
     <WorkbenchSettingsPage
       {settingsDraft}
-      {onColorThemeChange}
+      {lightTheme}
+      {darkTheme}
+      {colorMode}
+      {onLightThemeChange}
+      {onDarkThemeChange}
       {onColorModeChange}
       {onSettingsChange}
     />

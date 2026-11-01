@@ -13,7 +13,7 @@ export const MIGRATION_METADATA: readonly MigrationRegistryEntry[] =
       step: { id: "0002-agent-profiles" },
       rerunOnChange: true,
       checksum:
-        "15b23510e159c4d2530ecda888a3528d51fba1a005f533c1aa0d65e6c4881504",
+        "4bc089e0c758119861523ef4234aa6f008206334d0a65cd524293c9908ca646e",
       stage: "draft",
     },
   ]);

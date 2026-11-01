@@ -99,7 +99,7 @@ const Icon = $derived(tone === "running" ? undefined : icons[tone]);
 <div
   class={[
     "grid grid-cols-[1rem_minmax(0,1fr)] items-start gap-x-2 rounded-md py-2 pl-1.5 pr-1 text-left",
-    interactive && "cursor-pointer hover:bg-muted/60",
+    interactive && "cursor-pointer hover:bg-hover",
   ]}
 >
   <span class="mt-0.5 flex-none {tones[tone]}">

@@ -289,8 +289,9 @@ const menuContext = $derived<ProjectTreeMenuContext>({
       <ScrollRegion
         bind:viewport
         ariaLabel="Conversations"
-        topShadowClass="top-0 h-2"
-        contentClass="pb-2"
+        surface="panel"
+        class="-mx-2"
+        contentClass="px-2 pb-2"
       >
         {#each displayedSections as section (section.key)}
           <div
@@ -309,7 +310,7 @@ const menuContext = $derived<ProjectTreeMenuContext>({
           </div>
           <PanelList
             ariaLabel={`${section.label} conversations`}
-            class="shrink-0 overflow-hidden rounded-md bg-background/60 py-0"
+            class="shrink-0 overflow-hidden rounded-md py-0"
           >
             {#each section.rows as row (row.conversation.id)}
               {@const rowProject =

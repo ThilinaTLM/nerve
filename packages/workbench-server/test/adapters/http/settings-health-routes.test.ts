@@ -72,12 +72,12 @@ void test("settings health is nonblocking and reset/reload refresh the runtime p
   assert.equal(await readFile(paths.uiConfigPath, "utf8"), "broken");
   assert.deepEqual(notices, []);
   const repaired = structuredClone(defaultUserConfiguration.ui);
-  repaired.appearance.colorMode = "dark";
+  repaired.appearance.zoomLevel = 2;
   await writeFile(paths.uiConfigPath, JSON.stringify(repaired));
   assert.deepEqual(await (await resolve("ui", "reload")).json(), {
     invalid: [],
   });
-  assert.equal(storage.settings.ui.colorMode, "dark");
+  assert.equal(storage.settings.ui.zoomLevel, 2);
   assert.deepEqual(notices.splice(0), ["settings.updated"]);
   await writeFile(paths.uiConfigPath, "broken again");
   assert.deepEqual(await (await resolve("ui", "reset")).json(), {

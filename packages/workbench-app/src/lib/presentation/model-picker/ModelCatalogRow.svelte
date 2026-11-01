@@ -166,7 +166,7 @@ const reasoning = $derived(model ? modelSupportsReasoning(model) : false);
     role="option"
     aria-selected={selected}
     class={cn(
-      "flex h-8 min-w-0 items-center gap-2 rounded-md pr-2 pl-2 transition-colors hover:bg-accent/50",
+      "flex h-8 min-w-0 items-center gap-2 rounded-md pr-2 pl-2 transition-colors hover:bg-hover",
       active && "outline outline-1 -outline-offset-1 outline-ring/55",
       disabled && "opacity-70",
       className,

@@ -6,7 +6,6 @@ export const sharedThemeTokens = Object.freeze([
   "background",
   "foreground",
   "card",
-  "card-foreground",
   "muted",
   "muted-foreground",
   "primary",
@@ -20,8 +19,11 @@ export const sharedThemeTokens = Object.freeze([
 ]);
 
 export function compareTokenParity(uiKitCss, websiteCss) {
-  const uiLight = themeDeclarations(uiKitCss, ':root[data-theme="nerve"]');
-  const uiDark = themeDeclarations(uiKitCss, ':root[data-theme="nerve"].dark');
+  const uiLight = themeDeclarations(
+    uiKitCss,
+    ':root[data-theme="nerve-light"]',
+  );
+  const uiDark = themeDeclarations(uiKitCss, ':root[data-theme="nerve-dark"]');
   const websiteDark = themeDeclarations(websiteCss, ':root[data-theme="dark"]');
   const websiteLight = themeDeclarations(
     websiteCss,

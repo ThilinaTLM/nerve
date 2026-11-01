@@ -13,6 +13,7 @@ export {
   saveApplicationConfiguration,
   selectCenterSettingsTab,
   setColorMode,
-  setColorTheme,
+  setDarkTheme,
+  setLightTheme,
   setUiZoomLevel,
 } from "./settings-actions.svelte";

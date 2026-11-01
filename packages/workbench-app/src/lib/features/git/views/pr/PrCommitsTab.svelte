@@ -25,7 +25,7 @@ const days = $derived(groupCommitsByDay(response.commits));
         <ol class="divide-y overflow-hidden rounded-md border bg-card">
           {#each group.commits as commit (commit.oid)}
             {@const author = commit.authorLogin ?? commit.authorName}
-            <li class="flex items-center gap-3 px-3 py-2 hover:bg-accent/40">
+            <li class="flex items-center gap-3 px-3 py-2 hover:bg-hover">
               <GitCommitHorizontal
                 class="size-4 shrink-0 text-muted-foreground"
                 aria-hidden="true"

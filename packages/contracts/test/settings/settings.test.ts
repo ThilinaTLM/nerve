@@ -3,6 +3,15 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
   autoCompactionSettingsSchema,
+  colorThemeKind,
+  colorThemeSchema,
+  darkColorThemes,
+  defaultDarkColorTheme,
+  defaultLightColorTheme,
+  legacyColorThemes,
+  lightColorThemes,
+  defaultUiConfig,
+  uiConfigSchema,
   defaultSettings,
   settingsSchema,
   updateApplicationConfigurationRequestSchema,
@@ -10,6 +19,36 @@ import {
 } from "../../src/domains/settings/index.js";
 
 describe("settings schema", () => {
+  it("classifies every colour theme as light or dark and maps legacy ids to a pair", () => {
+    assert.deepEqual(
+      [...lightColorThemes, ...darkColorThemes].sort(),
+      [...colorThemeSchema.options].sort(),
+    );
+    assert.equal(colorThemeKind[defaultLightColorTheme], "light");
+    assert.equal(colorThemeKind[defaultDarkColorTheme], "dark");
+    for (const pair of Object.values(legacyColorThemes)) {
+      assert.equal(colorThemeKind[pair.light], "light");
+      assert.equal(colorThemeKind[pair.dark], "dark");
+    }
+  });
+
+  it("keeps only zoom in daemon appearance and drops client preference patches", () => {
+    assert.deepEqual(defaultSettings.ui, { zoomLevel: 0 });
+    assert.deepEqual(defaultUiConfig.appearance, { zoomLevel: 0 });
+    for (const field of ["theme", "colorMode"]) {
+      assert.equal(
+        uiConfigSchema.safeParse({
+          ...defaultUiConfig,
+          appearance: { zoomLevel: 0, [field]: "dark" },
+        }).success,
+        false,
+      );
+      assert.deepEqual(
+        updateSettingsRequestSchema.parse({ ui: { [field]: "dark" } }).ui,
+        {},
+      );
+    }
+  });
   it("normalizes a partially disabled sub-agent group to fully disabled", () => {
     const settings = settingsSchema.parse({
       ...defaultSettings,

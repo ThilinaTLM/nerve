@@ -9,8 +9,6 @@ import {
   providerIdSchema,
 } from "../providers/providers.js";
 import {
-  colorModeSchema,
-  colorThemeSchema,
   headerTypeSchema,
   notificationToneSchema,
   transcriptionModelSchema,
@@ -129,8 +127,6 @@ export const uiConfigSchema = z
     version: z.literal(1),
     appearance: z
       .object({
-        theme: colorThemeSchema,
-        colorMode: colorModeSchema,
         zoomLevel: z.number().int().min(-8).max(8),
       })
       .strict(),
@@ -172,7 +168,7 @@ export type UiConfig = z.infer<typeof uiConfigSchema>;
 
 export const defaultUiConfig: UiConfig = {
   version: 1,
-  appearance: { theme: "nerve", colorMode: "system", zoomLevel: 0 },
+  appearance: { zoomLevel: 0 },
   desktop: { closeToTray: false, headerType: "auto" },
   notifications: {
     systemEnabled: true,

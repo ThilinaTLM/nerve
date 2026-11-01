@@ -329,7 +329,12 @@ function toggleChecks(pr: GithubPr) {
 
 {#snippet prList()}
   <div class="flex min-h-0 flex-1 flex-col" bind:this={listEl}>
-    <ScrollRegion ariaLabel="Pull requests" contentClass="min-w-0">
+    <ScrollRegion
+      ariaLabel="Pull requests"
+      surface="panel"
+      class="-mx-2"
+      contentClass="min-w-0 px-2"
+    >
       {#if prs.length > displayedPrs.length}
         {@render note(`Showing ${displayedPrs.length} of ${prs.length}`)}
       {/if}

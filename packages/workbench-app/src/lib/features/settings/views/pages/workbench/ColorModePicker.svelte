@@ -21,13 +21,15 @@ const options: SettingsPreviewOption[] = [
 
 let {
   value = $bindable(""),
-  theme,
+  lightTheme,
+  darkTheme,
   ariaLabel = "Color mode",
   class: className,
   onValueChange,
 }: {
   value?: string;
-  theme: ColorTheme;
+  lightTheme: ColorTheme;
+  darkTheme: ColorTheme;
   ariaLabel?: string;
   class?: string;
   onValueChange?: (value: string) => void;
@@ -41,7 +43,7 @@ let {
   class={className}
   {onValueChange}
   previewAttrs={(option, mode) => ({
-    "data-theme-preview": theme,
+    "data-theme-preview": mode === "light" ? lightTheme : darkTheme,
     "data-color-mode": mode,
   })}
 />

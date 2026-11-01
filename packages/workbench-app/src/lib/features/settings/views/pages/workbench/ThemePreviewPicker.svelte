@@ -1,35 +1,62 @@
 <script lang="ts">
-import Flower2 from "@lucide/svelte/icons/flower-2";
-import Moon from "@lucide/svelte/icons/moon";
-import Palette from "@lucide/svelte/icons/palette";
-import Sun from "@lucide/svelte/icons/sun";
+import Flame from "@lucide/svelte/icons/flame";
+import Layers from "@lucide/svelte/icons/layers";
+import {
+  colorThemeKind,
+  type ColorTheme,
+  type ColorThemeKind,
+} from "@nervekit/contracts/settings";
 import {
   SettingsPreviewCards,
   type SettingsPreviewOption,
 } from "$lib/presentation/settings";
 
-const options: SettingsPreviewOption[] = [
-  { value: "nerve", label: "Nerve", icon: Palette },
-  { value: "rose", label: "Rosé", icon: Flower2 },
-  { value: "solar", label: "Solar", icon: Sun },
-  { value: "midnight", label: "Midnight", icon: Moon },
-];
+const themeOptions: Record<ColorTheme, Omit<SettingsPreviewOption, "value">> = {
+  "nerve-light": {
+    label: "Nerve Light",
+    description: "Warm paper with an ember accent",
+    icon: Flame,
+  },
+  "nerve-dark": {
+    label: "Nerve Dark",
+    description: "Warm umber with an ember accent",
+    icon: Flame,
+  },
+  graphite: {
+    label: "Graphite",
+    description: "Neutral near-black with an ember accent",
+    icon: Layers,
+  },
+};
 
 let {
+  kind,
   value = $bindable(""),
-  ariaLabel = "Theme",
+  ariaLabel = kind === "light" ? "Light theme" : "Dark theme",
   class: className,
   onValueChange,
 }: {
+  /** Which colour mode these themes serve; each theme is either light or dark. */
+  kind: ColorThemeKind;
   value?: string;
   ariaLabel?: string;
   class?: string;
   onValueChange?: (value: string) => void;
 } = $props();
+
+const options = $derived(
+  (Object.keys(themeOptions) as ColorTheme[])
+    .filter((theme) => colorThemeKind[theme] === kind)
+    .map((theme) => ({
+      ...themeOptions[theme],
+      value: theme,
+      previews: [kind],
+    })),
+);
 </script>
 
-<!-- A theme now carries corner radius and elevation as well as color, so the
-     swatch renders a miniature chrome instead of flat bars. -->
+<!-- A theme carries colour only; the swatch renders a miniature chrome so the
+     surface ladder and accent are visible. -->
 {#snippet themePreview()}
   <span class="w-1.5 flex-none rounded-sm bg-panel"></span>
   <span class="grid min-w-0 flex-1 content-start gap-1">

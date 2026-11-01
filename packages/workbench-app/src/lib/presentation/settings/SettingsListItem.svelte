@@ -40,7 +40,7 @@ let {
   role="listitem"
   data-tour-id={tourId}
   class={cn(
-    "grid min-h-9 grid-cols-[minmax(0,1fr)_auto] items-center gap-3 px-3 py-1.5 transition-colors hover:bg-accent/40",
+    "grid min-h-9 grid-cols-[minmax(0,1fr)_auto] items-center gap-3 px-3 py-1.5 transition-colors hover:bg-hover",
     className,
   )}
 >

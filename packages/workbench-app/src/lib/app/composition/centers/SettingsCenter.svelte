@@ -1,4 +1,5 @@
 <script lang="ts">
+import { appearanceState } from "$lib/platform/appearance/appearance.svelte";
 import type { Project } from "@nervekit/contracts/core";
 import { openProjectSettingsPane } from "$lib/application/settings";
 import SettingsView from "$lib/app/composition/settings/SettingsView.svelte";
@@ -12,7 +13,8 @@ import {
   restartOwnedDaemon,
   saveApplicationConfiguration,
   setColorMode,
-  setColorTheme,
+  setDarkTheme,
+  setLightTheme,
 } from "$lib/application/settings/settings-actions.svelte";
 
 /**
@@ -72,6 +74,10 @@ $effect(() => {
   onSettingsChange={queueSettingsSave}
   onApplicationConfigurationChange={saveApplicationConfiguration}
   onRestartDaemon={restartOwnedDaemon}
-  onColorThemeChange={setColorTheme}
+  lightTheme={appearanceState.lightTheme}
+  darkTheme={appearanceState.darkTheme}
+  colorMode={appearanceState.colorMode}
+  onLightThemeChange={setLightTheme}
+  onDarkThemeChange={setDarkTheme}
   onColorModeChange={setColorMode}
 />

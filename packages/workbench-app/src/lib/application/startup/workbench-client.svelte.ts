@@ -11,6 +11,7 @@ import { getClientConfig } from "$lib/api";
 import {
   applyAppearance,
   loadAppearancePreference,
+  installAppearanceStorageSync,
 } from "$lib/platform/appearance/appearance.svelte";
 import { installClientLogging } from "$lib/platform/logging/client-logger";
 import {
@@ -40,13 +41,15 @@ import {
 import { workspaceMonitorDemand } from "$lib/application/monitoring/workspace-monitor-demand";
 let usageTimer: ReturnType<typeof setInterval> | undefined;
 let unobserve: (() => void) | undefined;
+let stopAppearanceSync: (() => void) | undefined;
 let stopAttention: (() => void) | undefined;
 
 export async function initializeWorkbench(): Promise<boolean> {
   const generation = beginWorkbenchStartup();
   transitionWorkbenchStartup(generation, "critical");
+  stopAppearanceSync = installAppearanceStorageSync();
   const appearance = loadAppearancePreference();
-  applyAppearance(appearance.theme, appearance.colorMode);
+  applyAppearance(appearance, appearance.colorMode);
   try {
     const config = await getClientConfig();
     workspaceState.config = config;
@@ -123,6 +126,8 @@ export async function initializeWorkbench(): Promise<boolean> {
 
 export function disconnectWorkbench(): void {
   stopWorkbenchStartup();
+  stopAppearanceSync?.();
+  stopAppearanceSync = undefined;
   if (usageTimer) clearInterval(usageTimer);
   usageTimer = undefined;
   unobserve?.();

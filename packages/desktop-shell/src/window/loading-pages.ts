@@ -226,7 +226,7 @@ function shellStyles(): string {
       --background: oklch(0.979 0.012 92);
       --foreground: oklch(0.3438 0.0269 95.7);
       --primary: oklch(0.57 0.1375 39);
-      --muted-foreground: oklch(0.5341 0.0078 97.5);
+      --muted-foreground: oklch(0.49 0.0078 97.5);
       --border: oklch(0.872 0.017 95);
       --destructive: oklch(0.5 0.19 27);
       --radius: 0.375rem;
@@ -252,7 +252,7 @@ function shellStyles(): string {
         --foreground: oklch(0.9 0.012 95);
         --primary: oklch(0.6724 0.1308 38.8);
         --muted-foreground: oklch(0.7713 0.017 99);
-        --border: oklch(0.353 0.022 82);
+        --border: oklch(0.385 0.022 82);
         --destructive: oklch(0.8 0.114 25.5);
       }
     }

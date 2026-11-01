@@ -1,3 +1,4 @@
+import { upgradeClientAppearance } from "./client-appearance.js";
 import { isAppliedHome, upgradeProfileDocuments } from "./profile-documents.js";
 import { inventory } from "./released-inventory.js";
 import {
@@ -578,6 +579,12 @@ export default defineStep({
   description: "Move agent settings to configuration files",
   async run(ctx) {
     if (isAppliedHome(ctx)) {
+      await phaseProgress(
+        ctx,
+        "client-appearance",
+        "Updating client preferences",
+      )();
+      upgradeClientAppearance(ctx);
       upgradeProfileDocuments(ctx);
       return;
     }
@@ -621,6 +628,12 @@ export default defineStep({
     } finally {
       backend.close();
     }
+    await phaseProgress(
+      ctx,
+      "client-appearance",
+      "Updating client preferences",
+    )();
+    upgradeClientAppearance(ctx);
     replaceLosses(
       ctx,
       [
@@ -631,6 +644,7 @@ export default defineStep({
     );
   },
   async verify(ctx) {
+    upgradeClientAppearance(ctx, true);
     if (isAppliedHome(ctx)) {
       upgradeProfileDocuments(ctx, true);
       return;

@@ -1,4 +1,5 @@
 <script lang="ts">
+import { appearanceState } from "$lib/platform/appearance/appearance.svelte";
 import { untrack } from "svelte";
 import type { Project } from "@nervekit/contracts/core";
 import { MobileScreen } from "$lib/presentation/shell";
@@ -16,7 +17,8 @@ import {
   restartOwnedDaemon,
   saveApplicationConfiguration,
   setColorMode,
-  setColorTheme,
+  setDarkTheme,
+  setLightTheme,
 } from "$lib/application/settings/settings-actions.svelte";
 import { workspaceSelectors } from "$lib/application/workspace";
 import { backFromMobileScreen } from "$lib/app/shell/mobile/mobile-shell.svelte";
@@ -118,7 +120,11 @@ $effect(() => {
       onSettingsChange={queueSettingsSave}
       onApplicationConfigurationChange={saveApplicationConfiguration}
       onRestartDaemon={restartOwnedDaemon}
-      onColorThemeChange={setColorTheme}
+      lightTheme={appearanceState.lightTheme}
+      darkTheme={appearanceState.darkTheme}
+      colorMode={appearanceState.colorMode}
+      onLightThemeChange={setLightTheme}
+      onDarkThemeChange={setDarkTheme}
       onColorModeChange={setColorMode}
     />
   </div>

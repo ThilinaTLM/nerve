@@ -14,18 +14,52 @@ import {
 import { permissionRuleSetIdSchema } from "../permissions/permission-rule-sets.js";
 import { permissionExceptionSchema } from "../permissions/permissions.js";
 
-export const colorThemeSchema = z.enum(["nerve", "rose", "solar", "midnight"]);
+export const colorThemeSchema = z.enum([
+  "nerve-light",
+  "nerve-dark",
+  "graphite",
+]);
+export type ColorTheme = z.infer<typeof colorThemeSchema>;
 
 /**
- * Themes that shipped once and were replaced. Stored settings are migrated to
- * the successor that best preserves the user's original intent, so an old value
- * never fails schema validation.
+ * Themes are independent and each is either light or dark. The effective theme
+ * follows the resolved colour mode: the light theme in light mode, the dark
+ * theme in dark mode.
  */
-export const retiredColorThemes = {
-  ocean: "solar",
-  forest: "rose",
-} as const satisfies Record<string, z.infer<typeof colorThemeSchema>>;
-export type ColorTheme = z.infer<typeof colorThemeSchema>;
+export type ColorThemeKind = "light" | "dark";
+export const colorThemeKind: Record<ColorTheme, ColorThemeKind> = {
+  "nerve-light": "light",
+  "nerve-dark": "dark",
+  graphite: "dark",
+};
+export const lightColorThemes = colorThemeSchema.options.filter(
+  (theme) => colorThemeKind[theme] === "light",
+);
+export const darkColorThemes = colorThemeSchema.options.filter(
+  (theme) => colorThemeKind[theme] === "dark",
+);
+export const defaultLightColorTheme = "nerve-light" satisfies ColorTheme;
+export const defaultDarkColorTheme = "nerve-dark" satisfies ColorTheme;
+
+export interface ColorThemePair {
+  light: ColorTheme;
+  dark: ColorTheme;
+}
+
+/**
+ * Themes that were a single client-wide choice before light and dark became
+ * independent preferences. A stored legacy id restores the pair that best
+ * preserves the user's original look.
+ */
+export const legacyColorThemes = {
+  nerve: { light: "nerve-light", dark: "nerve-dark" },
+  rose: { light: "nerve-light", dark: "nerve-dark" },
+  forest: { light: "nerve-light", dark: "nerve-dark" },
+  slate: { light: "nerve-light", dark: "nerve-dark" },
+  solar: { light: "nerve-light", dark: "graphite" },
+  ocean: { light: "nerve-light", dark: "graphite" },
+  midnight: { light: "nerve-light", dark: "graphite" },
+} as const satisfies Record<string, ColorThemePair>;
 
 export const colorModeSchema = z.enum(["system", "light", "dark"]);
 export type ColorMode = z.infer<typeof colorModeSchema>;
@@ -375,8 +409,6 @@ export const settingsSchema = z.object({
   defaultThinkingLevel: thinkingLevelSchema,
   application: applicationSettingsSchema,
   ui: z.object({
-    theme: colorThemeSchema,
-    colorMode: colorModeSchema,
     zoomLevel: z.number().int().min(-8).max(8),
   }),
   desktop: z.object({
@@ -421,8 +453,6 @@ export const defaultSettings: Settings = {
   defaultThinkingLevel: "off",
   application: defaultApplicationSettings,
   ui: {
-    theme: "nerve",
-    colorMode: "system",
     zoomLevel: 0,
   },
   desktop: {
@@ -495,8 +525,6 @@ export const updateSettingsRequestSchema = z.strictObject({
   application: applicationSettingsPatchSchema.optional(),
   ui: z
     .object({
-      theme: colorThemeSchema.optional(),
-      colorMode: colorModeSchema.optional(),
       zoomLevel: z.number().int().min(-8).max(8).optional(),
     })
     .optional(),

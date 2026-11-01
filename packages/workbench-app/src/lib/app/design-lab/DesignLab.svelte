@@ -1,6 +1,8 @@
 <script lang="ts">
 import {
+  colorThemeKind,
   colorThemeSchema,
+  defaultLightColorTheme,
   type ColorTheme,
 } from "@nervekit/contracts/settings";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
@@ -10,7 +12,7 @@ import { cn } from "@nervekit/ui-kit/utils";
 import MoonIcon from "@lucide/svelte/icons/moon";
 import SunIcon from "@lucide/svelte/icons/sun";
 import { mode, setMode } from "mode-watcher";
-import { onMount } from "svelte";
+import { onMount, untrack } from "svelte";
 import { dismissStartupSplash } from "$lib/app/shell/startup-splash";
 import ComponentCatalog from "./ComponentCatalog.svelte";
 import {
@@ -23,12 +25,15 @@ import Wireframes from "./Wireframes.svelte";
 const route = labRouteFromPath(window.location.pathname);
 let theme = $state<ColorTheme>(
   colorThemeSchema.safeParse(document.documentElement.dataset.theme).data ??
-    "nerve",
+    defaultLightColorTheme,
 );
 
-// Lab theme selection never writes application settings.
+// Lab theme selection never writes application settings. A theme is either
+// light or dark, so choosing one also sets the matching colour mode.
 $effect(() => {
   document.documentElement.dataset.theme = theme;
+  const kind = colorThemeKind[theme];
+  untrack(() => setMode(kind));
 });
 onMount(dismissStartupSplash);
 </script>
@@ -63,11 +68,11 @@ onMount(dismissStartupSplash);
       <div class="ml-auto flex items-center gap-2">
         <Select.Root type="single" bind:value={theme}>
           <Select.Trigger aria-label="Theme"
-            ><span class="capitalize">{theme}</span></Select.Trigger
+            ><span>{theme}</span></Select.Trigger
           >
           <Select.Content>
             {#each colorThemeSchema.options as option (option)}
-              <Select.Item value={option} label={option} class="capitalize" />
+              <Select.Item value={option} label={option} />
             {/each}
           </Select.Content>
         </Select.Root>
@@ -75,7 +80,13 @@ onMount(dismissStartupSplash);
           variant="outline"
           size="icon"
           ariaLabel="Toggle color mode"
-          onclick={() => setMode(mode.current === "dark" ? "light" : "dark")}
+          onclick={() => {
+            // The lab mirrors the app: the mode picks the theme of that kind.
+            const next = mode.current === "dark" ? "light" : "dark";
+            theme = colorThemeSchema.options.find(
+              (option) => colorThemeKind[option] === next,
+            )!;
+          }}
         >
           {#if mode.current === "dark"}<SunIcon />{:else}<MoonIcon />{/if}
         </Button>

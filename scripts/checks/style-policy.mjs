@@ -56,6 +56,22 @@ export const GLOBAL_SELECTOR_ALLOWLIST = [
   /^\.dialog-content\./,
 ];
 
+/**
+ * Finds Tailwind `dark:` utilities. Colour mode differences belong in token
+ * values (see `--input-background`, `--hover`), never in per-component
+ * utilities: `dark:` follows the document's `.dark` class, which a theme
+ * preview root does not share, so it cannot be previewed or composed.
+ * Property-style uses (`dark: boolean`, `dark: true`) do not match.
+ */
+export function findDarkUtilities(source) {
+  const offenders = [];
+  for (const match of source.matchAll(
+    /(?<![\w-])dark:(?!\s|true\b|false\b)[\w![*&@-][^\s"'`]*/g,
+  ))
+    offenders.push(match[0]);
+  return offenders;
+}
+
 const CLASS_TOKEN = /-?[_a-zA-Z][\w-]*/;
 
 /** Strips comments and at-rule preludes, then collects class selectors. */

@@ -15,8 +15,10 @@ const read = (...segments) => readFileSync(join(repoRoot, ...segments), "utf8");
 
 const themeCss = read("packages", "ui-kit", "src", "styles", "theme.css");
 
+/* Nerve's two themes are independent: light mirrors nerve-light, dark mirrors
+ * nerve-dark. */
 function themeTokens(mode) {
-  const selector = `[data-theme-preview="nerve"][data-color-mode="${mode}"]`;
+  const selector = `[data-theme-preview="nerve-${mode}"]`;
   const block = themeCss.slice(themeCss.indexOf(selector));
   const body = block.slice(0, block.indexOf("\n}"));
   const tokens = new Map();

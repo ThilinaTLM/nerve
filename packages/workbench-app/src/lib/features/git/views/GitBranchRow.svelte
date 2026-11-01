@@ -40,7 +40,7 @@ const canDelete = $derived(enabled && canDeleteBranch(branch, baseBranch));
 </script>
 
 <div
-  class="group flex min-w-0 items-center border-b last:border-b-0 hover:bg-muted/50"
+  class="group flex min-w-0 items-center border-b last:border-b-0 hover:bg-hover"
 >
   <button
     type="button"
