@@ -1,16 +1,38 @@
 <script lang="ts">
 import FolderOpen from "@lucide/svelte/icons/folder-open";
+
+type Props = {
+  /** A file drag is currently over the zone. */
+  over: boolean;
+  ondragover: (event: DragEvent) => void;
+  ondragleave: (event: DragEvent) => void;
+  ondrop: (event: DragEvent) => void;
+};
+
+let { over, ondragover, ondragleave, ondrop }: Props = $props();
 </script>
 
+<!-- Covers only the titlebar row (3rem, see WorkbenchFrame) so drags elsewhere
+     stay free for the composer. `no-drag` lets the frameless desktop titlebar
+     receive drop events. -->
 <div
-  class="pointer-events-none fixed inset-2 z-50 grid place-items-center rounded-lg border-2 border-dashed border-primary bg-background/85"
-  role="presentation"
-  aria-hidden="true"
+  class="fixed inset-x-0 top-0 z-50 h-12 bg-panel p-1.5 [-webkit-app-region:no-drag] animate-in fade-in-0 duration-150"
+  role="region"
+  aria-label="Drop to open as a project"
+  {ondragover}
+  {ondragleave}
+  {ondrop}
 >
-  <div class="flex flex-col items-center gap-1 text-center">
-    <FolderOpen class="size-8 text-primary" />
-    <span class="text-sm font-medium">Drop to open as a project</span>
-    <span class="text-xs text-muted-foreground"
+  <div
+    class={`pointer-events-none flex h-full items-center justify-center gap-2 rounded-md border-2 border-dashed text-sm transition-colors ${
+      over
+        ? "border-primary bg-primary/10 text-foreground"
+        : "border-border text-muted-foreground"
+    }`}
+  >
+    <FolderOpen class={`size-4 ${over ? "text-primary" : ""}`} />
+    <span class="font-medium">Drop here to open as a project</span>
+    <span class="text-xs text-muted-foreground max-md:hidden"
       >You'll confirm before anything opens</span
     >
   </div>

@@ -11,7 +11,9 @@ describe("background task exit metadata", () => {
         exitCode,
       });
       const tone = exitCode === 0 ? "success" : "destructive";
-      assert.deepEqual(model.chips, [{ text: `exit ${exitCode}`, tone }]);
+      assert.deepEqual(model.chips, [
+        { text: `exit ${exitCode}`, ...(exitCode === 0 ? {} : { tone }) },
+      ]);
       assert.equal(model.tone, tone);
       assert.equal(
         model.badge,

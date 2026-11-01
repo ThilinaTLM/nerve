@@ -12,6 +12,6 @@ let {
 <ContextMenuPrimitive.Trigger
   bind:ref
   data-slot="context-menu-trigger"
-  class={cn("cn-context-menu-trigger select-none", className)}
+  class={cn("cn-context-menu-trigger outline-none select-none", className)}
   {...restProps}
 />

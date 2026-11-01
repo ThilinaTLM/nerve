@@ -90,9 +90,10 @@ function chipsFor(
 ): NoticeChip[] {
   const chips: NoticeChip[] = [];
   if (notice.exitCode !== undefined && notice.exitCode !== null) {
+    // A clean exit is the expected outcome, so only a failure takes colour.
     chips.push({
       text: `exit ${notice.exitCode}`,
-      tone: notice.exitCode === 0 ? "success" : "destructive",
+      ...(notice.exitCode === 0 ? {} : { tone: "destructive" as const }),
     });
   } else if (notice.signal) {
     chips.push({ text: `signal ${notice.signal}`, tone: "warning" });

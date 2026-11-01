@@ -120,7 +120,7 @@
   --muted: oklch(0.924 0.018 91);
   --muted-foreground: oklch(0.49 0.0078 97.5);
   --accent: oklch(0.91 0.026 92);
-  --selected: color-mix(in oklab, var(--primary) 14%, transparent);
+  --selected: color-mix(in oklab, var(--foreground) 8%, transparent);
   --destructive: oklch(0.5 0.19 27);
   --destructive-foreground: oklch(1 0 0);
   --destructive-solid: oklch(0.55 0.21 27.5);
@@ -177,7 +177,7 @@
   --muted: oklch(0.322 0.018 78);
   --muted-foreground: oklch(0.7713 0.017 99);
   --accent: oklch(0.336 0.022 78);
-  --selected: color-mix(in oklab, var(--primary) 22%, transparent);
+  --selected: color-mix(in oklab, var(--foreground) 10%, transparent);
   --destructive: oklch(0.8 0.114 25.5);
   --destructive-foreground: oklch(0.147 0.004 49.3);
   --destructive-solid: oklch(0.58 0.21 27.5);
@@ -420,7 +420,7 @@
   --color-warning: var(--warning);
   --color-success-foreground: var(--success-foreground);
   --color-success: var(--success);
-  /* Persistent selection: primary tint, distinct from hover/focus accent. */
+  /* Persistent selection: a theme-chosen tint, stronger than the neutral hover. */
   --color-selected: var(--selected);
   --color-accent-foreground: var(--accent-foreground);
   --color-accent: var(--accent);

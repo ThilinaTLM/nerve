@@ -22,6 +22,7 @@ type DroppedPath = { path: string; hint: "folder" | "file" | "unknown" };
 
 let enabled = $state(false);
 let dragging = $state(false);
+let overZone = $state(false);
 let dragDepth = 0;
 
 let open = $state(false);
@@ -61,25 +62,45 @@ function hasFiles(event: DragEvent): boolean {
 function resetDrag() {
   dragDepth = 0;
   dragging = false;
+  overZone = false;
 }
 
-function onDragEnter(event: DragEvent) {
-  if (!enabled || event.defaultPrevented || !hasFiles(event)) return;
-  event.preventDefault();
+// Enter/leave are tracked in the capture phase so drop targets that stop
+// propagation (the composer) cannot unbalance the depth count.
+function onDragEnterCapture(event: DragEvent) {
+  if (!enabled || !hasFiles(event)) return;
   dragDepth += 1;
   dragging = true;
 }
 
-function onDragOver(event: DragEvent) {
+function onDragLeaveCapture() {
+  if (!dragging) return;
+  dragDepth = Math.max(0, dragDepth - 1);
+  if (dragDepth === 0) resetDrag();
+}
+
+/** Outside the titlebar zone, refuse unhandled file drops instead of letting
+ * the browser navigate to the file. */
+function onWindowDragOver(event: DragEvent) {
   if (!enabled || event.defaultPrevented || !hasFiles(event)) return;
   event.preventDefault();
+  if (event.dataTransfer) event.dataTransfer.dropEffect = "none";
+}
+
+function onWindowDrop(event: DragEvent) {
+  if (!enabled || event.defaultPrevented || !hasFiles(event)) return;
+  event.preventDefault();
+}
+
+function onZoneDragOver(event: DragEvent) {
+  if (!hasFiles(event)) return;
+  event.preventDefault();
+  overZone = true;
   if (event.dataTransfer) event.dataTransfer.dropEffect = "copy";
 }
 
-function onDragLeave() {
-  if (!dragging) return;
-  dragDepth = Math.max(0, dragDepth - 1);
-  if (dragDepth === 0) dragging = false;
+function onZoneDragLeave() {
+  overZone = false;
 }
 
 function collectDropped(event: DragEvent): DroppedPath[] {
@@ -107,9 +128,9 @@ function collectDropped(event: DragEvent): DroppedPath[] {
   return result;
 }
 
-function onDrop(event: DragEvent) {
+function onZoneDrop(event: DragEvent) {
   resetDrag();
-  if (!enabled || event.defaultPrevented || !hasFiles(event)) return;
+  if (!enabled || !hasFiles(event)) return;
   event.preventDefault();
   const dropped = collectDropped(event);
   if (dropped.length > 0) void present(dropped);
@@ -231,16 +252,21 @@ onMount(() => {
 </script>
 
 <svelte:window
-  ondragenter={onDragEnter}
-  ondragover={onDragOver}
-  ondragleave={onDragLeave}
+  ondragentercapture={onDragEnterCapture}
+  ondragleavecapture={onDragLeaveCapture}
+  ondragover={onWindowDragOver}
   ondropcapture={resetDrag}
-  ondrop={onDrop}
+  ondrop={onWindowDrop}
   ondragend={resetDrag}
 />
 
 {#if enabled && dragging}
-  <DropToOpenOverlay />
+  <DropToOpenOverlay
+    over={overZone}
+    ondragover={onZoneDragOver}
+    ondragleave={onZoneDragLeave}
+    ondrop={onZoneDrop}
+  />
 {/if}
 
 {#if enabled}

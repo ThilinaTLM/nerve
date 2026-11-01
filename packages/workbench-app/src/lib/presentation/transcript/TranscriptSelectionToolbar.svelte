@@ -22,6 +22,8 @@ let { container, actions, enabled = true }: Props = $props();
 /** Wait for the selection gesture to settle before offering actions. */
 const SETTLE_MS = 220;
 const EDITABLE = "input, textarea, select, [contenteditable], .cm-editor";
+/** Assistant message text; empty states, tool cards and chrome stay unquotable. */
+const QUOTABLE = "[data-quotable]";
 
 let placement = $state<ToolbarPlacement>();
 let toolbarEl = $state<HTMLDivElement>();
@@ -41,8 +43,9 @@ function hide() {
 function inside(node: Node | null): boolean {
   if (!container || !node) return false;
   const element = node instanceof Element ? node : node.parentElement;
+  const quotable = element?.closest(QUOTABLE);
   return Boolean(
-    element && container.contains(element) && !element.closest(EDITABLE),
+    quotable && container.contains(quotable) && !element?.closest(EDITABLE),
   );
 }
 

@@ -386,7 +386,10 @@ $effect(() => {
         >
           <div class="message-body">
             {#if node.item.text}
-              <div class="message-content">
+              <div
+                class="message-content"
+                data-quotable={node.item.role === "assistant" ? "" : undefined}
+              >
                 <Markdown
                   text={node.item.text}
                   trimCodeBlocks={node.item.role !== "assistant"}
