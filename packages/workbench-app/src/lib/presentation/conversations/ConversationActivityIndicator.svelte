@@ -17,7 +17,6 @@ let {
   variant = "default",
   isOpen = true,
   size = "sm",
-  selected = false,
 }: {
   activity: ConversationActivity;
   /** Rail glyphs have a consistent optical size and include the idle ring. */
@@ -25,8 +24,6 @@ let {
   /** Tab presence, not selection; only dot-based states use this cue. */
   isOpen?: boolean;
   size?: StatusDotSize;
-  /** The row is the current selection: the idle dot becomes its brand marker. */
-  selected?: boolean;
 } = $props();
 
 const colorClass: Record<StatusTone, string> = {
@@ -62,11 +59,9 @@ const Icon = $derived(
   {#if variant === "rail" && activity.indicator === "idle"}
     <!-- Same open-tab cue as the tab strip: filled when open, hollow when not. -->
     <Circle
-      class={selected
-        ? "size-2.5 fill-current text-primary"
-        : isOpen
-          ? "size-2.5 fill-current text-muted-foreground"
-          : "size-3 text-muted-foreground"}
+      class={isOpen
+        ? "size-2.5 fill-current text-muted-foreground"
+        : "size-3 text-muted-foreground"}
       aria-hidden="true"
     />
   {:else if variant === "rail" && (activity.indicator === "running" || activity.indicator === "result-ready")}

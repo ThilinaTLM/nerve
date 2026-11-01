@@ -33,3 +33,22 @@ export const skillOverrideKind = (
     : source === "nerve"
       ? "nerve"
       : "file";
+
+/** Display order of skill sources: the user's own skills first (project,
+ * then user), then Agent Browser guidance, then built-in Nerve skills. */
+export const skillSourceOrder: readonly SkillSource[] = [
+  "project",
+  "user",
+  "agentBrowser",
+  "nerve",
+];
+
+/** Stable sort into `skillSourceOrder`. */
+export function sortBySkillSource<T extends { source: SkillSource }>(
+  items: readonly T[],
+): T[] {
+  return [...items].sort(
+    (a, b) =>
+      skillSourceOrder.indexOf(a.source) - skillSourceOrder.indexOf(b.source),
+  );
+}

@@ -236,7 +236,7 @@ function shellStyles(appearance = DEFAULT_WINDOW_APPEARANCE): string {
       --destructive: oklch(0.5 0.19 27);
       --radius: 0.375rem;
       --radius-lg: 0.375rem;
-      --font-sans: "IBM Plex Sans", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      --font-sans: "Outfit", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
       --font-mono: "Iosevka", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
       --text-ui: 0.8125rem;
       --text-title: 1rem;

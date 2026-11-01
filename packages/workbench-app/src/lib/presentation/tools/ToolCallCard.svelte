@@ -760,6 +760,7 @@ async function openDetails() {
   {badge}
   arg={primaryArg}
   argPending={!planInteractive}
+  monoHeader
   {meta}
   footer={activitySections.footerVisible || isAskUser || !!configurationBlocked}
   bodyVisible={sheetVisible || hilBodyVisible || !!configurationBlocked}

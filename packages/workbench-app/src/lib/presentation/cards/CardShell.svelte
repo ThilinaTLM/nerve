@@ -39,6 +39,8 @@ type Props = {
   layoutRevision?: string;
   /** Motion profile claimed by the latest lifecycle milestone. */
   motionProfile?: ConversationMotionProfile;
+  /** Set the header (name and argument) in monospace, for tool calls. */
+  monoHeader?: boolean;
   onOpenFile?: (path: string, line?: number) => void;
   children?: Snippet;
 };
@@ -61,6 +63,7 @@ let {
   bodyVisible = false,
   layoutRevision = "static",
   motionProfile = $bindable("standard"),
+  monoHeader = false,
   onOpenFile,
   children,
 }: Props = $props();
@@ -131,6 +134,7 @@ const activityVisible = $derived(
       {badge}
       {arg}
       argPending={argPending && draftPhase === "drafting"}
+      mono={monoHeader}
       {onOpenFile}
     />
 

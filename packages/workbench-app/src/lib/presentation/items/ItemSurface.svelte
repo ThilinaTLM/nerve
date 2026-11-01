@@ -6,7 +6,7 @@ import { cn } from "@nervekit/ui-kit/utils";
 
 type SurfaceElement = "div" | "section";
 type SurfaceHover = "none" | "soft" | "default" | "row";
-/** `card` keeps the recessed content slab; `row` stays flat so selection reads. */
+/** `card` sits on the surface ladder's card step; `row` stays flat so selection reads. */
 type SurfaceTone = "card" | "row";
 
 let {
@@ -57,7 +57,7 @@ let {
 const surfaceClass = $derived(
   cn(
     "flex min-w-0 rounded-md transition-colors",
-    tone === "card" && "bg-muted",
+    tone === "card" && "bg-card",
     hover === "soft" && "hover:bg-hover",
     hover === "row" && "hover:bg-hover",
     hover === "default" && "hover:bg-hover",

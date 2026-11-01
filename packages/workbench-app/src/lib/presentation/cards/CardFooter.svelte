@@ -64,7 +64,7 @@ const show = $derived(
       >
         {#each cardActions as action, i (i)}
           <Badge
-            variant="brand"
+            variant="neutral"
             class="max-w-full min-w-0 flex-[0_1_auto] text-left tabular-nums [overflow-wrap:anywhere]"
             aria-label={action.ariaLabel}
             onclick={action.onClick}

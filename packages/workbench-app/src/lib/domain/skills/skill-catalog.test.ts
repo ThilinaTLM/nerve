@@ -8,17 +8,17 @@ import {
 } from "./skill-catalog.js";
 
 describe("sourcesForScope", () => {
-  it("keeps project-directory skills out of machine-wide user settings", () => {
+  it("lists own skills first and keeps project-directory skills out of machine-wide user settings", () => {
     assert.deepEqual(sourcesForScope("user"), [
       "user",
-      "nerve",
       "agentBrowser",
+      "nerve",
     ]);
     assert.deepEqual(sourcesForScope("project"), [
-      "user",
       "project",
-      "nerve",
+      "user",
       "agentBrowser",
+      "nerve",
     ]);
   });
 });

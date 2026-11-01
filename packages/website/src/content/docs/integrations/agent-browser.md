@@ -7,6 +7,8 @@ sidebar:
 
 Nerve can discover skills by invoking the `agent-browser` CLI installed on the workbench daemon host and reading its skill catalog. Enable selected entries in Settings to append their `SKILL.md` guidance to subsequent agent runs.
 
+Skills tied to one hosted environment (`agentcore`, `protected-vercel-deployments`, `slack`, and `vercel-sandbox`) are not listed.
+
 Agent Browser entries follow normal skill toggling and cannot override same-named file or Built-in Nerve skills that already won resource precedence.
 
 :::note[Important distinction]
