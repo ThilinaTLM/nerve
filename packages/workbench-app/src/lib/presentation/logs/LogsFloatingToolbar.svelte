@@ -49,7 +49,7 @@ $effect(() => {
 
   <div class="flex min-w-0 items-center justify-between gap-2">
     <span
-      class="min-w-0 truncate px-1 text-xs tabular-nums text-muted-foreground"
+      class="min-w-0 truncate px-1 text-ui tabular-nums text-muted-foreground"
       aria-live="polite"
     >
       {loading

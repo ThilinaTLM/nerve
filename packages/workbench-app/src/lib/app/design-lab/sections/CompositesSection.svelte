@@ -1,4 +1,11 @@
 <script lang="ts">
+import { Callout } from "@nervekit/ui-kit/components/composites/callout";
+import { GroupLabel } from "@nervekit/ui-kit/components/composites/group-label";
+import Pin from "@lucide/svelte/icons/pin";
+import FolderIcon from "@lucide/svelte/icons/folder";
+import KeyboardIcon from "@lucide/svelte/icons/keyboard";
+import MonitorIcon from "@lucide/svelte/icons/monitor";
+import AlertTriangleIcon from "@lucide/svelte/icons/triangle-alert";
 import MinusIcon from "@lucide/svelte/icons/minus";
 import PlusIcon from "@lucide/svelte/icons/plus";
 import { onDestroy } from "svelte";
@@ -60,13 +67,19 @@ let followItems = $state(2);
 
 let selectedRow = $state("b");
 const rowOptions = [
-  { id: "a", label: "Plain row", detail: undefined },
+  { id: "a", label: "Plain row", detail: undefined, icon: FolderIcon },
   {
     id: "b",
     label: "Selected row",
-    detail: "The current value reads as a tint.",
+    detail: "Tint, medium label and a brand icon.",
+    icon: MonitorIcon,
   },
-  { id: "c", label: "Another option", detail: "Secondary line" },
+  {
+    id: "c",
+    label: "Another option",
+    detail: "Secondary line",
+    icon: FolderIcon,
+  },
 ];
 
 /* -------------------------------- Renderers -------------------------------- */
@@ -103,6 +116,58 @@ const plain =
 
 <div class="flex flex-col gap-10">
   <GalleryGroup
+    title="Messages and labels"
+    description="Group captions above rows, and tinted callouts for settings, dialogs and panels."
+  >
+    <GallerySpecimen
+      title="GroupLabel"
+      source="composites/group-label"
+      description="The quiet caption above a group of rows: sentence case, optional icon and count."
+      layout="stack"
+    >
+      <GroupLabel label="Pinned" icon={Pin} count={1} />
+      <GroupLabel label="Today" count={24} />
+      <GroupLabel label="Connections" />
+    </GallerySpecimen>
+
+    <GallerySpecimen
+      title="Callout"
+      source="composites/callout"
+      description="Six status tones in block layout, plus a compact panel strip."
+      layout="stack"
+    >
+      <Callout layout="block" tone="neutral" text="No changes pending." />
+      <Callout layout="block" tone="brand" text="Your default workspace." />
+      <Callout
+        layout="block"
+        tone="info"
+        text="Changes apply to new conversations."
+      />
+      <Callout layout="block" tone="success" text="Settings saved." />
+      <Callout
+        layout="block"
+        tone="warning"
+        text="Review permissions before continuing."
+      />
+      <Callout
+        layout="block"
+        tone="destructive"
+        title="Connection failed"
+        text="The provider could not be reached."
+      >
+        {#snippet actions()}<Button size="sm" variant="outline" onclick={noop}
+            >Retry</Button
+          >{/snippet}
+      </Callout>
+      <Callout
+        layout="strip"
+        tone="warning"
+        icon={AlertTriangleIcon}
+        text="Some panel data may be out of date."
+      />
+    </GallerySpecimen>
+  </GalleryGroup>
+  <GalleryGroup
     title="Scrolling"
     description="Edge-shadow regions and the virtualised list behind transcripts."
   >
@@ -115,14 +180,14 @@ const plain =
       <div class="flex flex-wrap gap-4">
         <div class="flex h-40 w-64 flex-col rounded-md border bg-card">
           <ScrollRegion surface="card" ariaLabel="Card region">
-            <ul class="flex flex-col gap-1 p-2 font-mono text-xs">
+            <ul class="flex flex-col gap-1 p-2 font-mono text-ui">
               {#each lines as line (line)}<li>{line}</li>{/each}
             </ul>
           </ScrollRegion>
         </div>
         <div class="flex h-40 w-64 flex-col rounded-md border bg-popover">
           <ScrollRegion surface="popover" ariaLabel="Popover region">
-            <ul class="flex flex-col gap-1 p-2 font-mono text-xs">
+            <ul class="flex flex-col gap-1 p-2 font-mono text-ui">
               {#each lines as line (line)}<li>{line}</li>{/each}
             </ul>
           </ScrollRegion>
@@ -142,12 +207,13 @@ const plain =
           getKey={(item) => item.id}
           estimateSize={() => 32}
           viewportAriaLabel="Virtual rows"
+          viewportClass="h-full"
           gap={2}
           paddingStart={4}
           paddingEnd={4}
         >
           {#snippet row({ item })}
-            <div class="px-3 py-1 text-xs">
+            <div class="px-3 py-1 text-ui">
               <span class="text-foreground">{item.label}</span>
               {#if item.detail}
                 <span class="block text-muted-foreground">{item.detail}</span>
@@ -180,7 +246,7 @@ const plain =
             ><PlusIcon /></Button
           >
         </FloatingToolbar>
-        <p class="p-3 text-xs text-muted-foreground">
+        <p class="p-3 text-ui text-muted-foreground">
           Content under the toolbar.
         </p>
       </div>
@@ -198,7 +264,7 @@ const plain =
         >
         <Button size="sm" variant="ghost" onclick={resetStream}>Reset</Button>
       </div>
-      <p class="max-w-xl text-sm"><StreamingText text={streamed} /></p>
+      <p class="max-w-xl text-ui"><StreamingText text={streamed} /></p>
     </GallerySpecimen>
 
     <GallerySpecimen
@@ -222,7 +288,7 @@ const plain =
         >
       </div>
       <HeightFollow active class="max-w-sm rounded-md border bg-card">
-        <ul class="flex flex-col gap-1 p-3 text-xs">
+        <ul class="flex flex-col gap-1 p-3 text-ui">
           {#each Array.from({ length: followItems }, (_, i) => i) as i (i)}
             <li>Line {i + 1}</li>
           {/each}
@@ -238,19 +304,29 @@ const plain =
     <GallerySpecimen
       title="SelectRow"
       source="composites/select-row"
-      description="Plain, selected (tint), active (keyboard highlight), and disabled."
+      description="Plain, selected (tint, medium label, brand icon), highlighted (keyboard), and disabled. selectRowVariants carries the same states to custom rows."
       layout="stack"
       class="max-w-sm"
     >
       {#each rowOptions as option (option.id)}
+        {#snippet icon()}<option.icon
+            class="size-4"
+            aria-hidden="true"
+          />{/snippet}
         <SelectRow
           label={option.label}
           detail={option.detail}
+          {icon}
           selected={selectedRow === option.id}
           onclick={() => (selectedRow = option.id)}
         />
       {/each}
-      <SelectRow label="Active (keyboard)" active onclick={noop} />
+      <SelectRow label="Highlighted (keyboard)" highlighted onclick={noop}>
+        {#snippet icon()}<KeyboardIcon
+            class="size-4"
+            aria-hidden="true"
+          />{/snippet}
+      </SelectRow>
       <SelectRow label="Disabled" disabled onclick={noop} />
     </GallerySpecimen>
 
@@ -283,7 +359,7 @@ const plain =
       layout="bare"
     >
       <div class="h-64 w-full overflow-hidden rounded-md border">
-        <MermaidDiagram source={mermaid} />
+        <MermaidDiagram source={mermaid} class="h-full" />
       </div>
     </GallerySpecimen>
 
@@ -292,7 +368,7 @@ const plain =
       source="renderers/plain-text/PlainText"
       layout="bare"
     >
-      <PlainText text={plain} class="max-w-md text-sm" />
+      <PlainText text={plain} class="max-w-md text-ui" />
     </GallerySpecimen>
   </GalleryGroup>
 </div>

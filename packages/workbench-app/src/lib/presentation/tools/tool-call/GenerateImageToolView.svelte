@@ -43,7 +43,7 @@ function ratioFor(index: number): number {
     />
   {:else}
     {#if toolCall.status === "completed"}
-      <p class="m-0 px-3 py-2 text-xs text-muted-foreground">
+      <p class="m-0 px-3 py-2 text-ui text-muted-foreground">
         No image file returned.
       </p>
     {/if}

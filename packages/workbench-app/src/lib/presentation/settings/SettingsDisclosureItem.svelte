@@ -52,12 +52,12 @@ let {
         />
         <span class="grid min-w-0 gap-0.5 text-left">
           <span class="flex min-w-0 items-baseline gap-1.5">
-            <span class="truncate text-sm text-foreground">{title}</span>
+            <span class="truncate text-ui text-foreground">{title}</span>
             {#if titleSuffix}
               {@render titleSuffix()}
             {/if}
             {#if titleDetail}
-              <span class="truncate text-xs text-muted-foreground">
+              <span class="truncate text-caption text-muted-foreground">
                 {@render titleDetail()}
               </span>
             {/if}
@@ -70,7 +70,7 @@ let {
           {#if description}
             <span
               class={cn(
-                "text-xs text-muted-foreground",
+                "text-caption text-muted-foreground",
                 !open && "line-clamp-1",
               )}>{description}</span
             >
@@ -81,7 +81,7 @@ let {
   </SettingsListItem>
 
   <Collapsible.Content
-    class="grid gap-1.5 pt-0 pr-3 pb-2 pl-5.5 text-xs text-muted-foreground"
+    class="grid gap-1.5 pt-0 pr-3 pb-2 pl-5.5 text-ui text-muted-foreground"
   >
     {@render detail()}
   </Collapsible.Content>

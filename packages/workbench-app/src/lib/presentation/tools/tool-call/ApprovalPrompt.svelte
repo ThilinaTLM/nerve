@@ -208,13 +208,13 @@ const permissionRuleSetLabel = $derived(
   <div class="flex flex-wrap items-center gap-2" aria-label="Tool approval">
     {@render buttons()}
     {#if actionError}
-      <p class="m-0 text-xs text-destructive" role="alert">{actionError}</p>
+      <p class="m-0 text-ui text-destructive" role="alert">{actionError}</p>
     {/if}
   </div>
 {:else}
   <div class="grid gap-2" aria-label="Tool approval">
     {#if permissionRuleSetLabel && hasPersistentChoice}
-      <p class="text-xs text-muted-foreground">
+      <p class="text-ui text-muted-foreground">
         Durable grants apply only to the {permissionRuleSetLabel} permission rule
         set.
       </p>
@@ -225,7 +225,7 @@ const permissionRuleSetLabel = $derived(
       actions={buttons}
     />
     {#if actionError}
-      <p class="m-0 text-xs text-destructive" role="alert">{actionError}</p>
+      <p class="m-0 text-ui text-destructive" role="alert">{actionError}</p>
     {/if}
   </div>
 {/if}

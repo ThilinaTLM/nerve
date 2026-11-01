@@ -65,7 +65,6 @@
     "@xyflow/svelte": "1.6.2",
     "bits-ui": "^2.18.1",
     "material-icon-theme": "^5.37.0",
-    "mode-watcher": "^1.1.0",
     "svelte": "5.56.3",
     "svelte-sonner": "^1.1.1",
     "tailwindcss": "4.3.1"

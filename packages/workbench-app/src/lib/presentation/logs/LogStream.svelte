@@ -119,7 +119,7 @@ async function jumpToLatest(): Promise<void> {
 </script>
 
 <div
-  class="relative h-full min-h-0 bg-well font-mono text-xs"
+  class="relative h-full min-h-0 bg-well font-mono text-ui"
   role="log"
   aria-label={ariaLabel}
 >
@@ -150,7 +150,7 @@ async function jumpToLatest(): Promise<void> {
           {:else if historyError}
             <button
               type="button"
-              class="rounded-sm text-destructive underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+              class="rounded-sm text-destructive hover:text-foreground focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-focus"
               onclick={() => void loadEarlier()}
             >
               Could not load earlier output. Retry
@@ -169,7 +169,7 @@ async function jumpToLatest(): Promise<void> {
           {#if onJumpToLatest}
             <button
               type="button"
-              class="rounded-sm underline underline-offset-2 focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+              class="rounded-sm hover:text-foreground focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-focus"
               onclick={() => void onJumpToLatest?.()}
             >
               Retry

@@ -123,10 +123,10 @@ function keydown(event: KeyboardEvent) {
             aria-selected={isSelected(item)}
             data-disabled={isDisabled(item) || undefined}
             class={[
-              "min-h-control rounded-md text-xs",
+              "min-h-control rounded-md text-ui",
               isSelected(item) && "bg-selected",
               navigation.activeDescendant === rowId(item) &&
-                "outline outline-1 -outline-offset-1 outline-ring/55",
+                "outline outline-1 -outline-offset-1 outline-focus",
             ]}
             onclick={(event) => chooseContainer(event, item)}
             onkeydown={(event) => {
@@ -157,7 +157,7 @@ function keydown(event: KeyboardEvent) {
               : "detail" in item && typeof item.detail === "string"
                 ? item.detail
                 : undefined}
-            active={navigation.activeDescendant === rowId(item)}
+            highlighted={navigation.activeDescendant === rowId(item)}
             selected={isSelected(item)}
             disabled={isDisabled(item)}
             onclick={() => onChoose(item)}
@@ -167,7 +167,7 @@ function keydown(event: KeyboardEvent) {
     </PopoverSection>
   {:else}
     {#if !leading || query}<div
-        class="px-3 py-6 text-center text-xs text-muted-foreground"
+        class="px-3 py-6 text-center text-ui text-muted-foreground"
       >
         {#if typeof empty === "string"}{empty}{:else}{@render empty()}{/if}
       </div>{/if}

@@ -4,8 +4,8 @@ import Flame from "@lucide/svelte/icons/flame";
 import Layers from "@lucide/svelte/icons/layers";
 import {
   colorThemeKind,
+  colorThemeSchema,
   type ColorTheme,
-  type ColorThemeKind,
 } from "@nervekit/contracts/settings";
 import {
   SettingsPreviewCards,
@@ -23,11 +23,6 @@ const themeOptions: Record<ColorTheme, Omit<SettingsPreviewOption, "value">> = {
     description: "Warm umber with an ember accent",
     icon: Flame,
   },
-  graphite: {
-    label: "Graphite",
-    description: "Neutral near-black with an ember accent",
-    icon: Layers,
-  },
   "melange-light": {
     label: "Melange Light",
     description: "Warm paper with soft orange and pastels",
@@ -38,32 +33,30 @@ const themeOptions: Record<ColorTheme, Omit<SettingsPreviewOption, "value">> = {
     description: "Warm cocoa with soft orange and pastels",
     icon: Coffee,
   },
+  graphite: {
+    label: "Graphite",
+    description: "Neutral near-black with an ember accent",
+    icon: Layers,
+  },
 };
 
+// Family order (Nerve, Melange, Graphite), as in `colorThemeSchema`.
+const options = colorThemeSchema.options.map((theme) => ({
+  ...themeOptions[theme],
+  value: theme,
+}));
+
 let {
-  kind,
   value = $bindable(""),
-  ariaLabel = kind === "light" ? "Light theme" : "Dark theme",
+  ariaLabel = "Theme",
   class: className,
   onValueChange,
 }: {
-  /** Which colour mode these themes serve; each theme is either light or dark. */
-  kind: ColorThemeKind;
   value?: string;
   ariaLabel?: string;
   class?: string;
   onValueChange?: (value: string) => void;
 } = $props();
-
-const options = $derived(
-  (Object.keys(themeOptions) as ColorTheme[])
-    .filter((theme) => colorThemeKind[theme] === kind)
-    .map((theme) => ({
-      ...themeOptions[theme],
-      value: theme,
-      previews: [kind],
-    })),
-);
 </script>
 
 <!-- A theme carries colour only; the swatch renders a miniature chrome so the
@@ -86,8 +79,8 @@ const options = $derived(
   class={className}
   {onValueChange}
   previewBody={themePreview}
-  previewAttrs={(option, mode) => ({
+  previewAttrs={(option) => ({
     "data-theme-preview": option.value,
-    "data-color-mode": mode,
+    "data-color-mode": colorThemeKind[option.value as ColorTheme],
   })}
 />

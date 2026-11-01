@@ -371,11 +371,7 @@ export async function restartOwnedDaemon(): Promise<void> {
   }
 }
 
-export {
-  setDarkTheme,
-  setLightTheme,
-  setColorMode,
-} from "$lib/platform/appearance/appearance.svelte";
+export { setTheme } from "$lib/platform/appearance/appearance.svelte";
 
 export function setUiZoomLevel(level: number) {
   const next = clampZoomLevel(level);

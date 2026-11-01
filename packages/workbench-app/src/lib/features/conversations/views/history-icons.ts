@@ -58,7 +58,7 @@ export const HISTORY_ICONS: Record<HistoryIconName, Icon> = {
 
 export const HISTORY_TONE_TEXT: Record<StatusTone, string> = {
   neutral: "text-muted-foreground",
-  accent: "text-foreground",
+  brand: "text-primary",
   success: "text-success",
   warning: "text-warning",
   info: "text-info",

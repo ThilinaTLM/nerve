@@ -163,7 +163,7 @@ function lastIndex(items: readonly unknown[]): number {
       aria-label="Mermaid diagram"
     >
       <div
-        class="streaming-diagram-source h-full overflow-hidden p-3 font-mono text-xs text-muted-foreground"
+        class="streaming-diagram-source h-full overflow-hidden p-3 font-mono text-ui text-muted-foreground"
       >
         <div class="whitespace-pre">
           {@render text(

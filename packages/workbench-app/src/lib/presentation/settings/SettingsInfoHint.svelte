@@ -19,7 +19,7 @@ let { text, label = "More information" }: Props = $props();
           {...props}
           type="button"
           aria-label={label}
-          class="inline-flex flex-none cursor-help items-center rounded-sm text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+          class="inline-flex flex-none cursor-help items-center rounded-sm text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-focus"
         >
           <Info class="size-3.5" aria-hidden="true" />
         </button>

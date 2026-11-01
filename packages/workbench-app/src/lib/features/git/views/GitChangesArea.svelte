@@ -334,7 +334,6 @@ function fileMenu(area: GitStashArea, file: GitFileChange): ContextMenuItem[] {
     alwaysShowActions
     ariaExpanded={expanded}
     role="none"
-    class="font-medium"
     onclick={onToggle}
   >
     {#snippet leading()}
@@ -377,7 +376,7 @@ function fileMenu(area: GitStashArea, file: GitFileChange): ContextMenuItem[] {
       {/snippet}
       {#snippet itemLeading(file)}
         <span
-          class={cn("font-mono font-semibold", fileTone(file))}
+          class={cn("font-mono font-medium", fileTone(file))}
           title={fileStatusLabel(file, area)}
         >
           {statusLetter(file, area)}
@@ -392,9 +391,9 @@ function fileMenu(area: GitStashArea, file: GitFileChange): ContextMenuItem[] {
 
 <div class="flex min-h-0 flex-1 flex-col">
   {#if !changes}
-    <p class="py-1 text-xs text-muted-foreground">Loading…</p>
+    <p class="py-1 text-ui text-muted-foreground">Loading…</p>
   {:else if changes.files.length === 0}
-    <p class="py-1 text-xs text-muted-foreground">Working tree clean.</p>
+    <p class="py-1 text-ui text-muted-foreground">Working tree clean.</p>
   {:else}
     <ScrollArea class="min-h-0 flex-1" viewportClass="min-w-0">
       <PanelList role="none" class="py-0.5">

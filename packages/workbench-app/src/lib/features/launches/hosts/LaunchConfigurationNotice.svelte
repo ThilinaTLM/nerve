@@ -1,10 +1,10 @@
 <!-- Inline notice when the launch definitions file is corrupted or incompatible. -->
 <script lang="ts">
+import { Callout } from "@nervekit/ui-kit/components/composites/callout";
 import TriangleAlert from "@lucide/svelte/icons/triangle-alert";
 import { issueMessage } from "$lib/presentation/activity/project-configuration-message";
 import { projectConfigurationHealth as health } from "$lib/application/project-configuration/project-configuration-health-state.svelte";
 import ProjectConfigurationActions from "$lib/presentation/activity/ProjectConfigurationActions.svelte";
-import { PanelBanner } from "$lib/presentation/panels";
 
 let { projectId }: { projectId: string | undefined } = $props();
 
@@ -20,8 +20,8 @@ const issue = $derived(
 </script>
 
 {#if issue}
-  <PanelBanner tone="warning" icon={TriangleAlert}>
-    <p class="font-medium">Launch definitions can't be loaded</p>
+  <Callout layout="strip" tone="warning" icon={TriangleAlert}>
+    <p>Launch definitions can't be loaded</p>
     <p class="break-words">{issueMessage(issue)} No launches are shown.</p>
     <div class="-ml-1.5 flex flex-wrap py-1">
       <ProjectConfigurationActions
@@ -32,5 +32,5 @@ const issue = $derived(
         onReset={(item) => health.requestReset(item)}
       />
     </div>
-  </PanelBanner>
+  </Callout>
 {/if}

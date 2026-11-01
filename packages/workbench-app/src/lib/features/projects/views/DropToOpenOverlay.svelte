@@ -24,15 +24,15 @@ let { over, ondragover, ondragleave, ondrop }: Props = $props();
   {ondrop}
 >
   <div
-    class={`pointer-events-none flex h-full items-center justify-center gap-2 rounded-md border-2 border-dashed text-sm transition-colors ${
+    class={`pointer-events-none flex h-full items-center justify-center gap-2 rounded-md border-2 border-dashed text-ui transition-colors ${
       over
-        ? "border-primary bg-primary/10 text-foreground"
+        ? "border-primary bg-primary-subtle text-foreground"
         : "border-border text-muted-foreground"
     }`}
   >
     <FolderOpen class={`size-4 ${over ? "text-primary" : ""}`} />
-    <span class="font-medium">Drop here to open as a project</span>
-    <span class="text-xs text-muted-foreground max-md:hidden"
+    <span>Drop here to open as a project</span>
+    <span class="text-ui text-muted-foreground max-md:hidden"
       >You'll confirm before anything opens</span
     >
   </div>

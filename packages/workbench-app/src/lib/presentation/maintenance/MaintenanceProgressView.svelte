@@ -49,6 +49,11 @@ const progress = $derived.by(() => {
     ? Math.min(99, Math.round((completed / total) * 100))
     : undefined;
 });
+const progressText = $derived(
+  active && operation.totalItems !== undefined
+    ? ` ${operation.completedItems}/${operation.totalItems} conversations`
+    : "",
+);
 </script>
 
 <div class="grid min-w-0 gap-3" aria-live="polite" aria-atomic="true">
@@ -59,21 +64,18 @@ const progress = $derived.by(() => {
       />
     {:else}<CircleAlert class="mt-0.5 size-4 shrink-0 text-warning" />{/if}
     <div class="min-w-0">
-      <p class="text-sm font-medium">
-        {active
-          ? title
-          : operation.message}{#if active && operation.totalItems !== undefined}
-          {operation.completedItems}/{operation.totalItems} conversations{/if}
+      <p class="text-ui">
+        {active ? title : operation.message}{progressText}
       </p>
       {#if operation.project}<p
-          class="truncate text-xs text-muted-foreground"
+          class="truncate text-ui text-muted-foreground"
           title={operation.project.directory}
         >
           {operation.project.name}
         </p>{/if}
     </div>
   </div>
-  {#if active}<p class="text-xs text-muted-foreground">
+  {#if active}<p class="text-ui text-muted-foreground">
       {operation.message}
     </p>{/if}
   {#if progress !== undefined}<Progress
@@ -81,11 +83,8 @@ const progress = $derived.by(() => {
       aria-label="Completed cleanup items"
     />{/if}
   {#if operation.currentItem && active}
-    <div class="grid gap-1 text-xs">
-      <p
-        class="truncate font-medium"
-        title={operation.currentItem.conversationId}
-      >
+    <div class="grid gap-1 text-ui">
+      <p class="truncate" title={operation.currentItem.conversationId}>
         {operation.currentItem.title ?? operation.currentItem.conversationId}
       </p>
       <p class="text-muted-foreground">
@@ -100,23 +99,23 @@ const progress = $derived.by(() => {
         </p>{/if}
     </div>
   {/if}
-  {#if operation.totalTargets > 0}<p class="text-xs text-muted-foreground">
+  {#if operation.totalTargets > 0}<p class="text-ui text-muted-foreground">
       {operation.completedTargets}/{operation.totalTargets} storage targets completed
     </p>{/if}
-  <p class="text-xs text-muted-foreground">
+  <p class="text-ui text-muted-foreground">
     {operation.removedConversationCount} conversations removed · {operation.removedLaunchCount}
     launch records removed
   </p>
-  {#if operation.error}<p class="break-words text-xs text-destructive">
+  {#if operation.error}<p class="break-words text-ui text-destructive">
       {operation.error}
     </p>{/if}
   {#each operation.warnings as warning, index (index)}<p
-      class="break-words text-xs text-warning"
+      class="break-words text-ui text-warning"
     >
       {warning}
     </p>{/each}
   {#if operation.result?.kind === "storage_cleanup"}
-    <ul class="grid gap-1 text-xs text-muted-foreground">
+    <ul class="grid gap-1 text-ui text-muted-foreground">
       {#each operation.result.targets as target (target.target)}<li>
           {target.target}: {target.outcome} · {target.removedItems} removed{#if target.note}
             · {target.note}{/if}
@@ -135,7 +134,7 @@ const progress = $derived.by(() => {
           ? "Stop after this conversation"
           : "Stop after this item"}</Button
     >
-    <p class="text-xs text-muted-foreground">
+    <p class="text-ui text-muted-foreground">
       Already removed data will not be restored.
     </p>
   {/if}

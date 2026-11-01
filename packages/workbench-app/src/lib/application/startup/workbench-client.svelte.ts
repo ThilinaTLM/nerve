@@ -48,8 +48,7 @@ export async function initializeWorkbench(): Promise<boolean> {
   const generation = beginWorkbenchStartup();
   transitionWorkbenchStartup(generation, "critical");
   stopAppearanceSync = installAppearanceStorageSync();
-  const appearance = loadAppearancePreference();
-  applyAppearance(appearance, appearance.colorMode);
+  applyAppearance(loadAppearancePreference());
   try {
     const config = await getClientConfig();
     workspaceState.config = config;

@@ -32,6 +32,8 @@ import { Separator } from "@nervekit/ui-kit/components/ui/separator";
 import * as Sheet from "@nervekit/ui-kit/components/ui/sheet";
 import { Skeleton } from "@nervekit/ui-kit/components/ui/skeleton";
 import { Toaster } from "@nervekit/ui-kit/components/ui/sonner";
+import { colorThemeKind } from "@nervekit/contracts/settings";
+import { appearanceState } from "$lib/platform/appearance/appearance.svelte";
 import { Spinner } from "@nervekit/ui-kit/components/ui/spinner";
 import { Switch } from "@nervekit/ui-kit/components/ui/switch";
 import * as Tabs from "@nervekit/ui-kit/components/ui/tabs";
@@ -65,8 +67,7 @@ const buttonVariants: ButtonVariant[] = [
 const buttonSizes: ButtonSize[] = ["default", "sm"];
 const badgeVariants: BadgeVariant[] = [
   "neutral",
-  "accent",
-  "outline",
+  "brand",
   "info",
   "success",
   "warning",
@@ -106,7 +107,11 @@ const rows = Array.from({ length: 14 }, (_, i) => `Row ${i + 1}`);
 
 {#if desktopRuntime.isDesktop}
   <!-- The desktop shell uses native notifications and mounts no Toaster. -->
-  <Toaster position="bottom-right" closeButton />
+  <Toaster
+    position="bottom-right"
+    closeButton
+    theme={colorThemeKind[appearanceState.theme]}
+  />
 {/if}
 
 <Tooltip.Provider>
@@ -123,20 +128,20 @@ const rows = Array.from({ length: 14 }, (_, i) => `Row ${i + 1}`);
       >
         {#each buttonSizes as size (size)}
           <div class="flex flex-wrap items-center gap-3">
-            <span class="w-20 text-xs text-muted-foreground">{size}</span>
+            <span class="w-20 text-ui text-muted-foreground">{size}</span>
             {#each buttonVariants as variant (variant)}
               <Button {variant} {size}>{variant}</Button>
             {/each}
           </div>
         {/each}
         <div class="flex flex-wrap items-center gap-3">
-          <span class="w-20 text-xs text-muted-foreground">icon</span>
+          <span class="w-20 text-ui text-muted-foreground">icon</span>
           {#each buttonVariants.filter((v) => v !== "link") as variant (variant)}
             <Button {variant} size="icon" aria-label={variant}
               ><SettingsIcon /></Button
             >
           {/each}
-          <span class="w-20 pl-4 text-xs text-muted-foreground">icon-sm</span>
+          <span class="w-20 pl-4 text-ui text-muted-foreground">icon-sm</span>
           {#each buttonVariants.filter((v) => v !== "link") as variant (variant)}
             <Button {variant} size="icon-sm" aria-label={variant}
               ><SettingsIcon /></Button
@@ -144,7 +149,7 @@ const rows = Array.from({ length: 14 }, (_, i) => `Row ${i + 1}`);
           {/each}
         </div>
         <div class="flex flex-wrap items-center gap-3">
-          <span class="w-20 text-xs text-muted-foreground">with icon</span>
+          <span class="w-20 text-ui text-muted-foreground">with icon</span>
           <Button><PlusIcon data-icon="inline-start" />New</Button>
           <Button variant="outline" size="sm"
             ><CopyIcon data-icon="inline-start" />Copy</Button
@@ -152,19 +157,19 @@ const rows = Array.from({ length: 14 }, (_, i) => `Row ${i + 1}`);
           <Button variant="destructive"
             ><Trash2Icon data-icon="inline-start" />Delete</Button
           >
-          <span class="w-20 pl-4 text-xs text-muted-foreground">loading</span>
+          <span class="w-20 pl-4 text-ui text-muted-foreground">loading</span>
           <Button variant="outline" disabled
             ><Spinner data-icon="inline-start" />Saving</Button
           >
         </div>
         <div class="flex flex-wrap items-center gap-3">
-          <span class="w-20 text-xs text-muted-foreground">disabled</span>
+          <span class="w-20 text-ui text-muted-foreground">disabled</span>
           {#each buttonVariants as variant (variant)}
             <Button {variant} disabled>{variant}</Button>
           {/each}
         </div>
         <div class="flex flex-wrap items-center gap-3">
-          <span class="w-20 text-xs text-muted-foreground">aria-invalid</span>
+          <span class="w-20 text-ui text-muted-foreground">aria-invalid</span>
           {#each buttonVariants as variant (variant)}
             <Button {variant} aria-invalid="true">{variant}</Button>
           {/each}
@@ -181,6 +186,7 @@ const rows = Array.from({ length: 14 }, (_, i) => `Row ${i + 1}`);
           {#each badgeVariants as variant (variant)}
             <Badge {variant}>{variant}</Badge>
           {/each}
+          <Badge variant="brand" onclick={() => {}}>View details</Badge>
         </div>
         <div class="flex flex-wrap items-center gap-3">
           {#each badgeVariants as variant (variant)}
@@ -197,7 +203,7 @@ const rows = Array.from({ length: 14 }, (_, i) => `Row ${i + 1}`);
       >
         {#each ["default", "sm"] as const as size (size)}
           <div class="flex flex-wrap items-center gap-4">
-            <span class="w-20 text-xs text-muted-foreground">chip · {size}</span
+            <span class="w-20 text-ui text-muted-foreground">chip · {size}</span
             >
             <ToggleGroup.Root
               type="single"
@@ -211,7 +217,7 @@ const rows = Array.from({ length: 14 }, (_, i) => `Row ${i + 1}`);
               <ToggleGroup.Item value="done">Done</ToggleGroup.Item>
               <ToggleGroup.Item value="off" disabled>Disabled</ToggleGroup.Item>
             </ToggleGroup.Root>
-            <span class="w-24 text-xs text-muted-foreground"
+            <span class="w-24 text-ui text-muted-foreground"
               >outline · {size}</span
             >
             <ToggleGroup.Root
@@ -247,10 +253,10 @@ const rows = Array.from({ length: 14 }, (_, i) => `Row ${i + 1}`);
             <Tabs.Trigger value="two">Changes</Tabs.Trigger>
             <Tabs.Trigger value="three" disabled>Disabled</Tabs.Trigger>
           </Tabs.List>
-          <Tabs.Content value="one" class="p-3 text-sm"
+          <Tabs.Content value="one" class="p-3 text-ui"
             >Overview content.</Tabs.Content
           >
-          <Tabs.Content value="two" class="p-3 text-sm"
+          <Tabs.Content value="two" class="p-3 text-ui"
             >Changes content.</Tabs.Content
           >
         </Tabs.Root>
@@ -309,7 +315,7 @@ const rows = Array.from({ length: 14 }, (_, i) => `Row ${i + 1}`);
         description="Unchecked, checked, disabled, and aria-invalid."
       >
         <div class="flex flex-wrap items-center gap-4">
-          <span class="w-20 text-xs text-muted-foreground">Checkbox</span>
+          <span class="w-20 text-ui text-muted-foreground">Checkbox</span>
           <Checkbox aria-label="Unchecked" />
           <Checkbox aria-label="Checked" bind:checked={checkboxOn} />
           <Checkbox aria-label="Indeterminate" indeterminate />
@@ -318,7 +324,7 @@ const rows = Array.from({ length: 14 }, (_, i) => `Row ${i + 1}`);
           <Checkbox aria-label="Invalid" aria-invalid="true" />
         </div>
         <div class="flex flex-wrap items-center gap-4">
-          <span class="w-20 text-xs text-muted-foreground">Switch</span>
+          <span class="w-20 text-ui text-muted-foreground">Switch</span>
           <Switch aria-label="Off" />
           <Switch aria-label="On" bind:checked={switchOn} />
           <Switch aria-label="Disabled" disabled />
@@ -326,7 +332,7 @@ const rows = Array.from({ length: 14 }, (_, i) => `Row ${i + 1}`);
           <Switch aria-label="Invalid" aria-invalid="true" />
         </div>
         <div class="flex flex-wrap items-center gap-4">
-          <span class="w-20 text-xs text-muted-foreground">RadioGroup</span>
+          <span class="w-20 text-ui text-muted-foreground">RadioGroup</span>
           <RadioGroup.Root bind:value={radio} class="flex gap-4">
             <RadioGroup.Item value="a" aria-label="A" />
             <RadioGroup.Item value="b" aria-label="B" />
@@ -466,12 +472,12 @@ const rows = Array.from({ length: 14 }, (_, i) => `Row ${i + 1}`);
         layout="stack"
         description="Horizontal and vertical."
       >
-        <div class="flex max-w-sm flex-col gap-2 text-sm">
+        <div class="flex max-w-sm flex-col gap-2 text-ui">
           <span>Above</span>
           <Separator />
           <span>Below</span>
         </div>
-        <div class="flex h-5 items-center gap-3 text-sm">
+        <div class="flex h-5 items-center gap-3 text-ui">
           <span>One</span>
           <Separator orientation="vertical" />
           <span>Two</span>
@@ -488,7 +494,7 @@ const rows = Array.from({ length: 14 }, (_, i) => `Row ${i + 1}`);
       >
         <div class="flex flex-wrap gap-4">
           <ScrollArea class="h-32 w-48 rounded-md border">
-            <div class="flex flex-col p-2 text-xs">
+            <div class="flex flex-col p-2 text-ui">
               {#each rows as row (row)}<span class="py-1">{row}</span>{/each}
             </div>
           </ScrollArea>
@@ -496,13 +502,13 @@ const rows = Array.from({ length: 14 }, (_, i) => `Row ${i + 1}`);
             orientation="horizontal"
             class="h-32 w-48 rounded-md border"
           >
-            <div class="flex w-96 gap-2 p-2 text-xs">
+            <div class="flex w-96 gap-2 p-2 text-ui">
               {#each rows as row (row)}<span class="shrink-0">{row}</span
                 >{/each}
             </div>
           </ScrollArea>
           <ScrollArea orientation="both" class="h-32 w-48 rounded-md border">
-            <div class="w-96 p-2 text-xs">
+            <div class="w-96 p-2 text-ui">
               {#each rows as row (row)}<p class="py-1">
                   {row} · wide content row
                 </p>{/each}
@@ -522,7 +528,7 @@ const rows = Array.from({ length: 14 }, (_, i) => `Row ${i + 1}`);
             <Resizable.PaneGroup direction="horizontal">
               <Resizable.Pane defaultSize={40}>
                 <div
-                  class="flex h-full items-center justify-center bg-panel text-xs"
+                  class="flex h-full items-center justify-center bg-panel text-ui"
                 >
                   Pane A
                 </div>
@@ -530,7 +536,7 @@ const rows = Array.from({ length: 14 }, (_, i) => `Row ${i + 1}`);
               <Resizable.Handle withHandle />
               <Resizable.Pane defaultSize={60}>
                 <div
-                  class="flex h-full items-center justify-center bg-background text-xs"
+                  class="flex h-full items-center justify-center bg-background text-ui"
                 >
                   Pane B
                 </div>
@@ -541,7 +547,7 @@ const rows = Array.from({ length: 14 }, (_, i) => `Row ${i + 1}`);
             <Resizable.PaneGroup direction="vertical">
               <Resizable.Pane defaultSize={50}>
                 <div
-                  class="flex h-full items-center justify-center bg-panel text-xs"
+                  class="flex h-full items-center justify-center bg-panel text-ui"
                 >
                   Top
                 </div>
@@ -549,7 +555,7 @@ const rows = Array.from({ length: 14 }, (_, i) => `Row ${i + 1}`);
               <Resizable.Handle />
               <Resizable.Pane defaultSize={50}>
                 <div
-                  class="flex h-full items-center justify-center bg-background text-xs"
+                  class="flex h-full items-center justify-center bg-background text-ui"
                 >
                   Bottom
                 </div>
@@ -572,7 +578,7 @@ const rows = Array.from({ length: 14 }, (_, i) => `Row ${i + 1}`);
               >
             {/snippet}
           </Collapsible.Trigger>
-          <Collapsible.Content class="pt-2 text-sm text-muted-foreground">
+          <Collapsible.Content class="pt-2 text-ui text-muted-foreground">
             Hidden details revealed by the trigger.
           </Collapsible.Content>
         </Collapsible.Root>
@@ -601,7 +607,7 @@ const rows = Array.from({ length: 14 }, (_, i) => `Row ${i + 1}`);
         </div>
         <div class="flex gap-3">
           <div class={frameClass}>
-            <span class="text-xs text-muted-foreground">Frame</span>
+            <span class="text-ui text-muted-foreground">Frame</span>
             <Dialog.Root bind:open={dialogOpen}>
               <Dialog.Content portalProps={inPlace} trapFocus={false}>
                 <Dialog.Header>
@@ -636,7 +642,7 @@ const rows = Array.from({ length: 14 }, (_, i) => `Row ${i + 1}`);
             <Sheet.Root bind:open={sheetOpen}>
               <Sheet.Content portalProps={inPlace} trapFocus={false}>
                 <Sheet.Title class="p-4">Details</Sheet.Title>
-                <div class="p-4 pt-0 text-sm text-muted-foreground">
+                <div class="p-4 pt-0 text-ui text-muted-foreground">
                   Side sheet content.
                   <Button
                     class="mt-3"
@@ -674,7 +680,7 @@ const rows = Array.from({ length: 14 }, (_, i) => `Row ${i + 1}`);
 
         <ContextMenu.Root>
           <ContextMenu.Trigger
-            class="flex h-control items-center rounded-md border border-dashed px-3 text-xs text-muted-foreground"
+            class="flex h-control items-center rounded-md border border-dashed px-3 text-ui text-muted-foreground"
           >
             Right-click here
           </ContextMenu.Trigger>

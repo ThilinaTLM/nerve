@@ -38,7 +38,7 @@ const unchanged = $derived(
         />
       </div>
     {:else}
-      <div class="px-2.5 py-2 text-xs text-muted-foreground">No changes.</div>
+      <div class="px-2.5 py-2 text-ui text-muted-foreground">No changes.</div>
     {/if}
   </ToolSections>
 {/if}

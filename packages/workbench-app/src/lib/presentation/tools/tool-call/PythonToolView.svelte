@@ -27,7 +27,7 @@ const showScript = $derived(
   <ToolSections>
     {#if showScript}
       <div class="px-2.5 py-2" aria-label="Python script">
-        <p class="m-0 mb-1 text-xs font-medium text-muted-foreground">Script</p>
+        <p class="m-0 mb-1 text-ui text-muted-foreground">Script</p>
         <ToolOutputBlock text={view.code ?? ""} language="python" {expanded} />
       </div>
     {/if}
@@ -35,9 +35,7 @@ const showScript = $derived(
     {#if view.output.length > 0}
       <div class="px-2.5 py-2" aria-label="Python output">
         {#if hasScriptSection}
-          <p class="m-0 mb-1 text-xs font-medium text-muted-foreground">
-            Output
-          </p>
+          <p class="m-0 mb-1 text-ui text-muted-foreground">Output</p>
         {/if}
         <ToolOutputBlock
           text={view.output}
@@ -49,7 +47,7 @@ const showScript = $derived(
       </div>
     {:else if toolCall.status === "completed"}
       <div
-        class="px-2.5 py-2 text-xs text-muted-foreground"
+        class="px-2.5 py-2 text-ui text-muted-foreground"
         aria-label="Python output"
       >
         No output.

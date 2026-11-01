@@ -90,7 +90,7 @@ function browse() {
       {/each}
     </MobileSection>
   {:else}
-    <p class="px-6 py-12 text-center text-sm text-muted-foreground">
+    <p class="px-6 py-12 text-center text-ui text-muted-foreground">
       No projects match your search.
     </p>
   {/if}

@@ -2,6 +2,16 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { describe, it } from "node:test";
+import {
+  colorThemeKind,
+  declarationOf,
+  globalBlock as globalBlockOf,
+  resolveThemeToken,
+  themeBlock as themeBlockOf,
+  type ColorMode,
+  type ColorTheme,
+  type Oklch,
+} from "./theme-resolver.mjs";
 
 const minimumTextContrast = 4.5;
 const themeCss = readFileSync(
@@ -15,15 +25,7 @@ const badgeSource = readFileSync(
   "utf8",
 );
 
-type Oklch = readonly [lightness: number, chroma: number, hue: number];
 type LinearRgb = readonly [red: number, green: number, blue: number];
-type ColorTheme =
-  | "nerve-light"
-  | "nerve-dark"
-  | "graphite"
-  | "melange-light"
-  | "melange-dark";
-type ColorMode = "light" | "dark";
 type ThemeName = ColorTheme;
 
 const tokenNames = [
@@ -49,57 +51,17 @@ const tokenNames = [
   "destructive-solid",
   "destructive-solid-foreground",
   "border",
-  "accent",
 ] as const;
 type TokenName = (typeof tokenNames)[number];
 
-function themeBlock(theme: ColorTheme): string {
-  const selector = `[data-theme-preview="${theme}"]`;
-  const escapedSelector = selector.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  const match = themeCss.match(
-    new RegExp(`${escapedSelector}\\s*\\{([\\s\\S]*?)\\n\\}`),
-  );
-  assert.ok(match, `Missing ${theme} theme block`);
-  return match[1];
-}
-
-/* Declarations shared by every theme (`:root, [data-theme-preview]`): aliases
- * such as `--card-foreground: var(--foreground)` resolve against the theme block
- * first, then against this one. */
-function globalBlock(): string {
-  const match = themeCss.match(
-    /:root,\s*\[data-theme-preview\]\s*\{([\s\S]*?)\n\}/,
-  );
-  assert.ok(match, "Missing global `:root, [data-theme-preview]` block");
-  return match[1];
-}
-
-function declarationOf(block: string, name: string): string | undefined {
-  return block.match(new RegExp(`--${name}:\\s*([^;]+);`))?.[1]?.trim();
-}
-
-function resolveOklch(block: string, name: string, label: string): Oklch {
-  let value = declarationOf(block, name) ?? declarationOf(globalBlock(), name);
-  const seen = new Set<string>();
-  while (value !== undefined) {
-    const alias = value.match(/^var\(--([\w-]+)\)$/);
-    if (!alias) break;
-    assert.ok(!seen.has(alias[1]!), `Circular alias --${name} in ${label}`);
-    seen.add(alias[1]!);
-    // An alias resolves where it is declared: the theme block wins over global.
-    value =
-      declarationOf(block, alias[1]!) ??
-      declarationOf(globalBlock(), alias[1]!);
-  }
-  const match = value?.match(/^oklch\(\s*([\d.]+)\s+([\d.]+)\s+([\d.]+)\s*\)$/);
-  assert.ok(match, `Missing OKLCH token --${name} in ${label}`);
-  return match.slice(1, 4).map(Number) as unknown as Oklch;
-}
+const themeBlock = (theme: ColorTheme): string => themeBlockOf(themeCss, theme);
+const globalBlock = (): string => globalBlockOf(themeCss);
+const resolveOklch = (theme: ColorTheme, name: string): Oklch =>
+  resolveThemeToken(themeCss, theme, name);
 
 function parseTokens(theme: ColorTheme): Record<TokenName, Oklch> {
-  const block = themeBlock(theme);
   return Object.fromEntries(
-    tokenNames.map((name) => [name, resolveOklch(block, name, theme)]),
+    tokenNames.map((name) => [name, resolveOklch(theme, name)]),
   ) as Record<TokenName, Oklch>;
 }
 
@@ -153,14 +115,6 @@ function assertContrast(
   );
 }
 
-/* Mirrors `colorThemeKind` in contracts: each theme is either light or dark. */
-const colorThemeKind: Record<ColorTheme, ColorMode> = {
-  "nerve-light": "light",
-  "nerve-dark": "dark",
-  graphite: "dark",
-  "melange-light": "light",
-  "melange-dark": "dark",
-};
 const colorThemes = Object.keys(colorThemeKind) as ColorTheme[];
 
 const themes = Object.fromEntries(
@@ -187,6 +141,7 @@ const surfaceTokens = [
   "panel",
   "well",
 ] as const;
+/* Matches `--<tone>-subtle` in theme.css (asserted below). */
 const subtleSurfaceAlpha = 0.08;
 /* Surfaces stay subdued, but a theme's hue has to be visible in its chrome to
  * be a theme rather than an accent swap; these are the ceilings that keep the
@@ -246,12 +201,8 @@ const distinguishableSyntaxRoles = [
 const minimumSyntaxRoleDistance = 0.08;
 
 function parseSyntaxRoles(theme: ColorTheme): Record<SyntaxRole, Oklch> {
-  const block = themeBlock(theme);
   return Object.fromEntries(
-    syntaxRoles.map((role) => [
-      role,
-      resolveOklch(block, `syntax-${role}`, theme),
-    ]),
+    syntaxRoles.map((role) => [role, resolveOklch(theme, `syntax-${role}`)]),
   ) as Record<SyntaxRole, Oklch>;
 }
 
@@ -345,12 +296,56 @@ describe("theme text contrast", () => {
             themeName,
             semanticName,
             semantic,
-            `${semanticName}/${subtleSurfaceAlpha * 100} on ${surfaceName}`,
+            `${semanticName}-subtle on ${surfaceName}`,
             subtleSurface,
           );
         }
       }
     }
+  });
+
+  it("keeps text readable on the selected tint", () => {
+    // Foreground and grey text at 4.5:1 (selected rows keep their grey
+    // secondary text), and status tones at the 3:1 non-text bar (labels such
+    // as git M/A letters and status dots).
+    const selectedAlpha = 0.16;
+    const minimumStatusContrast = 3;
+    for (const [themeName, tokens] of Object.entries(themes) as [
+      ThemeName,
+      Record<TokenName, Oklch>,
+    ][]) {
+      for (const surfaceName of surfaceTokens) {
+        const selected = composite(
+          oklchToLinearRgb(tokens.primary),
+          oklchToLinearRgb(tokens[surfaceName]),
+          selectedAlpha,
+        );
+        for (const [text, color] of [
+          ["foreground", tokens.foreground],
+          ["muted-foreground", resolveOklch(themeName, "muted-foreground")],
+        ] as const)
+          assertContrast(
+            themeName,
+            text,
+            oklchToLinearRgb(color),
+            `selected on ${surfaceName}`,
+            selected,
+          );
+        for (const tone of semanticTokens) {
+          const ratio = contrast(oklchToLinearRgb(tokens[tone]), selected);
+          assert.ok(
+            ratio >= minimumStatusContrast,
+            `${themeName} ${tone} on selected on ${surfaceName} contrast ${ratio.toFixed(2)}:1 is below ${minimumStatusContrast}:1`,
+          );
+        }
+      }
+    }
+    assert.match(
+      themeCss,
+      new RegExp(
+        `--selected: color-mix\\(in oklab, var\\(--primary\\) ${selectedAlpha * 100}%, transparent\\);`,
+      ),
+    );
   });
 
   it("keeps large surfaces subdued and primary accents identifiable", () => {
@@ -416,13 +411,10 @@ describe("theme text contrast", () => {
   it("uses the measured token pairs and tint in the shared badge", () => {
     assert.match(
       badgeSource,
-      /neutral:\s*"[^"]*bg-muted text-foreground[^"]*"/,
+      /neutral:\s*"[^"]*bg-muted text-muted-foreground[^"]*"/,
     );
     for (const token of semanticTokens) {
-      assert.match(
-        badgeSource,
-        new RegExp(`bg-${token}/${subtleSurfaceAlpha * 100} text-${token}`),
-      );
+      assert.match(badgeSource, new RegExp(`bg-${token}-subtle text-${token}`));
     }
   });
 });
@@ -448,11 +440,10 @@ const ladderExtraTokens = ["muted-foreground", "border", "input"] as const;
 function ladderTokens(
   theme: ColorTheme,
 ): Record<TokenName | (typeof ladderExtraTokens)[number], Oklch> {
-  const block = themeBlock(theme);
   return {
     ...themes[theme],
     ...Object.fromEntries(
-      ladderExtraTokens.map((name) => [name, resolveOklch(block, name, theme)]),
+      ladderExtraTokens.map((name) => [name, resolveOklch(theme, name)]),
     ),
   } as Record<TokenName | (typeof ladderExtraTokens)[number], Oklch>;
 }
@@ -481,15 +472,7 @@ describe("surface ladder", () => {
           tokens.muted[0] - tokens.popover[0] >= minimumQuietFillStep,
           `${theme} muted must sit above popover`,
         );
-        assert.ok(
-          tokens.accent[0] - tokens.muted[0] >= minimumQuietFillStep,
-          `${theme} accent must sit above muted`,
-        );
       } else {
-        assert.ok(
-          tokens.muted[0] - tokens.accent[0] >= minimumQuietFillStep,
-          `${theme} muted must sit above accent`,
-        );
         assert.ok(
           tokens.well[0] - tokens.muted[0] >= minimumQuietFillStep,
           `${theme} well must sit above muted`,
@@ -520,7 +503,7 @@ describe("surface ladder", () => {
   it("keeps muted text readable on the quiet fills", () => {
     for (const theme of ladderThemes) {
       const tokens = ladderTokens(theme);
-      for (const fill of ["muted", "accent"] as const) {
+      for (const fill of ["muted"] as const) {
         assertContrast(
           theme,
           "muted-foreground",
@@ -560,6 +543,56 @@ describe("token structure", () => {
     }
   });
 
+  it("limits theme blocks to colour inputs and step overrides", () => {
+    const allowed = new Set<string>([
+      "background",
+      "foreground",
+      "primary",
+      "success",
+      "warning",
+      "info",
+      "destructive",
+      "destructive-solid",
+      ...syntaxRoles
+        .filter(
+          (role) =>
+            !["plain", "added", "removed", "changed", "link"].includes(role),
+        )
+        .map((role) => `syntax-${role}`),
+      "step-card",
+      "step-popover",
+      "step-panel",
+      "step-well",
+      "mix-muted",
+      "mix-border",
+      "mix-input",
+      "mix-muted-foreground",
+    ]);
+    for (const theme of colorThemes) {
+      const declared = [...themeBlock(theme).matchAll(/--([\w-]+)\s*:/g)].map(
+        (match) => match[1]!,
+      );
+      for (const name of declared) {
+        assert.ok(
+          allowed.has(name),
+          `${theme} declares --${name}, which is derived or global`,
+        );
+      }
+      for (const name of [
+        "background",
+        "foreground",
+        "primary",
+        "success",
+        "warning",
+        "info",
+        "destructive",
+        "destructive-solid",
+      ]) {
+        assert.ok(declared.includes(name), `${theme} must declare --${name}`);
+      }
+    }
+  });
+
   it("gives every theme exactly one block selected by id", () => {
     for (const theme of colorThemes) {
       const selected = themeCss.match(
@@ -590,9 +623,19 @@ describe("token structure", () => {
     );
   });
 
+  it("derives tone tints at the alpha the contrast checks measure", () => {
+    const global = globalBlock();
+    for (const token of semanticTokens) {
+      assert.equal(
+        declarationOf(global, `${token}-subtle`),
+        `color-mix(in oklab, var(--${token}) ${subtleSurfaceAlpha * 100}%, transparent)`,
+      );
+    }
+  });
+
   it("points text and diff aliases at their source tokens", () => {
     const global = globalBlock();
-    for (const name of ["card", "popover", "accent"]) {
+    for (const name of ["card", "popover"]) {
       assert.equal(
         declarationOf(global, `${name}-foreground`),
         "var(--foreground)",

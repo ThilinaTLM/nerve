@@ -229,7 +229,7 @@ async function createBranch(event: SubmitEvent) {
   {/if}
   {#if !localRows.length && !remoteRows.length}
     {#if branchState.loadingBranches}
-      <p class="px-6 py-10 text-center text-sm text-muted-foreground">
+      <p class="px-6 py-10 text-center text-ui text-muted-foreground">
         Loading branches…
       </p>
     {:else}
@@ -238,8 +238,8 @@ async function createBranch(event: SubmitEvent) {
           <Empty.Media class="text-muted-foreground">
             <GitBranch size={28} strokeWidth={1.6} />
           </Empty.Media>
-          <Empty.Title class="text-sm">No branches</Empty.Title>
-          <Empty.Description class="text-xs">
+          <Empty.Title class="text-ui">No branches</Empty.Title>
+          <Empty.Description class="text-ui">
             {filter.trim()
               ? "No branch matches this search."
               : "This repository has no branches to show."}
@@ -297,7 +297,7 @@ async function createBranch(event: SubmitEvent) {
     side="bottom"
     class="rounded-t-lg pb-[env(safe-area-inset-bottom)]"
   >
-    <Sheet.Title class="px-4 pb-1 pt-3 text-sm font-semibold"
+    <Sheet.Title class="px-4 pb-1 pt-3 text-ui font-medium"
       >New branch</Sheet.Title
     >
     <form class="grid gap-3 px-4 pb-4" onsubmit={createBranch}>
@@ -314,7 +314,7 @@ async function createBranch(event: SubmitEvent) {
           disabled={creating}
           aria-invalid={newName.trim().length > 0 && !nameValid}
         />
-        <p class="text-xs text-muted-foreground">
+        <p class="text-ui text-muted-foreground">
           Created from {summary?.currentBranch ?? "the current commit"}.
         </p>
       </div>

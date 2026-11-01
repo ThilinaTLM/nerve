@@ -11,9 +11,9 @@ const DIFF = `--- a/src/lib/presentation/cards/MetaChip.svelte
    neutral: "text-muted-foreground",
 -  accent: "text-primary",
 +  accent: "text-muted-foreground",
-   info: "border-info/35 text-info",
-   success: "border-success/35 text-success",
-   warning: "border-warning/35 text-warning",`;
+   info: "border-info-strong text-info",
+   success: "border-success-strong text-success",
+   warning: "border-warning-strong text-warning",`;
 
 const READ_CONTENT = `<script lang="ts">
 import { Button } from "@nervekit/ui-kit/components/ui/button";

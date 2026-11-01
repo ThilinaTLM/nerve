@@ -1,10 +1,10 @@
 <script lang="ts">
+import { Callout } from "@nervekit/ui-kit/components/composites/callout";
 import type {
   AgentScope,
   GetAgentConfigurationResult,
 } from "@nervekit/contracts/agent-configuration";
 import ProjectCapabilityTrustAction from "./ProjectCapabilityTrustAction.svelte";
-import { SettingsInlineMessage } from "$lib/presentation/settings";
 let {
   document,
   scope,
@@ -16,7 +16,8 @@ let {
 } = $props();
 </script>
 {#if document?.status === "unavailable"}
-  <SettingsInlineMessage
+  <Callout
+    layout="block"
     tone="warning"
     text={`Configuration is unavailable: ${document.diagnostics.map((d) => d.code).join(", ")}. Review and preview a repair, then reload. Dismissal never repairs or grants trust.`}
   >
@@ -25,5 +26,5 @@ let {
         {scope}
         {onReload}
       />{/snippet}
-  </SettingsInlineMessage>
+  </Callout>
 {/if}

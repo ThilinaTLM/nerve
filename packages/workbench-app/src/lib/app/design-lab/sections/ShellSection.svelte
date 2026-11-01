@@ -1,27 +1,28 @@
 <script lang="ts">
-import CompassIcon from "@lucide/svelte/icons/compass";
+import MobileScreen from "$lib/presentation/shell/mobile/MobileScreen.svelte";
+import MobileSection from "$lib/presentation/shell/mobile/MobileSection.svelte";
+import MobileListRow from "$lib/presentation/shell/mobile/MobileListRow.svelte";
+import MobileActionSheet from "$lib/presentation/shell/mobile/MobileActionSheet.svelte";
 import FileCodeIcon from "@lucide/svelte/icons/file-code";
-import FolderIcon from "@lucide/svelte/icons/folder";
 import FolderTreeIcon from "@lucide/svelte/icons/folder-tree";
 import GitBranchIcon from "@lucide/svelte/icons/git-branch";
 import GitPullRequestIcon from "@lucide/svelte/icons/git-pull-request";
-import ListIcon from "@lucide/svelte/icons/list";
 import MessageSquareIcon from "@lucide/svelte/icons/message-square";
 import NotebookIcon from "@lucide/svelte/icons/notebook";
 import SettingsIcon from "@lucide/svelte/icons/settings";
 import SquareTerminalIcon from "@lucide/svelte/icons/square-terminal";
 import type { MaintenanceOperation } from "@nervekit/contracts/maintenance";
-import { Badge } from "@nervekit/ui-kit/components/ui/badge";
+import type { Attachment } from "svelte/attachments";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
-import PopoverPanel, {
-  PopoverBody,
-  PopoverHeader,
-  PopoverMeter,
-  PopoverProperties,
-  PopoverProperty,
-  PopoverSection,
-} from "@nervekit/ui-kit/components/composites/popover-panel";
 import { StatusDot } from "@nervekit/ui-kit/components/composites/status-dot";
+import DiscoverView from "$lib/app/discover/components/DiscoverView.svelte";
+import LayoutControl from "$lib/app/shell/LayoutControl.svelte";
+import MaintenanceStatus from "$lib/app/shell/MaintenanceStatus.svelte";
+import StatusBar from "$lib/app/shell/StatusBar.svelte";
+import StatusPopover from "$lib/app/shell/StatusPopover.svelte";
+import { SubscriptionUsageChip } from "$lib/features/usage";
+import Titlebar from "$lib/app/shell/Titlebar.svelte";
+import ActivityPopover from "$lib/presentation/activity/ActivityPopover.svelte";
 import NerveMark from "$lib/presentation/brand/NerveMark.svelte";
 import MaintenanceProgressView from "$lib/presentation/maintenance/MaintenanceProgressView.svelte";
 import {
@@ -34,24 +35,31 @@ import DockPanel from "$lib/presentation/shell/DockPanel.svelte";
 import DockTabStrip from "$lib/presentation/shell/DockTabStrip.svelte";
 import EditorArea from "$lib/presentation/shell/EditorArea.svelte";
 import EditorTabStrip from "$lib/presentation/shell/EditorTabStrip.svelte";
-import ShellStatusBar, {
-  type DockToggle,
-} from "$lib/presentation/shell/ShellStatusBar.svelte";
-import ShellTitlebar from "$lib/presentation/shell/ShellTitlebar.svelte";
+import type { DockToggle } from "$lib/presentation/shell/ShellStatusBar.svelte";
 import WorkbenchShell from "$lib/presentation/shell/WorkbenchShell.svelte";
 import { defaultShellLayout } from "$lib/presentation/shell/shell-layout";
-import type {
-  DockId,
-  PanelViewDescriptor,
-  WorkbenchTabIdentity,
-  WorkbenchTabModel,
-} from "$lib/presentation/shell/shell-types";
 import {
-  STATUS_BAR_CHIP,
-  STATUS_BAR_CHIP_BUTTON,
-} from "$lib/presentation/shell/status-bar-chip";
+  DOCK_LABELS,
+  type DockId,
+  type PanelViewDescriptor,
+  type WorkbenchTabIdentity,
+  type WorkbenchTabModel,
+} from "$lib/presentation/shell/shell-types";
 import GalleryGroup from "../GalleryGroup.svelte";
 import GallerySpecimen from "../GallerySpecimen.svelte";
+import {
+  labActiveProject,
+  labDiscoverModel,
+  labGitStatus,
+  labHomeDir,
+  labLatestRelease,
+  labNotifications,
+  labProjectOptions,
+  labProjects,
+  labStatus,
+  labUsages,
+  labVersion,
+} from "./shell-fixtures";
 
 /* ----------------------------- Panel views ----------------------------- */
 
@@ -225,13 +233,32 @@ let toggles = $state<Record<DockId, boolean>>({
 const dockToggles = $derived<DockToggle[]>(
   dockPairs.map((dock) => ({
     dock,
-    label: `${dock} panel`,
+    label: DOCK_LABELS[dock].toLowerCase(),
     open: toggles[dock],
     onToggle: () => (toggles[dock] = !toggles[dock]),
   })),
 );
+let zoomLevel = $state(0);
 
 const noop = () => {};
+
+/* ------------------------------- Titlebar ------------------------------- */
+
+// The titlebar renders in two specimens; each keeps its own popover state.
+type TitlebarSlot = "shell" | "standalone";
+let projectSwitcherOpen = $state<Record<TitlebarSlot, boolean>>({
+  shell: false,
+  standalone: false,
+});
+let activityOpen = $state<Record<TitlebarSlot, boolean>>({
+  shell: false,
+  standalone: false,
+});
+
+const longBranchGitStatus = {
+  ...labGitStatus,
+  branch: "fix/retain-resolved-plan-review-cards-with-a-long-name",
+};
 
 /* ------------------------------ Maintenance ------------------------------ */
 
@@ -267,6 +294,19 @@ const baseOperation = {
   warnings: [],
 } as const satisfies MaintenanceOperation;
 
+const runningOperation: MaintenanceOperation = {
+  ...baseOperation,
+  warnings: [],
+  currentItem: {
+    conversationId: "conv_01HZYABCDEF",
+    title:
+      "Refactor session store and a very long conversation title that truncates",
+    stage: "tool_projections",
+    removedRows: 18420,
+    detachedLinks: 2,
+  },
+};
+
 const operations: { title: string; operation: MaintenanceOperation }[] = [
   {
     title: "Preparing (indeterminate)",
@@ -281,21 +321,7 @@ const operations: { title: string; operation: MaintenanceOperation }[] = [
       warnings: [],
     },
   },
-  {
-    title: "Running with current item",
-    operation: {
-      ...baseOperation,
-      warnings: [],
-      currentItem: {
-        conversationId: "conv_01HZYABCDEF",
-        title:
-          "Refactor session store and a very long conversation title that truncates",
-        stage: "tool_projections",
-        removedRows: 18420,
-        detachedLinks: 2,
-      },
-    },
-  },
+  { title: "Running with current item", operation: runningOperation },
   {
     title: "Failed",
     operation: {
@@ -308,12 +334,35 @@ const operations: { title: string; operation: MaintenanceOperation }[] = [
     },
   },
 ];
+let mobileActionsOpen = $state(false);
+
+// The status popovers and the maintenance chip show their real panels open
+// without a click. Open panels portal to the page body, so they open only
+// while their frame is fully on screen: off-screen they would stretch the
+// page, and they would trail their chips out of the catalog as it scrolls.
+let usageOpen = $state(false);
+let layoutOpen = $state(false);
+let daemonOpen = $state(false);
+let maintenanceOpen = $state(false);
+
+function openWhileVisible(
+  setOpen: (open: boolean) => void,
+): Attachment<HTMLElement> {
+  return (frame) => {
+    const observer = new IntersectionObserver(
+      ([entry]) => setOpen(entry?.isIntersecting ?? false),
+      { threshold: 0.95 },
+    );
+    observer.observe(frame);
+    return () => observer.disconnect();
+  };
+}
 </script>
 
 <div class="flex flex-col gap-10">
   <GalleryGroup
     title="In context"
-    description="The full workbench frame: titlebar, left and right docks, editor tabs and status bar. Docks are resizable; the real frame fills the window (here 600px tall)."
+    description="The full workbench frame: the real titlebar and status bar views with mock data, left and right docks, editor tabs. Docks are resizable; the real frame fills the window (here 600px tall)."
   >
     <GallerySpecimen
       title="WorkbenchShell"
@@ -327,7 +376,7 @@ const operations: { title: string; operation: MaintenanceOperation }[] = [
           {descriptors}
         >
           {#snippet titlebar()}
-            {@render titlebarMock()}
+            {@render titlebarView("shell")}
           {/snippet}
           {#snippet editor()}
             <EditorArea
@@ -337,7 +386,7 @@ const operations: { title: string; operation: MaintenanceOperation }[] = [
               onNew={noop}
             >
               {#snippet content()}
-                <div class="p-4 text-sm text-muted-foreground">
+                <div class="p-4 text-ui text-muted-foreground">
                   Editor content
                 </div>
               {/snippet}
@@ -347,7 +396,7 @@ const operations: { title: string; operation: MaintenanceOperation }[] = [
             {@render panelBody(viewId)}
           {/snippet}
           {#snippet statusBar()}
-            {@render statusBarMock()}
+            {@render statusBarView()}
           {/snippet}
         </WorkbenchShell>
       </div>
@@ -360,62 +409,119 @@ const operations: { title: string; operation: MaintenanceOperation }[] = [
   >
     <GallerySpecimen
       title="ShellTitlebar"
-      source="presentation/shell/ShellTitlebar"
+      source="app/shell/Titlebar → presentation/shell/ShellTitlebar"
       usage="1 file · shell"
-      description="Logo, project chips (active one numbered), version tag, discover/list/settings icons."
+      description="The real Titlebar view: NerveMark, ProjectSwitcher (four quick projects, one active, one running), VersionIndicator, Activity bell, Discover (setup dot), logs and settings. The switcher, version, and bell open their real popovers."
       surface="panel"
       layout="stack"
     >
       <div class="overflow-hidden rounded-md border">
-        {@render titlebarMock()}
+        {@render titlebarView("standalone")}
       </div>
     </GallerySpecimen>
 
     <GallerySpecimen
       title="ShellStatusBar"
-      source="presentation/shell/ShellStatusBar"
+      source="app/shell/StatusBar → presentation/shell/ShellStatusBar"
       usage="1 file · shell"
-      description="Chips share STATUS_BAR_CHIP (h-6, text-xs). Layout and Connected open real popovers; dock toggles are interactive."
+      description="The real StatusBar view: project path, git branch with change and ahead counts, SubscriptionUsageChip, LayoutControl and StatusPopover. Every chip opens its real popover; dock toggles are interactive."
       surface="panel"
       layout="stack"
     >
       <div class="overflow-hidden rounded-md border">
-        {@render statusBarMock()}
+        {@render statusBarView()}
       </div>
-      <p class="text-xs text-muted-foreground">
-        Narrow window: the left cluster truncates before the right chips.
+      <p class="text-ui text-muted-foreground">
+        Pending approvals add a warning chip; a reconnecting daemon swaps the
+        connection dot.
       </p>
-      <div class="h-7 w-96 overflow-hidden rounded-md border">
-        <ShellStatusBar toggles={dockToggles}>
-          {#snippet left()}
-            <span class={`${STATUS_BAR_CHIP} truncate`}
-              >fix/retain-resolved-plan-review-cards-with-a-long-name</span
-            >
-          {/snippet}
-          {#snippet right()}
-            <span class={STATUS_BAR_CHIP}>100%</span>
-          {/snippet}
-        </ShellStatusBar>
+      <div class="overflow-hidden rounded-md border">
+        <StatusBar
+          activeProject={labActiveProject.project}
+          connection="reconnecting"
+          gitStatus={labGitStatus}
+          pendingApprovals={2}
+          onOpenPendingApproval={noop}
+          subscriptionUsages={labUsages}
+          status={labStatus}
+          homeDir={labHomeDir}
+          {zoomLevel}
+          {dockToggles}
+          onZoomLevelChange={(level) => (zoomLevel = level)}
+        />
+      </div>
+      <p class="text-ui text-muted-foreground">
+        Narrow window (640px): the left cluster truncates before the right
+        chips.
+      </p>
+      <div class="w-160 max-w-full overflow-hidden rounded-md border">
+        <StatusBar
+          activeProject={labActiveProject.project}
+          connection="connected"
+          live
+          gitStatus={longBranchGitStatus}
+          subscriptionUsages={labUsages}
+          status={labStatus}
+          homeDir={labHomeDir}
+          {zoomLevel}
+          {dockToggles}
+          onZoomLevelChange={(level) => (zoomLevel = level)}
+        />
+      </div>
+      <p class="text-ui text-muted-foreground">
+        Phone (below 640px): project name instead of path, no branch or layout
+        chips, compact usage and connection dot.
+      </p>
+      <div class="w-96 max-w-full overflow-hidden rounded-md border">
+        <StatusBar
+          activeProject={labActiveProject.project}
+          connection="connected"
+          live
+          phone
+          gitStatus={labGitStatus}
+          subscriptionUsages={labUsages}
+          status={labStatus}
+          homeDir={labHomeDir}
+          {dockToggles}
+        />
       </div>
     </GallerySpecimen>
 
     <GallerySpecimen
       title="Status popovers"
-      source="composites/popover-panel"
-      usage="17 files · composer, shell, settings, git, projects"
-      description="Usage (md), layout (sm) and daemon (sm) panels as opened from the status bar. Static replicas of the open state."
+      source="features/usage/SubscriptionUsageChip · app/shell/LayoutControl · app/shell/StatusPopover"
+      usage="2 files · shell, mobile"
+      description="The real status-bar chips with their panels open: usage (md), layout (sm) and daemon (sm) rise from their chips while this frame is on screen. Clicking outside closes them; click a chip to reopen."
       surface="panel"
       layout="bare"
     >
-      <div class="flex flex-wrap items-start gap-6">
-        <div class="floating-surface popover-content popover-md">
-          {@render usagePanel()}
+      <div
+        class="flex min-h-104 flex-wrap items-end justify-center gap-4 rounded-md border bg-panel p-2"
+        {@attach openWhileVisible((open) => {
+          usageOpen = open;
+          layoutOpen = open;
+          daemonOpen = open;
+        })}
+      >
+        <!-- Each slot is as wide as its panel, which opens end-aligned. -->
+        <div class="flex w-80 justify-end">
+          <SubscriptionUsageChip usages={labUsages} bind:open={usageOpen} />
         </div>
-        <div class="floating-surface popover-content popover-md">
-          {@render layoutPanel()}
+        <div class="flex w-64 justify-end">
+          <LayoutControl
+            {zoomLevel}
+            {dockToggles}
+            onZoomLevelChange={(level) => (zoomLevel = level)}
+            bind:open={layoutOpen}
+          />
         </div>
-        <div class="floating-surface popover-content popover-sm">
-          {@render daemonPanel()}
+        <div class="flex w-64 justify-end">
+          <StatusPopover
+            connection="connected"
+            live
+            status={labStatus}
+            bind:open={daemonOpen}
+          />
         </div>
       </div>
     </GallerySpecimen>
@@ -509,7 +615,7 @@ const operations: { title: string; operation: MaintenanceOperation }[] = [
         onclick={() => (tabs = initialTabs.map((tab) => ({ ...tab })))}
         >Reset tabs</Button
       >
-      <p class="text-xs text-muted-foreground">
+      <p class="text-ui text-muted-foreground">
         Overflowing strip (scroll chevrons) in a 640px center area:
       </p>
       <div class="w-160 max-w-full overflow-hidden rounded-md border">
@@ -540,15 +646,33 @@ const operations: { title: string; operation: MaintenanceOperation }[] = [
           <div
             class="flex min-w-0 flex-col gap-2 rounded-md border bg-popover p-3"
           >
-            <span class="text-xs font-medium text-muted-foreground"
-              >{item.title}</span
-            >
+            <span class="text-ui text-muted-foreground">{item.title}</span>
             <MaintenanceProgressView
               operation={item.operation}
               onCancel={noop}
             />
           </div>
         {/each}
+      </div>
+    </GallerySpecimen>
+
+    <GallerySpecimen
+      title="MaintenanceStatus"
+      source="app/shell/MaintenanceStatus"
+      usage="2 files · shell, mobile"
+      description="The status-bar chip for a running cleanup (3/12 items), open on its real progress panel while this frame is on screen. Cancel is a no-op."
+      surface="panel"
+      layout="bare"
+    >
+      <div
+        class="flex min-h-88 items-end justify-center rounded-md border bg-panel p-2"
+        {@attach openWhileVisible((open) => (maintenanceOpen = open))}
+      >
+        <MaintenanceStatus
+          operation={runningOperation}
+          onCancel={noop}
+          bind:open={maintenanceOpen}
+        />
       </div>
     </GallerySpecimen>
 
@@ -562,139 +686,154 @@ const operations: { title: string; operation: MaintenanceOperation }[] = [
       <NerveMark class="size-16 text-primary" label="Nerve" />
     </GallerySpecimen>
   </GalleryGroup>
+  <GalleryGroup title="Shared presentation">
+    <GallerySpecimen
+      title="MobileScreen"
+      source="presentation/shell/mobile/MobileScreen.svelte"
+      layout="stack"
+    >
+      <div class="w-96">
+        <MobileScreen title="Conversations" subtitle="nerve" onBack={() => {}}
+          ><MobileSection title="Recent"
+            ><MobileListRow
+              title="Design-system cleanup"
+              detail="Review shared components"
+              selected
+            /><MobileListRow
+              title="Reconnect tests"
+              tone="info"
+              detail="Running"
+              onclick={() => (mobileActionsOpen = true)}
+            /></MobileSection
+          ></MobileScreen
+        >
+      </div>
+    </GallerySpecimen>
+    <GallerySpecimen
+      title="MobileSection"
+      source="presentation/shell/mobile/MobileSection.svelte"
+      layout="stack"
+    >
+      <div class="w-96">
+        <MobileSection title="Projects" meta="2"
+          ><MobileListRow title="nerve" selected /><MobileListRow
+            title="Documentation"
+          /></MobileSection
+        >
+      </div>
+    </GallerySpecimen>
+    <GallerySpecimen
+      title="MobileListRow"
+      source="presentation/shell/mobile/MobileListRow.svelte"
+      layout="stack"
+    >
+      <div class="w-96">
+        <MobileListRow
+          title="Review complete"
+          detail="All checks passed"
+          tone="success"
+        /><MobileListRow
+          title="Needs approval"
+          detail="Run the build"
+          tone="warning"
+        />
+      </div>
+    </GallerySpecimen>
+    <GallerySpecimen
+      title="MobileActionSheet"
+      source="presentation/shell/mobile/MobileActionSheet.svelte"
+      layout="stack"
+    >
+      <div class="w-96">
+        <MobileListRow
+          title="Conversation actions"
+          detail="Tap to open the action sheet"
+          onclick={() => (mobileActionsOpen = true)}
+        /><MobileActionSheet
+          open={mobileActionsOpen}
+          title="Design-system cleanup"
+          items={[
+            { label: "Open", onSelect: () => {} },
+            { label: "Rename", disabled: true },
+            { label: "Delete", destructive: true, onSelect: () => {} },
+          ]}
+          onOpenChange={(open) => (mobileActionsOpen = open)}
+        />
+      </div>
+    </GallerySpecimen>
+  </GalleryGroup>
+
+  <GalleryGroup
+    title="Discover"
+    description="The Discover center tab: the real DiscoverView with a mock page model (news, setup guides, walkthroughs, tips). Actions are no-ops."
+  >
+    <GallerySpecimen
+      title="DiscoverView"
+      source="app/discover/components/DiscoverView"
+      usage="1 file · discover"
+      description="Featured release news with artwork, unread news, archived updates, setup progress with a must-do guide, completed guides, a walkthrough and tips."
+      layout="bare"
+    >
+      <div class="h-200 overflow-hidden rounded-md border">
+        <DiscoverView
+          model={labDiscoverModel}
+          workbenchBlocked={false}
+          onStartGuide={noop}
+          onMarkCompleted={noop}
+          onAction={noop}
+          onSetAutoOpen={noop}
+        />
+      </div>
+    </GallerySpecimen>
+  </GalleryGroup>
 </div>
 
-{#snippet titlebarMock()}
-  <ShellTitlebar>
-    {#snippet left()}
-      <NerveMark class="size-5 shrink-0" label="Nerve" />
-      <Button variant="ghost" size="sm">90Events</Button>
-      <Button variant="ghost" size="sm">EasyLink</Button>
-      <Button variant="outline" size="sm"
-        ><Badge variant="outline">1</Badge>nerve</Button
-      >
-      <Button variant="ghost" size="sm">PPlied</Button>
+{#snippet titlebarView(slot: TitlebarSlot)}
+  <Titlebar
+    projects={labProjects}
+    projectOptions={labProjectOptions}
+    activeProjectKey={labActiveProject.key}
+    homeDir={labHomeDir}
+    currentVersion={labVersion}
+    latestRelease={labLatestRelease}
+    applicationLogsEnabled
+    discoverBadge={{ kind: "dot" }}
+    bind:projectSwitcherOpen={projectSwitcherOpen[slot]}
+    onOpenProject={noop}
+    onOpenProjectPath={noop}
+    onSelectProject={noop}
+    onOpenLogs={noop}
+    onOpenDiscover={noop}
+    onOpenSettings={noop}
+  >
+    {#snippet activity()}
+      <ActivityPopover
+        items={labNotifications}
+        open={activityOpen[slot]}
+        onOpenChange={(open) => (activityOpen[slot] = open)}
+        onOpenItem={noop}
+        onAction={noop}
+        onDismiss={noop}
+        onClearFinished={noop}
+        onToggleMute={noop}
+      />
     {/snippet}
-    {#snippet actions()}
-      <Badge variant="outline" class="font-mono">v0.34.1</Badge>
-      <Button variant="ghost" size="icon" ariaLabel="Discover"
-        ><CompassIcon /></Button
-      >
-      <Button variant="ghost" size="icon" ariaLabel="Logs"><ListIcon /></Button>
-      <Button variant="ghost" size="icon" ariaLabel="Settings"
-        ><SettingsIcon /></Button
-      >
-    {/snippet}
-  </ShellTitlebar>
+  </Titlebar>
 {/snippet}
 
-{#snippet statusBarMock()}
-  <ShellStatusBar toggles={dockToggles}>
-    {#snippet left()}
-      <span class={STATUS_BAR_CHIP}
-        ><FolderIcon class="size-3" aria-hidden="true" />~/Projects/nerve</span
-      >
-      <span class={STATUS_BAR_CHIP}
-        ><GitBranchIcon
-          class="size-3"
-          aria-hidden="true"
-        />fix/retain-resolved-plan-review-cards</span
-      >
-      <span class={STATUS_BAR_CHIP}>± 28</span>
-    {/snippet}
-    {#snippet right()}
-      <PopoverPanel
-        size="md"
-        side="top"
-        align="end"
-        ariaLabel="Subscription usage"
-        triggerClass={STATUS_BAR_CHIP_BUTTON}
-      >
-        {#snippet trigger()}Codex 22% 5d 15h{/snippet}
-        {@render usagePanel()}
-      </PopoverPanel>
-      <PopoverPanel
-        size="md"
-        side="top"
-        align="end"
-        ariaLabel="Layout"
-        triggerClass={STATUS_BAR_CHIP_BUTTON}
-      >
-        {#snippet trigger()}100%{/snippet}
-        {@render layoutPanel()}
-      </PopoverPanel>
-      <PopoverPanel
-        size="sm"
-        side="top"
-        align="end"
-        ariaLabel="Daemon status"
-        triggerClass={STATUS_BAR_CHIP_BUTTON}
-      >
-        {#snippet trigger()}
-          <StatusDot tone="success" size="xs" />Connected
-        {/snippet}
-        {@render daemonPanel()}
-      </PopoverPanel>
-    {/snippet}
-  </ShellStatusBar>
-{/snippet}
-
-{#snippet usagePanel()}
-  <PopoverHeader title="Subscription usage" meta="Updated 07:28 PM" />
-  <PopoverBody>
-    <PopoverSection label="Anthropic">
-      <PopoverMeter
-        label="Session"
-        value="38%"
-        percent={38}
-        caption="resets in 4h"
-      />
-      <PopoverMeter
-        label="Weekly"
-        value="21%"
-        percent={21}
-        caption="resets in 5d 11h"
-      />
-    </PopoverSection>
-    <PopoverSection label="Codex · prolite" separated>
-      {#snippet action()}<Badge variant="outline">Active</Badge>{/snippet}
-      <PopoverMeter
-        label="Weekly"
-        value="22%"
-        percent={22}
-        caption="resets in 5d 15h"
-      />
-    </PopoverSection>
-  </PopoverBody>
-{/snippet}
-
-{#snippet layoutPanel()}
-  <PopoverHeader title="Layout" meta="Zoom 100%" />
-  <PopoverBody>
-    <PopoverSection label="Panels">
-      <PopoverProperties>
-        <PopoverProperty label="Left Panel" value="Ctrl+B" />
-        <PopoverProperty label="Right Panel" value="Ctrl+Alt+B" />
-      </PopoverProperties>
-    </PopoverSection>
-  </PopoverBody>
-{/snippet}
-
-{#snippet daemonPanel()}
-  <PopoverHeader title="Nerve daemon" meta="v0.34.1" />
-  <PopoverBody>
-    <PopoverProperties>
-      <PopoverProperty label="Uptime" value="1h 26m" />
-      <PopoverProperty label="Index">
-        <Badge variant="success">Healthy</Badge>
-      </PopoverProperty>
-      <PopoverProperty
-        label="Data dir"
-        value="/home/tlm/Projects/nerve/data/storage-1"
-        title="Data directory"
-      />
-    </PopoverProperties>
-  </PopoverBody>
+{#snippet statusBarView()}
+  <StatusBar
+    activeProject={labActiveProject.project}
+    connection="connected"
+    live
+    gitStatus={labGitStatus}
+    subscriptionUsages={labUsages}
+    status={labStatus}
+    homeDir={labHomeDir}
+    {zoomLevel}
+    {dockToggles}
+    onZoomLevelChange={(level) => (zoomLevel = level)}
+  />
 {/snippet}
 
 {#snippet panelBody(viewId: string)}
@@ -716,7 +855,7 @@ const operations: { title: string; operation: MaintenanceOperation }[] = [
       </PanelList>
     </PanelView>
   {:else}
-    <div class="p-3 text-xs text-muted-foreground">
+    <div class="p-3 text-ui text-muted-foreground">
       Panel body for “{viewId}”. See the Panels page for real content.
     </div>
   {/if}

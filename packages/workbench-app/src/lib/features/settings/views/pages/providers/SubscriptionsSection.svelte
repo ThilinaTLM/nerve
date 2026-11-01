@@ -92,7 +92,7 @@ async function confirmLogout(): Promise<void> {
                 <Tooltip.Root>
                   <Tooltip.Trigger
                     aria-label={`${provider.displayName} warning: ${provider.warning}`}
-                    class="inline-flex cursor-help rounded-sm text-warning focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
+                    class="inline-flex cursor-help rounded-sm text-warning focus-visible:ring-3 focus-visible:ring-focus focus-visible:outline-none"
                   >
                     <TriangleAlert class="size-3.5" aria-hidden="true" />
                   </Tooltip.Trigger>

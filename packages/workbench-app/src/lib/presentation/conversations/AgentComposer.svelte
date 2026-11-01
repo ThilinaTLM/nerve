@@ -115,7 +115,7 @@ function submit(): void {
     {#if headerContent}
       {@render headerContent()}
     {:else if model.hint}
-      <p class="flex items-center gap-1 text-xs text-muted-foreground">
+      <p class="flex items-center gap-1 text-ui text-muted-foreground">
         {model.hint}
       </p>
     {/if}

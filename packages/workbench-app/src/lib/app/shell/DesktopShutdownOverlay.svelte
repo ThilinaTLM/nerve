@@ -10,7 +10,7 @@ const desktopQuitting = $derived(
   <div class="shutdown-overlay" role="status" aria-live="polite">
     <div class="shutdown-card">
       <div class="shutdown-spinner" aria-hidden="true"></div>
-      <strong>Closing Nerve…</strong>
+      <strong class="font-medium">Closing Nerve…</strong>
       <span>Stopping the local daemon safely.</span>
     </div>
   </div>
@@ -23,7 +23,7 @@ const desktopQuitting = $derived(
   z-index: 1000;
   display: grid;
   place-items: center;
-  background: color-mix(in oklab, var(--background) 72%, transparent);
+  background: var(--scrim);
   backdrop-filter: blur(10px);
 }
 
@@ -37,12 +37,12 @@ const desktopQuitting = $derived(
   background: var(--card);
   padding: 1.25rem 1.5rem;
   color: var(--foreground);
-  box-shadow: var(--shadow-md);
+  box-shadow: var(--shadow-overlay);
 }
 
 .shutdown-card span {
   color: var(--muted-foreground);
-  font-size: var(--text-sm);
+  font-size: var(--text-ui);
 }
 
 /* Binds the shared spin keyframe at the shutdown cadence

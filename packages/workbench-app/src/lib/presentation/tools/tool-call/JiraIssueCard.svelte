@@ -32,7 +32,7 @@ const hasChips = $derived(
 
 const toneText: Record<StatusTone, string> = {
   neutral: "text-muted-foreground",
-  accent: "text-foreground",
+  brand: "text-primary",
   info: "text-info",
   success: "text-success",
   warning: "text-warning",
@@ -54,7 +54,7 @@ const priorityColor = $derived(
       />
       {#if url}
         <a
-          class="inline-flex items-center gap-1 font-mono text-xs font-semibold text-primary no-underline hover:underline"
+          class="inline-flex items-center gap-1 font-mono text-ui font-medium text-primary no-underline hover:underline"
           href={url}
           target="_blank"
           rel="noreferrer noopener"
@@ -64,14 +64,13 @@ const priorityColor = $derived(
           <ExternalLink size={11} strokeWidth={2} class="opacity-70" />
         </a>
       {:else}
-        <span class="font-mono text-xs font-semibold text-primary"
+        <span class="font-mono text-ui font-medium text-primary"
           >{issue.key}</span
         >
       {/if}
     </span>
     {#if issue.summary}
-      <span
-        class="min-w-0 break-words text-xs font-medium leading-snug text-foreground"
+      <span class="min-w-0 break-words text-ui leading-snug text-foreground"
         >{issue.summary}</span
       >
     {/if}
@@ -85,7 +84,7 @@ const priorityColor = $derived(
       {#if priority}
         {@const PriorityIcon = priority.icon}
         <span
-          class={`inline-flex items-center gap-1 text-xs ${priorityColor}`}
+          class={`inline-flex items-center gap-1 text-ui ${priorityColor}`}
           title={`Priority: ${issue.priority}`}
         >
           <PriorityIcon size={13} strokeWidth={2.2} />
@@ -94,7 +93,7 @@ const priorityColor = $derived(
       {/if}
       {#if assignee}
         <span
-          class="inline-flex min-w-0 items-center gap-1 text-xs text-muted-foreground"
+          class="inline-flex min-w-0 items-center gap-1 text-ui text-muted-foreground"
         >
           <User size={12} strokeWidth={2} class="shrink-0" />
           <span class="truncate">{assignee}</span>
@@ -102,7 +101,7 @@ const priorityColor = $derived(
       {/if}
       {#if updatedRel}
         <span
-          class="ml-auto inline-flex items-center gap-1 text-xs text-muted-foreground"
+          class="ml-auto inline-flex items-center gap-1 text-ui text-muted-foreground"
           title={`Updated ${dateTimeLabel(issue.updated)}`}
         >
           <Clock size={12} strokeWidth={2} />

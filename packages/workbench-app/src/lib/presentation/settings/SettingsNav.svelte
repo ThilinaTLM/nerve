@@ -1,15 +1,16 @@
 <!--
   Grouped settings navigation. Group titles are quiet captions (no hover, no
   icon); items are the interactive text, so icons and weight carry the
-  hierarchy. The active item uses `bg-selected`: the ember tint reads as
-  selection where a neutral `muted`/`accent` fill would look like hover. In a narrow settings pane
+  hierarchy. Items are `SelectRow`s: the active item takes the shared
+  selection (`bg-selected`, medium label, brand icon). In a narrow settings pane
   (`settings-page` container) the groups flow into one scrollable row.
 -->
 <script lang="ts">
+import { GroupLabel } from "@nervekit/ui-kit/components/composites/group-label";
 import ArrowUpRight from "@lucide/svelte/icons/arrow-up-right";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
 import { Badge } from "@nervekit/ui-kit/components/ui/badge";
-import { cn } from "@nervekit/ui-kit/utils";
+import { SelectRow } from "@nervekit/ui-kit/components/composites/select-row";
 import type {
   SettingsNavGroup,
   SettingsScopeHeader,
@@ -37,9 +38,11 @@ let {
   <div
     class="grid flex-none gap-0.5 border-b px-2 pb-2 @max-[46rem]/settings-page:border-b-0 @max-[46rem]/settings-page:pb-1"
   >
-    <p class="text-sm font-semibold text-foreground">{header.title}</p>
+    <p class="text-ui font-medium text-foreground">{header.title}</p>
     {#if header.subtitle}
-      <p class="truncate text-xs text-muted-foreground">{header.subtitle}</p>
+      <p class="truncate text-caption text-muted-foreground">
+        {header.subtitle}
+      </p>
     {/if}
     {#if header.action}
       <Button
@@ -58,42 +61,36 @@ let {
 
 <nav
   aria-label={ariaLabel}
-  class="grid min-h-0 flex-1 content-start gap-3 overflow-y-auto pt-0 @max-[46rem]/settings-page:flex @max-[46rem]/settings-page:gap-1 @max-[46rem]/settings-page:overflow-x-auto @max-[46rem]/settings-page:pt-0"
+  class="-mx-1 grid min-h-0 flex-1 content-start gap-3 overflow-y-auto px-1 pt-0 pb-1 @max-[46rem]/settings-page:flex @max-[46rem]/settings-page:gap-1 @max-[46rem]/settings-page:overflow-x-auto @max-[46rem]/settings-page:pt-0"
 >
   {#each groups as group (group.id)}
     <div class="grid gap-0.5 @max-[46rem]/settings-page:flex">
       {#if group.title}
-        <p
-          class="px-2 pb-0.5 text-xs font-medium text-muted-foreground @max-[46rem]/settings-page:hidden"
-        >
-          {group.title}
-        </p>
+        <GroupLabel
+          class="px-2 pb-0.5 @max-[46rem]/settings-page:hidden"
+          label={group.title}
+        />
       {/if}
       {#each group.items as item (item.id)}
         {@const Icon = item.icon}
         {@const current = activeId === item.id}
-        <button
-          type="button"
-          disabled={item.disabled}
-          aria-current={current ? "page" : undefined}
-          class={cn(
-            "group/nav flex w-full min-w-0 cursor-pointer items-center gap-2 h-control rounded-md px-2 text-left text-sm text-foreground outline-none transition-colors hover:bg-hover focus-visible:ring-3 focus-visible:ring-ring/50 disabled:pointer-events-none disabled:opacity-50 @max-[46rem]/settings-page:w-auto @max-[46rem]/settings-page:flex-none",
-            current && "bg-selected font-medium hover:bg-selected",
-          )}
-          onclick={() => onSelect(item.id)}
-        >
-          <Icon
-            class={cn(
-              "size-4 flex-none text-muted-foreground group-hover/nav:text-foreground",
-              current && "text-foreground",
-            )}
+        {#snippet icon()}<Icon
+            class="size-4 flex-none"
             aria-hidden="true"
-          />
-          <span class="min-w-0 flex-1 truncate">{item.label}</span>
-          {#if item.badge}
-            <Badge variant={item.badge.tone}>{item.badge.text}</Badge>
-          {/if}
-        </button>
+          />{/snippet}
+        {#snippet badge()}{#if item.badge}<Badge variant={item.badge.tone}
+              >{item.badge.text}</Badge
+            >{/if}{/snippet}
+        <SelectRow
+          label={item.label}
+          {icon}
+          trailing={item.badge ? badge : undefined}
+          selected={current}
+          current={current ? "page" : false}
+          disabled={item.disabled}
+          class="px-2 @max-[46rem]/settings-page:w-auto @max-[46rem]/settings-page:flex-none"
+          onclick={() => onSelect(item.id)}
+        />
       {/each}
     </div>
   {/each}

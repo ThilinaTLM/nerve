@@ -65,7 +65,7 @@ async function copyDiagnostics() {
   {#if failure}
     <Collapsible.Root>
       <Collapsible.Trigger
-        class="group flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
+        class="group flex items-center gap-1 text-ui text-muted-foreground hover:text-foreground"
       >
         <ChevronRight
           class="size-3.5 transition-transform group-data-[state=open]:rotate-90"
@@ -74,7 +74,7 @@ async function copyDiagnostics() {
       </Collapsible.Trigger>
       <Collapsible.Content>
         <pre
-          class="mt-2 max-h-48 overflow-auto rounded-md bg-well p-2 font-mono text-xs whitespace-pre-wrap break-all select-text">{diagnostics}</pre>
+          class="mt-2 max-h-48 overflow-auto rounded-md bg-well p-2 font-mono text-ui whitespace-pre-wrap break-all select-text">{diagnostics}</pre>
         <Button
           class="mt-2"
           size="sm"
@@ -111,7 +111,7 @@ async function copyDiagnostics() {
     ]}
   >
     <div
-      class="grid w-full max-w-xl gap-4 rounded-lg border bg-card p-6 shadow-md [-webkit-app-region:no-drag]"
+      class="grid w-full max-w-xl gap-4 rounded-lg border bg-card p-6 shadow-overlay [-webkit-app-region:no-drag]"
     >
       {#if retrying}
         <ServerLifecycleStatus
@@ -121,14 +121,16 @@ async function copyDiagnostics() {
         />
       {:else if kind === "rolled-back"}
         <div class="grid gap-1">
-          <h1 class="text-lg font-semibold">Your previous data was restored</h1>
-          <p class="text-sm text-muted-foreground">
+          <h1 class="text-title font-medium">
+            Your previous data was restored
+          </h1>
+          <p class="text-ui text-muted-foreground">
             Nerve undid the upgrade and your data is back to how it was. Quit
             Nerve and reinstall the previous version to keep using it.
           </p>
         </div>
         {#if !isDesktop}
-          <p class="text-sm text-muted-foreground">
+          <p class="text-ui text-muted-foreground">
             Stop the Nerve server, then start the previous version.
           </p>
         {/if}
@@ -140,10 +142,10 @@ async function copyDiagnostics() {
         {/if}
       {:else}
         <div class="grid gap-1">
-          <h1 class="text-lg font-semibold">
+          <h1 class="text-title font-medium">
             {kind === "discardable" ? plan.heading : "Nerve couldn't start"}
           </h1>
-          <p class="text-sm text-muted-foreground break-words">
+          <p class="text-ui text-muted-foreground break-words">
             {#if kind === "discardable"}
               Nerve can continue without {discardable.length === 1
                 ? "this item"
@@ -162,15 +164,15 @@ async function copyDiagnostics() {
             {#each [{ label: "Conversations", items: plan.conversations, note: "" }, { label: "Settings files", items: plan.files, note: "Original files are kept in quarantine." }] as group (group.label)}
               {#if group.items.length}
                 <div
-                  class="px-3 pt-2 text-xs font-semibold text-muted-foreground"
+                  class="px-3 pt-2 text-ui font-medium text-muted-foreground"
                 >
                   {group.label}
                 </div>
                 <ul class="grid divide-y">
                   {#each group.items as item (item.id)}
-                    <li class="grid gap-0.5 px-3 py-2 text-sm">
+                    <li class="grid gap-0.5 px-3 py-2 text-ui">
                       <span class="break-words">{item.title || item.id}</span>
-                      <span class="text-xs break-words text-muted-foreground">
+                      <span class="text-ui break-words text-muted-foreground">
                         {item.reason}
                       </span>
                     </li>
@@ -182,10 +184,10 @@ async function copyDiagnostics() {
         {/if}
         {@render technicalDetails()}
         {#if kind === "discardable" && failure?.message.startsWith("Rollback failed")}
-          <p class="text-xs text-destructive break-words">{failure.message}</p>
+          <p class="text-ui text-destructive break-words">{failure.message}</p>
         {/if}
         {#if serverLifecycleState.retryError}
-          <p class="text-xs text-destructive">
+          <p class="text-ui text-destructive">
             {serverLifecycleState.retryError}
           </p>
         {/if}

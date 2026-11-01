@@ -9,10 +9,10 @@ let { view }: { view: LifecycleView } = $props();
 <div class="grid min-w-0 gap-2" role="status" aria-live="polite">
   <div class="flex items-center gap-2">
     <Spinner class="size-4 shrink-0" />
-    <p class="text-sm font-medium">{view.status}</p>
+    <p class="text-ui">{view.status}</p>
   </div>
   {#if view.detail}
-    <p class="text-xs text-muted-foreground">{view.detail}</p>
+    <p class="text-ui text-muted-foreground">{view.detail}</p>
   {/if}
   {#if view.meter}
     <Progress

@@ -1,10 +1,11 @@
 <script lang="ts">
+import { Callout } from "@nervekit/ui-kit/components/composites/callout";
 import type { ScopedConfigurationTarget } from "@nervekit/contracts/agent-configuration";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
 import { Textarea } from "@nervekit/ui-kit/components/ui/textarea";
 import { Label } from "@nervekit/ui-kit/components/ui/label";
 import Dialog from "@nervekit/ui-kit/components/composites/dialog-shell";
-import { EntityRow, SettingsInlineMessage } from "$lib/presentation/settings";
+import { EntityRow } from "$lib/presentation/settings";
 import { requestWorkbench } from "$lib/application/startup/workbench-connection";
 import {
   ConfigurationRepair,
@@ -74,12 +75,14 @@ async function apply() {
     label="Repair target"
     value={`${target.document}${target.document === "profile" ? `:${target.name}` : ""} · ${target.scope.scope}${target.scope.scope === "project" ? `:${target.scope.projectId}` : target.scope.scope === "conversation" ? `:${target.scope.conversationId}` : ""}`}
   />
-  {#if parseError || repair.error}<SettingsInlineMessage
+  {#if parseError || repair.error}<Callout
+      layout="block"
       tone="destructive"
       text={parseError ?? repair.error}
     />{/if}
   {#if repair.result}
-    <SettingsInlineMessage
+    <Callout
+      layout="block"
       tone="success"
       text="Repair saved. Trust was not granted by this repair."
     />
@@ -110,13 +113,14 @@ async function apply() {
         label="Candidate digest"
         value={repair.preview.candidateDigest}
       />
-      <p class="text-xs font-medium">Changed fields</p>
+      <p class="text-ui">Changed fields</p>
       {#each repair.preview.changedPaths as pointer (pointer)}<p
-          class="font-mono text-xs"
+          class="font-mono text-ui"
         >
           {pointer || "/"}
         </p>{/each}
-      {#if repair.preview.resolution?.diagnostics.length}<SettingsInlineMessage
+      {#if repair.preview.resolution?.diagnostics.length}<Callout
+          layout="block"
           tone="warning"
           text={repair.preview.resolution.diagnostics
             .map((d) => `${d.code}: ${d.pointer}`)

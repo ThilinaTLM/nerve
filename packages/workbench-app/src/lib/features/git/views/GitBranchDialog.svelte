@@ -166,12 +166,12 @@ function openPullRequest(number: number): void {
       <div class="max-h-[60vh] overflow-y-auto rounded-md border">
         {#if loadingBranches && resultCount === 0}
           <div
-            class="flex items-center justify-center gap-2 px-3 py-10 text-sm text-muted-foreground"
+            class="flex items-center justify-center gap-2 px-3 py-10 text-ui text-muted-foreground"
           >
             <Spinner class="size-4" /> Loading branches…
           </div>
         {:else if resultCount === 0}
-          <div class="px-3 py-10 text-center text-sm text-muted-foreground">
+          <div class="px-3 py-10 text-center text-ui text-muted-foreground">
             {branchFilter.trim()
               ? `No branches match “${branchFilter.trim()}”.`
               : "No branches found."}
@@ -204,16 +204,16 @@ function openPullRequest(number: number): void {
         bind:value={newBranchName}
         placeholder="feature/branch-name"
         autofocus
-        class="font-mono text-sm"
+        class="font-mono text-ui"
         aria-label="New branch name"
         aria-invalid={showNameError}
       />
       {#if showNameError}
-        <p class="text-xs text-destructive">
+        <p class="text-ui text-destructive">
           Enter a valid branch name (no spaces or special characters).
         </p>
       {:else}
-        <p class="text-xs text-muted-foreground">
+        <p class="text-ui text-muted-foreground">
           The new branch is created from the current branch.
         </p>
       {/if}
@@ -222,7 +222,7 @@ function openPullRequest(number: number): void {
 
   {#snippet footer()}
     {#if view === "switch"}
-      <span class="mr-auto text-xs text-muted-foreground tabular-nums">
+      <span class="mr-auto text-ui text-muted-foreground tabular-nums">
         {resultCount}
         {resultCount === 1 ? "result" : "results"}
       </span>

@@ -206,7 +206,7 @@ $effect(() => {
 >
   {#if renderState === "loading"}
     <div
-      class="pointer-events-none absolute inset-0 grid place-items-center text-sm text-muted-foreground"
+      class="pointer-events-none absolute inset-0 grid place-items-center text-ui text-muted-foreground"
     >
       <div class="grid place-items-center gap-2">
         <Spinner class="size-5 text-primary" />
@@ -216,10 +216,10 @@ $effect(() => {
   {:else if renderState === "error"}
     <div class="absolute inset-0 grid place-items-center overflow-auto p-4">
       <div class="grid w-full max-w-3xl gap-3">
-        <p class="m-0 text-sm text-destructive">
+        <p class="m-0 text-ui text-destructive">
           Diagram could not be rendered
         </p>
-        <pre class="m-0 overflow-auto rounded-md bg-well p-3 text-xs"><code
+        <pre class="m-0 overflow-auto rounded-md bg-well p-3 text-ui"><code
             >{source}</code
           ></pre>
       </div>

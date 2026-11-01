@@ -65,7 +65,9 @@ const showBody = $derived(bodyVisible || summaryVisible);
   {layoutRevision}
 >
   {#if notice.summary}
-    <p class="m-0 text-sm leading-6 text-muted-foreground">{notice.summary}</p>
+    <p class="m-0 text-body leading-6 text-muted-foreground">
+      {notice.summary}
+    </p>
   {/if}
   {#if bodyVisible && children}{@render children()}{/if}
 </CardShell>

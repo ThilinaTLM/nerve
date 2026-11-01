@@ -77,9 +77,9 @@ function openProviderSettings() {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);
   gap: 0.75rem;
-  border: 1px solid color-mix(in oklab, var(--border) 55%, transparent);
+  border: 1px solid var(--border-subtle);
   border-radius: var(--radius-md);
-  background: color-mix(in oklab, var(--accent) 35%, transparent);
+  background: var(--hover);
   padding: 0.85rem;
 }
 
@@ -88,16 +88,16 @@ function openProviderSettings() {
   width: 2.25rem;
   height: 2.25rem;
   place-items: center;
-  border: 1px solid color-mix(in oklab, var(--primary) 26%, var(--border));
-  background: color-mix(in oklab, var(--primary) 10%, transparent);
+  border: 1px solid var(--primary-strong);
+  background: var(--primary-subtle);
   color: var(--primary);
 }
 
 .audio-auth-summary h3 {
   margin: 0;
   color: var(--foreground);
-  font-size: var(--text-sm);
-  font-weight: 600;
+  font-size: var(--text-ui);
+  font-weight: 500;
 }
 
 .audio-auth-summary p,
@@ -105,7 +105,7 @@ function openProviderSettings() {
 .audio-auth-path {
   margin: 0;
   color: var(--muted-foreground);
-  font-size: var(--text-sm);
+  font-size: var(--text-ui);
   line-height: 1.5;
 }
 
@@ -126,6 +126,6 @@ function openProviderSettings() {
 
 .audio-auth-path strong {
   color: var(--foreground);
-  font-weight: 600;
+  font-weight: 500;
 }
 </style>

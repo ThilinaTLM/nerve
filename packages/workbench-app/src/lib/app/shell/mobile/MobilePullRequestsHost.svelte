@@ -131,7 +131,7 @@ function open(pr: GithubPr) {
   {/snippet}
 
   {#if model.pullRequestError}
-    <p class="px-6 py-4 text-sm text-destructive">{model.pullRequestError}</p>
+    <p class="px-6 py-4 text-ui text-destructive">{model.pullRequestError}</p>
   {/if}
 
   {#if model.pullRequests.length}
@@ -148,7 +148,7 @@ function open(pr: GithubPr) {
       {/each}
     </MobileSection>
   {:else if model.loadingPullRequests}
-    <p class="px-6 py-10 text-center text-sm text-muted-foreground">
+    <p class="px-6 py-10 text-center text-ui text-muted-foreground">
       Loading pull requests…
     </p>
   {:else}
@@ -157,8 +157,8 @@ function open(pr: GithubPr) {
         <Empty.Media class="text-muted-foreground">
           <GitPullRequest size={28} strokeWidth={1.6} />
         </Empty.Media>
-        <Empty.Title class="text-sm">No open pull requests</Empty.Title>
-        <Empty.Description class="text-xs">
+        <Empty.Title class="text-ui">No open pull requests</Empty.Title>
+        <Empty.Description class="text-ui">
           {model.github?.available === false
             ? "GitHub is not connected for this repository."
             : "Pull requests matching this repository's filters appear here."}
@@ -173,7 +173,7 @@ function open(pr: GithubPr) {
     side="bottom"
     class="max-h-[90dvh] rounded-t-lg pb-[env(safe-area-inset-bottom)]"
   >
-    <Sheet.Title class="px-4 pb-1 pt-3 text-sm font-semibold"
+    <Sheet.Title class="px-4 pb-1 pt-3 text-ui font-medium"
       >Pull request filters</Sheet.Title
     >
     <form
@@ -244,7 +244,7 @@ function open(pr: GithubPr) {
           placeholder="bug, needs-review"
           autocapitalize="off"
         />
-        <p class="text-xs text-muted-foreground">Comma-separated.</p>
+        <p class="text-ui text-muted-foreground">Comma-separated.</p>
       </div>
       <SwitchField
         bind:checked={draft.currentBranchOnly}

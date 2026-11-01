@@ -1,4 +1,5 @@
 <script lang="ts">
+import { Callout } from "@nervekit/ui-kit/components/composites/callout";
 import { untrack } from "svelte";
 import { resolveAgentConfiguration } from "@nervekit/contracts/agent-configuration";
 import { requestWorkbench } from "$lib/application/startup/workbench-connection";
@@ -25,7 +26,7 @@ import type {
   ModelInfo,
   Settings,
 } from "$lib/api";
-import { EntityCard, SettingsInlineMessage } from "$lib/presentation/settings";
+import { EntityCard } from "$lib/presentation/settings";
 import {
   authenticatedRealModelOptions,
   modelKey,
@@ -478,11 +479,11 @@ const repairReplacement = $derived(
 </script>
 {#snippet profileBadges(
   profile: ProfileCatalogEntry,
-)}{#if profile.definition?.usableBy === "both"}<Badge variant="outline"
+)}{#if profile.definition?.usableBy === "both"}<Badge variant="neutral"
       >Both</Badge
-    >{/if}{#if profile.source !== "builtin"}<Badge variant="outline"
+    >{/if}{#if profile.source !== "builtin"}<Badge variant="neutral"
       >{layerText[profile.source]}</Badge
-    >{#if !profile.local}<Badge variant="outline">Inherited</Badge
+    >{#if !profile.local}<Badge variant="neutral">Inherited</Badge
       >{/if}{/if}{#if profile.local && profile.definition && profile.shadows}<IconAction
       icon={RotateCcw}
       label={`Revert to the ${layerText[profile.shadows]} version`}
@@ -491,25 +492,28 @@ const repairReplacement = $derived(
     />{/if}{#if profile.source === "project" && !profile.trusted}<Badge
       variant="warning">Needs trust</Badge
     >{/if}{/snippet}
-{#if launchPreferences.error}<SettingsInlineMessage
+{#if launchPreferences.error}<Callout
+    layout="block"
     tone="destructive"
     text={launchPreferences.error}
     >{#snippet actions()}<Button
         size="sm"
         variant="outline"
         onclick={() => launchPreferences.reload()}>Reload</Button
-      >{/snippet}</SettingsInlineMessage
+      >{/snippet}</Callout
   >{/if}
-{#if agentProfilesState.error}<SettingsInlineMessage
+{#if agentProfilesState.error}<Callout
+    layout="block"
     tone="destructive"
     text={agentProfilesState.error}
     >{#snippet actions()}<Button
         size="sm"
         variant="outline"
         onclick={() => reloadProfiles()}>Reload</Button
-      >{/snippet}</SettingsInlineMessage
+      >{/snippet}</Callout
   >{/if}
-{#each agentProfilesState.configuration?.diagnostics ?? [] as diagnostic, index (index)}<SettingsInlineMessage
+{#each agentProfilesState.configuration?.diagnostics ?? [] as diagnostic, index (index)}<Callout
+    layout="block"
     tone="warning"
     text={`${diagnostic.code}: ${diagnostic.path}${diagnostic.pointer}`}
   />{/each}
@@ -546,7 +550,7 @@ const repairReplacement = $derived(
               profile,
             )}{/snippet}</ProfileCardHead
         >{:else}<div class="flex min-w-0 flex-wrap items-center gap-2">
-          <h4 class="text-sm font-medium text-foreground">{profile.name}</h4>
+          <h4 class="text-ui text-foreground">{profile.name}</h4>
           {@render profileBadges(profile)}
         </div>{/if}
     {/snippet}
@@ -576,14 +580,15 @@ const repairReplacement = $derived(
           disabled={!!busy}
           onclick={() => askDelete(profile)}
         />{/if}{/snippet}
-    {#if errors[profile.name]}<SettingsInlineMessage
+    {#if errors[profile.name]}<Callout
+        layout="block"
         tone="destructive"
         text={errors[profile.name]}
         >{#snippet actions()}<Button
             size="sm"
             variant="outline"
             onclick={() => reloadProfiles(profile.name)}>Reload</Button
-          >{/snippet}</SettingsInlineMessage
+          >{/snippet}</Callout
       >{/if}
     {#if profile.definition}
       {@const definition = profile.definition}
@@ -593,7 +598,7 @@ const repairReplacement = $derived(
       >
         {#each sections as section (section.label)}
           <span
-            class="flex h-control-sm items-center text-xs text-muted-foreground"
+            class="flex h-control-sm items-center text-ui text-muted-foreground"
             >{section.label}</span
           >
           <div class="flex min-w-0 flex-wrap items-center gap-1.5">
@@ -620,7 +625,7 @@ const repairReplacement = $derived(
             : "col-span-2 flex items-center gap-3"}
         >
           {#if !sections.length}<span
-              class="text-xs whitespace-nowrap text-muted-foreground"
+              class="text-ui whitespace-nowrap text-muted-foreground"
               >Uses your defaults</span
             >{/if}
           <AddProfileChange
@@ -632,7 +637,8 @@ const repairReplacement = $derived(
         </div>
       </div>
     {/if}
-    {#each profile.diagnostics as diagnostic, index (index)}<SettingsInlineMessage
+    {#each profile.diagnostics as diagnostic, index (index)}<Callout
+        layout="block"
         tone="warning"
         text={`${diagnostic.code}: ${diagnostic.pointer}`}
         >{#snippet actions()}<Button
@@ -649,10 +655,11 @@ const repairReplacement = $derived(
                 repairOpen = true;
               }}>Repair…</Button
             >{/if}
-        {/snippet}</SettingsInlineMessage
+        {/snippet}</Callout
       >{/each}
     {@const launchOverride = launchModelOverride(profile)}
-    {#if launchOverride}<SettingsInlineMessage
+    {#if launchOverride}<Callout
+        layout="block"
         tone="warning"
         text={`Launches use ${launchOverride.model?.modelId ?? "the profile model"}${launchOverride.reasoningLevel ? ` · ${launchOverride.reasoningLevel}` : ""} from an earlier launch setting, which outranks this profile's model.`}
         >{#snippet actions()}<Button
@@ -660,7 +667,7 @@ const repairReplacement = $derived(
             variant="outline"
             disabled={launchPreferences.saving}
             onclick={() => clearLaunchModel(profile)}>Use profile model</Button
-          >{/snippet}</SettingsInlineMessage
+          >{/snippet}</Callout
       >{/if}
     {#if profile.source === "project" && profile.definition}<div
         class="flex items-center gap-2 px-3 pb-2"

@@ -80,7 +80,7 @@ function handleKeydown(event: KeyboardEvent) {
 >
   <Textarea
     bind:ref={input}
-    class="max-h-24 resize-y border-0 bg-transparent px-2 py-1 font-mono text-xs leading-5 shadow-none"
+    class="max-h-24 resize-y border-0 bg-transparent px-2 py-1 font-mono text-ui leading-5 shadow-none"
     value={query}
     rows={1}
     aria-label="Find text"
@@ -90,7 +90,7 @@ function handleKeydown(event: KeyboardEvent) {
   />
   <div class="flex min-w-0 items-center justify-between gap-2">
     <span
-      class={`min-w-0 truncate px-1 text-xs ${valid ? "text-muted-foreground" : "text-destructive"}`}
+      class={`min-w-0 truncate px-1 text-ui ${valid ? "text-muted-foreground" : "text-destructive"}`}
       aria-live="polite"
     >
       {valid ? status : "Invalid pattern"}

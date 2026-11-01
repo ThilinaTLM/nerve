@@ -1,4 +1,5 @@
 <script lang="ts">
+import { Callout } from "@nervekit/ui-kit/components/composites/callout";
 import ProjectCapabilityTrustAction from "../capabilities/ProjectCapabilityTrustAction.svelte";
 import ProjectCapabilityTrustNotice from "../capabilities/ProjectCapabilityTrustNotice.svelte";
 import Copy from "@lucide/svelte/icons/copy";
@@ -17,7 +18,6 @@ import {
   SettingsChangeIndicator,
   SettingsDisclosureItem,
   SettingsEmptyState,
-  SettingsInlineMessage,
   SettingsList,
   SettingsSection,
   SettingsToolbar,
@@ -146,11 +146,11 @@ function onRetry() {
     onReload={onRetry}
   />{/if}
 {#if error}
-  <SettingsInlineMessage tone="destructive" text={error}>
+  <Callout layout="block" tone="destructive" text={error}>
     {#snippet actions()}
       <Button size="sm" variant="outline" onclick={onRetry}>Retry</Button>
     {/snippet}
-  </SettingsInlineMessage>
+  </Callout>
 {/if}
 
 {#if !editor.resolution && !error}
@@ -165,7 +165,7 @@ function onRetry() {
         class="max-w-xs"
       >
         {#snippet trailing()}
-          <span class="flex-none text-xs text-muted-foreground"
+          <span class="flex-none text-ui text-muted-foreground"
             >{summary.enabled} of {summary.total} enabled</span
           >
         {/snippet}
@@ -257,7 +257,7 @@ function onRetry() {
                   onclick={() => copyPath(entry.skill.filePath)}
                 />
                 {#if scope === "project" && !entry.overridden}
-                  <span class="flex-none text-xs text-muted-foreground">
+                  <span class="flex-none text-ui text-muted-foreground">
                     User default: {entry.inherited ? "on" : "off"}
                   </span>
                 {/if}
@@ -304,7 +304,7 @@ function onRetry() {
               </Button>
             {/snippet}
             {#snippet detail()}
-              <span class="text-xs text-muted-foreground">
+              <span class="text-ui text-muted-foreground">
                 {orphan.kind === "agentBrowser"
                   ? "Agent Browser skill entry"
                   : "File skill entry"}

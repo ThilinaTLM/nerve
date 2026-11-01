@@ -10,7 +10,7 @@ let { class: className, children }: { class?: string; children?: Snippet } =
 
 <div
   class={cn(
-    "flex flex-none items-center gap-1 border-t border-border p-1.5 text-xs [&>button]:flex-1",
+    "flex flex-none items-center gap-1 border-t border-border p-1.5 text-ui [&>button]:flex-1",
     className,
   )}
 >

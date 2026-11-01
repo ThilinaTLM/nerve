@@ -113,13 +113,13 @@ const listboxId = "composer-suggestions";
 
 {#snippet statusBar()}
   <div
-    class="flex h-7 shrink-0 items-center gap-2 bg-panel px-2 text-xs text-muted-foreground {above
+    class="flex h-7 shrink-0 items-center gap-2 bg-panel px-2 text-ui text-muted-foreground {above
       ? 'border-b'
       : 'border-t'} border-border"
   >
     {#if model.scope}
       <span
-        class="inline-flex h-5 shrink-0 items-center gap-1 rounded-md bg-accent pr-0.5 pl-1.5 font-medium text-foreground"
+        class="inline-flex h-5 shrink-0 items-center gap-1 rounded-md bg-muted pr-0.5 pl-1.5 text-foreground"
       >
         <AtSign class="size-3 text-muted-foreground" />{model.scope.label}
         <button
@@ -149,7 +149,7 @@ const listboxId = "composer-suggestions";
           <button
             type="button"
             tabindex="-1"
-            class="shrink-0 font-medium text-foreground underline-offset-2 hover:underline"
+            class="shrink-0 text-foreground hover:text-primary"
             onmousedown={(event) => {
               event.preventDefault();
               onfooteraction();
@@ -197,7 +197,7 @@ const listboxId = "composer-suggestions";
          overflowing content unreachable above the scroll origin. -->
     {#if above}<div class="flex-1" aria-hidden="true"></div>{/if}
     {#if model.empty}
-      <div class="flex flex-col gap-0.5 px-2 py-3 text-xs">
+      <div class="flex flex-col gap-0.5 px-2 py-3 text-ui">
         <span class="text-foreground">{model.empty}</span>
         {#if model.mode === "mention"}<span class="text-muted-foreground"
             >Keep typing — a space ends the mention.</span
@@ -208,7 +208,7 @@ const listboxId = "composer-suggestions";
       <!-- Per-group wrapper bounds the sticky header to its own rows. -->
       <div class="flex flex-col">
         <div
-          class="sticky top-0 z-10 flex h-6 shrink-0 items-center justify-between bg-popover px-2 text-xs text-muted-foreground"
+          class="sticky top-0 z-10 flex h-6 shrink-0 items-center justify-between bg-popover px-2 text-ui text-muted-foreground"
         >
           <span>{group.label}</span>
           {#if group.loading}
@@ -236,9 +236,9 @@ const listboxId = "composer-suggestions";
             aria-selected={isSelected}
             aria-disabled={row.state === "unavailable"}
             title={row.title}
-            class="flex h-7 w-full min-w-0 shrink-0 cursor-default items-center gap-2 rounded-md px-2 text-left text-xs {isSelected
-              ? 'bg-accent text-accent-foreground'
-              : 'hover:bg-muted'} {row.state === 'unavailable'
+            class="flex h-7 w-full min-w-0 shrink-0 cursor-default items-center gap-2 rounded-md px-2 text-left text-ui {isSelected
+              ? 'bg-muted text-foreground'
+              : 'hover:bg-hover'} {row.state === 'unavailable'
               ? 'opacity-60'
               : ''}"
             onmousemove={() => onhover(row.id)}
@@ -249,7 +249,7 @@ const listboxId = "composer-suggestions";
           >
             <Icon class="size-3.5 shrink-0 {popupRowIconClass(row)}" />
             {#if row.mono}
-              <span class="shrink-0 font-mono font-medium">{row.name}</span>
+              <span class="shrink-0 font-mono">{row.name}</span>
               {#if row.dir}
                 <span
                   class="min-w-0 truncate text-left font-mono text-muted-foreground [direction:rtl]"
@@ -257,9 +257,7 @@ const listboxId = "composer-suggestions";
                 >
               {/if}
             {:else}
-              <span class="max-w-[60%] shrink-0 truncate font-medium"
-                >{row.name}</span
-              >
+              <span class="max-w-[60%] shrink-0 truncate">{row.name}</span>
               {#if row.meta}<span class="min-w-0 truncate text-muted-foreground"
                   >{row.meta}</span
                 >{/if}
@@ -278,7 +276,7 @@ const listboxId = "composer-suggestions";
                 <button
                   type="button"
                   tabindex="-1"
-                  class="inline-flex h-5 items-center rounded-sm px-1 text-muted-foreground hover:bg-muted hover:text-foreground"
+                  class="inline-flex h-5 items-center rounded-sm px-1 text-muted-foreground hover:bg-hover hover:text-foreground"
                   onmousedown={(event) => {
                     event.preventDefault();
                     event.stopPropagation();

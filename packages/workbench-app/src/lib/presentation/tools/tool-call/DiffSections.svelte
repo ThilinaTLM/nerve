@@ -48,7 +48,7 @@ const skeletonWidths = ["w-11/12", "w-3/4", "w-5/6"];
     {#if section.caption !== undefined || section.status}
       <p
         class={cn(
-          "m-0 text-xs font-medium wrap-anywhere",
+          "m-0 text-ui wrap-anywhere",
           section.status === "failed"
             ? "text-destructive"
             : "text-muted-foreground",
@@ -59,7 +59,7 @@ const skeletonWidths = ["w-11/12", "w-3/4", "w-5/6"];
             {streaming}
           />{/if}{#if section.status === "failed"}<span>
             {section.caption ? " · " : ""}failed</span
-          >{:else if section.status === "not_applied"}<span class="font-normal">
+          >{:else if section.status === "not_applied"}<span>
             {section.caption ? " · " : ""}not applied</span
           >{/if}
       </p>
@@ -67,7 +67,7 @@ const skeletonWidths = ["w-11/12", "w-3/4", "w-5/6"];
     {#if section.text === undefined}
       <div class="grid gap-1.5 py-0.5">
         {#each skeletonWidths as width (width)}
-          <Skeleton class={cn("h-2.5 rounded-sm bg-foreground/10", width)} />
+          <Skeleton class={cn("h-2.5 rounded-sm", width)} />
         {/each}
       </div>
     {:else}

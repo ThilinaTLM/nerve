@@ -112,7 +112,6 @@ const large = $derived(descriptor.byteLength > SMALL_RESULT_BYTES);
 </script>
 
 <details
-  class="rounded-sm border bg-muted/20"
   ontoggle={(event) => {
     if (event.currentTarget.open && !activated) {
       activated = true;
@@ -120,32 +119,28 @@ const large = $derived(descriptor.byteLength > SMALL_RESULT_BYTES);
     }
   }}
 >
-  <summary
-    class="cursor-pointer px-2.5 py-2 text-xs font-medium text-muted-foreground"
-  >
+  <summary class="cursor-pointer px-2.5 py-2 text-ui text-muted-foreground">
     Complete result
-    <span class="font-normal"
-      >· {descriptor.byteLength.toLocaleString()} bytes</span
-    >
+    <span>· {descriptor.byteLength.toLocaleString()} bytes</span>
   </summary>
-  <div class="grid gap-2 border-t p-2">
+  <div class="grid gap-2 px-2.5 pb-2.5">
     {#if !descriptor.hasResult}
-      <p class="m-0 text-sm text-muted-foreground">
+      <p class="m-0 text-ui text-muted-foreground">
         This tool call has no result.
       </p>
     {:else if notice}
-      <p class="m-0 text-sm text-warning">{notice}</p>
+      <p class="m-0 text-ui text-warning">{notice}</p>
     {:else if !read}
-      <p class="m-0 text-sm text-muted-foreground">
+      <p class="m-0 text-ui text-muted-foreground">
         Complete result loading is unavailable here.
       </p>
     {:else if error}
-      <p class="m-0 text-sm text-destructive">{error}</p>
+      <p class="m-0 text-ui text-destructive">{error}</p>
       <Button variant="outline" class="w-fit" onclick={() => void loadInitial()}
         >Retry</Button
       >
     {:else if activated && done && text.length === 0}
-      <p class="m-0 text-sm text-muted-foreground">
+      <p class="m-0 text-ui text-muted-foreground">
         The complete result is empty.
       </p>
     {:else if activated && text.length > 0}
@@ -173,14 +168,14 @@ const large = $derived(descriptor.byteLength > SMALL_RESULT_BYTES);
             disabled={loading}
             onclick={() => void loadAll()}>Load all</Button
           >
-          <span class="text-xs text-muted-foreground">
+          <span class="text-ui text-muted-foreground">
             {nextByteOffset.toLocaleString()} of {descriptor.byteLength.toLocaleString()}
             bytes loaded
           </span>
         </div>
       {/if}
     {:else if loading}
-      <p class="m-0 text-sm text-muted-foreground">Loading complete result…</p>
+      <p class="m-0 text-ui text-muted-foreground">Loading complete result…</p>
     {/if}
   </div>
 </details>

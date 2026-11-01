@@ -1,18 +1,20 @@
 <script lang="ts">
+import SettingsNav from "$lib/presentation/settings/SettingsNav.svelte";
+import SettingsChangeIndicator from "$lib/presentation/settings/SettingsChangeIndicator.svelte";
+import EntityCard from "$lib/presentation/settings/EntityCard.svelte";
+import EntityRow from "$lib/presentation/settings/EntityRow.svelte";
 import BrainIcon from "@lucide/svelte/icons/brain";
 import CpuIcon from "@lucide/svelte/icons/cpu";
 import FolderIcon from "@lucide/svelte/icons/folder";
 import KeyRoundIcon from "@lucide/svelte/icons/key-round";
 import KeyboardIcon from "@lucide/svelte/icons/keyboard";
 import MonitorIcon from "@lucide/svelte/icons/monitor";
-import MoonIcon from "@lucide/svelte/icons/moon";
 import PencilIcon from "@lucide/svelte/icons/pencil";
 import PlusIcon from "@lucide/svelte/icons/plus";
 import RefreshCwIcon from "@lucide/svelte/icons/refresh-cw";
 import ServerIcon from "@lucide/svelte/icons/server";
 import SlidersHorizontalIcon from "@lucide/svelte/icons/sliders-horizontal";
 import StarIcon from "@lucide/svelte/icons/star";
-import SunIcon from "@lucide/svelte/icons/sun";
 import Trash2Icon from "@lucide/svelte/icons/trash-2";
 import WrenchIcon from "@lucide/svelte/icons/wrench";
 import { Badge } from "@nervekit/ui-kit/components/ui/badge";
@@ -21,35 +23,29 @@ import { Switch } from "@nervekit/ui-kit/components/ui/switch";
 import { IconAction } from "@nervekit/ui-kit/components/composites/icon-action";
 import SelectField from "@nervekit/ui-kit/components/composites/select-field";
 import {
-  SettingsChoiceCards,
   SettingsDisclosureItem,
   SettingsEmptyState,
   SettingsFieldRow,
   SettingsInfoHint,
-  SettingsInlineMessage,
   SettingsList,
   SettingsListItem,
   SettingsPageHeader,
-  SettingsPreviewCards,
   SettingsRow,
   SettingsSection,
   SettingsSelectRow,
   SettingsShell,
   SettingsSidebarStatus,
   SettingsStatGrid,
-  SettingsSummaryRow,
   SettingsToggleRow,
   SettingsToolbar,
-  type SettingsChoice,
   type SettingsPageDef,
-  type SettingsPreviewOption,
   type SettingsStat,
-  type SettingsStatus,
 } from "$lib/presentation/settings";
+import ThemePreviewPicker from "$lib/features/settings/views/pages/workbench/ThemePreviewPicker.svelte";
+import { defaultColorTheme } from "@nervekit/contracts/settings";
 import GalleryGroup from "../GalleryGroup.svelte";
 import GallerySpecimen from "../GallerySpecimen.svelte";
 
-const summaryStatuses: SettingsStatus[] = ["ok", "warning", "muted"];
 const saveStatuses = ["idle", "dirty", "saving", "saved", "error"] as const;
 const saveText: Record<(typeof saveStatuses)[number], string> = {
   idle: "No changes",
@@ -62,60 +58,6 @@ const saveText: Record<(typeof saveStatuses)[number], string> = {
 const longText =
   "/home/someone/Projects/a-monorepo-with-a-very-long-name/packages/workbench-app/src/lib/presentation/settings";
 
-const compactionChoices: SettingsChoice[] = [
-  {
-    value: "balanced",
-    label: "Balanced",
-    detail: "Compacts at 80% of the context window",
-  },
-  {
-    value: "early",
-    label: "Early",
-    detail: "Compacts sooner to keep long conversations responsive",
-  },
-  {
-    value: "late",
-    label: "Late",
-    detail: "Keeps more raw history; may be slower on large contexts",
-    disabled: true,
-  },
-];
-
-const lightThemeOptions: SettingsPreviewOption[] = [
-  {
-    value: "nerve-light",
-    label: "Nerve Light",
-    icon: SunIcon,
-    previews: ["light"],
-  },
-  {
-    value: "melange-light",
-    label: "Melange Light",
-    icon: SunIcon,
-    previews: ["light"],
-  },
-];
-const darkThemeOptions: SettingsPreviewOption[] = [
-  {
-    value: "nerve-dark",
-    label: "Nerve Dark",
-    icon: MoonIcon,
-    previews: ["dark"],
-  },
-  { value: "graphite", label: "Graphite", icon: MoonIcon, previews: ["dark"] },
-  {
-    value: "melange-dark",
-    label: "Melange Dark",
-    icon: MoonIcon,
-    previews: ["dark"],
-  },
-];
-const colorModeOptions: SettingsPreviewOption[] = [
-  { value: "system", label: "System", icon: MonitorIcon },
-  { value: "light", label: "Light", icon: SunIcon, previews: ["light"] },
-  { value: "dark", label: "Dark", icon: MoonIcon, previews: ["dark"] },
-];
-
 const headerStyles = [
   { value: "auto", label: "Auto" },
   { value: "custom", label: "Custom" },
@@ -127,7 +69,7 @@ const stats: SettingsStat[] = [
   { label: "Daemon mode", value: "owned" },
   { label: "Web assets", value: "bundled/default" },
   { label: "Proxy", value: "not configured" },
-  { label: "Data directory", value: longText, wide: true },
+  { label: "Data directory", value: longText, wide: true, mono: true },
 ];
 
 let toggleA = $state(true);
@@ -135,10 +77,9 @@ let toggleB = $state(false);
 let selectValue = $state("auto");
 let fieldText = $state("127.0.0.1");
 let fieldNumber = $state("43967");
-let choice = $state("balanced");
-let lightTheme = $state("nerve-light");
-let darkTheme = $state("nerve-dark");
-let colorMode = $state("dark");
+// Local only: picking a card here never changes the lab or app theme.
+let theme = $state<string>(defaultColorTheme);
+let specimenTheme = $state("melange-light");
 let discA = $state(false);
 let discB = $state(true);
 
@@ -281,26 +222,8 @@ let headerStyle = $state("auto");
           {#snippet children(page)}
             {#if page.id === "workbench"}
               <SettingsSection id="appearance" title="Appearance">
-                <SettingsRow label="Color mode" layout="stacked">
-                  <SettingsPreviewCards
-                    options={colorModeOptions}
-                    bind:value={colorMode}
-                    ariaLabel="Color mode"
-                  />
-                </SettingsRow>
-                <SettingsRow label="Light theme" layout="stacked">
-                  <SettingsPreviewCards
-                    options={lightThemeOptions}
-                    bind:value={lightTheme}
-                    ariaLabel="Light theme"
-                  />
-                </SettingsRow>
-                <SettingsRow label="Dark theme" layout="stacked">
-                  <SettingsPreviewCards
-                    options={darkThemeOptions}
-                    bind:value={darkTheme}
-                    ariaLabel="Dark theme"
-                  />
+                <SettingsRow label="Theme" layout="stacked">
+                  <ThemePreviewPicker bind:value={theme} />
                 </SettingsRow>
               </SettingsSection>
               <SettingsSection id="desktop" title="Desktop">
@@ -402,7 +325,7 @@ let headerStyle = $state("auto");
 
   <GalleryGroup
     title="Headings"
-    description="Page title text-base semibold, section heading text-sm semibold, group heading text-sm semibold muted."
+    description="Page title text-title semibold, section heading text-ui semibold, group heading text-ui semibold muted."
   >
     <GallerySpecimen
       title="SettingsPageHeader"
@@ -451,7 +374,7 @@ let headerStyle = $state("auto");
       usage="2 files · settings"
       description="Hover or focus the info icon."
     >
-      <span class="flex items-center gap-1.5 text-sm font-semibold">
+      <span class="flex items-center gap-1.5 text-ui font-medium">
         Hint <SettingsInfoHint text="Brief explanation." />
       </span>
     </GallerySpecimen>
@@ -459,7 +382,7 @@ let headerStyle = $state("auto");
 
   <GalleryGroup
     title="Rows"
-    description="Row title text-sm regular foreground; supporting text text-xs muted."
+    description="Row title text-ui regular foreground; supporting text text-ui muted."
   >
     <GallerySpecimen
       title="SettingsRow"
@@ -482,7 +405,7 @@ let headerStyle = $state("auto");
         layout="stacked"
       >
         <div
-          class="rounded-md border bg-card px-3 py-2 text-xs text-muted-foreground"
+          class="rounded-md border bg-card px-3 py-2 text-ui text-muted-foreground"
         >
           Children slot content
         </div>
@@ -549,7 +472,7 @@ let headerStyle = $state("auto");
       layout="stack"
       description="Stacked label + Input with optional suffix and hint."
     >
-      <div class="grid gap-4 md:grid-cols-2">
+      <div class="grid items-start gap-4 md:grid-cols-2">
         <SettingsFieldRow
           id="gallery-field-text"
           label="Bind host"
@@ -566,26 +489,6 @@ let headerStyle = $state("auto");
           hint="Restart required after changing."
         />
       </div>
-    </GallerySpecimen>
-
-    <GallerySpecimen
-      title="SettingsSummaryRow"
-      source="settings/SettingsSummaryRow"
-      usage="1 file · settings"
-      layout="stack"
-      surface="card"
-      description="Compact recessed row with status dot, meta and actions. Statuses used: ok, warning, muted."
-    >
-      {#each summaryStatuses as status (status)}
-        <SettingsSummaryRow title="Status {status}" {status}>
-          {#snippet meta()}
-            Last checked 2 minutes ago
-          {/snippet}
-          {#snippet actions()}
-            <IconAction icon={RefreshCwIcon} label="Re-check" />
-          {/snippet}
-        </SettingsSummaryRow>
-      {/each}
     </GallerySpecimen>
   </GalleryGroup>
 
@@ -610,7 +513,7 @@ let headerStyle = $state("auto");
           {/snippet}
           {#snippet status()}
             <Badge variant="success">Connected</Badge>
-            <Badge variant="outline">Default</Badge>
+            <Badge variant="neutral">Default</Badge>
           {/snippet}
           {#snippet actions()}
             <IconAction icon={StarIcon} label="Make default" active />
@@ -714,80 +617,23 @@ let headerStyle = $state("auto");
 
   <GalleryGroup title="Choice & preview">
     <GallerySpecimen
-      title="SettingsChoiceCards"
-      source="settings/SettingsChoiceCards"
-      usage="2 files · settings, dialogs"
-      layout="stack"
-      description="Both variants are used: cards (default, new-profile dialog) and radio (compaction), each with a per-item disabled state."
-    >
-      <SettingsChoiceCards
-        items={compactionChoices}
-        bind:value={choice}
-        ariaLabel="Compaction profile (cards)"
-      />
-      <SettingsChoiceCards
-        items={compactionChoices}
-        bind:value={choice}
-        ariaLabel="Compaction profile (radio)"
-        variant="radio"
-      />
-    </GallerySpecimen>
-
-    <GallerySpecimen
       title="SettingsPreviewCards"
       source="settings/SettingsPreviewCards"
-      usage="2 files · settings"
+      usage="1 file · settings"
       layout="stack"
-      description="Swatch cards for the light theme, dark theme, and color mode."
+      description="Equal-width swatch cards; the theme picker renders each theme from data-theme-preview. Arrow keys move the selection."
     >
-      <SettingsPreviewCards
-        options={lightThemeOptions}
-        bind:value={lightTheme}
-        ariaLabel="Light theme"
-      />
-      <SettingsPreviewCards
-        options={darkThemeOptions}
-        bind:value={darkTheme}
-        ariaLabel="Dark theme"
-      />
-      <SettingsPreviewCards
-        options={colorModeOptions}
-        bind:value={colorMode}
-        ariaLabel="Color mode"
-      />
+      <ThemePreviewPicker bind:value={specimenTheme} />
     </GallerySpecimen>
   </GalleryGroup>
 
   <GalleryGroup title="Feedback & status">
     <GallerySpecimen
-      title="SettingsInlineMessage"
-      source="settings/SettingsInlineMessage"
-      usage="14 files · settings, dialogs, shell"
-      layout="stack"
-      description="Tones used: destructive (12 sites), warning (8), info (5), neutral (2). Optional actions."
-    >
-      {#each ["destructive", "warning", "info", "neutral"] as const as tone (tone)}
-        <SettingsInlineMessage
-          {tone}
-          text="This is a {tone} message with supporting detail."
-        />
-      {/each}
-      <SettingsInlineMessage
-        tone="warning"
-        text="Restart required to apply these changes."
-      >
-        {#snippet actions()}
-          <Button variant="outline" size="sm">Restart</Button>
-        {/snippet}
-      </SettingsInlineMessage>
-    </GallerySpecimen>
-
-    <GallerySpecimen
       title="SettingsStatGrid"
       source="settings/SettingsStatGrid"
       usage="1 file · settings"
       layout="stack"
-      description="Mono stat tiles, 2 columns from md; `wide` spans both."
+      description="Stat tiles, 2 columns from md; `wide` spans both, `mono` for paths and ids."
     >
       <SettingsStatGrid items={stats} />
     </GallerySpecimen>
@@ -801,7 +647,7 @@ let headerStyle = $state("auto");
     >
       <SettingsToolbar>
         {#snippet start()}
-          <span class="text-xs text-muted-foreground">3 providers</span>
+          <span class="text-ui text-muted-foreground">3 providers</span>
         {/snippet}
         {#snippet end()}
           <Button variant="outline">
@@ -831,6 +677,99 @@ let headerStyle = $state("auto");
           </div>
         {/each}
       </div>
+    </GallerySpecimen>
+  </GalleryGroup>
+  <GalleryGroup title="Shared presentation">
+    <GallerySpecimen
+      title="SettingsNav"
+      source="presentation/settings/SettingsNav.svelte"
+      layout="stack"
+    >
+      <SettingsNav
+        groups={[
+          {
+            id: "general",
+            title: "General",
+            items: [
+              { id: "appearance", label: "Appearance", icon: MonitorIcon },
+            ],
+          },
+          {
+            id: "agent",
+            title: "Agent",
+            items: [
+              {
+                id: "providers",
+                label: "Providers",
+                icon: KeyRoundIcon,
+                badge: { text: "2", tone: "info" },
+              },
+            ],
+          },
+          {
+            id: "project",
+            title: "Project",
+            items: [
+              {
+                id: "advanced",
+                label: "Advanced",
+                icon: WrenchIcon,
+                disabled: true,
+              },
+            ],
+          },
+        ]}
+        activeId="appearance"
+        header={{ title: "User settings" }}
+        onSelect={() => {}}
+      />
+    </GallerySpecimen>
+    <GallerySpecimen
+      title="SettingsChangeIndicator"
+      source="presentation/settings/SettingsChangeIndicator.svelte"
+      layout="stack"
+    >
+      <SettingsChangeIndicator
+        scope="user"
+        from="Balanced"
+        to="Early"
+        onReset={() => {}}
+      />
+      <SettingsChangeIndicator
+        scope="project"
+        from="Claude Sonnet 4"
+        to="GPT-5"
+        compact
+        onReset={() => {}}
+      />
+    </GallerySpecimen>
+    <GallerySpecimen
+      title="EntityCard"
+      source="presentation/settings/EntityCard.svelte"
+      layout="stack"
+    >
+      <EntityCard
+        title="Planning"
+        description="Read-only exploration before implementation."
+        ><EntityRow
+          label="Model"
+          value="Claude Sonnet 4"
+          onEdit={() => {}}
+        /></EntityCard
+      >
+    </GallerySpecimen>
+    <GallerySpecimen
+      title="EntityRow"
+      source="presentation/settings/EntityRow.svelte"
+      layout="stack"
+    >
+      <EntityRow
+        label="Reasoning"
+        value="High"
+        onEdit={() => {}}
+        onRemove={() => {}}
+      />
+      <EntityRow label="Permissions" value="Read-only" />
     </GallerySpecimen>
   </GalleryGroup>
 </div>

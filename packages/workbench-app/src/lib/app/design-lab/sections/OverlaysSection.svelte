@@ -43,6 +43,14 @@ import {
   PanelSectionHeader,
   PanelView,
 } from "$lib/presentation/panels";
+import FolderBrowserView from "$lib/features/projects/views/FolderBrowserView.svelte";
+import {
+  createFailingFolderBrowser,
+  createMockFolderBrowser,
+  FOLDER_BROWSER_PROJECT_DIRECTORIES,
+  FOLDER_BROWSER_START,
+  folderBrowserProjectIdForPath,
+} from "./folder-browser-fixtures";
 import GalleryGroup from "../GalleryGroup.svelte";
 import GallerySpecimen from "../GallerySpecimen.svelte";
 
@@ -54,6 +62,16 @@ function bindOpen(key: DialogKey) {
     onOpenChange: (next: boolean) => (dialogOpen = next ? key : null),
   };
 }
+
+const folderBrowser = createMockFolderBrowser();
+const failingFolderBrowser = createFailingFolderBrowser();
+$effect(() => {
+  // Preselect a plain folder so the specimen shows the selected row.
+  void folderBrowser
+    .open(FOLDER_BROWSER_START)
+    .then(() => folderBrowser.select(`${FOLDER_BROWSER_START}/notes`));
+  void failingFolderBrowser.open(FOLDER_BROWSER_START);
+});
 
 let confirmOpen = $state(false);
 let destructiveOpen = $state(false);
@@ -200,7 +218,7 @@ const toolOutput = [
       <Button variant="destructive" onclick={() => (destructiveOpen = true)}
         >Destructive</Button
       >
-      <span class="text-xs text-muted-foreground"
+      <span class="text-ui text-muted-foreground"
         >Last result: {lastResult}</span
       >
     </GallerySpecimen>
@@ -211,11 +229,11 @@ const toolOutput = [
       title="Conversation settings"
       description="Choose which conversations appear in the list."
     >
-      <div class="flex flex-col gap-3 text-sm">
+      <div class="flex flex-col gap-3 text-ui">
         <div class="flex items-center justify-between gap-4">
           <div class="flex min-w-0 flex-col">
-            <span class="font-medium">Hide completed conversations</span>
-            <span class="text-xs text-muted-foreground"
+            <span>Hide completed conversations</span>
+            <span class="text-ui text-muted-foreground"
               >Hide conversations you marked as done.</span
             >
           </div>
@@ -223,8 +241,8 @@ const toolOutput = [
         </div>
         <div class="flex items-center justify-between gap-4">
           <div class="flex min-w-0 flex-col">
-            <span class="font-medium">Clean up conversations</span>
-            <span class="text-xs text-muted-foreground"
+            <span>Clean up conversations</span>
+            <span class="text-ui text-muted-foreground"
               >Remove conversations by age or keep only the most recent.</span
             >
           </div>
@@ -239,10 +257,10 @@ const toolOutput = [
       title="Edit profile"
       description="Header description, scrolling body, footer actions."
     >
-      <div class="grid gap-2 text-sm text-muted-foreground">
+      <div class="grid gap-2 text-ui text-muted-foreground">
         {#each ["Name", "Model", "Instructions"] as field (field)}
           <div class="flex flex-col gap-1">
-            <span class="text-xs font-medium text-foreground">{field}</span>
+            <span class="text-ui text-foreground">{field}</span>
             <div class="h-7 rounded-md border bg-background px-2 leading-7">
               {field}
             </div>
@@ -313,7 +331,7 @@ const toolOutput = [
           {#if commandChoice}
             <PopoverHeader title={commandChoice} />
             <PopoverBody
-              ><p class="px-1.5 text-xs text-muted-foreground">
+              ><p class="px-1.5 text-ui text-muted-foreground">
                 This view demonstrates a shorter detail panel.
               </p></PopoverBody
             >
@@ -428,20 +446,20 @@ const toolOutput = [
       <div class="grid gap-3 md:grid-cols-2">
         <ContextMenuList items={conversationMenu} triggerClass="block">
           <div
-            class="flex h-8 items-center rounded-md border px-2 text-xs text-foreground"
+            class="flex h-8 items-center rounded-md border px-2 text-ui text-foreground"
           >
             Conversation row
           </div>
         </ContextMenuList>
         <ContextMenuList items={gitFileMenu} triggerClass="block">
           <div
-            class="flex h-8 items-center rounded-md border px-2 text-xs text-foreground"
+            class="flex h-8 items-center rounded-md border px-2 text-ui text-foreground"
           >
             Git changed file · App.svelte
           </div>
         </ContextMenuList>
       </div>
-      <span class="text-xs text-muted-foreground"
+      <span class="text-ui text-muted-foreground"
         >Last selection: {lastResult}</span
       >
     </GallerySpecimen>
@@ -503,10 +521,10 @@ const toolOutput = [
             class="max-w-sm flex-col items-stretch gap-1 py-2"
           >
             <div class="flex items-baseline justify-between gap-4">
-              <span class="font-medium">Compaction</span>
+              <span>Compaction</span>
               <span class="text-muted-foreground">Project</span>
             </div>
-            <p class="font-medium">Auto at 80%</p>
+            <p>Auto at 80%</p>
             <p class="text-muted-foreground">
               Summarize older turns when the context window fills.
             </p>
@@ -554,7 +572,7 @@ const toolOutput = [
         </div>
 
         <div class="flex flex-col gap-3">
-          <span class="text-xs text-muted-foreground"
+          <span class="text-ui text-muted-foreground"
             >Status popover (md, opens upward from the status bar)</span
           >
           <div class="floating-surface popover-content popover-md">
@@ -563,7 +581,7 @@ const toolOutput = [
         </div>
 
         <div class="flex flex-col gap-3">
-          <span class="text-xs text-muted-foreground"
+          <span class="text-ui text-muted-foreground"
             >Project switcher (lg, from the titlebar)</span
           >
           <div class="floating-surface popover-content popover-lg">
@@ -618,11 +636,54 @@ const toolOutput = [
       </div>
     </GallerySpecimen>
   </GalleryGroup>
+  <GalleryGroup
+    title="Folder browser"
+    description="The Open project picker body, mounted inline with a mock filesystem (Linux, /home/alex). The dialog footer is omitted."
+  >
+    <GallerySpecimen
+      title="FolderBrowserView"
+      source="projects/views/FolderBrowserView"
+      usage="project picker dialog"
+      description="Places, path bar, filter, hidden toggle, new folder and the folder list. monorepo is already a project."
+      surface="card"
+      layout="bare"
+    >
+      <div
+        class="mx-auto h-[26rem] w-full max-w-205 overflow-hidden rounded-lg border bg-card py-3"
+      >
+        <FolderBrowserView
+          browser={folderBrowser}
+          projectDirectories={FOLDER_BROWSER_PROJECT_DIRECTORIES}
+          projectIdForPath={folderBrowserProjectIdForPath}
+          onOpen={() => {}}
+        />
+      </div>
+    </GallerySpecimen>
+
+    <GallerySpecimen
+      title="FolderBrowserView · error"
+      source="projects/views/FolderBrowserView"
+      description="The daemon cannot list the folder."
+      surface="card"
+      layout="bare"
+    >
+      <div
+        class="mx-auto h-80 w-full max-w-205 overflow-hidden rounded-lg border bg-card py-3"
+      >
+        <FolderBrowserView
+          browser={failingFolderBrowser}
+          projectDirectories={[]}
+          projectIdForPath={() => undefined}
+          onOpen={() => {}}
+        />
+      </div>
+    </GallerySpecimen>
+  </GalleryGroup>
 </div>
 
 {#snippet fakeTrigger(label: string)}
   <span
-    class="inline-flex h-6 items-center rounded-md border px-2 text-xs text-foreground"
+    class="inline-flex h-6 items-center rounded-md border px-2 text-ui text-foreground"
     >{label}</span
   >
 {/snippet}
@@ -662,7 +723,7 @@ const toolOutput = [
       />
     </PopoverSection>
     <PopoverSection label="Codex · prolite" separated>
-      {#snippet action()}<Badge variant="outline">Active</Badge>{/snippet}
+      {#snippet action()}<Badge variant="neutral">Active</Badge>{/snippet}
       <PopoverMeter
         label="Weekly"
         value="82%"
@@ -752,7 +813,7 @@ const toolOutput = [
           {/snippet}
         </PanelRow>
       {:else}
-        <p class="px-2 py-6 text-center text-sm text-muted-foreground">
+        <p class="px-2 py-6 text-center text-ui text-muted-foreground">
           No conversations match.
         </p>
       {/each}
@@ -761,16 +822,14 @@ const toolOutput = [
 {/snippet}
 
 {#snippet toolDetailsBody()}
-  <div class="flex flex-col gap-2 text-xs">
-    <Badge variant="outline" class="self-start">44 lines</Badge>
+  <div class="flex flex-col gap-2 text-ui">
+    <Badge variant="neutral" class="self-start">44 lines</Badge>
     {#each ["Formatted view", "Agent preview", "Arguments", "Complete result · 6,250 bytes"] as section, index (section)}
       <details class="rounded-md border" open={index === 0}>
-        <summary class="cursor-pointer px-2 py-1.5 font-medium"
-          >{section}</summary
-        >
+        <summary class="cursor-pointer px-2 py-1.5">{section}</summary>
         {#if index === 0}
           <pre
-            class="m-2 overflow-x-auto rounded-md bg-well p-2 font-mono text-xs">{toolOutput}</pre>
+            class="m-2 overflow-x-auto rounded-md bg-well p-2 font-mono text-ui">{toolOutput}</pre>
         {/if}
       </details>
     {/each}

@@ -1,4 +1,5 @@
 <script lang="ts">
+import { Badge } from "@nervekit/ui-kit/components/ui/badge";
 import ToolImage from "./ToolImage.svelte";
 import type { AgentProjectionSnapshot } from "@nervekit/contracts/tools";
 import type { ToolCallRecord } from "../../view-models/tool-records";
@@ -35,16 +36,14 @@ function supportedImageMime(mimeType: string): boolean {
 }
 </script>
 
-<details class="rounded-sm border bg-muted/20" {open}>
-  <summary
-    class="cursor-pointer px-2.5 py-2 text-xs font-medium text-muted-foreground"
-  >
+<details {open}>
+  <summary class="cursor-pointer px-2.5 py-2 text-ui text-muted-foreground">
     Agent preview
   </summary>
-  <div class="grid gap-2 border-t p-2">
+  <div class="grid gap-2 px-2.5 pb-2.5">
     {#if preview}
       {#if preview.blocks.length === 0}
-        <p class="m-0 text-sm text-muted-foreground">
+        <p class="m-0 text-ui text-muted-foreground">
           The agent received an empty result.
         </p>
       {:else}
@@ -56,8 +55,8 @@ function supportedImageMime(mimeType: string): boolean {
               block.resultContentBlockIndex,
               block.mimeType,
             )}
-            <div class="grid gap-2 rounded-sm border bg-background p-2">
-              <p class="m-0 text-xs text-muted-foreground">
+            <div class="grid gap-2">
+              <p class="m-0 text-ui text-muted-foreground">
                 Image supplied to the agent · {block.mimeType} · {block.byteLength.toLocaleString()}
                 bytes
               </p>
@@ -73,25 +72,20 @@ function supportedImageMime(mimeType: string): boolean {
         {/each}
       {/if}
     {:else}
-      <p class="m-0 text-sm text-muted-foreground">
+      <p class="m-0 text-ui text-muted-foreground">
         No retained agent preview is available for this tool call.
       </p>
     {/if}
     {#if projection}
-      <div class="flex flex-wrap gap-1.5 text-xs text-muted-foreground">
-        <span class="rounded-sm border px-1.5 py-0.5">{projection.profile}</span
-        >
-        <span class="rounded-sm border px-1.5 py-0.5"
-          >{projection.strategy}</span
-        >
-        <span class="rounded-sm border px-1.5 py-0.5">
+      <div class="flex flex-wrap gap-1.5 text-ui text-muted-foreground">
+        <Badge>{projection.profile}</Badge>
+        <Badge>{projection.strategy}</Badge>
+        <Badge>
           {projection.displayedTextLines.toLocaleString()} of {projection.originalTextLines.toLocaleString()}
           lines
-        </span>
+        </Badge>
         {#if projection.recovery !== "none"}
-          <span class="rounded-sm border px-1.5 py-0.5"
-            >Recovery: {projection.recovery.replace("_", " ")}</span
-          >
+          <Badge>Recovery: {projection.recovery.replace("_", " ")}</Badge>
         {/if}
       </div>
     {/if}

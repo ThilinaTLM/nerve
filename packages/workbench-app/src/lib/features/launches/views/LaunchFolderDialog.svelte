@@ -79,7 +79,7 @@ function submit() {
         autofocus
       />
       {#if duplicate}
-        <p class="text-xs text-destructive">
+        <p class="text-ui text-destructive">
           A folder with this name already exists here.
         </p>
       {/if}

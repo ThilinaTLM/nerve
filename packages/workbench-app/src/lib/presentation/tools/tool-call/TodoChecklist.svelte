@@ -33,7 +33,7 @@ const initialCount = untrack(() => items.length);
 const cardSheet = inCardSheet();
 const sectioned = $derived(!dense && cardSheet);
 
-const textClass = $derived(dense ? "text-xs" : "text-sm");
+const textClass = $derived(dense ? "text-ui" : "text-ui");
 const iconSize = $derived(dense ? 13 : 15);
 </script>
 
@@ -47,7 +47,7 @@ const iconSize = $derived(dense ? 13 : 15);
   <!-- Keyed by position: a streaming item's text grows in place. -->
   {#each items as item, index (index)}
     <div
-      class={`flex min-w-0 items-start gap-2 px-3 py-1.5 text-sm transition-colors duration-300 ${item.done ? "text-muted-foreground" : "text-foreground"}`}
+      class={`flex min-w-0 items-start gap-2 px-3 py-1.5 text-ui transition-colors duration-300 ${item.done ? "text-muted-foreground" : "text-foreground"}`}
       class:stream-item-enter={streamMotion && index >= initialCount}
     >
       <span class="mt-0.5 inline-flex flex-none">

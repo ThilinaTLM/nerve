@@ -36,7 +36,7 @@ let {
     class="size-4 shrink-0 text-muted-foreground"
     aria-hidden="true"
   />
-  <span class="min-w-0 truncate font-mono text-xs" title={path}
+  <span class="min-w-0 truncate font-mono text-ui" title={path}
     >{displayPath ?? "Choose a folder"}</span
   >
   <span class="flex shrink-0 gap-1 max-sm:hidden">
@@ -51,7 +51,7 @@ let {
 </div>
 <div class="flex items-center gap-1 max-sm:w-full">
   <span
-    class="mr-2 flex items-center gap-1 text-xs text-muted-foreground max-sm:hidden"
+    class="mr-2 flex items-center gap-1 text-ui text-muted-foreground max-sm:hidden"
   >
     <Kbd>Enter</Kbd> open <Kbd>→</Kbd> enter
   </span>

@@ -53,7 +53,7 @@ let { definitions, onAdd, onEdit, onDelete }: Props = $props();
         .join(" · ")}
     >
       {#snippet badges()}
-        {#if definition.runPolicy === "concurrent"}<Badge variant="outline"
+        {#if definition.runPolicy === "concurrent"}<Badge variant="neutral"
             >Concurrent</Badge
           >{/if}
       {/snippet}

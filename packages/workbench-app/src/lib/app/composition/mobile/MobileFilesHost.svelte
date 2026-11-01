@@ -95,7 +95,7 @@ function open(entry: FilesystemProjectEntry) {
   {/snippet}
 
   {#if directory?.error}
-    <p class="px-6 py-4 text-sm text-destructive">{directory.error}</p>
+    <p class="px-6 py-4 text-ui text-destructive">{directory.error}</p>
   {/if}
 
   {#if entries.length}
@@ -122,9 +122,9 @@ function open(entry: FilesystemProjectEntry) {
       </div>
     {/if}
   {:else if directory?.loading || !directory}
-    <p class="px-6 py-10 text-center text-sm text-muted-foreground">Loading…</p>
+    <p class="px-6 py-10 text-center text-ui text-muted-foreground">Loading…</p>
   {:else if !directory.error}
-    <p class="px-6 py-10 text-center text-sm text-muted-foreground">
+    <p class="px-6 py-10 text-center text-ui text-muted-foreground">
       This folder is empty.
     </p>
   {/if}

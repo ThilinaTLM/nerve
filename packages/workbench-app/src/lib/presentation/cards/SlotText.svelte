@@ -26,7 +26,7 @@ let {
 <span class={cn("min-w-0", className)}>
   {#if text === undefined || text === ""}
     <span class="inline-flex h-[1lh] max-w-full items-center align-bottom">
-      <Skeleton class={cn("h-[0.7em] rounded-sm bg-foreground/10", width)} />
+      <Skeleton class={cn("h-[0.7em] rounded-sm", width)} />
     </span>
   {:else}
     <span

@@ -21,7 +21,7 @@ async function resolve(decision: "retry" | "cancel") {
   }
 }
 </script>
-{#if error}<span class="text-xs text-destructive" role="alert">{error}</span
+{#if error}<span class="text-ui text-destructive" role="alert">{error}</span
   >{/if}
 <Button size="sm" disabled={busy || !onResolve} onclick={() => resolve("retry")}
   >{#if busy}<Spinner class="size-3.5" />{:else}<RotateCcw

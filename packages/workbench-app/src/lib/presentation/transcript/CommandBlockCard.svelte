@@ -35,7 +35,7 @@ const resultLabel = $derived(
       aria-hidden="true"
     />
     <pre
-      class="min-w-0 flex-1 font-mono text-xs leading-5 whitespace-pre-wrap break-words"><span
+      class="min-w-0 flex-1 font-mono text-ui leading-5 whitespace-pre-wrap break-words"><span
         class="inline-flex size-3.5 items-center justify-center align-middle"
         >{#if phase === "running"}<Spinner
             class="size-full motion-reduce:animate-none!"
@@ -44,7 +44,7 @@ const resultLabel = $derived(
       > {command}</pre>
     {#if phase === "done" && resultLabel}
       <span
-        class={`shrink-0 font-mono text-xs leading-5 ${ok ? "text-success" : "text-destructive"}`}
+        class={`shrink-0 font-mono text-ui leading-5 ${ok ? "text-success" : "text-destructive"}`}
         title={status ? `status: ${status}` : undefined}
       >
         {resultLabel}
@@ -55,9 +55,9 @@ const resultLabel = $derived(
     <div class="border-t border-border px-2.5 py-1.5">
       {#if output}
         <pre
-          class="min-w-0 font-mono text-xs leading-4 whitespace-pre-wrap break-words text-muted-foreground">{output}</pre>
+          class="min-w-0 font-mono text-ui leading-4 whitespace-pre-wrap break-words text-muted-foreground">{output}</pre>
       {:else}
-        <p class="font-mono text-xs italic text-muted-foreground">
+        <p class="font-mono text-ui italic text-muted-foreground">
           (no output)
         </p>
       {/if}

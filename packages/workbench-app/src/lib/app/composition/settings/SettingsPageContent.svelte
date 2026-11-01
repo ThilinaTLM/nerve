@@ -8,7 +8,6 @@ import type {
   ApplicationConfigurationSnapshot,
   AuthProviderMetadata,
   AvailableSkill,
-  ColorMode,
   ColorTheme,
   ModelInfo,
   Settings,
@@ -66,12 +65,8 @@ let {
   onSettingsChange,
   onApplicationConfigurationChange,
   onRestartDaemon,
-  lightTheme,
-  darkTheme,
-  colorMode,
-  onLightThemeChange,
-  onDarkThemeChange,
-  onColorModeChange,
+  theme,
+  onThemeChange,
 }: {
   page: SettingsPageDef;
   /** Fixed for the lifetime of the view; every save goes to this target. */
@@ -97,12 +92,8 @@ let {
     patch: UpdateApplicationConfigurationRequest,
   ) => void;
   onRestartDaemon?: () => void;
-  lightTheme: ColorTheme;
-  darkTheme: ColorTheme;
-  colorMode: ColorMode;
-  onLightThemeChange?: (theme: ColorTheme) => void;
-  onDarkThemeChange?: (theme: ColorTheme) => void;
-  onColorModeChange?: (colorMode: ColorMode) => void;
+  theme: ColorTheme;
+  onThemeChange?: (theme: ColorTheme) => void;
   onSkillsRetry?: () => void;
 } = $props();
 
@@ -137,12 +128,8 @@ const projectId = $derived(
   {:else if page.id === "workbench"}
     <WorkbenchSettingsPage
       {settingsDraft}
-      {lightTheme}
-      {darkTheme}
-      {colorMode}
-      {onLightThemeChange}
-      {onDarkThemeChange}
-      {onColorModeChange}
+      {theme}
+      {onThemeChange}
       {onSettingsChange}
     />
   {:else if page.id === "notifications"}
@@ -228,8 +215,10 @@ const projectId = $derived(
   {/if}
 {:else}
   <div class="grid gap-1 py-12 text-center">
-    <strong class="text-sm text-foreground">Settings are loading</strong>
-    <span class="text-xs text-muted-foreground"
+    <strong class="font-medium text-ui text-foreground"
+      >Settings are loading</strong
+    >
+    <span class="text-ui text-muted-foreground"
       >Fetching the current configuration from the daemon.</span
     >
   </div>

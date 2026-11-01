@@ -1,5 +1,7 @@
 <script lang="ts">
+import { Callout } from "@nervekit/ui-kit/components/composites/callout";
 import AlertTriangle from "@lucide/svelte/icons/alert-triangle";
+import { Badge } from "@nervekit/ui-kit/components/ui/badge";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
 import DialogShell from "@nervekit/ui-kit/components/composites/dialog-shell";
 import { promptSuggestionsState } from "$lib/features/prompt-suggestions/state/prompt-suggestions-state.svelte";
@@ -48,19 +50,13 @@ function decideLater() {
   }}
 >
   <div class="grid gap-4">
-    <div
-      class="flex gap-3 rounded-md border border-warning/40 bg-warning/10 p-3 text-sm"
-    >
-      <AlertTriangle
-        class="mt-0.5 size-4 flex-none text-warning"
-        strokeWidth={2.2}
-      />
+    <Callout layout="block" tone="warning" icon={AlertTriangle}>
       <p class="text-muted-foreground">
         Only allow JavaScript from suggestion files you trust. Nerve runs it
         locally in the daemon with a limited context and timeout, but it is
         still local code from the listed Markdown file.
       </p>
-    </div>
+    </Callout>
 
     <div class="grid gap-2">
       {#each requests as request (request.trustId)}
@@ -68,17 +64,14 @@ function decideLater() {
           class="grid gap-1 rounded-md border border-border bg-transparent p-3"
         >
           <div class="flex items-center justify-between gap-3">
-            <strong class="text-sm font-medium text-foreground"
+            <strong class="text-ui font-normal text-foreground"
               >{request.label}</strong
             >
-            <span
-              class="rounded-md border border-border px-2 py-0.5 text-xs text-muted-foreground"
-              >{request.sourceKind}</span
-            >
+            <Badge>{request.sourceKind}</Badge>
           </div>
-          <p class="font-mono text-xs text-muted-foreground">{request.path}</p>
+          <p class="font-mono text-ui text-muted-foreground">{request.path}</p>
           {#if request.description}
-            <p class="text-xs text-muted-foreground">{request.description}</p>
+            <p class="text-ui text-muted-foreground">{request.description}</p>
           {/if}
         </section>
       {/each}

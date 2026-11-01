@@ -32,7 +32,7 @@ const progress = $derived(
 
 <DiscoverSection id="discover-setup-title" title="Set up Nerve">
   {#snippet trailing()}
-    <span class="text-xs text-muted-foreground">
+    <span class="text-ui text-muted-foreground">
       {setup.completedCount} of {setup.totalCount} done
     </span>
     <Progress
@@ -43,7 +43,7 @@ const progress = $derived(
   {/snippet}
 
   <DiscoverList>
-    {#each setup.pending as guide (guide.id)}
+    {#each setup.pending as guide, index (guide.id)}
       <DiscoverListRow
         icon={guideIcons[guide.id]}
         title={guide.title}
@@ -55,7 +55,12 @@ const progress = $derived(
           {/if}
         {/snippet}
         {#snippet actions()}
-          <Button size="sm" onclick={() => onStartGuide(guide.id)}>
+          <!-- Only the next guide is the view's primary action. -->
+          <Button
+            variant={index === 0 ? "default" : "outline"}
+            size="sm"
+            onclick={() => onStartGuide(guide.id)}
+          >
             {guide.actionLabel ?? "Start"}
           </Button>
           <Button
@@ -72,7 +77,7 @@ const progress = $derived(
 
     {#if setup.pending.length === 0}
       <p
-        class="flex items-center gap-1.5 px-3 py-2.5 text-xs text-muted-foreground"
+        class="flex items-center gap-1.5 px-3 py-2.5 text-ui text-muted-foreground"
       >
         <CircleCheck class="size-3.5 text-success" aria-hidden="true" />
         Setup is complete.

@@ -22,9 +22,9 @@ let {
     </Empty.Media>
   {/if}
   <Empty.Header class="gap-1">
-    <Empty.Title class="text-sm font-medium">{title}</Empty.Title>
+    <Empty.Title class="text-ui">{title}</Empty.Title>
     {#if description}
-      <Empty.Description class="text-xs">{description}</Empty.Description>
+      <Empty.Description class="text-ui">{description}</Empty.Description>
     {/if}
   </Empty.Header>
   {#if action}

@@ -1,22 +1,23 @@
 <script lang="ts">
+import type { ConversationSummary } from "@nervekit/contracts/core";
+import ConversationListItem from "$lib/presentation/conversations/ConversationListItem.svelte";
+import ConversationActivityIndicator from "$lib/presentation/conversations/ConversationActivityIndicator.svelte";
+import {
+  idleConversationActivity,
+  type ConversationActivity,
+} from "$lib/presentation/conversations/conversation-activity";
+import NotificationEntry from "$lib/presentation/activity/NotificationEntry.svelte";
 import type { StatusTone } from "@nervekit/ui-kit/display/status";
 import ArchiveIcon from "@lucide/svelte/icons/archive";
 import ArrowDownToLineIcon from "@lucide/svelte/icons/arrow-down-to-line";
 import BookmarkIcon from "@lucide/svelte/icons/bookmark";
-import ChevronDownIcon from "@lucide/svelte/icons/chevron-down";
-import CircleAlertIcon from "@lucide/svelte/icons/circle-alert";
 import CloudDownloadIcon from "@lucide/svelte/icons/cloud-download";
 import FileIcon from "@lucide/svelte/icons/file";
 import FileCodeIcon from "@lucide/svelte/icons/file-code";
 import FileTextIcon from "@lucide/svelte/icons/file-text";
-import GitBranchIcon from "@lucide/svelte/icons/git-branch";
-import InfoIcon from "@lucide/svelte/icons/info";
 import PencilIcon from "@lucide/svelte/icons/pencil";
-import PlayIcon from "@lucide/svelte/icons/play";
 import PlusIcon from "@lucide/svelte/icons/plus";
 import RefreshCwIcon from "@lucide/svelte/icons/refresh-cw";
-import SettingsIcon from "@lucide/svelte/icons/settings";
-import SquareIcon from "@lucide/svelte/icons/square";
 import SquarePenIcon from "@lucide/svelte/icons/square-pen";
 import StickyNoteIcon from "@lucide/svelte/icons/sticky-note";
 import Trash2Icon from "@lucide/svelte/icons/trash-2";
@@ -26,10 +27,8 @@ import { Badge } from "@nervekit/ui-kit/components/ui/badge";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
 import type { ContextMenuItem } from "@nervekit/ui-kit/components/composites/context-menu-list";
 import { IconAction } from "@nervekit/ui-kit/components/composites/icon-action";
-import { StatusDot } from "@nervekit/ui-kit/components/composites/status-dot";
 import { ItemSurface } from "$lib/presentation/items";
 import {
-  PanelBanner,
   PanelCard,
   PanelEmpty,
   PanelHeader,
@@ -37,14 +36,37 @@ import {
   PanelRow,
   PanelRowCard,
   PanelSectionHeader,
-  PanelToolbar,
   PanelToolbarButton,
   PanelTree,
-  PanelView,
   buildPanelTree,
 } from "$lib/presentation/panels";
+import FilesPanel from "$lib/features/filesystem/views/FilesPanel.svelte";
+import GitPanel from "$lib/features/git/views/GitPanel.svelte";
+import PullRequestsPanel from "$lib/features/git/views/PullRequestsPanel.svelte";
+import LaunchesPanel from "$lib/features/launches/views/LaunchesPanel.svelte";
+import NotesPanel from "$lib/features/scratch-notes/views/NotesPanel.svelte";
+import ProjectConversationNavigator from "$lib/features/projects/views/ProjectConversationNavigator.svelte";
 import GalleryGroup from "../GalleryGroup.svelte";
 import GallerySpecimen from "../GallerySpecimen.svelte";
+import {
+  conversationNavigatorProps,
+  filesEmptyRoot,
+  filesErrorRoot,
+  filesPanelFixture,
+  gitActions,
+  gitChangesModel,
+  launchPanelActions,
+  launchPanelModel,
+  navigatorSelectedConversationId,
+  notesActions,
+  notesEmptyProject,
+  notesErrorProject,
+  notesProject,
+  notesProjectId,
+  pullRequestsModel,
+} from "./panels-fixtures";
+
+const noop = () => {};
 
 const longLabel =
   "packages/workbench-app/src/lib/presentation/transcript/components/a-very-long-component-name.svelte";
@@ -59,6 +81,7 @@ const menuItems: ContextMenuItem[] = [
 let selectedRow = $state("second");
 let loadingRefresh = $state(true);
 let titleEditing = $state(false);
+let selectedConversationId = $state(navigatorSelectedConversationId);
 
 // ── Sample data ──────────────────────────────────────────────────────────
 type FileItem = { path: string[]; change?: "M" | "A" | "D" };
@@ -143,58 +166,51 @@ function fileIcon(item: FileItem) {
   return FileIcon;
 }
 
-type ConversationItem = {
-  id: string;
-  title: string;
-  open?: boolean;
-  tone?: StatusTone;
+const sampleConversation: ConversationSummary = {
+  id: "gallery",
+  projectId: "project",
+  parentConversationId: null,
+  parentToolCallId: null,
+  title: "Review design-system cleanup",
+  status: "idle",
+  statusClearedAt: null,
+  paused: false,
+  pinnedAt: null,
+  completedAt: null,
+  lastUserMessageAt: null,
+  createdAt: "2026-10-14T09:30:00.000Z",
+  updatedAt: "2026-10-14T09:30:00.000Z",
+  references: [],
+  childCount: 0,
+  pendingWork: false,
+  pendingInput: null,
 };
-const conversationGroups: {
-  title: string;
-  count: number;
-  items: ConversationItem[];
+const activityExamples: {
+  label: string;
+  open: boolean;
+  activity: ConversationActivity;
 }[] = [
-  {
-    title: "Today",
-    count: 11,
-    items: [
-      {
-        id: "c1",
-        title: "Basically, I want to polish the UX in our application",
-      },
-      { id: "c2", title: "Make sure both of them follows the same state" },
-      {
-        id: "c3",
-        title:
-          "The plan mode present tool view not showing the body and footer which was supposed to",
-        open: true,
-        tone: "info",
-      },
-      { id: "c4", title: "PR checks are failing can you fix it" },
-    ],
+  ["idle open", "idle", "neutral", true],
+  ["idle closed", "idle", "neutral", false],
+  ["running", "running", "info", true],
+  ["result-ready", "result-ready", "success", true],
+  ["needs-user", "needs-user", "warning", true],
+  ["error", "error", "destructive", true],
+  ["completed", "completed", "neutral", true],
+  ["aborted", "aborted", "neutral", true],
+  ["awaiting-async", "awaiting-async", "warning", true],
+].map(([label, indicator, tone, open]) => ({
+  label: String(label),
+  open: Boolean(open),
+  activity: {
+    ...idleConversationActivity,
+    indicator: indicator as ConversationActivity["indicator"],
+    tone: tone as StatusTone,
+    label: String(label),
+    busy: indicator === "running",
+    pulse: indicator === "running",
   },
-  {
-    title: "Yesterday",
-    count: 6,
-    items: [
-      {
-        id: "c5",
-        title:
-          "Do you see the launch definition ID, or do you see the launch definition?",
-      },
-      { id: "c6", title: "Report me" },
-    ],
-  },
-];
-let selectedConversation = $state("c3");
-
-type LaunchItem = { id: string; name: string; running?: boolean };
-const launches: LaunchItem[] = [
-  { id: "l1", name: "website" },
-  { id: "l2", name: "workbench-ui", running: true },
-  { id: "l3", name: "website-dev" },
-  { id: "l4", name: "workbench-ui-dev" },
-];
+}));
 </script>
 
 {#snippet rowActions()}
@@ -208,7 +224,7 @@ const launches: LaunchItem[] = [
 {/snippet}
 
 {#snippet changeLeading(item: FileItem)}
-  <span class="w-3 flex-none text-center text-xs font-semibold"
+  <span class="w-3 flex-none text-center text-ui font-medium"
     >{item.change}</span
   >
 {/snippet}
@@ -216,234 +232,146 @@ const launches: LaunchItem[] = [
 <div class="flex flex-col gap-10">
   <GalleryGroup
     title="In context"
-    description="The five left/right dock panels at their real 280px width, on the panel surface, modeled on the live-app screenshots and built only from panel kit components with static data."
+    description="The real dock panel views, fed with local mock data, at the 280px dock width on the panel surface."
   >
     <GallerySpecimen
       title="Dock panels at 280px"
-      source="panels/*"
-      usage="6 files · git, editor, projects, notes, launches"
+      source="features/*/views"
+      usage="ProjectConversationNavigator · FilesPanel · GitPanel · PullRequestsPanel · LaunchesPanel · NotesPanel"
       surface="panel"
       layout="bare"
+      description="Production views with mock models; actions are no-ops. Click a conversation to move the selection."
     >
       <div class="flex flex-wrap items-start gap-6">
-        <!-- Conversations -->
         <div class="h-150 w-70 overflow-hidden rounded-md border">
-          <PanelView>
-            {#snippet banner()}
-              <PanelHeader title="Conversations" count={158}>
-                {#snippet trailing()}
-                  <PanelToolbarButton
-                    icon={SettingsIcon}
-                    label="Conversation settings"
-                  />
-                  <PanelToolbarButton icon={PlusIcon} label="New chat" />
-                {/snippet}
-              </PanelHeader>
-            {/snippet}
-            <div class="min-h-0 flex-1 overflow-y-auto">
-              {#each conversationGroups as group (group.title)}
-                <PanelSectionHeader title={group.title} count={group.count} />
-                <PanelList ariaLabel={group.title}>
-                  {#each group.items as item (item.id)}
-                    <PanelRowCard
-                      selected={selectedConversation === item.id}
-                      {menuItems}
-                      onclick={() => (selectedConversation = item.id)}
-                    >
-                      <PanelRow
-                        label={item.title}
-                        labelLines={2}
-                        hoverable={false}
-                        class="px-2"
-                        active={selectedConversation === item.id}
-                      >
-                        {#snippet leading()}
-                          <StatusDot
-                            tone={item.tone ?? "neutral"}
-                            size="md"
-                            variant={item.open ? "solid" : "outline"}
-                          />
-                        {/snippet}
-                      </PanelRow>
-                    </PanelRowCard>
-                  {/each}
-                </PanelList>
-              {/each}
-            </div>
-          </PanelView>
+          <ProjectConversationNavigator
+            {...conversationNavigatorProps}
+            {selectedConversationId}
+            onOpenConversation={(id) => (selectedConversationId = id)}
+          />
         </div>
-
-        <!-- Files -->
         <div class="h-150 w-70 overflow-hidden rounded-md border">
-          <PanelView>
-            {#snippet banner()}
-              <PanelHeader title="Files" count={33}>
-                {#snippet trailing()}
-                  <PanelToolbarButton
-                    icon={RefreshCwIcon}
-                    label="Refresh files"
-                  />
-                {/snippet}
-              </PanelHeader>
-            {/snippet}
-            <div class="min-h-0 flex-1 overflow-y-auto">
-              <PanelTree
-                nodes={fileNodes}
-                ariaLabel="Workspace files"
-                itemLeading={fileLeading}
-                getItemMenuItems={() => menuItems}
-              />
-            </div>
-          </PanelView>
+          <FilesPanel
+            {...filesPanelFixture}
+            rootMenu={() => menuItems}
+            itemMenu={() => menuItems}
+            pendingCreate={undefined}
+            pendingTrash={undefined}
+            onRefresh={noop}
+            onRetry={noop}
+            onActivate={noop}
+            onExpansionChange={noop}
+            onDragStart={noop}
+            onCreate={async () => {}}
+            onConfirmTrash={noop}
+            onCancelTrash={noop}
+          />
         </div>
-
-        <!-- Git changes -->
         <div class="h-150 w-70 overflow-hidden rounded-md border">
-          <PanelView>
-            {#snippet banner()}
-              <PanelHeader title="Git changes" count={28}>
-                {#snippet trailing()}
-                  <PanelToolbarButton
-                    icon={RefreshCwIcon}
-                    label="Refresh Git changes"
-                  />
-                {/snippet}
-              </PanelHeader>
-            {/snippet}
-            <PanelRow label="fix/retain-resolved-plan-review-cards" mono>
-              {#snippet leading()}
-                <GitBranchIcon class="size-3.5" aria-hidden="true" />
-              {/snippet}
-              {#snippet actions()}
-                <ChevronDownIcon class="size-3.5" aria-hidden="true" />
-              {/snippet}
-            </PanelRow>
-            <PanelToolbar
-              dense
-              class="h-auto flex-wrap border-b-0 bg-transparent py-1.5"
-            >
-              <PanelToolbarButton
-                icon={ArchiveIcon}
-                label="Stashes (1)"
-                variant="outline"
-                showLabel
-              />
-              <PanelToolbarButton
-                icon={CloudDownloadIcon}
-                label="Fetch"
-                variant="outline"
-                showLabel
-              />
-              <PanelToolbarButton
-                icon={RefreshCwIcon}
-                label="Sync"
-                variant="outline"
-                showLabel
-              />
-              <PanelToolbarButton
-                icon={ArrowDownToLineIcon}
-                label="main + pull"
-                variant="outline"
-                showLabel
-              />
-            </PanelToolbar>
-            <div class="min-h-0 flex-1 overflow-y-auto">
-              <PanelRow dense label="Staged (28)" alwaysShowActions>
-                {#snippet actions()}
-                  <PanelToolbarButton
-                    icon={ArrowDownToLineIcon}
-                    label="Unstage all"
-                    dense
-                  />
-                  <PanelToolbarButton icon={ArchiveIcon} label="Stash" dense />
-                  <PanelToolbarButton icon={XIcon} label="Discard" dense />
-                {/snippet}
-              </PanelRow>
-              <PanelTree
-                nodes={stagedNodes}
-                ariaLabel="Staged changes"
-                itemLeading={changeLeading}
-                getItemTone={(item) =>
-                  item.change ? changeTone[item.change] : undefined}
-                getItemMenuItems={() => menuItems}
-              />
-            </div>
-          </PanelView>
+          <GitPanel model={gitChangesModel} actions={gitActions} />
         </div>
-
-        <!-- Launches -->
         <div class="h-150 w-70 overflow-hidden rounded-md border">
-          <PanelView>
-            {#snippet banner()}
-              <PanelHeader title="Launches" count={launches.length}>
-                {#snippet trailing()}
-                  <PanelToolbarButton icon={PlusIcon} label="Create launch" />
-                {/snippet}
-              </PanelHeader>
-            {/snippet}
-            <PanelList ariaLabel="Launches">
-              {#each launches as launch (launch.id)}
-                <PanelRow
-                  label={launch.name}
-                  tone={launch.running ? "success" : "neutral"}
-                  alwaysShowActions
-                >
-                  {#snippet leading()}
-                    {#if launch.running}
-                      <StatusDot tone="success" size="md" variant="outline" />
-                    {:else}
-                      <BookmarkIcon class="size-3.5" aria-hidden="true" />
-                    {/if}
-                  {/snippet}
-                  {#snippet actions()}
-                    {#if launch.running}
-                      <PanelToolbarButton
-                        icon={RefreshCwIcon}
-                        label="Restart launch"
-                        dense
-                      />
-                      <PanelToolbarButton
-                        icon={SquareIcon}
-                        label="Stop launch"
-                        dense
-                      />
-                    {:else}
-                      <PanelToolbarButton
-                        icon={PlayIcon}
-                        label="Start launch"
-                        dense
-                      />
-                    {/if}
-                  {/snippet}
-                </PanelRow>
-              {/each}
-            </PanelList>
-          </PanelView>
+          <PullRequestsPanel model={pullRequestsModel} actions={gitActions} />
         </div>
-
-        <!-- Scratch notes (empty) -->
         <div class="h-150 w-70 overflow-hidden rounded-md border">
-          <PanelView>
-            {#snippet banner()}
-              <PanelHeader title="Notes" count={0}>
-                {#snippet trailing()}
-                  <PanelToolbarButton icon={PlusIcon} label="Add note" />
-                {/snippet}
-              </PanelHeader>
-            {/snippet}
-            <PanelEmpty
-              icon={SquarePenIcon}
-              title="No scratch notes yet"
-              description="Notes are scoped to this project."
-            >
-              {#snippet action()}
-                <Button variant="outline" size="sm">
-                  <PlusIcon data-icon="inline-start" />
-                  New note
-                </Button>
-              {/snippet}
-            </PanelEmpty>
-          </PanelView>
+          <LaunchesPanel
+            model={launchPanelModel}
+            actions={launchPanelActions}
+          />
+        </div>
+        <div class="h-150 w-70 overflow-hidden rounded-md border">
+          <NotesPanel
+            projectId={notesProjectId}
+            project={notesProject}
+            actions={notesActions}
+          />
+        </div>
+      </div>
+    </GallerySpecimen>
+
+    <GallerySpecimen
+      title="Dock panel states"
+      source="features/*/views"
+      usage="FilesPanel · NotesPanel"
+      surface="panel"
+      layout="bare"
+      description="The same views in their no-project, empty and load-error states."
+    >
+      <div class="flex flex-wrap items-start gap-6">
+        <div class="h-150 w-70 overflow-hidden rounded-md border">
+          <FilesPanel
+            {...filesPanelFixture}
+            projectName={undefined}
+            root={undefined}
+            nodes={[]}
+            rootMenu={() => menuItems}
+            itemMenu={() => menuItems}
+            pendingCreate={undefined}
+            pendingTrash={undefined}
+            onRefresh={noop}
+            onRetry={noop}
+            onActivate={noop}
+            onExpansionChange={noop}
+            onDragStart={noop}
+            onCreate={async () => {}}
+            onConfirmTrash={noop}
+            onCancelTrash={noop}
+          />
+        </div>
+        <div class="h-150 w-70 overflow-hidden rounded-md border">
+          <FilesPanel
+            {...filesPanelFixture}
+            root={filesEmptyRoot}
+            nodes={[]}
+            rootMenu={() => menuItems}
+            itemMenu={() => menuItems}
+            pendingCreate={undefined}
+            pendingTrash={undefined}
+            onRefresh={noop}
+            onRetry={noop}
+            onActivate={noop}
+            onExpansionChange={noop}
+            onDragStart={noop}
+            onCreate={async () => {}}
+            onConfirmTrash={noop}
+            onCancelTrash={noop}
+          />
+        </div>
+        <div class="h-150 w-70 overflow-hidden rounded-md border">
+          <FilesPanel
+            {...filesPanelFixture}
+            root={filesErrorRoot}
+            nodes={[]}
+            rootMenu={() => menuItems}
+            itemMenu={() => menuItems}
+            pendingCreate={undefined}
+            pendingTrash={undefined}
+            onRefresh={noop}
+            onRetry={noop}
+            onActivate={noop}
+            onExpansionChange={noop}
+            onDragStart={noop}
+            onCreate={async () => {}}
+            onConfirmTrash={noop}
+            onCancelTrash={noop}
+          />
+        </div>
+        <div class="h-150 w-70 overflow-hidden rounded-md border">
+          <NotesPanel actions={notesActions} />
+        </div>
+        <div class="h-150 w-70 overflow-hidden rounded-md border">
+          <NotesPanel
+            projectId={notesProjectId}
+            project={notesEmptyProject}
+            actions={notesActions}
+          />
+        </div>
+        <div class="h-150 w-70 overflow-hidden rounded-md border">
+          <NotesPanel
+            projectId={notesProjectId}
+            project={notesErrorProject}
+            actions={notesActions}
+          />
         </div>
       </div>
     </GallerySpecimen>
@@ -476,41 +404,6 @@ const launches: LaunchItem[] = [
             <PanelToolbarButton icon={RefreshCwIcon} label="Refresh" />
           {/snippet}
         </PanelHeader>
-      </div>
-    </GallerySpecimen>
-
-    <GallerySpecimen
-      title="PanelToolbar"
-      source="panels/PanelToolbar"
-      usage="1 file · git"
-      surface="card"
-      layout="stack"
-      description="Used once: dense, wrapping, no bottom border (Git Stashes/Fetch/Sync row)."
-    >
-      <div class="w-70 max-w-full">
-        <PanelToolbar
-          dense
-          class="h-auto flex-wrap border-b-0 bg-transparent py-1.5"
-        >
-          <PanelToolbarButton
-            icon={ArchiveIcon}
-            label="Stashes (1)"
-            variant="outline"
-            showLabel
-          />
-          <PanelToolbarButton
-            icon={CloudDownloadIcon}
-            label="Fetch"
-            variant="outline"
-            showLabel
-          />
-          <PanelToolbarButton
-            icon={RefreshCwIcon}
-            label="Sync"
-            variant="outline"
-            showLabel
-          />
-        </PanelToolbar>
       </div>
     </GallerySpecimen>
 
@@ -674,8 +567,8 @@ const launches: LaunchItem[] = [
           class="flex-col gap-1 px-3 py-2.5"
           role="listitem"
         >
-          <span class="truncate text-sm">Fix plan review body and footer</span>
-          <span class="truncate text-xs text-muted-foreground"
+          <span class="truncate text-ui">Fix plan review body and footer</span>
+          <span class="truncate text-ui text-muted-foreground"
             >#423 · fix/retain-resolved-plan-review-cards</span
           >
         </ItemSurface>
@@ -686,8 +579,8 @@ const launches: LaunchItem[] = [
           class="flex-col gap-1 px-3 py-2.5"
           role="listitem"
         >
-          <span class="truncate text-sm">Selected surface</span>
-          <span class="truncate text-xs text-muted-foreground">#421 · main</span
+          <span class="truncate text-ui">Selected surface</span>
+          <span class="truncate text-ui text-muted-foreground">#421 · main</span
           >
         </ItemSurface>
       </div>
@@ -721,7 +614,7 @@ const launches: LaunchItem[] = [
               tone="destructive"
             />
           {/snippet}
-          <p class="px-3 pb-2 text-xs text-muted-foreground">
+          <p class="px-3 pb-2 text-ui text-muted-foreground">
             Verify migrations, then tag the release.
           </p>
         </PanelCard>
@@ -774,38 +667,6 @@ const launches: LaunchItem[] = [
 
   <GalleryGroup title="Banners & empty states">
     <GallerySpecimen
-      title="PanelBanner"
-      source="panels/PanelBanner"
-      usage="5 files · git, notes, launches, editor"
-      surface="card"
-      layout="stack"
-      description="Pinned strip for panel-level status. Tones in use: neutral (6 sites), destructive (4), warning, info."
-    >
-      <div class="flex w-70 max-w-full flex-col gap-1">
-        <PanelBanner tone="neutral">Everything is up to date</PanelBanner>
-        <PanelBanner tone="info" icon={InfoIcon}>
-          Indexing workspace…
-          {#snippet actions()}
-            <PanelToolbarButton icon={SquareIcon} label="Stop" dense />
-          {/snippet}
-        </PanelBanner>
-        <PanelBanner tone="warning" icon={TriangleAlertIcon}>
-          Working tree has uncommitted changes
-        </PanelBanner>
-        <PanelBanner tone="destructive" icon={CircleAlertIcon}>
-          Failed to load files: connection refused
-          {#snippet actions()}
-            <PanelToolbarButton
-              icon={RefreshCwIcon}
-              label="Retry loading files"
-              dense
-            />
-          {/snippet}
-        </PanelBanner>
-      </div>
-    </GallerySpecimen>
-
-    <GallerySpecimen
       title="PanelEmpty"
       source="panels/PanelEmpty"
       usage="4 files · editor, projects, notes, launches"
@@ -835,6 +696,76 @@ const launches: LaunchItem[] = [
           description="Create a launch configuration to run it anytime."
         />
       </div>
+    </GallerySpecimen>
+  </GalleryGroup>
+  <GalleryGroup title="Shared presentation">
+    <GallerySpecimen
+      title="ConversationListItem"
+      source="presentation/conversations/ConversationListItem.svelte"
+      layout="stack"
+    >
+      {#each ["idle", "selected", "running"] as state (state)}
+        <ConversationListItem
+          conversation={{
+            ...sampleConversation,
+            id: state,
+            title:
+              state === "running"
+                ? "Investigate reconnect failure"
+                : "Review design-system cleanup",
+          }}
+          isActive={state === "selected"}
+          isOpen={state !== "idle"}
+          activity={state === "running"
+            ? activityExamples[2].activity
+            : idleConversationActivity}
+          onOpenConversation={() => {}}
+        />
+      {/each}
+    </GallerySpecimen>
+    <GallerySpecimen
+      title="ConversationActivityIndicator"
+      source="presentation/conversations/ConversationActivityIndicator.svelte"
+      layout="stack"
+    >
+      {#each activityExamples as example (example.label)}
+        <div class="flex items-center gap-3 text-ui text-foreground">
+          <ConversationActivityIndicator
+            activity={example.activity}
+            variant="rail"
+            isOpen={example.open}
+          />{example.label}
+        </div>
+      {/each}
+    </GallerySpecimen>
+    <GallerySpecimen
+      title="NotificationEntry"
+      source="presentation/activity/NotificationEntry.svelte"
+      layout="stack"
+    >
+      <NotificationEntry
+        tone="succeeded"
+        title="Review complete"
+        context="Design-system cleanup"
+        time="2m"
+        unread
+        interactive
+        actions={[{ label: "Open conversation", onSelect: () => {} }]}
+      />
+      <NotificationEntry
+        tone="running"
+        title="Running unit tests"
+        progress={65}
+      />
+      <NotificationEntry
+        tone="failed"
+        title="Build failed"
+        detail="Cannot resolve the selected provider."
+        actions={[
+          { label: "Retry", onSelect: () => {} },
+          { label: "View logs", onSelect: () => {}, disabled: true },
+        ]}
+      />
     </GallerySpecimen>
   </GalleryGroup>
 </div>

@@ -11,16 +11,26 @@ import GallerySpecimen from "../GallerySpecimen.svelte";
 
 // "uses" = approximate class occurrences in the desktop app (excl. gallery, mobile).
 const sizes = [
-  { name: "text-xs", cls: "text-xs", uses: 462, role: "Chrome, rows, meta" },
-  { name: "text-sm", cls: "text-sm", uses: 170, role: "Body, row titles" },
-  { name: "text-base", cls: "text-base", uses: 11, role: "Page titles" },
-  { name: "text-lg", cls: "text-lg", uses: 7, role: "Rare headings" },
+  {
+    name: "text-caption",
+    cls: "text-caption",
+    uses: 30,
+    role: "Timestamps, counts, chips",
+  },
+  { name: "text-ui", cls: "text-ui", uses: 688, role: "Rows, controls, menus" },
+  { name: "text-body", cls: "text-body", uses: 16, role: "Prose, transcript" },
+  {
+    name: "text-title",
+    cls: "text-title",
+    uses: 17,
+    role: "Page, dialog, card titles",
+  },
 ] as const;
 
 const weights = [
-  { name: "font-normal", cls: "font-normal", uses: 20 },
-  { name: "font-medium", cls: "font-medium", uses: 117 },
-  { name: "font-semibold", cls: "font-semibold", uses: 51 },
+  { name: "font-normal", cls: "font-normal", uses: 7 },
+  { name: "font-medium", cls: "font-medium", uses: 79 },
+  { name: "font-semibold", cls: "font-semibold", uses: 1 },
 ] as const;
 
 const icons = [
@@ -42,16 +52,16 @@ const longPath =
 <div class="flex flex-col gap-10">
   <GalleryGroup
     title="Type scale"
-    description="text-xs is 13px/18px and text-sm is 15px/22px in this theme. Sans (Outfit) for UI; monospace (Iosevka) only for code, logs, and paths."
+    description="Four roles: text-caption 13px/18px, text-ui 14px/20px, text-body 15px/22px, text-title 16px/24px. Sans (IBM Plex Sans) for UI; monospace (Iosevka) only for code, logs, and paths."
   >
     <GallerySpecimen title="Sizes" usage="all areas" layout="stack">
       {#each sizes as size (size.name)}
         <div class="flex items-baseline gap-4">
-          <span class="w-28 shrink-0 text-xs text-muted-foreground"
+          <span class="w-28 shrink-0 text-ui text-muted-foreground"
             >{size.name} · {size.uses}</span
           >
           <span class="text-foreground {size.cls}">{sample}</span>
-          <span class="hidden text-xs text-muted-foreground md:inline"
+          <span class="hidden text-ui text-muted-foreground md:inline"
             >{size.role}</span
           >
         </div>
@@ -59,16 +69,16 @@ const longPath =
     </GallerySpecimen>
 
     <GallerySpecimen
-      title="Weights at text-sm"
+      title="Weights at text-ui"
       usage="all areas"
       layout="stack"
     >
       {#each weights as weight (weight.name)}
         <div class="flex items-baseline gap-4">
-          <span class="w-36 shrink-0 text-xs text-muted-foreground"
+          <span class="w-36 shrink-0 text-ui text-muted-foreground"
             >{weight.name} · {weight.uses}</span
           >
-          <span class="text-sm text-foreground {weight.cls}">{sample}</span>
+          <span class="text-ui text-foreground {weight.cls}">{sample}</span>
         </div>
       {/each}
     </GallerySpecimen>
@@ -78,16 +88,16 @@ const longPath =
       layout="stack"
       surface="card"
     >
-      <p class="font-sans text-sm text-foreground">
+      <p class="font-sans text-ui text-foreground">
         font-sans · foreground — primary content
       </p>
-      <p class="font-sans text-sm text-muted-foreground">
+      <p class="font-sans text-ui text-muted-foreground">
         font-sans · muted-foreground — secondary content (≈530 uses)
       </p>
-      <p class="font-mono text-xs text-foreground">
+      <p class="font-mono text-ui text-foreground">
         font-mono (≈117 uses) — code, logs, paths
       </p>
-      <div class="flex flex-wrap gap-4 text-sm">
+      <div class="flex flex-wrap gap-4 text-ui">
         <span class="text-primary">primary</span>
         <span class="text-info">info</span>
         <span class="text-success">success</span>
@@ -99,11 +109,11 @@ const longPath =
 
   <GalleryGroup
     title="Settings type ladder"
-    description="Three sizes only (base / sm / xs); weight and colour carry the rest. Sentence case, no uppercase eyebrows."
+    description="Two sizes only (title / ui); weight and colour carry the rest. Sentence case, no uppercase eyebrows."
   >
     <GallerySpecimen title="Spec" usage="settings" layout="stack">
-      {#each [["Page title", "text-base font-semibold text-foreground"], ["Page subtitle", "text-sm text-muted-foreground"], ["Section heading", "text-sm font-semibold text-foreground"], ["Group heading", "text-sm font-semibold text-muted-foreground"], ["Row title", "text-sm text-foreground"], ["Supporting text", "text-xs text-muted-foreground"]] as [role, spec] (role)}
-        <div class="flex items-baseline gap-4 text-xs">
+      {#each [["Page title", "text-title font-medium text-foreground"], ["Page subtitle", "text-ui text-muted-foreground"], ["Section heading", "text-ui font-medium text-foreground"], ["Group heading", "text-ui font-medium text-muted-foreground"], ["Row title", "text-ui text-foreground"], ["Supporting text", "text-ui text-muted-foreground"]] as [role, spec] (role)}
+        <div class="flex items-baseline gap-4 text-ui">
           <span class="w-32 shrink-0 text-foreground">{role}</span>
           <code class="font-mono text-muted-foreground">{spec}</code>
         </div>
@@ -116,10 +126,10 @@ const longPath =
     description="Mono is reserved for code, paths and logs. Rows truncate to one line; paths may break-all."
   >
     <GallerySpecimen title="Code, paths, logs" layout="stack" surface="well">
-      <code class="font-mono text-xs text-foreground"
+      <code class="font-mono text-ui text-foreground"
         >pnpm exec tsx --test packages/protocol/src/session.test.ts</code
       >
-      <pre class="font-mono text-xs text-foreground">{codeSample}</pre>
+      <pre class="font-mono text-ui text-foreground">{codeSample}</pre>
     </GallerySpecimen>
 
     <GallerySpecimen
@@ -129,11 +139,11 @@ const longPath =
     >
       <div class="flex min-w-0 items-center gap-2">
         <FileIcon class="size-3.5 shrink-0 text-muted-foreground" />
-        <span class="min-w-0 truncate text-sm text-foreground">{longText}</span>
-        <span class="shrink-0 text-xs text-muted-foreground">12 KB</span>
+        <span class="min-w-0 truncate text-ui text-foreground">{longText}</span>
+        <span class="shrink-0 text-ui text-muted-foreground">12 KB</span>
       </div>
-      <p class="truncate font-mono text-xs text-muted-foreground">{longPath}</p>
-      <p class="font-mono text-xs break-all text-muted-foreground">
+      <p class="truncate font-mono text-ui text-muted-foreground">{longPath}</p>
+      <p class="font-mono text-ui break-all text-muted-foreground">
         {longPath}
       </p>
     </GallerySpecimen>
@@ -146,7 +156,7 @@ const longPath =
     <GallerySpecimen title="Sizes" usage="all areas" layout="stack">
       {#each icons as icon (icon.name)}
         <div class="flex items-center gap-4">
-          <span class="w-28 shrink-0 text-xs text-muted-foreground"
+          <span class="w-28 shrink-0 text-ui text-muted-foreground"
             >{icon.name} · {icon.uses}</span
           >
           <SettingsIcon class="text-foreground {icon.cls}" />
@@ -170,11 +180,11 @@ const longPath =
       class="p-0"
     >
       <div class="w-[280px] max-w-full">
-        <div class="flex h-8 items-center gap-1.5 px-3 text-xs">
-          <span class="font-semibold text-foreground">Files</span>
+        <div class="flex h-8 items-center gap-1.5 px-3 text-ui">
+          <span class="font-medium text-foreground">Files</span>
           <span class="text-muted-foreground">33</span>
         </div>
-        <div class="flex flex-col gap-0.5 px-1.5 pb-2 text-sm">
+        <div class="flex flex-col gap-0.5 px-1.5 pb-2 text-ui">
           <div class="flex min-w-0 items-center gap-2 rounded-md px-2 py-1">
             <FolderIcon class="size-3.5 shrink-0 text-muted-foreground" />
             <span class="min-w-0 truncate text-foreground">packages</span>
@@ -190,7 +200,7 @@ const longPath =
             <GitBranchIcon class="size-3.5 shrink-0 text-muted-foreground" />
             <span class="min-w-0 truncate text-foreground">fix/retain-plan</span
             >
-            <span class="ml-auto shrink-0 text-xs text-muted-foreground"
+            <span class="ml-auto shrink-0 text-ui text-muted-foreground"
               >56m</span
             >
           </div>
@@ -204,19 +214,19 @@ const longPath =
       class="p-4"
     >
       <div class="flex w-[720px] max-w-full flex-col gap-2">
-        <p class="text-sm text-foreground">
+        <p class="text-body text-foreground">
           I'll start by reading
-          <code class="rounded-sm bg-muted px-1 font-mono text-xs"
+          <code class="rounded-sm bg-muted px-1 font-mono text-ui"
             >session.ts</code
           >, then trace how the store is initialised. The fix should be small.
         </p>
-        <div class="flex items-center gap-2 text-xs">
-          <span class="font-medium text-foreground">read</span>
+        <div class="flex items-center gap-2 text-ui">
+          <span class="text-foreground">read</span>
           <span class="truncate font-mono text-muted-foreground"
             >{longPath}</span
           >
         </div>
-        <span class="text-xs text-muted-foreground">lines 257–262</span>
+        <span class="text-ui text-muted-foreground">lines 257–262</span>
       </div>
     </GallerySpecimen>
   </GalleryGroup>

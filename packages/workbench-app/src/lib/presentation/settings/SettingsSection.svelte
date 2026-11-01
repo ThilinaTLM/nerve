@@ -64,7 +64,7 @@ let {
             <h3
               id={id ? `${settingsSectionDomId(id)}-title` : undefined}
               tabindex="-1"
-              class="truncate text-sm font-semibold text-foreground outline-none"
+              class="truncate text-ui font-medium text-foreground outline-none"
             >
               {title}
             </h3>
@@ -74,7 +74,7 @@ let {
           </div>
         {/if}
         {#if description}
-          <p class="text-xs text-muted-foreground">{description}</p>
+          <p class="text-caption text-muted-foreground">{description}</p>
         {/if}
       </div>
       {#if actions}

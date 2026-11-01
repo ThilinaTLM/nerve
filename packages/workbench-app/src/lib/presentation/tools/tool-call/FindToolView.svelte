@@ -25,12 +25,12 @@ const visible = $derived(
 
 {#if view.count === 0 && toolCall.status === "completed"}
   <ToolSections>
-    <div class="px-2.5 py-2 text-xs text-muted-foreground">No files found.</div>
+    <div class="px-2.5 py-2 text-ui text-muted-foreground">No files found.</div>
   </ToolSections>
 {:else if view.count > 0}
   <ToolSections>
     <ul
-      class="m-0 list-none px-2.5 py-2 font-mono text-xs leading-snug text-foreground"
+      class="m-0 list-none px-2.5 py-2 font-mono text-ui leading-snug text-foreground"
     >
       {#each visible as item, index (item.path)}
         <li
@@ -41,7 +41,7 @@ const visible = $derived(
         >
           <button
             type="button"
-            class="cursor-pointer border-0 bg-transparent p-0 text-left font-mono text-xs text-primary hover:underline"
+            class="cursor-pointer border-0 bg-transparent p-0 text-left font-mono text-ui text-primary hover:text-foreground"
             onclick={() => onOpenFile?.(item.openPath)}>{item.path}</button
           >
         </li>

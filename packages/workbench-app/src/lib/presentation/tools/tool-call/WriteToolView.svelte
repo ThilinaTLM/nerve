@@ -39,7 +39,7 @@ const empty = $derived(toolCall.status === "completed" && !hasContent);
         />
       </div>
     {:else}
-      <div class="px-2.5 py-2 text-xs text-muted-foreground">
+      <div class="px-2.5 py-2 text-ui text-muted-foreground">
         Empty file written.
       </div>
     {/if}

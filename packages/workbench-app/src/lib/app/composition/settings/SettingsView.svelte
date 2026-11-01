@@ -3,7 +3,6 @@ import type {
   ApplicationConfigurationSnapshot,
   AuthProviderMetadata,
   AvailableSkill,
-  ColorMode,
   ColorTheme,
   ModelInfo,
   Settings,
@@ -69,12 +68,8 @@ type Props = {
     patch: UpdateApplicationConfigurationRequest,
   ) => void;
   onRestartDaemon?: () => void;
-  lightTheme: ColorTheme;
-  darkTheme: ColorTheme;
-  colorMode: ColorMode;
-  onLightThemeChange?: (theme: ColorTheme) => void;
-  onDarkThemeChange?: (theme: ColorTheme) => void;
-  onColorModeChange?: (colorMode: ColorMode) => void;
+  theme: ColorTheme;
+  onThemeChange?: (theme: ColorTheme) => void;
   onSkillsRetry?: () => void;
 };
 
@@ -99,12 +94,8 @@ let {
   onSettingsChange,
   onApplicationConfigurationChange,
   onRestartDaemon,
-  lightTheme,
-  darkTheme,
-  colorMode,
-  onLightThemeChange,
-  onDarkThemeChange,
-  onColorModeChange,
+  theme,
+  onThemeChange,
   onSkillsRetry,
 }: Props = $props();
 
@@ -225,12 +216,8 @@ function statusText(): string {
       {onSettingsChange}
       {onApplicationConfigurationChange}
       {onRestartDaemon}
-      {lightTheme}
-      {darkTheme}
-      {colorMode}
-      {onLightThemeChange}
-      {onDarkThemeChange}
-      {onColorModeChange}
+      {theme}
+      {onThemeChange}
       {onSkillsRetry}
     />
   {/snippet}

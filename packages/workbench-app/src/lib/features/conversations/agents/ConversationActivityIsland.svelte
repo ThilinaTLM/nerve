@@ -263,7 +263,7 @@ const agentStatus: Record<AgentRowState, string> = {
   <Button
     data-row-action
     variant="ghost"
-    class="w-full min-w-0 justify-start rounded-none text-left font-normal"
+    class="w-full min-w-0 justify-start rounded-none text-left"
     aria-current={row.viewed ? "page" : undefined}
     aria-label={`Open ${row.name}${row.profile ? ` (${row.profile})` : ""}: ${agentStatus[row.state]}`}
     title={`Open ${row.name}`}
@@ -271,9 +271,9 @@ const agentStatus: Record<AgentRowState, string> = {
   >
     {@render agentGlyph(row.state)}
     <span class="flex min-w-0 flex-1 items-center gap-1.5">
-      <span class="min-w-0 truncate text-xs font-normal">{row.name}</span>
+      <span class="min-w-0 truncate text-ui">{row.name}</span>
       {#if row.profile}<Badge
-          variant="outline"
+          variant="neutral"
           class="max-w-24 shrink-0 truncate"
           title={row.profile}>{row.profile}</Badge
         >{/if}
@@ -285,7 +285,7 @@ const agentStatus: Record<AgentRowState, string> = {
   <Button
     data-row-action
     variant="ghost"
-    class="w-full min-w-0 justify-start rounded-none text-left font-normal"
+    class="w-full min-w-0 justify-start rounded-none text-left"
     aria-label={`Open command tab: ${command.command} (${COMMAND_STATE_LABEL[command.status]})`}
     title={command.command}
     onclick={() => {
@@ -294,7 +294,7 @@ const agentStatus: Record<AgentRowState, string> = {
     }}
   >
     <AsyncBashStatusIcon status={command.status} animate={active} />
-    <span class="min-w-0 flex-1 truncate font-mono text-xs">
+    <span class="min-w-0 flex-1 truncate font-mono text-ui">
       {commandFirstLine(command.command)}
     </span>
   </Button>
@@ -313,7 +313,7 @@ const agentStatus: Record<AgentRowState, string> = {
   {#if folded.length}
     <Button
       variant="ghost"
-      class="w-full min-w-0 justify-start rounded-none text-left text-xs font-normal text-muted-foreground hover:text-foreground"
+      class="w-full min-w-0 justify-start rounded-none text-left text-ui text-muted-foreground hover:text-foreground"
       aria-expanded={showFolded}
       aria-controls={`${componentId}-folded`}
       onclick={() => (showFolded = !showFolded)}
@@ -342,7 +342,7 @@ const agentStatus: Record<AgentRowState, string> = {
       </div>
     {/if}
   {:else if !rows.length}
-    <p class="px-2.5 py-3 text-xs text-muted-foreground">{empty}</p>
+    <p class="px-2.5 py-3 text-ui text-muted-foreground">{empty}</p>
   {/if}
 {/snippet}
 
@@ -376,20 +376,20 @@ const agentStatus: Record<AgentRowState, string> = {
           bind:this={panel}
           id={`${componentId}-list`}
           aria-label={open === "agents" ? "Agents" : "Commands"}
-          class="absolute right-0 bottom-full flex max-h-[min(calc(var(--spacing)*80),var(--conversation-activity-height,100vh))] w-full flex-col overflow-hidden rounded-t-md border border-b-0 bg-popover text-popover-foreground shadow-md will-change-[clip-path,opacity,transform]"
+          class="absolute right-0 bottom-full flex max-h-[min(calc(var(--spacing)*80),var(--conversation-activity-height,100vh))] w-full flex-col overflow-hidden rounded-t-md border border-b-0 bg-popover text-popover-foreground shadow-overlay will-change-[clip-path,opacity,transform]"
           in:reveal
           out:reveal={{ leaving: true }}
           onintrostart={() => (panelShown = true)}
           onoutroend={() => (panelShown = false)}
         >
           <div class="flex min-w-0 items-center gap-2 border-b px-2.5 py-1">
-            <h2 class="shrink-0 text-xs font-semibold">
+            <h2 class="shrink-0 text-ui font-medium">
               {open === "agents" ? "Agents" : "Commands"}
             </h2>
             <!-- The tab below already shows the total; only live work earns header space. -->
             <span class="flex min-w-0 flex-1 items-center">
               {#if selectedSummary.running}<span
-                  class="flex items-center gap-1 text-xs text-info tabular-nums"
+                  class="flex items-center gap-1 text-ui text-info tabular-nums"
                   title={`${selectedSummary.running} running`}
                   >{#if active}<Spinner
                       class="size-3 motion-reduce:animate-none!"
@@ -468,7 +468,7 @@ const agentStatus: Record<AgentRowState, string> = {
             <Button
               bind:ref={agentsTrigger}
               variant="ghost"
-              class="min-w-0 flex-auto rounded-none text-xs"
+              class="min-w-0 flex-auto rounded-none text-ui"
               aria-expanded={open === "agents"}
               aria-controls={open === "agents"
                 ? `${componentId}-list`
@@ -492,7 +492,7 @@ const agentStatus: Record<AgentRowState, string> = {
             <Button
               bind:ref={commandsTrigger}
               variant="ghost"
-              class="min-w-0 flex-auto rounded-none text-xs"
+              class="min-w-0 flex-auto rounded-none text-ui"
               aria-expanded={open === "commands"}
               aria-controls={open === "commands"
                 ? `${componentId}-list`

@@ -87,7 +87,7 @@ const REVIEW_STATE: Record<
     {#if hasDetails}
       <Collapsible.Root bind:open={detailsOpen} class="border-b @3xl:hidden">
         <Collapsible.Trigger
-          class="flex w-full items-center gap-1.5 py-2 text-left text-xs text-muted-foreground hover:text-foreground"
+          class="flex w-full items-center gap-1.5 py-2 text-left text-ui text-muted-foreground hover:text-foreground"
         >
           <ChevronRight
             class={cn(
@@ -104,30 +104,27 @@ const REVIEW_STATE: Record<
 
     <div class="max-w-3xl min-w-0 py-4">
       <!-- Description: the opening post, read like a document. -->
-      <p class="mb-3 flex items-center gap-2 text-xs text-muted-foreground">
+      <p class="mb-3 flex items-center gap-2 text-ui text-muted-foreground">
         <PrAvatar name={core.author} large />
-        <span class="text-sm font-medium text-foreground"
+        <span class="text-ui text-foreground"
           >{core.author ?? "Unknown author"}</span
         >
         opened {formatRelativeAge(core.createdAt)}
       </p>
       {#if conversation.body.trim()}
-        <div class="text-sm leading-relaxed">
+        <div class="text-body leading-relaxed">
           <Markdown text={conversation.body} onCopy={notifyCopyResult} />
         </div>
       {:else}
-        <p class="text-sm text-muted-foreground">No description provided.</p>
+        <p class="text-ui text-muted-foreground">No description provided.</p>
       {/if}
 
-      <section class="mt-8 border-t pt-4" aria-labelledby="pr-activity">
-        <h2
-          id="pr-activity"
-          class="mb-4 text-xs font-medium text-muted-foreground"
-        >
+      <section class="mt-8" aria-labelledby="pr-activity">
+        <h2 id="pr-activity" class="mb-4 text-ui text-muted-foreground">
           Activity
         </h2>
         {#if timeline.length === 0}
-          <p class="text-xs text-muted-foreground">No comments yet.</p>
+          <p class="text-ui text-muted-foreground">No comments yet.</p>
         {:else}
           <ol
             class="relative flex flex-col before:absolute before:inset-y-3 before:left-3 before:w-px before:bg-border"
@@ -146,15 +143,15 @@ const REVIEW_STATE: Record<
                 </span>
                 <div class="overflow-hidden rounded-md border bg-card">
                   <p
-                    class="flex min-h-8 flex-wrap items-center gap-x-2 gap-y-0.5 border-b bg-muted/40 px-3 py-1"
+                    class="flex min-h-8 flex-wrap items-center gap-x-2 gap-y-0.5 border-b bg-muted px-3 py-1"
                   >
-                    <span class="text-sm font-medium"
+                    <span class="text-ui"
                       >{entry.value.author ?? "Deleted user"}</span
                     >
                     {#if review && ReviewIcon}
                       <span
                         class={cn(
-                          "inline-flex items-center gap-1 text-xs",
+                          "inline-flex items-center gap-1 text-ui",
                           review.tone,
                         )}
                       >
@@ -165,7 +162,7 @@ const REVIEW_STATE: Record<
                       </span>
                     {/if}
                     <PrTooltip label={formatPrDateCompact(entry.at)}>
-                      <span class="text-xs text-muted-foreground"
+                      <span class="text-ui text-muted-foreground"
                         >{formatRelativeAge(entry.at)}</span
                       >
                     </PrTooltip>
@@ -182,7 +179,7 @@ const REVIEW_STATE: Record<
                     {/if}
                   </p>
                   {#if entry.value.body.trim()}
-                    <div class="px-3 py-2 text-sm">
+                    <div class="px-3 py-2 text-body">
                       <Markdown
                         text={entry.value.body}
                         onCopy={notifyCopyResult}

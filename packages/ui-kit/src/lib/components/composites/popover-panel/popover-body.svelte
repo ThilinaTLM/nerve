@@ -39,7 +39,7 @@ let {
   {id}
   {role}
   {ariaLabel}
-  class="text-xs"
+  class="text-ui"
   contentClass={cn("grid grid-cols-1 content-start gap-2 px-2 pb-2", className)}
 >
   {@render children?.()}

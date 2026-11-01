@@ -180,7 +180,7 @@ $effect(() => {
           class={`pointer-events-none absolute inset-x-3 z-20 flex justify-center ${toolbarVisible ? "top-20" : "top-3"}`}
         >
           <div
-            class="pointer-events-auto max-w-2xl rounded-md border border-destructive/40 bg-background px-2.5 py-2 text-sm text-destructive shadow-sm"
+            class="pointer-events-auto max-w-2xl rounded-md border border-destructive-strong bg-background px-2.5 py-2 text-ui text-destructive shadow-sm"
             role="alert"
           >
             {model.error}
@@ -216,7 +216,7 @@ $effect(() => {
             />
           {:else}
             <div
-              class="grid min-h-12 place-items-center px-4 py-2 text-center text-xs text-muted-foreground"
+              class="grid min-h-12 place-items-center px-4 py-2 text-center text-ui text-muted-foreground"
             >
               {#if model.rows.length === 0 && model.loading}
                 <span class="inline-flex items-center gap-2">
@@ -267,7 +267,7 @@ $effect(() => {
         <Gauge />
         <span class="flex flex-1 items-center justify-between gap-3">
           <span>Level</span>
-          <span class="text-xs capitalize text-muted-foreground">
+          <span class="text-ui capitalize text-muted-foreground">
             {model.level}
           </span>
         </span>
@@ -292,7 +292,7 @@ $effect(() => {
         <RadioTower />
         <span class="flex flex-1 items-center justify-between gap-3">
           <span>Source</span>
-          <span class="text-xs capitalize text-muted-foreground">
+          <span class="text-ui capitalize text-muted-foreground">
             {model.source}
           </span>
         </span>
@@ -317,7 +317,7 @@ $effect(() => {
         <Box />
         <span class="flex min-w-0 flex-1 items-center justify-between gap-3">
           <span>Component</span>
-          <span class="max-w-24 truncate text-xs text-muted-foreground">
+          <span class="max-w-24 truncate text-ui text-muted-foreground">
             {model.component || "All"}
           </span>
         </span>

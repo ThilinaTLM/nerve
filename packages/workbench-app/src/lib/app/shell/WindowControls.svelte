@@ -182,7 +182,7 @@ const closeTitle = $derived(
         <Spinner />
       {:else}
         <span
-          class="flex size-4.5 items-center justify-center rounded-full group-hover/linux-control:bg-destructive/20 group-hover/linux-control:text-destructive group-focus-visible/linux-control:bg-destructive/20 group-focus-visible/linux-control:text-destructive"
+          class="flex size-4.5 items-center justify-center rounded-full group-hover/linux-control:bg-destructive-subtle group-hover/linux-control:text-destructive group-focus-visible/linux-control:bg-destructive-subtle group-focus-visible/linux-control:text-destructive"
         >
           <X class="size-3.5" strokeWidth={2} />
         </span>

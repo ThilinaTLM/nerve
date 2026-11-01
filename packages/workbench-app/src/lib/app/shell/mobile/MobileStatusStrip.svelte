@@ -29,6 +29,9 @@ $effect(() => channels.observe());
   />
   <SubscriptionUsageChip usages={usageSelectors.subscriptionUsages} />
   {#if maintenance.active && maintenance.operation}
-    <MaintenanceStatus operation={maintenance.operation} />
+    <MaintenanceStatus
+      operation={maintenance.operation}
+      onCancel={() => void maintenance.cancel()}
+    />
   {/if}
 </div>

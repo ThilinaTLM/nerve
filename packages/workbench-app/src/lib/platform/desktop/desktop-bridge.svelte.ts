@@ -3,6 +3,12 @@ export interface DesktopWindowState {
   focused: boolean;
 }
 
+export interface DesktopWindowAppearance {
+  /** Theme background as `#rrggbb`. */
+  background: string;
+  dark: boolean;
+}
+
 export interface DesktopNotificationPayload {
   title: string;
   body?: string;
@@ -24,6 +30,8 @@ export interface NerveDesktopBridge {
     toggleMaximize: () => Promise<void>;
     close: (options?: { closeToTray?: boolean }) => Promise<void>;
     getState: () => Promise<DesktopWindowState>;
+    /** Optional on older desktop shells. Reports the active theme for the next launch's first paint. */
+    setTheme?: (appearance: DesktopWindowAppearance) => Promise<void>;
     onStateChange: (
       listener: (state: DesktopWindowState) => void,
     ) => () => void;
@@ -152,6 +160,14 @@ export async function minimizeDesktopWindow(): Promise<void> {
 
 export async function toggleMaximizeDesktopWindow(): Promise<void> {
   await getDesktopBridge()?.window.toggleMaximize();
+}
+
+export function reportDesktopWindowAppearance(
+  appearance: DesktopWindowAppearance,
+): void {
+  void getDesktopBridge()
+    ?.window.setTheme?.(appearance)
+    .catch(() => undefined);
 }
 
 export async function closeDesktopWindow(options?: {

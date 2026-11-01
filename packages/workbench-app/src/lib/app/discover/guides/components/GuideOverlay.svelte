@@ -163,27 +163,27 @@ function handleKeydown(event: KeyboardEvent): void {
 >
   {#if targetRect}
     <div
-      class={`fixed left-0 right-0 top-0 ${modal ? "bg-background/60" : "bg-background/30"}`}
+      class="fixed left-0 right-0 top-0 bg-scrim"
       style:height={`${targetRect.top}px`}
     ></div>
     <div
-      class={`fixed bottom-0 left-0 right-0 ${modal ? "bg-background/60" : "bg-background/30"}`}
+      class="fixed bottom-0 left-0 right-0 bg-scrim"
       style:top={`${targetRect.bottom}px`}
     ></div>
     <div
-      class={`fixed left-0 ${modal ? "bg-background/60" : "bg-background/30"}`}
+      class="fixed left-0 bg-scrim"
       style:top={`${targetRect.top}px`}
       style:width={`${targetRect.left}px`}
       style:height={`${targetRect.height}px`}
     ></div>
     <div
-      class={`fixed right-0 ${modal ? "bg-background/60" : "bg-background/30"}`}
+      class="fixed right-0 bg-scrim"
       style:top={`${targetRect.top}px`}
       style:left={`${targetRect.right}px`}
       style:height={`${targetRect.height}px`}
     ></div>
     <div
-      class="fixed rounded-lg ring-2 ring-primary ring-offset-2 ring-offset-background/80"
+      class="fixed rounded-lg ring-2 ring-primary ring-offset-2 ring-offset-background"
       style:top={`${targetRect.top}px`}
       style:left={`${targetRect.left}px`}
       style:width={`${targetRect.width}px`}
@@ -191,14 +191,12 @@ function handleKeydown(event: KeyboardEvent): void {
       aria-hidden="true"
     ></div>
   {:else}
-    <div
-      class={`fixed inset-0 ${modal ? "bg-background/60" : "bg-background/30"}`}
-    ></div>
+    <div class="fixed inset-0 bg-scrim"></div>
   {/if}
 
   <div
     bind:this={calloutElement}
-    class={`fixed grid max-w-[calc(100vw-1.5rem)] gap-4 rounded-xl border border-border bg-popover p-5 text-popover-foreground shadow-xl outline-none ${modal ? "w-96" : "pointer-events-auto w-80"}`}
+    class={`fixed grid max-w-[calc(100vw-1.5rem)] gap-4 rounded-xl border border-border bg-popover p-5 text-popover-foreground shadow-overlay outline-none ${modal ? "w-96" : "pointer-events-auto w-80"}`}
     style:top={`${placement.top}px`}
     style:left={`${placement.left}px`}
     role="dialog"
@@ -209,7 +207,7 @@ function handleKeydown(event: KeyboardEvent): void {
   >
     <div class="grid gap-2">
       <div
-        class="flex items-center justify-between gap-3 text-xs text-muted-foreground"
+        class="flex items-center justify-between gap-3 text-ui text-muted-foreground"
       >
         <span>{modal ? "Workbench tour" : "Guide"}</span>
         <span>Step {index + 1} of {count}</span>
@@ -222,24 +220,21 @@ function handleKeydown(event: KeyboardEvent): void {
     </div>
 
     <div class="grid gap-2" aria-live="polite">
-      <h2
-        id="guided-tour-title"
-        class="text-base font-semibold text-foreground"
-      >
+      <h2 id="guided-tour-title" class="text-title font-medium text-foreground">
         {step.title}
       </h2>
       <p
         id="guided-tour-description"
-        class="text-sm leading-relaxed text-muted-foreground"
+        class="text-body leading-relaxed text-muted-foreground"
       >
         {step.description}
       </p>
       {#if !targetRect && step.fallback}
-        <p class="rounded-md bg-muted p-3 text-xs text-muted-foreground">
+        <p class="rounded-md bg-muted p-3 text-ui text-muted-foreground">
           {step.fallback}
         </p>
       {:else if preparing}
-        <p class="text-xs text-muted-foreground">Opening this feature…</p>
+        <p class="text-ui text-muted-foreground">Opening this feature…</p>
       {/if}
     </div>
 

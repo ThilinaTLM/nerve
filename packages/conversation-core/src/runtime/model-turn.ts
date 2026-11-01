@@ -1,7 +1,10 @@
 import type { AgentConfigurationPort } from "../configuration.js";
 import type { AssetStore } from "../assets/asset-store.js";
 import { loadProjectionOptions } from "../context/asset-projection.js";
-import { streamSimpleWithModel } from "@nervekit/harness/models";
+import {
+  normalizeImagesForModel,
+  streamSimpleWithModel,
+} from "@nervekit/harness/models";
 import type {
   Conversation,
   ConversationConfig,
@@ -120,13 +123,19 @@ export class ModelTurn {
     // Capture context once; manual retry never prepares or delivers inputs again.
     const context = {
       systemPrompt: prepared.systemPrompt,
-      messages: buildModelMessages(
-        input.path,
-        this.assets ? await loadProjectionOptions(input.path, this.assets) : {},
+      // Fit images to provider limits for this request only; stored assets stay original.
+      messages: await normalizeImagesForModel(
+        buildModelMessages(
+          input.path,
+          this.assets
+            ? await loadProjectionOptions(input.path, this.assets)
+            : {},
+        ),
+        resolved.model,
       ),
       tools: prepared.tools,
     };
-    // Projection can await assets. Fence once here; manual response retries below reuse this request.
+    // Projection and image normalization can await. Fence once here; manual response retries below reuse this request.
     if (!prepared.isCurrent()) throw new StaleRequestCaptureError();
     const id = input.conversation.id;
     while (true) {

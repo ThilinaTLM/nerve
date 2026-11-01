@@ -22,9 +22,10 @@ type Props = {
   usages?: SubscriptionUsageEntry[];
   /** Phone widths: show only the most-used window, without the reset time. */
   compact?: boolean;
+  open?: boolean;
 };
 
-let { usages = [], compact = false }: Props = $props();
+let { usages = [], compact = false, open = $bindable(false) }: Props = $props();
 
 function windowReset(
   window: SubscriptionWindow | null | undefined,
@@ -178,6 +179,7 @@ const title = $derived.by(() => {
 
 {#if triggerEntry}
   <Popover
+    bind:open
     size="md"
     triggerClass={STATUS_BAR_CHIP_BUTTON}
     ariaLabel="Open subscription usage details"
@@ -194,9 +196,7 @@ const title = $derived.by(() => {
           {@const percent = item.window.usedPercent}
           <span class="inline-flex items-center gap-1">
             <span>{item.abbreviation}</span>
-            <span
-              class="h-1 w-6 overflow-hidden rounded-full bg-muted-foreground/30"
-            >
+            <span class="h-1 w-6 overflow-hidden rounded-full bg-border">
               <span
                 class={cn("block h-full rounded-full", toneBarClass(percent))}
                 style="width: {clampPercent(percent)}%"

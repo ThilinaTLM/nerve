@@ -12,6 +12,7 @@ import { Badge } from "@nervekit/ui-kit/components/ui/badge";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
 import { Input } from "@nervekit/ui-kit/components/ui/input";
 import { Skeleton } from "@nervekit/ui-kit/components/ui/skeleton";
+import { selectRowVariants } from "@nervekit/ui-kit/components/composites/select-row";
 import { cn } from "@nervekit/ui-kit/utils";
 import type { FolderBrowser } from "$lib/features/projects/state/folder-browser.svelte";
 import { toDisplayPath } from "$lib/features/projects/state/folder-browser-path";
@@ -98,12 +99,12 @@ function onCreateKeydown(event: KeyboardEvent) {
           disabled={browser.creatingBusy}
           onkeydown={onCreateKeydown}
         />
-        <span class="shrink-0 text-xs text-muted-foreground max-sm:hidden"
+        <span class="shrink-0 text-ui text-muted-foreground max-sm:hidden"
           >Enter to create</span
         >
       </div>
       {#if browser.createError}
-        <p class="px-2 text-xs text-destructive" role="alert">
+        <p class="px-2 text-ui text-destructive" role="alert">
           {browser.createError}
         </p>
       {/if}
@@ -113,7 +114,7 @@ function onCreateKeydown(event: KeyboardEvent) {
   {#if browser.loading && !browser.listing && !browser.atThisPC}
     <div class="flex flex-col gap-1 p-1" role="status" aria-label="Loading">
       {#each [0, 1, 2, 3, 4, 5, 6, 7] as index (index)}
-        <Skeleton class="h-8 bg-muted/50" />
+        <Skeleton class="h-8" />
       {/each}
     </div>
   {:else if browser.error}
@@ -122,8 +123,8 @@ function onCreateKeydown(event: KeyboardEvent) {
       role="alert"
     >
       <TriangleAlert class="size-6 text-destructive" aria-hidden="true" />
-      <span class="text-sm">Can't read {displayCwd}</span>
-      <span class="max-w-md text-xs text-muted-foreground">{browser.error}</span
+      <span class="text-ui">Can't read {displayCwd}</span>
+      <span class="max-w-md text-ui text-muted-foreground">{browser.error}</span
       >
       <div class="flex gap-1">
         {#if browser.parent !== undefined}
@@ -145,7 +146,7 @@ function onCreateKeydown(event: KeyboardEvent) {
       class="flex h-full flex-col items-center justify-center gap-2 p-6 text-center"
     >
       <FolderX class="size-6 text-muted-foreground" aria-hidden="true" />
-      <span class="text-sm">
+      <span class="text-ui">
         {browser.filter.trim()
           ? `No folders match "${browser.filter.trim()}"`
           : browser.atThisPC
@@ -153,7 +154,7 @@ function onCreateKeydown(event: KeyboardEvent) {
             : "No subfolders"}
       </span>
       {#if !browser.atThisPC}
-        <span class="text-xs text-muted-foreground"
+        <span class="text-ui text-muted-foreground"
           >You can still open {displayCwd} itself.</span
         >
       {/if}
@@ -170,6 +171,7 @@ function onCreateKeydown(event: KeyboardEvent) {
       {#each browser.entries as entry, index (entry.path)}
         {@const projectId = projectIdForPath(entry.path)}
         {@const selected = browser.selectedPath === entry.path}
+        {@const rowStyles = selectRowVariants({ selected })}
         <!-- Keyboard use goes through the listbox (arrows, Enter, →); the row
            handlers are the pointer equivalents. -->
         <!-- svelte-ignore a11y_click_events_have_key_events -->
@@ -178,16 +180,16 @@ function onCreateKeydown(event: KeyboardEvent) {
           role="option"
           aria-selected={selected}
           tabindex="-1"
-          class={cn(
-            "group flex w-full cursor-default items-center gap-2 rounded-md px-2 py-1.5 text-left hover:bg-muted max-sm:py-2",
-            selected && "bg-selected hover:bg-selected",
-          )}
+          class={rowStyles.base({
+            class:
+              "group flex w-full cursor-default items-center gap-2 px-2 py-1.5 text-left max-sm:py-2",
+          })}
           onclick={() => browser.select(entry.path)}
           ondblclick={() => void browser.go(entry.path)}
         >
           {#if browser.atThisPC}
             <HardDrive
-              class="size-4 shrink-0 text-muted-foreground"
+              class={rowStyles.icon({ class: "size-4 shrink-0" })}
               aria-hidden="true"
             />
           {:else if projectId}
@@ -199,15 +201,14 @@ function onCreateKeydown(event: KeyboardEvent) {
             />
           {:else}
             <Folder
-              class="size-4 shrink-0 text-muted-foreground"
+              class={rowStyles.icon({ class: "size-4 shrink-0" })}
               aria-hidden="true"
             />
           {/if}
           <span
-            class={cn(
-              "truncate text-sm",
-              entry.hidden && "text-muted-foreground",
-            )}>{entry.name}</span
+            class={rowStyles.label({
+              class: cn("truncate", entry.hidden && "text-muted-foreground"),
+            })}>{entry.name}</span
           >
           <span class="ml-auto flex shrink-0 gap-1 max-sm:hidden">
             {@render signalBadges(entry.signals)}

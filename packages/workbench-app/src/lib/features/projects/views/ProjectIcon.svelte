@@ -16,7 +16,7 @@ const source = $derived(
 
 <span
   class={cn(
-    "relative grid shrink-0 place-items-center overflow-hidden rounded-md border border-border/60 bg-muted/40 text-muted-foreground",
+    "relative grid shrink-0 place-items-center overflow-hidden rounded-md border border-border-subtle bg-muted text-muted-foreground",
     className,
   )}
   aria-hidden="true"
@@ -28,7 +28,7 @@ const source = $derived(
       alt=""
       loading="lazy"
       decoding="async"
-      class="absolute inset-0 size-full bg-muted/40 object-cover"
+      class="absolute inset-0 size-full bg-muted object-cover"
       onerror={() => (failed = true)}
     />
   {/if}

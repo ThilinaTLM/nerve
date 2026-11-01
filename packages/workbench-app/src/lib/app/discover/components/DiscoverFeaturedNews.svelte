@@ -14,18 +14,18 @@ let { entry, onAction }: Props = $props();
 </script>
 
 <div
-  class="grid items-center gap-4 overflow-hidden rounded-md bg-card p-4 text-sm text-card-foreground shadow-xs ring-1 ring-foreground/10 sm:grid-cols-[minmax(0,1fr)_13rem]"
+  class="grid items-center gap-4 overflow-hidden rounded-md bg-card p-4 text-body text-card-foreground ring-1 ring-border sm:grid-cols-[minmax(0,1fr)_13rem]"
 >
   <div class="grid min-w-0 gap-2">
     <div class="flex flex-wrap items-center gap-1.5">
-      <Badge variant="outline">{discoverReleaseLabel(entry.releasedIn)}</Badge>
+      <Badge variant="neutral">{discoverReleaseLabel(entry.releasedIn)}</Badge>
       {#if entry.unread}
         <Badge variant="info">New</Badge>
       {/if}
     </div>
     <div class="grid gap-1">
-      <h3 class="text-base font-semibold leading-tight">{entry.title}</h3>
-      <p class="text-xs leading-relaxed text-muted-foreground">
+      <h3 class="text-title font-medium leading-tight">{entry.title}</h3>
+      <p class="text-ui leading-relaxed text-muted-foreground">
         {entry.summary}
       </p>
     </div>
@@ -33,7 +33,7 @@ let { entry, onAction }: Props = $props();
       <ul class="grid gap-1">
         {#each entry.details as detail (detail)}
           <li
-            class="flex gap-1.5 text-xs leading-relaxed text-muted-foreground"
+            class="flex gap-1.5 text-ui leading-relaxed text-muted-foreground"
           >
             <span aria-hidden="true">·</span>
             <span>{detail}</span>

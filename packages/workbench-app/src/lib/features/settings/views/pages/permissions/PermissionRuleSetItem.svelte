@@ -66,14 +66,14 @@ const roleNote = $derived(
     <Badge variant="neutral"
       >{ruleSet.source === "builtin" ? "Built-in" : "User-defined"}</Badge
     >
-    {#if isDefault}<Badge variant="accent">Default</Badge>{/if}
+    {#if isDefault}<Badge variant="brand">Default</Badge>{/if}
     {#if !ruleSet.enabled}<Badge variant="neutral">Disabled</Badge>{/if}
   {/snippet}
   {#snippet detail()}
     <div class="grid gap-4 pt-1">
       <div class="grid gap-0.5">
         {#if ruleSet.description}
-          <p class="text-sm text-foreground">{ruleSet.description}</p>
+          <p class="text-ui text-foreground">{ruleSet.description}</p>
         {/if}
         <p>{roleNote}</p>
       </div>
@@ -82,7 +82,7 @@ const roleNote = $derived(
         <div class="grid gap-2">
           <div class="flex flex-wrap items-center justify-between gap-2">
             <div class="flex flex-wrap items-center gap-2">
-              <h4 class="text-sm font-semibold text-muted-foreground">
+              <h4 class="text-ui font-medium text-muted-foreground">
                 {scope === "user"
                   ? "User overrides"
                   : `Project overrides · ${projectName}`}
@@ -140,7 +140,7 @@ const roleNote = $derived(
                       >{/if}
                   {/snippet}
                   {#snippet supporting()}
-                    <p class="text-xs text-muted-foreground">
+                    <p class="text-ui text-muted-foreground">
                       {ruleMetadata(rule).join(" · ")}
                     </p>
                   {/snippet}

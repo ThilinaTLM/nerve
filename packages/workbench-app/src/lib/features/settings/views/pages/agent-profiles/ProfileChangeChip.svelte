@@ -61,9 +61,9 @@ async function toggle() {
 </script>
 <span
   class={cn(
-    "inline-flex min-w-0 max-w-full items-center rounded-md bg-input/30 ring-1 ring-inset ring-transparent",
-    mode === "recommend" && "bg-success/10 ring-success/25",
-    mode === "require" && "bg-info/10 ring-info/30",
+    "inline-flex min-w-0 max-w-full items-center rounded-md bg-input-background ring-1 ring-inset ring-transparent",
+    mode === "recommend" && "bg-success-subtle ring-success-strong",
+    mode === "require" && "bg-info-subtle ring-info-strong",
   )}
 >
   <PopoverPanel

@@ -3,6 +3,7 @@
 // detail, optional follow-up mark and Open pill, and a clamped body line.
 // Undefined slots render skeletons that are replaced in place by the value.
 import ListEnd from "@lucide/svelte/icons/list-end";
+import { Badge } from "@nervekit/ui-kit/components/ui/badge";
 import { StatusDot } from "@nervekit/ui-kit/components/composites/status-dot";
 import { Skeleton } from "@nervekit/ui-kit/components/ui/skeleton";
 import * as Tooltip from "@nervekit/ui-kit/components/ui/tooltip";
@@ -36,10 +37,6 @@ let {
   enter = false,
   expanded = false,
 }: Props = $props();
-
-// Same pill classes as the card footer actions.
-const pill =
-  "inline-flex min-h-5 flex-none cursor-pointer items-center rounded-sm border border-border bg-well px-1.5 py-0.5 text-xs leading-none font-medium text-primary hover:underline";
 </script>
 
 <div class={cn("grid min-w-0 gap-0.5 px-3 py-2", enter && "stream-item-enter")}>
@@ -52,7 +49,7 @@ const pill =
           <Tooltip.Root>
             <Tooltip.Trigger
               aria-label={`${title ?? "Item"}: ${status.label}`}
-              class="inline-flex cursor-help items-center rounded-sm focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
+              class="inline-flex cursor-help items-center rounded-sm focus-visible:ring-3 focus-visible:ring-focus focus-visible:outline-none"
             >
               <StatusDot
                 tone={status.tone}
@@ -64,21 +61,21 @@ const pill =
           </Tooltip.Root>
         </Tooltip.Provider>
       {:else if streaming || title === undefined}
-        <Skeleton class="size-2 rounded-full bg-foreground/10" />
+        <Skeleton class="size-2 rounded-full" />
       {/if}
     </span>
     <SlotText
       text={title}
       width="w-32"
       {streaming}
-      class="text-sm font-medium text-foreground"
+      class="text-ui text-foreground"
     />
     {#if detail !== undefined || title === undefined}
       <SlotText
         text={detail}
         width="w-14"
         {streaming}
-        class="text-xs text-muted-foreground"
+        class="text-ui text-muted-foreground"
       />
     {/if}
     {#if followUp}
@@ -86,7 +83,7 @@ const pill =
         <Tooltip.Root>
           <Tooltip.Trigger
             aria-label="Follow-up to existing subagent"
-            class="inline-flex flex-none cursor-help items-center rounded-sm text-muted-foreground focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
+            class="inline-flex flex-none cursor-help items-center rounded-sm text-muted-foreground focus-visible:ring-3 focus-visible:ring-focus focus-visible:outline-none"
           >
             <ListEnd class="size-3.5" aria-hidden="true" />
           </Tooltip.Trigger>
@@ -96,11 +93,10 @@ const pill =
     {/if}
     {#if onOpen}
       <span class="ml-auto flex flex-none items-center">
-        <button
-          class={pill}
-          type="button"
+        <Badge
+          variant="brand"
           aria-label={`Open ${title ?? "item"}`}
-          onclick={onOpen}>Open</button
+          onclick={onOpen}>Open</Badge
         >
       </span>
     {/if}
@@ -108,7 +104,7 @@ const pill =
   {#if body !== undefined || streaming}
     <p
       class={cn(
-        "m-0 pl-5 text-xs whitespace-pre-line text-muted-foreground wrap-anywhere",
+        "m-0 pl-5 text-ui whitespace-pre-line text-muted-foreground wrap-anywhere",
         !expanded && "line-clamp-2",
       )}
     >

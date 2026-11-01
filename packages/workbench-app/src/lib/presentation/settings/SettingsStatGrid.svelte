@@ -23,15 +23,17 @@ let { items, class: className }: Props = $props();
   {#each items as item (item.label)}
     <div
       class={cn(
-        "grid min-w-0 gap-0.5 rounded-md bg-foreground/4 px-2.5 py-2",
+        "grid min-w-0 gap-0.5 rounded-md bg-muted px-2.5 py-2",
         item.wide && "md:col-span-2",
       )}
     >
-      <span class="truncate text-xs text-muted-foreground">{item.label}</span>
+      <span class="truncate text-caption text-muted-foreground"
+        >{item.label}</span
+      >
       <span
         class={cn(
-          "truncate text-sm text-foreground",
-          item.mono && "font-mono text-xs",
+          "truncate text-ui text-foreground",
+          item.mono && "font-mono text-ui",
         )}
         title={item.value}>{item.value}</span
       >

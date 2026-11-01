@@ -11,7 +11,7 @@ export const composerEditorTheme = EditorView.theme({
     // Prompt text is prose: sans by default. Shell-command mode (`!`) is the
     // only monospace state; ComposerEditor.svelte flips it via `.shell-mode`.
     fontFamily: "var(--font-sans)",
-    fontSize: "var(--text-sm)",
+    fontSize: "var(--text-body)",
     lineHeight: "1.5",
     padding: "10px 12px 6px",
   },
@@ -60,8 +60,8 @@ export const composerEditorTheme = EditorView.theme({
     background: "var(--muted)",
     color: "var(--foreground)",
     fontFamily: "var(--font-sans)",
-    fontSize: "var(--text-xs)",
-    fontWeight: "500",
+    fontSize: "var(--text-ui)",
+    fontWeight: "400",
     lineHeight: "1",
     verticalAlign: "middle",
     userSelect: "none",

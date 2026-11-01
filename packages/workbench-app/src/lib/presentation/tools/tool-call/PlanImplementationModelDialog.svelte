@@ -161,14 +161,10 @@ $effect(() => {
 >
   <div class="grid gap-3">
     <section class="grid gap-2">
-      <p
-        class="m-0 text-xs font-semibold uppercase tracking-wide text-muted-foreground"
-      >
-        Model
-      </p>
+      <p class="m-0 text-ui font-medium text-foreground">Model</p>
       {#if models.length === 0}
         <p
-          class="m-0 rounded-md border border-dashed border-border bg-muted p-3 text-sm text-muted-foreground"
+          class="m-0 rounded-md border border-dashed border-border bg-muted p-3 text-ui text-muted-foreground"
         >
           No models available. Configure a provider or adjust Scoped Models in
           Settings.
@@ -196,7 +192,7 @@ $effect(() => {
               {#each providerChips as chip (chip.id)}
                 <ToggleGroup.Item
                   value={chip.id}
-                  class="flex-none gap-1.5 text-xs"
+                  class="flex-none gap-1.5 text-ui"
                 >
                   {chip.label}
                   <span class="text-muted-foreground">{chip.count}</span>
@@ -205,7 +201,7 @@ $effect(() => {
             </ToggleGroup.Root>
           {/if}
           {#if filteredModels.length === 0}
-            <p class="m-0 px-1 py-2 text-sm text-muted-foreground">
+            <p class="m-0 px-1 py-2 text-ui text-muted-foreground">
               No models match the current filters.
             </p>
           {:else}
@@ -220,10 +216,10 @@ $effect(() => {
                 {@const active = entry.key === selectedModelKey}
                 <button
                   type="button"
-                  class={`flex w-full items-center justify-between gap-3 rounded-md border px-2.5 py-1.5 text-left text-sm transition-colors disabled:opacity-50 ${
+                  class={`flex w-full items-center justify-between gap-3 rounded-md border px-2.5 py-1.5 text-left text-ui transition-colors disabled:opacity-50 ${
                     active
-                      ? "border-primary/40 bg-selected text-foreground"
-                      : "border-transparent text-foreground hover:bg-accent"
+                      ? "border-primary-strong bg-selected text-foreground"
+                      : "border-transparent text-foreground hover:bg-hover"
                   }`}
                   aria-selected={active}
                   role="option"
@@ -231,9 +227,7 @@ $effect(() => {
                     !implementationModelCompatible(entry.model, requirements)}
                   onclick={() => selectModel(entry.model)}
                 >
-                  <span class="min-w-0 truncate font-medium"
-                    >{entry.contextualLabel}</span
-                  >
+                  <span class="min-w-0 truncate">{entry.contextualLabel}</span>
                   {#if active}<CircleCheck
                       class="size-4"
                       strokeWidth={2.4}
@@ -247,12 +241,8 @@ $effect(() => {
     </section>
 
     {#if selectedModel}
-      <section class="grid gap-2 border-t border-border/60 pt-3">
-        <p
-          class="m-0 text-xs font-semibold uppercase tracking-wide text-muted-foreground"
-        >
-          Thinking level
-        </p>
+      <section class="grid gap-2 pt-3">
+        <p class="m-0 text-ui font-medium text-foreground">Thinking level</p>
         <div
           class="flex flex-wrap gap-2"
           role="group"
@@ -262,10 +252,10 @@ $effect(() => {
             {@const active = level === selectedThinkingLevel}
             <button
               type="button"
-              class={`rounded-md border px-3 py-1 text-xs font-medium transition-colors disabled:opacity-50 ${
+              class={`rounded-md border px-3 py-1 text-ui transition-colors disabled:opacity-50 ${
                 active
                   ? "border-primary bg-selected text-foreground"
-                  : "border-border bg-input text-muted-foreground hover:border-primary/40 hover:text-foreground"
+                  : "border-border bg-input text-muted-foreground hover:border-primary-strong hover:text-foreground"
               }`}
               disabled={requirements.reasoningLevel !== undefined}
               aria-pressed={active}

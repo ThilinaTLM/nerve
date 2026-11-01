@@ -76,8 +76,8 @@ function unavailableMessage(
       {/if}
     </Empty.Media>
     <Empty.Header class="gap-1">
-      <Empty.Title class="text-sm font-medium">{title}</Empty.Title>
-      <Empty.Description class="text-xs">{description}</Empty.Description>
+      <Empty.Title class="text-ui">{title}</Empty.Title>
+      <Empty.Description class="text-ui">{description}</Empty.Description>
     </Empty.Header>
     {#if retry}
       <Empty.Content class="gap-1">
@@ -90,7 +90,7 @@ function unavailableMessage(
 {/snippet}
 
 {#snippet fileLetter(file: GithubPrFile)}
-  <span class={cn("font-mono font-semibold", fileStatusTone(file.status))}>
+  <span class={cn("font-mono font-medium", fileStatusTone(file.status))}>
     {fileStatusLetter(file.status)}
   </span>
 {/snippet}
@@ -115,7 +115,7 @@ function unavailableMessage(
       {/snippet}
     </PanelTree>
     {#if list.truncated}
-      <p class="px-3 py-2 text-xs text-warning">
+      <p class="px-3 py-2 text-ui text-warning">
         Partial list: {list.files.length} of {list.totalCount} files.
       </p>
     {/if}
@@ -163,7 +163,7 @@ function unavailableMessage(
       role="status"
     >
       <Spinner class="size-6 text-primary" />
-      <strong class="text-foreground">Loading file diff</strong>
+      <strong class="font-medium text-foreground">Loading file diff</strong>
     </div>
   {/if}
 {/snippet}
@@ -200,7 +200,7 @@ function unavailableMessage(
     {:else if current}
       <div class="flex shrink-0 items-center border-b px-3 py-1.5">
         <span
-          class="min-w-0 flex-1 truncate font-mono text-xs"
+          class="min-w-0 flex-1 truncate font-mono text-ui"
           title={current.path}
         >
           {current.path}

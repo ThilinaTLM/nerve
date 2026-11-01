@@ -1,4 +1,5 @@
 <script lang="ts">
+import { Callout } from "@nervekit/ui-kit/components/composites/callout";
 import ChevronRight from "@lucide/svelte/icons/chevron-right";
 import Trash2 from "@lucide/svelte/icons/trash-2";
 import type { StorageCleanupTarget, StorageUsageResponse } from "$lib/api";
@@ -6,7 +7,6 @@ import { Button } from "@nervekit/ui-kit/components/ui/button";
 import * as Collapsible from "@nervekit/ui-kit/components/ui/collapsible";
 import ConfirmDialog from "@nervekit/ui-kit/components/composites/confirm-dialog";
 import DialogShell from "@nervekit/ui-kit/components/composites/dialog-shell";
-import { SettingsInlineMessage } from "$lib/presentation/settings";
 import {
   allCleanupSelection,
   buildCleanupRequest,
@@ -87,11 +87,11 @@ function start(): void {
       aria-hidden="true"
     />
     <span class="grid min-w-0 flex-1 gap-0.5 text-left">
-      <span class="text-xs font-medium text-foreground">{title}</span>
-      <span class="text-xs text-muted-foreground">{description}</span>
+      <span class="text-ui text-foreground">{title}</span>
+      <span class="text-ui text-muted-foreground">{description}</span>
     </span>
     {#if groupCount(group) > 0}
-      <span class="text-xs text-muted-foreground">{groupCount(group)}</span>
+      <span class="text-ui text-muted-foreground">{groupCount(group)}</span>
     {/if}
   </Collapsible.Trigger>
 {/snippet}
@@ -104,13 +104,13 @@ function start(): void {
 >
   <div class="grid gap-2">
     <div
-      class="flex flex-wrap items-center justify-between gap-2 border-b border-border/50 px-1 pb-2"
+      class="flex flex-wrap items-center justify-between gap-2 border-b border-border-subtle px-1 pb-2"
     >
       <div class="grid gap-0.5">
-        <span class="text-xs font-medium">
+        <span class="text-ui">
           {targets.length} target{targets.length === 1 ? "" : "s"} selected
         </span>
-        <span class="text-xs text-muted-foreground">
+        <span class="text-ui text-muted-foreground">
           Will free ≈ {footprint.upTo ? "up to " : ""}{formatBytes(
             footprint.bytes,
           )}
@@ -142,7 +142,7 @@ function start(): void {
         "Permanent conversation and message removal.",
       )}
       <Collapsible.Content
-        class="mt-0.5 divide-y divide-border/60 rounded-md border border-border/60"
+        class="mt-0.5 divide-y divide-border-subtle rounded-md border border-border-subtle"
       >
         <StorageCleanupChoice
           id="cleanup-conversations"
@@ -163,7 +163,7 @@ function start(): void {
         "Diagnostic history that is not required for conversations.",
       )}
       <Collapsible.Content
-        class="mt-0.5 divide-y divide-border/60 rounded-md border border-border/60"
+        class="mt-0.5 divide-y divide-border-subtle rounded-md border border-border-subtle"
       >
         <StorageCleanupChoice
           id="cleanup-dated-logs"
@@ -190,7 +190,7 @@ function start(): void {
         "Generated output that Nerve can operate without.",
       )}
       <Collapsible.Content
-        class="mt-0.5 divide-y divide-border/60 rounded-md border border-border/60"
+        class="mt-0.5 divide-y divide-border-subtle rounded-md border border-border-subtle"
       >
         <StorageCleanupChoice
           id="cleanup-crash-reports"
@@ -214,18 +214,19 @@ function start(): void {
     </Collapsible.Root>
 
     {#if selection.conversations}
-      <SettingsInlineMessage
+      <Callout
+        layout="block"
         tone="destructive"
         text="Old conversations and their messages are permanently deleted and cannot be recovered."
       />
     {/if}
     {#if selectionError}
-      <SettingsInlineMessage tone="destructive" text={selectionError} />
+      <Callout layout="block" tone="destructive" text={selectionError} />
     {/if}
   </div>
 
   {#snippet footer()}
-    <span class="mr-auto text-xs text-muted-foreground">
+    <span class="mr-auto text-ui text-muted-foreground">
       Will free ≈ {footprint.upTo ? "up to " : ""}{formatBytes(footprint.bytes)}
     </span>
     <Button variant="outline" onclick={() => (open = false)}>Cancel</Button>

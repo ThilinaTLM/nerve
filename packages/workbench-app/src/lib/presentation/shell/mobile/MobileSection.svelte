@@ -33,8 +33,8 @@ let menuOpen = $state(false);
         ? "-my-1 flex items-center gap-2 px-1"
         : "flex items-baseline gap-2 px-1"}
     >
-      <span class="text-sm font-semibold text-foreground">{title}</span>
-      {#if meta}<span class="text-xs text-muted-foreground">{meta}</span>{/if}
+      <span class="text-ui font-medium text-foreground">{title}</span>
+      {#if meta}<span class="text-ui text-muted-foreground">{meta}</span>{/if}
       {#if menuItems?.length}
         <Button
           variant="ghost"

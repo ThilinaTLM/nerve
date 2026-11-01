@@ -56,7 +56,7 @@ const colorClass: Record<StatusTone, string> = {
   warning: "text-warning",
   destructive: "text-destructive",
   neutral: "text-muted-foreground",
-  accent: "text-muted-foreground",
+  brand: "text-primary",
 };
 
 const terminalIcon = {
@@ -65,7 +65,7 @@ const terminalIcon = {
   warning: CircleAlert,
   destructive: CircleX,
   neutral: Circle,
-  accent: Circle,
+  brand: Circle,
 } satisfies Record<StatusTone, typeof Circle>;
 
 const glyphIcon = {

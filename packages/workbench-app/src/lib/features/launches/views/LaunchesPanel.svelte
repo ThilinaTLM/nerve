@@ -1,4 +1,5 @@
 <script lang="ts">
+import { Callout } from "@nervekit/ui-kit/components/composites/callout";
 import { untrack, type Snippet } from "svelte";
 import ListTodo from "@lucide/svelte/icons/list-todo";
 import FolderPlus from "@lucide/svelte/icons/folder-plus";
@@ -19,7 +20,6 @@ import {
   PaneGroup,
 } from "@nervekit/ui-kit/components/ui/resizable";
 import {
-  PanelBanner,
   PanelEmpty,
   PanelHeader,
   PanelList,
@@ -318,7 +318,7 @@ function rerunDefinition(entry: { definition?: LaunchPanelDefinition }): void {
       {#if model.configurationBlocked}
         <!-- The configuration notice is the only content. -->
       {:else if model.definitionsLoading && model.definitions.length === 0}
-        <p class="py-1 text-xs text-muted-foreground">Loading launches…</p>
+        <p class="py-1 text-ui text-muted-foreground">Loading launches…</p>
       {:else if model.catalogError && projected.definitions.length === 0 && model.folders.length === 0}
         <!-- No snapshot to show; the banner explains why. -->
       {:else if projected.definitions.length === 0 && model.folders.length === 0}
@@ -462,19 +462,21 @@ function rerunDefinition(entry: { definition?: LaunchPanelDefinition }): void {
         {/snippet}
       </PanelHeader>
       {#if !model.availability.available}
-        <PanelBanner tone="neutral">{model.availability.message}</PanelBanner>
+        <Callout layout="strip" tone="neutral"
+          >{model.availability.message}</Callout
+        >
       {:else}
         {@render configurationNotice?.()}
         {#if model.catalogError}
-          <PanelBanner tone="destructive">
+          <Callout layout="strip" tone="destructive">
             {model.catalogError}
             {projected.definitions.length > 0 || model.folders.length > 0
               ? " Showing the last known launches; editing is disabled."
               : ""}
-          </PanelBanner>
+          </Callout>
         {/if}
         {#if model.notice}
-          <PanelBanner tone="info">{model.notice}</PanelBanner>
+          <Callout layout="strip" tone="info">{model.notice}</Callout>
         {/if}
       {/if}
     {/snippet}

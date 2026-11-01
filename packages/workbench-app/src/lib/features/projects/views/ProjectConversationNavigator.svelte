@@ -1,4 +1,5 @@
 <script lang="ts">
+import { GroupLabel } from "@nervekit/ui-kit/components/composites/group-label";
 import { tick, untrack } from "svelte";
 import type { ConversationRow } from "$lib/domain/projects/project-tree";
 import ScrollRegion from "@nervekit/ui-kit/components/composites/scroll-region";
@@ -294,20 +295,15 @@ const menuContext = $derived<ProjectTreeMenuContext>({
         contentClass="px-2 pb-2"
       >
         {#each displayedSections as section (section.key)}
-          <div
-            class="flex items-center gap-1.5 px-1 pt-3 pb-1 text-[0.6875rem] font-medium tracking-wide uppercase text-muted-foreground"
-          >
-            {#if section.key === "pinned"}<Pin
-                class="size-3"
-                aria-hidden="true"
-              />{/if}
-            {section.label}<span class="font-normal text-muted-foreground/70"
-              >{searching
-                ? searchHits.length
-                : (sections.find((candidate) => candidate.key === section.key)
-                    ?.rows.length ?? section.rows.length)}</span
-            >
-          </div>
+          <GroupLabel
+            class="px-1 pt-3 pb-1"
+            label={section.label}
+            icon={section.key === "pinned" ? Pin : undefined}
+            count={searching
+              ? searchHits.length
+              : (sections.find((candidate) => candidate.key === section.key)
+                  ?.rows.length ?? section.rows.length)}
+          />
           <PanelList
             ariaLabel={`${section.label} conversations`}
             class="shrink-0 overflow-hidden rounded-md py-0"

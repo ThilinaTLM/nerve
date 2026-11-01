@@ -12,9 +12,7 @@ import {
   queueSettingsSave,
   restartOwnedDaemon,
   saveApplicationConfiguration,
-  setColorMode,
-  setDarkTheme,
-  setLightTheme,
+  setTheme,
 } from "$lib/application/settings/settings-actions.svelte";
 
 /**
@@ -74,10 +72,6 @@ $effect(() => {
   onSettingsChange={queueSettingsSave}
   onApplicationConfigurationChange={saveApplicationConfiguration}
   onRestartDaemon={restartOwnedDaemon}
-  lightTheme={appearanceState.lightTheme}
-  darkTheme={appearanceState.darkTheme}
-  colorMode={appearanceState.colorMode}
-  onLightThemeChange={setLightTheme}
-  onDarkThemeChange={setDarkTheme}
-  onColorModeChange={setColorMode}
+  theme={appearanceState.theme}
+  onThemeChange={setTheme}
 />

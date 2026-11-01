@@ -35,7 +35,7 @@ const showText = $derived(
 <ToolSections>
   {#if fields.length > 0}
     <dl
-      class="m-0 grid grid-cols-[max-content_minmax(0,1fr)] gap-x-4 gap-y-1 px-3 py-2 text-xs"
+      class="m-0 grid grid-cols-[max-content_minmax(0,1fr)] gap-x-4 gap-y-1 px-3 py-2 text-ui"
     >
       {#each fields as field (field.label)}
         <dt class="text-muted-foreground">{field.label}</dt>
@@ -53,7 +53,7 @@ const showText = $derived(
             >
           {:else}
             <span class="inline-flex h-[1lh] items-center align-bottom">
-              <Skeleton class="h-[0.7em] w-20 rounded-sm bg-foreground/10" />
+              <Skeleton class="h-[0.7em] w-20 rounded-sm" />
             </span>
           {/if}
         </dd>
@@ -64,9 +64,7 @@ const showText = $derived(
   {#if showText && body.text}
     {#if body.text.text !== undefined && body.text.language}
       <div class="grid gap-1.5 px-2.5 py-2">
-        <span class="text-xs font-medium text-muted-foreground"
-          >{body.text.label}</span
-        >
+        <span class="text-ui text-muted-foreground">{body.text.label}</span>
         <ResultCodeBlock
           code={body.text.text}
           language={body.text.language}
@@ -85,17 +83,15 @@ const showText = $derived(
     {:else}
       <div class="px-3 py-2">
         <p
-          class="m-0 line-clamp-3 text-xs whitespace-pre-line text-muted-foreground [overflow-wrap:anywhere]"
+          class="m-0 line-clamp-3 text-ui whitespace-pre-line text-muted-foreground [overflow-wrap:anywhere]"
         >
-          <span class="font-medium text-foreground">{body.text.label}</span> · {#if body.text.text !== undefined}
+          <span class="text-foreground">{body.text.label}</span> · {#if body.text.text !== undefined}
             <span in:fade={{ duration: 220 }}
               ><StreamingText text={body.text.text} fade={streamMotion} /></span
             >
           {:else}
             <span class="inline-flex h-[1lh] items-center align-bottom">
-              <Skeleton
-                class="h-[0.7em] w-64 max-w-full rounded-sm bg-foreground/10"
-              />
+              <Skeleton class="h-[0.7em] w-64 max-w-full rounded-sm" />
             </span>
           {/if}
         </p>

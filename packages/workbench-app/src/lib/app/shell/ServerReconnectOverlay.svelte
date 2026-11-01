@@ -13,10 +13,10 @@ const view = $derived(
 
 {#if serverLifecycleState.reconnecting && serverLifecycleState.phase === "ready"}
   <div
-    class="fixed inset-0 z-[1000] grid place-items-center bg-background/70 backdrop-blur-sm"
+    class="fixed inset-0 z-[1000] grid place-items-center bg-scrim backdrop-blur-sm"
   >
     <div
-      class="w-72 max-w-[calc(100vw-2rem)] rounded-lg border bg-card p-4 text-card-foreground shadow-md"
+      class="w-72 max-w-[calc(100vw-2rem)] rounded-lg border bg-card p-4 text-card-foreground shadow-overlay"
     >
       <ServerLifecycleStatus {view} />
     </div>

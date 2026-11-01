@@ -58,20 +58,20 @@ const surfaceClass: Record<GallerySurface, string> = {
 <article class="flex min-w-0 flex-col gap-2">
   <header class="flex items-start justify-between gap-6">
     <div class="flex min-w-0 flex-col gap-0.5">
-      <h3 class="text-sm font-semibold text-foreground">{title}</h3>
+      <h3 class="text-ui font-medium text-foreground">{title}</h3>
       {#if description}
-        <p class="text-xs text-muted-foreground">{description}</p>
+        <p class="text-ui text-muted-foreground">{description}</p>
       {/if}
     </div>
     <div class="flex shrink-0 items-start gap-3">
       {#if source || usage}
         <div class="flex flex-col items-end gap-0.5">
           {#if source}
-            <code class="font-mono text-xs text-muted-foreground">{source}</code
+            <code class="font-mono text-ui text-muted-foreground">{source}</code
             >
           {/if}
           {#if usage}
-            <span class="text-xs text-muted-foreground">Used in {usage}</span>
+            <span class="text-ui text-muted-foreground">Used in {usage}</span>
           {/if}
         </div>
       {/if}
@@ -94,7 +94,7 @@ const surfaceClass: Record<GallerySurface, string> = {
     >
       {#each COMPARE_THEMES as theme (theme)}
         <div class="flex min-w-0 flex-col gap-1">
-          <span class="text-xs text-muted-foreground"
+          <span class="text-ui text-muted-foreground"
             >{theme} · {colorThemeKind[theme]}</span
           >
           <div

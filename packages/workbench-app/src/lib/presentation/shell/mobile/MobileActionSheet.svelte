@@ -70,7 +70,7 @@ function select(item: MenuAction) {
     swipeToDismiss
     onSwipeDismiss={() => onOpenChange(false)}
   >
-    <Sheet.Title class="truncate px-4 pb-1 pt-3 text-sm font-semibold"
+    <Sheet.Title class="truncate px-4 pb-1 pt-3 text-ui font-medium"
       >{title}</Sheet.Title
     >
     <div class="action-sheet-list">
@@ -78,7 +78,7 @@ function select(item: MenuAction) {
         {#if entry.kind === "separator"}
           <span class="my-1 block h-px bg-border" aria-hidden="true"></span>
         {:else if entry.kind === "label"}
-          <span class="block px-4 pb-1 pt-2 text-xs text-muted-foreground"
+          <span class="block px-4 pb-1 pt-2 text-ui text-muted-foreground"
             >{entry.label}</span
           >
         {:else}
@@ -119,11 +119,11 @@ function select(item: MenuAction) {
   min-height: 2.75rem;
   padding: 0 1rem;
   color: var(--foreground);
-  font-size: var(--text-sm);
+  font-size: var(--text-ui);
 }
 
 .action-sheet-item:active {
-  background: var(--accent);
+  background: var(--muted);
 }
 
 .action-sheet-item.destructive {

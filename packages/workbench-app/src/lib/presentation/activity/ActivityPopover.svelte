@@ -203,7 +203,7 @@ const childLabel = {
       {#if needsYou}
         <span
           class={[
-            "absolute -right-0.5 -top-0.5 min-w-4 rounded-full bg-warning px-1 text-center text-[0.6875rem] leading-4 text-warning",
+            "absolute -right-0.5 -top-0.5 min-w-4 rounded-full bg-warning px-1 text-center text-caption leading-4 text-warning",
             ping && "attention-ping",
           ]}
           aria-hidden="true"
@@ -315,7 +315,7 @@ const childLabel = {
     {:else if item.children.length}
       <ul class="mt-1 grid gap-0.5 border-l pl-2">
         {#each item.children as child (child.id)}
-          <li class="flex items-center gap-1.5 text-xs">
+          <li class="flex items-center gap-1.5 text-ui">
             {#if child.status === "done"}<CircleCheck
                 class="size-3 text-success"
                 aria-hidden="true"

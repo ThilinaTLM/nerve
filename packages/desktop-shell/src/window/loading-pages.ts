@@ -5,6 +5,10 @@ import {
   startupSplashMarkup,
 } from "./startup-splash-document.js";
 import { escapeHtml } from "./html.js";
+import {
+  DEFAULT_WINDOW_APPEARANCE,
+  type WindowAppearance,
+} from "./window-appearance.js";
 
 export class ShellPageUrlRegistry {
   #activeUrl: string | undefined;
@@ -28,26 +32,22 @@ export function createDataUrl(html: string): string {
   return `data:text/html;charset=utf-8,${encodeURIComponent(html)}`;
 }
 
-// Native BrowserWindow fallback used before either loading document can paint.
-// These mirror the light/dark --background tokens in shellStyles().
-export function loadingWindowBackground(dark: boolean): string {
-  return dark ? "#272521" : "#faf8f1";
-}
-
 export interface LoadingPageOptions {
   status?: string;
+  /** The renderer's last reported theme; defaults to the nerve-dark theme. */
+  appearance?: WindowAppearance;
 }
 
 export function loadingHtml(options: LoadingPageOptions = {}): string {
-  const { status = "Starting local services" } = options;
+  const { status = "Starting local services", appearance } = options;
   return `<!doctype html>
-<html lang="en">
+<html lang="en" ${modeAttribute(appearance)}>
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data:" />
     <title>Nerve</title>
-    <style>${shellStyles()}</style>
+    <style>${shellStyles(appearance)}</style>
   </head>
   <body>
 ${startupSplashMarkup(status)}
@@ -59,6 +59,7 @@ export interface ErrorPageOptions {
   retry?: boolean;
   title?: string;
   summary?: string;
+  appearance?: WindowAppearance;
 }
 
 export function startupErrorRetryable(error: unknown): boolean {
@@ -150,13 +151,13 @@ export function errorHtml(
     </script>`
     : "";
   return `<!doctype html>
-<html lang="en">
+<html lang="en" ${modeAttribute(options.appearance)}>
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta http-equiv="Content-Security-Policy" content="default-src 'none'; ${retry || damaged ? "script-src 'unsafe-inline'; " : ""}style-src 'unsafe-inline'; img-src data:" />
     <title>Nerve startup error</title>
-    <style>${shellStyles()}</style>
+    <style>${shellStyles(options.appearance)}</style>
   </head>
   <body>
     <main class="error">
@@ -217,25 +218,28 @@ function structuredStartupFailure(
   };
 }
 
-function shellStyles(): string {
+function modeAttribute(appearance = DEFAULT_WINDOW_APPEARANCE): string {
+  return `data-mode="${appearance.dark ? "dark" : "light"}"`;
+}
+
+function shellStyles(appearance = DEFAULT_WINDOW_APPEARANCE): string {
   // Mirrors the shadcn theme tokens from packages/ui-kit/src/styles/theme.css
   // so the pre-daemon shell matches the workbench in both light and dark.
   return `
     :root {
-      color-scheme: light dark;
+      color-scheme: light;
       --background: oklch(0.979 0.012 92);
       --foreground: oklch(0.3438 0.0269 95.7);
       --primary: oklch(0.57 0.1375 39);
-      --muted-foreground: oklch(0.49 0.0078 97.5);
-      --border: oklch(0.872 0.017 95);
+      --muted-foreground: oklch(0.4899 0.02347 95.27);
+      --border: oklch(0.871 0.01453 93.16);
       --destructive: oklch(0.5 0.19 27);
       --radius: 0.375rem;
       --radius-lg: 0.375rem;
-      --font-sans: "Outfit", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      --font-sans: "IBM Plex Sans", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
       --font-mono: "Iosevka", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-      --text-xs: 0.8125rem;
-      --text-sm: 0.9375rem;
-      --text-xl: 1.25rem;
+      --text-ui: 0.8125rem;
+      --text-title: 1rem;
       --splash-bg: var(--background);
       --splash-fg: var(--foreground);
       --splash-primary: var(--primary);
@@ -246,16 +250,17 @@ function shellStyles(): string {
       text-rendering: optimizeLegibility;
       font-kerning: normal;
     }
-    @media (prefers-color-scheme: dark) {
-      :root {
+    :root[data-mode="dark"] {
+        color-scheme: dark;
         --background: oklch(0.264 0.018 80);
         --foreground: oklch(0.9 0.012 95);
         --primary: oklch(0.6724 0.1308 38.8);
-        --muted-foreground: oklch(0.7713 0.017 99);
-        --border: oklch(0.385 0.022 82);
+        --muted-foreground: oklch(0.7919 0.01294 91.49);
+        --border: oklch(0.3848 0.01679 82.01);
         --destructive: oklch(0.8 0.114 25.5);
-      }
     }
+    /* The active theme's own background, which may differ from nerve-dark/light. */
+    :root[data-mode] { --background: ${appearance.background}; }
     * { box-sizing: border-box; }
     body {
       margin: 0;
@@ -277,15 +282,15 @@ function shellStyles(): string {
     .error-title {
       margin: 0;
       color: var(--foreground);
-      font-size: var(--text-xl);
+      font-size: var(--text-title);
       font-weight: 600;
-      line-height: 1.75rem;
+      line-height: 1.5rem;
       letter-spacing: -0.025em;
     }
     .status {
       margin: 0;
       color: var(--muted-foreground);
-      font-size: var(--text-sm);
+      font-size: var(--text-ui);
       line-height: 1.625;
     }
     .error {
@@ -299,7 +304,7 @@ function shellStyles(): string {
       background: var(--primary);
       color: var(--background);
       font: inherit;
-      font-size: var(--text-sm);
+      font-size: var(--text-ui);
       font-weight: 600;
       cursor: pointer;
       -webkit-app-region: no-drag;
@@ -308,7 +313,7 @@ function shellStyles(): string {
     details {
       width: 100%;
       color: var(--muted-foreground);
-      font-size: var(--text-xs);
+      font-size: var(--text-ui);
       text-align: left;
       user-select: text;
       -webkit-app-region: no-drag;
@@ -330,7 +335,7 @@ function shellStyles(): string {
       background: color-mix(in oklab, var(--destructive) 10%, transparent);
       color: var(--destructive);
       font-family: var(--font-mono);
-      font-size: var(--text-xs);
+      font-size: var(--text-ui);
       line-height: 1.5;
     }
     ${STARTUP_SPLASH_STYLES}

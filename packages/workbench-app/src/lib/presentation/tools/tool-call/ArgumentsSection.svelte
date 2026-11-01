@@ -22,20 +22,18 @@ const content = $derived(activated ? serialize(value) : undefined);
 </script>
 
 <details
-  class="rounded-sm border bg-muted/20"
   {open}
   ontoggle={(event) => {
     if (event.currentTarget.open) activated = true;
   }}
 >
-  <summary
-    class="cursor-pointer px-2.5 py-2 text-xs font-medium text-muted-foreground"
-  >
+  <summary class="cursor-pointer px-2.5 py-2 text-ui text-muted-foreground">
     Arguments
   </summary>
   {#if activated && content}
-    <div class="border-t p-2">
+    <div class="px-2.5 pb-2.5">
       <ResultCodeBlock
+        bare
         code={content.text}
         language={content.language}
         maxHeight="22rem"

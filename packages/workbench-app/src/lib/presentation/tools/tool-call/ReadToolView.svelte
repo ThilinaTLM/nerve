@@ -31,7 +31,7 @@ const hasContent = $derived(
           title="Open image pane"
         >
           <ToolImage
-            class="max-h-60 max-w-80 rounded-sm border object-contain"
+            class="max-h-60 max-w-80 rounded-sm object-contain"
             src={view.image.dataUrl}
             alt={view.relPath ?? "image"}
           />
@@ -42,7 +42,7 @@ const hasContent = $derived(
         <ToolOutputBlock text={view.content ?? ""} {language} {expanded} />
       </div>
     {:else}
-      <div class="px-2.5 py-2 text-xs text-muted-foreground">Empty file.</div>
+      <div class="px-2.5 py-2 text-ui text-muted-foreground">Empty file.</div>
     {/if}
   </ToolSections>
 {/if}

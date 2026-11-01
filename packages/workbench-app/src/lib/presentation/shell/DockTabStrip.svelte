@@ -253,7 +253,7 @@ const tourIdByView: Record<string, string> = {
       )}
       {#if view.id !== shellDrag.viewId && dropIndex === remainingIndex}
         <span
-          class="inline-block h-8 w-8 flex-none border-t-2 border-t-primary/55 bg-primary/10"
+          class="inline-block h-8 w-8 flex-none border-t-2 border-t-primary-strong bg-primary-subtle"
           aria-hidden="true"
         ></span>
       {/if}
@@ -304,7 +304,7 @@ const tourIdByView: Record<string, string> = {
           <Icon size={14} strokeWidth={2.1} aria-hidden="true" />
           {#if activity}
             <Badge
-              variant="accent"
+              variant="info"
               class="pointer-events-none absolute right-0 top-0 origin-top-right scale-75 rounded-full"
               aria-hidden="true"
               >{activity.count > 99 ? "99+" : activity.count}</Badge
@@ -315,7 +315,7 @@ const tourIdByView: Record<string, string> = {
     {/each}
     {#if dragActive && dropIndex !== undefined && dropIndex >= remainingViews.length}
       <span
-        class="inline-block h-8 w-8 flex-none border-t-2 border-t-primary/55 bg-primary/10"
+        class="inline-block h-8 w-8 flex-none border-t-2 border-t-primary-strong bg-primary-subtle"
         aria-hidden="true"
       ></span>
     {/if}

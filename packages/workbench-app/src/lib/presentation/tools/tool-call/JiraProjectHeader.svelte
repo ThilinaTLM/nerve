@@ -10,12 +10,10 @@ let { project }: Props = $props();
 
 <div class="grid gap-1.5 px-2.5 py-2">
   <div class="flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-1">
-    <span class="font-mono text-xs font-semibold text-primary"
-      >{project.key}</span
+    <span class="font-mono text-ui font-medium text-primary">{project.key}</span
     >
     {#if project.name}
-      <span
-        class="min-w-0 break-words text-xs font-medium leading-snug text-foreground"
+      <span class="min-w-0 break-words text-ui leading-snug text-foreground"
         >{project.name}</span
       >
     {/if}
@@ -27,7 +25,7 @@ let { project }: Props = $props();
       {/if}
       {#if project.lead}
         <span
-          class="inline-flex min-w-0 items-center gap-1 text-xs text-muted-foreground"
+          class="inline-flex min-w-0 items-center gap-1 text-ui text-muted-foreground"
         >
           <User size={12} strokeWidth={2} class="shrink-0" />
           <span class="truncate">{project.lead}</span>

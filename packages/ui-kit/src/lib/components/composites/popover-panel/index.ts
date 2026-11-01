@@ -14,7 +14,10 @@ export {
   type CommandItem,
 } from "../../../collections/command-filter.js";
 export { default as PopoverRow } from "../select-row/select-row.svelte";
-export { default as SelectRow } from "../select-row/select-row.svelte";
+export {
+  default as SelectRow,
+  selectRowVariants,
+} from "../select-row/select-row.svelte";
 
 export { default as PopoverCommandList } from "./popover-command-list.svelte";
 export { default as PopoverViews } from "./popover-views.svelte";

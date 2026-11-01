@@ -32,14 +32,14 @@ const visible = $derived(expanded ? sorted : sorted.slice(0, COLLAPSED_LINES));
 
 {#if view.total === 0 && toolCall.status === "completed"}
   <ToolSections>
-    <div class="px-2.5 py-2 text-xs text-muted-foreground">
+    <div class="px-2.5 py-2 text-ui text-muted-foreground">
       Empty directory.
     </div>
   </ToolSections>
 {:else if view.total > 0}
   <ToolSections>
     <ul
-      class="m-0 list-none px-2.5 py-2 font-mono text-xs leading-normal text-foreground"
+      class="m-0 list-none px-2.5 py-2 font-mono text-ui leading-normal text-foreground"
     >
       {#each visible as entry, index (entry.path)}
         <li
@@ -61,7 +61,7 @@ const visible = $derived(expanded ? sorted : sorted.slice(0, COLLAPSED_LINES));
           {#if entry.kind === "file"}
             <button
               type="button"
-              class="cursor-pointer border-0 bg-transparent p-0 text-left font-mono text-xs text-primary hover:underline"
+              class="cursor-pointer border-0 bg-transparent p-0 text-left font-mono text-ui text-primary hover:text-foreground"
               onclick={() => onOpenFile?.(entry.openPath ?? entry.path)}
               >{entry.path}</button
             >

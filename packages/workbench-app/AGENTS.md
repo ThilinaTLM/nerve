@@ -8,7 +8,7 @@ Application `*Host` components are state/effect adapters around canonical featur
 
 - **Tier 1 (default): Tailwind token utilities in markup** for layout, spacing,
   typography, color, borders, radius, and shadow. Use theme tokens only
-  (`text-muted-foreground`, `bg-card`, `border`, `rounded-md`, `text-xs`, …) plus
+  (`text-muted-foreground`, `bg-card`, `border`, `rounded-md`, `text-ui`, …) plus
   `success`/`warning`/`info`. `destructive` is the readable text/tint red;
   opaque destructive fills use `destructive-solid` /
   `destructive-solid-foreground`. No hard-coded colors, font sizes, spacing, or
@@ -20,61 +20,103 @@ Application `*Host` components are state/effect adapters around canonical featur
   global `foreground` / `muted-foreground`; they deliberately have no foreground
   tokens of their own. Never reach for a surface to get a shade you like — pick
   the one that matches the role.
-- **Themes are independent and each is either light or dark** (VS Code model):
-  `nerve-light`, `nerve-dark`, `graphite` (dark), `melange-light` (light)
-  and `melange-dark` (dark), with `colorThemeKind`
-  in `contracts/settings` as the source of truth. The client stores a light
-  theme and a dark theme (`nerve-light-theme`, `nerve-dark-theme`) plus the
-  colour mode; the resolved mode picks which one applies, so Settings offers
-  "Light theme" and "Dark theme" pickers next to System/Light/Dark. A theme
+- **The theme is one flat choice and each theme is either light or dark**:
+  `nerve-light`, `nerve-dark`, `melange-light`, `melange-dark`, `graphite`
+  (family order, `colorThemeSchema`), default `nerve-dark`, with
+  `colorThemeKind` in `contracts/settings` as the source of truth. The app
+  does not follow the OS colour scheme: the client stores one theme
+  (`nerve-theme`, `platform/appearance`), and the theme's kind sets `.dark`
+  and `color-scheme`. Settings offers a single Theme picker of equal-width
+  preview cards. The pre-paint bootstrap in `index.html` mirrors
+  `theme-preference.ts`, including the one-time migration from the old
+  light/dark/colour-mode keys. A theme
   owns colour only: radius, elevation strength and shadow recipes are global,
   a theme has exactly one block (`:root[data-theme="<id>"],
 [data-theme-preview="<id>"]`) in `theme.css`, and the
-  `card`/`popover`/`accent` foregrounds and the syntax diff/link roles are
-  aliases of `foreground` and the status tokens. Mode-dependent globals (shadow
+  `card`/`popover` foregrounds, `ring` (= `primary`), the derived recipes and
+  the syntax diff/link roles are aliases of `foreground` and the status tokens. Mode-dependent globals (shadow
   colour, input fill, overlay edge) key on `.dark` /
   `[data-color-mode="dark"]`, so a preview root sets `data-color-mode` from
-  the theme's kind. Legacy single-theme ids map to a light/dark pair in
-  `legacyColorThemes` (`contracts/settings`).
+  the theme's kind.
 - **No `dark:` utilities** (enforced by the style-policy check in `ui-kit` and
   `workbench-app`). Mode differences live in token values so previews and
   portalled content resolve them correctly. Use `bg-input-background` for
   field fills (transparent in light, a faint lift in dark) and one
   `aria-invalid` ring/border alpha that works in both modes.
 - **Neutral hover is `hover:bg-hover`** (`--hover`, a translucent foreground
-  overlay that works on any surface). Do not hand-roll opacity recipes such as
-  `hover:bg-accent/50` or `hover:bg-muted/60`; keep opaque `accent`/`muted`
-  fills for resting or pressed states, and semantic tints (`destructive/…`)
-  where the meaning is not neutral.
-- **Quiet fills** (`muted`, `accent`) are meant to sit beyond the surface
-  ladder on the foreground side so they stay visible on every surface (dark:
-  `popover < muted < accent`; light: `accent < muted < well`). Every
+  overlay that works on any surface), including menu highlights. Keep the
+  opaque `muted` fill for resting or pressed states.
+- **Colours are tokens or derived recipes, never local alphas.** App code
+  (`workbench-app`) may not use opacity modifiers (`bg-destructive/10`,
+  `border-border/60`) or `color-mix()`; the style policy rejects them.
+  `theme.css` derives the recipes once: `bg-<tone>-subtle` (8% tint for
+  callouts, chips and soft fills), `border-<tone>-strong` / `ring-<tone>-strong`
+  (40% for tinted edges and highlight marks), `border-border-subtle` (inner
+  hairlines), `ring-focus` / `outline-focus` (focus halo) and `bg-scrim`
+  (behind overlays); `<tone>` is `primary`, `info`, `success`, `warning` or
+  `destructive`. Only ui-kit primitives compose their own alphas, and
+  illustrations (`DiscoverNewsArtwork`, theme previews) are exempt.
+- **Two elevations:** controls are flat (border only); `shadow-sm` for raised cards,
+  `shadow-overlay` for anything floating (popovers, menus, dialogs, sheets,
+  tooltips, floating toolbars).
+- **Type scale has four roles, 13–16px** (defined in `ui-kit` `theme.css`;
+  Tailwind's default sizes are cleared and the style-policy check rejects them
+  and arbitrary `text-[…]` sizes): `text-caption` 13px for glanceable extras
+  (timestamps, counts, chips, kbd, section captions, settings supporting
+  text; never errors or instructions), `text-ui` 14px for everything
+  interactive or list-like, `text-body` 15px for prose the user reads
+  (transcript, markdown, PR descriptions), `text-title` 16px for page,
+  dialog and card titles and headline numbers, always `font-medium` (regular
+  for a welcome line). The only exception is the phone composer,
+  which stays at 16px so iOS does not zoom on focus.
+- **Selection is `bg-selected` plus a brand marker.** `--selected` is a
+  brand tint (16% `primary`) in every theme, light enough that
+  `text-muted-foreground` keeps 4.5:1 on it (`theme-contrast.test.ts`), so
+  secondary text stays grey and is never re-coloured by hand. Selection never
+  changes the weight: a selected row only takes the tint and, where it has
+  one, renders its leading icon or idle dot in `text-primary`; status-coloured
+  glyphs keep their tone. Never add a stronger fill, border, or bar to signal
+  selection.
+- **Buttons never underline.** Buttons, clickable badges and other
+  button-like elements answer hover with a fill (`hover:bg-hover`, a stronger
+  tone tint on Badge) or a colour change (`hover:text-foreground`). Underlines
+  are for prose links only; the style-policy check rejects `hover:underline`
+  outside `PROSE_LINK_UNDERLINE_ALLOWLIST`.
+- **The quiet fill** (`muted`) sits beyond the surface ladder on the
+  foreground side so it stays visible on every surface (dark:
+  `popover < muted`; light: `muted < well`). Every
   theme follows this, and `theme-contrast.test.ts` enforces it. For recessed tracks and output use `well`; for interaction states
   prefer `bg-hover` or `bg-selected`.
-- **Status colour has one vocabulary**: `neutral`, `accent`, `info`, `success`,
+- **Group captions use `GroupLabel`** (ui-kit composite): the quiet
+  sentence-case caption above a group of rows (Pinned, Today, Connections),
+  with optional icon and count. Never an uppercase eyebrow.
+- **Status colour has one vocabulary**: `neutral`, `brand` (primary, for what
+  the app highlights: Default markers, meters), `info`, `success`,
   `warning`, `destructive` (`StatusTone` in `@nervekit/ui-kit/display/status`).
-  `StatusDot`, `Badge`, `ProgressRing`, `PanelRow`, `PanelBanner`, and the
+  `StatusDot`, `Badge`, `ProgressRing`, `PanelRow`, `Callout layout="strip"`, and the
   status helpers all speak it, so a tone computed once can drive any of them.
   Never invent a parallel set of tone names (`good`/`warn`/`danger`/`error`/
   `muted`/`default` are all spellings of tones that already exist). Domain
   vocabularies that are genuinely not status — diff line kinds, notification
   sounds — stay separate.
-- **Settings has three heading levels.** Page title `text-lg` semibold
+  Text strength (foreground vs `muted-foreground`) is not a tone; set it
+  with text colour, never by picking a tone.
+- **Settings has three heading levels.** Page title `text-title` medium
   foreground (`SettingsPageHeader`, `pb-2` of space below); section heading
-  `text-sm` semibold foreground, optionally followed by ONE `text-xs` muted
-  description line; entity title (`EntityCard`, e.g. a profile) `text-sm`
-  medium foreground. Row titles are `text-sm` regular foreground and all
-  supporting text is `text-xs` muted, so weight and colour carry the
+  `text-ui` medium foreground, optionally followed by ONE `text-caption` muted
+  description line; entity title (`EntityCard`, e.g. a profile) `text-ui`
+  regular foreground. Row titles are `text-ui` regular foreground and all
+  supporting text is `text-caption` muted, so weight and colour carry the
   hierarchy. Headings are sentence case, never uppercase eyebrows. Longer
   detail goes in a `SettingsInfoHint` tooltip, not a paragraph. Use
   `SettingsSection` for every group of rows (the muted `SettingsGroup` heading
   is legacy); an entity such as a profile gets an `EntityCard`, never a muted
   group heading above it. `settings-typography.test.ts` enforces this.
 - **Settings navigation is grouped.** `SettingsNav` takes `SettingsNavGroup[]`
-  (optional quiet caption `text-xs font-medium text-muted-foreground`, no hover
-  or icon; items `text-sm` with a lucide icon, muted until active) and a
+  (optional `GroupLabel` caption: `text-caption text-muted-foreground`, no hover
+  or icon; items `text-ui` with a lucide icon, muted until active) and a
   `SettingsScopeHeader` (User settings, or project name and path) separated by a
-  rule. The active item is `bg-selected font-medium`, a persistent state
+  rule. The active item is `bg-selected`, a persistent state
   that should not depend on the quiet fills. Never reuse a group title as
   an item name.
 - **Settings sections are surfaces.** `SettingsSection` draws its body as a
@@ -108,7 +150,10 @@ Application `*Host` components are state/effect adapters around canonical featur
   composer). `ModelMultiSelect` chooses several (the model scope). They are
   not interchangeable.
 - **Monospace is only for code, logs and paths.** Tool, skill and setting
-  names, counts and other metadata use the sans face.
+  names, counts and other metadata use the sans face. Tool call card headers
+  (`CardHeader`: tool name and argument summary) use the sans font even when
+  they show a command or path; the card body keeps code, output, diffs and
+  file lists monospace.
 - **Settings uses one set of list patterns.** Entity lists are a single
   `SettingsList` (bordered `card` surface, hairline-divided rows) holding
   `SettingsListItem` rows, never a stack of individually tinted cards. A row's
@@ -158,10 +203,9 @@ that maps cleanly to utilities. Convert it to Tier 1.
 6. `[data-state]` / `[data-tone]` / `[data-*]` styling that reassigns custom
    properties.
 7. Platform CSS (`-webkit-app-region: drag/no-drag`).
-8. Two-color `color-mix()` **blends** (e.g.
-   `color-mix(in oklab, var(--primary) 40%, var(--border))`). A mix with
-   `transparent` is just opacity — in markup always prefer the Tailwind opacity
-   modifier (`bg-primary/40`, `border-border/60`) instead.
+8. Derived colour recipes in scoped CSS: use the token variables
+   (`var(--warning-subtle)`, `var(--border-subtle)`, `var(--scrim)`); new
+   recipes are added to `theme.css`, not mixed locally.
 9. Virtualizer / measured-layout internals: the viewport, spacer, and
    absolutely positioned rows generated by
    `packages/ui-kit/src/lib/components/composites/virtual-list/virtual-scroller.svelte`.
@@ -181,7 +225,9 @@ later) are **notices**. A notice is a
 process the reader cares about, exactly like a tool call, so it renders through
 the same card: `$lib/presentation/cards` owns `CardShell`, `CardHeader`,
 `CardFooter`, `StatusGlyph`, `MetaChip` and `LifecycleFrame`, and both tool
-calls and notices compose them. A pure mapper in
+calls and notices compose them. `Badge` is the one chip primitive (a borderless
+tinted label with `StatusTone` variants plus `outline`); `MetaChip` maps a
+card's `MetaItem` onto it. A pure mapper in
 `$lib/presentation/transcript/notice` turns the payload into a
 `TranscriptNoticeModel` (`kind`, `tone`, `glyph`, `busy`, `badge`, `arg`,
 `statusLabel`, `summary`, `error`, `chips`, `action`); `NoticeCard.svelte` binds
@@ -203,9 +249,10 @@ it to `CardShell`. Adding a notice kind is a mapper, a thin card and one
   task command, compaction reason, or failure summary. Task notices follow bash
   projection rules: multiline commands move to a command body and selected
   recent/relevant output renders in a separate recessed output body.
-- **Chips, not badges.** Extra facts (`exit 0`, `signal SIGTERM`, `retry 2/5`,
-  token counts) use the shared `MetaChip` family. A chip must add information:
-  never restate the event name.
+- **One chip primitive: `Badge`.** A borderless tinted label with `StatusTone`
+  variants plus `outline`; `MetaChip` maps a card's `MetaItem` onto it. Extra
+  facts (`exit 0`, `signal SIGTERM`, `retry 2/5`, token counts) must add
+  information: never restate the event name.
 - **Actions stay in the footer.** Passive actions such as `Open task` and
   `View details` use the shared `cardActions` pills. A recovery-critical
   `Continue` action uses the shared primary footer-action slot and official
@@ -221,8 +268,8 @@ it to `CardShell`. Adding a notice kind is a mapper, a thin card and one
 
 Dock panel content (Conversations, Git, Context, Notes, Tasks) must be built from
 the `$lib/presentation/panels` primitives — `PanelView`, `PanelHeader`,
-`PanelToolbar`, `PanelToolbarButton`, `PanelSectionHeader`, `PanelList`,
-`PanelRow`, `PanelTree`, `PanelBanner`, `PanelEmpty`.
+`PanelToolbarButton`, `PanelSectionHeader`, `PanelList`,
+`PanelRow`, `PanelTree`, `Callout layout="strip"`, `PanelEmpty`.
 
 - A panel view's root is `PanelView`. It owns the height, the sticky toolbar,
   and the banner slot; its content owns the one scroll region (a `ScrollArea`,
@@ -321,7 +368,8 @@ src/styles/
 - Icons: `@lucide/svelte`, sized/colored via `class` on the icon. Loading
   spinners use the shared `Spinner` component
   (`@nervekit/ui-kit/components/ui/spinner`), not ad-hoc spinning loader icons.
-- Monospace (`font-mono`) is for code, logs, and paths only.
+- Monospace (`font-mono`) is for code, logs, and paths only; tool call card
+  headers use the sans font even when they show a command or path.
 - Validate with `pnpm check`; verify visuals (light + dark) with the
   `agent-browser` skill.
 - Guardrails (should stay clean): no `import "*.css"` outside `styles/app.css`;

@@ -195,7 +195,7 @@ const streamLines: LogStreamLine[] = [
       <div class="grid gap-4 xl:grid-cols-2">
         {#each paneStates as state (state.title)}
           <div class="flex flex-col gap-1">
-            <span class="text-xs text-muted-foreground">{state.title}</span>
+            <span class="text-ui text-muted-foreground">{state.title}</span>
             <div class="h-56 overflow-hidden rounded-md border">
               <LogsPane model={state.model} {actions} />
             </div>
@@ -236,7 +236,7 @@ const streamLines: LogStreamLine[] = [
     >
       <div class="grid max-w-200 gap-3">
         <div
-          class="relative h-16 overflow-hidden rounded-md border bg-background"
+          class="relative h-24 overflow-hidden rounded-md border bg-background"
         >
           <LogsFloatingToolbar
             contains={findText}
@@ -248,7 +248,7 @@ const streamLines: LogStreamLine[] = [
           />
         </div>
         <div
-          class="relative h-16 overflow-hidden rounded-md border bg-background"
+          class="relative h-24 overflow-hidden rounded-md border bg-background"
         >
           <LogsFloatingToolbar
             contains="timeout"

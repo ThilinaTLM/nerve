@@ -1,8 +1,8 @@
 <!-- LLM accounts, subscriptions and custom providers and models. User-only. -->
 <script lang="ts">
+import { Callout } from "@nervekit/ui-kit/components/composites/callout";
 import ChevronRight from "@lucide/svelte/icons/chevron-right";
 import * as Collapsible from "@nervekit/ui-kit/components/ui/collapsible";
-import { SettingsInlineMessage } from "$lib/presentation/settings";
 import type { AuthProviderMetadata, ModelInfo } from "$lib/api";
 import { loadProviderCatalog } from "$lib/features/settings/state/provider-catalog-actions.svelte";
 import { providerCatalogState } from "$lib/features/settings/state/provider-catalog-state.svelte";
@@ -32,14 +32,14 @@ if (!providerCatalogState.catalogLoaded) {
 <ApiKeysSection {authProviders} />
 <Collapsible.Root bind:open={advancedOpen}>
   <Collapsible.Trigger
-    class="group/advanced flex w-full items-center gap-2 rounded-md py-2 text-left text-sm font-semibold text-foreground"
+    class="group/advanced flex w-full items-center gap-2 rounded-md py-2 text-left text-ui font-medium text-foreground"
   >
     <ChevronRight
       class="size-4 shrink-0 text-muted-foreground transition-transform group-data-[state=open]/advanced:rotate-90"
     />
     Advanced
     {#if providerCount || modelCount}
-      <span class="text-xs font-normal text-muted-foreground">
+      <span class="text-ui font-normal text-muted-foreground">
         · {providerCount} custom {providerCount === 1
           ? "provider"
           : "providers"}, {modelCount} custom {modelCount === 1
@@ -49,7 +49,8 @@ if (!providerCatalogState.catalogLoaded) {
     {/if}
   </Collapsible.Trigger>
   <Collapsible.Content class="grid gap-6 pt-2">
-    {#if catalogError}<SettingsInlineMessage
+    {#if catalogError}<Callout
+        layout="block"
         tone="destructive"
         text={catalogError}
       />{/if}

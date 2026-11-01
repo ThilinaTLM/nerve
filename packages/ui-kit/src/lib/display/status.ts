@@ -2,7 +2,7 @@
  * paints with. StatusDot, Badge, and ProgressRing all speak it. */
 export type StatusTone =
   | "neutral"
-  | "accent"
+  | "brand"
   | "info"
   | "success"
   | "warning"

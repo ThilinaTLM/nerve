@@ -1,10 +1,14 @@
 <script lang="ts">
+import { Badge } from "@nervekit/ui-kit/components/ui/badge";
 import type {
   ToolCallDetails,
   ToolCallTranscriptRecord,
 } from "../../state/tool-types";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
 import DialogShell from "@nervekit/ui-kit/components/composites/dialog-shell";
+import { Callout } from "@nervekit/ui-kit/components/composites/callout";
+import CardSheet from "../../cards/CardSheet.svelte";
+import LeaveCardSheet from "../../cards/LeaveCardSheet.svelte";
 import { toolPresentationCached } from "../views/tool-presentation";
 import { parseToolViewCached } from "../views/tool-result-view";
 import { toolViewComponent } from "../views/registry";
@@ -67,13 +71,13 @@ const description = $derived(
 >
   {#if loading && !details}
     <div
-      class="flex min-h-40 items-center justify-center text-sm text-muted-foreground"
+      class="flex min-h-40 items-center justify-center text-ui text-muted-foreground"
     >
       Loading tool details…
     </div>
   {:else if error && !details}
     <div class="grid gap-3">
-      <p class="m-0 text-sm text-destructive">{error}</p>
+      <p class="m-0 text-ui text-destructive">{error}</p>
       <Button variant="outline" class="w-fit" onclick={() => void onRetry?.()}
         >Retry</Button
       >
@@ -83,55 +87,53 @@ const description = $derived(
       {#if presentation.meta.length > 0}
         <div class="flex flex-wrap gap-1.5">
           {#each presentation.meta as item, index (index)}
-            <span
-              class="rounded-sm border bg-muted/30 px-1.5 py-0.5 text-xs text-muted-foreground"
-              class:font-mono={item.mono}>{item.text}</span
+            <Badge
+              variant={item.tone ?? "neutral"}
+              class={item.mono ? "font-mono" : undefined}>{item.text}</Badge
             >
           {/each}
         </div>
       {/if}
 
       {#if displayToolCall.error}
-        <p
-          class="m-0 rounded-sm border border-destructive/30 bg-destructive/10 p-2 text-sm text-destructive"
-        >
-          {displayToolCall.error}
-        </p>
+        <Callout tone="destructive" text={displayToolCall.error} />
       {/if}
 
-      {#if formatted}
-        <details
-          class="rounded-sm border bg-muted/20"
-          open={initialSection === "formatted"}
-        >
-          <summary
-            class="cursor-pointer px-2.5 py-2 text-xs font-medium text-muted-foreground"
-          >
-            Formatted view
-          </summary>
-          <div class="border-t p-2">
-            <ToolView
-              toolCall={details.toolCall}
-              {view}
-              expanded={true}
-              {onOpenFile}
-            />
-          </div>
-        </details>
-      {/if}
+      <CardSheet>
+        {#if formatted}
+          <details open={initialSection === "formatted"}>
+            <summary
+              class="cursor-pointer px-2.5 py-2 text-ui text-muted-foreground"
+            >
+              Formatted view
+            </summary>
+            <div class="px-2.5 pb-2.5">
+              <!-- The card preview draws its own sheet, as in the transcript. -->
+              <LeaveCardSheet>
+                <ToolView
+                  toolCall={details.toolCall}
+                  {view}
+                  expanded={true}
+                  {onOpenFile}
+                />
+              </LeaveCardSheet>
+            </div>
+          </details>
+        {/if}
 
-      <AgentPreviewSection
-        preview={details.toolCall.agentPreview}
-        projection={details.toolCall.agentProjection}
-        result={details.toolCall.result}
-        open={initialSection === "agent-preview"}
-      />
-      <ArgumentsSection value={details.toolCall.args} />
-      <CompleteResultSection
-        toolCallId={details.toolCall.id}
-        descriptor={details.completeResult}
-        read={capabilities.readToolCallResult}
-      />
+        <AgentPreviewSection
+          preview={details.toolCall.agentPreview}
+          projection={details.toolCall.agentProjection}
+          result={details.toolCall.result}
+          open={initialSection === "agent-preview"}
+        />
+        <ArgumentsSection value={details.toolCall.args} />
+        <CompleteResultSection
+          toolCallId={details.toolCall.id}
+          descriptor={details.completeResult}
+          read={capabilities.readToolCallResult}
+        />
+      </CardSheet>
     </div>
   {/if}
 </DialogShell>

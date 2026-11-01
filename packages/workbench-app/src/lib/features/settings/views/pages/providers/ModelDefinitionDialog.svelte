@@ -134,7 +134,7 @@ async function submit() {
 
     {#if provider.length > 0 && !providerAvailable}
       <p
-        class="flex items-center gap-1.5 text-xs text-destructive"
+        class="flex items-center gap-1.5 text-ui text-destructive"
         role="alert"
       >
         <TriangleAlert class="size-3.5" aria-hidden="true" />
@@ -145,7 +145,7 @@ async function submit() {
     <div class="grid min-h-0 gap-1.5">
       <div class="flex flex-wrap items-end justify-between gap-2">
         <Label>Model JSON</Label>
-        <p class="text-xs text-muted-foreground">
+        <p class="text-ui text-muted-foreground">
           Find model JSON on
           <a
             class="text-info underline underline-offset-2"
@@ -170,14 +170,14 @@ async function submit() {
       </div>
       {#if provider && !parseResult.success}
         <p
-          class="flex items-start gap-1.5 text-xs text-destructive"
+          class="flex items-start gap-1.5 text-ui text-destructive"
           role="alert"
         >
           <TriangleAlert class="mt-0.5 size-3.5 shrink-0" aria-hidden="true" />
           {parseResult.error}
         </p>
       {:else}
-        <p class="text-xs text-muted-foreground">
+        <p class="text-ui text-muted-foreground">
           Paste one object from a provider's
           <code class="font-mono">models</code> array. Provider URLs and API keys
           stay in provider settings.
@@ -187,7 +187,7 @@ async function submit() {
 
     {#if submitError}
       <p
-        class="flex items-center gap-1.5 text-xs text-destructive"
+        class="flex items-center gap-1.5 text-ui text-destructive"
         role="alert"
       >
         <TriangleAlert class="size-3.5" aria-hidden="true" />

@@ -4,8 +4,12 @@ import {
   extractClassSelectors,
   findBareGlobalSelectors,
   findDarkUtilities,
+  findHoverUnderlines,
   findInertClassNames,
+  findOffScaleTextSizes,
+  findOffTokenColours,
   isDynamicClass,
+  PROSE_LINK_UNDERLINE_ALLOWLIST,
 } from "./style-policy.mjs";
 import { sourceExtensions } from "./repository-source-inventory.mjs";
 
@@ -45,6 +49,8 @@ export function checkUiStyles({ files: trackedFiles, read }, fail) {
     }
 
     checkNoDarkUtilities();
+    checkTypeScale();
+    checkAppColours();
     checkGlobalStylePartials();
     checkBareGlobalSelectors();
     checkInertClassNames();
@@ -64,6 +70,77 @@ export function checkUiStyles({ files: trackedFiles, read }, fail) {
         fail(
           file,
           `dark: utilities are banned (${offenders[0]}); move the mode difference into a token`,
+        );
+    }
+  }
+
+  /** Font sizes come only from the four type roles defined in theme.css. */
+  function checkTypeScale() {
+    for (const file of trackedFiles) {
+      if (
+        !/packages\/(?:ui-kit|workbench-app)\/src\//.test(file) ||
+        !sourceExtensions.test(file) ||
+        /\.test\.[cm]?[jt]s$/.test(file) ||
+        file.includes("/design-lab/wireframes/")
+      )
+        continue;
+      const text = read(file);
+      if (
+        /import\s*\{[^}]*\btv\b[^}]*\}\s*from\s*["']tailwind-variants["']/.test(
+          text,
+        )
+      )
+        fail(
+          file,
+          "import tv from @nervekit/ui-kit/utils so variants merge type roles correctly",
+        );
+      const offenders = findOffScaleTextSizes(text);
+      if (offenders.length > 0)
+        fail(
+          file,
+          `off-scale font size (${offenders[0]}); use text-caption, text-ui, text-body or text-title`,
+        );
+    }
+  }
+
+  /**
+   * App colours come from tokens and their derived recipes, never from local
+   * opacity modifiers or color-mix(). Illustrations draw with free alphas.
+   */
+  function checkAppColours() {
+    const illustrations =
+      /\/(?:DiscoverNewsArtwork|ThemePreviewPicker|SettingsPreviewCards)\.svelte$/;
+    for (const file of trackedFiles) {
+      if (
+        !/packages\/workbench-app\/src\/lib\/.*\.svelte$/.test(file) ||
+        file.includes("/design-lab/") ||
+        illustrations.test(file)
+      )
+        continue;
+      const text = read(file);
+      const offenders = findOffTokenColours(text);
+      if (offenders.length > 0)
+        fail(
+          file,
+          `off-token colour (${offenders[0]}); use a token or its -subtle/-strong recipe`,
+        );
+      if (/(?<![\w-])hover:bg-muted(?![\w/-])/.test(text))
+        fail(file, "neutral hover is hover:bg-hover, not hover:bg-muted");
+      const underlines = findHoverUnderlines(text);
+      if (
+        underlines.length > 0 &&
+        !PROSE_LINK_UNDERLINE_ALLOWLIST.some((path) =>
+          file.endsWith(`/${path}`),
+        )
+      )
+        fail(
+          file,
+          `${underlines[0]} is for prose links only; buttons answer hover with a fill or colour change`,
+        );
+      if (/color-mix\(/.test(text))
+        fail(
+          file,
+          "color-mix() belongs in ui-kit theme tokens; use a derived token",
         );
     }
   }

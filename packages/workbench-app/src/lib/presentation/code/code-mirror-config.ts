@@ -343,13 +343,13 @@ const codeHighlightStyle = HighlightStyle.define([
   { tag: tags.inserted, color: "var(--syntax-added)" },
   { tag: [tags.deleted, tags.invalid], color: "var(--syntax-removed)" },
   { tag: tags.changed, color: "var(--syntax-changed)" },
-  { tag: tags.heading, color: "var(--syntax-keyword)", fontWeight: "600" },
+  { tag: tags.heading, color: "var(--syntax-keyword)", fontWeight: "500" },
   {
     tag: [tags.link, tags.url],
     color: "var(--syntax-link)",
     textDecoration: "underline",
   },
-  { tag: tags.strong, fontWeight: "600" },
+  { tag: tags.strong, fontWeight: "500" },
   { tag: tags.emphasis, fontStyle: "italic" },
 ]);
 
@@ -359,7 +359,7 @@ export const codeMirrorTheme = EditorView.theme({
     minWidth: "100%",
     color: "var(--foreground)",
     backgroundColor: "var(--background)",
-    fontSize: "var(--text-sm)",
+    fontSize: "var(--text-body)",
   },
   ".cm-scroller": {
     overflow: "auto",
@@ -382,7 +382,7 @@ export const codeMirrorTheme = EditorView.theme({
       "1px solid color-mix(in oklab, var(--background) 55%, var(--border))",
   },
   ".cm-lineNumbers": {
-    fontSize: "var(--text-xs)",
+    fontSize: "var(--text-ui)",
   },
   ".cm-lineNumbers .cm-gutterElement": {
     padding: "0 calc(var(--spacing) * 1) 0 calc(var(--spacing) * 2)",

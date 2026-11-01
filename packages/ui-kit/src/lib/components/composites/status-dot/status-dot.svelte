@@ -1,5 +1,6 @@
 <script lang="ts" module>
-import { type VariantProps, tv } from "tailwind-variants";
+import type { VariantProps } from "tailwind-variants";
+import { cn, tv } from "@nervekit/ui-kit/utils";
 
 export const statusDotVariants = tv({
   base: "inline-block flex-none rounded-full",
@@ -7,7 +8,7 @@ export const statusDotVariants = tv({
     tone: {
       neutral:
         "bg-muted-foreground border-muted-foreground text-muted-foreground",
-      accent: "bg-foreground border-foreground text-foreground",
+      brand: "bg-primary border-primary text-primary",
       info: "bg-info border-info text-info",
       success: "bg-success border-success text-success",
       warning: "bg-warning border-warning text-warning",
@@ -43,7 +44,6 @@ export type StatusDotVariant = NonNullable<
 
 <script lang="ts">
 import type { StatusTone } from "@nervekit/ui-kit/display/status";
-import { cn } from "@nervekit/ui-kit/utils";
 
 let {
   tone = "neutral",

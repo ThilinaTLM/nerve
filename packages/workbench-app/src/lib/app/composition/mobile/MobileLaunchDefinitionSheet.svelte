@@ -96,8 +96,7 @@ async function submit(event: SubmitEvent) {
     side="bottom"
     class="max-h-[90dvh] rounded-t-lg pb-[env(safe-area-inset-bottom)]"
   >
-    <Sheet.Title class="px-4 pb-1 pt-3 text-sm font-semibold"
-      >{title}</Sheet.Title
+    <Sheet.Title class="px-4 pb-1 pt-3 text-ui font-medium">{title}</Sheet.Title
     >
     <form
       class="grid min-h-0 gap-3 overflow-y-auto px-4 pb-4"
@@ -138,7 +137,7 @@ async function submit(event: SubmitEvent) {
           class="font-mono"
           disabled={saving}
         />
-        <p class="text-xs text-muted-foreground">
+        <p class="text-ui text-muted-foreground">
           Leave blank to use the project folder. Relative paths resolve from it.
         </p>
       </div>
@@ -155,7 +154,7 @@ async function submit(event: SubmitEvent) {
           disabled={saving}
           aria-invalid={!isValidLaunchPort(port)}
         />
-        <p class="text-xs text-muted-foreground">
+        <p class="text-ui text-muted-foreground">
           Optional. Nerve checks this port is free before the launch starts.
         </p>
       </div>
@@ -166,7 +165,7 @@ async function submit(event: SubmitEvent) {
         disabled={saving}
       />
       {#if error}
-        <p class="text-xs text-destructive" role="alert">{error}</p>
+        <p class="text-ui text-destructive" role="alert">{error}</p>
       {/if}
       <div class="flex justify-end gap-2">
         <Button variant="ghost" onclick={close} disabled={saving}>Cancel</Button

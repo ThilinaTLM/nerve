@@ -15,6 +15,7 @@ import type {
 } from "../tray/tray.js";
 export type { TrayController } from "../tray/tray.js";
 import type { QuitSource } from "./quit-contracts.js";
+import type { WindowAppearance } from "../window/window-appearance.js";
 
 export interface BeforeQuitEvent {
   preventDefault(): void;
@@ -48,6 +49,8 @@ export interface DesktopProcessSignalPort {
 
 export interface DesktopWindowRegistryPort {
   getAllWindows(): BrowserWindowType[];
+  /** Last renderer-reported theme, used for the loading and error pages. */
+  appearance(): WindowAppearance;
   createMainWindow(options: {
     daemonUrl: () => string | undefined;
     isTrustedShellUrl: (url: string) => boolean;

@@ -1,44 +1,99 @@
 <script lang="ts">
 import { Badge } from "@nervekit/ui-kit/components/ui/badge";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
+import { StatusDot } from "@nervekit/ui-kit/components/composites/status-dot";
+import type { StatusTone } from "@nervekit/ui-kit/display/status";
 import FileIcon from "@lucide/svelte/icons/file";
 import FolderIcon from "@lucide/svelte/icons/folder";
 import GitBranchIcon from "@lucide/svelte/icons/git-branch";
 import GalleryGroup from "../GalleryGroup.svelte";
 import GallerySpecimen from "../GallerySpecimen.svelte";
 
-type Swatch = { name: string; bg: string; fg?: string; uses?: number };
+/** `box` paints the swatch itself; `inner`, when set, is layered on top. */
+type Swatch = { name: string; role: string; box: string; inner?: string };
 
-// "uses" = approximate class occurrences in the desktop app (excl. gallery, mobile).
 const swatches: Swatch[] = [
-  { name: "background", bg: "bg-background", fg: "text-foreground", uses: 26 },
-  { name: "card", bg: "bg-card", fg: "text-card-foreground", uses: 32 },
+  {
+    name: "background",
+    role: "Workspace",
+    box: "border bg-background text-foreground",
+  },
+  {
+    name: "card",
+    role: "Raised content",
+    box: "border bg-card text-card-foreground",
+  },
   {
     name: "popover",
-    bg: "bg-popover",
-    fg: "text-popover-foreground",
-    uses: 14,
+    role: "Floating layers",
+    box: "border bg-popover text-popover-foreground",
   },
-  { name: "panel", bg: "bg-panel", fg: "text-foreground", uses: 7 },
-  { name: "well", bg: "bg-well", fg: "text-foreground", uses: 21 },
-  { name: "muted", bg: "bg-muted", fg: "text-muted-foreground", uses: 38 },
-  { name: "accent", bg: "bg-accent", fg: "text-accent-foreground", uses: 28 },
-  { name: "selected", bg: "bg-selected", fg: "text-foreground", uses: 26 },
+  {
+    name: "panel",
+    role: "Shell and dock chrome",
+    box: "border bg-panel text-foreground",
+  },
+  {
+    name: "well",
+    role: "Recessed output",
+    box: "border bg-well text-foreground",
+  },
+  {
+    name: "muted",
+    role: "Quiet resting fill",
+    box: "border bg-muted text-muted-foreground",
+  },
+  {
+    name: "hover",
+    role: "Neutral hover and menu highlight",
+    box: "border bg-background text-foreground",
+    inner: "bg-hover",
+  },
+  {
+    name: "selected",
+    role: "Persistent selection",
+    box: "border bg-selected text-foreground",
+  },
+  {
+    name: "border",
+    role: "Hairlines",
+    box: "border border-border bg-background text-foreground",
+  },
+  {
+    name: "input",
+    role: "Field borders",
+    box: "border border-input bg-background text-foreground",
+  },
   {
     name: "primary",
-    bg: "bg-primary",
-    fg: "text-primary-foreground",
-    uses: 18,
+    role: "Brand: one solid action per view",
+    box: "border bg-primary text-primary-foreground",
   },
   {
     name: "destructive-solid",
-    bg: "bg-destructive-solid",
-    fg: "text-destructive-solid-foreground",
-    uses: 5,
+    role: "Destructive fills",
+    box: "border bg-destructive-solid text-destructive-solid-foreground",
   },
-  { name: "success", bg: "bg-success", fg: "text-success-foreground", uses: 5 },
-  { name: "warning", bg: "bg-warning", fg: "text-warning-foreground", uses: 6 },
-  { name: "info", bg: "bg-info", fg: "text-info-foreground", uses: 7 },
+  {
+    name: "destructive",
+    role: "Readable red text",
+    box: "border bg-background text-destructive",
+  },
+  {
+    name: "success",
+    role: "Status text and dots",
+    box: "border bg-background text-success",
+  },
+  {
+    name: "warning",
+    role: "Status text and dots",
+    box: "border bg-background text-warning",
+  },
+  {
+    name: "info",
+    role: "Status text and dots",
+    box: "border bg-background text-info",
+  },
 ];
 
 const ladder = [
@@ -53,67 +108,75 @@ const ladder = [
   { name: "popover", cls: "bg-popover", role: "Floating layers" },
 ] as const;
 
-const tones = [
+/* Full literal class names per tone so Tailwind can see every utility. */
+const recipes = [
   {
-    name: "neutral",
-    text: "text-muted-foreground",
-    tint: "bg-muted-foreground/10",
-    border: "border-muted-foreground/30",
-  },
-  {
-    name: "accent",
+    name: "primary",
     text: "text-primary",
-    tint: "bg-primary/10",
-    border: "border-primary/30",
+    subtle: "bg-primary-subtle",
+    strong: "border-primary-strong",
   },
   {
     name: "info",
     text: "text-info",
-    tint: "bg-info/10",
-    border: "border-info/30",
+    subtle: "bg-info-subtle",
+    strong: "border-info-strong",
   },
   {
     name: "success",
     text: "text-success",
-    tint: "bg-success/10",
-    border: "border-success/30",
+    subtle: "bg-success-subtle",
+    strong: "border-success-strong",
   },
   {
     name: "warning",
     text: "text-warning",
-    tint: "bg-warning/10",
-    border: "border-warning/30",
+    subtle: "bg-warning-subtle",
+    strong: "border-warning-strong",
   },
   {
     name: "destructive",
     text: "text-destructive",
-    tint: "bg-destructive/10",
-    border: "border-destructive/30",
+    subtle: "bg-destructive-subtle",
+    strong: "border-destructive-strong",
   },
 ] as const;
 
+const statusTones: StatusTone[] = [
+  "neutral",
+  "brand",
+  "info",
+  "success",
+  "warning",
+  "destructive",
+];
+
 const radii = [
-  { name: "rounded-sm", cls: "rounded-sm", uses: 80 },
-  { name: "rounded-md", cls: "rounded-md", uses: 118 },
-  { name: "rounded-lg", cls: "rounded-lg", uses: 15 },
-  { name: "rounded-xl", cls: "rounded-xl", uses: 2 },
-  { name: "rounded-full", cls: "rounded-full", uses: 58 },
+  "rounded-sm",
+  "rounded-md",
+  "rounded-lg",
+  "rounded-xl",
+  "rounded-full",
 ] as const;
 
 const shadows = [
-  { name: "shadow-xs", cls: "shadow-xs", uses: 12 },
-  { name: "shadow-sm", cls: "shadow-sm", uses: 12 },
-  { name: "shadow-md", cls: "shadow-md", uses: 4 },
-  { name: "shadow-lg", cls: "shadow-lg", uses: 4 },
-  { name: "shadow-xl", cls: "shadow-xl", uses: 2 },
-  { name: "shadow-overlay", cls: "shadow-overlay", uses: 6 },
+  {
+    name: "shadow-sm",
+    cls: "shadow-sm",
+    role: "Raised cards (controls stay flat)",
+  },
+  {
+    name: "shadow-overlay",
+    cls: "shadow-overlay",
+    role: "Popovers, menus, dialogs, tooltips, floating toolbars",
+  },
 ] as const;
 </script>
 
 <div class="flex flex-col gap-10">
   <GalleryGroup
     title="Surfaces"
-    description="well < panel < background < card < popover. Counts are approximate class uses in the desktop app."
+    description="well < panel < background < card < popover. Pick the surface that matches the role, never a shade."
   >
     <GallerySpecimen title="Surface ladder" layout="bare">
       <div
@@ -121,118 +184,210 @@ const shadows = [
       >
         {#each ladder as step (step.name)}
           <div class="flex min-h-28 flex-col gap-1 p-3 {step.cls}">
-            <span class="text-sm font-semibold text-foreground"
-              >{step.name}</span
-            >
-            <span class="text-sm text-foreground">Foreground</span>
-            <span class="text-xs text-muted-foreground">Muted supporting</span>
-            <span class="mt-auto text-xs text-muted-foreground"
+            <span class="text-ui font-medium text-foreground">{step.name}</span>
+            <span class="text-ui text-foreground">Foreground</span>
+            <span class="text-ui text-muted-foreground">Muted supporting</span>
+            <span class="mt-auto text-ui text-muted-foreground"
               >{step.role}</span
             >
           </div>
         {/each}
       </div>
     </GallerySpecimen>
+  </GalleryGroup>
 
+  <GalleryGroup
+    title="Colours"
+    description="Theme tokens plus recipes derived once in theme.css. App code never adds its own alpha or color-mix."
+  >
     <GallerySpecimen
-      title="Color tokens in use"
-      usage="theme tokens · all areas"
+      title="Colour tokens"
       source="styles/theme.css"
       layout="bare"
     >
-      <div class="grid grid-cols-[repeat(auto-fill,minmax(9rem,1fr))] gap-3">
+      <div class="grid grid-cols-[repeat(auto-fill,minmax(10rem,1fr))] gap-3">
         {#each swatches as swatch (swatch.name)}
           <div class="flex flex-col gap-1">
             <div
-              class="flex h-12 items-end rounded-md border p-2 text-xs {swatch.bg} {swatch.fg ??
-                ''}"
+              class="relative flex h-12 items-end overflow-hidden rounded-md p-2 text-ui {swatch.box}"
             >
-              Aa
+              {#if swatch.inner}
+                <div class="absolute inset-2 rounded-sm {swatch.inner}"></div>
+              {/if}
+              <span class="relative">Aa</span>
             </div>
-            <span class="text-xs text-foreground">{swatch.name}</span>
-            {#if swatch.uses}
-              <span class="text-xs text-muted-foreground"
-                >in use: {swatch.uses}</span
-              >
-            {/if}
+            <span class="text-ui text-foreground">{swatch.name}</span>
+            <span class="text-caption text-muted-foreground">{swatch.role}</span
+            >
           </div>
         {/each}
+      </div>
+    </GallerySpecimen>
+
+    <GallerySpecimen
+      title="Derived recipes"
+      description="subtle is an 8% tint for chips, callouts and soft fills; strong is 40% for tinted borders, rings and marks."
+      source="styles/theme.css"
+      layout="bare"
+    >
+      <div
+        class="grid grid-cols-[6rem_repeat(3,minmax(8rem,1fr))_minmax(14rem,2fr)] items-center gap-3"
+      >
+        <span class="text-caption text-muted-foreground">tone</span>
+        <span class="font-mono text-caption text-muted-foreground"
+          >text-&lt;tone&gt;</span
+        >
+        <span class="font-mono text-caption text-muted-foreground"
+          >bg-&lt;tone&gt;-subtle</span
+        >
+        <span class="font-mono text-caption text-muted-foreground"
+          >border-&lt;tone&gt;-strong</span
+        >
+        <span class="text-caption text-muted-foreground">callout</span>
+        {#each recipes as tone (tone.name)}
+          <span class="text-ui text-foreground">{tone.name}</span>
+          <div class="flex">
+            <span class="rounded-md bg-background px-2 py-1 text-ui {tone.text}"
+              >Sample</span
+            >
+          </div>
+          <div class="flex">
+            <span
+              class="rounded-md px-2 py-0.5 text-ui {tone.subtle} {tone.text}"
+              >Chip</span
+            >
+          </div>
+          <div class="flex">
+            <span
+              class="rounded-md border px-2 py-0.5 text-ui text-foreground {tone.strong}"
+              >Bordered</span
+            >
+          </div>
+          <div
+            class="flex flex-col gap-0.5 rounded-md border p-2 {tone.strong} {tone.subtle}"
+          >
+            <span class="text-ui {tone.text}">{tone.name}</span>
+            <span class="text-ui text-foreground"
+              >A callout pairs the tinted fill with a strong border.</span
+            >
+          </div>
+        {/each}
+      </div>
+    </GallerySpecimen>
+
+    <GallerySpecimen
+      title="Neutral recipes"
+      source="styles/theme.css"
+      layout="bare"
+    >
+      <div class="grid grid-cols-[repeat(auto-fill,minmax(12rem,1fr))] gap-4">
+        <div class="flex flex-col gap-1.5">
+          <span class="font-mono text-caption text-muted-foreground"
+            >border-border-subtle</span
+          >
+          <div class="flex flex-col rounded-md border bg-card text-ui">
+            <span class="px-2 py-1.5 text-foreground">First row</span>
+            <span
+              class="border-t border-border-subtle px-2 py-1.5 text-foreground"
+              >Second row</span
+            >
+          </div>
+          <span class="text-caption text-muted-foreground"
+            >Dividers inside a bordered surface</span
+          >
+        </div>
+
+        <div class="flex flex-col gap-1.5">
+          <span class="font-mono text-caption text-muted-foreground"
+            >ring-focus</span
+          >
+          <div
+            class="flex h-control items-center rounded-md border border-ring px-2 text-ui text-foreground ring-3 ring-focus"
+          >
+            Focused field
+          </div>
+          <span class="text-caption text-muted-foreground">Focus halo</span>
+        </div>
+
+        <div class="flex flex-col gap-1.5">
+          <span class="font-mono text-caption text-muted-foreground"
+            >bg-scrim</span
+          >
+          <div
+            class="relative flex flex-col gap-0.5 overflow-hidden rounded-md border bg-card p-2"
+          >
+            <span class="text-ui text-foreground">Card</span>
+            <span class="text-ui text-muted-foreground"
+              >Content behind a modal overlay.</span
+            >
+            <div class="absolute inset-y-0 right-0 w-1/2 bg-scrim"></div>
+          </div>
+          <span class="text-caption text-muted-foreground"
+            >Dim layer behind modals</span
+          >
+        </div>
+
+        <div class="flex flex-col gap-1.5">
+          <span class="font-mono text-caption text-muted-foreground"
+            >bg-hover</span
+          >
+          <div class="flex flex-col rounded-md border bg-card p-1 text-ui">
+            <span class="rounded-sm px-2 py-1 text-foreground">Resting row</span
+            >
+            <span class="rounded-sm bg-hover px-2 py-1 text-foreground"
+              >Hovered row</span
+            >
+          </div>
+          <span class="text-caption text-muted-foreground"
+            >Works on any surface</span
+          >
+        </div>
       </div>
     </GallerySpecimen>
   </GalleryGroup>
 
   <GalleryGroup
     title="Status tones"
-    description="Six tones: text, /10 tint and /30 border. destructive text appears ~110×, warning ~59×, success ~35×, info ~20×."
+    description="One vocabulary for status. brand is the primary colour for things the app highlights (Default, meters); text strength is foreground vs muted, never a tone."
   >
-    <GallerySpecimen title="Text · tint · tint + border" layout="bare">
-      <div class="grid grid-cols-[repeat(auto-fill,minmax(10rem,1fr))] gap-3">
-        {#each tones as tone (tone.name)}
-          <div class="flex flex-col gap-2">
-            <span class="text-sm font-medium {tone.text}">{tone.name}</span>
-            <div class="rounded-md px-3 py-1.5 text-sm {tone.tint} {tone.text}">
-              tint
-            </div>
-            <div
-              class="rounded-md border px-3 py-1.5 text-sm {tone.border} {tone.tint} {tone.text}"
-            >
-              tint + border
-            </div>
+    <GallerySpecimen title="StatusTone" source="display/status" layout="bare">
+      <div class="grid grid-cols-[repeat(auto-fill,minmax(7rem,1fr))] gap-4">
+        {#each statusTones as tone (tone)}
+          <div class="flex flex-col items-start gap-2">
+            <span class="text-caption text-muted-foreground">{tone}</span>
+            <StatusDot {tone} size="md" />
+            <Badge variant={tone}>{tone}</Badge>
           </div>
         {/each}
       </div>
-    </GallerySpecimen>
-
-    <GallerySpecimen
-      title="Tints on each surface"
-      layout="stack"
-      surface="well"
-    >
-      {#each ladder as step (step.name)}
-        <div
-          class="flex flex-wrap items-center gap-2 rounded-md border p-2 {step.cls}"
-        >
-          <span class="w-24 text-xs text-muted-foreground">{step.name}</span>
-          {#each tones as tone (tone.name)}
-            <span
-              class="rounded-md border px-2 py-0.5 text-xs {tone.border} {tone.tint} {tone.text}"
-            >
-              {tone.name}
-            </span>
-          {/each}
-        </div>
-      {/each}
     </GallerySpecimen>
   </GalleryGroup>
 
   <GalleryGroup
     title="Radius & elevation"
-    description="Only the radii and shadows the app uses. rounded-md dominates; shadow-overlay is the floating-layer recipe."
+    description="Global radii and the two elevations; themes own colour only."
   >
-    <GallerySpecimen title="Radius" usage="all areas" layout="bare">
+    <GallerySpecimen title="Radius" layout="bare">
       <div class="flex flex-wrap gap-4">
-        {#each radii as radius (radius.name)}
+        {#each radii as radius (radius)}
           <div class="flex flex-col items-center gap-1.5">
-            <div class="size-14 border bg-card {radius.cls}"></div>
-            <span class="text-xs text-muted-foreground">{radius.name}</span>
-            <span class="text-xs text-muted-foreground"
-              >in use: {radius.uses}</span
-            >
+            <div class="size-14 border bg-card {radius}"></div>
+            <span class="text-ui text-muted-foreground">{radius}</span>
           </div>
         {/each}
       </div>
     </GallerySpecimen>
 
-    <GallerySpecimen title="Shadow" usage="controls, overlays" layout="bare">
+    <GallerySpecimen title="Elevation" layout="bare">
       <div class="flex flex-wrap gap-6 p-2">
         {#each shadows as shadow (shadow.name)}
-          <div class="flex flex-col items-center gap-1.5">
+          <div class="flex w-40 flex-col items-center gap-1.5">
             <div
               class="size-16 rounded-md border bg-popover {shadow.cls}"
             ></div>
-            <span class="text-xs text-muted-foreground">{shadow.name}</span>
-            <span class="text-xs text-muted-foreground"
-              >in use: {shadow.uses}</span
+            <span class="text-ui text-foreground">{shadow.name}</span>
+            <span class="text-center text-caption text-muted-foreground"
+              >{shadow.role}</span
             >
           </div>
         {/each}
@@ -247,11 +402,11 @@ const shadows = [
     <GallerySpecimen title="Workbench layers" layout="bare" class="p-0">
       <div class="flex h-80 w-[720px] max-w-full overflow-hidden rounded-lg">
         <div class="flex w-[220px] shrink-0 flex-col border-r bg-panel">
-          <div class="flex h-8 items-center gap-2 border-b px-3 text-xs">
-            <span class="font-medium text-foreground">Files</span>
+          <div class="flex h-8 items-center gap-2 border-b px-3 text-ui">
+            <span class="text-foreground">Files</span>
             <span class="text-muted-foreground">33</span>
           </div>
-          <div class="flex flex-col gap-0.5 p-1.5 text-sm">
+          <div class="flex flex-col gap-0.5 p-1.5 text-ui">
             <div class="flex items-center gap-2 rounded-md px-2 py-1">
               <FolderIcon class="size-3.5 text-muted-foreground" />
               <span class="truncate">packages</span>
@@ -263,7 +418,7 @@ const shadows = [
               <span class="truncate">App.svelte</span>
             </div>
             <div
-              class="flex items-center gap-2 rounded-md bg-accent px-2 py-1 text-accent-foreground"
+              class="flex items-center gap-2 rounded-md bg-hover px-2 py-1 text-foreground"
             >
               <FileIcon class="size-3.5" />
               <span class="truncate">hover row</span>
@@ -274,13 +429,13 @@ const shadows = [
           <div class="flex flex-col gap-3 p-4">
             <div class="flex flex-col gap-2 rounded-md border bg-card p-3">
               <div class="flex items-center gap-2">
-                <span class="text-sm font-medium text-foreground">Card</span>
+                <span class="text-ui text-foreground">Card</span>
                 <Badge variant="info"
                   ><GitBranchIcon data-icon="inline-start" />main</Badge
                 >
                 <Badge variant="warning">2 pending</Badge>
               </div>
-              <span class="text-xs text-muted-foreground"
+              <span class="text-ui text-muted-foreground"
                 >Raised content on the workspace background.</span
               >
               <div class="flex gap-2">
@@ -289,7 +444,7 @@ const shadows = [
               </div>
             </div>
             <div
-              class="rounded-md border bg-well p-3 font-mono text-xs text-muted-foreground"
+              class="rounded-md border bg-well p-3 font-mono text-ui text-muted-foreground"
             >
               $ pnpm exec tsx --test session.test.ts<br />✔ 12 passed
             </div>
@@ -297,8 +452,8 @@ const shadows = [
           <div
             class="absolute right-4 bottom-4 w-52 rounded-md border bg-popover p-3 shadow-overlay"
           >
-            <span class="text-sm font-medium text-foreground">Popover</span>
-            <p class="text-xs text-muted-foreground">
+            <span class="text-ui text-foreground">Popover</span>
+            <p class="text-ui text-muted-foreground">
               Floating layer with shadow-overlay.
             </p>
           </div>

@@ -165,7 +165,7 @@ const editable =
       placeholder="Use when… (the agent reads this to decide when to use the profile)"
       onkeydown={keydown}
     />
-    {#if error}<p role="alert" class="text-xs text-destructive">{error}</p>{/if}
+    {#if error}<p role="alert" class="text-ui text-destructive">{error}</p>{/if}
     <div class="flex justify-end gap-2">
       <Button variant="ghost" size="sm" disabled={saving} onclick={onCancel}
         >Cancel</Button
@@ -192,7 +192,7 @@ const editable =
     {:else}
       <button
         type="button"
-        class={`${editable} text-sm font-medium text-foreground`}
+        class={`${editable} text-ui text-foreground`}
         title={editHint ?? "Rename"}
         {disabled}
         onclick={() => startEdit("label")}
@@ -201,7 +201,7 @@ const editable =
       </button>
     {/if}
     <span
-      class="font-mono text-xs text-muted-foreground"
+      class="font-mono text-ui text-muted-foreground"
       title="Agents use this ID to refer to the profile. Duplicate to use a different ID."
       >{definition.name}</span
     >
@@ -222,7 +222,7 @@ const editable =
   {:else}
     <button
       type="button"
-      class={`${editable} line-clamp-2 text-xs text-muted-foreground`}
+      class={`${editable} line-clamp-2 text-ui text-muted-foreground`}
       title={editHint ?? "Edit when to use"}
       {disabled}
       onclick={() => startEdit("whenToUse")}

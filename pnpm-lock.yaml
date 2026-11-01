@@ -246,12 +246,12 @@ importers:
 
   packages/ui-kit:
     dependencies:
+      '@fontsource/ibm-plex-sans':
+        specifier: ^5.3.0
+        version: 5.3.0
       '@fontsource/iosevka':
         specifier: ^5.2.5
         version: 5.2.5
-      '@fontsource/outfit':
-        specifier: ^5.2.6
-        version: 5.2.8
       '@lucide/svelte':
         specifier: ^1.24.0
         version: 1.24.0(svelte@5.56.3(@typescript-eslint/types@8.63.0))
@@ -279,9 +279,6 @@ importers:
       mermaid:
         specifier: 11.16.1
         version: 11.16.1
-      mode-watcher:
-        specifier: ^1.1.0
-        version: 1.1.0(svelte@5.56.3(@typescript-eslint/types@8.63.0))
       paneforge:
         specifier: ^1.0.2
         version: 1.0.2(svelte@5.56.3(@typescript-eslint/types@8.63.0))
@@ -512,9 +509,6 @@ importers:
       material-icon-theme:
         specifier: ^5.37.0
         version: 5.37.0
-      mode-watcher:
-        specifier: ^1.1.0
-        version: 1.1.0(svelte@5.56.3(@typescript-eslint/types@8.63.0))
       svelte:
         specifier: 5.56.3
         version: 5.56.3(@typescript-eslint/types@8.63.0)
@@ -1891,6 +1885,9 @@ packages:
 
   '@floating-ui/utils@0.2.11':
     resolution: {integrity: sha512-RiB/yIh78pcIxl6lLMG0CgBXAZ2Y0eVHqMPYugu+9U0AeT6YBeiJpf7lbdJNIugFP5SIjwNRgo4DhR1Qxi26Gg==}
+
+  '@fontsource/ibm-plex-sans@5.3.0':
+    resolution: {integrity: sha512-CbE4CbbEEZJX860XyUiRpsksXIQR8Rp2XDva2VO53NJox9tVNtusrysd2x5YkUEY3ErQ66W1IiiQL8/wihhw5w==}
 
   '@fontsource/iosevka@5.2.5':
     resolution: {integrity: sha512-Zv/UHJodDug1LcnWv2u2+GPp3oWP3U6Xp16cJOsqqZQNsCu8sA/ttT331N0NypxBZ+7c8szlSRlYDcy9liZ8pw==}
@@ -5966,11 +5963,6 @@ packages:
     resolution: {integrity: sha512-FP+p8RB8OWpF3YZBCrP5gtADmtXApB5AMLn+vdyA+PyxCjrCs00mjyUozssO33cwDeT3wNGdLxJ5M//YqtHAJw==}
     hasBin: true
 
-  mode-watcher@1.1.0:
-    resolution: {integrity: sha512-mUT9RRGPDYenk59qJauN1rhsIMKBmWA3xMF+uRwE8MW/tjhaDSCCARqkSuDTq8vr4/2KcAxIGVjACxTjdk5C3g==}
-    peerDependencies:
-      svelte: ^5.27.0
-
   mri@1.2.0:
     resolution: {integrity: sha512-tzzskb3bG8LvYGFF/mDTpq3jpI6Q9wc3LEmBaghu+DdCssd1FakN7Bc0hVNmEyGq1bq3RgfkCb3cmQLpNPOroA==}
     engines: {node: '>=4'}
@@ -6609,11 +6601,6 @@ packages:
     peerDependencies:
       svelte: ^5.7.0
 
-  runed@0.25.0:
-    resolution: {integrity: sha512-7+ma4AG9FT2sWQEA0Egf6mb7PBT2vHyuHail1ie8ropfSjvZGtEAx8YTmUjv/APCsdRRxEVvArNjALk9zFSOrg==}
-    peerDependencies:
-      svelte: ^5.7.0
-
   runed@0.28.0:
     resolution: {integrity: sha512-k2xx7RuO9hWcdd9f+8JoBeqWtYrm5CALfgpkg2YDB80ds/QE4w0qqu34A7fqiAwiBBSBQOid7TLxwxVC27ymWQ==}
     peerDependencies:
@@ -6939,12 +6926,6 @@ packages:
     engines: {node: '>=18', pnpm: '>=8.7.0'}
     peerDependencies:
       svelte: ^5.30.2
-
-  svelte-toolbelt@0.7.1:
-    resolution: {integrity: sha512-HcBOcR17Vx9bjaOceUvxkY3nGmbBmCBBbuWLLEWO6jtmWH8f/QoWmbyUfQZrpDINH39en1b8mptfPQT9VKQ1xQ==}
-    engines: {node: '>=18', pnpm: '>=8.7.0'}
-    peerDependencies:
-      svelte: ^5.0.0
 
   svelte-toolbelt@0.9.3:
     resolution: {integrity: sha512-HCSWxCtVmv+c6g1ACb8LTwHVbDqLKJvHpo6J8TaqwUme2hj9ATJCpjCPNISR1OCq2Q4U1KT41if9ON0isINQZw==}
@@ -9483,6 +9464,8 @@ snapshots:
       '@floating-ui/utils': 0.2.11
 
   '@floating-ui/utils@0.2.11': {}
+
+  '@fontsource/ibm-plex-sans@5.3.0': {}
 
   '@fontsource/iosevka@5.2.5': {}
 
@@ -14110,12 +14093,6 @@ snapshots:
     dependencies:
       minimist: 1.2.8
 
-  mode-watcher@1.1.0(svelte@5.56.3(@typescript-eslint/types@8.63.0)):
-    dependencies:
-      runed: 0.25.0(svelte@5.56.3(@typescript-eslint/types@8.63.0))
-      svelte: 5.56.3(@typescript-eslint/types@8.63.0)
-      svelte-toolbelt: 0.7.1(svelte@5.56.3(@typescript-eslint/types@8.63.0))
-
   mri@1.2.0: {}
 
   mrmime@2.0.1: {}
@@ -14875,11 +14852,6 @@ snapshots:
       esm-env: 1.2.2
       svelte: 5.56.3(@typescript-eslint/types@8.63.0)
 
-  runed@0.25.0(svelte@5.56.3(@typescript-eslint/types@8.63.0)):
-    dependencies:
-      esm-env: 1.2.2
-      svelte: 5.56.3(@typescript-eslint/types@8.63.0)
-
   runed@0.28.0(svelte@5.56.3(@typescript-eslint/types@8.63.0)):
     dependencies:
       esm-env: 1.2.2
@@ -15331,13 +15303,6 @@ snapshots:
       svelte: 5.56.3(@typescript-eslint/types@8.63.0)
     transitivePeerDependencies:
       - '@sveltejs/kit'
-
-  svelte-toolbelt@0.7.1(svelte@5.56.3(@typescript-eslint/types@8.63.0)):
-    dependencies:
-      clsx: 2.1.1
-      runed: 0.23.4(svelte@5.56.3(@typescript-eslint/types@8.63.0))
-      style-to-object: 1.0.14
-      svelte: 5.56.3(@typescript-eslint/types@8.63.0)
 
   svelte-toolbelt@0.9.3(svelte@5.56.3(@typescript-eslint/types@8.63.0)):
     dependencies:

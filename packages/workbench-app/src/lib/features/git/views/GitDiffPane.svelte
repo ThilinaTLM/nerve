@@ -53,23 +53,25 @@ const hasChanges = $derived(
           class="grid min-h-72 place-items-center content-center gap-1.5 text-center text-muted-foreground"
         >
           <FileCode class="size-7 text-primary" strokeWidth={1.7} />
-          <strong class="text-foreground">No diff selected</strong>
+          <strong class="font-medium text-foreground">No diff selected</strong>
         </div>
       {:else if view.loading && !view.data}
         <div
           class="grid min-h-72 place-items-center content-center gap-1.5 text-center text-muted-foreground"
         >
           <Spinner class="size-7 text-primary" />
-          <strong class="text-foreground">Loading diff</strong>
-          <p class="m-0 max-w-xl font-mono text-sm">{view.path}</p>
+          <strong class="font-medium text-foreground">Loading diff</strong>
+          <p class="m-0 max-w-xl font-mono text-ui">{view.path}</p>
         </div>
       {:else if view.error && !view.data}
         <div
           class="grid min-h-72 place-items-center content-center gap-2 text-center text-muted-foreground"
         >
           <TriangleAlert class="size-7 text-destructive" strokeWidth={1.7} />
-          <strong class="text-foreground">Could not load diff</strong>
-          <p class="m-0 max-w-xl text-sm">{view.error}</p>
+          <strong class="font-medium text-foreground"
+            >Could not load diff</strong
+          >
+          <p class="m-0 max-w-xl text-ui">{view.error}</p>
           <Button variant="outline" onclick={onRefresh}>Retry</Button>
         </div>
       {:else if view.data?.binary}
@@ -77,8 +79,10 @@ const hasChanges = $derived(
           class="grid min-h-72 place-items-center content-center gap-1.5 text-center text-muted-foreground"
         >
           <FileCode class="size-7 text-primary" strokeWidth={1.7} />
-          <strong class="text-foreground">Binary diff unavailable</strong>
-          <p class="m-0 max-w-xl text-sm">
+          <strong class="font-medium text-foreground"
+            >Binary diff unavailable</strong
+          >
+          <p class="m-0 max-w-xl text-ui">
             Git reports that this binary file changed.
           </p>
         </div>
@@ -87,8 +91,10 @@ const hasChanges = $derived(
           class="grid min-h-72 place-items-center content-center gap-1.5 text-center text-muted-foreground"
         >
           <FileCode class="size-7" strokeWidth={1.7} />
-          <strong class="text-foreground">No {view.area} changes</strong>
-          <p class="m-0 max-w-xl text-sm">
+          <strong class="font-medium text-foreground"
+            >No {view.area} changes</strong
+          >
+          <p class="m-0 max-w-xl text-ui">
             This file no longer differs in this comparison.
           </p>
         </div>
@@ -96,7 +102,9 @@ const hasChanges = $derived(
     </ScrollArea>
   {/if}
   {#if view?.data && view.error}
-    <p class="m-0 border-t border-border/60 px-3 py-2 text-xs text-destructive">
+    <p
+      class="m-0 border-t border-border-subtle px-3 py-2 text-ui text-destructive"
+    >
       Refresh failed: {view.error}
     </p>
   {/if}

@@ -48,19 +48,17 @@ const REVIEWER: Record<
 <div class="flex flex-col gap-5 py-3">
   {#if reviewers.length > 0}
     <section>
-      <h3 class="pb-1.5 text-xs font-medium text-muted-foreground">
-        Reviewers
-      </h3>
+      <h3 class="pb-1.5 text-ui text-muted-foreground">Reviewers</h3>
       <ul class="divide-y overflow-hidden rounded-md border bg-card">
         {#each reviewers as reviewer (reviewer.login)}
           {@const meta = REVIEWER[reviewer.state]}
           {@const Icon = meta.icon}
-          <li class="flex items-center gap-2 px-3 py-1.5 text-sm">
+          <li class="flex items-center gap-2 px-3 py-1.5 text-ui">
             <PrAvatar name={reviewer.login} />
             <span class="min-w-0 flex-1 truncate">{reviewer.login}</span>
             <span
               class={cn(
-                "inline-flex shrink-0 items-center gap-1 text-xs",
+                "inline-flex shrink-0 items-center gap-1 text-ui",
                 meta.tone,
               )}
             >
@@ -74,10 +72,10 @@ const REVIEWER: Record<
 
   {#if labels.length > 0}
     <section>
-      <h3 class="pb-1.5 text-xs font-medium text-muted-foreground">Labels</h3>
+      <h3 class="pb-1.5 text-ui text-muted-foreground">Labels</h3>
       <div class="flex flex-wrap gap-1.5 rounded-md border bg-card px-3 py-2">
         {#each labels as label (label.name)}
-          <Badge variant="outline">
+          <Badge variant="neutral">
             {#if label.color && /^[0-9a-f]{6}$/i.test(label.color)}
               <span
                 class="size-2 rounded-full"
@@ -94,9 +92,7 @@ const REVIEWER: Record<
 
   {#if linked.length > 0}
     <section>
-      <h3 class="pb-1.5 text-xs font-medium text-muted-foreground">
-        Conversations
-      </h3>
+      <h3 class="pb-1.5 text-ui text-muted-foreground">Conversations</h3>
       <PanelList
         ariaLabel="Linked conversations"
         class="overflow-hidden rounded-md border bg-card"
@@ -113,7 +109,7 @@ const REVIEWER: Record<
       {#if linked.length > VISIBLE_LINKED}
         <button
           type="button"
-          class="mt-1.5 text-xs text-muted-foreground hover:text-foreground"
+          class="mt-1.5 text-ui text-muted-foreground hover:text-foreground"
           onclick={() => (showAllLinked = !showAllLinked)}
         >
           {showAllLinked

@@ -167,8 +167,8 @@ const windowLabel = $derived(
 const compactActionDisabled = $derived(
   compacting || compactDisabled || !onCompact,
 );
-const meterTone = $derived<"accent" | "warning" | "destructive">(
-  tone === "error" ? "destructive" : tone === "warning" ? "warning" : "accent",
+const meterTone = $derived<"brand" | "warning" | "destructive">(
+  tone === "error" ? "destructive" : tone === "warning" ? "warning" : "brand",
 );
 
 async function openSystemPrompt(): Promise<void> {
@@ -295,7 +295,7 @@ function requestCompact(): void {
                     </dd>
                   {/each}
                 </dl>
-                <p class="border-t pt-1 text-muted-foreground">
+                <p class="pt-1 text-muted-foreground">
                   Click to copy all session details
                 </p>
               </Tooltip.Content>

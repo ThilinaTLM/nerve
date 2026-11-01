@@ -1,9 +1,14 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
-import { legacyColorThemes } from "@nervekit/contracts/settings";
 import { compileModule } from "svelte/compiler";
 import ts from "typescript";
+import { migrateStoredTheme, themeBackgrounds } from "./theme-preference";
+
+const reports: unknown[] = [];
+(
+  globalThis as { __windowAppearanceReports?: unknown[] }
+).__windowAppearanceReports = reports;
 
 async function loadAppearance() {
   const source = ts.transpileModule(
@@ -28,15 +33,44 @@ async function loadAppearance() {
       JSON.stringify(import.meta.resolve("@nervekit/contracts/settings")),
     )
     .replace(
-      /import \{ mode, setMode, userPrefersMode \} from "mode-watcher";/,
-      'const mode = globalThis.__mode; const setMode = () => {}; const userPrefersMode = { current: "system" };',
+      '"../desktop/desktop-bridge.svelte"',
+      JSON.stringify(
+        `data:text/javascript,export const reportDesktopWindowAppearance = (value) => globalThis.__windowAppearanceReports.push(value);`,
+      ),
+    )
+    .replace(
+      '"./theme-preference"',
+      JSON.stringify(import.meta.resolve("./theme-preference.ts")),
     );
   return (await import(
     `data:text/javascript;base64,${Buffer.from(code).toString("base64")}`
   )) as typeof import("./appearance.svelte");
 }
 
-test("light and dark themes persist, migrate the legacy key, and sync other tabs without writeback", async (t) => {
+function fakeRoot() {
+  const classes = new Set<string>();
+  return {
+    dataset: {} as Record<string, string>,
+    style: {} as { colorScheme?: string },
+    classes,
+    classList: {
+      toggle: (name: string, active: boolean) => {
+        if (active) classes.add(name);
+        else classes.delete(name);
+      },
+    },
+  };
+}
+
+const legacyKeys = [
+  "nerve-light-theme",
+  "nerve-dark-theme",
+  "nerve-color-theme",
+  "mode-watcher-mode",
+  "mode-watcher-theme",
+];
+
+test("the theme migrates once, applies its kind, persists, and syncs other tabs without writeback", async (t) => {
   const values = new Map<string, string>();
   let writes = 0;
   const storage = {
@@ -50,17 +84,22 @@ test("light and dark themes persist, migrate the legacy key, and sync other tabs
     },
   };
   const target = new EventTarget();
-  const root = {
-    dataset: {} as Record<string, string>,
-    classList: { contains: () => false },
-  };
-  const modeState = { current: "light" as "light" | "dark" | undefined };
+  const root = fakeRoot();
+  const meta = { content: "" };
+  let systemDark = false;
   const globals = {
-    __mode: modeState,
     localStorage: storage,
-    document: { documentElement: root },
+    document: {
+      documentElement: root,
+      querySelector: () => ({
+        setAttribute: (_name: string, value: string) => {
+          meta.content = value;
+        },
+      }),
+    },
     window: {
       localStorage: storage,
+      matchMedia: () => ({ matches: systemDark }),
       addEventListener: target.addEventListener.bind(target),
       removeEventListener: target.removeEventListener.bind(target),
     },
@@ -75,49 +114,32 @@ test("light and dark themes persist, migrate the legacy key, and sync other tabs
   }
   const appearance = await loadAppearance();
 
-  const legacyCases: [string, { light: string; dark: string }][] = [
-    ...Object.entries(legacyColorThemes),
-    ["invalid", { light: "nerve-light", dark: "nerve-dark" }],
-  ];
-  for (const [legacy, pair] of legacyCases) {
-    values.clear();
-    values.set("nerve-color-theme", legacy);
-    const loaded = appearance.loadAppearancePreference();
-    assert.equal(loaded.lightTheme, pair.light, `legacy ${legacy} light`);
-    assert.equal(loaded.darkTheme, pair.dark, `legacy ${legacy} dark`);
-    assert.equal(values.has("nerve-color-theme"), false, "legacy key removed");
-    assert.equal(values.get("nerve-light-theme"), pair.light);
-    assert.equal(values.get("nerve-dark-theme"), pair.dark);
-  }
-
-  // New keys win over the legacy key; a theme of the wrong kind is rejected.
+  // Migration persists the resolved theme and drops every old key.
+  for (const key of legacyKeys) values.set(key, "x");
+  values.set("nerve-light-theme", "melange-light");
+  values.set("mode-watcher-mode", "system");
+  systemDark = false;
+  assert.equal(appearance.loadAppearancePreference(), "melange-light");
+  assert.deepEqual([...values], [["nerve-theme", "melange-light"]]);
+  // Once migrated, the new key alone decides.
+  values.set("mode-watcher-mode", "dark");
+  assert.equal(appearance.loadAppearancePreference(), "melange-light");
+  assert.equal(values.get("mode-watcher-mode"), "dark", "no second migration");
   values.clear();
-  values.set("nerve-light-theme", "nerve-dark");
-  values.set("nerve-dark-theme", "graphite");
-  assert.deepEqual(
-    {
-      ...appearance.loadAppearancePreference(),
-      colorMode: undefined,
-    },
-    { lightTheme: "nerve-light", darkTheme: "graphite", colorMode: undefined },
-  );
+  assert.equal(appearance.loadAppearancePreference(), "nerve-dark");
+  assert.equal(values.get("nerve-theme"), "nerve-dark");
 
-  // The resolved mode selects which slot applies to the document.
-  appearance.applyAppearance(
-    { lightTheme: "nerve-light", darkTheme: "nerve-dark" },
-    "system",
-  );
+  appearance.setTheme("nerve-light");
+  assert.equal(appearance.appearanceState.theme, "nerve-light");
+  assert.equal(values.get("nerve-theme"), "nerve-light");
   assert.equal(root.dataset.theme, "nerve-light");
-  appearance.setDarkTheme("graphite");
-  assert.equal(appearance.appearanceState.darkTheme, "graphite");
-  assert.equal(values.get("nerve-dark-theme"), "graphite");
-  assert.equal(root.dataset.theme, "nerve-light", "light mode ignores dark");
-  modeState.current = "dark";
-  appearance.setColorMode("dark");
-  assert.equal(root.dataset.theme, "graphite");
-  appearance.setLightTheme("nerve-light");
-  assert.equal(values.get("nerve-light-theme"), "nerve-light");
-  assert.equal(root.dataset.theme, "graphite", "dark mode ignores light");
+  assert.equal(root.classes.has("dark"), false);
+  assert.equal(root.style.colorScheme, "light");
+  assert.equal(meta.content, themeBackgrounds["nerve-light"]);
+  appearance.setTheme("graphite");
+  assert.equal(root.classes.has("dark"), true);
+  assert.equal(root.style.colorScheme, "dark");
+  assert.equal(meta.content, themeBackgrounds.graphite);
 
   const dispose = appearance.installAppearanceStorageSync();
   assert.equal(appearance.installAppearanceStorageSync(), dispose);
@@ -132,32 +154,30 @@ test("light and dark themes persist, migrate the legacy key, and sync other tabs
     );
   };
   const before = writes;
-  emit("nerve-dark-theme", "nerve-dark");
-  assert.equal(appearance.appearanceState.darkTheme, "nerve-dark");
-  assert.equal(root.dataset.theme, "nerve-dark");
+  emit("nerve-theme", "melange-dark");
+  assert.equal(appearance.appearanceState.theme, "melange-dark");
+  assert.equal(root.dataset.theme, "melange-dark");
   assert.equal(writes, before, "storage events never write back");
-  emit("nerve-dark-theme", "nerve-light");
-  assert.equal(appearance.appearanceState.darkTheme, "nerve-dark");
-  emit("nerve-light-theme", "nerve-dark");
-  assert.equal(appearance.appearanceState.lightTheme, "nerve-light");
-  emit("unrelated", "graphite");
-  emit("nerve-dark-theme", "graphite");
-  assert.equal(root.dataset.theme, "graphite");
+  emit("unrelated", "nerve-light");
+  assert.equal(root.dataset.theme, "melange-dark");
+  emit("nerve-theme", "garbage");
+  assert.equal(appearance.appearanceState.theme, "nerve-dark");
+  emit("nerve-theme", "nerve-light");
   emit(null, null);
-  assert.equal(appearance.appearanceState.darkTheme, "nerve-dark");
+  assert.equal(appearance.appearanceState.theme, "nerve-dark", "cleared");
   dispose();
-  emit("nerve-dark-theme", "graphite");
-  assert.equal(appearance.appearanceState.darkTheme, "nerve-dark");
+  emit("nerve-theme", "graphite");
+  assert.equal(appearance.appearanceState.theme, "nerve-dark");
 });
 
-test("pre-paint bootstrap resolves the theme for the stored or system mode", async () => {
+test("the pre-paint bootstrap mirrors migrateStoredTheme", async () => {
   const { runInNewContext } = await import("node:vm");
   const html = await readFile(
     new URL("../../../../index.html", import.meta.url),
     "utf8",
   );
   // Slice the inline script around its storage key rather than parsing HTML.
-  const marker = html.indexOf('"nerve-light-theme"');
+  const marker = html.indexOf('"nerve-theme"');
   assert.ok(marker >= 0);
   const open = "<script>";
   const start = html.lastIndexOf(open, marker) + open.length;
@@ -165,93 +185,98 @@ test("pre-paint bootstrap resolves the theme for the stored or system mode", asy
   assert.ok(start >= open.length && end > start);
   const bootstrap = html.slice(start, end);
 
-  function run(
-    stored: Record<string, string>,
-    systemDark: boolean,
-  ): { theme?: string; dark?: boolean; themeColor?: string } {
-    const result: { theme?: string; dark?: boolean; themeColor?: string } = {};
-    const root = {
-      dataset: {} as Record<string, string>,
-      classList: {
-        toggle: (name: string, active: boolean) => {
-          assert.equal(name, "dark");
-          result.dark = active;
-        },
-      },
-    };
+  function run(stored: Record<string, string>, systemDark: boolean) {
+    const values = new Map(Object.entries(stored));
+    const root = fakeRoot();
+    let themeColor: string | undefined;
     runInNewContext(bootstrap, {
       document: {
         documentElement: root,
         querySelector: () => ({
           setAttribute: (_name: string, value: string) => {
-            result.themeColor = value;
+            themeColor = value;
           },
         }),
       },
       window: {
-        localStorage: { getItem: (key: string) => stored[key] ?? null },
+        localStorage: {
+          getItem: (key: string) => values.get(key) ?? null,
+          setItem: (key: string, value: string) => values.set(key, value),
+          removeItem: (key: string) => values.delete(key),
+        },
         matchMedia: () => ({ matches: systemDark }),
       },
     });
-    result.theme = root.dataset.theme;
-    return result;
+    return { root, themeColor, values };
   }
 
   const both = {
-    "nerve-light-theme": "nerve-light",
+    "nerve-light-theme": "melange-light",
     "nerve-dark-theme": "graphite",
   };
-  assert.equal(
-    run({ ...both, "mode-watcher-mode": "dark" }, false).theme,
-    "graphite",
-  );
-  assert.equal(
-    run({ ...both, "mode-watcher-mode": "light" }, true).theme,
-    "nerve-light",
-  );
-  assert.equal(
-    run({ ...both, "mode-watcher-mode": "system" }, true).theme,
-    "graphite",
-  );
-  assert.equal(run(both, false).theme, "nerve-light");
-  assert.equal(
-    run({ ...both, "mode-watcher-mode": "invalid" }, true).dark,
-    true,
-  );
-  // Defaults and mismatched kinds.
-  assert.equal(run({}, true).theme, "nerve-dark");
-  assert.equal(
-    run({ "nerve-dark-theme": "nerve-light" }, true).theme,
-    "nerve-dark",
-  );
-  // Legacy single-theme ids map through the same table as the app.
-  for (const [legacy, pair] of Object.entries(legacyColorThemes)) {
-    const stored = { "nerve-color-theme": legacy };
-    assert.equal(run(stored, false).theme, pair.light, `${legacy} light`);
-    assert.equal(run(stored, true).theme, pair.dark, `${legacy} dark`);
+  const cases: Record<string, string>[] = [
+    {},
+    both,
+    { ...both, "mode-watcher-mode": "light" },
+    { ...both, "mode-watcher-mode": "dark" },
+    { ...both, "mode-watcher-mode": "system" },
+    { ...both, "mode-watcher-mode": "invalid" },
+    { "mode-watcher-mode": "system" },
+    { "mode-watcher-mode": "light" },
+    { "nerve-dark-theme": "nerve-light", "mode-watcher-mode": "dark" },
+    { "nerve-light-theme": "garbage", "nerve-color-theme": "garbage" },
+    ...["nerve", "solar", "ocean", "constructor"].flatMap(
+      (legacy): Record<string, string>[] => [
+        { "nerve-color-theme": legacy },
+        { "nerve-color-theme": legacy, "mode-watcher-mode": "dark" },
+      ],
+    ),
+    { "nerve-theme": "melange-dark", "mode-watcher-mode": "light" },
+    { "nerve-theme": "garbage" },
+  ];
+  for (const stored of cases) {
+    for (const systemDark of [false, true]) {
+      const label = `${JSON.stringify(stored)} systemDark=${systemDark}`;
+      const expected = migrateStoredTheme(
+        (key) => stored[key] ?? null,
+        systemDark,
+      );
+      const { root, themeColor, values } = run(stored, systemDark);
+      assert.equal(root.dataset.theme, expected, label);
+      assert.equal(root.classes.has("dark"), !expected.endsWith("-light"));
+      assert.equal(
+        root.style.colorScheme,
+        root.classes.has("dark") ? "dark" : "light",
+      );
+      assert.equal(themeColor, themeBackgrounds[expected], label);
+      if (stored["nerve-theme"] === undefined) {
+        assert.deepEqual([...values], [["nerve-theme", expected]], label);
+      }
+    }
   }
 
-  let dark = false;
+  // Storage that throws still paints the default theme.
+  const root = fakeRoot();
   runInNewContext(bootstrap, {
-    document: {
-      documentElement: {
-        dataset: {},
-        classList: {
-          toggle: (_name: string, active: boolean) => {
-            dark = active;
-          },
-        },
-      },
-      querySelector: () => null,
-    },
+    document: { documentElement: root, querySelector: () => null },
     window: {
-      localStorage: {
-        getItem: () => {
-          throw new Error("Denied");
-        },
+      get localStorage() {
+        throw new Error("Denied");
       },
-      matchMedia: () => ({ matches: true }),
+      matchMedia: () => ({ matches: false }),
     },
   });
-  assert.equal(dark, true);
+  assert.equal(root.dataset.theme, "nerve-dark");
+  assert.equal(root.classes.has("dark"), true);
+});
+
+test("applying a theme reports its background and kind to the desktop shell", async () => {
+  const appearance = await loadAppearance();
+  reports.length = 0;
+  appearance.applyAppearance("nerve-dark");
+  appearance.applyAppearance("nerve-light");
+  assert.deepEqual(reports, [
+    { background: themeBackgrounds["nerve-dark"], dark: true },
+    { background: themeBackgrounds["nerve-light"], dark: false },
+  ]);
 });

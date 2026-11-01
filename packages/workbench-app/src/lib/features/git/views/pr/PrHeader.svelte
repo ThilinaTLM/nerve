@@ -85,7 +85,7 @@ const StateIcon = $derived(STATES[kind].icon);
 <header class="flex flex-col gap-1 px-4 pt-3 pb-2">
   <div class="flex items-start gap-2">
     <h1
-      class="flex min-w-0 flex-1 items-start gap-2 text-lg leading-snug font-semibold"
+      class="flex min-w-0 flex-1 items-start gap-2 text-title leading-snug font-medium"
     >
       {#if display}
         <PrTooltip label={STATES[kind].label}>{@render stateIcon()}</PrTooltip>
@@ -119,7 +119,7 @@ const StateIcon = $derived(STATES[kind].icon);
     />
   </div>
 
-  <p class="flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground">
+  <p class="flex min-w-0 items-center gap-1.5 text-ui text-muted-foreground">
     {#if display}
       {#if display.author}
         <PrAvatar name={display.author} />
@@ -155,7 +155,7 @@ const StateIcon = $derived(STATES[kind].icon);
 
 <div class="flex flex-wrap items-center gap-x-3 gap-y-2 border-b px-4 pb-2">
   <p
-    class="flex min-w-0 flex-1 items-center gap-2 text-xs text-muted-foreground"
+    class="flex min-w-0 flex-1 items-center gap-2 text-ui text-muted-foreground"
   >
     {#if core}
       <span

@@ -6,7 +6,7 @@ let {
   label,
   value,
   percent,
-  tone = "accent",
+  tone = "brand",
   caption,
   class: className,
 }: {
@@ -15,14 +15,14 @@ let {
   value: string;
   /** Fill ratio 0–100. Omit while the measurement is unavailable. */
   percent?: number;
-  tone?: Extract<StatusTone, "accent" | "success" | "warning" | "destructive">;
+  tone?: Extract<StatusTone, "brand" | "success" | "warning" | "destructive">;
   /** Muted supporting line (e.g. "resets in 19m"). */
   caption?: string;
   class?: string;
 } = $props();
 
 const fillClass: Record<string, string> = {
-  accent: "bg-primary",
+  brand: "bg-primary",
   success: "bg-success",
   warning: "bg-warning",
   destructive: "bg-destructive",
@@ -34,9 +34,7 @@ const width = $derived(Math.min(100, Math.max(0, percent ?? 0)));
 <div class={cn("grid grid-cols-1 gap-1 px-1.5 py-0.5", className)}>
   <div class="flex items-baseline justify-between gap-4">
     <span class="min-w-0 truncate text-muted-foreground">{label}</span>
-    <span class="flex-none font-medium tabular-nums text-foreground"
-      >{value}</span
-    >
+    <span class="flex-none tabular-nums text-foreground">{value}</span>
   </div>
   <div
     class="h-1 overflow-hidden rounded-full bg-foreground/12"

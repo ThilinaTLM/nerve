@@ -33,21 +33,21 @@ const visibleGroups = $derived.by(() => {
 
 {#if view.matchCount === 0 && toolCall.status === "completed"}
   <ToolSections>
-    <div class="px-2.5 py-2 text-xs text-muted-foreground">No matches.</div>
+    <div class="px-2.5 py-2 text-ui text-muted-foreground">No matches.</div>
   </ToolSections>
 {:else if view.matchCount > 0}
   <!-- One sheet section per file: its path, then its matching lines. -->
   <ToolSections>
     {#each visibleGroups as group, groupIndex (group.path)}
       <div
-        class="px-2.5 py-2 font-mono text-xs leading-[1.4]"
+        class="px-2.5 py-2 font-mono text-ui leading-[1.4]"
         class:stream-item-enter={toolMotion.enter}
         style:--stream-item-delay={toolMotion.enter
           ? resultRowEnterDelay(groupIndex)
           : undefined}
       >
         <button
-          class="cursor-pointer border-0 bg-transparent p-0 text-left font-semibold text-primary hover:underline"
+          class="cursor-pointer border-0 bg-transparent p-0 text-left font-medium text-primary hover:text-foreground"
           type="button"
           onclick={() => onOpenFile?.(group.openPath ?? group.path)}
           title="Open file pane"
@@ -65,9 +65,9 @@ const visibleGroups = $derived.by(() => {
               )}
             title={`Open ${group.path}:${match.line}`}
           >
-            <span class="text-right text-muted-foreground/75">{match.line}</span
+            <span class="text-right text-muted-foreground">{match.line}</span
             ><span
-              class="break-words whitespace-pre-wrap text-foreground group-hover:underline"
+              class="break-words whitespace-pre-wrap text-foreground group-hover:text-primary"
               >{match.text}</span
             >
           </button>

@@ -23,6 +23,7 @@ import {
   refreshDesktopSettingsFromDaemon,
 } from "../settings/desktop-settings.js";
 import { createTrayController } from "../tray/tray.js";
+import { createWindowAppearanceStore } from "../window/window-appearance.js";
 import { createDesktopMainWindow } from "../window/main-window.js";
 import { parseDevelopmentSlot } from "./development-marker.js";
 import { installNavigationGuards } from "../window/navigation-guards.js";
@@ -42,6 +43,7 @@ const ipcChannels = [
   "desktop.window.toggleMaximize",
   "desktop.window.close",
   "desktop.window.getState",
+  "desktop.window.setTheme",
   "desktop.settings.setCloseToTray",
   "desktop.notifications.show",
   "desktop.dialog.pickDirectory",
@@ -69,6 +71,8 @@ export function createDesktopRuntime(
 }
 
 export function createDesktopRuntimePorts(): DesktopRuntimePorts {
+  // Electron profile data (not NERVE_HOME): purely a native-shell paint hint.
+  const windowAppearance = createWindowAppearanceStore(app.getPath("userData"));
   return {
     application: {
       whenReady: () => app.whenReady(),
@@ -109,11 +113,12 @@ export function createDesktopRuntimePorts(): DesktopRuntimePorts {
     },
     windows: {
       getAllWindows: () => BrowserWindow.getAllWindows(),
+      appearance: windowAppearance.current,
       createMainWindow: (windowOptions) =>
         createDesktopMainWindow(windowOptions, {
           createWindow: (browserWindowOptions) =>
             new BrowserWindow(browserWindowOptions),
-          shouldUseDarkColors: () => nativeTheme.shouldUseDarkColors,
+          windowAppearance: windowAppearance.current,
           resolveAppIconPath,
           resolvePreloadPath,
           platform: process.platform,
@@ -139,7 +144,7 @@ export function createDesktopRuntimePorts(): DesktopRuntimePorts {
     installDaemonCookie,
     refreshDesktopSettings: refreshDesktopSettingsFromDaemon,
     registerIpc: (ipcOptions) => {
-      registerDesktopIpc(ipcOptions);
+      registerDesktopIpc({ ...ipcOptions, windowAppearance });
       return () => {
         for (const channel of ipcChannels) ipcMain.removeHandler(channel);
       };

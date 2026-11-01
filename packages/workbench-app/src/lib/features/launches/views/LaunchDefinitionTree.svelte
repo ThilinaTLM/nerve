@@ -474,7 +474,8 @@ function handleKeydown(event: KeyboardEvent): void {
         class={cn(
           "relative rounded-sm transition-colors motion-reduce:transition-none",
           dragged && key === nodeKey(dragged) && "opacity-50",
-          target === "inside" && "bg-primary/10 ring-1 ring-primary ring-inset",
+          target === "inside" &&
+            "bg-primary-subtle ring-1 ring-primary ring-inset",
         )}
         role="none"
         draggable={dragEnabled}
@@ -542,7 +543,7 @@ function handleKeydown(event: KeyboardEvent): void {
       class={cn(
         "min-h-6 rounded-sm transition-colors motion-reduce:transition-none",
         drop?.rowKey === "root" &&
-          "bg-primary/10 ring-1 ring-primary ring-inset",
+          "bg-primary-subtle ring-1 ring-primary ring-inset",
       )}
       ondragover={overRoot}
       ondrop={performDrop}
@@ -552,7 +553,7 @@ function handleKeydown(event: KeyboardEvent): void {
   {#if preview}
     <div
       role="status"
-      class="sticky bottom-0 z-20 truncate rounded-sm bg-popover px-2 py-1 text-xs text-popover-foreground shadow-sm ring-1 ring-border"
+      class="sticky bottom-0 z-20 truncate rounded-sm bg-popover px-2 py-1 text-ui text-popover-foreground shadow-sm ring-1 ring-border"
     >
       {preview}
     </div>

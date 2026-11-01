@@ -56,7 +56,7 @@ function previewTone(tone: NotificationTone): void {
   {#snippet trigger()}
     <span
       class={cn(
-        "flex h-7 w-full min-w-0 items-center justify-between gap-2 rounded-md border border-input px-2 text-xs",
+        "flex h-7 w-full min-w-0 items-center justify-between gap-2 rounded-md border border-input px-2 text-ui",
         disabled && "pointer-events-none opacity-50",
       )}
     >

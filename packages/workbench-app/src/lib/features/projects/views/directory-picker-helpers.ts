@@ -8,14 +8,12 @@ export const signalMeta: SignalMetaByKind = {
   git: {
     label: "Git",
     title: "Git repository",
-    tone: "accent",
     icon: GitBranch,
   },
   package: { label: "Pkg", title: "JavaScript package", icon: PackageIcon },
   workspace: {
     label: "Workspace",
     title: "Workspace marker",
-    tone: "accent",
     icon: PackageIcon,
   },
   python: { label: "Py", title: "Python project", icon: Terminal },

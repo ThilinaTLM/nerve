@@ -53,10 +53,7 @@ let {
         {#if label}
           <Label
             for={htmlFor}
-            class={cn(
-              "text-sm font-normal text-foreground",
-              mono && "font-mono",
-            )}
+            class={cn("text-ui text-foreground", mono && "font-mono")}
             aria-hidden={htmlFor ? undefined : "true"}>{label}</Label
           >
         {/if}
@@ -66,7 +63,7 @@ let {
       </div>
       {#if description || hint}
         <p
-          class="flex flex-wrap items-center gap-x-1.5 text-xs text-muted-foreground"
+          class="flex flex-wrap items-center gap-x-1.5 text-caption text-muted-foreground"
         >
           {description}
           {#if hint}{@render hint()}{/if}

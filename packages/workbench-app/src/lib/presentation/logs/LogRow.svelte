@@ -57,12 +57,12 @@ const summaryTitle = $derived(formatApplicationLog(log));
   {/if}
 {/snippet}
 
-<article class="select-text font-mono text-xs leading-4">
+<article class="select-text font-mono text-ui leading-4">
   <div class="flex min-w-0 items-center px-2 py-0.5">
     {#if detail}
       <button
         type="button"
-        class="mr-1 inline-flex size-3.5 shrink-0 items-center justify-center text-muted-foreground focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+        class="mr-1 inline-flex size-3.5 shrink-0 items-center justify-center text-muted-foreground focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-focus"
         aria-expanded={open}
         aria-label={open ? "Collapse log details" : "Expand log details"}
         title={open ? "Collapse log details" : "Expand log details"}
@@ -83,7 +83,7 @@ const summaryTitle = $derived(formatApplicationLog(log));
   </div>
 
   {#if detail && open}
-    <div class="flex select-text flex-col gap-1 px-2 pb-1.5 pl-7 text-xs">
+    <div class="flex select-text flex-col gap-1 px-2 pb-1.5 pl-7 text-ui">
       {#if references.length > 0 || contextEntries.length > 0}
         <dl
           class="grid grid-cols-[max-content_minmax(0,1fr)] gap-x-3 gap-y-0.5"

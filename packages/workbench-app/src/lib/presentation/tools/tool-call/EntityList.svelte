@@ -31,9 +31,9 @@ const agents = $derived(subagents?.list() ?? []);
 {#if context}
   <div class="px-3 py-2">
     <p
-      class={`m-0 text-xs whitespace-pre-line text-muted-foreground wrap-anywhere ${expanded ? "" : "line-clamp-3"}`}
+      class={`m-0 text-ui whitespace-pre-line text-muted-foreground wrap-anywhere ${expanded ? "" : "line-clamp-3"}`}
     >
-      <span class="font-medium text-foreground">{context.label}</span>
+      <span class="text-foreground">{context.label}</span>
       ·
       <SlotText text={context.text} width="w-64" {streaming} />
     </p>

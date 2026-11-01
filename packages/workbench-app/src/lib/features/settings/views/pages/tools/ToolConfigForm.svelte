@@ -4,6 +4,7 @@
   template configures a tool exactly as settings do.
 -->
 <script lang="ts">
+import { Callout } from "@nervekit/ui-kit/components/composites/callout";
 import { canonicalSettingRequired } from "$lib/presentation/composer/capability-tool-locks";
 import { openAiCodexImageSizeSchema } from "$lib/api";
 import type { ModelInfo } from "$lib/api";
@@ -16,7 +17,6 @@ import { Input } from "@nervekit/ui-kit/components/ui/input";
 import { Label } from "@nervekit/ui-kit/components/ui/label";
 import { Switch } from "@nervekit/ui-kit/components/ui/switch";
 import ModelPicker from "$lib/presentation/model-picker/ModelPicker.svelte";
-import { SettingsInlineMessage } from "$lib/presentation/settings";
 import { isPublicKrokiUrl } from "./kroki-server";
 import {
   accountKind,
@@ -158,7 +158,7 @@ const accountItems = $derived([
     <div class="flex items-center justify-between gap-4">
       <div class="grid gap-1">
         <Label for="tool-bash-auto">Automatic backgrounding</Label>
-        <p class="text-xs text-muted-foreground">
+        <p class="text-ui text-muted-foreground">
           Promote calls still running after the delay to a background run.
         </p>
       </div>
@@ -190,10 +190,10 @@ const accountItems = $derived([
               },
             })}
         />
-        <span class="text-xs text-muted-foreground">seconds</span>
+        <span class="text-ui text-muted-foreground">seconds</span>
       </div>
       {#if auto.enabled && !validAfter}
-        <p class="text-xs text-destructive">
+        <p class="text-ui text-destructive">
           Enter a whole number from 1 to 86,400.
         </p>
       {/if}
@@ -201,7 +201,7 @@ const accountItems = $derived([
     {#if !auto.enabled}
       <div class="grid gap-1.5">
         <Label for="tool-bash-timeout">Maximum timeout</Label>
-        <p class="text-xs text-muted-foreground">
+        <p class="text-ui text-muted-foreground">
           Agent calls must set a timeout up to this limit; your own commands use
           it as their timeout.
         </p>
@@ -219,10 +219,10 @@ const accountItems = $derived([
                 maxTimeoutMs: Number(event.currentTarget.value) * 1000,
               })}
           />
-          <span class="text-xs text-muted-foreground">seconds</span>
+          <span class="text-ui text-muted-foreground">seconds</span>
         </div>
         {#if !validTimeout}
-          <p class="text-xs text-destructive">
+          <p class="text-ui text-destructive">
             Enter a whole number from 1 to 3,600.
           </p>
         {/if}
@@ -260,7 +260,7 @@ const accountItems = $derived([
           else removeSetting("interpreterPath");
         }}
       />
-      <p class="text-xs text-muted-foreground">
+      <p class="text-ui text-muted-foreground">
         Leave empty to auto-detect from the project and system PATH.
         {#if resolvedPython}
           In use: <span class="font-mono">{resolvedPython}</span>
@@ -283,7 +283,7 @@ const accountItems = $derived([
           (payload = { ...payload, profileId: next || undefined })}
       />
       {#if accounts.length === 0}
-        <p class="text-xs text-muted-foreground">
+        <p class="text-ui text-muted-foreground">
           No accounts yet. Add one in Integrations to use this tool.
         </p>
       {/if}
@@ -361,8 +361,8 @@ const accountItems = $derived([
       />
       <p
         class={validSize
-          ? "text-xs text-muted-foreground"
-          : "text-xs text-destructive"}
+          ? "text-ui text-muted-foreground"
+          : "text-ui text-destructive"}
       >
         Use auto or WIDTHxHEIGHT. Dimensions must be multiples of 16 and at most
         3840px.
@@ -391,14 +391,15 @@ const accountItems = $derived([
         oninput={(event) => patchSettings({ url: event.currentTarget.value })}
       />
       {#if !krokiParsed.success}
-        <p class="text-xs text-destructive">
+        <p class="text-ui text-destructive">
           Enter an HTTP(S) URL without credentials, query parameters, or
           fragments.
         </p>
       {/if}
     </div>
     {#if isPublicKrokiUrl(krokiUrl)}
-      <SettingsInlineMessage
+      <Callout
+        layout="block"
         tone="warning"
         text="The public Kroki server receives your diagram source. Use your own server for private diagrams."
       />
@@ -417,12 +418,12 @@ const accountItems = $derived([
         ariaLabel="Profile after plan approval"
         onValueChange={(next) => patchSettings({ approvalProfile: next })}
       />
-      <p class="text-xs text-muted-foreground">
+      <p class="text-ui text-muted-foreground">
         Chosen when the plan is presented, so editing this while you review it
         does not change where approval goes.
       </p>
     </div>
   {:else}
-    <p class="text-xs text-muted-foreground">Nothing to configure.</p>
+    <p class="text-ui text-muted-foreground">Nothing to configure.</p>
   {/if}
 </div>

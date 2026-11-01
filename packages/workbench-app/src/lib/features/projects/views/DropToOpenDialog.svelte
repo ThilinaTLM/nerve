@@ -89,7 +89,7 @@ function handleOpenChange(next: boolean) {
               "flex w-full items-center gap-2.5 rounded-md border bg-card px-2.5 py-2 text-left",
               choosing &&
                 row.selectable &&
-                "cursor-pointer hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none",
+                "cursor-pointer hover:bg-hover focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none",
               selected && "border-ring bg-selected hover:bg-selected",
               !row.selectable && "opacity-50",
             )}
@@ -108,14 +108,14 @@ function handleOpenChange(next: boolean) {
               />
             {/if}
             <span class="flex min-w-0 flex-1 flex-col">
-              <span class="flex items-center gap-1.5 text-sm">
+              <span class="flex items-center gap-1.5 text-ui">
                 <span class="truncate">{row.name}</span>
                 {#if !row.selectable}
-                  <span class="text-xs text-muted-foreground">Skipped</span>
+                  <span class="text-ui text-muted-foreground">Skipped</span>
                 {/if}
               </span>
               <span
-                class="truncate font-mono text-xs text-muted-foreground"
+                class="truncate font-mono text-ui text-muted-foreground"
                 title={row.path}>{displayPath(row.path)}</span
               >
             </span>
@@ -135,7 +135,7 @@ function handleOpenChange(next: boolean) {
     </ul>
   {:else}
     <div
-      class="flex items-center gap-2 text-sm text-muted-foreground"
+      class="flex items-center gap-2 text-ui text-muted-foreground"
       role="status"
     >
       <LoaderCircle class="size-4 animate-spin" aria-hidden="true" />
@@ -143,7 +143,7 @@ function handleOpenChange(next: boolean) {
     </div>
   {/if}
   {#if error}
-    <p class="mt-2 text-sm text-destructive" role="alert">{error}</p>
+    <p class="mt-2 text-ui text-destructive" role="alert">{error}</p>
   {/if}
 
   {#snippet footer()}

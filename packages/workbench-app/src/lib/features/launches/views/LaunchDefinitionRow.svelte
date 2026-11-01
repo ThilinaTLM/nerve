@@ -197,7 +197,7 @@ const menuItems = $derived.by<ContextMenuItem[]>(() => {
   {/snippet}
   {#snippet badges()}
     {#if entry.activeRuns.length > 1}
-      <Badge variant="accent">{entry.activeRuns.length} running</Badge>
+      <Badge variant="info">{entry.activeRuns.length} running</Badge>
     {/if}
     {#if entry.runs.length > 1}
       <Badge variant="neutral">

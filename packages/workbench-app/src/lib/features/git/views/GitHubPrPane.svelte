@@ -123,7 +123,7 @@ function changeTab(value: string) {
 
 <!-- Failure details live in header Activity; this is a neutral retry state. -->
 {#snippet sectionUnavailable(label: string, section: PrSection)}
-  <div class="flex flex-col items-start gap-2 px-4 py-4 text-xs">
+  <div class="flex flex-col items-start gap-2 px-4 py-4 text-ui">
     <span class="text-muted-foreground">{label} unavailable</span>
     <Button
       size="sm"
@@ -145,10 +145,8 @@ function changeTab(value: string) {
         <GitPullRequest class="size-4" aria-hidden="true" />
       </Empty.Media>
       <Empty.Header class="gap-1">
-        <Empty.Title class="text-sm font-medium"
-          >No pull request selected</Empty.Title
-        >
-        <Empty.Description class="text-xs">
+        <Empty.Title class="text-ui">No pull request selected</Empty.Title>
+        <Empty.Description class="text-ui">
           Open a PR from the Git panel to view its details here.
         </Empty.Description>
       </Empty.Header>
@@ -173,10 +171,8 @@ function changeTab(value: string) {
         />
       </Empty.Media>
       <Empty.Header class="gap-1">
-        <Empty.Title class="text-sm font-medium"
-          >Pull request unavailable</Empty.Title
-        >
-        <Empty.Description class="text-xs">
+        <Empty.Title class="text-ui">Pull request unavailable</Empty.Title>
+        <Empty.Description class="text-ui">
           Details are in Activity. Retry to load it again.
         </Empty.Description>
       </Empty.Header>

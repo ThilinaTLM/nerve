@@ -47,7 +47,7 @@ let {
     <SlotText
       width="w-40"
       streaming
-      class="ml-2 font-mono text-xs text-muted-foreground"
+      class="ml-2 text-ui text-muted-foreground"
     />
   {:else if arg}
     {#if arg.openPath}
@@ -78,24 +78,24 @@ let {
 </div>
 
 <style>
-/* Inline flow lets long arguments wrap flush to the left edge. */
+/* Inline flow lets long arguments wrap flush to the left edge. The header is
+ * sans like the rest of the transcript, even when the argument is a command
+ * or a path; the card body keeps code, output and diffs monospace. */
 .card-header {
   min-width: 0;
   line-height: 1.5;
 }
 
 .badge {
-  font-family: var(--font-mono);
-  font-size: var(--text-sm);
-  font-weight: 650;
+  font-size: var(--text-ui);
+  font-weight: 600;
   color: var(--foreground);
 }
 
 .arg {
   margin-left: 0.5rem;
   color: var(--muted-foreground);
-  font-family: var(--font-mono);
-  font-size: var(--text-xs);
+  font-size: var(--text-ui);
   overflow-wrap: anywhere;
   word-break: break-word;
 }
@@ -111,6 +111,6 @@ let {
 }
 
 .arg.link:hover {
-  text-decoration: underline;
+  color: var(--foreground);
 }
 </style>

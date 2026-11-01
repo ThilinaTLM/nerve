@@ -5,6 +5,9 @@ import {
   extractClassSelectors,
   findBareGlobalSelectors,
   findDarkUtilities,
+  findHoverUnderlines,
+  findOffScaleTextSizes,
+  findOffTokenColours,
   isDynamicClass,
   markupClassNames,
 } from "../style-policy.mjs";
@@ -123,6 +126,39 @@ test("dark: utilities are reported, including stacked variants", () => {
 test("dark as a property name is not a dark: utility", () => {
   assert.deepEqual(
     findDarkUtilities("type T = { dark: boolean };\nconst x = { dark: true };"),
+    [],
+  );
+});
+
+test("off-scale font sizes are reported; type roles and colours are not", () => {
+  assert.deepEqual(
+    findOffScaleTextSizes(
+      '<p class="text-xs md:text-lg text-[11px] text-2xl text-ui text-caption text-muted-foreground text-xs/relaxed">',
+    ),
+    ["text-xs", "text-lg", "text-[11px]", "text-2xl", "text-xs"],
+  );
+});
+
+test("opacity modifiers and removed tokens are reported; recipes are not", () => {
+  assert.deepEqual(
+    findOffTokenColours(
+      '<div class="bg-destructive/10 hover:border-border/60 bg-destructive-subtle border-border-subtle ring-focus bg-accent shadow-md shadow-sm w-1/2">',
+    ),
+    ["bg-destructive/10", "border-border/60", "bg-accent", "shadow-md"],
+  );
+});
+
+test("hover underlines are reported; permanent prose underlines are not", () => {
+  assert.deepEqual(
+    findHoverUnderlines(
+      'class="text-primary hover:underline" class="group-hover:underline" class="md:hover:underline"',
+    ),
+    ["hover:underline", "group-hover:underline", "md:hover:underline"],
+  );
+  assert.deepEqual(
+    findHoverUnderlines(
+      'class="text-info underline underline-offset-2 no-underline hover:bg-hover"',
+    ),
     [],
   );
 });

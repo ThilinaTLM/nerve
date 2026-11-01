@@ -72,6 +72,67 @@ export function findDarkUtilities(source) {
   return offenders;
 }
 
+/**
+ * Finds font-size utilities outside the four type roles (`text-caption`,
+ * `text-ui`, `text-body`, `text-title`): Tailwind's default scale
+ * (`text-xs`…`text-9xl`, cleared in theme.css, so they would silently render
+ * nothing) and arbitrary sizes such as `text-[11px]` or `text-[0.9em]`.
+ */
+export function findOffScaleTextSizes(source) {
+  const offenders = [];
+  for (const match of source.matchAll(
+    /(?<![\w-])text-(?:xs|sm|base|lg|[2-9]?xl|\[[\d.]+(?:px|rem|em)\])(?![\w-])/g,
+  ))
+    offenders.push(match[0]);
+  return offenders;
+}
+
+/**
+ * Workbench files whose `hover:underline` sits on real prose links (`<a>`
+ * elements that navigate, such as external docs or issue keys). Buttons and
+ * button-like elements never underline; they answer hover with a fill or a
+ * colour change.
+ */
+export const PROSE_LINK_UNDERLINE_ALLOWLIST = [
+  "app/discover/components/DiscoverResourceLinks.svelte",
+  "features/settings/views/pages/general/GeneralSettingsPage.svelte",
+  "features/settings/views/pages/titles/TitlesSettingsPage.svelte",
+  "presentation/tools/tool-call/AtlassianResourceRow.svelte",
+  "presentation/tools/tool-call/ConfluencePageRow.svelte",
+  "presentation/tools/tool-call/JiraIssueCard.svelte",
+];
+
+/** Finds hover underlines (`hover:underline`, `group-hover:underline`). */
+export function findHoverUnderlines(source) {
+  const offenders = [];
+  for (const match of source.matchAll(
+    /(?<![\w-])(?:[\w-]+:)*(?:group-)?hover:underline(?![\w-])/g,
+  ))
+    offenders.push(match[0]);
+  return offenders;
+}
+
+/**
+ * Finds colour opacity modifiers (`bg-destructive/10`, `border-border/60`) and
+ * utilities whose token no longer exists (`bg-accent`, `shadow-md`). App code
+ * uses the derived recipes in theme.css (`bg-<tone>-subtle`,
+ * `border-<tone>-strong`, `border-border-subtle`, `ring-focus`, `bg-scrim`)
+ * and the two elevations (`shadow-sm`, `shadow-overlay`); only ui-kit
+ * primitives may compose their own alphas.
+ */
+export function findOffTokenColours(source) {
+  const offenders = [];
+  for (const match of source.matchAll(
+    /(?<![\w-])(?:bg|text|border|ring|outline|fill|stroke|divide|decoration|from|to|via|caret|placeholder)(?:-[trblxy])?-[a-z]+(?:-[a-z0-9]+)*\/\d+(?![\w-])/g,
+  ))
+    offenders.push(match[0]);
+  for (const match of source.matchAll(
+    /(?<![\w-])(?:(?:bg|text|border|ring)-accent(?:-foreground)?|shadow-(?:2xs|xs|md|lg|xl|2xl))(?![\w/-])/g,
+  ))
+    offenders.push(match[0]);
+  return offenders;
+}
+
 const CLASS_TOKEN = /-?[_a-zA-Z][\w-]*/;
 
 /** Strips comments and at-rule preludes, then collects class selectors. */

@@ -41,7 +41,7 @@ const triggerDisabled = $derived(menuDisabled ?? disabled);
 const dividerClass = $derived(
   variant === "default" || variant === "success"
     ? "border-l-primary-foreground/25"
-    : "border-l-border/70",
+    : "border-l-border-subtle",
 );
 </script>
 

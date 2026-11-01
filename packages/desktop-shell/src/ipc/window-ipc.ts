@@ -5,6 +5,7 @@ import type {
 import { BrowserWindow, ipcMain } from "../platform/electron/electron-api.js";
 import { desktopLog } from "../logging.js";
 import type { QuitSource } from "../app/quit-contracts.js";
+import type { WindowAppearanceStore } from "../window/window-appearance.js";
 
 export interface DesktopWindowState {
   maximized: boolean;
@@ -16,6 +17,7 @@ export function registerWindowIpc(options: {
   setCloseToTray: (value: boolean) => void;
   closeWindowOrQuit: (window: BrowserWindowType, source?: QuitSource) => void;
   sendWindowState: (window: BrowserWindowType) => void;
+  windowAppearance: WindowAppearanceStore;
 }): void {
   ipcMain.handle("desktop.window.minimize", (event) =>
     windowFromEvent(event)?.minimize(),
@@ -37,6 +39,11 @@ export function registerWindowIpc(options: {
       context: { closeToTray: options.getCloseToTray() },
     });
     options.closeWindowOrQuit(window, "titlebar-close");
+  });
+  ipcMain.handle("desktop.window.setTheme", (event, appearance: unknown) => {
+    const window = windowFromEvent(event);
+    const applied = options.windowAppearance.update(appearance);
+    if (applied) window?.setBackgroundColor(applied.background);
   });
   ipcMain.handle("desktop.window.getState", (event): DesktopWindowState => {
     const window = windowFromEvent(event);

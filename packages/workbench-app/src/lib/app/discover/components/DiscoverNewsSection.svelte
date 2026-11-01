@@ -35,7 +35,7 @@ const empty = $derived(!news.featured && news.current.length === 0);
     unread={entry.unread}
   >
     {#snippet meta()}
-      <Badge variant="outline">{discoverReleaseLabel(entry.releasedIn)}</Badge>
+      <Badge variant="neutral">{discoverReleaseLabel(entry.releasedIn)}</Badge>
     {/snippet}
     {#snippet actions()}
       {#if entry.action}
@@ -64,7 +64,7 @@ const empty = $derived(!news.featured && news.current.length === 0);
         {/each}
 
         {#if empty}
-          <p class="px-3 py-2.5 text-xs text-muted-foreground">
+          <p class="px-3 py-2.5 text-ui text-muted-foreground">
             {currentVersion
               ? `Nothing new since ${currentVersion}.`
               : "Nothing new right now."}

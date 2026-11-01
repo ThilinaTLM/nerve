@@ -98,7 +98,7 @@ async function save(): Promise<void> {
       placeholder={configured ? "Leave blank to keep current key" : "tvly-…"}
       data-tour-id="setup-tavily-api-key"
     />
-    <p class="text-xs text-muted-foreground">
+    <p class="text-ui text-muted-foreground">
       <a
         class="text-info underline underline-offset-2"
         href="https://app.tavily.com/"

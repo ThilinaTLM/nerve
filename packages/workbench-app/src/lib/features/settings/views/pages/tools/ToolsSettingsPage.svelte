@@ -1,4 +1,5 @@
 <script lang="ts">
+import { Callout } from "@nervekit/ui-kit/components/composites/callout";
 import { toolSettingsMutation } from "./tool-settings-mutation";
 import { clampThinkingLevelForModel } from "$lib/presentation/state/thinking-levels";
 import ProjectCapabilityTrustAction from "../capabilities/ProjectCapabilityTrustAction.svelte";
@@ -20,7 +21,6 @@ import { ScopedAgentState } from "$lib/application/agent-configuration/scoped-ag
 import { workbenchStartupState } from "$lib/application/startup/workbench-startup-state.svelte";
 import {
   SettingsChangeIndicator,
-  SettingsInlineMessage,
   SettingsRow,
   SettingsSection,
 } from "$lib/presentation/settings";
@@ -157,11 +157,11 @@ const python = $derived(status?.runtime.python);
     onReload={onRetry}
   />{/if}
 {#if error}
-  <SettingsInlineMessage tone="destructive" text={error}>
+  <Callout layout="block" tone="destructive" text={error}>
     {#snippet actions()}<Button size="sm" variant="outline" onclick={onRetry}
         >Reload</Button
       >{/snippet}
-  </SettingsInlineMessage>
+  </Callout>
 {/if}
 {#if loading}<Skeleton class="h-10 w-full" />
 {:else if editor.resolution}

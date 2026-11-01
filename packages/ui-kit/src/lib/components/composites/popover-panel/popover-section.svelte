@@ -22,13 +22,13 @@ let {
 <section
   class={cn(
     "grid grid-cols-1 gap-1",
-    separated && "border-t border-border/60 pt-2",
+    separated && "border-t border-border-subtle pt-2",
     className,
   )}
 >
   {#if label || action}
     <div class="flex items-center justify-between gap-3 px-1.5 py-0.5">
-      {#if label}<span class="text-xs text-muted-foreground">{label}</span>{/if}
+      {#if label}<span class="text-ui text-muted-foreground">{label}</span>{/if}
       {#if action}{@render action()}{/if}
     </div>
   {/if}

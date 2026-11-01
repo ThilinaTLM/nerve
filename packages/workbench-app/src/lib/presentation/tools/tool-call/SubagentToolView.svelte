@@ -61,7 +61,7 @@ const hasContent = $derived(
 
 {#snippet sections()}
   {#if textOnly && view.action === "status"}
-    <p class="m-0 px-3 py-2 text-xs wrap-anywhere text-muted-foreground">
+    <p class="m-0 px-3 py-2 text-ui wrap-anywhere text-muted-foreground">
       {view.header}
     </p>
     {#if view.body}
@@ -72,7 +72,7 @@ const hasContent = $derived(
   {:else if items.length > 0}
     <EntityList {items} {context} {expanded} />
   {:else}
-    <p class="m-0 px-3 py-2 text-xs text-muted-foreground">
+    <p class="m-0 px-3 py-2 text-ui text-muted-foreground">
       No sub-agents yet.
     </p>
   {/if}

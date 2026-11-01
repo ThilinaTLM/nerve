@@ -63,7 +63,6 @@ function formatElapsed(ms: number): string {
 
 <style>
 .transcription-activity {
-  --activity-accent: var(--info);
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -72,32 +71,29 @@ function formatElapsed(ms: number): string {
   height: var(--spacing-control);
   border-radius: var(--radius-md);
   max-width: 9rem;
-  border: 1px solid
-    color-mix(in oklab, var(--activity-accent) 28%, var(--border));
-  background: color-mix(in oklab, var(--activity-accent) 10%, var(--card));
-  color: var(--activity-accent);
+  border: 1px solid var(--info-strong);
+  background: var(--info-subtle);
+  color: var(--info);
   padding: 0 0.52rem;
   font-family: var(--font-mono);
-  font-size: var(--text-xs);
+  font-size: var(--text-ui);
   font-variant-numeric: tabular-nums;
-  font-weight: 650;
+  font-weight: 600;
   line-height: 1;
   white-space: nowrap;
-  box-shadow: 0 0 0 1px color-mix(in oklab, var(--background) 64%, transparent)
-    inset;
   animation: activity-enter 120ms ease-out;
 }
 
 .transcription-activity[data-state="recording"] {
-  --activity-accent: var(--destructive);
-}
-
-.transcription-activity[data-state="transcribing"] {
-  --activity-accent: var(--info);
+  border-color: var(--destructive-strong);
+  background: var(--destructive-subtle);
+  color: var(--destructive);
 }
 
 .transcription-activity[data-near-limit="true"] {
-  --activity-accent: var(--warning);
+  border-color: var(--warning-strong);
+  background: var(--warning-subtle);
+  color: var(--warning);
 }
 
 .activity-sr {

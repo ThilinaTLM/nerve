@@ -59,7 +59,7 @@ const stateClass = $derived(
   {
     success: "text-success",
     destructive: "text-destructive",
-    accent: "text-foreground",
+    brand: "text-primary",
     neutral: "text-muted-foreground",
     warning: "text-warning",
     info: "text-info",
@@ -119,7 +119,7 @@ const menuItems = $derived<ContextMenuItem[]>([
   role="listitem"
   hover="default"
   {menuItems}
-  class="group flex-col gap-1 px-2.5 py-2 text-xs leading-tight"
+  class="group flex-col gap-1 px-2.5 py-2 text-ui leading-tight"
   onclick={disabled ? undefined : onOpen}
 >
   <!-- Header line: identity and actions, so the title below keeps full width. -->
@@ -128,9 +128,7 @@ const menuItems = $derived<ContextMenuItem[]>([
       class={`size-3.5 shrink-0 ${stateClass}`}
       aria-label={pr.isDraft ? "Draft pull request" : pr.state.toLowerCase()}
     />
-    <span class="shrink-0 font-mono font-medium text-foreground"
-      >#{pr.number}</span
-    >
+    <span class="shrink-0 font-mono text-foreground">#{pr.number}</span>
     <span class="min-w-0 shrink truncate text-muted-foreground">
       {pr.author ?? "unknown"}{age ? ` · ${age}` : ""}
     </span>
@@ -182,7 +180,7 @@ const menuItems = $derived<ContextMenuItem[]>([
     title={disabled
       ? disabledReason
       : `${pr.title} · ${pr.baseRefName} ← ${pr.headRefName}`}
-    class="cursor-pointer rounded-sm text-left focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50"
+    class="cursor-pointer rounded-sm text-left focus-visible:ring-3 focus-visible:ring-focus focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50"
     onclick={(event) => {
       event.stopPropagation();
       onOpen();
@@ -199,7 +197,7 @@ const menuItems = $derived<ContextMenuItem[]>([
       title={hasCheckDetails
         ? `${expanded ? "Collapse" : "Expand"} check details`
         : "No check details"}
-      class="shrink-0 rounded-sm focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none disabled:pointer-events-none"
+      class="shrink-0 rounded-sm focus-visible:ring-3 focus-visible:ring-focus focus-visible:outline-none disabled:pointer-events-none"
       onclick={(event) => {
         event.stopPropagation();
         onToggleChecks();
@@ -232,7 +230,7 @@ const menuItems = $derived<ContextMenuItem[]>([
     <span class="min-w-0 flex-1"></span>
 
     <span
-      class="shrink-0 font-mono text-[0.6875rem] tabular-nums"
+      class="shrink-0 font-mono text-caption tabular-nums"
       title={`${pr.additions} additions, ${pr.deletions} deletions`}
     >
       <span class="text-success">+{pr.additions}</span>
@@ -244,7 +242,7 @@ const menuItems = $derived<ContextMenuItem[]>([
     <div class="mt-0.5 flex flex-col gap-0.5">
       {#each pr.checks.runs as run, index (`${run.name}:${index}`)}
         {@const outcome = githubCheckRunOutcome(run.status)}
-        <div class="flex min-w-0 items-center gap-1.5 pl-1 text-xs">
+        <div class="flex min-w-0 items-center gap-1.5 pl-1 text-ui">
           <span class="min-w-0 flex-1 truncate text-muted-foreground"
             >{run.name}</span
           >

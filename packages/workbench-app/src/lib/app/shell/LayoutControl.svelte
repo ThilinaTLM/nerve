@@ -36,9 +36,15 @@ type Props = {
   zoomLevel?: number;
   dockToggles?: DockToggle[];
   onZoomLevelChange?: (level: number) => void;
+  open?: boolean;
 };
 
-let { zoomLevel = 0, dockToggles = [], onZoomLevelChange }: Props = $props();
+let {
+  zoomLevel = 0,
+  dockToggles = [],
+  onZoomLevelChange,
+  open = $bindable(false),
+}: Props = $props();
 
 const dockIcons = {
   left: PanelLeft,
@@ -73,6 +79,7 @@ function changeZoomLevel(delta: number) {
 </script>
 
 <Popover
+  bind:open
   size="sm"
   triggerClass={STATUS_BAR_CHIP_BUTTON}
   ariaLabel="Open layout controls"

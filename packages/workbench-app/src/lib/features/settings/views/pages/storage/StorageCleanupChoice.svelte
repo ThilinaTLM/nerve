@@ -2,7 +2,7 @@
 import { Checkbox } from "@nervekit/ui-kit/components/ui/checkbox";
 import { Input } from "@nervekit/ui-kit/components/ui/input";
 import { Label } from "@nervekit/ui-kit/components/ui/label";
-import { cn } from "@nervekit/ui-kit/utils";
+import { selectRowVariants } from "@nervekit/ui-kit/components/composites/select-row";
 
 type Props = {
   id: string;
@@ -32,19 +32,16 @@ let {
 const hasAmount = $derived(amount !== undefined);
 </script>
 
+<!-- Rows sit flush in a hairline-divided group, so the shared radius is dropped. -->
 <div
-  class={cn(
-    "flex items-center gap-2 px-2 py-1.5 transition-colors hover:bg-hover",
-    checked && "bg-selected hover:bg-selected",
-  )}
+  class={selectRowVariants({ selected: checked }).base({
+    class: "flex items-center gap-2 rounded-none px-2 py-1.5",
+  })}
 >
   <Checkbox {id} bind:checked aria-label={title} />
-  <Label
-    for={id}
-    class="grid min-w-0 flex-1 cursor-pointer gap-0.5 font-normal"
-  >
-    <span class="text-xs font-medium text-foreground">{title}</span>
-    <span class="text-xs text-muted-foreground">{description}</span>
+  <Label for={id} class="grid min-w-0 flex-1 cursor-pointer gap-0.5">
+    <span class="text-ui text-foreground">{title}</span>
+    <span class="text-ui text-muted-foreground">{description}</span>
   </Label>
   {#if hasAmount}
     <div class="flex items-center gap-1.5">
@@ -60,7 +57,7 @@ const hasAmount = $derived(amount !== undefined);
           (amount = Number((event.currentTarget as HTMLInputElement).value))}
       />
       {#if amountSuffix}
-        <span class="text-xs text-muted-foreground">{amountSuffix}</span>
+        <span class="text-ui text-muted-foreground">{amountSuffix}</span>
       {/if}
     </div>
   {/if}

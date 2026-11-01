@@ -163,7 +163,7 @@ function nearestVerticalScrollRoot(root: HTMLElement): Element | null {
 function createMermaidPlaceholder(host: HTMLElement): void {
   const placeholder = host.ownerDocument.createElement("div");
   placeholder.className =
-    "grid h-full place-items-center p-4 text-sm text-muted-foreground";
+    "grid h-full place-items-center p-4 text-ui text-muted-foreground";
   placeholder.textContent = "Mermaid diagram";
   placeholder.setAttribute("aria-hidden", "true");
   host.setAttribute("aria-busy", "true");
@@ -619,7 +619,7 @@ $effect(() => () => {
   min-width: 0;
   max-width: 100%;
   color: color-mix(in oklab, var(--foreground) 92%, transparent);
-  font-size: var(--text-sm);
+  font-size: var(--text-body);
   line-height: 1.55;
   overflow-wrap: anywhere;
 }
@@ -717,7 +717,7 @@ $effect(() => () => {
 .markdown :global(h6) {
   margin: calc(var(--spacing) * 6) 0 calc(var(--spacing) * 1);
   color: var(--foreground);
-  font-weight: 600;
+  font-weight: 500;
   line-height: 1.25;
 }
 
@@ -727,7 +727,14 @@ $effect(() => () => {
 .markdown :global(h4),
 .markdown :global(h5),
 .markdown :global(h6) {
-  font-size: var(--text-sm);
+  font-size: var(--text-body);
+}
+
+/* Emphasis steps one weight up from body text, the same as headings, rather
+ * than the browser's `bolder`. */
+.markdown :global(strong),
+.markdown :global(b) {
+  font-weight: 500;
 }
 
 .markdown :global(a) {
@@ -797,7 +804,7 @@ $effect(() => () => {
   background: var(--well) !important;
   margin: 0;
   padding: 0.55rem 0.6rem;
-  font-size: var(--text-xs);
+  font-size: var(--text-ui);
   line-height: 1.45;
   white-space: pre-wrap;
   word-break: break-word;
@@ -836,8 +843,8 @@ $effect(() => () => {
   table-layout: auto;
   border-collapse: separate;
   border-spacing: 0;
-  font-size: var(--text-xs);
-  line-height: var(--tw-leading, var(--text-xs--line-height));
+  font-size: var(--text-ui);
+  line-height: var(--tw-leading, var(--text-ui--line-height));
 }
 
 .markdown :global(th),
@@ -867,7 +874,7 @@ $effect(() => () => {
 }
 
 .markdown :global(tbody tr:hover) {
-  background: color-mix(in oklab, var(--accent) 45%, transparent);
+  background: var(--hover);
 }
 
 .markdown :global(th) {
@@ -876,7 +883,7 @@ $effect(() => () => {
   z-index: 1;
   background: color-mix(in oklab, var(--card) 92%, var(--muted));
   color: var(--muted-foreground);
-  font-weight: var(--font-weight-medium);
+  font-weight: var(--font-weight-normal);
   border-bottom-color: color-mix(in oklab, var(--border) 80%, transparent);
 }
 </style>

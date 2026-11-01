@@ -82,17 +82,17 @@ const wrapCompartment = new Compartment();
 
 const mergeTheme = EditorView.theme({
   "&.cm-merge-b .cm-changedLine, .cm-inlineChangedLine": {
-    backgroundColor: "color-mix(in oklab, var(--success) 10%, transparent)",
+    backgroundColor: "var(--success-subtle)",
   },
   ".cm-deletedChunk": {
     color: "var(--foreground)",
-    backgroundColor: "color-mix(in oklab, var(--destructive) 10%, transparent)",
+    backgroundColor: "var(--destructive-subtle)",
   },
   "&.cm-merge-b .cm-changedText": {
-    backgroundColor: "color-mix(in oklab, var(--success) 25%, transparent)",
+    backgroundColor: "var(--success-strong)",
   },
   "&.cm-merge-b .cm-deletedText, .cm-deletedChunk .cm-deletedText": {
-    backgroundColor: "color-mix(in oklab, var(--destructive) 25%, transparent)",
+    backgroundColor: "var(--destructive-strong)",
   },
   ".cm-changedLineGutter": { backgroundColor: "var(--success)" },
   ".cm-deletedLineGutter": { backgroundColor: "var(--destructive-solid)" },

@@ -113,7 +113,7 @@ const titleSegments = $derived(
   {menuItems}
   {onMenuOpenChange}
   class={cn(
-    "mx-1 my-0.5 flex-col rounded-md px-2.5 py-2 font-normal",
+    "mx-1 my-0.5 flex-col rounded-md px-2.5 py-2",
     !isActive && "hover:bg-hover",
   )}
   onclick={() => onOpenConversation?.(conversation.id)}
@@ -128,8 +128,7 @@ const titleSegments = $derived(
     hoverable={false}
     class="py-0"
     active={isActive}
-    tone={faded && !isActive ? "neutral" : "accent"}
-    labelClass="font-normal"
+    labelClass={cn(!(faded && !isActive) && "text-foreground")}
     onclick={(event) => {
       event.stopPropagation();
       onOpenConversation?.(conversation.id);
@@ -141,12 +140,13 @@ const titleSegments = $derived(
           activity={dotActivity}
           variant="rail"
           {isOpen}
+          selected={isActive}
         />
       </span>
     {/snippet}
     {#snippet titleTrailing()}
       <span
-        class="shrink-0 text-xs tabular-nums text-muted-foreground"
+        class="shrink-0 text-caption tabular-nums text-muted-foreground"
         title={exactTime}>{age}</span
       >
     {/snippet}
@@ -158,14 +158,14 @@ const titleSegments = $derived(
             class="inline-flex align-[-2px] text-muted-foreground"
             ><Image class="size-3" aria-hidden="true" /></span
           >{:else}{#each segment.runs as run, runIndex (runIndex)}{#if run.hit}<mark
-                class="rounded-xs bg-primary/25 text-foreground"
+                class="rounded-xs bg-primary-strong text-foreground"
                 >{run.text}</mark
               >{:else}{run.text}{/if}{/each}{/if}{/each}
     {/snippet}
     {#snippet meta()}
       {#if status || references.shown.length}
         <span
-          class="flex min-w-0 items-center gap-2.5 text-xs text-muted-foreground font-normal"
+          class="flex min-w-0 items-center gap-2.5 text-caption text-muted-foreground"
         >
           {#if status}
             <span
@@ -191,7 +191,7 @@ const titleSegments = $derived(
                   class={cn(
                     "inline-flex min-w-0 items-center gap-1 rounded-sm",
                     reference.resourceKey === matchedReference &&
-                      "bg-primary/25 px-0.5 text-foreground",
+                      "bg-primary-strong px-0.5 text-foreground",
                   )}
                 >
                   <Icon class="size-3 shrink-0" aria-hidden="true" />

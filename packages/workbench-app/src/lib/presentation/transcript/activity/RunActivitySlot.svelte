@@ -1,4 +1,5 @@
 <script lang="ts">
+import { Badge } from "@nervekit/ui-kit/components/ui/badge";
 /** Persistent tail activity row for an agent run: comet spinner, rolling
  * run-state label, elapsed timer, retry countdown and a brief completion cue.
  * Everything shown is derived from run state by `deriveRunActivity`; this
@@ -117,7 +118,7 @@ function roll(_node: Element, { direction }: { direction: 1 | -1 }) {
   <div class="min-h-0 overflow-hidden">
     <div
       class={[
-        "group flex h-9 items-center px-3 gap-2 text-sm text-muted-foreground transition-[opacity,translate] duration-300 ease-out",
+        "group flex h-9 items-center px-3 gap-2 text-ui text-muted-foreground transition-[opacity,translate] duration-300 ease-out",
         !view.open && "translate-y-1 opacity-0",
       ]}
       data-kind={view.kind}
@@ -152,7 +153,7 @@ function roll(_node: Element, { direction }: { direction: 1 | -1 }) {
               cy="8"
               r={RING_RADIUS}
               stroke-width="1.5"
-              class="stroke-primary/20"
+              class="stroke-primary-subtle"
             />
             <g
               class="origin-center [transform-box:fill-box]"
@@ -178,7 +179,7 @@ function roll(_node: Element, { direction }: { direction: 1 | -1 }) {
               cy="8"
               r={RING_RADIUS}
               stroke-width="2"
-              class="stroke-warning/20"
+              class="stroke-warning-subtle"
             />
             <circle
               cx="8"
@@ -222,9 +223,8 @@ function roll(_node: Element, { direction }: { direction: 1 | -1 }) {
       {#if view.kind === "waiting"}
         <span class="flex min-w-0 items-center gap-1 overflow-hidden">
           {#each chips as item (item.kind + item.id)}
-            <button
-              type="button"
-              class="inline-flex h-5 max-w-48 flex-none cursor-pointer items-center gap-1 rounded-md border border-border bg-muted px-1.5 text-xs text-foreground transition-colors hover:bg-accent"
+            <Badge
+              class="max-w-48"
               title={item.kind === "agent"
                 ? `Open ${item.label}`
                 : `Background command: ${item.label}`}
@@ -237,16 +237,14 @@ function roll(_node: Element, { direction }: { direction: 1 | -1 }) {
                 <Terminal class="size-3 flex-none text-muted-foreground" />
                 <span class="truncate font-mono">{item.label}</span>
               {/if}
-            </button>
+            </Badge>
           {/each}
           {#if overflow > 0}
-            <button
-              type="button"
-              class="inline-flex h-5 flex-none cursor-pointer items-center rounded-md border border-border bg-muted px-1.5 text-xs text-muted-foreground hover:bg-accent"
+            <Badge
               onclick={() => {
                 const hidden = view.pending?.[MAX_CHIPS];
                 if (hidden) onOpenPending?.(hidden);
-              }}>+{overflow}</button
+              }}>+{overflow}</Badge
             >
           {/if}
         </span>
@@ -254,7 +252,7 @@ function roll(_node: Element, { direction }: { direction: 1 | -1 }) {
 
       <span
         class={[
-          "text-xs tabular-nums transition-opacity duration-300",
+          "text-ui tabular-nums transition-opacity duration-300",
           elapsedOpacity,
         ]}>{view.elapsedLabel ?? ""}</span
       >

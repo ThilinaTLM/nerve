@@ -141,7 +141,7 @@ async function choose(item: (typeof items)[number]) {
   {#if open}<PopoverViews key={view}>
       {#if view === "menu"}
         <PopoverHeader title="Add a change" meta={profileLabel} />
-        {#if error}<p role="alert" class="px-3 text-xs text-destructive">
+        {#if error}<p role="alert" class="px-3 text-ui text-destructive">
             {error}
           </p>{/if}
         <PopoverCommandList
@@ -168,8 +168,8 @@ async function choose(item: (typeof items)[number]) {
                   <ArrowRight class="size-3" aria-hidden="true" />
                   <span
                     class={item.flip.to === "On"
-                      ? "font-medium text-success"
-                      : "font-medium text-foreground"}>{item.flip.to}</span
+                      ? "text-success"
+                      : "text-foreground"}>{item.flip.to}</span
                   >
                 </span>
               {:else}

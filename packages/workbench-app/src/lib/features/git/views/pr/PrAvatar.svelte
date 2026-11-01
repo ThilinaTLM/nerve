@@ -8,7 +8,7 @@ let { name, large = false }: Props = $props();
 <span
   class={cn(
     "inline-flex shrink-0 items-center justify-center rounded-full bg-muted leading-none text-muted-foreground uppercase",
-    large ? "size-6 text-xs font-medium" : "size-4 text-[0.625rem]",
+    large ? "size-6 text-ui" : "size-4 text-caption",
   )}
   aria-hidden="true">{(name ?? "?").slice(0, 1)}</span
 >

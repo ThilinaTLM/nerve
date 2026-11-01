@@ -66,16 +66,15 @@ const iconSizes: ButtonSize[] = ["icon-sm", "icon"];
 const badgeVariants: BadgeVariant[] = [
   "neutral",
   "warning",
-  "outline",
   "info",
-  "accent",
+  "brand",
   "success",
   "destructive",
 ];
 
 const tones: StatusTone[] = [
   "neutral",
-  "accent",
+  "brand",
   "info",
   "success",
   "warning",
@@ -149,7 +148,13 @@ let ctxSearch = $state("");
 let ctxFilter = $state("all");
 let ctxMode = $state("auto");
 let ctxNotify = $state(true);
-let ctxModel = $state("sonnet");
+let ctxHeaderStyle = $state("auto");
+const headerStyleItems: SelectItem[] = [
+  { value: "auto", label: "Auto" },
+  { value: "linux", label: "Linux" },
+  { value: "windows", label: "Windows" },
+  { value: "macos", label: "macOS" },
+];
 
 $effect(() => {
   const id = setInterval(() => {
@@ -172,7 +177,7 @@ $effect(() => {
     >
       <div class="flex flex-wrap items-end gap-6">
         <div class="flex flex-col items-start gap-1.5">
-          <span class="text-xs text-muted-foreground"
+          <span class="text-ui text-muted-foreground"
             >control · 28px (coarse 36px)</span
           >
           <div class="flex items-center gap-2">
@@ -185,7 +190,7 @@ $effect(() => {
           </div>
         </div>
         <div class="flex flex-col items-start gap-1.5">
-          <span class="text-xs text-muted-foreground"
+          <span class="text-ui text-muted-foreground"
             >control-sm · 24px (coarse 32px)</span
           >
           <div class="flex items-center gap-2">
@@ -198,7 +203,7 @@ $effect(() => {
           </div>
         </div>
       </div>
-      <ul class="grid gap-1 text-xs text-muted-foreground">
+      <ul class="grid gap-1 text-ui text-muted-foreground">
         <li>
           <span class="text-foreground">control</span> — Button default / icon, Input,
           Textarea (min), SearchInput, Select / SelectField, ToggleGroup default
@@ -227,7 +232,7 @@ $effect(() => {
     >
       {#each buttonCombos as combo (combo.variant)}
         <div class="flex flex-wrap items-center gap-3">
-          <span class="w-20 text-xs text-muted-foreground">{combo.variant}</span
+          <span class="w-20 text-ui text-muted-foreground">{combo.variant}</span
           >
           {#each combo.sizes as size (size)}
             {#if size?.startsWith("icon")}
@@ -334,6 +339,7 @@ $effect(() => {
       {#each badgeVariants as variant (variant)}
         <Badge {variant}>{variant}</Badge>
       {/each}
+      <Badge variant="brand" onclick={() => {}}>View details</Badge>
       <Badge variant="info"
         ><GitBranchIcon data-icon="inline-start" />main</Badge
       >
@@ -351,9 +357,9 @@ $effect(() => {
     >
       {#each dotSizes as size (size)}
         <div class="flex flex-wrap items-center gap-4">
-          <span class="w-8 text-xs text-muted-foreground">{size}</span>
+          <span class="w-8 text-ui text-muted-foreground">{size}</span>
           {#each tones as tone (tone)}
-            <span class="inline-flex items-center gap-1.5 text-xs">
+            <span class="inline-flex items-center gap-1.5 text-ui">
               <StatusDot {tone} {size} label={tone} />{tone}
             </span>
           {/each}
@@ -373,7 +379,7 @@ $effect(() => {
         <Spinner class="size-3.5" />
         <Spinner class="size-4" />
         <Spinner variant="refresh" class="size-3.5 text-muted-foreground" />
-        <span class="flex items-center gap-2 text-xs text-muted-foreground">
+        <span class="flex items-center gap-2 text-ui text-muted-foreground">
           <Spinner class="size-3.5" />Connecting to daemon…
         </span>
         <ProgressRing percent={18} tone="info" />
@@ -382,7 +388,7 @@ $effect(() => {
       </div>
       <div class="flex max-w-sm items-center gap-3">
         <Progress value={progress} aria-label="Usage" />
-        <span class="w-9 text-xs text-muted-foreground">{progress}%</span>
+        <span class="w-9 text-ui text-muted-foreground">{progress}%</span>
       </div>
     </GallerySpecimen>
   </GalleryGroup>
@@ -476,7 +482,7 @@ $effect(() => {
       surface="card"
     >
       <div class="flex items-center gap-6">
-        <label class="flex items-center gap-2 text-sm">
+        <label class="flex items-center gap-2 text-ui">
           <Switch bind:checked={rawSwitch} />Switch
         </label>
         <Switch checked disabled aria-label="Disabled on" />
@@ -530,7 +536,7 @@ $effect(() => {
       layout="stack"
     >
       <div class="flex flex-wrap items-center gap-4">
-        <span class="w-24 text-xs text-muted-foreground">chip · default</span>
+        <span class="w-24 text-ui text-muted-foreground">chip · default</span>
         <ToggleGroup.Root
           type="single"
           variant="chip"
@@ -541,7 +547,7 @@ $effect(() => {
             <ToggleGroup.Item value={f.id}>{f.label}</ToggleGroup.Item>
           {/each}
         </ToggleGroup.Root>
-        <span class="w-24 text-xs text-muted-foreground">chip · sm</span>
+        <span class="w-24 text-ui text-muted-foreground">chip · sm</span>
         <ToggleGroup.Root
           type="single"
           variant="chip"
@@ -558,7 +564,7 @@ $effect(() => {
         </ToggleGroup.Root>
       </div>
       <div class="flex flex-wrap items-center gap-4">
-        <span class="w-24 text-xs text-muted-foreground">outline · default</span
+        <span class="w-24 text-ui text-muted-foreground">outline · default</span
         >
         <ToggleGroup.Root
           type="single"
@@ -569,7 +575,7 @@ $effect(() => {
           <ToggleGroup.Item value="light">Light</ToggleGroup.Item>
           <ToggleGroup.Item value="dark">Dark</ToggleGroup.Item>
         </ToggleGroup.Root>
-        <span class="w-24 text-xs text-muted-foreground">outline · sm</span>
+        <span class="w-24 text-ui text-muted-foreground">outline · sm</span>
         <ToggleGroup.Root
           type="single"
           variant="outline"
@@ -618,7 +624,7 @@ $effect(() => {
     >
       <Collapsible.Root bind:open class="flex flex-col gap-2">
         <div class="flex items-center justify-between gap-2">
-          <span class="text-sm font-medium">3 changed files</span>
+          <span class="text-ui">3 changed files</span>
           <Collapsible.Trigger>
             {#snippet child({ props })}
               <Button
@@ -630,9 +636,9 @@ $effect(() => {
             {/snippet}
           </Collapsible.Trigger>
         </div>
-        <div class="rounded-md border px-3 py-1 text-xs">src/App.svelte</div>
+        <div class="rounded-md border px-3 py-1 text-ui">src/App.svelte</div>
         <Collapsible.Content class="flex flex-col gap-2">
-          <div class="rounded-md border px-3 py-1 text-xs">
+          <div class="rounded-md border px-3 py-1 text-ui">
             src/lib/app/App.svelte
           </div>
         </Collapsible.Content>
@@ -646,7 +652,7 @@ $effect(() => {
           {/snippet}
         </Collapsible.Trigger>
         <Collapsible.Content>
-          <p class="pt-2 text-xs text-muted-foreground">Hidden details.</p>
+          <p class="pt-2 text-ui text-muted-foreground">Hidden details.</p>
         </Collapsible.Content>
       </Collapsible.Root>
     </GallerySpecimen>
@@ -710,8 +716,8 @@ $effect(() => {
       class="p-0"
     >
       <div class="flex w-[280px] max-w-full flex-col">
-        <div class="flex h-8 items-center gap-1.5 px-3 text-xs">
-          <span class="font-semibold text-foreground">Git changes</span>
+        <div class="flex h-8 items-center gap-1.5 px-3 text-ui">
+          <span class="font-medium text-foreground">Git changes</span>
           <span class="text-muted-foreground">28</span>
           <span class="ml-auto flex items-center gap-0.5">
             <IconAction icon={DownloadIcon} label="Stage all" />
@@ -738,19 +744,19 @@ $effect(() => {
           >
         </div>
         <div class="mx-1.5 flex flex-col gap-1 rounded-md bg-card px-2 py-1.5">
-          <div class="flex items-center gap-1.5 text-xs">
+          <div class="flex items-center gap-1.5 text-ui">
             <GitPullRequestIcon class="size-3.5 text-success" />
-            <span class="font-medium text-foreground">#423</span>
+            <span class="text-foreground">#423</span>
             <span class="truncate text-muted-foreground">ThilinaTLM · 56m</span>
             <StatusDot tone="success" class="ml-auto" label="Open" />
           </div>
-          <span class="text-sm text-foreground"
+          <span class="text-ui text-foreground"
             >Fix plan review body and footer</span
           >
           <div class="flex items-center gap-1.5">
             <Badge variant="success">14/14</Badge>
-            <span class="ml-auto text-xs text-success">+260</span>
-            <span class="text-xs text-destructive">-5</span>
+            <span class="ml-auto text-ui text-success">+260</span>
+            <span class="text-ui text-destructive">-5</span>
           </div>
         </div>
         <div class="h-2"></div>
@@ -764,17 +770,17 @@ $effect(() => {
       class="p-0"
     >
       <div class="flex w-[560px] max-w-full flex-col gap-5 p-4">
-        <h2 class="text-base font-semibold text-foreground">Desktop</h2>
+        <h2 class="text-title font-medium text-foreground">Desktop</h2>
         <div class="flex items-start justify-between gap-6">
           <div class="flex min-w-0 flex-col gap-0.5">
-            <span class="text-sm text-foreground">Header style</span>
-            <span class="text-xs text-muted-foreground"
+            <span class="text-ui text-foreground">Header style</span>
+            <span class="text-ui text-muted-foreground"
               >Auto follows your operating system.</span
             >
           </div>
           <SelectField
-            items={modelItems.slice(0, 2)}
-            bind:value={ctxModel}
+            items={headerStyleItems}
+            bind:value={ctxHeaderStyle}
             ariaLabel="Header style"
             class="w-44"
           />
@@ -785,7 +791,7 @@ $effect(() => {
           description="Hide Nerve in the tray instead of quitting."
         />
         <div class="flex items-center justify-between gap-6">
-          <span class="text-sm text-foreground">Color mode</span>
+          <span class="text-ui text-foreground">Color mode</span>
           <ToggleGroup.Root
             type="single"
             variant="outline"
@@ -800,8 +806,8 @@ $effect(() => {
         </div>
         <div class="flex items-center justify-between gap-6">
           <div class="flex min-w-0 flex-col gap-0.5">
-            <span class="text-sm text-foreground">Projects root</span>
-            <span class="text-xs text-muted-foreground"
+            <span class="text-ui text-foreground">Projects root</span>
+            <span class="text-ui text-muted-foreground"
               >Where new workspaces are created.</span
             >
           </div>
@@ -854,21 +860,21 @@ $effect(() => {
           </span>
         </div>
         <div
-          class="flex items-center gap-2 rounded-md bg-card px-2 py-1.5 text-sm"
+          class="flex items-center gap-2 rounded-md bg-card px-2 py-1.5 text-ui"
         >
           <StatusDot tone="success" pulse label="Running" />
           <span class="truncate text-foreground"
             >Investigate flaky timeline test</span
           >
           <Badge variant="neutral">claude-opus</Badge>
-          <span class="ml-auto text-xs text-muted-foreground">2m ago</span>
+          <span class="ml-auto text-ui text-muted-foreground">2m ago</span>
           <Kbd>↵</Kbd>
         </div>
-        <div class="flex items-center gap-2 rounded-md px-2 py-1.5 text-sm">
+        <div class="flex items-center gap-2 rounded-md px-2 py-1.5 text-ui">
           <StatusDot tone="warning" label="Awaiting approval" />
           <span class="truncate text-foreground">Refactor session store</span>
           <Badge variant="warning">approval</Badge>
-          <span class="ml-auto text-xs text-muted-foreground">1h ago</span>
+          <span class="ml-auto text-ui text-muted-foreground">1h ago</span>
         </div>
       </div>
     </GallerySpecimen>

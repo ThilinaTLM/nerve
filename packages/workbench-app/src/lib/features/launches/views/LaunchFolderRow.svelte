@@ -55,7 +55,7 @@ let {
   {#snippet badges()}
     {#if activeCount > 0}
       <Badge
-        variant="accent"
+        variant="info"
         title={`${activeCount} active ${activeCount === 1 ? "run" : "runs"}`}
         aria-label={`${activeCount} active ${activeCount === 1 ? "run" : "runs"}`}
         >{activeCount}</Badge

@@ -5,6 +5,7 @@ import Folder from "@lucide/svelte/icons/folder";
 import Pencil from "@lucide/svelte/icons/pencil";
 import { listDirectories } from "$lib/api";
 import { Input } from "@nervekit/ui-kit/components/ui/input";
+import { selectRowVariants } from "@nervekit/ui-kit/components/composites/select-row";
 import { cn } from "@nervekit/ui-kit/utils";
 import type { FolderBrowser } from "$lib/features/projects/state/folder-browser.svelte";
 import {
@@ -189,7 +190,7 @@ export function beginEditing() {
     </div>
     {#if pathError}
       <p
-        class="absolute top-full right-0 left-0 z-10 mt-1 rounded-md border bg-popover px-2 py-1 text-xs text-destructive shadow-md"
+        class="absolute top-full right-0 left-0 z-10 mt-1 rounded-md border bg-popover px-2 py-1 text-ui text-destructive shadow-overlay"
         role="alert"
       >
         {pathError}
@@ -199,25 +200,30 @@ export function beginEditing() {
         id={listboxId}
         role="listbox"
         aria-label="Path suggestions"
-        class="absolute top-full right-0 left-0 z-10 mt-1 flex flex-col rounded-md border bg-popover p-1 shadow-md"
+        class="absolute top-full right-0 left-0 z-10 mt-1 flex flex-col rounded-md border bg-popover p-1 shadow-overlay"
       >
         {#each completions as path, index (path)}
+          {@const rowStyles = selectRowVariants({
+            selected: index === highlighted,
+          })}
           <li role="option" aria-selected={index === highlighted}>
             <button
               type="button"
               tabindex="-1"
-              class={cn(
-                "flex w-full items-center gap-2 rounded-sm px-2 py-1 text-left font-mono text-xs hover:bg-muted",
-                index === highlighted && "bg-selected",
-              )}
+              class={rowStyles.base({
+                class:
+                  "flex w-full items-center gap-2 px-2 py-1 text-left font-mono",
+              })}
               onmousedown={(event) => event.preventDefault()}
               onclick={() => void commit(path)}
             >
               <Folder
-                class="size-3.5 shrink-0 text-muted-foreground"
+                class={rowStyles.icon({ class: "size-3.5 shrink-0" })}
                 aria-hidden="true"
               />
-              <span class="truncate">{toDisplayPath(path, ctx)}</span>
+              <span class={rowStyles.label({ class: "truncate" })}
+                >{toDisplayPath(path, ctx)}</span
+              >
             </button>
           </li>
         {/each}
@@ -229,7 +235,7 @@ export function beginEditing() {
     <!-- svelte-ignore a11y_click_events_have_key_events -->
     <!-- svelte-ignore a11y_no_static_element_interactions -->
     <div
-      class="group flex h-control cursor-text items-center gap-0.5 overflow-hidden rounded-md border border-input bg-input/30 px-1"
+      class="group flex h-control cursor-text items-center gap-0.5 overflow-hidden rounded-md border border-input bg-input-background px-1"
       onclick={(event) => {
         if (event.target === event.currentTarget) start();
       }}
@@ -249,7 +255,7 @@ export function beginEditing() {
           <button
             type="button"
             class={cn(
-              "shrink-0 rounded-sm px-1 font-mono text-xs hover:bg-muted",
+              "shrink-0 rounded-sm px-1 font-mono text-ui hover:bg-hover",
               index === crumbs.length - 1
                 ? "text-foreground"
                 : "text-muted-foreground",
@@ -261,7 +267,7 @@ export function beginEditing() {
       </nav>
       <button
         type="button"
-        class="shrink-0 rounded-sm p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
+        class="shrink-0 rounded-sm p-1 text-muted-foreground hover:bg-hover hover:text-foreground"
         aria-label="Edit path"
         onclick={start}
       >

@@ -135,7 +135,12 @@ const diffView = {
   },
 };
 
-let draft = $state(jsonSample);
+// Starts with unsaved edits so the changed-line markers are visible.
+let draft = $state(
+  jsonSample
+    .replace('"vite build"', '"vite build --mode production"')
+    .replace('"^5.0.0"', '"^5.1.0"'),
+);
 let jsonValue = $state(jsonSample);
 let wrap = $state(false);
 let findQuery = $state("handler");
@@ -252,10 +257,10 @@ let regexp = $state(false);
       layout="bare"
     >
       <div class="grid w-[900px] max-w-full gap-4 md:grid-cols-2">
-        <div class="h-[200px] overflow-hidden rounded-md border">
+        <div class="h-80 overflow-hidden rounded-md border">
           <FilePane view={{ path: "src/big.ts", loading: true }} />
         </div>
-        <div class="h-[200px] overflow-hidden rounded-md border">
+        <div class="h-80 overflow-hidden rounded-md border">
           <FilePane
             view={{
               path: "src/missing.ts",

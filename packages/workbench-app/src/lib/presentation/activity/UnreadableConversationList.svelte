@@ -25,20 +25,20 @@ const grouped = $derived(groupUnreadableConversations(entries));
 <div class="mt-1 grid gap-2 border-l pl-2">
   {#each grouped.groups as group (group.key)}
     <section class="grid" aria-label={group.projectName}>
-      <h3 class="flex items-center gap-1 py-0.5 text-xs text-muted-foreground">
-        <span class="min-w-0 truncate font-medium">{group.projectName}</span>
+      <h3 class="flex items-center gap-1 py-0.5 text-ui text-muted-foreground">
+        <span class="min-w-0 truncate">{group.projectName}</span>
         <span class="tabular-nums">· {group.entries.length}</span>
       </h3>
       <ul class="grid">
         {#each group.entries as entry (entry.id)}
           <li class="flex min-w-0 items-center gap-1">
             <div class="min-w-0 flex-1">
-              <p class="truncate text-xs" title={entry.title || entry.id}>
+              <p class="truncate text-ui" title={entry.title || entry.id}>
                 {entry.title || entry.id}
               </p>
               {#if !grouped.sharedError}
                 <p
-                  class="truncate text-xs text-destructive"
+                  class="truncate text-ui text-destructive"
                   title={entry.error}
                 >
                   {entry.error}

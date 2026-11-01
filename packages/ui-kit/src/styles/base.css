@@ -2,7 +2,7 @@
 
 @layer base {
   * {
-    @apply border-border outline-ring/50;
+    @apply border-border outline-focus;
   }
   body {
     @apply bg-background text-foreground;
@@ -10,7 +10,7 @@
   }
   html {
     @apply font-sans;
-    font-size: calc(var(--text-base) * var(--nerve-zoom-scale, 1));
+    font-size: calc(1rem * var(--nerve-zoom-scale, 1));
     text-rendering: optimizeLegibility;
     font-kerning: normal;
   }

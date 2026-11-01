@@ -21,13 +21,13 @@ let {
     {#if Icon}
       <Icon class="size-3 shrink-0 text-muted-foreground" aria-hidden="true" />
     {/if}
-    <span class="truncate text-xs font-semibold text-foreground">{title}</span>
+    <span class="truncate text-ui font-medium text-foreground">{title}</span>
     {#if count !== undefined}
-      <span class="shrink-0 text-xs text-muted-foreground">{count}</span>
+      <span class="shrink-0 text-ui text-muted-foreground">{count}</span>
     {/if}
   </div>
   {#if meta}
-    <div class="flex shrink-0 items-center gap-1 text-xs text-muted-foreground">
+    <div class="flex shrink-0 items-center gap-1 text-ui text-muted-foreground">
       {@render meta()}
     </div>
   {/if}

@@ -137,10 +137,10 @@ function submit() {
         bind:value={commandText}
         rows={3}
         placeholder="pnpm dev"
-        class="min-h-20 py-1.5 font-mono text-xs md:text-xs"
+        class="min-h-20 py-1.5 font-mono text-ui"
         disabled={saving}
       />
-      <p class="text-xs text-muted-foreground">
+      <p class="text-ui text-muted-foreground">
         This is the shell command run by the play button.
       </p>
     </div>
@@ -157,7 +157,7 @@ function submit() {
         disabled={saving}
         aria-invalid={!portValid}
       />
-      <p class="text-xs text-muted-foreground">
+      <p class="text-ui text-muted-foreground">
         Optional TCP port to check before this launch starts.
       </p>
     </div>
@@ -172,9 +172,9 @@ function submit() {
           { value: "concurrent", label: "Concurrent runs" },
         ]}
         disabled={saving}
-        triggerClass="h-7 px-2 text-xs"
+        triggerClass="h-7 px-2 text-ui"
       />
-      <p class="text-xs text-muted-foreground">
+      <p class="text-ui text-muted-foreground">
         Single run focuses an existing process. Concurrent runs may start
         another process.
       </p>
@@ -188,10 +188,10 @@ function submit() {
         placeholder={projectCwd
           ? `Default: ${projectCwd}`
           : "Default working directory"}
-        class="font-mono text-xs"
+        class="font-mono text-ui"
         disabled={saving}
       />
-      <p class="text-xs text-muted-foreground">
+      <p class="text-ui text-muted-foreground">
         Leave blank to use the project directory. Relative paths resolve from
         it.
       </p>
