@@ -83,9 +83,7 @@ const compactionChoices: SettingsChoice[] = [
 
 const themeOptions: SettingsPreviewOption[] = [
   { value: "nerve", label: "Nerve", icon: MonitorIcon, previews: ["dark"] },
-  { value: "rose", label: "Rosé", icon: SunIcon, previews: ["light"] },
-  { value: "solar", label: "Solar", icon: SunIcon, previews: ["light"] },
-  { value: "midnight", label: "Midnight", icon: MoonIcon, previews: ["dark"] },
+  { value: "slate", label: "Slate", icon: SunIcon, previews: ["dark"] },
 ];
 const colorModeOptions: SettingsPreviewOption[] = [
   { value: "system", label: "System", icon: MonitorIcon },

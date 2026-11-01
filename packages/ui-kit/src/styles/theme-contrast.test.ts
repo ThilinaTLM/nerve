@@ -17,7 +17,7 @@ const badgeSource = readFileSync(
 
 type Oklch = readonly [lightness: number, chroma: number, hue: number];
 type LinearRgb = readonly [red: number, green: number, blue: number];
-type ColorTheme = "nerve" | "rose" | "solar" | "midnight";
+type ColorTheme = "nerve" | "slate";
 type ColorMode = "light" | "dark";
 type ThemeName = `${ColorTheme}-${ColorMode}`;
 
@@ -154,7 +154,7 @@ function assertContrast(
   );
 }
 
-const colorThemes = ["nerve", "rose", "solar", "midnight"] as const;
+const colorThemes = ["nerve", "slate"] as const;
 const colorModes = ["light", "dark"] as const;
 
 const themes = Object.fromEntries(
@@ -419,40 +419,6 @@ describe("theme text contrast", () => {
     }
   });
 
-  it("keeps the surface hierarchy legible in the legacy themes", () => {
-    // Chrome-vs-workspace and the hover/selected fills are the steps a reader
-    // relies on to tell regions apart, and contrast ratio compresses badly at
-    // low luminance, so these are measured as perceptual lightness deltas.
-    // Rosé and Solar originally derived `muted` and `accent` from adjacent
-    // ladder steps, which flattened selected rows and panel edges.
-    // Nerve moved to the ordered ladder model and is covered by "surface
-    // ladder" below; this table describes the legacy layout (quiet fills
-    // darker than the background) and is removed with those themes.
-    const minimumStep: Record<string, number> = {
-      "panel/background": 0.025,
-      "background/muted": 0.028,
-      "background/accent": 0.045,
-      "background/card": 0.018,
-      "card/popover": 0.015,
-      "well/panel": 0.012,
-    };
-
-    for (const [themeName, tokens] of Object.entries(themes) as [
-      ThemeName,
-      Record<TokenName, Oklch>,
-    ][]) {
-      if (themeName.startsWith("nerve-")) continue;
-      for (const [step, minimum] of Object.entries(minimumStep)) {
-        const [lower, upper] = step.split("/") as [TokenName, TokenName];
-        const delta = Math.abs(tokens[lower][0] - tokens[upper][0]);
-        assert.ok(
-          delta >= minimum,
-          `${themeName} ${step} lightness delta ${delta.toFixed(3)} is below ${minimum}; the two surfaces will read as one`,
-        );
-      }
-    }
-  });
-
   it("uses the measured token pairs and tint in the shared badge", () => {
     assert.match(
       badgeSource,
@@ -467,10 +433,8 @@ describe("theme text contrast", () => {
   });
 });
 
-/* The ordered-ladder model (proposal section 2). Only Nerve follows it so far;
- * the other themes are retired or migrated in later rollout steps, which will
- * widen `ladderThemes`. */
-const ladderThemes = ["nerve"] as const;
+/* The ordered-ladder model (proposal section 2) applies to every theme. */
+const ladderThemes = colorThemes;
 const ladderTokenNames = [
   "well",
   "panel",

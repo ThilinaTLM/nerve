@@ -16,15 +16,16 @@ Application `*Host` components are state/effect adapters around canonical featur
 - **Surfaces are a five-step ladder**, deepest to highest: `well` (recessed
   output — terminal, logs, tool results, code blocks), `panel` (movable panel and
   shell chrome), `background` (workspace), `card` (raised content), `popover`
-  (floating layers). `well` and `panel` are Nerve-specific and pair with the
+  (floating layers). `well` and `panel` pair with the
   global `foreground` / `muted-foreground`; they deliberately have no foreground
   tokens of their own. Never reach for a surface to get a shade you like — pick
   the one that matches the role.
-- **Themes own colour only.** Radius, elevation strength and shadow recipes
+- **There are two themes, Nerve and Slate, and they own colour only.** Radius, elevation strength and shadow recipes
   are global; a theme block sets colours and nothing else, and the
   `card`/`popover`/`accent` foregrounds and the syntax diff/link roles are
   aliases of `foreground` and the status tokens. A component that looks right in
-  one theme must look right in all of them.
+  one theme must look right in both. Retired theme ids map to the survivors in
+  `retiredColorThemes` (`contracts/settings`).
 - **No `dark:` utilities** (enforced by the style-policy check in `ui-kit` and
   `workbench-app`). Mode differences live in token values so previews and
   portalled content resolve them correctly. Use `bg-input-background` for
@@ -37,10 +38,8 @@ Application `*Host` components are state/effect adapters around canonical featur
   where the meaning is not neutral.
 - **Quiet fills** (`muted`, `accent`) are meant to sit beyond the surface
   ladder on the foreground side so they stay visible on every surface (dark:
-  `popover < muted < accent`; light: `accent < muted < well`). Nerve
-  follows this; the legacy themes (Rosé, Solar, Midnight, removed next) still
-  put them darker than the background in dark mode, so do not depend on the
-  direction. For recessed tracks and output use `well`; for interaction states
+  `popover < muted < accent`; light: `accent < muted < well`). Both
+  themes follow this, and `theme-contrast.test.ts` enforces it. For recessed tracks and output use `well`; for interaction states
   prefer `bg-hover` or `bg-selected`.
 - **Status colour has one vocabulary**: `neutral`, `accent`, `info`, `success`,
   `warning`, `destructive` (`StatusTone` in `@nervekit/ui-kit/display/status`).

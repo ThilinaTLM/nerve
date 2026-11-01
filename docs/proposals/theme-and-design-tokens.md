@@ -1,6 +1,6 @@
 # Themes and design tokens
 
-> **Status:** Accepted; in implementation. The values were checked with a PoC, and the open questions are resolved under [Decisions](#decisions).
+> **Status:** Implemented. All five rollout steps are complete: Nerve is refreshed, Slate is added, Rosé, Solar, and Midnight are retired, and the theme is a per-client preference. The values were checked with a PoC, and the open questions are resolved under [Decisions](#decisions).
 
 ## Summary
 

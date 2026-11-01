@@ -1,18 +1,24 @@
 <script lang="ts">
-import Flower2 from "@lucide/svelte/icons/flower-2";
-import Moon from "@lucide/svelte/icons/moon";
-import Palette from "@lucide/svelte/icons/palette";
-import Sun from "@lucide/svelte/icons/sun";
+import Droplet from "@lucide/svelte/icons/droplet";
+import Flame from "@lucide/svelte/icons/flame";
 import {
   SettingsPreviewCards,
   type SettingsPreviewOption,
 } from "$lib/presentation/settings";
 
 const options: SettingsPreviewOption[] = [
-  { value: "nerve", label: "Nerve", icon: Palette },
-  { value: "rose", label: "Rosé", icon: Flower2 },
-  { value: "solar", label: "Solar", icon: Sun },
-  { value: "midnight", label: "Midnight", icon: Moon },
+  {
+    value: "nerve",
+    label: "Nerve",
+    description: "Warm graphite with an ember accent",
+    icon: Flame,
+  },
+  {
+    value: "slate",
+    label: "Slate",
+    description: "Cool blue-grey with a periwinkle accent",
+    icon: Droplet,
+  },
 ];
 
 let {
@@ -28,8 +34,8 @@ let {
 } = $props();
 </script>
 
-<!-- A theme now carries corner radius and elevation as well as color, so the
-     swatch renders a miniature chrome instead of flat bars. -->
+<!-- A theme carries colour only; the swatch renders a miniature chrome so the
+     surface ladder and accent are visible. -->
 {#snippet themePreview()}
   <span class="w-1.5 flex-none rounded-sm bg-panel"></span>
   <span class="grid min-w-0 flex-1 content-start gap-1">

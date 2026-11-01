@@ -14,15 +14,18 @@ import {
 import { permissionRuleSetIdSchema } from "../permissions/permission-rule-sets.js";
 import { permissionExceptionSchema } from "../permissions/permissions.js";
 
-export const colorThemeSchema = z.enum(["nerve", "rose", "solar", "midnight"]);
+export const colorThemeSchema = z.enum(["nerve", "slate"]);
 
 /**
  * Themes that shipped once and were replaced. Clients restore stored preferences
  * through the successor that best preserves the user's original intent.
  */
 export const retiredColorThemes = {
-  ocean: "solar",
-  forest: "rose",
+  rose: "nerve",
+  midnight: "nerve",
+  forest: "nerve",
+  solar: "slate",
+  ocean: "slate",
 } as const satisfies Record<string, z.infer<typeof colorThemeSchema>>;
 export type ColorTheme = z.infer<typeof colorThemeSchema>;
 

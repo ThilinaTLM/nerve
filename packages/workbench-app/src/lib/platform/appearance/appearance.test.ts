@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
+import { retiredColorThemes } from "@nervekit/contracts/settings";
 import { compileModule } from "svelte/compiler";
 import ts from "typescript";
 
@@ -66,18 +67,18 @@ test("client theme persists, restores retired ids, and syncs other tabs without 
   }
   const appearance = await loadAppearance();
   for (const [stored, expected] of [
-    ["ocean", "solar"],
-    ["forest", "rose"],
+    ...Object.entries(retiredColorThemes),
+    ["nerve", "nerve"],
+    ["slate", "slate"],
     ["invalid", "nerve"],
-    ["midnight", "midnight"],
   ]) {
     values.set("nerve-color-theme", stored);
     assert.equal(appearance.loadAppearancePreference().theme, expected);
   }
-  appearance.setColorTheme("rose");
-  assert.equal(appearance.appearanceState.theme, "rose");
-  assert.equal(root.dataset.theme, "rose");
-  assert.equal(values.get("nerve-color-theme"), "rose");
+  appearance.setColorTheme("slate");
+  assert.equal(appearance.appearanceState.theme, "slate");
+  assert.equal(root.dataset.theme, "slate");
+  assert.equal(values.get("nerve-color-theme"), "slate");
   const dispose = appearance.installAppearanceStorageSync();
   assert.equal(appearance.installAppearanceStorageSync(), dispose);
   t.after(dispose);
@@ -95,18 +96,21 @@ test("client theme persists, restores retired ids, and syncs other tabs without 
   };
   const before = writes;
   emit("nerve-color-theme", "ocean");
-  assert.equal(appearance.appearanceState.theme, "solar");
-  assert.equal(root.dataset.theme, "solar");
+  assert.equal(appearance.appearanceState.theme, "slate");
+  assert.equal(root.dataset.theme, "slate");
   assert.equal(writes, before);
-  emit("unrelated", "rose");
-  assert.equal(appearance.appearanceState.theme, "solar");
+  emit("unrelated", "nerve");
+  assert.equal(appearance.appearanceState.theme, "slate");
   emit("nerve-color-theme", "invalid");
   assert.equal(appearance.appearanceState.theme, "nerve");
   emit("nerve-color-theme", "midnight");
+  assert.equal(appearance.appearanceState.theme, "nerve");
+  emit("nerve-color-theme", "solar");
+  assert.equal(appearance.appearanceState.theme, "slate");
   emit(null, null);
   assert.equal(appearance.appearanceState.theme, "nerve");
   dispose();
-  emit("nerve-color-theme", "rose");
+  emit("nerve-color-theme", "slate");
   assert.equal(appearance.appearanceState.theme, "nerve");
 });
 
@@ -120,6 +124,27 @@ test("pre-paint bootstrap restores retired themes and stored or system mode", as
     .map((match) => match[1])
     .find((script) => script?.includes('getItem("nerve-color-theme")'));
   assert.ok(bootstrap);
+  for (const [stored, expected] of [
+    ...Object.entries(retiredColorThemes),
+    ["nerve", "nerve"],
+    ["slate", "slate"],
+  ]) {
+    const root = {
+      dataset: {} as Record<string, string>,
+      classList: { toggle() {} },
+    };
+    runInNewContext(bootstrap, {
+      document: { documentElement: root },
+      window: {
+        localStorage: {
+          getItem: (key: string) =>
+            key === "nerve-color-theme" ? stored : null,
+        },
+        matchMedia: () => ({ matches: false }),
+      },
+    });
+    assert.equal(root.dataset.theme, expected, `bootstrap maps ${stored}`);
+  }
   for (const [mode, systemDark, expectedDark] of [
     ["dark", false, true],
     ["light", true, false],
@@ -146,7 +171,7 @@ test("pre-paint bootstrap restores retired themes and stored or system mode", as
         matchMedia: () => ({ matches: systemDark }),
       },
     });
-    assert.equal(root.dataset.theme, "solar");
+    assert.equal(root.dataset.theme, "slate");
   }
   let dark = false;
   runInNewContext(bootstrap, {

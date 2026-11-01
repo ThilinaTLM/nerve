@@ -59,13 +59,21 @@
     </script>
     <script>
       // Applies the stored theme before the stylesheet loads so the startup
-      // splash matches the workspace. Without this a Midnight user sees a much
-      // lighter flash, which is exactly what the theme exists to avoid.
+      // splash matches the workspace. Without this a Slate user sees a flash of
+      // Nerve's warm graphite.
       (() => {
         try {
           const stored = window.localStorage.getItem("nerve-color-theme");
-          const theme = { ocean: "solar", forest: "rose" }[stored] ?? stored;
-          if (["nerve", "rose", "solar", "midnight"].includes(theme)) {
+          // Keep in sync with `retiredColorThemes` in contracts/settings.
+          const retired = {
+            rose: "nerve",
+            midnight: "nerve",
+            forest: "nerve",
+            solar: "slate",
+            ocean: "slate",
+          };
+          const theme = retired[stored] ?? stored;
+          if (["nerve", "slate"].includes(theme)) {
             document.documentElement.dataset.theme = theme;
           }
         } catch {
@@ -126,54 +134,22 @@
           --splash-border: oklch(0.33 0.009 65);
         }
       }
-      /* Each theme now diverges enough that sharing one splash palette would
+      /* Slate diverges from Nerve enough that sharing one splash palette would
          flash the wrong background before the stylesheet loads. */
-      :root[data-theme="rose"] {
-        --splash-bg: oklch(0.955 0.02 340);
-        --splash-fg: oklch(0.42 0.055 300);
-        --splash-primary: oklch(0.52 0.115 305);
-        --splash-muted: oklch(0.545 0.05 300);
-        --splash-border: oklch(0.845 0.026 340);
+      :root[data-theme="slate"] {
+        --splash-bg: oklch(0.982 0.004 255);
+        --splash-fg: oklch(0.25 0.02 260);
+        --splash-primary: oklch(0.52 0.16 265);
+        --splash-muted: oklch(0.49 0.022 255);
+        --splash-border: oklch(0.89 0.012 255);
       }
       @media (prefers-color-scheme: dark) {
-        :root[data-theme="rose"] {
-          --splash-bg: oklch(0.239 0.035 300);
-          --splash-fg: oklch(0.9 0.03 295);
-          --splash-primary: oklch(0.76 0.11 305);
-          --splash-muted: oklch(0.745 0.03 295);
-          --splash-border: oklch(0.355 0.045 300);
-        }
-      }
-      :root[data-theme="solar"] {
-        --splash-bg: oklch(0.952 0.02 190);
-        --splash-fg: oklch(0.4 0.03 200);
-        --splash-primary: oklch(0.5 0.13 248);
-        --splash-muted: oklch(0.525 0.03 200);
-        --splash-border: oklch(0.835 0.028 190);
-      }
-      @media (prefers-color-scheme: dark) {
-        :root[data-theme="solar"] {
-          --splash-bg: oklch(0.269 0.045 205);
-          --splash-fg: oklch(0.865 0.025 200);
-          --splash-primary: oklch(0.72 0.12 245);
-          --splash-muted: oklch(0.705 0.03 200);
-          --splash-border: oklch(0.395 0.05 205);
-        }
-      }
-      :root[data-theme="midnight"] {
-        --splash-bg: oklch(0.995 0.001 265);
-        --splash-fg: oklch(0.175 0.008 265);
-        --splash-primary: oklch(0.52 0.163 40);
-        --splash-muted: oklch(0.42 0.012 265);
-        --splash-border: oklch(0.78 0.006 265);
-      }
-      @media (prefers-color-scheme: dark) {
-        :root[data-theme="midnight"] {
-          --splash-bg: oklch(0.145 0.005 265);
-          --splash-fg: oklch(0.972 0.003 265);
-          --splash-primary: oklch(0.78 0.145 62);
-          --splash-muted: oklch(0.79 0.01 265);
-          --splash-border: oklch(0.36 0.012 265);
+        :root[data-theme="slate"] {
+          --splash-bg: oklch(0.205 0.014 255);
+          --splash-fg: oklch(0.91 0.008 250);
+          --splash-primary: oklch(0.72 0.12 265);
+          --splash-muted: oklch(0.72 0.018 250);
+          --splash-border: oklch(0.33 0.018 255);
         }
       }
       html,
