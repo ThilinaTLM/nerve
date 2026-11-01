@@ -553,9 +553,7 @@ function activate(repo: GitRepoSummary, operation: GitRemoteOperation): void {
 {#key stashTarget}
   <GitStashDialog
     bind:open={stashDialogOpen}
-    repositoryName={stashTarget
-      ? `${stashTarget.name} (${stashTarget.absDir})`
-      : ""}
+    repositoryName={stashTarget?.name ?? ""}
     stashes={stashSnapshot}
     mutation={stashMutation}
     onApply={(stash) => void mutateStash("apply", stash)}

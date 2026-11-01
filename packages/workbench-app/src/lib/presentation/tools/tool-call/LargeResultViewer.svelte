@@ -2,8 +2,8 @@
 import { VirtualScroller } from "@nervekit/ui-kit/components/composites/virtual-list";
 import { segmentRawText } from "./tool-details-state";
 
-type Props = { text: string; maxHeight?: string };
-let { text, maxHeight = "22rem" }: Props = $props();
+type Props = { text: string; maxHeight?: string; wrap?: boolean };
+let { text, maxHeight = "22rem", wrap = true }: Props = $props();
 const items = $derived(segmentRawText(text));
 </script>
 
@@ -17,7 +17,11 @@ const items = $derived(segmentRawText(text));
     viewportClass="max-h-(--result-max-height) font-mono text-ui text-foreground"
   >
     {#snippet row({ item })}
-      <div class="whitespace-pre-wrap break-all leading-[1.35]">
+      <div
+        class={wrap
+          ? "whitespace-pre-wrap break-all leading-[1.35]"
+          : "whitespace-pre leading-[1.35]"}
+      >
         {item.text}
       </div>
     {/snippet}

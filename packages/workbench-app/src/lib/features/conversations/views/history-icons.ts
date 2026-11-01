@@ -23,7 +23,6 @@ import TriangleAlert from "@lucide/svelte/icons/triangle-alert";
 import User from "@lucide/svelte/icons/user";
 import Wrench from "@lucide/svelte/icons/wrench";
 import type { Component } from "svelte";
-import type { StatusTone } from "@nervekit/ui-kit/display/status";
 import type { HistoryIconName } from "./history-graph";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Lucide icon component interop.
@@ -54,13 +53,4 @@ export const HISTORY_ICONS: Record<HistoryIconName, Icon> = {
   info: Info,
   hand: Hand,
   "triangle-alert": TriangleAlert,
-};
-
-export const HISTORY_TONE_TEXT: Record<StatusTone, string> = {
-  neutral: "text-muted-foreground",
-  brand: "text-primary",
-  success: "text-success",
-  warning: "text-warning",
-  info: "text-info",
-  destructive: "text-destructive",
 };

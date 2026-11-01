@@ -69,6 +69,59 @@ export function initialToolDetailSection(
     : "agent-preview";
 }
 
+/** Tabs with content, in display order. */
+export function availableToolDetailSections(has: {
+  formatted: boolean;
+  agentPreview: boolean;
+  arguments: boolean;
+  completeResult: boolean;
+}): ToolDetailSection[] {
+  const sections: ToolDetailSection[] = [];
+  if (has.formatted) sections.push("formatted");
+  if (has.agentPreview) sections.push("agent-preview");
+  if (has.arguments) sections.push("arguments");
+  if (has.completeResult) sections.push("complete-result");
+  return sections;
+}
+
+/** The chosen tab if it exists, else the preferred one, else the first. */
+export function resolveToolDetailSection(
+  available: readonly ToolDetailSection[],
+  chosen: ToolDetailSection | undefined,
+  preferred: ToolDetailSection,
+): ToolDetailSection | undefined {
+  if (chosen && available.includes(chosen)) return chosen;
+  return available.includes(preferred) ? preferred : available[0];
+}
+
+export function serializeToolArguments(value: unknown): {
+  text: string;
+  language?: string;
+} {
+  if (typeof value === "string") return { text: value };
+  try {
+    return {
+      text: JSON.stringify(value, null, 2) ?? String(value),
+      language: "json",
+    };
+  } catch {
+    return { text: String(value) };
+  }
+}
+
+/** Plain text of the text blocks the agent received. */
+export function agentPreviewText(
+  preview:
+    | { blocks: ReadonlyArray<{ type: string; text?: string }> }
+    | undefined,
+): string {
+  return (preview?.blocks ?? [])
+    .flatMap((block) =>
+      block.type === "text" && block.text !== undefined ? [block.text] : [],
+    )
+    .join("\n\n");
+}
+
 export type RawTextSegment = { key: number; text: string };
 
 export function segmentRawText(
