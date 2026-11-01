@@ -5,6 +5,7 @@ import { Button } from "@nervekit/ui-kit/components/ui/button";
 import ConversationPaneLayout from "./ConversationPaneLayout.svelte";
 import TranscriptAnnouncer from "../transcript/TranscriptAnnouncer.svelte";
 import TranscriptList from "../transcript/TranscriptList.svelte";
+import TranscriptSelectionToolbar from "../transcript/TranscriptSelectionToolbar.svelte";
 import { createConversationScrollController } from "../transcript/conversation-scroll.svelte.js";
 import AgentComposer from "./AgentComposer.svelte";
 import ConversationBanner from "./ConversationBanner.svelte";
@@ -66,6 +67,8 @@ const scroll = createConversationScrollController({
   conversationId: () => model.conversationId,
   contentReady: () => transcriptHasContent,
 });
+
+let transcriptEl = $state<HTMLDivElement>();
 
 let focusTimer: ReturnType<typeof setTimeout> | undefined;
 function cancelFocusRetry(): void {
@@ -136,7 +139,7 @@ function goToQuestion(): void {
     />
   {/snippet}
   {#snippet transcript()}
-    <div class="relative flex h-full min-h-0 flex-col">
+    <div class="relative flex h-full min-h-0 flex-col" bind:this={transcriptEl}>
       {#if model.banner}
         <ConversationBanner {...model.banner} />
       {/if}
@@ -187,6 +190,13 @@ function goToQuestion(): void {
           transcriptMenu={menus.transcriptMenu}
         />
       </div>
+      {#if menus.selectionActions}
+        <TranscriptSelectionToolbar
+          container={transcriptEl}
+          actions={menus.selectionActions}
+          enabled={active}
+        />
+      {/if}
     </div>
   {/snippet}
 

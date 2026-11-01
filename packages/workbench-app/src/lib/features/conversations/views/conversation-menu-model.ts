@@ -1,7 +1,10 @@
 import type { ContextMenuItem } from "@nervekit/ui-kit/components/composites/context-menu-list";
 
 import type { ConversationEntry } from "$lib/presentation/view-models/conversation";
-import type { TranscriptMenuTarget } from "$lib/presentation/conversations";
+import type {
+  TranscriptMenuTarget,
+  TranscriptSelection,
+} from "$lib/presentation/conversations";
 
 export type ConversationMenuHandlers = {
   copyText: (text: string, label?: string) => void | Promise<void>;
@@ -134,6 +137,15 @@ function targetDetails(
   }
 }
 
+/** Prefix Markdown as a blockquote, dropping surrounding blank lines. */
+export function quoteMarkdown(text: string): string {
+  const lines = text.replace(/\s+$/, "").split("\n");
+  while (lines.length > 0 && !lines[0]?.trim()) lines.shift();
+  return lines
+    .map((line) => (line.trim() ? `> ${line.trimEnd()}` : ">"))
+    .join("\n");
+}
+
 function grouped(groups: ContextMenuItem[][]): ContextMenuItem[] {
   const nonEmpty = groups.filter((group) => group.length > 0);
   return nonEmpty.flatMap((group, index) =>
@@ -145,12 +157,15 @@ function grouped(groups: ContextMenuItem[][]): ContextMenuItem[] {
 
 export function transcriptMenuModel(
   target: TranscriptMenuTarget,
-  selectedText: string | undefined,
+  selected: TranscriptSelection | undefined,
   context: ConversationMenuContext,
 ): ContextMenuItem[] {
   const details = targetDetails(target, context.treeEntriesById);
   const content = details.content?.trim() ? details.content : undefined;
-  const selection = selectedText?.trim() ? selectedText : undefined;
+  const selection = selected?.text.trim() ? selected.text : undefined;
+  const selectionQuote = selected?.markdown.trim()
+    ? selected.markdown
+    : selection;
 
   const copyGroup: ContextMenuItem[] = [
     {
@@ -171,7 +186,8 @@ export function transcriptMenuModel(
   if (details.quote?.trim()) {
     copyGroup.push({
       label: selection ? "Quote selection" : "Quote",
-      onSelect: () => context.quoteInComposer(selection ?? details.quote ?? ""),
+      onSelect: () =>
+        context.quoteInComposer(selectionQuote ?? details.quote ?? ""),
     });
   }
 

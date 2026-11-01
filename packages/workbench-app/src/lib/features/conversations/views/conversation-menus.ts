@@ -6,7 +6,10 @@ import Pencil from "@lucide/svelte/icons/pencil";
 import TextQuote from "@lucide/svelte/icons/text-quote";
 import Trash2 from "@lucide/svelte/icons/trash-2";
 import type { ContextMenuItem } from "@nervekit/ui-kit/components/composites/context-menu-list";
-import type { TranscriptMenuTarget } from "$lib/presentation/conversations";
+import type {
+  TranscriptMenuTarget,
+  TranscriptSelection,
+} from "$lib/presentation/conversations";
 import {
   transcriptMenuModel,
   type ConversationMenuHandlers,
@@ -44,10 +47,10 @@ function addIcons(items: ContextMenuItem[]): ContextMenuItem[] {
 
 export function transcriptMenu(
   target: TranscriptMenuTarget,
-  selectedText: string | undefined,
+  selection: TranscriptSelection | undefined,
   context: ConversationMenuHandlers & {
     treeEntriesById: Map<string, ConversationEntry>;
   },
 ): ContextMenuItem[] {
-  return addIcons(transcriptMenuModel(target, selectedText, context));
+  return addIcons(transcriptMenuModel(target, selection, context));
 }

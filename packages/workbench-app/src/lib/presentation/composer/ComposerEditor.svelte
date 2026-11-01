@@ -42,6 +42,8 @@ import {
 } from "$lib/presentation/dnd/project-entry-drag";
 import ComposerCompletionPopup from "./ComposerCompletionPopup.svelte";
 import { executableCommandBlockHighlighter } from "./composer-command-blocks";
+import { externalValueChange } from "./composer-external-value";
+import { quoteBlockHighlighter } from "./composer-quote-blocks";
 import {
   closeCompletion,
   composerCompletionController,
@@ -480,6 +482,7 @@ onMount(() => {
         composerMentionChips(),
         composerDictationPlaceholder(),
         executableCommandBlockHighlighter,
+        quoteBlockHighlighter,
         Prec.highest(
           keymap.of([
             { key: "Enter", run: submitOnEnter },
@@ -552,8 +555,11 @@ $effect(() => {
 
 $effect(() => {
   if (!view || value === editorValue) return;
+  const change = externalValueChange(view.state.doc.toString(), value);
   view.dispatch({
-    changes: { from: 0, to: view.state.doc.length, insert: value },
+    changes: { from: change.from, to: change.to, insert: change.insert },
+    selection: { anchor: change.caret },
+    scrollIntoView: true,
   });
   editorValue = value;
   shellMode = isInlineCommandPrompt(value);
