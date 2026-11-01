@@ -1,3 +1,5 @@
+import { trimBlankLines } from "./selection-markdown.js";
+
 type SelectionRange = {
   intersectsNode(node: Node): boolean;
 };
@@ -18,7 +20,7 @@ export function selectedTextForTranscriptRow(
     return undefined;
   }
 
-  const text = selection.toString();
+  const text = trimBlankLines(selection.toString());
   if (!text.trim()) return undefined;
 
   try {

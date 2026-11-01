@@ -1,5 +1,5 @@
 <script lang="ts">
-import { untrack } from "svelte";
+import { tick, untrack } from "svelte";
 import { DEFAULT_AGENT_PROFILE } from "@nervekit/contracts/agent-profiles";
 import { writeClipboardText } from "$lib/platform/clipboard/write-text";
 import { notify } from "$lib/application/notifications/notify.svelte";
@@ -22,7 +22,16 @@ import { openInlineMermaidPane } from "$lib/features/filesystem";
 import type { MermaidMarkdownBlock } from "@nervekit/ui-kit/renderers/mermaid/mermaid-blocks";
 
 import { transcriptMenu } from "$lib/features/conversations/views/conversation-menus";
-import type { TranscriptMenuTarget } from "$lib/presentation/conversations";
+import { quoteMarkdown } from "$lib/features/conversations/views/conversation-menu-model";
+import { focusComposer, toggleComposerMic } from "$lib/features/conversations";
+import {
+  voiceInputSession,
+  type VoiceInputTarget,
+} from "$lib/features/conversations/audio/voice-input-session.svelte";
+import type {
+  TranscriptMenuTarget,
+  TranscriptSelection,
+} from "$lib/presentation/conversations";
 import { createConversationRenderProjection } from "$lib/features/conversations/state/conversation-render-projection.svelte";
 
 import type { ComposerView } from "$lib/application/composer/composer-view.svelte";
@@ -231,13 +240,37 @@ async function copyText(text: string, label = "message") {
 }
 
 function quoteInComposer(text: string) {
-  const quoted = text
-    .split("\n")
-    .map((line) => `> ${line}`)
-    .join("\n");
-  const prefix = composerText ? `${composerText}\n\n` : "";
+  const quoted = quoteMarkdown(text);
+  if (!quoted) return;
+  const existing = composerText.trimEnd();
+  const prefix = existing ? `${existing}\n\n` : "";
   onComposerChange?.(`${prefix}${quoted}\n\n`);
+  focusComposer();
 }
+
+async function quoteAndDictate(text: string) {
+  quoteInComposer(text);
+  // Let the editor apply the quote (caret moves after it) before dictation
+  // places its chip at the caret.
+  await tick();
+  const target: VoiceInputTarget | undefined = activeConversation
+    ? { kind: "conversation", id: activeConversation.id }
+    : activePendingConversation
+      ? { kind: "pending-conversation", id: activePendingConversation.id }
+      : undefined;
+  if (!target || !active) return;
+  const listening =
+    voiceInputSession.isTargetActive(target) &&
+    (voiceInputSession.recording || voiceInputSession.transcribing);
+  if (!listening) toggleComposerMic();
+}
+
+const selectionActions = $derived({
+  quote: quoteInComposer,
+  quoteAndDictate: voiceInputSession.isSupported()
+    ? quoteAndDictate
+    : undefined,
+});
 
 function openAssistantMermaid(
   block: MermaidMarkdownBlock,
@@ -256,9 +289,9 @@ function openAssistantMermaid(
 
 function menuForTranscript(
   target: TranscriptMenuTarget,
-  selectedText?: string,
+  selection?: TranscriptSelection,
 ) {
-  return transcriptMenu(target, selectedText, {
+  return transcriptMenu(target, selection, {
     treeEntriesById,
     copyText,
     quoteInComposer,
@@ -358,7 +391,7 @@ function menuForTranscript(
     onMoveQueuedPromptToComposer,
     onOpenPendingWork,
   }}
-  menus={{ transcriptMenu: menuForTranscript }}
+  menus={{ transcriptMenu: menuForTranscript, selectionActions }}
   {activity}
 >
   {#snippet composer(activityContent)}

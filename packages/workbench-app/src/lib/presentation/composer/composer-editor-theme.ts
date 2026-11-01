@@ -28,6 +28,13 @@ export const composerEditorTheme = EditorView.theme({
     color: "var(--foreground)",
     borderRadius: "var(--radius-sm)",
   },
+  ".cm-quote-block-line": {
+    backgroundColor:
+      "color-mix(in oklab, var(--muted-foreground) 8%, transparent)",
+    boxShadow:
+      "inset 2px 0 0 color-mix(in oklab, var(--primary) 55%, transparent)",
+    color: "var(--muted-foreground)",
+  },
   ".cm-scroller": {
     // ComposerEditor shrinks this on phones, where the transcript needs room.
     minHeight: "var(--composer-editor-min-height, 92px)",

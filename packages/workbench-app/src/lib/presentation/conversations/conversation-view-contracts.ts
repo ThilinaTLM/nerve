@@ -325,9 +325,25 @@ export type TranscriptMenuTarget =
       onDiscard: () => void;
     };
 
+/** Transcript text selection captured when a context menu opens. */
+export type TranscriptSelection = {
+  /** Plain selected text, used for copying. */
+  text: string;
+  /** Selection serialized back to Markdown, used for quoting. */
+  markdown: string;
+};
+
+/** Actions offered by the floating toolbar over a transcript selection. */
+export type TranscriptSelectionActions = {
+  quote: (markdown: string) => void;
+  /** Quote, then start composer dictation; omitted when voice is unsupported. */
+  quoteAndDictate?: (markdown: string) => void;
+};
+
 export type ConversationMenuBuilders = {
   transcriptMenu: (
     target: TranscriptMenuTarget,
-    selectedText?: string,
+    selection?: TranscriptSelection,
   ) => ContextMenuItem[];
+  selectionActions?: TranscriptSelectionActions;
 };
