@@ -69,6 +69,8 @@ type Props = {
     patch: UpdateApplicationConfigurationRequest,
   ) => void;
   onRestartDaemon?: () => void;
+  theme: ColorTheme;
+  colorMode: ColorMode;
   onColorThemeChange?: (theme: ColorTheme) => void;
   onColorModeChange?: (colorMode: ColorMode) => void;
   onSkillsRetry?: () => void;
@@ -95,6 +97,8 @@ let {
   onSettingsChange,
   onApplicationConfigurationChange,
   onRestartDaemon,
+  theme,
+  colorMode,
   onColorThemeChange,
   onColorModeChange,
   onSkillsRetry,
@@ -217,6 +221,8 @@ function statusText(): string {
       {onSettingsChange}
       {onApplicationConfigurationChange}
       {onRestartDaemon}
+      {theme}
+      {colorMode}
       {onColorThemeChange}
       {onColorModeChange}
       {onSkillsRetry}

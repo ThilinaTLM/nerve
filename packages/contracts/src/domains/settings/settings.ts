@@ -17,9 +17,8 @@ import { permissionExceptionSchema } from "../permissions/permissions.js";
 export const colorThemeSchema = z.enum(["nerve", "rose", "solar", "midnight"]);
 
 /**
- * Themes that shipped once and were replaced. Stored settings are migrated to
- * the successor that best preserves the user's original intent, so an old value
- * never fails schema validation.
+ * Themes that shipped once and were replaced. Clients restore stored preferences
+ * through the successor that best preserves the user's original intent.
  */
 export const retiredColorThemes = {
   ocean: "solar",
@@ -375,8 +374,6 @@ export const settingsSchema = z.object({
   defaultThinkingLevel: thinkingLevelSchema,
   application: applicationSettingsSchema,
   ui: z.object({
-    theme: colorThemeSchema,
-    colorMode: colorModeSchema,
     zoomLevel: z.number().int().min(-8).max(8),
   }),
   desktop: z.object({
@@ -421,8 +418,6 @@ export const defaultSettings: Settings = {
   defaultThinkingLevel: "off",
   application: defaultApplicationSettings,
   ui: {
-    theme: "nerve",
-    colorMode: "system",
     zoomLevel: 0,
   },
   desktop: {
@@ -495,8 +490,6 @@ export const updateSettingsRequestSchema = z.strictObject({
   application: applicationSettingsPatchSchema.optional(),
   ui: z
     .object({
-      theme: colorThemeSchema.optional(),
-      colorMode: colorModeSchema.optional(),
       zoomLevel: z.number().int().min(-8).max(8).optional(),
     })
     .optional(),

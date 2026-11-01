@@ -37,7 +37,7 @@ function storedColorTheme(): unknown {
   }
 }
 
-export function applyColorTheme(theme = appearanceState.theme): void {
+export function setColorTheme(theme = appearanceState.theme): void {
   appearanceState.theme = theme;
   if (typeof document !== "undefined") {
     document.documentElement.dataset.theme = theme;
@@ -47,14 +47,14 @@ export function applyColorTheme(theme = appearanceState.theme): void {
 
 // Color-mode switching remains delegated to mode-watcher, which toggles the
 // `.dark` class, follows the system preference, and persists the choice.
-export function applyColorMode(colorMode = appearanceState.colorMode): void {
+export function setColorMode(colorMode = appearanceState.colorMode): void {
   appearanceState.colorMode = colorMode;
   setMode(colorMode);
 }
 
 export function applyAppearance(theme: ColorTheme, colorMode: ColorMode): void {
-  applyColorTheme(theme);
-  applyColorMode(colorMode);
+  setColorTheme(theme);
+  setColorMode(colorMode);
 }
 
 export function clampZoomLevel(level: number): number {
@@ -91,8 +91,7 @@ export function loadAppearancePreference(): {
 } {
   const storedTheme =
     typeof localStorage === "undefined" ? undefined : storedColorTheme();
-  // The mirror is written before settings load, so it can still hold a retired
-  // id; map it the same way the server migration does to avoid a theme flash.
+  // Existing clients may still have a retired theme id.
   const parsedTheme = colorThemeSchema.safeParse(
     retiredColorThemes[
       String(storedTheme) as keyof typeof retiredColorThemes
@@ -103,4 +102,32 @@ export function loadAppearancePreference(): {
     // mode-watcher restores the persisted mode on mount; mirror it into state.
     colorMode: userPrefersMode.current ?? "system",
   };
+}
+
+let stopStorageSync: (() => void) | undefined;
+
+/** Install once per client lifecycle; storage events never write back. */
+export function installAppearanceStorageSync(): () => void {
+  if (stopStorageSync) return stopStorageSync;
+  if (typeof window === "undefined") return () => {};
+  const browser = window;
+  const onStorage = (event: StorageEvent) => {
+    if (event.storageArea !== browser.localStorage) return;
+    if (event.key !== COLOR_THEME_STORAGE_KEY && event.key !== null) return;
+    const stored = event.key === null ? null : event.newValue;
+    const parsed = colorThemeSchema.safeParse(
+      retiredColorThemes[String(stored) as keyof typeof retiredColorThemes] ??
+        stored,
+    );
+    const theme = parsed.success ? parsed.data : "nerve";
+    appearanceState.theme = theme;
+    document.documentElement.dataset.theme = theme;
+  };
+  browser.addEventListener("storage", onStorage);
+  const dispose = () => {
+    browser.removeEventListener("storage", onStorage);
+    if (stopStorageSync === dispose) stopStorageSync = undefined;
+  };
+  stopStorageSync = dispose;
+  return dispose;
 }

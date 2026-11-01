@@ -66,6 +66,8 @@ let {
   onSettingsChange,
   onApplicationConfigurationChange,
   onRestartDaemon,
+  theme,
+  colorMode,
   onColorThemeChange,
   onColorModeChange,
 }: {
@@ -93,6 +95,8 @@ let {
     patch: UpdateApplicationConfigurationRequest,
   ) => void;
   onRestartDaemon?: () => void;
+  theme: ColorTheme;
+  colorMode: ColorMode;
   onColorThemeChange?: (theme: ColorTheme) => void;
   onColorModeChange?: (colorMode: ColorMode) => void;
   onSkillsRetry?: () => void;
@@ -129,6 +133,8 @@ const projectId = $derived(
   {:else if page.id === "workbench"}
     <WorkbenchSettingsPage
       {settingsDraft}
+      {theme}
+      {colorMode}
       {onColorThemeChange}
       {onColorModeChange}
       {onSettingsChange}

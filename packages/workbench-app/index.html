@@ -63,12 +63,26 @@
       // lighter flash, which is exactly what the theme exists to avoid.
       (() => {
         try {
-          const theme = window.localStorage.getItem("nerve-color-theme");
-          if (!["nerve", "rose", "solar", "midnight"].includes(theme)) return;
-          document.documentElement.dataset.theme = theme;
+          const stored = window.localStorage.getItem("nerve-color-theme");
+          const theme = { ocean: "solar", forest: "rose" }[stored] ?? stored;
+          if (["nerve", "rose", "solar", "midnight"].includes(theme)) {
+            document.documentElement.dataset.theme = theme;
+          }
         } catch {
           // The default theme still applies when storage is unavailable.
         }
+        let mode;
+        try {
+          mode = window.localStorage.getItem("mode-watcher-mode");
+        } catch {
+          // System preference still applies when storage is unavailable.
+        }
+        document.documentElement.classList.toggle(
+          "dark",
+          mode === "dark" ||
+            (mode !== "light" &&
+              window.matchMedia("(prefers-color-scheme: dark)").matches),
+        );
       })();
     </script>
     <meta
