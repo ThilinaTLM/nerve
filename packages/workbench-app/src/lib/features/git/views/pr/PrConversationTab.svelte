@@ -79,7 +79,7 @@ const REVIEW_STATE: Record<
 
 <ScrollArea class="h-full" viewportClass="@container">
   <div
-    class="grid gap-x-10 px-4 pt-2 pb-10 @3xl:grid-cols-[minmax(0,1fr)_15rem] @6xl:grid-cols-[minmax(0,1fr)_18rem]"
+    class="grid max-w-6xl gap-x-10 px-4 pt-2 pb-10 @3xl:grid-cols-[minmax(0,48rem)_minmax(15rem,1fr)]"
   >
     {#if hasDetails}
       <Collapsible.Root bind:open={detailsOpen} class="border-b @3xl:hidden">
