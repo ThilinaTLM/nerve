@@ -9,6 +9,23 @@ import { parentPath, THIS_PC, type PathContext } from "./folder-browser-path";
 
 export type FolderEntry = FilesystemDirectoryResponse["entries"][number];
 
+/** Where the browser gets places, listings and new folders from. */
+export type FolderBrowserSource = {
+  locations(): Promise<FilesystemLocations>;
+  /** `undefined` asks the daemon for its default folder. */
+  list(
+    path: string | undefined,
+    showHidden: boolean,
+  ): Promise<FilesystemDirectoryResponse>;
+  create(parent: string, name: string): Promise<{ path: string }>;
+};
+
+export const apiFolderBrowserSource: FolderBrowserSource = {
+  locations: loadFilesystemLocations,
+  list: listDirectories,
+  create: createDirectory,
+};
+
 const FALLBACK_CONTEXT: PathContext = {
   platform: "other",
   separator: "/",
@@ -44,6 +61,11 @@ export class FolderBrowser {
   creatingBusy = $state(false);
 
   #token = 0;
+  readonly #source: FolderBrowserSource;
+
+  constructor(source: FolderBrowserSource = apiFolderBrowserSource) {
+    this.#source = source;
+  }
 
   readonly ctx = $derived<PathContext>(this.locations ?? FALLBACK_CONTEXT);
   readonly atThisPC = $derived(this.cwd === THIS_PC);
@@ -95,7 +117,7 @@ export class FolderBrowser {
     this.creating = false;
     if (!this.locations) {
       try {
-        this.locations = await loadFilesystemLocations();
+        this.locations = await this.#source.locations();
       } catch {
         // Browsing still works without places; the listing reports real errors.
       }
@@ -118,7 +140,7 @@ export class FolderBrowser {
       return undefined;
     }
     try {
-      const listing = await listDirectories(path, this.showHidden);
+      const listing = await this.#source.list(path, this.showHidden);
       this.#commit(listing.path, listing, "push");
       return undefined;
     } catch (caught) {
@@ -178,7 +200,7 @@ export class FolderBrowser {
     this.creatingBusy = true;
     this.createError = undefined;
     try {
-      const created = await createDirectory(parent, trimmed);
+      const created = await this.#source.create(parent, trimmed);
       this.creating = false;
       await this.#load(parent, "keep");
       this.selectedPath = created.path;
@@ -201,7 +223,7 @@ export class FolderBrowser {
     this.loading = true;
     this.error = undefined;
     try {
-      const listing = await listDirectories(path, this.showHidden);
+      const listing = await this.#source.list(path, this.showHidden);
       if (token !== this.#token) return;
       this.#commit(listing.path, listing, mode);
     } catch (caught) {

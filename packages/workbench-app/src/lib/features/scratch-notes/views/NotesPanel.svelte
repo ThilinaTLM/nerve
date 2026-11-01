@@ -1,6 +1,5 @@
 <script lang="ts">
 import { Callout } from "@nervekit/ui-kit/components/composites/callout";
-import type { Project } from "@nervekit/contracts/core";
 import ScrollRegion from "@nervekit/ui-kit/components/composites/scroll-region";
 import NotebookPen from "@lucide/svelte/icons/notebook-pen";
 import Plus from "@lucide/svelte/icons/plus";
@@ -14,32 +13,24 @@ import {
   PanelView,
 } from "$lib/presentation/panels";
 import ScratchNoteCard from "./ScratchNoteCard.svelte";
-import {
-  createScratchNote,
-  ensureScratchNotesProject,
-  getScratchNotesProject,
-  loadScratchNotes,
-  removeScratchNote,
-  type ScratchNoteEntry,
+import type {
+  ScratchNoteEntry,
+  ScratchNotesProjectEntry,
 } from "../state/scratch-notes-state.svelte";
+import type { NotesPanelActions } from "./notes-panel-types";
 
 type Props = {
-  activeProject?: Project;
+  projectId?: string;
+  project?: ScratchNotesProjectEntry;
+  actions: NotesPanelActions;
 };
 
-let { activeProject }: Props = $props();
+let { projectId, project, actions }: Props = $props();
 
-const projectId = $derived(activeProject?.id);
-const project = $derived(
-  projectId ? getScratchNotesProject(projectId) : undefined,
-);
+// The Callout `actions` snippet shadows the `actions` prop in the template.
+const retry = () => actions.retry();
+
 let noteToDelete = $state<ScratchNoteEntry | undefined>();
-
-$effect(() => {
-  if (!projectId) return;
-  ensureScratchNotesProject(projectId);
-  void loadScratchNotes(projectId);
-});
 </script>
 
 <PanelView>
@@ -52,7 +43,7 @@ $effect(() => {
             label="Add note"
             loading={project?.creating}
             disabled={project?.creating}
-            onclick={() => void createScratchNote(projectId)}
+            onclick={() => actions.create()}
           />
         {/if}
       {/snippet}
@@ -67,11 +58,7 @@ $effect(() => {
       <Callout layout="strip" tone="destructive">
         Could not load scratch notes.
         {#snippet actions()}
-          <Button
-            size="sm"
-            variant="outline"
-            onclick={() => void loadScratchNotes(projectId, true)}>Retry</Button
-          >
+          <Button size="sm" variant="outline" onclick={retry}>Retry</Button>
         {/snippet}
       </Callout>
     {/if}
@@ -89,7 +76,7 @@ $effect(() => {
             size="sm"
             variant="outline"
             disabled={project.creating}
-            onclick={() => void createScratchNote(projectId)}
+            onclick={() => actions.create()}
           >
             <Plus />
             New note
@@ -105,11 +92,13 @@ $effect(() => {
       >
         {#each project.notes as note (note.id)}
           <ScratchNoteCard
-            {projectId}
             {note}
+            onContentChange={(content) => actions.setContent(note.id, content)}
+            onFlush={() => actions.flush(note.id)}
+            onRename={(title) => actions.rename(note.id, title)}
             onDelete={() => {
               if (note.draftContent.trim()) noteToDelete = note;
-              else void removeScratchNote(projectId, note.id);
+              else actions.remove(note.id);
             }}
           />
         {/each}
@@ -126,7 +115,7 @@ $effect(() => {
   confirmLabel="Delete"
   onConfirm={() => {
     if (projectId && noteToDelete) {
-      void removeScratchNote(projectId, noteToDelete.id);
+      actions.remove(noteToDelete.id);
     }
   }}
   onCancel={() => (noteToDelete = undefined)}

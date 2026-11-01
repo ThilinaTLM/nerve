@@ -43,6 +43,14 @@ import {
   PanelSectionHeader,
   PanelView,
 } from "$lib/presentation/panels";
+import FolderBrowserView from "$lib/features/projects/views/FolderBrowserView.svelte";
+import {
+  createFailingFolderBrowser,
+  createMockFolderBrowser,
+  FOLDER_BROWSER_PROJECT_DIRECTORIES,
+  FOLDER_BROWSER_START,
+  folderBrowserProjectIdForPath,
+} from "./folder-browser-fixtures";
 import GalleryGroup from "../GalleryGroup.svelte";
 import GallerySpecimen from "../GallerySpecimen.svelte";
 
@@ -54,6 +62,13 @@ function bindOpen(key: DialogKey) {
     onOpenChange: (next: boolean) => (dialogOpen = next ? key : null),
   };
 }
+
+const folderBrowser = createMockFolderBrowser();
+const failingFolderBrowser = createFailingFolderBrowser();
+$effect(() => {
+  void folderBrowser.open(FOLDER_BROWSER_START);
+  void failingFolderBrowser.open(FOLDER_BROWSER_START);
+});
 
 let confirmOpen = $state(false);
 let destructiveOpen = $state(false);
@@ -615,6 +630,49 @@ const toolOutput = [
         <div class="dialog-body">
           {@render toolDetailsBody()}
         </div>
+      </div>
+    </GallerySpecimen>
+  </GalleryGroup>
+  <GalleryGroup
+    title="Folder browser"
+    description="The Open project picker body, mounted inline with a mock filesystem (Linux, /home/alex). The dialog footer is omitted."
+  >
+    <GallerySpecimen
+      title="FolderBrowserView"
+      source="projects/views/FolderBrowserView"
+      usage="project picker dialog"
+      description="Places, path bar, filter, hidden toggle, new folder and the folder list. monorepo is already a project."
+      surface="card"
+      layout="bare"
+    >
+      <div
+        class="mx-auto h-[26rem] w-full max-w-205 overflow-hidden rounded-lg border bg-card py-3"
+      >
+        <FolderBrowserView
+          browser={folderBrowser}
+          projectDirectories={FOLDER_BROWSER_PROJECT_DIRECTORIES}
+          projectIdForPath={folderBrowserProjectIdForPath}
+          onOpen={() => {}}
+        />
+      </div>
+    </GallerySpecimen>
+
+    <GallerySpecimen
+      title="FolderBrowserView · error"
+      source="projects/views/FolderBrowserView"
+      description="The daemon cannot list the folder."
+      surface="card"
+      layout="bare"
+    >
+      <div
+        class="mx-auto h-80 w-full max-w-205 overflow-hidden rounded-lg border bg-card py-3"
+      >
+        <FolderBrowserView
+          browser={failingFolderBrowser}
+          projectDirectories={[]}
+          projectIdForPath={() => undefined}
+          onOpen={() => {}}
+        />
       </div>
     </GallerySpecimen>
   </GalleryGroup>

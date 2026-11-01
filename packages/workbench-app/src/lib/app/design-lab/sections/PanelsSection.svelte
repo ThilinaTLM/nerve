@@ -38,24 +38,35 @@ import {
   PanelSectionHeader,
   PanelToolbarButton,
   PanelTree,
-  PanelView,
   buildPanelTree,
 } from "$lib/presentation/panels";
+import FilesPanel from "$lib/features/filesystem/views/FilesPanel.svelte";
 import GitPanel from "$lib/features/git/views/GitPanel.svelte";
 import PullRequestsPanel from "$lib/features/git/views/PullRequestsPanel.svelte";
 import LaunchesPanel from "$lib/features/launches/views/LaunchesPanel.svelte";
+import NotesPanel from "$lib/features/scratch-notes/views/NotesPanel.svelte";
 import ProjectConversationNavigator from "$lib/features/projects/views/ProjectConversationNavigator.svelte";
 import GalleryGroup from "../GalleryGroup.svelte";
 import GallerySpecimen from "../GallerySpecimen.svelte";
 import {
   conversationNavigatorProps,
+  filesEmptyRoot,
+  filesErrorRoot,
+  filesPanelFixture,
   gitActions,
   gitChangesModel,
   launchPanelActions,
   launchPanelModel,
   navigatorSelectedConversationId,
+  notesActions,
+  notesEmptyProject,
+  notesErrorProject,
+  notesProject,
+  notesProjectId,
   pullRequestsModel,
 } from "./panels-fixtures";
+
+const noop = () => {};
 
 const longLabel =
   "packages/workbench-app/src/lib/presentation/transcript/components/a-very-long-component-name.svelte";
@@ -226,7 +237,7 @@ const activityExamples: {
     <GallerySpecimen
       title="Dock panels at 280px"
       source="features/*/views"
-      usage="ProjectConversationNavigator · GitPanel · PullRequestsPanel · LaunchesPanel"
+      usage="ProjectConversationNavigator · FilesPanel · GitPanel · PullRequestsPanel · LaunchesPanel · NotesPanel"
       surface="panel"
       layout="bare"
       description="Production views with mock models; actions are no-ops. Click a conversation to move the selection."
@@ -237,6 +248,23 @@ const activityExamples: {
             {...conversationNavigatorProps}
             {selectedConversationId}
             onOpenConversation={(id) => (selectedConversationId = id)}
+          />
+        </div>
+        <div class="h-150 w-70 overflow-hidden rounded-md border">
+          <FilesPanel
+            {...filesPanelFixture}
+            rootMenu={() => menuItems}
+            itemMenu={() => menuItems}
+            pendingCreate={undefined}
+            pendingTrash={undefined}
+            onRefresh={noop}
+            onRetry={noop}
+            onActivate={noop}
+            onExpansionChange={noop}
+            onDragStart={noop}
+            onCreate={async () => {}}
+            onConfirmTrash={noop}
+            onCancelTrash={noop}
           />
         </div>
         <div class="h-150 w-70 overflow-hidden rounded-md border">
@@ -251,65 +279,99 @@ const activityExamples: {
             actions={launchPanelActions}
           />
         </div>
+        <div class="h-150 w-70 overflow-hidden rounded-md border">
+          <NotesPanel
+            projectId={notesProjectId}
+            project={notesProject}
+            actions={notesActions}
+          />
+        </div>
       </div>
     </GallerySpecimen>
 
     <GallerySpecimen
-      title="Dock panels without a stateless view"
-      source="panels/*"
-      usage="FilesPanelHost · NotesPanel"
+      title="Dock panel states"
+      source="features/*/views"
+      usage="FilesPanel · NotesPanel"
       surface="panel"
       layout="bare"
-      description="Files and Notes still read app stores and load data on mount, so these are composed from panel kit components until each splits into a stateless view and a host."
+      description="The same views in their no-project, empty and load-error states."
     >
       <div class="flex flex-wrap items-start gap-6">
-        <!-- Files -->
         <div class="h-150 w-70 overflow-hidden rounded-md border">
-          <PanelView>
-            {#snippet banner()}
-              <PanelHeader title="Files" count={33}>
-                {#snippet trailing()}
-                  <PanelToolbarButton
-                    icon={RefreshCwIcon}
-                    label="Refresh files"
-                  />
-                {/snippet}
-              </PanelHeader>
-            {/snippet}
-            <div class="min-h-0 flex-1 overflow-y-auto">
-              <PanelTree
-                nodes={fileNodes}
-                ariaLabel="Workspace files"
-                itemLeading={fileLeading}
-                getItemMenuItems={() => menuItems}
-              />
-            </div>
-          </PanelView>
+          <FilesPanel
+            {...filesPanelFixture}
+            projectName={undefined}
+            root={undefined}
+            nodes={[]}
+            rootMenu={() => menuItems}
+            itemMenu={() => menuItems}
+            pendingCreate={undefined}
+            pendingTrash={undefined}
+            onRefresh={noop}
+            onRetry={noop}
+            onActivate={noop}
+            onExpansionChange={noop}
+            onDragStart={noop}
+            onCreate={async () => {}}
+            onConfirmTrash={noop}
+            onCancelTrash={noop}
+          />
         </div>
-
-        <!-- Scratch notes (empty) -->
         <div class="h-150 w-70 overflow-hidden rounded-md border">
-          <PanelView>
-            {#snippet banner()}
-              <PanelHeader title="Notes" count={0}>
-                {#snippet trailing()}
-                  <PanelToolbarButton icon={PlusIcon} label="Add note" />
-                {/snippet}
-              </PanelHeader>
-            {/snippet}
-            <PanelEmpty
-              icon={SquarePenIcon}
-              title="No scratch notes yet"
-              description="Notes are scoped to this project."
-            >
-              {#snippet action()}
-                <Button variant="outline" size="sm">
-                  <PlusIcon data-icon="inline-start" />
-                  New note
-                </Button>
-              {/snippet}
-            </PanelEmpty>
-          </PanelView>
+          <FilesPanel
+            {...filesPanelFixture}
+            root={filesEmptyRoot}
+            nodes={[]}
+            rootMenu={() => menuItems}
+            itemMenu={() => menuItems}
+            pendingCreate={undefined}
+            pendingTrash={undefined}
+            onRefresh={noop}
+            onRetry={noop}
+            onActivate={noop}
+            onExpansionChange={noop}
+            onDragStart={noop}
+            onCreate={async () => {}}
+            onConfirmTrash={noop}
+            onCancelTrash={noop}
+          />
+        </div>
+        <div class="h-150 w-70 overflow-hidden rounded-md border">
+          <FilesPanel
+            {...filesPanelFixture}
+            root={filesErrorRoot}
+            nodes={[]}
+            rootMenu={() => menuItems}
+            itemMenu={() => menuItems}
+            pendingCreate={undefined}
+            pendingTrash={undefined}
+            onRefresh={noop}
+            onRetry={noop}
+            onActivate={noop}
+            onExpansionChange={noop}
+            onDragStart={noop}
+            onCreate={async () => {}}
+            onConfirmTrash={noop}
+            onCancelTrash={noop}
+          />
+        </div>
+        <div class="h-150 w-70 overflow-hidden rounded-md border">
+          <NotesPanel actions={notesActions} />
+        </div>
+        <div class="h-150 w-70 overflow-hidden rounded-md border">
+          <NotesPanel
+            projectId={notesProjectId}
+            project={notesEmptyProject}
+            actions={notesActions}
+          />
+        </div>
+        <div class="h-150 w-70 overflow-hidden rounded-md border">
+          <NotesPanel
+            projectId={notesProjectId}
+            project={notesErrorProject}
+            actions={notesActions}
+          />
         </div>
       </div>
     </GallerySpecimen>

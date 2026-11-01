@@ -183,18 +183,7 @@ test("shared presentation components with 2+ product consumers have specimens", 
 });
 
 /* Top-level feature surfaces (dock panels and center views) must render the
- * real component in the lab, never a replica. Views that still load or save
- * through app state are listed with the split that would let the lab mount
- * them. */
-const SURFACE_EXEMPT: Record<string, string> = {
-  // NotesPanel and ScratchNoteCard load and save through scratch-notes-state;
-  // split into a stateless view + host to mount it.
-  "features/scratch-notes/views/NotesPanel.svelte":
-    "needs NotesPanel view/host split",
-  // FolderBrowser state lists and creates directories through the API.
-  "features/projects/views/FolderBrowserView.svelte":
-    "needs FolderBrowser state injection",
-};
+ * real component in the lab, never a replica. */
 
 test("dock panels and center views render the real component in the lab", () => {
   const surfaces = sourceFiles(`${libRoot}features`)
@@ -206,7 +195,6 @@ test("dock panels and center views render the real component in the lab", () => 
     .join("\n");
   const missing = surfaces
     .map((file) => relative(libRoot, file))
-    .filter((file) => !(file in SURFACE_EXEMPT))
     .filter((file) => {
       const name = file.split("/").pop()!.replace(".svelte", "");
       return !new RegExp(
@@ -219,6 +207,4 @@ test("dock panels and center views render the real component in the lab", () => 
     [],
     `Render these real views in a Design Lab section: ${missing.join(", ")}`,
   );
-  for (const file of Object.keys(SURFACE_EXEMPT))
-    assert.ok(existsSync(`${libRoot}${file}`), `${file} no longer exists`);
 });

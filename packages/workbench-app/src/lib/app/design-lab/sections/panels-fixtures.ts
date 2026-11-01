@@ -1,16 +1,33 @@
 import type {
   GitFileChange,
+  GitProjectFileStatus,
   GitRepoSummary,
   GithubPr,
   GithubPrHeadsResponse,
 } from "@nervekit/contracts/git";
+import type { FilesystemProjectEntry } from "@nervekit/contracts/filesystem";
 import type { LaunchRecord } from "@nervekit/contracts/launches";
+import { SvelteSet } from "svelte/reactivity";
 import { enabledCapability } from "$lib/domain/capabilities/feature-capability";
 import type {
   ConversationRecord,
   ProjectRecord,
 } from "$lib/domain/projects/sidebar-view-models";
 import { defaultGitPrFilterConfig } from "$lib/features/git/pr-filters";
+import type {
+  FileExplorerDirectoryState,
+  FileExplorerProjectState,
+} from "$lib/features/filesystem/state/file-explorer-state.svelte";
+import {
+  buildFileExplorerTree,
+  fileExplorerEntryNodeId,
+} from "$lib/features/filesystem/state/file-explorer-tree";
+import { indexFileTreeGitDecorations } from "$lib/features/filesystem/state/file-git-status";
+import type {
+  ScratchNoteEntry,
+  ScratchNotesProjectEntry,
+} from "$lib/features/scratch-notes/state/scratch-notes-state.svelte";
+import type { NotesPanelActions } from "$lib/features/scratch-notes/views/notes-panel-types";
 import type {
   GitPanelActions,
   GitPanelCapabilities,
@@ -576,4 +593,174 @@ export const launchPanelActions: LaunchPanelActions = {
   updateDefinition: noop,
   deleteDefinition: noop,
   loadLogs: noop,
+};
+
+// ── Files ────────────────────────────────────────────────────────────────
+
+const fileEntry = (
+  path: string,
+  kind: FilesystemProjectEntry["kind"] = "file",
+): FilesystemProjectEntry => ({
+  name: path.slice(path.lastIndexOf("/") + 1),
+  path,
+  kind,
+  symlink: false,
+});
+
+const fileDirectory = (
+  path: string,
+  entries: FilesystemProjectEntry[],
+): FileExplorerDirectoryState => ({
+  path,
+  entries,
+  pagesLoaded: 1,
+  loading: false,
+  refreshing: false,
+  generation: 1,
+  stale: false,
+});
+
+export const filesActiveRelativePath = "packages/workbench-app/src/main.ts";
+
+const filesProject: FileExplorerProjectState = {
+  projectId: PROJECT_ID,
+  directories: {
+    "": fileDirectory("", [
+      fileEntry(".github", "directory"),
+      fileEntry("docs", "directory"),
+      fileEntry("packages", "directory"),
+      fileEntry("scripts", "directory"),
+      fileEntry("src", "directory"),
+      fileEntry(".gitignore"),
+      fileEntry("AGENTS.md"),
+      fileEntry("Cargo.toml"),
+      fileEntry("README.md"),
+      fileEntry("package.json"),
+      fileEntry("tsconfig.json"),
+    ]),
+    packages: fileDirectory("packages", [
+      fileEntry("packages/ui-kit", "directory"),
+      fileEntry("packages/workbench-app", "directory"),
+    ]),
+    "packages/workbench-app": fileDirectory("packages/workbench-app", [
+      fileEntry("packages/workbench-app/src", "directory"),
+      fileEntry("packages/workbench-app/package.json"),
+    ]),
+    "packages/workbench-app/src": fileDirectory("packages/workbench-app/src", [
+      fileEntry("packages/workbench-app/src/App.svelte"),
+      fileEntry("packages/workbench-app/src/main.ts"),
+    ]),
+    src: fileDirectory("src", [
+      fileEntry("src/lib.rs"),
+      fileEntry("src/server.rs"),
+    ]),
+  },
+  expandedIds: new SvelteSet(
+    ["packages", "packages/workbench-app", "packages/workbench-app/src"].map(
+      (path) => fileExplorerEntryNodeId(PROJECT_ID, path),
+    ),
+  ),
+};
+
+const gitStatus = (
+  path: string,
+  index: GitProjectFileStatus["index"],
+  worktree: GitProjectFileStatus["worktree"],
+  options: { staged?: boolean; untracked?: boolean } = {},
+): GitProjectFileStatus => ({
+  repo: ".",
+  path,
+  index,
+  worktree,
+  staged: options.staged ?? false,
+  untracked: options.untracked ?? false,
+});
+
+export const filesPanelFixture = {
+  projectName: "nerve",
+  root: filesProject.directories[""],
+  nodes: buildFileExplorerTree(filesProject),
+  expandedIds: filesProject.expandedIds,
+  busy: false,
+  isEntryOpen: (path: string) =>
+    filesProject.expandedIds.has(fileExplorerEntryNodeId(PROJECT_ID, path)),
+  activeRelativePath: filesActiveRelativePath,
+  gitDecorations: indexFileTreeGitDecorations([
+    gitStatus("packages/workbench-app/src/main.ts", " ", "M"),
+    gitStatus("packages/workbench-app/src/App.svelte", "A", " ", {
+      staged: true,
+    }),
+    gitStatus("src/server.rs", " ", "M"),
+    gitStatus("docs/notes.md", "?", "?", { untracked: true }),
+    gitStatus("README.md", " ", "M"),
+  ]),
+};
+
+export const filesEmptyRoot = fileDirectory("", []);
+
+export const filesErrorRoot: FileExplorerDirectoryState = {
+  ...fileDirectory("", []),
+  error: "EACCES: permission denied, scandir '/home/dev/nerve'",
+};
+
+// ── Notes ────────────────────────────────────────────────────────────────
+
+const scratchNote = (
+  seed: Pick<ScratchNoteEntry, "id" | "title" | "content"> &
+    Partial<Pick<ScratchNoteEntry, "saveStatus">>,
+): ScratchNoteEntry => ({
+  projectId: PROJECT_ID,
+  createdAt: daysAgo(3),
+  updatedAt: minutesAgo(10),
+  draftContent: seed.content,
+  savedContent: seed.content,
+  saveStatus: "idle",
+  deleting: false,
+  contentSaveFailed: false,
+  ...seed,
+});
+
+export const notesProject: ScratchNotesProjectEntry = {
+  notes: [
+    scratchNote({
+      id: "note_release",
+      title: "Release checklist",
+      content:
+        "Verify migrations on a copied slot.\nRun the focused checks and unit tests for touched packages.\nTag the release once CI is green, then publish the desktop build and update the changelog with anything user-visible.",
+    }),
+    scratchNote({
+      id: "note_ideas",
+      title: "Ideas",
+      content: "Dock panels should remember their scroll position.",
+      saveStatus: "saving",
+    }),
+  ],
+  loadStatus: "loaded",
+  loadToken: 1,
+  creating: false,
+};
+
+export const notesEmptyProject: ScratchNotesProjectEntry = {
+  notes: [],
+  loadStatus: "loaded",
+  loadToken: 1,
+  creating: false,
+};
+
+export const notesErrorProject: ScratchNotesProjectEntry = {
+  notes: [],
+  loadStatus: "error",
+  loadToken: 1,
+  creating: false,
+};
+
+export const notesProjectId = PROJECT_ID;
+
+export const notesActions: NotesPanelActions = {
+  create: noop,
+  retry: noop,
+  setContent: noop,
+  flush: noop,
+  rename: noop,
+  remove: noop,
 };
