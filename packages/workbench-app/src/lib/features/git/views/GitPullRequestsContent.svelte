@@ -3,7 +3,6 @@ import { onDestroy } from "svelte";
 import ScrollRegion from "@nervekit/ui-kit/components/composites/scroll-region";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
 import * as ContextMenu from "@nervekit/ui-kit/components/ui/context-menu";
-import { Separator } from "@nervekit/ui-kit/components/ui/separator";
 import * as ToggleGroup from "@nervekit/ui-kit/components/ui/toggle-group";
 import ExternalLink from "@lucide/svelte/icons/external-link";
 import GitPullRequest from "@lucide/svelte/icons/git-pull-request";
@@ -251,8 +250,6 @@ function toggleChecks(pr: GithubPr) {
     chipCount={openPrCount}
     countTitle={openPrTitle}
   />
-
-  <Separator class="my-1.5" />
 
   {#if refreshError}
     <PanelBanner tone="destructive" icon={TriangleAlert}>

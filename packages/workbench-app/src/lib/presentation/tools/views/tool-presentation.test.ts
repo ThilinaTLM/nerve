@@ -37,13 +37,13 @@ function bashView(exitCode?: number): ToolView {
 
 describe("Bash exit metadata", () => {
   for (const exitCode of [0, 1, 127, -1]) {
-    it(`shows actual exit ${exitCode} with its status tone`, () => {
+    it(`shows actual exit ${exitCode}, coloured only on failure`, () => {
       const presentation = toolPresentation(bashView(exitCode), call());
       assert.deepEqual(presentation.meta, [
         {
           key: "exit",
           text: `exit ${exitCode}`,
-          tone: exitCode === 0 ? "success" : "destructive",
+          ...(exitCode === 0 ? {} : { tone: "destructive" }),
         },
       ]);
     });

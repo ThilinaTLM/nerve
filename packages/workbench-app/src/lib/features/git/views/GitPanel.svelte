@@ -18,7 +18,6 @@ import MoreHorizontal from "@lucide/svelte/icons/more-horizontal";
 import { mergeProps } from "bits-ui";
 import Check from "@lucide/svelte/icons/check";
 import CircleAlert from "@lucide/svelte/icons/circle-alert";
-import { Separator } from "@nervekit/ui-kit/components/ui/separator";
 import Popover, {
   PopoverBody,
   PopoverHeader,
@@ -469,7 +468,6 @@ function activate(repo: GitRepoSummary, operation: GitRemoteOperation): void {
             <Check class="size-3.5" aria-hidden="true" />
           {/snippet}
         </GitRepoSwitcher>
-        <Separator class="my-1.5" />
       {/if}
     {/snippet}
 

@@ -287,7 +287,7 @@ async function createBranch(repository: string): Promise<void> {
 <!-- The panel shell owns horizontal padding, so rows line up with the
      header buttons above them. -->
 <Tooltip.Provider delayDuration={600} skipDelayDuration={0}>
-  <div class="flex shrink-0 flex-col pt-1.5">
+  <div class="flex shrink-0 flex-col pt-1.5 pb-3">
     {#if repos.length > MAX_LIST_ROWS}
       <!-- About six rows (the selected one is taller); the rest scrolls. -->
       <ScrollRegion

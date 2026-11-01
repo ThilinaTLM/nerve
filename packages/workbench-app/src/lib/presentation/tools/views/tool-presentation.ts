@@ -131,10 +131,11 @@ function projectToolPresentation(
       const meta: MetaItem[] = [];
       const lines = view.outputLineCount;
       if (view.exitCode !== undefined) {
+        // A clean exit is the expected outcome, so only a failure takes colour.
         meta.push({
           key: "exit",
           text: `exit ${view.exitCode}`,
-          tone: view.exitCode === 0 ? "success" : "destructive",
+          ...(view.exitCode === 0 ? {} : { tone: "destructive" as const }),
         });
       }
       if (view.signal)
