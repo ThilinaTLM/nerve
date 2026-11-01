@@ -12,6 +12,7 @@ import { Badge } from "@nervekit/ui-kit/components/ui/badge";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
 import { Input } from "@nervekit/ui-kit/components/ui/input";
 import { Skeleton } from "@nervekit/ui-kit/components/ui/skeleton";
+import { selectRowVariants } from "@nervekit/ui-kit/components/composites/select-row";
 import { cn } from "@nervekit/ui-kit/utils";
 import type { FolderBrowser } from "$lib/features/projects/state/folder-browser.svelte";
 import { toDisplayPath } from "$lib/features/projects/state/folder-browser-path";
@@ -170,6 +171,7 @@ function onCreateKeydown(event: KeyboardEvent) {
       {#each browser.entries as entry, index (entry.path)}
         {@const projectId = projectIdForPath(entry.path)}
         {@const selected = browser.selectedPath === entry.path}
+        {@const rowStyles = selectRowVariants({ selected })}
         <!-- Keyboard use goes through the listbox (arrows, Enter, →); the row
            handlers are the pointer equivalents. -->
         <!-- svelte-ignore a11y_click_events_have_key_events -->
@@ -178,16 +180,16 @@ function onCreateKeydown(event: KeyboardEvent) {
           role="option"
           aria-selected={selected}
           tabindex="-1"
-          class={cn(
-            "group flex w-full cursor-default items-center gap-2 rounded-md px-2 py-1.5 text-left hover:bg-hover max-sm:py-2",
-            selected && "bg-selected hover:bg-selected",
-          )}
+          class={rowStyles.base({
+            class:
+              "group flex w-full cursor-default items-center gap-2 px-2 py-1.5 text-left max-sm:py-2",
+          })}
           onclick={() => browser.select(entry.path)}
           ondblclick={() => void browser.go(entry.path)}
         >
           {#if browser.atThisPC}
             <HardDrive
-              class="size-4 shrink-0 text-muted-foreground"
+              class={rowStyles.icon({ class: "size-4 shrink-0" })}
               aria-hidden="true"
             />
           {:else if projectId}
@@ -199,15 +201,14 @@ function onCreateKeydown(event: KeyboardEvent) {
             />
           {:else}
             <Folder
-              class="size-4 shrink-0 text-muted-foreground"
+              class={rowStyles.icon({ class: "size-4 shrink-0" })}
               aria-hidden="true"
             />
           {/if}
           <span
-            class={cn(
-              "truncate text-ui",
-              entry.hidden && "text-muted-foreground",
-            )}>{entry.name}</span
+            class={rowStyles.label({
+              class: cn("truncate", entry.hidden && "text-muted-foreground"),
+            })}>{entry.name}</span
           >
           <span class="ml-auto flex shrink-0 gap-1 max-sm:hidden">
             {@render signalBadges(entry.signals)}

@@ -66,7 +66,10 @@ function bindOpen(key: DialogKey) {
 const folderBrowser = createMockFolderBrowser();
 const failingFolderBrowser = createFailingFolderBrowser();
 $effect(() => {
-  void folderBrowser.open(FOLDER_BROWSER_START);
+  // Preselect a plain folder so the specimen shows the selected row.
+  void folderBrowser
+    .open(FOLDER_BROWSER_START)
+    .then(() => folderBrowser.select(`${FOLDER_BROWSER_START}/notes`));
   void failingFolderBrowser.open(FOLDER_BROWSER_START);
 });
 

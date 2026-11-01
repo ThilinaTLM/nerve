@@ -66,8 +66,20 @@ describe("settings typography", () => {
     );
     assert.match(groupLabel, /text-caption font-medium text-muted-foreground/);
     assert.doesNotMatch(groupLabel, /(?<![\w-])uppercase(?![\w-])/);
-    assert.match(nav, /text-ui text-foreground/);
-    assert.match(nav, /bg-selected font-medium/);
+    // Items are the shared SelectRow: text-ui foreground labels; the active
+    // item is selected (tint, medium weight).
+    assert.match(nav, /<SelectRow[^>]*selected=\{current\}/s);
+    const selectRow = source(
+      "../../../../../ui-kit/src/lib/components/composites/select-row/select-row.svelte",
+    );
+    assert.match(selectRow, /base: "rounded-md text-ui /);
+    assert.match(selectRow, /block min-w-0 truncate text-foreground/);
+    const selectedVariant = /selected: \{\s*true: \{([^}]*)\}/s.exec(
+      selectRow,
+    )?.[1];
+    assert.ok(selectedVariant, "selectRowVariants has a selected variant");
+    assert.match(selectedVariant, /base: "bg-selected /);
+    assert.match(selectedVariant, /label: "font-medium /);
   });
 
   it("uses sentence case, never uppercase, for headings", () => {

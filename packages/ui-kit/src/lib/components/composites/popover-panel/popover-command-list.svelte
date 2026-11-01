@@ -157,7 +157,7 @@ function keydown(event: KeyboardEvent) {
               : "detail" in item && typeof item.detail === "string"
                 ? item.detail
                 : undefined}
-            active={navigation.activeDescendant === rowId(item)}
+            highlighted={navigation.activeDescendant === rowId(item)}
             selected={isSelected(item)}
             disabled={isDisabled(item)}
             onclick={() => onChoose(item)}

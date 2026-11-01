@@ -14,6 +14,7 @@ import type { ModelInfo } from "@nervekit/contracts/models";
 import { Checkbox } from "@nervekit/ui-kit/components/ui/checkbox";
 import { Label } from "@nervekit/ui-kit/components/ui/label";
 import * as Tooltip from "@nervekit/ui-kit/components/ui/tooltip";
+import { selectRowVariants } from "@nervekit/ui-kit/components/composites/select-row";
 import { cn } from "@nervekit/ui-kit/utils";
 import ProviderIcon from "./ProviderIcon.svelte";
 import {
@@ -67,15 +68,31 @@ const contextLabel = $derived(
 );
 const vision = $derived(model ? supportsImageInput(model) : false);
 const reasoning = $derived(model ? modelSupportsReasoning(model) : false);
+/* Shared row states. A checked scope row is not a selection, so only option
+ * rows take the selected tint. No icon marker: the provider mark keeps its
+ * own colours. */
+const tinted = $derived(mode === "option" && selected);
+const rowStyles = $derived(
+  selectRowVariants({
+    selected: tinted,
+    highlighted: active,
+    disabled,
+  }),
+);
+/* Disabled rows stay hoverable so the native title and the capability
+ * tooltips still explain them; the recipe's pointer-events-none is undone. */
+const disabledClass = $derived(
+  disabled &&
+    cn("pointer-events-auto cursor-default", !tinted && "hover:bg-transparent"),
+);
 </script>
 
 {#snippet text()}
   <span class="flex min-w-0 flex-1 items-baseline gap-1.5">
     <span
-      class={cn(
-        "max-w-full shrink-0 truncate text-ui text-foreground",
-        selected && mode === "option" && "font-medium",
-      )}>{label}</span
+      class={rowStyles.label({
+        class: "max-w-full shrink-0 truncate text-ui text-foreground",
+      })}>{label}</span
     >
     {#if detail}
       <span class="min-w-0 truncate text-ui text-muted-foreground"
@@ -130,13 +147,9 @@ const reasoning = $derived(model ? modelSupportsReasoning(model) : false);
     tabindex="-1"
     aria-selected={selected}
     aria-disabled={disabled || undefined}
-    class={cn(
-      "cursor-pointer rounded-md transition-colors hover:bg-hover",
-      selected && "bg-selected hover:bg-selected",
-      active && "outline outline-1 -outline-offset-1 outline-focus",
-      disabled && "cursor-default opacity-70 hover:bg-transparent",
-      className,
-    )}
+    class={rowStyles.base({
+      class: cn("cursor-pointer", disabledClass, className),
+    })}
     onclick={() => {
       if (!disabled) onclick?.();
     }}
@@ -165,12 +178,13 @@ const reasoning = $derived(model ? modelSupportsReasoning(model) : false);
     {title}
     role="option"
     aria-selected={selected}
-    class={cn(
-      "flex h-8 min-w-0 items-center gap-2 rounded-md pr-2 pl-2 transition-colors hover:bg-hover",
-      active && "outline outline-1 -outline-offset-1 outline-focus",
-      disabled && "opacity-70",
-      className,
-    )}
+    class={rowStyles.base({
+      class: cn(
+        "flex h-8 min-w-0 items-center gap-2 pr-2 pl-2",
+        disabledClass,
+        className,
+      ),
+    })}
   >
     <Label
       class="flex h-full min-w-0 flex-1 cursor-pointer items-center gap-2.5"

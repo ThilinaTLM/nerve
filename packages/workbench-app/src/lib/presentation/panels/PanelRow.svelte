@@ -4,6 +4,7 @@ import type { Snippet } from "svelte";
 import ContextMenuList, {
   type ContextMenuItem,
 } from "@nervekit/ui-kit/components/composites/context-menu-list";
+import { selectRowVariants } from "@nervekit/ui-kit/components/composites/select-row";
 import { cn } from "@nervekit/ui-kit/utils";
 
 let {
@@ -143,29 +144,40 @@ function toneTextClass(tone: StatusTone): string {
 }
 
 const toneClass = $derived(toneTextClass(tone));
+const rowStyles = $derived(selectRowVariants({ selected }));
+/* Selected: medium weight; a neutral label also turns foreground, while a
+ * status tone keeps its colour. `active` (the current item) is medium too. */
+const labelStateClass = $derived(
+  selected
+    ? rowStyles.label({ class: tone === "neutral" ? undefined : toneClass })
+    : active && "font-medium",
+);
 const twoLine = $derived(labelLines === 2);
 </script>
 
 {#snippet body()}
   <!-- svelte-ignore a11y_no_noninteractive_tabindex -->
   <div
-    class={cn(
-      "group/panel-row flex min-w-0 items-center rounded-sm",
-      // One indent step per nesting level on top of the base inset; `flush`
-      // zeroes the inset via `--panel-row-inset`.
-      "pl-[calc(var(--panel-row-inset,0.5rem)+var(--panel-indent,0)*0.75rem)]",
-      hoverable && "panel-row-hoverable",
-      actions && overlayActions && !twoLine && "relative",
-      twoLine
-        ? "items-start gap-1.5 py-1 pr-0 text-ui"
-        : dense
-          ? "h-5 gap-1 pr-1 text-ui"
-          : "h-7 gap-1.5 pr-1.5 text-ui",
-      selected && "bg-selected text-foreground",
-      tabindex !== undefined &&
-        "focus-visible:ring-3 focus-visible:ring-focus focus-visible:outline-none",
-      className,
-    )}
+    class={rowStyles.base({
+      class: cn(
+        "group/panel-row flex min-w-0 items-center",
+        // One indent step per nesting level on top of the base inset; `flush`
+        // zeroes the inset via `--panel-row-inset`.
+        "pl-[calc(var(--panel-row-inset,0.5rem)+var(--panel-indent,0)*0.75rem)]",
+        // Hover comes from the global `panel-row-hoverable` contract; it is
+        // unlayered, so it is left off selected rows to keep their tint.
+        hoverable && !selected && "panel-row-hoverable",
+        !hoverable && !selected && "hover:bg-transparent",
+        actions && overlayActions && !twoLine && "relative",
+        twoLine
+          ? "items-start gap-1.5 py-1 pr-0 text-ui"
+          : dense
+            ? "h-5 gap-1 pr-1 text-ui"
+            : "h-7 gap-1.5 pr-1.5 text-ui",
+        selected && "text-foreground",
+        className,
+      ),
+    })}
     style={rowStyle}
     {role}
     {tabindex}
@@ -188,7 +200,7 @@ const twoLine = $derived(labelLines === 2);
       aria-label={ariaLabel}
       title={title ?? description ?? label}
       class={cn(
-        "flex min-w-0 flex-1 cursor-pointer items-center rounded-sm text-left focus-visible:ring-3 focus-visible:ring-focus focus-visible:outline-none disabled:cursor-default disabled:opacity-50",
+        "flex min-w-0 flex-1 cursor-pointer items-center rounded-md text-left focus-visible:ring-3 focus-visible:ring-focus focus-visible:outline-none disabled:cursor-default disabled:opacity-50",
         twoLine
           ? titleTrailing
             ? "items-start gap-2"
@@ -201,10 +213,9 @@ const twoLine = $derived(labelLines === 2);
     >
       {#if leading}
         <span
-          class={cn(
-            "flex shrink-0 items-center text-muted-foreground",
-            twoLine && "h-4",
-          )}
+          class={rowStyles.icon({
+            class: cn("flex shrink-0 items-center", twoLine && "h-4"),
+          })}
         >
           {@render leading()}
         </span>
@@ -223,7 +234,7 @@ const twoLine = $derived(labelLines === 2);
                   labelLayoutClass,
                   "flex-1",
                   toneClass,
-                  active && "font-medium",
+                  labelStateClass,
                   labelClass,
                 )}
                 >{#if labelContent}{@render labelContent()}{:else}{label}{/if}</span
@@ -235,7 +246,7 @@ const twoLine = $derived(labelLines === 2);
               class={cn(
                 labelLayoutClass,
                 toneClass,
-                active && "font-medium",
+                labelStateClass,
                 labelClass,
               )}
               >{#if labelContent}{@render labelContent()}{:else}{label}{/if}</span
@@ -255,7 +266,7 @@ const twoLine = $derived(labelLines === 2);
             labelLayoutClass,
             toneClass,
             mono && "font-mono",
-            active && "font-medium",
+            labelStateClass,
           )}>{label}</span
         >
         {#if description}

@@ -8,6 +8,8 @@ import CloudOff from "@lucide/svelte/icons/cloud-off";
 import GitBranch from "@lucide/svelte/icons/git-branch";
 import type { GitBranchSummary, GitRepoSummary } from "@nervekit/contracts/git";
 import { GithubMark } from "@nervekit/ui-kit/components/composites/github-mark";
+import { selectRowVariants } from "@nervekit/ui-kit/components/composites/select-row";
+import { cn } from "@nervekit/ui-kit/utils";
 import ScrollRegion from "@nervekit/ui-kit/components/composites/scroll-region";
 import { SvelteSet } from "svelte/reactivity";
 import GitBranchDialog from "./GitBranchDialog.svelte";
@@ -151,17 +153,19 @@ async function createBranch(repository: string): Promise<void> {
   {@const countHint =
     count === undefined ? undefined : countTitle?.(repo, count)}
   {@const canSelect = model.capabilities.selectRepository.enabled}
+  {@const rowStyles = selectRowVariants({ selected })}
   <ContextMenu.Root>
     <ContextMenu.Trigger disabled={!contextItems} class="block min-w-0">
       <!-- Clicking anywhere on the row selects it; the name button is the keyboard target. -->
       <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
       <div
-        class={[
-          "flex min-w-0 flex-col rounded-md",
-          selected
-            ? "bg-selected"
-            : canSelect && "cursor-pointer hover:bg-hover",
-        ]}
+        class={rowStyles.base({
+          class: cn(
+            "flex min-w-0 flex-col",
+            !selected &&
+              (canSelect ? "cursor-pointer" : "hover:bg-transparent"),
+          ),
+        })}
         onclick={() => {
           if (canSelect) selectRepository(repo.relativePath);
         }}
@@ -177,14 +181,11 @@ async function createBranch(repository: string): Promise<void> {
             />
           {:else if repo.hasGithubRemote}
             <GithubMark
-              class={`size-3.5 shrink-0 ${selected ? "text-primary" : "text-muted-foreground"}`}
+              class={rowStyles.icon({ class: "size-3.5 shrink-0" })}
             />
           {:else}
             <Cloud
-              class={[
-                "size-3.5 shrink-0",
-                selected ? "text-primary" : "text-muted-foreground",
-              ]}
+              class={rowStyles.icon({ class: "size-3.5 shrink-0" })}
               aria-label="Remote (not GitHub)"
             />
           {/if}
@@ -197,10 +198,10 @@ async function createBranch(repository: string): Promise<void> {
                   aria-pressed={selected}
                   aria-label={`Select repository ${repo.name}`}
                   disabled={!canSelect}
-                  class={[
-                    "min-w-0 cursor-pointer rounded-sm text-left whitespace-nowrap outline-none focus-visible:ring-3 focus-visible:ring-focus disabled:cursor-default",
-                    selected && "font-medium",
-                  ]}>{listLabels.get(repo.relativePath)}</button
+                  class={rowStyles.label({
+                    class:
+                      "min-w-0 cursor-pointer rounded-sm text-left whitespace-nowrap outline-none focus-visible:ring-3 focus-visible:ring-focus disabled:cursor-default",
+                  })}>{listLabels.get(repo.relativePath)}</button
                 >
               {/snippet}
             </Tooltip.Trigger>

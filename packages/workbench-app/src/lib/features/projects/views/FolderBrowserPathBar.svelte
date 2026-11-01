@@ -5,6 +5,7 @@ import Folder from "@lucide/svelte/icons/folder";
 import Pencil from "@lucide/svelte/icons/pencil";
 import { listDirectories } from "$lib/api";
 import { Input } from "@nervekit/ui-kit/components/ui/input";
+import { selectRowVariants } from "@nervekit/ui-kit/components/composites/select-row";
 import { cn } from "@nervekit/ui-kit/utils";
 import type { FolderBrowser } from "$lib/features/projects/state/folder-browser.svelte";
 import {
@@ -202,22 +203,27 @@ export function beginEditing() {
         class="absolute top-full right-0 left-0 z-10 mt-1 flex flex-col rounded-md border bg-popover p-1 shadow-overlay"
       >
         {#each completions as path, index (path)}
+          {@const rowStyles = selectRowVariants({
+            selected: index === highlighted,
+          })}
           <li role="option" aria-selected={index === highlighted}>
             <button
               type="button"
               tabindex="-1"
-              class={cn(
-                "flex w-full items-center gap-2 rounded-sm px-2 py-1 text-left font-mono text-ui hover:bg-hover",
-                index === highlighted && "bg-selected",
-              )}
+              class={rowStyles.base({
+                class:
+                  "flex w-full items-center gap-2 px-2 py-1 text-left font-mono",
+              })}
               onmousedown={(event) => event.preventDefault()}
               onclick={() => void commit(path)}
             >
               <Folder
-                class="size-3.5 shrink-0 text-muted-foreground"
+                class={rowStyles.icon({ class: "size-3.5 shrink-0" })}
                 aria-hidden="true"
               />
-              <span class="truncate">{toDisplayPath(path, ctx)}</span>
+              <span class={rowStyles.label({ class: "truncate" })}
+                >{toDisplayPath(path, ctx)}</span
+              >
             </button>
           </li>
         {/each}

@@ -2,6 +2,9 @@
 import { Callout } from "@nervekit/ui-kit/components/composites/callout";
 import { GroupLabel } from "@nervekit/ui-kit/components/composites/group-label";
 import Pin from "@lucide/svelte/icons/pin";
+import FolderIcon from "@lucide/svelte/icons/folder";
+import KeyboardIcon from "@lucide/svelte/icons/keyboard";
+import MonitorIcon from "@lucide/svelte/icons/monitor";
 import AlertTriangleIcon from "@lucide/svelte/icons/triangle-alert";
 import MinusIcon from "@lucide/svelte/icons/minus";
 import PlusIcon from "@lucide/svelte/icons/plus";
@@ -64,13 +67,19 @@ let followItems = $state(2);
 
 let selectedRow = $state("b");
 const rowOptions = [
-  { id: "a", label: "Plain row", detail: undefined },
+  { id: "a", label: "Plain row", detail: undefined, icon: FolderIcon },
   {
     id: "b",
     label: "Selected row",
-    detail: "The current value reads as a tint.",
+    detail: "Tint, medium label and a brand icon.",
+    icon: MonitorIcon,
   },
-  { id: "c", label: "Another option", detail: "Secondary line" },
+  {
+    id: "c",
+    label: "Another option",
+    detail: "Secondary line",
+    icon: FolderIcon,
+  },
 ];
 
 /* -------------------------------- Renderers -------------------------------- */
@@ -295,19 +304,29 @@ const plain =
     <GallerySpecimen
       title="SelectRow"
       source="composites/select-row"
-      description="Plain, selected (tint), active (keyboard highlight), and disabled."
+      description="Plain, selected (tint, medium label, brand icon), highlighted (keyboard), and disabled. selectRowVariants carries the same states to custom rows."
       layout="stack"
       class="max-w-sm"
     >
       {#each rowOptions as option (option.id)}
+        {#snippet icon()}<option.icon
+            class="size-4"
+            aria-hidden="true"
+          />{/snippet}
         <SelectRow
           label={option.label}
           detail={option.detail}
+          {icon}
           selected={selectedRow === option.id}
           onclick={() => (selectedRow = option.id)}
         />
       {/each}
-      <SelectRow label="Active (keyboard)" active onclick={noop} />
+      <SelectRow label="Highlighted (keyboard)" highlighted onclick={noop}>
+        {#snippet icon()}<KeyboardIcon
+            class="size-4"
+            aria-hidden="true"
+          />{/snippet}
+      </SelectRow>
       <SelectRow label="Disabled" disabled onclick={noop} />
     </GallerySpecimen>
 

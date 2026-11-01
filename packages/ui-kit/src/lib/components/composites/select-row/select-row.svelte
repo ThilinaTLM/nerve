@@ -1,3 +1,40 @@
+<script lang="ts" module>
+import type { VariantProps } from "tailwind-variants";
+import { tv } from "@nervekit/ui-kit/utils";
+
+/**
+ * State recipe of every selectable row: hover, selection (tint, medium label,
+ * brand marker on the leading icon), keyboard highlight, and disabled. Layout
+ * stays with each row, so rows with their own structure (listbox options,
+ * tree rows) reuse the same states. The marker sits on the icon wrapper, so
+ * glyphs with their own colour (status, file type, provider) keep it.
+ */
+export const selectRowVariants = tv({
+  slots: {
+    base: "rounded-md text-ui transition-colors hover:bg-hover focus-visible:ring-3 focus-visible:ring-focus focus-visible:outline-none",
+    icon: "text-muted-foreground",
+    label: "",
+  },
+  variants: {
+    selected: {
+      true: {
+        base: "bg-selected hover:bg-selected",
+        icon: "text-primary",
+        label: "font-medium text-foreground",
+      },
+    },
+    highlighted: {
+      true: { base: "outline outline-1 -outline-offset-1 outline-focus" },
+    },
+    disabled: {
+      true: { base: "pointer-events-none opacity-50" },
+    },
+  },
+});
+
+export type SelectRowVariants = VariantProps<typeof selectRowVariants>;
+</script>
+
 <script lang="ts">
 import type { Snippet } from "svelte";
 import { cn } from "@nervekit/ui-kit/utils";
@@ -10,7 +47,8 @@ let {
   label,
   detail,
   selected = false,
-  active = false,
+  highlighted = false,
+  current,
   disabled = false,
   title,
   icon,
@@ -25,10 +63,15 @@ let {
   label: string | Snippet;
   /** Secondary line: plain text, or a snippet for richer markup (e.g. mono ids). */
   detail?: string | Snippet;
-  /** The current value. Reads as a tint. */
+  /** The current value. Reads as a tint, medium label and brand icon. */
   selected?: boolean;
   /** Keyboard highlight in a navigable list. Distinct from `selected`. */
-  active?: boolean;
+  highlighted?: boolean;
+  /**
+   * Navigation rows: the current location (`aria-current`). Pass `"page"` for
+   * page navigation. Any defined value (even `false`) drops `aria-pressed`.
+   */
+  current?: boolean | "page";
   disabled?: boolean;
   /** Native tooltip (e.g. the raw model id shown on hover). */
   title?: string;
@@ -38,6 +81,14 @@ let {
   class?: string;
   onclick?: () => void;
 } = $props();
+
+const styles = $derived(selectRowVariants({ selected, highlighted, disabled }));
+const ariaCurrent = $derived(
+  current === "page" ? "page" : current ? "true" : undefined,
+);
+const ariaPressed = $derived(
+  role === undefined && current === undefined ? selected : undefined,
+);
 </script>
 
 <button
@@ -46,31 +97,42 @@ let {
   {role}
   {tabindex}
   aria-selected={ariaSelected}
+  aria-current={ariaCurrent}
+  aria-pressed={ariaPressed}
   {disabled}
   {title}
-  aria-pressed={role === "option" ? undefined : selected}
-  class={cn(
-    "grid min-h-control w-full cursor-pointer grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-x-2 gap-y-0.5 rounded-md px-1.5 py-1 text-left text-ui transition-colors hover:bg-hover",
-    selected && "bg-selected hover:bg-selected",
-    active && "outline outline-1 -outline-offset-1 outline-focus",
-    disabled && "pointer-events-none opacity-55",
-    className,
-  )}
+  class={styles.base({
+    class: cn(
+      "grid min-h-control w-full cursor-pointer grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-x-2 gap-y-0.5 px-1.5 py-1 text-left",
+      className,
+    ),
+  })}
   {onclick}
 >
-  {#if icon}<span class="col-start-1 flex items-center">{@render icon()}</span
+  {#if icon}<span
+      class={styles.icon({ class: "col-start-1 flex items-center" })}
+      >{@render icon()}</span
     >{/if}
-  <span class={cn("min-w-0", icon ? "col-start-2" : "col-span-2 col-start-1")}>
-    {#if typeof label === "string"}
-      <span
-        class={cn("block truncate text-foreground", selected && "font-medium")}
-      >
-        {label}
-      </span>
-    {:else}
+  {#if typeof label === "string"}
+    <span
+      class={styles.label({
+        class: cn(
+          "block min-w-0 truncate text-foreground",
+          icon ? "col-start-2" : "col-span-2 col-start-1",
+        ),
+      })}
+    >
+      {label}
+    </span>
+  {:else}
+    <span
+      class={styles.label({
+        class: cn("min-w-0", icon ? "col-start-2" : "col-span-2 col-start-1"),
+      })}
+    >
       {@render label()}
-    {/if}
-  </span>
+    </span>
+  {/if}
   {#if trailing}<span class="col-start-3 flex items-center"
       >{@render trailing()}</span
     >{/if}

@@ -10,7 +10,7 @@ import Server from "@lucide/svelte/icons/server";
 import type { Component } from "svelte";
 import type { FilesystemLocation, FilesystemPlace } from "$lib/api";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
-import { cn } from "@nervekit/ui-kit/utils";
+import { SelectRow } from "@nervekit/ui-kit/components/composites/select-row";
 import { pathKey } from "$lib/domain/filesystem/project-path";
 import type { FolderBrowser } from "$lib/features/projects/state/folder-browser.svelte";
 import {
@@ -92,21 +92,23 @@ function isCurrent(path: string): boolean {
         >{title}</span
       >
       {#each items as item (item.key)}
-        <button
-          type="button"
-          class={cn(
-            "flex items-center gap-2 rounded-md px-2 py-1 text-left text-ui text-muted-foreground hover:bg-hover hover:text-foreground",
-            isCurrent(item.path) && "bg-selected font-medium text-foreground",
-          )}
-          aria-current={isCurrent(item.path) ? "true" : undefined}
+        {@const current = isCurrent(item.path)}
+        {#snippet icon()}<item.icon
+            class="size-4 shrink-0"
+            aria-hidden="true"
+          />{/snippet}
+        {#snippet monoLabel()}<span
+            class="block truncate font-mono text-foreground">{item.label}</span
+          >{/snippet}
+        <SelectRow
+          label={mono ? monoLabel : item.label}
+          {icon}
+          selected={current}
+          {current}
           title={item.path === THIS_PC ? undefined : item.path}
+          class="px-2"
           onclick={() => void browser.go(item.path)}
-        >
-          <item.icon class="size-4 shrink-0" aria-hidden="true" />
-          <span class={cn("truncate", mono && "font-mono text-ui")}
-            >{item.label}</span
-          >
-        </button>
+        />
       {/each}
     </div>
   {/if}
