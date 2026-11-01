@@ -2,6 +2,8 @@
 
 Private implementation package used to assemble the published `@nervekit/desktop` artifact.
 
+The desktop runtime uses Electron 45. macOS builds require macOS 13 (Ventura) or later; desktop native targets are x64 and arm64 only.
+
 - `bin.ts`, `main.ts`, `preload.cjs`: explicit launcher, thin Electron composition entrypoint, and isolated preload entrypoint. `preload-api.cjs` owns the testable renderer capability factory.
 - `app/`: `DesktopRuntime` owns mutable Electron/daemon lifetime state, registered listener disposers, idempotent `start()`, and asynchronous idempotent `dispose()`. `desktop-runtime-ports.ts` defines injected lifecycle capabilities and `create-desktop-runtime.ts` is their sole concrete composition point; adjacent modules own CLI, configuration, startup/recovery, migration, and quit contracts.
 - `daemon/`: connection and supervision policy; `adapters/` separates direct process spawning, systemd scope policy, diagnostic capture, health, discovery, and Node port composition.

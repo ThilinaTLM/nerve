@@ -14,8 +14,8 @@ export function registerStartupIpc(options: {
   ipcMain.handle("desktop.startup.openHome", () =>
     shell.openPath(options.homeDirectory),
   );
-  ipcMain.handle("desktop.startup.copyDiagnostics", () => {
-    clipboard.writeText(options.startupDiagnostics());
+  ipcMain.handle("desktop.startup.copyDiagnostics", async () => {
+    await clipboard.writeText(options.startupDiagnostics());
   });
   ipcMain.handle("desktop.app.quit", () => {
     options.quitApp();
