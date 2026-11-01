@@ -682,7 +682,7 @@ $effect(() => () => {
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   background: var(--well);
-  color: var(--foreground);
+  color: var(--syntax-plain);
   padding: var(--code-block-padding-y) var(--code-block-padding-x);
   font-family: var(--font-mono);
   font-size: var(--text-ui);
@@ -733,7 +733,7 @@ $effect(() => () => {
 }
 
 .code-block[data-terminal="true"] {
-  line-height: 1.22;
+  line-height: var(--terminal-line-height);
 }
 
 .code-block[data-terminal="true"] .code-block__content {

@@ -1,5 +1,7 @@
 <script lang="ts">
 import { onMount } from "svelte";
+import Circle from "@lucide/svelte/icons/circle";
+import CircleCheck from "@lucide/svelte/icons/circle-check";
 import Lock from "@lucide/svelte/icons/lock";
 import RotateCcw from "@lucide/svelte/icons/rotate-ccw";
 import Settings from "@lucide/svelte/icons/settings";
@@ -45,11 +47,27 @@ const rows = $derived(capabilities.rows(kind));
 onMount(() => capabilities.props.onRefresh?.());
 </script>
 
-{#snippet capabilityRow(row: CapabilityRow)}
+<!-- List rows are listbox options: the whole row toggles, the background and a
+ leading check mark show the state. The standalone delegation row is a master
+ on/off setting outside the list, so it keeps an explicit switch. -->
+{#snippet capabilityRow(row: CapabilityRow, standalone = false)}
   {@const Icon = row.icon}
   <div
     class="flex min-h-control min-w-0 flex-1 items-center gap-2 rounded-md px-1.5 py-0.5 hover:bg-hover"
   >
+    {#if !standalone}
+      {#if row.enabled}
+        <CircleCheck
+          class={`size-3.5 flex-none ${capabilities.rowDisabled(row) ? "text-muted-foreground" : "text-primary"}`}
+          aria-hidden="true"
+        />
+      {:else}
+        <Circle
+          class="size-3.5 flex-none text-muted-foreground"
+          aria-hidden="true"
+        />
+      {/if}
+    {/if}
     {#if Icon}
       <Icon
         class="size-3.5 flex-none text-muted-foreground"
@@ -103,15 +121,15 @@ onMount(() => capabilities.props.onRefresh?.());
         }}
       />
     {/if}
-    <Switch
-      checked={row.enabled}
-      disabled={capabilities.rowDisabled(row)}
-      busy={loading}
-      aria-label={row.switchLabel ??
-        `Enable ${row.label} for this conversation`}
-      onclick={(event) => event.stopPropagation()}
-      onCheckedChange={row.toggle}
-    />
+    {#if standalone}
+      <Switch
+        checked={row.enabled}
+        disabled={capabilities.rowDisabled(row)}
+        busy={loading}
+        aria-label={`Enable ${row.label} for this conversation`}
+        onCheckedChange={row.toggle}
+      />
+    {/if}
   </div>
 {/snippet}
 
@@ -156,10 +174,10 @@ onMount(() => capabilities.props.onRefresh?.());
     <PopoverBody>
       {#if inputs.subagentControlsEnabled}
         {#if capabilities.delegationRow}
-          {@render capabilityRow({
-            ...capabilities.delegationRow,
-            label: "Delegation",
-          })}
+          {@render capabilityRow(
+            { ...capabilities.delegationRow, label: "Delegation" },
+            true,
+          )}
         {:else}
           <p class="px-1.5 text-warning">Delegation is unavailable here.</p>
         {/if}

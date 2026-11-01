@@ -61,7 +61,8 @@ let {
   tabindex?: number;
   "aria-selected"?: boolean;
   label: string | Snippet;
-  /** Secondary line: plain text, or a snippet for richer markup (e.g. mono ids). */
+  /** Description flowing inline after the label and wrapping under it, clamped
+   * to two lines: plain text, or a snippet for richer markup (e.g. mono ids). */
   detail?: string | Snippet;
   /** The current value. Reads as a tint, medium label and brand icon. */
   selected?: boolean;
@@ -109,11 +110,27 @@ const ariaPressed = $derived(
   })}
   {onclick}
 >
+  <!-- The icon spans one line box so it stays on the label's first line. -->
   {#if icon}<span
-      class={styles.icon({ class: "col-start-1 flex items-center" })}
-      >{@render icon()}</span
+      class={styles.icon({
+        class: "col-start-1 flex min-h-lh items-center self-start",
+      })}>{@render icon()}</span
     >{/if}
-  {#if typeof label === "string"}
+  {#if detail}
+    <span
+      class={cn(
+        "line-clamp-2 min-w-0",
+        icon ? "col-start-2" : "col-span-2 col-start-1",
+      )}
+    >
+      <span class={styles.label({ class: "text-foreground" })}
+        >{#if typeof label === "string"}{label}{:else}{@render label()}{/if}</span
+      >
+      <span class="ms-1 text-muted-foreground"
+        >{#if typeof detail === "string"}{detail}{:else}{@render detail()}{/if}</span
+      >
+    </span>
+  {:else if typeof label === "string"}
     <span
       class={styles.label({
         class: cn(
@@ -136,9 +153,4 @@ const ariaPressed = $derived(
   {#if trailing}<span class="col-start-3 flex items-center"
       >{@render trailing()}</span
     >{/if}
-  {#if typeof detail === "string"}
-    <span class="col-span-3 line-clamp-2 text-muted-foreground">{detail}</span>
-  {:else if detail}
-    <span class="col-span-3 min-w-0">{@render detail()}</span>
-  {/if}
 </button>

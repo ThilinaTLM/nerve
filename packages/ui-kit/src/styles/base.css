@@ -1,6 +1,22 @@
 /* Global base layer: resets, app-shell sizing, scrollbars, reduced-motion. */
 
 @layer base {
+  /* Insets follow their surface (see `--well-on-*` in theme.css): whatever
+   * paints a ladder surface points `--well` at that surface's inset, so code
+   * and output keep the same contrast in a card, a popover or a panel. */
+  .bg-background {
+    --well: var(--well-on-background);
+  }
+  .bg-panel {
+    --well: var(--well-on-panel);
+  }
+  .bg-card {
+    --well: var(--well-on-card);
+  }
+  .bg-popover {
+    --well: var(--well-on-popover);
+  }
+
   * {
     @apply border-border outline-focus;
   }

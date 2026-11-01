@@ -39,7 +39,6 @@ export type CapabilityRow = {
   detail?: string;
   unavailable?: boolean;
   muted?: boolean;
-  switchLabel?: string;
   resetLabel?: string;
   enabled: boolean;
   overridden: boolean;
@@ -254,7 +253,6 @@ export class ComposerCapabilities {
         unavailable: Boolean(profile.error) || !subagentControlsEnabled,
         muted: Boolean(profile.error) || this.delegationRow?.enabled === false,
         lockedBy: source?.source === "requirement" ? source.profile : undefined,
-        switchLabel: `Enable ${profile.label} launches`,
         resetLabel: `Reset ${profile.label} launch choices; requirements remain effective`,
         configure: () => this.openSettings("subagents"),
         toggle: (enabled) =>

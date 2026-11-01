@@ -17,6 +17,7 @@
   grid-template-rows: auto minmax(0, 1fr);
   overflow: hidden;
   background: var(--panel);
+  --well: var(--well-on-panel);
 }
 
 .dock-panel[data-dock="bottom"] {

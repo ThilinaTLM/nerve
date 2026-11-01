@@ -43,7 +43,7 @@ const kindDefaults: Record<ColorThemeKind, ColorTheme> = {
 
 /** Keep in sync with each theme's `--background` in ui-kit theme.css. */
 export const themeBackgrounds: Record<ColorTheme, string> = {
-  "nerve-light": "#faf8f1",
+  "nerve-light": "#f6f3eb",
   "nerve-dark": "#272521",
   "melange-light": "#f4f0ed",
   "melange-dark": "#292522",

@@ -202,6 +202,7 @@ function revealAction(node: HTMLElement) {
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
   background: var(--card);
+  --well: var(--well-on-card);
   box-shadow: var(--shadow-sm);
   transition:
     border-color 120ms ease,
