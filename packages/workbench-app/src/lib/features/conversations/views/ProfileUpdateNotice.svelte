@@ -166,7 +166,7 @@ async function apply() {
     {#if preview.unchangedRequirements.length}
       <details class="text-ui">
         <summary class="cursor-pointer text-muted-foreground"
-          >Unchanged requirements <Badge variant="outline"
+          >Unchanged requirements <Badge variant="neutral"
             >{preview.unchangedRequirements.length}</Badge
           ></summary
         >

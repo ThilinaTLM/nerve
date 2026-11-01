@@ -78,7 +78,7 @@ function choose(next: string): void {
       onclick={() => choose(option.value)}
     >
       <span
-        class="flex h-12 overflow-hidden rounded-sm border border-border/60"
+        class="flex h-12 overflow-hidden rounded-sm border border-border-subtle"
         aria-hidden="true"
       >
         {#each option.previews ?? ALL_PREVIEW_MODES as mode, index (mode)}
@@ -112,7 +112,8 @@ function choose(next: string): void {
             aria-hidden="true"
           />
         {:else}
-          <span class="size-3.5 flex-none rounded-full border border-border/70"
+          <span
+            class="size-3.5 flex-none rounded-full border border-border-subtle"
           ></span>
         {/if}
         <Icon

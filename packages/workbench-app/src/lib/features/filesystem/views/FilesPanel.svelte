@@ -1,5 +1,4 @@
 <script lang="ts">
-import { Callout } from "@nervekit/ui-kit/components/composites/callout";
 import Files from "@lucide/svelte/icons/files";
 import Folder from "@lucide/svelte/icons/folder";
 import Link from "@lucide/svelte/icons/link";
@@ -103,11 +102,6 @@ function isDraggableEntry(item: FileExplorerTreeItem): boolean {
       />
     {/snippet}
   </PanelHeader>
-  {#if root?.error && root.entries.length === 0}
-    <Callout layout="strip" tone="destructive" icon={TriangleAlert}>
-      <span>{root.error}</span>
-    </Callout>
-  {/if}
 {/snippet}
 
 <PanelView banner={header}>

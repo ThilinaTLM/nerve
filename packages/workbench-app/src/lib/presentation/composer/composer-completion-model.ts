@@ -106,8 +106,7 @@ export type BadgeTone =
   | "success"
   | "info"
   | "warning"
-  | "destructive"
-  | "outline";
+  | "destructive";
 export type ComposerSourceState = CompletionSourceState;
 export type ComposerSearchResponse = Pick<
   CompletionSearchResponse,
@@ -215,9 +214,9 @@ const STATUS_TONES: Readonly<Record<string, BadgeTone>> = {
   open: "success",
   merged: "info",
   draft: "neutral",
-  closed: "outline",
+  closed: "neutral",
   running: "success",
-  exited: "outline",
+  exited: "neutral",
   failed: "destructive",
   queued: "neutral",
   waiting: "neutral",
@@ -259,8 +258,8 @@ export function toPopupRow(item: CompletionItem): PopupRow {
   }
   let badge: PopupRow["badge"];
   if (state === "unavailable")
-    badge = { text: "Unavailable", variant: "outline" };
-  else if (state === "off") badge = { text: "Off", variant: "outline" };
+    badge = { text: "Unavailable", variant: "neutral" };
+  else if (state === "off") badge = { text: "Off", variant: "neutral" };
   else if (item.status)
     badge = {
       text: titleCase(item.status),

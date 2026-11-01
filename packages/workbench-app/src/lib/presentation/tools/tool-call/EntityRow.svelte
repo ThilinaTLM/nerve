@@ -3,6 +3,7 @@
 // detail, optional follow-up mark and Open pill, and a clamped body line.
 // Undefined slots render skeletons that are replaced in place by the value.
 import ListEnd from "@lucide/svelte/icons/list-end";
+import { Badge } from "@nervekit/ui-kit/components/ui/badge";
 import { StatusDot } from "@nervekit/ui-kit/components/composites/status-dot";
 import { Skeleton } from "@nervekit/ui-kit/components/ui/skeleton";
 import * as Tooltip from "@nervekit/ui-kit/components/ui/tooltip";
@@ -36,10 +37,6 @@ let {
   enter = false,
   expanded = false,
 }: Props = $props();
-
-// Same pill classes as the card footer actions.
-const pill =
-  "inline-flex min-h-5 flex-none cursor-pointer items-center rounded-sm border border-border bg-well px-1.5 py-0.5 text-ui leading-none font-medium text-primary hover:underline";
 </script>
 
 <div class={cn("grid min-w-0 gap-0.5 px-3 py-2", enter && "stream-item-enter")}>
@@ -96,11 +93,10 @@ const pill =
     {/if}
     {#if onOpen}
       <span class="ml-auto flex flex-none items-center">
-        <button
-          class={pill}
-          type="button"
+        <Badge
+          variant="brand"
           aria-label={`Open ${title ?? "item"}`}
-          onclick={onOpen}>Open</button
+          onclick={onOpen}>Open</Badge
         >
       </span>
     {/if}

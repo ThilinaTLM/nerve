@@ -35,7 +35,7 @@ const empty = $derived(!news.featured && news.current.length === 0);
     unread={entry.unread}
   >
     {#snippet meta()}
-      <Badge variant="outline">{discoverReleaseLabel(entry.releasedIn)}</Badge>
+      <Badge variant="neutral">{discoverReleaseLabel(entry.releasedIn)}</Badge>
     {/snippet}
     {#snippet actions()}
       {#if entry.action}

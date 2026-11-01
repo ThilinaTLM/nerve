@@ -31,7 +31,7 @@ const hasContent = $derived(
           title="Open image pane"
         >
           <ToolImage
-            class="max-h-60 max-w-80 rounded-sm border object-contain"
+            class="max-h-60 max-w-80 rounded-sm object-contain"
             src={view.image.dataUrl}
             alt={view.relPath ?? "image"}
           />

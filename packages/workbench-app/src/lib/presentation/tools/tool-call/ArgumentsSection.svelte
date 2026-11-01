@@ -22,7 +22,6 @@ const content = $derived(activated ? serialize(value) : undefined);
 </script>
 
 <details
-  class="rounded-sm border bg-well"
   {open}
   ontoggle={(event) => {
     if (event.currentTarget.open) activated = true;
@@ -34,8 +33,9 @@ const content = $derived(activated ? serialize(value) : undefined);
     Arguments
   </summary>
   {#if activated && content}
-    <div class="border-t p-2">
+    <div class="px-2.5 pb-2.5">
       <ResultCodeBlock
+        bare
         code={content.text}
         language={content.language}
         maxHeight="22rem"

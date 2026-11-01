@@ -34,7 +34,7 @@ const textWidths = ["w-full", "w-2/3"];
     <ImageFrame ratio={aspect(ratio)} ready={false} />
   </div>
 {:else if variant === "links"}
-  <div class="divide-y" aria-hidden="true">
+  <div aria-hidden="true">
     {#each bars as bar (bar)}
       <div class="grid gap-1 px-2.5 py-1.5">
         <div class="flex min-w-0 items-center gap-2">
@@ -50,7 +50,7 @@ const textWidths = ["w-full", "w-2/3"];
     {/each}
   </div>
 {:else if variant === "list"}
-  <div class="divide-y" aria-hidden="true">
+  <div aria-hidden="true">
     {#each bars as bar (bar)}
       <div class="px-2.5 py-2">
         <Skeleton class="h-5 w-full rounded-sm" />

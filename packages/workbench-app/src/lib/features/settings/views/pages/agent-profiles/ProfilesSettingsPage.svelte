@@ -479,11 +479,11 @@ const repairReplacement = $derived(
 </script>
 {#snippet profileBadges(
   profile: ProfileCatalogEntry,
-)}{#if profile.definition?.usableBy === "both"}<Badge variant="outline"
+)}{#if profile.definition?.usableBy === "both"}<Badge variant="neutral"
       >Both</Badge
-    >{/if}{#if profile.source !== "builtin"}<Badge variant="outline"
+    >{/if}{#if profile.source !== "builtin"}<Badge variant="neutral"
       >{layerText[profile.source]}</Badge
-    >{#if !profile.local}<Badge variant="outline">Inherited</Badge
+    >{#if !profile.local}<Badge variant="neutral">Inherited</Badge
       >{/if}{/if}{#if profile.local && profile.definition && profile.shadows}<IconAction
       icon={RotateCcw}
       label={`Revert to the ${layerText[profile.shadows]} version`}

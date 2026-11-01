@@ -295,7 +295,7 @@ function requestCompact(): void {
                     </dd>
                   {/each}
                 </dl>
-                <p class="border-t pt-1 text-muted-foreground">
+                <p class="pt-1 text-muted-foreground">
                   Click to copy all session details
                 </p>
               </Tooltip.Content>

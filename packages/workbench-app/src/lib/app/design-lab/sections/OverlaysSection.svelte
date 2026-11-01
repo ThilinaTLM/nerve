@@ -720,7 +720,7 @@ const toolOutput = [
       />
     </PopoverSection>
     <PopoverSection label="Codex · prolite" separated>
-      {#snippet action()}<Badge variant="outline">Active</Badge>{/snippet}
+      {#snippet action()}<Badge variant="neutral">Active</Badge>{/snippet}
       <PopoverMeter
         label="Weekly"
         value="82%"
@@ -820,7 +820,7 @@ const toolOutput = [
 
 {#snippet toolDetailsBody()}
   <div class="flex flex-col gap-2 text-ui">
-    <Badge variant="outline" class="self-start">44 lines</Badge>
+    <Badge variant="neutral" class="self-start">44 lines</Badge>
     {#each ["Formatted view", "Agent preview", "Arguments", "Complete result · 6,250 bytes"] as section, index (section)}
       <details class="rounded-md border" open={index === 0}>
         <summary class="cursor-pointer px-2 py-1.5 font-medium"

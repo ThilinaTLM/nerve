@@ -112,7 +112,6 @@ const large = $derived(descriptor.byteLength > SMALL_RESULT_BYTES);
 </script>
 
 <details
-  class="rounded-sm border bg-well"
   ontoggle={(event) => {
     if (event.currentTarget.open && !activated) {
       activated = true;
@@ -128,7 +127,7 @@ const large = $derived(descriptor.byteLength > SMALL_RESULT_BYTES);
       >· {descriptor.byteLength.toLocaleString()} bytes</span
     >
   </summary>
-  <div class="grid gap-2 border-t p-2">
+  <div class="grid gap-2 px-2.5 pb-2.5">
     {#if !descriptor.hasResult}
       <p class="m-0 text-ui text-muted-foreground">
         This tool call has no result.

@@ -267,8 +267,7 @@ non-default permission. -->
 {/key}
 {#if capabilityConfiguration?.resolution.diagnostics.some((diagnostic) => diagnostic.code === "unsupported-reasoning")}
   <Badge
-    variant="outline"
-    class="text-destructive"
+    variant="destructive"
     title="The model does not support the configured reasoning level. Review the controlling profile or choose a compatible pair."
   >
     {capabilityConfiguration.resolution.provenance["/reasoningLevel"]

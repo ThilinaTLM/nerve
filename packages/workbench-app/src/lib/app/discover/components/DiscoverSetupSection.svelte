@@ -43,7 +43,7 @@ const progress = $derived(
   {/snippet}
 
   <DiscoverList>
-    {#each setup.pending as guide (guide.id)}
+    {#each setup.pending as guide, index (guide.id)}
       <DiscoverListRow
         icon={guideIcons[guide.id]}
         title={guide.title}
@@ -55,7 +55,12 @@ const progress = $derived(
           {/if}
         {/snippet}
         {#snippet actions()}
-          <Button size="sm" onclick={() => onStartGuide(guide.id)}>
+          <!-- Only the next guide is the view's primary action. -->
+          <Button
+            variant={index === 0 ? "default" : "outline"}
+            size="sm"
+            onclick={() => onStartGuide(guide.id)}
+          >
             {guide.actionLabel ?? "Start"}
           </Button>
           <Button

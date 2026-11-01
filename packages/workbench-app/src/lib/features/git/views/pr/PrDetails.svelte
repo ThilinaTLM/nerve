@@ -77,7 +77,7 @@ const REVIEWER: Record<
       <h3 class="pb-1.5 text-ui font-medium text-muted-foreground">Labels</h3>
       <div class="flex flex-wrap gap-1.5 rounded-md border bg-card px-3 py-2">
         {#each labels as label (label.name)}
-          <Badge variant="outline">
+          <Badge variant="neutral">
             {#if label.color && /^[0-9a-f]{6}$/i.test(label.color)}
               <span
                 class="size-2 rounded-full"

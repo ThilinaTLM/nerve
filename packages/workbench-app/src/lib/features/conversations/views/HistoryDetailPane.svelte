@@ -269,7 +269,7 @@ async function copyId(id: string) {
           {/if}
         </div>
         {#if thinking}
-          <div class="mt-4 border-t pt-3 text-ui text-muted-foreground">
+          <div class="mt-4 text-ui text-muted-foreground">
             <span class="mb-1 block text-ui font-medium">Thinking</span>
             <Markdown text={thinking} />
           </div>

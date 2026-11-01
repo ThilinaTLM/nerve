@@ -52,7 +52,7 @@ const trimmedInstructions = $derived(instructions?.trim() ?? "");
 {/snippet}
 
 {#if profile}
-  <Badge variant="outline" class="mr-1">{profile}</Badge>
+  <Badge variant="neutral" class="mr-1">{profile}</Badge>
 {/if}
 
 <Tooltip.Provider delayDuration={200}>
@@ -96,7 +96,7 @@ const trimmedInstructions = $derived(instructions?.trim() ?? "");
       {:else}
         <p class="text-muted-foreground">Loading…</p>
       {/if}
-      <p class="border-t pt-1 text-muted-foreground">
+      <p class="pt-1 text-muted-foreground">
         {compactionLocked ? "Locked by the active profile" : "Click to change"}
       </p>
     </Tooltip.Content>
@@ -143,7 +143,7 @@ const trimmedInstructions = $derived(instructions?.trim() ?? "");
       {:else}
         <p class="text-muted-foreground">None</p>
       {/if}
-      <p class="border-t pt-1 text-muted-foreground">Click to edit</p>
+      <p class="pt-1 text-muted-foreground">Click to edit</p>
     </Tooltip.Content>
   </Tooltip.Root>
 </Tooltip.Provider>

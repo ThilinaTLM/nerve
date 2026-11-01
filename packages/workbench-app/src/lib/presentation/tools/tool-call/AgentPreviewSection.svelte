@@ -36,13 +36,13 @@ function supportedImageMime(mimeType: string): boolean {
 }
 </script>
 
-<details class="rounded-sm border bg-well" {open}>
+<details {open}>
   <summary
     class="cursor-pointer px-2.5 py-2 text-ui font-medium text-muted-foreground"
   >
     Agent preview
   </summary>
-  <div class="grid gap-2 border-t p-2">
+  <div class="grid gap-2 px-2.5 pb-2.5">
     {#if preview}
       {#if preview.blocks.length === 0}
         <p class="m-0 text-ui text-muted-foreground">
@@ -57,7 +57,7 @@ function supportedImageMime(mimeType: string): boolean {
               block.resultContentBlockIndex,
               block.mimeType,
             )}
-            <div class="grid gap-2 rounded-sm border bg-background p-2">
+            <div class="grid gap-2">
               <p class="m-0 text-ui text-muted-foreground">
                 Image supplied to the agent · {block.mimeType} · {block.byteLength.toLocaleString()}
                 bytes

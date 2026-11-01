@@ -243,7 +243,7 @@ $effect(() => {
     </section>
 
     {#if selectedModel}
-      <section class="grid gap-2 border-t border-border-subtle pt-3">
+      <section class="grid gap-2 pt-3">
         <p class="m-0 text-ui font-semibold text-foreground">Thinking level</p>
         <div
           class="flex flex-wrap gap-2"

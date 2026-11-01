@@ -66,7 +66,6 @@ const iconSizes: ButtonSize[] = ["icon-sm", "icon"];
 const badgeVariants: BadgeVariant[] = [
   "neutral",
   "warning",
-  "outline",
   "info",
   "brand",
   "success",

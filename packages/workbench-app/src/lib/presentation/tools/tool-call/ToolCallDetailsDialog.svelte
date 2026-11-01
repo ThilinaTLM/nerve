@@ -6,6 +6,9 @@ import type {
 } from "../../state/tool-types";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
 import DialogShell from "@nervekit/ui-kit/components/composites/dialog-shell";
+import { Callout } from "@nervekit/ui-kit/components/composites/callout";
+import CardSheet from "../../cards/CardSheet.svelte";
+import LeaveCardSheet from "../../cards/LeaveCardSheet.svelte";
 import { toolPresentationCached } from "../views/tool-presentation";
 import { parseToolViewCached } from "../views/tool-result-view";
 import { toolViewComponent } from "../views/registry";
@@ -93,46 +96,44 @@ const description = $derived(
       {/if}
 
       {#if displayToolCall.error}
-        <p
-          class="m-0 rounded-sm border border-destructive-strong bg-destructive-subtle p-2 text-ui text-destructive"
-        >
-          {displayToolCall.error}
-        </p>
+        <Callout tone="destructive" text={displayToolCall.error} />
       {/if}
 
-      {#if formatted}
-        <details
-          class="rounded-sm border bg-well"
-          open={initialSection === "formatted"}
-        >
-          <summary
-            class="cursor-pointer px-2.5 py-2 text-ui font-medium text-muted-foreground"
-          >
-            Formatted view
-          </summary>
-          <div class="border-t p-2">
-            <ToolView
-              toolCall={details.toolCall}
-              {view}
-              expanded={true}
-              {onOpenFile}
-            />
-          </div>
-        </details>
-      {/if}
+      <CardSheet>
+        {#if formatted}
+          <details open={initialSection === "formatted"}>
+            <summary
+              class="cursor-pointer px-2.5 py-2 text-ui font-medium text-muted-foreground"
+            >
+              Formatted view
+            </summary>
+            <div class="px-2.5 pb-2.5">
+              <!-- The card preview draws its own sheet, as in the transcript. -->
+              <LeaveCardSheet>
+                <ToolView
+                  toolCall={details.toolCall}
+                  {view}
+                  expanded={true}
+                  {onOpenFile}
+                />
+              </LeaveCardSheet>
+            </div>
+          </details>
+        {/if}
 
-      <AgentPreviewSection
-        preview={details.toolCall.agentPreview}
-        projection={details.toolCall.agentProjection}
-        result={details.toolCall.result}
-        open={initialSection === "agent-preview"}
-      />
-      <ArgumentsSection value={details.toolCall.args} />
-      <CompleteResultSection
-        toolCallId={details.toolCall.id}
-        descriptor={details.completeResult}
-        read={capabilities.readToolCallResult}
-      />
+        <AgentPreviewSection
+          preview={details.toolCall.agentPreview}
+          projection={details.toolCall.agentProjection}
+          result={details.toolCall.result}
+          open={initialSection === "agent-preview"}
+        />
+        <ArgumentsSection value={details.toolCall.args} />
+        <CompleteResultSection
+          toolCallId={details.toolCall.id}
+          descriptor={details.completeResult}
+          read={capabilities.readToolCallResult}
+        />
+      </CardSheet>
     </div>
   {/if}
 </DialogShell>

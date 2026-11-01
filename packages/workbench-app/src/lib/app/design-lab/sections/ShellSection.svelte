@@ -801,7 +801,7 @@ let mobileActionsOpen = $state(false);
       />
     </PopoverSection>
     <PopoverSection label="Codex · prolite" separated>
-      {#snippet action()}<Badge variant="outline">Active</Badge>{/snippet}
+      {#snippet action()}<Badge variant="neutral">Active</Badge>{/snippet}
       <PopoverMeter
         label="Weekly"
         value="22%"

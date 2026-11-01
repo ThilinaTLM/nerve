@@ -1,6 +1,7 @@
 <script lang="ts">
 import { Callout } from "@nervekit/ui-kit/components/composites/callout";
 import AlertTriangle from "@lucide/svelte/icons/alert-triangle";
+import { Badge } from "@nervekit/ui-kit/components/ui/badge";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
 import DialogShell from "@nervekit/ui-kit/components/composites/dialog-shell";
 import { promptSuggestionsState } from "$lib/features/prompt-suggestions/state/prompt-suggestions-state.svelte";
@@ -66,10 +67,7 @@ function decideLater() {
             <strong class="text-ui font-medium text-foreground"
               >{request.label}</strong
             >
-            <span
-              class="rounded-md border border-border px-2 py-0.5 text-ui text-muted-foreground"
-              >{request.sourceKind}</span
-            >
+            <Badge>{request.sourceKind}</Badge>
           </div>
           <p class="font-mono text-ui text-muted-foreground">{request.path}</p>
           {#if request.description}

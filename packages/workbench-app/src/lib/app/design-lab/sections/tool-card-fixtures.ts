@@ -105,6 +105,48 @@ export function sampleDetails(call: ToolCallTranscriptRecord): ToolCallDetails {
   };
 }
 
+const SAMPLE_PNG =
+  "iVBORw0KGgoAAAANSUhEUgAAADAAAAAgCAIAAADbtmxLAAAAR0lEQVR42mP4dWcfVvSswgYrorV6hlEHjTpo1EEjzkEDZTEu9aMOGnXQqINGnoNGS+pRB406aNRBo+2h0apj1EGjDhrhDgIADTSKtVgDSmkAAAAASUVORK5CYII=";
+
+/** Failed record whose agent preview carries text and an image block. */
+export function sampleFailedDetailsWithPreview(
+  call: ToolCallTranscriptRecord,
+): ToolCallDetails {
+  const details = sampleDetails(call);
+  const result = {
+    content: "Error: Cannot find module './missing.test.ts'",
+    exitCode: 1,
+    contentBlocks: [{ type: "image", mimeType: "image/png", data: SAMPLE_PNG }],
+  };
+  return {
+    completeResult: {
+      ...details.completeResult,
+      hasResult: true,
+      byteLength: JSON.stringify(result).length,
+    },
+    toolCall: {
+      ...details.toolCall,
+      result,
+      agentPreview: {
+        version: 1,
+        blocks: [
+          {
+            type: "text",
+            text: "Error: Cannot find module './missing.test.ts'",
+          },
+          {
+            type: "image",
+            mimeType: "image/png",
+            byteLength: 128,
+            digest: "0".repeat(64),
+            resultContentBlockIndex: 0,
+          },
+        ],
+      },
+    },
+  };
+}
+
 export function sampleDraft(input: {
   toolName: string;
   argsText: string;

@@ -18,7 +18,7 @@ let { entry, onAction }: Props = $props();
 >
   <div class="grid min-w-0 gap-2">
     <div class="flex flex-wrap items-center gap-1.5">
-      <Badge variant="outline">{discoverReleaseLabel(entry.releasedIn)}</Badge>
+      <Badge variant="neutral">{discoverReleaseLabel(entry.releasedIn)}</Badge>
       {#if entry.unread}
         <Badge variant="info">New</Badge>
       {/if}

@@ -119,7 +119,7 @@ const REVIEW_STATE: Record<
         <p class="text-ui text-muted-foreground">No description provided.</p>
       {/if}
 
-      <section class="mt-8 border-t pt-4" aria-labelledby="pr-activity">
+      <section class="mt-8" aria-labelledby="pr-activity">
         <h2
           id="pr-activity"
           class="mb-4 text-ui font-medium text-muted-foreground"

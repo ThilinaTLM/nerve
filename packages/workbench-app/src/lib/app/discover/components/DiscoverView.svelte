@@ -52,7 +52,7 @@ const outdated = $derived(
         </div>
         <div class="flex flex-wrap items-center gap-1.5">
           {#if versionLabel}
-            <Badge variant="outline">{versionLabel}</Badge>
+            <Badge variant="neutral">{versionLabel}</Badge>
           {/if}
           {#if outdated && model.latestVersion}
             <Badge variant="warning" href={model.latestReleaseUrl}>

@@ -582,7 +582,7 @@ let headerStyle = $state("auto");
           {/snippet}
           {#snippet status()}
             <Badge variant="success">Connected</Badge>
-            <Badge variant="outline">Default</Badge>
+            <Badge variant="neutral">Default</Badge>
           {/snippet}
           {#snippet actions()}
             <IconAction icon={StarIcon} label="Make default" active />

@@ -361,6 +361,8 @@ const diffSnippet =
 const dialogCall = fx.bashNonZeroExit;
 const dialogDetails = fx.sampleDetails(dialogCall);
 let detailsOpen = $state(false);
+const failedDialogDetails = fx.sampleFailedDetailsWithPreview(fx.bashFailed);
+let failedDetailsOpen = $state(false);
 </script>
 
 <div class="flex flex-col gap-10">
@@ -667,6 +669,15 @@ let detailsOpen = $state(false);
         bind:open={detailsOpen}
         previewToolCall={dialogCall}
         details={dialogDetails}
+        onOpenFile={noop}
+      />
+      <Button variant="outline" onclick={() => (failedDetailsOpen = true)}>
+        Open failed details
+      </Button>
+      <ToolCallDetailsDialog
+        bind:open={failedDetailsOpen}
+        previewToolCall={fx.bashFailed}
+        details={failedDialogDetails}
         onOpenFile={noop}
       />
     </GallerySpecimen>
