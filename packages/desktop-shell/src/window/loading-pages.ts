@@ -228,11 +228,11 @@ function shellStyles(appearance = DEFAULT_WINDOW_APPEARANCE): string {
   return `
     :root {
       color-scheme: light;
-      --background: oklch(0.979 0.012 92);
+      --background: oklch(0.965 0.012 92);
       --foreground: oklch(0.3438 0.0269 95.7);
       --primary: oklch(0.57 0.1375 39);
-      --muted-foreground: oklch(0.4899 0.02347 95.27);
-      --border: oklch(0.871 0.01453 93.16);
+      --muted-foreground: oklch(0.4867 0.02347 95.27);
+      --border: oklch(0.8594 0.01453 93.16);
       --destructive: oklch(0.5 0.19 27);
       --radius: 0.375rem;
       --radius-lg: 0.375rem;

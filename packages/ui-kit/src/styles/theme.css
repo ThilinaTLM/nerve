@@ -34,7 +34,19 @@
   --card: oklch(from var(--background) calc(l + var(--step-card)) c h);
   --popover: oklch(from var(--background) calc(l + var(--step-popover)) c h);
   --panel: oklch(from var(--background) calc(l + var(--step-panel)) c h);
-  --well: oklch(from var(--background) calc(l + var(--step-well)) c h);
+
+  /* The well (code, output, logs) is an inset, not a ladder rung: it sits one
+   * `--step-well` below whichever surface holds it, so contrast stays the same
+   * at any nesting depth. `--well` is the inset on background; elements that
+   * paint another surface point `--well` at the matching variant (base.css for
+   * the `bg-*` utilities, the dialog, popover and shell partials for theirs). */
+  --well-on-background: oklch(
+    from var(--background) calc(l + var(--step-well)) c h
+  );
+  --well-on-panel: oklch(from var(--panel) calc(l + var(--step-well)) c h);
+  --well-on-card: oklch(from var(--card) calc(l + var(--step-well)) c h);
+  --well-on-popover: oklch(from var(--popover) calc(l + var(--step-well)) c h);
+  --well: var(--well-on-background);
 
   /* Quiet fill, hairlines and muted text: foreground mixed into the
    * background (`--mix-*`, defaults below). */
@@ -63,7 +75,7 @@
    * primary on dark surfaces yet light enough that grey `muted-foreground`
    * text keeps 4.5:1 on it (theme-contrast.test.ts). Also fills the user's
    * message bubble. */
-  --selected: color-mix(in oklab, var(--primary) 16%, transparent);
+  --selected: color-mix(in oklab, var(--primary) 12%, transparent);
 
   /* Text on solid fills: one near-white (light) or near-black (dark) per mode,
    * except on `destructive-solid`, which is white in both. */
@@ -89,8 +101,14 @@
   --card-foreground: var(--foreground);
   --popover-foreground: var(--foreground);
 
-  /* Diff and link roles reuse the status palette. */
-  --syntax-plain: var(--foreground);
+  /* Plain code text sits a step below prose foreground, so long untinted
+   * output reads calmer and highlighted tokens keep their emphasis. Diff and
+   * link roles reuse the status palette. */
+  --syntax-plain: color-mix(
+    in oklab,
+    var(--foreground) 50%,
+    var(--muted-foreground)
+  );
   --syntax-added: var(--success);
   --syntax-removed: var(--destructive);
   --syntax-changed: var(--warning);
@@ -123,15 +141,17 @@
     transparent
   );
 
-  /* Neutral hover overlay: works on any surface in either mode. */
-  --hover: color-mix(in oklab, var(--foreground) 6%, transparent);
+  /* Neutral hover overlay: works on any surface in either mode. Kept below the
+   * surface steps so a hovered row never out-shouts the surface it sits on. */
+  --hover: color-mix(in oklab, var(--foreground) 4.5%, transparent);
 
   /* Field fill: transparent on light surfaces, a faint lift in dark mode. */
   --input-background: transparent;
 
   /* Every tab row (editor, dock, Tabs) shares one track shade a short step
-   * under the content it opens onto; an active tab takes the content surface. */
-  --chrome-track: color-mix(in oklab, var(--well) 50%, var(--panel));
+   * under the content it opens onto; an active tab takes the content surface.
+   * Half an inset below panel, so it reads under both panel and background. */
+  --chrome-track: oklch(from var(--panel) calc(l + var(--step-well) * 0.5) c h);
 
   --elevation-2: calc(0.1 * var(--elevation-strength));
   /* Two elevations: `shadow-sm` lifts raised cards (controls stay flat), `shadow-overlay`
@@ -172,10 +192,10 @@
  * (oklch L) from the background; mixes are the share of foreground in the
  * background. */
 :where(:root, [data-theme-preview]) {
-  --step-card: 0.01;
-  --step-popover: 0.02;
+  --step-card: 0.02;
+  --step-popover: 0.03;
   --step-panel: -0.025;
-  --step-well: -0.042;
+  --step-well: -0.03;
   --mix-muted: 9%;
   --mix-border: 17%;
   --mix-input: 36%;
@@ -183,10 +203,10 @@
 }
 
 :where(.dark, [data-theme-preview][data-color-mode="dark"]) {
-  --step-card: 0.025;
-  --step-popover: 0.046;
-  --step-panel: -0.035;
-  --step-well: -0.06;
+  --step-card: 0.03;
+  --step-popover: 0.05;
+  --step-panel: -0.03;
+  --step-well: -0.03;
   --mix-muted: 10%;
   --mix-border: 19%;
   --mix-input: 28%;
@@ -204,9 +224,10 @@
  * fills, charts) is derived once in the shared blocks from those inputs and the
  * per-mode `--step-*` (lightness offsets) and `--mix-*` (foreground share)
  * defaults. A theme overrides a step only where its measured value genuinely
- * differs, or where a contrast check needs it. Surfaces rise well < panel <
- * background < card < popover; muted, the quiet fill, sits beyond the ladder on
- * the foreground side.
+ * differs, or where a contrast check needs it. Surfaces rise panel <
+ * background < card < popover, and the well insets one step below whichever
+ * surface holds it; muted, the quiet fill, sits beyond the ladder on the
+ * foreground side.
  * Mode-dependent globals above key on `.dark` / `[data-color-mode="dark"]`.
  * The unthemed root falls back to Nerve Light, and `.dark` to Nerve Dark, until
  * the bootstrap script sets `data-theme`. */
@@ -216,7 +237,7 @@
 :root:not([data-theme]),
 :root[data-theme="nerve-light"],
 [data-theme-preview="nerve-light"] {
-  --background: oklch(0.979 0.012 92);
+  --background: oklch(0.965 0.012 92);
   --foreground: oklch(0.3438 0.0269 95.7);
   --primary: oklch(0.57 0.1375 39);
   --success: oklch(0.47 0.17 149.2);
@@ -337,7 +358,7 @@
 /* Melange Dark: the dark flavour of Melange (github.com/savq/melange-nvim),
  * cream text on warm cocoa with a soft orange accent and pastel highlights.
  * Base, float and selection come straight from the palette; the rest of the
- * ladder steps around them. */
+ * ladder steps around them, with card held just under the float. */
 
 :root[data-theme="melange-dark"],
 [data-theme-preview="melange-dark"] {
@@ -349,6 +370,7 @@
   --info: oklch(0.785 0.055 277.8);
   --destructive: oklch(0.8 0.105 31.4);
   --destructive-solid: oklch(0.55 0.15 25);
+  --step-card: 0.025;
   --step-popover: 0.044;
   --mix-border: 23%;
   --mix-input: 33%;

@@ -6,12 +6,12 @@
 
 export const documentThemeTokens = {
   light: {
-    background: "oklch(0.979 0.012 92)",
+    background: "oklch(0.965 0.012 92)",
     foreground: "oklch(0.3438 0.0269 95.7)",
-    card: "oklch(0.989 0.012 92)",
-    well: "oklch(0.937 0.012 92)",
-    "muted-foreground": "oklch(0.4899 0.02347 95.27)",
-    border: "oklch(0.871 0.01453 93.16)",
+    card: "oklch(0.985 0.012 92)",
+    well: "oklch(0.935 0.012 92)",
+    "muted-foreground": "oklch(0.4867 0.02347 95.27)",
+    border: "oklch(0.8594 0.01453 93.16)",
     primary: "oklch(0.57 0.1375 39)",
     "primary-foreground": "oklch(0.99 0.002 70)",
     warning: "oklch(0.5 0.16 70.1)",
@@ -19,8 +19,8 @@ export const documentThemeTokens = {
   dark: {
     background: "oklch(0.264 0.018 80)",
     foreground: "oklch(0.9 0.012 95)",
-    card: "oklch(0.289 0.018 80)",
-    well: "oklch(0.204 0.018 80)",
+    card: "oklch(0.294 0.018 80)",
+    well: "oklch(0.234 0.018 80)",
     "muted-foreground": "oklch(0.7919 0.01294 91.49)",
     border: "oklch(0.3848 0.01679 82.01)",
     primary: "oklch(0.6724 0.1308 38.8)",
@@ -32,7 +32,7 @@ export const documentThemeTokens = {
 /* sRGB fallbacks for hosts that need a plain colour, such as the Electron
  * window background painted before any document loads. */
 export const documentBackgroundHex = {
-  light: "#faf8f1",
+  light: "#f6f3eb",
   dark: "#272521",
 } as const;
 

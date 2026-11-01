@@ -69,6 +69,7 @@ let menuOpen = $state(false);
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
   background: var(--card);
+  --well: var(--well-on-card);
 }
 
 .mobile-section-card > :global(* + *) {

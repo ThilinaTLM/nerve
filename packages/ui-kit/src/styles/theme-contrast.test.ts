@@ -308,7 +308,7 @@ describe("theme text contrast", () => {
     // Foreground and grey text at 4.5:1 (selected rows keep their grey
     // secondary text), and status tones at the 3:1 non-text bar (labels such
     // as git M/A letters and status dots).
-    const selectedAlpha = 0.16;
+    const selectedAlpha = 0.12;
     const minimumStatusContrast = 3;
     for (const [themeName, tokens] of Object.entries(themes) as [
       ThemeName,
@@ -419,20 +419,16 @@ describe("theme text contrast", () => {
   });
 });
 
-/* The ordered-ladder model (proposal section 2) applies to every theme. */
+/* The ordered-ladder model (proposal section 2) applies to every theme. The
+ * well is not a rung: it insets one step below whichever surface holds it. */
 const ladderThemes = colorThemes;
-const ladderTokenNames = [
-  "well",
-  "panel",
-  "background",
-  "card",
-  "popover",
-] as const;
+const ladderTokenNames = ["panel", "background", "card", "popover"] as const;
 const minimumLadderStep: Record<ColorMode, number> = {
   light: 0.008,
   dark: 0.018,
 };
 const minimumQuietFillStep = 0.012;
+const insetSurfaces = ["background", "panel", "card", "popover"] as const;
 const minimumBorderContrast = 1.3;
 const minimumInputContrast = 1.6;
 const ladderExtraTokens = ["muted-foreground", "border", "input"] as const;
@@ -461,6 +457,25 @@ describe("surface ladder", () => {
           `${theme} ${lower} -> ${upper} lightness step ${delta.toFixed(3)} is below ${minimumLadderStep[mode]}`,
         );
       }
+    }
+  });
+
+  it("insets the well one minimum step below every surface that holds it", () => {
+    for (const theme of ladderThemes) {
+      const mode = colorThemeKind[theme];
+      for (const surface of insetSurfaces) {
+        const delta =
+          resolveOklch(theme, surface)[0] -
+          resolveOklch(theme, `well-on-${surface}`)[0];
+        assert.ok(
+          delta >= minimumLadderStep[mode],
+          `${theme} well on ${surface} inset ${delta.toFixed(3)} is below ${minimumLadderStep[mode]}`,
+        );
+      }
+      assert.deepEqual(
+        resolveOklch(theme, "well"),
+        resolveOklch(theme, "well-on-background"),
+      );
     }
   });
 
@@ -657,7 +672,7 @@ describe("token structure", () => {
     }
     assert.equal(
       declarationOf(global, "chrome-track"),
-      "color-mix(in oklab, var(--well) 50%, var(--panel))",
+      "oklch(from var(--panel) calc(l + var(--step-well) * 0.5) c h)",
     );
   });
 

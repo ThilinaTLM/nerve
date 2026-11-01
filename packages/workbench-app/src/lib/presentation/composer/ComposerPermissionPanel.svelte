@@ -113,9 +113,6 @@ const items = $derived(
 >
   {#snippet icon(option)}
     {@const Icon = permissionIcon(option.id)}
-    <Icon
-      class="mt-0.5 size-3.5 flex-none self-start text-muted-foreground"
-      aria-hidden="true"
-    />
+    <Icon class="size-3.5 flex-none text-muted-foreground" aria-hidden="true" />
   {/snippet}
 </PopoverCommandList>

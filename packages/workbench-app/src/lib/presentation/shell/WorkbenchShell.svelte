@@ -291,6 +291,7 @@ function dropOnStrip(event: DragEvent, dock: DockId) {
   min-height: 0;
   overflow: hidden;
   background: var(--panel);
+  --well: var(--well-on-panel);
 }
 
 /* paneforge renders the pane group DOM (escape-hatch reason 5). */
@@ -309,6 +310,7 @@ function dropOnStrip(event: DragEvent, dock: DockId) {
   grid-template-rows: minmax(0, 1fr);
   overflow: hidden;
   background: var(--background);
+  --well: var(--well-on-background);
 }
 
 /* Compact (< 1024px): the editor fills the shell; docks move into sheets. */

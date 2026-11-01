@@ -1,6 +1,9 @@
 .terminal-output {
-  /* Canonical dense line height for terminal/log text. */
-  line-height: 1.22;
+  /* Canonical dense line height for terminal/log text. It must not drop below
+   * Iosevka's 1.25em glyph box (pixel-snapped up): shorter lines make each
+   * line's translucent selection overlap the next, painting a bright seam. */
+  --terminal-line-height: round(up, 1.3em, 1px);
+  line-height: var(--terminal-line-height);
   --terminal-fg-black: color-mix(
     in oklab,
     var(--foreground) 28%,

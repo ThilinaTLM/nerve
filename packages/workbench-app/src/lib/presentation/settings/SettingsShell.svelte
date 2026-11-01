@@ -172,6 +172,7 @@ function selectPage(id: string): void {
   min-height: 0;
   border-right: 1px solid var(--border-subtle);
   background: var(--panel);
+  --well: var(--well-on-panel);
   color: var(--foreground);
   padding: 0.9rem 0.7rem;
 }

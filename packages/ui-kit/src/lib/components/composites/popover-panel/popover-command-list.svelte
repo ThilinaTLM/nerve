@@ -115,10 +115,6 @@ function keydown(event: KeyboardEvent) {
             ? item.detail
             : undefined}
         {#snippet leading()}{@render icon?.(item)}{/snippet}
-        <!-- One line keeps choice lists scannable; the full text is the tooltip. -->
-        {#snippet detailLine()}<span
-            class="block truncate text-muted-foreground">{detail}</span
-          >{/snippet}
         {#snippet customLabel()}{@render row?.(item, {
             active: navigation.activeDescendant === rowId(item),
             selected: isSelected(item),
@@ -160,7 +156,7 @@ function keydown(event: KeyboardEvent) {
             aria-selected={isSelected(item)}
             icon={icon ? leading : undefined}
             label={row ? customLabel : item.label}
-            detail={detail ? detailLine : undefined}
+            {detail}
             title={detail}
             highlighted={navigation.activeDescendant === rowId(item)}
             selected={isSelected(item)}

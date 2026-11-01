@@ -21,7 +21,7 @@
   --destructive: oklch(0.8 0.114 25.5);
 
   /* Derivation steps (ui-kit's dark defaults; muted-foreground is Nerve Dark's override). */
-  --step-card: 0.025;
+  --step-card: 0.03;
   --mix-muted: 10%;
   --mix-border: 19%;
   --mix-muted-foreground: 83%;
@@ -76,7 +76,7 @@
   color-scheme: light;
 
   /* Inputs (identical to ui-kit's Nerve Light). */
-  --background: oklch(0.979 0.012 92);
+  --background: oklch(0.965 0.012 92);
   --foreground: oklch(0.3438 0.0269 95.7);
   --primary: oklch(0.57 0.1375 39);
   --success: oklch(0.47 0.17 149.2);
@@ -85,7 +85,7 @@
   --destructive: oklch(0.5 0.19 27);
 
   /* Derivation steps (ui-kit's light defaults, no overrides). */
-  --step-card: 0.01;
+  --step-card: 0.02;
   --mix-muted: 9%;
   --mix-border: 17%;
   --mix-muted-foreground: 77%;

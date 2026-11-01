@@ -35,6 +35,7 @@
   border-radius: var(--radius-lg);
   background: var(--card);
   color: var(--foreground);
+  --well: var(--well-on-card);
   box-shadow: var(--shadow-overlay);
 }
 

@@ -13,10 +13,13 @@ Application `*Host` components are state/effect adapters around canonical featur
   opaque destructive fills use `destructive-solid` /
   `destructive-solid-foreground`. No hard-coded colors, font sizes, spacing, or
   one-off visual constants.
-- **Surfaces are a five-step ladder**, deepest to highest: `well` (recessed
-  output — terminal, logs, tool results, code blocks), `panel` (movable panel and
-  shell chrome), `background` (workspace), `card` (raised content), `popover`
-  (floating layers). `well` and `panel` pair with the
+- **Surfaces are a four-step ladder plus an inset**, deepest to highest: `panel`
+  (movable panel and shell chrome), `background` (workspace), `card` (raised
+  content), `popover` (floating layers). `well` (recessed output — terminal,
+  logs, tool results, code blocks) is one step below whichever surface holds
+  it: `bg-*` utilities and the dialog/popover/shell surfaces point `--well` at
+  their `--well-on-*` variant, so a new element that paints a surface with a
+  raw `var(--…)` must do the same. `well` and `panel` pair with the
   global `foreground` / `muted-foreground`; they deliberately have no foreground
   tokens of their own. Never reach for a surface to get a shade you like — pick
   the one that matches the role.
