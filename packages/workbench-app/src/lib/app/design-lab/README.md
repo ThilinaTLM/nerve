@@ -7,7 +7,7 @@ Development-only UI workspace, available through the existing Vite server:
 - `/dev/wireframes` — prototype index.
 - `/dev/wireframes/<name>` — a local prototype, when present.
 
-The lab replaces the workbench, uses mock data, and does not need a daemon connection. Theme controls use the shared themes; selecting a theme does not write application settings. Navigation between lab areas reloads the page, resetting prototype state.
+The lab replaces the workbench, uses mock data, and does not need a daemon connection. Theme controls list the shared themes and set the colour mode from the theme's kind (light or dark); selecting a theme does not write application settings. Navigation between lab areas reloads the page, resetting prototype state.
 
 ## Create a wireframe
 

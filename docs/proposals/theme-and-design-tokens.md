@@ -1,6 +1,6 @@
 # Themes and design tokens
 
-> **Status:** Implemented. All five rollout steps are complete: Nerve is refreshed, Slate is added, Rosé, Solar, and Midnight are retired, and the theme is a per-client preference. The values were checked with a PoC, and the open questions are resolved under [Decisions](#decisions).
+> **Status:** In implementation (revised). Steps 1–3 shipped as written. After a workbench review, sections 3–5 are superseded by [7. Independent themes](#7-independent-themes): the original warm Nerve stays as the identity, the graphite refresh becomes its own dark theme, and Slate is dropped.
 
 ## Summary
 
@@ -10,9 +10,9 @@ This proposal:
 
 1. Lists every primitive and shared composite in the Design Lab (`/dev/components`), adds a side-by-side view of the themes, and adds a coverage test.
 2. Assesses the token system and fixes the structural problems that make themes fragile.
-3. Refines Nerve: less warm and darker in dark mode, with a cleaner paper tone in light mode.
+3. Keeps the original warm Nerve and fixes only its structure (ladder order, quiet fills, borders).
 4. Removes Rosé, Solar, and Midnight.
-5. Adds **Slate**, one new cool theme that changes only colour, as Nerve's companion.
+5. Makes themes independent: each theme is light or dark. Ships **Nerve Light**, **Nerve Dark**, and **Graphite** (dark), the graphite refresh drafted in section 3.
 6. Makes the theme and colour mode a per-client preference stored in the browser, so two clients of the same daemon can use different themes. Switching then has one owner and one code path.
 
 No database changes. The only persisted data affected is `ui.appearance` in the home UI config document (`ui.json`): `theme` and `colorMode` are removed from it.
@@ -20,7 +20,7 @@ No database changes. The only persisted data affected is `ui.appearance` in the 
 ## Goals
 
 - Every shared component can be viewed and checked in every theme and color mode from one place.
-- Themes differ only in colour, so a component that looks right in Nerve also looks right in Slate.
+- Themes differ only in colour, so a component that looks right in one theme also looks right in the others.
 - Surfaces get lighter in a strict order (monotonic) in both modes, and tests enforce it.
 - Nerve dark looks like neutral graphite with an ember accent, not olive brown.
 - Two themes, both kept to the same standard.
@@ -132,7 +132,7 @@ Keep the semantic vocabulary and change the rules underneath it.
 
   `accent` is the hover/active fill. `muted` is the resting quiet fill for chips, tracks, and code spans. Translucent hover on chrome uses `--hover` (below).
 
-- **Tab track from the ladder.** `--chrome-track` becomes `color-mix(in oklab, var(--panel) 50%, var(--background))`, which sits below `background` in both modes because the ladder is ordered. Today's mix with `muted` would invert in dark mode, where `muted` is now lighter than `card`.
+- **Tab track from the ladder.** `--chrome-track` becomes `color-mix(in oklab, var(--well) 50%, var(--panel))`, which sits below `panel` (the dock surface) and therefore below `background` (the editor) in both modes, because the ladder is ordered. Today's mix with `muted` would invert in dark mode, where `muted` is now lighter than `card`.
 - **One explicit state token.** Add `--hover` (and the Tailwind colour `hover`), defined as `color-mix(in oklab, var(--foreground) 6%, transparent)` in each mode. It is a translucent overlay that works on any surface. Then replace the repeated opacity-based hover recipes (`hover:bg-accent/60`, `hover:bg-muted/50`, `dark:hover:bg-accent/40`, …) with `hover:bg-hover`. `--selected` already follows this pattern.
 - **Remove `dark:` everywhere.** Where a shadcn primitive needs a different value per mode (input background, invalid ring), that difference moves into the token values and the `dark:` utility is deleted. The same goes for the 5 workbench files. Then the `@custom-variant dark` declaration is removed, and a new style-policy check rejects `dark:` utilities in `ui-kit` and `workbench-app` sources. The only token this needs is `--input-background`: transparent in light mode, `color-mix(in oklab, var(--input) 30%, transparent)` in dark mode. It replaces `bg-transparent dark:bg-input/30`. The invalid ring and border use one alpha that passes in both modes.
 - **Point the duplicate text tokens at `foreground`.** `card-foreground`, `popover-foreground`, and `accent-foreground` become `var(--foreground)`. They stay as names so shadcn components keep working, but themes no longer set them.
@@ -148,7 +148,7 @@ The syntax diff roles still pass the code-contrast test, because the status colo
 
 Net token count drops: 3 per-theme character tokens move to global, 3 foreground variants and 4 syntax roles become aliases, and 2 tokens (`hover`, `input-background`) are added.
 
-### 3. Nerve, refined
+### 3. Nerve, refined (superseded: these values now ship as Graphite)
 
 The direction is to **move from warm paper and olive-brown to warm graphite and paper-white, and keep the ember.** Neutral chroma drops from about 0.018 to about 0.006, and dark lightness drops from 0.264 to 0.205. The hue keeps a faint warmth (~65–85) so Nerve still reads as Nerve. The ember primary gets slightly more saturated so it stays the clear focal colour against the calmer surfaces.
 
@@ -158,15 +158,15 @@ Draft values. The OKLCH values are canonical; the hex values are an sRGB preview
 
 | Token                           | Current        | Proposed                                     | Hex       |
 | ------------------------------- | -------------- | -------------------------------------------- | --------- |
-| well                            | 0.205 0.018 78 | 0.165 0.005 65                               | `#100e0c` |
+| well                            | 0.205 0.018 78 | 0.160 0.005 65                               | `#0f0d0b` |
 | panel                           | 0.228 0.020 70 | 0.185 0.006 65                               | `#151210` |
-| background                      | 0.264 0.018 80 | 0.205 0.006 65                               | `#191714` |
-| card                            | 0.289 0.020 82 | 0.228 0.007 65                               | `#1f1c19` |
-| popover                         | 0.305 0.020 82 | 0.250 0.008 65                               | `#24211e` |
-| muted                           | 0.218 0.018 78 | 0.272 0.008 65                               | `#2a2623` |
-| accent                          | 0.210 0.022 78 | 0.292 0.009 65                               | `#2f2b27` |
-| border                          | 0.353 0.022 82 | 0.330 0.009 65                               | `#393431` |
-| input                           | 0.425 0.024 82 | 0.390 0.010 65                               | `#494440` |
+| background                      | 0.264 0.018 80 | 0.220 0.006 65                               | `#1d1a18` |
+| card                            | 0.289 0.020 82 | 0.245 0.007 65                               | `#23201d` |
+| popover                         | 0.305 0.020 82 | 0.270 0.008 65                               | `#292622` |
+| muted                           | 0.218 0.018 78 | 0.292 0.008 65                               | `#2f2b28` |
+| accent                          | 0.210 0.022 78 | 0.312 0.009 65                               | `#34302c` |
+| border                          | 0.353 0.022 82 | 0.350 0.009 65                               | `#3e3a36` |
+| input                           | 0.425 0.024 82 | 0.410 0.010 65                               | `#4e4945` |
 | foreground                      | 0.900 0.012 95 | 0.910 0.006 80                               | `#e3e1dd` |
 | muted-foreground                | 0.771 0.017 99 | 0.715 0.010 75                               | `#a7a29c` |
 | primary                         | 0.672 0.131 39 | 0.700 0.150 40                               | `#eb7a52` |
@@ -198,9 +198,16 @@ Computed contrast for the draft (PoC: the same OKLCH → sRGB math as `theme-con
 
 The PoC changed four values from the first draft: dark `border` 0.305 → 0.330 (it measured 1.19:1 on `popover`), dark `muted`/`accent` moved above `popover` (0.255 was invisible on it), and light `primary` 0.56 → 0.54 (4.25:1 as text on `well`). The desktop loading page (`desktop-shell/src/window/loading-pages.ts`) mirrors Nerve tokens and is updated with them.
 
+The first workbench review found that the hierarchy was hard to read, for two reasons:
+
+- **Token roles.** Side docks rendered on `card` and the Conversations list on `bg-background/60`, so the list and the editor were about 0.01 L apart. Docks are shell chrome and now use `panel`, as `AGENTS.md` defines: `.dock-panel`, `PanelView`, `PanelToolbar`, `PanelSectionHeader`, and the active dock tab. The list overlay is removed. The order is now: chrome (titlebar, docks, status bar) on `panel`, the editor on `background`, and content inside the editor on `card`.
+- **Step size.** The 0.02 dark steps were too tight to read at low luminance. The dark ladder now steps `well` 0.160, `panel` 0.185, `background` 0.220, `card` 0.245, `popover` 0.270, with the quiet fills, border, and input moved up by the same amount. Muted text stays ≥ 5.1:1 on every surface and fill, and border is ≥ 1.33:1.
+
 The syntax palette keeps its hue roles. Chroma comes down about 10% in dark mode so code does not look harsher against the darker surface. The `selected` mix drops from 22% to 16%: on the neutral surface the ember tint no longer looks muddy, as the current settings nav does.
 
-### 4. Slate (new theme)
+### 4. Slate (dropped)
+
+> Dropped in the revision. Kept for the record; none of these values ship.
 
 Slate is a cool counterpart to Nerve, for people who want a blue-grey workspace. It replaces what Solar and Midnight offered. It uses the same radius, elevation, and surface steps as Nerve, so only the colours change.
 
@@ -210,15 +217,15 @@ Slate is a cool counterpart to Nerve, for people who want a blue-grey workspace.
 
 | Token              | Dark                      | Light                     |
 | ------------------ | ------------------------- | ------------------------- |
-| well               | 0.165 0.012 255 `#0b0f14` | 0.945 0.008 255 `#e9edf2` |
+| well               | 0.160 0.012 255 `#0a0e12` | 0.945 0.008 255 `#e9edf2` |
 | panel              | 0.185 0.013 255 `#0f1318` | 0.958 0.007 255 `#eef1f6` |
-| background         | 0.205 0.014 255 `#13181e` | 0.982 0.004 255 `#f7f9fc` |
-| card               | 0.228 0.015 255 `#181d23` | 0.992 0.003 255 `#fbfdfe` |
-| popover            | 0.250 0.016 255 `#1d2229` | 1.000 0 0 `#ffffff`       |
-| muted              | 0.272 0.016 255 `#22272f` | 0.930 0.009 255 `#e4e8ee` |
-| accent             | 0.292 0.017 255 `#262c34` | 0.912 0.010 255 `#dee2e9` |
-| border             | 0.330 0.018 255 `#2f363f` | 0.890 0.012 255 `#d6dbe3` |
-| input              | 0.390 0.020 255 `#3e4650` | 0.780 0.016 255 `#b1b8c2` |
+| background         | 0.220 0.014 255 `#161b21` | 0.982 0.004 255 `#f7f9fc` |
+| card               | 0.245 0.015 255 `#1c2128` | 0.992 0.003 255 `#fbfdfe` |
+| popover            | 0.270 0.016 255 `#21272e` | 1.000 0 0 `#ffffff`       |
+| muted              | 0.292 0.016 255 `#272c34` | 0.930 0.009 255 `#e4e8ee` |
+| accent             | 0.312 0.017 255 `#2b3139` | 0.912 0.010 255 `#dee2e9` |
+| border             | 0.350 0.018 255 `#343b44` | 0.890 0.012 255 `#d6dbe3` |
+| input              | 0.410 0.020 255 `#434b55` | 0.780 0.016 255 `#b1b8c2` |
 | foreground         | 0.910 0.008 250 `#dde2e6` | 0.250 0.020 260 `#1c222b` |
 | muted-foreground   | 0.720 0.018 250 `#9ca6b0` | 0.490 0.022 255 `#58616d` |
 | primary            | 0.720 0.120 265 `#80a3f0` | 0.520 0.160 265 `#3a61c4` |
@@ -231,7 +238,7 @@ Slate is a cool counterpart to Nerve, for people who want a blue-grey workspace.
 - **Contrast (PoC):** dark foreground on background is 13.7:1, muted text ≥ 5.6:1, primary ≥ 6.3:1, and primary-foreground on primary 7.6:1. Light foreground on background is 15.2:1, muted text ≥ 4.8:1, primary text ≥ 4.8:1, and white on primary 5.7:1. Status text on an 8% tint is ≥ 4.7:1 in both modes. Light `info` went from 0.50 to 0.47 because it measured 4.3:1 on its tint.
 - **Syntax:** violet keywords, jade strings, amber numbers, and blue functions, using the same roles as Nerve.
 
-### 5. Retire Rosé, Solar, and Midnight
+### 5. Retire Rosé, Solar, and Midnight (mapping superseded by section 7)
 
 - `colorThemeSchema = z.enum(["nerve", "slate"])`.
 - `retiredColorThemes` maps each old ID to the closest remaining theme:
@@ -276,6 +283,42 @@ The theme and colour mode describe one screen, not the daemon. Each client (a de
 - **Persisted settings.** `uiConfigSchema.appearance` is `.strict()`, so a `ui.json` that still contains `theme`/`colorMode` would fail validation. `readHomeConfiguration` would then serve defaults and report the file in Settings Health without rewriting it. To prevent that, extend the current unreleased migration step (`0002`) with a pure converter that deletes `appearance.theme` and `appearance.colorMode` from `ui.json` and preserves every other field. It skips a missing or unparseable file, which Settings Health already handles. It is tested for removal, for a document that has no such fields (no write), and for field preservation. This follows the rule of one migration step per release. No database change is needed.
 - **No hand-off needed.** Every existing client already mirrors its theme to `nerve-color-theme`, and mode-watcher stores its mode, so upgraded clients keep their look. A client that has never connected before starts on Nerve with the system colour mode.
 
+### 7. Independent themes
+
+The first workbench review showed that the warm olive Nerve is the product's identity, and the darker graphite refresh is good but different. So both stay, as separate themes, and a theme no longer has to come with both modes.
+
+- **Lineup.** Three themes, each with a fixed kind:
+
+  | ID            | Kind  | Values                                                                  |
+  | ------------- | ----- | ----------------------------------------------------------------------- |
+  | `nerve-light` | light | Original warm Nerve light, with structural fixes only                   |
+  | `nerve-dark`  | dark  | Original warm Nerve dark, with structural fixes only                    |
+  | `graphite`    | dark  | Section 3's dark values, with the wider steps from the workbench review |
+
+  The paper-white light from section 3 and Slate do not ship.
+
+- **Structural fixes to the original Nerve** (hue, chroma, and character unchanged):
+  - light `card` and `popover` move above `background`, so the ladder is strictly ordered
+  - dark `muted` and `accent` move above `popover`; light `accent < muted < well`
+  - border ≥ 1.3:1 and input ≥ 1.6:1 on `background`, `card`, and `popover`
+  - the aliases and colour-only rule from section 2 apply as before
+- **Preference model (VS Code style).** Each client stores a light theme, a dark theme, and the colour mode (System/Light/Dark). The mode picks which of the two applies. Defaults are `nerve-light`, `nerve-dark`, and System.
+  - localStorage `nerve-light-theme` and `nerve-dark-theme`; the mode stays with mode-watcher.
+  - `data-theme` is the resolved theme ID and updates whenever the mode, the system preference, or either theme changes. The `.dark` class still follows the mode, and global mode-dependent values (elevation colour, overlay highlight, field fill) stay keyed on it.
+  - Each theme has one CSS block, `:root[data-theme="<id>"], [data-theme-preview="<id>"]`. Preview roots set `data-color-mode` from the theme's kind. Before the bootstrap runs, `:root` falls back to Nerve Light and `:root.dark` to Nerve Dark.
+- **Contracts.** `colorThemeSchema = z.enum(["nerve-light", "nerve-dark", "graphite"])`, plus `colorThemeKind`, the light and dark lists, and the two defaults. The daemon still stores no theme.
+- **Legacy IDs.** The old single `nerve-color-theme` value maps to a pair, and the client then writes the new keys and removes the old one:
+
+  | Old ID                       | Light theme   | Dark theme   |
+  | ---------------------------- | ------------- | ------------ |
+  | `nerve`, `rose`, `forest`    | `nerve-light` | `nerve-dark` |
+  | `solar`, `ocean`, `midnight` | `nerve-light` | `graphite`   |
+
+- **Settings.** Appearance shows the colour mode and two pickers, "Light theme" and "Dark theme", each listing only themes of that kind.
+- **Design Lab.** The theme selector lists all three themes and sets the mode from the kind. Compare renders one cell per theme.
+- **Workbench token roles.** The review also found docks rendered on `card` and the Conversations list on `bg-background/60`, so the list and the editor were about 0.01 L apart. Docks are shell chrome and now use `panel` (`.dock-panel`, `PanelView`, `PanelToolbar`, `PanelSectionHeader`, the active dock tab). The order is chrome (titlebar, docks, status bar) on `panel`, the editor on `background`, and content inside the editor on `card`. `--chrome-track` becomes `color-mix(in oklab, var(--well) 50%, var(--panel))`, so tab rows sit under the dock surface.
+- **Mirrors.** The website tokens, desktop loading page, and server document theme mirror Nerve Light and Nerve Dark.
+
 ## Rollout
 
 One branch, one commit per step. Each commit is validated on its own and can be reviewed in the Design Lab.
@@ -284,7 +327,9 @@ One branch, one commit per step. Each commit is validated on its own and can be 
 2. **Client-side theme.** Section 6: the single appearance owner, removal of the contract fields, the `0002` converter, and the pre-paint bootstrap. Nothing visual changes.
 3. **Token structure.** Global radius and elevation, the aliases, `--hover`, `--input-background`, the `--chrome-track` recipe, removing every `dark:` utility and the variant itself, the style-policy check, and the structural tests: theme blocks set no geometry, elevation, or foreground variants, and the aliases resolve. Theme colour values do not change.
 4. **Nerve refresh.** New Nerve values, tuned with the Compare view, together with the ordering, quiet-fill, and border/input visibility tests. The tests apply only to Nerve until step 5.
-5. **Theme lineup change.** Add Slate, retire the three themes, narrow `colorThemeSchema`, update the splash, bootstrap, and picker, and run every test across `ColorTheme`.
+5. **Theme lineup change** (superseded by step 6). Add Slate, retire the three themes, narrow `colorThemeSchema`, update the splash, bootstrap, and picker, and run every test across `ColorTheme`.
+
+6. **Independent themes.** Section 7: restore and polish the original Nerve as Nerve Light and Nerve Dark, move the graphite values to Graphite, drop Slate, add the light/dark theme preference, and assign docks to `panel`.
 
 ```mermaid
 flowchart LR
@@ -292,20 +337,22 @@ flowchart LR
   B[2 Client-side theme] --> E[5 Slate + retirement]
   C --> D[4 Nerve refresh]
   D --> E
+  E --> F[6 Independent themes]
 ```
 
 ## Validation
 
 - Unit tests: `theme-contrast.test.ts` with the ordering and visibility checks, the lab coverage test, the converter test in `0002`, the appearance module (retired-ID mapping, storage-event sync), and `startup-splash-sync`.
-- Visual check: Compare view across Nerve and Slate in light and dark for Primitives, Composites, Shell, Panels, Conversation, Tool calls, and Settings.
+- Visual check: Compare view across Nerve Light, Nerve Dark, and Graphite for Primitives, Composites, Shell, Panels, Conversation, Tool calls, and Settings.
 - Migration rehearsal on a copied slot (`pnpm storage:copy --slot N`) with `ui.json` holding `theme`/`colorMode`, including a retired ID. The settings must load with no Health problem.
 - Two clients on one dev daemon (desktop plus a browser) with different themes, each surviving a reload and a settings save from the other.
 
 ## Decisions
 
-1. **Name.** "Slate".
+1. **Name.** "Slate" at first; dropped in the revision. The dark refresh is named "Graphite".
 2. **Primitives page scope.** Variants × sizes plus prop-driven states. Hover and focus are checked live, with no forced-state selectors.
-3. **Light-mode identity.** Nerve light keeps a slight paper tint (chroma 0.002–0.008, hue 80–85).
+3. **Identity.** The original warm Nerve stays, with structural fixes only. The near-neutral paper light from section 3 is not shipped.
 4. **Light card.** The strict ladder applies in both modes: light `card` sits above `background`, and there is no exception for message bubbles or tool cards.
 5. **Delivery.** One branch, one commit per rollout step.
 6. **Theme storage.** The theme and colour mode are per-client (localStorage), and the daemon stores neither. Zoom stays on the daemon because the desktop main process reads it.
+7. **Independent themes.** Each theme is light or dark. Clients pick one light theme and one dark theme, and the colour mode chooses between them. Solar, Ocean, and Midnight users get Graphite as their dark theme.

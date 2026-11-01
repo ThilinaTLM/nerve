@@ -20,12 +20,21 @@ Application `*Host` components are state/effect adapters around canonical featur
   global `foreground` / `muted-foreground`; they deliberately have no foreground
   tokens of their own. Never reach for a surface to get a shade you like — pick
   the one that matches the role.
-- **There are two themes, Nerve and Slate, and they own colour only.** Radius, elevation strength and shadow recipes
-  are global; a theme block sets colours and nothing else, and the
+- **Themes are independent and each is either light or dark** (VS Code model):
+  `nerve-light`, `nerve-dark` and `graphite` (dark), with `colorThemeKind`
+  in `contracts/settings` as the source of truth. The client stores a light
+  theme and a dark theme (`nerve-light-theme`, `nerve-dark-theme`) plus the
+  colour mode; the resolved mode picks which one applies, so Settings offers
+  "Light theme" and "Dark theme" pickers next to System/Light/Dark. A theme
+  owns colour only: radius, elevation strength and shadow recipes are global,
+  a theme has exactly one block (`:root[data-theme="<id>"],
+[data-theme-preview="<id>"]`) in `theme.css`, and the
   `card`/`popover`/`accent` foregrounds and the syntax diff/link roles are
-  aliases of `foreground` and the status tokens. A component that looks right in
-  one theme must look right in both. Retired theme ids map to the survivors in
-  `retiredColorThemes` (`contracts/settings`).
+  aliases of `foreground` and the status tokens. Mode-dependent globals (shadow
+  colour, input fill, overlay edge) key on `.dark` /
+  `[data-color-mode="dark"]`, so a preview root sets `data-color-mode` from
+  the theme's kind. Legacy single-theme ids map to a light/dark pair in
+  `legacyColorThemes` (`contracts/settings`).
 - **No `dark:` utilities** (enforced by the style-policy check in `ui-kit` and
   `workbench-app`). Mode differences live in token values so previews and
   portalled content resolve them correctly. Use `bg-input-background` for
@@ -38,8 +47,8 @@ Application `*Host` components are state/effect adapters around canonical featur
   where the meaning is not neutral.
 - **Quiet fills** (`muted`, `accent`) are meant to sit beyond the surface
   ladder on the foreground side so they stay visible on every surface (dark:
-  `popover < muted < accent`; light: `accent < muted < well`). Both
-  themes follow this, and `theme-contrast.test.ts` enforces it. For recessed tracks and output use `well`; for interaction states
+  `popover < muted < accent`; light: `accent < muted < well`). Every
+  theme follows this, and `theme-contrast.test.ts` enforces it. For recessed tracks and output use `well`; for interaction states
   prefer `bg-hover` or `bg-selected`.
 - **Status colour has one vocabulary**: `neutral`, `accent`, `info`, `success`,
   `warning`, `destructive` (`StatusTone` in `@nervekit/ui-kit/display/status`).

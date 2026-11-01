@@ -376,7 +376,7 @@ const tourIdByView: Record<string, string> = {
 }
 
 .dock-tab:hover:not(.active) {
-  background: color-mix(in oklab, var(--accent) 45%, transparent);
+  background: var(--hover);
   color: var(--foreground);
 }
 
@@ -385,7 +385,7 @@ const tourIdByView: Record<string, string> = {
 .dock-tab.active {
   z-index: 2;
   border-top-color: var(--primary);
-  background: var(--card);
+  background: var(--panel);
   color: var(--foreground);
 }
 

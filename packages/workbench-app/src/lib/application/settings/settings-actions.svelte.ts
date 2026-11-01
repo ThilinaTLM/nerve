@@ -372,7 +372,8 @@ export async function restartOwnedDaemon(): Promise<void> {
 }
 
 export {
-  setColorTheme,
+  setDarkTheme,
+  setLightTheme,
   setColorMode,
 } from "$lib/platform/appearance/appearance.svelte";
 

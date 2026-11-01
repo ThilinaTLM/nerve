@@ -20,25 +20,32 @@ const headerTypeOptions = [
 
 type Props = {
   settingsDraft: Settings;
-  theme: ColorTheme;
+  lightTheme: ColorTheme;
+  darkTheme: ColorTheme;
   colorMode: ColorMode;
-  onColorThemeChange?: (theme: ColorTheme) => void;
+  onLightThemeChange?: (theme: ColorTheme) => void;
+  onDarkThemeChange?: (theme: ColorTheme) => void;
   onColorModeChange?: (colorMode: ColorMode) => void;
   onSettingsChange?: SettingsChange;
 };
 
 let {
   settingsDraft,
-  theme,
+  lightTheme,
+  darkTheme,
   colorMode,
-  onColorThemeChange,
+  onLightThemeChange,
+  onDarkThemeChange,
   onColorModeChange,
   onSettingsChange,
 }: Props = $props();
 
-function setColorTheme(value: string): void {
-  const theme = value as ColorTheme;
-  onColorThemeChange?.(theme);
+function setLightTheme(value: string): void {
+  onLightThemeChange?.(value as ColorTheme);
+}
+
+function setDarkTheme(value: string): void {
+  onDarkThemeChange?.(value as ColorTheme);
 }
 
 function setColorMode(value: string): void {
@@ -62,11 +69,27 @@ function setCloseToTray(checked: boolean): void {
 </script>
 
 <SettingsSection id="appearance" title="Appearance">
-  <SettingsRow label="Theme" layout="stacked">
-    <ThemePreviewPicker value={theme} onValueChange={setColorTheme} />
-  </SettingsRow>
   <SettingsRow label="Color mode" layout="stacked">
-    <ColorModePicker value={colorMode} {theme} onValueChange={setColorMode} />
+    <ColorModePicker
+      value={colorMode}
+      {lightTheme}
+      {darkTheme}
+      onValueChange={setColorMode}
+    />
+  </SettingsRow>
+  <SettingsRow label="Light theme" layout="stacked">
+    <ThemePreviewPicker
+      kind="light"
+      value={lightTheme}
+      onValueChange={setLightTheme}
+    />
+  </SettingsRow>
+  <SettingsRow label="Dark theme" layout="stacked">
+    <ThemePreviewPicker
+      kind="dark"
+      value={darkTheme}
+      onValueChange={setDarkTheme}
+    />
   </SettingsRow>
 </SettingsSection>
 

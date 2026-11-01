@@ -17,7 +17,8 @@ import {
   restartOwnedDaemon,
   saveApplicationConfiguration,
   setColorMode,
-  setColorTheme,
+  setDarkTheme,
+  setLightTheme,
 } from "$lib/application/settings/settings-actions.svelte";
 import { workspaceSelectors } from "$lib/application/workspace";
 import { backFromMobileScreen } from "$lib/app/shell/mobile/mobile-shell.svelte";
@@ -119,9 +120,11 @@ $effect(() => {
       onSettingsChange={queueSettingsSave}
       onApplicationConfigurationChange={saveApplicationConfiguration}
       onRestartDaemon={restartOwnedDaemon}
-      theme={appearanceState.theme}
+      lightTheme={appearanceState.lightTheme}
+      darkTheme={appearanceState.darkTheme}
       colorMode={appearanceState.colorMode}
-      onColorThemeChange={setColorTheme}
+      onLightThemeChange={setLightTheme}
+      onDarkThemeChange={setDarkTheme}
       onColorModeChange={setColorMode}
     />
   </div>

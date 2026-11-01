@@ -309,7 +309,7 @@ const menuContext = $derived<ProjectTreeMenuContext>({
           </div>
           <PanelList
             ariaLabel={`${section.label} conversations`}
-            class="shrink-0 overflow-hidden rounded-md bg-background/60 py-0"
+            class="shrink-0 overflow-hidden rounded-md py-0"
           >
             {#each section.rows as row (row.conversation.id)}
               {@const rowProject =

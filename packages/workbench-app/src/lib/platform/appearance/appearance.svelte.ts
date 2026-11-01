@@ -1,19 +1,27 @@
 import {
+  colorThemeKind,
   colorThemeSchema,
-  retiredColorThemes,
+  defaultDarkColorTheme,
+  defaultLightColorTheme,
+  legacyColorThemes,
   type ColorMode,
   type ColorTheme,
+  type ColorThemeKind,
 } from "@nervekit/contracts/settings";
-import { setMode, userPrefersMode } from "mode-watcher";
+import { mode, setMode, userPrefersMode } from "mode-watcher";
 
-const COLOR_THEME_STORAGE_KEY = "nerve-color-theme";
+const LIGHT_THEME_STORAGE_KEY = "nerve-light-theme";
+const DARK_THEME_STORAGE_KEY = "nerve-dark-theme";
+/** Single-theme key used before light and dark became independent. */
+const LEGACY_COLOR_THEME_STORAGE_KEY = "nerve-color-theme";
 
 export const MIN_ZOOM_LEVEL = -8;
 export const MAX_ZOOM_LEVEL = 8;
 export const ZOOM_BASE = 1.1;
 
 export const appearanceState = $state({
-  theme: "nerve" as ColorTheme,
+  lightTheme: defaultLightColorTheme as ColorTheme,
+  darkTheme: defaultDarkColorTheme as ColorTheme,
   colorMode: "system" as ColorMode,
 });
 
@@ -21,28 +29,72 @@ export const zoomState = $state({
   level: 0,
 });
 
-function storeColorTheme(theme: ColorTheme): void {
-  try {
-    localStorage.setItem(COLOR_THEME_STORAGE_KEY, theme);
-  } catch {
-    // The live theme still applies when storage is unavailable.
-  }
+const defaultThemes: Record<ColorThemeKind, ColorTheme> = {
+  light: defaultLightColorTheme,
+  dark: defaultDarkColorTheme,
+};
+
+function parseTheme(value: unknown, kind: ColorThemeKind): ColorTheme {
+  const parsed = colorThemeSchema.safeParse(value);
+  return parsed.success && colorThemeKind[parsed.data] === kind
+    ? parsed.data
+    : defaultThemes[kind];
 }
 
-function storedColorTheme(): unknown {
+function readStorage(key: string): string | null | undefined {
   try {
-    return localStorage.getItem(COLOR_THEME_STORAGE_KEY);
+    return localStorage.getItem(key);
   } catch {
     return undefined;
   }
 }
 
-export function setColorTheme(theme = appearanceState.theme): void {
-  appearanceState.theme = theme;
-  if (typeof document !== "undefined") {
-    document.documentElement.dataset.theme = theme;
+function writeStorage(key: string, value: string): void {
+  try {
+    localStorage.setItem(key, value);
+  } catch {
+    // The live theme still applies when storage is unavailable.
   }
-  if (typeof localStorage !== "undefined") storeColorTheme(theme);
+}
+
+/** The theme that applies to the document: the resolved mode picks the slot. */
+function resolvedTheme(): ColorTheme {
+  const dark =
+    mode.current === undefined
+      ? Boolean(document.documentElement.classList?.contains("dark"))
+      : mode.current === "dark";
+  return dark ? appearanceState.darkTheme : appearanceState.lightTheme;
+}
+
+function syncDocumentTheme(): void {
+  if (typeof document === "undefined") return;
+  document.documentElement.dataset.theme = resolvedTheme();
+}
+
+let stopThemeBinding: (() => void) | undefined;
+
+/** Keeps `data-theme` current when the mode (including the system's) or either theme changes. */
+function bindDocumentTheme(): void {
+  if (stopThemeBinding || typeof document === "undefined") return;
+  stopThemeBinding = $effect.root(() => {
+    $effect(syncDocumentTheme);
+  });
+}
+
+export function setLightTheme(theme = appearanceState.lightTheme): void {
+  appearanceState.lightTheme = theme;
+  syncDocumentTheme();
+  if (typeof localStorage !== "undefined") {
+    writeStorage(LIGHT_THEME_STORAGE_KEY, theme);
+  }
+}
+
+export function setDarkTheme(theme = appearanceState.darkTheme): void {
+  appearanceState.darkTheme = theme;
+  syncDocumentTheme();
+  if (typeof localStorage !== "undefined") {
+    writeStorage(DARK_THEME_STORAGE_KEY, theme);
+  }
 }
 
 // Color-mode switching remains delegated to mode-watcher, which toggles the
@@ -50,11 +102,17 @@ export function setColorTheme(theme = appearanceState.theme): void {
 export function setColorMode(colorMode = appearanceState.colorMode): void {
   appearanceState.colorMode = colorMode;
   setMode(colorMode);
+  syncDocumentTheme();
 }
 
-export function applyAppearance(theme: ColorTheme, colorMode: ColorMode): void {
-  setColorTheme(theme);
+export function applyAppearance(
+  themes: { lightTheme: ColorTheme; darkTheme: ColorTheme },
+  colorMode: ColorMode,
+): void {
+  appearanceState.lightTheme = themes.lightTheme;
+  appearanceState.darkTheme = themes.darkTheme;
   setColorMode(colorMode);
+  bindDocumentTheme();
 }
 
 export function clampZoomLevel(level: number): number {
@@ -86,19 +144,36 @@ export function applyZoomLevel(level: number) {
 }
 
 export function loadAppearancePreference(): {
-  theme: ColorTheme;
+  lightTheme: ColorTheme;
+  darkTheme: ColorTheme;
   colorMode: ColorMode;
 } {
-  const storedTheme =
-    typeof localStorage === "undefined" ? undefined : storedColorTheme();
-  // Existing clients may still have a retired theme id.
-  const parsedTheme = colorThemeSchema.safeParse(
-    retiredColorThemes[
-      String(storedTheme) as keyof typeof retiredColorThemes
-    ] ?? storedTheme,
-  );
+  let lightTheme = defaultLightColorTheme as ColorTheme;
+  let darkTheme = defaultDarkColorTheme as ColorTheme;
+  if (typeof localStorage !== "undefined") {
+    const storedLight = readStorage(LIGHT_THEME_STORAGE_KEY);
+    const storedDark = readStorage(DARK_THEME_STORAGE_KEY);
+    const legacy = readStorage(LEGACY_COLOR_THEME_STORAGE_KEY);
+    const legacyPair =
+      typeof legacy === "string" && Object.hasOwn(legacyColorThemes, legacy)
+        ? legacyColorThemes[legacy as keyof typeof legacyColorThemes]
+        : undefined;
+    lightTheme = parseTheme(storedLight ?? legacyPair?.light, "light");
+    darkTheme = parseTheme(storedDark ?? legacyPair?.dark, "dark");
+    if (legacy !== null && legacy !== undefined) {
+      // Migrate once: persist the pair, then drop the single-theme key.
+      writeStorage(LIGHT_THEME_STORAGE_KEY, lightTheme);
+      writeStorage(DARK_THEME_STORAGE_KEY, darkTheme);
+      try {
+        localStorage.removeItem(LEGACY_COLOR_THEME_STORAGE_KEY);
+      } catch {
+        // A stale legacy key is harmless; the new keys take precedence.
+      }
+    }
+  }
   return {
-    theme: parsedTheme.success ? parsedTheme.data : "nerve",
+    lightTheme,
+    darkTheme,
     // mode-watcher restores the persisted mode on mount; mirror it into state.
     colorMode: userPrefersMode.current ?? "system",
   };
@@ -113,15 +188,20 @@ export function installAppearanceStorageSync(): () => void {
   const browser = window;
   const onStorage = (event: StorageEvent) => {
     if (event.storageArea !== browser.localStorage) return;
-    if (event.key !== COLOR_THEME_STORAGE_KEY && event.key !== null) return;
-    const stored = event.key === null ? null : event.newValue;
-    const parsed = colorThemeSchema.safeParse(
-      retiredColorThemes[String(stored) as keyof typeof retiredColorThemes] ??
-        stored,
-    );
-    const theme = parsed.success ? parsed.data : "nerve";
-    appearanceState.theme = theme;
-    document.documentElement.dataset.theme = theme;
+    const cleared = event.key === null;
+    if (cleared || event.key === LIGHT_THEME_STORAGE_KEY) {
+      appearanceState.lightTheme = parseTheme(
+        cleared ? null : event.newValue,
+        "light",
+      );
+    }
+    if (cleared || event.key === DARK_THEME_STORAGE_KEY) {
+      appearanceState.darkTheme = parseTheme(
+        cleared ? null : event.newValue,
+        "dark",
+      );
+    }
+    syncDocumentTheme();
   };
   browser.addEventListener("storage", onStorage);
   const dispose = () => {

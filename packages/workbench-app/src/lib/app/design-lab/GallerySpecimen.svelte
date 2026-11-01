@@ -8,7 +8,7 @@ export type GallerySurface =
 </script>
 
 <script lang="ts">
-import { colorThemeSchema } from "@nervekit/contracts/settings";
+import { colorThemeKind, colorThemeSchema } from "@nervekit/contracts/settings";
 import LayoutGridIcon from "@lucide/svelte/icons/layout-grid";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
 import { cn } from "@nervekit/ui-kit/utils";
@@ -16,7 +16,6 @@ import type { Snippet } from "svelte";
 
 /** Every theme the app ships; derived so new themes appear without edits. */
 const COMPARE_THEMES = colorThemeSchema.options;
-const COMPARE_MODES = ["light", "dark"] as const;
 
 /**
  * One labelled specimen: a component (or a family of states) rendered on a
@@ -94,25 +93,23 @@ const surfaceClass: Record<GallerySurface, string> = {
       class="grid min-w-0 gap-3 [grid-template-columns:repeat(auto-fill,minmax(min(100%,28rem),1fr))]"
     >
       {#each COMPARE_THEMES as theme (theme)}
-        {#each COMPARE_MODES as colorMode (colorMode)}
-          <div class="flex min-w-0 flex-col gap-1">
-            <span class="text-xs text-muted-foreground"
-              >{theme} · {colorMode}</span
-            >
-            <div
-              data-theme-preview={theme}
-              data-color-mode={colorMode}
-              class={cn(
-                "min-w-0 rounded-lg border bg-background p-4 text-foreground",
-                layout === "row" && "flex flex-wrap items-center gap-3",
-                layout === "stack" && "flex flex-col gap-3",
-                className,
-              )}
-            >
-              {@render children()}
-            </div>
+        <div class="flex min-w-0 flex-col gap-1">
+          <span class="text-xs text-muted-foreground"
+            >{theme} · {colorThemeKind[theme]}</span
+          >
+          <div
+            data-theme-preview={theme}
+            data-color-mode={colorThemeKind[theme]}
+            class={cn(
+              "min-w-0 rounded-lg border bg-background p-4 text-foreground",
+              layout === "row" && "flex flex-wrap items-center gap-3",
+              layout === "stack" && "flex flex-col gap-3",
+              className,
+            )}
+          >
+            {@render children()}
           </div>
-        {/each}
+        </div>
       {/each}
     </div>
   {:else}

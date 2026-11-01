@@ -17,9 +17,9 @@ const badgeSource = readFileSync(
 
 type Oklch = readonly [lightness: number, chroma: number, hue: number];
 type LinearRgb = readonly [red: number, green: number, blue: number];
-type ColorTheme = "nerve" | "slate";
+type ColorTheme = "nerve-light" | "nerve-dark" | "graphite";
 type ColorMode = "light" | "dark";
-type ThemeName = `${ColorTheme}-${ColorMode}`;
+type ThemeName = ColorTheme;
 
 const tokenNames = [
   "background",
@@ -48,13 +48,13 @@ const tokenNames = [
 ] as const;
 type TokenName = (typeof tokenNames)[number];
 
-function themeBlock(theme: ColorTheme, mode: ColorMode): string {
-  const selector = `[data-theme-preview="${theme}"][data-color-mode="${mode}"]`;
+function themeBlock(theme: ColorTheme): string {
+  const selector = `[data-theme-preview="${theme}"]`;
   const escapedSelector = selector.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   const match = themeCss.match(
     new RegExp(`${escapedSelector}\\s*\\{([\\s\\S]*?)\\n\\}`),
   );
-  assert.ok(match, `Missing ${theme} ${mode} theme block`);
+  assert.ok(match, `Missing ${theme} theme block`);
   return match[1];
 }
 
@@ -91,16 +91,10 @@ function resolveOklch(block: string, name: string, label: string): Oklch {
   return match.slice(1, 4).map(Number) as unknown as Oklch;
 }
 
-function parseTokens(
-  theme: ColorTheme,
-  mode: ColorMode,
-): Record<TokenName, Oklch> {
-  const block = themeBlock(theme, mode);
+function parseTokens(theme: ColorTheme): Record<TokenName, Oklch> {
+  const block = themeBlock(theme);
   return Object.fromEntries(
-    tokenNames.map((name) => [
-      name,
-      resolveOklch(block, name, `${theme} ${mode}`),
-    ]),
+    tokenNames.map((name) => [name, resolveOklch(block, name, theme)]),
   ) as Record<TokenName, Oklch>;
 }
 
@@ -154,13 +148,16 @@ function assertContrast(
   );
 }
 
-const colorThemes = ["nerve", "slate"] as const;
-const colorModes = ["light", "dark"] as const;
+/* Mirrors `colorThemeKind` in contracts: each theme is either light or dark. */
+const colorThemeKind: Record<ColorTheme, ColorMode> = {
+  "nerve-light": "light",
+  "nerve-dark": "dark",
+  graphite: "dark",
+};
+const colorThemes = Object.keys(colorThemeKind) as ColorTheme[];
 
 const themes = Object.fromEntries(
-  colorThemes.flatMap((theme) =>
-    colorModes.map((mode) => [`${theme}-${mode}`, parseTokens(theme, mode)]),
-  ),
+  colorThemes.map((theme) => [theme, parseTokens(theme)]),
 ) as Record<ThemeName, Record<TokenName, Oklch>>;
 
 const filledPairs = [
@@ -241,15 +238,12 @@ const distinguishableSyntaxRoles = [
 ] as const;
 const minimumSyntaxRoleDistance = 0.08;
 
-function parseSyntaxRoles(
-  theme: ColorTheme,
-  mode: ColorMode,
-): Record<SyntaxRole, Oklch> {
-  const block = themeBlock(theme, mode);
+function parseSyntaxRoles(theme: ColorTheme): Record<SyntaxRole, Oklch> {
+  const block = themeBlock(theme);
   return Object.fromEntries(
     syntaxRoles.map((role) => [
       role,
-      resolveOklch(block, `syntax-${role}`, `${theme} ${mode}`),
+      resolveOklch(block, `syntax-${role}`, theme),
     ]),
   ) as Record<SyntaxRole, Oklch>;
 }
@@ -257,13 +251,13 @@ function parseSyntaxRoles(
 describe("syntax palette", () => {
   it("keeps every code role readable on the surfaces code blocks sit on", () => {
     for (const theme of colorThemes) {
-      for (const mode of colorModes) {
-        const roles = parseSyntaxRoles(theme, mode);
-        const tokens = themes[`${theme}-${mode}`];
+      {
+        const roles = parseSyntaxRoles(theme);
+        const tokens = themes[theme];
         for (const role of syntaxRoles) {
           for (const surfaceName of ["well", "card", "background"] as const) {
             assertContrast(
-              `${theme}-${mode}`,
+              theme,
               `syntax-${role}`,
               oklchToLinearRgb(roles[role]),
               surfaceName,
@@ -277,14 +271,14 @@ describe("syntax palette", () => {
 
   it("keeps code roles telling apart at a glance", () => {
     for (const theme of colorThemes) {
-      for (const mode of colorModes) {
-        const roles = parseSyntaxRoles(theme, mode);
+      {
+        const roles = parseSyntaxRoles(theme);
         for (const [index, left] of distinguishableSyntaxRoles.entries()) {
           for (const right of distinguishableSyntaxRoles.slice(index + 1)) {
             const distance = oklabDistance(roles[left], roles[right]);
             assert.ok(
               distance >= minimumSyntaxRoleDistance,
-              `${theme}-${mode} syntax roles ${left} and ${right} differ by ${distance.toFixed(3)}, below the ${minimumSyntaxRoleDistance} needed to read as different roles`,
+              `${theme} syntax roles ${left} and ${right} differ by ${distance.toFixed(3)}, below the ${minimumSyntaxRoleDistance} needed to read as different roles`,
             );
           }
         }
@@ -296,12 +290,12 @@ describe("syntax palette", () => {
     // Identifiers and punctuation are the most common tokens on screen; giving
     // them chroma turns a code block into noise no matter how good the hues are.
     for (const theme of colorThemes) {
-      for (const mode of colorModes) {
-        const roles = parseSyntaxRoles(theme, mode);
+      {
+        const roles = parseSyntaxRoles(theme);
         for (const role of ["plain", "variable", "punctuation"] as const) {
           assert.ok(
             roles[role][1] <= 0.04,
-            `${theme}-${mode} syntax-${role} chroma ${roles[role][1]} is too saturated for a token this frequent`,
+            `${theme} syntax-${role} chroma ${roles[role][1]} is too saturated for a token this frequent`,
           );
         }
       }
@@ -357,7 +351,7 @@ describe("theme text contrast", () => {
       ThemeName,
       Record<TokenName, Oklch>,
     ][]) {
-      const mode: ColorMode = themeName.endsWith("-light") ? "light" : "dark";
+      const mode = colorThemeKind[themeName];
       for (const surfaceName of surfaceTokens) {
         const chroma = tokens[surfaceName][1];
         assert.ok(
@@ -388,7 +382,7 @@ describe("theme text contrast", () => {
       ThemeName,
       Record<TokenName, Oklch>,
     ][]) {
-      const mode: ColorMode = themeName.endsWith("-light") ? "light" : "dark";
+      const mode = colorThemeKind[themeName];
       for (const [surfaceName, foregroundName] of surfacePairs) {
         const surface = tokens[surfaceName][0];
         const foreground = tokens[foregroundName][0];
@@ -402,20 +396,13 @@ describe("theme text contrast", () => {
     }
   });
 
-  it("gives every theme its own semantic palette", () => {
-    for (const mode of colorModes) {
-      for (const token of semanticTokens) {
-        const seen = new Map<string, ColorTheme>();
-        for (const theme of colorThemes) {
-          const value = themes[`${theme}-${mode}`][token].join(" ");
-          const owner = seen.get(value);
-          assert.ok(
-            owner === undefined,
-            `${theme}-${mode} shares its --${token} value with ${owner}-${mode}; status color is where a theme's identity is most visible`,
-          );
-          seen.set(value, theme);
-        }
-      }
+  it("gives graphite its own status palette", () => {
+    for (const token of semanticTokens) {
+      assert.notEqual(
+        themes.graphite[token].join(" "),
+        themes["nerve-dark"][token].join(" "),
+        `graphite shares --${token} with nerve-dark`,
+      );
     }
   });
 
@@ -453,16 +440,12 @@ const ladderExtraTokens = ["muted-foreground", "border", "input"] as const;
 
 function ladderTokens(
   theme: ColorTheme,
-  mode: ColorMode,
 ): Record<TokenName | (typeof ladderExtraTokens)[number], Oklch> {
-  const block = themeBlock(theme, mode);
+  const block = themeBlock(theme);
   return {
-    ...themes[`${theme}-${mode}`],
+    ...themes[theme],
     ...Object.fromEntries(
-      ladderExtraTokens.map((name) => [
-        name,
-        resolveOklch(block, name, `${theme} ${mode}`),
-      ]),
+      ladderExtraTokens.map((name) => [name, resolveOklch(block, name, theme)]),
     ),
   } as Record<TokenName | (typeof ladderExtraTokens)[number], Oklch>;
 }
@@ -470,59 +453,58 @@ function ladderTokens(
 describe("surface ladder", () => {
   it("lightens surfaces strictly in order with a minimum step", () => {
     for (const theme of ladderThemes) {
-      for (const mode of colorModes) {
-        const tokens = ladderTokens(theme, mode);
-        for (const [index, lower] of ladderTokenNames.slice(0, -1).entries()) {
-          const upper = ladderTokenNames[index + 1]!;
-          const delta = tokens[upper][0] - tokens[lower][0];
-          assert.ok(
-            delta >= minimumLadderStep[mode],
-            `${theme}-${mode} ${lower} -> ${upper} lightness step ${delta.toFixed(3)} is below ${minimumLadderStep[mode]}`,
-          );
-        }
+      const mode = colorThemeKind[theme];
+      const tokens = ladderTokens(theme);
+      for (const [index, lower] of ladderTokenNames.slice(0, -1).entries()) {
+        const upper = ladderTokenNames[index + 1]!;
+        const delta = tokens[upper][0] - tokens[lower][0];
+        assert.ok(
+          delta >= minimumLadderStep[mode],
+          `${theme} ${lower} -> ${upper} lightness step ${delta.toFixed(3)} is below ${minimumLadderStep[mode]}`,
+        );
       }
     }
   });
 
   it("places quiet fills beyond the ladder, on the foreground side", () => {
     for (const theme of ladderThemes) {
-      const dark = ladderTokens(theme, "dark");
-      assert.ok(
-        dark.muted[0] - dark.popover[0] >= minimumQuietFillStep,
-        `${theme}-dark muted must sit above popover`,
-      );
-      assert.ok(
-        dark.accent[0] - dark.muted[0] >= minimumQuietFillStep,
-        `${theme}-dark accent must sit above muted`,
-      );
-      const light = ladderTokens(theme, "light");
-      assert.ok(
-        light.muted[0] - light.accent[0] >= minimumQuietFillStep,
-        `${theme}-light muted must sit above accent`,
-      );
-      assert.ok(
-        light.well[0] - light.muted[0] >= minimumQuietFillStep,
-        `${theme}-light well must sit above muted`,
-      );
+      const tokens = ladderTokens(theme);
+      if (colorThemeKind[theme] === "dark") {
+        assert.ok(
+          tokens.muted[0] - tokens.popover[0] >= minimumQuietFillStep,
+          `${theme} muted must sit above popover`,
+        );
+        assert.ok(
+          tokens.accent[0] - tokens.muted[0] >= minimumQuietFillStep,
+          `${theme} accent must sit above muted`,
+        );
+      } else {
+        assert.ok(
+          tokens.muted[0] - tokens.accent[0] >= minimumQuietFillStep,
+          `${theme} muted must sit above accent`,
+        );
+        assert.ok(
+          tokens.well[0] - tokens.muted[0] >= minimumQuietFillStep,
+          `${theme} well must sit above muted`,
+        );
+      }
     }
   });
 
   it("keeps border and input visible on content surfaces", () => {
     for (const theme of ladderThemes) {
-      for (const mode of colorModes) {
-        const tokens = ladderTokens(theme, mode);
-        for (const surface of ["background", "card", "popover"] as const) {
-          const surfaceRgb = oklchToLinearRgb(tokens[surface]);
-          for (const [name, minimum] of [
-            ["border", minimumBorderContrast],
-            ["input", minimumInputContrast],
-          ] as const) {
-            const ratio = contrast(oklchToLinearRgb(tokens[name]), surfaceRgb);
-            assert.ok(
-              ratio >= minimum,
-              `${theme}-${mode} ${name} on ${surface} contrast ${ratio.toFixed(2)}:1 is below ${minimum}:1`,
-            );
-          }
+      const tokens = ladderTokens(theme);
+      for (const surface of ["background", "card", "popover"] as const) {
+        const surfaceRgb = oklchToLinearRgb(tokens[surface]);
+        for (const [name, minimum] of [
+          ["border", minimumBorderContrast],
+          ["input", minimumInputContrast],
+        ] as const) {
+          const ratio = contrast(oklchToLinearRgb(tokens[name]), surfaceRgb);
+          assert.ok(
+            ratio >= minimum,
+            `${theme} ${name} on ${surface} contrast ${ratio.toFixed(2)}:1 is below ${minimum}:1`,
+          );
         }
       }
     }
@@ -530,17 +512,15 @@ describe("surface ladder", () => {
 
   it("keeps muted text readable on the quiet fills", () => {
     for (const theme of ladderThemes) {
-      for (const mode of colorModes) {
-        const tokens = ladderTokens(theme, mode);
-        for (const fill of ["muted", "accent"] as const) {
-          assertContrast(
-            `${theme}-${mode}`,
-            "muted-foreground",
-            oklchToLinearRgb(tokens["muted-foreground"]),
-            fill,
-            oklchToLinearRgb(tokens[fill]),
-          );
-        }
+      const tokens = ladderTokens(theme);
+      for (const fill of ["muted", "accent"] as const) {
+        assertContrast(
+          theme,
+          "muted-foreground",
+          oklchToLinearRgb(tokens["muted-foreground"]),
+          fill,
+          oklchToLinearRgb(tokens[fill]),
+        );
       }
     }
   });
@@ -562,17 +542,32 @@ describe("token structure", () => {
 
   it("keeps themes colour-only and leaves aliases to the global block", () => {
     for (const theme of colorThemes) {
-      for (const mode of colorModes) {
-        const block = themeBlock(theme, mode);
-        for (const name of forbiddenInThemeBlocks) {
-          assert.equal(
-            declarationOf(block, name),
-            undefined,
-            `${theme} ${mode} must not set --${name}; it is global or an alias`,
-          );
-        }
+      const block = themeBlock(theme);
+      for (const name of forbiddenInThemeBlocks) {
+        assert.equal(
+          declarationOf(block, name),
+          undefined,
+          `${theme} must not set --${name}; it is global or an alias`,
+        );
       }
     }
+  });
+
+  it("gives every theme exactly one block selected by id", () => {
+    for (const theme of colorThemes) {
+      const selected = themeCss.match(
+        new RegExp(`:root\\[data-theme="${theme}"\\]`, "g"),
+      );
+      assert.equal(selected?.length, 1, `${theme} must have one root selector`);
+    }
+    assert.match(
+      themeCss,
+      /:root:not\(\[data-theme\]\),\s*:root\[data-theme="nerve-light"\]/,
+    );
+    assert.match(
+      themeCss,
+      /:root\.dark[:]not\(\[data-theme\]\),\s*:root\[data-theme="nerve-dark"\]/,
+    );
   });
 
   it("declares geometry and elevation once, globally", () => {
@@ -612,7 +607,7 @@ describe("token structure", () => {
     }
     assert.equal(
       declarationOf(global, "chrome-track"),
-      "color-mix(in oklab, var(--panel) 50%, var(--background))",
+      "color-mix(in oklab, var(--well) 50%, var(--panel))",
     );
   });
 

@@ -3,6 +3,13 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
   autoCompactionSettingsSchema,
+  colorThemeKind,
+  colorThemeSchema,
+  darkColorThemes,
+  defaultDarkColorTheme,
+  defaultLightColorTheme,
+  legacyColorThemes,
+  lightColorThemes,
   defaultUiConfig,
   uiConfigSchema,
   defaultSettings,
@@ -12,6 +19,19 @@ import {
 } from "../../src/domains/settings/index.js";
 
 describe("settings schema", () => {
+  it("classifies every colour theme as light or dark and maps legacy ids to a pair", () => {
+    assert.deepEqual(
+      [...lightColorThemes, ...darkColorThemes].sort(),
+      [...colorThemeSchema.options].sort(),
+    );
+    assert.equal(colorThemeKind[defaultLightColorTheme], "light");
+    assert.equal(colorThemeKind[defaultDarkColorTheme], "dark");
+    for (const pair of Object.values(legacyColorThemes)) {
+      assert.equal(colorThemeKind[pair.light], "light");
+      assert.equal(colorThemeKind[pair.dark], "dark");
+    }
+  });
+
   it("keeps only zoom in daemon appearance and drops client preference patches", () => {
     assert.deepEqual(defaultSettings.ui, { zoomLevel: 0 });
     assert.deepEqual(defaultUiConfig.appearance, { zoomLevel: 0 });

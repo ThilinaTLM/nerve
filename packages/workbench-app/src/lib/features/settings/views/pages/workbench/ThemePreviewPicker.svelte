@@ -1,37 +1,58 @@
 <script lang="ts">
-import Droplet from "@lucide/svelte/icons/droplet";
 import Flame from "@lucide/svelte/icons/flame";
+import Layers from "@lucide/svelte/icons/layers";
+import {
+  colorThemeKind,
+  type ColorTheme,
+  type ColorThemeKind,
+} from "@nervekit/contracts/settings";
 import {
   SettingsPreviewCards,
   type SettingsPreviewOption,
 } from "$lib/presentation/settings";
 
-const options: SettingsPreviewOption[] = [
-  {
-    value: "nerve",
-    label: "Nerve",
-    description: "Warm graphite with an ember accent",
+const themeOptions: Record<ColorTheme, Omit<SettingsPreviewOption, "value">> = {
+  "nerve-light": {
+    label: "Nerve Light",
+    description: "Warm paper with an ember accent",
     icon: Flame,
   },
-  {
-    value: "slate",
-    label: "Slate",
-    description: "Cool blue-grey with a periwinkle accent",
-    icon: Droplet,
+  "nerve-dark": {
+    label: "Nerve Dark",
+    description: "Warm umber with an ember accent",
+    icon: Flame,
   },
-];
+  graphite: {
+    label: "Graphite",
+    description: "Neutral near-black with an ember accent",
+    icon: Layers,
+  },
+};
 
 let {
+  kind,
   value = $bindable(""),
-  ariaLabel = "Theme",
+  ariaLabel = kind === "light" ? "Light theme" : "Dark theme",
   class: className,
   onValueChange,
 }: {
+  /** Which colour mode these themes serve; each theme is either light or dark. */
+  kind: ColorThemeKind;
   value?: string;
   ariaLabel?: string;
   class?: string;
   onValueChange?: (value: string) => void;
 } = $props();
+
+const options = $derived(
+  (Object.keys(themeOptions) as ColorTheme[])
+    .filter((theme) => colorThemeKind[theme] === kind)
+    .map((theme) => ({
+      ...themeOptions[theme],
+      value: theme,
+      previews: [kind],
+    })),
+);
 </script>
 
 <!-- A theme carries colour only; the swatch renders a miniature chrome so the

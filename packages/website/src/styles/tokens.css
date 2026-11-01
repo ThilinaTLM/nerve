@@ -11,20 +11,20 @@
 :root[data-theme="dark"] {
   color-scheme: dark;
 
-  --background: oklch(0.205 0.006 65);
-  --foreground: oklch(0.91 0.006 80);
-  --card: oklch(0.228 0.007 65);
-  --card-foreground: var(--foreground);
-  --muted: oklch(0.272 0.008 65);
-  --muted-foreground: oklch(0.715 0.01 75);
-  --primary: oklch(0.7 0.15 40);
-  --primary-foreground: oklch(0.17 0.01 40);
-  --border: oklch(0.33 0.009 65);
-  --ring: var(--primary);
-  --success: oklch(0.78 0.15 150);
-  --warning: oklch(0.82 0.14 75);
-  --info: oklch(0.78 0.12 250);
-  --destructive: oklch(0.76 0.13 25);
+  --background: oklch(0.264 0.018 80);
+  --foreground: oklch(0.9 0.012 95);
+  --card: oklch(0.289 0.02 82);
+  --card-foreground: oklch(0.9818 0.008 95);
+  --muted: oklch(0.322 0.018 78);
+  --muted-foreground: oklch(0.7713 0.017 99);
+  --primary: oklch(0.6724 0.1308 38.8);
+  --primary-foreground: oklch(0.1908 0.008 80);
+  --border: oklch(0.385 0.022 82);
+  --ring: oklch(0.6724 0.1308 38.8);
+  --success: oklch(0.78 0.176 149.2);
+  --warning: oklch(0.828 0.16 70.1);
+  --info: oklch(0.8 0.134 254.1);
+  --destructive: oklch(0.8 0.114 25.5);
 
   --brand-2: oklch(0.72 0.13 62);
   --brand-3: oklch(0.68 0.12 288);
@@ -47,16 +47,16 @@
 :root[data-theme="light"] {
   color-scheme: light;
 
-  --background: oklch(0.982 0.003 85);
-  --foreground: oklch(0.24 0.008 70);
-  --card: oklch(0.992 0.002 85);
-  --card-foreground: var(--foreground);
-  --muted: oklch(0.93 0.005 80);
-  --muted-foreground: oklch(0.5 0.01 70);
-  --primary: oklch(0.54 0.155 38);
+  --background: oklch(0.979 0.012 92);
+  --foreground: oklch(0.3438 0.0269 95.7);
+  --card: oklch(0.987 0.013 94);
+  --card-foreground: oklch(0.1908 0.002 106.6);
+  --muted: oklch(0.924 0.018 91);
+  --muted-foreground: oklch(0.49 0.0078 97.5);
+  --primary: oklch(0.57 0.1375 39);
   --primary-foreground: oklch(1 0 0);
-  --border: oklch(0.89 0.006 80);
-  --ring: var(--primary);
+  --border: oklch(0.872 0.017 95);
+  --ring: oklch(0.6171 0.1375 39);
   --success: oklch(0.47 0.17 149.2);
   --warning: oklch(0.5 0.16 70.1);
   --info: oklch(0.49 0.158 254.1);

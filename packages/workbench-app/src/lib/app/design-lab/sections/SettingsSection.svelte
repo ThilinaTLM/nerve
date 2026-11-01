@@ -81,9 +81,22 @@ const compactionChoices: SettingsChoice[] = [
   },
 ];
 
-const themeOptions: SettingsPreviewOption[] = [
-  { value: "nerve", label: "Nerve", icon: MonitorIcon, previews: ["dark"] },
-  { value: "slate", label: "Slate", icon: SunIcon, previews: ["dark"] },
+const lightThemeOptions: SettingsPreviewOption[] = [
+  {
+    value: "nerve-light",
+    label: "Nerve Light",
+    icon: SunIcon,
+    previews: ["light"],
+  },
+];
+const darkThemeOptions: SettingsPreviewOption[] = [
+  {
+    value: "nerve-dark",
+    label: "Nerve Dark",
+    icon: MoonIcon,
+    previews: ["dark"],
+  },
+  { value: "graphite", label: "Graphite", icon: MoonIcon, previews: ["dark"] },
 ];
 const colorModeOptions: SettingsPreviewOption[] = [
   { value: "system", label: "System", icon: MonitorIcon },
@@ -111,7 +124,8 @@ let selectValue = $state("auto");
 let fieldText = $state("127.0.0.1");
 let fieldNumber = $state("43967");
 let choice = $state("balanced");
-let theme = $state("nerve");
+let lightTheme = $state("nerve-light");
+let darkTheme = $state("nerve-dark");
 let colorMode = $state("dark");
 let discA = $state(false);
 let discB = $state(true);
@@ -255,18 +269,25 @@ let headerStyle = $state("auto");
           {#snippet children(page)}
             {#if page.id === "workbench"}
               <SettingsSection id="appearance" title="Appearance">
-                <SettingsRow label="Theme" layout="stacked">
-                  <SettingsPreviewCards
-                    options={themeOptions}
-                    bind:value={theme}
-                    ariaLabel="Theme"
-                  />
-                </SettingsRow>
                 <SettingsRow label="Color mode" layout="stacked">
                   <SettingsPreviewCards
                     options={colorModeOptions}
                     bind:value={colorMode}
                     ariaLabel="Color mode"
+                  />
+                </SettingsRow>
+                <SettingsRow label="Light theme" layout="stacked">
+                  <SettingsPreviewCards
+                    options={lightThemeOptions}
+                    bind:value={lightTheme}
+                    ariaLabel="Light theme"
+                  />
+                </SettingsRow>
+                <SettingsRow label="Dark theme" layout="stacked">
+                  <SettingsPreviewCards
+                    options={darkThemeOptions}
+                    bind:value={darkTheme}
+                    ariaLabel="Dark theme"
                   />
                 </SettingsRow>
               </SettingsSection>
@@ -705,12 +726,17 @@ let headerStyle = $state("auto");
       source="settings/SettingsPreviewCards"
       usage="2 files · settings"
       layout="stack"
-      description="Swatch cards for theme and color mode."
+      description="Swatch cards for the light theme, dark theme, and color mode."
     >
       <SettingsPreviewCards
-        options={themeOptions}
-        bind:value={theme}
-        ariaLabel="Theme"
+        options={lightThemeOptions}
+        bind:value={lightTheme}
+        ariaLabel="Light theme"
+      />
+      <SettingsPreviewCards
+        options={darkThemeOptions}
+        bind:value={darkTheme}
+        ariaLabel="Dark theme"
       />
       <SettingsPreviewCards
         options={colorModeOptions}
