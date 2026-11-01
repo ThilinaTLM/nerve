@@ -1,10 +1,12 @@
 import {
   skillOverrideKind,
+  skillSourceOrder,
+  sortBySkillSource,
   type AvailableSkill,
   type SkillSource,
 } from "@nervekit/contracts/skills";
 export type { AvailableSkill, SkillSource };
-export { skillOverrideKind };
+export { skillOverrideKind, sortBySkillSource };
 
 /** Where an enable/disable decision is written. */
 export type SkillScope = "user" | "project" | "conversation";
@@ -35,9 +37,9 @@ export const skillSourceSectionIds: Record<SkillSource, string> = {
  * project-directory skills; those belong to project and conversation scope.
  */
 export function sourcesForScope(scope: SkillScope): SkillSource[] {
-  return scope === "user"
-    ? ["user", "nerve", "agentBrowser"]
-    : ["user", "project", "nerve", "agentBrowser"];
+  return skillSourceOrder.filter(
+    (source) => scope !== "user" || source !== "project",
+  );
 }
 
 export type SkillEntry = {

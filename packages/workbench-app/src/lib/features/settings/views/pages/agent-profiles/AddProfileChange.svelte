@@ -3,7 +3,10 @@ import ArrowRight from "@lucide/svelte/icons/arrow-right";
 import ChevronRight from "@lucide/svelte/icons/chevron-right";
 import Plus from "@lucide/svelte/icons/plus";
 import type { ProfileDefinition } from "@nervekit/contracts/agent-configuration";
-import { skillOverrideKind } from "$lib/domain/skills/skill-catalog";
+import {
+  skillOverrideKind,
+  sortBySkillSource,
+} from "$lib/domain/skills/skill-catalog";
 import PopoverPanel, {
   PopoverHeader,
   PopoverCommandList,
@@ -65,7 +68,7 @@ const items = $derived(
           ? undefined
           : (context.seedTool(t.id).enabled ?? true),
       })),
-    skills: context.skills.map((skill) => ({
+    skills: sortBySkillSource(context.skills).map((skill) => ({
       key: `skill:${skillOverrideKind(skill.source)}:${skill.name}` as ChangeKey,
       label: skill.name,
       description: skill.source,

@@ -108,9 +108,17 @@ function keydown(event: KeyboardEvent) {
 <PopoverBody bind:ref={viewport} {id} role="listbox" {ariaLabel} {stableHeight}>
   {#if leading}<div role="group" class="contents">{@render leading()}</div>{/if}
   {#each groups as group (group.group)}
-    <PopoverSection label={group.group}>
+    <PopoverSection label={group.group} class="gap-px">
       {#each group.items as item (item.key)}
+        {@const detail =
+          !row && "detail" in item && typeof item.detail === "string"
+            ? item.detail
+            : undefined}
         {#snippet leading()}{@render icon?.(item)}{/snippet}
+        <!-- One line keeps choice lists scannable; the full text is the tooltip. -->
+        {#snippet detailLine()}<span
+            class="block truncate text-muted-foreground">{detail}</span
+          >{/snippet}
         {#snippet customLabel()}{@render row?.(item, {
             active: navigation.activeDescendant === rowId(item),
             selected: isSelected(item),
@@ -152,11 +160,8 @@ function keydown(event: KeyboardEvent) {
             aria-selected={isSelected(item)}
             icon={icon ? leading : undefined}
             label={row ? customLabel : item.label}
-            detail={row
-              ? undefined
-              : "detail" in item && typeof item.detail === "string"
-                ? item.detail
-                : undefined}
+            detail={detail ? detailLine : undefined}
+            title={detail}
             highlighted={navigation.activeDescendant === rowId(item)}
             selected={isSelected(item)}
             disabled={isDisabled(item)}

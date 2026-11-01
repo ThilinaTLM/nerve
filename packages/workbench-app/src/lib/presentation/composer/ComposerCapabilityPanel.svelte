@@ -48,7 +48,7 @@ onMount(() => capabilities.props.onRefresh?.());
 {#snippet capabilityRow(row: CapabilityRow)}
   {@const Icon = row.icon}
   <div
-    class="flex min-h-control min-w-0 flex-1 items-center gap-2 rounded-md px-1.5 py-1 hover:bg-hover"
+    class="flex min-h-control min-w-0 flex-1 items-center gap-2 rounded-md px-1.5 py-0.5 hover:bg-hover"
   >
     {#if Icon}
       <Icon

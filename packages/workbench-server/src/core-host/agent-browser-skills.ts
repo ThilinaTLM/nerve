@@ -16,6 +16,15 @@ import {
 } from "@nervekit/harness/resources";
 import { NodeExecutionEnv } from "@nervekit/harness/node";
 
+/** Guidance tied to one hosted environment (AWS AgentCore, Vercel, Slack),
+ * hidden so the catalog stays focused on general browser work. */
+const hiddenSkillNames: ReadonlySet<string> = new Set([
+  "agentcore",
+  "protected-vercel-deployments",
+  "slack",
+  "vercel-sandbox",
+]);
+
 const commandTimeoutMs = 15_000;
 const commandMaxBuffer = 4 * 1024 * 1024;
 
@@ -101,7 +110,7 @@ export class AgentBrowserSkillCatalog {
     try {
       summaries = parseSkillSummaries(
         await this.commandRunner.run(["skills", "--json"]),
-      );
+      ).filter(({ name }) => !hiddenSkillNames.has(name));
     } catch (error) {
       if (isExecutableMissing(error)) return;
       throw error;

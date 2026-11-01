@@ -10,6 +10,7 @@ import type { CapabilityToolName } from "@nervekit/contracts/capabilities";
 import type { LeadSettingsOverrides } from "@nervekit/contracts/agent-configuration";
 import {
   skillOverrideKind,
+  sortBySkillSource,
   type AvailableSkill,
 } from "@nervekit/contracts/skills";
 import type { AgentEditorView } from "./agent-editor-view";
@@ -193,7 +194,7 @@ export class ComposerCapabilities {
 
   readonly skillRows = $derived.by<CapabilityRow[]>(() => {
     const { configuration, skills = [], onPatch } = this.props;
-    return skills.map((skill) => {
+    return sortBySkillSource(skills).map((skill) => {
       const kind = skillOverrideKind(skill.source);
       const pointer = `/skills/${kind}/${escape(skill.name)}`;
       const provenance =
