@@ -295,7 +295,7 @@ The first workbench review showed that the warm olive Nerve is the product's ide
   | `nerve-dark`  | dark  | Original warm Nerve dark, with structural fixes only                    |
   | `graphite`    | dark  | Section 3's dark values, with the wider steps from the workbench review |
 
-  The paper-white light from section 3 and Slate do not ship.
+  The paper-white light from section 3 and Slate do not ship. Later, `melange-light` and `melange-dark` were added: based on Melange (savq/melange-nvim), warm with a soft orange accent and pastel highlights, adjusted only where the shared token tests require it.
 
 - **Structural fixes to the original Nerve** (hue, chroma, and character unchanged):
   - light `card` and `popover` move above `background`, so the ladder is strictly ordered

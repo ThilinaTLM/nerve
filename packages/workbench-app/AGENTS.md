@@ -21,7 +21,8 @@ Application `*Host` components are state/effect adapters around canonical featur
   tokens of their own. Never reach for a surface to get a shade you like — pick
   the one that matches the role.
 - **Themes are independent and each is either light or dark** (VS Code model):
-  `nerve-light`, `nerve-dark` and `graphite` (dark), with `colorThemeKind`
+  `nerve-light`, `nerve-dark`, `graphite` (dark), `melange-light` (light)
+  and `melange-dark` (dark), with `colorThemeKind`
   in `contracts/settings` as the source of truth. The client stores a light
   theme and a dark theme (`nerve-light-theme`, `nerve-dark-theme`) plus the
   colour mode; the resolved mode picks which one applies, so Settings offers

@@ -262,6 +262,112 @@
   --syntax-property: oklch(0.82 0.1 85);
 }
 
+/* Melange Light: the light flavour of Melange (github.com/savq/melange-nvim),
+ * warm clay text on soft paper with a burnt-orange accent. Official hues
+ * throughout; card and popover extend the ladder above the base, and the accent
+ * and code colours are deepened where AA contrast requires it. */
+
+:root[data-theme="melange-light"],
+[data-theme-preview="melange-light"] {
+  --background: oklch(0.958 0.006 70);
+  --foreground: oklch(0.398 0.028 49.4);
+  --card: oklch(0.972 0.005 70);
+  --popover: oklch(0.986 0.003 70);
+  --primary: oklch(0.55 0.145 52.6);
+  --primary-foreground: oklch(1 0 0);
+  --muted: oklch(0.895 0.011 61);
+  --muted-foreground: oklch(0.46 0.035 53);
+  --accent: oklch(0.87 0.01 62.6);
+  --selected: color-mix(in oklab, var(--primary) 14%, transparent);
+  --destructive: oklch(0.507 0.205 24.2);
+  --destructive-foreground: oklch(1 0 0);
+  --destructive-solid: oklch(0.55 0.2 24.2);
+  --destructive-solid-foreground: oklch(1 0 0);
+  --success: oklch(0.475 0.071 154.2);
+  --success-foreground: oklch(1 0 0);
+  --warning: oklch(0.49 0.11 76.5);
+  --warning-foreground: oklch(1 0 0);
+  --info: oklch(0.489 0.121 270.1);
+  --info-foreground: oklch(1 0 0);
+  --border: oklch(0.82 0.016 60);
+  --input: oklch(0.7 0.03 55);
+  --ring: var(--primary);
+  --chart-1: oklch(0.581 0.148 52.6);
+  --chart-2: oklch(0.574 0.12 76.5);
+  --chart-3: oklch(0.55 0.071 154.2);
+  --chart-4: oklch(0.55 0.045 201.8);
+  --chart-5: oklch(0.55 0.121 270.1);
+  --panel: oklch(0.936 0.01 62);
+  --well: oklch(0.914 0.012 59.6);
+
+  /* Melange's code roles: orange statements, amber functions, blue strings,
+   * cyan types, clay comments. Numbers take Melange's red instead of its
+   * magenta to keep the palette warm, and properties take its green. */
+  --syntax-plain: oklch(0.398 0.028 49.4);
+  --syntax-variable: oklch(0.42 0.028 49.4);
+  --syntax-punctuation: oklch(0.5 0.03 60);
+  --syntax-comment: oklch(0.5 0.02 50);
+  --syntax-keyword: oklch(0.51 0.15 48);
+  --syntax-string: oklch(0.489 0.121 270.1);
+  --syntax-number: oklch(0.507 0.205 24.2);
+  --syntax-function: oklch(0.47 0.1 85);
+  --syntax-type: oklch(0.478 0.07 210);
+  --syntax-property: oklch(0.475 0.1 150);
+}
+
+/* Melange Dark: the dark flavour of Melange (github.com/savq/melange-nvim),
+ * cream text on warm cocoa with a soft orange accent and pastel highlights.
+ * Base, float and selection come straight from the palette; the rest of the
+ * ladder steps around them. */
+
+:root[data-theme="melange-dark"],
+[data-theme-preview="melange-dark"] {
+  --background: oklch(0.268 0.008 59.3);
+  --foreground: oklch(0.916 0.018 64.9);
+  --card: oklch(0.29 0.009 63);
+  --popover: oklch(0.312 0.009 67.5);
+  --primary: oklch(0.749 0.117 59.9);
+  --primary-foreground: oklch(0.2 0.008 60);
+  --muted: oklch(0.332 0.01 62);
+  --muted-foreground: oklch(0.745 0.046 65.9);
+  --accent: oklch(0.353 0.011 56);
+  --selected: color-mix(in oklab, var(--primary) 16%, transparent);
+  --destructive: oklch(0.8 0.105 31.4);
+  --destructive-foreground: oklch(0.2 0.008 60);
+  --destructive-solid: oklch(0.55 0.15 25);
+  --destructive-solid-foreground: oklch(1 0 0);
+  --success: oklch(0.77 0.075 154.9);
+  --success-foreground: oklch(0.2 0.008 60);
+  --warning: oklch(0.829 0.113 82.5);
+  --warning-foreground: oklch(0.2 0.008 60);
+  --info: oklch(0.785 0.055 277.8);
+  --info-foreground: oklch(0.2 0.008 60);
+  --border: oklch(0.42 0.014 62);
+  --input: oklch(0.48 0.02 64);
+  --ring: var(--primary);
+  --chart-1: oklch(0.749 0.117 59.9);
+  --chart-2: oklch(0.829 0.113 82.5);
+  --chart-3: oklch(0.732 0.071 154.9);
+  --chart-4: oklch(0.737 0.045 201.7);
+  --chart-5: oklch(0.743 0.054 277.8);
+  --panel: oklch(0.236 0.008 59);
+  --well: oklch(0.205 0.007 59);
+
+  /* Melange's code roles: orange statements, amber functions, blue strings,
+   * cyan types, clay comments. Numbers take Melange's red instead of its
+   * magenta to keep the palette warm, and properties take its green. */
+  --syntax-plain: oklch(0.916 0.018 64.9);
+  --syntax-variable: oklch(0.89 0.018 64.9);
+  --syntax-punctuation: oklch(0.67 0.03 70);
+  --syntax-comment: oklch(0.7 0.03 65.9);
+  --syntax-keyword: oklch(0.749 0.117 59.9);
+  --syntax-string: oklch(0.743 0.054 277.8);
+  --syntax-number: oklch(0.68 0.13 28);
+  --syntax-function: oklch(0.829 0.113 82.5);
+  --syntax-type: oklch(0.8 0.075 205);
+  --syntax-property: oklch(0.75 0.09 150);
+}
+
 /* Control heights. A non-inline @theme keeps the utilities (`h-control`,
  * `size-control-sm`, ...) pointing at the variable, so the coarse-pointer
  * override below reaches every control without per-component media queries. */

@@ -17,7 +17,12 @@ const badgeSource = readFileSync(
 
 type Oklch = readonly [lightness: number, chroma: number, hue: number];
 type LinearRgb = readonly [red: number, green: number, blue: number];
-type ColorTheme = "nerve-light" | "nerve-dark" | "graphite";
+type ColorTheme =
+  | "nerve-light"
+  | "nerve-dark"
+  | "graphite"
+  | "melange-light"
+  | "melange-dark";
 type ColorMode = "light" | "dark";
 type ThemeName = ColorTheme;
 
@@ -153,6 +158,8 @@ const colorThemeKind: Record<ColorTheme, ColorMode> = {
   "nerve-light": "light",
   "nerve-dark": "dark",
   graphite: "dark",
+  "melange-light": "light",
+  "melange-dark": "dark",
 };
 const colorThemes = Object.keys(colorThemeKind) as ColorTheme[];
 

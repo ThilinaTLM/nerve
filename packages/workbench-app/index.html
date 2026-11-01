@@ -82,8 +82,8 @@
         const pair = Object.hasOwn(legacy, read("nerve-color-theme"))
           ? legacy[read("nerve-color-theme")]
           : [];
-        const light = ["nerve-light"];
-        const dark = ["nerve-dark", "graphite"];
+        const light = ["nerve-light", "melange-light"];
+        const dark = ["nerve-dark", "graphite", "melange-dark"];
         const pick = (stored, fallback, kind) =>
           kind.includes(stored)
             ? stored
@@ -105,6 +105,8 @@
           "nerve-light": "#faf8f1",
           "nerve-dark": "#272521",
           graphite: "#1d1a18",
+          "melange-light": "#f4f0ed",
+          "melange-dark": "#292522",
         }[theme];
         document
           .querySelector('meta[name="theme-color"]')
@@ -174,6 +176,20 @@
         --splash-primary: oklch(0.7 0.15 40);
         --splash-muted: oklch(0.715 0.01 75);
         --splash-border: oklch(0.35 0.009 65);
+      }
+      :root[data-theme="melange-light"] {
+        --splash-bg: oklch(0.958 0.006 70);
+        --splash-fg: oklch(0.398 0.028 49.4);
+        --splash-primary: oklch(0.55 0.145 52.6);
+        --splash-muted: oklch(0.46 0.035 53);
+        --splash-border: oklch(0.82 0.016 60);
+      }
+      :root[data-theme="melange-dark"] {
+        --splash-bg: oklch(0.268 0.008 59.3);
+        --splash-fg: oklch(0.916 0.018 64.9);
+        --splash-primary: oklch(0.749 0.117 59.9);
+        --splash-muted: oklch(0.745 0.046 65.9);
+        --splash-border: oklch(0.42 0.014 62);
       }
       html,
       body,
