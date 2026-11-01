@@ -232,7 +232,13 @@ for (const scenario of [
                   feedback: scenario.feedback,
                 },
         };
-        await core.resolveInteraction(resolution);
+        // A concurrent identical request (UI retry or reconciliation) joins the
+        // in-flight resolution instead of re-resolving a settled call.
+        const [first, duplicate] = await Promise.all([
+          core.resolveInteraction(resolution),
+          core.resolveInteraction(resolution),
+        ]);
+        assert.deepEqual(duplicate, first);
         if (scenario.sibling) {
           assert.equal(
             core.getSnapshot("conv_plan").conversation.status,

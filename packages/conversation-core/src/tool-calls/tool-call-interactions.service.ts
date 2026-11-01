@@ -28,7 +28,7 @@ export interface InteractionHooks {
 export class ToolCallInteractions {
   private readonly resolutions = new Map<
     string,
-    Promise<InteractionResolveResult>
+    { request: string; task: Promise<InteractionResolveResult> }
   >();
   constructor(
     private readonly options: ToolCallServiceOptions,
@@ -39,17 +39,25 @@ export class ToolCallInteractions {
     resolutionRequestId: string;
     resolution: InteractionResolution;
   }): Promise<InteractionResolveResult> {
+    const request = JSON.stringify([
+      input.resolutionRequestId,
+      input.resolution,
+    ]);
     const active = this.resolutions.get(input.toolCallId);
     if (active) {
-      await active;
+      // Retries and plan-review reconciliation join the identical in-flight request.
+      if (active.request === request) return active.task;
+      await active.task.catch(() => undefined);
       return this.resolveInteraction(input);
     }
     const task = this.resolve(input);
-    this.resolutions.set(input.toolCallId, task);
+    const entry = { request, task };
+    this.resolutions.set(input.toolCallId, entry);
     try {
       return await task;
     } finally {
-      this.resolutions.delete(input.toolCallId);
+      if (this.resolutions.get(input.toolCallId) === entry)
+        this.resolutions.delete(input.toolCallId);
     }
   }
 
@@ -61,25 +69,18 @@ export class ToolCallInteractions {
     if (this.hooks.isStopping(input.toolCallId)) return { status: "resolved" };
     let call = this.options.storage.toolCalls.get(input.toolCallId);
     if (!call) {
-      for (const conversation of this.options.storage.conversations.listAll()) {
-        const event = this.options.storage.events
-          .since(conversation.id, 0)
-          .find(
-            (event) =>
-              event.type === "tool_call_response" &&
-              event.payload.toolCallId === input.toolCallId,
-          );
-        if (event?.type === "tool_call_response") {
-          if (
-            event.payload.resolutionRequestId === input.resolutionRequestId &&
-            JSON.stringify(event.payload.interactionResolution) ===
-              JSON.stringify(input.resolution)
-          )
-            return { status: "resolved" };
-          throw new Error("Tool call already settled with another resolution");
-        }
-      }
-      throw new Error(`Tool call not found: ${input.toolCallId}`);
+      const event = this.options.storage.events.findToolCallResponse(
+        input.toolCallId,
+      );
+      if (event?.type !== "tool_call_response")
+        throw new Error(`Tool call not found: ${input.toolCallId}`);
+      if (
+        event.payload.resolutionRequestId === input.resolutionRequestId &&
+        JSON.stringify(event.payload.interactionResolution) ===
+          JSON.stringify(input.resolution)
+      )
+        return { status: "resolved" };
+      throw new Error("Tool call already settled with another resolution");
     }
     if (this.hooks.isStopping(call.id)) return { status: "resolved" };
     let interaction = call.interaction;
