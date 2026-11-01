@@ -105,7 +105,7 @@ function loadBranches(repository: string): void {
 function refreshBranchDialog(repository = selectedRepo): void {
   void Promise.all([
     actions.refreshBranches(repository),
-    actions.refreshPrHeads(repository),
+    actions.loadPullRequestBadges(repository),
   ]);
 }
 

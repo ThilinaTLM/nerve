@@ -491,6 +491,15 @@ function activate(repo: GitRepoSummary, operation: GitRemoteOperation): void {
               (expandedPr = expandedPr === pr.number ? undefined : pr.number)}
           />
         </div>
+      {:else if model.awaitingPullRequest}
+        <div class="px-2 pb-2 text-xs text-muted-foreground">
+          {#if model.expectedPullRequestUrl}<a
+              class="hover:underline"
+              href={model.expectedPullRequestUrl}
+              target="_blank"
+              rel="noreferrer">Waiting for pull request…</a
+            >{:else}Waiting for pull request…{/if}
+        </div>
       {/if}
       <GitChangesArea
         changes={model.changes}

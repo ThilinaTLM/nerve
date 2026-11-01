@@ -1,18 +1,10 @@
-import { SvelteMap, SvelteSet } from "svelte/reactivity";
-import {
-  branchPrFilters,
-  projectGithubAuthenticated,
-} from "./git-current-branch-pr.svelte";
-export { refreshCurrentBranchPr } from "./git-current-branch-pr.svelte";
+import { SvelteSet } from "svelte/reactivity";
 import type { Project } from "@nervekit/contracts/core";
-import type { GithubPrListFilters } from "@nervekit/contracts/git";
 import {
   discoverGitRepos,
   getGithubStatus,
   getGitOverview,
   listGitBranches,
-  listGithubPrHeads,
-  listGithubPrs,
   syncGitRepositoryMonitor,
 } from "../api/git.api";
 import {
@@ -22,7 +14,6 @@ import {
 import { queryClient, queryKeys } from "$lib/platform/query/client";
 import { selection } from "$lib/application/workspace/selection.svelte";
 import { refreshGitRead } from "./git-read-refresh";
-import { hasPendingPrChecks } from "$lib/features/git/checks";
 import { showCriticalError } from "$lib/application/notifications/critical-errors.svelte";
 import { notify } from "$lib/application/notifications/notify.svelte";
 import {
@@ -45,9 +36,7 @@ import {
   ensureGitProjectState,
   ensureGitRepoState,
   errorMessage,
-  filterMergedOpenPrs,
   type GitPanelProjectState,
-  type GitPanelRepoState,
   gitPanelState,
   mergeRepoSummary,
   patchGitOverviewState,
@@ -57,20 +46,13 @@ import {
   setBranchesIfChanged,
   setGithubStatusIfChanged,
   setProjectRepos,
-  setPrHeadsIfChanged,
-  setPrsIfChanged,
   storedRepo,
 } from "./git-panel-state.svelte";
-import { syncOpenPrViews } from "./pr-tabs.svelte";
 import {
   GITHUB_STATUS_STALE_MS,
   GIT_OVERVIEW_AUTO_REFRESH_COOLDOWN_MS,
-  GIT_PR_AUTO_REFRESH_COOLDOWN_MS,
   GIT_STALE_MS,
-  githubPrFiltersFingerprint,
   isFresh,
-  PR_PENDING_POLL_MS,
-  PR_STALE_MS,
 } from "./git-refresh-policy";
 
 function automaticRefreshKey(projectId: string, repo: string): string {
@@ -96,7 +78,6 @@ function hasGitReadDemand(
 const automaticRefreshScheduler = new GitAutoRefreshScheduler(
   {
     overview: GIT_OVERVIEW_AUTO_REFRESH_COOLDOWN_MS,
-    prs: GIT_PR_AUTO_REFRESH_COOLDOWN_MS,
   },
   (key, demand) => {
     const [projectId, repo] = JSON.parse(key) as [string, string];
@@ -114,10 +95,6 @@ const automaticRefreshScheduler = new GitAutoRefreshScheduler(
               gitAutomaticOverviewOptions(demand),
             ),
           ]
-        : []),
-      ...(demand.prs ? [refreshPrHeads(projectId, repo, true)] : []),
-      ...(demand.prs && state.github?.authenticated
-        ? [refreshPrs(projectId, repo, true, true)]
         : []),
     ]);
   },
@@ -286,14 +263,6 @@ export async function refreshGitProject(
           false,
           options.criticalErrorTitle,
         ),
-        refreshPrs(
-          project.id,
-          state.selectedRepo,
-          !options.criticalErrorTitle,
-          false,
-          true,
-          options.criticalErrorTitle,
-        ),
       ]);
     }
   } catch (error) {
@@ -425,51 +394,6 @@ export async function refreshBranches(
   }
 }
 
-export async function refreshPrHeads(
-  projectId: string,
-  repo: string,
-  force = false,
-  isCurrent: () => boolean = () => selection.projectId === projectId,
-): Promise<void> {
-  const state = ensureGitRepoState(projectId, repo);
-  if (
-    !repoHasGithubRemote(projectId, repo) ||
-    !projectGithubAuthenticated(projectId)
-  ) {
-    setPrHeadsIfChanged(state, undefined);
-    return;
-  }
-  state.loadingPrHeads = true;
-  try {
-    const queryKey = queryKeys.git.prHeads(projectId, repo);
-    if (force) {
-      await queryClient.invalidateQueries({ queryKey });
-      const branch = state.repoSummary?.currentBranch;
-      if (branch)
-        await queryClient.invalidateQueries({
-          queryKey: queryKeys.git.prs(
-            projectId,
-            repo,
-            githubPrFiltersFingerprint(branchPrFilters(branch)),
-          ),
-        });
-    }
-    const result = await queryClient.fetchQuery({
-      queryKey,
-      queryFn: () => listGithubPrHeads(projectId, repo),
-      staleTime: GIT_STALE_MS,
-      retry: false,
-    });
-    if (!isCurrent()) return;
-    setPrHeadsIfChanged(state, result);
-    state.prHeadsLoadedAt = Date.now();
-  } catch {
-    // Preserve known counts on transient failures; never surface panel errors.
-  } finally {
-    state.loadingPrHeads = false;
-  }
-}
-
 export async function refreshGithub(
   projectId: string,
   repo: string,
@@ -494,23 +418,6 @@ export async function refreshGithub(
     });
     setGithubStatusIfChanged(state, status);
     applyGitContextFromProject(projectId);
-    if (status.authenticated) {
-      await refreshPrs(
-        projectId,
-        repo,
-        !criticalErrorTitle,
-        force,
-        Boolean(criticalErrorTitle),
-        criticalErrorTitle,
-      );
-    } else {
-      setPrsIfChanged(state, []);
-      if (criticalErrorTitle)
-        showCriticalError(
-          criticalErrorTitle,
-          status.reason ?? "GitHub authentication is required.",
-        );
-    }
   } catch (error) {
     setGithubStatusIfChanged(state, {
       available: false,
@@ -518,129 +425,9 @@ export async function refreshGithub(
       login: null,
       reason: errorMessage(error),
     });
-    setPrsIfChanged(state, []);
     applyGitContextFromProject(projectId);
     if (criticalErrorTitle)
       showCriticalError(criticalErrorTitle, errorMessage(error));
-  }
-}
-
-const prRefreshRequests = new SvelteMap<string, Promise<void>>();
-
-function currentPrFilters(state: GitPanelRepoState): GithubPrListFilters {
-  return {
-    author: state.prFilters.author,
-    ...(state.prFilters.author === "username"
-      ? { username: state.prFilters.username }
-      : {}),
-    reviewRequested: state.prFilters.reviewRequested,
-    drafts: state.prFilters.drafts,
-    title: state.prFilters.title,
-    ...(state.prFilters.currentBranchOnly && state.repoSummary?.currentBranch
-      ? { head: state.repoSummary.currentBranch }
-      : {}),
-    labels: [...state.prFilters.labels],
-    sort: state.prFilters.sort,
-  };
-}
-
-export async function refreshPrs(
-  projectId: string,
-  repo: string,
-  silent = false,
-  force = false,
-  showLoading = !silent,
-  criticalErrorTitle?: string,
-): Promise<void> {
-  const state = ensureGitRepoState(projectId, repo);
-  if (!repoHasGithubRemote(projectId, repo)) {
-    clearGithubState(projectId, state);
-    return;
-  }
-  const refreshKey = automaticRefreshKey(projectId, repo);
-  const existing = prRefreshRequests.get(refreshKey);
-  if (existing) {
-    state.prsRequest.refreshQueued ||= force;
-    state.prsRequest.queuedVisible ||= showLoading;
-    if (showLoading) {
-      state.loadingPrs = true;
-      state.prsError = undefined;
-    }
-    return existing;
-  }
-
-  if (showLoading) {
-    state.loadingPrs = true;
-    state.prsError = undefined;
-  }
-  state.prsRequest.inFlight = true;
-  automaticRefreshScheduler.noteDirectStart(refreshKey, { prs: true });
-
-  const request = (async () => {
-    let nextSilent = silent;
-    let nextForce = force;
-    try {
-      do {
-        state.prsRequest.refreshQueued = false;
-        state.prsRequest.queuedVisible = false;
-        const requestSeq = state.prsRequest.sequence + 1;
-        state.prsRequest.sequence = requestSeq;
-        try {
-          const filters = currentPrFilters(state);
-          const queryKey = queryKeys.git.prs(
-            projectId,
-            repo,
-            githubPrFiltersFingerprint(filters),
-          );
-          if (nextForce) await queryClient.invalidateQueries({ queryKey });
-          const result = await queryClient.fetchQuery({
-            queryKey,
-            queryFn: () => listGithubPrs(projectId, repo, filters),
-            staleTime: hasPendingPrChecks(state.prs)
-              ? PR_PENDING_POLL_MS
-              : GIT_STALE_MS,
-          });
-          if (
-            state.prsRequest.sequence === requestSeq &&
-            githubPrFiltersFingerprint(filters) ===
-              githubPrFiltersFingerprint(currentPrFilters(state))
-          ) {
-            const prs = filterMergedOpenPrs(projectId, repo, result.prs);
-            setPrsIfChanged(state, prs);
-            syncOpenPrViews(projectId, repo, prs);
-            state.prsError = undefined;
-            state.prsLoadedAt = Date.now();
-          }
-        } catch (error) {
-          if (state.prsRequest.sequence === requestSeq) {
-            const details = errorMessage(error);
-            if (!nextSilent) state.prsError = details;
-            if (criticalErrorTitle)
-              showCriticalError(criticalErrorTitle, details);
-            else if (!nextSilent)
-              notify.error(`Could not list PRs: ${details}`);
-          }
-        }
-        nextForce = state.prsRequest.refreshQueued;
-        nextSilent = !state.prsRequest.queuedVisible;
-      } while (
-        state.prsRequest.refreshQueued &&
-        (typeof document === "undefined" ||
-          document.visibilityState === "visible")
-      );
-    } finally {
-      state.prsRequest.inFlight = false;
-      state.prsRequest.refreshQueued = false;
-      state.prsRequest.queuedVisible = false;
-      state.loadingPrs = false;
-    }
-  })();
-  prRefreshRequests.set(refreshKey, request);
-  try {
-    await request;
-  } finally {
-    if (prRefreshRequests.get(refreshKey) === request)
-      prRefreshRequests.delete(refreshKey);
   }
 }
 
@@ -668,21 +455,6 @@ export function autoRefreshGitOverview(projectId: string, repo: string): void {
   scheduleAutomaticGitRefresh(projectId, repo, { overview: true });
 }
 
-export function autoRefreshPrsIfStale(projectId: string, repo: string): void {
-  if (typeof document !== "undefined" && document.visibilityState !== "visible")
-    return;
-  const state =
-    gitPanelState.projects[gitProjectStateKey(projectId)]?.repoStates[
-      gitRepoStateKey(repo)
-    ];
-  if (
-    !state?.github?.authenticated ||
-    isFresh(state.prsLoadedAt, Date.now(), PR_STALE_MS)
-  )
-    return;
-  scheduleAutomaticGitRefresh(projectId, repo, { prs: true });
-}
-
 export function selectGitProject(project: Project): void {
   const state = ensureGitProjectState(project);
   if (!state.loaded) {
@@ -708,7 +480,6 @@ export function selectGitRepo(projectId: string, repo: string): void {
       silent: true,
       onlyIfChanged: true,
     });
-    if (state.github?.authenticated) void refreshPrs(projectId, repo, true);
   }
   applyGitContextFromProject(projectId);
 }
@@ -751,7 +522,6 @@ export async function refreshWorkbenchGit(): Promise<void> {
     [...visibleOverviewDemand].map(async (key) => {
       const [projectId, repo] = JSON.parse(key) as [string, string];
       await refreshGitOverview(projectId, repo, { force: true, silent: true });
-      await refreshPrs(projectId, repo, true, true);
     }),
   );
 }

@@ -130,6 +130,5 @@ export function clearGitContext(): void {
 export function invalidateGit(projectId?: string): void {
   scheduleAutomaticProjectGitRefresh(projectId, {
     overview: true,
-    prs: true,
   });
 }

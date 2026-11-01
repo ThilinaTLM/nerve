@@ -9,6 +9,7 @@ import MessageSquareText from "@lucide/svelte/icons/message-square-text";
 import Copy from "@lucide/svelte/icons/copy";
 import Settings from "@lucide/svelte/icons/settings";
 import Trash2 from "@lucide/svelte/icons/trash-2";
+import BrushCleaning from "@lucide/svelte/icons/brush-cleaning";
 import Pin from "@lucide/svelte/icons/pin";
 import PinOff from "@lucide/svelte/icons/pin-off";
 import CircleCheck from "@lucide/svelte/icons/circle-check";
@@ -20,19 +21,15 @@ import type {
   ProjectRecord,
   UpdateConversationStateRequest,
 } from "$lib/domain/projects/sidebar-view-models";
-import type { ProjectEditor, StatusResponse } from "$lib/api";
 import { writeClipboardText } from "$lib/platform/clipboard/write-text";
 import { shortProjectLabel } from "$lib/domain/projects/project-tree";
 import { notify } from "$lib/application/notifications/notify.svelte";
 import type { DeleteTarget } from "./project-agent-tree-props";
 import type { ConversationActivity } from "$lib/presentation/conversations/conversation-activity";
-import { buildExternalLaunchMenu } from "$lib/presentation/brand/external-launch-menu";
 
 export type ProjectTreeMenuContext = {
   homeDir?: string;
   newConversationShortcut?: string;
-  editorAvailability?: StatusResponse["runtime"]["editors"];
-  terminalAvailability?: StatusResponse["runtime"]["terminal"];
   conversationCount: (projectId: string) => number;
   maintenanceActive?: boolean;
   onOpenConversation?: (conversationId: string) => void;
@@ -44,8 +41,6 @@ export type ProjectTreeMenuContext = {
     request: UpdateConversationStateRequest,
   ) => void;
   onNewConversationInProject?: (projectDir: string) => void;
-  onOpenProjectInEditor?: (projectId: string, editor: ProjectEditor) => void;
-  onOpenProjectInTerminal?: (projectId: string) => void;
   onOpenProjectSettings?: (projectId: string) => void;
   requestPrune: (project: ProjectRecord) => void;
   requestDelete: (target: DeleteTarget) => void;
@@ -106,27 +101,14 @@ async function copyToClipboard(text: string, label: string): Promise<void> {
   }
 }
 
-function projectLaunchMenu(
-  project: ProjectRecord,
-  ctx: ProjectTreeMenuContext,
-): ContextMenuItem[] {
-  return buildExternalLaunchMenu({
-    targetKind: "directory",
-    editors: ctx.editorAvailability,
-    terminal: ctx.terminalAvailability,
-    openEditor: (editor) => ctx.onOpenProjectInEditor?.(project.id, editor),
-    openTerminal: () => ctx.onOpenProjectInTerminal?.(project.id),
-  });
-}
-
+/** Header project menu: the few things worth doing to a whole project. */
 export function buildProjectMenu(
   project: ProjectRecord,
   ctx: ProjectTreeMenuContext,
 ): ContextMenuItem[] {
-  const launchItems = projectLaunchMenu(project, ctx);
   const items: ContextMenuItem[] = [
     {
-      label: "New chat",
+      label: "New conversation",
       icon: MessageSquarePlus,
       shortcut: ctx.newConversationShortcut,
       onSelect: () => ctx.onNewConversationInProject?.(project.dir),
@@ -139,26 +121,22 @@ export function buildProjectMenu(
       onSelect: () => ctx.onOpenProjectSettings?.(project.id),
     });
   }
-  if (launchItems.length > 0) {
-    items.push({ type: "separator" }, ...launchItems);
-  }
   items.push(
-    { type: "separator" },
     {
       label: "Copy path",
       icon: Copy,
       onSelect: () => void copyToClipboard(project.dir, "path"),
     },
+    { type: "separator" },
     {
-      label: "Clean up conversations",
-      icon: Trash2,
-      destructive: true,
+      label: "Clean up",
+      icon: BrushCleaning,
       disabled:
         ctx.maintenanceActive || ctx.conversationCount(project.id) === 0,
       onSelect: () => ctx.requestPrune(project),
     },
     {
-      label: "Remove project",
+      label: "Remove",
       icon: Trash2,
       destructive: true,
       disabled: ctx.maintenanceActive,

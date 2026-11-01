@@ -8,6 +8,8 @@ import {
   referenceRepositoryLabels,
   matchConversationReference,
   referenceHttpsUrl,
+  linkedPullRequestConversations,
+  pullRequestResourceKey,
 } from "./conversation-references";
 import { searchConversations } from "./conversation-search";
 
@@ -210,4 +212,42 @@ test("external links require valid https GitHub-provider URLs without credential
   ])
     assert.equal(referenceHttpsUrl({ ...created, url }), undefined);
   assert.equal(referenceHttpsUrl({ ...created, provider: "other" }), undefined);
+});
+
+test("pull request URLs map to lowercase resource keys", () => {
+  assert.equal(
+    pullRequestResourceKey("https://github.com/Acme/API/pull/481"),
+    "github.com/acme/api#481",
+  );
+  assert.equal(
+    pullRequestResourceKey("https://github.com/acme/api"),
+    undefined,
+  );
+  assert.equal(pullRequestResourceKey("nope"), undefined);
+});
+
+test("linked conversations list creators first, then referencers, newest first", () => {
+  const row = (id: string, at: string, refs: ConversationReference[]) => ({
+    id,
+    createdAt: at,
+    lastUserMessageAt: null,
+    references: refs,
+  });
+  const rows = [
+    row("old-ref", "2026-10-01T00:00:00.000Z", [referenced]),
+    row("new-ref", "2026-10-03T00:00:00.000Z", [ref("481")]),
+    row("old-created", "2026-10-02T00:00:00.000Z", [ref("481", "created")]),
+    row("other", "2026-10-04T00:00:00.000Z", [secondCreated]),
+  ];
+  assert.deepEqual(
+    linkedPullRequestConversations(rows, created.resourceKey).map((link) => [
+      link.row.id,
+      link.relationship,
+    ]),
+    [
+      ["old-created", "created"],
+      ["new-ref", "referenced"],
+    ],
+  );
+  assert.deepEqual(linkedPullRequestConversations(rows, undefined), []);
 });

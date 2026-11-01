@@ -45,6 +45,18 @@ pnpm --filter @nervekit/desktop-shell package:dir
 node scripts/release/smoke-desktop-package.mjs
 ```
 
+## Release dry run
+
+Before creating a release tag, push the candidate branch and select **Actions → Publish Release → Run workflow**, then choose that branch. Manual runs are always dry runs; there is no publish option. With GitHub CLI:
+
+```sh
+gh workflow run release.yml --ref <candidate-branch>
+```
+
+The workflow must be present on the default branch for manual dispatch to be available. Each run checks out the selected commit SHA across all jobs, derives a candidate tag from the root package version, and verifies workspace versions without creating a Git tag. It runs the same six-platform native builds/tests, full quality/test suite, package and desktop smokes, npm tarball verification, and website checks/build as a tagged release. Native prebuilds, the verified npm tarball, and the website build remain workflow artifacts for inspection.
+
+Manual runs skip npm publication, website deployment, and GitHub release creation. They cannot validate publishing credentials or deployment itself. A passing dry run does not publish anything; the normal tag-push flow below remains required.
+
 ## Release tagging flow
 
 Start from a clean checkout on the branch that should contain the release commit, with a local Git identity and commit-signing key configured. Run the local release script with the exact version to publish, without a leading `v`:

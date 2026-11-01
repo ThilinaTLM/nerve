@@ -1,3 +1,9 @@
+import {
+  prSyncAvailability,
+  fetchPrSummaries,
+  probePullRequests,
+  probePrChecks,
+} from "./git-github-sync.js";
 /* eslint-disable max-lines -- GitService centralizes the repository command boundary and delegates domain workflows to focused modules. */
 import { existsSync, realpathSync } from "node:fs";
 import { basename, dirname, join, resolve, sep } from "node:path";
@@ -14,7 +20,6 @@ import type {
   GithubPrFileDiffRequest,
   GithubPrFileDiffResponse,
   GithubPrFilesResponse,
-  GithubPrHeadsResponse,
   GithubPrInitial,
   GithubPrListFilters,
   GithubPrListResponse,
@@ -71,7 +76,6 @@ import {
   prInitial as getGithubPrInitial,
   prOverview as getGithubPrOverview,
   githubStatus as getGithubStatus,
-  listOpenPrHeads as listGithubOpenPrHeads,
   listOpenPrs as listGithubOpenPrs,
 } from "./git-github-service.js";
 import type {
@@ -141,7 +145,6 @@ export class GitService {
   >();
   #readsClosed = false;
   readonly #issues = new GitRemoteCache<GithubIssueSummary[]>();
-  readonly #prs = new GitRemoteCache<GithubPrListResponse>();
   readonly #remoteCacheListeners = new Set<
     (change: GitRemoteCacheChange) => void
   >();
@@ -151,7 +154,6 @@ export class GitService {
     readonly options: GitServiceOptions = {},
   ) {
     this.#issues.onSettled((key) => this.remoteCacheSettled(key, "issues"));
-    this.#prs.onSettled((key) => this.remoteCacheSettled(key, "pull_requests"));
     this.#stableMetadataCache = new GitRepositoryMetadataCache(
       this,
       options.stableMetadataTtlMs ?? 30_000,
@@ -1284,11 +1286,54 @@ export class GitService {
     return getGithubStatus(this.githubContext(), projectId, relativePath);
   }
 
-  async listOpenPrHeads(
+  prSyncAvailability(projectId: string, repo: string, signal?: AbortSignal) {
+    return prSyncAvailability(this.githubContext(), projectId, repo, signal);
+  }
+  fetchPrSummaries(
     projectId: string,
-    relativePath: string,
-  ): Promise<GithubPrHeadsResponse> {
-    return listGithubOpenPrHeads(this.githubContext(), projectId, relativePath);
+    repo: string,
+    numbers?: number[],
+    branches?: string[],
+    signal?: AbortSignal,
+  ) {
+    return fetchPrSummaries(
+      this.githubContext(),
+      projectId,
+      repo,
+      numbers,
+      branches,
+      signal,
+    );
+  }
+  probePullRequests(
+    projectId: string,
+    repo: string,
+    etag?: string,
+    signal?: AbortSignal,
+  ) {
+    return probePullRequests(
+      this.githubContext(),
+      projectId,
+      repo,
+      etag,
+      signal,
+    );
+  }
+  probePrChecks(
+    projectId: string,
+    repo: string,
+    sha: string,
+    etags: { runs?: string; status?: string },
+    signal?: AbortSignal,
+  ) {
+    return probePrChecks(
+      this.githubContext(),
+      projectId,
+      repo,
+      sha,
+      etags,
+      signal,
+    );
   }
 
   async listOpenPrs(
@@ -1344,38 +1389,6 @@ export class GitService {
     };
   }
 
-  cachedOpenPrs(projectId: string, relativePath: string, refresh = false) {
-    const cwd = this.resolveRepoDir(projectId, relativePath);
-    const snapshot = this.#prs.read(
-      JSON.stringify([projectId, cwd]),
-      (signal) =>
-        inGitLane(
-          cwd,
-          true,
-          () =>
-            this.listOpenPrs(projectId, relativePath, {
-              author: "any",
-              reviewRequested: false,
-              drafts: "include",
-              title: "",
-              labels: [],
-              sort: "updated-desc",
-            }).then((result) => ({ prs: result.prs.slice(0, 100) })),
-          {
-            signal,
-          },
-        ),
-      refresh,
-    );
-    return {
-      result: snapshot.value,
-      status: snapshot.status,
-      refreshing: snapshot.refreshing,
-      updatedAt: snapshot.updatedAt,
-      ...(snapshot.failureCode ? { failureCode: snapshot.failureCode } : {}),
-    };
-  }
-
   async closeRemoteCaches(): Promise<void> {
     this.#readsClosed = true;
     for (const read of this.#overviewReads.values())
@@ -1390,7 +1403,6 @@ export class GitService {
       this.#projectReads.close(),
       this.#stableMetadataCache.close(),
       this.#issues.close(),
-      this.#prs.close(),
       this.#githubApi.close(),
       this.#readBackend.close(),
     ]);

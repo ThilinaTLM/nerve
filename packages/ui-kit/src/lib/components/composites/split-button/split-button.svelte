@@ -14,6 +14,8 @@ type Props = {
   variant?: ButtonVariant;
   size?: ButtonSize;
   disabled?: boolean;
+  /** Defaults to `disabled`; set false to keep alternatives reachable. */
+  menuDisabled?: boolean;
   menuAlign?: "start" | "end";
   menuClass?: string;
   triggerLabel?: string;
@@ -26,6 +28,7 @@ let {
   variant = "default",
   size = "default",
   disabled = false,
+  menuDisabled,
   menuAlign = "end",
   menuClass,
   triggerLabel,
@@ -34,6 +37,7 @@ let {
   menu,
 }: Props = $props();
 
+const triggerDisabled = $derived(menuDisabled ?? disabled);
 const dividerClass = $derived(
   variant === "default" || variant === "success"
     ? "border-l-primary-foreground/25"
@@ -52,7 +56,7 @@ const dividerClass = $derived(
         "-ml-px rounded-l-none border-l px-1.5",
         dividerClass,
       )}
-      {disabled}
+      disabled={triggerDisabled}
       aria-label={triggerLabel}
     >
       <ChevronDown class="size-3.5" strokeWidth={2.3} />

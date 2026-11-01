@@ -134,7 +134,6 @@ export const workspaceSelectors = {
     return buildProjectSwitcherItems({
       projects: workspaceState.projects,
       conversations: this.conversations,
-      launches: workspaceFeaturePorts().launches.read.launches,
       activityById: this.conversationActivityById,
       homeDir: workspaceState.status?.storage.userHome,
       recency: workspaceState.projectRecency,

@@ -21,14 +21,17 @@ import {
   buildConversationSections,
   limitConversationSections,
 } from "$lib/presentation/conversations/conversation-list";
-import { buildConversationRows } from "$lib/domain/projects/project-tree";
+import {
+  buildConversationRows,
+  conversationRowDetails,
+} from "$lib/domain/projects/project-tree";
 import {
   matchConversationReference,
   referenceRepositoryLabels,
 } from "$lib/presentation/conversations/conversation-references";
 import { searchConversations } from "$lib/presentation/conversations/conversation-search";
 import SearchInput from "@nervekit/ui-kit/components/composites/search-input";
-import ProjectAgentTreeNode from "./ProjectAgentTreeNode.svelte";
+import ConversationListItem from "$lib/presentation/conversations/ConversationListItem.svelte";
 import ConversationListSettingsDialog from "./ConversationListSettingsDialog.svelte";
 import PruneConversationsDialog from "./PruneConversationsDialog.svelte";
 import { getShortcutLabel } from "$lib/application/commands/command-registry";
@@ -59,14 +62,10 @@ let {
   openConversationTabIds,
   conversationActivityById = {},
   searchFocusToken = 0,
-  editorAvailability,
-  terminalAvailability,
   maintenanceActive = false,
   homeDir,
   onOpenConversation,
   onNewConversationInProject,
-  onOpenProjectInEditor,
-  onOpenProjectInTerminal,
   onOpenProjectSettings,
   onDeleteProject,
   onDeleteConversation,
@@ -198,8 +197,6 @@ $effect(() => {
 const menuContext = $derived<ProjectTreeMenuContext>({
   homeDir,
   newConversationShortcut,
-  editorAvailability,
-  terminalAvailability,
   conversationCount: (projectId) =>
     conversations.filter((conversation) => conversation.projectId === projectId)
       .length,
@@ -209,8 +206,6 @@ const menuContext = $derived<ProjectTreeMenuContext>({
     conversationActivityById[conversationId],
   onUpdateConversationState,
   onNewConversationInProject,
-  onOpenProjectInEditor,
-  onOpenProjectInTerminal,
   onOpenProjectSettings,
   requestPrune: (project: ProjectRecord) =>
     onPruneProjectConversations?.(project.id, {
@@ -321,8 +316,9 @@ const menuContext = $derived<ProjectTreeMenuContext>({
                 projects.find(
                   (project) => project.id === row.conversation.projectId,
                 ) ?? activeProject}
-              <ProjectAgentTreeNode
-                {row}
+              <ConversationListItem
+                conversation={row.conversation}
+                details={conversationRowDetails(row)}
                 {repoLabels}
                 currentRepository={currentRepositories[
                   row.conversation.projectId

@@ -1,4 +1,5 @@
 <script lang="ts">
+import CircleX from "@lucide/svelte/icons/circle-x";
 import GitPullRequest from "@lucide/svelte/icons/git-pull-request";
 import RotateCcw from "@lucide/svelte/icons/rotate-ccw";
 import TriangleAlert from "@lucide/svelte/icons/triangle-alert";
@@ -9,23 +10,31 @@ import type {
 import { Button } from "@nervekit/ui-kit/components/ui/button";
 import ConfirmDialog from "@nervekit/ui-kit/components/composites/confirm-dialog";
 import * as Empty from "@nervekit/ui-kit/components/ui/empty";
-import { ScrollArea } from "@nervekit/ui-kit/components/ui/scroll-area";
+import { Spinner } from "@nervekit/ui-kit/components/ui/spinner";
 import * as Tabs from "@nervekit/ui-kit/components/ui/tabs";
-import GitHubPrChecks from "./GitHubPrChecks.svelte";
-import GitHubPrCommits from "./GitHubPrCommits.svelte";
-import GitHubPrConversation from "./GitHubPrConversation.svelte";
-import GitHubPrFiles from "./GitHubPrFiles.svelte";
-import GitHubPrHeader from "./GitHubPrHeader.svelte";
-import GitHubPrLoadingPane from "./GitHubPrLoadingPane.svelte";
-import GitHubPrOverview from "./GitHubPrOverview.svelte";
-import GitHubPrStatusCard from "./GitHubPrStatusCard.svelte";
-import GitHubPrSectionSkeleton from "./GitHubPrSectionSkeleton.svelte";
+import { openConversation } from "$lib/application/workspace/workspace-actions.svelte";
+import { workspaceSelectors } from "$lib/application/workspace/workspace-selectors.svelte";
+import {
+  linkedPullRequestConversations,
+  pullRequestResourceKey,
+} from "$lib/presentation/conversations/conversation-references";
+import { idleConversationActivity } from "$lib/presentation/conversations/conversation-activity";
+import PrActions from "./pr/PrActions.svelte";
+import PrChecksTab from "./pr/PrChecksTab.svelte";
+import PrCommitsTab from "./pr/PrCommitsTab.svelte";
+import PrConversationTab from "./pr/PrConversationTab.svelte";
+import PrFilesTab from "./pr/PrFilesTab.svelte";
+import PrHeader from "./pr/PrHeader.svelte";
+import PrSkeleton from "./pr/PrSkeleton.svelte";
 import type {
   GithubPrTab,
+  PrLinkedConversation,
   PrMergeFollowUp,
   PrSectionState,
   PrViewState,
 } from "./github-pr-types";
+import { prReviewers } from "./pr-pane-helpers";
+import { summarizeCheckRuns } from "./github-pr-checks";
 
 type PrSection =
   | "core"
@@ -76,11 +85,26 @@ const files = $derived(view?.files.data);
 const checkedOut = $derived(
   Boolean(currentBranch) && core?.headRefName === currentBranch,
 );
+const checkSummary = $derived(
+  checks ? summarizeCheckRuns(checks.runs) : undefined,
+);
+const checksWaiting = $derived(
+  (checkSummary?.counts.running ?? 0) + (checkSummary?.counts.queued ?? 0) > 0,
+);
+const reviewers = $derived(prReviewers(conversation, overview, core?.author));
+const linked = $derived.by<PrLinkedConversation[]>(() => {
+  const key = core ? pullRequestResourceKey(core.url) : undefined;
+  return linkedPullRequestConversations(
+    workspaceSelectors.conversations,
+    key,
+  ).map(({ row }) => ({
+    conversation: row,
+    activity:
+      workspaceSelectors.conversationActivityById[row.id] ??
+      idleConversationActivity,
+  }));
+});
 let checkoutOpen = $state(false);
-
-/* Tabs match the rest of the workbench: an underline strip, not a pill group. */
-const tabTriggerClass =
-  "h-full flex-none gap-1.5 rounded-none px-2.5 text-xs font-medium";
 
 function changeTab(value: string) {
   if (
@@ -94,17 +118,12 @@ function changeTab(value: string) {
 </script>
 
 {#snippet tabCount(count: number)}
-  <span
-    class="rounded-full bg-muted px-1.5 text-[0.6875rem] text-muted-foreground tabular-nums"
-    >{count}</span
-  >
+  <span class="text-muted-foreground tabular-nums">{count}</span>
 {/snippet}
 
 <!-- Failure details live in header Activity; this is a neutral retry state. -->
 {#snippet sectionUnavailable(label: string, section: PrSection)}
-  <div
-    class="flex flex-col items-start gap-2 rounded-md border bg-card px-3 py-3 text-xs"
-  >
+  <div class="flex flex-col items-start gap-2 px-4 py-4 text-xs">
     <span class="text-muted-foreground">{label} unavailable</span>
     <Button
       size="sm"
@@ -116,7 +135,10 @@ function changeTab(value: string) {
   </div>
 {/snippet}
 
-<section class="flex h-full min-h-0 flex-col bg-background">
+<section
+  class="@container flex h-full min-h-0 flex-col bg-background"
+  aria-label="Pull request"
+>
   {#if !view}
     <Empty.Root class="h-full min-h-0 gap-2 py-6">
       <Empty.Media variant="icon" class="size-8 rounded-md">
@@ -132,7 +154,16 @@ function changeTab(value: string) {
       </Empty.Header>
     </Empty.Root>
   {:else if view.core.loading && !core}
-    <GitHubPrLoadingPane {view} {onRefresh} {onOpenExternal} />
+    <PrHeader
+      number={view.number}
+      summary={view.summary}
+      refreshing
+      checkedOut={false}
+      {onRefresh}
+      {onCopyLink}
+      {onOpenExternal}
+    />
+    <PrSkeleton label="Loading pull request" rows={6} />
   {:else if view.core.error && !core}
     <Empty.Root class="h-full min-h-0 gap-2 py-6">
       <Empty.Media variant="icon" class="size-8 rounded-md">
@@ -158,141 +189,101 @@ function changeTab(value: string) {
       </Button>
     </Empty.Root>
   {:else if core}
-    <GitHubPrHeader
+    <PrHeader
       number={view.number}
-      detail={core}
+      {core}
       summary={view.summary}
-      loading={view.refreshing}
-      commitCount={commits?.commits.length}
+      refreshing={view.refreshing}
       {checkedOut}
       {onRefresh}
-      onCheckout={() => (checkoutOpen = true)}
       {onCopyLink}
       {onOpenExternal}
-    />
+    >
+      {#snippet actions()}
+        <PrActions
+          {core}
+          {overview}
+          {checks}
+          selectedMethod={view.selectedMergeMethod}
+          merging={view.merging}
+          {checkedOut}
+          onMethodChange={onMergeMethodChange}
+          {onMerge}
+          onCheckout={() => (checkoutOpen = true)}
+          onReady={onOpenExternal}
+        />
+      {/snippet}
+    </PrHeader>
 
     <Tabs.Root
       value={view.activeTab}
       onValueChange={changeTab}
-      class="min-h-0 flex-1 gap-0"
+      class="min-h-0 flex-1"
     >
-      <div class="shrink-0 border-b px-4">
-        <Tabs.List class="h-9 gap-0 p-0">
-          <Tabs.Trigger value="conversation" class={tabTriggerClass}>
-            Conversation
-            {#if conversation}{@render tabCount(
-                conversation.comments.length + conversation.reviews.length,
-              )}{/if}
-          </Tabs.Trigger>
-          <Tabs.Trigger value="commits" class={tabTriggerClass}>
-            Commits
-            {#if commits}{@render tabCount(commits.commits.length)}{/if}
-          </Tabs.Trigger>
-          <Tabs.Trigger value="checks" class={tabTriggerClass}>
-            Checks
-            {#if checks}{@render tabCount(checks.total)}{/if}
-          </Tabs.Trigger>
-          <Tabs.Trigger value="files" class={tabTriggerClass}>
-            Files changed {@render tabCount(core.changedFiles)}
-          </Tabs.Trigger>
-        </Tabs.List>
-      </div>
+      <Tabs.List>
+        <Tabs.Trigger value="conversation">
+          Conversation
+          {#if conversation}{@render tabCount(
+              conversation.comments.length + conversation.reviews.length,
+            )}{/if}
+        </Tabs.Trigger>
+        <Tabs.Trigger value="commits">
+          Commits
+          {#if commits}{@render tabCount(commits.commits.length)}{/if}
+        </Tabs.Trigger>
+        <Tabs.Trigger value="checks">
+          Checks
+          {#if checks}{@render tabCount(checks.total)}{/if}
+          {#if checksWaiting}
+            <Spinner class="size-3 text-warning" />
+          {:else if (checkSummary?.counts.failed ?? 0) > 0}
+            <CircleX class="size-3 text-destructive" aria-hidden="true" />
+          {/if}
+        </Tabs.Trigger>
+        <Tabs.Trigger value="files">
+          Files changed {@render tabCount(core.changedFiles)}
+        </Tabs.Trigger>
+      </Tabs.List>
 
       <Tabs.Content value="conversation" class="min-h-0 flex-1">
-        <ScrollArea
-          class="h-full"
-          viewportClass="@container px-4 pr-2 pt-1 pb-8"
-        >
-          <div
-            class="grid items-start gap-2 @3xl:grid-cols-[minmax(0,1fr)_18rem] @6xl:grid-cols-[minmax(0,1fr)_22rem]"
-          >
-            {#if conversation}
-              <GitHubPrConversation {core} {conversation} />
-            {:else if view.conversation.error}
-              {@render sectionUnavailable("Conversation", "conversation")}
-            {:else}
-              <GitHubPrSectionSkeleton
-                variant="conversation"
-                label="Loading conversation"
-              />
-            {/if}
-            <!-- Outcome first: what to do about this PR outranks its metadata. -->
-            <aside class="flex flex-col gap-2">
-              {#if overview && checks}
-                <GitHubPrStatusCard
-                  detail={{ ...core, ...overview, checks }}
-                  selectedMethod={view.selectedMergeMethod}
-                  merging={view.merging}
-                  {checkedOut}
-                  onMethodChange={onMergeMethodChange}
-                  {onMerge}
-                />
-              {:else if view.overview.error && !overview}
-                {@render sectionUnavailable("Merge status", "overview")}
-              {:else if view.checks.error && !checks}
-                {@render sectionUnavailable("Merge status", "checks")}
-              {:else}
-                <GitHubPrSectionSkeleton
-                  variant="merge"
-                  label="Loading merge status"
-                />
-              {/if}
-              {#if overview}
-                <GitHubPrOverview {overview} open={core.state === "OPEN"} />
-              {:else if view.overview.error}
-                {@render sectionUnavailable("Overview", "overview")}
-              {:else}
-                <GitHubPrSectionSkeleton
-                  variant="overview"
-                  label="Loading overview"
-                />
-              {/if}
-            </aside>
-          </div>
-        </ScrollArea>
+        {#if conversation}
+          <PrConversationTab
+            {core}
+            {conversation}
+            {reviewers}
+            labels={overview?.labels ?? []}
+            {linked}
+            onOpenConversation={(id) => void openConversation(id)}
+          />
+        {:else if view.conversation.error}
+          {@render sectionUnavailable("Conversation", "conversation")}
+        {:else}
+          <PrSkeleton label="Loading conversation" />
+        {/if}
       </Tabs.Content>
 
       <Tabs.Content value="commits" class="min-h-0 flex-1">
-        <ScrollArea
-          class="h-full"
-          viewportClass="@container px-4 pr-2 pt-1 pb-8"
-        >
-          {#if commits}
-            <GitHubPrCommits response={commits} />
-          {:else if view.commits.error}
-            {@render sectionUnavailable("Commits", "commits")}
-          {:else}
-            <GitHubPrSectionSkeleton
-              variant="commits"
-              rows={6}
-              label="Loading commits"
-            />
-          {/if}
-        </ScrollArea>
+        {#if commits}
+          <PrCommitsTab response={commits} />
+        {:else if view.commits.error}
+          {@render sectionUnavailable("Commits", "commits")}
+        {:else}
+          <PrSkeleton label="Loading commits" rows={6} />
+        {/if}
       </Tabs.Content>
 
       <Tabs.Content value="checks" class="min-h-0 flex-1">
-        <ScrollArea
-          class="h-full"
-          viewportClass="@container px-4 pr-2 pt-1 pb-8"
-        >
-          {#if checks}
-            <GitHubPrChecks {checks} />
-          {:else if view.checks.error}
-            {@render sectionUnavailable("Checks", "checks")}
-          {:else}
-            <GitHubPrSectionSkeleton
-              variant="checks"
-              rows={6}
-              label="Loading checks"
-            />
-          {/if}
-        </ScrollArea>
+        {#if checks}
+          <PrChecksTab {checks} />
+        {:else if view.checks.error}
+          {@render sectionUnavailable("Checks", "checks")}
+        {:else}
+          <PrSkeleton label="Loading checks" rows={6} />
+        {/if}
       </Tabs.Content>
 
       <Tabs.Content value="files" class="min-h-0 flex-1">
-        <GitHubPrFiles
-          detail={core}
+        <PrFilesTab
           {files}
           loading={view.files.loading}
           failed={Boolean(view.files.error)}

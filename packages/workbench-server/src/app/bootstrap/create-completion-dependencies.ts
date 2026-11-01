@@ -1,3 +1,4 @@
+import type { PrSyncService } from "../../domains/git/pr-sync/pr-sync-service.js";
 import type { ConversationCore } from "@nervekit/conversation-core";
 import type { CompletionScope } from "@nervekit/contracts/completions";
 import type { GitService } from "@nervekit/tools/git";
@@ -21,8 +22,20 @@ export interface CompletionRuntimeBindings {
   sources: Omit<CompletionSourcePorts, "prs" | "issues" | "remoteChanged">;
   git: Pick<
     GitService,
-    "discoverRepos" | "cachedOpenPrs" | "listIssues" | "onRemoteCacheChanged"
-  >;
+    "discoverRepos" | "listIssues" | "onRemoteCacheChanged"
+  > & {
+    cachedOpenPrs(
+      projectId: string,
+      repo: string,
+      refresh?: boolean,
+    ): Omit<
+      ReturnType<PrSyncService["cachedOpenPrs"]>,
+      "result" | "failureCode"
+    > & {
+      result: ReturnType<PrSyncService["cachedOpenPrs"]>["result"] | null;
+      failureCode?: string;
+    };
+  };
   context: CompletionContextReaderPorts;
   events: Pick<
     WorkbenchNoticePublisher,
@@ -147,6 +160,7 @@ export function createCompletionDependencies(
   }).map((provider): CompletionProvider => {
     const notices: Record<string, string[]> = {
       files: ["filesystem.project.changed"],
+      pull_requests: ["github.pr.changed"],
       launches: ["launch."],
       launch_definitions: ["launchCatalog."],
       skills: ["settings.updated", "filesystem.project.changed"],

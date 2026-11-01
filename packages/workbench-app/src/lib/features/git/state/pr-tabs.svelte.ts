@@ -9,15 +9,11 @@ import {
   loadPrSection,
   refreshCurrentPr,
 } from "$lib/features/git/state/git-refresh-coordinator.svelte";
-import { openPrSummary } from "$lib/features/git/state/git-panel-state.svelte";
+import { pr } from "./pr-store.svelte";
 import {
   gitState,
   type PrViewState,
 } from "$lib/features/git/state/git-state.svelte";
-import {
-  prChecksEqual,
-  prCoreMatchesSummary,
-} from "$lib/features/git/state/pr-sync";
 import {
   addCenterTab,
   nextCenterTabAfterClose,
@@ -84,34 +80,6 @@ async function ensurePrView(view: PrViewState): Promise<void> {
   demandPrTab(view);
 }
 
-export function syncOpenPrViews(
-  projectId: string,
-  repo: string,
-  prs: GithubPr[],
-): void {
-  for (const view of Object.values(gitState.prViews)) {
-    if (view.projectId !== projectId || view.repo !== repo) continue;
-    const summary = prs.find((pr) => pr.number === view.number);
-    if (!summary) continue;
-    view.summary = summary;
-    if (!prChecksEqual(view.checks.data?.checks, summary.checks)) {
-      view.checks.data = { checks: summary.checks };
-    }
-    if (view.core.data && !prCoreMatchesSummary(view.core.data, summary)) {
-      view.core.data = {
-        ...view.core.data,
-        title: summary.title,
-        url: summary.url,
-        state: summary.state,
-        isDraft: summary.isDraft,
-        headRefName: summary.headRefName,
-        baseRefName: summary.baseRefName,
-        updatedAt: summary.updatedAt,
-      };
-    }
-  }
-}
-
 export async function openPrPane(input: {
   projectId: string;
   repo: string;
@@ -125,7 +93,7 @@ export async function openPrPane(input: {
   const id = encodePrTabId(input.projectId, input.repo, input.number);
   const key = prViewKey(id);
   addPrTab(id);
-  const summary = openPrSummary(input.projectId, input.repo, input.number);
+  const summary = pr(input.projectId, input.repo, input.number);
   gitState.prViews[key] ??= createPrView({ id, ...input, summary });
   const view = gitState.prViews[key];
   if (summary) view.summary = summary;

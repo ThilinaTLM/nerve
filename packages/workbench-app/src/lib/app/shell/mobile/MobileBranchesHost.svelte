@@ -67,7 +67,7 @@ $effect(() => {
   if (!repo) return;
   untrack(() => {
     void gitActions.refreshBranches(repo);
-    void gitActions.refreshPrHeads(repo);
+    void gitActions.loadPullRequestBadges(repo);
   });
 });
 
@@ -80,7 +80,7 @@ const nameValid = $derived(isPlausibleBranchName(newName));
 
 function refresh() {
   void gitActions.refreshBranches(repository);
-  void gitActions.refreshPrHeads(repository);
+  void gitActions.loadPullRequestBadges(repository);
 }
 
 function openPullRequest(number: number) {

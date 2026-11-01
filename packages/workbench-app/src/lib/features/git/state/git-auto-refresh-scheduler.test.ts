@@ -4,10 +4,7 @@ import {
   GitAutoRefreshScheduler,
   type GitAutoRefreshDemand,
 } from "./git-auto-refresh-scheduler.js";
-import {
-  GIT_OVERVIEW_AUTO_REFRESH_COOLDOWN_MS,
-  GIT_PR_AUTO_REFRESH_COOLDOWN_MS,
-} from "./git-refresh-policy.js";
+import { GIT_OVERVIEW_AUTO_REFRESH_COOLDOWN_MS } from "./git-refresh-policy.js";
 
 type Timer = { at: number; callback: () => void; cancelled: boolean };
 
@@ -52,7 +49,6 @@ function setup() {
   const scheduler = new GitAutoRefreshScheduler(
     {
       overview: GIT_OVERVIEW_AUTO_REFRESH_COOLDOWN_MS,
-      prs: GIT_PR_AUTO_REFRESH_COOLDOWN_MS,
     },
     (_key, demand) => dispatches.push({ at: clock.now(), demand }),
     clock,
@@ -96,31 +92,16 @@ describe("GitAutoRefreshScheduler", () => {
     assert.equal(dispatches.length, 2, "no idle periodic dispatch loop");
   });
 
-  it("retains independent overview and PR cooldown boundaries", () => {
-    const { clock, dispatches, scheduler } = setup();
-    scheduler.schedule("repo", { overview: true, prs: true });
-    clock.advanceTo(1_000);
-    scheduler.schedule("repo", { overview: true, prs: true });
-    clock.advanceTo(3_000);
-    clock.advanceTo(30_000);
-
-    assert.deepEqual(dispatches, [
-      { at: 0, demand: { overview: true, prs: true } },
-      { at: 3_000, demand: { overview: true } },
-      { at: 30_000, demand: { prs: true } },
-    ]);
-  });
-
   it("lets a direct refresh consume older queued demand", () => {
     const { clock, dispatches, scheduler } = setup();
-    scheduler.schedule("repo", { prs: true });
-    clock.advanceTo(5_000);
-    scheduler.schedule("repo", { prs: true });
-    clock.advanceTo(10_000);
-    scheduler.noteDirectStart("repo", { prs: true });
+    scheduler.schedule("repo", { overview: true });
+    clock.advanceTo(500);
+    scheduler.schedule("repo", { overview: true });
+    clock.advanceTo(1_000);
+    scheduler.noteDirectStart("repo", { overview: true });
 
     clock.advanceTo(40_000);
-    assert.deepEqual(dispatches, [{ at: 0, demand: { prs: true } }]);
+    assert.deepEqual(dispatches, [{ at: 0, demand: { overview: true } }]);
   });
 
   it("preserves demand that arrives after a direct refresh starts", () => {

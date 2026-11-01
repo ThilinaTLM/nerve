@@ -329,7 +329,7 @@ function menuItems(tab: WorkbenchTabModel, index: number): ContextMenuItem[] {
 />
 
 <nav
-  class="chrome-tab-track relative flex min-h-8 min-w-0 after:pointer-events-none after:absolute after:inset-x-0 after:bottom-0 after:z-1 after:h-px after:bg-border after:content-['']"
+  class="relative bg-chrome-track flex min-h-8 min-w-0 after:pointer-events-none after:absolute after:inset-x-0 after:bottom-0 after:z-1 after:h-px after:bg-border after:content-['']"
   aria-label="Open editor tabs"
 >
   {#if canScrollLeft || canScrollRight}

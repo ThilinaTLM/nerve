@@ -1,62 +1,31 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import type {
-  GithubChecksSummary,
-  GithubPrConversation,
-  GithubPrCore,
-  GithubPrOverview,
-} from "@nervekit/contracts/git";
+import type { GithubPrConversation } from "@nervekit/contracts/git";
 import {
   defaultMergeMethod,
   formatCompactAge,
-  divergenceLabel,
   fileStatusLetter,
+  groupCommitsByDay,
+  mergeAvailability,
   mergeReadiness,
+  type MergeReadinessInput,
+  prReviewers,
   prTimeline,
 } from "./pr-pane-helpers.js";
 
-type MergeDetail = GithubPrCore &
-  GithubPrOverview & {
-    checks: GithubChecksSummary;
-  };
-
-function detail(overrides: Partial<MergeDetail> = {}): MergeDetail {
+function detail(
+  overrides: Partial<MergeReadinessInput> = {},
+): MergeReadinessInput {
   return {
-    number: 7,
-    title: "PR",
-    url: "https://github.com/example/repo/pull/7",
     state: "OPEN",
     isDraft: false,
-    headRefName: "feature",
-    baseRefName: "main",
     headRefOid: "head1234567",
-    baseRefOid: "base1234567",
-    updatedAt: "2026-07-22T00:00:00Z",
-    createdAt: "2026-07-20T00:00:00Z",
-    author: "octocat",
-    commentCount: 0,
-    additions: 1,
-    deletions: 1,
-    changedFiles: 1,
     mergeable: "MERGEABLE",
     mergeStateStatus: "CLEAN",
-    mergedAt: null,
-    mergedBy: null,
-    mergeCommitOid: null,
-    closedAt: null,
     reviewDecision: "APPROVED",
-    behindBy: 0,
-    labels: [],
-    reviewRequests: [],
+    viewerCanMergeAsAdmin: false,
     mergeSettings: { allowedMethods: ["merge", "squash"] },
-    checks: {
-      status: "passing",
-      total: 1,
-      passed: 1,
-      failed: 0,
-      pending: 0,
-      runs: [],
-    },
+    checks: { status: "passing" },
     ...overrides,
   };
 }
@@ -67,16 +36,8 @@ describe("PR pane helpers", () => {
     const blocked = mergeReadiness(
       detail({
         mergeStateStatus: "BEHIND",
-        behindBy: 2,
         reviewDecision: "CHANGES_REQUESTED",
-        checks: {
-          status: "failing",
-          total: 1,
-          passed: 0,
-          failed: 1,
-          pending: 0,
-          runs: [],
-        },
+        checks: { status: "failing" },
       }),
     );
     assert.equal(blocked.status, "blocked");
@@ -85,6 +46,35 @@ describe("PR pane helpers", () => {
     assert.equal(
       mergeReadiness(detail({ mergeable: "UNKNOWN" })).status,
       "unknown",
+    );
+  });
+
+  it("offers bypass only when GitHub allows it and every blocker is bypassable", () => {
+    const blocked = {
+      mergeStateStatus: "BLOCKED",
+      reviewDecision: "REVIEW_REQUIRED",
+      checks: { status: "pending" as const },
+    };
+    assert.equal(mergeReadiness(detail(blocked)).bypassable, false);
+    assert.equal(
+      mergeReadiness(detail({ ...blocked, viewerCanMergeAsAdmin: true }))
+        .bypassable,
+      true,
+    );
+    assert.equal(
+      mergeReadiness(
+        detail({
+          ...blocked,
+          viewerCanMergeAsAdmin: true,
+          mergeable: "CONFLICTING",
+        }),
+      ).bypassable,
+      false,
+    );
+    assert.equal(
+      mergeReadiness(detail({ viewerCanMergeAsAdmin: true, isDraft: true }))
+        .bypassable,
+      false,
     );
   });
 
@@ -122,15 +112,7 @@ describe("PR pane helpers", () => {
     );
   });
 
-  it("formats divergence and file statuses", () => {
-    assert.equal(
-      divergenceLabel(detail({ behindBy: 0 })),
-      "Up to date with base",
-    );
-    assert.equal(
-      divergenceLabel(detail({ behindBy: 1 })),
-      "1 commit behind base",
-    );
+  it("formats file statuses", () => {
     assert.equal(fileStatusLetter("renamed"), "R");
     assert.equal(fileStatusLetter("modified"), "M");
   });
@@ -150,5 +132,79 @@ describe("compact age", () => {
   it("returns nothing for missing or unparsable timestamps", () => {
     assert.equal(formatCompactAge(undefined, now), "");
     assert.equal(formatCompactAge("not-a-date", now), "");
+  });
+});
+
+describe("merge availability", () => {
+  it("separates transient waiting from blockers", () => {
+    assert.equal(mergeAvailability(mergeReadiness(detail())).kind, "ready");
+    const running = mergeAvailability(
+      mergeReadiness(
+        detail({
+          checks: { status: "pending" },
+        }),
+      ),
+    );
+    assert.deepEqual(running, {
+      kind: "waiting",
+      reason: "Checks are still running",
+      bypassable: false,
+    });
+    assert.equal(
+      mergeAvailability(mergeReadiness(detail({ mergeable: "CONFLICTING" })))
+        .kind,
+      "blocked",
+    );
+  });
+});
+
+describe("reviewers", () => {
+  it("keeps the latest decisive review and appends awaited reviewers", () => {
+    const review = (author: string, state: string, at: string) => ({
+      id: `${author}${at}`,
+      author,
+      state,
+      body: "",
+      submittedAt: at,
+    });
+    const reviewers = prReviewers(
+      {
+        reviews: [
+          review("a", "CHANGES_REQUESTED", "2026-07-20T00:00:00Z"),
+          review("a", "APPROVED", "2026-07-21T00:00:00Z"),
+          review("a", "COMMENTED", "2026-07-22T00:00:00Z"),
+          review("b", "COMMENTED", "2026-07-22T00:00:00Z"),
+          review("octocat", "APPROVED", "2026-07-22T00:00:00Z"),
+        ],
+      },
+      { reviewRequests: [{ login: "b" }, { login: "c" }] },
+      "octocat",
+    );
+    assert.deepEqual(reviewers, [
+      { login: "a", state: "approved" },
+      { login: "b", state: "commented" },
+      { login: "c", state: "requested" },
+    ]);
+  });
+});
+
+describe("commit days", () => {
+  it("groups consecutive commits by local day", () => {
+    const now = Date.parse("2026-07-30T12:00:00");
+    const groups = groupCommitsByDay(
+      [
+        { authoredDate: "2026-07-29T09:00:00" },
+        { authoredDate: "2026-07-30T08:00:00" },
+        { authoredDate: "2026-07-30T10:00:00" },
+      ],
+      now,
+    );
+    assert.deepEqual(
+      groups.map((group) => [group.day, group.commits.length]),
+      [
+        ["Yesterday", 1],
+        ["Today", 2],
+      ],
+    );
   });
 });

@@ -9,6 +9,14 @@ import type {
   GithubPrMergeMethod,
   GithubPrOverview,
 } from "@nervekit/contracts/git";
+import type { ConversationSummary } from "@nervekit/contracts/core";
+import type { ConversationActivity } from "$lib/presentation/conversations/conversation-activity";
+
+/** A workspace conversation that created or mentioned the pull request. */
+export type PrLinkedConversation = {
+  conversation: ConversationSummary;
+  activity: ConversationActivity;
+};
 
 export type GithubPrTab = "conversation" | "commits" | "checks" | "files";
 export type PrMergeFollowUp = "stay" | "switch-base-and-pull";

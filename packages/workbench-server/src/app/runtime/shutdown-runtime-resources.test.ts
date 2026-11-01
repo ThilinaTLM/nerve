@@ -4,6 +4,10 @@ import { shutdownRuntimeResources } from "./shutdown-runtime-resources.js";
 
 void test("shutdown awaits Git and completion users before closing dependencies", async () => {
   const order: string[] = [];
+  let releaseSync!: () => void;
+  const sync = new Promise<void>((resolve) => {
+    releaseSync = resolve;
+  });
   let releaseGit!: () => void;
   let releaseCompletion!: () => void;
   const git = new Promise<void>((resolve) => {
@@ -13,6 +17,12 @@ void test("shutdown awaits Git and completion users before closing dependencies"
     releaseCompletion = resolve;
   });
   const closing = shutdownRuntimeResources({
+    prSync: {
+      close: async () => {
+        order.push("pr sync");
+        await sync;
+      },
+    },
     gitOperations: {
       close: async () => {
         order.push("git");
@@ -43,13 +53,17 @@ void test("shutdown awaits Git and completion users before closing dependencies"
       },
     },
   });
-  assert.deepEqual(order, ["git"]);
+  assert.deepEqual(order, ["pr sync"]);
+  releaseSync();
+  await new Promise<void>((resolve) => setImmediate(resolve));
+  assert.deepEqual(order, ["pr sync", "git"]);
   releaseGit();
   await new Promise<void>((resolve) => setImmediate(resolve));
-  assert.deepEqual(order, ["git", "git drained", "completion"]);
+  assert.deepEqual(order, ["pr sync", "git", "git drained", "completion"]);
   releaseCompletion();
   await closing;
   assert.deepEqual(order, [
+    "pr sync",
     "git",
     "git drained",
     "completion",
@@ -73,7 +87,14 @@ void test("rejected producer drains fully settle in order and every later cleanu
   const completion = new Promise<void>((_resolve, reject) => {
     rejectCompletion = reject;
   });
+  const syncFailure = new Error("pr sync");
   const outcome = shutdownRuntimeResources({
+    prSync: {
+      close: async () => {
+        order.push("pr sync");
+        throw syncFailure;
+      },
+    },
     gitOperations: {
       close: async () => {
         order.push("git");
@@ -105,13 +126,21 @@ void test("rejected producer drains fully settle in order and every later cleanu
       },
     },
   }).catch((error: unknown) => error);
-  assert.deepEqual(order, ["git"]);
+  await new Promise<void>((resolve) => setImmediate(resolve));
+  assert.deepEqual(order, ["pr sync", "git"]);
   rejectGit(failures[0]);
   await new Promise<void>((resolve) => setImmediate(resolve));
-  assert.deepEqual(order, ["git", "completion"]);
+  assert.deepEqual(order, ["pr sync", "git", "completion"]);
   rejectCompletion(failures[1]);
   const error = await outcome;
   assert.ok(error instanceof AggregateError);
-  assert.deepEqual(error.errors, failures);
-  assert.deepEqual(order, ["git", "completion", "monitor", "launches", "core"]);
+  assert.deepEqual(error.errors, [syncFailure, ...failures]);
+  assert.deepEqual(order, [
+    "pr sync",
+    "git",
+    "completion",
+    "monitor",
+    "launches",
+    "core",
+  ]);
 });

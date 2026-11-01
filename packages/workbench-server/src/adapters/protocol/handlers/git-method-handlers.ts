@@ -23,7 +23,11 @@ export const gitMethodHandlers: WorkbenchMethodHandlerMapFor<GitMethodContext> =
     "github.issue.list": (state, params) =>
       state.git.listIssues(params.projectId, repo(params), params.refresh),
     "github.pr.cached.list": (state, params) =>
-      state.git.cachedOpenPrs(params.projectId, repo(params), params.refresh),
+      state.prSync.cachedOpenPrs(
+        params.projectId,
+        repo(params),
+        params.refresh,
+      ),
     "git.repos.discover": (state, params) =>
       state.git.discoverRepos(params.projectId, params.refresh),
     "git.overview.get": (state, params) =>
@@ -107,8 +111,24 @@ export const gitMethodHandlers: WorkbenchMethodHandlerMapFor<GitMethodContext> =
       ),
     "github.status.get": (state, params) =>
       state.git.githubStatus(params.projectId, repo(params)),
-    "github.pr.heads.list": (state, params) =>
-      state.git.listOpenPrHeads(params.projectId, repo(params)),
+    "github.pr.snapshot.get": (state, params) =>
+      state.prSync.snapshot(params.projectId, params.repo),
+    "github.pr.watch.sync": (state, params, invocation) =>
+      state.prSync.sync(monitorOwner(invocation.monitorOwner), {
+        ...params,
+        list: params.list ?? false,
+        prs: params.prs ?? [],
+      }),
+    "github.pr.watch.clear": (state, params, invocation) =>
+      state.prSync.clear(
+        monitorOwner(invocation.monitorOwner),
+        params.projectId,
+        params.repo,
+      ),
+    "github.pr.refresh": (state, params) =>
+      state.prSync.refresh(params.projectId, params.repo, params.number),
+    "github.pr.expect": (state, params) =>
+      state.prSync.expect(params.projectId, params.repo, params.branch),
     "github.pr.list": (state, params) =>
       state.git.listOpenPrs(
         params.projectId,

@@ -79,6 +79,7 @@ export interface GitPanelOperationState {
 
 /** Branch-picker state for one repository, selected or not. */
 export interface GitRepoBranchState {
+  readonly repositoryUrl?: string;
   readonly repoSummary?: GitRepoSummary;
   readonly branches: readonly GitBranchSummary[];
   readonly prHeads?: GithubPrHeadsResponse;
@@ -104,6 +105,8 @@ export interface GitPanelModel {
   readonly pullRequests: readonly GithubPr[];
   readonly prHeads?: GithubPrHeadsResponse;
   readonly currentBranchPr?: GithubPr;
+  readonly awaitingPullRequest?: boolean;
+  readonly expectedPullRequestUrl?: string;
   readonly pullRequestFilters: GitPrFilterConfig;
   readonly selectedPullRequestNumber?: number;
   readonly initialLoading: boolean;
@@ -138,7 +141,12 @@ export interface GitPanelActions {
     repository: string,
   ) => Promise<readonly GitStashEntry[] | undefined>;
   readonly refreshBranches: (repository: string) => void | Promise<void>;
-  readonly refreshPrHeads: (repository: string) => void | Promise<void>;
+  readonly expectPullRequest?: (
+    repository: string,
+    branch: string,
+    url: string,
+  ) => void;
+  readonly loadPullRequestBadges: (repository: string) => void | Promise<void>;
   readonly refreshPullRequests: (repository: string) => void | Promise<void>;
   readonly configurePullRequests: (
     repository: string,

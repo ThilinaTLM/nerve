@@ -1,3 +1,5 @@
+import { SvelteURL } from "svelte/reactivity";
+import { repoPrRepositoryUrl } from "./pr-store.svelte";
 import {
   gitProjectStateKey,
   gitRepoStateKey,
@@ -31,14 +33,10 @@ import { gitState } from "./git-state.svelte";
 export const gitSelectors = {
   /** Root repository identity already loaded by the Git panel; never fetches. */
   githubRepository(projectId: string): string | undefined {
-    const project = gitPanelState.projects[gitProjectStateKey(projectId)];
-    const root = project?.repoStates[gitRepoStateKey(".")];
-    const repository = root?.prHeads?.repository;
-    if (repository) return `github.com/${repository.toLowerCase()}`;
-    const prUrl = root?.currentBranchPr?.url ?? root?.prs[0]?.url;
-    return prUrl
-      ?.match(/^https:\/\/([^/]+\/[^/]+\/[^/]+)\/pull\//)?.[1]
-      ?.toLowerCase();
+    const repositoryUrl = repoPrRepositoryUrl(projectId, ".");
+    if (!repositoryUrl) return undefined;
+    const url = new SvelteURL(repositoryUrl);
+    return `${url.host}${url.pathname}`.toLowerCase();
   },
   get activeCenterPrView() {
     const active = workspaceReadModel.activeCenterTab;

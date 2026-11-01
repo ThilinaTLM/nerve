@@ -18,8 +18,6 @@ import {
   deleteConversationAndRefresh,
   deleteProjectAndRefresh,
   newConversationInProject,
-  openProjectInEditorAndNotify,
-  openProjectInTerminalAndNotify,
 } from "$lib/application/workspace/workspace-actions.svelte";
 
 const status = $derived(workspaceSelectors.status);
@@ -57,15 +55,9 @@ const conversationActivityById = $derived(
   {openConversationTabIds}
   {conversationActivityById}
   searchFocusToken={projectNavigatorSignals.searchFocusToken}
-  editorAvailability={status?.runtime.editors}
-  terminalAvailability={status?.runtime.terminal}
   maintenanceActive={maintenance.active}
   onOpenConversation={openConversation}
   onNewConversationInProject={newConversationInProject}
-  onOpenProjectInEditor={(projectId, editor) =>
-    void openProjectInEditorAndNotify(projectId, editor)}
-  onOpenProjectInTerminal={(projectId) =>
-    void openProjectInTerminalAndNotify(projectId)}
   onOpenProjectSettings={(projectId) => void openProjectSettingsPane(projectId)}
   onDeleteProject={(id) => void deleteProjectAndRefresh(id)}
   onDeleteConversation={(id) => void deleteConversationAndRefresh(id)}

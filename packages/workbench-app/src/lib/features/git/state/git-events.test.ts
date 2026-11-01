@@ -39,7 +39,7 @@ void describe("Git event refresh policy", () => {
       {
         projectId: "proj_one",
         repo: ".",
-        demand: { overview: true, prs: true },
+        demand: { overview: true },
       },
     );
   });
@@ -72,12 +72,12 @@ void describe("Git event refresh policy", () => {
           refreshCause: "uncertain_poll",
         },
       })?.demand,
-      { overview: true, prs: true },
+      { overview: true },
       "actual mutation success remains hard even if an unrelated marker is present",
     );
   });
 
-  void it("refreshes discovery after clone and PR metadata after merge", () => {
+  void it("refreshes discovery after clone and Git state after merge", () => {
     assert.deepEqual(
       gitEventRefreshRequest({
         type: "git.repository.changed",
@@ -91,7 +91,7 @@ void describe("Git event refresh policy", () => {
         projectId: "proj_one",
         repo: "new",
         refreshDiscovery: true,
-        demand: { overview: true, prs: true },
+        demand: { overview: true },
       },
     );
     assert.deepEqual(
@@ -102,7 +102,7 @@ void describe("Git event refresh policy", () => {
       {
         projectId: "proj_one",
         repo: ".",
-        demand: { overview: true, prs: true },
+        demand: { overview: true },
       },
     );
   });

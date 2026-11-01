@@ -16,3 +16,6 @@ export * from "./git-path-key.js";
 export * from "./git-progress.js";
 export * from "./git-github-issues.js";
 export * from "./git-operations.js";
+
+export { summarizeRestChecks } from "./git-github-checks.js";
+export type { RestCheckRun, RestCommitStatus } from "./git-github-checks.js";

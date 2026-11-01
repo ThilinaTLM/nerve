@@ -9,7 +9,6 @@ import type {
   GithubPrReviewSummary,
 } from "@nervekit/contracts/git";
 import type { StatusTone } from "@nervekit/ui-kit/display/status";
-import { githubCheckRunOutcome } from "./github-pr-checks";
 
 type TimelineEntry =
   | { kind: "comment"; at: string; value: GithubPrComment }
@@ -18,7 +17,21 @@ type TimelineEntry =
 export type MergeReadiness = {
   status: "ready" | "blocked" | "unknown";
   reasons: string[];
+  /** The viewer may merge anyway because GitHub lets them bypass every
+   * remaining blocker (rules, reviews, checks, an outdated branch). */
+  bypassable: boolean;
 };
+
+/** Requirements GitHub lets permitted users bypass; conflicts, drafts and
+ * disabled merge methods are never bypassable. */
+const BYPASSABLE_REASONS = new Set([
+  "Update the branch with the latest base changes",
+  "Branch protection requirements are not satisfied",
+  "Checks are still running",
+  "Required checks are failing",
+  "Changes were requested",
+  "An approving review is required",
+]);
 
 export function checksTone(checks: GithubChecksSummary): StatusTone {
   switch (checks.status) {
@@ -43,31 +56,6 @@ export function stateTone(detail: PrStateSummary | undefined): StatusTone {
   if (detail.state === "MERGED") return "info";
   if (detail.state === "CLOSED") return "destructive";
   return "success";
-}
-
-export function stateLabel(detail: PrStateSummary | undefined): string {
-  if (!detail) return "";
-  if (detail.isDraft) return "draft";
-  return detail.state.toLowerCase();
-}
-
-export function reviewTone(decision: string): StatusTone {
-  if (decision === "APPROVED") return "success";
-  if (decision === "CHANGES_REQUESTED") return "destructive";
-  return "warning";
-}
-
-export function runTone(status: string): StatusTone {
-  const outcome = githubCheckRunOutcome(status);
-  if (outcome === "passed") return "success";
-  if (outcome === "failed") return "destructive";
-  return "warning";
-}
-
-export function formatPrDate(value?: string): string {
-  if (!value) return "";
-  const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? "" : date.toLocaleString();
 }
 
 export function formatPrDateCompact(value?: string): string {
@@ -116,14 +104,33 @@ export function mergeMethodLabel(method: GithubPrMergeMethod): string {
   return "Rebase and merge";
 }
 
-export function mergeReadiness(
-  detail: GithubPrCore & GithubPrOverview & { checks: GithubChecksSummary },
-): MergeReadiness {
+export type MergeReadinessInput = Pick<
+  GithubPrCore,
+  "state" | "isDraft" | "headRefOid"
+> &
+  Pick<
+    GithubPrOverview,
+    | "mergeable"
+    | "mergeStateStatus"
+    | "reviewDecision"
+    | "viewerCanMergeAsAdmin"
+    | "mergeSettings"
+  > & { checks: Pick<GithubChecksSummary, "status"> };
+
+export function mergeReadiness(detail: MergeReadinessInput): MergeReadiness {
   if (detail.state !== "OPEN") {
-    return { status: "blocked", reasons: ["Pull request is not open"] };
+    return {
+      status: "blocked",
+      reasons: ["Pull request is not open"],
+      bypassable: false,
+    };
   }
   if (detail.isDraft) {
-    return { status: "blocked", reasons: ["Pull request is still a draft"] };
+    return {
+      status: "blocked",
+      reasons: ["Pull request is still a draft"],
+      bypassable: false,
+    };
   }
   if (
     !detail.headRefOid ||
@@ -133,6 +140,7 @@ export function mergeReadiness(
     return {
       status: "unknown",
       reasons: ["GitHub is calculating mergeability"],
+      bypassable: false,
     };
   }
 
@@ -155,24 +163,15 @@ export function mergeReadiness(
     reasons.push("An approving review is required");
   if (detail.mergeSettings.allowedMethods.length === 0)
     reasons.push("No merge method is enabled");
-  return reasons.length > 0
-    ? { status: "blocked", reasons: [...new Set(reasons)] }
-    : { status: "ready", reasons: [] };
-}
-
-export function divergenceLabel(detail: GithubPrOverview): string {
-  if (detail.behindBy === null) {
-    return detail.mergeStateStatus === "BEHIND"
-      ? "Base branch has updates"
-      : "Base branch status unavailable";
-  }
-  if (detail.behindBy === 0) return "Up to date with base";
-  return `${detail.behindBy} ${detail.behindBy === 1 ? "commit" : "commits"} behind base`;
-}
-
-export function divergenceTone(detail: GithubPrOverview): StatusTone {
-  if (detail.behindBy === null) return "neutral";
-  return detail.behindBy > 0 ? "warning" : "success";
+  if (reasons.length === 0)
+    return { status: "ready", reasons: [], bypassable: false };
+  return {
+    status: "blocked",
+    reasons: [...new Set(reasons)],
+    bypassable:
+      detail.viewerCanMergeAsAdmin &&
+      reasons.every((reason) => BYPASSABLE_REASONS.has(reason)),
+  };
 }
 
 export function prTimeline(detail: GithubPrConversation): TimelineEntry[] {
@@ -207,4 +206,123 @@ export function fileStatusTone(status: GithubPrFileStatus): string {
   if (status === "removed") return "text-destructive";
   if (status === "renamed" || status === "copied") return "text-info";
   return "text-warning";
+}
+
+/** "now", "5m ago", "2h ago", "3d ago"; older than a month falls back to a date. */
+export function formatRelativeAge(value?: string, now = Date.now()): string {
+  const compact = formatCompactAge(value, now);
+  if (!compact) return "";
+  if (compact === "now") return "just now";
+  if (compact.endsWith("mo") || compact.endsWith("y"))
+    return new Date(value as string).toLocaleDateString(undefined, {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+    });
+  return `${compact} ago`;
+}
+
+/** "Today", "Yesterday", or a calendar date, in the viewer's time zone. */
+export function formatDayGroup(value?: string, now = Date.now()): string {
+  const timestamp = value ? Date.parse(value) : Number.NaN;
+  if (Number.isNaN(timestamp)) return "Unknown date";
+  const startOfDay = (time: number) => {
+    const date = new Date(time);
+    date.setHours(0, 0, 0, 0);
+    return date.getTime();
+  };
+  const days = Math.round(
+    (startOfDay(now) - startOfDay(timestamp)) / 86_400_000,
+  );
+  if (days === 0) return "Today";
+  if (days === 1) return "Yesterday";
+  return new Date(timestamp).toLocaleDateString(undefined, {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
+}
+
+export function groupCommitsByDay<T extends { authoredDate?: string }>(
+  commits: readonly T[],
+  now = Date.now(),
+): { day: string; commits: T[] }[] {
+  const groups: { day: string; commits: T[] }[] = [];
+  for (const commit of commits) {
+    const day = formatDayGroup(commit.authoredDate, now);
+    const last = groups.at(-1);
+    if (last?.day === day) last.commits.push(commit);
+    else groups.push({ day, commits: [commit] });
+  }
+  return groups;
+}
+
+/**
+ * How the merge control should read. `ready` is the only enabled state;
+ * `waiting` is transient (checks running, GitHub still computing), and
+ * `blocked` needs someone to act.
+ */
+export type MergeAvailability =
+  | { kind: "ready" }
+  | { kind: "waiting" | "blocked"; reason: string; bypassable: boolean };
+
+const WAITING_REASONS = new Set([
+  "Checks are still running",
+  "GitHub is calculating mergeability",
+]);
+
+export function mergeAvailability(
+  readiness: MergeReadiness,
+): MergeAvailability {
+  if (readiness.status === "ready") return { kind: "ready" };
+  const reason = readiness.reasons.join(" · ");
+  return {
+    kind: readiness.reasons.every((item) => WAITING_REASONS.has(item))
+      ? "waiting"
+      : "blocked",
+    reason,
+    bypassable: readiness.bypassable,
+  };
+}
+
+export type PrReviewerState =
+  | "approved"
+  | "changes"
+  | "commented"
+  | "requested";
+
+export type PrReviewer = { login: string; state: PrReviewerState };
+
+const REVIEW_STATES: Record<string, PrReviewerState | undefined> = {
+  APPROVED: "approved",
+  CHANGES_REQUESTED: "changes",
+  COMMENTED: "commented",
+};
+
+/** Latest submitted review per author, then reviewers still awaited. */
+export function prReviewers(
+  conversation: Pick<GithubPrConversation, "reviews"> | undefined,
+  overview: Pick<GithubPrOverview, "reviewRequests"> | undefined,
+  author?: string | null,
+): PrReviewer[] {
+  const latest = new Map<string, PrReviewerState>();
+  const reviews = [...(conversation?.reviews ?? [])].sort((a, b) =>
+    a.submittedAt.localeCompare(b.submittedAt),
+  );
+  for (const review of reviews) {
+    const state = REVIEW_STATES[review.state];
+    if (!review.author || !state || review.author === author) continue;
+    // A bare comment never overrides an approval or a change request.
+    if (state === "commented" && latest.has(review.author)) continue;
+    latest.set(review.author, state);
+  }
+  const requested = (overview?.reviewRequests ?? []).filter(
+    (reviewer) => !latest.has(reviewer.login),
+  );
+  return [
+    ...[...latest].map(([login, state]) => ({ login, state })),
+    ...requested.map(
+      (reviewer): PrReviewer => ({ login: reviewer.login, state: "requested" }),
+    ),
+  ];
 }

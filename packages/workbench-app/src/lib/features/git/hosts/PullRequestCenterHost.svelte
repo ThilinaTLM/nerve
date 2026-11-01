@@ -10,7 +10,7 @@ import {
   selectedPrFileDiffResource,
   setActivePrRefreshDemand,
 } from "$lib/features/git/state/git-refresh-coordinator.svelte";
-import { refreshPrs } from "$lib/features/git/state/git-panel-refresh.svelte";
+
 import {
   gitCurrentBranch,
   gitSelectors,
@@ -190,11 +190,8 @@ async function mergeActivePr(
       });
     invalidateGit(view.projectId);
     try {
-      // Both refreshes are silent/self-reporting; they must not toast.
-      await Promise.all([
-        refreshPrPane(view.id),
-        refreshPrs(view.projectId, view.repo, true, true),
-      ]);
+      // Refreshes the shared snapshot and the pane's visible sections.
+      await refreshPrPane(view.id);
     } catch (caught) {
       postMergeFailure(
         `PR #${view.number} merged, but Git state could not refresh`,

@@ -81,6 +81,13 @@ export function withGitMutationEvents(
   service: GitService,
   events: GitMutationEventPublisher,
   activities?: GitActivityPort,
+  onMutation?: (
+    method: string,
+    projectId: string,
+    repo: string,
+    branch?: string,
+    number?: number,
+  ) => void,
 ): GitService {
   return new Proxy(service, {
     get(target, property, receiver) {
@@ -144,6 +151,19 @@ export function withGitMutationEvents(
           });
         } catch {
           /* A publication failure cannot turn a successful mutation into a failure. */
+        }
+        if (projectId) {
+          try {
+            onMutation?.(
+              property,
+              projectId,
+              repo,
+              result.repo?.currentBranch ?? undefined,
+              typeof args[2] === "number" ? args[2] : undefined,
+            );
+          } catch {
+            /* Signals are best effort. */
+          }
         }
         return result;
       };

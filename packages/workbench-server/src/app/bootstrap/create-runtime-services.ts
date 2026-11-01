@@ -1,3 +1,8 @@
+import {
+  createdPrReference,
+  referenceMatchesRepository,
+} from "../../domains/git/pr-sync/pr-reference-signal.js";
+import { PrSyncService } from "../../domains/git/pr-sync/pr-sync-service.js";
 import { UnreadableConversationActivity } from "../../domains/activity/unreadable-conversation-activity.js";
 import { ProjectMigrationService } from "../../infrastructure/configuration/project-migration/project-migration.js";
 import {
@@ -151,11 +156,53 @@ export function createRuntimeServices(deps: RuntimeDeps) {
     return { id: project.id, name: project.name, dir: project.directory };
   });
   // The decorator is the sole success-event publisher for both tracked and direct mutations.
-  const git = withGitMutationEvents(gitService, events, activities);
+  const prSync = new PrSyncService(gitService, events);
+  const seenCreatedReferences = new Set<string>();
+  prSync.disposers.push(
+    conversationCore.subscribe((change) => {
+      if (change.kind !== "conversation_changed") return;
+      const { projectId, references } = change.summary;
+      for (const reference of references) {
+        const created = createdPrReference(reference);
+        const key = `${projectId}:${reference.resourceKey}`;
+        if (!created || seenCreatedReferences.has(key)) continue;
+        seenCreatedReferences.add(key);
+        void gitService
+          .discoverRepos(projectId)
+          .then(async (discovery) => {
+            for (const repo of discovery.repos) {
+              const remote = await gitService.repoRemoteState(
+                gitService.resolveRepoDir(projectId, repo.relativePath),
+              );
+              if (referenceMatchesRepository(created, remote.githubRepository))
+                prSync.signal(projectId, repo.relativePath, created.number);
+            }
+          })
+          .catch(() => {});
+      }
+    }),
+  );
+  const git = withGitMutationEvents(
+    gitService,
+    events,
+    activities,
+    (method, projectId, repo, branch, number) => {
+      if (method === "mergePr" && number)
+        prSync.merged(projectId, repo, number);
+      else if ((method === "push" || method === "syncBranch") && branch)
+        prSync.expect(projectId, repo, branch);
+      else prSync.signal(projectId, repo);
+    },
+  );
   const gitOperations = new GitOperationService(git, activities);
   const workspaceMonitor = new WorkspaceMonitor(
     createWorkspaceMonitorPublisher(events, git),
     {
+      onRemoteRefsChanged: (projectId, repo, branches) => {
+        if (branches.length)
+          for (const branch of branches) prSync.expect(projectId, repo, branch);
+        else prSync.signal(projectId, repo);
+      },
       onRepositoryChanged: (repoDir, options) => {
         if (options?.refreshCause !== "uncertain_poll")
           gitService.invalidateStableRepoMetadata(repoDir);
@@ -208,7 +255,12 @@ export function createRuntimeServices(deps: RuntimeDeps) {
   const completions: UnifiedCompletionService = new UnifiedCompletionService(
     createCompletionDependencies({
       home: storage.paths.home,
-      git,
+      git: {
+        discoverRepos: git.discoverRepos.bind(git),
+        listIssues: git.listIssues.bind(git),
+        onRemoteCacheChanged: git.onRemoteCacheChanged.bind(git),
+        cachedOpenPrs: prSync.cachedOpenPrs.bind(prSync),
+      },
       events,
       core: conversationCore,
       context: {
@@ -270,6 +322,7 @@ export function createRuntimeServices(deps: RuntimeDeps) {
     scratchNotes,
     integrationHealth,
     workspaceMonitor,
+    prSync,
     git,
     gitOperations,
     editors: new ProjectEditorService(getProject),

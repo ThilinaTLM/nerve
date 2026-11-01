@@ -6,6 +6,10 @@ export function prSummaryFromCore(
 ): GithubPr {
   return {
     number: core.number,
+    headSha: core.headRefOid,
+    headRepository: core.headRepository ?? null,
+    labels: [],
+    reviewRequested: false,
     title: core.title,
     url: core.url,
     state: core.state,
@@ -19,65 +23,4 @@ export function prSummaryFromCore(
     deletions: core.deletions,
     checks,
   };
-}
-
-export function checksFingerprint(checks: GithubChecksSummary): string {
-  return [
-    checks.status,
-    checks.total,
-    checks.passed,
-    checks.failed,
-    checks.pending,
-    checks.runs
-      .map((run) => `${run.name}:${run.status}`)
-      .sort()
-      .join("|"),
-  ].join(",");
-}
-
-export function prSummaryFingerprint(pr: GithubPr): string {
-  return [
-    pr.number,
-    pr.title,
-    pr.url,
-    pr.state,
-    pr.isDraft,
-    pr.headRefName,
-    pr.baseRefName,
-    pr.updatedAt,
-    pr.author,
-    pr.commentCount,
-    pr.additions,
-    pr.deletions,
-    checksFingerprint(pr.checks),
-  ].join("\u0000");
-}
-
-export function prSummariesEqual(left: GithubPr, right: GithubPr): boolean {
-  return prSummaryFingerprint(left) === prSummaryFingerprint(right);
-}
-
-export function prChecksEqual(
-  left: GithubChecksSummary | undefined,
-  right: GithubChecksSummary,
-): boolean {
-  return (
-    left !== undefined && checksFingerprint(left) === checksFingerprint(right)
-  );
-}
-
-export function prCoreMatchesSummary(
-  core: GithubPrCore,
-  summary: GithubPr,
-): boolean {
-  return (
-    core.number === summary.number &&
-    core.title === summary.title &&
-    core.url === summary.url &&
-    core.state === summary.state &&
-    core.isDraft === summary.isDraft &&
-    core.headRefName === summary.headRefName &&
-    core.baseRefName === summary.baseRefName &&
-    core.updatedAt === summary.updatedAt
-  );
 }

@@ -230,7 +230,7 @@ const tourIdByView: Record<string, string> = {
 </script>
 
 <div
-  class="dock-tab-strip chrome-tab-track"
+  class="dock-tab-strip bg-chrome-track"
   class:drag-active={dragActive}
   data-tour-id={dock === "left" ? "panel-layout" : undefined}
   bind:this={strip}
@@ -330,7 +330,7 @@ const tourIdByView: Record<string, string> = {
   align-items: stretch;
   min-width: 0;
   height: 2rem;
-  /* Surface comes from the shared `.chrome-tab-track` shade: a short step under
+  /* Surface comes from the shared `chrome-track` shade: a short step under
    * the dock `card`, so the active tab reads as that panel surface filling the
    * track. */
 }

@@ -53,8 +53,6 @@ import {
 import {
   deleteProjectAndRefresh,
   newConversationInProject,
-  openProjectInEditorAndNotify,
-  openProjectInTerminalAndNotify,
   maintenance,
   selectProject,
   workspaceSelectors,
@@ -157,16 +155,10 @@ const desktopQuitting = $derived(
 const menuContext = $derived<ProjectTreeMenuContext>({
   homeDir: status?.storage.userHome,
   newConversationShortcut,
-  editorAvailability: status?.runtime.editors,
-  terminalAvailability: status?.runtime.terminal,
   conversationCount: (projectId) =>
     countProjectConversations(conversations, projectId),
   maintenanceActive: maintenance.active,
   onNewConversationInProject: newConversationInProject,
-  onOpenProjectInEditor: (projectId, editor) =>
-    void openProjectInEditorAndNotify(projectId, editor),
-  onOpenProjectInTerminal: (projectId) =>
-    void openProjectInTerminalAndNotify(projectId),
   onOpenProjectSettings: (projectId) => void openProjectSettingsPane(projectId),
   requestPrune: (project) => {
     pendingPrune = {

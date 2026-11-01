@@ -27,6 +27,7 @@ Start with the codebase overview, then the conversation core.
 **Workbench**
 
 - [Launch catalog](architecture/launch-definitions.md) — saved project commands, folders, safe shared editing and client cache.
+- [Pull request sync](architecture/pull-request-sync.md) — server-owned PR snapshots, rate-limit-free change detection and the shared client store.
 
 ## Maintainer runbooks
 

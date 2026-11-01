@@ -82,11 +82,15 @@ export function shortAgentModel(agent: AgentRecord | undefined): string {
   return shortModelLabel(agent.model.modelId);
 }
 
-export function conversationMeta(row: ConversationRow): string {
+/** Tooltip lines describing a row's agent configuration. */
+export function conversationRowDetails(row: ConversationRow): string[] {
   const profile = row.agent?.agentProfile ?? row.conversation.agentProfile;
   const permission =
     row.agent?.permissionRuleSetId ?? row.conversation.permissionRuleSetId;
-  return `${profile ?? "unknown"} · ${permission ? permissionRuleSetDisplayName(permission) : "unknown"} · ${shortAgentModel(row.agent)}`;
+  return [
+    `profile: ${profile ?? "unknown"} · rule set: ${permission ? permissionRuleSetDisplayName(permission) : "unknown"}`,
+    `model: ${shortAgentModel(row.agent)}`,
+  ];
 }
 
 export function groupIsActive(

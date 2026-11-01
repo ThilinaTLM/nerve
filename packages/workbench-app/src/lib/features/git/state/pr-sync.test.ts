@@ -1,12 +1,7 @@
-import type { GithubPr, GithubPrCore } from "@nervekit/contracts/git";
+import type { GithubPrCore } from "@nervekit/contracts/git";
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import {
-  prChecksEqual,
-  prCoreMatchesSummary,
-  prSummariesEqual,
-  prSummaryFromCore,
-} from "./pr-sync.js";
+import { prSummaryFromCore } from "./pr-sync.js";
 
 const passingChecks = {
   status: "passing" as const,
@@ -22,6 +17,7 @@ const passingChecks = {
 
 const core: GithubPrCore = {
   number: 42,
+  headSha: "abcdef123456",
   title: "Progressive PR details",
   url: "https://github.com/owner/repo/pull/42",
   state: "OPEN",
@@ -43,6 +39,10 @@ describe("pull request summary sync", () => {
   it("projects list fields from core and checks", () => {
     assert.deepEqual(prSummaryFromCore(core, passingChecks), {
       number: core.number,
+      headSha: core.headRefOid,
+      headRepository: null,
+      labels: [],
+      reviewRequested: false,
       title: core.title,
       url: core.url,
       state: core.state,
@@ -56,24 +56,5 @@ describe("pull request summary sync", () => {
       deletions: core.deletions,
       checks: passingChecks,
     });
-  });
-
-  it("compares check runs independent of order", () => {
-    const summary = prSummaryFromCore(core, passingChecks);
-    const reordered: GithubPr = {
-      ...summary,
-      checks: { ...passingChecks, runs: [...passingChecks.runs].reverse() },
-    };
-    assert.equal(prSummariesEqual(summary, reordered), true);
-    assert.equal(prChecksEqual(passingChecks, reordered.checks), true);
-    assert.equal(prCoreMatchesSummary(core, summary), true);
-    assert.equal(
-      prSummariesEqual(summary, { ...summary, state: "MERGED" }),
-      false,
-    );
-    assert.equal(
-      prCoreMatchesSummary(core, { ...summary, title: "Changed" }),
-      false,
-    );
   });
 });
