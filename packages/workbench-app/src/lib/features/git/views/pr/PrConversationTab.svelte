@@ -16,6 +16,7 @@ import { ScrollArea } from "@nervekit/ui-kit/components/ui/scroll-area";
 import { notifyCopyResult } from "@nervekit/ui-kit/browser/notifications";
 import Markdown from "@nervekit/ui-kit/renderers/markdown/Markdown.svelte";
 import { cn } from "@nervekit/ui-kit/utils";
+import { pullRequestResourceKey } from "$lib/presentation/conversations/conversation-references";
 import type { PrLinkedConversation } from "../github-pr-types";
 import {
   formatPrDateCompact,
@@ -45,6 +46,8 @@ let {
 }: Props = $props();
 
 let detailsOpen = $state(false);
+/** `host/owner/repo`, so this PR's own reference renders as `#number`. */
+const repository = $derived(pullRequestResourceKey(core.url)?.split("#")[0]);
 const timeline = $derived(prTimeline(conversation));
 const hasDetails = $derived(
   reviewers.length > 0 || labels.length > 0 || linked.length > 0,
@@ -74,7 +77,7 @@ const REVIEW_STATE: Record<
 </script>
 
 {#snippet details()}
-  <PrDetails {reviewers} {labels} {linked} {onOpenConversation} />
+  <PrDetails {reviewers} {labels} {linked} {repository} {onOpenConversation} />
 {/snippet}
 
 <ScrollArea class="h-full" viewportClass="@container">

@@ -7,23 +7,22 @@ import type { Component } from "svelte";
 import type { GithubPrLabel } from "@nervekit/contracts/git";
 import { Badge } from "@nervekit/ui-kit/components/ui/badge";
 import { cn } from "@nervekit/ui-kit/utils";
-import ConversationActivityIndicator from "$lib/presentation/conversations/ConversationActivityIndicator.svelte";
-import { conversationRowStatusLabel } from "$lib/presentation/conversations/conversation-row-state";
+import ConversationListItem from "$lib/presentation/conversations/ConversationListItem.svelte";
+import { PanelList } from "$lib/presentation/panels";
 import type { PrLinkedConversation } from "../github-pr-types";
-import {
-  formatCompactAge,
-  type PrReviewer,
-  type PrReviewerState,
-} from "../pr-pane-helpers";
+import type { PrReviewer, PrReviewerState } from "../pr-pane-helpers";
 import PrAvatar from "./PrAvatar.svelte";
 
 type Props = {
   reviewers: PrReviewer[];
   labels: GithubPrLabel[];
   linked: PrLinkedConversation[];
+  /** The PR's `host/owner/repo` key, used to shorten reference labels. */
+  repository?: string;
   onOpenConversation?: (id: string) => void;
 };
-let { reviewers, labels, linked, onOpenConversation }: Props = $props();
+let { reviewers, labels, linked, repository, onOpenConversation }: Props =
+  $props();
 
 const VISIBLE_LINKED = 3;
 let showAllLinked = $state(false);
@@ -98,51 +97,19 @@ const REVIEWER: Record<
       <h3 class="pb-1.5 text-xs font-medium text-muted-foreground">
         Conversations
       </h3>
-      <ul class="divide-y overflow-hidden rounded-md border bg-card">
-        {#each shownLinked as item (item.id)}
-          {@const status = conversationRowStatusLabel(item.activity)}
-          <li>
-            <button
-              type="button"
-              class="flex w-full items-start gap-2 px-3 py-1.5 text-left hover:bg-accent/40"
-              title={item.activity.statusText ?? item.activity.label}
-              onclick={() => onOpenConversation?.(item.id)}
-            >
-              <span class="flex h-5 w-3.5 shrink-0 items-center justify-center">
-                <ConversationActivityIndicator
-                  activity={item.activity}
-                  variant="rail"
-                />
-              </span>
-              <span class="min-w-0 flex-1">
-                <span class="block truncate text-sm">{item.title}</span>
-                <span
-                  class="flex items-center gap-1.5 text-xs text-muted-foreground"
-                >
-                  {#if status}
-                    <span
-                      class={cn(
-                        item.activity.tone === "warning" && "text-warning",
-                        item.activity.tone === "destructive" &&
-                          "text-destructive",
-                      )}>{status}</span
-                    >
-                    <span aria-hidden="true">·</span>
-                  {/if}
-                  {item.relationship === "created"
-                    ? "Created this PR"
-                    : "Mentioned"}
-                </span>
-              </span>
-              <span
-                class="flex h-5 shrink-0 items-center text-xs text-muted-foreground tabular-nums"
-              >
-                {formatCompactAge(item.at)}
-              </span>
-            </button>
-          </li>
+      <PanelList
+        ariaLabel="Linked conversations"
+        class="overflow-hidden rounded-md border bg-card"
+      >
+        {#each shownLinked as item (item.conversation.id)}
+          <ConversationListItem
+            conversation={item.conversation}
+            activity={item.activity}
+            currentRepository={repository}
+            {onOpenConversation}
+          />
         {/each}
-      </ul>
+      </PanelList>
       {#if linked.length > VISIBLE_LINKED}
         <button
           type="button"

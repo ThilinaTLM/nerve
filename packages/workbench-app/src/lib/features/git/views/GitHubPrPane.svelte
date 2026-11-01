@@ -18,7 +18,6 @@ import {
   linkedPullRequestConversations,
   pullRequestResourceKey,
 } from "$lib/presentation/conversations/conversation-references";
-import { conversationLastUserPromptAt } from "@nervekit/contracts/core";
 import { idleConversationActivity } from "$lib/presentation/conversations/conversation-activity";
 import PrActions from "./pr/PrActions.svelte";
 import PrChecksTab from "./pr/PrChecksTab.svelte";
@@ -98,11 +97,8 @@ const linked = $derived.by<PrLinkedConversation[]>(() => {
   return linkedPullRequestConversations(
     workspaceSelectors.conversations,
     key,
-  ).map(({ row, relationship }) => ({
-    id: row.id,
-    title: row.title,
-    relationship,
-    at: conversationLastUserPromptAt(row),
+  ).map(({ row }) => ({
+    conversation: row,
     activity:
       workspaceSelectors.conversationActivityById[row.id] ??
       idleConversationActivity,

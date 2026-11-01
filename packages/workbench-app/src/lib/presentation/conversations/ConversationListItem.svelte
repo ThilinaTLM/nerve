@@ -6,29 +6,31 @@ import GitPullRequestCreateArrow from "@lucide/svelte/icons/git-pull-request-cre
 import CircleDot from "@lucide/svelte/icons/circle-dot";
 import CirclePlus from "@lucide/svelte/icons/circle-plus";
 import Hash from "@lucide/svelte/icons/hash";
-import type { ConversationReference } from "@nervekit/contracts/core";
+import type {
+  ConversationReference,
+  ConversationSummary,
+} from "@nervekit/contracts/core";
 import {
   referenceSlots,
   referenceLabel,
   referenceDescription,
-} from "$lib/presentation/conversations/conversation-references";
+} from "./conversation-references";
 import { relativeTimeLabel } from "@nervekit/ui-kit/display/time";
 import type { ContextMenuItem } from "@nervekit/ui-kit/components/composites/context-menu-list";
 import { cn } from "@nervekit/ui-kit/utils";
 import { PanelRow } from "$lib/presentation/panels";
 import { ItemSurface } from "$lib/presentation/items";
-import type { ConversationActivity } from "$lib/presentation/conversations/conversation-activity";
-import { idleConversationActivity } from "$lib/presentation/conversations/conversation-activity";
-import type { ConversationRow } from "$lib/domain/projects/project-tree";
-import { shortAgentModel } from "$lib/domain/projects/project-tree";
-import { permissionRuleSetDisplayName } from "$lib/domain/permissions/rule-set-options";
-import ConversationActivityIndicator from "$lib/presentation/conversations/ConversationActivityIndicator.svelte";
-import { conversationRowStatusLabel } from "$lib/presentation/conversations/conversation-row-state";
-import { conversationTitleDisplaySegments } from "$lib/presentation/conversations/conversation-search";
+import type { ConversationActivity } from "./conversation-activity";
+import { idleConversationActivity } from "./conversation-activity";
+import ConversationActivityIndicator from "./ConversationActivityIndicator.svelte";
+import { conversationRowStatusLabel } from "./conversation-row-state";
+import { conversationTitleDisplaySegments } from "./conversation-search";
 
 type Props = {
-  row: ConversationRow;
-  repoLabels: ReadonlyMap<string, string>;
+  conversation: ConversationSummary;
+  /** Extra tooltip lines, such as profile, rule set and model. */
+  details?: string[];
+  repoLabels?: ReadonlyMap<string, string>;
   currentRepository?: string;
   matchedReference?: string;
   isActive?: boolean;
@@ -37,13 +39,14 @@ type Props = {
   faded?: boolean;
   activity?: ConversationActivity;
   highlight?: number[];
-  menuItems: ContextMenuItem[];
+  menuItems?: ContextMenuItem[];
   onMenuOpenChange?: (open: boolean) => void;
   onOpenConversation?: (conversationId: string) => void;
 };
 let {
-  row,
-  repoLabels,
+  conversation,
+  details = [],
+  repoLabels = new Map(),
   currentRepository,
   matchedReference,
   isActive = false,
@@ -57,12 +60,12 @@ let {
 }: Props = $props();
 const dotActivity = $derived(
   activity ??
-    (row.conversation.completedAt
+    (conversation.completedAt
       ? { ...idleConversationActivity, indicator: "completed" as const }
       : idleConversationActivity),
 );
 const references = $derived(
-  referenceSlots(row.conversation.references, matchedReference),
+  referenceSlots(conversation.references, matchedReference),
 );
 function referenceIcon(reference: ConversationReference) {
   return reference.kind === "pull_request"
@@ -76,14 +79,8 @@ function referenceIcon(reference: ConversationReference) {
       : Hash;
 }
 const status = $derived(conversationRowStatusLabel(dotActivity));
-const profile = $derived(
-  row.agent?.agentProfile ?? row.conversation.agentProfile,
-);
-const permission = $derived(
-  row.agent?.permissionRuleSetId ?? row.conversation.permissionRuleSetId,
-);
 const promptAt = $derived(
-  row.conversation.lastUserMessageAt ?? row.conversation.createdAt,
+  conversation.lastUserMessageAt ?? conversation.createdAt,
 );
 const exactTime = $derived(
   new Date(promptAt).toLocaleString(undefined, {
@@ -92,23 +89,20 @@ const exactTime = $derived(
   }),
 );
 const age = $derived(relativeTimeLabel(promptAt));
-const plainTitle = $derived(
-  conversationTitleToPlainText(row.conversation.title),
-);
+const plainTitle = $derived(conversationTitleToPlainText(conversation.title));
 const tooltip = $derived(
   [
     plainTitle,
-    ...row.conversation.references.map(referenceDescription),
+    ...conversation.references.map(referenceDescription),
     dotActivity.statusText ?? dotActivity.label ?? "Idle",
-    `profile: ${profile ?? "unknown"} · rule set: ${permission ? permissionRuleSetDisplayName(permission) : "unknown"}`,
-    `model: ${shortAgentModel(row.agent)}`,
-    `${row.conversation.childCount} sub-agents`,
+    ...details,
+    `${conversation.childCount} sub-agents`,
     exactTime,
-    row.conversation.id,
+    conversation.id,
   ].join("\n"),
 );
 const titleSegments = $derived(
-  conversationTitleDisplaySegments(row.conversation.title, highlight),
+  conversationTitleDisplaySegments(conversation.title, highlight),
 );
 </script>
 
@@ -122,12 +116,12 @@ const titleSegments = $derived(
     "mx-1 my-0.5 flex-col rounded-md px-2.5 py-2 font-normal",
     !isActive && "hover:bg-accent/40",
   )}
-  onclick={() => onOpenConversation?.(row.conversation.id)}
+  onclick={() => onOpenConversation?.(conversation.id)}
 >
   <PanelRow
     label={plainTitle}
     labelLines={2}
-    dataId={row.conversation.id}
+    dataId={conversation.id}
     title={tooltip}
     ariaLabel={tooltip}
     flush
@@ -138,7 +132,7 @@ const titleSegments = $derived(
     labelClass="font-normal"
     onclick={(event) => {
       event.stopPropagation();
-      onOpenConversation?.(row.conversation.id);
+      onOpenConversation?.(conversation.id);
     }}
   >
     {#snippet leading()}
@@ -213,7 +207,7 @@ const titleSegments = $derived(
               {#if references.overflow > 0}
                 <span
                   class="shrink-0"
-                  title={row.conversation.references
+                  title={conversation.references
                     .map(referenceDescription)
                     .join("\n")}>+{references.overflow}</span
                 >
