@@ -21,7 +21,6 @@ export { default as SettingsDisclosureItem } from "./SettingsDisclosureItem.svel
 export { default as SettingsStatGrid } from "./SettingsStatGrid.svelte";
 export type { SettingsStat } from "./SettingsStatGrid.svelte";
 export { default as SettingsEmptyState } from "./SettingsEmptyState.svelte";
-export { default as SettingsInlineMessage } from "./SettingsInlineMessage.svelte";
 export { default as SettingsToolbar } from "./SettingsToolbar.svelte";
 export type {
   SettingsChoice,

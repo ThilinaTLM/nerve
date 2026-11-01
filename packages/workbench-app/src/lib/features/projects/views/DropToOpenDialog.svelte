@@ -89,7 +89,7 @@ function handleOpenChange(next: boolean) {
               "flex w-full items-center gap-2.5 rounded-md border bg-card px-2.5 py-2 text-left",
               choosing &&
                 row.selectable &&
-                "cursor-pointer hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none",
+                "cursor-pointer hover:bg-hover focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none",
               selected && "border-ring bg-selected hover:bg-selected",
               !row.selectable && "opacity-50",
             )}

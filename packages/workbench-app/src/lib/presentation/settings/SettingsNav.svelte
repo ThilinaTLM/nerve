@@ -6,6 +6,7 @@
   (`settings-page` container) the groups flow into one scrollable row.
 -->
 <script lang="ts">
+import { GroupLabel } from "@nervekit/ui-kit/components/composites/group-label";
 import ArrowUpRight from "@lucide/svelte/icons/arrow-up-right";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
 import { Badge } from "@nervekit/ui-kit/components/ui/badge";
@@ -65,11 +66,10 @@ let {
   {#each groups as group (group.id)}
     <div class="grid gap-0.5 @max-[46rem]/settings-page:flex">
       {#if group.title}
-        <p
-          class="px-2 pb-0.5 text-caption font-medium text-muted-foreground @max-[46rem]/settings-page:hidden"
-        >
-          {group.title}
-        </p>
+        <GroupLabel
+          class="px-2 pb-0.5 @max-[46rem]/settings-page:hidden"
+          label={group.title}
+        />
       {/if}
       {#each group.items as item (item.id)}
         {@const Icon = item.icon}

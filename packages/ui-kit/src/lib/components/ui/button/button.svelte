@@ -16,7 +16,7 @@ export const buttonVariants = tv({
       success:
         "bg-success text-success-foreground hover:bg-success/80 focus-visible:ring-success-strong focus-visible:border-success-strong",
       ghost:
-        "hover:bg-muted hover:text-foreground aria-expanded:bg-muted aria-expanded:text-foreground",
+        "hover:bg-hover hover:text-foreground aria-expanded:bg-muted aria-expanded:text-foreground",
       destructive:
         "bg-destructive-subtle hover:bg-destructive/15 focus-visible:ring-destructive-strong text-destructive focus-visible:border-destructive-strong",
       link: "text-primary underline-offset-4 hover:underline",

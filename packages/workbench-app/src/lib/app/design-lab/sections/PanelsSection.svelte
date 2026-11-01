@@ -11,20 +11,13 @@ import type { StatusTone } from "@nervekit/ui-kit/display/status";
 import ArchiveIcon from "@lucide/svelte/icons/archive";
 import ArrowDownToLineIcon from "@lucide/svelte/icons/arrow-down-to-line";
 import BookmarkIcon from "@lucide/svelte/icons/bookmark";
-import ChevronDownIcon from "@lucide/svelte/icons/chevron-down";
-import CircleAlertIcon from "@lucide/svelte/icons/circle-alert";
 import CloudDownloadIcon from "@lucide/svelte/icons/cloud-download";
 import FileIcon from "@lucide/svelte/icons/file";
 import FileCodeIcon from "@lucide/svelte/icons/file-code";
 import FileTextIcon from "@lucide/svelte/icons/file-text";
-import GitBranchIcon from "@lucide/svelte/icons/git-branch";
-import InfoIcon from "@lucide/svelte/icons/info";
 import PencilIcon from "@lucide/svelte/icons/pencil";
-import PlayIcon from "@lucide/svelte/icons/play";
 import PlusIcon from "@lucide/svelte/icons/plus";
 import RefreshCwIcon from "@lucide/svelte/icons/refresh-cw";
-import SettingsIcon from "@lucide/svelte/icons/settings";
-import SquareIcon from "@lucide/svelte/icons/square";
 import SquarePenIcon from "@lucide/svelte/icons/square-pen";
 import StickyNoteIcon from "@lucide/svelte/icons/sticky-note";
 import Trash2Icon from "@lucide/svelte/icons/trash-2";
@@ -34,10 +27,8 @@ import { Badge } from "@nervekit/ui-kit/components/ui/badge";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
 import type { ContextMenuItem } from "@nervekit/ui-kit/components/composites/context-menu-list";
 import { IconAction } from "@nervekit/ui-kit/components/composites/icon-action";
-import { StatusDot } from "@nervekit/ui-kit/components/composites/status-dot";
 import { ItemSurface } from "$lib/presentation/items";
 import {
-  PanelBanner,
   PanelCard,
   PanelEmpty,
   PanelHeader,
@@ -50,8 +41,21 @@ import {
   PanelView,
   buildPanelTree,
 } from "$lib/presentation/panels";
+import GitPanel from "$lib/features/git/views/GitPanel.svelte";
+import PullRequestsPanel from "$lib/features/git/views/PullRequestsPanel.svelte";
+import LaunchesPanel from "$lib/features/launches/views/LaunchesPanel.svelte";
+import ProjectConversationNavigator from "$lib/features/projects/views/ProjectConversationNavigator.svelte";
 import GalleryGroup from "../GalleryGroup.svelte";
 import GallerySpecimen from "../GallerySpecimen.svelte";
+import {
+  conversationNavigatorProps,
+  gitActions,
+  gitChangesModel,
+  launchPanelActions,
+  launchPanelModel,
+  navigatorSelectedConversationId,
+  pullRequestsModel,
+} from "./panels-fixtures";
 
 const longLabel =
   "packages/workbench-app/src/lib/presentation/transcript/components/a-very-long-component-name.svelte";
@@ -66,6 +70,7 @@ const menuItems: ContextMenuItem[] = [
 let selectedRow = $state("second");
 let loadingRefresh = $state(true);
 let titleEditing = $state(false);
+let selectedConversationId = $state(navigatorSelectedConversationId);
 
 // ── Sample data ──────────────────────────────────────────────────────────
 type FileItem = { path: string[]; change?: "M" | "A" | "D" };
@@ -150,58 +155,6 @@ function fileIcon(item: FileItem) {
   return FileIcon;
 }
 
-type ConversationItem = {
-  id: string;
-  title: string;
-  open?: boolean;
-  tone?: StatusTone;
-};
-const conversationGroups: {
-  title: string;
-  count: number;
-  items: ConversationItem[];
-}[] = [
-  {
-    title: "Today",
-    count: 11,
-    items: [
-      {
-        id: "c1",
-        title: "Basically, I want to polish the UX in our application",
-      },
-      { id: "c2", title: "Make sure both of them follows the same state" },
-      {
-        id: "c3",
-        title:
-          "The plan mode present tool view not showing the body and footer which was supposed to",
-        open: true,
-        tone: "info",
-      },
-      { id: "c4", title: "PR checks are failing can you fix it" },
-    ],
-  },
-  {
-    title: "Yesterday",
-    count: 6,
-    items: [
-      {
-        id: "c5",
-        title:
-          "Do you see the launch definition ID, or do you see the launch definition?",
-      },
-      { id: "c6", title: "Report me" },
-    ],
-  },
-];
-let selectedConversation = $state("c3");
-
-type LaunchItem = { id: string; name: string; running?: boolean };
-const launches: LaunchItem[] = [
-  { id: "l1", name: "website" },
-  { id: "l2", name: "workbench-ui", running: true },
-  { id: "l3", name: "website-dev" },
-  { id: "l4", name: "workbench-ui-dev" },
-];
 const sampleConversation: ConversationSummary = {
   id: "gallery",
   projectId: "project",
@@ -268,63 +221,48 @@ const activityExamples: {
 <div class="flex flex-col gap-10">
   <GalleryGroup
     title="In context"
-    description="The five left/right dock panels at their real 280px width, on the panel surface, modeled on the live-app screenshots and built only from panel kit components with static data."
+    description="The real dock panel views, fed with local mock data, at the 280px dock width on the panel surface."
   >
     <GallerySpecimen
       title="Dock panels at 280px"
-      source="panels/*"
-      usage="6 files · git, editor, projects, notes, launches"
+      source="features/*/views"
+      usage="ProjectConversationNavigator · GitPanel · PullRequestsPanel · LaunchesPanel"
       surface="panel"
       layout="bare"
+      description="Production views with mock models; actions are no-ops. Click a conversation to move the selection."
     >
       <div class="flex flex-wrap items-start gap-6">
-        <!-- Conversations -->
         <div class="h-150 w-70 overflow-hidden rounded-md border">
-          <PanelView>
-            {#snippet banner()}
-              <PanelHeader title="Conversations" count={158}>
-                {#snippet trailing()}
-                  <PanelToolbarButton
-                    icon={SettingsIcon}
-                    label="Conversation settings"
-                  />
-                  <PanelToolbarButton icon={PlusIcon} label="New chat" />
-                {/snippet}
-              </PanelHeader>
-            {/snippet}
-            <div class="min-h-0 flex-1 overflow-y-auto">
-              {#each conversationGroups as group (group.title)}
-                <PanelSectionHeader title={group.title} count={group.count} />
-                <PanelList ariaLabel={group.title}>
-                  {#each group.items as item (item.id)}
-                    <PanelRowCard
-                      selected={selectedConversation === item.id}
-                      {menuItems}
-                      onclick={() => (selectedConversation = item.id)}
-                    >
-                      <PanelRow
-                        label={item.title}
-                        labelLines={2}
-                        hoverable={false}
-                        class="px-2"
-                        active={selectedConversation === item.id}
-                      >
-                        {#snippet leading()}
-                          <StatusDot
-                            tone={item.tone ?? "neutral"}
-                            size="md"
-                            variant={item.open ? "solid" : "outline"}
-                          />
-                        {/snippet}
-                      </PanelRow>
-                    </PanelRowCard>
-                  {/each}
-                </PanelList>
-              {/each}
-            </div>
-          </PanelView>
+          <ProjectConversationNavigator
+            {...conversationNavigatorProps}
+            {selectedConversationId}
+            onOpenConversation={(id) => (selectedConversationId = id)}
+          />
         </div>
+        <div class="h-150 w-70 overflow-hidden rounded-md border">
+          <GitPanel model={gitChangesModel} actions={gitActions} />
+        </div>
+        <div class="h-150 w-70 overflow-hidden rounded-md border">
+          <PullRequestsPanel model={pullRequestsModel} actions={gitActions} />
+        </div>
+        <div class="h-150 w-70 overflow-hidden rounded-md border">
+          <LaunchesPanel
+            model={launchPanelModel}
+            actions={launchPanelActions}
+          />
+        </div>
+      </div>
+    </GallerySpecimen>
 
+    <GallerySpecimen
+      title="Dock panels without a stateless view"
+      source="panels/*"
+      usage="FilesPanelHost · NotesPanel"
+      surface="panel"
+      layout="bare"
+      description="Files and Notes still read app stores and load data on mount, so these are composed from panel kit components until each splits into a stateless view and a host."
+    >
+      <div class="flex flex-wrap items-start gap-6">
         <!-- Files -->
         <div class="h-150 w-70 overflow-hidden rounded-md border">
           <PanelView>
@@ -346,101 +284,6 @@ const activityExamples: {
                 getItemMenuItems={() => menuItems}
               />
             </div>
-          </PanelView>
-        </div>
-
-        <!-- Git changes -->
-        <div class="h-150 w-70 overflow-hidden rounded-md border">
-          <PanelView>
-            {#snippet banner()}
-              <PanelHeader title="Git changes" count={28}>
-                {#snippet trailing()}
-                  <PanelToolbarButton
-                    icon={RefreshCwIcon}
-                    label="Refresh Git changes"
-                  />
-                {/snippet}
-              </PanelHeader>
-            {/snippet}
-            <PanelRow label="fix/retain-resolved-plan-review-cards" mono>
-              {#snippet leading()}
-                <GitBranchIcon class="size-3.5" aria-hidden="true" />
-              {/snippet}
-              {#snippet actions()}
-                <ChevronDownIcon class="size-3.5" aria-hidden="true" />
-              {/snippet}
-            </PanelRow>
-            <div class="min-h-0 flex-1 overflow-y-auto">
-              <PanelRow dense label="Staged (28)" alwaysShowActions>
-                {#snippet actions()}
-                  <PanelToolbarButton
-                    icon={ArrowDownToLineIcon}
-                    label="Unstage all"
-                    dense
-                  />
-                  <PanelToolbarButton icon={ArchiveIcon} label="Stash" dense />
-                  <PanelToolbarButton icon={XIcon} label="Discard" dense />
-                {/snippet}
-              </PanelRow>
-              <PanelTree
-                nodes={stagedNodes}
-                ariaLabel="Staged changes"
-                itemLeading={changeLeading}
-                getItemTone={(item) =>
-                  item.change ? changeTone[item.change] : undefined}
-                getItemMenuItems={() => menuItems}
-              />
-            </div>
-          </PanelView>
-        </div>
-
-        <!-- Launches -->
-        <div class="h-150 w-70 overflow-hidden rounded-md border">
-          <PanelView>
-            {#snippet banner()}
-              <PanelHeader title="Launches" count={launches.length}>
-                {#snippet trailing()}
-                  <PanelToolbarButton icon={PlusIcon} label="Create launch" />
-                {/snippet}
-              </PanelHeader>
-            {/snippet}
-            <PanelList ariaLabel="Launches">
-              {#each launches as launch (launch.id)}
-                <PanelRow
-                  label={launch.name}
-                  tone={launch.running ? "success" : "neutral"}
-                  alwaysShowActions
-                >
-                  {#snippet leading()}
-                    {#if launch.running}
-                      <StatusDot tone="success" size="md" variant="outline" />
-                    {:else}
-                      <BookmarkIcon class="size-3.5" aria-hidden="true" />
-                    {/if}
-                  {/snippet}
-                  {#snippet actions()}
-                    {#if launch.running}
-                      <PanelToolbarButton
-                        icon={RefreshCwIcon}
-                        label="Restart launch"
-                        dense
-                      />
-                      <PanelToolbarButton
-                        icon={SquareIcon}
-                        label="Stop launch"
-                        dense
-                      />
-                    {:else}
-                      <PanelToolbarButton
-                        icon={PlayIcon}
-                        label="Start launch"
-                        dense
-                      />
-                    {/if}
-                  {/snippet}
-                </PanelRow>
-              {/each}
-            </PanelList>
           </PanelView>
         </div>
 
@@ -762,38 +605,6 @@ const activityExamples: {
 
   <GalleryGroup title="Banners & empty states">
     <GallerySpecimen
-      title="PanelBanner"
-      source="panels/PanelBanner"
-      usage="5 files · git, notes, launches, editor"
-      surface="card"
-      layout="stack"
-      description="Pinned strip for panel-level status. Tones in use: neutral (6 sites), destructive (4), warning, info."
-    >
-      <div class="flex w-70 max-w-full flex-col gap-1">
-        <PanelBanner tone="neutral">Everything is up to date</PanelBanner>
-        <PanelBanner tone="info" icon={InfoIcon}>
-          Indexing workspace…
-          {#snippet actions()}
-            <PanelToolbarButton icon={SquareIcon} label="Stop" dense />
-          {/snippet}
-        </PanelBanner>
-        <PanelBanner tone="warning" icon={TriangleAlertIcon}>
-          Working tree has uncommitted changes
-        </PanelBanner>
-        <PanelBanner tone="destructive" icon={CircleAlertIcon}>
-          Failed to load files: connection refused
-          {#snippet actions()}
-            <PanelToolbarButton
-              icon={RefreshCwIcon}
-              label="Retry loading files"
-              dense
-            />
-          {/snippet}
-        </PanelBanner>
-      </div>
-    </GallerySpecimen>
-
-    <GallerySpecimen
       title="PanelEmpty"
       source="panels/PanelEmpty"
       usage="4 files · editor, projects, notes, launches"
@@ -856,7 +667,7 @@ const activityExamples: {
       layout="stack"
     >
       {#each activityExamples as example (example.label)}
-        <div class="flex gap-3">
+        <div class="flex items-center gap-3 text-ui text-foreground">
           <ConversationActivityIndicator
             activity={example.activity}
             variant="rail"

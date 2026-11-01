@@ -1,8 +1,8 @@
 <!-- LLM accounts, subscriptions and custom providers and models. User-only. -->
 <script lang="ts">
+import { Callout } from "@nervekit/ui-kit/components/composites/callout";
 import ChevronRight from "@lucide/svelte/icons/chevron-right";
 import * as Collapsible from "@nervekit/ui-kit/components/ui/collapsible";
-import { SettingsInlineMessage } from "$lib/presentation/settings";
 import type { AuthProviderMetadata, ModelInfo } from "$lib/api";
 import { loadProviderCatalog } from "$lib/features/settings/state/provider-catalog-actions.svelte";
 import { providerCatalogState } from "$lib/features/settings/state/provider-catalog-state.svelte";
@@ -49,7 +49,8 @@ if (!providerCatalogState.catalogLoaded) {
     {/if}
   </Collapsible.Trigger>
   <Collapsible.Content class="grid gap-6 pt-2">
-    {#if catalogError}<SettingsInlineMessage
+    {#if catalogError}<Callout
+        layout="block"
         tone="destructive"
         text={catalogError}
       />{/if}

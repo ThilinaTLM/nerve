@@ -179,7 +179,7 @@ function onCreateKeydown(event: KeyboardEvent) {
           aria-selected={selected}
           tabindex="-1"
           class={cn(
-            "group flex w-full cursor-default items-center gap-2 rounded-md px-2 py-1.5 text-left hover:bg-muted max-sm:py-2",
+            "group flex w-full cursor-default items-center gap-2 rounded-md px-2 py-1.5 text-left hover:bg-hover max-sm:py-2",
             selected && "bg-selected hover:bg-selected",
           )}
           onclick={() => browser.select(entry.path)}

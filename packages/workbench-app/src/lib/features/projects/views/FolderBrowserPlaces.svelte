@@ -95,7 +95,7 @@ function isCurrent(path: string): boolean {
         <button
           type="button"
           class={cn(
-            "flex items-center gap-2 rounded-md px-2 py-1 text-left text-ui text-muted-foreground hover:bg-muted hover:text-foreground",
+            "flex items-center gap-2 rounded-md px-2 py-1 text-left text-ui text-muted-foreground hover:bg-hover hover:text-foreground",
             isCurrent(item.path) && "bg-selected font-medium text-foreground",
           )}
           aria-current={isCurrent(item.path) ? "true" : undefined}

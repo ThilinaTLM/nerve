@@ -181,6 +181,7 @@ const rows = Array.from({ length: 14 }, (_, i) => `Row ${i + 1}`);
           {#each badgeVariants as variant (variant)}
             <Badge {variant}>{variant}</Badge>
           {/each}
+          <Badge variant="brand" onclick={() => {}}>View details</Badge>
         </div>
         <div class="flex flex-wrap items-center gap-3">
           {#each badgeVariants as variant (variant)}

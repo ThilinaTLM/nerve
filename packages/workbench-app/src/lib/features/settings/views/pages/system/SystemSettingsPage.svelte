@@ -1,4 +1,5 @@
 <script lang="ts">
+import { Callout } from "@nervekit/ui-kit/components/composites/callout";
 import type {
   ApplicationConfigurationSnapshot,
   StatusResponse,
@@ -6,7 +7,6 @@ import type {
 } from "$lib/api";
 import {
   SettingsFieldRow,
-  SettingsInlineMessage,
   SettingsSection,
   SettingsSelectRow,
   SettingsStatGrid,
@@ -200,7 +200,8 @@ const diagnostics = $derived<SettingsStat[]>([
 {#if configuration}
   {#if pendingDaemonRestart || pendingDesktopRestart}
     <div class="flex items-center gap-2">
-      <SettingsInlineMessage
+      <Callout
+        layout="block"
         class="min-w-0 flex-1"
         tone="warning"
         text={`${pendingDaemonRestart ? "Changes saved. Restart the daemon to apply them." : ""}${pendingDesktopRestart ? " Restart Nerve to apply desktop changes." : ""}`}
@@ -573,7 +574,9 @@ const diagnostics = $derived<SettingsStat[]>([
         {/snippet}
       </SettingsSelectRow>
     {:else}
-      <SettingsInlineMessage
+      <Callout
+        layout="block"
+        tone="info"
         text="Electron rendering controls apply only to the Linux desktop app."
       />
     {/if}

@@ -1,10 +1,7 @@
 <script lang="ts">
+import { Callout } from "@nervekit/ui-kit/components/composites/callout";
 import type { Settings, TranscriptionModel } from "$lib/api";
-import {
-  SettingsInlineMessage,
-  SettingsRow,
-  SettingsSection,
-} from "$lib/presentation/settings";
+import { SettingsRow, SettingsSection } from "$lib/presentation/settings";
 import SelectField from "@nervekit/ui-kit/components/composites/select-field";
 import { Textarea } from "@nervekit/ui-kit/components/ui/textarea";
 import type { SettingsChange } from "../settings-change";
@@ -91,14 +88,11 @@ function saveVocabulary(): void {
   title="Model"
   info="Choose the OpenAI speech-to-text model used for voice input."
 >
-  <SettingsInlineMessage
-    tone="info"
-    class="border-primary-strong bg-primary-subtle"
-  >
+  <Callout layout="block" tone="brand">
     OpenAI Codex OAuth remains the transcription provider. Nerve uses ChatGPT's
     subscription endpoint, so model availability depends on the connected
     account.
-  </SettingsInlineMessage>
+  </Callout>
   <SettingsRow
     label="Transcription model"
     description="GPT Transcribe is OpenAI's recommended model; GPT-4o Transcribe remains the compatibility default."
@@ -142,7 +136,7 @@ function saveVocabulary(): void {
       onblur={saveLanguages}
     />
     {#if languageError}
-      <SettingsInlineMessage tone="destructive" text={languageError} />
+      <Callout layout="block" tone="destructive" text={languageError} />
     {/if}
   </SettingsRow>
 
@@ -165,7 +159,7 @@ function saveVocabulary(): void {
       onblur={saveVocabulary}
     />
     {#if vocabularyError}
-      <SettingsInlineMessage tone="destructive" text={vocabularyError} />
+      <Callout layout="block" tone="destructive" text={vocabularyError} />
     {/if}
     <p class="text-ui text-muted-foreground">
       Include only terms relevant to your dictation. Strong hints can bias the

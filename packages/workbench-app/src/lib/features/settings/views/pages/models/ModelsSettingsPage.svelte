@@ -4,13 +4,11 @@
   Agent → General.
 -->
 <script lang="ts">
+import { Callout } from "@nervekit/ui-kit/components/composites/callout";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
 import type { AuthProviderMetadata, ModelInfo, ModelSelection } from "$lib/api";
 import ModelMultiSelect from "$lib/presentation/model-picker/ModelMultiSelect.svelte";
-import {
-  SettingsInlineMessage,
-  SettingsSection,
-} from "$lib/presentation/settings";
+import { SettingsSection } from "$lib/presentation/settings";
 import {
   authenticatedRealModelOptions,
   modelKey,
@@ -67,7 +65,8 @@ async function commitScopedModels(next: ModelSelection[]): Promise<void> {
 
 <SettingsSection id="models" title="Model scope">
   {#if availableModels.length === 0}
-    <SettingsInlineMessage
+    <Callout
+      layout="block"
       tone="info"
       text="Authenticate a provider before choosing scoped models."
     />
@@ -86,7 +85,8 @@ async function commitScopedModels(next: ModelSelection[]): Promise<void> {
       >
     {/if}
     {#if staleCount > 0}
-      <SettingsInlineMessage
+      <Callout
+        layout="block"
         tone="warning"
         text={`${staleCount} scoped ${staleCount === 1 ? "model is" : "models are"} no longer available and will be ignored by pickers. Uncheck to remove.`}
       />
@@ -94,7 +94,8 @@ async function commitScopedModels(next: ModelSelection[]): Promise<void> {
   {/if}
 </SettingsSection>
 
-{#if preferences.error}<SettingsInlineMessage
+{#if preferences.error}<Callout
+    layout="block"
     tone="destructive"
     text={preferences.error}
   />{/if}

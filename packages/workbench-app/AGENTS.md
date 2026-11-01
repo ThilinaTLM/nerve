@@ -77,10 +77,13 @@ Application `*Host` components are state/effect adapters around canonical featur
   `popover < muted`; light: `muted < well`). Every
   theme follows this, and `theme-contrast.test.ts` enforces it. For recessed tracks and output use `well`; for interaction states
   prefer `bg-hover` or `bg-selected`.
+- **Group captions use `GroupLabel`** (ui-kit composite): the quiet
+  sentence-case caption above a group of rows (Pinned, Today, Connections),
+  with optional icon and count. Never an uppercase eyebrow.
 - **Status colour has one vocabulary**: `neutral`, `brand` (primary, for what
   the app highlights: Default markers, meters), `info`, `success`,
   `warning`, `destructive` (`StatusTone` in `@nervekit/ui-kit/display/status`).
-  `StatusDot`, `Badge`, `ProgressRing`, `PanelRow`, `PanelBanner`, and the
+  `StatusDot`, `Badge`, `ProgressRing`, `PanelRow`, `Callout layout="strip"`, and the
   status helpers all speak it, so a tone computed once can drive any of them.
   Never invent a parallel set of tone names (`good`/`warn`/`danger`/`error`/
   `muted`/`default` are all spellings of tones that already exist). Domain
@@ -100,7 +103,7 @@ Application `*Host` components are state/effect adapters around canonical featur
   is legacy); an entity such as a profile gets an `EntityCard`, never a muted
   group heading above it. `settings-typography.test.ts` enforces this.
 - **Settings navigation is grouped.** `SettingsNav` takes `SettingsNavGroup[]`
-  (optional quiet caption `text-caption font-medium text-muted-foreground`, no hover
+  (optional `GroupLabel` caption: `text-caption font-medium text-muted-foreground`, no hover
   or icon; items `text-ui` with a lucide icon, muted until active) and a
   `SettingsScopeHeader` (User settings, or project name and path) separated by a
   rule. The active item is `bg-selected font-medium`, a persistent state
@@ -209,7 +212,9 @@ later) are **notices**. A notice is a
 process the reader cares about, exactly like a tool call, so it renders through
 the same card: `$lib/presentation/cards` owns `CardShell`, `CardHeader`,
 `CardFooter`, `StatusGlyph`, `MetaChip` and `LifecycleFrame`, and both tool
-calls and notices compose them. A pure mapper in
+calls and notices compose them. `Badge` is the one chip primitive (a borderless
+tinted label with `StatusTone` variants plus `outline`); `MetaChip` maps a
+card's `MetaItem` onto it. A pure mapper in
 `$lib/presentation/transcript/notice` turns the payload into a
 `TranscriptNoticeModel` (`kind`, `tone`, `glyph`, `busy`, `badge`, `arg`,
 `statusLabel`, `summary`, `error`, `chips`, `action`); `NoticeCard.svelte` binds
@@ -231,9 +236,10 @@ it to `CardShell`. Adding a notice kind is a mapper, a thin card and one
   task command, compaction reason, or failure summary. Task notices follow bash
   projection rules: multiline commands move to a command body and selected
   recent/relevant output renders in a separate recessed output body.
-- **Chips, not badges.** Extra facts (`exit 0`, `signal SIGTERM`, `retry 2/5`,
-  token counts) use the shared `MetaChip` family. A chip must add information:
-  never restate the event name.
+- **One chip primitive: `Badge`.** A borderless tinted label with `StatusTone`
+  variants plus `outline`; `MetaChip` maps a card's `MetaItem` onto it. Extra
+  facts (`exit 0`, `signal SIGTERM`, `retry 2/5`, token counts) must add
+  information: never restate the event name.
 - **Actions stay in the footer.** Passive actions such as `Open task` and
   `View details` use the shared `cardActions` pills. A recovery-critical
   `Continue` action uses the shared primary footer-action slot and official
@@ -250,7 +256,7 @@ it to `CardShell`. Adding a notice kind is a mapper, a thin card and one
 Dock panel content (Conversations, Git, Context, Notes, Tasks) must be built from
 the `$lib/presentation/panels` primitives — `PanelView`, `PanelHeader`,
 `PanelToolbarButton`, `PanelSectionHeader`, `PanelList`,
-`PanelRow`, `PanelTree`, `PanelBanner`, `PanelEmpty`.
+`PanelRow`, `PanelTree`, `Callout layout="strip"`, `PanelEmpty`.
 
 - A panel view's root is `PanelView`. It owns the height, the sticky toolbar,
   and the banner slot; its content owns the one scroll region (a `ScrollArea`,

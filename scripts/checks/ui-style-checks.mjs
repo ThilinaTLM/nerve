@@ -122,6 +122,8 @@ export function checkUiStyles({ files: trackedFiles, read }, fail) {
           file,
           `off-token colour (${offenders[0]}); use a token or its -subtle/-strong recipe`,
         );
+      if (/(?<![\w-])hover:bg-muted(?![\w/-])/.test(text))
+        fail(file, "neutral hover is hover:bg-hover, not hover:bg-muted");
       if (/color-mix\(/.test(text))
         fail(
           file,

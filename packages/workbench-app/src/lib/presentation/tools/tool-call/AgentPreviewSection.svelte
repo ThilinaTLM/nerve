@@ -1,4 +1,5 @@
 <script lang="ts">
+import { Badge } from "@nervekit/ui-kit/components/ui/badge";
 import ToolImage from "./ToolImage.svelte";
 import type { AgentProjectionSnapshot } from "@nervekit/contracts/tools";
 import type { ToolCallRecord } from "../../view-models/tool-records";
@@ -79,19 +80,14 @@ function supportedImageMime(mimeType: string): boolean {
     {/if}
     {#if projection}
       <div class="flex flex-wrap gap-1.5 text-ui text-muted-foreground">
-        <span class="rounded-sm border px-1.5 py-0.5">{projection.profile}</span
-        >
-        <span class="rounded-sm border px-1.5 py-0.5"
-          >{projection.strategy}</span
-        >
-        <span class="rounded-sm border px-1.5 py-0.5">
+        <Badge>{projection.profile}</Badge>
+        <Badge>{projection.strategy}</Badge>
+        <Badge>
           {projection.displayedTextLines.toLocaleString()} of {projection.originalTextLines.toLocaleString()}
           lines
-        </span>
+        </Badge>
         {#if projection.recovery !== "none"}
-          <span class="rounded-sm border px-1.5 py-0.5"
-            >Recovery: {projection.recovery.replace("_", " ")}</span
-          >
+          <Badge>Recovery: {projection.recovery.replace("_", " ")}</Badge>
         {/if}
       </div>
     {/if}

@@ -1,4 +1,5 @@
 <script lang="ts">
+import { Callout } from "@nervekit/ui-kit/components/composites/callout";
 import { untrack } from "svelte";
 import { resolveAgentConfiguration } from "@nervekit/contracts/agent-configuration";
 import { requestWorkbench } from "$lib/application/startup/workbench-connection";
@@ -25,7 +26,7 @@ import type {
   ModelInfo,
   Settings,
 } from "$lib/api";
-import { EntityCard, SettingsInlineMessage } from "$lib/presentation/settings";
+import { EntityCard } from "$lib/presentation/settings";
 import {
   authenticatedRealModelOptions,
   modelKey,
@@ -491,25 +492,28 @@ const repairReplacement = $derived(
     />{/if}{#if profile.source === "project" && !profile.trusted}<Badge
       variant="warning">Needs trust</Badge
     >{/if}{/snippet}
-{#if launchPreferences.error}<SettingsInlineMessage
+{#if launchPreferences.error}<Callout
+    layout="block"
     tone="destructive"
     text={launchPreferences.error}
     >{#snippet actions()}<Button
         size="sm"
         variant="outline"
         onclick={() => launchPreferences.reload()}>Reload</Button
-      >{/snippet}</SettingsInlineMessage
+      >{/snippet}</Callout
   >{/if}
-{#if agentProfilesState.error}<SettingsInlineMessage
+{#if agentProfilesState.error}<Callout
+    layout="block"
     tone="destructive"
     text={agentProfilesState.error}
     >{#snippet actions()}<Button
         size="sm"
         variant="outline"
         onclick={() => reloadProfiles()}>Reload</Button
-      >{/snippet}</SettingsInlineMessage
+      >{/snippet}</Callout
   >{/if}
-{#each agentProfilesState.configuration?.diagnostics ?? [] as diagnostic, index (index)}<SettingsInlineMessage
+{#each agentProfilesState.configuration?.diagnostics ?? [] as diagnostic, index (index)}<Callout
+    layout="block"
     tone="warning"
     text={`${diagnostic.code}: ${diagnostic.path}${diagnostic.pointer}`}
   />{/each}
@@ -576,14 +580,15 @@ const repairReplacement = $derived(
           disabled={!!busy}
           onclick={() => askDelete(profile)}
         />{/if}{/snippet}
-    {#if errors[profile.name]}<SettingsInlineMessage
+    {#if errors[profile.name]}<Callout
+        layout="block"
         tone="destructive"
         text={errors[profile.name]}
         >{#snippet actions()}<Button
             size="sm"
             variant="outline"
             onclick={() => reloadProfiles(profile.name)}>Reload</Button
-          >{/snippet}</SettingsInlineMessage
+          >{/snippet}</Callout
       >{/if}
     {#if profile.definition}
       {@const definition = profile.definition}
@@ -632,7 +637,8 @@ const repairReplacement = $derived(
         </div>
       </div>
     {/if}
-    {#each profile.diagnostics as diagnostic, index (index)}<SettingsInlineMessage
+    {#each profile.diagnostics as diagnostic, index (index)}<Callout
+        layout="block"
         tone="warning"
         text={`${diagnostic.code}: ${diagnostic.pointer}`}
         >{#snippet actions()}<Button
@@ -649,10 +655,11 @@ const repairReplacement = $derived(
                 repairOpen = true;
               }}>Repair…</Button
             >{/if}
-        {/snippet}</SettingsInlineMessage
+        {/snippet}</Callout
       >{/each}
     {@const launchOverride = launchModelOverride(profile)}
-    {#if launchOverride}<SettingsInlineMessage
+    {#if launchOverride}<Callout
+        layout="block"
         tone="warning"
         text={`Launches use ${launchOverride.model?.modelId ?? "the profile model"}${launchOverride.reasoningLevel ? ` · ${launchOverride.reasoningLevel}` : ""} from an earlier launch setting, which outranks this profile's model.`}
         >{#snippet actions()}<Button
@@ -660,7 +667,7 @@ const repairReplacement = $derived(
             variant="outline"
             disabled={launchPreferences.saving}
             onclick={() => clearLaunchModel(profile)}>Use profile model</Button
-          >{/snippet}</SettingsInlineMessage
+          >{/snippet}</Callout
       >{/if}
     {#if profile.source === "project" && profile.definition}<div
         class="flex items-center gap-2 px-3 pb-2"

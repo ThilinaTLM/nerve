@@ -1,4 +1,5 @@
 <script lang="ts">
+import { Callout } from "@nervekit/ui-kit/components/composites/callout";
 import type {
   AppliedProfile,
   ProfileTransitionPreview,
@@ -6,7 +7,7 @@ import type {
 import Dialog from "@nervekit/ui-kit/components/composites/dialog-shell";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
 import { Badge } from "@nervekit/ui-kit/components/ui/badge";
-import { EntityRow, SettingsInlineMessage } from "$lib/presentation/settings";
+import { EntityRow } from "$lib/presentation/settings";
 import {
   requestConversation,
   observeConversationChannel,
@@ -148,8 +149,9 @@ async function apply() {
   title={`Apply updated ${applied.name} profile`}
   description="Only changed fields are shown. Your conversation choices are preserved."
 >
-  {#if error}<SettingsInlineMessage tone="destructive" text={error} />{/if}
-  {#if conflict}<SettingsInlineMessage
+  {#if error}<Callout layout="block" tone="destructive" text={error} />{/if}
+  {#if conflict}<Callout
+      layout="block"
       tone="destructive"
       text="Profile requirement conflict: a model is missing or the required reasoning is unsupported by the effective model. Repair the definition or choose compatible underlying settings, then review again."
     />{/if}

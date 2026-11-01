@@ -207,7 +207,7 @@ export function beginEditing() {
               type="button"
               tabindex="-1"
               class={cn(
-                "flex w-full items-center gap-2 rounded-sm px-2 py-1 text-left font-mono text-ui hover:bg-muted",
+                "flex w-full items-center gap-2 rounded-sm px-2 py-1 text-left font-mono text-ui hover:bg-hover",
                 index === highlighted && "bg-selected",
               )}
               onmousedown={(event) => event.preventDefault()}
@@ -249,7 +249,7 @@ export function beginEditing() {
           <button
             type="button"
             class={cn(
-              "shrink-0 rounded-sm px-1 font-mono text-ui hover:bg-muted",
+              "shrink-0 rounded-sm px-1 font-mono text-ui hover:bg-hover",
               index === crumbs.length - 1
                 ? "text-foreground"
                 : "text-muted-foreground",
@@ -261,7 +261,7 @@ export function beginEditing() {
       </nav>
       <button
         type="button"
-        class="shrink-0 rounded-sm p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
+        class="shrink-0 rounded-sm p-1 text-muted-foreground hover:bg-hover hover:text-foreground"
         aria-label="Edit path"
         onclick={start}
       >

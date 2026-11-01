@@ -58,10 +58,14 @@ describe("settings typography", () => {
   });
 
   it("separates nav group captions from items by weight, colour and icon", () => {
-    const caption = /<p\s+class="([^"]+)"\s*>\s*\{group\.title\}/s.exec(nav);
-    assert.ok(caption, "expected a group caption");
-    assert.match(caption[1], /text-caption font-medium text-muted-foreground/);
-    assert.doesNotMatch(caption[1], /(?<![\w-])uppercase(?![\w-])/);
+    // Group captions are the shared GroupLabel: caption size, medium weight,
+    // muted, sentence case.
+    assert.match(nav, /<GroupLabel[^>]*label=\{group\.title\}/s);
+    const groupLabel = source(
+      "../../../../../ui-kit/src/lib/components/composites/group-label/group-label.svelte",
+    );
+    assert.match(groupLabel, /text-caption font-medium text-muted-foreground/);
+    assert.doesNotMatch(groupLabel, /(?<![\w-])uppercase(?![\w-])/);
     assert.match(nav, /text-ui text-foreground/);
     assert.match(nav, /bg-selected font-medium/);
   });

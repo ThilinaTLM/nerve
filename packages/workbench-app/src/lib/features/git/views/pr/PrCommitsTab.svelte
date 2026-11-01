@@ -1,4 +1,5 @@
 <script lang="ts">
+import { Badge } from "@nervekit/ui-kit/components/ui/badge";
 import GitCommitHorizontal from "@lucide/svelte/icons/git-commit-horizontal";
 import type { GithubPrCommitsResponse } from "@nervekit/contracts/git";
 import { ScrollArea } from "@nervekit/ui-kit/components/ui/scroll-area";
@@ -55,10 +56,7 @@ const days = $derived(groupCommitsByDay(response.commits));
                   <span class="text-destructive">−{commit.deletions}</span>
                 </span>
               {/if}
-              <code
-                class="shrink-0 rounded-sm bg-muted px-1 font-mono text-ui text-muted-foreground"
-                >{commit.abbrev}</code
-              >
+              <Badge class="font-mono">{commit.abbrev}</Badge>
             </li>
           {/each}
         </ol>

@@ -1,10 +1,10 @@
 <script lang="ts">
+import { Callout } from "@nervekit/ui-kit/components/composites/callout";
 import type { PermissionRule } from "@nervekit/contracts/permissions";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
 import type { Settings } from "$lib/api";
 import {
   SettingsEmptyState,
-  SettingsInlineMessage,
   SettingsList,
   SettingsSection,
 } from "$lib/presentation/settings";
@@ -82,7 +82,7 @@ async function trustProject(): Promise<void> {
   info="Overrides add rules to one rule set. User overrides apply to every project; project overrides apply only while the project file is trusted."
 >
   {#if controller.error}
-    <SettingsInlineMessage tone="destructive" text={controller.error}>
+    <Callout layout="block" tone="destructive" text={controller.error}>
       {#snippet actions()}
         <Button
           variant="outline"
@@ -90,13 +90,13 @@ async function trustProject(): Promise<void> {
           onclick={() => void controller.load(projectId)}>Retry</Button
         >
       {/snippet}
-    </SettingsInlineMessage>
+    </Callout>
   {/if}
   {#if actionError}
-    <SettingsInlineMessage tone="destructive" text={actionError} />
+    <Callout layout="block" tone="destructive" text={actionError} />
   {/if}
   {#each configuration?.diagnostics ?? [] as diagnostic (diagnostic)}
-    <SettingsInlineMessage tone="warning" text={diagnostic} />
+    <Callout layout="block" tone="warning" text={diagnostic} />
   {/each}
   {#if configuration}
     <SettingsList ariaLabel="Permission rule sets">

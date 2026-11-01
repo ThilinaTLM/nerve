@@ -1,11 +1,11 @@
 <!-- Per-file review of a project profile. Trust applies to this exact version of the file. -->
 <script lang="ts">
+import { Callout } from "@nervekit/ui-kit/components/composites/callout";
 import type { ProfileCatalogEntry } from "@nervekit/contracts/agent-configuration";
 import { Textarea } from "@nervekit/ui-kit/components/ui/textarea";
 import { Badge } from "@nervekit/ui-kit/components/ui/badge";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
 import Dialog from "@nervekit/ui-kit/components/composites/dialog-shell";
-import { SettingsInlineMessage } from "$lib/presentation/settings";
 
 type Props = {
   open?: boolean;
@@ -34,7 +34,8 @@ const file = $derived(profile?.definition);
   description={profile?.path}
 >
   <div class="grid gap-3">
-    <SettingsInlineMessage
+    <Callout
+      layout="block"
       tone="warning"
       text="Trust applies to this exact version of the file. A later edit asks again. Untrusted profiles aren't applied."
     />

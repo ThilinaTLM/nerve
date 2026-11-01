@@ -1,4 +1,5 @@
 <script lang="ts">
+import { Callout } from "@nervekit/ui-kit/components/composites/callout";
 import type { Project } from "@nervekit/contracts/core";
 import Copy from "@lucide/svelte/icons/copy";
 import ExternalLink from "@lucide/svelte/icons/external-link";
@@ -71,7 +72,6 @@ import {
   serializeProjectEntryDrag,
 } from "$lib/presentation/dnd/project-entry-drag";
 import {
-  PanelBanner,
   PanelEmpty,
   PanelHeader,
   PanelToolbarButton,
@@ -440,9 +440,9 @@ $effect(() => {
     {/snippet}
   </PanelHeader>
   {#if root?.error && root.entries.length === 0}
-    <PanelBanner tone="destructive" icon={TriangleAlert}>
+    <Callout layout="strip" tone="destructive" icon={TriangleAlert}>
       <span>{root.error}</span>
-    </PanelBanner>
+    </Callout>
   {/if}
 {/snippet}
 

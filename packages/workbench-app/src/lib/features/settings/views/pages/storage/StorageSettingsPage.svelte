@@ -1,11 +1,11 @@
 <script lang="ts">
+import { Callout } from "@nervekit/ui-kit/components/composites/callout";
 import { onMount } from "svelte";
 import MaintenanceProgressView from "$lib/presentation/maintenance/MaintenanceProgressView.svelte";
 import { Skeleton } from "@nervekit/ui-kit/components/ui/skeleton";
 import {
   SettingsDisclosureItem,
   SettingsSection,
-  SettingsInlineMessage,
   SettingsList,
 } from "$lib/presentation/settings";
 import StorageCleanupDialog from "./StorageCleanupDialog.svelte";
@@ -71,7 +71,7 @@ onMount(() => {
 </script>
 
 {#if controller.errorMessage}
-  <SettingsInlineMessage tone="destructive" text={controller.errorMessage} />
+  <Callout layout="block" tone="destructive" text={controller.errorMessage} />
 {/if}
 
 {#if operation}

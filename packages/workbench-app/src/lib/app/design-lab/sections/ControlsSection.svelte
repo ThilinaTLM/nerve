@@ -149,7 +149,13 @@ let ctxSearch = $state("");
 let ctxFilter = $state("all");
 let ctxMode = $state("auto");
 let ctxNotify = $state(true);
-let ctxModel = $state("sonnet");
+let ctxHeaderStyle = $state("auto");
+const headerStyleItems: SelectItem[] = [
+  { value: "auto", label: "Auto" },
+  { value: "linux", label: "Linux" },
+  { value: "windows", label: "Windows" },
+  { value: "macos", label: "macOS" },
+];
 
 $effect(() => {
   const id = setInterval(() => {
@@ -334,6 +340,7 @@ $effect(() => {
       {#each badgeVariants as variant (variant)}
         <Badge {variant}>{variant}</Badge>
       {/each}
+      <Badge variant="brand" onclick={() => {}}>View details</Badge>
       <Badge variant="info"
         ><GitBranchIcon data-icon="inline-start" />main</Badge
       >
@@ -773,8 +780,8 @@ $effect(() => {
             >
           </div>
           <SelectField
-            items={modelItems.slice(0, 2)}
-            bind:value={ctxModel}
+            items={headerStyleItems}
+            bind:value={ctxHeaderStyle}
             ariaLabel="Header style"
             class="w-44"
           />

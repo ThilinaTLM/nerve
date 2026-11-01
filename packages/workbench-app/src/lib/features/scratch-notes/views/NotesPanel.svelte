@@ -1,4 +1,5 @@
 <script lang="ts">
+import { Callout } from "@nervekit/ui-kit/components/composites/callout";
 import type { Project } from "@nervekit/contracts/core";
 import ScrollRegion from "@nervekit/ui-kit/components/composites/scroll-region";
 import NotebookPen from "@lucide/svelte/icons/notebook-pen";
@@ -7,7 +8,6 @@ import Plus from "@lucide/svelte/icons/plus";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
 import ConfirmDialog from "@nervekit/ui-kit/components/composites/confirm-dialog";
 import {
-  PanelBanner,
   PanelEmpty,
   PanelHeader,
   PanelToolbarButton,
@@ -58,11 +58,13 @@ $effect(() => {
       {/snippet}
     </PanelHeader>
     {#if !projectId}
-      <PanelBanner tone="neutral">Select a project to take notes.</PanelBanner>
+      <Callout layout="strip" tone="neutral"
+        >Select a project to take notes.</Callout
+      >
     {:else if !project || project.loadStatus === "idle" || project.loadStatus === "loading"}
-      <PanelBanner tone="neutral">Loading scratch notes…</PanelBanner>
+      <Callout layout="strip" tone="neutral">Loading scratch notes…</Callout>
     {:else if project.loadStatus === "error"}
-      <PanelBanner tone="destructive">
+      <Callout layout="strip" tone="destructive">
         Could not load scratch notes.
         {#snippet actions()}
           <Button
@@ -71,7 +73,7 @@ $effect(() => {
             onclick={() => void loadScratchNotes(projectId, true)}>Retry</Button
           >
         {/snippet}
-      </PanelBanner>
+      </Callout>
     {/if}
   {/snippet}
 

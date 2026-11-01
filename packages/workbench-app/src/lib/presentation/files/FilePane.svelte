@@ -1,4 +1,5 @@
 <script lang="ts">
+import { Callout } from "@nervekit/ui-kit/components/composites/callout";
 import FileText from "@lucide/svelte/icons/file-text";
 import TriangleAlert from "@lucide/svelte/icons/triangle-alert";
 import Markdown from "@nervekit/ui-kit/renderers/markdown/Markdown.svelte";
@@ -80,11 +81,9 @@ const showMermaidPreview = $derived(
         {onSave}
       />
       {#if view?.saveError}
-        <p
-          class="m-0 border-t border-destructive-strong bg-destructive-subtle px-4 py-2 text-ui text-destructive"
-        >
+        <Callout layout="strip" tone="destructive" class="border-t border-b-0">
           Save failed: {view.saveError}
-        </p>
+        </Callout>
       {:else if view?.saving}
         <p
           class="m-0 border-t border-border-subtle px-4 py-2 text-ui text-muted-foreground"

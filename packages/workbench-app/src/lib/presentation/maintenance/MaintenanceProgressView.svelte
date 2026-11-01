@@ -49,6 +49,11 @@ const progress = $derived.by(() => {
     ? Math.min(99, Math.round((completed / total) * 100))
     : undefined;
 });
+const progressText = $derived(
+  active && operation.totalItems !== undefined
+    ? ` ${operation.completedItems}/${operation.totalItems} conversations`
+    : "",
+);
 </script>
 
 <div class="grid min-w-0 gap-3" aria-live="polite" aria-atomic="true">
@@ -60,10 +65,7 @@ const progress = $derived.by(() => {
     {:else}<CircleAlert class="mt-0.5 size-4 shrink-0 text-warning" />{/if}
     <div class="min-w-0">
       <p class="text-ui font-medium">
-        {active
-          ? title
-          : operation.message}{#if active && operation.totalItems !== undefined}
-          {operation.completedItems}/{operation.totalItems} conversations{/if}
+        {active ? title : operation.message}{progressText}
       </p>
       {#if operation.project}<p
           class="truncate text-ui text-muted-foreground"

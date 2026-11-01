@@ -1,6 +1,6 @@
 <script lang="ts">
+import { Callout } from "@nervekit/ui-kit/components/composites/callout";
 import { onDestroy } from "svelte";
-import { SettingsInlineMessage } from "$lib/presentation/settings";
 import Check from "@lucide/svelte/icons/check";
 import Copy from "@lucide/svelte/icons/copy";
 import ExternalLink from "@lucide/svelte/icons/external-link";
@@ -171,7 +171,8 @@ onDestroy(() => void flowController.dispose());
 >
   <div class="grid gap-4">
     {#if (flowController.step === "method" || flowController.step === "oauth") && flowController.selected?.warning}
-      <SettingsInlineMessage
+      <Callout
+        layout="block"
         tone="warning"
         text={flowController.selected.warning}
       />

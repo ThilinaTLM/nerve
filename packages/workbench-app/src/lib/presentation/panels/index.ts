@@ -1,4 +1,3 @@
-export { default as PanelBanner } from "./PanelBanner.svelte";
 export { default as PanelCard } from "./PanelCard.svelte";
 export { default as PanelEmpty } from "./PanelEmpty.svelte";
 export { default as PanelHeader } from "./PanelHeader.svelte";

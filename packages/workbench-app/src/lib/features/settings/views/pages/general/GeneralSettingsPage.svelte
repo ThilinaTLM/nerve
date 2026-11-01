@@ -1,4 +1,5 @@
 <script lang="ts">
+import { Callout } from "@nervekit/ui-kit/components/composites/callout";
 import ConfigurationRepairDialog from "../capabilities/ConfigurationRepairDialog.svelte";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
 import type { PreferenceScope } from "@nervekit/contracts/agent-configuration";
@@ -22,7 +23,6 @@ import { CreationPreferencesState } from "../../../state/creation-preferences.sv
 import ModelPicker from "$lib/presentation/model-picker/ModelPicker.svelte";
 import {
   SettingsChangeIndicator,
-  SettingsInlineMessage,
   SettingsRow,
   SettingsSection,
 } from "$lib/presentation/settings";
@@ -216,7 +216,8 @@ function reset(key: Key) {
   onReload={() => projectState.reload()}
 />
 {#if projectState.error || preferences.error}
-  <SettingsInlineMessage
+  <Callout
+    layout="block"
     tone="destructive"
     text={projectState.error ?? preferences.error}
     >{#snippet actions()}{#if preferenceScope && preferences.result?.status === "unavailable"}<Button
@@ -228,7 +229,7 @@ function reset(key: Key) {
           variant="outline"
           onclick={() => (repairDefaultsOpen = true)}
           >Preview defaults repair</Button
-        >{/if}{/snippet}</SettingsInlineMessage
+        >{/if}{/snippet}</Callout
   >
 {/if}
 
@@ -241,7 +242,8 @@ function reset(key: Key) {
     />{/key}{/if}
 
 {#if projectState.resolution?.diagnostics.some((d) => d.code === "unsupported-reasoning")}
-  <SettingsInlineMessage
+  <Callout
+    layout="block"
     tone="destructive"
     text="Reasoning conflict: the selected model does not support this explicit reasoning level. Choose a compatible model and reasoning level together."
   />

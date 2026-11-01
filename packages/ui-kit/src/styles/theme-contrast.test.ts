@@ -416,7 +416,7 @@ describe("theme text contrast", () => {
   it("uses the measured token pairs and tint in the shared badge", () => {
     assert.match(
       badgeSource,
-      /neutral:\s*"[^"]*bg-muted text-foreground[^"]*"/,
+      /neutral:\s*"[^"]*bg-muted text-muted-foreground[^"]*"/,
     );
     for (const token of semanticTokens) {
       assert.match(badgeSource, new RegExp(`bg-${token}-subtle text-${token}`));

@@ -1,4 +1,5 @@
 <script lang="ts">
+import { Callout } from "@nervekit/ui-kit/components/composites/callout";
 import ProviderIcon from "$lib/presentation/model-picker/ProviderIcon.svelte";
 import { Badge } from "@nervekit/ui-kit/components/ui/badge";
 import Pencil from "@lucide/svelte/icons/pencil";
@@ -7,10 +8,7 @@ import { IconAction } from "@nervekit/ui-kit/components/composites/icon-action";
 import type { AuthProviderMetadata, CustomProvider } from "$lib/api";
 import { deleteCustomProvider } from "$lib/api";
 import ConfirmDialog from "@nervekit/ui-kit/components/composites/confirm-dialog";
-import {
-  SettingsInlineMessage,
-  SettingsListItem,
-} from "$lib/presentation/settings";
+import { SettingsListItem } from "$lib/presentation/settings";
 import { providerCatalogState } from "$lib/features/settings/state/provider-catalog-state.svelte";
 import { refreshProviderCatalog } from "$lib/features/settings/state/provider-catalog-actions.svelte";
 import SettingsEntityListSection from "../../shared/settings-entity-list-section.svelte";
@@ -120,7 +118,8 @@ async function confirmDelete(): Promise<void> {
     </SettingsListItem>
   {/snippet}
   {#snippet below()}
-    {#if deleteError}<SettingsInlineMessage
+    {#if deleteError}<Callout
+        layout="block"
         tone="destructive"
         text={deleteError}
       />{/if}

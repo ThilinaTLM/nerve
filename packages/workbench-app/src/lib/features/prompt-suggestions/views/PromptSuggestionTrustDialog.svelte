@@ -1,4 +1,5 @@
 <script lang="ts">
+import { Callout } from "@nervekit/ui-kit/components/composites/callout";
 import AlertTriangle from "@lucide/svelte/icons/alert-triangle";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
 import DialogShell from "@nervekit/ui-kit/components/composites/dialog-shell";
@@ -48,19 +49,13 @@ function decideLater() {
   }}
 >
   <div class="grid gap-4">
-    <div
-      class="flex gap-3 rounded-md border border-warning-strong bg-warning-subtle p-3 text-ui"
-    >
-      <AlertTriangle
-        class="mt-0.5 size-4 flex-none text-warning"
-        strokeWidth={2.2}
-      />
+    <Callout layout="block" tone="warning" icon={AlertTriangle}>
       <p class="text-muted-foreground">
         Only allow JavaScript from suggestion files you trust. Nerve runs it
         locally in the daemon with a limited context and timeout, but it is
         still local code from the listed Markdown file.
       </p>
-    </div>
+    </Callout>
 
     <div class="grid gap-2">
       {#each requests as request (request.trustId)}

@@ -4,6 +4,7 @@
   template configures a tool exactly as settings do.
 -->
 <script lang="ts">
+import { Callout } from "@nervekit/ui-kit/components/composites/callout";
 import { canonicalSettingRequired } from "$lib/presentation/composer/capability-tool-locks";
 import { openAiCodexImageSizeSchema } from "$lib/api";
 import type { ModelInfo } from "$lib/api";
@@ -16,7 +17,6 @@ import { Input } from "@nervekit/ui-kit/components/ui/input";
 import { Label } from "@nervekit/ui-kit/components/ui/label";
 import { Switch } from "@nervekit/ui-kit/components/ui/switch";
 import ModelPicker from "$lib/presentation/model-picker/ModelPicker.svelte";
-import { SettingsInlineMessage } from "$lib/presentation/settings";
 import { isPublicKrokiUrl } from "./kroki-server";
 import {
   accountKind,
@@ -398,7 +398,8 @@ const accountItems = $derived([
       {/if}
     </div>
     {#if isPublicKrokiUrl(krokiUrl)}
-      <SettingsInlineMessage
+      <Callout
+        layout="block"
         tone="warning"
         text="The public Kroki server receives your diagram source. Use your own server for private diagrams."
       />

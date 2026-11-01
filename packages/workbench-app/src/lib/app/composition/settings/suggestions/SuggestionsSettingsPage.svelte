@@ -1,4 +1,5 @@
 <script lang="ts">
+import { Callout } from "@nervekit/ui-kit/components/composites/callout";
 import type { ProjectRecord } from "$lib/presentation/view-models/conversation";
 import Copy from "@lucide/svelte/icons/copy";
 import type {
@@ -15,7 +16,6 @@ import {
   SettingsDisclosureItem,
   SettingsEmptyState,
   SettingsSection,
-  SettingsInlineMessage,
   SettingsList,
   SettingsToolbar,
 } from "$lib/presentation/settings";
@@ -227,7 +227,8 @@ function copyPath(path: string): void {
 </SettingsToolbar>
 
 {#if promptSuggestionsState.error || mutationError}
-  <SettingsInlineMessage
+  <Callout
+    layout="block"
     tone="destructive"
     text={mutationError ?? promptSuggestionsState.error}
   >
@@ -239,11 +240,11 @@ function copyPath(path: string): void {
         >Retry</Button
       >
     {/snippet}
-  </SettingsInlineMessage>
+  </Callout>
 {/if}
 
 {#each promptSuggestionsState.diagnostics as diagnostic (`${diagnostic.path}:${diagnostic.code}:${diagnostic.message}`)}
-  <SettingsInlineMessage tone="warning" text={diagnostic.message} />
+  <Callout layout="block" tone="warning" text={diagnostic.message} />
 {/each}
 
 <SettingsSection id="suggestions" title="Built-in">

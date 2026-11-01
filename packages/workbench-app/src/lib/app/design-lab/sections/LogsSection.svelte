@@ -236,7 +236,7 @@ const streamLines: LogStreamLine[] = [
     >
       <div class="grid max-w-200 gap-3">
         <div
-          class="relative h-16 overflow-hidden rounded-md border bg-background"
+          class="relative h-24 overflow-hidden rounded-md border bg-background"
         >
           <LogsFloatingToolbar
             contains={findText}
@@ -248,7 +248,7 @@ const streamLines: LogStreamLine[] = [
           />
         </div>
         <div
-          class="relative h-16 overflow-hidden rounded-md border bg-background"
+          class="relative h-24 overflow-hidden rounded-md border bg-background"
         >
           <LogsFloatingToolbar
             contains="timeout"

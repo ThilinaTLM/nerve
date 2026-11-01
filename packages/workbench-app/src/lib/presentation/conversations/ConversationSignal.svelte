@@ -53,9 +53,7 @@ const launchpad = $derived(variant === "launchpad");
     </div>
 
     {#if launchpad}
-      <p
-        class="mt-4 text-ui font-medium uppercase tracking-widest text-muted-foreground"
-      >
+      <p class="mt-4 text-caption font-medium text-muted-foreground">
         Workspace ready
       </p>
     {/if}

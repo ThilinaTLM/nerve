@@ -2,6 +2,7 @@
 import type { Snippet } from "svelte";
 import { prefersReducedMotion } from "svelte/motion";
 import { scale } from "svelte/transition";
+import { Badge } from "@nervekit/ui-kit/components/ui/badge";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
 import type { CardAction, MetaItem } from "./card-presentation";
 import MetaChip from "./MetaChip.svelte";
@@ -62,14 +63,14 @@ const show = $derived(
         class="ml-auto flex min-w-0 flex-wrap items-center justify-end gap-1.5"
       >
         {#each cardActions as action, i (i)}
-          <button
-            class="inline-flex min-h-5 max-w-full min-w-0 flex-[0_1_auto] cursor-pointer items-center rounded-sm border border-border bg-well px-1.5 py-0.5 text-left text-caption leading-none font-medium text-primary tabular-nums [overflow-wrap:anywhere] hover:underline"
-            type="button"
+          <Badge
+            variant="brand"
+            class="max-w-full min-w-0 flex-[0_1_auto] text-left tabular-nums [overflow-wrap:anywhere]"
             aria-label={action.ariaLabel}
             onclick={action.onClick}
           >
             {action.label}
-          </button>
+          </Badge>
         {/each}
         {#if primaryAction}
           <Button

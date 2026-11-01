@@ -1,4 +1,5 @@
 <script lang="ts">
+import { Callout } from "@nervekit/ui-kit/components/composites/callout";
 import ChevronRight from "@lucide/svelte/icons/chevron-right";
 import Trash2 from "@lucide/svelte/icons/trash-2";
 import type { StorageCleanupTarget, StorageUsageResponse } from "$lib/api";
@@ -6,7 +7,6 @@ import { Button } from "@nervekit/ui-kit/components/ui/button";
 import * as Collapsible from "@nervekit/ui-kit/components/ui/collapsible";
 import ConfirmDialog from "@nervekit/ui-kit/components/composites/confirm-dialog";
 import DialogShell from "@nervekit/ui-kit/components/composites/dialog-shell";
-import { SettingsInlineMessage } from "$lib/presentation/settings";
 import {
   allCleanupSelection,
   buildCleanupRequest,
@@ -214,13 +214,14 @@ function start(): void {
     </Collapsible.Root>
 
     {#if selection.conversations}
-      <SettingsInlineMessage
+      <Callout
+        layout="block"
         tone="destructive"
         text="Old conversations and their messages are permanently deleted and cannot be recovered."
       />
     {/if}
     {#if selectionError}
-      <SettingsInlineMessage tone="destructive" text={selectionError} />
+      <Callout layout="block" tone="destructive" text={selectionError} />
     {/if}
   </div>
 

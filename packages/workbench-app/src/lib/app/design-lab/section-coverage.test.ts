@@ -78,6 +78,9 @@ const PRESENTATION_EXEMPT: Record<string, string> = {
   "tools/tool-call/ToolImage.svelte": "ToolCallCard (image)",
   "tools/tool-call/ToolArgumentBody.svelte": "ToolCallCard",
   "tools/tool-call/ToolSections.svelte": "ToolCallCard",
+  // Rendered by the real ConversationWelcome and empty TranscriptList specimens.
+  "conversations/ConversationSignal.svelte":
+    "ConversationWelcome, TranscriptList",
 };
 
 function sourceFiles(root: string): string[] {
@@ -177,4 +180,45 @@ test("shared presentation components with 2+ product consumers have specimens", 
     );
     assert.ok(parent.trim(), `${file} needs a parent-specimen explanation`);
   }
+});
+
+/* Top-level feature surfaces (dock panels and center views) must render the
+ * real component in the lab, never a replica. Views that still load or save
+ * through app state are listed with the split that would let the lab mount
+ * them. */
+const SURFACE_EXEMPT: Record<string, string> = {
+  // NotesPanel and ScratchNoteCard load and save through scratch-notes-state;
+  // split into a stateless view + host to mount it.
+  "features/scratch-notes/views/NotesPanel.svelte":
+    "needs NotesPanel view/host split",
+  // FolderBrowser state lists and creates directories through the API.
+  "features/projects/views/FolderBrowserView.svelte":
+    "needs FolderBrowser state injection",
+};
+
+test("dock panels and center views render the real component in the lab", () => {
+  const surfaces = sourceFiles(`${libRoot}features`)
+    .filter((file) => /\/views\/[^/]+(?:Panel|View)\.svelte$/.test(file))
+    .concat(`${libRoot}app/discover/components/DiscoverView.svelte`);
+  const sectionSource = readdirSync(`${here}sections`)
+    .filter((name) => /\.(?:svelte|ts)$/.test(name))
+    .map((name) => readFileSync(`${here}sections/${name}`, "utf8"))
+    .join("\n");
+  const missing = surfaces
+    .map((file) => relative(libRoot, file))
+    .filter((file) => !(file in SURFACE_EXEMPT))
+    .filter((file) => {
+      const name = file.split("/").pop()!.replace(".svelte", "");
+      return !new RegExp(
+        `import\\s+${name}\\s+from\\s+["'][^"']*${name}\\.svelte["']`,
+      ).test(sectionSource);
+    })
+    .sort();
+  assert.deepEqual(
+    missing,
+    [],
+    `Render these real views in a Design Lab section: ${missing.join(", ")}`,
+  );
+  for (const file of Object.keys(SURFACE_EXEMPT))
+    assert.ok(existsSync(`${libRoot}${file}`), `${file} no longer exists`);
 });

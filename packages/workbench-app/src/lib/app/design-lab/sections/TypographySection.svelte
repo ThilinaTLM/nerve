@@ -11,10 +11,20 @@ import GallerySpecimen from "../GallerySpecimen.svelte";
 
 // "uses" = approximate class occurrences in the desktop app (excl. gallery, mobile).
 const sizes = [
-  { name: "text-ui", cls: "text-ui", uses: 462, role: "Chrome, rows, meta" },
-  { name: "text-ui", cls: "text-ui", uses: 170, role: "Body, row titles" },
-  { name: "text-title", cls: "text-title", uses: 11, role: "Page titles" },
-  { name: "text-title", cls: "text-title", uses: 7, role: "Rare headings" },
+  {
+    name: "text-caption",
+    cls: "text-caption",
+    uses: 30,
+    role: "Timestamps, counts, chips",
+  },
+  { name: "text-ui", cls: "text-ui", uses: 688, role: "Rows, controls, menus" },
+  { name: "text-body", cls: "text-body", uses: 16, role: "Prose, transcript" },
+  {
+    name: "text-title",
+    cls: "text-title",
+    uses: 17,
+    role: "Page, dialog, card titles",
+  },
 ] as const;
 
 const weights = [
@@ -42,7 +52,7 @@ const longPath =
 <div class="flex flex-col gap-10">
   <GalleryGroup
     title="Type scale"
-    description="text-ui is 13px/18px and text-ui is 15px/22px in this theme. Sans (Outfit) for UI; monospace (Iosevka) only for code, logs, and paths."
+    description="Four roles: text-caption 12px/16px, text-ui 13px/18px, text-body 15px/22px, text-title 16px/24px. Sans (Outfit) for UI; monospace (Iosevka) only for code, logs, and paths."
   >
     <GallerySpecimen title="Sizes" usage="all areas" layout="stack">
       {#each sizes as size (size.name)}
@@ -99,7 +109,7 @@ const longPath =
 
   <GalleryGroup
     title="Settings type ladder"
-    description="Three sizes only (base / sm / xs); weight and colour carry the rest. Sentence case, no uppercase eyebrows."
+    description="Two sizes only (title / ui); weight and colour carry the rest. Sentence case, no uppercase eyebrows."
   >
     <GallerySpecimen title="Spec" usage="settings" layout="stack">
       {#each [["Page title", "text-title font-semibold text-foreground"], ["Page subtitle", "text-ui text-muted-foreground"], ["Section heading", "text-ui font-semibold text-foreground"], ["Group heading", "text-ui font-semibold text-muted-foreground"], ["Row title", "text-ui text-foreground"], ["Supporting text", "text-ui text-muted-foreground"]] as [role, spec] (role)}
@@ -204,7 +214,7 @@ const longPath =
       class="p-4"
     >
       <div class="flex w-[720px] max-w-full flex-col gap-2">
-        <p class="text-ui text-foreground">
+        <p class="text-body text-foreground">
           I'll start by reading
           <code class="rounded-sm bg-muted px-1 font-mono text-ui"
             >session.ts</code

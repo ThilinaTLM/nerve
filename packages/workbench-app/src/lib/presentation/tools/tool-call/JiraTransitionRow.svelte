@@ -19,10 +19,7 @@ const showTarget = $derived(
 </script>
 
 <div class="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 px-2.5 py-2">
-  <span
-    class="rounded-sm border bg-muted px-1.5 py-0.5 font-mono text-ui text-muted-foreground"
-    >{transition.id}</span
-  >
+  <Badge class="font-mono">{transition.id}</Badge>
   <span class="text-ui font-medium text-foreground">{name}</span>
   {#if showTarget}
     <ArrowRight size={13} strokeWidth={2} class="text-muted-foreground" />

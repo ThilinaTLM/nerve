@@ -29,7 +29,6 @@ import {
   SettingsEmptyState,
   SettingsFieldRow,
   SettingsInfoHint,
-  SettingsInlineMessage,
   SettingsList,
   SettingsListItem,
   SettingsPageHeader,
@@ -107,7 +106,7 @@ const stats: SettingsStat[] = [
   { label: "Daemon mode", value: "owned" },
   { label: "Web assets", value: "bundled/default" },
   { label: "Proxy", value: "not configured" },
-  { label: "Data directory", value: longText, wide: true },
+  { label: "Data directory", value: longText, wide: true, mono: true },
 ];
 
 let toggleA = $state(true);
@@ -118,6 +117,17 @@ let fieldNumber = $state("43967");
 let lightTheme = $state("nerve-light");
 let darkTheme = $state("nerve-dark");
 let colorMode = $state("dark");
+
+// Swatch colours come from theme.css via these attributes, as in
+// ThemePreviewPicker and ColorModePicker.
+const themePreviewAttrs = (option: SettingsPreviewOption, mode: string) => ({
+  "data-theme-preview": option.value,
+  "data-color-mode": mode,
+});
+const modePreviewAttrs = (_option: SettingsPreviewOption, mode: string) => ({
+  "data-theme-preview": mode === "light" ? lightTheme : darkTheme,
+  "data-color-mode": mode,
+});
 let discA = $state(false);
 let discB = $state(true);
 
@@ -263,6 +273,7 @@ let headerStyle = $state("auto");
                 <SettingsRow label="Color mode" layout="stacked">
                   <SettingsPreviewCards
                     options={colorModeOptions}
+                    previewAttrs={modePreviewAttrs}
                     bind:value={colorMode}
                     ariaLabel="Color mode"
                   />
@@ -270,6 +281,7 @@ let headerStyle = $state("auto");
                 <SettingsRow label="Light theme" layout="stacked">
                   <SettingsPreviewCards
                     options={lightThemeOptions}
+                    previewAttrs={themePreviewAttrs}
                     bind:value={lightTheme}
                     ariaLabel="Light theme"
                   />
@@ -277,6 +289,7 @@ let headerStyle = $state("auto");
                 <SettingsRow label="Dark theme" layout="stacked">
                   <SettingsPreviewCards
                     options={darkThemeOptions}
+                    previewAttrs={themePreviewAttrs}
                     bind:value={darkTheme}
                     ariaLabel="Dark theme"
                   />
@@ -528,7 +541,7 @@ let headerStyle = $state("auto");
       layout="stack"
       description="Stacked label + Input with optional suffix and hint."
     >
-      <div class="grid gap-4 md:grid-cols-2">
+      <div class="grid items-start gap-4 md:grid-cols-2">
         <SettingsFieldRow
           id="gallery-field-text"
           label="Bind host"
@@ -681,16 +694,19 @@ let headerStyle = $state("auto");
     >
       <SettingsPreviewCards
         options={lightThemeOptions}
+        previewAttrs={themePreviewAttrs}
         bind:value={lightTheme}
         ariaLabel="Light theme"
       />
       <SettingsPreviewCards
         options={darkThemeOptions}
+        previewAttrs={themePreviewAttrs}
         bind:value={darkTheme}
         ariaLabel="Dark theme"
       />
       <SettingsPreviewCards
         options={colorModeOptions}
+        previewAttrs={modePreviewAttrs}
         bind:value={colorMode}
         ariaLabel="Color mode"
       />
@@ -699,34 +715,11 @@ let headerStyle = $state("auto");
 
   <GalleryGroup title="Feedback & status">
     <GallerySpecimen
-      title="SettingsInlineMessage"
-      source="settings/SettingsInlineMessage"
-      usage="14 files · settings, dialogs, shell"
-      layout="stack"
-      description="Tones used: destructive (12 sites), warning (8), info (5), neutral (2). Optional actions."
-    >
-      {#each ["destructive", "warning", "info", "neutral"] as const as tone (tone)}
-        <SettingsInlineMessage
-          {tone}
-          text="This is a {tone} message with supporting detail."
-        />
-      {/each}
-      <SettingsInlineMessage
-        tone="warning"
-        text="Restart required to apply these changes."
-      >
-        {#snippet actions()}
-          <Button variant="outline" size="sm">Restart</Button>
-        {/snippet}
-      </SettingsInlineMessage>
-    </GallerySpecimen>
-
-    <GallerySpecimen
       title="SettingsStatGrid"
       source="settings/SettingsStatGrid"
       usage="1 file · settings"
       layout="stack"
-      description="Mono stat tiles, 2 columns from md; `wide` spans both."
+      description="Stat tiles, 2 columns from md; `wide` spans both, `mono` for paths and ids."
     >
       <SettingsStatGrid items={stats} />
     </GallerySpecimen>

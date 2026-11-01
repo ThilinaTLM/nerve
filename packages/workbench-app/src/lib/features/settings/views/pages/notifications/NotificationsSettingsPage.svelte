@@ -1,4 +1,5 @@
 <script lang="ts">
+import { Callout } from "@nervekit/ui-kit/components/composites/callout";
 import type { NotificationTone, Settings } from "$lib/api";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
 import {
@@ -6,7 +7,6 @@ import {
   sendTestNotification,
 } from "$lib/application/notifications";
 import {
-  SettingsInlineMessage,
   SettingsRow,
   SettingsSection,
   SettingsSelectRow,
@@ -109,7 +109,8 @@ function setEventTone(key: EventToneKey, tone: NotificationTone): void {
     onCheckedChange={setSoundsEnabled}
   />
   {#if mutedUntilLabel}
-    <SettingsInlineMessage
+    <Callout
+      layout="block"
       tone="info"
       text={`Notifications are muted in this window until ${mutedUntilLabel}.`}
     >
@@ -118,7 +119,7 @@ function setEventTone(key: EventToneKey, tone: NotificationTone): void {
           >Unmute</Button
         >
       {/snippet}
-    </SettingsInlineMessage>
+    </Callout>
   {/if}
   <SettingsRow
     label="Test"
@@ -135,7 +136,8 @@ function setEventTone(key: EventToneKey, tone: NotificationTone): void {
 
 <SettingsSection id="sounds" title="Sounds">
   {#if !soundsEnabled}
-    <SettingsInlineMessage
+    <Callout
+      layout="block"
       tone="info"
       text="Notification sounds are turned off. Enable them in the General section to use these sounds."
     />

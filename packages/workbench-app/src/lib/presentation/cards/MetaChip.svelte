@@ -1,5 +1,5 @@
 <script lang="ts">
-import type { StatusTone } from "@nervekit/ui-kit/display/status";
+import { Badge } from "@nervekit/ui-kit/components/ui/badge";
 import { cn } from "@nervekit/ui-kit/utils";
 import type { MetaItem } from "./card-presentation";
 
@@ -10,39 +10,24 @@ type Props = {
 
 let { item, onOpenFile }: Props = $props();
 
-const toneClass: Record<StatusTone, string> = {
-  neutral: "text-muted-foreground",
-  brand: "border-primary-strong text-primary",
-  info: "border-info-strong text-info",
-  success: "border-success-strong text-success",
-  warning: "border-warning-strong text-warning",
-  destructive: "border-destructive-strong text-destructive",
-};
-
-const chipClass = $derived(
-  cn(
-    "inline-flex min-h-5 items-center rounded-sm border border-border bg-well px-1.5 py-0.5 text-caption leading-none font-medium whitespace-nowrap tabular-nums no-underline",
-    toneClass[item.tone ?? "neutral"],
-    item.mono && "font-mono",
-    (item.openPath || item.href) && "cursor-pointer hover:underline",
-  ),
-);
+const chipClass = $derived(cn("tabular-nums", item.mono && "font-mono"));
 </script>
 
 {#if item.openPath}
-  <button
+  <Badge
+    variant={item.tone ?? "neutral"}
     class={chipClass}
-    type="button"
     title={item.openPath}
-    onclick={() => onOpenFile?.(item.openPath!)}>{item.text}</button
+    onclick={() => onOpenFile?.(item.openPath!)}>{item.text}</Badge
   >
 {:else if item.href}
-  <a
+  <Badge
+    variant={item.tone ?? "neutral"}
     class={chipClass}
     href={item.href}
     target="_blank"
-    rel="noreferrer noopener">{item.text}</a
+    rel="noreferrer noopener">{item.text}</Badge
   >
 {:else}
-  <span class={chipClass}>{item.text}</span>
+  <Badge variant={item.tone ?? "neutral"} class={chipClass}>{item.text}</Badge>
 {/if}

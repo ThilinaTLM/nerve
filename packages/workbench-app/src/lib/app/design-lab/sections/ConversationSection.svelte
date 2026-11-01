@@ -8,8 +8,9 @@ import type { ContextMenuItem } from "@nervekit/ui-kit/components/composites/con
 import Markdown from "@nervekit/ui-kit/renderers/markdown/Markdown.svelte";
 import ConversationBanner from "$lib/presentation/conversations/ConversationBanner.svelte";
 import ConversationEmptyState from "$lib/presentation/conversations/ConversationEmptyState.svelte";
-import ConversationSignal from "$lib/presentation/conversations/ConversationSignal.svelte";
-import { conversationStarters } from "$lib/presentation/conversations/conversation-starters";
+import ConversationWelcome from "$lib/features/conversations/views/ConversationWelcome.svelte";
+import { shortProjectLabel } from "$lib/domain/projects/project-tree";
+import type { ProjectRecord } from "$lib/domain/projects/sidebar-view-models";
 import type { TimelineItem } from "$lib/presentation/state/timeline";
 import type {
   CompactionNotice,
@@ -37,6 +38,15 @@ import { sampleCall, SAMPLE_CWD } from "./tool-card-fixtures";
 const noop = () => {};
 const stamp = "2026-10-14T09:30:00.000Z";
 const base = { conversationId: "conv_demo", createdAt: stamp };
+const welcomeProject: ProjectRecord = {
+  id: "proj_nerve",
+  name: "nerve",
+  directory: "/home/user/Projects/nerve",
+  dir: "/home/user/Projects/nerve",
+  createdAt: stamp,
+  updatedAt: stamp,
+};
+const welcomeLabel = shortProjectLabel(welcomeProject.dir, "/home/user");
 
 const transcriptMenu = (): ContextMenuItem[] => [
   { label: "Copy", onSelect: noop },
@@ -352,6 +362,8 @@ const contextTimeline: TimelineItem[] = [
     },
   },
 ];
+const commandStatusOutput = " M src/app.ts\n?? notes.md";
+const commandTestOutput = "FAIL src/store.test.ts\n  expected 3, received 2";
 </script>
 
 {#snippet guarded(error: unknown)}
@@ -501,14 +513,14 @@ const contextTimeline: TimelineItem[] = [
         phase="done"
         status="completed"
         exitCode={0}
-        output="M src/app.ts\n?? notes.md"
+        output={commandStatusOutput}
       />
       <CommandBlockCard
         command="pnpm test"
         phase="done"
         status="completed"
         exitCode={1}
-        output="FAIL src/store.test.ts\n  expected 3, received 2"
+        output={commandTestOutput}
       />
     </GallerySpecimen>
   </GalleryGroup>
@@ -598,8 +610,55 @@ const contextTimeline: TimelineItem[] = [
 
   <GalleryGroup
     title="Conversation chrome"
-    description="Banner, empty state and the launchpad signal."
+    description="Banner, empty states and the launchpad signal."
   >
+    <GallerySpecimen
+      title="ConversationWelcome"
+      description="Center area with no tab open: the real launchpad with Plan/Code starters. Without a project the starters are disabled."
+      source="features/conversations/views/ConversationWelcome"
+      usage="1 file · conversation"
+      layout="bare"
+    >
+      <div class="grid gap-4 xl:grid-cols-2">
+        <div class="h-96 rounded-md border bg-background">
+          <ConversationWelcome
+            projectSelected
+            projectLabel={welcomeLabel}
+            projectPath={welcomeProject.dir}
+            onNewChat={noop}
+          />
+        </div>
+        <div class="h-96 rounded-md border bg-background">
+          <ConversationWelcome onNewChat={noop} />
+        </div>
+      </div>
+    </GallerySpecimen>
+
+    <GallerySpecimen
+      title="New conversation"
+      description="A fresh conversation tab (the + button): the real TranscriptList with an empty timeline."
+      source="presentation/transcript/TranscriptList"
+      usage="1 file · conversation"
+      layout="bare"
+    >
+      <div
+        class="mx-auto h-96 w-[760px] max-w-full overflow-hidden rounded-md border bg-background"
+      >
+        <TranscriptList
+          heightCacheKey="gallery-conversation-empty"
+          timelinePrefix={[]}
+          timelineTail={[]}
+          streamingText=""
+          sending={false}
+          runActivity={{ stopping: false }}
+          queuedPrompts={[]}
+          activeProject={welcomeProject}
+          activeProjectLabel={welcomeLabel}
+          {transcriptMenu}
+        />
+      </div>
+    </GallerySpecimen>
+
     <GallerySpecimen
       title="ConversationBanner"
       description="Muted and warning tones."
@@ -628,34 +687,6 @@ const contextTimeline: TimelineItem[] = [
     >
       <div class="mx-auto h-56 w-[760px] max-w-full rounded-md border">
         <ConversationEmptyState />
-      </div>
-    </GallerySpecimen>
-
-    <GallerySpecimen
-      title="ConversationSignal"
-      description="Conversation and launchpad variants (with starters)."
-      source="presentation/conversations/ConversationSignal"
-      usage="2 files · conversation"
-      layout="bare"
-    >
-      <div class="grid gap-4 xl:grid-cols-2">
-        <div class="h-96 rounded-md border">
-          <ConversationSignal
-            title="Start a conversation"
-            message="Ask the agent to explore, plan or change your code."
-          />
-        </div>
-        <div class="h-96 rounded-md border">
-          <ConversationSignal
-            variant="launchpad"
-            title="What should we build?"
-            message="Pick a mode or just describe the task."
-            projectLabel="nerve-workbench"
-            projectPath="/home/user/projects/nerve-workbench"
-            starters={conversationStarters}
-            onSelectStarter={noop}
-          />
-        </div>
       </div>
     </GallerySpecimen>
   </GalleryGroup>

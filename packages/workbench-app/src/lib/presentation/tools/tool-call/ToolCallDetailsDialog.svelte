@@ -1,4 +1,5 @@
 <script lang="ts">
+import { Badge } from "@nervekit/ui-kit/components/ui/badge";
 import type {
   ToolCallDetails,
   ToolCallTranscriptRecord,
@@ -83,9 +84,9 @@ const description = $derived(
       {#if presentation.meta.length > 0}
         <div class="flex flex-wrap gap-1.5">
           {#each presentation.meta as item, index (index)}
-            <span
-              class="rounded-sm border bg-muted px-1.5 py-0.5 text-ui text-muted-foreground"
-              class:font-mono={item.mono}>{item.text}</span
+            <Badge
+              variant={item.tone ?? "neutral"}
+              class={item.mono ? "font-mono" : undefined}>{item.text}</Badge
             >
           {/each}
         </div>

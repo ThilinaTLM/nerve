@@ -1,4 +1,5 @@
 <script lang="ts">
+import { Badge } from "@nervekit/ui-kit/components/ui/badge";
 import Copy from "@lucide/svelte/icons/copy";
 import GitBranch from "@lucide/svelte/icons/git-branch";
 import Pencil from "@lucide/svelte/icons/pencil";
@@ -106,13 +107,11 @@ async function copyId(id: string) {
     <div class="flex flex-wrap gap-1.5">
       {#each segment.parts as part, i (i)}
         {@const PartIcon = HISTORY_ICONS[part.icon]}
-        <span
-          class="flex items-center gap-1 rounded-md border bg-muted px-2 py-0.5 text-ui text-muted-foreground"
-        >
+        <Badge>
           <PartIcon class="size-3.5" strokeWidth={2} />
           <span class="font-medium text-foreground">{part.count}</span>
           {part.label}
-        </span>
+        </Badge>
       {/each}
     </div>
     <div class="flex">
@@ -219,9 +218,7 @@ async function copyId(id: string) {
             <div class="flex items-center gap-2 text-ui text-muted-foreground">
               <span class="font-medium text-foreground">Tool</span>
               <span class="font-mono">{view.toolName}</span>
-              {#if record?.status}<span class="rounded-md border px-1.5 py-0.5"
-                  >{record.status}</span
-                >{/if}
+              {#if record?.status}<Badge>{record.status}</Badge>{/if}
               {#if view.timingText}<span>{view.timingText}</span>{/if}
             </div>
           {/if}

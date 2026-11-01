@@ -1,4 +1,5 @@
 <script lang="ts">
+import { Callout } from "@nervekit/ui-kit/components/composites/callout";
 import ArrowRight from "@lucide/svelte/icons/arrow-right";
 import type { AuthProviderMetadata, ModelInfo, Settings } from "$lib/api";
 import type {
@@ -13,7 +14,6 @@ import { requestWorkbench } from "$lib/application/startup/workbench-connection"
 import ModelPicker from "$lib/presentation/model-picker/ModelPicker.svelte";
 import { authenticatedRealModelOptions } from "$lib/presentation/utils/model";
 import {
-  SettingsInlineMessage,
   SettingsRow,
   SettingsSection,
   SettingsToggleRow,
@@ -70,14 +70,11 @@ async function runTest() {
   title="AI titles"
   info="New conversations always get an instant local title first. An AI title replaces it in the background, once, and never overrides a name you set."
 >
-  <SettingsInlineMessage
-    tone="info"
-    class="border-primary-strong bg-primary-subtle"
-  >
+  <Callout layout="block" tone="brand">
     Sends a shortened version of each new conversation's first prompt to the
     selected provider, which may bill for usage. It can differ from your coding
     agent's provider.
-  </SettingsInlineMessage>
+  </Callout>
   <SettingsToggleRow
     label="Improve titles with AI"
     description="Off by default. Existing conversations are never retitled."
@@ -112,13 +109,13 @@ async function runTest() {
     {/snippet}
   </SettingsRow>
   {#if status === "no-model"}
-    <SettingsInlineMessage tone="warning"
-      >Choose a model to start. Until then, local titles are used.</SettingsInlineMessage
+    <Callout layout="block" tone="warning"
+      >Choose a model to start. Until then, local titles are used.</Callout
     >
   {:else if status === "unavailable"}
-    <SettingsInlineMessage tone="warning"
+    <Callout layout="block" tone="warning"
       >This model isn't available with your connected providers. Local titles
-      are used until you choose another model or reconnect its provider.</SettingsInlineMessage
+      are used until you choose another model or reconnect its provider.</Callout
     >
   {/if}
 </SettingsSection>
@@ -138,12 +135,13 @@ async function runTest() {
     {/snippet}
   </SettingsRow>
   {#if result}
-    <SettingsInlineMessage
+    <Callout
+      layout="block"
       tone={result.category === "success" ? "success" : "destructive"}
     >
       {result.category === "success"
         ? `${result.title} · ${result.latencyMs} ms`
         : result.category}
-    </SettingsInlineMessage>
+    </Callout>
   {/if}
 </SettingsSection>

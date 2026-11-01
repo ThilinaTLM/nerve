@@ -74,5 +74,6 @@ onDestroy(() => view?.destroy());
 
 <div
   bind:this={host}
-  class={`h-full min-h-0 min-w-0 overflow-hidden bg-background ${className}`}
+  class={`h-full min-h-0 min-w-0 overflow-hidden bg-background ${disabled ? "opacity-60" : ""} ${className}`}
+  aria-disabled={disabled ? "true" : undefined}
 ></div>

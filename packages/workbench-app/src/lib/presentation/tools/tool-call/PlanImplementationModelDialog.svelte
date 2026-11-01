@@ -161,11 +161,7 @@ $effect(() => {
 >
   <div class="grid gap-3">
     <section class="grid gap-2">
-      <p
-        class="m-0 text-ui font-semibold uppercase tracking-wide text-muted-foreground"
-      >
-        Model
-      </p>
+      <p class="m-0 text-ui font-semibold text-foreground">Model</p>
       {#if models.length === 0}
         <p
           class="m-0 rounded-md border border-dashed border-border bg-muted p-3 text-ui text-muted-foreground"
@@ -248,11 +244,7 @@ $effect(() => {
 
     {#if selectedModel}
       <section class="grid gap-2 border-t border-border-subtle pt-3">
-        <p
-          class="m-0 text-ui font-semibold uppercase tracking-wide text-muted-foreground"
-        >
-          Thinking level
-        </p>
+        <p class="m-0 text-ui font-semibold text-foreground">Thinking level</p>
         <div
           class="flex flex-wrap gap-2"
           role="group"

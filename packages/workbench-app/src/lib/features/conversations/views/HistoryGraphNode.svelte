@@ -1,4 +1,5 @@
 <script lang="ts">
+import { Badge } from "@nervekit/ui-kit/components/ui/badge";
 import Copy from "@lucide/svelte/icons/copy";
 import GitBranch from "@lucide/svelte/icons/git-branch";
 import Pencil from "@lucide/svelte/icons/pencil";
@@ -166,10 +167,7 @@ function branch(data: HistoryFlowNodeData) {
         {#if data.zoomTier === "detail"}
           <div class="flex flex-wrap gap-1 overflow-hidden">
             {#each data.segment.parts.slice(0, 4) as part (part.label)}
-              <span
-                class="rounded-md border bg-muted px-1.5 py-0.5 text-ui text-muted-foreground"
-                >{part.count} {part.label}</span
-              >
+              <Badge>{part.count} {part.label}</Badge>
             {/each}
           </div>
         {/if}

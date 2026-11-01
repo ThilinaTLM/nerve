@@ -1,4 +1,8 @@
 <script lang="ts">
+import { Callout } from "@nervekit/ui-kit/components/composites/callout";
+import { GroupLabel } from "@nervekit/ui-kit/components/composites/group-label";
+import Pin from "@lucide/svelte/icons/pin";
+import AlertTriangleIcon from "@lucide/svelte/icons/triangle-alert";
 import MinusIcon from "@lucide/svelte/icons/minus";
 import PlusIcon from "@lucide/svelte/icons/plus";
 import { onDestroy } from "svelte";
@@ -103,6 +107,58 @@ const plain =
 
 <div class="flex flex-col gap-10">
   <GalleryGroup
+    title="Messages and labels"
+    description="Group captions above rows, and tinted callouts for settings, dialogs and panels."
+  >
+    <GallerySpecimen
+      title="GroupLabel"
+      source="composites/group-label"
+      description="The quiet caption above a group of rows: sentence case, optional icon and count."
+      layout="stack"
+    >
+      <GroupLabel label="Pinned" icon={Pin} count={1} />
+      <GroupLabel label="Today" count={24} />
+      <GroupLabel label="Connections" />
+    </GallerySpecimen>
+
+    <GallerySpecimen
+      title="Callout"
+      source="composites/callout"
+      description="Six status tones in block layout, plus a compact panel strip."
+      layout="stack"
+    >
+      <Callout layout="block" tone="neutral" text="No changes pending." />
+      <Callout layout="block" tone="brand" text="Your default workspace." />
+      <Callout
+        layout="block"
+        tone="info"
+        text="Changes apply to new conversations."
+      />
+      <Callout layout="block" tone="success" text="Settings saved." />
+      <Callout
+        layout="block"
+        tone="warning"
+        text="Review permissions before continuing."
+      />
+      <Callout
+        layout="block"
+        tone="destructive"
+        title="Connection failed"
+        text="The provider could not be reached."
+      >
+        {#snippet actions()}<Button size="sm" variant="outline" onclick={noop}
+            >Retry</Button
+          >{/snippet}
+      </Callout>
+      <Callout
+        layout="strip"
+        tone="warning"
+        icon={AlertTriangleIcon}
+        text="Some panel data may be out of date."
+      />
+    </GallerySpecimen>
+  </GalleryGroup>
+  <GalleryGroup
     title="Scrolling"
     description="Edge-shadow regions and the virtualised list behind transcripts."
   >
@@ -142,6 +198,7 @@ const plain =
           getKey={(item) => item.id}
           estimateSize={() => 32}
           viewportAriaLabel="Virtual rows"
+          viewportClass="h-full"
           gap={2}
           paddingStart={4}
           paddingEnd={4}
@@ -283,7 +340,7 @@ const plain =
       layout="bare"
     >
       <div class="h-64 w-full overflow-hidden rounded-md border">
-        <MermaidDiagram source={mermaid} />
+        <MermaidDiagram source={mermaid} class="h-full" />
       </div>
     </GallerySpecimen>
 

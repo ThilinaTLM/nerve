@@ -4,14 +4,14 @@ import type { VariantProps } from "tailwind-variants";
 import { cn, tv } from "@nervekit/ui-kit/utils";
 
 export const toggleVariants = tv({
-  base: "hover:text-foreground aria-pressed:bg-selected aria-pressed:text-foreground aria-pressed:hover:bg-selected focus-visible:border-ring focus-visible:ring-focus aria-invalid:ring-destructive-strong aria-invalid:border-destructive gap-1 rounded-md text-ui font-medium transition-[color,box-shadow] [&_svg:not([class*='size-'])]:size-4 group/toggle hover:bg-muted inline-flex items-center justify-center whitespace-nowrap outline-none focus-visible:ring-3 disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_[data-slot=toggle-count]]:text-caption [&_[data-slot=toggle-count]]:font-normal [&_[data-slot=toggle-count]]:tabular-nums [&_[data-slot=toggle-count]]:text-muted-foreground",
+  base: "hover:text-foreground aria-pressed:bg-selected aria-pressed:text-foreground aria-pressed:hover:bg-selected focus-visible:border-ring focus-visible:ring-focus aria-invalid:ring-destructive-strong aria-invalid:border-destructive gap-1 rounded-md text-ui font-medium transition-[color,box-shadow] [&_svg:not([class*='size-'])]:size-4 group/toggle hover:bg-hover inline-flex items-center justify-center whitespace-nowrap outline-none focus-visible:ring-3 disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_[data-slot=toggle-count]]:text-caption [&_[data-slot=toggle-count]]:font-normal [&_[data-slot=toggle-count]]:tabular-nums [&_[data-slot=toggle-count]]:text-muted-foreground",
   variants: {
     variant: {
-      outline: "border-input hover:bg-muted border bg-transparent ",
+      outline: "border-input hover:bg-hover border bg-transparent ",
       // Segmented chip: pick from a short set, optionally carrying a count.
       // Selection uses the shared fill without a border; keyboard focus keeps
       // the base focus-visible ring.
-      chip: "cursor-pointer bg-transparent text-muted-foreground hover:bg-muted hover:text-foreground data-[state=on]:bg-selected data-[state=on]:text-foreground data-[state=on]:hover:bg-selected",
+      chip: "cursor-pointer bg-transparent text-muted-foreground hover:bg-hover hover:text-foreground data-[state=on]:bg-selected data-[state=on]:text-foreground data-[state=on]:hover:bg-selected",
     },
     size: {
       default:

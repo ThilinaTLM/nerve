@@ -1,4 +1,5 @@
 <script lang="ts">
+import { Callout } from "@nervekit/ui-kit/components/composites/callout";
 import ShieldCheck from "@lucide/svelte/icons/shield-check";
 import type {
   AgentScope,
@@ -7,7 +8,7 @@ import type {
 import { Button } from "@nervekit/ui-kit/components/ui/button";
 import { Textarea } from "@nervekit/ui-kit/components/ui/textarea";
 import Dialog from "@nervekit/ui-kit/components/composites/dialog-shell";
-import { EntityRow, SettingsInlineMessage } from "$lib/presentation/settings";
+import { EntityRow } from "$lib/presentation/settings";
 import { requestWorkbench } from "$lib/application/startup/workbench-connection";
 import ConfigurationRepairDialog from "./ConfigurationRepairDialog.svelte";
 let {
@@ -87,8 +88,9 @@ async function trust(trusted: boolean) {
   title="Review configuration"
   description="Trust is bound to the exact reviewed bytes. Dismissing this dialog does not trust, reset or repair the document."
 >
-  {#if error}<SettingsInlineMessage tone="destructive" text={error} />{/if}
-  {#if message && document?.status === "available" && document.source.digest === messageDigest}<SettingsInlineMessage
+  {#if error}<Callout layout="block" tone="destructive" text={error} />{/if}
+  {#if message && document?.status === "available" && document.source.digest === messageDigest}<Callout
+      layout="block"
       tone="success"
       text={message}
     />{/if}

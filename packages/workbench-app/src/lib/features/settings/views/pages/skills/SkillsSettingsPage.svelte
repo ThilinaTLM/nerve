@@ -1,4 +1,5 @@
 <script lang="ts">
+import { Callout } from "@nervekit/ui-kit/components/composites/callout";
 import ProjectCapabilityTrustAction from "../capabilities/ProjectCapabilityTrustAction.svelte";
 import ProjectCapabilityTrustNotice from "../capabilities/ProjectCapabilityTrustNotice.svelte";
 import Copy from "@lucide/svelte/icons/copy";
@@ -17,7 +18,6 @@ import {
   SettingsChangeIndicator,
   SettingsDisclosureItem,
   SettingsEmptyState,
-  SettingsInlineMessage,
   SettingsList,
   SettingsSection,
   SettingsToolbar,
@@ -146,11 +146,11 @@ function onRetry() {
     onReload={onRetry}
   />{/if}
 {#if error}
-  <SettingsInlineMessage tone="destructive" text={error}>
+  <Callout layout="block" tone="destructive" text={error}>
     {#snippet actions()}
       <Button size="sm" variant="outline" onclick={onRetry}>Retry</Button>
     {/snippet}
-  </SettingsInlineMessage>
+  </Callout>
 {/if}
 
 {#if !editor.resolution && !error}

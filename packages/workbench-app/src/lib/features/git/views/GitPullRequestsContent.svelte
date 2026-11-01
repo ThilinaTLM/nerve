@@ -1,4 +1,5 @@
 <script lang="ts">
+import { Callout } from "@nervekit/ui-kit/components/composites/callout";
 import { onDestroy } from "svelte";
 import ScrollRegion from "@nervekit/ui-kit/components/composites/scroll-region";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
@@ -18,7 +19,6 @@ import type {
   GitRepoSummary,
 } from "@nervekit/contracts/git";
 import {
-  PanelBanner,
   PanelHeader,
   PanelList,
   PanelToolbarButton,
@@ -252,7 +252,7 @@ function toggleChecks(pr: GithubPr) {
   />
 
   {#if refreshError}
-    <PanelBanner tone="destructive" icon={TriangleAlert}>
+    <Callout layout="strip" tone="destructive" icon={TriangleAlert}>
       {refreshError}
       {#snippet actions()}
         <PanelToolbarButton
@@ -263,7 +263,7 @@ function toggleChecks(pr: GithubPr) {
           onclick={onRefreshPrs}
         />
       {/snippet}
-    </PanelBanner>
+    </Callout>
   {/if}
 
   {#if selectedRepoSummary && !selectedRepoSummary.hasRemote}

@@ -238,7 +238,7 @@ const listboxId = "composer-suggestions";
             title={row.title}
             class="flex h-7 w-full min-w-0 shrink-0 cursor-default items-center gap-2 rounded-md px-2 text-left text-ui {isSelected
               ? 'bg-muted text-foreground'
-              : 'hover:bg-muted'} {row.state === 'unavailable'
+              : 'hover:bg-hover'} {row.state === 'unavailable'
               ? 'opacity-60'
               : ''}"
             onmousemove={() => onhover(row.id)}
@@ -278,7 +278,7 @@ const listboxId = "composer-suggestions";
                 <button
                   type="button"
                   tabindex="-1"
-                  class="inline-flex h-5 items-center rounded-sm px-1 text-muted-foreground hover:bg-muted hover:text-foreground"
+                  class="inline-flex h-5 items-center rounded-sm px-1 text-muted-foreground hover:bg-hover hover:text-foreground"
                   onmousedown={(event) => {
                     event.preventDefault();
                     event.stopPropagation();
