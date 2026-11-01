@@ -177,6 +177,7 @@ const childLabel = {
 <Popover
   {open}
   size="lg"
+  height="tall"
   align="end"
   ariaLabel={label}
   triggerTitle="Notifications"
@@ -329,7 +330,8 @@ const childLabel = {
                 aria-hidden="true"
               />{/if}
             <span class="min-w-0 flex-1 truncate">{child.title}</span>
-            <span class="text-muted-foreground">{childLabel[child.status]}</span
+            <span class="text-caption text-muted-foreground"
+              >{childLabel[child.status]}</span
             >
           </li>
         {/each}

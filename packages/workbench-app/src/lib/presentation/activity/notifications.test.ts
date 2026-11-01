@@ -107,6 +107,18 @@ test("omits the active project and tracks unread", () => {
   assert.equal(byId.fresh?.action?.intent, "retry");
 });
 
+test("the project-root repository adds no context segment", () => {
+  const [item] = buildNotifications({
+    ...base,
+    activities: [
+      activity("root", {
+        scope: { projectId: "p2", projectName: "Beta", repositoryPath: "." },
+      }),
+    ],
+  });
+  assert.equal(item?.context, "Beta");
+});
+
 test("conversation items: failures need attention, finished results do not", () => {
   const items = buildNotifications({
     ...base,
