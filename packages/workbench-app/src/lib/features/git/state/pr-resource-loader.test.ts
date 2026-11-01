@@ -55,6 +55,7 @@ const initial: GithubPrInitial = {
     mergeable: null,
     mergeStateStatus: null,
     reviewDecision: null,
+    viewerCanMergeAsAdmin: false,
     behindBy: null,
     mergedAt: null,
     mergedBy: null,

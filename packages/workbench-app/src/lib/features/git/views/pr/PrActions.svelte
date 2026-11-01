@@ -3,6 +3,7 @@ import Check from "@lucide/svelte/icons/check";
 import CircleX from "@lucide/svelte/icons/circle-x";
 import Clock from "@lucide/svelte/icons/clock";
 import GitMerge from "@lucide/svelte/icons/git-merge";
+import ShieldAlert from "@lucide/svelte/icons/shield-alert";
 import type {
   GithubChecksSummary,
   GithubPrCore,
@@ -19,6 +20,7 @@ import type { PrMergeFollowUp } from "../github-pr-types";
 import {
   defaultMergeMethod,
   mergeAvailability,
+  type MergeAvailability,
   mergeMethodLabel,
   mergeReadiness,
 } from "../pr-pane-helpers";
@@ -51,6 +53,8 @@ let {
   onReady,
 }: Props = $props();
 let confirmOpen = $state(false);
+/** The open confirmation bypasses unmet requirements. */
+let bypass = $state(false);
 
 const detail = $derived(
   overview && checks ? { ...core, ...overview, checks } : undefined,
@@ -58,7 +62,11 @@ const detail = $derived(
 const availability = $derived(
   detail
     ? mergeAvailability(mergeReadiness(detail))
-    : ({ kind: "waiting", reason: "Checking merge status" } as const),
+    : ({
+        kind: "waiting",
+        reason: "Checking merge status",
+        bypassable: false,
+      } satisfies MergeAvailability),
 );
 const allowed = $derived(overview?.mergeSettings.allowedMethods ?? []);
 const method = $derived(
@@ -82,9 +90,23 @@ const tone = $derived(
         }
       : { variant: "outline" as const, icon: Clock, text: "text-warning" },
 );
-const reason = $derived(
+/* GitHub says this viewer may merge anyway (rulesets or branch protection). */
+const canBypass = $derived(
+  availability.kind !== "ready" && availability.bypassable && !!method,
+);
+const blockers = $derived(
   availability.kind === "ready" ? undefined : availability.reason,
 );
+const reason = $derived(
+  blockers && canBypass
+    ? `${blockers} · You can bypass these requirements from the merge menu`
+    : blockers,
+);
+
+function openConfirm(bypassing: boolean) {
+  bypass = bypassing;
+  confirmOpen = true;
+}
 
 function confirmMerge(followUp: PrMergeFollowUp) {
   confirmOpen = false;
@@ -96,9 +118,10 @@ function confirmMerge(followUp: PrMergeFollowUp) {
   <SplitButton
     variant={tone?.variant ?? "success"}
     disabled={merging || availability.kind !== "ready" || !method}
+    menuDisabled={merging || (availability.kind !== "ready" && !canBypass)}
     triggerLabel="Choose merge method"
-    menuClass="w-56"
-    onclick={() => (confirmOpen = true)}
+    menuClass="w-64"
+    onclick={() => openConfirm(false)}
   >
     {#if merging}<Spinner class="size-3.5" />{:else}<GitMerge
         class="size-3.5"
@@ -115,6 +138,16 @@ function confirmMerge(followUp: PrMergeFollowUp) {
           {mergeMethodLabel(option)}
         </DropdownMenu.Item>
       {/each}
+      {#if canBypass}
+        <DropdownMenu.Separator />
+        <DropdownMenu.Item
+          variant="destructive"
+          onSelect={() => openConfirm(true)}
+        >
+          <ShieldAlert aria-hidden="true" />
+          Merge without waiting for requirements
+        </DropdownMenu.Item>
+      {/if}
     {/snippet}
   </SplitButton>
 {/snippet}
@@ -142,11 +175,19 @@ function confirmMerge(followUp: PrMergeFollowUp) {
 
 <ConfirmDialog
   bind:open={confirmOpen}
-  title={`Merge pull request #${core.number}?`}
-  description={`${method ? mergeMethodLabel(method) : "Merge"} will merge ${core.headRefName} into ${core.baseRefName} at head ${core.headRefOid.slice(0, 7)}.${checkedOut ? ` The primary action then switches this checkout to ${core.baseRefName} and pulls it.` : ""}`}
-  confirmLabel={checkedOut ? "Merge & update" : "Confirm merge"}
+  title={bypass
+    ? `Bypass requirements and merge #${core.number}?`
+    : `Merge pull request #${core.number}?`}
+  description={`${method ? mergeMethodLabel(method) : "Merge"} will merge ${core.headRefName} into ${core.baseRefName} at head ${core.headRefOid.slice(0, 7)}.${bypass && blockers ? ` This bypasses unmet requirements: ${blockers}.` : ""}${checkedOut ? ` The primary action then switches this checkout to ${core.baseRefName} and pulls it.` : ""}`}
+  confirmLabel={checkedOut
+    ? bypass
+      ? "Bypass, merge & update"
+      : "Merge & update"
+    : bypass
+      ? "Bypass and merge"
+      : "Confirm merge"}
   secondaryLabel={checkedOut ? "Merge only" : undefined}
-  confirmVariant="success"
+  confirmVariant={bypass ? "destructive" : "success"}
   onConfirm={() => confirmMerge(checkedOut ? "switch-base-and-pull" : "stay")}
   onSecondary={() => confirmMerge("stay")}
 />

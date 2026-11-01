@@ -23,6 +23,7 @@ function detail(
     mergeable: "MERGEABLE",
     mergeStateStatus: "CLEAN",
     reviewDecision: "APPROVED",
+    viewerCanMergeAsAdmin: false,
     mergeSettings: { allowedMethods: ["merge", "squash"] },
     checks: { status: "passing" },
     ...overrides,
@@ -45,6 +46,35 @@ describe("PR pane helpers", () => {
     assert.equal(
       mergeReadiness(detail({ mergeable: "UNKNOWN" })).status,
       "unknown",
+    );
+  });
+
+  it("offers bypass only when GitHub allows it and every blocker is bypassable", () => {
+    const blocked = {
+      mergeStateStatus: "BLOCKED",
+      reviewDecision: "REVIEW_REQUIRED",
+      checks: { status: "pending" as const },
+    };
+    assert.equal(mergeReadiness(detail(blocked)).bypassable, false);
+    assert.equal(
+      mergeReadiness(detail({ ...blocked, viewerCanMergeAsAdmin: true }))
+        .bypassable,
+      true,
+    );
+    assert.equal(
+      mergeReadiness(
+        detail({
+          ...blocked,
+          viewerCanMergeAsAdmin: true,
+          mergeable: "CONFLICTING",
+        }),
+      ).bypassable,
+      false,
+    );
+    assert.equal(
+      mergeReadiness(detail({ viewerCanMergeAsAdmin: true, isDraft: true }))
+        .bypassable,
+      false,
     );
   });
 
@@ -118,6 +148,7 @@ describe("merge availability", () => {
     assert.deepEqual(running, {
       kind: "waiting",
       reason: "Checks are still running",
+      bypassable: false,
     });
     assert.equal(
       mergeAvailability(mergeReadiness(detail({ mergeable: "CONFLICTING" })))

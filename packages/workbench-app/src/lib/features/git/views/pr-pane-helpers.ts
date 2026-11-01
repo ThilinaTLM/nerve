@@ -17,7 +17,21 @@ type TimelineEntry =
 export type MergeReadiness = {
   status: "ready" | "blocked" | "unknown";
   reasons: string[];
+  /** The viewer may merge anyway because GitHub lets them bypass every
+   * remaining blocker (rules, reviews, checks, an outdated branch). */
+  bypassable: boolean;
 };
+
+/** Requirements GitHub lets permitted users bypass; conflicts, drafts and
+ * disabled merge methods are never bypassable. */
+const BYPASSABLE_REASONS = new Set([
+  "Update the branch with the latest base changes",
+  "Branch protection requirements are not satisfied",
+  "Checks are still running",
+  "Required checks are failing",
+  "Changes were requested",
+  "An approving review is required",
+]);
 
 export function checksTone(checks: GithubChecksSummary): StatusTone {
   switch (checks.status) {
@@ -96,15 +110,27 @@ export type MergeReadinessInput = Pick<
 > &
   Pick<
     GithubPrOverview,
-    "mergeable" | "mergeStateStatus" | "reviewDecision" | "mergeSettings"
+    | "mergeable"
+    | "mergeStateStatus"
+    | "reviewDecision"
+    | "viewerCanMergeAsAdmin"
+    | "mergeSettings"
   > & { checks: Pick<GithubChecksSummary, "status"> };
 
 export function mergeReadiness(detail: MergeReadinessInput): MergeReadiness {
   if (detail.state !== "OPEN") {
-    return { status: "blocked", reasons: ["Pull request is not open"] };
+    return {
+      status: "blocked",
+      reasons: ["Pull request is not open"],
+      bypassable: false,
+    };
   }
   if (detail.isDraft) {
-    return { status: "blocked", reasons: ["Pull request is still a draft"] };
+    return {
+      status: "blocked",
+      reasons: ["Pull request is still a draft"],
+      bypassable: false,
+    };
   }
   if (
     !detail.headRefOid ||
@@ -114,6 +140,7 @@ export function mergeReadiness(detail: MergeReadinessInput): MergeReadiness {
     return {
       status: "unknown",
       reasons: ["GitHub is calculating mergeability"],
+      bypassable: false,
     };
   }
 
@@ -136,9 +163,15 @@ export function mergeReadiness(detail: MergeReadinessInput): MergeReadiness {
     reasons.push("An approving review is required");
   if (detail.mergeSettings.allowedMethods.length === 0)
     reasons.push("No merge method is enabled");
-  return reasons.length > 0
-    ? { status: "blocked", reasons: [...new Set(reasons)] }
-    : { status: "ready", reasons: [] };
+  if (reasons.length === 0)
+    return { status: "ready", reasons: [], bypassable: false };
+  return {
+    status: "blocked",
+    reasons: [...new Set(reasons)],
+    bypassable:
+      detail.viewerCanMergeAsAdmin &&
+      reasons.every((reason) => BYPASSABLE_REASONS.has(reason)),
+  };
 }
 
 export function prTimeline(detail: GithubPrConversation): TimelineEntry[] {
@@ -231,7 +264,7 @@ export function groupCommitsByDay<T extends { authoredDate?: string }>(
  */
 export type MergeAvailability =
   | { kind: "ready" }
-  | { kind: "waiting" | "blocked"; reason: string };
+  | { kind: "waiting" | "blocked"; reason: string; bypassable: boolean };
 
 const WAITING_REASONS = new Set([
   "Checks are still running",
@@ -248,6 +281,7 @@ export function mergeAvailability(
       ? "waiting"
       : "blocked",
     reason,
+    bypassable: readiness.bypassable,
   };
 }
 

@@ -524,6 +524,9 @@ export const githubPrOverviewSchema = z.object({
   mergeable: z.string().nullable(),
   mergeStateStatus: z.string().nullable(),
   reviewDecision: z.string().nullable(),
+  /** GitHub's per-viewer bypass answer; covers both rulesets and classic
+   * branch protection, unlike the actor-agnostic `mergeStateStatus`. */
+  viewerCanMergeAsAdmin: z.boolean().default(false),
   behindBy: z.number().int().nonnegative().nullable(),
   /* Outcome metadata: a merged or closed PR has no merge controls, so the pane
    * reports what happened instead. */

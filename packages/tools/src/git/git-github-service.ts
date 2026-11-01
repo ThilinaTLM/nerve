@@ -100,6 +100,7 @@ export type GithubPrDetailRaw = {
   mergeable?: string | null;
   mergeStateStatus?: string | null;
   reviewDecision?: string | null;
+  viewerCanMergeAsAdmin?: boolean | null;
   mergedAt?: string | null;
   closedAt?: string | null;
   mergedBy?: { login?: string } | null;
@@ -170,6 +171,7 @@ const CONVERSATION_FIELDS = `
 `;
 const OVERVIEW_FIELDS = `
   headRefOid baseRefOid mergeable mergeStateStatus reviewDecision
+  viewerCanMergeAsAdmin
   mergedAt closedAt mergedBy { login } mergeCommit { oid abbreviatedOid }
   labels(first: 100) { nodes { name color } }
   reviewRequests(first: 100) {
@@ -466,6 +468,7 @@ function mapPrOverview(
     mergeable: raw.mergeable ?? null,
     mergeStateStatus: raw.mergeStateStatus ?? null,
     reviewDecision: raw.reviewDecision ?? null,
+    viewerCanMergeAsAdmin: raw.viewerCanMergeAsAdmin ?? false,
     behindBy,
     mergedAt: raw.mergedAt ?? null,
     mergedBy: raw.mergedBy?.login ?? null,
