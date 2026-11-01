@@ -127,7 +127,7 @@ let {
       <!-- Dev builds report the package.json version, so show the storage slot instead. -->
       {#if developmentSlot}
         <span
-          class="inline-flex flex-none items-center rounded-sm bg-warning px-1.5 py-0.5 text-ui leading-none font-bold text-warning-foreground"
+          class="inline-flex flex-none items-center rounded-sm bg-warning px-1.5 py-0.5 text-ui leading-none font-semibold text-warning-foreground"
           role="img"
           aria-label={`Development instance, slot ${developmentSlot}`}
           title={`Development instance (slot ${developmentSlot})`}

@@ -13,7 +13,7 @@ const allowed = $derived(field.allowedValues ?? []);
 <div class="grid gap-1 px-2.5 py-2">
   <div class="flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-1">
     {#if field.name}
-      <span class="min-w-0 break-words text-ui font-medium text-foreground"
+      <span class="min-w-0 break-words text-ui text-foreground"
         >{field.name}</span
       >
     {/if}

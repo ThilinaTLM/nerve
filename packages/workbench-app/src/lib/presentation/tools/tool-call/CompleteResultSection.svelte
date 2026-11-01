@@ -119,13 +119,9 @@ const large = $derived(descriptor.byteLength > SMALL_RESULT_BYTES);
     }
   }}
 >
-  <summary
-    class="cursor-pointer px-2.5 py-2 text-ui font-medium text-muted-foreground"
-  >
+  <summary class="cursor-pointer px-2.5 py-2 text-ui text-muted-foreground">
     Complete result
-    <span class="font-normal"
-      >· {descriptor.byteLength.toLocaleString()} bytes</span
-    >
+    <span>· {descriptor.byteLength.toLocaleString()} bytes</span>
   </summary>
   <div class="grid gap-2 px-2.5 pb-2.5">
     {#if !descriptor.hasResult}

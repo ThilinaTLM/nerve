@@ -232,7 +232,7 @@ const toolOutput = [
       <div class="flex flex-col gap-3 text-ui">
         <div class="flex items-center justify-between gap-4">
           <div class="flex min-w-0 flex-col">
-            <span class="font-medium">Hide completed conversations</span>
+            <span>Hide completed conversations</span>
             <span class="text-ui text-muted-foreground"
               >Hide conversations you marked as done.</span
             >
@@ -241,7 +241,7 @@ const toolOutput = [
         </div>
         <div class="flex items-center justify-between gap-4">
           <div class="flex min-w-0 flex-col">
-            <span class="font-medium">Clean up conversations</span>
+            <span>Clean up conversations</span>
             <span class="text-ui text-muted-foreground"
               >Remove conversations by age or keep only the most recent.</span
             >
@@ -260,7 +260,7 @@ const toolOutput = [
       <div class="grid gap-2 text-ui text-muted-foreground">
         {#each ["Name", "Model", "Instructions"] as field (field)}
           <div class="flex flex-col gap-1">
-            <span class="text-ui font-medium text-foreground">{field}</span>
+            <span class="text-ui text-foreground">{field}</span>
             <div class="h-7 rounded-md border bg-background px-2 leading-7">
               {field}
             </div>
@@ -521,10 +521,10 @@ const toolOutput = [
             class="max-w-sm flex-col items-stretch gap-1 py-2"
           >
             <div class="flex items-baseline justify-between gap-4">
-              <span class="font-medium">Compaction</span>
+              <span>Compaction</span>
               <span class="text-muted-foreground">Project</span>
             </div>
-            <p class="font-medium">Auto at 80%</p>
+            <p>Auto at 80%</p>
             <p class="text-muted-foreground">
               Summarize older turns when the context window fills.
             </p>
@@ -826,9 +826,7 @@ const toolOutput = [
     <Badge variant="neutral" class="self-start">44 lines</Badge>
     {#each ["Formatted view", "Agent preview", "Arguments", "Complete result · 6,250 bytes"] as section, index (section)}
       <details class="rounded-md border" open={index === 0}>
-        <summary class="cursor-pointer px-2 py-1.5 font-medium"
-          >{section}</summary
-        >
+        <summary class="cursor-pointer px-2 py-1.5">{section}</summary>
         {#if index === 0}
           <pre
             class="m-2 overflow-x-auto rounded-md bg-well p-2 font-mono text-ui">{toolOutput}</pre>

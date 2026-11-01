@@ -297,7 +297,7 @@ async function createBranch(event: SubmitEvent) {
     side="bottom"
     class="rounded-t-lg pb-[env(safe-area-inset-bottom)]"
   >
-    <Sheet.Title class="px-4 pb-1 pt-3 text-ui font-semibold"
+    <Sheet.Title class="px-4 pb-1 pt-3 text-ui font-medium"
       >New branch</Sheet.Title
     >
     <form class="grid gap-3 px-4 pb-4" onsubmit={createBranch}>

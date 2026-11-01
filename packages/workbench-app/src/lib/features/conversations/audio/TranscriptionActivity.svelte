@@ -78,7 +78,7 @@ function formatElapsed(ms: number): string {
   font-family: var(--font-mono);
   font-size: var(--text-ui);
   font-variant-numeric: tabular-nums;
-  font-weight: 650;
+  font-weight: 600;
   line-height: 1;
   white-space: nowrap;
   animation: activity-enter 120ms ease-out;

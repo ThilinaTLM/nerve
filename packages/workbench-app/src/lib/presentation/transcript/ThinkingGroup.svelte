@@ -70,7 +70,7 @@ let { items }: Props = $props();
 .thinking-content :global(.markdown > p:has(> strong:only-child)) {
   color: var(--muted-foreground);
   font-style: normal;
-  font-weight: 500;
+  font-weight: 400;
 }
 
 .thinking-content

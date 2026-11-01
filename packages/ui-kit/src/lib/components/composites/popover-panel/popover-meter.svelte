@@ -34,9 +34,7 @@ const width = $derived(Math.min(100, Math.max(0, percent ?? 0)));
 <div class={cn("grid grid-cols-1 gap-1 px-1.5 py-0.5", className)}>
   <div class="flex items-baseline justify-between gap-4">
     <span class="min-w-0 truncate text-muted-foreground">{label}</span>
-    <span class="flex-none font-medium tabular-nums text-foreground"
-      >{value}</span
-    >
+    <span class="flex-none tabular-nums text-foreground">{value}</span>
   </div>
   <div
     class="h-1 overflow-hidden rounded-full bg-foreground/12"

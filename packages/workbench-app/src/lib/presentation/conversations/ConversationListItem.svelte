@@ -113,7 +113,7 @@ const titleSegments = $derived(
   {menuItems}
   {onMenuOpenChange}
   class={cn(
-    "mx-1 my-0.5 flex-col rounded-md px-2.5 py-2 font-normal",
+    "mx-1 my-0.5 flex-col rounded-md px-2.5 py-2",
     !isActive && "hover:bg-hover",
   )}
   onclick={() => onOpenConversation?.(conversation.id)}
@@ -128,10 +128,7 @@ const titleSegments = $derived(
     hoverable={false}
     class="py-0"
     active={isActive}
-    labelClass={cn(
-      isActive ? "font-medium" : "font-normal",
-      !(faded && !isActive) && "text-foreground",
-    )}
+    labelClass={cn(!(faded && !isActive) && "text-foreground")}
     onclick={(event) => {
       event.stopPropagation();
       onOpenConversation?.(conversation.id);
@@ -168,7 +165,7 @@ const titleSegments = $derived(
     {#snippet meta()}
       {#if status || references.shown.length}
         <span
-          class="flex min-w-0 items-center gap-2.5 text-caption text-muted-foreground font-normal"
+          class="flex min-w-0 items-center gap-2.5 text-caption text-muted-foreground"
         >
           {#if status}
             <span

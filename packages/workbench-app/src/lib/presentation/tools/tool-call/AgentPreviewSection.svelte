@@ -37,9 +37,7 @@ function supportedImageMime(mimeType: string): boolean {
 </script>
 
 <details {open}>
-  <summary
-    class="cursor-pointer px-2.5 py-2 text-ui font-medium text-muted-foreground"
-  >
+  <summary class="cursor-pointer px-2.5 py-2 text-ui text-muted-foreground">
     Agent preview
   </summary>
   <div class="grid gap-2 px-2.5 pb-2.5">

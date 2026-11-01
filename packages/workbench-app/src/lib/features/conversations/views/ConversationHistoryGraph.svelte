@@ -307,9 +307,7 @@ function minimapNodeColor(node: Node): string {
           aria-label="Conversation entry details"
         >
           <div class="flex items-center justify-between border-b px-3 py-2">
-            <span class="text-ui font-medium text-muted-foreground"
-              >Entry details</span
-            >
+            <span class="text-ui text-muted-foreground">Entry details</span>
             <Button
               variant="ghost"
               size="icon-sm"

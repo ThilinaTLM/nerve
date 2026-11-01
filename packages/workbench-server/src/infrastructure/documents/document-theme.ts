@@ -21,7 +21,7 @@ export const documentThemeTokens = {
     foreground: "oklch(0.9 0.012 95)",
     card: "oklch(0.289 0.018 80)",
     well: "oklch(0.204 0.018 80)",
-    "muted-foreground": "oklch(0.7728 0.01311 90.92)",
+    "muted-foreground": "oklch(0.7919 0.01294 91.49)",
     border: "oklch(0.3848 0.01679 82.01)",
     primary: "oklch(0.6724 0.1308 38.8)",
     "primary-foreground": "oklch(0.17 0.008 60)",

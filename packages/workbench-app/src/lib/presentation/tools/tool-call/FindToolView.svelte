@@ -41,7 +41,7 @@ const visible = $derived(
         >
           <button
             type="button"
-            class="cursor-pointer border-0 bg-transparent p-0 text-left font-mono text-ui text-primary hover:underline"
+            class="cursor-pointer border-0 bg-transparent p-0 text-left font-mono text-ui text-primary hover:text-foreground"
             onclick={() => onOpenFile?.(item.openPath)}>{item.path}</button
           >
         </li>

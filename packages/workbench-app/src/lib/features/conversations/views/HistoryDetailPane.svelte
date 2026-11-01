@@ -77,9 +77,7 @@ async function copyId(id: string) {
   <div class="flex h-full flex-col gap-4 overflow-y-auto p-5">
     <div class="flex items-center gap-2 text-primary">
       <GitBranch class="size-5" strokeWidth={2} />
-      <h3 class="text-ui font-semibold text-foreground">
-        Start of conversation
-      </h3>
+      <h3 class="text-ui font-medium text-foreground">Start of conversation</h3>
     </div>
     <p class="text-ui text-muted-foreground">
       Branch from the beginning to start a new path. Your next message becomes
@@ -97,7 +95,7 @@ async function copyId(id: string) {
   {@const segment = selection.segment}
   <div class="flex h-full flex-col gap-4 overflow-y-auto p-5">
     <div class="flex flex-col gap-1">
-      <h3 class="text-ui font-semibold text-foreground">
+      <h3 class="text-ui font-medium text-foreground">
         {segment.total} collapsed steps
       </h3>
       <p class="text-ui text-muted-foreground">
@@ -109,7 +107,7 @@ async function copyId(id: string) {
         {@const PartIcon = HISTORY_ICONS[part.icon]}
         <Badge>
           <PartIcon class="size-3.5" strokeWidth={2} />
-          <span class="font-medium text-foreground">{part.count}</span>
+          <span class="text-foreground">{part.count}</span>
           {part.label}
         </Badge>
       {/each}
@@ -138,9 +136,7 @@ async function copyId(id: string) {
           >
             <StepIcon class="size-3.5" strokeWidth={2} />
           </span>
-          <span class="shrink-0 text-ui font-medium text-foreground"
-            >{stepDesc.label}</span
-          >
+          <span class="shrink-0 text-ui text-foreground">{stepDesc.label}</span>
           <span
             class="min-w-0 flex-1 truncate text-ui text-muted-foreground"
             class:font-mono={stepDesc.mono}
@@ -162,7 +158,7 @@ async function copyId(id: string) {
         >
           <Icon class="size-5" strokeWidth={2} />
         </span>
-        <h3 class="text-ui font-semibold text-foreground">{desc.label}</h3>
+        <h3 class="text-ui font-medium text-foreground">{desc.label}</h3>
         {#each desc.badges as badge, b (b)}
           {@const BadgeIcon = HISTORY_ICONS[badge.icon]}
           <span
@@ -216,7 +212,7 @@ async function copyId(id: string) {
         <div class="flex flex-col gap-3">
           {#if view.toolName}
             <div class="flex items-center gap-2 text-ui text-muted-foreground">
-              <span class="font-medium text-foreground">Tool</span>
+              <span class="text-foreground">Tool</span>
               <span class="font-mono">{view.toolName}</span>
               {#if record?.status}<Badge>{record.status}</Badge>{/if}
               {#if view.timingText}<span>{view.timingText}</span>{/if}
@@ -224,25 +220,21 @@ async function copyId(id: string) {
           {/if}
           {#if view.argsText}
             <div class="flex flex-col gap-1">
-              <span class="text-ui font-medium text-muted-foreground"
-                >Arguments</span
-              >
+              <span class="text-ui text-muted-foreground">Arguments</span>
               <pre
                 class="overflow-x-auto rounded-md border bg-well p-3 font-mono text-ui whitespace-pre-wrap break-words">{view.argsText}</pre>
             </div>
           {/if}
           {#if view.resultText}
             <div class="flex flex-col gap-1">
-              <span class="text-ui font-medium text-muted-foreground"
-                >Result</span
-              >
+              <span class="text-ui text-muted-foreground">Result</span>
               <pre
                 class="overflow-x-auto rounded-md border bg-well p-3 font-mono text-ui whitespace-pre-wrap break-words">{view.resultText}</pre>
             </div>
           {/if}
           {#if view.errorText}
             <div class="flex flex-col gap-1">
-              <span class="text-ui font-medium text-destructive">Error</span>
+              <span class="text-ui text-destructive">Error</span>
               <pre
                 class="overflow-x-auto rounded-md border border-destructive-strong bg-destructive-subtle p-3 font-mono text-ui whitespace-pre-wrap break-words">{view.errorText}</pre>
             </div>
@@ -270,7 +262,7 @@ async function copyId(id: string) {
         </div>
         {#if thinking}
           <div class="mt-4 text-ui text-muted-foreground">
-            <span class="mb-1 block text-ui font-medium">Thinking</span>
+            <span class="mb-1 block text-ui">Thinking</span>
             <Markdown text={thinking} />
           </div>
         {/if}

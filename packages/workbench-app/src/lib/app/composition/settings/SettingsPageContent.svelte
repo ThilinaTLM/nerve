@@ -215,7 +215,9 @@ const projectId = $derived(
   {/if}
 {:else}
   <div class="grid gap-1 py-12 text-center">
-    <strong class="text-ui text-foreground">Settings are loading</strong>
+    <strong class="font-medium text-ui text-foreground"
+      >Settings are loading</strong
+    >
     <span class="text-ui text-muted-foreground"
       >Fetching the current configuration from the daemon.</span
     >

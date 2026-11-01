@@ -68,7 +68,7 @@ const surfaceClass = $derived(
     focusWithin && "focus-within:bg-hover",
     // Selection wins over both tones and any hover step.
     selected &&
-      "bg-selected font-medium text-foreground hover:bg-selected focus-within:bg-selected",
+      "bg-selected text-foreground hover:bg-selected focus-within:bg-selected",
     className,
   ),
 );

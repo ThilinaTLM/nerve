@@ -12,14 +12,12 @@ const name = $derived(user.displayName ?? user.emailAddress ?? user.accountId);
 
 <div class="flex min-w-0 items-center gap-2.5 px-2.5 py-2">
   <span
-    class="flex size-7 shrink-0 items-center justify-center rounded-full bg-muted text-ui font-semibold text-muted-foreground"
+    class="flex size-7 shrink-0 items-center justify-center rounded-full bg-muted text-ui font-medium text-muted-foreground"
     aria-hidden="true">{initials}</span
   >
   <div class="grid min-w-0 flex-1 gap-0.5">
     <div class="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
-      <span class="min-w-0 truncate text-ui font-medium text-foreground"
-        >{name}</span
-      >
+      <span class="min-w-0 truncate text-ui text-foreground">{name}</span>
       {#if user.emailAddress && user.emailAddress !== name}
         <span class="min-w-0 truncate font-mono text-ui text-muted-foreground"
           >{user.emailAddress}</span

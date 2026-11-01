@@ -133,7 +133,7 @@ function onKeydown(event: KeyboardEvent, index: number): void {
           class="size-3.5 flex-none text-muted-foreground"
           aria-hidden="true"
         />
-        <span class="truncate text-ui font-medium">{option.label}</span>
+        <span class="truncate text-ui">{option.label}</span>
       </span>
     </button>
   {/each}

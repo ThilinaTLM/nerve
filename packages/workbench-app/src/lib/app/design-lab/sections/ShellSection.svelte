@@ -646,9 +646,7 @@ function openWhileVisible(
           <div
             class="flex min-w-0 flex-col gap-2 rounded-md border bg-popover p-3"
           >
-            <span class="text-ui font-medium text-muted-foreground"
-              >{item.title}</span
-            >
+            <span class="text-ui text-muted-foreground">{item.title}</span>
             <MaintenanceProgressView
               operation={item.operation}
               onCancel={noop}

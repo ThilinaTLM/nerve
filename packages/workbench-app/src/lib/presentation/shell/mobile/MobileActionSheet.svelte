@@ -70,7 +70,7 @@ function select(item: MenuAction) {
     swipeToDismiss
     onSwipeDismiss={() => onOpenChange(false)}
   >
-    <Sheet.Title class="truncate px-4 pb-1 pt-3 text-ui font-semibold"
+    <Sheet.Title class="truncate px-4 pb-1 pt-3 text-ui font-medium"
       >{title}</Sheet.Title
     >
     <div class="action-sheet-list">

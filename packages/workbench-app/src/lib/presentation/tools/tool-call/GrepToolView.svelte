@@ -47,7 +47,7 @@ const visibleGroups = $derived.by(() => {
           : undefined}
       >
         <button
-          class="cursor-pointer border-0 bg-transparent p-0 text-left font-semibold text-primary hover:underline"
+          class="cursor-pointer border-0 bg-transparent p-0 text-left font-medium text-primary hover:text-foreground"
           type="button"
           onclick={() => onOpenFile?.(group.openPath ?? group.path)}
           title="Open file pane"
@@ -67,7 +67,7 @@ const visibleGroups = $derived.by(() => {
           >
             <span class="text-right text-muted-foreground">{match.line}</span
             ><span
-              class="break-words whitespace-pre-wrap text-foreground group-hover:underline"
+              class="break-words whitespace-pre-wrap text-foreground group-hover:text-primary"
               >{match.text}</span
             >
           </button>

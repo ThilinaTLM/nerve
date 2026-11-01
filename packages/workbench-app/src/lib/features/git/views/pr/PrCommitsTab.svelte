@@ -20,7 +20,7 @@ const days = $derived(groupCommitsByDay(response.commits));
   <div class="flex max-w-3xl flex-col gap-5 px-4 py-4">
     {#each days as group (group.day)}
       <section aria-label={group.day}>
-        <h2 class="mb-1.5 text-ui font-medium text-muted-foreground">
+        <h2 class="mb-1.5 text-ui text-muted-foreground">
           {group.day}
         </h2>
         <ol class="divide-y overflow-hidden rounded-md border bg-card">

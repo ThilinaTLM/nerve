@@ -173,7 +173,7 @@ function handleSearchKeydown(event: KeyboardEvent): void {
               {#if item.kind === "header"}
                 <div
                   role="presentation"
-                  class="flex items-center gap-1.5 px-2 pt-2.5 pb-1 text-ui font-medium text-muted-foreground"
+                  class="flex items-center gap-1.5 px-2 pt-2.5 pb-1 text-ui text-muted-foreground"
                 >
                   {#if !item.provider}
                     <TriangleAlert
@@ -182,7 +182,7 @@ function handleSearchKeydown(event: KeyboardEvent): void {
                     />
                   {/if}
                   <span class="truncate">{item.label}</span>
-                  <span class="font-normal tabular-nums"
+                  <span class="tabular-nums"
                     >{item.checked}/{item.selections.length}</span
                   >
                 </div>

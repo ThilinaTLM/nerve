@@ -103,7 +103,7 @@ const description = $derived(
         {#if formatted}
           <details open={initialSection === "formatted"}>
             <summary
-              class="cursor-pointer px-2.5 py-2 text-ui font-medium text-muted-foreground"
+              class="cursor-pointer px-2.5 py-2 text-ui text-muted-foreground"
             >
               Formatted view
             </summary>

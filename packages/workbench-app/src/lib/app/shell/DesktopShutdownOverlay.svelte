@@ -10,7 +10,7 @@ const desktopQuitting = $derived(
   <div class="shutdown-overlay" role="status" aria-live="polite">
     <div class="shutdown-card">
       <div class="shutdown-spinner" aria-hidden="true"></div>
-      <strong>Closing Nerve…</strong>
+      <strong class="font-medium">Closing Nerve…</strong>
       <span>Stopping the local daemon safely.</span>
     </div>
   </div>

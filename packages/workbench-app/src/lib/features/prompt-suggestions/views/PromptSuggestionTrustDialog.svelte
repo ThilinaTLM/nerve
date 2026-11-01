@@ -64,7 +64,7 @@ function decideLater() {
           class="grid gap-1 rounded-md border border-border bg-transparent p-3"
         >
           <div class="flex items-center justify-between gap-3">
-            <strong class="text-ui font-medium text-foreground"
+            <strong class="text-ui font-normal text-foreground"
               >{request.label}</strong
             >
             <Badge>{request.sourceKind}</Badge>

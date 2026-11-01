@@ -140,7 +140,7 @@ function handleOpenChange(next: boolean) {
     {/if}
 
     <p class="m-0 text-ui text-muted-foreground">
-      Removes up to <strong class="font-semibold text-foreground"
+      Removes up to <strong class="font-medium text-foreground"
         >{removeCount}</strong
       >
       of {totalCount} conversation{totalCount === 1 ? "" : "s"}. Active

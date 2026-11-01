@@ -236,7 +236,7 @@ function shellStyles(appearance = DEFAULT_WINDOW_APPEARANCE): string {
       --destructive: oklch(0.5 0.19 27);
       --radius: 0.375rem;
       --radius-lg: 0.375rem;
-      --font-sans: "Outfit", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      --font-sans: "IBM Plex Sans", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
       --font-mono: "Iosevka", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
       --text-ui: 0.8125rem;
       --text-title: 1rem;
@@ -255,7 +255,7 @@ function shellStyles(appearance = DEFAULT_WINDOW_APPEARANCE): string {
         --background: oklch(0.264 0.018 80);
         --foreground: oklch(0.9 0.012 95);
         --primary: oklch(0.6724 0.1308 38.8);
-        --muted-foreground: oklch(0.7728 0.01311 90.92);
+        --muted-foreground: oklch(0.7919 0.01294 91.49);
         --border: oklch(0.3848 0.01679 82.01);
         --destructive: oklch(0.8 0.114 25.5);
     }

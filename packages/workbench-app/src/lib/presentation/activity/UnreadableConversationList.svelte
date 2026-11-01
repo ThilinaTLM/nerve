@@ -26,7 +26,7 @@ const grouped = $derived(groupUnreadableConversations(entries));
   {#each grouped.groups as group (group.key)}
     <section class="grid" aria-label={group.projectName}>
       <h3 class="flex items-center gap-1 py-0.5 text-ui text-muted-foreground">
-        <span class="min-w-0 truncate font-medium">{group.projectName}</span>
+        <span class="min-w-0 truncate">{group.projectName}</span>
         <span class="tabular-nums">· {group.entries.length}</span>
       </h3>
       <ul class="grid">

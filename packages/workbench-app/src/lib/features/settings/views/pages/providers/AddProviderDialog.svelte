@@ -187,7 +187,7 @@ onDestroy(() => void flowController.dispose());
         >
           <span class="grid text-left">
             <span>Connect subscription</span>
-            <span class="text-ui font-normal text-muted-foreground">
+            <span class="text-ui text-muted-foreground">
               Sign in with an account plan supported by this provider.
             </span>
           </span>
@@ -198,7 +198,7 @@ onDestroy(() => void flowController.dispose());
         >
           <span class="grid text-left">
             <span>Use API key</span>
-            <span class="text-ui font-normal text-muted-foreground">
+            <span class="text-ui text-muted-foreground">
               Authenticate with developer API billing.
             </span>
           </span>
@@ -219,12 +219,12 @@ onDestroy(() => void flowController.dispose());
           </p>
         {/if}
         <label
-          class="flex items-center justify-between gap-2 text-ui font-medium"
+          class="flex items-center justify-between gap-2 text-ui"
           for="add-provider-api-key"
         >
           API key
           {#if flowController.selected?.envVar}
-            <span class="font-mono text-ui font-normal text-muted-foreground"
+            <span class="font-mono text-ui text-muted-foreground"
               >{flowController.selected.envVar}</span
             >
           {/if}
@@ -264,7 +264,7 @@ onDestroy(() => void flowController.dispose());
                   <span class="grid text-left">
                     <span>{option.label}</span>
                     {#if option.description}<span
-                        class="text-ui font-normal text-muted-foreground"
+                        class="text-ui text-muted-foreground"
                         >{option.description}</span
                       >{/if}
                   </span>
@@ -302,7 +302,7 @@ onDestroy(() => void flowController.dispose());
                   void flowController.submitResponse();
                 }}
               >
-                <label class="text-ui font-medium" for="oauth-manual-redirect"
+                <label class="text-ui" for="oauth-manual-redirect"
                   >{interaction.manualEntry.label}</label
                 >
                 <Input
@@ -397,7 +397,7 @@ onDestroy(() => void flowController.dispose());
             onclick={() => void flowController.restartOAuth()}>Try again</Button
           >
         {:else if flowController.flow?.state === "succeeded"}
-          <p class="text-ui font-medium text-success">
+          <p class="text-ui text-success">
             {flowController.flow.successMessage}
           </p>
         {:else if flowController.flow?.state === "cancelled"}

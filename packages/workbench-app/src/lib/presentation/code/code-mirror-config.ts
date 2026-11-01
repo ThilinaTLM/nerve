@@ -343,13 +343,13 @@ const codeHighlightStyle = HighlightStyle.define([
   { tag: tags.inserted, color: "var(--syntax-added)" },
   { tag: [tags.deleted, tags.invalid], color: "var(--syntax-removed)" },
   { tag: tags.changed, color: "var(--syntax-changed)" },
-  { tag: tags.heading, color: "var(--syntax-keyword)", fontWeight: "600" },
+  { tag: tags.heading, color: "var(--syntax-keyword)", fontWeight: "500" },
   {
     tag: [tags.link, tags.url],
     color: "var(--syntax-link)",
     textDecoration: "underline",
   },
-  { tag: tags.strong, fontWeight: "600" },
+  { tag: tags.strong, fontWeight: "500" },
   { tag: tags.emphasis, fontStyle: "italic" },
 ]);
 

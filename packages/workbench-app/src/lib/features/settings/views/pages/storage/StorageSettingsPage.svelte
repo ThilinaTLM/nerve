@@ -94,7 +94,7 @@ onMount(() => {
     <div class="grid gap-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
       <div class="grid gap-1">
         <span class="text-ui text-muted-foreground">Total local data</span>
-        <span class="text-title font-semibold">{formatBytes(totalBytes)}</span>
+        <span class="text-title font-medium">{formatBytes(totalBytes)}</span>
         <span
           class="truncate font-mono text-ui text-muted-foreground"
           title={usage.homeDir}>{usage.homeDir}</span
@@ -135,7 +135,7 @@ onMount(() => {
           </g>
         </svg>
         <div class="absolute inset-0 flex flex-col items-center justify-center">
-          <span class="text-title font-semibold leading-none"
+          <span class="text-title font-medium leading-none"
             >{formatBytes(totalBytes)}</span
           >
           <span class="text-ui text-muted-foreground">Total</span>

@@ -31,7 +31,7 @@ let { over, ondragover, ondragleave, ondrop }: Props = $props();
     }`}
   >
     <FolderOpen class={`size-4 ${over ? "text-primary" : ""}`} />
-    <span class="font-medium">Drop here to open as a project</span>
+    <span>Drop here to open as a project</span>
     <span class="text-ui text-muted-foreground max-md:hidden"
       >You'll confirm before anything opens</span
     >

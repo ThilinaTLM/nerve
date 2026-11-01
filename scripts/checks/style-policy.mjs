@@ -88,6 +88,31 @@ export function findOffScaleTextSizes(source) {
 }
 
 /**
+ * Workbench files whose `hover:underline` sits on real prose links (`<a>`
+ * elements that navigate, such as external docs or issue keys). Buttons and
+ * button-like elements never underline; they answer hover with a fill or a
+ * colour change.
+ */
+export const PROSE_LINK_UNDERLINE_ALLOWLIST = [
+  "app/discover/components/DiscoverResourceLinks.svelte",
+  "features/settings/views/pages/general/GeneralSettingsPage.svelte",
+  "features/settings/views/pages/titles/TitlesSettingsPage.svelte",
+  "presentation/tools/tool-call/AtlassianResourceRow.svelte",
+  "presentation/tools/tool-call/ConfluencePageRow.svelte",
+  "presentation/tools/tool-call/JiraIssueCard.svelte",
+];
+
+/** Finds hover underlines (`hover:underline`, `group-hover:underline`). */
+export function findHoverUnderlines(source) {
+  const offenders = [];
+  for (const match of source.matchAll(
+    /(?<![\w-])(?:[\w-]+:)*(?:group-)?hover:underline(?![\w-])/g,
+  ))
+    offenders.push(match[0]);
+  return offenders;
+}
+
+/**
  * Finds colour opacity modifiers (`bg-destructive/10`, `border-border/60`) and
  * utilities whose token no longer exists (`bg-accent`, `shadow-md`). App code
  * uses the derived recipes in theme.css (`bg-<tone>-subtle`,

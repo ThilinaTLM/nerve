@@ -717,7 +717,7 @@ $effect(() => () => {
 .markdown :global(h6) {
   margin: calc(var(--spacing) * 6) 0 calc(var(--spacing) * 1);
   color: var(--foreground);
-  font-weight: 600;
+  font-weight: 500;
   line-height: 1.25;
 }
 
@@ -728,6 +728,13 @@ $effect(() => () => {
 .markdown :global(h5),
 .markdown :global(h6) {
   font-size: var(--text-body);
+}
+
+/* Emphasis steps one weight up from body text, the same as headings, rather
+ * than the browser's `bolder`. */
+.markdown :global(strong),
+.markdown :global(b) {
+  font-weight: 500;
 }
 
 .markdown :global(a) {
@@ -876,7 +883,7 @@ $effect(() => () => {
   z-index: 1;
   background: color-mix(in oklab, var(--card) 92%, var(--muted));
   color: var(--muted-foreground);
-  font-weight: var(--font-weight-medium);
+  font-weight: var(--font-weight-normal);
   border-bottom-color: color-mix(in oklab, var(--border) 80%, transparent);
 }
 </style>

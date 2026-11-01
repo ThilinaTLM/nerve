@@ -20,15 +20,14 @@ const hasChips = $derived(Boolean(space.status || space.type));
         class="shrink-0 text-muted-foreground"
       />
       {#if space.key}
-        <span class="font-mono text-ui font-semibold text-foreground"
+        <span class="font-mono text-ui font-medium text-foreground"
           >{space.key}</span
         >
       {/if}
       <span class="font-mono text-ui text-muted-foreground">{space.id}</span>
     </span>
     {#if space.name}
-      <span
-        class="min-w-0 break-words text-ui font-medium leading-snug text-foreground"
+      <span class="min-w-0 break-words text-ui leading-snug text-foreground"
         >{space.name}</span
       >
     {/if}

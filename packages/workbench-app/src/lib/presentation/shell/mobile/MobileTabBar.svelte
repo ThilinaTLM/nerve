@@ -41,7 +41,7 @@ let {
         <Icon size={22} strokeWidth={active ? 2.2 : 1.8} />
         {#if tab.badge}
           <span
-            class="absolute -right-2 -top-1.5 inline-flex min-w-4 items-center justify-center rounded-full bg-warning px-1 text-ui font-medium text-warning-foreground"
+            class="absolute -right-2 -top-1.5 inline-flex min-w-4 items-center justify-center rounded-full bg-warning px-1 text-ui text-warning-foreground"
             aria-hidden="true">{tab.badge > 99 ? "99+" : tab.badge}</span
           >
         {:else if tab.dot}

@@ -115,7 +115,7 @@
   margin: 0;
   color: var(--foreground);
   font-size: var(--text-title);
-  font-weight: 600;
+  font-weight: 500;
   line-height: 1.18;
 }
 

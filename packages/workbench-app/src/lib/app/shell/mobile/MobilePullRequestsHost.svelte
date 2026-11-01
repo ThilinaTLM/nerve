@@ -173,7 +173,7 @@ function open(pr: GithubPr) {
     side="bottom"
     class="max-h-[90dvh] rounded-t-lg pb-[env(safe-area-inset-bottom)]"
   >
-    <Sheet.Title class="px-4 pb-1 pt-3 text-ui font-semibold"
+    <Sheet.Title class="px-4 pb-1 pt-3 text-ui font-medium"
       >Pull request filters</Sheet.Title
     >
     <form

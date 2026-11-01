@@ -184,9 +184,7 @@ const shadows = [
       >
         {#each ladder as step (step.name)}
           <div class="flex min-h-28 flex-col gap-1 p-3 {step.cls}">
-            <span class="text-ui font-semibold text-foreground"
-              >{step.name}</span
-            >
+            <span class="text-ui font-medium text-foreground">{step.name}</span>
             <span class="text-ui text-foreground">Foreground</span>
             <span class="text-ui text-muted-foreground">Muted supporting</span>
             <span class="mt-auto text-ui text-muted-foreground"
@@ -268,7 +266,7 @@ const shadows = [
           <div
             class="flex flex-col gap-0.5 rounded-md border p-2 {tone.strong} {tone.subtle}"
           >
-            <span class="text-ui font-medium {tone.text}">{tone.name}</span>
+            <span class="text-ui {tone.text}">{tone.name}</span>
             <span class="text-ui text-foreground"
               >A callout pairs the tinted fill with a strong border.</span
             >
@@ -318,7 +316,7 @@ const shadows = [
           <div
             class="relative flex flex-col gap-0.5 overflow-hidden rounded-md border bg-card p-2"
           >
-            <span class="text-ui font-medium text-foreground">Card</span>
+            <span class="text-ui text-foreground">Card</span>
             <span class="text-ui text-muted-foreground"
               >Content behind a modal overlay.</span
             >
@@ -405,7 +403,7 @@ const shadows = [
       <div class="flex h-80 w-[720px] max-w-full overflow-hidden rounded-lg">
         <div class="flex w-[220px] shrink-0 flex-col border-r bg-panel">
           <div class="flex h-8 items-center gap-2 border-b px-3 text-ui">
-            <span class="font-medium text-foreground">Files</span>
+            <span class="text-foreground">Files</span>
             <span class="text-muted-foreground">33</span>
           </div>
           <div class="flex flex-col gap-0.5 p-1.5 text-ui">
@@ -431,7 +429,7 @@ const shadows = [
           <div class="flex flex-col gap-3 p-4">
             <div class="flex flex-col gap-2 rounded-md border bg-card p-3">
               <div class="flex items-center gap-2">
-                <span class="text-ui font-medium text-foreground">Card</span>
+                <span class="text-ui text-foreground">Card</span>
                 <Badge variant="info"
                   ><GitBranchIcon data-icon="inline-start" />main</Badge
                 >
@@ -454,7 +452,7 @@ const shadows = [
           <div
             class="absolute right-4 bottom-4 w-52 rounded-md border bg-popover p-3 shadow-overlay"
           >
-            <span class="text-ui font-medium text-foreground">Popover</span>
+            <span class="text-ui text-foreground">Popover</span>
             <p class="text-ui text-muted-foreground">
               Floating layer with shadow-overlay.
             </p>

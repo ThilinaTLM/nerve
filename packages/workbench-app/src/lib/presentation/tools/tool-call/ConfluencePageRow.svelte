@@ -50,7 +50,7 @@ const files = $derived(
       />
       {#if url}
         <a
-          class="inline-flex items-center gap-1 font-mono text-ui font-semibold text-primary no-underline hover:underline"
+          class="inline-flex items-center gap-1 font-mono text-ui font-medium text-primary no-underline hover:underline"
           href={url}
           target="_blank"
           rel="noreferrer noopener"
@@ -60,14 +60,13 @@ const files = $derived(
           <ExternalLink size={11} strokeWidth={2} class="opacity-70" />
         </a>
       {:else}
-        <span class="font-mono text-ui font-semibold text-foreground"
+        <span class="font-mono text-ui font-medium text-foreground"
           >{page.id}</span
         >
       {/if}
     </span>
     {#if page.title}
-      <span
-        class="min-w-0 break-words text-ui font-medium leading-snug text-foreground"
+      <span class="min-w-0 break-words text-ui leading-snug text-foreground"
         >{page.title}</span
       >
     {/if}
@@ -99,7 +98,7 @@ const files = $derived(
       {#each files as file (file.path)}
         <button
           type="button"
-          class="inline-flex min-w-0 items-center gap-1 border-0 bg-transparent p-0 text-primary hover:underline"
+          class="inline-flex min-w-0 items-center gap-1 border-0 bg-transparent p-0 text-primary hover:text-foreground"
           title={file.path}
           onclick={() => onOpenFile?.(file.path)}
         >

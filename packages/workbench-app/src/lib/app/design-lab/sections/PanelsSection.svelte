@@ -224,7 +224,7 @@ const activityExamples: {
 {/snippet}
 
 {#snippet changeLeading(item: FileItem)}
-  <span class="w-3 flex-none text-center text-ui font-semibold"
+  <span class="w-3 flex-none text-center text-ui font-medium"
     >{item.change}</span
   >
 {/snippet}

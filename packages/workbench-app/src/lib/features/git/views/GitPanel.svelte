@@ -492,7 +492,7 @@ function activate(repo: GitRepoSummary, operation: GitRemoteOperation): void {
       {:else if model.awaitingPullRequest}
         <div class="px-2 pb-2 text-ui text-muted-foreground">
           {#if model.expectedPullRequestUrl}<a
-              class="hover:underline"
+              class="hover:text-foreground"
               href={model.expectedPullRequestUrl}
               target="_blank"
               rel="noreferrer">Waiting for pull request…</a

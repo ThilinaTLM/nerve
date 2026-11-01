@@ -645,7 +645,7 @@ onDestroy(() => {
   {/if}
   {#if fileDragActive}
     <div
-      class="pointer-events-none absolute inset-0 z-10 flex items-center justify-center gap-2 rounded-md border border-primary bg-background px-4 text-ui font-medium text-foreground shadow-sm"
+      class="pointer-events-none absolute inset-0 z-10 flex items-center justify-center gap-2 rounded-md border border-primary bg-background px-4 text-ui text-foreground shadow-sm"
       aria-hidden="true"
     >
       <FileIcon class="size-4 text-primary" />

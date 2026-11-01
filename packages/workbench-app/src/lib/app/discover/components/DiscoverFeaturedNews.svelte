@@ -24,7 +24,7 @@ let { entry, onAction }: Props = $props();
       {/if}
     </div>
     <div class="grid gap-1">
-      <h3 class="text-title font-semibold leading-tight">{entry.title}</h3>
+      <h3 class="text-title font-medium leading-tight">{entry.title}</h3>
       <p class="text-ui leading-relaxed text-muted-foreground">
         {entry.summary}
       </p>

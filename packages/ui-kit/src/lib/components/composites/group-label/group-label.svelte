@@ -20,12 +20,11 @@ let {
 
 <p
   class={cn(
-    "flex min-w-0 items-center gap-1.5 text-caption font-medium text-muted-foreground",
+    "flex min-w-0 items-center gap-1.5 text-caption text-muted-foreground",
     className,
   )}
 >
   {#if Icon}<Icon class="size-3 shrink-0" aria-hidden="true" />{/if}
   <span class="truncate">{label}</span>
-  {#if count !== undefined}<span class="font-normal tabular-nums">{count}</span
-    >{/if}
+  {#if count !== undefined}<span class="tabular-nums">{count}</span>{/if}
 </p>

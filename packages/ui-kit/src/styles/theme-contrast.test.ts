@@ -305,10 +305,10 @@ describe("theme text contrast", () => {
   });
 
   it("keeps text readable on the selected tint", () => {
-    // Text at full foreground, and status tones at the 3:1 non-text bar
-    // (labels such as git M/A letters and status dots). Grey text is lifted
-    // to the foreground inside selected surfaces, asserted below.
-    const selectedAlpha = 0.22;
+    // Foreground and grey text at 4.5:1 (selected rows keep their grey
+    // secondary text), and status tones at the 3:1 non-text bar (labels such
+    // as git M/A letters and status dots).
+    const selectedAlpha = 0.16;
     const minimumStatusContrast = 3;
     for (const [themeName, tokens] of Object.entries(themes) as [
       ThemeName,
@@ -320,13 +320,17 @@ describe("theme text contrast", () => {
           oklchToLinearRgb(tokens[surfaceName]),
           selectedAlpha,
         );
-        assertContrast(
-          themeName,
-          "foreground",
-          oklchToLinearRgb(tokens.foreground),
-          `selected on ${surfaceName}`,
-          selected,
-        );
+        for (const [text, color] of [
+          ["foreground", tokens.foreground],
+          ["muted-foreground", resolveOklch(themeName, "muted-foreground")],
+        ] as const)
+          assertContrast(
+            themeName,
+            text,
+            oklchToLinearRgb(color),
+            `selected on ${surfaceName}`,
+            selected,
+          );
         for (const tone of semanticTokens) {
           const ratio = contrast(oklchToLinearRgb(tokens[tone]), selected);
           assert.ok(
@@ -341,10 +345,6 @@ describe("theme text contrast", () => {
       new RegExp(
         `--selected: color-mix\\(in oklab, var\\(--primary\\) ${selectedAlpha * 100}%, transparent\\);`,
       ),
-    );
-    assert.match(
-      themeCss,
-      /\.bg-selected \{\s*--muted-foreground: var\(--foreground\);/,
     );
   });
 

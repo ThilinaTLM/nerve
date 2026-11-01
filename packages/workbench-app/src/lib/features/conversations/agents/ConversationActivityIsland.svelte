@@ -263,7 +263,7 @@ const agentStatus: Record<AgentRowState, string> = {
   <Button
     data-row-action
     variant="ghost"
-    class="w-full min-w-0 justify-start rounded-none text-left font-normal"
+    class="w-full min-w-0 justify-start rounded-none text-left"
     aria-current={row.viewed ? "page" : undefined}
     aria-label={`Open ${row.name}${row.profile ? ` (${row.profile})` : ""}: ${agentStatus[row.state]}`}
     title={`Open ${row.name}`}
@@ -271,7 +271,7 @@ const agentStatus: Record<AgentRowState, string> = {
   >
     {@render agentGlyph(row.state)}
     <span class="flex min-w-0 flex-1 items-center gap-1.5">
-      <span class="min-w-0 truncate text-ui font-normal">{row.name}</span>
+      <span class="min-w-0 truncate text-ui">{row.name}</span>
       {#if row.profile}<Badge
           variant="neutral"
           class="max-w-24 shrink-0 truncate"
@@ -285,7 +285,7 @@ const agentStatus: Record<AgentRowState, string> = {
   <Button
     data-row-action
     variant="ghost"
-    class="w-full min-w-0 justify-start rounded-none text-left font-normal"
+    class="w-full min-w-0 justify-start rounded-none text-left"
     aria-label={`Open command tab: ${command.command} (${COMMAND_STATE_LABEL[command.status]})`}
     title={command.command}
     onclick={() => {
@@ -313,7 +313,7 @@ const agentStatus: Record<AgentRowState, string> = {
   {#if folded.length}
     <Button
       variant="ghost"
-      class="w-full min-w-0 justify-start rounded-none text-left text-ui font-normal text-muted-foreground hover:text-foreground"
+      class="w-full min-w-0 justify-start rounded-none text-left text-ui text-muted-foreground hover:text-foreground"
       aria-expanded={showFolded}
       aria-controls={`${componentId}-folded`}
       onclick={() => (showFolded = !showFolded)}
@@ -383,7 +383,7 @@ const agentStatus: Record<AgentRowState, string> = {
           onoutroend={() => (panelShown = false)}
         >
           <div class="flex min-w-0 items-center gap-2 border-b px-2.5 py-1">
-            <h2 class="shrink-0 text-ui font-semibold">
+            <h2 class="shrink-0 text-ui font-medium">
               {open === "agents" ? "Agents" : "Commands"}
             </h2>
             <!-- The tab below already shows the total; only live work earns header space. -->

@@ -61,7 +61,7 @@ const visible = $derived(expanded ? sorted : sorted.slice(0, COLLAPSED_LINES));
           {#if entry.kind === "file"}
             <button
               type="button"
-              class="cursor-pointer border-0 bg-transparent p-0 text-left font-mono text-ui text-primary hover:underline"
+              class="cursor-pointer border-0 bg-transparent p-0 text-left font-mono text-ui text-primary hover:text-foreground"
               onclick={() => onOpenFile?.(entry.openPath ?? entry.path)}
               >{entry.path}</button
             >

@@ -68,7 +68,7 @@ let {
       text={title}
       width="w-32"
       {streaming}
-      class="text-ui font-medium text-foreground"
+      class="text-ui text-foreground"
     />
     {#if detail !== undefined || title === undefined}
       <SlotText

@@ -188,10 +188,7 @@ function isDraggableEntry(item: FileExplorerTreeItem): boolean {
               )}
               {#if decoration?.label}
                 <span
-                  class={cn(
-                    "w-3 text-center text-ui font-medium",
-                    decoration.class,
-                  )}
+                  class={cn("w-3 text-center text-ui", decoration.class)}
                   title={decoration.title}
                   aria-label={decoration.title}>{decoration.label}</span
                 >

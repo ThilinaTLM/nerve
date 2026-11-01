@@ -4,10 +4,12 @@ import {
   extractClassSelectors,
   findBareGlobalSelectors,
   findDarkUtilities,
+  findHoverUnderlines,
   findInertClassNames,
   findOffScaleTextSizes,
   findOffTokenColours,
   isDynamicClass,
+  PROSE_LINK_UNDERLINE_ALLOWLIST,
 } from "./style-policy.mjs";
 import { sourceExtensions } from "./repository-source-inventory.mjs";
 
@@ -124,6 +126,17 @@ export function checkUiStyles({ files: trackedFiles, read }, fail) {
         );
       if (/(?<![\w-])hover:bg-muted(?![\w/-])/.test(text))
         fail(file, "neutral hover is hover:bg-hover, not hover:bg-muted");
+      const underlines = findHoverUnderlines(text);
+      if (
+        underlines.length > 0 &&
+        !PROSE_LINK_UNDERLINE_ALLOWLIST.some((path) =>
+          file.endsWith(`/${path}`),
+        )
+      )
+        fail(
+          file,
+          `${underlines[0]} is for prose links only; buttons answer hover with a fill or colour change`,
+        );
       if (/color-mix\(/.test(text))
         fail(
           file,

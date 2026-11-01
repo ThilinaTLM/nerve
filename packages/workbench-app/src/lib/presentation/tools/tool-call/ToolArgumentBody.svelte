@@ -66,7 +66,7 @@ const streamMotion = $derived(streaming && toolMotion.streamMotion);
 {:else if body.kind === "code"}
   <div class={`grid gap-1.5 ${pad}`}>
     {#if body.label}
-      <p class="m-0 text-ui font-medium text-muted-foreground">{body.label}</p>
+      <p class="m-0 text-ui text-muted-foreground">{body.label}</p>
     {/if}
     <ResultCodeBlock
       code={body.text}
@@ -86,7 +86,7 @@ const streamMotion = $derived(streaming && toolMotion.streamMotion);
 {:else if body.kind === "diff"}
   <div class={`grid gap-1.5 ${pad}`}>
     {#if body.label}
-      <p class="m-0 text-ui font-medium text-muted-foreground">{body.label}</p>
+      <p class="m-0 text-ui text-muted-foreground">{body.label}</p>
     {/if}
     <ResultCodeBlock
       code={body.text}
@@ -127,7 +127,7 @@ const streamMotion = $derived(streaming && toolMotion.streamMotion);
 {:else if body.kind === "text-summary" || body.kind === "atlassian-summary"}
   <div class={`grid gap-1.5 ${pad}`}>
     {#if body.kind === "text-summary" && body.label}
-      <p class="m-0 text-ui font-medium text-muted-foreground">{body.label}</p>
+      <p class="m-0 text-ui text-muted-foreground">{body.label}</p>
     {/if}
     <p
       class="m-0 whitespace-pre-wrap text-foreground [overflow-wrap:anywhere]"

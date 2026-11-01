@@ -64,7 +64,7 @@ const progressText = $derived(
       />
     {:else}<CircleAlert class="mt-0.5 size-4 shrink-0 text-warning" />{/if}
     <div class="min-w-0">
-      <p class="text-ui font-medium">
+      <p class="text-ui">
         {active ? title : operation.message}{progressText}
       </p>
       {#if operation.project}<p
@@ -84,10 +84,7 @@ const progressText = $derived(
     />{/if}
   {#if operation.currentItem && active}
     <div class="grid gap-1 text-ui">
-      <p
-        class="truncate font-medium"
-        title={operation.currentItem.conversationId}
-      >
+      <p class="truncate" title={operation.currentItem.conversationId}>
         {operation.currentItem.title ?? operation.currentItem.conversationId}
       </p>
       <p class="text-muted-foreground">

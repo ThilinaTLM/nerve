@@ -121,7 +121,7 @@ async function copyDiagnostics() {
         />
       {:else if kind === "rolled-back"}
         <div class="grid gap-1">
-          <h1 class="text-title font-semibold">
+          <h1 class="text-title font-medium">
             Your previous data was restored
           </h1>
           <p class="text-ui text-muted-foreground">
@@ -142,7 +142,7 @@ async function copyDiagnostics() {
         {/if}
       {:else}
         <div class="grid gap-1">
-          <h1 class="text-title font-semibold">
+          <h1 class="text-title font-medium">
             {kind === "discardable" ? plan.heading : "Nerve couldn't start"}
           </h1>
           <p class="text-ui text-muted-foreground break-words">
@@ -164,7 +164,7 @@ async function copyDiagnostics() {
             {#each [{ label: "Conversations", items: plan.conversations, note: "" }, { label: "Settings files", items: plan.files, note: "Original files are kept in quarantine." }] as group (group.label)}
               {#if group.items.length}
                 <div
-                  class="px-3 pt-2 text-ui font-semibold text-muted-foreground"
+                  class="px-3 pt-2 text-ui font-medium text-muted-foreground"
                 >
                   {group.label}
                 </div>

@@ -126,7 +126,7 @@ function branch(data: HistoryFlowNodeData) {
           <GitBranch class="size-4" strokeWidth={2} />
         </span>
         <div class="min-w-0">
-          <p class="text-ui font-semibold">Start of conversation</p>
+          <p class="text-ui font-medium">Start of conversation</p>
           <p class="truncate text-ui text-muted-foreground">
             Fork a new branch from the beginning
           </p>
@@ -141,7 +141,7 @@ function branch(data: HistoryFlowNodeData) {
             <UnfoldVertical class="size-4" strokeWidth={2} />
           </span>
           <div class="min-w-0 flex-1">
-            <p class="text-ui font-semibold">
+            <p class="text-ui font-medium">
               {data.segment.total} collapsed steps
             </p>
             <p class="truncate text-ui text-muted-foreground">
@@ -186,7 +186,7 @@ function branch(data: HistoryFlowNodeData) {
             <span class="font-mono text-ui text-muted-foreground">
               {String(data.row.index).padStart(2, "0")}
             </span>
-            <p class="truncate text-ui font-semibold">{desc.label}</p>
+            <p class="truncate text-ui font-medium">{desc.label}</p>
             {#each desc.badges as badge, index (index)}
               {@const BadgeIcon = HISTORY_ICONS[badge.icon]}
               <span

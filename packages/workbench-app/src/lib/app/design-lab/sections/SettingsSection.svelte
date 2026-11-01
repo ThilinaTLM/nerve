@@ -374,7 +374,7 @@ let headerStyle = $state("auto");
       usage="2 files · settings"
       description="Hover or focus the info icon."
     >
-      <span class="flex items-center gap-1.5 text-ui font-semibold">
+      <span class="flex items-center gap-1.5 text-ui font-medium">
         Hint <SettingsInfoHint text="Brief explanation." />
       </span>
     </GallerySpecimen>

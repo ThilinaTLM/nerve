@@ -220,10 +220,7 @@ function handleKeydown(event: KeyboardEvent): void {
     </div>
 
     <div class="grid gap-2" aria-live="polite">
-      <h2
-        id="guided-tour-title"
-        class="text-title font-semibold text-foreground"
-      >
+      <h2 id="guided-tour-title" class="text-title font-medium text-foreground">
         {step.title}
       </h2>
       <p

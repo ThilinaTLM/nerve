@@ -27,9 +27,7 @@ const content = $derived(activated ? serialize(value) : undefined);
     if (event.currentTarget.open) activated = true;
   }}
 >
-  <summary
-    class="cursor-pointer px-2.5 py-2 text-ui font-medium text-muted-foreground"
-  >
+  <summary class="cursor-pointer px-2.5 py-2 text-ui text-muted-foreground">
     Arguments
   </summary>
   {#if activated && content}

@@ -64,9 +64,7 @@ const showText = $derived(
   {#if showText && body.text}
     {#if body.text.text !== undefined && body.text.language}
       <div class="grid gap-1.5 px-2.5 py-2">
-        <span class="text-ui font-medium text-muted-foreground"
-          >{body.text.label}</span
-        >
+        <span class="text-ui text-muted-foreground">{body.text.label}</span>
         <ResultCodeBlock
           code={body.text.text}
           language={body.text.language}
@@ -87,7 +85,7 @@ const showText = $derived(
         <p
           class="m-0 line-clamp-3 text-ui whitespace-pre-line text-muted-foreground [overflow-wrap:anywhere]"
         >
-          <span class="font-medium text-foreground">{body.text.label}</span> · {#if body.text.text !== undefined}
+          <span class="text-foreground">{body.text.label}</span> · {#if body.text.text !== undefined}
             <span in:fade={{ duration: 220 }}
               ><StreamingText text={body.text.text} fade={streamMotion} /></span
             >

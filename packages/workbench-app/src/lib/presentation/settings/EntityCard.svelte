@@ -29,7 +29,7 @@ let { title, description, head, badges, actions, children, footer }: Props =
         {@render head()}
       {:else}
         <div class="flex min-w-0 flex-wrap items-center gap-2">
-          <h4 class="text-ui font-medium text-foreground">{title}</h4>
+          <h4 class="text-ui text-foreground">{title}</h4>
           {#if badges}{@render badges()}{/if}
         </div>
         {#if description}

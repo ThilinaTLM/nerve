@@ -145,9 +145,7 @@ function changeTab(value: string) {
         <GitPullRequest class="size-4" aria-hidden="true" />
       </Empty.Media>
       <Empty.Header class="gap-1">
-        <Empty.Title class="text-ui font-medium"
-          >No pull request selected</Empty.Title
-        >
+        <Empty.Title class="text-ui">No pull request selected</Empty.Title>
         <Empty.Description class="text-ui">
           Open a PR from the Git panel to view its details here.
         </Empty.Description>
@@ -173,9 +171,7 @@ function changeTab(value: string) {
         />
       </Empty.Media>
       <Empty.Header class="gap-1">
-        <Empty.Title class="text-ui font-medium"
-          >Pull request unavailable</Empty.Title
-        >
+        <Empty.Title class="text-ui">Pull request unavailable</Empty.Title>
         <Empty.Description class="text-ui">
           Details are in Activity. Retry to load it again.
         </Empty.Description>

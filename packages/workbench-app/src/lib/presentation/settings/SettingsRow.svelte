@@ -53,10 +53,7 @@ let {
         {#if label}
           <Label
             for={htmlFor}
-            class={cn(
-              "text-ui font-normal text-foreground",
-              mono && "font-mono",
-            )}
+            class={cn("text-ui text-foreground", mono && "font-mono")}
             aria-hidden={htmlFor ? undefined : "true"}>{label}</Label
           >
         {/if}

@@ -128,9 +128,7 @@ const menuItems = $derived<ContextMenuItem[]>([
       class={`size-3.5 shrink-0 ${stateClass}`}
       aria-label={pr.isDraft ? "Draft pull request" : pr.state.toLowerCase()}
     />
-    <span class="shrink-0 font-mono font-medium text-foreground"
-      >#{pr.number}</span
-    >
+    <span class="shrink-0 font-mono text-foreground">#{pr.number}</span>
     <span class="min-w-0 shrink truncate text-muted-foreground">
       {pr.author ?? "unknown"}{age ? ` · ${age}` : ""}
     </span>

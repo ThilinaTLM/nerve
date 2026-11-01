@@ -48,9 +48,7 @@ const REVIEWER: Record<
 <div class="flex flex-col gap-5 py-3">
   {#if reviewers.length > 0}
     <section>
-      <h3 class="pb-1.5 text-ui font-medium text-muted-foreground">
-        Reviewers
-      </h3>
+      <h3 class="pb-1.5 text-ui text-muted-foreground">Reviewers</h3>
       <ul class="divide-y overflow-hidden rounded-md border bg-card">
         {#each reviewers as reviewer (reviewer.login)}
           {@const meta = REVIEWER[reviewer.state]}
@@ -74,7 +72,7 @@ const REVIEWER: Record<
 
   {#if labels.length > 0}
     <section>
-      <h3 class="pb-1.5 text-ui font-medium text-muted-foreground">Labels</h3>
+      <h3 class="pb-1.5 text-ui text-muted-foreground">Labels</h3>
       <div class="flex flex-wrap gap-1.5 rounded-md border bg-card px-3 py-2">
         {#each labels as label (label.name)}
           <Badge variant="neutral">
@@ -94,9 +92,7 @@ const REVIEWER: Record<
 
   {#if linked.length > 0}
     <section>
-      <h3 class="pb-1.5 text-ui font-medium text-muted-foreground">
-        Conversations
-      </h3>
+      <h3 class="pb-1.5 text-ui text-muted-foreground">Conversations</h3>
       <PanelList
         ariaLabel="Linked conversations"
         class="overflow-hidden rounded-md border bg-card"

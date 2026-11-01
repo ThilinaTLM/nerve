@@ -113,7 +113,7 @@ async function apply() {
         label="Candidate digest"
         value={repair.preview.candidateDigest}
       />
-      <p class="text-ui font-medium">Changed fields</p>
+      <p class="text-ui">Changed fields</p>
       {#each repair.preview.changedPaths as pointer (pointer)}<p
           class="font-mono text-ui"
         >

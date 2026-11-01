@@ -74,7 +74,7 @@ function newChat() {
     <Settings size={18} strokeWidth={1.9} />
     {#if discoverBadge.kind === "count"}
       <span
-        class="absolute -right-2 -top-1.5 inline-flex min-w-4 items-center justify-center rounded-full bg-warning px-1 text-ui font-medium text-warning-foreground"
+        class="absolute -right-2 -top-1.5 inline-flex min-w-4 items-center justify-center rounded-full bg-warning px-1 text-ui text-warning-foreground"
         aria-hidden="true"
         >{discoverBadge.value > 99 ? "99+" : discoverBadge.value}</span
       >

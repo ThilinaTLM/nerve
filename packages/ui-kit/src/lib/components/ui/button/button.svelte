@@ -7,7 +7,7 @@ import type { VariantProps } from "tailwind-variants";
 import { cn, tv, type WithElementRef } from "@nervekit/ui-kit/utils";
 
 export const buttonVariants = tv({
-  base: "focus-visible:border-ring focus-visible:ring-focus aria-invalid:ring-destructive-strong aria-invalid:border-destructive rounded-md border border-transparent bg-clip-padding text-ui font-medium focus-visible:ring-3 active:not-aria-[haspopup]:translate-y-px aria-invalid:ring-3 data-[active]:bg-muted data-[active]:text-foreground [&_svg:not([class*='size-'])]:size-4 group/button inline-flex shrink-0 cursor-pointer items-center justify-center whitespace-nowrap transition-all outline-none select-none disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0",
+  base: "focus-visible:border-ring focus-visible:ring-focus aria-invalid:ring-destructive-strong aria-invalid:border-destructive rounded-md border border-transparent bg-clip-padding text-ui focus-visible:ring-3 active:not-aria-[haspopup]:translate-y-px aria-invalid:ring-3 data-[active]:bg-muted data-[active]:text-foreground [&_svg:not([class*='size-'])]:size-4 group/button inline-flex shrink-0 cursor-pointer items-center justify-center whitespace-nowrap transition-all outline-none select-none disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0",
   variants: {
     variant: {
       default: "bg-primary text-primary-foreground hover:bg-primary/80",
@@ -19,7 +19,7 @@ export const buttonVariants = tv({
         "hover:bg-hover hover:text-foreground aria-expanded:bg-muted aria-expanded:text-foreground",
       destructive:
         "bg-destructive-subtle hover:bg-destructive/15 focus-visible:ring-destructive-strong text-destructive focus-visible:border-destructive-strong",
-      link: "text-primary underline-offset-4 hover:underline",
+      link: "text-primary hover:bg-hover",
     },
     /* Compact desktop control scale: two heights, driven by the
      * `--spacing-control*` tokens (taller on coarse pointers). Every other

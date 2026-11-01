@@ -5,6 +5,7 @@ import {
   extractClassSelectors,
   findBareGlobalSelectors,
   findDarkUtilities,
+  findHoverUnderlines,
   findOffScaleTextSizes,
   findOffTokenColours,
   isDynamicClass,
@@ -144,5 +145,20 @@ test("opacity modifiers and removed tokens are reported; recipes are not", () =>
       '<div class="bg-destructive/10 hover:border-border/60 bg-destructive-subtle border-border-subtle ring-focus bg-accent shadow-md shadow-sm w-1/2">',
     ),
     ["bg-destructive/10", "border-border/60", "bg-accent", "shadow-md"],
+  );
+});
+
+test("hover underlines are reported; permanent prose underlines are not", () => {
+  assert.deepEqual(
+    findHoverUnderlines(
+      'class="text-primary hover:underline" class="group-hover:underline" class="md:hover:underline"',
+    ),
+    ["hover:underline", "group-hover:underline", "md:hover:underline"],
+  );
+  assert.deepEqual(
+    findHoverUnderlines(
+      'class="text-info underline underline-offset-2 no-underline hover:bg-hover"',
+    ),
+    [],
   );
 });

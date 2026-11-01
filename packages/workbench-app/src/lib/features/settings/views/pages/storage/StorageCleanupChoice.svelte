@@ -39,11 +39,8 @@ const hasAmount = $derived(amount !== undefined);
   })}
 >
   <Checkbox {id} bind:checked aria-label={title} />
-  <Label
-    for={id}
-    class="grid min-w-0 flex-1 cursor-pointer gap-0.5 font-normal"
-  >
-    <span class="text-ui font-medium text-foreground">{title}</span>
+  <Label for={id} class="grid min-w-0 flex-1 cursor-pointer gap-0.5">
+    <span class="text-ui text-foreground">{title}</span>
     <span class="text-ui text-muted-foreground">{description}</span>
   </Label>
   {#if hasAmount}

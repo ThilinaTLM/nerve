@@ -21,7 +21,7 @@ const issue = $derived(
 
 {#if issue}
   <Callout layout="strip" tone="warning" icon={TriangleAlert}>
-    <p class="font-medium">Launch definitions can't be loaded</p>
+    <p>Launch definitions can't be loaded</p>
     <p class="break-words">{issueMessage(issue)} No launches are shown.</p>
     <div class="-ml-1.5 flex flex-wrap py-1">
       <ProjectConfigurationActions

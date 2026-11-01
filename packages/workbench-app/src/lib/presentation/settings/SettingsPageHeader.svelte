@@ -17,7 +17,7 @@ let { title, description, class: className, actions, below }: Props = $props();
 <header class={cn("grid min-w-0 gap-1 pb-2", className)}>
   <div class="flex min-w-0 items-start justify-between gap-4">
     <div class="grid min-w-0 gap-0.5">
-      <h2 class="text-title font-semibold text-foreground">{title}</h2>
+      <h2 class="text-title font-medium text-foreground">{title}</h2>
       {#if description}
         <p class="text-ui text-muted-foreground">{description}</p>
       {/if}

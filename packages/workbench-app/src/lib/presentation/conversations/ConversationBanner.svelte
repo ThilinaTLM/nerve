@@ -13,7 +13,7 @@ let {
 <div
   class={`flex-none border-b px-4 py-2 text-ui text-muted-foreground ${tone === "warning" ? "bg-warning-subtle" : "bg-muted"}`}
 >
-  <span class="font-medium text-foreground">{title}</span>
+  <span class="text-foreground">{title}</span>
   {#if message}
     {message}{/if}
 </div>

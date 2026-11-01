@@ -66,16 +66,22 @@ Application `*Host` components are state/effect adapters around canonical featur
   text; never errors or instructions), `text-ui` 14px for everything
   interactive or list-like, `text-body` 15px for prose the user reads
   (transcript, markdown, PR descriptions), `text-title` 16px for page,
-  dialog and card titles and headline numbers, always `font-semibold` (or
-  `font-medium` for a welcome line). The only exception is the phone composer,
+  dialog and card titles and headline numbers, always `font-medium` (regular
+  for a welcome line). The only exception is the phone composer,
   which stays at 16px so iOS does not zoom on focus.
 - **Selection is `bg-selected` plus a brand marker.** `--selected` is a
-  brand tint (22% `primary`) in every theme; inside a `bg-selected` surface
-  `text-muted-foreground` renders at full foreground (theme.css), so never
-  re-colour secondary text by hand. A selected row also takes
-  `font-medium` and, where it has one, renders its leading icon or idle dot in
-  `text-primary`; status-coloured glyphs keep their tone. Never add a stronger
-  fill, border, or bar to signal selection.
+  brand tint (16% `primary`) in every theme, light enough that
+  `text-muted-foreground` keeps 4.5:1 on it (`theme-contrast.test.ts`), so
+  secondary text stays grey and is never re-coloured by hand. Selection never
+  changes the weight: a selected row only takes the tint and, where it has
+  one, renders its leading icon or idle dot in `text-primary`; status-coloured
+  glyphs keep their tone. Never add a stronger fill, border, or bar to signal
+  selection.
+- **Buttons never underline.** Buttons, clickable badges and other
+  button-like elements answer hover with a fill (`hover:bg-hover`, a stronger
+  tone tint on Badge) or a colour change (`hover:text-foreground`). Underlines
+  are for prose links only; the style-policy check rejects `hover:underline`
+  outside `PROSE_LINK_UNDERLINE_ALLOWLIST`.
 - **The quiet fill** (`muted`) sits beyond the surface ladder on the
   foreground side so it stays visible on every surface (dark:
   `popover < muted`; light: `muted < well`). Every
@@ -95,11 +101,11 @@ Application `*Host` components are state/effect adapters around canonical featur
   sounds — stay separate.
   Text strength (foreground vs `muted-foreground`) is not a tone; set it
   with text colour, never by picking a tone.
-- **Settings has three heading levels.** Page title `text-title` semibold
+- **Settings has three heading levels.** Page title `text-title` medium
   foreground (`SettingsPageHeader`, `pb-2` of space below); section heading
-  `text-ui` semibold foreground, optionally followed by ONE `text-caption` muted
+  `text-ui` medium foreground, optionally followed by ONE `text-caption` muted
   description line; entity title (`EntityCard`, e.g. a profile) `text-ui`
-  medium foreground. Row titles are `text-ui` regular foreground and all
+  regular foreground. Row titles are `text-ui` regular foreground and all
   supporting text is `text-caption` muted, so weight and colour carry the
   hierarchy. Headings are sentence case, never uppercase eyebrows. Longer
   detail goes in a `SettingsInfoHint` tooltip, not a paragraph. Use
@@ -107,10 +113,10 @@ Application `*Host` components are state/effect adapters around canonical featur
   is legacy); an entity such as a profile gets an `EntityCard`, never a muted
   group heading above it. `settings-typography.test.ts` enforces this.
 - **Settings navigation is grouped.** `SettingsNav` takes `SettingsNavGroup[]`
-  (optional `GroupLabel` caption: `text-caption font-medium text-muted-foreground`, no hover
+  (optional `GroupLabel` caption: `text-caption text-muted-foreground`, no hover
   or icon; items `text-ui` with a lucide icon, muted until active) and a
   `SettingsScopeHeader` (User settings, or project name and path) separated by a
-  rule. The active item is `bg-selected font-medium`, a persistent state
+  rule. The active item is `bg-selected`, a persistent state
   that should not depend on the quiet fills. Never reuse a group title as
   an item name.
 - **Settings sections are surfaces.** `SettingsSection` draws its body as a
@@ -144,7 +150,10 @@ Application `*Host` components are state/effect adapters around canonical featur
   composer). `ModelMultiSelect` chooses several (the model scope). They are
   not interchangeable.
 - **Monospace is only for code, logs and paths.** Tool, skill and setting
-  names, counts and other metadata use the sans face.
+  names, counts and other metadata use the sans face. Tool call card headers
+  (`CardHeader`: tool name and argument summary) use the sans font even when
+  they show a command or path; the card body keeps code, output, diffs and
+  file lists monospace.
 - **Settings uses one set of list patterns.** Entity lists are a single
   `SettingsList` (bordered `card` surface, hairline-divided rows) holding
   `SettingsListItem` rows, never a stack of individually tinted cards. A row's
@@ -359,7 +368,8 @@ src/styles/
 - Icons: `@lucide/svelte`, sized/colored via `class` on the icon. Loading
   spinners use the shared `Spinner` component
   (`@nervekit/ui-kit/components/ui/spinner`), not ad-hoc spinning loader icons.
-- Monospace (`font-mono`) is for code, logs, and paths only.
+- Monospace (`font-mono`) is for code, logs, and paths only; tool call card
+  headers use the sans font even when they show a command or path.
 - Validate with `pnpm check`; verify visuals (light + dark) with the
   `agent-browser` skill.
 - Guardrails (should stay clean): no `import "*.css"` outside `styles/app.css`;

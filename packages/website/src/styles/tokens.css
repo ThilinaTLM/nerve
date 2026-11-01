@@ -24,7 +24,7 @@
   --step-card: 0.025;
   --mix-muted: 10%;
   --mix-border: 19%;
-  --mix-muted-foreground: 80%;
+  --mix-muted-foreground: 83%;
   --on-solid: oklch(0.17 0.008 60);
 
   /* Derived, same recipes as ui-kit's shared block. */

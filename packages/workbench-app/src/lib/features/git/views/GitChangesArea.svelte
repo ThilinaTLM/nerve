@@ -334,7 +334,6 @@ function fileMenu(area: GitStashArea, file: GitFileChange): ContextMenuItem[] {
     alwaysShowActions
     ariaExpanded={expanded}
     role="none"
-    class="font-medium"
     onclick={onToggle}
   >
     {#snippet leading()}
@@ -377,7 +376,7 @@ function fileMenu(area: GitStashArea, file: GitFileChange): ContextMenuItem[] {
       {/snippet}
       {#snippet itemLeading(file)}
         <span
-          class={cn("font-mono font-semibold", fileTone(file))}
+          class={cn("font-mono font-medium", fileTone(file))}
           title={fileStatusLabel(file, area)}
         >
           {statusLetter(file, area)}

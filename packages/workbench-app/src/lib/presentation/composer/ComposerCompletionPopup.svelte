@@ -119,7 +119,7 @@ const listboxId = "composer-suggestions";
   >
     {#if model.scope}
       <span
-        class="inline-flex h-5 shrink-0 items-center gap-1 rounded-md bg-muted pr-0.5 pl-1.5 font-medium text-foreground"
+        class="inline-flex h-5 shrink-0 items-center gap-1 rounded-md bg-muted pr-0.5 pl-1.5 text-foreground"
       >
         <AtSign class="size-3 text-muted-foreground" />{model.scope.label}
         <button
@@ -149,7 +149,7 @@ const listboxId = "composer-suggestions";
           <button
             type="button"
             tabindex="-1"
-            class="shrink-0 font-medium text-foreground underline-offset-2 hover:underline"
+            class="shrink-0 text-foreground hover:text-primary"
             onmousedown={(event) => {
               event.preventDefault();
               onfooteraction();
@@ -249,7 +249,7 @@ const listboxId = "composer-suggestions";
           >
             <Icon class="size-3.5 shrink-0 {popupRowIconClass(row)}" />
             {#if row.mono}
-              <span class="shrink-0 font-mono font-medium">{row.name}</span>
+              <span class="shrink-0 font-mono">{row.name}</span>
               {#if row.dir}
                 <span
                   class="min-w-0 truncate text-left font-mono text-muted-foreground [direction:rtl]"
@@ -257,9 +257,7 @@ const listboxId = "composer-suggestions";
                 >
               {/if}
             {:else}
-              <span class="max-w-[60%] shrink-0 truncate font-medium"
-                >{row.name}</span
-              >
+              <span class="max-w-[60%] shrink-0 truncate">{row.name}</span>
               {#if row.meta}<span class="min-w-0 truncate text-muted-foreground"
                   >{row.meta}</span
                 >{/if}

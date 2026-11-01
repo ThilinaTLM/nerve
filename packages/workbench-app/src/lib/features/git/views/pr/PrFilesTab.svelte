@@ -76,7 +76,7 @@ function unavailableMessage(
       {/if}
     </Empty.Media>
     <Empty.Header class="gap-1">
-      <Empty.Title class="text-ui font-medium">{title}</Empty.Title>
+      <Empty.Title class="text-ui">{title}</Empty.Title>
       <Empty.Description class="text-ui">{description}</Empty.Description>
     </Empty.Header>
     {#if retry}
@@ -90,7 +90,7 @@ function unavailableMessage(
 {/snippet}
 
 {#snippet fileLetter(file: GithubPrFile)}
-  <span class={cn("font-mono font-semibold", fileStatusTone(file.status))}>
+  <span class={cn("font-mono font-medium", fileStatusTone(file.status))}>
     {fileStatusLetter(file.status)}
   </span>
 {/snippet}
@@ -163,7 +163,7 @@ function unavailableMessage(
       role="status"
     >
       <Spinner class="size-6 text-primary" />
-      <strong class="text-foreground">Loading file diff</strong>
+      <strong class="font-medium text-foreground">Loading file diff</strong>
     </div>
   {/if}
 {/snippet}

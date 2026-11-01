@@ -161,7 +161,7 @@ $effect(() => {
 >
   <div class="grid gap-3">
     <section class="grid gap-2">
-      <p class="m-0 text-ui font-semibold text-foreground">Model</p>
+      <p class="m-0 text-ui font-medium text-foreground">Model</p>
       {#if models.length === 0}
         <p
           class="m-0 rounded-md border border-dashed border-border bg-muted p-3 text-ui text-muted-foreground"
@@ -227,9 +227,7 @@ $effect(() => {
                     !implementationModelCompatible(entry.model, requirements)}
                   onclick={() => selectModel(entry.model)}
                 >
-                  <span class="min-w-0 truncate font-medium"
-                    >{entry.contextualLabel}</span
-                  >
+                  <span class="min-w-0 truncate">{entry.contextualLabel}</span>
                   {#if active}<CircleCheck
                       class="size-4"
                       strokeWidth={2.4}
@@ -244,7 +242,7 @@ $effect(() => {
 
     {#if selectedModel}
       <section class="grid gap-2 pt-3">
-        <p class="m-0 text-ui font-semibold text-foreground">Thinking level</p>
+        <p class="m-0 text-ui font-medium text-foreground">Thinking level</p>
         <div
           class="flex flex-wrap gap-2"
           role="group"
@@ -254,7 +252,7 @@ $effect(() => {
             {@const active = level === selectedThinkingLevel}
             <button
               type="button"
-              class={`rounded-md border px-3 py-1 text-ui font-medium transition-colors disabled:opacity-50 ${
+              class={`rounded-md border px-3 py-1 text-ui transition-colors disabled:opacity-50 ${
                 active
                   ? "border-primary bg-selected text-foreground"
                   : "border-border bg-input text-muted-foreground hover:border-primary-strong hover:text-foreground"

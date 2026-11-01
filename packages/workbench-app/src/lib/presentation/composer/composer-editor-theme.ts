@@ -61,7 +61,7 @@ export const composerEditorTheme = EditorView.theme({
     color: "var(--foreground)",
     fontFamily: "var(--font-sans)",
     fontSize: "var(--text-ui)",
-    fontWeight: "500",
+    fontWeight: "400",
     lineHeight: "1",
     verticalAlign: "middle",
     userSelect: "none",

@@ -3,8 +3,8 @@ import type { VariantProps } from "tailwind-variants";
 import { tv } from "@nervekit/ui-kit/utils";
 
 /**
- * State recipe of every selectable row: hover, selection (tint, medium label,
- * brand marker on the leading icon), keyboard highlight, and disabled. Layout
+ * State recipe of every selectable row: hover, selection (tint, foreground
+ * label, brand marker on the leading icon), keyboard highlight, and disabled. Layout
  * stays with each row, so rows with their own structure (listbox options,
  * tree rows) reuse the same states. The marker sits on the icon wrapper, so
  * glyphs with their own colour (status, file type, provider) keep it.
@@ -20,7 +20,7 @@ export const selectRowVariants = tv({
       true: {
         base: "bg-selected hover:bg-selected",
         icon: "text-primary",
-        label: "font-medium text-foreground",
+        label: "text-foreground",
       },
     },
     highlighted: {

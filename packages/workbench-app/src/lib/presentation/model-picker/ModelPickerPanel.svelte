@@ -292,7 +292,7 @@ function handleSearchKeydown(event: KeyboardEvent): void {
             {#if item.kind === "header"}
               <div
                 role="presentation"
-                class="px-1.5 pt-2 pb-1 text-ui font-medium text-muted-foreground"
+                class="px-1.5 pt-2 pb-1 text-ui text-muted-foreground"
               >
                 {item.label}
               </div>

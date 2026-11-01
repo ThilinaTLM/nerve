@@ -31,7 +31,7 @@ function hostname(url: string): string {
         class="m-0 text-ui whitespace-pre-line text-muted-foreground [overflow-wrap:anywhere]"
         class:line-clamp-6={!expanded}
       >
-        <span class="font-medium text-foreground">Answer</span> · {view.answer}
+        <span class="text-foreground">Answer</span> · {view.answer}
       </p>
     </div>
   {/if}
@@ -49,8 +49,7 @@ function hostname(url: string): string {
           class="w-4 flex-none text-right font-mono text-muted-foreground tabular-nums"
           >{index + 1}</span
         >
-        <span
-          class="min-w-0 flex-1 truncate font-medium text-foreground group-hover:underline"
+        <span class="min-w-0 flex-1 truncate text-foreground"
           >{result.title}</span
         >
         <span class="flex-none font-mono text-muted-foreground"

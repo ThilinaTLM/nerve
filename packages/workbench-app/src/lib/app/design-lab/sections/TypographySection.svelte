@@ -28,9 +28,9 @@ const sizes = [
 ] as const;
 
 const weights = [
-  { name: "font-normal", cls: "font-normal", uses: 20 },
-  { name: "font-medium", cls: "font-medium", uses: 117 },
-  { name: "font-semibold", cls: "font-semibold", uses: 51 },
+  { name: "font-normal", cls: "font-normal", uses: 7 },
+  { name: "font-medium", cls: "font-medium", uses: 79 },
+  { name: "font-semibold", cls: "font-semibold", uses: 1 },
 ] as const;
 
 const icons = [
@@ -52,7 +52,7 @@ const longPath =
 <div class="flex flex-col gap-10">
   <GalleryGroup
     title="Type scale"
-    description="Four roles: text-caption 13px/18px, text-ui 14px/20px, text-body 15px/22px, text-title 16px/24px. Sans (Outfit) for UI; monospace (Iosevka) only for code, logs, and paths."
+    description="Four roles: text-caption 13px/18px, text-ui 14px/20px, text-body 15px/22px, text-title 16px/24px. Sans (IBM Plex Sans) for UI; monospace (Iosevka) only for code, logs, and paths."
   >
     <GallerySpecimen title="Sizes" usage="all areas" layout="stack">
       {#each sizes as size (size.name)}
@@ -112,7 +112,7 @@ const longPath =
     description="Two sizes only (title / ui); weight and colour carry the rest. Sentence case, no uppercase eyebrows."
   >
     <GallerySpecimen title="Spec" usage="settings" layout="stack">
-      {#each [["Page title", "text-title font-semibold text-foreground"], ["Page subtitle", "text-ui text-muted-foreground"], ["Section heading", "text-ui font-semibold text-foreground"], ["Group heading", "text-ui font-semibold text-muted-foreground"], ["Row title", "text-ui text-foreground"], ["Supporting text", "text-ui text-muted-foreground"]] as [role, spec] (role)}
+      {#each [["Page title", "text-title font-medium text-foreground"], ["Page subtitle", "text-ui text-muted-foreground"], ["Section heading", "text-ui font-medium text-foreground"], ["Group heading", "text-ui font-medium text-muted-foreground"], ["Row title", "text-ui text-foreground"], ["Supporting text", "text-ui text-muted-foreground"]] as [role, spec] (role)}
         <div class="flex items-baseline gap-4 text-ui">
           <span class="w-32 shrink-0 text-foreground">{role}</span>
           <code class="font-mono text-muted-foreground">{spec}</code>
@@ -181,7 +181,7 @@ const longPath =
     >
       <div class="w-[280px] max-w-full">
         <div class="flex h-8 items-center gap-1.5 px-3 text-ui">
-          <span class="font-semibold text-foreground">Files</span>
+          <span class="font-medium text-foreground">Files</span>
           <span class="text-muted-foreground">33</span>
         </div>
         <div class="flex flex-col gap-0.5 px-1.5 pb-2 text-ui">
@@ -221,7 +221,7 @@ const longPath =
           >, then trace how the store is initialised. The fix should be small.
         </p>
         <div class="flex items-center gap-2 text-ui">
-          <span class="font-medium text-foreground">read</span>
+          <span class="text-foreground">read</span>
           <span class="truncate font-mono text-muted-foreground"
             >{longPath}</span
           >

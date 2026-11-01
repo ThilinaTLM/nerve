@@ -45,7 +45,7 @@ const outdated = $derived(
     <main class="mx-auto grid w-full max-w-4xl gap-6 px-4 py-5 sm:px-6">
       <header class="flex flex-wrap items-start justify-between gap-3">
         <div class="grid gap-0.5">
-          <h1 class="text-title font-semibold text-foreground">Discover</h1>
+          <h1 class="text-title font-medium text-foreground">Discover</h1>
           <p class="text-ui text-muted-foreground">
             What's new in Nerve, plus setup guides and everyday tips.
           </p>

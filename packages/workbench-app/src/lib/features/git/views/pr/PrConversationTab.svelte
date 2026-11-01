@@ -106,7 +106,7 @@ const REVIEW_STATE: Record<
       <!-- Description: the opening post, read like a document. -->
       <p class="mb-3 flex items-center gap-2 text-ui text-muted-foreground">
         <PrAvatar name={core.author} large />
-        <span class="text-ui font-medium text-foreground"
+        <span class="text-ui text-foreground"
           >{core.author ?? "Unknown author"}</span
         >
         opened {formatRelativeAge(core.createdAt)}
@@ -120,10 +120,7 @@ const REVIEW_STATE: Record<
       {/if}
 
       <section class="mt-8" aria-labelledby="pr-activity">
-        <h2
-          id="pr-activity"
-          class="mb-4 text-ui font-medium text-muted-foreground"
-        >
+        <h2 id="pr-activity" class="mb-4 text-ui text-muted-foreground">
           Activity
         </h2>
         {#if timeline.length === 0}
@@ -148,7 +145,7 @@ const REVIEW_STATE: Record<
                   <p
                     class="flex min-h-8 flex-wrap items-center gap-x-2 gap-y-0.5 border-b bg-muted px-3 py-1"
                   >
-                    <span class="text-ui font-medium"
+                    <span class="text-ui"
                       >{entry.value.author ?? "Deleted user"}</span
                     >
                     {#if review && ReviewIcon}

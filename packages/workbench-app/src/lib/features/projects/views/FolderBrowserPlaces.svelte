@@ -88,9 +88,7 @@ function isCurrent(path: string): boolean {
 {#snippet section(title: string, items: Item[], mono = false)}
   {#if items.length}
     <div class="flex flex-col gap-0.5">
-      <span class="px-2 pb-1 text-ui font-medium text-muted-foreground"
-        >{title}</span
-      >
+      <span class="px-2 pb-1 text-ui text-muted-foreground">{title}</span>
       {#each items as item (item.key)}
         {@const current = isCurrent(item.path)}
         {#snippet icon()}<item.icon

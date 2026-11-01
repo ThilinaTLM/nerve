@@ -16,7 +16,7 @@ let {
 </script>
 
 <div class={cn("flex h-7 min-w-0 shrink-0 items-center gap-1", className)}>
-  <span class="truncate text-ui font-semibold text-foreground">{title}</span>
+  <span class="truncate text-ui font-medium text-foreground">{title}</span>
   {#if count !== undefined}
     <span class="text-ui text-muted-foreground">{count}</span>
   {/if}

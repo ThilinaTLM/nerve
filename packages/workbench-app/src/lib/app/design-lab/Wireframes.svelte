@@ -15,7 +15,7 @@ const loading = $derived(active?.load());
         >All wireframes</a
       >
     {/if}
-    <h1 class="text-title font-semibold">
+    <h1 class="text-title font-medium">
       {active?.title ?? (name ? "Wireframe not found" : "Wireframes")}
     </h1>
     <p class="text-ui text-muted-foreground">
@@ -37,7 +37,7 @@ const loading = $derived(active?.load());
     {/await}
   {:else if !name && WIREFRAMES.length === 0}
     <div class="flex flex-col gap-2 rounded-md border bg-card p-4">
-      <h2 class="text-ui font-semibold">No local wireframes yet</h2>
+      <h2 class="text-ui font-medium">No local wireframes yet</h2>
       <p class="text-ui text-muted-foreground">
         Add a Svelte component with a kebab-case filename under <code
           >src/lib/app/design-lab/wireframes/</code
@@ -52,7 +52,7 @@ const loading = $derived(active?.load());
             href={`${WIREFRAMES_PATH}/${entry.id}`}
             class="flex flex-col gap-1 p-4 hover:bg-muted"
           >
-            <span class="text-ui font-medium">{entry.title}</span>
+            <span class="text-ui">{entry.title}</span>
             <span class="text-ui text-muted-foreground">{entry.summary}</span>
           </a>
         </li>

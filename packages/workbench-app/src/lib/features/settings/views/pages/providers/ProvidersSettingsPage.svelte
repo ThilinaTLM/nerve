@@ -32,7 +32,7 @@ if (!providerCatalogState.catalogLoaded) {
 <ApiKeysSection {authProviders} />
 <Collapsible.Root bind:open={advancedOpen}>
   <Collapsible.Trigger
-    class="group/advanced flex w-full items-center gap-2 rounded-md py-2 text-left text-ui font-semibold text-foreground"
+    class="group/advanced flex w-full items-center gap-2 rounded-md py-2 text-left text-ui font-medium text-foreground"
   >
     <ChevronRight
       class="size-4 shrink-0 text-muted-foreground transition-transform group-data-[state=open]/advanced:rotate-90"

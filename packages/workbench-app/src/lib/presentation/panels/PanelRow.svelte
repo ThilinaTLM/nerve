@@ -145,12 +145,12 @@ function toneTextClass(tone: StatusTone): string {
 
 const toneClass = $derived(toneTextClass(tone));
 const rowStyles = $derived(selectRowVariants({ selected }));
-/* Selected: medium weight; a neutral label also turns foreground, while a
- * status tone keeps its colour. `active` (the current item) is medium too. */
+/* Selected: a neutral label turns foreground, while a status tone keeps its
+ * colour. Selection never changes the weight. */
 const labelStateClass = $derived(
   selected
     ? rowStyles.label({ class: tone === "neutral" ? undefined : toneClass })
-    : active && "font-medium",
+    : undefined,
 );
 const twoLine = $derived(labelLines === 2);
 </script>

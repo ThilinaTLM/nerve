@@ -82,7 +82,7 @@ const roleNote = $derived(
         <div class="grid gap-2">
           <div class="flex flex-wrap items-center justify-between gap-2">
             <div class="flex flex-wrap items-center gap-2">
-              <h4 class="text-ui font-semibold text-muted-foreground">
+              <h4 class="text-ui font-medium text-muted-foreground">
                 {scope === "user"
                   ? "User overrides"
                   : `Project overrides · ${projectName}`}

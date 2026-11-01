@@ -207,7 +207,7 @@ async function createBranch(repository: string): Promise<void> {
             </Tooltip.Trigger>
             <Tooltip.Content>
               <div class="min-w-0 space-y-1">
-                <p class="font-medium break-all">{repo.name}</p>
+                <p class="break-all">{repo.name}</p>
                 <p class="font-mono text-ui break-all">{repo.absDir}</p>
                 <p class="text-ui">
                   {!repo.hasRemote

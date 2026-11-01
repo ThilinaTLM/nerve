@@ -136,7 +136,7 @@ const showMermaidPreview = $derived(
           class="grid min-h-72 place-items-center content-center gap-1.5 text-center text-muted-foreground"
         >
           <FileText class="size-7 text-primary" strokeWidth={1.7} />
-          <strong class="text-foreground">No file selected</strong>
+          <strong class="font-medium text-foreground">No file selected</strong>
           <p class="m-0 max-w-xl text-ui">
             Open a file from a tool result to view it here.
           </p>
@@ -146,7 +146,7 @@ const showMermaidPreview = $derived(
           class="grid min-h-72 place-items-center content-center gap-1.5 text-center text-muted-foreground"
         >
           <Spinner class="size-7 text-primary" />
-          <strong class="text-foreground">Loading file</strong>
+          <strong class="font-medium text-foreground">Loading file</strong>
           <p class="m-0 max-w-xl font-mono text-ui">{view.path}</p>
         </div>
       {:else if view.error}
@@ -154,7 +154,9 @@ const showMermaidPreview = $derived(
           class="grid min-h-72 place-items-center content-center gap-1.5 text-center text-muted-foreground"
         >
           <TriangleAlert class="size-7 text-destructive" strokeWidth={1.7} />
-          <strong class="text-foreground">Could not open file</strong>
+          <strong class="font-medium text-foreground"
+            >Could not open file</strong
+          >
           <p class="m-0 max-w-xl text-ui">{view.error}</p>
         </div>
       {:else if resolved?.imageSrc}
@@ -193,7 +195,9 @@ const showMermaidPreview = $derived(
           class="grid min-h-72 place-items-center content-center gap-1.5 text-center text-muted-foreground"
         >
           <FileText class="size-7 text-primary" strokeWidth={1.7} />
-          <strong class="text-foreground">Binary preview unavailable</strong>
+          <strong class="font-medium text-foreground"
+            >Binary preview unavailable</strong
+          >
           <p class="m-0 max-w-xl text-ui">
             {file
               ? `${file.name} is ${file.size.toLocaleString()} bytes and cannot be rendered in the browser preview.`

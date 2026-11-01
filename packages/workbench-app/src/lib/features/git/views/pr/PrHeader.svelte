@@ -85,7 +85,7 @@ const StateIcon = $derived(STATES[kind].icon);
 <header class="flex flex-col gap-1 px-4 pt-3 pb-2">
   <div class="flex items-start gap-2">
     <h1
-      class="flex min-w-0 flex-1 items-start gap-2 text-title leading-snug font-semibold"
+      class="flex min-w-0 flex-1 items-start gap-2 text-title leading-snug font-medium"
     >
       {#if display}
         <PrTooltip label={STATES[kind].label}>{@render stateIcon()}</PrTooltip>

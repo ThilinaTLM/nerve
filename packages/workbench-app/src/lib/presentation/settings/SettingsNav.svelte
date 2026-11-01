@@ -38,7 +38,7 @@ let {
   <div
     class="grid flex-none gap-0.5 border-b px-2 pb-2 @max-[46rem]/settings-page:border-b-0 @max-[46rem]/settings-page:pb-1"
   >
-    <p class="text-ui font-semibold text-foreground">{header.title}</p>
+    <p class="text-ui font-medium text-foreground">{header.title}</p>
     {#if header.subtitle}
       <p class="truncate text-caption text-muted-foreground">
         {header.subtitle}

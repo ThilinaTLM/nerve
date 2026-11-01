@@ -15,7 +15,7 @@ let {
 
 <section class="flex flex-col gap-4">
   <header class="flex flex-col gap-0.5 border-b pb-2">
-    <h2 class="text-title font-semibold text-foreground">{title}</h2>
+    <h2 class="text-title font-medium text-foreground">{title}</h2>
     {#if description}
       <p class="text-ui text-muted-foreground">{description}</p>
     {/if}

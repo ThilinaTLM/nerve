@@ -55,7 +55,7 @@ function dismiss(): void {
       <div class="grid gap-4 pr-3">
         {#if setAside.length}
           <section class="grid gap-2" aria-label="Set aside">
-            <h3 class="text-ui font-medium text-muted-foreground">Set aside</h3>
+            <h3 class="text-ui text-muted-foreground">Set aside</h3>
             <ul class="grid gap-3">
               {#each setAside as group (`${group.kind}:${group.reason}`)}
                 {@const key = `${group.kind}:${group.reason}`}
@@ -105,7 +105,7 @@ function dismiss(): void {
         {/if}
         {#if losses.length}
           <section class="grid gap-2" aria-label="Adjusted during upgrade">
-            <h3 class="text-ui font-medium text-muted-foreground">
+            <h3 class="text-ui text-muted-foreground">
               Adjusted during upgrade
             </h3>
             <ul class="grid gap-1 text-ui text-muted-foreground">

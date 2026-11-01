@@ -22,7 +22,7 @@ import {
       </div>
       <div class="min-w-0 flex-1 space-y-3">
         <div class="space-y-1">
-          <h2 class="text-ui font-medium">Enable desktop notifications</h2>
+          <h2 class="text-ui">Enable desktop notifications</h2>
           <p class="text-ui text-muted-foreground">
             Let Nerve alert you when an agent needs approval, asks a question,
             or finishes in the background.

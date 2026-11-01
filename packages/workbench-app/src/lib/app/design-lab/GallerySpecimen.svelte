@@ -58,7 +58,7 @@ const surfaceClass: Record<GallerySurface, string> = {
 <article class="flex min-w-0 flex-col gap-2">
   <header class="flex items-start justify-between gap-6">
     <div class="flex min-w-0 flex-col gap-0.5">
-      <h3 class="text-ui font-semibold text-foreground">{title}</h3>
+      <h3 class="text-ui font-medium text-foreground">{title}</h3>
       {#if description}
         <p class="text-ui text-muted-foreground">{description}</p>
       {/if}

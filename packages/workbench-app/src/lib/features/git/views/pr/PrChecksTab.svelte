@@ -140,7 +140,7 @@ function duration(run: GithubCheckRun): string {
           {:else}
             <CircleCheck class="size-4 text-success" aria-hidden="true" />
           {/if}
-          <h2 class="text-title font-semibold">{summary.headline}</h2>
+          <h2 class="text-title font-medium">{summary.headline}</h2>
         </div>
         <div
           class="flex h-1 gap-px overflow-hidden rounded-full"
@@ -159,10 +159,10 @@ function duration(run: GithubCheckRun): string {
       {#each groups as group (group.status)}
         <section>
           <h3
-            class="flex items-center gap-1.5 pb-1.5 text-ui font-medium text-muted-foreground"
+            class="flex items-center gap-1.5 pb-1.5 text-ui text-muted-foreground"
           >
             {GROUP_LABEL[group.status]}
-            <span class="font-normal tabular-nums">{group.runs.length}</span>
+            <span class="tabular-nums">{group.runs.length}</span>
           </h3>
           <ul
             class="divide-y overflow-hidden rounded-md border bg-card"

@@ -306,7 +306,7 @@ function pick(label: string | undefined) {
         >{index + 1}/{total}</span
       >
     {/if}
-    <p class="m-0 min-w-0 flex-1 text-body font-medium text-foreground">
+    <p class="m-0 min-w-0 flex-1 text-body text-foreground">
       <SlotText text={question.question} width="w-72" {streaming} />
     </p>
     {#if statusLabel}
@@ -318,7 +318,7 @@ function pick(label: string | undefined) {
 
   {#if question.context !== undefined}
     <p class="m-0 text-ui whitespace-pre-wrap text-muted-foreground">
-      <span class="font-medium text-foreground">Context</span> ·
+      <span class="text-foreground">Context</span> ·
       <SlotText text={question.context} width="w-64" {streaming} />
     </p>
   {/if}
@@ -330,7 +330,7 @@ function pick(label: string | undefined) {
         aria-hidden="true"
       />
       <span class="min-w-0 whitespace-pre-wrap">
-        <span class="font-medium text-foreground">Recommendation</span> ·
+        <span class="text-foreground">Recommendation</span> ·
         <SlotText text={question.recommendation} width="w-56" {streaming} />
       </span>
     </p>
@@ -364,7 +364,7 @@ function pick(label: string | undefined) {
           {#if option.label === undefined}
             <Skeleton class="h-[0.7em] w-20 self-center rounded-sm bg-hover" />
           {:else}
-            <span class="font-medium">{option.label}</span>
+            <span>{option.label}</span>
           {/if}
           {#if option.description}
             <span class="text-muted-foreground">{option.description}</span>
@@ -381,14 +381,14 @@ function pick(label: string | undefined) {
     <div class="flex items-center gap-2" out:fade={{ duration: 120 }}>
       <button
         type="button"
-        class="cursor-pointer text-ui font-medium text-primary hover:underline"
+        class="cursor-pointer text-ui text-primary hover:text-foreground"
         onclick={() => (detailRequested = true)}>Add detail</button
       >
       {#if voice && supportsAudioRecording}
         <span class="text-ui text-muted-foreground">or</span>
         <button
           type="button"
-          class="inline-flex cursor-pointer items-center gap-1 text-ui font-medium text-primary hover:underline disabled:cursor-not-allowed disabled:text-muted-foreground disabled:no-underline"
+          class="inline-flex cursor-pointer items-center gap-1 text-ui text-primary hover:text-foreground disabled:cursor-not-allowed disabled:text-muted-foreground"
           disabled={micDisabled}
           title={micTitle}
           onclick={toggleVoice}><Mic class="size-3" />Speak</button

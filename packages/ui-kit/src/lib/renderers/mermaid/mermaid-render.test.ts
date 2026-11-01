@@ -9,7 +9,7 @@ import {
 const theme: MermaidTheme = {
   fingerprint: "dark-theme",
   dark: true,
-  fontFamily: "Outfit",
+  fontFamily: "IBM Plex Sans",
   background: "#242424",
   foreground: "#e5e5e5",
   card: "#2b2b2b",

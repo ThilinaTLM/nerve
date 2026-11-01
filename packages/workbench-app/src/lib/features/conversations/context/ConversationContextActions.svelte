@@ -81,7 +81,7 @@ const trimmedInstructions = $derived(instructions?.trim() ?? "");
       class="max-w-sm flex-col items-stretch gap-1 py-2"
     >
       <div class="flex items-baseline justify-between gap-4">
-        <span class="font-medium">Compaction</span>
+        <span>Compaction</span>
         {#if compaction}
           <span class="text-muted-foreground"
             >{compactionOverridden ? "Conversation" : "Inherited"}</span
@@ -89,7 +89,7 @@ const trimmedInstructions = $derived(instructions?.trim() ?? "");
         {/if}
       </div>
       {#if compaction}
-        <p class="font-medium">{compactionSummary(compaction)}</p>
+        <p>{compactionSummary(compaction)}</p>
         <p class="text-muted-foreground">
           {compactionDetail(compaction)}
         </p>
@@ -129,7 +129,7 @@ const trimmedInstructions = $derived(instructions?.trim() ?? "");
       class="max-w-sm flex-col items-stretch gap-1 py-2"
     >
       <div class="flex items-baseline justify-between gap-4">
-        <span class="font-medium">Custom instructions</span>
+        <span>Custom instructions</span>
         {#if trimmedInstructions}
           <span class="text-muted-foreground tabular-nums"
             >{formatBytes(instructionsBytes(trimmedInstructions))}</span

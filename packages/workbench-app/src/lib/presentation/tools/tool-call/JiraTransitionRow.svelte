@@ -20,7 +20,7 @@ const showTarget = $derived(
 
 <div class="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 px-2.5 py-2">
   <Badge class="font-mono">{transition.id}</Badge>
-  <span class="text-ui font-medium text-foreground">{name}</span>
+  <span class="text-ui text-foreground">{name}</span>
   {#if showTarget}
     <ArrowRight size={13} strokeWidth={2} class="text-muted-foreground" />
     <Badge variant={toTone}>{transition.to}</Badge>

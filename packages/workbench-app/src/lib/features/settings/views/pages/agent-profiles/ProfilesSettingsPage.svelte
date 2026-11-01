@@ -550,7 +550,7 @@ const repairReplacement = $derived(
               profile,
             )}{/snippet}</ProfileCardHead
         >{:else}<div class="flex min-w-0 flex-wrap items-center gap-2">
-          <h4 class="text-ui font-medium text-foreground">{profile.name}</h4>
+          <h4 class="text-ui text-foreground">{profile.name}</h4>
           {@render profileBadges(profile)}
         </div>{/if}
     {/snippet}

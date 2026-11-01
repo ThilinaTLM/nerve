@@ -168,8 +168,8 @@ async function choose(item: (typeof items)[number]) {
                   <ArrowRight class="size-3" aria-hidden="true" />
                   <span
                     class={item.flip.to === "On"
-                      ? "font-medium text-success"
-                      : "font-medium text-foreground"}>{item.flip.to}</span
+                      ? "text-success"
+                      : "text-foreground"}>{item.flip.to}</span
                   >
                 </span>
               {:else}

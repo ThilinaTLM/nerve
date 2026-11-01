@@ -192,7 +192,7 @@ const editable =
     {:else}
       <button
         type="button"
-        class={`${editable} text-ui font-medium text-foreground`}
+        class={`${editable} text-ui text-foreground`}
         title={editHint ?? "Rename"}
         {disabled}
         onclick={() => startEdit("label")}

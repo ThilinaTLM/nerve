@@ -248,7 +248,7 @@ const menuItems = $derived<ContextMenuItem[]>([
   >
     {#if selected}
       {@const text = formatApplicationLog(selected)}
-      <Sheet.Title class="px-4 pt-3 text-ui font-semibold">
+      <Sheet.Title class="px-4 pt-3 text-ui font-medium">
         {selected.level.toUpperCase()} · {selected.source}/{selected.component}
       </Sheet.Title>
       <pre

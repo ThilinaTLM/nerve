@@ -3,8 +3,8 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { describe, it } from "node:test";
 
-/* Settings has three heading levels (page title text-title, section heading
- * text-ui semibold, entity title text-ui medium) over text-ui rows and text-caption
+/* Settings has three heading levels (page title text-title medium, section
+ * heading text-ui medium, entity title text-ui regular) over text-ui rows and text-caption
  * supporting text, so weight and colour carry most of the hierarchy. That is easy to break by accident: the section header
  * was once a 12px muted uppercase eyebrow sitting above 14px foreground row
  * titles, which made every section rank below its own content. */
@@ -30,13 +30,13 @@ describe("settings typography", () => {
 
   it("ranks the page title above section titles", () => {
     assert.match(pageTitle, /text-title/);
-    assert.match(pageTitle, /font-semibold/);
+    assert.match(pageTitle, /font-medium/);
     assert.match(sectionTitle, /text-ui/);
   });
 
   it("keeps section headings stronger than the rows they contain", () => {
     // Same size; the heading wins on weight and the row stays regular.
-    assert.match(sectionTitle, /font-semibold/);
+    assert.match(sectionTitle, /font-medium/);
     assert.match(sectionTitle, /text-foreground/);
 
     const rowTitle = /<span\s+class="([^"]+)"\s*>\s*\{title\}/s.exec(listItem);
@@ -52,22 +52,22 @@ describe("settings typography", () => {
 
   it("keeps entity titles one step below section headings", () => {
     assert.match(entityTitle, /text-ui/);
-    assert.match(entityTitle, /font-medium/);
-    assert.doesNotMatch(entityTitle, /font-semibold/);
+    assert.doesNotMatch(entityTitle, /font-(medium|semibold|bold)/);
     assert.match(entityTitle, /text-foreground/);
   });
 
   it("separates nav group captions from items by weight, colour and icon", () => {
-    // Group captions are the shared GroupLabel: caption size, medium weight,
+    // Group captions are the shared GroupLabel: caption size, regular weight,
     // muted, sentence case.
     assert.match(nav, /<GroupLabel[^>]*label=\{group\.title\}/s);
     const groupLabel = source(
       "../../../../../ui-kit/src/lib/components/composites/group-label/group-label.svelte",
     );
-    assert.match(groupLabel, /text-caption font-medium text-muted-foreground/);
+    assert.match(groupLabel, /text-caption text-muted-foreground/);
+    assert.doesNotMatch(groupLabel, /font-(medium|semibold|bold)/);
     assert.doesNotMatch(groupLabel, /(?<![\w-])uppercase(?![\w-])/);
     // Items are the shared SelectRow: text-ui foreground labels; the active
-    // item is selected (tint, medium weight).
+    // item is selected (tint and marker, no weight change).
     assert.match(nav, /<SelectRow[^>]*selected=\{current\}/s);
     const selectRow = source(
       "../../../../../ui-kit/src/lib/components/composites/select-row/select-row.svelte",
@@ -79,7 +79,8 @@ describe("settings typography", () => {
     )?.[1];
     assert.ok(selectedVariant, "selectRowVariants has a selected variant");
     assert.match(selectedVariant, /base: "bg-selected /);
-    assert.match(selectedVariant, /label: "font-medium /);
+    assert.match(selectedVariant, /label: "text-foreground"/);
+    assert.doesNotMatch(selectedVariant, /font-(medium|semibold|bold)/);
   });
 
   it("uses sentence case, never uppercase, for headings", () => {

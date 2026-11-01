@@ -37,9 +37,7 @@ let {
 </script>
 
 <div class={cn("grid gap-1", className)}>
-  <Label for={id} class="text-ui font-medium text-muted-foreground"
-    >{label}</Label
-  >
+  <Label for={id} class="text-ui text-muted-foreground">{label}</Label>
   <div class="flex items-center gap-2">
     <Input
       {id}

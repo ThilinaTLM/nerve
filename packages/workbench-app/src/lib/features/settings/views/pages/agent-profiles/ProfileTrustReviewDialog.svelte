@@ -42,9 +42,7 @@ const file = $derived(profile?.definition);
     {#if file}
       <div class="grid divide-y divide-border rounded-lg border">
         <div class="flex flex-wrap items-center gap-2 px-3 py-2">
-          <span class="text-ui font-medium text-foreground"
-            >{file.label ?? file.name}</span
-          >
+          <span class="text-ui text-foreground">{file.label ?? file.name}</span>
           <Badge variant="info">Project file</Badge>
           <span class="text-ui text-muted-foreground"
             >Usable by {file.usableBy === "lead"

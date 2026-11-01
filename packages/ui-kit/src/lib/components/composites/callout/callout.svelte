@@ -61,7 +61,7 @@ const layoutClasses = {
     />
   {/if}
   <div class="min-w-0 flex-1">
-    {#if title}<p class="font-medium">{title}</p>{/if}
+    {#if title}<p>{title}</p>{/if}
     {#if text}<p>{text}</p>{/if}
     {#if children}{@render children()}{/if}
   </div>

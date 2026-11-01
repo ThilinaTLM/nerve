@@ -27,9 +27,7 @@ const showCommand = $derived(
   <ToolSections>
     {#if showCommand}
       <div class="px-2.5 py-2" aria-label="Bash command">
-        <p class="m-0 mb-1 text-ui font-medium text-muted-foreground">
-          Command
-        </p>
+        <p class="m-0 mb-1 text-ui text-muted-foreground">Command</p>
         <ToolOutputBlock text={view.command ?? ""} language="bash" {expanded} />
       </div>
     {/if}
@@ -37,9 +35,7 @@ const showCommand = $derived(
     {#if view.output.length > 0}
       <div class="px-2.5 py-2" aria-label="Command output">
         {#if hasCommandSection}
-          <p class="m-0 mb-1 text-ui font-medium text-muted-foreground">
-            Output
-          </p>
+          <p class="m-0 mb-1 text-ui text-muted-foreground">Output</p>
         {/if}
         <ToolOutputBlock
           text={view.output}

@@ -48,7 +48,7 @@ onMount(dismissStartupSplash);
     <header
       class="flex shrink-0 flex-wrap items-center gap-3 border-b bg-panel px-4 py-2"
     >
-      <span class="text-ui font-semibold">Design Lab</span>
+      <span class="text-ui font-medium">Design Lab</span>
       <span class="text-ui text-muted-foreground">Development only</span>
       <nav class="flex items-center gap-2" aria-label="Design Lab">
         {#each [{ path: COMPONENTS_PATH, title: "Components", page: "components" }, { path: WIREFRAMES_PATH, title: "Wireframes", page: "wireframes" }] as item (item.path)}
@@ -94,7 +94,7 @@ onMount(dismissStartupSplash);
         <Wireframes name={route.name} />
       {:else}
         <main class="flex flex-col gap-3 p-6">
-          <h1 class="text-title font-semibold">Lab page not found</h1>
+          <h1 class="text-title font-medium">Lab page not found</h1>
           <a href={COMPONENTS_PATH} class="text-ui text-primary underline"
             >Open the component catalog</a
           >
