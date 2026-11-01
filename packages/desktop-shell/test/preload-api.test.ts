@@ -42,6 +42,7 @@ function preloadApiShape() {
       toggleMaximize: invoke,
       close: invoke,
       getState: invoke,
+      setTheme: invoke,
       onStateChange: subscribe,
     },
     app: {
