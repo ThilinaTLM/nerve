@@ -191,7 +191,7 @@ async function trustProfile(): Promise<void> {
       {/snippet}
     </SettingsRow>
   {:else}
-    <p class="px-3 py-3 text-sm text-muted-foreground">
+    <p class="px-3 py-3 text-ui text-muted-foreground">
       No project profile files.
     </p>
   {/each}

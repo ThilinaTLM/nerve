@@ -59,7 +59,7 @@ const lines = $derived(asyncBashLogLines(streams));
     {#snippet dock()}
       <FloatingToolbar label="Command controls">
         <span
-          class="flex h-6 items-center gap-1.5 px-1.5 text-xs text-muted-foreground tabular-nums"
+          class="flex h-6 items-center gap-1.5 px-1.5 text-ui text-muted-foreground tabular-nums"
           title={bash?.workingDirectory}
         >
           {#if bash}<AsyncBashStatusIcon status={bash.status} />{/if}

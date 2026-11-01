@@ -125,8 +125,8 @@ function launchMenu(launchId: string): ContextMenuItem[] {
         <Empty.Media class="text-muted-foreground">
           <Activity size={28} strokeWidth={1.6} />
         </Empty.Media>
-        <Empty.Title class="text-sm">Nothing running</Empty.Title>
-        <Empty.Description class="text-xs">
+        <Empty.Title class="text-ui">Nothing running</Empty.Title>
+        <Empty.Description class="text-ui">
           Running agents and background launches from every project show up
           here.
         </Empty.Description>

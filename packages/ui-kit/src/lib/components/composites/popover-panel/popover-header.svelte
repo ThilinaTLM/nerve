@@ -39,9 +39,9 @@ let {
       <ChevronLeft aria-hidden="true" />
     </Button>
   {/if}
-  <h2 class="min-w-0 truncate text-sm font-semibold">{title}</h2>
+  <h2 class="min-w-0 truncate text-ui font-semibold">{title}</h2>
   {#if meta}
-    <span class="ml-auto flex-none text-xs text-muted-foreground">{meta}</span>
+    <span class="ml-auto flex-none text-ui text-muted-foreground">{meta}</span>
   {/if}
   {#if actions}
     <div class={cn("flex flex-none items-center gap-0.5", !meta && "ml-auto")}>

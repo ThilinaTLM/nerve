@@ -115,7 +115,7 @@ function selectRun(launchId: string): void {
       </PopoverBody>
     </PopoverPanel>
   {:else}
-    <span class="flex h-6 items-center gap-1.5 px-1.5 text-xs">
+    <span class="flex h-6 items-center gap-1.5 px-1.5 text-ui">
       <LaunchStatusIcon status={launch.status} />
       <span class="tabular-nums">{formatLaunchRunTime(launch.startedAt)}</span>
     </span>

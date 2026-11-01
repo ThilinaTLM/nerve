@@ -55,14 +55,14 @@ function dismiss(): void {
       <div class="grid gap-4 pr-3">
         {#if setAside.length}
           <section class="grid gap-2" aria-label="Set aside">
-            <h3 class="text-xs font-medium text-muted-foreground">Set aside</h3>
+            <h3 class="text-ui font-medium text-muted-foreground">Set aside</h3>
             <ul class="grid gap-3">
               {#each setAside as group (`${group.kind}:${group.reason}`)}
                 {@const key = `${group.kind}:${group.reason}`}
                 <li class="grid min-w-0 gap-0.5">
-                  <p class="text-sm">{setAsideGroupLabel(group)}</p>
+                  <p class="text-ui">{setAsideGroupLabel(group)}</p>
                   {#if group.reason}
-                    <p class="text-xs break-words text-muted-foreground">
+                    <p class="text-ui break-words text-muted-foreground">
                       {group.reason}
                     </p>
                   {/if}
@@ -89,7 +89,7 @@ function dismiss(): void {
                       <ul class="grid gap-0.5 border-l pl-2">
                         {#each group.paths as path (path)}
                           <li
-                            class="truncate font-mono text-xs text-muted-foreground"
+                            class="truncate font-mono text-ui text-muted-foreground"
                             title={path}
                           >
                             {homeRelativePath(path, home)}
@@ -105,10 +105,10 @@ function dismiss(): void {
         {/if}
         {#if losses.length}
           <section class="grid gap-2" aria-label="Adjusted during upgrade">
-            <h3 class="text-xs font-medium text-muted-foreground">
+            <h3 class="text-ui font-medium text-muted-foreground">
               Adjusted during upgrade
             </h3>
-            <ul class="grid gap-1 text-xs text-muted-foreground">
+            <ul class="grid gap-1 text-ui text-muted-foreground">
               {#each losses as loss (loss.reason)}
                 <li class="break-words">
                   <span class="tabular-nums">{loss.count}</span> · {loss.reason}

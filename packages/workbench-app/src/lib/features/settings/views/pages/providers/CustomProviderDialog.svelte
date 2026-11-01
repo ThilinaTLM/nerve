@@ -212,7 +212,7 @@ async function submit() {
           aria-invalid={!idValid && id.length > 0}
         />
         {#if id.length > 0 && !idValid}
-          <p class="flex items-center gap-1.5 text-xs text-destructive">
+          <p class="flex items-center gap-1.5 text-ui text-destructive">
             Use lowercase letters, numbers, and dashes.
           </p>
         {/if}
@@ -291,7 +291,7 @@ async function submit() {
 Another-Header: value"
         disabled={busy}
       />
-      <p class="text-xs text-muted-foreground">
+      <p class="text-ui text-muted-foreground">
         One <code class="font-mono">Name: value</code> per line.
       </p>
     </div>
@@ -310,7 +310,7 @@ Another-Header: value"
     </div>
 
     {#if error}
-      <p class="flex items-center gap-1.5 text-xs text-destructive">
+      <p class="flex items-center gap-1.5 text-ui text-destructive">
         <TriangleAlert size={14} strokeWidth={2} />
         {error}
       </p>

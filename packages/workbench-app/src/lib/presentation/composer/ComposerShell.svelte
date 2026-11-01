@@ -100,7 +100,7 @@ function revealAction(node: HTMLElement) {
   >
     {#if pendingQuestion}
       <div
-        class="flex items-center gap-2 px-3 pt-2 text-xs text-info"
+        class="flex items-center gap-2 px-3 pt-2 text-ui text-info"
         role="status"
       >
         <MessageCircleQuestion class="size-3.5 flex-none" aria-hidden="true" />
@@ -118,7 +118,7 @@ function revealAction(node: HTMLElement) {
         {/if}
       </div>
     {:else if commandMode}
-      <div class="flex items-center gap-1.5 px-3 pt-2 text-xs text-warning">
+      <div class="flex items-center gap-1.5 px-3 pt-2 text-ui text-warning">
         <SquareTerminal class="size-3.5 flex-none" aria-hidden="true" />
         <span class="min-w-0 truncate"
           >Shell command — runs locally, not sent to the agent</span

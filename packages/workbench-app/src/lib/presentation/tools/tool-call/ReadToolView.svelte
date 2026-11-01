@@ -42,7 +42,7 @@ const hasContent = $derived(
         <ToolOutputBlock text={view.content ?? ""} {language} {expanded} />
       </div>
     {:else}
-      <div class="px-2.5 py-2 text-xs text-muted-foreground">Empty file.</div>
+      <div class="px-2.5 py-2 text-ui text-muted-foreground">Empty file.</div>
     {/if}
   </ToolSections>
 {/if}

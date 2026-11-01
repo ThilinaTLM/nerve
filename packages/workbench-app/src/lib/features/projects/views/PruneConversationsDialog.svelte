@@ -139,7 +139,7 @@ function handleOpenChange(next: boolean) {
       </div>
     {/if}
 
-    <p class="m-0 text-sm text-muted-foreground">
+    <p class="m-0 text-ui text-muted-foreground">
       Removes up to <strong class="font-semibold text-foreground"
         >{removeCount}</strong
       >

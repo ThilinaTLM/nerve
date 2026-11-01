@@ -158,7 +158,7 @@ function setEventTone(key: EventToneKey, tone: NotificationTone): void {
   {/each}
 </SettingsSection>
 
-<p class="text-xs text-muted-foreground">
+<p class="text-ui text-muted-foreground">
   Sub-agents only notify you when they need your input. Their results and errors
   go to the lead agent.
 </p>

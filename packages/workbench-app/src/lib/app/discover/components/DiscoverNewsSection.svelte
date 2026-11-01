@@ -64,7 +64,7 @@ const empty = $derived(!news.featured && news.current.length === 0);
         {/each}
 
         {#if empty}
-          <p class="px-3 py-2.5 text-xs text-muted-foreground">
+          <p class="px-3 py-2.5 text-ui text-muted-foreground">
             {currentVersion
               ? `Nothing new since ${currentVersion}.`
               : "Nothing new right now."}

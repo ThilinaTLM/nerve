@@ -115,14 +115,14 @@ const plain =
       <div class="flex flex-wrap gap-4">
         <div class="flex h-40 w-64 flex-col rounded-md border bg-card">
           <ScrollRegion surface="card" ariaLabel="Card region">
-            <ul class="flex flex-col gap-1 p-2 font-mono text-xs">
+            <ul class="flex flex-col gap-1 p-2 font-mono text-ui">
               {#each lines as line (line)}<li>{line}</li>{/each}
             </ul>
           </ScrollRegion>
         </div>
         <div class="flex h-40 w-64 flex-col rounded-md border bg-popover">
           <ScrollRegion surface="popover" ariaLabel="Popover region">
-            <ul class="flex flex-col gap-1 p-2 font-mono text-xs">
+            <ul class="flex flex-col gap-1 p-2 font-mono text-ui">
               {#each lines as line (line)}<li>{line}</li>{/each}
             </ul>
           </ScrollRegion>
@@ -147,7 +147,7 @@ const plain =
           paddingEnd={4}
         >
           {#snippet row({ item })}
-            <div class="px-3 py-1 text-xs">
+            <div class="px-3 py-1 text-ui">
               <span class="text-foreground">{item.label}</span>
               {#if item.detail}
                 <span class="block text-muted-foreground">{item.detail}</span>
@@ -180,7 +180,7 @@ const plain =
             ><PlusIcon /></Button
           >
         </FloatingToolbar>
-        <p class="p-3 text-xs text-muted-foreground">
+        <p class="p-3 text-ui text-muted-foreground">
           Content under the toolbar.
         </p>
       </div>
@@ -198,7 +198,7 @@ const plain =
         >
         <Button size="sm" variant="ghost" onclick={resetStream}>Reset</Button>
       </div>
-      <p class="max-w-xl text-sm"><StreamingText text={streamed} /></p>
+      <p class="max-w-xl text-ui"><StreamingText text={streamed} /></p>
     </GallerySpecimen>
 
     <GallerySpecimen
@@ -222,7 +222,7 @@ const plain =
         >
       </div>
       <HeightFollow active class="max-w-sm rounded-md border bg-card">
-        <ul class="flex flex-col gap-1 p-3 text-xs">
+        <ul class="flex flex-col gap-1 p-3 text-ui">
           {#each Array.from({ length: followItems }, (_, i) => i) as i (i)}
             <li>Line {i + 1}</li>
           {/each}
@@ -292,7 +292,7 @@ const plain =
       source="renderers/plain-text/PlainText"
       layout="bare"
     >
-      <PlainText text={plain} class="max-w-md text-sm" />
+      <PlainText text={plain} class="max-w-md text-ui" />
     </GallerySpecimen>
   </GalleryGroup>
 </div>

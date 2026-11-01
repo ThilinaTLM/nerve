@@ -13,7 +13,7 @@ let {
   bind:ref
   data-slot="tabs-trigger"
   class={cn(
-    "relative inline-flex flex-none items-center gap-1.5 bg-transparent text-xs font-medium whitespace-nowrap text-muted-foreground transition-colors outline-none hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:ring-inset disabled:pointer-events-none disabled:opacity-50 has-data-[icon=inline-end]:pr-1.5 has-data-[icon=inline-start]:pl-1.5 data-active:text-foreground [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-3.5",
+    "relative inline-flex flex-none items-center gap-1.5 bg-transparent text-ui font-medium whitespace-nowrap text-muted-foreground transition-colors outline-none hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:ring-inset disabled:pointer-events-none disabled:opacity-50 has-data-[icon=inline-end]:pr-1.5 has-data-[icon=inline-start]:pl-1.5 data-active:text-foreground [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-3.5",
     /* Horizontal: the editor/dock tab look. A `primary` rule on top marks the
      * active tab, which takes the content surface so it merges into the pane;
      * a hairline separates neighbours. */

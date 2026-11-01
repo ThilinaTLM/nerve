@@ -47,7 +47,7 @@ let {
     <SlotText
       width="w-40"
       streaming
-      class="ml-2 font-mono text-xs text-muted-foreground"
+      class="ml-2 font-mono text-ui text-muted-foreground"
     />
   {:else if arg}
     {#if arg.openPath}
@@ -86,7 +86,7 @@ let {
 
 .badge {
   font-family: var(--font-mono);
-  font-size: var(--text-sm);
+  font-size: var(--text-ui);
   font-weight: 650;
   color: var(--foreground);
 }
@@ -95,7 +95,7 @@ let {
   margin-left: 0.5rem;
   color: var(--muted-foreground);
   font-family: var(--font-mono);
-  font-size: var(--text-xs);
+  font-size: var(--text-ui);
   overflow-wrap: anywhere;
   word-break: break-word;
 }

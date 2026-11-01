@@ -37,14 +37,14 @@ function supportedImageMime(mimeType: string): boolean {
 
 <details class="rounded-sm border bg-muted/20" {open}>
   <summary
-    class="cursor-pointer px-2.5 py-2 text-xs font-medium text-muted-foreground"
+    class="cursor-pointer px-2.5 py-2 text-ui font-medium text-muted-foreground"
   >
     Agent preview
   </summary>
   <div class="grid gap-2 border-t p-2">
     {#if preview}
       {#if preview.blocks.length === 0}
-        <p class="m-0 text-sm text-muted-foreground">
+        <p class="m-0 text-ui text-muted-foreground">
           The agent received an empty result.
         </p>
       {:else}
@@ -57,7 +57,7 @@ function supportedImageMime(mimeType: string): boolean {
               block.mimeType,
             )}
             <div class="grid gap-2 rounded-sm border bg-background p-2">
-              <p class="m-0 text-xs text-muted-foreground">
+              <p class="m-0 text-ui text-muted-foreground">
                 Image supplied to the agent · {block.mimeType} · {block.byteLength.toLocaleString()}
                 bytes
               </p>
@@ -73,12 +73,12 @@ function supportedImageMime(mimeType: string): boolean {
         {/each}
       {/if}
     {:else}
-      <p class="m-0 text-sm text-muted-foreground">
+      <p class="m-0 text-ui text-muted-foreground">
         No retained agent preview is available for this tool call.
       </p>
     {/if}
     {#if projection}
-      <div class="flex flex-wrap gap-1.5 text-xs text-muted-foreground">
+      <div class="flex flex-wrap gap-1.5 text-ui text-muted-foreground">
         <span class="rounded-sm border px-1.5 py-0.5">{projection.profile}</span
         >
         <span class="rounded-sm border px-1.5 py-0.5"

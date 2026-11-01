@@ -49,15 +49,15 @@ onMount(dismissStartupSplash);
     <header
       class="flex shrink-0 flex-wrap items-center gap-3 border-b bg-panel px-4 py-2"
     >
-      <span class="text-sm font-semibold">Design Lab</span>
-      <span class="text-xs text-muted-foreground">Development only</span>
+      <span class="text-ui font-semibold">Design Lab</span>
+      <span class="text-ui text-muted-foreground">Development only</span>
       <nav class="flex items-center gap-2" aria-label="Design Lab">
         {#each [{ path: COMPONENTS_PATH, title: "Components", page: "components" }, { path: WIREFRAMES_PATH, title: "Wireframes", page: "wireframes" }] as item (item.path)}
           <a
             href={item.path}
             aria-current={route?.page === item.page ? "page" : undefined}
             class={cn(
-              "rounded-md px-2 py-1 text-sm text-muted-foreground hover:bg-muted hover:text-foreground",
+              "rounded-md px-2 py-1 text-ui text-muted-foreground hover:bg-muted hover:text-foreground",
               route?.page === item.page && "bg-selected text-foreground",
             )}
           >
@@ -99,8 +99,8 @@ onMount(dismissStartupSplash);
         <Wireframes name={route.name} />
       {:else}
         <main class="flex flex-col gap-3 p-6">
-          <h1 class="text-base font-semibold">Lab page not found</h1>
-          <a href={COMPONENTS_PATH} class="text-sm text-primary underline"
+          <h1 class="text-title font-semibold">Lab page not found</h1>
+          <a href={COMPONENTS_PATH} class="text-ui text-primary underline"
             >Open the component catalog</a
           >
         </main>

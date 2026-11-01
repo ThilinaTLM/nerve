@@ -97,7 +97,7 @@ function cancel(): void {
       <div class="group/title flex min-w-0 items-center gap-0.5">
         <button
           type="button"
-          class="min-w-0 max-w-full truncate rounded-sm text-left text-xs font-normal text-foreground focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
+          class="min-w-0 max-w-full truncate rounded-sm text-left text-ui font-normal text-foreground focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
           title={titleHint ?? title}
           ondblclick={() => onTitleDblClick?.()}
         >
@@ -112,7 +112,7 @@ function cancel(): void {
       <div class="flex-1"></div>
     {/if}
     {#if meta}
-      <div class="shrink-0 truncate text-xs text-muted-foreground">
+      <div class="shrink-0 truncate text-ui text-muted-foreground">
         {@render meta()}
       </div>
     {/if}

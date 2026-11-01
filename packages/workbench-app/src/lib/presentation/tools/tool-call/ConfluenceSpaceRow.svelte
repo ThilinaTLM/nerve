@@ -20,15 +20,15 @@ const hasChips = $derived(Boolean(space.status || space.type));
         class="shrink-0 text-muted-foreground"
       />
       {#if space.key}
-        <span class="font-mono text-xs font-semibold text-foreground"
+        <span class="font-mono text-ui font-semibold text-foreground"
           >{space.key}</span
         >
       {/if}
-      <span class="font-mono text-xs text-muted-foreground">{space.id}</span>
+      <span class="font-mono text-ui text-muted-foreground">{space.id}</span>
     </span>
     {#if space.name}
       <span
-        class="min-w-0 break-words text-xs font-medium leading-snug text-foreground"
+        class="min-w-0 break-words text-ui font-medium leading-snug text-foreground"
         >{space.name}</span
       >
     {/if}
@@ -42,7 +42,7 @@ const hasChips = $derived(Boolean(space.status || space.type));
         >
       {/if}
       {#if space.type}
-        <span class="text-xs text-muted-foreground">{space.type}</span>
+        <span class="text-ui text-muted-foreground">{space.type}</span>
       {/if}
     </div>
   {/if}

@@ -50,7 +50,7 @@ const files = $derived(
       />
       {#if url}
         <a
-          class="inline-flex items-center gap-1 font-mono text-xs font-semibold text-primary no-underline hover:underline"
+          class="inline-flex items-center gap-1 font-mono text-ui font-semibold text-primary no-underline hover:underline"
           href={url}
           target="_blank"
           rel="noreferrer noopener"
@@ -60,14 +60,14 @@ const files = $derived(
           <ExternalLink size={11} strokeWidth={2} class="opacity-70" />
         </a>
       {:else}
-        <span class="font-mono text-xs font-semibold text-foreground"
+        <span class="font-mono text-ui font-semibold text-foreground"
           >{page.id}</span
         >
       {/if}
     </span>
     {#if page.title}
       <span
-        class="min-w-0 break-words text-xs font-medium leading-snug text-foreground"
+        class="min-w-0 break-words text-ui font-medium leading-snug text-foreground"
         >{page.title}</span
       >
     {/if}
@@ -84,10 +84,10 @@ const files = $derived(
         <Badge variant="neutral">v{page.versionNumber}</Badge>
       {/if}
       {#if page.spaceKey}
-        <span class="text-xs text-muted-foreground">Space {page.spaceKey}</span>
+        <span class="text-ui text-muted-foreground">Space {page.spaceKey}</span>
       {/if}
       {#if page.parentId}
-        <span class="text-xs text-muted-foreground"
+        <span class="text-ui text-muted-foreground"
           >Parent <code>{page.parentId}</code></span
         >
       {/if}
@@ -95,7 +95,7 @@ const files = $derived(
   {/if}
 
   {#if expanded && files.length > 0}
-    <div class="flex flex-wrap gap-x-3 gap-y-1 text-xs">
+    <div class="flex flex-wrap gap-x-3 gap-y-1 text-ui">
       {#each files as file (file.path)}
         <button
           type="button"

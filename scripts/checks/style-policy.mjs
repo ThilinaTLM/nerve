@@ -72,6 +72,21 @@ export function findDarkUtilities(source) {
   return offenders;
 }
 
+/**
+ * Finds font-size utilities outside the four type roles (`text-caption`,
+ * `text-ui`, `text-body`, `text-title`): Tailwind's default scale
+ * (`text-xs`…`text-9xl`, cleared in theme.css, so they would silently render
+ * nothing) and arbitrary sizes such as `text-[11px]` or `text-[0.9em]`.
+ */
+export function findOffScaleTextSizes(source) {
+  const offenders = [];
+  for (const match of source.matchAll(
+    /(?<![\w-])text-(?:xs|sm|base|lg|[2-9]?xl|\[[\d.]+(?:px|rem|em)\])(?![\w-])/g,
+  ))
+    offenders.push(match[0]);
+  return offenders;
+}
+
 const CLASS_TOKEN = /-?[_a-zA-Z][\w-]*/;
 
 /** Strips comments and at-rule preludes, then collects class selectors. */

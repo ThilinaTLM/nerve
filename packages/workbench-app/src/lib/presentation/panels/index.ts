@@ -11,7 +11,6 @@ export {
   type PanelRowFitOptions,
 } from "./panel-row-fit.svelte.js";
 export { default as PanelSectionHeader } from "./PanelSectionHeader.svelte";
-export { default as PanelToolbar } from "./PanelToolbar.svelte";
 export { default as PanelToolbarButton } from "./PanelToolbarButton.svelte";
 export { default as PanelTree } from "./PanelTree.svelte";
 export {

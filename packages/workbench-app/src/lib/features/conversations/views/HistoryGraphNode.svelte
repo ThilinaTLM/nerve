@@ -125,8 +125,8 @@ function branch(data: HistoryFlowNodeData) {
           <GitBranch class="size-4" strokeWidth={2} />
         </span>
         <div class="min-w-0">
-          <p class="text-sm font-semibold">Start of conversation</p>
-          <p class="truncate text-xs text-muted-foreground">
+          <p class="text-ui font-semibold">Start of conversation</p>
+          <p class="truncate text-ui text-muted-foreground">
             Fork a new branch from the beginning
           </p>
         </div>
@@ -140,10 +140,10 @@ function branch(data: HistoryFlowNodeData) {
             <UnfoldVertical class="size-4" strokeWidth={2} />
           </span>
           <div class="min-w-0 flex-1">
-            <p class="text-sm font-semibold">
+            <p class="text-ui font-semibold">
               {data.segment.total} collapsed steps
             </p>
-            <p class="truncate text-xs text-muted-foreground">
+            <p class="truncate text-ui text-muted-foreground">
               {data.segment.parts
                 .map((part) => `${part.count} ${part.label}`)
                 .join(" · ")}
@@ -167,7 +167,7 @@ function branch(data: HistoryFlowNodeData) {
           <div class="flex flex-wrap gap-1 overflow-hidden">
             {#each data.segment.parts.slice(0, 4) as part (part.label)}
               <span
-                class="rounded-md border bg-muted/40 px-1.5 py-0.5 text-xs text-muted-foreground"
+                class="rounded-md border bg-muted/40 px-1.5 py-0.5 text-ui text-muted-foreground"
                 >{part.count} {part.label}</span
               >
             {/each}
@@ -185,14 +185,14 @@ function branch(data: HistoryFlowNodeData) {
         </span>
         <div class="min-w-0 flex-1">
           <div class="flex items-center gap-1.5">
-            <span class="font-mono text-xs text-muted-foreground/60">
+            <span class="font-mono text-ui text-muted-foreground/60">
               {String(data.row.index).padStart(2, "0")}
             </span>
-            <p class="truncate text-sm font-semibold">{desc.label}</p>
+            <p class="truncate text-ui font-semibold">{desc.label}</p>
             {#each desc.badges as badge, index (index)}
               {@const BadgeIcon = HISTORY_ICONS[badge.icon]}
               <span
-                class={`flex shrink-0 items-center gap-0.5 text-xs ${HISTORY_TONE_TEXT[badge.tone]}`}
+                class={`flex shrink-0 items-center gap-0.5 text-ui ${HISTORY_TONE_TEXT[badge.tone]}`}
                 title={badge.title ?? badge.label}
               >
                 <BadgeIcon class="size-3" strokeWidth={2} />
@@ -200,7 +200,7 @@ function branch(data: HistoryFlowNodeData) {
               </span>
             {/each}
           </div>
-          <div class="flex items-center gap-2 text-xs text-muted-foreground">
+          <div class="flex items-center gap-2 text-ui text-muted-foreground">
             <span>{relativeTimeLabel(data.row.node.entry.createdAt)} ago</span>
             {#if data.view.record?.status}
               <span class="truncate font-mono">{data.view.record.status}</span>
@@ -212,11 +212,11 @@ function branch(data: HistoryFlowNodeData) {
       <div class="min-h-0 flex-1 px-3 py-2.5">
         {#if data.zoomTier === "detail"}
           <pre
-            class="line-clamp-5 font-sans text-xs leading-relaxed whitespace-pre-wrap break-words text-foreground"
+            class="line-clamp-5 font-sans text-ui leading-relaxed whitespace-pre-wrap break-words text-foreground"
             class:font-mono={desc.mono}>{data.view.detailPreview}</pre>
         {:else}
           <p
-            class="line-clamp-3 text-xs leading-relaxed text-muted-foreground"
+            class="line-clamp-3 text-ui leading-relaxed text-muted-foreground"
             class:font-mono={desc.mono}
           >
             {desc.preview || "No preview available"}

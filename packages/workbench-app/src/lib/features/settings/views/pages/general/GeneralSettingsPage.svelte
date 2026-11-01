@@ -419,7 +419,7 @@ function reset(key: Key) {
               aria-label="Compact at percent"
               oninput={(event) => setPercent(event.currentTarget.value)}
             />
-            <span class="flex-none text-xs text-muted-foreground">%</span>
+            <span class="flex-none text-ui text-muted-foreground">%</span>
           {/snippet}
         </SettingsRow>
       {/if}

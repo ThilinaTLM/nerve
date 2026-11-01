@@ -48,7 +48,7 @@ async function resetAll(): Promise<void> {
     <StoragePageActions controller={controllers.storageController} />
   {/if}
   {#if differing > 0}
-    <span class="text-xs text-muted-foreground"
+    <span class="text-ui text-muted-foreground"
       >{differing} differ from your settings</span
     >
     <Button

@@ -28,7 +28,7 @@ function hostname(url: string): string {
   {#if view.answer}
     <div class="px-3 py-2">
       <p
-        class="m-0 text-xs whitespace-pre-line text-muted-foreground [overflow-wrap:anywhere]"
+        class="m-0 text-ui whitespace-pre-line text-muted-foreground [overflow-wrap:anywhere]"
         class:line-clamp-6={!expanded}
       >
         <span class="font-medium text-foreground">Answer</span> · {view.answer}
@@ -44,7 +44,7 @@ function hostname(url: string): string {
       rel="noreferrer"
       title={result.url}
     >
-      <span class="flex min-w-0 items-baseline gap-2 text-xs">
+      <span class="flex min-w-0 items-baseline gap-2 text-ui">
         <span
           class="w-4 flex-none text-right font-mono text-muted-foreground tabular-nums"
           >{index + 1}</span
@@ -58,7 +58,7 @@ function hostname(url: string): string {
         >
       </span>
       {#if result.content}
-        <span class="line-clamp-2 pl-6 text-xs text-muted-foreground"
+        <span class="line-clamp-2 pl-6 text-ui text-muted-foreground"
           >{result.content}</span
         >
       {/if}
@@ -66,6 +66,6 @@ function hostname(url: string): string {
   {/each}
 
   {#if results.length === 0 && !view.answer && toolCall.status === "completed"}
-    <p class="m-0 px-3 py-2 text-xs text-muted-foreground">No results.</p>
+    <p class="m-0 px-3 py-2 text-ui text-muted-foreground">No results.</p>
   {/if}
 </ToolSections>

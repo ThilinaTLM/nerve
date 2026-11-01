@@ -233,7 +233,7 @@ function activate(repo: GitRepoSummary, operation: GitRemoteOperation): void {
 </script>
 
 {#snippet menuItems(repo: GitRepoSummary, context = false)}
-  <div class="px-2 py-1 text-xs text-muted-foreground">
+  <div class="px-2 py-1 text-ui text-muted-foreground">
     {repoButtonLabel(repo, model.repositories, { maxLength: 14 })}
   </div>
   {@const Item = context ? ContextMenu.Item : DropdownMenu.Item}
@@ -415,7 +415,7 @@ function activate(repo: GitRepoSummary, operation: GitRemoteOperation): void {
                 {/snippet}
               </DropdownMenu.Trigger>
               <DropdownMenu.Content align="end">
-                <div class="px-2 py-1 text-xs text-muted-foreground">
+                <div class="px-2 py-1 text-ui text-muted-foreground">
                   All repositories
                 </div>
                 <DropdownMenu.Item
@@ -490,7 +490,7 @@ function activate(repo: GitRepoSummary, operation: GitRemoteOperation): void {
           />
         </div>
       {:else if model.awaitingPullRequest}
-        <div class="px-2 pb-2 text-xs text-muted-foreground">
+        <div class="px-2 pb-2 text-ui text-muted-foreground">
           {#if model.expectedPullRequestUrl}<a
               class="hover:underline"
               href={model.expectedPullRequestUrl}

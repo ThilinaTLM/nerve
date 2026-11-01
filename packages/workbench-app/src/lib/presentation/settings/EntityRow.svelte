@@ -33,8 +33,8 @@ let {
 <div
   class="grid grid-cols-[6.5rem_minmax(0,1fr)_auto] items-center gap-x-3 px-3 py-1.5"
 >
-  <span class="text-xs text-muted-foreground">{label}</span>
-  <span class="flex min-w-0 items-center gap-1.5 text-sm text-foreground">
+  <span class="text-ui text-muted-foreground">{label}</span>
+  <span class="flex min-w-0 items-center gap-1.5 text-ui text-foreground">
     <span class="truncate">{value}</span>
     {#if trailing}{@render trailing()}{/if}
   </span>

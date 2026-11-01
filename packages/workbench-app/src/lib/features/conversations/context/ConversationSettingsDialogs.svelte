@@ -138,10 +138,10 @@ function setTriggerPercent(value: string) {
       {/if}
     {/if}
     {#if compactionError && draft.profile === "custom"}
-      <p class="text-xs text-destructive" role="alert">{compactionError}</p>
+      <p class="text-ui text-destructive" role="alert">{compactionError}</p>
     {/if}
     {#if failure}
-      <p class="text-xs text-destructive" role="alert">{failure}</p>
+      <p class="text-ui text-destructive" role="alert">{failure}</p>
     {/if}
   </div>
   {#snippet footer()}
@@ -190,14 +190,14 @@ function setTriggerPercent(value: string) {
     />
     <p
       class={[
-        "text-right text-xs tabular-nums",
+        "text-right text-ui tabular-nums",
         overLimit ? "text-destructive" : "text-muted-foreground",
       ]}
     >
       {formatBytes(bytes)} / {formatBytes(INSTRUCTIONS_MAX_BYTES)}
     </p>
     {#if failure}
-      <p class="text-xs text-destructive" role="alert">{failure}</p>
+      <p class="text-ui text-destructive" role="alert">{failure}</p>
     {/if}
   </div>
   {#snippet footer()}

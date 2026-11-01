@@ -31,7 +31,7 @@ const toneClasses: Record<StatusTone, string> = {
 
 <div
   class={cn(
-    "flex items-center justify-between gap-3 rounded-sm border px-2.5 py-1.5 text-xs",
+    "flex items-center justify-between gap-3 rounded-sm border px-2.5 py-1.5 text-ui",
     toneClasses[tone],
     className,
   )}
@@ -39,7 +39,7 @@ const toneClasses: Record<StatusTone, string> = {
 >
   <div class="min-w-0">
     {#if text}
-      <p class="text-xs">{text}</p>
+      <p class="text-ui">{text}</p>
     {/if}
     {#if children}
       {@render children()}

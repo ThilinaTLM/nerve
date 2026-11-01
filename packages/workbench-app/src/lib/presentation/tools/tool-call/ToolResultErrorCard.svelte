@@ -19,7 +19,7 @@ const errorPreview = $derived(
 <article class="grid w-full gap-1.5 py-2.5">
   <div class="min-w-0 leading-normal">
     <StatusGlyph tone="destructive" size={14} class="mr-1.5 align-middle" />
-    <span class="font-mono text-sm font-semibold text-foreground"
+    <span class="font-mono text-ui font-semibold text-foreground"
       >{toolName}</span
     >
   </div>

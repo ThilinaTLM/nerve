@@ -28,7 +28,7 @@ let {
 >
   {#if label || action}
     <div class="flex items-center justify-between gap-3 px-1.5 py-0.5">
-      {#if label}<span class="text-xs text-muted-foreground">{label}</span>{/if}
+      {#if label}<span class="text-ui text-muted-foreground">{label}</span>{/if}
       {#if action}{@render action()}{/if}
     </div>
   {/if}

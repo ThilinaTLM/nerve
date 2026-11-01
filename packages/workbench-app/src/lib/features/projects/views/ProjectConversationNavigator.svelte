@@ -295,7 +295,7 @@ const menuContext = $derived<ProjectTreeMenuContext>({
       >
         {#each displayedSections as section (section.key)}
           <div
-            class="flex items-center gap-1.5 px-1 pt-3 pb-1 text-[0.6875rem] font-medium tracking-wide uppercase text-muted-foreground"
+            class="flex items-center gap-1.5 px-1 pt-3 pb-1 text-caption font-medium tracking-wide uppercase text-muted-foreground"
           >
             {#if section.key === "pinned"}<Pin
                 class="size-3"

@@ -54,19 +54,17 @@ const launchpad = $derived(variant === "launchpad");
 
     {#if launchpad}
       <p
-        class="mt-4 text-xs font-medium uppercase tracking-widest text-muted-foreground"
+        class="mt-4 text-ui font-medium uppercase tracking-widest text-muted-foreground"
       >
         Workspace ready
       </p>
     {/if}
     <h2
-      class={`${launchpad ? "mt-2 text-lg @sm:text-xl" : "mt-4 text-lg @sm:text-xl"} font-normal tracking-tight text-foreground`}
+      class={`${launchpad ? "mt-2" : "mt-4"} text-title font-medium text-foreground`}
     >
       {title}
     </h2>
-    <p
-      class="mt-2 max-w-sm text-xs leading-relaxed text-muted-foreground @sm:text-sm"
-    >
+    <p class="mt-2 max-w-sm text-ui leading-relaxed text-muted-foreground">
       {message}
     </p>
 
@@ -81,7 +79,7 @@ const launchpad = $derived(variant === "launchpad");
           <Button
             type="button"
             variant="outline"
-            class="group gap-2 bg-card text-xs shadow-sm hover:border-primary/40 @sm:text-sm"
+            class="group gap-2 bg-card text-ui shadow-sm hover:border-primary/40"
             disabled={startersDisabled}
             onclick={() => onSelectStarter?.(starter)}
           >
@@ -98,7 +96,7 @@ const launchpad = $derived(variant === "launchpad");
 
     {#if projectLabel}
       <div
-        class={`${starters.length > 0 || launchpad ? "mt-4" : "mt-3"} inline-flex max-w-md items-center gap-1.5 rounded-md border bg-muted/60 px-3 py-1.5 text-xs text-muted-foreground`}
+        class={`${starters.length > 0 || launchpad ? "mt-4" : "mt-3"} inline-flex max-w-md items-center gap-1.5 rounded-md border bg-muted/60 px-3 py-1.5 text-ui text-muted-foreground`}
         title={projectPath}
         aria-label={projectPath
           ? `Current project ${projectPath}`

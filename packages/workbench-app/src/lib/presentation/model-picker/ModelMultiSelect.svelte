@@ -138,7 +138,7 @@ function handleSearchKeydown(event: KeyboardEvent): void {
     <Tooltip.Provider delayDuration={300} disableHoverableContent>
       {#if rows.length === 0}
         <div
-          class="flex items-center gap-2 px-3 py-3 text-sm text-muted-foreground"
+          class="flex items-center gap-2 px-3 py-3 text-ui text-muted-foreground"
         >
           {#if view === "scoped" && scopeEmpty && !query.trim()}
             <span class="flex-1"
@@ -173,7 +173,7 @@ function handleSearchKeydown(event: KeyboardEvent): void {
               {#if item.kind === "header"}
                 <div
                   role="presentation"
-                  class="flex items-center gap-1.5 px-2 pt-2.5 pb-1 text-xs font-medium text-muted-foreground"
+                  class="flex items-center gap-1.5 px-2 pt-2.5 pb-1 text-ui font-medium text-muted-foreground"
                 >
                   {#if !item.provider}
                     <TriangleAlert
@@ -219,7 +219,7 @@ function handleSearchKeydown(event: KeyboardEvent): void {
   </div>
 
   <p
-    class="flex items-center gap-1.5 border-t border-border/60 px-3 py-1.5 text-xs text-muted-foreground"
+    class="flex items-center gap-1.5 border-t border-border/60 px-3 py-1.5 text-ui text-muted-foreground"
     data-tour-id="setup-scoped-models-default"
   >
     <span class="tabular-nums">{rows.length} shown</span>

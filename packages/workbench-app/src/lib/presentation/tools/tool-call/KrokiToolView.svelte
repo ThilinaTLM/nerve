@@ -34,7 +34,7 @@ let {
 {:else if toolCall.status === "completed"}
   <ToolSections>
     <div
-      class="px-2.5 py-2 text-xs text-muted-foreground"
+      class="px-2.5 py-2 text-ui text-muted-foreground"
       aria-label="Exported diagram"
     >
       No diagram file returned.

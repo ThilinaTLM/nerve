@@ -193,7 +193,7 @@ const menuItems = $derived<ContextMenuItem[]>([
   </div>
 
   {#if model.error}
-    <p class="px-6 py-4 text-sm text-destructive">{model.error}</p>
+    <p class="px-6 py-4 text-ui text-destructive">{model.error}</p>
   {/if}
 
   {#if rows.length}
@@ -221,7 +221,7 @@ const menuItems = $derived<ContextMenuItem[]>([
       </div>
     {/if}
   {:else if !model.loading}
-    <p class="px-6 py-10 text-center text-sm text-muted-foreground">
+    <p class="px-6 py-10 text-center text-ui text-muted-foreground">
       No log entries match.
     </p>
   {/if}
@@ -248,11 +248,11 @@ const menuItems = $derived<ContextMenuItem[]>([
   >
     {#if selected}
       {@const text = formatApplicationLog(selected)}
-      <Sheet.Title class="px-4 pt-3 text-sm font-semibold">
+      <Sheet.Title class="px-4 pt-3 text-ui font-semibold">
         {selected.level.toUpperCase()} · {selected.source}/{selected.component}
       </Sheet.Title>
       <pre
-        class="mx-3 min-h-0 overflow-auto whitespace-pre-wrap break-words rounded-md bg-well p-3 font-mono text-xs">{text}</pre>
+        class="mx-3 min-h-0 overflow-auto whitespace-pre-wrap break-words rounded-md bg-well p-3 font-mono text-ui">{text}</pre>
       <div class="flex justify-end px-3 pb-3">
         <Button variant="outline" onclick={() => void copy(text)}>
           <Copy />

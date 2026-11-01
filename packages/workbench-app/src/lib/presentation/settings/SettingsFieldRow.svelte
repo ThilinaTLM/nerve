@@ -37,7 +37,7 @@ let {
 </script>
 
 <div class={cn("grid gap-1", className)}>
-  <Label for={id} class="text-xs font-medium text-muted-foreground"
+  <Label for={id} class="text-ui font-medium text-muted-foreground"
     >{label}</Label
   >
   <div class="flex items-center gap-2">
@@ -54,10 +54,10 @@ let {
         onValueChange?.((event.currentTarget as HTMLInputElement).value)}
     />
     {#if suffix}
-      <span class="flex-none text-xs text-muted-foreground">{suffix}</span>
+      <span class="flex-none text-ui text-muted-foreground">{suffix}</span>
     {/if}
   </div>
   {#if hint}
-    <p class="text-xs text-muted-foreground">{hint}</p>
+    <p class="text-caption text-muted-foreground">{hint}</p>
   {/if}
 </div>

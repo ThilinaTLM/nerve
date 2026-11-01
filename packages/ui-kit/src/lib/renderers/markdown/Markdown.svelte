@@ -163,7 +163,7 @@ function nearestVerticalScrollRoot(root: HTMLElement): Element | null {
 function createMermaidPlaceholder(host: HTMLElement): void {
   const placeholder = host.ownerDocument.createElement("div");
   placeholder.className =
-    "grid h-full place-items-center p-4 text-sm text-muted-foreground";
+    "grid h-full place-items-center p-4 text-ui text-muted-foreground";
   placeholder.textContent = "Mermaid diagram";
   placeholder.setAttribute("aria-hidden", "true");
   host.setAttribute("aria-busy", "true");
@@ -619,7 +619,7 @@ $effect(() => () => {
   min-width: 0;
   max-width: 100%;
   color: color-mix(in oklab, var(--foreground) 92%, transparent);
-  font-size: var(--text-sm);
+  font-size: var(--text-body);
   line-height: 1.55;
   overflow-wrap: anywhere;
 }
@@ -727,7 +727,7 @@ $effect(() => () => {
 .markdown :global(h4),
 .markdown :global(h5),
 .markdown :global(h6) {
-  font-size: var(--text-sm);
+  font-size: var(--text-body);
 }
 
 .markdown :global(a) {
@@ -797,7 +797,7 @@ $effect(() => () => {
   background: var(--well) !important;
   margin: 0;
   padding: 0.55rem 0.6rem;
-  font-size: var(--text-xs);
+  font-size: var(--text-ui);
   line-height: 1.45;
   white-space: pre-wrap;
   word-break: break-word;
@@ -836,8 +836,8 @@ $effect(() => () => {
   table-layout: auto;
   border-collapse: separate;
   border-spacing: 0;
-  font-size: var(--text-xs);
-  line-height: var(--tw-leading, var(--text-xs--line-height));
+  font-size: var(--text-ui);
+  line-height: var(--tw-leading, var(--text-ui--line-height));
 }
 
 .markdown :global(th),

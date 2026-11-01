@@ -117,7 +117,7 @@ async function submit() {
         placeholder="review-diff"
         disabled={saving}
       />
-      <p class="text-xs text-muted-foreground">
+      <p class="text-ui text-muted-foreground">
         Use lowercase letters, numbers, and single hyphens.
       </p>
     </div>
@@ -156,7 +156,7 @@ async function submit() {
       />
     </div>
 
-    <div class="rounded-md bg-muted p-3 text-xs text-muted-foreground">
+    <div class="rounded-md bg-muted p-3 text-ui text-muted-foreground">
       <p class="break-all font-mono">{destination}</p>
       <p class="mt-2">
         The generated Markdown works immediately. Edit it later to add advanced
@@ -165,7 +165,7 @@ async function submit() {
     </div>
 
     {#if error}
-      <p class="text-sm text-destructive" role="alert">{error}</p>
+      <p class="text-ui text-destructive" role="alert">{error}</p>
     {/if}
   </div>
 

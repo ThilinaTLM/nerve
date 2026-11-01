@@ -86,15 +86,15 @@ async function create() {
       {/each}
     </MobileSection>
   {:else if entry?.loadStatus === "loading" || !entry}
-    <p class="px-6 py-10 text-center text-sm text-muted-foreground">Loading…</p>
+    <p class="px-6 py-10 text-center text-ui text-muted-foreground">Loading…</p>
   {:else}
     <Empty.Root class="px-6 py-10">
       <Empty.Header>
         <Empty.Media class="text-muted-foreground">
           <NotebookPen size={28} strokeWidth={1.6} />
         </Empty.Media>
-        <Empty.Title class="text-sm">No notes yet</Empty.Title>
-        <Empty.Description class="text-xs">
+        <Empty.Title class="text-ui">No notes yet</Empty.Title>
+        <Empty.Description class="text-ui">
           Scratch notes stay with this project and sync with the desktop.
         </Empty.Description>
       </Empty.Header>

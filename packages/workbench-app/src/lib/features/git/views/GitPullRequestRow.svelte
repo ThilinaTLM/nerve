@@ -119,7 +119,7 @@ const menuItems = $derived<ContextMenuItem[]>([
   role="listitem"
   hover="default"
   {menuItems}
-  class="group flex-col gap-1 px-2.5 py-2 text-xs leading-tight"
+  class="group flex-col gap-1 px-2.5 py-2 text-ui leading-tight"
   onclick={disabled ? undefined : onOpen}
 >
   <!-- Header line: identity and actions, so the title below keeps full width. -->
@@ -232,7 +232,7 @@ const menuItems = $derived<ContextMenuItem[]>([
     <span class="min-w-0 flex-1"></span>
 
     <span
-      class="shrink-0 font-mono text-[0.6875rem] tabular-nums"
+      class="shrink-0 font-mono text-caption tabular-nums"
       title={`${pr.additions} additions, ${pr.deletions} deletions`}
     >
       <span class="text-success">+{pr.additions}</span>
@@ -244,7 +244,7 @@ const menuItems = $derived<ContextMenuItem[]>([
     <div class="mt-0.5 flex flex-col gap-0.5">
       {#each pr.checks.runs as run, index (`${run.name}:${index}`)}
         {@const outcome = githubCheckRunOutcome(run.status)}
-        <div class="flex min-w-0 items-center gap-1.5 pl-1 text-xs">
+        <div class="flex min-w-0 items-center gap-1.5 pl-1 text-ui">
           <span class="min-w-0 flex-1 truncate text-muted-foreground"
             >{run.name}</span
           >

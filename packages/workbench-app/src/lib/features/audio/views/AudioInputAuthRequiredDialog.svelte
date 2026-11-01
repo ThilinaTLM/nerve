@@ -96,7 +96,7 @@ function openProviderSettings() {
 .audio-auth-summary h3 {
   margin: 0;
   color: var(--foreground);
-  font-size: var(--text-sm);
+  font-size: var(--text-ui);
   font-weight: 600;
 }
 
@@ -105,7 +105,7 @@ function openProviderSettings() {
 .audio-auth-path {
   margin: 0;
   color: var(--muted-foreground);
-  font-size: var(--text-sm);
+  font-size: var(--text-ui);
   line-height: 1.5;
 }
 

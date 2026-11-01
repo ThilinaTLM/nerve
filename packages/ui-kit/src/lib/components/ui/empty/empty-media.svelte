@@ -1,5 +1,6 @@
 <script lang="ts" module>
-import { tv, type VariantProps } from "tailwind-variants";
+import type { VariantProps } from "tailwind-variants";
+import { cn, tv, type WithElementRef } from "@nervekit/ui-kit/utils";
 
 export const emptyMediaVariants = tv({
   base: "mb-2 flex shrink-0 items-center justify-center [&_svg]:pointer-events-none [&_svg]:shrink-0",
@@ -20,7 +21,6 @@ export type EmptyMediaVariant = VariantProps<
 </script>
 
 <script lang="ts">
-import { cn, type WithElementRef } from "@nervekit/ui-kit/utils";
 import type { HTMLAttributes } from "svelte/elements";
 
 let {

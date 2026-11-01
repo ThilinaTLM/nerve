@@ -1,4 +1,9 @@
 <script lang="ts">
+import CardSheet from "$lib/presentation/cards/CardSheet.svelte";
+import CardSheetError from "$lib/presentation/cards/CardSheetError.svelte";
+import SlotText from "$lib/presentation/cards/SlotText.svelte";
+import EntityRow from "$lib/presentation/tools/tool-call/EntityRow.svelte";
+import EntityList from "$lib/presentation/tools/tool-call/EntityList.svelte";
 import {
   getConversationUiCapabilities,
   setConversationUiCapabilities,
@@ -389,19 +394,19 @@ let detailsOpen = $state(false);
     >
       <div class="flex items-center gap-2">
         <StatusGlyph tone="info" pulse size={14} label="running" />
-        <span class="text-xs text-muted-foreground">running</span>
+        <span class="text-ui text-muted-foreground">running</span>
       </div>
       <div class="flex items-center gap-2">
         <StatusGlyph tone="success" size={14} label="completed" />
-        <span class="text-xs text-muted-foreground">completed</span>
+        <span class="text-ui text-muted-foreground">completed</span>
       </div>
       <div class="flex items-center gap-2">
         <StatusGlyph tone="destructive" size={14} label="failed" />
-        <span class="text-xs text-muted-foreground">failed</span>
+        <span class="text-ui text-muted-foreground">failed</span>
       </div>
       <div class="flex items-center gap-2">
         <StatusGlyph tone="warning" waitingForUser size={14} label="waiting" />
-        <span class="text-xs text-muted-foreground">waiting for user</span>
+        <span class="text-ui text-muted-foreground">waiting for user</span>
       </div>
     </GallerySpecimen>
 
@@ -510,7 +515,7 @@ let detailsOpen = $state(false);
         cardActions={[{ label: "View details", onClick: noop }]}
       >
         <pre
-          class="m-0 rounded-sm border border-border bg-well p-2.5 font-mono text-xs leading-snug">✔ 4 passed
+          class="m-0 rounded-sm border border-border bg-well p-2.5 font-mono text-ui leading-snug">✔ 4 passed
 ℹ duration_ms 118.4</pre>
       </CardShell>
       <CardShell
@@ -545,7 +550,7 @@ let detailsOpen = $state(false);
     >
       {#each bashCases as c (c.label)}
         <div class="grid gap-1">
-          <span class="text-xs text-muted-foreground">{c.label}</span>
+          <span class="text-ui text-muted-foreground">{c.label}</span>
           <ToolCallCard {...c.props} />
         </div>
       {/each}
@@ -560,7 +565,7 @@ let detailsOpen = $state(false);
     >
       {#each fileCases as c (c.label)}
         <div class="grid gap-1">
-          <span class="text-xs text-muted-foreground">{c.label}</span>
+          <span class="text-ui text-muted-foreground">{c.label}</span>
           <ToolCallCard {...c.props} />
         </div>
       {/each}
@@ -575,7 +580,7 @@ let detailsOpen = $state(false);
     >
       {#each searchCases as c (c.label)}
         <div class="grid gap-1">
-          <span class="text-xs text-muted-foreground">{c.label}</span>
+          <span class="text-ui text-muted-foreground">{c.label}</span>
           <ToolCallCard {...c.props} />
         </div>
       {/each}
@@ -590,7 +595,7 @@ let detailsOpen = $state(false);
     >
       {#each interactionCases as c (c.label)}
         <div class="grid gap-1">
-          <span class="text-xs text-muted-foreground">{c.label}</span>
+          <span class="text-ui text-muted-foreground">{c.label}</span>
           <ToolCallCard {...c.props} />
         </div>
       {/each}
@@ -664,6 +669,81 @@ let detailsOpen = $state(false);
         details={dialogDetails}
         onOpenFile={noop}
       />
+    </GallerySpecimen>
+  </GalleryGroup>
+  <GalleryGroup title="Shared presentation">
+    <GallerySpecimen
+      title="CardSheet"
+      source="presentation/cards/CardSheet.svelte"
+      layout="stack"
+    >
+      <CardSheet
+        ><EntityRow
+          title="Review implementation"
+          body="Inspect shared presentation components."
+          status={{ tone: "success", label: "Completed" }}
+        /></CardSheet
+      >
+    </GallerySpecimen>
+    <GallerySpecimen
+      title="CardSheetError"
+      source="presentation/cards/CardSheetError.svelte"
+      layout="stack"
+    >
+      <CardSheet
+        ><EntityRow title="Run checks" /><CardSheetError
+          text="Command exited with code 1: missing fixture."
+        /></CardSheet
+      >
+    </GallerySpecimen>
+    <GallerySpecimen
+      title="SlotText"
+      source="presentation/cards/SlotText.svelte"
+      layout="stack"
+    >
+      <SlotText /><SlotText text="Review complete" /><SlotText
+        text="Inspecting shared components…"
+        streaming
+      />
+    </GallerySpecimen>
+    <GallerySpecimen
+      title="EntityRow"
+      source="presentation/tools/tool-call/EntityRow.svelte"
+      layout="stack"
+    >
+      <CardSheet
+        ><EntityRow
+          title="Reviewer"
+          detail="12 files"
+          body="No regressions found."
+          status={{ tone: "success", label: "Completed" }}
+          onOpen={noop}
+        /><EntityRow streaming /></CardSheet
+      >
+    </GallerySpecimen>
+    <GallerySpecimen
+      title="EntityList"
+      source="presentation/tools/tool-call/EntityList.svelte"
+      layout="stack"
+    >
+      <CardSheet
+        ><EntityList
+          items={[
+            {
+              key: "review",
+              title: "Reviewer",
+              detail: "Completed",
+              body: "Coverage looks good.",
+              status: { tone: "success", label: "Completed" },
+            },
+            {
+              key: "tests",
+              title: "Test runner",
+              status: { tone: "info", label: "Running" },
+            },
+          ]}
+        /></CardSheet
+      >
     </GallerySpecimen>
   </GalleryGroup>
 </div>

@@ -209,7 +209,7 @@ function handleKeydown(event: KeyboardEvent): void {
   >
     <div class="grid gap-2">
       <div
-        class="flex items-center justify-between gap-3 text-xs text-muted-foreground"
+        class="flex items-center justify-between gap-3 text-ui text-muted-foreground"
       >
         <span>{modal ? "Workbench tour" : "Guide"}</span>
         <span>Step {index + 1} of {count}</span>
@@ -224,22 +224,22 @@ function handleKeydown(event: KeyboardEvent): void {
     <div class="grid gap-2" aria-live="polite">
       <h2
         id="guided-tour-title"
-        class="text-base font-semibold text-foreground"
+        class="text-title font-semibold text-foreground"
       >
         {step.title}
       </h2>
       <p
         id="guided-tour-description"
-        class="text-sm leading-relaxed text-muted-foreground"
+        class="text-body leading-relaxed text-muted-foreground"
       >
         {step.description}
       </p>
       {#if !targetRect && step.fallback}
-        <p class="rounded-md bg-muted p-3 text-xs text-muted-foreground">
+        <p class="rounded-md bg-muted p-3 text-ui text-muted-foreground">
           {step.fallback}
         </p>
       {:else if preparing}
-        <p class="text-xs text-muted-foreground">Opening this feature…</p>
+        <p class="text-ui text-muted-foreground">Opening this feature…</p>
       {/if}
     </div>
 

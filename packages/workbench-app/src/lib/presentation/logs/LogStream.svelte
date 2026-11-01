@@ -119,7 +119,7 @@ async function jumpToLatest(): Promise<void> {
 </script>
 
 <div
-  class="relative h-full min-h-0 bg-well font-mono text-xs"
+  class="relative h-full min-h-0 bg-well font-mono text-ui"
   role="log"
   aria-label={ariaLabel}
 >

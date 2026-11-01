@@ -157,12 +157,12 @@ async function apply() {
     {#each preview.changedFields as row (row.pointer)}
       <EntityRow label={row.pointer} value={profileChangeSummary(row)} />
     {/each}
-    {#if !preview.changedFields.length}<p class="text-xs text-muted-foreground">
+    {#if !preview.changedFields.length}<p class="text-ui text-muted-foreground">
         No effective setting or instruction changed. The definition metadata or
         shadowed recommendations changed; your explicit choices remain intact.
       </p>{/if}
     {#if preview.unchangedRequirements.length}
-      <details class="text-xs">
+      <details class="text-ui">
         <summary class="cursor-pointer text-muted-foreground"
           >Unchanged requirements <Badge variant="outline"
             >{preview.unchangedRequirements.length}</Badge
@@ -174,7 +174,7 @@ async function apply() {
           />{/each}
       </details>
     {/if}
-    <details class="text-xs">
+    <details class="text-ui">
       <summary class="cursor-pointer text-muted-foreground"
         >Target definition details</summary
       ><EntityRow

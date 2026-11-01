@@ -117,7 +117,7 @@ function roll(_node: Element, { direction }: { direction: 1 | -1 }) {
   <div class="min-h-0 overflow-hidden">
     <div
       class={[
-        "group flex h-9 items-center px-3 gap-2 text-sm text-muted-foreground transition-[opacity,translate] duration-300 ease-out",
+        "group flex h-9 items-center px-3 gap-2 text-ui text-muted-foreground transition-[opacity,translate] duration-300 ease-out",
         !view.open && "translate-y-1 opacity-0",
       ]}
       data-kind={view.kind}
@@ -224,7 +224,7 @@ function roll(_node: Element, { direction }: { direction: 1 | -1 }) {
           {#each chips as item (item.kind + item.id)}
             <button
               type="button"
-              class="inline-flex h-5 max-w-48 flex-none cursor-pointer items-center gap-1 rounded-md border border-border bg-muted px-1.5 text-xs text-foreground transition-colors hover:bg-accent"
+              class="inline-flex h-5 max-w-48 flex-none cursor-pointer items-center gap-1 rounded-md border border-border bg-muted px-1.5 text-ui text-foreground transition-colors hover:bg-accent"
               title={item.kind === "agent"
                 ? `Open ${item.label}`
                 : `Background command: ${item.label}`}
@@ -242,7 +242,7 @@ function roll(_node: Element, { direction }: { direction: 1 | -1 }) {
           {#if overflow > 0}
             <button
               type="button"
-              class="inline-flex h-5 flex-none cursor-pointer items-center rounded-md border border-border bg-muted px-1.5 text-xs text-muted-foreground hover:bg-accent"
+              class="inline-flex h-5 flex-none cursor-pointer items-center rounded-md border border-border bg-muted px-1.5 text-ui text-muted-foreground hover:bg-accent"
               onclick={() => {
                 const hidden = view.pending?.[MAX_CHIPS];
                 if (hidden) onOpenPending?.(hidden);
@@ -254,7 +254,7 @@ function roll(_node: Element, { direction }: { direction: 1 | -1 }) {
 
       <span
         class={[
-          "text-xs tabular-nums transition-opacity duration-300",
+          "text-ui tabular-nums transition-opacity duration-300",
           elapsedOpacity,
         ]}>{view.elapsedLabel ?? ""}</span
       >

@@ -1,4 +1,12 @@
 <script lang="ts">
+import type { ConversationSummary } from "@nervekit/contracts/core";
+import ConversationListItem from "$lib/presentation/conversations/ConversationListItem.svelte";
+import ConversationActivityIndicator from "$lib/presentation/conversations/ConversationActivityIndicator.svelte";
+import {
+  idleConversationActivity,
+  type ConversationActivity,
+} from "$lib/presentation/conversations/conversation-activity";
+import NotificationEntry from "$lib/presentation/activity/NotificationEntry.svelte";
 import type { StatusTone } from "@nervekit/ui-kit/display/status";
 import ArchiveIcon from "@lucide/svelte/icons/archive";
 import ArrowDownToLineIcon from "@lucide/svelte/icons/arrow-down-to-line";
@@ -37,7 +45,6 @@ import {
   PanelRow,
   PanelRowCard,
   PanelSectionHeader,
-  PanelToolbar,
   PanelToolbarButton,
   PanelTree,
   PanelView,
@@ -195,6 +202,51 @@ const launches: LaunchItem[] = [
   { id: "l3", name: "website-dev" },
   { id: "l4", name: "workbench-ui-dev" },
 ];
+const sampleConversation: ConversationSummary = {
+  id: "gallery",
+  projectId: "project",
+  parentConversationId: null,
+  parentToolCallId: null,
+  title: "Review design-system cleanup",
+  status: "idle",
+  statusClearedAt: null,
+  paused: false,
+  pinnedAt: null,
+  completedAt: null,
+  lastUserMessageAt: null,
+  createdAt: "2026-10-14T09:30:00.000Z",
+  updatedAt: "2026-10-14T09:30:00.000Z",
+  references: [],
+  childCount: 0,
+  pendingWork: false,
+  pendingInput: null,
+};
+const activityExamples: {
+  label: string;
+  open: boolean;
+  activity: ConversationActivity;
+}[] = [
+  ["idle open", "idle", "neutral", true],
+  ["idle closed", "idle", "neutral", false],
+  ["running", "running", "info", true],
+  ["result-ready", "result-ready", "success", true],
+  ["needs-user", "needs-user", "warning", true],
+  ["error", "error", "destructive", true],
+  ["completed", "completed", "neutral", true],
+  ["aborted", "aborted", "neutral", true],
+  ["awaiting-async", "awaiting-async", "warning", true],
+].map(([label, indicator, tone, open]) => ({
+  label: String(label),
+  open: Boolean(open),
+  activity: {
+    ...idleConversationActivity,
+    indicator: indicator as ConversationActivity["indicator"],
+    tone: tone as StatusTone,
+    label: String(label),
+    busy: indicator === "running",
+    pulse: indicator === "running",
+  },
+}));
 </script>
 
 {#snippet rowActions()}
@@ -208,7 +260,7 @@ const launches: LaunchItem[] = [
 {/snippet}
 
 {#snippet changeLeading(item: FileItem)}
-  <span class="w-3 flex-none text-center text-xs font-semibold"
+  <span class="w-3 flex-none text-center text-ui font-semibold"
     >{item.change}</span
   >
 {/snippet}
@@ -318,35 +370,6 @@ const launches: LaunchItem[] = [
                 <ChevronDownIcon class="size-3.5" aria-hidden="true" />
               {/snippet}
             </PanelRow>
-            <PanelToolbar
-              dense
-              class="h-auto flex-wrap border-b-0 bg-transparent py-1.5"
-            >
-              <PanelToolbarButton
-                icon={ArchiveIcon}
-                label="Stashes (1)"
-                variant="outline"
-                showLabel
-              />
-              <PanelToolbarButton
-                icon={CloudDownloadIcon}
-                label="Fetch"
-                variant="outline"
-                showLabel
-              />
-              <PanelToolbarButton
-                icon={RefreshCwIcon}
-                label="Sync"
-                variant="outline"
-                showLabel
-              />
-              <PanelToolbarButton
-                icon={ArrowDownToLineIcon}
-                label="main + pull"
-                variant="outline"
-                showLabel
-              />
-            </PanelToolbar>
             <div class="min-h-0 flex-1 overflow-y-auto">
               <PanelRow dense label="Staged (28)" alwaysShowActions>
                 {#snippet actions()}
@@ -476,41 +499,6 @@ const launches: LaunchItem[] = [
             <PanelToolbarButton icon={RefreshCwIcon} label="Refresh" />
           {/snippet}
         </PanelHeader>
-      </div>
-    </GallerySpecimen>
-
-    <GallerySpecimen
-      title="PanelToolbar"
-      source="panels/PanelToolbar"
-      usage="1 file · git"
-      surface="card"
-      layout="stack"
-      description="Used once: dense, wrapping, no bottom border (Git Stashes/Fetch/Sync row)."
-    >
-      <div class="w-70 max-w-full">
-        <PanelToolbar
-          dense
-          class="h-auto flex-wrap border-b-0 bg-transparent py-1.5"
-        >
-          <PanelToolbarButton
-            icon={ArchiveIcon}
-            label="Stashes (1)"
-            variant="outline"
-            showLabel
-          />
-          <PanelToolbarButton
-            icon={CloudDownloadIcon}
-            label="Fetch"
-            variant="outline"
-            showLabel
-          />
-          <PanelToolbarButton
-            icon={RefreshCwIcon}
-            label="Sync"
-            variant="outline"
-            showLabel
-          />
-        </PanelToolbar>
       </div>
     </GallerySpecimen>
 
@@ -674,8 +662,8 @@ const launches: LaunchItem[] = [
           class="flex-col gap-1 px-3 py-2.5"
           role="listitem"
         >
-          <span class="truncate text-sm">Fix plan review body and footer</span>
-          <span class="truncate text-xs text-muted-foreground"
+          <span class="truncate text-ui">Fix plan review body and footer</span>
+          <span class="truncate text-ui text-muted-foreground"
             >#423 · fix/retain-resolved-plan-review-cards</span
           >
         </ItemSurface>
@@ -686,8 +674,8 @@ const launches: LaunchItem[] = [
           class="flex-col gap-1 px-3 py-2.5"
           role="listitem"
         >
-          <span class="truncate text-sm">Selected surface</span>
-          <span class="truncate text-xs text-muted-foreground">#421 · main</span
+          <span class="truncate text-ui">Selected surface</span>
+          <span class="truncate text-ui text-muted-foreground">#421 · main</span
           >
         </ItemSurface>
       </div>
@@ -721,7 +709,7 @@ const launches: LaunchItem[] = [
               tone="destructive"
             />
           {/snippet}
-          <p class="px-3 pb-2 text-xs text-muted-foreground">
+          <p class="px-3 pb-2 text-ui text-muted-foreground">
             Verify migrations, then tag the release.
           </p>
         </PanelCard>
@@ -835,6 +823,76 @@ const launches: LaunchItem[] = [
           description="Create a launch configuration to run it anytime."
         />
       </div>
+    </GallerySpecimen>
+  </GalleryGroup>
+  <GalleryGroup title="Shared presentation">
+    <GallerySpecimen
+      title="ConversationListItem"
+      source="presentation/conversations/ConversationListItem.svelte"
+      layout="stack"
+    >
+      {#each ["idle", "selected", "running"] as state (state)}
+        <ConversationListItem
+          conversation={{
+            ...sampleConversation,
+            id: state,
+            title:
+              state === "running"
+                ? "Investigate reconnect failure"
+                : "Review design-system cleanup",
+          }}
+          isActive={state === "selected"}
+          isOpen={state !== "idle"}
+          activity={state === "running"
+            ? activityExamples[2].activity
+            : idleConversationActivity}
+          onOpenConversation={() => {}}
+        />
+      {/each}
+    </GallerySpecimen>
+    <GallerySpecimen
+      title="ConversationActivityIndicator"
+      source="presentation/conversations/ConversationActivityIndicator.svelte"
+      layout="stack"
+    >
+      {#each activityExamples as example (example.label)}
+        <div class="flex gap-3">
+          <ConversationActivityIndicator
+            activity={example.activity}
+            variant="rail"
+            isOpen={example.open}
+          />{example.label}
+        </div>
+      {/each}
+    </GallerySpecimen>
+    <GallerySpecimen
+      title="NotificationEntry"
+      source="presentation/activity/NotificationEntry.svelte"
+      layout="stack"
+    >
+      <NotificationEntry
+        tone="succeeded"
+        title="Review complete"
+        context="Design-system cleanup"
+        time="2m"
+        unread
+        interactive
+        actions={[{ label: "Open conversation", onSelect: () => {} }]}
+      />
+      <NotificationEntry
+        tone="running"
+        title="Running unit tests"
+        progress={65}
+      />
+      <NotificationEntry
+        tone="failed"
+        title="Build failed"
+        detail="Cannot resolve the selected provider."
+        actions={[
+          { label: "Retry", onSelect: () => {} },
+          { label: "View logs", onSelect: () => {}, disabled: true },
+        ]}
+      />
     </GallerySpecimen>
   </GalleryGroup>
 </div>

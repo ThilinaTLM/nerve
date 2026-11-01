@@ -137,7 +137,7 @@ const activityVisible = $derived(
     <div class={`grid min-w-0 gap-1.5${activityVisible ? " pt-1.5" : ""}`}>
       {#if error}
         <pre
-          class="m-0 whitespace-pre-wrap break-words rounded-sm border border-destructive/40 bg-panel px-2.5 py-2 font-mono text-xs leading-snug text-destructive">{error}</pre>
+          class="m-0 whitespace-pre-wrap break-words rounded-sm border border-destructive/40 bg-panel px-2.5 py-2 font-mono text-ui leading-snug text-destructive">{error}</pre>
       {/if}
 
       {#if bodyVisible && children}

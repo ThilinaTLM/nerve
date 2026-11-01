@@ -129,7 +129,7 @@ const titleSegments = $derived(
     class="py-0"
     active={isActive}
     tone={faded && !isActive ? "neutral" : "accent"}
-    labelClass="font-normal"
+    labelClass={isActive ? "font-medium" : "font-normal"}
     onclick={(event) => {
       event.stopPropagation();
       onOpenConversation?.(conversation.id);
@@ -141,12 +141,13 @@ const titleSegments = $derived(
           activity={dotActivity}
           variant="rail"
           {isOpen}
+          selected={isActive}
         />
       </span>
     {/snippet}
     {#snippet titleTrailing()}
       <span
-        class="shrink-0 text-xs tabular-nums text-muted-foreground"
+        class="shrink-0 text-caption tabular-nums text-muted-foreground"
         title={exactTime}>{age}</span
       >
     {/snippet}
@@ -165,7 +166,7 @@ const titleSegments = $derived(
     {#snippet meta()}
       {#if status || references.shown.length}
         <span
-          class="flex min-w-0 items-center gap-2.5 text-xs text-muted-foreground font-normal"
+          class="flex min-w-0 items-center gap-2.5 text-caption text-muted-foreground font-normal"
         >
           {#if status}
             <span

@@ -392,9 +392,9 @@ function fileMenu(area: GitStashArea, file: GitFileChange): ContextMenuItem[] {
 
 <div class="flex min-h-0 flex-1 flex-col">
   {#if !changes}
-    <p class="py-1 text-xs text-muted-foreground">Loading…</p>
+    <p class="py-1 text-ui text-muted-foreground">Loading…</p>
   {:else if changes.files.length === 0}
-    <p class="py-1 text-xs text-muted-foreground">Working tree clean.</p>
+    <p class="py-1 text-ui text-muted-foreground">Working tree clean.</p>
   {:else}
     <ScrollArea class="min-h-0 flex-1" viewportClass="min-w-0">
       <PanelList role="none" class="py-0.5">

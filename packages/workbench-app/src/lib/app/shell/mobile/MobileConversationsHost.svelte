@@ -115,7 +115,7 @@ const total = $derived(
   {/each}
 
   {#if total === 0}
-    <p class="px-6 py-12 text-center text-sm text-muted-foreground">
+    <p class="px-6 py-12 text-center text-ui text-muted-foreground">
       {query.trim()
         ? "No conversations match your search."
         : "No conversations in this project yet."}

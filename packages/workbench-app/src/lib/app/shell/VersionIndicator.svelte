@@ -72,7 +72,7 @@ onDestroy(() => {
     side="bottom"
     align="end"
     size="md"
-    triggerClass={`cursor-pointer rounded-sm border border-border bg-transparent px-1.5 py-0.5 font-mono text-xs font-medium leading-none text-muted-foreground transition-colors hover:bg-accent ${outdated ? "is-outdated" : ""}`}
+    triggerClass={`cursor-pointer rounded-sm border border-border bg-transparent px-1.5 py-0.5 font-mono text-ui font-medium leading-none text-muted-foreground transition-colors hover:bg-accent ${outdated ? "is-outdated" : ""}`}
   >
     {#snippet trigger()}{currentLabel}{/snippet}
 

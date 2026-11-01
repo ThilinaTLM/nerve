@@ -777,12 +777,12 @@ async function openDetails() {
 >
   {#if configurationBlocked}
     <CardSheet>
-      <p class="px-3 py-2 text-xs text-warning">
+      <p class="px-3 py-2 text-ui text-warning">
         Configuration blocked · Repair the configuration, then retry or cancel
         this request.
       </p>
       {#each configurationBlocked.diagnostics as diagnostic, index (index)}
-        <p class="px-3 py-1 text-xs">
+        <p class="px-3 py-1 text-ui">
           {diagnostic.code}:
           <span class="font-mono"
             >{diagnostic.path || diagnostic.document}{diagnostic.pointer}</span

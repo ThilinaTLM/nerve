@@ -1,4 +1,7 @@
 <script lang="ts">
+import UserMessageBubble from "$lib/presentation/transcript/UserMessageBubble.svelte";
+import NoticeCard from "$lib/presentation/transcript/notice/NoticeCard.svelte";
+import TranscriptContextMenu from "$lib/presentation/transcript/TranscriptContextMenu.svelte";
 import { formatInlineCommandResultText } from "@nervekit/contracts/completions";
 import type { CommandPreparation } from "@nervekit/contracts/core";
 import type { ContextMenuItem } from "@nervekit/ui-kit/components/composites/context-menu-list";
@@ -352,7 +355,7 @@ const contextTimeline: TimelineItem[] = [
 </script>
 
 {#snippet guarded(error: unknown)}
-  <p class="text-xs text-destructive" role="alert">
+  <p class="text-ui text-destructive" role="alert">
     Specimen failed to render: {error instanceof Error
       ? error.message
       : String(error)}
@@ -390,7 +393,7 @@ const contextTimeline: TimelineItem[] = [
           />
         </svelte:boundary>
       </div>
-      <p class="mt-2 text-xs text-muted-foreground">
+      <p class="mt-2 text-ui text-muted-foreground">
         Working directory {SAMPLE_CWD}
       </p>
     </GallerySpecimen>
@@ -586,7 +589,7 @@ const contextTimeline: TimelineItem[] = [
     >
       {#each activityViews as item (item.title)}
         <div class="flex flex-col">
-          <span class="px-3 text-xs text-muted-foreground">{item.title}</span>
+          <span class="px-3 text-ui text-muted-foreground">{item.title}</span>
           <RunActivitySlot view={item.view} onOpenPending={noop} />
         </div>
       {/each}
@@ -654,6 +657,57 @@ const contextTimeline: TimelineItem[] = [
           />
         </div>
       </div>
+    </GallerySpecimen>
+  </GalleryGroup>
+  <GalleryGroup title="Shared presentation">
+    <GallerySpecimen
+      title="UserMessageBubble"
+      source="presentation/transcript/UserMessageBubble.svelte"
+      layout="stack"
+    >
+      <UserMessageBubble text="Fix the failing reconnect test." />
+      <UserMessageBubble text="Then add a regression test." queued />
+    </GallerySpecimen>
+    <GallerySpecimen
+      title="NoticeCard"
+      source="presentation/transcript/notice/NoticeCard.svelte"
+      layout="stack"
+    >
+      <NoticeCard
+        notice={{
+          kind: "task",
+          tone: "success",
+          glyph: "bell",
+          badge: "task_completed",
+          arg: "Unit tests",
+          statusLabel: "Completed",
+          summary: "All 12 unit tests passed.",
+        }}
+      />
+      <NoticeCard
+        notice={{
+          kind: "run",
+          tone: "destructive",
+          glyph: "bell-dot",
+          badge: "run_failed",
+          statusLabel: "Failed",
+          error: "Provider connection lost. Try again.",
+        }}
+      />
+    </GallerySpecimen>
+    <GallerySpecimen
+      title="TranscriptContextMenu"
+      source="presentation/transcript/TranscriptContextMenu.svelte"
+      description="Right-click the paragraph to open the transcript menu."
+      layout="stack"
+    >
+      <TranscriptContextMenu
+        target={{ kind: "message", item: messageItem() }}
+        menu={transcriptMenu}
+        ><p>
+          Right-click this transcript paragraph to copy it or its selected text.
+        </p></TranscriptContextMenu
+      >
     </GallerySpecimen>
   </GalleryGroup>
 </div>

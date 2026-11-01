@@ -42,6 +42,6 @@ let {
   background: var(--primary);
   padding: 0.15rem 0.5rem;
   color: var(--primary-foreground);
-  font-size: var(--text-xs);
+  font-size: var(--text-ui);
 }
 </style>

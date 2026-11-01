@@ -32,7 +32,7 @@ let {
     >
       <TriangleAlert class="size-7 text-destructive" strokeWidth={1.7} />
       <strong class="text-foreground">Could not open diagram</strong>
-      <p class="m-0 max-w-xl text-sm">{error}</p>
+      <p class="m-0 max-w-xl text-ui">{error}</p>
     </div>
   {:else if source}
     <MermaidDiagram
@@ -43,7 +43,7 @@ let {
     />
     {#if truncated}
       <p
-        class="absolute bottom-3 left-3 m-0 rounded-md border border-border bg-background/90 px-3 py-2 text-xs text-muted-foreground shadow-sm backdrop-blur-sm"
+        class="absolute bottom-3 left-3 m-0 rounded-md border border-border bg-background/90 px-3 py-2 text-ui text-muted-foreground shadow-sm backdrop-blur-sm"
       >
         Preview loaded from a truncated file window.
       </p>
@@ -54,7 +54,7 @@ let {
     >
       <TriangleAlert class="size-7 text-destructive" strokeWidth={1.7} />
       <strong class="text-foreground">Diagram unavailable</strong>
-      <p class="m-0 max-w-xl text-sm">
+      <p class="m-0 max-w-xl text-ui">
         The referenced Mermaid block could not be found.
       </p>
     </div>

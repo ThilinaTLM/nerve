@@ -23,7 +23,7 @@ let {
   bind:indeterminate
   data-slot="dropdown-menu-checkbox-item"
   class={cn(
-    "focus:bg-accent focus:text-accent-foreground focus:**:text-accent-foreground gap-1.5 rounded-sm py-1 pr-7 pl-1.5 text-sm data-inset:pl-8 [&_svg:not([class*='size-'])]:size-3.5 relative flex cursor-default items-center outline-hidden select-none data-[disabled]:pointer-events-none data-[disabled]:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0",
+    "focus:bg-accent focus:text-accent-foreground focus:**:text-accent-foreground gap-1.5 rounded-sm py-1 pr-7 pl-1.5 text-ui data-inset:pl-8 [&_svg:not([class*='size-'])]:size-3.5 relative flex cursor-default items-center outline-hidden select-none data-[disabled]:pointer-events-none data-[disabled]:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0",
     className,
   )}
   {...restProps}

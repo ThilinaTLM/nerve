@@ -186,7 +186,7 @@ onDestroy(() => void flowController.dispose());
         >
           <span class="grid text-left">
             <span>Connect subscription</span>
-            <span class="text-xs font-normal text-muted-foreground">
+            <span class="text-ui font-normal text-muted-foreground">
               Sign in with an account plan supported by this provider.
             </span>
           </span>
@@ -197,7 +197,7 @@ onDestroy(() => void flowController.dispose());
         >
           <span class="grid text-left">
             <span>Use API key</span>
-            <span class="text-xs font-normal text-muted-foreground">
+            <span class="text-ui font-normal text-muted-foreground">
               Authenticate with developer API billing.
             </span>
           </span>
@@ -212,18 +212,18 @@ onDestroy(() => void flowController.dispose());
         }}
       >
         {#if flowController.selected?.credentialType === "oauth"}
-          <p class="text-xs text-warning">
+          <p class="text-ui text-warning">
             Saving an API key will replace the connected subscription for this
             provider.
           </p>
         {/if}
         <label
-          class="flex items-center justify-between gap-2 text-sm font-medium"
+          class="flex items-center justify-between gap-2 text-ui font-medium"
           for="add-provider-api-key"
         >
           API key
           {#if flowController.selected?.envVar}
-            <span class="font-mono text-xs font-normal text-muted-foreground"
+            <span class="font-mono text-ui font-normal text-muted-foreground"
               >{flowController.selected.envVar}</span
             >
           {/if}
@@ -240,7 +240,7 @@ onDestroy(() => void flowController.dispose());
     {:else if flowController.step === "oauth"}
       <div class="grid gap-3" aria-live="polite">
         {#if flowController.selected?.credentialType === "api_key"}
-          <p class="text-xs text-warning">
+          <p class="text-ui text-warning">
             Connecting the subscription will replace the API key for this
             provider.
           </p>
@@ -248,11 +248,11 @@ onDestroy(() => void flowController.dispose());
         {#if flowController.flow?.state === "active"}
           {@const interaction = flowController.flow.interaction}
           {#if interaction.type === "starting"}
-            <p class="flex items-center gap-2 text-sm text-muted-foreground">
+            <p class="flex items-center gap-2 text-ui text-muted-foreground">
               <Spinner /> Starting login…
             </p>
           {:else if interaction.type === "choice"}
-            <p class="text-sm text-foreground">{interaction.message}</p>
+            <p class="text-ui text-foreground">{interaction.message}</p>
             <div class="grid gap-2">
               {#each interaction.options as option (option.id)}
                 <Button
@@ -263,7 +263,7 @@ onDestroy(() => void flowController.dispose());
                   <span class="grid text-left">
                     <span>{option.label}</span>
                     {#if option.description}<span
-                        class="text-xs font-normal text-muted-foreground"
+                        class="text-ui font-normal text-muted-foreground"
                         >{option.description}</span
                       >{/if}
                   </span>
@@ -290,7 +290,7 @@ onDestroy(() => void flowController.dispose());
                 {/if}
               </Button>
             </div>
-            <p class="text-xs text-muted-foreground">
+            <p class="text-ui text-muted-foreground">
               {interaction.instructions}
             </p>
             {#if interaction.manualEntry}
@@ -301,7 +301,7 @@ onDestroy(() => void flowController.dispose());
                   void flowController.submitResponse();
                 }}
               >
-                <label class="text-sm font-medium" for="oauth-manual-redirect"
+                <label class="text-ui font-medium" for="oauth-manual-redirect"
                   >{interaction.manualEntry.label}</label
                 >
                 <Input
@@ -323,13 +323,13 @@ onDestroy(() => void flowController.dispose());
               <ExternalLink size={15} strokeWidth={2} /> Open verification page
             </Button>
             <div class="grid justify-items-start gap-2">
-              <p class="text-xs text-muted-foreground">Enter this code:</p>
+              <p class="text-ui text-muted-foreground">Enter this code:</p>
               <Button
                 variant="outline"
                 onclick={() => void flowController.copyDeviceCode()}
                 aria-label="Copy device code"
               >
-                <code class="font-mono text-base tracking-widest"
+                <code class="font-mono text-title tracking-widest"
                   >{interaction.userCode}</code
                 >
                 {#if flowController.copiedDeviceCode}<Check
@@ -338,7 +338,7 @@ onDestroy(() => void flowController.dispose());
                   />{:else}<Copy size={15} strokeWidth={2} />{/if}
               </Button>
               {#if flowController.deviceCodeSecondsRemaining !== undefined}
-                <p class="text-xs text-muted-foreground">
+                <p class="text-ui text-muted-foreground">
                   {flowController.deviceCodeSecondsRemaining === 0
                     ? "Code expired. Waiting for the provider…"
                     : `Expires in ${flowController.deviceCodeSecondsRemaining}s`}
@@ -346,7 +346,7 @@ onDestroy(() => void flowController.dispose());
               {/if}
             </div>
           {:else if interaction.type === "text_input"}
-            <p class="text-sm text-foreground">{interaction.message}</p>
+            <p class="text-ui text-foreground">{interaction.message}</p>
             <form
               class="grid gap-2"
               onsubmit={(event) => {
@@ -363,7 +363,7 @@ onDestroy(() => void flowController.dispose());
               />
             </form>
           {:else if interaction.type === "progress"}
-            <p class="flex items-center gap-2 text-sm text-muted-foreground">
+            <p class="flex items-center gap-2 text-ui text-muted-foreground">
               <Spinner />
               {interaction.message}
             </p>
@@ -382,11 +382,11 @@ onDestroy(() => void flowController.dispose());
             {/if}
           {/if}
         {:else if flowController.flow?.state === "failed"}
-          <p class="text-sm text-destructive">
+          <p class="text-ui text-destructive">
             {flowController.flow.failure.message}
           </p>
           {#if flowController.flow.failure.detail}<p
-              class="text-xs text-muted-foreground"
+              class="text-ui text-muted-foreground"
             >
               {flowController.flow.failure.detail}
             </p>{/if}
@@ -396,18 +396,18 @@ onDestroy(() => void flowController.dispose());
             onclick={() => void flowController.restartOAuth()}>Try again</Button
           >
         {:else if flowController.flow?.state === "succeeded"}
-          <p class="text-sm font-medium text-success">
+          <p class="text-ui font-medium text-success">
             {flowController.flow.successMessage}
           </p>
         {:else if flowController.flow?.state === "cancelled"}
-          <p class="text-sm text-muted-foreground">Login was cancelled.</p>
+          <p class="text-ui text-muted-foreground">Login was cancelled.</p>
           <Button
             variant="outline"
             disabled={flowController.busy}
             onclick={() => void flowController.restartOAuth()}>Try again</Button
           >
         {:else if flowController.busy}
-          <p class="flex items-center gap-2 text-sm text-muted-foreground">
+          <p class="flex items-center gap-2 text-ui text-muted-foreground">
             <Spinner /> Starting login…
           </p>
         {:else}
@@ -420,7 +420,7 @@ onDestroy(() => void flowController.dispose());
     {/if}
 
     {#if flowController.error}
-      <p class="flex items-center gap-2 text-xs text-destructive">
+      <p class="flex items-center gap-2 text-ui text-destructive">
         <TriangleAlert size={14} strokeWidth={2} />
         {flowController.error}
       </p>

@@ -73,12 +73,12 @@ const reasoning = $derived(model ? modelSupportsReasoning(model) : false);
   <span class="flex min-w-0 flex-1 items-baseline gap-1.5">
     <span
       class={cn(
-        "max-w-full shrink-0 truncate text-xs text-foreground",
+        "max-w-full shrink-0 truncate text-ui text-foreground",
         selected && mode === "option" && "font-medium",
       )}>{label}</span
     >
     {#if detail}
-      <span class="min-w-0 truncate text-xs text-muted-foreground"
+      <span class="min-w-0 truncate text-ui text-muted-foreground"
         >{detail}</span
       >
     {/if}
@@ -96,7 +96,7 @@ const reasoning = $derived(model ? modelSupportsReasoning(model) : false);
           {#snippet child({ props })}
             <span
               {...props}
-              class="w-12 text-right text-xs tabular-nums"
+              class="w-12 text-right text-ui tabular-nums"
               aria-label={contextLabel}
               >{formatTokenCapacity(model.contextWindow)}</span
             >

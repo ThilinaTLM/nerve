@@ -101,7 +101,7 @@ export async function flush(): Promise<boolean> {
       >{/if}
   {/snippet}
 </PopoverHeader>
-{#if error}<p role="alert" class="px-3 py-2 text-xs text-destructive">
+{#if error}<p role="alert" class="px-3 py-2 text-ui text-destructive">
     {error}
   </p>{/if}
 {#if draft.key === "model"}
@@ -171,7 +171,7 @@ export async function flush(): Promise<boolean> {
                     customTriggerPercent: Number(e.currentTarget.value),
                   },
                 })}
-            /><span class="text-xs text-muted-foreground">%</span>
+            /><span class="text-ui text-muted-foreground">%</span>
           </div>
         {/if}
       {:else if draft.key === "instructions"}

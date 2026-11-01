@@ -302,29 +302,29 @@ function pick(label: string | undefined) {
 >
   <div class="flex min-w-0 items-baseline gap-2">
     {#if total > 1}
-      <span class="flex-none text-xs text-muted-foreground tabular-nums"
+      <span class="flex-none text-ui text-muted-foreground tabular-nums"
         >{index + 1}/{total}</span
       >
     {/if}
-    <p class="m-0 min-w-0 flex-1 text-sm font-medium text-foreground">
+    <p class="m-0 min-w-0 flex-1 text-body font-medium text-foreground">
       <SlotText text={question.question} width="w-72" {streaming} />
     </p>
     {#if statusLabel}
-      <span class="flex-none text-xs text-muted-foreground" in:fade
+      <span class="flex-none text-ui text-muted-foreground" in:fade
         >{statusLabel}</span
       >
     {/if}
   </div>
 
   {#if question.context !== undefined}
-    <p class="m-0 text-xs whitespace-pre-wrap text-muted-foreground">
+    <p class="m-0 text-ui whitespace-pre-wrap text-muted-foreground">
       <span class="font-medium text-foreground">Context</span> ·
       <SlotText text={question.context} width="w-64" {streaming} />
     </p>
   {/if}
 
   {#if question.recommendation !== undefined}
-    <p class="m-0 flex min-w-0 gap-1.5 text-xs text-muted-foreground">
+    <p class="m-0 flex min-w-0 gap-1.5 text-ui text-muted-foreground">
       <Lightbulb
         class="mt-px size-3.5 flex-none text-info"
         aria-hidden="true"
@@ -347,7 +347,7 @@ function pick(label: string | undefined) {
           aria-pressed={chosen}
           onclick={() => pick(option.label)}
           class={cn(
-            "inline-flex max-w-full min-w-0 items-baseline gap-1.5 rounded-sm border bg-background px-2 py-1 text-left text-xs transition-[color,border-color,opacity] duration-300",
+            "inline-flex max-w-full min-w-0 items-baseline gap-1.5 rounded-sm border bg-background px-2 py-1 text-left text-ui transition-[color,border-color,opacity] duration-300",
             interactive && !busy && "cursor-pointer hover:border-primary/50",
             chosen
               ? settled
@@ -381,14 +381,14 @@ function pick(label: string | undefined) {
     <div class="flex items-center gap-2" out:fade={{ duration: 120 }}>
       <button
         type="button"
-        class="cursor-pointer text-xs font-medium text-primary hover:underline"
+        class="cursor-pointer text-ui font-medium text-primary hover:underline"
         onclick={() => (detailRequested = true)}>Add detail</button
       >
       {#if voice && supportsAudioRecording}
-        <span class="text-xs text-muted-foreground">or</span>
+        <span class="text-ui text-muted-foreground">or</span>
         <button
           type="button"
-          class="inline-flex cursor-pointer items-center gap-1 text-xs font-medium text-primary hover:underline disabled:cursor-not-allowed disabled:text-muted-foreground disabled:no-underline"
+          class="inline-flex cursor-pointer items-center gap-1 text-ui font-medium text-primary hover:underline disabled:cursor-not-allowed disabled:text-muted-foreground disabled:no-underline"
           disabled={micDisabled}
           title={micTitle}
           onclick={toggleVoice}><Mic class="size-3" />Speak</button
@@ -441,7 +441,7 @@ function pick(label: string | undefined) {
     </div>
   {:else if phase === "answered" && settledText}
     <div
-      class="min-w-0 border-l-2 border-primary/40 pl-2 text-sm text-foreground"
+      class="min-w-0 border-l-2 border-primary/40 pl-2 text-body text-foreground"
       in:fade={{ duration: 220 }}
     >
       <Markdown text={settledText} preserveLineBreaks {onOpenFile} />

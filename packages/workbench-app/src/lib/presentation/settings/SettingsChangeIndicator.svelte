@@ -64,7 +64,7 @@ let open = $state(false);
     {/snippet}
     <PopoverHeader {title} />
     <PopoverBody>
-      <div class="grid gap-2 px-2.5 pb-2 text-xs">
+      <div class="grid gap-2 px-2.5 pb-2 text-ui">
         <p class="text-muted-foreground">{fromText}</p>
         <p class="flex items-center gap-1.5 text-foreground">
           <ArrowRight

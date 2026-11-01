@@ -546,7 +546,7 @@ const repairReplacement = $derived(
               profile,
             )}{/snippet}</ProfileCardHead
         >{:else}<div class="flex min-w-0 flex-wrap items-center gap-2">
-          <h4 class="text-sm font-medium text-foreground">{profile.name}</h4>
+          <h4 class="text-ui font-medium text-foreground">{profile.name}</h4>
           {@render profileBadges(profile)}
         </div>{/if}
     {/snippet}
@@ -593,7 +593,7 @@ const repairReplacement = $derived(
       >
         {#each sections as section (section.label)}
           <span
-            class="flex h-control-sm items-center text-xs text-muted-foreground"
+            class="flex h-control-sm items-center text-ui text-muted-foreground"
             >{section.label}</span
           >
           <div class="flex min-w-0 flex-wrap items-center gap-1.5">
@@ -620,7 +620,7 @@ const repairReplacement = $derived(
             : "col-span-2 flex items-center gap-3"}
         >
           {#if !sections.length}<span
-              class="text-xs whitespace-nowrap text-muted-foreground"
+              class="text-ui whitespace-nowrap text-muted-foreground"
               >Uses your defaults</span
             >{/if}
           <AddProfileChange

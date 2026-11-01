@@ -32,14 +32,14 @@ if (!providerCatalogState.catalogLoaded) {
 <ApiKeysSection {authProviders} />
 <Collapsible.Root bind:open={advancedOpen}>
   <Collapsible.Trigger
-    class="group/advanced flex w-full items-center gap-2 rounded-md py-2 text-left text-sm font-semibold text-foreground"
+    class="group/advanced flex w-full items-center gap-2 rounded-md py-2 text-left text-ui font-semibold text-foreground"
   >
     <ChevronRight
       class="size-4 shrink-0 text-muted-foreground transition-transform group-data-[state=open]/advanced:rotate-90"
     />
     Advanced
     {#if providerCount || modelCount}
-      <span class="text-xs font-normal text-muted-foreground">
+      <span class="text-ui font-normal text-muted-foreground">
         · {providerCount} custom {providerCount === 1
           ? "provider"
           : "providers"}, {modelCount} custom {modelCount === 1

@@ -534,7 +534,7 @@ $effect(() => {
               {#if decoration?.label}
                 <span
                   class={cn(
-                    "w-3 text-center text-xs font-medium",
+                    "w-3 text-center text-ui font-medium",
                     decoration.class,
                   )}
                   title={decoration.title}

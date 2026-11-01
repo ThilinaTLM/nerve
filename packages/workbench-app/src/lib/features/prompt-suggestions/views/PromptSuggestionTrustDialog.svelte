@@ -49,7 +49,7 @@ function decideLater() {
 >
   <div class="grid gap-4">
     <div
-      class="flex gap-3 rounded-md border border-warning/40 bg-warning/10 p-3 text-sm"
+      class="flex gap-3 rounded-md border border-warning/40 bg-warning/10 p-3 text-ui"
     >
       <AlertTriangle
         class="mt-0.5 size-4 flex-none text-warning"
@@ -68,17 +68,17 @@ function decideLater() {
           class="grid gap-1 rounded-md border border-border bg-transparent p-3"
         >
           <div class="flex items-center justify-between gap-3">
-            <strong class="text-sm font-medium text-foreground"
+            <strong class="text-ui font-medium text-foreground"
               >{request.label}</strong
             >
             <span
-              class="rounded-md border border-border px-2 py-0.5 text-xs text-muted-foreground"
+              class="rounded-md border border-border px-2 py-0.5 text-ui text-muted-foreground"
               >{request.sourceKind}</span
             >
           </div>
-          <p class="font-mono text-xs text-muted-foreground">{request.path}</p>
+          <p class="font-mono text-ui text-muted-foreground">{request.path}</p>
           {#if request.description}
-            <p class="text-xs text-muted-foreground">{request.description}</p>
+            <p class="text-ui text-muted-foreground">{request.description}</p>
           {/if}
         </section>
       {/each}

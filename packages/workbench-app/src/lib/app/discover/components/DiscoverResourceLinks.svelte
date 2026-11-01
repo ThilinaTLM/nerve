@@ -4,7 +4,7 @@ import { discoverResourceLinks } from "../content/resources.js";
 </script>
 
 <div
-  class="flex flex-wrap items-center gap-x-4 gap-y-1 border-t pt-3 text-xs text-muted-foreground"
+  class="flex flex-wrap items-center gap-x-4 gap-y-1 border-t pt-3 text-ui text-muted-foreground"
 >
   {#each discoverResourceLinks as link (link.id)}
     <a

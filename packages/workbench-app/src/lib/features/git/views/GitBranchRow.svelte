@@ -59,11 +59,11 @@ const canDelete = $derived(enabled && canDeleteBranch(branch, baseBranch));
       <GitBranch class="size-3.5 text-muted-foreground" aria-hidden="true" />
     {/if}
     <span class="flex min-w-0 flex-1 items-center gap-2">
-      <span class="truncate font-mono text-xs text-foreground"
+      <span class="truncate font-mono text-ui text-foreground"
         >{branch.name}</span
       >
       <span
-        class="shrink-0 text-xs text-muted-foreground"
+        class="shrink-0 text-ui text-muted-foreground"
         title={branch.updatedAt ?? undefined}>{row.updatedLabel}</span
       >
     </span>

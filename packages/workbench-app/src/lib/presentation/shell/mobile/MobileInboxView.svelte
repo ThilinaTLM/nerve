@@ -121,8 +121,8 @@ function rowDetail(item: MobileInboxItem): string {
       <Empty.Media class="text-success">
         <CircleCheck size={28} strokeWidth={1.6} />
       </Empty.Media>
-      <Empty.Title class="text-sm">Nothing needs you</Empty.Title>
-      <Empty.Description class="text-xs">
+      <Empty.Title class="text-ui">Nothing needs you</Empty.Title>
+      <Empty.Description class="text-ui">
         Approvals, questions, plan reviews and agent errors land here.
       </Empty.Description>
     </Empty.Header>

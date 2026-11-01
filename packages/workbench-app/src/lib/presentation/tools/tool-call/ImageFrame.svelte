@@ -91,13 +91,13 @@ $effect(() => {
       {#if onOpen}
         <button
           type="button"
-          class="min-w-0 cursor-pointer justify-self-start truncate border-0 bg-transparent p-0 text-left font-mono text-xs text-muted-foreground hover:text-foreground hover:underline"
+          class="min-w-0 cursor-pointer justify-self-start truncate border-0 bg-transparent p-0 text-left font-mono text-ui text-muted-foreground hover:text-foreground hover:underline"
           aria-label={captionLabel}
           title={caption}
           onclick={onOpen}>{caption}</button
         >
       {:else}
-        <span class="min-w-0 truncate font-mono text-xs text-muted-foreground"
+        <span class="min-w-0 truncate font-mono text-ui text-muted-foreground"
           >{caption}</span
         >
       {/if}

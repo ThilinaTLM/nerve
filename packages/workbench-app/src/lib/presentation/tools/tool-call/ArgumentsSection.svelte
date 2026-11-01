@@ -29,7 +29,7 @@ const content = $derived(activated ? serialize(value) : undefined);
   }}
 >
   <summary
-    class="cursor-pointer px-2.5 py-2 text-xs font-medium text-muted-foreground"
+    class="cursor-pointer px-2.5 py-2 text-ui font-medium text-muted-foreground"
   >
     Arguments
   </summary>

@@ -21,7 +21,7 @@ const toneClass: Record<StatusTone, string> = {
 
 const chipClass = $derived(
   cn(
-    "inline-flex min-h-5 items-center rounded-sm border border-border bg-well px-1.5 py-0.5 text-xs leading-none font-medium whitespace-nowrap tabular-nums no-underline",
+    "inline-flex min-h-5 items-center rounded-sm border border-border bg-well px-1.5 py-0.5 text-caption leading-none font-medium whitespace-nowrap tabular-nums no-underline",
     toneClass[item.tone ?? "neutral"],
     item.mono && "font-mono",
     (item.openPath || item.href) && "cursor-pointer hover:underline",

@@ -39,7 +39,7 @@ let {
 
 // Same pill classes as the card footer actions.
 const pill =
-  "inline-flex min-h-5 flex-none cursor-pointer items-center rounded-sm border border-border bg-well px-1.5 py-0.5 text-xs leading-none font-medium text-primary hover:underline";
+  "inline-flex min-h-5 flex-none cursor-pointer items-center rounded-sm border border-border bg-well px-1.5 py-0.5 text-ui leading-none font-medium text-primary hover:underline";
 </script>
 
 <div class={cn("grid min-w-0 gap-0.5 px-3 py-2", enter && "stream-item-enter")}>
@@ -71,14 +71,14 @@ const pill =
       text={title}
       width="w-32"
       {streaming}
-      class="text-sm font-medium text-foreground"
+      class="text-ui font-medium text-foreground"
     />
     {#if detail !== undefined || title === undefined}
       <SlotText
         text={detail}
         width="w-14"
         {streaming}
-        class="text-xs text-muted-foreground"
+        class="text-ui text-muted-foreground"
       />
     {/if}
     {#if followUp}
@@ -108,7 +108,7 @@ const pill =
   {#if body !== undefined || streaming}
     <p
       class={cn(
-        "m-0 pl-5 text-xs whitespace-pre-line text-muted-foreground wrap-anywhere",
+        "m-0 pl-5 text-ui whitespace-pre-line text-muted-foreground wrap-anywhere",
         !expanded && "line-clamp-2",
       )}
     >

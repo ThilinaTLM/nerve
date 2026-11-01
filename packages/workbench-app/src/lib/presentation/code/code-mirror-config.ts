@@ -359,7 +359,7 @@ export const codeMirrorTheme = EditorView.theme({
     minWidth: "100%",
     color: "var(--foreground)",
     backgroundColor: "var(--background)",
-    fontSize: "var(--text-sm)",
+    fontSize: "var(--text-body)",
   },
   ".cm-scroller": {
     overflow: "auto",
@@ -382,7 +382,7 @@ export const codeMirrorTheme = EditorView.theme({
       "1px solid color-mix(in oklab, var(--background) 55%, var(--border))",
   },
   ".cm-lineNumbers": {
-    fontSize: "var(--text-xs)",
+    fontSize: "var(--text-ui)",
   },
   ".cm-lineNumbers .cm-gutterElement": {
     padding: "0 calc(var(--spacing) * 1) 0 calc(var(--spacing) * 2)",

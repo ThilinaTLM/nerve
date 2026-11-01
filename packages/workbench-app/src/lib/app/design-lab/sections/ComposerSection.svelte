@@ -1,4 +1,9 @@
 <script lang="ts">
+import ModelPicker from "$lib/presentation/model-picker/ModelPicker.svelte";
+import ModelPickerPanel from "$lib/presentation/model-picker/ModelPickerPanel.svelte";
+import ModelCatalogRow from "$lib/presentation/model-picker/ModelCatalogRow.svelte";
+import ProviderIcon from "$lib/presentation/model-picker/ProviderIcon.svelte";
+import { providerMarks } from "$lib/presentation/model-picker/provider-marks";
 import { resolveAgentConfiguration } from "@nervekit/contracts/agent-configuration";
 import type { AgentEditorView } from "$lib/presentation/composer/agent-editor-view";
 import type { AvailableSkill } from "@nervekit/contracts/skills";
@@ -385,7 +390,7 @@ function cycleMic() {
 </script>
 
 {#snippet guarded(error: unknown)}
-  <p class="text-xs text-destructive" role="alert">
+  <p class="text-ui text-destructive" role="alert">
     Specimen failed to render: {error instanceof Error
       ? error.message
       : String(error)}
@@ -451,7 +456,7 @@ function cycleMic() {
       <div class="mx-auto flex w-[760px] max-w-full flex-col gap-8">
         {#each composerVariants as variant (variant.title)}
           <div class="flex min-w-0 flex-col gap-1">
-            <span class="text-xs text-muted-foreground">{variant.title}</span>
+            <span class="text-ui text-muted-foreground">{variant.title}</span>
             <div class="rounded-md border bg-background pt-2">
               <svelte:boundary failed={guarded}>
                 <AgentComposer
@@ -476,7 +481,7 @@ function cycleMic() {
       <div class="grid gap-4 md:grid-cols-3">
         {#each [{ t: "Send enabled", stop: false, disabled: false }, { t: "Send disabled", stop: false, disabled: true }, { t: "Running (stop)", stop: true, disabled: false }] as variant (variant.t)}
           <div class="flex flex-col gap-1">
-            <span class="text-xs text-muted-foreground">{variant.t}</span>
+            <span class="text-ui text-muted-foreground">{variant.t}</span>
             <div class="rounded-md border bg-background">
               <ComposerShell
                 agentProfile="coding"
@@ -489,7 +494,7 @@ function cycleMic() {
                 {#snippet toolbar()}<span class="sr-only">toolbar slot</span
                   >{/snippet}
                 {#snippet editor()}<div
-                    class="min-h-16 px-3 py-2 text-sm text-muted-foreground"
+                    class="min-h-16 px-3 py-2 text-ui text-muted-foreground"
                   >
                     Editor slot
                   </div>{/snippet}
@@ -515,7 +520,7 @@ function cycleMic() {
       <div class="grid gap-x-6 gap-y-8 lg:grid-cols-2">
         {#each [{ t: "Coding", planning: false, permission: "default" }, { t: "Planning", planning: true, permission: "default" }, { t: "Autonomous", planning: false, permission: "autonomous" }] as const as variant (variant.t)}
           <div class="flex flex-col gap-1">
-            <span class="text-xs text-muted-foreground">{variant.t}</span>
+            <span class="text-ui text-muted-foreground">{variant.t}</span>
             <div class="rounded-md border bg-background">
               <ComposerShell
                 agentProfile={variant.planning ? "planning" : "coding"}
@@ -557,7 +562,7 @@ function cycleMic() {
                   />
                 {/snippet}
                 {#snippet editor()}<div
-                    class="min-h-16 px-3 py-2 text-sm text-muted-foreground"
+                    class="min-h-16 px-3 py-2 text-ui text-muted-foreground"
                   >
                     Editor slot
                   </div>{/snippet}
@@ -579,7 +584,7 @@ function cycleMic() {
       <div class="flex flex-wrap items-center gap-x-6 gap-y-4">
         {#each contextLevels as level (level.title)}
           <div class="flex flex-col items-start gap-1">
-            <span class="text-xs text-muted-foreground">{level.title}</span>
+            <span class="text-ui text-muted-foreground">{level.title}</span>
             <ContextProgressBadge
               contextUsage={level.usage}
               contextWindow={200_000}
@@ -591,7 +596,7 @@ function cycleMic() {
         {/each}
         {#each agentUsageExamples as example (example.title)}
           <div class="flex flex-col items-start gap-1">
-            <span class="text-xs text-muted-foreground">{example.title}</span>
+            <span class="text-ui text-muted-foreground">{example.title}</span>
             <ContextProgressBadge
               contextUsage={{
                 tokens: 70_000,
@@ -609,7 +614,7 @@ function cycleMic() {
           </div>
         {/each}
         <div class="flex flex-col items-start gap-1">
-          <span class="text-xs text-muted-foreground">Compacting</span>
+          <span class="text-ui text-muted-foreground">Compacting</span>
           <ContextProgressBadge
             contextUsage={{
               tokens: 160_000,
@@ -682,7 +687,7 @@ function cycleMic() {
             onToggle={noop}
             onContextMenu={noop}
           />
-          <span class="text-xs text-muted-foreground">{state.t}</span>
+          <span class="text-ui text-muted-foreground">{state.t}</span>
         </div>
       {/each}
     </GallerySpecimen>
@@ -694,6 +699,87 @@ function cycleMic() {
       usage="1 file · composer"
     >
       <PromptSuggestionChips {suggestions} onSend={noop} onDraft={noop} />
+    </GallerySpecimen>
+  </GalleryGroup>
+  <GalleryGroup title="Shared presentation">
+    <GallerySpecimen
+      title="ModelPicker"
+      source="presentation/model-picker/ModelPicker.svelte"
+      layout="stack"
+    >
+      <ModelPicker
+        label="Conversation model"
+        {models}
+        value={models.find((model) => modelKey(model) === selectedModel)}
+        {thinkingLevel}
+        onChange={(next) => {
+          if (next.model) selectedModel = modelKey(next.model);
+          thinkingLevel = next.thinkingLevel;
+        }}
+      />
+      <ModelPicker
+        label="Locked model"
+        {models}
+        value={models[1]}
+        thinkingLevel="medium"
+        disabled
+        onChange={noop}
+      />
+      <ModelPicker
+        label="Unavailable model"
+        {models}
+        value={{ provider: "openai", modelId: "retired-model" }}
+        thinkingLevel={undefined}
+        onChange={noop}
+      />
+    </GallerySpecimen>
+    <GallerySpecimen
+      title="ModelPickerPanel"
+      source="presentation/model-picker/ModelPickerPanel.svelte"
+      layout="stack"
+    >
+      <ModelPickerPanel
+        {models}
+        value={models.find((model) => modelKey(model) === selectedModel)}
+        {thinkingLevel}
+        onChange={(next) => {
+          if (next.model) selectedModel = modelKey(next.model);
+          thinkingLevel = next.thinkingLevel;
+        }}
+      />
+    </GallerySpecimen>
+    <GallerySpecimen
+      title="ModelCatalogRow"
+      source="presentation/model-picker/ModelCatalogRow.svelte"
+      layout="stack"
+    >
+      <div role="listbox" aria-label="Model catalog" tabindex="0">
+        <ModelCatalogRow
+          label={models[0].name}
+          model={models[0]}
+          onclick={noop}
+        />
+        <ModelCatalogRow
+          label={models[1].name}
+          model={models[1]}
+          selected
+          onclick={noop}
+        />
+        <ModelCatalogRow label={models[2].name} model={models[2]} disabled />
+      </div>
+    </GallerySpecimen>
+    <GallerySpecimen
+      title="ProviderIcon"
+      source="presentation/model-picker/ProviderIcon.svelte"
+      layout="stack"
+    >
+      <div class="flex flex-wrap gap-3">
+        {#each Object.keys(providerMarks) as provider (provider)}<span
+            class="flex gap-1"><ProviderIcon {provider} />{provider}</span
+          >{/each}<span class="flex gap-1"
+          ><ProviderIcon provider="unknown" />Unknown</span
+        >
+      </div>
     </GallerySpecimen>
   </GalleryGroup>
 </div>

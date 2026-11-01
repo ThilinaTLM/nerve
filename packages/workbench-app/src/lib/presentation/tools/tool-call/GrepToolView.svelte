@@ -33,14 +33,14 @@ const visibleGroups = $derived.by(() => {
 
 {#if view.matchCount === 0 && toolCall.status === "completed"}
   <ToolSections>
-    <div class="px-2.5 py-2 text-xs text-muted-foreground">No matches.</div>
+    <div class="px-2.5 py-2 text-ui text-muted-foreground">No matches.</div>
   </ToolSections>
 {:else if view.matchCount > 0}
   <!-- One sheet section per file: its path, then its matching lines. -->
   <ToolSections>
     {#each visibleGroups as group, groupIndex (group.path)}
       <div
-        class="px-2.5 py-2 font-mono text-xs leading-[1.4]"
+        class="px-2.5 py-2 font-mono text-ui leading-[1.4]"
         class:stream-item-enter={toolMotion.enter}
         style:--stream-item-delay={toolMotion.enter
           ? resultRowEnterDelay(groupIndex)

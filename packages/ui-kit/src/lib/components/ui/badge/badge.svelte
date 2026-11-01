@@ -1,11 +1,12 @@
 <script lang="ts" module>
-import { type VariantProps, tv } from "tailwind-variants";
+import type { VariantProps } from "tailwind-variants";
+import { cn, tv, type WithElementRef } from "@nervekit/ui-kit/utils";
 
 /* A badge is a compact label, not a control: it has one colour axis named after
  * the semantic tokens it paints with, and a single height. Status meaning is
  * always carried by the text or an icon, never by colour alone. */
 export const badgeVariants = tv({
-  base: "h-5 gap-1 rounded-md border border-transparent px-1.5 py-px text-xs font-medium transition-all has-data-[icon=inline-end]:pr-1 has-data-[icon=inline-start]:pl-1 [&>svg]:size-3! focus-visible:border-ring focus-visible:ring-ring/50 aria-invalid:ring-destructive/30 aria-invalid:border-destructive aria-invalid:ring-3 group/badge inline-flex w-fit shrink-0 items-center justify-center overflow-hidden whitespace-nowrap transition-colors focus-visible:ring-3 [&>svg]:pointer-events-none",
+  base: "h-5 gap-1 rounded-md border border-transparent px-1.5 py-px text-caption font-medium transition-all has-data-[icon=inline-end]:pr-1 has-data-[icon=inline-start]:pl-1 [&>svg]:size-3! focus-visible:border-ring focus-visible:ring-ring/50 aria-invalid:ring-destructive/30 aria-invalid:border-destructive aria-invalid:ring-3 group/badge inline-flex w-fit shrink-0 items-center justify-center overflow-hidden whitespace-nowrap transition-colors focus-visible:ring-3 [&>svg]:pointer-events-none",
   variants: {
     variant: {
       neutral: "border-border bg-muted text-foreground",
@@ -29,7 +30,6 @@ export type BadgeVariant = VariantProps<typeof badgeVariants>["variant"];
 
 <script lang="ts">
 import type { HTMLAnchorAttributes } from "svelte/elements";
-import { cn, type WithElementRef } from "@nervekit/ui-kit/utils";
 
 let {
   ref = $bindable(null),

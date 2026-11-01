@@ -99,7 +99,7 @@ async function commitScopedModels(next: ModelSelection[]): Promise<void> {
     text={preferences.error}
   />{/if}
 
-<p class="text-xs text-muted-foreground">
+<p class="text-ui text-muted-foreground">
   An empty scope offers every authenticated model. Choose a model and reasoning
   level in the conversation.
 </p>

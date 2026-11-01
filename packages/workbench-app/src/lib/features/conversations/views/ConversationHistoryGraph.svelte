@@ -307,7 +307,7 @@ function minimapNodeColor(node: Node): string {
           aria-label="Conversation entry details"
         >
           <div class="flex items-center justify-between border-b px-3 py-2">
-            <span class="text-xs font-medium text-muted-foreground"
+            <span class="text-ui font-medium text-muted-foreground"
               >Entry details</span
             >
             <Button
@@ -335,7 +335,7 @@ function minimapNodeColor(node: Node): string {
     </div>
   {:else}
     <div
-      class="flex h-full items-center justify-center p-6 text-center text-sm text-muted-foreground"
+      class="flex h-full items-center justify-center p-6 text-center text-ui text-muted-foreground"
     >
       No conversation history loaded.
     </div>

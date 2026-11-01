@@ -165,7 +165,7 @@ function onRetry() {
         class="max-w-xs"
       >
         {#snippet trailing()}
-          <span class="flex-none text-xs text-muted-foreground"
+          <span class="flex-none text-ui text-muted-foreground"
             >{summary.enabled} of {summary.total} enabled</span
           >
         {/snippet}
@@ -257,7 +257,7 @@ function onRetry() {
                   onclick={() => copyPath(entry.skill.filePath)}
                 />
                 {#if scope === "project" && !entry.overridden}
-                  <span class="flex-none text-xs text-muted-foreground">
+                  <span class="flex-none text-ui text-muted-foreground">
                     User default: {entry.inherited ? "on" : "off"}
                   </span>
                 {/if}
@@ -304,7 +304,7 @@ function onRetry() {
               </Button>
             {/snippet}
             {#snippet detail()}
-              <span class="text-xs text-muted-foreground">
+              <span class="text-ui text-muted-foreground">
                 {orphan.kind === "agentBrowser"
                   ? "Agent Browser skill entry"
                   : "File skill entry"}

@@ -14,8 +14,8 @@ let {
   class="flex min-h-0 flex-col items-center justify-center gap-2 p-4 text-center"
 >
   <MessageSquareOff class="size-8 text-muted-foreground" />
-  <p class="text-sm text-muted-foreground">{title}</p>
+  <p class="text-ui text-muted-foreground">{title}</p>
   {#if message}
-    <p class="max-w-md text-xs text-muted-foreground">{message}</p>
+    <p class="max-w-md text-ui text-muted-foreground">{message}</p>
   {/if}
 </div>

@@ -49,9 +49,9 @@ const hasResult = $derived(Boolean(view.resultText) || Boolean(resultBody));
   <ToolSections>
     {#if view.resultText}
       <div class="px-2.5 py-2" aria-label="Recorded tool output">
-        <p class="m-0 mb-1 text-xs font-medium text-muted-foreground">Result</p>
+        <p class="m-0 mb-1 text-ui font-medium text-muted-foreground">Result</p>
         <p
-          class="m-0 whitespace-pre-wrap text-sm leading-relaxed text-foreground [overflow-wrap:anywhere]"
+          class="m-0 whitespace-pre-wrap text-ui leading-relaxed text-foreground [overflow-wrap:anywhere]"
           class:line-clamp-6={!expanded}
         >
           {view.resultText}
@@ -62,12 +62,12 @@ const hasResult = $derived(Boolean(view.resultText) || Boolean(resultBody));
         <ToolArgumentBody body={resultBody} />
       </div>
     {:else if toolCall.status === "completed"}
-      <div class="px-2.5 py-2 text-xs text-muted-foreground">No output.</div>
+      <div class="px-2.5 py-2 text-ui text-muted-foreground">No output.</div>
     {/if}
 
     {#if showArgs}
       <div class="px-2.5 py-2">
-        <p class="m-0 mb-1 text-xs font-medium text-muted-foreground">
+        <p class="m-0 mb-1 text-ui font-medium text-muted-foreground">
           Recorded arguments
         </p>
         <ToolArgumentBody body={argsBody} />

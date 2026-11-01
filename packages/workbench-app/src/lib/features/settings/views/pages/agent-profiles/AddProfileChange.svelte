@@ -141,7 +141,7 @@ async function choose(item: (typeof items)[number]) {
   {#if open}<PopoverViews key={view}>
       {#if view === "menu"}
         <PopoverHeader title="Add a change" meta={profileLabel} />
-        {#if error}<p role="alert" class="px-3 text-xs text-destructive">
+        {#if error}<p role="alert" class="px-3 text-ui text-destructive">
             {error}
           </p>{/if}
         <PopoverCommandList

@@ -98,12 +98,12 @@ function onCreateKeydown(event: KeyboardEvent) {
           disabled={browser.creatingBusy}
           onkeydown={onCreateKeydown}
         />
-        <span class="shrink-0 text-xs text-muted-foreground max-sm:hidden"
+        <span class="shrink-0 text-ui text-muted-foreground max-sm:hidden"
           >Enter to create</span
         >
       </div>
       {#if browser.createError}
-        <p class="px-2 text-xs text-destructive" role="alert">
+        <p class="px-2 text-ui text-destructive" role="alert">
           {browser.createError}
         </p>
       {/if}
@@ -122,8 +122,8 @@ function onCreateKeydown(event: KeyboardEvent) {
       role="alert"
     >
       <TriangleAlert class="size-6 text-destructive" aria-hidden="true" />
-      <span class="text-sm">Can't read {displayCwd}</span>
-      <span class="max-w-md text-xs text-muted-foreground">{browser.error}</span
+      <span class="text-ui">Can't read {displayCwd}</span>
+      <span class="max-w-md text-ui text-muted-foreground">{browser.error}</span
       >
       <div class="flex gap-1">
         {#if browser.parent !== undefined}
@@ -145,7 +145,7 @@ function onCreateKeydown(event: KeyboardEvent) {
       class="flex h-full flex-col items-center justify-center gap-2 p-6 text-center"
     >
       <FolderX class="size-6 text-muted-foreground" aria-hidden="true" />
-      <span class="text-sm">
+      <span class="text-ui">
         {browser.filter.trim()
           ? `No folders match "${browser.filter.trim()}"`
           : browser.atThisPC
@@ -153,7 +153,7 @@ function onCreateKeydown(event: KeyboardEvent) {
             : "No subfolders"}
       </span>
       {#if !browser.atThisPC}
-        <span class="text-xs text-muted-foreground"
+        <span class="text-ui text-muted-foreground"
           >You can still open {displayCwd} itself.</span
         >
       {/if}
@@ -205,7 +205,7 @@ function onCreateKeydown(event: KeyboardEvent) {
           {/if}
           <span
             class={cn(
-              "truncate text-sm",
+              "truncate text-ui",
               entry.hidden && "text-muted-foreground",
             )}>{entry.name}</span
           >

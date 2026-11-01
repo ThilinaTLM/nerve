@@ -552,7 +552,7 @@ function handleKeydown(event: KeyboardEvent): void {
   {#if preview}
     <div
       role="status"
-      class="sticky bottom-0 z-20 truncate rounded-sm bg-popover px-2 py-1 text-xs text-popover-foreground shadow-sm ring-1 ring-border"
+      class="sticky bottom-0 z-20 truncate rounded-sm bg-popover px-2 py-1 text-ui text-popover-foreground shadow-sm ring-1 ring-border"
     >
       {preview}
     </div>

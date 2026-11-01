@@ -3,8 +3,8 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { describe, it } from "node:test";
 
-/* Settings has three heading levels (page title text-lg, section heading
- * text-sm semibold, entity title text-sm medium) over text-sm rows and text-xs
+/* Settings has three heading levels (page title text-title, section heading
+ * text-ui semibold, entity title text-ui medium) over text-ui rows and text-caption
  * supporting text, so weight and colour carry most of the hierarchy. That is easy to break by accident: the section header
  * was once a 12px muted uppercase eyebrow sitting above 14px foreground row
  * titles, which made every section rank below its own content. */
@@ -29,9 +29,9 @@ describe("settings typography", () => {
   const nav = source("./SettingsNav.svelte");
 
   it("ranks the page title above section titles", () => {
-    assert.match(pageTitle, /text-lg/);
+    assert.match(pageTitle, /text-title/);
     assert.match(pageTitle, /font-semibold/);
-    assert.match(sectionTitle, /text-sm/);
+    assert.match(sectionTitle, /text-ui/);
   });
 
   it("keeps section headings stronger than the rows they contain", () => {
@@ -41,7 +41,7 @@ describe("settings typography", () => {
 
     const rowTitle = /<span\s+class="([^"]+)"\s*>\s*\{title\}/s.exec(listItem);
     assert.ok(rowTitle, "expected a list item title span");
-    assert.match(rowTitle[1], /\btext-sm\b/);
+    assert.match(rowTitle[1], /\btext-ui\b/);
     assert.doesNotMatch(
       rowTitle[1],
       /font-(medium|semibold|bold)/,
@@ -51,7 +51,7 @@ describe("settings typography", () => {
   });
 
   it("keeps entity titles one step below section headings", () => {
-    assert.match(entityTitle, /text-sm/);
+    assert.match(entityTitle, /text-ui/);
     assert.match(entityTitle, /font-medium/);
     assert.doesNotMatch(entityTitle, /font-semibold/);
     assert.match(entityTitle, /text-foreground/);
@@ -60,9 +60,9 @@ describe("settings typography", () => {
   it("separates nav group captions from items by weight, colour and icon", () => {
     const caption = /<p\s+class="([^"]+)"\s*>\s*\{group\.title\}/s.exec(nav);
     assert.ok(caption, "expected a group caption");
-    assert.match(caption[1], /text-xs font-medium text-muted-foreground/);
+    assert.match(caption[1], /text-caption font-medium text-muted-foreground/);
     assert.doesNotMatch(caption[1], /(?<![\w-])uppercase(?![\w-])/);
-    assert.match(nav, /text-sm text-foreground/);
+    assert.match(nav, /text-ui text-foreground/);
     assert.match(nav, /bg-selected font-medium/);
   });
 
@@ -82,18 +82,18 @@ describe("settings typography", () => {
   it("keeps row supporting text muted and under the title", () => {
     assert.match(
       source("./SettingsListItem.svelte"),
-      /class="truncate text-xs text-muted-foreground">\s*\{description\}/s,
-      "list item description should be text-xs muted",
+      /class="truncate text-caption text-muted-foreground">\s*\{description\}/s,
+      "list item description should be text-caption muted",
     );
   });
 
   it("keeps heading descriptions to one muted line", () => {
-    /* A section may carry one text-xs muted line under its heading, never a
+    /* A section may carry one text-caption muted line under its heading, never a
      * paragraph at row size; longer detail goes in an info tooltip. */
     const section = source("./SettingsSection.svelte");
     assert.match(
       section,
-      /<p class="text-xs text-muted-foreground">\{description\}<\/p>/,
+      /<p class="text-caption text-muted-foreground">\{description\}<\/p>/,
     );
     assert.match(section, /SettingsInfoHint/);
   });

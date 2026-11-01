@@ -294,11 +294,11 @@ function menu(file: GitFileChange, area: GitDiffArea): ContextMenuItem[] {
   {/snippet}
 
   {#if !model.availability.available}
-    <p class="px-6 py-10 text-center text-sm text-muted-foreground">
+    <p class="px-6 py-10 text-center text-ui text-muted-foreground">
       {model.availability.message}
     </p>
   {:else if model.initialLoading}
-    <p class="px-6 py-10 text-center text-sm text-muted-foreground">
+    <p class="px-6 py-10 text-center text-ui text-muted-foreground">
       Loading changes…
     </p>
   {:else if total === 0}
@@ -307,8 +307,8 @@ function menu(file: GitFileChange, area: GitDiffArea): ContextMenuItem[] {
         <Empty.Media class="text-success">
           <GitBranch size={28} strokeWidth={1.6} />
         </Empty.Media>
-        <Empty.Title class="text-sm">Working tree clean</Empty.Title>
-        <Empty.Description class="text-xs">
+        <Empty.Title class="text-ui">Working tree clean</Empty.Title>
+        <Empty.Description class="text-ui">
           {model.repositories.length
             ? "No uncommitted changes in this repository."
             : (model.emptyMessage ?? "No Git repository in this project.")}

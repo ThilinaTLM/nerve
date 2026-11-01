@@ -67,13 +67,13 @@ const description = $derived(
 >
   {#if loading && !details}
     <div
-      class="flex min-h-40 items-center justify-center text-sm text-muted-foreground"
+      class="flex min-h-40 items-center justify-center text-ui text-muted-foreground"
     >
       Loading tool details…
     </div>
   {:else if error && !details}
     <div class="grid gap-3">
-      <p class="m-0 text-sm text-destructive">{error}</p>
+      <p class="m-0 text-ui text-destructive">{error}</p>
       <Button variant="outline" class="w-fit" onclick={() => void onRetry?.()}
         >Retry</Button
       >
@@ -84,7 +84,7 @@ const description = $derived(
         <div class="flex flex-wrap gap-1.5">
           {#each presentation.meta as item, index (index)}
             <span
-              class="rounded-sm border bg-muted/30 px-1.5 py-0.5 text-xs text-muted-foreground"
+              class="rounded-sm border bg-muted/30 px-1.5 py-0.5 text-ui text-muted-foreground"
               class:font-mono={item.mono}>{item.text}</span
             >
           {/each}
@@ -93,7 +93,7 @@ const description = $derived(
 
       {#if displayToolCall.error}
         <p
-          class="m-0 rounded-sm border border-destructive/30 bg-destructive/10 p-2 text-sm text-destructive"
+          class="m-0 rounded-sm border border-destructive/30 bg-destructive/10 p-2 text-ui text-destructive"
         >
           {displayToolCall.error}
         </p>
@@ -105,7 +105,7 @@ const description = $derived(
           open={initialSection === "formatted"}
         >
           <summary
-            class="cursor-pointer px-2.5 py-2 text-xs font-medium text-muted-foreground"
+            class="cursor-pointer px-2.5 py-2 text-ui font-medium text-muted-foreground"
           >
             Formatted view
           </summary>

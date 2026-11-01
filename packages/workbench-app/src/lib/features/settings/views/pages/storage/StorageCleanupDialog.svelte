@@ -87,11 +87,11 @@ function start(): void {
       aria-hidden="true"
     />
     <span class="grid min-w-0 flex-1 gap-0.5 text-left">
-      <span class="text-xs font-medium text-foreground">{title}</span>
-      <span class="text-xs text-muted-foreground">{description}</span>
+      <span class="text-ui font-medium text-foreground">{title}</span>
+      <span class="text-ui text-muted-foreground">{description}</span>
     </span>
     {#if groupCount(group) > 0}
-      <span class="text-xs text-muted-foreground">{groupCount(group)}</span>
+      <span class="text-ui text-muted-foreground">{groupCount(group)}</span>
     {/if}
   </Collapsible.Trigger>
 {/snippet}
@@ -107,10 +107,10 @@ function start(): void {
       class="flex flex-wrap items-center justify-between gap-2 border-b border-border/50 px-1 pb-2"
     >
       <div class="grid gap-0.5">
-        <span class="text-xs font-medium">
+        <span class="text-ui font-medium">
           {targets.length} target{targets.length === 1 ? "" : "s"} selected
         </span>
-        <span class="text-xs text-muted-foreground">
+        <span class="text-ui text-muted-foreground">
           Will free ≈ {footprint.upTo ? "up to " : ""}{formatBytes(
             footprint.bytes,
           )}
@@ -225,7 +225,7 @@ function start(): void {
   </div>
 
   {#snippet footer()}
-    <span class="mr-auto text-xs text-muted-foreground">
+    <span class="mr-auto text-ui text-muted-foreground">
       Will free ≈ {footprint.upTo ? "up to " : ""}{formatBytes(footprint.bytes)}
     </span>
     <Button variant="outline" onclick={() => (open = false)}>Cancel</Button>

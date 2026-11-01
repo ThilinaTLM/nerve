@@ -233,9 +233,8 @@ function shellStyles(): string {
       --radius-lg: 0.375rem;
       --font-sans: "Outfit", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
       --font-mono: "Iosevka", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-      --text-xs: 0.8125rem;
-      --text-sm: 0.9375rem;
-      --text-xl: 1.25rem;
+      --text-ui: 0.8125rem;
+      --text-title: 1rem;
       --splash-bg: var(--background);
       --splash-fg: var(--foreground);
       --splash-primary: var(--primary);
@@ -277,15 +276,15 @@ function shellStyles(): string {
     .error-title {
       margin: 0;
       color: var(--foreground);
-      font-size: var(--text-xl);
+      font-size: var(--text-title);
       font-weight: 600;
-      line-height: 1.75rem;
+      line-height: 1.5rem;
       letter-spacing: -0.025em;
     }
     .status {
       margin: 0;
       color: var(--muted-foreground);
-      font-size: var(--text-sm);
+      font-size: var(--text-ui);
       line-height: 1.625;
     }
     .error {
@@ -299,7 +298,7 @@ function shellStyles(): string {
       background: var(--primary);
       color: var(--background);
       font: inherit;
-      font-size: var(--text-sm);
+      font-size: var(--text-ui);
       font-weight: 600;
       cursor: pointer;
       -webkit-app-region: no-drag;
@@ -308,7 +307,7 @@ function shellStyles(): string {
     details {
       width: 100%;
       color: var(--muted-foreground);
-      font-size: var(--text-xs);
+      font-size: var(--text-ui);
       text-align: left;
       user-select: text;
       -webkit-app-region: no-drag;
@@ -330,7 +329,7 @@ function shellStyles(): string {
       background: color-mix(in oklab, var(--destructive) 10%, transparent);
       color: var(--destructive);
       font-family: var(--font-mono);
-      font-size: var(--text-xs);
+      font-size: var(--text-ui);
       line-height: 1.5;
     }
     ${STARTUP_SPLASH_STYLES}

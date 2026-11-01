@@ -42,7 +42,7 @@ let {
   <div class={cn("grid gap-3", bodyClass)} data-tour-id={bodyTourId}>
     {@render children()}
     {#if error}
-      <p class={cn("text-xs text-destructive", errorClass)}>{error}</p>
+      <p class={cn("text-ui text-destructive", errorClass)}>{error}</p>
     {/if}
   </div>
   {#snippet footer()}

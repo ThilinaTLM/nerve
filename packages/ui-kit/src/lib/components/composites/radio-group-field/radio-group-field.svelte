@@ -54,9 +54,9 @@ let {
         class="mt-0.5"
       />
       <span class="grid min-w-0 gap-0.5">
-        <span class="text-sm font-medium leading-tight">{item.label}</span>
+        <span class="text-ui font-medium leading-tight">{item.label}</span>
         {#if item.detail}
-          <span class="text-xs leading-snug text-muted-foreground"
+          <span class="text-ui leading-snug text-muted-foreground"
             >{item.detail}</span
           >
         {/if}

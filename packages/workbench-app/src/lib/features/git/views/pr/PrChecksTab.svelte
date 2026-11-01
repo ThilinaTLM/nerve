@@ -86,8 +86,8 @@ function duration(run: GithubCheckRun): string {
     </span>
     <div class="min-w-0 flex-1">
       <p class="flex min-w-0 items-baseline gap-2">
-        <span class="truncate text-sm">{run.name}</span>
-        <span class="shrink-0 text-xs text-muted-foreground">
+        <span class="truncate text-ui">{run.name}</span>
+        <span class="shrink-0 text-ui text-muted-foreground">
           {run.workflow ??
             ""}{#if run.required && group !== "passed"}{run.workflow
               ? "\u00a0· "
@@ -96,7 +96,7 @@ function duration(run: GithubCheckRun): string {
       </p>
       {#if run.summary && group === "failed"}
         <p
-          class="mt-0.5 truncate font-mono text-xs text-muted-foreground"
+          class="mt-0.5 truncate font-mono text-ui text-muted-foreground"
           title={run.summary}
         >
           {run.summary}
@@ -104,7 +104,7 @@ function duration(run: GithubCheckRun): string {
       {/if}
     </div>
     <span
-      class="flex h-5 items-center text-xs text-muted-foreground tabular-nums"
+      class="flex h-5 items-center text-ui text-muted-foreground tabular-nums"
     >
       {#if group === "queued"}
         waiting
@@ -129,7 +129,7 @@ function duration(run: GithubCheckRun): string {
 <ScrollArea class="h-full">
   <div class="flex max-w-3xl flex-col gap-5 px-4 py-4">
     {#if checks.runs.length === 0}
-      <p class="text-xs text-muted-foreground">No checks have been reported.</p>
+      <p class="text-ui text-muted-foreground">No checks have been reported.</p>
     {:else}
       <header class="flex flex-col gap-2">
         <div class="flex items-center gap-2">
@@ -140,7 +140,7 @@ function duration(run: GithubCheckRun): string {
           {:else}
             <CircleCheck class="size-4 text-success" aria-hidden="true" />
           {/if}
-          <h2 class="text-base font-semibold">{summary.headline}</h2>
+          <h2 class="text-title font-semibold">{summary.headline}</h2>
         </div>
         <div
           class="flex h-1 gap-px overflow-hidden rounded-full"
@@ -150,7 +150,7 @@ function duration(run: GithubCheckRun): string {
             <span class={segment.tone} style:flex-grow={segment.count}></span>
           {/each}
         </div>
-        <p class="text-xs text-muted-foreground tabular-nums">
+        <p class="text-ui text-muted-foreground tabular-nums">
           {summary.complete} of {summary.total} complete{#if summary.requiredNotPassing > 0}&nbsp;·
             {summary.requiredNotPassing} required not passing{/if}
         </p>
@@ -159,7 +159,7 @@ function duration(run: GithubCheckRun): string {
       {#each groups as group (group.status)}
         <section>
           <h3
-            class="flex items-center gap-1.5 pb-1.5 text-xs font-medium text-muted-foreground"
+            class="flex items-center gap-1.5 pb-1.5 text-ui font-medium text-muted-foreground"
           >
             {GROUP_LABEL[group.status]}
             <span class="font-normal tabular-nums">{group.runs.length}</span>

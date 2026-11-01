@@ -19,7 +19,7 @@ const days = $derived(groupCommitsByDay(response.commits));
   <div class="flex max-w-3xl flex-col gap-5 px-4 py-4">
     {#each days as group (group.day)}
       <section aria-label={group.day}>
-        <h2 class="mb-1.5 text-xs font-medium text-muted-foreground">
+        <h2 class="mb-1.5 text-ui font-medium text-muted-foreground">
           {group.day}
         </h2>
         <ol class="divide-y overflow-hidden rounded-md border bg-card">
@@ -31,11 +31,11 @@ const days = $derived(groupCommitsByDay(response.commits));
                 aria-hidden="true"
               />
               <div class="min-w-0 flex-1">
-                <p class="truncate text-sm" title={commit.messageHeadline}>
+                <p class="truncate text-ui" title={commit.messageHeadline}>
                   {commit.messageHeadline}
                 </p>
                 <p
-                  class="mt-0.5 flex items-center gap-1.5 text-xs text-muted-foreground"
+                  class="mt-0.5 flex items-center gap-1.5 text-ui text-muted-foreground"
                 >
                   <PrAvatar name={author} />
                   {author ?? "Unknown author"}
@@ -49,14 +49,14 @@ const days = $derived(groupCommitsByDay(response.commits));
               </div>
               {#if commit.additions !== undefined && commit.deletions !== undefined}
                 <span
-                  class="hidden shrink-0 gap-1.5 text-xs tabular-nums @xl:flex"
+                  class="hidden shrink-0 gap-1.5 text-ui tabular-nums @xl:flex"
                 >
                   <span class="text-success">+{commit.additions}</span>
                   <span class="text-destructive">−{commit.deletions}</span>
                 </span>
               {/if}
               <code
-                class="shrink-0 rounded-sm bg-muted px-1 font-mono text-xs text-muted-foreground"
+                class="shrink-0 rounded-sm bg-muted px-1 font-mono text-ui text-muted-foreground"
                 >{commit.abbrev}</code
               >
             </li>
@@ -64,7 +64,7 @@ const days = $derived(groupCommitsByDay(response.commits));
         </ol>
       </section>
     {:else}
-      <p class="text-xs text-muted-foreground">No commit data available.</p>
+      <p class="text-ui text-muted-foreground">No commit data available.</p>
     {/each}
   </div>
 </ScrollArea>

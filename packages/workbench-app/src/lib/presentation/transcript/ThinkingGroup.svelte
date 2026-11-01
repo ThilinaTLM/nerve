@@ -43,7 +43,7 @@ let { items }: Props = $props();
 .thinking-group {
   margin: 0;
   color: var(--muted-foreground);
-  font-size: var(--text-sm);
+  font-size: var(--text-body);
   line-height: 1.55;
 }
 

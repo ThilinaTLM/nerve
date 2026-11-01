@@ -113,7 +113,7 @@ const listboxId = "composer-suggestions";
 
 {#snippet statusBar()}
   <div
-    class="flex h-7 shrink-0 items-center gap-2 bg-panel px-2 text-xs text-muted-foreground {above
+    class="flex h-7 shrink-0 items-center gap-2 bg-panel px-2 text-ui text-muted-foreground {above
       ? 'border-b'
       : 'border-t'} border-border"
   >
@@ -197,7 +197,7 @@ const listboxId = "composer-suggestions";
          overflowing content unreachable above the scroll origin. -->
     {#if above}<div class="flex-1" aria-hidden="true"></div>{/if}
     {#if model.empty}
-      <div class="flex flex-col gap-0.5 px-2 py-3 text-xs">
+      <div class="flex flex-col gap-0.5 px-2 py-3 text-ui">
         <span class="text-foreground">{model.empty}</span>
         {#if model.mode === "mention"}<span class="text-muted-foreground"
             >Keep typing — a space ends the mention.</span
@@ -208,7 +208,7 @@ const listboxId = "composer-suggestions";
       <!-- Per-group wrapper bounds the sticky header to its own rows. -->
       <div class="flex flex-col">
         <div
-          class="sticky top-0 z-10 flex h-6 shrink-0 items-center justify-between bg-popover px-2 text-xs text-muted-foreground"
+          class="sticky top-0 z-10 flex h-6 shrink-0 items-center justify-between bg-popover px-2 text-ui text-muted-foreground"
         >
           <span>{group.label}</span>
           {#if group.loading}
@@ -236,7 +236,7 @@ const listboxId = "composer-suggestions";
             aria-selected={isSelected}
             aria-disabled={row.state === "unavailable"}
             title={row.title}
-            class="flex h-7 w-full min-w-0 shrink-0 cursor-default items-center gap-2 rounded-md px-2 text-left text-xs {isSelected
+            class="flex h-7 w-full min-w-0 shrink-0 cursor-default items-center gap-2 rounded-md px-2 text-left text-ui {isSelected
               ? 'bg-accent text-accent-foreground'
               : 'hover:bg-muted'} {row.state === 'unavailable'
               ? 'opacity-60'

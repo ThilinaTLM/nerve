@@ -256,7 +256,7 @@ function closeCenterTabsLeft(tab: CenterTabIdentity) {
     </Dialog.Header>
     {#if unsavedFileClosePrompt.files.length > 1}
       <ul
-        class="m-0 max-h-40 list-none overflow-y-auto rounded-md border border-border bg-well p-2 font-mono text-xs"
+        class="m-0 max-h-40 list-none overflow-y-auto rounded-md border border-border bg-well p-2 font-mono text-ui"
       >
         {#each unsavedFileClosePrompt.files as file (file.id)}
           <li class="truncate px-1 py-0.5" title={file.name}>{file.name}</li>

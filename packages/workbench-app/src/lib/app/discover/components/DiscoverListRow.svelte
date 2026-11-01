@@ -39,7 +39,7 @@ let {
         ></span>
       {/if}
       <span
-        class="truncate text-sm {subdued
+        class="truncate text-ui {subdued
           ? 'text-muted-foreground'
           : 'text-foreground'}"
       >
@@ -50,7 +50,7 @@ let {
       {/if}
     </div>
     {#if description}
-      <p class="truncate text-xs text-muted-foreground">{description}</p>
+      <p class="truncate text-ui text-muted-foreground">{description}</p>
     {/if}
   </div>
   {#if actions}

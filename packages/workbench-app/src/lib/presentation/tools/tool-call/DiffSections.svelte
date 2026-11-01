@@ -48,7 +48,7 @@ const skeletonWidths = ["w-11/12", "w-3/4", "w-5/6"];
     {#if section.caption !== undefined || section.status}
       <p
         class={cn(
-          "m-0 text-xs font-medium wrap-anywhere",
+          "m-0 text-ui font-medium wrap-anywhere",
           section.status === "failed"
             ? "text-destructive"
             : "text-muted-foreground",

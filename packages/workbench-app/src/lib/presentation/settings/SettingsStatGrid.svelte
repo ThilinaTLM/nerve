@@ -27,11 +27,13 @@ let { items, class: className }: Props = $props();
         item.wide && "md:col-span-2",
       )}
     >
-      <span class="truncate text-xs text-muted-foreground">{item.label}</span>
+      <span class="truncate text-caption text-muted-foreground"
+        >{item.label}</span
+      >
       <span
         class={cn(
-          "truncate text-sm text-foreground",
-          item.mono && "font-mono text-xs",
+          "truncate text-ui text-foreground",
+          item.mono && "font-mono text-ui",
         )}
         title={item.value}>{item.value}</span
       >

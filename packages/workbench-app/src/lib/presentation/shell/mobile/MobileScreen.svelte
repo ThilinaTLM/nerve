@@ -59,7 +59,7 @@ let {
       >
         <span class="grid min-w-0 flex-1 text-left">
           <span class="flex min-w-0 items-center gap-1">
-            <span class="truncate text-sm font-semibold text-foreground"
+            <span class="truncate text-ui font-semibold text-foreground"
               >{title}</span
             >
             <ChevronDown
@@ -69,7 +69,7 @@ let {
             />
           </span>
           {#if subtitle}
-            <span class="truncate text-xs text-muted-foreground"
+            <span class="truncate text-ui text-muted-foreground"
               >{subtitle}</span
             >
           {/if}
@@ -77,9 +77,9 @@ let {
       </button>
     {:else}
       <span class="grid min-w-0 flex-1">
-        <h1 class="truncate text-sm font-semibold text-foreground">{title}</h1>
+        <h1 class="truncate text-ui font-semibold text-foreground">{title}</h1>
         {#if subtitle}
-          <span class="truncate text-xs text-muted-foreground">{subtitle}</span>
+          <span class="truncate text-ui text-muted-foreground">{subtitle}</span>
         {/if}
       </span>
     {/if}

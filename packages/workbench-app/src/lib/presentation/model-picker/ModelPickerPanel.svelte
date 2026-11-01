@@ -264,7 +264,7 @@ function handleSearchKeydown(event: KeyboardEvent): void {
     activeDescendant={navigation.activeDescendant}
   />
   {#if requiredCapabilities.length > 0}
-    <p class="pt-1 text-xs text-muted-foreground">
+    <p class="pt-1 text-ui text-muted-foreground">
       {requiredCapabilities
         .map((capability) => modelCapabilityLabels[capability])
         .join(" + ")} models only — required by this tool
@@ -292,7 +292,7 @@ function handleSearchKeydown(event: KeyboardEvent): void {
             {#if item.kind === "header"}
               <div
                 role="presentation"
-                class="px-1.5 pt-2 pb-1 text-xs font-medium text-muted-foreground"
+                class="px-1.5 pt-2 pb-1 text-ui font-medium text-muted-foreground"
               >
                 {item.label}
               </div>
@@ -353,7 +353,7 @@ function handleSearchKeydown(event: KeyboardEvent): void {
     class="grid flex-none gap-1 border-t border-border px-2 pt-1.5 pb-2"
     aria-label="Reasoning level"
   >
-    <span class="flex items-center gap-1 px-1.5 text-xs text-muted-foreground">
+    <span class="flex items-center gap-1 px-1.5 text-ui text-muted-foreground">
       Reasoning{reasoningModelLabel || inheriting
         ? ` · ${reasoningModelLabel || inheritOption?.label}`
         : ""}
@@ -391,14 +391,14 @@ function handleSearchKeydown(event: KeyboardEvent): void {
       {/each}
     </ToggleGroup.Root>
     {#if unsupportedReasoning}
-      <p class="px-1.5 text-xs text-warning">
+      <p class="px-1.5 text-ui text-warning">
         Saved {thinkingLevel} reasoning is not supported by this model.{thinkingDisabled
           ? ` ${lockTitle}.`
           : " Choose a supported level or use settings."}
       </p>
     {/if}
     {#if inheriting && onThinkingChange}
-      <p class="px-1.5 text-xs text-muted-foreground">
+      <p class="px-1.5 text-ui text-muted-foreground">
         Available levels depend on the model selected in settings.
       </p>
     {/if}

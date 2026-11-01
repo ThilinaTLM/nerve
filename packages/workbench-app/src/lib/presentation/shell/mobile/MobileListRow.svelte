@@ -68,17 +68,17 @@ let menuOpen = $state(false);
 
     <span class="grid min-w-0 flex-1 gap-0.5 text-left">
       <span class="flex min-w-0 items-baseline gap-2">
-        <span class="min-w-0 flex-1 truncate text-sm text-foreground"
+        <span class="min-w-0 flex-1 truncate text-ui text-foreground"
           >{title}</span
         >
         {#if meta}
-          <span class="flex-none truncate text-xs text-muted-foreground"
+          <span class="flex-none truncate text-ui text-muted-foreground"
             >{meta}</span
           >
         {/if}
       </span>
       {#if detail}
-        <span class="line-clamp-2 text-xs text-muted-foreground">{detail}</span>
+        <span class="line-clamp-2 text-ui text-muted-foreground">{detail}</span>
       {/if}
     </span>
   </button>
@@ -87,7 +87,7 @@ let menuOpen = $state(false);
     <span class="flex flex-none items-center pr-2">{@render trailing()}</span>
   {:else if count !== undefined && count > 0}
     <span
-      class="flex-none self-center rounded-full bg-card px-1.5 py-0.5 text-xs text-muted-foreground"
+      class="flex-none self-center rounded-full bg-card px-1.5 py-0.5 text-ui text-muted-foreground"
       >{count}</span
     >
   {/if}

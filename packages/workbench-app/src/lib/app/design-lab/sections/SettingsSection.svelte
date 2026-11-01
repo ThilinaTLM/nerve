@@ -1,4 +1,8 @@
 <script lang="ts">
+import SettingsNav from "$lib/presentation/settings/SettingsNav.svelte";
+import SettingsChangeIndicator from "$lib/presentation/settings/SettingsChangeIndicator.svelte";
+import EntityCard from "$lib/presentation/settings/EntityCard.svelte";
+import EntityRow from "$lib/presentation/settings/EntityRow.svelte";
 import BrainIcon from "@lucide/svelte/icons/brain";
 import CpuIcon from "@lucide/svelte/icons/cpu";
 import FolderIcon from "@lucide/svelte/icons/folder";
@@ -21,7 +25,6 @@ import { Switch } from "@nervekit/ui-kit/components/ui/switch";
 import { IconAction } from "@nervekit/ui-kit/components/composites/icon-action";
 import SelectField from "@nervekit/ui-kit/components/composites/select-field";
 import {
-  SettingsChoiceCards,
   SettingsDisclosureItem,
   SettingsEmptyState,
   SettingsFieldRow,
@@ -37,19 +40,15 @@ import {
   SettingsShell,
   SettingsSidebarStatus,
   SettingsStatGrid,
-  SettingsSummaryRow,
   SettingsToggleRow,
   SettingsToolbar,
-  type SettingsChoice,
   type SettingsPageDef,
   type SettingsPreviewOption,
   type SettingsStat,
-  type SettingsStatus,
 } from "$lib/presentation/settings";
 import GalleryGroup from "../GalleryGroup.svelte";
 import GallerySpecimen from "../GallerySpecimen.svelte";
 
-const summaryStatuses: SettingsStatus[] = ["ok", "warning", "muted"];
 const saveStatuses = ["idle", "dirty", "saving", "saved", "error"] as const;
 const saveText: Record<(typeof saveStatuses)[number], string> = {
   idle: "No changes",
@@ -61,25 +60,6 @@ const saveText: Record<(typeof saveStatuses)[number], string> = {
 
 const longText =
   "/home/someone/Projects/a-monorepo-with-a-very-long-name/packages/workbench-app/src/lib/presentation/settings";
-
-const compactionChoices: SettingsChoice[] = [
-  {
-    value: "balanced",
-    label: "Balanced",
-    detail: "Compacts at 80% of the context window",
-  },
-  {
-    value: "early",
-    label: "Early",
-    detail: "Compacts sooner to keep long conversations responsive",
-  },
-  {
-    value: "late",
-    label: "Late",
-    detail: "Keeps more raw history; may be slower on large contexts",
-    disabled: true,
-  },
-];
 
 const lightThemeOptions: SettingsPreviewOption[] = [
   {
@@ -135,7 +115,6 @@ let toggleB = $state(false);
 let selectValue = $state("auto");
 let fieldText = $state("127.0.0.1");
 let fieldNumber = $state("43967");
-let choice = $state("balanced");
 let lightTheme = $state("nerve-light");
 let darkTheme = $state("nerve-dark");
 let colorMode = $state("dark");
@@ -402,7 +381,7 @@ let headerStyle = $state("auto");
 
   <GalleryGroup
     title="Headings"
-    description="Page title text-base semibold, section heading text-sm semibold, group heading text-sm semibold muted."
+    description="Page title text-title semibold, section heading text-ui semibold, group heading text-ui semibold muted."
   >
     <GallerySpecimen
       title="SettingsPageHeader"
@@ -451,7 +430,7 @@ let headerStyle = $state("auto");
       usage="2 files · settings"
       description="Hover or focus the info icon."
     >
-      <span class="flex items-center gap-1.5 text-sm font-semibold">
+      <span class="flex items-center gap-1.5 text-ui font-semibold">
         Hint <SettingsInfoHint text="Brief explanation." />
       </span>
     </GallerySpecimen>
@@ -459,7 +438,7 @@ let headerStyle = $state("auto");
 
   <GalleryGroup
     title="Rows"
-    description="Row title text-sm regular foreground; supporting text text-xs muted."
+    description="Row title text-ui regular foreground; supporting text text-ui muted."
   >
     <GallerySpecimen
       title="SettingsRow"
@@ -482,7 +461,7 @@ let headerStyle = $state("auto");
         layout="stacked"
       >
         <div
-          class="rounded-md border bg-card px-3 py-2 text-xs text-muted-foreground"
+          class="rounded-md border bg-card px-3 py-2 text-ui text-muted-foreground"
         >
           Children slot content
         </div>
@@ -566,26 +545,6 @@ let headerStyle = $state("auto");
           hint="Restart required after changing."
         />
       </div>
-    </GallerySpecimen>
-
-    <GallerySpecimen
-      title="SettingsSummaryRow"
-      source="settings/SettingsSummaryRow"
-      usage="1 file · settings"
-      layout="stack"
-      surface="card"
-      description="Compact recessed row with status dot, meta and actions. Statuses used: ok, warning, muted."
-    >
-      {#each summaryStatuses as status (status)}
-        <SettingsSummaryRow title="Status {status}" {status}>
-          {#snippet meta()}
-            Last checked 2 minutes ago
-          {/snippet}
-          {#snippet actions()}
-            <IconAction icon={RefreshCwIcon} label="Re-check" />
-          {/snippet}
-        </SettingsSummaryRow>
-      {/each}
     </GallerySpecimen>
   </GalleryGroup>
 
@@ -714,26 +673,6 @@ let headerStyle = $state("auto");
 
   <GalleryGroup title="Choice & preview">
     <GallerySpecimen
-      title="SettingsChoiceCards"
-      source="settings/SettingsChoiceCards"
-      usage="2 files · settings, dialogs"
-      layout="stack"
-      description="Both variants are used: cards (default, new-profile dialog) and radio (compaction), each with a per-item disabled state."
-    >
-      <SettingsChoiceCards
-        items={compactionChoices}
-        bind:value={choice}
-        ariaLabel="Compaction profile (cards)"
-      />
-      <SettingsChoiceCards
-        items={compactionChoices}
-        bind:value={choice}
-        ariaLabel="Compaction profile (radio)"
-        variant="radio"
-      />
-    </GallerySpecimen>
-
-    <GallerySpecimen
       title="SettingsPreviewCards"
       source="settings/SettingsPreviewCards"
       usage="2 files · settings"
@@ -801,7 +740,7 @@ let headerStyle = $state("auto");
     >
       <SettingsToolbar>
         {#snippet start()}
-          <span class="text-xs text-muted-foreground">3 providers</span>
+          <span class="text-ui text-muted-foreground">3 providers</span>
         {/snippet}
         {#snippet end()}
           <Button variant="outline">
@@ -831,6 +770,99 @@ let headerStyle = $state("auto");
           </div>
         {/each}
       </div>
+    </GallerySpecimen>
+  </GalleryGroup>
+  <GalleryGroup title="Shared presentation">
+    <GallerySpecimen
+      title="SettingsNav"
+      source="presentation/settings/SettingsNav.svelte"
+      layout="stack"
+    >
+      <SettingsNav
+        groups={[
+          {
+            id: "general",
+            title: "General",
+            items: [
+              { id: "appearance", label: "Appearance", icon: MonitorIcon },
+            ],
+          },
+          {
+            id: "agent",
+            title: "Agent",
+            items: [
+              {
+                id: "providers",
+                label: "Providers",
+                icon: KeyRoundIcon,
+                badge: { text: "2", tone: "info" },
+              },
+            ],
+          },
+          {
+            id: "project",
+            title: "Project",
+            items: [
+              {
+                id: "advanced",
+                label: "Advanced",
+                icon: WrenchIcon,
+                disabled: true,
+              },
+            ],
+          },
+        ]}
+        activeId="appearance"
+        header={{ title: "User settings" }}
+        onSelect={() => {}}
+      />
+    </GallerySpecimen>
+    <GallerySpecimen
+      title="SettingsChangeIndicator"
+      source="presentation/settings/SettingsChangeIndicator.svelte"
+      layout="stack"
+    >
+      <SettingsChangeIndicator
+        scope="user"
+        from="Balanced"
+        to="Early"
+        onReset={() => {}}
+      />
+      <SettingsChangeIndicator
+        scope="project"
+        from="Claude Sonnet 4"
+        to="GPT-5"
+        compact
+        onReset={() => {}}
+      />
+    </GallerySpecimen>
+    <GallerySpecimen
+      title="EntityCard"
+      source="presentation/settings/EntityCard.svelte"
+      layout="stack"
+    >
+      <EntityCard
+        title="Planning"
+        description="Read-only exploration before implementation."
+        ><EntityRow
+          label="Model"
+          value="Claude Sonnet 4"
+          onEdit={() => {}}
+        /></EntityCard
+      >
+    </GallerySpecimen>
+    <GallerySpecimen
+      title="EntityRow"
+      source="presentation/settings/EntityRow.svelte"
+      layout="stack"
+    >
+      <EntityRow
+        label="Reasoning"
+        value="High"
+        onEdit={() => {}}
+        onRemove={() => {}}
+      />
+      <EntityRow label="Permissions" value="Read-only" />
     </GallerySpecimen>
   </GalleryGroup>
 </div>

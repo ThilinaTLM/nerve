@@ -120,7 +120,7 @@
   --muted: oklch(0.924 0.018 91);
   --muted-foreground: oklch(0.49 0.0078 97.5);
   --accent: oklch(0.91 0.026 92);
-  --selected: color-mix(in oklab, var(--foreground) 8%, transparent);
+  --selected: color-mix(in oklab, var(--primary) 10%, transparent);
   --destructive: oklch(0.5 0.19 27);
   --destructive-foreground: oklch(1 0 0);
   --destructive-solid: oklch(0.55 0.21 27.5);
@@ -177,7 +177,7 @@
   --muted: oklch(0.322 0.018 78);
   --muted-foreground: oklch(0.7713 0.017 99);
   --accent: oklch(0.336 0.022 78);
-  --selected: color-mix(in oklab, var(--foreground) 10%, transparent);
+  --selected: color-mix(in oklab, var(--primary) 10%, transparent);
   --destructive: oklch(0.8 0.114 25.5);
   --destructive-foreground: oklch(0.147 0.004 49.3);
   --destructive-solid: oklch(0.58 0.21 27.5);
@@ -226,7 +226,7 @@
   --muted: oklch(0.292 0.008 65);
   --muted-foreground: oklch(0.715 0.01 75);
   --accent: oklch(0.312 0.009 65);
-  --selected: color-mix(in oklab, var(--primary) 16%, transparent);
+  --selected: color-mix(in oklab, var(--primary) 10%, transparent);
   --destructive: oklch(0.76 0.13 25);
   --destructive-foreground: oklch(0.147 0.004 49.3);
   --destructive-solid: oklch(0.58 0.2 27);
@@ -278,7 +278,7 @@
   --muted: oklch(0.895 0.011 61);
   --muted-foreground: oklch(0.46 0.035 53);
   --accent: oklch(0.87 0.01 62.6);
-  --selected: color-mix(in oklab, var(--primary) 14%, transparent);
+  --selected: color-mix(in oklab, var(--primary) 10%, transparent);
   --destructive: oklch(0.507 0.205 24.2);
   --destructive-foreground: oklch(1 0 0);
   --destructive-solid: oklch(0.55 0.2 24.2);
@@ -331,7 +331,7 @@
   --muted: oklch(0.332 0.01 62);
   --muted-foreground: oklch(0.745 0.046 65.9);
   --accent: oklch(0.353 0.011 56);
-  --selected: color-mix(in oklab, var(--primary) 16%, transparent);
+  --selected: color-mix(in oklab, var(--primary) 10%, transparent);
   --destructive: oklch(0.8 0.105 31.4);
   --destructive-foreground: oklch(0.2 0.008 60);
   --destructive-solid: oklch(0.55 0.15 25);
@@ -374,6 +374,27 @@
 @theme {
   --spacing-control: 1.75rem;
   --spacing-control-sm: 1.5rem;
+
+  /* Type scale: four roles, 12-16px. Tailwind's default sizes are cleared so
+   * only these utilities exist (`text-caption`, `text-ui`, `text-body`,
+   * `text-title`).
+   * - caption: glanceable extras (timestamps, counts, chips, section labels).
+   *   Never errors, warnings, or instructions.
+   * - ui: everything interactive or list-like (rows, buttons, menus, inputs,
+   *   tabs, nav, dialog copy).
+   * - body: prose the user reads (transcript, markdown, PR descriptions).
+   * - title: page, dialog and card titles and headline numbers; always with
+   *   `font-semibold` (or `font-medium` for a welcome line), since it sits
+   *   only 1px above body. */
+  --text-*: initial;
+  --text-caption: 0.75rem;
+  --text-caption--line-height: 1rem;
+  --text-ui: 0.8125rem;
+  --text-ui--line-height: 1.125rem;
+  --text-body: 0.9375rem;
+  --text-body--line-height: 1.375rem;
+  --text-title: 1rem;
+  --text-title--line-height: 1.5rem;
 }
 
 @media (pointer: coarse) {
@@ -384,12 +405,6 @@
 }
 
 @theme inline {
-  /* Nerve's compact readable scale keeps everyday use comfortable at 100% zoom. */
-  --text-xs: 0.8125rem;
-  --text-xs--line-height: 1.125rem;
-  --text-sm: 0.9375rem;
-  --text-sm--line-height: 1.375rem;
-
   --font-sans:
     "Outfit", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
     "Segoe UI", sans-serif;
@@ -420,7 +435,8 @@
   --color-warning: var(--warning);
   --color-success-foreground: var(--success-foreground);
   --color-success: var(--success);
-  /* Persistent selection: a theme-chosen tint, stronger than the neutral hover. */
+  /* Persistent selection: a soft brand tint. Selected rows pair it with a brand
+   * marker (leading icon or dot) and medium weight; see workbench-app AGENTS.md. */
   --color-selected: var(--selected);
   --color-accent-foreground: var(--accent-foreground);
   --color-accent: var(--accent);

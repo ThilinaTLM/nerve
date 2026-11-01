@@ -123,7 +123,7 @@ function apply(): void {
         bind:value={draft.labels}
         placeholder="bug, needs-review"
       />
-      <p class="text-xs text-muted-foreground">
+      <p class="text-ui text-muted-foreground">
         Separate exact GitHub label names with commas.
       </p>
     </div>
@@ -137,7 +137,7 @@ function apply(): void {
       <div class="grid gap-1">
         <Label for="pr-filter-current-branch">Current branch only</Label>
         {#if !hasCurrentBranch}
-          <p class="text-xs text-muted-foreground">
+          <p class="text-ui text-muted-foreground">
             Unavailable while HEAD is detached.
           </p>
         {/if}

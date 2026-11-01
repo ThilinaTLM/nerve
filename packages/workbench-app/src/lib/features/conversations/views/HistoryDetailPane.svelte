@@ -68,7 +68,7 @@ async function copyId(id: string) {
 
 {#if !selection}
   <div
-    class="flex h-full items-center justify-center p-6 text-center text-xs text-muted-foreground"
+    class="flex h-full items-center justify-center p-6 text-center text-ui text-muted-foreground"
   >
     Select an entry on the left to preview it here.
   </div>
@@ -76,11 +76,11 @@ async function copyId(id: string) {
   <div class="flex h-full flex-col gap-4 overflow-y-auto p-5">
     <div class="flex items-center gap-2 text-primary">
       <GitBranch class="size-5" strokeWidth={2} />
-      <h3 class="text-sm font-semibold text-foreground">
+      <h3 class="text-ui font-semibold text-foreground">
         Start of conversation
       </h3>
     </div>
-    <p class="text-sm text-muted-foreground">
+    <p class="text-ui text-muted-foreground">
       Branch from the beginning to start a new path. Your next message becomes
       the first entry of that branch; the existing history stays available in
       the tree.
@@ -96,10 +96,10 @@ async function copyId(id: string) {
   {@const segment = selection.segment}
   <div class="flex h-full flex-col gap-4 overflow-y-auto p-5">
     <div class="flex flex-col gap-1">
-      <h3 class="text-sm font-semibold text-foreground">
+      <h3 class="text-ui font-semibold text-foreground">
         {segment.total} collapsed steps
       </h3>
-      <p class="text-xs text-muted-foreground">
+      <p class="text-ui text-muted-foreground">
         {dateTimeLabel(segment.startedAt)} — {dateTimeLabel(segment.endedAt)}
       </p>
     </div>
@@ -107,7 +107,7 @@ async function copyId(id: string) {
       {#each segment.parts as part, i (i)}
         {@const PartIcon = HISTORY_ICONS[part.icon]}
         <span
-          class="flex items-center gap-1 rounded-md border bg-muted/40 px-2 py-0.5 text-xs text-muted-foreground"
+          class="flex items-center gap-1 rounded-md border bg-muted/40 px-2 py-0.5 text-ui text-muted-foreground"
         >
           <PartIcon class="size-3.5" strokeWidth={2} />
           <span class="font-medium text-foreground">{part.count}</span>
@@ -139,11 +139,11 @@ async function copyId(id: string) {
           >
             <StepIcon class="size-3.5" strokeWidth={2} />
           </span>
-          <span class="shrink-0 text-xs font-medium text-foreground"
+          <span class="shrink-0 text-ui font-medium text-foreground"
             >{stepDesc.label}</span
           >
           <span
-            class="min-w-0 flex-1 truncate text-xs text-muted-foreground"
+            class="min-w-0 flex-1 truncate text-ui text-muted-foreground"
             class:font-mono={stepDesc.mono}
           >
             {stepDesc.preview}
@@ -163,11 +163,11 @@ async function copyId(id: string) {
         >
           <Icon class="size-5" strokeWidth={2} />
         </span>
-        <h3 class="text-sm font-semibold text-foreground">{desc.label}</h3>
+        <h3 class="text-ui font-semibold text-foreground">{desc.label}</h3>
         {#each desc.badges as badge, b (b)}
           {@const BadgeIcon = HISTORY_ICONS[badge.icon]}
           <span
-            class={`flex items-center gap-0.5 text-xs ${HISTORY_TONE_TEXT[badge.tone]}`}
+            class={`flex items-center gap-0.5 text-ui ${HISTORY_TONE_TEXT[badge.tone]}`}
             title={badge.title ?? badge.label}
           >
             <BadgeIcon class="size-3.5" strokeWidth={2} />
@@ -176,7 +176,7 @@ async function copyId(id: string) {
         {/each}
       </div>
       <div
-        class="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground"
+        class="flex flex-wrap items-center gap-x-3 gap-y-1 text-ui text-muted-foreground"
       >
         <span title={dateTimeLabel(entry.createdAt)}
           >{relativeTimeLabel(entry.createdAt)} ago</span
@@ -216,7 +216,7 @@ async function copyId(id: string) {
       {#if view?.isToolEntry}
         <div class="flex flex-col gap-3">
           {#if view.toolName}
-            <div class="flex items-center gap-2 text-xs text-muted-foreground">
+            <div class="flex items-center gap-2 text-ui text-muted-foreground">
               <span class="font-medium text-foreground">Tool</span>
               <span class="font-mono">{view.toolName}</span>
               {#if record?.status}<span class="rounded-md border px-1.5 py-0.5"
@@ -227,41 +227,41 @@ async function copyId(id: string) {
           {/if}
           {#if view.argsText}
             <div class="flex flex-col gap-1">
-              <span class="text-xs font-medium text-muted-foreground"
+              <span class="text-ui font-medium text-muted-foreground"
                 >Arguments</span
               >
               <pre
-                class="overflow-x-auto rounded-md border bg-muted/40 p-3 font-mono text-xs whitespace-pre-wrap break-words">{view.argsText}</pre>
+                class="overflow-x-auto rounded-md border bg-muted/40 p-3 font-mono text-ui whitespace-pre-wrap break-words">{view.argsText}</pre>
             </div>
           {/if}
           {#if view.resultText}
             <div class="flex flex-col gap-1">
-              <span class="text-xs font-medium text-muted-foreground"
+              <span class="text-ui font-medium text-muted-foreground"
                 >Result</span
               >
               <pre
-                class="overflow-x-auto rounded-md border bg-muted/40 p-3 font-mono text-xs whitespace-pre-wrap break-words">{view.resultText}</pre>
+                class="overflow-x-auto rounded-md border bg-muted/40 p-3 font-mono text-ui whitespace-pre-wrap break-words">{view.resultText}</pre>
             </div>
           {/if}
           {#if view.errorText}
             <div class="flex flex-col gap-1">
-              <span class="text-xs font-medium text-destructive">Error</span>
+              <span class="text-ui font-medium text-destructive">Error</span>
               <pre
-                class="overflow-x-auto rounded-md border border-destructive/40 bg-destructive/10 p-3 font-mono text-xs whitespace-pre-wrap break-words">{view.errorText}</pre>
+                class="overflow-x-auto rounded-md border border-destructive/40 bg-destructive/10 p-3 font-mono text-ui whitespace-pre-wrap break-words">{view.errorText}</pre>
             </div>
           {/if}
           {#if !view.argsText && !view.resultText && !view.errorText}
-            <p class="text-xs text-muted-foreground">
+            <p class="text-ui text-muted-foreground">
               No tool details available for this entry.
             </p>
           {/if}
         </div>
       {:else if thinking && !entry.text}
-        <div class="text-sm text-muted-foreground">
+        <div class="text-ui text-muted-foreground">
           <Markdown text={thinking} />
         </div>
       {:else if entry.summary || entry.text}
-        <div class="text-sm text-foreground">
+        <div class="text-ui text-foreground">
           {#if entry.role === "user"}
             <PlainText text={entry.summary || entry.text} />
           {:else}
@@ -272,13 +272,13 @@ async function copyId(id: string) {
           {/if}
         </div>
         {#if thinking}
-          <div class="mt-4 border-t pt-3 text-sm text-muted-foreground">
-            <span class="mb-1 block text-xs font-medium">Thinking</span>
+          <div class="mt-4 border-t pt-3 text-ui text-muted-foreground">
+            <span class="mb-1 block text-ui font-medium">Thinking</span>
             <Markdown text={thinking} />
           </div>
         {/if}
       {:else}
-        <p class="text-xs text-muted-foreground">
+        <p class="text-ui text-muted-foreground">
           This entry has no text content.
         </p>
       {/if}

@@ -232,7 +232,7 @@ const runItems = $derived<ContextMenuItem[]>(
     >
       <Terminal class="mx-auto size-7 text-primary" strokeWidth={1.7} />
       <p class="mt-1 text-foreground">Launch not found.</p>
-      <span class="text-xs">
+      <span class="text-ui">
         The launch may have been removed or is no longer available.
       </span>
     </div>

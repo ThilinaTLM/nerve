@@ -352,7 +352,7 @@ function dropOnStrip(event: DragEvent, dock: DockId) {
 
 .dock-drop-strip .dock-drop-label {
   color: var(--primary);
-  font-size: var(--text-xs);
+  font-size: var(--text-ui);
   writing-mode: horizontal-tb;
   text-align: center;
 }

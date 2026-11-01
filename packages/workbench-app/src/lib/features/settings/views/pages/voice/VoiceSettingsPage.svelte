@@ -164,7 +164,7 @@ function saveVocabulary(): void {
     {#if vocabularyError}
       <SettingsInlineMessage tone="destructive" text={vocabularyError} />
     {/if}
-    <p class="text-xs text-muted-foreground">
+    <p class="text-ui text-muted-foreground">
       Include only terms relevant to your dictation. Strong hints can bias the
       transcript toward words that were not spoken.
     </p>

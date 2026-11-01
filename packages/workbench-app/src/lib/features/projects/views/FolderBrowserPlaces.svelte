@@ -88,14 +88,14 @@ function isCurrent(path: string): boolean {
 {#snippet section(title: string, items: Item[], mono = false)}
   {#if items.length}
     <div class="flex flex-col gap-0.5">
-      <span class="px-2 pb-1 text-xs font-medium text-muted-foreground"
+      <span class="px-2 pb-1 text-ui font-medium text-muted-foreground"
         >{title}</span
       >
       {#each items as item (item.key)}
         <button
           type="button"
           class={cn(
-            "flex items-center gap-2 rounded-md px-2 py-1 text-left text-sm text-muted-foreground hover:bg-muted hover:text-foreground",
+            "flex items-center gap-2 rounded-md px-2 py-1 text-left text-ui text-muted-foreground hover:bg-muted hover:text-foreground",
             isCurrent(item.path) && "bg-selected font-medium text-foreground",
           )}
           aria-current={isCurrent(item.path) ? "true" : undefined}
@@ -103,7 +103,7 @@ function isCurrent(path: string): boolean {
           onclick={() => void browser.go(item.path)}
         >
           <item.icon class="size-4 shrink-0" aria-hidden="true" />
-          <span class={cn("truncate", mono && "font-mono text-xs")}
+          <span class={cn("truncate", mono && "font-mono text-ui")}
             >{item.label}</span
           >
         </button>

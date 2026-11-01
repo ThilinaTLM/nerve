@@ -37,9 +37,11 @@ let {
   <div
     class="grid flex-none gap-0.5 border-b px-2 pb-2 @max-[46rem]/settings-page:border-b-0 @max-[46rem]/settings-page:pb-1"
   >
-    <p class="text-sm font-semibold text-foreground">{header.title}</p>
+    <p class="text-ui font-semibold text-foreground">{header.title}</p>
     {#if header.subtitle}
-      <p class="truncate text-xs text-muted-foreground">{header.subtitle}</p>
+      <p class="truncate text-caption text-muted-foreground">
+        {header.subtitle}
+      </p>
     {/if}
     {#if header.action}
       <Button
@@ -64,7 +66,7 @@ let {
     <div class="grid gap-0.5 @max-[46rem]/settings-page:flex">
       {#if group.title}
         <p
-          class="px-2 pb-0.5 text-xs font-medium text-muted-foreground @max-[46rem]/settings-page:hidden"
+          class="px-2 pb-0.5 text-caption font-medium text-muted-foreground @max-[46rem]/settings-page:hidden"
         >
           {group.title}
         </p>
@@ -77,7 +79,7 @@ let {
           disabled={item.disabled}
           aria-current={current ? "page" : undefined}
           class={cn(
-            "group/nav flex w-full min-w-0 cursor-pointer items-center gap-2 h-control rounded-md px-2 text-left text-sm text-foreground outline-none transition-colors hover:bg-hover focus-visible:ring-3 focus-visible:ring-ring/50 disabled:pointer-events-none disabled:opacity-50 @max-[46rem]/settings-page:w-auto @max-[46rem]/settings-page:flex-none",
+            "group/nav flex w-full min-w-0 cursor-pointer items-center gap-2 h-control rounded-md px-2 text-left text-ui text-foreground outline-none transition-colors hover:bg-hover focus-visible:ring-3 focus-visible:ring-ring/50 disabled:pointer-events-none disabled:opacity-50 @max-[46rem]/settings-page:w-auto @max-[46rem]/settings-page:flex-none",
             current && "bg-selected font-medium hover:bg-selected",
           )}
           onclick={() => onSelect(item.id)}
@@ -85,7 +87,7 @@ let {
           <Icon
             class={cn(
               "size-4 flex-none text-muted-foreground group-hover/nav:text-foreground",
-              current && "text-foreground",
+              current && "text-primary group-hover/nav:text-primary",
             )}
             aria-hidden="true"
           />

@@ -90,8 +90,8 @@ const errorText = $derived(validation.error ?? serverError);
         <Label for="permission-rule-json">Rule JSON</Label>
         <span
           class={validation.error
-            ? "flex items-center gap-1 text-xs text-destructive"
-            : "flex items-center gap-1 text-xs text-success"}
+            ? "flex items-center gap-1 text-ui text-destructive"
+            : "flex items-center gap-1 text-ui text-success"}
           aria-live="polite"
         >
           {#if validation.error}Needs attention{:else}<Check
@@ -107,7 +107,7 @@ const errorText = $derived(validation.error ?? serverError);
       bind:value={source}
       rows={18}
       spellcheck={false}
-      class="min-h-72 resize-y font-mono text-xs"
+      class="min-h-72 resize-y font-mono text-ui"
       aria-invalid={Boolean(errorText)}
       aria-describedby={errorText
         ? "permission-rule-guidance permission-rule-error"
@@ -117,18 +117,18 @@ const errorText = $derived(validation.error ?? serverError);
       <p
         id="permission-rule-error"
         role="alert"
-        class="whitespace-pre-wrap rounded-md bg-destructive/10 p-3 text-xs text-destructive"
+        class="whitespace-pre-wrap rounded-md bg-destructive/10 p-3 text-ui text-destructive"
       >
         {errorText}
       </p>
     {/if}
     {#if validation.rule && Object.keys(validation.rule.when).length === 0}
-      <p class="rounded-md bg-warning/10 p-3 text-xs text-warning">
+      <p class="rounded-md bg-warning/10 p-3 text-ui text-warning">
         An empty “when” matches every request. Add conditions if this is not
         intentional.
       </p>
     {/if}
-    <details class="text-xs text-muted-foreground">
+    <details class="text-ui text-muted-foreground">
       <summary
         id="permission-rule-guidance"
         class="cursor-pointer select-none hover:text-foreground"

@@ -15,8 +15,8 @@ let { tips, onAction }: Props = $props();
   <div class="grid gap-2.5 sm:grid-cols-2">
     {#each tips as tip (tip.id)}
       <div class="grid content-start gap-1.5 rounded-md border bg-card p-3">
-        <h3 class="text-sm text-foreground">{tip.title}</h3>
-        <p class="text-xs leading-relaxed text-muted-foreground">
+        <h3 class="text-ui text-foreground">{tip.title}</h3>
+        <p class="text-ui leading-relaxed text-muted-foreground">
           {tip.summary}
         </p>
         {#if tip.action}

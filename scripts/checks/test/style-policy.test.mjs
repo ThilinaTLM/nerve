@@ -5,6 +5,7 @@ import {
   extractClassSelectors,
   findBareGlobalSelectors,
   findDarkUtilities,
+  findOffScaleTextSizes,
   isDynamicClass,
   markupClassNames,
 } from "../style-policy.mjs";
@@ -124,5 +125,14 @@ test("dark as a property name is not a dark: utility", () => {
   assert.deepEqual(
     findDarkUtilities("type T = { dark: boolean };\nconst x = { dark: true };"),
     [],
+  );
+});
+
+test("off-scale font sizes are reported; type roles and colours are not", () => {
+  assert.deepEqual(
+    findOffScaleTextSizes(
+      '<p class="text-xs md:text-lg text-[11px] text-2xl text-ui text-caption text-muted-foreground text-xs/relaxed">',
+    ),
+    ["text-xs", "text-lg", "text-[11px]", "text-2xl", "text-xs"],
   );
 });

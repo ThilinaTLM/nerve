@@ -54,13 +54,13 @@ let {
       <div class="grid min-w-0 w-full gap-0.5">
         <div class="flex min-w-0 flex-wrap items-baseline gap-1.5">
           {#if title}
-            <span class="max-w-full shrink-0 truncate text-sm text-foreground"
+            <span class="max-w-full shrink-0 truncate text-ui text-foreground"
               >{title}</span
             >
           {/if}
           {#if detail}
             <span
-              class="flex min-w-0 items-baseline gap-1 truncate text-xs text-muted-foreground"
+              class="flex min-w-0 items-baseline gap-1 truncate text-caption text-muted-foreground"
             >
               {@render detail()}
             </span>
@@ -74,7 +74,7 @@ let {
           {/if}
         </div>
         {#if description}
-          <p class="truncate text-xs text-muted-foreground">
+          <p class="truncate text-caption text-muted-foreground">
             {description}
           </p>
         {/if}

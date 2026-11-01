@@ -30,7 +30,7 @@ let {
     <button
       type="button"
       class={cn(
-        "relative flex min-w-0 flex-col items-center justify-center gap-1 rounded-md py-1.5 text-xs transition-colors",
+        "relative flex min-w-0 flex-col items-center justify-center gap-1 rounded-md py-1.5 text-ui transition-colors",
         active ? "text-foreground" : "text-muted-foreground",
       )}
       aria-current={active ? "page" : undefined}
@@ -41,7 +41,7 @@ let {
         <Icon size={22} strokeWidth={active ? 2.2 : 1.8} />
         {#if tab.badge}
           <span
-            class="absolute -right-2 -top-1.5 inline-flex min-w-4 items-center justify-center rounded-full bg-warning px-1 text-xs font-medium text-warning-foreground"
+            class="absolute -right-2 -top-1.5 inline-flex min-w-4 items-center justify-center rounded-full bg-warning px-1 text-ui font-medium text-warning-foreground"
             aria-hidden="true">{tab.badge > 99 ? "99+" : tab.badge}</span
           >
         {:else if tab.dot}

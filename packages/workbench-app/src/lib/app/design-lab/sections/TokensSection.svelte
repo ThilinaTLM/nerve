@@ -121,12 +121,12 @@ const shadows = [
       >
         {#each ladder as step (step.name)}
           <div class="flex min-h-28 flex-col gap-1 p-3 {step.cls}">
-            <span class="text-sm font-semibold text-foreground"
+            <span class="text-ui font-semibold text-foreground"
               >{step.name}</span
             >
-            <span class="text-sm text-foreground">Foreground</span>
-            <span class="text-xs text-muted-foreground">Muted supporting</span>
-            <span class="mt-auto text-xs text-muted-foreground"
+            <span class="text-ui text-foreground">Foreground</span>
+            <span class="text-ui text-muted-foreground">Muted supporting</span>
+            <span class="mt-auto text-ui text-muted-foreground"
               >{step.role}</span
             >
           </div>
@@ -144,14 +144,14 @@ const shadows = [
         {#each swatches as swatch (swatch.name)}
           <div class="flex flex-col gap-1">
             <div
-              class="flex h-12 items-end rounded-md border p-2 text-xs {swatch.bg} {swatch.fg ??
+              class="flex h-12 items-end rounded-md border p-2 text-ui {swatch.bg} {swatch.fg ??
                 ''}"
             >
               Aa
             </div>
-            <span class="text-xs text-foreground">{swatch.name}</span>
+            <span class="text-ui text-foreground">{swatch.name}</span>
             {#if swatch.uses}
-              <span class="text-xs text-muted-foreground"
+              <span class="text-ui text-muted-foreground"
                 >in use: {swatch.uses}</span
               >
             {/if}
@@ -169,12 +169,12 @@ const shadows = [
       <div class="grid grid-cols-[repeat(auto-fill,minmax(10rem,1fr))] gap-3">
         {#each tones as tone (tone.name)}
           <div class="flex flex-col gap-2">
-            <span class="text-sm font-medium {tone.text}">{tone.name}</span>
-            <div class="rounded-md px-3 py-1.5 text-sm {tone.tint} {tone.text}">
+            <span class="text-ui font-medium {tone.text}">{tone.name}</span>
+            <div class="rounded-md px-3 py-1.5 text-ui {tone.tint} {tone.text}">
               tint
             </div>
             <div
-              class="rounded-md border px-3 py-1.5 text-sm {tone.border} {tone.tint} {tone.text}"
+              class="rounded-md border px-3 py-1.5 text-ui {tone.border} {tone.tint} {tone.text}"
             >
               tint + border
             </div>
@@ -192,10 +192,10 @@ const shadows = [
         <div
           class="flex flex-wrap items-center gap-2 rounded-md border p-2 {step.cls}"
         >
-          <span class="w-24 text-xs text-muted-foreground">{step.name}</span>
+          <span class="w-24 text-ui text-muted-foreground">{step.name}</span>
           {#each tones as tone (tone.name)}
             <span
-              class="rounded-md border px-2 py-0.5 text-xs {tone.border} {tone.tint} {tone.text}"
+              class="rounded-md border px-2 py-0.5 text-ui {tone.border} {tone.tint} {tone.text}"
             >
               {tone.name}
             </span>
@@ -214,8 +214,8 @@ const shadows = [
         {#each radii as radius (radius.name)}
           <div class="flex flex-col items-center gap-1.5">
             <div class="size-14 border bg-card {radius.cls}"></div>
-            <span class="text-xs text-muted-foreground">{radius.name}</span>
-            <span class="text-xs text-muted-foreground"
+            <span class="text-ui text-muted-foreground">{radius.name}</span>
+            <span class="text-ui text-muted-foreground"
               >in use: {radius.uses}</span
             >
           </div>
@@ -230,8 +230,8 @@ const shadows = [
             <div
               class="size-16 rounded-md border bg-popover {shadow.cls}"
             ></div>
-            <span class="text-xs text-muted-foreground">{shadow.name}</span>
-            <span class="text-xs text-muted-foreground"
+            <span class="text-ui text-muted-foreground">{shadow.name}</span>
+            <span class="text-ui text-muted-foreground"
               >in use: {shadow.uses}</span
             >
           </div>
@@ -247,11 +247,11 @@ const shadows = [
     <GallerySpecimen title="Workbench layers" layout="bare" class="p-0">
       <div class="flex h-80 w-[720px] max-w-full overflow-hidden rounded-lg">
         <div class="flex w-[220px] shrink-0 flex-col border-r bg-panel">
-          <div class="flex h-8 items-center gap-2 border-b px-3 text-xs">
+          <div class="flex h-8 items-center gap-2 border-b px-3 text-ui">
             <span class="font-medium text-foreground">Files</span>
             <span class="text-muted-foreground">33</span>
           </div>
-          <div class="flex flex-col gap-0.5 p-1.5 text-sm">
+          <div class="flex flex-col gap-0.5 p-1.5 text-ui">
             <div class="flex items-center gap-2 rounded-md px-2 py-1">
               <FolderIcon class="size-3.5 text-muted-foreground" />
               <span class="truncate">packages</span>
@@ -274,13 +274,13 @@ const shadows = [
           <div class="flex flex-col gap-3 p-4">
             <div class="flex flex-col gap-2 rounded-md border bg-card p-3">
               <div class="flex items-center gap-2">
-                <span class="text-sm font-medium text-foreground">Card</span>
+                <span class="text-ui font-medium text-foreground">Card</span>
                 <Badge variant="info"
                   ><GitBranchIcon data-icon="inline-start" />main</Badge
                 >
                 <Badge variant="warning">2 pending</Badge>
               </div>
-              <span class="text-xs text-muted-foreground"
+              <span class="text-ui text-muted-foreground"
                 >Raised content on the workspace background.</span
               >
               <div class="flex gap-2">
@@ -289,7 +289,7 @@ const shadows = [
               </div>
             </div>
             <div
-              class="rounded-md border bg-well p-3 font-mono text-xs text-muted-foreground"
+              class="rounded-md border bg-well p-3 font-mono text-ui text-muted-foreground"
             >
               $ pnpm exec tsx --test session.test.ts<br />✔ 12 passed
             </div>
@@ -297,8 +297,8 @@ const shadows = [
           <div
             class="absolute right-4 bottom-4 w-52 rounded-md border bg-popover p-3 shadow-overlay"
           >
-            <span class="text-sm font-medium text-foreground">Popover</span>
-            <p class="text-xs text-muted-foreground">
+            <span class="text-ui font-medium text-foreground">Popover</span>
+            <p class="text-ui text-muted-foreground">
               Floating layer with shadow-overlay.
             </p>
           </div>

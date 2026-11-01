@@ -27,10 +27,10 @@ let { stash, busy, mutation, onApply, onDrop }: Props = $props();
   <div class="flex min-w-0 items-center gap-2">
     <div class="flex min-w-0 flex-1 flex-col gap-0.5">
       <span
-        class="line-clamp-2 text-xs font-medium leading-snug break-words text-foreground"
+        class="line-clamp-2 text-ui font-medium leading-snug break-words text-foreground"
         title={stash.message}>{stash.message}</span
       >
-      <span class="truncate text-xs text-muted-foreground">
+      <span class="truncate text-ui text-muted-foreground">
         <span class="font-mono">{stash.ref}</span>
         <span aria-hidden="true"> · </span>
         <span class="font-mono">{stash.hash.slice(0, 8)}</span>

@@ -70,10 +70,10 @@ async function submit(event?: SubmitEvent): Promise<void> {
       autocomplete="off"
       placeholder={kind === "file" ? "example.ts" : "folder-name"}
     />
-    <p class="text-xs text-muted-foreground">
+    <p class="text-ui text-muted-foreground">
       Enter one name without path separators.
     </p>
-    {#if error}<p class="text-sm text-destructive" role="alert">{error}</p>{/if}
+    {#if error}<p class="text-ui text-destructive" role="alert">{error}</p>{/if}
   </form>
 
   {#snippet footer()}

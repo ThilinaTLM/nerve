@@ -1,4 +1,8 @@
 <script lang="ts">
+import MobileScreen from "$lib/presentation/shell/mobile/MobileScreen.svelte";
+import MobileSection from "$lib/presentation/shell/mobile/MobileSection.svelte";
+import MobileListRow from "$lib/presentation/shell/mobile/MobileListRow.svelte";
+import MobileActionSheet from "$lib/presentation/shell/mobile/MobileActionSheet.svelte";
 import CompassIcon from "@lucide/svelte/icons/compass";
 import FileCodeIcon from "@lucide/svelte/icons/file-code";
 import FolderIcon from "@lucide/svelte/icons/folder";
@@ -308,6 +312,7 @@ const operations: { title: string; operation: MaintenanceOperation }[] = [
     },
   },
 ];
+let mobileActionsOpen = $state(false);
 </script>
 
 <div class="flex flex-col gap-10">
@@ -337,7 +342,7 @@ const operations: { title: string; operation: MaintenanceOperation }[] = [
               onNew={noop}
             >
               {#snippet content()}
-                <div class="p-4 text-sm text-muted-foreground">
+                <div class="p-4 text-ui text-muted-foreground">
                   Editor content
                 </div>
               {/snippet}
@@ -375,14 +380,14 @@ const operations: { title: string; operation: MaintenanceOperation }[] = [
       title="ShellStatusBar"
       source="presentation/shell/ShellStatusBar"
       usage="1 file · shell"
-      description="Chips share STATUS_BAR_CHIP (h-6, text-xs). Layout and Connected open real popovers; dock toggles are interactive."
+      description="Chips share STATUS_BAR_CHIP (h-6, text-ui). Layout and Connected open real popovers; dock toggles are interactive."
       surface="panel"
       layout="stack"
     >
       <div class="overflow-hidden rounded-md border">
         {@render statusBarMock()}
       </div>
-      <p class="text-xs text-muted-foreground">
+      <p class="text-ui text-muted-foreground">
         Narrow window: the left cluster truncates before the right chips.
       </p>
       <div class="h-7 w-96 overflow-hidden rounded-md border">
@@ -509,7 +514,7 @@ const operations: { title: string; operation: MaintenanceOperation }[] = [
         onclick={() => (tabs = initialTabs.map((tab) => ({ ...tab })))}
         >Reset tabs</Button
       >
-      <p class="text-xs text-muted-foreground">
+      <p class="text-ui text-muted-foreground">
         Overflowing strip (scroll chevrons) in a 640px center area:
       </p>
       <div class="w-160 max-w-full overflow-hidden rounded-md border">
@@ -540,7 +545,7 @@ const operations: { title: string; operation: MaintenanceOperation }[] = [
           <div
             class="flex min-w-0 flex-col gap-2 rounded-md border bg-popover p-3"
           >
-            <span class="text-xs font-medium text-muted-foreground"
+            <span class="text-ui font-medium text-muted-foreground"
               >{item.title}</span
             >
             <MaintenanceProgressView
@@ -560,6 +565,82 @@ const operations: { title: string; operation: MaintenanceOperation }[] = [
     >
       <NerveMark class="size-5 text-foreground" label="Nerve" />
       <NerveMark class="size-16 text-primary" label="Nerve" />
+    </GallerySpecimen>
+  </GalleryGroup>
+  <GalleryGroup title="Shared presentation">
+    <GallerySpecimen
+      title="MobileScreen"
+      source="presentation/shell/mobile/MobileScreen.svelte"
+      layout="stack"
+    >
+      <div class="w-96">
+        <MobileScreen title="Conversations" subtitle="nerve" onBack={() => {}}
+          ><MobileSection title="Recent"
+            ><MobileListRow
+              title="Design-system cleanup"
+              detail="Review shared components"
+              selected
+            /><MobileListRow
+              title="Reconnect tests"
+              tone="info"
+              detail="Running"
+              onclick={() => (mobileActionsOpen = true)}
+            /></MobileSection
+          ></MobileScreen
+        >
+      </div>
+    </GallerySpecimen>
+    <GallerySpecimen
+      title="MobileSection"
+      source="presentation/shell/mobile/MobileSection.svelte"
+      layout="stack"
+    >
+      <div class="w-96">
+        <MobileSection title="Projects" meta="2"
+          ><MobileListRow title="nerve" selected /><MobileListRow
+            title="Documentation"
+          /></MobileSection
+        >
+      </div>
+    </GallerySpecimen>
+    <GallerySpecimen
+      title="MobileListRow"
+      source="presentation/shell/mobile/MobileListRow.svelte"
+      layout="stack"
+    >
+      <div class="w-96">
+        <MobileListRow
+          title="Review complete"
+          detail="All checks passed"
+          tone="success"
+        /><MobileListRow
+          title="Needs approval"
+          detail="Run the build"
+          tone="warning"
+        />
+      </div>
+    </GallerySpecimen>
+    <GallerySpecimen
+      title="MobileActionSheet"
+      source="presentation/shell/mobile/MobileActionSheet.svelte"
+      layout="stack"
+    >
+      <div class="w-96">
+        <MobileListRow
+          title="Conversation actions"
+          detail="Tap to open the action sheet"
+          onclick={() => (mobileActionsOpen = true)}
+        /><MobileActionSheet
+          open={mobileActionsOpen}
+          title="Design-system cleanup"
+          items={[
+            { label: "Open", onSelect: () => {} },
+            { label: "Rename", disabled: true },
+            { label: "Delete", destructive: true, onSelect: () => {} },
+          ]}
+          onOpenChange={(open) => (mobileActionsOpen = open)}
+        />
+      </div>
     </GallerySpecimen>
   </GalleryGroup>
 </div>
@@ -716,7 +797,7 @@ const operations: { title: string; operation: MaintenanceOperation }[] = [
       </PanelList>
     </PanelView>
   {:else}
-    <div class="p-3 text-xs text-muted-foreground">
+    <div class="p-3 text-ui text-muted-foreground">
       Panel body for “{viewId}”. See the Panels page for real content.
     </div>
   {/if}

@@ -271,7 +271,7 @@ const agentStatus: Record<AgentRowState, string> = {
   >
     {@render agentGlyph(row.state)}
     <span class="flex min-w-0 flex-1 items-center gap-1.5">
-      <span class="min-w-0 truncate text-xs font-normal">{row.name}</span>
+      <span class="min-w-0 truncate text-ui font-normal">{row.name}</span>
       {#if row.profile}<Badge
           variant="outline"
           class="max-w-24 shrink-0 truncate"
@@ -294,7 +294,7 @@ const agentStatus: Record<AgentRowState, string> = {
     }}
   >
     <AsyncBashStatusIcon status={command.status} animate={active} />
-    <span class="min-w-0 flex-1 truncate font-mono text-xs">
+    <span class="min-w-0 flex-1 truncate font-mono text-ui">
       {commandFirstLine(command.command)}
     </span>
   </Button>
@@ -313,7 +313,7 @@ const agentStatus: Record<AgentRowState, string> = {
   {#if folded.length}
     <Button
       variant="ghost"
-      class="w-full min-w-0 justify-start rounded-none text-left text-xs font-normal text-muted-foreground hover:text-foreground"
+      class="w-full min-w-0 justify-start rounded-none text-left text-ui font-normal text-muted-foreground hover:text-foreground"
       aria-expanded={showFolded}
       aria-controls={`${componentId}-folded`}
       onclick={() => (showFolded = !showFolded)}
@@ -342,7 +342,7 @@ const agentStatus: Record<AgentRowState, string> = {
       </div>
     {/if}
   {:else if !rows.length}
-    <p class="px-2.5 py-3 text-xs text-muted-foreground">{empty}</p>
+    <p class="px-2.5 py-3 text-ui text-muted-foreground">{empty}</p>
   {/if}
 {/snippet}
 
@@ -383,13 +383,13 @@ const agentStatus: Record<AgentRowState, string> = {
           onoutroend={() => (panelShown = false)}
         >
           <div class="flex min-w-0 items-center gap-2 border-b px-2.5 py-1">
-            <h2 class="shrink-0 text-xs font-semibold">
+            <h2 class="shrink-0 text-ui font-semibold">
               {open === "agents" ? "Agents" : "Commands"}
             </h2>
             <!-- The tab below already shows the total; only live work earns header space. -->
             <span class="flex min-w-0 flex-1 items-center">
               {#if selectedSummary.running}<span
-                  class="flex items-center gap-1 text-xs text-info tabular-nums"
+                  class="flex items-center gap-1 text-ui text-info tabular-nums"
                   title={`${selectedSummary.running} running`}
                   >{#if active}<Spinner
                       class="size-3 motion-reduce:animate-none!"
@@ -468,7 +468,7 @@ const agentStatus: Record<AgentRowState, string> = {
             <Button
               bind:ref={agentsTrigger}
               variant="ghost"
-              class="min-w-0 flex-auto rounded-none text-xs"
+              class="min-w-0 flex-auto rounded-none text-ui"
               aria-expanded={open === "agents"}
               aria-controls={open === "agents"
                 ? `${componentId}-list`
@@ -492,7 +492,7 @@ const agentStatus: Record<AgentRowState, string> = {
             <Button
               bind:ref={commandsTrigger}
               variant="ghost"
-              class="min-w-0 flex-auto rounded-none text-xs"
+              class="min-w-0 flex-auto rounded-none text-ui"
               aria-expanded={open === "commands"}
               aria-controls={open === "commands"
                 ? `${componentId}-list`

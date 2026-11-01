@@ -313,7 +313,7 @@ const screenMenu = $derived<ContextMenuItem[]>([
     </div>
   {/if}
   {#if model.catalogError && !model.configurationBlocked}
-    <p class="px-4 py-2 text-xs text-destructive" role="alert">
+    <p class="px-4 py-2 text-ui text-destructive" role="alert">
       Launch definitions unavailable: {model.catalogError}. Run controls remain
       available.
     </p>
@@ -367,8 +367,8 @@ const screenMenu = $derived<ContextMenuItem[]>([
         <Empty.Media class="text-muted-foreground">
           <Terminal size={28} strokeWidth={1.6} />
         </Empty.Media>
-        <Empty.Title class="text-sm">No launches yet</Empty.Title>
-        <Empty.Description class="text-xs">
+        <Empty.Title class="text-ui">No launches yet</Empty.Title>
+        <Empty.Description class="text-ui">
           Save a command to run it from here or from the desktop.
         </Empty.Description>
       </Empty.Header>

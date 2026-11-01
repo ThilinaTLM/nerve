@@ -122,7 +122,7 @@ async function rename(event: SubmitEvent) {
       />
     </div>
   {:else}
-    <p class="px-6 py-10 text-center text-sm text-muted-foreground">
+    <p class="px-6 py-10 text-center text-ui text-muted-foreground">
       This note is no longer available.
     </p>
   {/if}

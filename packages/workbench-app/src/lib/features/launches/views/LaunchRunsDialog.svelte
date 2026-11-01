@@ -87,7 +87,7 @@ function openRun(launchId: string): void {
 
     <div class="min-h-0 flex-1 p-1">
       {#if matches.length === 0}
-        <p class="p-2 text-xs text-muted-foreground">No runs match.</p>
+        <p class="p-2 text-ui text-muted-foreground">No runs match.</p>
       {:else}
         <ScrollArea class="h-full">
           <PanelList ariaLabel="All runs" class="gap-1">

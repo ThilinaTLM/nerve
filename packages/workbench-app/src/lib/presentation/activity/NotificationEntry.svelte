@@ -110,7 +110,7 @@ const Icon = $derived(tone === "running" ? undefined : icons[tone]);
   <div class="grid min-w-0 gap-0.5">
     <div class="flex min-h-5 items-center gap-2">
       <p
-        class="min-w-0 flex-1 truncate text-sm {tone === 'cancelled'
+        class="min-w-0 flex-1 truncate text-ui {tone === 'cancelled'
           ? 'text-muted-foreground'
           : ''}"
         title={titleHint ?? title}
@@ -123,7 +123,7 @@ const Icon = $derived(tone === "running" ? undefined : icons[tone]);
           aria-label="Unread"
         ></span>{/if}
       {#if time}<span
-          class="flex-none text-xs tabular-nums text-muted-foreground"
+          class="flex-none text-ui tabular-nums text-muted-foreground"
           >{time}</span
         >{/if}
       {#if onDismiss}<Button
@@ -135,13 +135,13 @@ const Icon = $derived(tone === "running" ? undefined : icons[tone]);
         >{/if}
     </div>
     {#if context}
-      <p class="truncate text-xs text-muted-foreground" title={context}>
+      <p class="truncate text-ui text-muted-foreground" title={context}>
         {context}
       </p>
     {/if}
     {#if detail}
       <p
-        class="line-clamp-2 text-xs break-words {tone === 'failed'
+        class="line-clamp-2 text-ui break-words {tone === 'failed'
           ? 'text-destructive'
           : 'text-muted-foreground'}"
         title={detail}

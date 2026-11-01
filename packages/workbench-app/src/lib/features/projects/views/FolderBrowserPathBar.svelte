@@ -189,7 +189,7 @@ export function beginEditing() {
     </div>
     {#if pathError}
       <p
-        class="absolute top-full right-0 left-0 z-10 mt-1 rounded-md border bg-popover px-2 py-1 text-xs text-destructive shadow-md"
+        class="absolute top-full right-0 left-0 z-10 mt-1 rounded-md border bg-popover px-2 py-1 text-ui text-destructive shadow-md"
         role="alert"
       >
         {pathError}
@@ -207,7 +207,7 @@ export function beginEditing() {
               type="button"
               tabindex="-1"
               class={cn(
-                "flex w-full items-center gap-2 rounded-sm px-2 py-1 text-left font-mono text-xs hover:bg-muted",
+                "flex w-full items-center gap-2 rounded-sm px-2 py-1 text-left font-mono text-ui hover:bg-muted",
                 index === highlighted && "bg-selected",
               )}
               onmousedown={(event) => event.preventDefault()}
@@ -249,7 +249,7 @@ export function beginEditing() {
           <button
             type="button"
             class={cn(
-              "shrink-0 rounded-sm px-1 font-mono text-xs hover:bg-muted",
+              "shrink-0 rounded-sm px-1 font-mono text-ui hover:bg-muted",
               index === crumbs.length - 1
                 ? "text-foreground"
                 : "text-muted-foreground",

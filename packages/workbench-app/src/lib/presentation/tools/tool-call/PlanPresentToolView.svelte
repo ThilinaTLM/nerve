@@ -311,7 +311,7 @@ async function rejectPlan() {
           </div>
         {:else}
           <div
-            class="px-2.5 py-2 font-mono text-xs leading-relaxed whitespace-pre-wrap text-foreground [overflow-wrap:anywhere]"
+            class="px-2.5 py-2 font-mono text-ui leading-relaxed whitespace-pre-wrap text-foreground [overflow-wrap:anywhere]"
           >
             {preview}
           </div>
@@ -404,7 +404,7 @@ async function rejectPlan() {
     </CardFooter>
 
     {#if actionError}
-      <p class="m-0 text-xs text-destructive" role="alert">{actionError}</p>
+      <p class="m-0 text-ui text-destructive" role="alert">{actionError}</p>
     {/if}
 
     <PlanImplementationModelDialog
@@ -453,5 +453,5 @@ async function rejectPlan() {
     {/if}
   </div>
 {:else if view.summary}
-  <p class="m-0 text-sm text-muted-foreground">{view.summary}</p>
+  <p class="m-0 text-ui text-muted-foreground">{view.summary}</p>
 {/if}

@@ -8,7 +8,7 @@ Application `*Host` components are state/effect adapters around canonical featur
 
 - **Tier 1 (default): Tailwind token utilities in markup** for layout, spacing,
   typography, color, borders, radius, and shadow. Use theme tokens only
-  (`text-muted-foreground`, `bg-card`, `border`, `rounded-md`, `text-xs`, …) plus
+  (`text-muted-foreground`, `bg-card`, `border`, `rounded-md`, `text-ui`, …) plus
   `success`/`warning`/`info`. `destructive` is the readable text/tint red;
   opaque destructive fills use `destructive-solid` /
   `destructive-solid-foreground`. No hard-coded colors, font sizes, spacing, or
@@ -46,6 +46,21 @@ Application `*Host` components are state/effect adapters around canonical featur
   `hover:bg-accent/50` or `hover:bg-muted/60`; keep opaque `accent`/`muted`
   fills for resting or pressed states, and semantic tints (`destructive/…`)
   where the meaning is not neutral.
+- **Type scale has four roles, 12–16px** (defined in `ui-kit` `theme.css`;
+  Tailwind's default sizes are cleared and the style-policy check rejects them
+  and arbitrary `text-[…]` sizes): `text-caption` 12px for glanceable extras
+  (timestamps, counts, chips, kbd, section captions, settings supporting
+  text; never errors or instructions), `text-ui` 13px for everything
+  interactive or list-like, `text-body` 15px for prose the user reads
+  (transcript, markdown, PR descriptions), `text-title` 16px for page,
+  dialog and card titles and headline numbers, always `font-semibold` (or
+  `font-medium` for a welcome line). The only exception is the phone composer,
+  which stays at 16px so iOS does not zoom on focus.
+- **Selection is `bg-selected` plus a brand marker.** `--selected` is a soft
+  brand tint (10% `primary`) in every theme. A selected row also takes
+  `font-medium` and, where it has one, renders its leading icon or idle dot in
+  `text-primary`; status-coloured glyphs keep their tone. Never add a stronger
+  fill, border, or bar to signal selection.
 - **Quiet fills** (`muted`, `accent`) are meant to sit beyond the surface
   ladder on the foreground side so they stay visible on every surface (dark:
   `popover < muted < accent`; light: `accent < muted < well`). Every
@@ -59,20 +74,20 @@ Application `*Host` components are state/effect adapters around canonical featur
   `muted`/`default` are all spellings of tones that already exist). Domain
   vocabularies that are genuinely not status — diff line kinds, notification
   sounds — stay separate.
-- **Settings has three heading levels.** Page title `text-lg` semibold
+- **Settings has three heading levels.** Page title `text-title` semibold
   foreground (`SettingsPageHeader`, `pb-2` of space below); section heading
-  `text-sm` semibold foreground, optionally followed by ONE `text-xs` muted
-  description line; entity title (`EntityCard`, e.g. a profile) `text-sm`
-  medium foreground. Row titles are `text-sm` regular foreground and all
-  supporting text is `text-xs` muted, so weight and colour carry the
+  `text-ui` semibold foreground, optionally followed by ONE `text-caption` muted
+  description line; entity title (`EntityCard`, e.g. a profile) `text-ui`
+  medium foreground. Row titles are `text-ui` regular foreground and all
+  supporting text is `text-caption` muted, so weight and colour carry the
   hierarchy. Headings are sentence case, never uppercase eyebrows. Longer
   detail goes in a `SettingsInfoHint` tooltip, not a paragraph. Use
   `SettingsSection` for every group of rows (the muted `SettingsGroup` heading
   is legacy); an entity such as a profile gets an `EntityCard`, never a muted
   group heading above it. `settings-typography.test.ts` enforces this.
 - **Settings navigation is grouped.** `SettingsNav` takes `SettingsNavGroup[]`
-  (optional quiet caption `text-xs font-medium text-muted-foreground`, no hover
-  or icon; items `text-sm` with a lucide icon, muted until active) and a
+  (optional quiet caption `text-caption font-medium text-muted-foreground`, no hover
+  or icon; items `text-ui` with a lucide icon, muted until active) and a
   `SettingsScopeHeader` (User settings, or project name and path) separated by a
   rule. The active item is `bg-selected font-medium`, a persistent state
   that should not depend on the quiet fills. Never reuse a group title as
@@ -221,7 +236,7 @@ it to `CardShell`. Adding a notice kind is a mapper, a thin card and one
 
 Dock panel content (Conversations, Git, Context, Notes, Tasks) must be built from
 the `$lib/presentation/panels` primitives — `PanelView`, `PanelHeader`,
-`PanelToolbar`, `PanelToolbarButton`, `PanelSectionHeader`, `PanelList`,
+`PanelToolbarButton`, `PanelSectionHeader`, `PanelList`,
 `PanelRow`, `PanelTree`, `PanelBanner`, `PanelEmpty`.
 
 - A panel view's root is `PanelView`. It owns the height, the sticky toolbar,

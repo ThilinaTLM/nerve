@@ -16,9 +16,9 @@ let {
 </script>
 
 <div class={cn("flex h-7 min-w-0 shrink-0 items-center gap-1", className)}>
-  <span class="truncate text-xs font-semibold text-foreground">{title}</span>
+  <span class="truncate text-ui font-semibold text-foreground">{title}</span>
   {#if count !== undefined}
-    <span class="text-xs text-muted-foreground">{count}</span>
+    <span class="text-ui text-muted-foreground">{count}</span>
   {/if}
   {#if trailing}
     <div class="ml-auto flex shrink-0 items-center gap-0.5">

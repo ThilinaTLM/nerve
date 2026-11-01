@@ -168,7 +168,7 @@ function toggleChecks(pr: GithubPr) {
 </script>
 
 {#snippet note(text: string)}
-  <p class="py-1 text-xs text-muted-foreground">{text}</p>
+  <p class="py-1 text-ui text-muted-foreground">{text}</p>
 {/snippet}
 
 {#snippet branchActions(repo: GitRepoSummary)}

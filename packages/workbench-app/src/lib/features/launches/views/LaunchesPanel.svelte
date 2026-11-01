@@ -318,7 +318,7 @@ function rerunDefinition(entry: { definition?: LaunchPanelDefinition }): void {
       {#if model.configurationBlocked}
         <!-- The configuration notice is the only content. -->
       {:else if model.definitionsLoading && model.definitions.length === 0}
-        <p class="py-1 text-xs text-muted-foreground">Loading launches…</p>
+        <p class="py-1 text-ui text-muted-foreground">Loading launches…</p>
       {:else if model.catalogError && projected.definitions.length === 0 && model.folders.length === 0}
         <!-- No snapshot to show; the banner explains why. -->
       {:else if projected.definitions.length === 0 && model.folders.length === 0}

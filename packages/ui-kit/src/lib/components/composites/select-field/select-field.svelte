@@ -55,7 +55,7 @@ const selectedLabel = $derived(
         <div class="flex min-w-0 flex-col items-start leading-tight">
           <span class="truncate">{item.label}</span>
           {#if item.detail}
-            <span class="truncate text-xs text-muted-foreground"
+            <span class="truncate text-ui text-muted-foreground"
               >{item.detail}</span
             >
           {/if}

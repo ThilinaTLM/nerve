@@ -25,7 +25,7 @@ let {
 </script>
 
 <article
-  class="group/user-bubble relative ml-auto w-fit min-w-0 max-w-[70%] rounded-lg rounded-br-sm px-3 py-2 text-sm text-foreground @max-[40rem]:max-w-[88%]"
+  class="group/user-bubble relative ml-auto w-fit min-w-0 max-w-[70%] rounded-lg rounded-br-sm px-3 py-2 text-body text-foreground @max-[40rem]:max-w-[88%]"
   aria-label={queued ? "Queued user prompt" : "User message"}
   data-queued={queued}
 >

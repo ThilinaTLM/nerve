@@ -81,19 +81,19 @@ const showMermaidPreview = $derived(
       />
       {#if view?.saveError}
         <p
-          class="m-0 border-t border-destructive/40 bg-destructive/8 px-4 py-2 text-xs text-destructive"
+          class="m-0 border-t border-destructive/40 bg-destructive/8 px-4 py-2 text-ui text-destructive"
         >
           Save failed: {view.saveError}
         </p>
       {:else if view?.saving}
         <p
-          class="m-0 border-t border-border/60 px-4 py-2 text-xs text-muted-foreground"
+          class="m-0 border-t border-border/60 px-4 py-2 text-ui text-muted-foreground"
         >
           Saving…
         </p>
       {:else if file.truncated}
         <p
-          class="m-0 border-t border-border/60 px-4 py-2 text-xs text-muted-foreground"
+          class="m-0 border-t border-border/60 px-4 py-2 text-ui text-muted-foreground"
         >
           Preview truncated{resolved.targetLine
             ? " around the selected line"
@@ -101,7 +101,7 @@ const showMermaidPreview = $derived(
         </p>
       {:else if !file.editable}
         <p
-          class="m-0 border-t border-border/60 px-4 py-2 text-xs text-muted-foreground"
+          class="m-0 border-t border-border/60 px-4 py-2 text-ui text-muted-foreground"
         >
           Read-only: only small, regular text files inside the project can be
           edited.
@@ -125,7 +125,7 @@ const showMermaidPreview = $derived(
     />
     {#if view?.dirty}
       <p
-        class="m-0 border-t border-border/60 px-4 py-2 text-xs text-muted-foreground"
+        class="m-0 border-t border-border/60 px-4 py-2 text-ui text-muted-foreground"
       >
         Previewing unsaved changes.
       </p>
@@ -138,7 +138,7 @@ const showMermaidPreview = $derived(
         >
           <FileText class="size-7 text-primary" strokeWidth={1.7} />
           <strong class="text-foreground">No file selected</strong>
-          <p class="m-0 max-w-xl text-sm">
+          <p class="m-0 max-w-xl text-ui">
             Open a file from a tool result to view it here.
           </p>
         </div>
@@ -148,7 +148,7 @@ const showMermaidPreview = $derived(
         >
           <Spinner class="size-7 text-primary" />
           <strong class="text-foreground">Loading file</strong>
-          <p class="m-0 max-w-xl font-mono text-sm">{view.path}</p>
+          <p class="m-0 max-w-xl font-mono text-ui">{view.path}</p>
         </div>
       {:else if view.error}
         <div
@@ -156,7 +156,7 @@ const showMermaidPreview = $derived(
         >
           <TriangleAlert class="size-7 text-destructive" strokeWidth={1.7} />
           <strong class="text-foreground">Could not open file</strong>
-          <p class="m-0 max-w-xl text-sm">{view.error}</p>
+          <p class="m-0 max-w-xl text-ui">{view.error}</p>
         </div>
       {:else if resolved?.imageSrc}
         <div class="grid min-h-full place-items-center">
@@ -179,11 +179,11 @@ const showMermaidPreview = $derived(
           />
         </div>
         {#if view?.dirty}
-          <p class="mt-4 text-xs text-muted-foreground">
+          <p class="mt-4 text-ui text-muted-foreground">
             Previewing unsaved changes.
           </p>
         {:else if file.truncated}
-          <p class="mt-4 text-xs text-muted-foreground">
+          <p class="mt-4 text-ui text-muted-foreground">
             Preview truncated{resolved.targetLine
               ? " around the selected line"
               : ""}.
@@ -195,7 +195,7 @@ const showMermaidPreview = $derived(
         >
           <FileText class="size-7 text-primary" strokeWidth={1.7} />
           <strong class="text-foreground">Binary preview unavailable</strong>
-          <p class="m-0 max-w-xl text-sm">
+          <p class="m-0 max-w-xl text-ui">
             {file
               ? `${file.name} is ${file.size.toLocaleString()} bytes and cannot be rendered in the browser preview.`
               : "This file can be opened as metadata only for now."}

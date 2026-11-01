@@ -20,6 +20,6 @@ const language = $derived(view.converted ? "markdown" : undefined);
       <ToolOutputBlock text={view.content} {language} {expanded} />
     </div>
   {:else if toolCall.status === "completed"}
-    <p class="m-0 px-2.5 py-2 text-xs text-muted-foreground">No content.</p>
+    <p class="m-0 px-2.5 py-2 text-ui text-muted-foreground">No content.</p>
   {/if}
 </ToolSections>

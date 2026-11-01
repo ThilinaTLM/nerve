@@ -5,6 +5,7 @@ import {
   findBareGlobalSelectors,
   findDarkUtilities,
   findInertClassNames,
+  findOffScaleTextSizes,
   isDynamicClass,
 } from "./style-policy.mjs";
 import { sourceExtensions } from "./repository-source-inventory.mjs";
@@ -45,6 +46,7 @@ export function checkUiStyles({ files: trackedFiles, read }, fail) {
     }
 
     checkNoDarkUtilities();
+    checkTypeScale();
     checkGlobalStylePartials();
     checkBareGlobalSelectors();
     checkInertClassNames();
@@ -64,6 +66,35 @@ export function checkUiStyles({ files: trackedFiles, read }, fail) {
         fail(
           file,
           `dark: utilities are banned (${offenders[0]}); move the mode difference into a token`,
+        );
+    }
+  }
+
+  /** Font sizes come only from the four type roles defined in theme.css. */
+  function checkTypeScale() {
+    for (const file of trackedFiles) {
+      if (
+        !/packages\/(?:ui-kit|workbench-app)\/src\//.test(file) ||
+        !sourceExtensions.test(file) ||
+        /\.test\.[cm]?[jt]s$/.test(file) ||
+        file.includes("/design-lab/wireframes/")
+      )
+        continue;
+      const text = read(file);
+      if (
+        /import\s*\{[^}]*\btv\b[^}]*\}\s*from\s*["']tailwind-variants["']/.test(
+          text,
+        )
+      )
+        fail(
+          file,
+          "import tv from @nervekit/ui-kit/utils so variants merge type roles correctly",
+        );
+      const offenders = findOffScaleTextSizes(text);
+      if (offenders.length > 0)
+        fail(
+          file,
+          `off-scale font size (${offenders[0]}); use text-caption, text-ui, text-body or text-title`,
         );
     }
   }

@@ -412,7 +412,7 @@ function menuItems(tab: WorkbenchTabModel, index: number): ContextMenuItem[] {
           </div>
           <button
             type="button"
-            class="inline-flex h-8 min-w-0 cursor-pointer items-center gap-1.5 border-0 bg-transparent px-1 text-left text-xs text-inherit focus-visible:z-1 focus-visible:-outline-offset-1 focus-visible:outline-1 focus-visible:outline-ring"
+            class="inline-flex h-8 min-w-0 cursor-pointer items-center gap-1.5 border-0 bg-transparent px-1 text-left text-ui text-inherit focus-visible:z-1 focus-visible:-outline-offset-1 focus-visible:outline-1 focus-visible:outline-ring"
             role="tab"
             aria-selected={tab.active}
             title={tab.title ?? tab.label}
@@ -505,7 +505,7 @@ function menuItems(tab: WorkbenchTabModel, index: number): ContextMenuItem[] {
         <PreviewIcon size={12} strokeWidth={2.2} />
       {/if}
     </div>
-    <div class="inline-flex h-8 min-w-0 items-center gap-1.5 px-1 text-xs">
+    <div class="inline-flex h-8 min-w-0 items-center gap-1.5 px-1 text-ui">
       {#if PreviewSelectIcon}
         <PreviewSelectIcon size={12} strokeWidth={2.2} />
       {/if}

@@ -685,7 +685,7 @@ $effect(() => () => {
   color: var(--foreground);
   padding: var(--code-block-padding-y) var(--code-block-padding-x);
   font-family: var(--font-mono);
-  font-size: var(--text-xs);
+  font-size: var(--text-ui);
   line-height: 1.4;
 }
 
@@ -809,7 +809,7 @@ $effect(() => () => {
 
 .code-block :global(code) {
   font-family: var(--font-mono);
-  font-size: var(--text-xs);
+  font-size: var(--text-ui);
 }
 
 .code-block__content--diff {

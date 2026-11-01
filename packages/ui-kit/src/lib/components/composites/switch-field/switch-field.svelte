@@ -28,14 +28,14 @@ function handleCheckedChange(next: boolean) {
 
 <label
   class={cn(
-    "flex items-center justify-between gap-3 text-sm text-foreground",
+    "flex items-center justify-between gap-3 text-ui text-foreground",
     className,
   )}
 >
   <span class="grid min-w-0 gap-0.5">
     {#if label}<span>{label}</span>{/if}
     {#if description}
-      <small class="text-xs text-muted-foreground">{description}</small>
+      <small class="text-ui text-muted-foreground">{description}</small>
     {/if}
   </span>
   <Switch

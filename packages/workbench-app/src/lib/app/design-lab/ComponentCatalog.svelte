@@ -53,8 +53,8 @@ onMount(() => {
 <div class="flex h-full w-full overflow-hidden bg-background text-foreground">
   <aside class="flex w-60 shrink-0 flex-col border-r bg-panel">
     <div class="flex flex-col gap-0.5 border-b px-4 py-3">
-      <span class="text-sm font-semibold">Component catalog</span>
-      <span class="text-xs text-muted-foreground">
+      <span class="text-ui font-semibold">Component catalog</span>
+      <span class="text-ui text-muted-foreground">
         {GALLERY_SECTIONS.length} pages · dev only
       </span>
     </div>
@@ -62,7 +62,7 @@ onMount(() => {
       <nav class="flex flex-col gap-4 p-2" aria-label="Catalog sections">
         {#each GALLERY_GROUPS as group (group)}
           <div class="flex flex-col gap-0.5">
-            <span class="px-2 pb-1 text-xs font-semibold text-muted-foreground">
+            <span class="px-2 pb-1 text-ui font-semibold text-muted-foreground">
               {group}
             </span>
             {#each GALLERY_SECTIONS.filter((section) => section.group === group) as section (section.id)}
@@ -74,7 +74,7 @@ onMount(() => {
                   selectSection(section.id);
                 }}
                 class={cn(
-                  "rounded-md px-2 py-1 text-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground",
+                  "rounded-md px-2 py-1 text-ui text-muted-foreground transition-colors hover:bg-muted hover:text-foreground",
                   section.id === active.id && "bg-selected text-foreground",
                 )}
               >
@@ -90,19 +90,19 @@ onMount(() => {
   <div bind:this={contentScroller} class="min-w-0 flex-1 overflow-y-auto">
     <main class="mx-auto flex w-full max-w-5xl flex-col gap-8 px-8 py-6">
       <header class="flex flex-col gap-1">
-        <span class="text-xs text-muted-foreground">{active.group}</span>
-        <h1 class="text-xl font-semibold">{active.title}</h1>
-        <p class="text-sm text-muted-foreground">{active.summary}</p>
+        <span class="text-ui text-muted-foreground">{active.group}</span>
+        <h1 class="text-title font-semibold">{active.title}</h1>
+        <p class="text-ui text-muted-foreground">{active.summary}</p>
       </header>
       {#key active.id}
         {#await loading}
-          <div class="flex items-center gap-2 text-sm text-muted-foreground">
+          <div class="flex items-center gap-2 text-ui text-muted-foreground">
             <Spinner /> Loading section…
           </div>
         {:then { default: Section }}
           <Section />
         {:catch error}
-          <p class="text-sm text-destructive">
+          <p class="text-ui text-destructive">
             Failed to load section: {String(error)}
           </p>
         {/await}

@@ -12,7 +12,7 @@ let failedSource = $state<string>();
   <div
     role="img"
     aria-label="Image unavailable"
-    class="flex min-h-24 items-center justify-center gap-2 rounded-sm border bg-well p-4 text-xs text-muted-foreground"
+    class="flex min-h-24 items-center justify-center gap-2 rounded-sm border bg-well p-4 text-ui text-muted-foreground"
   >
     <ImageOff class="size-4" aria-hidden="true" />
     <span>Image unavailable</span>

@@ -119,7 +119,7 @@ function choose(branch: GitBranchSummary): void {
         {#if !branch.remote && branch.name === repo.baseBranch && !branch.current}
           <Badge variant="info" class="shrink-0">base</Badge>
         {/if}
-        <span class="shrink-0 text-xs text-muted-foreground">
+        <span class="shrink-0 text-ui text-muted-foreground">
           {row.updatedLabel.replace(/^Updated /, "")}
         </span>
       </span>

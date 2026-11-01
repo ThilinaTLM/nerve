@@ -48,13 +48,13 @@ function confirmDrop(): void {
   }}
 >
   {#if dropCandidate}
-    <p class="p-4 text-sm text-muted-foreground">
+    <p class="p-4 text-ui text-muted-foreground">
       This permanently removes
       <span class="font-mono text-foreground">{dropCandidate.ref}</span>:
       {dropCandidate.message}
     </p>
   {:else if stashes.length === 0}
-    <p class="p-8 text-center text-sm text-muted-foreground">
+    <p class="p-8 text-center text-ui text-muted-foreground">
       No stashes in this repository.
     </p>
   {:else}
@@ -75,7 +75,7 @@ function confirmDrop(): void {
       </ScrollRegion>
     </div>
     {#if stashes.length > 100}
-      <p class="px-3 pb-2 text-xs text-muted-foreground">
+      <p class="px-3 pb-2 text-ui text-muted-foreground">
         Showing the first 100 of {stashes.length} stashes.
       </p>
     {/if}

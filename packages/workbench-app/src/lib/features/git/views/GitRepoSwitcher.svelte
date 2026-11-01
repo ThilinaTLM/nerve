@@ -167,7 +167,7 @@ async function createBranch(repository: string): Promise<void> {
         }}
       >
         <div
-          class="flex h-control-sm min-w-0 items-center gap-1.5 pl-2 text-sm"
+          class="flex h-control-sm min-w-0 items-center gap-1.5 pl-2 text-ui"
         >
           <!-- Where the repository lives: GitHub, another remote, or local only. -->
           {#if !repo.hasRemote}
@@ -176,10 +176,15 @@ async function createBranch(repository: string): Promise<void> {
               aria-label="No remote"
             />
           {:else if repo.hasGithubRemote}
-            <GithubMark class="size-3.5 shrink-0 text-muted-foreground" />
+            <GithubMark
+              class={`size-3.5 shrink-0 ${selected ? "text-primary" : "text-muted-foreground"}`}
+            />
           {:else}
             <Cloud
-              class="size-3.5 shrink-0 text-muted-foreground"
+              class={[
+                "size-3.5 shrink-0",
+                selected ? "text-primary" : "text-muted-foreground",
+              ]}
               aria-label="Remote (not GitHub)"
             />
           {/if}
@@ -192,16 +197,18 @@ async function createBranch(repository: string): Promise<void> {
                   aria-pressed={selected}
                   aria-label={`Select repository ${repo.name}`}
                   disabled={!canSelect}
-                  class="min-w-0 cursor-pointer rounded-sm text-left whitespace-nowrap outline-none focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-default"
-                  >{listLabels.get(repo.relativePath)}</button
+                  class={[
+                    "min-w-0 cursor-pointer rounded-sm text-left whitespace-nowrap outline-none focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-default",
+                    selected && "font-medium",
+                  ]}>{listLabels.get(repo.relativePath)}</button
                 >
               {/snippet}
             </Tooltip.Trigger>
             <Tooltip.Content>
               <div class="min-w-0 space-y-1">
                 <p class="font-medium break-all">{repo.name}</p>
-                <p class="font-mono text-xs break-all">{repo.absDir}</p>
-                <p class="text-xs">
+                <p class="font-mono text-ui break-all">{repo.absDir}</p>
+                <p class="text-ui">
                   {!repo.hasRemote
                     ? "Local only · no remote"
                     : repo.hasGithubRemote
@@ -209,7 +216,7 @@ async function createBranch(repository: string): Promise<void> {
                       : "Remote is not on GitHub"}
                 </p>
                 {#if contextItems}
-                  <p class="text-xs">Right-click for more actions</p>
+                  <p class="text-ui">Right-click for more actions</p>
                 {/if}
               </div>
             </Tooltip.Content>
@@ -232,7 +239,7 @@ async function createBranch(repository: string): Promise<void> {
                 {#snippet child({ props })}
                   <span
                     {...props}
-                    class="flex w-control-sm shrink-0 items-center justify-center text-xs text-muted-foreground tabular-nums"
+                    class="flex w-control-sm shrink-0 items-center justify-center text-ui text-muted-foreground tabular-nums"
                     aria-label={countHint ?? (count ? `${count}` : undefined)}
                   >
                     {#if count === 0 && emptyCount}
@@ -259,7 +266,7 @@ async function createBranch(repository: string): Promise<void> {
               enabled={model.capabilities.branches.enabled}
               switchingBranch={model.repoBranchState(selectedRepo)
                 .switchingBranch}
-              triggerClass="flex min-w-0 cursor-pointer items-center gap-1.5 rounded-sm px-0.5 text-xs text-muted-foreground hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50"
+              triggerClass="flex min-w-0 cursor-pointer items-center gap-1.5 rounded-sm px-0.5 text-ui text-muted-foreground hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50"
               triggerTitle={`Switch branch in ${repoPathLabel(repoSummary)}`}
               onOpen={() => loadBranches(selectedRepo)}
               onSwitch={(branch) => void switchBranch(selectedRepo, branch)}

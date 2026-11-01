@@ -24,7 +24,7 @@ let {
 
 <div
   class={cn(
-    "flex flex-wrap items-center gap-x-3 gap-y-1.5 py-2 text-xs",
+    "flex flex-wrap items-center gap-x-3 gap-y-1.5 py-2 text-ui",
     variant === "card" &&
       "rounded-md border border-dashed bg-card px-3 py-2 group-data-settings-surface/surface:border-0 group-data-settings-surface/surface:bg-transparent group-data-settings-surface/surface:px-0",
     className,
@@ -34,9 +34,9 @@ let {
     <Icon class="size-4 flex-none text-muted-foreground" aria-hidden="true" />
   {/if}
   <div class="grid min-w-0 flex-1 gap-0.5">
-    <span class="text-sm text-foreground">{title}</span>
+    <span class="text-ui text-foreground">{title}</span>
     {#if description}
-      <span class="text-xs text-muted-foreground">{description}</span>
+      <span class="text-ui text-muted-foreground">{description}</span>
     {/if}
   </div>
   {#if actions}

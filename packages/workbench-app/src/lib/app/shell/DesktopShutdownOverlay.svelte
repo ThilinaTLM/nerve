@@ -42,7 +42,7 @@ const desktopQuitting = $derived(
 
 .shutdown-card span {
   color: var(--muted-foreground);
-  font-size: var(--text-sm);
+  font-size: var(--text-ui);
 }
 
 /* Binds the shared spin keyframe at the shutdown cadence

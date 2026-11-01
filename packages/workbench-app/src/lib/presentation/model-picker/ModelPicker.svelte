@@ -161,7 +161,7 @@ function handleOpenChange(next: boolean): void {
   ariaLabel={label}
   {triggerTitle}
   triggerClass={cn(
-    "flex min-w-0 justify-start gap-1.5 rounded-md border border-input bg-input-background pr-1.5 pl-2 text-left text-sm shadow-xs transition-colors hover:bg-hover ",
+    "flex min-w-0 justify-start gap-1.5 rounded-md border border-input bg-input-background pr-1.5 pl-2 text-left text-ui shadow-xs transition-colors hover:bg-hover ",
     "h-control",
     fullyLocked && "pointer-events-none opacity-50",
     className,
@@ -192,7 +192,7 @@ function handleOpenChange(next: boolean): void {
         <span class="truncate text-foreground"
           >{resolved.selection.modelId}</span
         >
-        <span class="flex-none text-xs text-warning">Unavailable</span>
+        <span class="flex-none text-ui text-warning">Unavailable</span>
       {:else}
         <span class="truncate text-muted-foreground">Choose model</span>
       {/if}

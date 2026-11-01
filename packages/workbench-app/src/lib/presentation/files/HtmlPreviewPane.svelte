@@ -41,7 +41,7 @@ function receive(event: MessageEvent) {
 <svelte:window onmessage={receive} />
 <div class="flex min-h-0 min-w-0 flex-col">
   <div
-    class="border-b border-border/60 bg-panel px-4 py-2 text-xs text-muted-foreground"
+    class="border-b border-border/60 bg-panel px-4 py-2 text-ui text-muted-foreground"
   >
     {#if dirty}<p class="m-0 mb-1">Previewing unsaved changes.</p>{/if}
     <div class="flex items-start justify-between gap-2">
@@ -77,7 +77,7 @@ function receive(event: MessageEvent) {
   </div>
   {#if unavailable || preview?.error}
     <div
-      class="grid min-h-0 flex-1 place-content-center gap-2 p-4 text-center text-sm text-muted-foreground"
+      class="grid min-h-0 flex-1 place-content-center gap-2 p-4 text-center text-ui text-muted-foreground"
     >
       <p class="m-0">{unavailable ?? preview?.error}</p>
       {#if !unavailable}<Button variant="outline" onclick={onRetry}
@@ -86,7 +86,7 @@ function receive(event: MessageEvent) {
     </div>
   {:else if preview?.loading || !preview?.url}
     <div
-      class="grid min-h-0 flex-1 place-content-center gap-2 p-4 text-center text-sm text-muted-foreground"
+      class="grid min-h-0 flex-1 place-content-center gap-2 p-4 text-center text-ui text-muted-foreground"
     >
       <Spinner class="mx-auto size-5" />
       <p class="m-0">Preparing HTML preview…</p>

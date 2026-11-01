@@ -43,8 +43,8 @@ const hasAmount = $derived(amount !== undefined);
     for={id}
     class="grid min-w-0 flex-1 cursor-pointer gap-0.5 font-normal"
   >
-    <span class="text-xs font-medium text-foreground">{title}</span>
-    <span class="text-xs text-muted-foreground">{description}</span>
+    <span class="text-ui font-medium text-foreground">{title}</span>
+    <span class="text-ui text-muted-foreground">{description}</span>
   </Label>
   {#if hasAmount}
     <div class="flex items-center gap-1.5">
@@ -60,7 +60,7 @@ const hasAmount = $derived(amount !== undefined);
           (amount = Number((event.currentTarget as HTMLInputElement).value))}
       />
       {#if amountSuffix}
-        <span class="text-xs text-muted-foreground">{amountSuffix}</span>
+        <span class="text-ui text-muted-foreground">{amountSuffix}</span>
       {/if}
     </div>
   {/if}
