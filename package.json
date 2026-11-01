@@ -25,10 +25,10 @@
     "dev:ui": "tsx scripts/development/dev-workbench.mjs ui",
     "desktop:dev": "tsx packages/desktop-shell/scripts/dev-desktop.mjs",
     "desktop:prod": "pnpm --filter @nervekit/desktop-shell dev:prod --",
-    "storage:copy": "tsx scripts/storage-migrations/storage-copy.ts",
-    "storage:rehearse": "tsx scripts/storage-migrations/rehearse.ts",
-    "storage:migrate": "tsx scripts/storage-migrations/migrate.ts",
-    "migrations:check": "tsx scripts/storage-migrations/check.ts"
+    "storage:copy": "node scripts/storage-migrations/run.mjs copy",
+    "storage:rehearse": "node scripts/storage-migrations/run.mjs rehearse",
+    "storage:migrate": "node scripts/storage-migrations/run.mjs migrate",
+    "migrations:check": "node scripts/storage-migrations/run.mjs check"
   },
   "devDependencies": {
     "@eslint/js": "10.0.1",
