@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { toolExecutionResultSchema } from "../tools/tool-results.js";
-import { commandPreparationSchema, systemNoticeSchema } from "./input.js";
+import { systemNoticeSchema } from "./input.js";
 import {
   interactionResolutionSchema,
   supervisionSchema,
@@ -103,7 +103,6 @@ export const userMessagePayloadSchema = z.object({
   acceptedAt: z.string().datetime().optional(),
   source: z.enum(["user", "parent_conversation"]),
   senderConversationId: z.string().nullable(),
-  commandPreparation: commandPreparationSchema.nullable(),
 });
 export const assistantMessagePayloadSchema = z.object({
   content: z.array(assistantContentSchema),

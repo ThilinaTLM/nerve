@@ -19,8 +19,6 @@ function input(id = "first", seconds = 10, sequence = 1): QueuedInput {
     content: "Hello",
     deliveryTarget: "next_turn",
     targetExecutionId: null,
-    commandPreparation: null,
-    preparedText: "Hello",
     wakeWhenIdle: true,
     acceptedAt: time(seconds),
   };
@@ -108,7 +106,6 @@ test("a consumed earlier prompt keeps the next input waiting", () => {
       originalText: "Hello",
       source: "user",
       senderConversationId: null,
-      commandPreparation: null,
     },
   };
   assert.equal(
@@ -142,19 +139,6 @@ test("unresolved tool interactions keep inputs visibly waiting", () => {
   );
 });
 
-test("command preparation alone does not mean waiting", () => {
-  const prompt = input();
-  prompt.preparedText = null;
-  prompt.commandPreparation = {
-    blocks: [
-      { index: 0, command: "git status", state: "running", result: null },
-    ],
-  };
-  assert.equal(
-    promptPresentations(snapshot([prompt]), []).get("first"),
-    "starting",
-  );
-});
 test("delivery removes the pending projection and a failed previous execution permits starting", () => {
   assert.equal(promptPresentations(snapshot([]), []).size, 0);
   assert.equal(

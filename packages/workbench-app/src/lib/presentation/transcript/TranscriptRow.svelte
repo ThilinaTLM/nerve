@@ -162,12 +162,7 @@ const inFlight = $derived.by(() => {
         LIVE_TOOL_STATUSES.has(node.toolCall?.status ?? "")
       );
     case "message":
-      return Boolean(
-        node.item.live ||
-        node.item.commandPreparation?.blocks.some(
-          (block) => block.state === "running",
-        ),
-      );
+      return Boolean(node.item.live);
     case "thinking_group":
       return node.items.some((member) => member.item.live && !member.item.done);
     default:

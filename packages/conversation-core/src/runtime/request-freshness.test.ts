@@ -352,7 +352,6 @@ void test("compaction resolves current model, reasoning and settings without ord
         payload: {
           text: `Message ${index}: ${"history ".repeat(1000)}`,
           originalText: "History",
-          commandPreparation: null,
           source: "user",
           senderConversationId: null,
         },

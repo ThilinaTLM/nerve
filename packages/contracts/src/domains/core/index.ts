@@ -126,9 +126,6 @@ export type {
 export {
   inputSourceSchema,
   deliveryTargetSchema,
-  commandPreparationStateSchema,
-  commandResultSchema,
-  commandPreparationSchema,
   systemNoticeSchema,
   queuedInputSchema,
   submitInputRequestSchema,
@@ -136,9 +133,6 @@ export {
 export type {
   InputSource,
   DeliveryTarget,
-  CommandPreparationState,
-  CommandResult,
-  CommandPreparation,
   SystemNotice,
   QueuedInput,
   SubmitInputRequest,

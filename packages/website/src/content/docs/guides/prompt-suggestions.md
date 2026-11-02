@@ -12,7 +12,20 @@ Prompt suggestions are one-click chips above the composer for prompts you use of
 1. Open **Settings → Suggestions**.
 2. Switch individual suggestions on or off.
 
-Nerve includes three Git suggestions: **Commit changes**, **Commit on a feature branch**, and **Create a PR**. Each appears only when it applies, for example when the repository has uncommitted changes. Settings lists them even when they aren't applicable right now.
+Nerve includes Git suggestions that appear only when they apply:
+
+- **Commit changes** and **Commit on a new branch**
+- **Create a PR** and **Update PR #N**
+- **Fix failing checks** when the open PR's checks fail
+- **Push commits** and **Pull upstream**
+
+Three more are off by default. Turn them on in Settings if you want them: **Review my changes**, **Clean up merged branch**, and **Continue** (after a failed or interrupted turn).
+
+Labels show counts where useful, such as **Commit 3 changes**. Each prompt reads like a request you'd type, and ends with a short **Last known state** line (branch, relevant counts, PR). It says "last known" because a queued prompt may run after the state has changed. Settings lists every suggestion even when it isn't applicable right now. Expand one to see when it appears and a preview of its prompt.
+
+## Click a suggestion while the agent is running
+
+Suggestions stay available while the agent works. Clicking one queues its prompt, and it is sent when the agent finishes. Your composer text is kept. Right-click a suggestion to add its prompt to the composer instead.
 
 ## Add your own
 

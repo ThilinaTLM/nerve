@@ -10,13 +10,8 @@ import {
   type SubmitInputRequest,
   type SystemNotice,
 } from "@nervekit/contracts/core";
-import type { ProcessPort } from "../ports.js";
 import type { CoreStorage } from "../storage/core-storage.js";
 import type { EnqueueInput } from "../storage/input-queue.repository.js";
-import {
-  initialCommandPreparation,
-  prepareCommands,
-} from "./command-preparation.js";
 
 export type InputBoundary =
   | { kind: "turn"; executionId?: string }
@@ -43,12 +38,9 @@ export type EnqueueNoticeRequest = {
   : never);
 
 export class InputQueueService {
-  private readonly preparations = new Map<string, AbortController>();
-
   constructor(
     private readonly options: {
       storage: CoreStorage;
-      processes: ProcessPort;
       emit(change: InputQueueChange): void;
       requestWake(conversationId: string): void;
     },
@@ -77,7 +69,6 @@ export class InputQueueService {
   } {
     const input = submitInputRequestSchema.parse(request);
     this.assertAcceptsSource(input.conversationId, input.source);
-    const preparation = initialCommandPreparation(input.text);
     const result = this.accept({
       inputId: input.inputId,
       conversationId: input.conversationId,
@@ -86,8 +77,6 @@ export class InputQueueService {
       content: input.text,
       deliveryTarget: input.deliveryTarget ?? "next_turn",
       targetExecutionId: input.targetExecutionId ?? null,
-      commandPreparation: preparation,
-      preparedText: preparation ? null : input.text,
       wakeWhenIdle: input.wakeWhenIdle ?? true,
       acceptedAt: new Date().toISOString(),
     });
@@ -104,7 +93,6 @@ export class InputQueueService {
       result,
       afterCommit: () => {
         this.changed(input.conversationId);
-        this.startPreparation(result);
         this.wake(result);
       },
     };
@@ -125,8 +113,6 @@ export class InputQueueService {
       content: notice,
       deliveryTarget: request.deliveryTarget ?? "next_turn",
       targetExecutionId: request.targetExecutionId ?? null,
-      commandPreparation: null,
-      preparedText: null,
       wakeWhenIdle: request.wakeWhenIdle,
       acceptedAt: new Date().toISOString(),
     });
@@ -139,24 +125,9 @@ export class InputQueueService {
 
   cancel(inputId: string): void {
     const row = this.options.storage.inputs.get(inputId);
-    this.preparations.get(inputId)?.abort();
-    this.preparations.delete(inputId);
     if (!row) return;
     this.options.storage.inputs.delete(inputId);
     this.changed(row.conversationId);
-  }
-
-  discard(inputIds: readonly string[]): void {
-    for (const id of inputIds) {
-      this.preparations.get(id)?.abort();
-      this.preparations.delete(id);
-    }
-  }
-
-  close(): void {
-    // Fence late saves without removing prompts or rewriting uncertain outcomes.
-    for (const controller of this.preparations.values()) controller.abort();
-    this.preparations.clear();
   }
 
   list(conversationId: string): QueuedInput[] {
@@ -187,12 +158,11 @@ export class InputQueueService {
                 type: "user_message",
                 llmRepresentation: "user",
                 payload: {
-                  text: row.preparedText ?? row.content,
+                  text: row.content,
                   originalText: row.content,
                   acceptedAt: row.acceptedAt,
                   source: row.source,
                   senderConversationId: row.senderConversationId,
-                  commandPreparation: row.commandPreparation,
                 },
               })
             : storage.events.append({
@@ -228,23 +198,6 @@ export class InputQueueService {
       !this.options.storage.toolCalls.list(conversationId).length &&
       this.eligible(conversationId, boundary).length > 0
     );
-  }
-
-  recover(conversationId?: string): void {
-    const rows =
-      conversationId === undefined
-        ? this.options.storage.inputs.listAll()
-        : this.options.storage.inputs.list(conversationId);
-    for (const row of rows) {
-      if (row.commandPreparation && row.preparedText === null) {
-        for (const block of row.commandPreparation.blocks)
-          if (block.state === "running") block.state = "indeterminate";
-        this.options.storage.inputs.update(row.inputId, {
-          commandPreparation: row.commandPreparation,
-        });
-        this.startPreparation(row);
-      }
-    }
   }
 
   private accept(input: EnqueueInput): QueuedInput | "delivered" {
@@ -332,60 +285,9 @@ export class InputQueueService {
           boundary.kind === "execution_start" &&
           (!row.targetExecutionId || finished.has(row.targetExecutionId)));
       if (!eligible) continue;
-      if (row.commandPreparation && row.preparedText === null) break;
       rows.push(row);
     }
     return rows;
-  }
-
-  private startPreparation(row: QueuedInput): void {
-    if (
-      !row.commandPreparation ||
-      row.preparedText !== null ||
-      typeof row.content !== "string" ||
-      this.preparations.has(row.inputId)
-    )
-      return;
-    const config = this.options.storage.conversations.getContext(
-      row.conversationId,
-    );
-    if (!config)
-      throw new Error(
-        `Conversation configuration not found: ${row.conversationId}`,
-      );
-    const controller = new AbortController();
-    this.preparations.set(row.inputId, controller);
-    // Defer execution until after submission has returned.
-    void Promise.resolve()
-      .then(() =>
-        prepareCommands({
-          conversationId: row.conversationId,
-          text: row.content as string,
-          preparation: row.commandPreparation!,
-          cwd: config.workingDirectory,
-          signal: controller.signal,
-          processes: this.options.processes,
-          save: (commandPreparation, preparedText) => {
-            if (
-              controller.signal.aborted ||
-              this.preparations.get(row.inputId) !== controller ||
-              !this.options.storage.inputs.get(row.inputId)
-            )
-              return false;
-            this.options.storage.inputs.update(row.inputId, {
-              commandPreparation,
-              ...(preparedText !== undefined ? { preparedText } : {}),
-            });
-            this.changed(row.conversationId);
-            return true;
-          },
-        }),
-      )
-      .finally(() => {
-        if (this.preparations.get(row.inputId) !== controller) return;
-        this.preparations.delete(row.inputId);
-        if (!controller.signal.aborted) this.wake(row);
-      });
   }
 
   private wake(row: QueuedInput): void {

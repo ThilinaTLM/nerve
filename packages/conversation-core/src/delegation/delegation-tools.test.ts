@@ -167,9 +167,6 @@ async function fixture() {
       start: async () => {
         throw new Error("No process expected");
       },
-      run: async () => {
-        throw new Error("No process expected");
-      },
       reattach: async () => null,
     },
     defaultConfig: () => ({

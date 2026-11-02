@@ -67,7 +67,6 @@ test("child summaries track parent prompt acceptance across queue delivery, not 
         originalText: "First assignment",
         source: "parent_conversation",
         senderConversationId: "parent",
-        commandPreparation: null,
       },
     });
     assert.equal(summary().lastParentPromptAt, at(2));
@@ -79,23 +78,13 @@ test("child summaries track parent prompt acceptance across queue delivery, not 
       content: "Follow-up",
       deliveryTarget: "next_turn",
       targetExecutionId: null,
-      commandPreparation: null,
-      preparedText: null,
       wakeWhenIdle: true,
       acceptedAt: at(3),
     });
     assert.equal(summary().lastParentPromptAt, at(3));
-    const unexpectedProcess = async (): Promise<never> => {
-      throw new Error("No process expected");
-    };
     const changes: InputQueueChange[] = [];
     const service = new InputQueueService({
       storage,
-      processes: {
-        start: unexpectedProcess,
-        run: unexpectedProcess,
-        reattach: unexpectedProcess,
-      },
       emit: (change) => changes.push(change),
       requestWake: () => {},
     });
@@ -116,7 +105,6 @@ test("child summaries track parent prompt acceptance across queue delivery, not 
         originalText: "Direct",
         source: "user",
         senderConversationId: null,
-        commandPreparation: null,
       },
     });
     storage.conversations.update("child", {

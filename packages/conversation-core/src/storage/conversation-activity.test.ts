@@ -57,7 +57,6 @@ function fixture() {
   };
   const inputs = new InputQueueService({
     storage,
-    processes: {} as never,
     emit,
     requestWake() {},
   });

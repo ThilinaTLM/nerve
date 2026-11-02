@@ -2,7 +2,6 @@ import { mkdir } from "node:fs/promises";
 import { join } from "node:path";
 import { formatProjectShellFailure } from "@nervekit/tools/execution";
 import {
-  spawnShellProcess,
   prepareShellProcess,
   spawnPreparedShellProcess,
   type PreparedShellProcess,
@@ -179,38 +178,6 @@ export class CoreProcessHost implements ProcessPort {
     } catch (error) {
       await background.cancel().catch(() => undefined);
       throw error;
-    } finally {
-      input.signal.removeEventListener("abort", cancel);
-    }
-  }
-
-  async run(input: Parameters<ProcessPort["run"]>[0] & { shellPath?: string }) {
-    if (input.signal.aborted) throw new DOMException("Cancelled", "AbortError");
-    const { managed: process } = spawnShellProcess(input.command, {
-      shellPath: Object.hasOwn(input, "shellPath")
-        ? input.shellPath
-        : await this.resolveShellPath(input.cwd, input.conversationId),
-      login: true,
-      cwd: input.cwd,
-      policy: { output: { totalBytes: 1024 * 1024, overflow: "truncate" } },
-      detachOutputAfterExit: true,
-    });
-    const stdout: Buffer[] = [],
-      stderr: Buffer[] = [];
-    process.stdout.on("data", (chunk: Buffer) => stdout.push(chunk));
-    process.stderr.on("data", (chunk: Buffer) => stderr.push(chunk));
-    const cancel = () => {
-      void process.terminate("SIGKILL");
-    };
-    input.signal.addEventListener("abort", cancel, { once: true });
-    if (input.signal.aborted) cancel();
-    try {
-      const result = await process.closed;
-      return {
-        stdout: Buffer.concat(stdout).toString(),
-        stderr: Buffer.concat(stderr).toString(),
-        exitCode: result.exitCode,
-      };
     } finally {
       input.signal.removeEventListener("abort", cancel);
     }

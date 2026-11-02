@@ -2,7 +2,6 @@
 import ArrowUp from "@lucide/svelte/icons/arrow-up";
 import MessageCircleQuestion from "@lucide/svelte/icons/message-circle-question-mark";
 import Plus from "@lucide/svelte/icons/plus";
-import SquareTerminal from "@lucide/svelte/icons/square-terminal";
 import Square from "@lucide/svelte/icons/square";
 import type { Snippet } from "svelte";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
@@ -18,8 +17,6 @@ import { Spinner } from "@nervekit/ui-kit/components/ui/spinner";
 type Props = {
   /** Active profile name; only `"planning"` receives special styling. */
   agentProfile: string;
-  commandMode?: boolean;
-  executableBlocks?: boolean;
   pendingApproval?: boolean;
   pendingQuestion?: boolean;
   pendingPlan?: boolean;
@@ -47,8 +44,6 @@ type Props = {
 
 let {
   agentProfile,
-  commandMode = false,
-  executableBlocks = false,
   pendingApproval = false,
   pendingQuestion = false,
   pendingPlan = false,
@@ -73,7 +68,7 @@ let {
 }: Props = $props();
 
 const tone = $derived(
-  pendingApproval || pendingPlan || commandMode
+  pendingApproval || pendingPlan
     ? "warning"
     : pendingQuestion || agentProfile === "planning"
       ? "info"
@@ -109,7 +104,6 @@ function keepEditorFocus(event: MouseEvent): void {
   <div
     class="mobile-composer-dock grid min-w-0 border-t bg-panel"
     data-tone={tone}
-    data-executable-blocks={executableBlocks ? "true" : undefined}
   >
     {#if pendingQuestion}
       <div
@@ -129,11 +123,6 @@ function keepEditorFocus(event: MouseEvent): void {
             onclick={onGoToQuestion}>Go to question</Button
           >
         {/if}
-      </div>
-    {:else if commandMode}
-      <div class="flex items-center gap-1.5 px-3 pt-2 text-ui text-warning">
-        <SquareTerminal class="size-4 flex-none" aria-hidden="true" />
-        <span class="min-w-0 truncate">Shell command, runs locally</span>
       </div>
     {/if}
 
@@ -208,7 +197,7 @@ function keepEditorFocus(event: MouseEvent): void {
           aria-label={sendAriaLabel}
           title={sendTitle}
         >
-          {#if commandMode}<SquareTerminal />{:else}<ArrowUp />{/if}
+          <ArrowUp />
         </Button>
       </div>
     </div>

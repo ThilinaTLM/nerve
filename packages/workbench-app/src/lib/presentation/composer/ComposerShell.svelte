@@ -1,7 +1,6 @@
 <script lang="ts">
 import ArrowUp from "@lucide/svelte/icons/arrow-up";
 import MessageCircleQuestion from "@lucide/svelte/icons/message-circle-question-mark";
-import SquareTerminal from "@lucide/svelte/icons/square-terminal";
 import Square from "@lucide/svelte/icons/square";
 import type { Snippet } from "svelte";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
@@ -11,8 +10,6 @@ import { cubicOut } from "svelte/easing";
 type Props = {
   /** Active profile name; only `"planning"` receives special surface styling. */
   agentProfile: string;
-  commandMode?: boolean;
-  executableBlocks?: boolean;
   pendingApproval?: boolean;
   pendingQuestion?: boolean;
   pendingPlan?: boolean;
@@ -39,8 +36,6 @@ type Props = {
 
 let {
   agentProfile,
-  commandMode = false,
-  executableBlocks = false,
   pendingApproval = false,
   pendingQuestion = false,
   pendingPlan = false,
@@ -92,12 +87,7 @@ function revealAction(node: HTMLElement) {
     {@render header()}
   {/if}
 
-  <div
-    class="composer-surface"
-    data-profile={agentProfile}
-    data-command-mode={commandMode ? "true" : undefined}
-    data-executable-blocks={executableBlocks ? "true" : undefined}
-  >
+  <div class="composer-surface" data-profile={agentProfile}>
     {#if pendingQuestion}
       <div
         class="flex items-center gap-2 px-3 pt-2 text-ui text-info"
@@ -116,13 +106,6 @@ function revealAction(node: HTMLElement) {
             onclick={onGoToQuestion}>Go to question</Button
           >
         {/if}
-      </div>
-    {:else if commandMode}
-      <div class="flex items-center gap-1.5 px-3 pt-2 text-ui text-warning">
-        <SquareTerminal class="size-3.5 flex-none" aria-hidden="true" />
-        <span class="min-w-0 truncate"
-          >Shell command — runs locally, not sent to the agent</span
-        >
       </div>
     {/if}
 
@@ -171,7 +154,7 @@ function revealAction(node: HTMLElement) {
           aria-label={sendAriaLabel}
           title={sendTitle}
         >
-          {#if commandMode}<SquareTerminal />{:else}<ArrowUp />{/if}
+          <ArrowUp />
         </Button>
       </div>
     </div>
@@ -216,11 +199,6 @@ function revealAction(node: HTMLElement) {
 .composer-surface[data-profile="planning"],
 .composer-surface[data-profile="planning"]:focus-within {
   border-color: var(--info);
-}
-
-.composer-surface[data-command-mode="true"],
-.composer-surface[data-command-mode="true"]:focus-within {
-  border-color: var(--warning);
 }
 
 .composer[data-pending-question="true"] .composer-surface {

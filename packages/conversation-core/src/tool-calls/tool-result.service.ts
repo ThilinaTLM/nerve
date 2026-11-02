@@ -164,16 +164,7 @@ export async function prepareToolResult(
   const blocks: AgentProjection = [];
   for (const block of projection.blocks)
     blocks.push(block.type === "image" ? await saveImage(block) : block);
-  const agentProjection: AgentProjection =
-    call.origin === "user"
-      ? [
-          {
-            type: "text",
-            text: `Ran \`${String(call.arguments.command ?? "")}\`\n`,
-          },
-          ...blocks,
-        ]
-      : blocks;
+  const agentProjection: AgentProjection = blocks;
   return {
     agentProjection,
     userProjection: buildUserProjection(

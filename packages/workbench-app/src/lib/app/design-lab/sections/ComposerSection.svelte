@@ -694,11 +694,18 @@ function cycleMic() {
 
     <GallerySpecimen
       title="PromptSuggestionChips"
-      description="Outline chips above the composer; click sends, right-click drafts."
+      description="Outline chips above the composer; click sends (queues while the agent runs), right-click drafts. Hover for the prompt excerpt."
       source="features/conversations/views/PromptSuggestionChips"
       usage="1 file · composer"
+      layout="stack"
     >
       <PromptSuggestionChips {suggestions} onSend={noop} onDraft={noop} />
+      <PromptSuggestionChips
+        {suggestions}
+        running
+        onSend={noop}
+        onDraft={noop}
+      />
     </GallerySpecimen>
   </GalleryGroup>
   <GalleryGroup title="Shared presentation">

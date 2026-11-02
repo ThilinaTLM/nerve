@@ -18,6 +18,7 @@ import { MobileListRow, MobileSection } from "$lib/presentation/shell";
 import {
   activeGitPrFilterCount,
   applyGitPrFilterDraft,
+  checksRunning,
   createGitPrFilterDraft,
   defaultGitPrFilterConfig,
   gitPrFilterConfigsEqual,
@@ -116,7 +117,7 @@ function open(pr: GithubPr) {
     detail={detail(pr)}
     meta={relativeTimeLabel(pr.updatedAt)}
     tone={tone(pr)}
-    pulse={pr.checks.status === "pending"}
+    pulse={checksRunning(pr.checks)}
     onclick={() => open(pr)}
   />
 {/snippet}

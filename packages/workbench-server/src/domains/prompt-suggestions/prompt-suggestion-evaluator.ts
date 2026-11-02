@@ -5,6 +5,7 @@ import type {
   PromptSuggestionTrustRequest,
 } from "@nervekit/contracts/prompt-suggestions";
 import type { PromptSuggestionTrustRecord } from "./prompt-suggestion-trust.repository.js";
+import { suggestionStatusDetails } from "./prompt-suggestion-summary.js";
 import {
   anyDirtyRepo,
   type PromptSuggestionDefinition,
@@ -88,6 +89,7 @@ export function evaluatePromptSuggestions(
       label: definition.buildLabel?.(input) ?? definition.label,
       description: definition.description,
       prompt: definition.buildPrompt?.(input) ?? definition.prompt,
+      context: definition.buildContext?.(input),
       order: definition.order,
       source: definition.source,
       requiresTrust: Boolean(definition.enableJs),
@@ -136,6 +138,31 @@ function matchesWhen(
     when.githubAuthenticated !== undefined &&
     Boolean(input.git.github?.available && input.git.github?.authenticated) !==
       when.githubAuthenticated
+  ) {
+    return false;
+  }
+  const repos = input.git.repos;
+  if (
+    when.gitAhead !== undefined &&
+    repos.some((repo) => (repo.ahead ?? 0) > 0) !== when.gitAhead
+  ) {
+    return false;
+  }
+  if (
+    when.gitBehind !== undefined &&
+    repos.some((repo) => (repo.behind ?? 0) > 0) !== when.gitBehind
+  ) {
+    return false;
+  }
+  if (
+    when.onBaseBranch !== undefined &&
+    repos.some((repo) => repo.onBaseBranch) !== when.onBaseBranch
+  ) {
+    return false;
+  }
+  if (
+    when.hasPullRequest !== undefined &&
+    repos.some((repo) => Boolean(repo.pullRequest)) !== when.hasPullRequest
   ) {
     return false;
   }
@@ -204,6 +231,7 @@ function statusFor(
     enabled: definition.enabled,
     defaultEnabled: definition.defaultEnabled,
     predicateHash: definition.predicateHash,
+    ...suggestionStatusDetails(definition),
   };
 }
 

@@ -46,7 +46,7 @@ export class InputQueueRepository {
         );
       this.db.sqlite
         .prepare(
-          "INSERT INTO input_queue (input_id, conversation_id, acceptance_sequence, source, sender_conversation_id, content, delivery_target, target_execution_id, command_preparation, prepared_text, wake_when_idle, accepted_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+          "INSERT INTO input_queue (input_id, conversation_id, acceptance_sequence, source, sender_conversation_id, content, delivery_target, target_execution_id, wake_when_idle, accepted_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
         )
         .run(
           row.inputId,
@@ -57,36 +57,11 @@ export class InputQueueRepository {
           JSON.stringify(row.content),
           row.deliveryTarget,
           row.targetExecutionId,
-          row.commandPreparation === null
-            ? null
-            : JSON.stringify(row.commandPreparation),
-          row.preparedText,
           Number(row.wakeWhenIdle),
           row.acceptedAt,
         );
       return row;
     });
-  }
-
-  update(
-    inputId: string,
-    patch: Partial<Pick<QueuedInput, "commandPreparation" | "preparedText">>,
-  ): QueuedInput {
-    const existing = this.get(inputId);
-    if (!existing) throw new Error(`QueuedInput not found: ${inputId}`);
-    const row = queuedInputSchema.parse({ ...existing, ...patch });
-    this.db.sqlite
-      .prepare(
-        "UPDATE input_queue SET command_preparation = ?, prepared_text = ? WHERE input_id = ?",
-      )
-      .run(
-        row.commandPreparation === null
-          ? null
-          : JSON.stringify(row.commandPreparation),
-        row.preparedText,
-        inputId,
-      );
-    return row;
   }
 
   list(conversationId: string): QueuedInput[] {
@@ -122,11 +97,6 @@ function mapQueuedInput(row: Record<string, SQLOutputValue>): QueuedInput {
     content: JSON.parse(String(row.content)),
     deliveryTarget: row.delivery_target,
     targetExecutionId: row.target_execution_id,
-    commandPreparation:
-      row.command_preparation === null
-        ? null
-        : JSON.parse(String(row.command_preparation)),
-    preparedText: row.prepared_text,
     wakeWhenIdle: row.wake_when_idle === 1,
     acceptedAt: row.accepted_at,
   });

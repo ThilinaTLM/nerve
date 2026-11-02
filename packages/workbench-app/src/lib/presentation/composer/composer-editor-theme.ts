@@ -8,8 +8,7 @@ export const composerEditorTheme = EditorView.theme({
   },
   ".cm-content": {
     caretColor: "var(--primary)",
-    // Prompt text is prose: sans by default. Shell-command mode (`!`) is the
-    // only monospace state; ComposerEditor.svelte flips it via `.shell-mode`.
+    // Prompt text is prose, so the editor is sans.
     fontFamily: "var(--font-sans)",
     fontSize: "var(--text-body)",
     lineHeight: "1.5",
@@ -19,14 +18,6 @@ export const composerEditorTheme = EditorView.theme({
   ".cm-cursor": { borderLeftColor: "var(--primary)" },
   ".cm-placeholder": {
     color: "color-mix(in oklab, var(--muted-foreground) 75%, transparent)",
-  },
-  ".cm-executable-command-block-line": {
-    backgroundColor: "color-mix(in oklab, var(--info) 9%, transparent)",
-  },
-  ".cm-executable-command-block-command": {
-    backgroundColor: "color-mix(in oklab, var(--info) 16%, transparent)",
-    color: "var(--foreground)",
-    borderRadius: "var(--radius-sm)",
   },
   ".cm-quote-block-line": {
     backgroundColor:

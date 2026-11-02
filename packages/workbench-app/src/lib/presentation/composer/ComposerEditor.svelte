@@ -25,10 +25,7 @@ import {
   placeholder as placeholderExtension,
   type ViewUpdate,
 } from "@codemirror/view";
-import {
-  isInlineCommandPrompt,
-  type CompletionItem,
-} from "@nervekit/contracts/completions";
+import type { CompletionItem } from "@nervekit/contracts/completions";
 import ContextMenuList, {
   type ContextMenuItem,
 } from "@nervekit/ui-kit/components/composites/context-menu-list";
@@ -41,7 +38,6 @@ import {
   PROJECT_ENTRY_DRAG_MIME,
 } from "$lib/presentation/dnd/project-entry-drag";
 import ComposerCompletionPopup from "./ComposerCompletionPopup.svelte";
-import { executableCommandBlockHighlighter } from "./composer-command-blocks";
 import { externalValueChange } from "./composer-external-value";
 import { quoteBlockHighlighter } from "./composer-quote-blocks";
 import {
@@ -127,7 +123,6 @@ let fileDragDepth = 0;
 let fileDragActive = $state(false);
 let contextVersion = $state(0);
 let popupModel = $state.raw<PopupModel | null>(null);
-let shellMode = $state(false);
 let root: HTMLDivElement | undefined = $state();
 let caretPlaced = false;
 let dictation:
@@ -470,7 +465,6 @@ const menuItems = $derived.by<ContextMenuItem[]>(() => {
 
 onMount(() => {
   editorValue = value;
-  shellMode = isInlineCommandPrompt(value);
   view = new EditorView({
     parent: host,
     state: EditorState.create({
@@ -485,7 +479,6 @@ onMount(() => {
         ),
         composerMentionChips(),
         composerDictationPlaceholder(),
-        executableCommandBlockHighlighter,
         quoteBlockHighlighter,
         Prec.highest(
           keymap.of([
@@ -508,7 +501,6 @@ onMount(() => {
             caretPlaced = true;
           if (!update.docChanged) return;
           editorValue = update.state.doc.toString();
-          shellMode = isInlineCommandPrompt(editorValue);
           onChange?.(editorValue);
         }),
         composerEditorTheme,
@@ -566,7 +558,6 @@ $effect(() => {
     scrollIntoView: true,
   });
   editorValue = value;
-  shellMode = isInlineCommandPrompt(value);
 });
 
 // Profile/running changes re-filter an open slash list without closing it.
@@ -607,7 +598,6 @@ onDestroy(() => {
   class="composer-editor relative"
   data-prompt-composer-editor
   class:disabled
-  class:shell-mode={shellMode}
   role="group"
   aria-label={ariaLabel}
   ondragentercapture={handleFileDragEnter}
@@ -677,10 +667,6 @@ onDestroy(() => {
 
 .composer-editor.disabled {
   opacity: 0.58;
-}
-
-.composer-editor.shell-mode :global(.cm-content) {
-  font-family: var(--font-mono);
 }
 
 /* Phone: composer text must be >= 16px so iOS does not zoom on focus.

@@ -1,7 +1,6 @@
 import type {
   GithubCheckRun,
   GithubChecksSummary,
-  GithubPr,
 } from "@nervekit/contracts/git";
 
 export type GithubCheckRunOutcome = "passed" | "failed" | "pending";
@@ -23,16 +22,25 @@ export function githubCheckRunOutcome(status: string): GithubCheckRunOutcome {
   return "pending";
 }
 
-export function isGithubChecksPending(
-  checks: Pick<GithubChecksSummary, "status"> | undefined,
+/**
+ * Whether any check is still running or queued. Independent of `status`,
+ * where a failure outranks pending: a failing summary can still be running.
+ */
+export function checksRunning(
+  checks: Pick<GithubChecksSummary, "pending"> | undefined,
 ): boolean {
-  return checks?.status === "pending";
+  return (checks?.pending ?? 0) > 0;
 }
 
-export function hasPendingPrChecks(
-  prs: Array<Pick<GithubPr, "checks">>,
-): boolean {
-  return prs.some((pr) => isGithubChecksPending(pr.checks));
+/** One-line count breakdown for badge tooltips, e.g. "1 failing, 6 running, 5 passed". */
+export function checksBreakdown(
+  checks: Pick<GithubChecksSummary, "failed" | "pending" | "passed">,
+): string {
+  const parts: string[] = [];
+  if (checks.failed > 0) parts.push(`${checks.failed} failing`);
+  if (checks.pending > 0) parts.push(`${checks.pending} running`);
+  if (checks.passed > 0) parts.push(`${checks.passed} passed`);
+  return parts.join(", ");
 }
 
 export type CheckGroupStatus =

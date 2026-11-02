@@ -88,8 +88,7 @@ Send this on `/ws/conversations`; the workbench connection has no durable worksp
             "text": "Inspect the project",
             "originalText": "Inspect the project",
             "source": "user",
-            "senderConversationId": null,
-            "commandPreparation": null
+            "senderConversationId": null
           }
         }
       }

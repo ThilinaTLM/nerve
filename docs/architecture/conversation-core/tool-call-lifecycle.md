@@ -24,7 +24,7 @@ stateDiagram-v2
     settled --> [*]: append response and delete row
 ```
 
-Direct commands skip argument streaming, and cancellation can settle any unfinished durable state. The unfinished-call table stores durable checkpoints between drafting and settlement. Settlement appends a response and deletes the pending row in one transaction, so history records one outcome regardless of how many waits preceded it. Drafting stays in memory because incomplete streamed arguments are not executable work. Result storage is covered by [tool-result projection](../tool-result-projection.md).
+Cancellation can settle any unfinished durable state. The unfinished-call table stores durable checkpoints between drafting and settlement. Settlement appends a response and deletes the pending row in one transaction, so history records one outcome regardless of how many waits preceded it. Drafting stays in memory because incomplete streamed arguments are not executable work. Result storage is covered by [tool-result projection](../tool-result-projection.md).
 
 Configuration-blocked admission reuses `awaiting_input`, so it appears as an interaction the user can resolve by retrying after configuration repair. A retry repeats admission after configuration repair, because resolving the wait does not itself grant permission.
 
@@ -49,10 +49,6 @@ Force push cancels only the receiving conversation's current work, clears pause 
 ## Other entry and exit paths
 
 Promotion to [async bash](async-bash-and-launches.md) settles the foreground call with a process identity; later completion is a queued notice, not a second response. [Delegation](delegation.md) likewise returns before a child execution completes.
-
-### Direct user commands
-
-Input submission routes inline commands through supervised user-origin tool calls, so they receive permission checks without requiring a provider invocation. They have no originating assistant event because the user supplied the command. The submission ID deduplicates pending and settled commands. Included results become user context, not model-tool results. Fenced prompt commands instead use [queue preparation](input-queue.md#command-preparation).
 
 ## Where it lives
 

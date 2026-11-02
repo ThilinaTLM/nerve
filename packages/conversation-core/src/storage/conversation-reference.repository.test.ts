@@ -132,7 +132,6 @@ function prompt(conversationId: string): ConversationEvent {
       originalText: "PR a/b#1",
       source: "user",
       senderConversationId: null,
-      commandPreparation: null,
     },
   };
 }

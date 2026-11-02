@@ -198,70 +198,6 @@ export class ToolCallService {
     return this.settlement.waitForTurn(conversationId, turnId);
   }
 
-  async runUserCommand(
-    conversationId: string,
-    command: string,
-    includeInContext = true,
-    submission?: { inputId: string; originalText: string },
-  ): Promise<ToolCall | "delivered"> {
-    if (this.closed) throw new Error("Tool-call service is closed");
-    if (submission) {
-      const storage = this.options.storage;
-      const pending = storage.toolCalls
-        .listAll()
-        .find(
-          (row) =>
-            row.origin === "user" &&
-            row.arguments.inputId === submission.inputId,
-        );
-      if (pending) {
-        if (
-          pending.conversationId !== conversationId ||
-          pending.arguments.originalText !== submission.originalText ||
-          pending.arguments.command !== command ||
-          pending.arguments.includeInContext !== includeInContext
-        )
-          throw new Error("Input ID reused with different content");
-        return pending;
-      }
-      const delivered = storage.events.findByInputId(submission.inputId);
-      if (delivered) {
-        if (
-          delivered.conversationId !== conversationId ||
-          delivered.type !== "tool_call_response" ||
-          delivered.payload.origin !== "user" ||
-          delivered.payload.arguments.originalText !==
-            submission.originalText ||
-          delivered.payload.arguments.command !== command ||
-          (delivered.llmRepresentation !== "none") !== includeInContext
-        )
-          throw new Error("Input ID reused with different content");
-        return "delivered";
-      }
-      if (storage.inputs.get(submission.inputId))
-        throw new Error("Input ID already belongs to a queued prompt");
-    }
-    const call = this.options.storage.toolCalls.insert({
-      id: createId("tool"),
-      conversationId,
-      turnId: createId("turn"),
-      providerCallId: null,
-      assistantEventId: null,
-      contentIndex: null,
-      origin: "user",
-      toolName: "bash",
-      arguments: { command, includeInContext, ...submission },
-      state: "supervising",
-      supervision: null,
-      interaction: null,
-      executionClaim: null,
-      updatedAt: new Date().toISOString(),
-    });
-    this.changed(call);
-    await this.start([call.id]);
-    return call;
-  }
-
   resolveInteraction(
     input: ResolveInteraction,
   ): Promise<
@@ -401,10 +337,7 @@ export class ToolCallService {
     this.changed(call);
     const controller = new AbortController();
     this.controllers.set(id, controller);
-    const args =
-      call.origin === "user"
-        ? { command: call.arguments.command }
-        : call.arguments;
+    const args = call.arguments;
     try {
       if (call.state !== "supervising" && call.state !== "ready") return;
       const child = this.options.storage.conversations.get(

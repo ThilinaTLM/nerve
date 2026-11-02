@@ -201,3 +201,77 @@ test("failed checksums and FK checks roll back the approved rebuild and restore 
     db.close();
   }
 });
+
+test("v3 removes command preparation columns and keeps queued prompts", () => {
+  const fresh = openCoreDatabase(":memory:");
+  const upgraded = openCoreDatabase(":memory:");
+  const columns = (db: CoreDatabase) =>
+    db.sqlite
+      .prepare("PRAGMA table_info(input_queue)")
+      .all()
+      .map((column) => String(column.name));
+  try {
+    migrate(fresh);
+    assert.equal(
+      fresh.sqlite.prepare("SELECT max(version) v FROM schema_migrations").get()
+        ?.v,
+      3,
+    );
+    assert.equal(columns(fresh).includes("command_preparation"), false);
+    assert.equal(columns(fresh).includes("prepared_text"), false);
+
+    // Rebuild a v2 database: columns present, v3 not recorded.
+    migrate(upgraded);
+    upgraded.sqlite.exec(`
+      ALTER TABLE input_queue ADD COLUMN command_preparation TEXT CHECK(command_preparation IS NULL OR json_valid(command_preparation));
+      ALTER TABLE input_queue ADD COLUMN prepared_text TEXT;
+      DELETE FROM schema_migrations WHERE version=3;
+      INSERT INTO project VALUES ('p','Project','/project','now','now');`);
+    const conversationColumns = upgraded.sqlite
+      .prepare("PRAGMA table_info(conversation)")
+      .all()
+      .filter((column) => column.notnull === 1 && column.dflt_value === null)
+      .map((column) => String(column.name));
+    const values: Record<string, string | number> = {
+      id: "c",
+      project_id: "p",
+      title: "Conversation",
+      status: "idle",
+      status_event_sequence: 0,
+      paused: 0,
+      next_input_sequence: 2,
+      created_at: "now",
+      updated_at: "now",
+      model: '{"provider":"test","modelId":"model"}',
+      reasoning_level: "off",
+      permission_rule_set_id: "baseline",
+      agent_profile: "coding",
+      working_directory: "/project",
+    };
+    upgraded.sqlite
+      .prepare(
+        `INSERT INTO conversation (${conversationColumns.join(",")}) VALUES (${conversationColumns.map(() => "?").join(",")})`,
+      )
+      .run(...conversationColumns.map((name) => values[name] ?? "x"));
+    upgraded.sqlite.exec(`INSERT INTO input_queue
+      (input_id,conversation_id,acceptance_sequence,source,content,delivery_target,command_preparation,prepared_text,wake_when_idle,accepted_at)
+      VALUES ('i','c',1,'user','"hello"','next_turn','{"blocks":[]}','prepared',1,'now')`);
+    migrate(upgraded);
+    assert.deepEqual(columns(upgraded), columns(fresh));
+    assert.deepEqual(
+      { ...upgraded.sqlite.prepare("SELECT content FROM input_queue").get() },
+      { content: '"hello"' },
+    );
+    assert.deepEqual(
+      upgraded.sqlite.prepare("PRAGMA foreign_key_check").all(),
+      [],
+    );
+    upgraded.sqlite.exec(
+      "UPDATE schema_migrations SET checksum='x' WHERE version=3",
+    );
+    assert.throws(() => migrate(upgraded), /checksum mismatch: 3/);
+  } finally {
+    fresh.close();
+    upgraded.close();
+  }
+});

@@ -27,7 +27,11 @@ import {
   serializePromptSuggestionMarkdown,
 } from "./prompt-suggestion-loader.js";
 import type { PromptSuggestionTrustRepository } from "./prompt-suggestion-trust.repository.js";
-import type { PromptSuggestionDefinition } from "./prompt-suggestion-types.js";
+import { suggestionStatusDetails } from "./prompt-suggestion-summary.js";
+import type {
+  PromptSuggestionDefinition,
+  PromptSuggestionPullRequest,
+} from "./prompt-suggestion-types.js";
 
 type SuggestionProject = Pick<Project, "id" | "name"> & { dir: string };
 
@@ -43,6 +47,15 @@ export type PromptSuggestionServiceDeps = {
   getProject: (projectId: string) => SuggestionProject;
   listProjects: () => SuggestionProject[];
   getConversation: (conversationId: string) => ConversationSnapshot;
+  /**
+   * Cache-only lookup of the open PR for a branch. `undefined` = unknown,
+   * `null` = known to be absent. Must not block on `gh`.
+   */
+  openPullRequestForBranch?: (
+    projectId: string,
+    repo: string,
+    branch: string,
+  ) => PromptSuggestionPullRequest | null | undefined;
   getAgentContext?: (conversationId: string) => Promise<
     | {
         permissionRuleSetId: string;
@@ -356,7 +369,29 @@ export class PromptSuggestionService {
           }))
           .catch(() => undefined)
       : undefined;
-    return { ...discovery, github };
+    const githubReady = Boolean(github?.available && github.authenticated);
+    const repos = discovery.repos.map((repo) => {
+      if (
+        !githubReady ||
+        !repo.hasGithubRemote ||
+        !repo.currentBranch ||
+        !this.deps.openPullRequestForBranch
+      )
+        return repo;
+      try {
+        return {
+          ...repo,
+          pullRequest: this.deps.openPullRequestForBranch(
+            projectId,
+            repo.relativePath,
+            repo.currentBranch,
+          ),
+        };
+      } catch {
+        return repo;
+      }
+    });
+    return { ...discovery, repos, github };
   }
 }
 
@@ -405,6 +440,7 @@ function statusesFor(
           ? winner.source.kind
           : undefined,
       predicateHash: definition.predicateHash,
+      ...suggestionStatusDetails(definition),
     };
   });
 }

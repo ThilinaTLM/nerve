@@ -26,7 +26,6 @@ void test("offline history gate visits every event and tool row and groups bound
     originalText: "Message",
     source: "user",
     senderConversationId: null,
-    commandPreparation: null,
   };
   const event = db.prepare(
     "INSERT INTO conversation_event VALUES (?, 'conversation', ?, NULL, 'user_message', 'user', NULL, NULL, ?, '2026-10-30T00:00:00.000Z')",

@@ -64,7 +64,9 @@ let {
   class="-mx-1 grid min-h-0 flex-1 content-start gap-3 overflow-y-auto px-1 pt-0 pb-1 @max-[46rem]/settings-page:flex @max-[46rem]/settings-page:gap-1 @max-[46rem]/settings-page:overflow-x-auto @max-[46rem]/settings-page:pt-0"
 >
   {#each groups as group (group.id)}
-    <div class="grid gap-0.5 @max-[46rem]/settings-page:flex">
+    <div
+      class="grid gap-0.5 @max-[46rem]/settings-page:flex @max-[46rem]/settings-page:flex-none"
+    >
       {#if group.title}
         <GroupLabel
           class="px-2 pb-0.5 @max-[46rem]/settings-page:hidden"

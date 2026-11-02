@@ -8,7 +8,6 @@ import { type LeadSettingsOverrides } from "@nervekit/contracts/agent-configurat
 import type { ComposerView } from "$lib/application/composer/composer-view.svelte";
 import type { AgentEditorView } from "$lib/presentation/composer/agent-editor-view";
 import type { AvailableSkill } from "@nervekit/contracts/skills";
-import { isInlineCommandPrompt } from "@nervekit/contracts/completions";
 import { listTools, uploadAttachment } from "$lib/api";
 import { getDesktopBridge } from "$lib/platform/desktop/desktop-bridge.svelte";
 import { readClipboardText } from "$lib/platform/clipboard/read-text";
@@ -320,7 +319,6 @@ const pendingPlan = $derived(pendingPlanReviews.length > 0);
 const blockedForReview = $derived(
   pendingApproval || pendingQuestion || pendingPlan,
 );
-const commandMode = $derived(isInlineCommandPrompt(text));
 const availability = $derived(
   deriveComposerAvailability({
     interactive,
@@ -330,8 +328,6 @@ const availability = $derived(
     blockedForReview,
     compacting,
     stopping,
-    sending,
-    commandMode,
     voiceSubmitPending,
   }),
 );
@@ -373,11 +369,9 @@ const sendAriaLabel = $derived(
         ? "Compacting context"
         : availability.canEdit && models.length === 0
           ? "Waiting for an available model"
-          : commandMode
-            ? "Run command"
-            : sending
-              ? "Queue prompt"
-              : "Send prompt",
+          : sending
+            ? "Queue prompt"
+            : "Send prompt",
 );
 const sendTitle = $derived(
   voiceSubmitPending
@@ -388,13 +382,9 @@ const sendTitle = $derived(
         ? "Compacting context"
         : availability.canEdit && models.length === 0
           ? "Models are loading; you can continue drafting"
-          : commandMode
-            ? sending
-              ? "Wait for the current agent turn before running a command"
-              : "Run command"
-            : sending
-              ? "Queue prompt for the next agent turn"
-              : "Send prompt",
+          : sending
+            ? "Queue prompt for the next agent turn"
+            : "Send prompt",
 );
 
 function formatElapsed(ms: number): string {
@@ -706,7 +696,7 @@ function handleMicContextMenu(event: MouseEvent) {
         {#if composerSuggestions.length > 0 && !blockedForReview && !compacting && canPrompt}
           <SuggestionChips
             suggestions={composerSuggestions}
-            disabled={sending}
+            running={sending}
             onSend={onSendSuggestion}
             onDraft={onDraftSuggestion}
           />

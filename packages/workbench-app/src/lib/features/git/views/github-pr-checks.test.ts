@@ -3,6 +3,8 @@ import { describe, it } from "node:test";
 import {
   checkRunGroup,
   checkRunSeconds,
+  checksBreakdown,
+  checksRunning,
   formatCheckDuration,
   summarizeCheckRuns,
 } from "./github-pr-checks.js";
@@ -15,6 +17,18 @@ const run = (status: string, extra: Record<string, unknown> = {}) => ({
 });
 
 describe("check runs", () => {
+  it("keeps reporting progress after a failure", () => {
+    const checks = {
+      status: "failing" as const,
+      failed: 1,
+      pending: 6,
+      passed: 5,
+    };
+    assert.equal(checksRunning(checks), true);
+    assert.equal(checksRunning({ ...checks, pending: 0 }), false);
+    assert.equal(checksBreakdown(checks), "1 failing, 6 running, 5 passed");
+  });
+
   it("buckets runs into display groups", () => {
     assert.deepEqual(
       ["failure", "in_progress", "queued", "pending", "success", "skipped"].map(

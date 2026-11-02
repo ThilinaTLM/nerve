@@ -32,7 +32,6 @@ function event(id: string): ConversationEvent {
       originalText: id,
       source: "user",
       senderConversationId: null,
-      commandPreparation: null,
     },
   };
 }

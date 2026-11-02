@@ -10,29 +10,6 @@ export const deliveryTargetSchema = z.enum([
   "specific_execution",
   "next_execution",
 ]);
-export const commandPreparationStateSchema = z.enum([
-  "not_started",
-  "running",
-  "completed",
-  "cancelled",
-  "indeterminate",
-  "not_run",
-]);
-export const commandResultSchema = z.object({
-  stdout: z.string(),
-  stderr: z.string(),
-  exitCode: z.number().int().nullable(),
-});
-export const commandPreparationSchema = z.object({
-  blocks: z.array(
-    z.object({
-      index: z.number().int().nonnegative(),
-      command: z.string(),
-      state: commandPreparationStateSchema,
-      result: commandResultSchema.nullable(),
-    }),
-  ),
-});
 export const systemNoticeSchema = z.discriminatedUnion("subtype", [
   z.object({
     subtype: z.literal("async_bash_event"),
@@ -73,8 +50,6 @@ export const queuedInputSchema = z
     content: z.union([z.string(), systemNoticeSchema]),
     deliveryTarget: deliveryTargetSchema,
     targetExecutionId: z.string().nullable(),
-    commandPreparation: commandPreparationSchema.nullable(),
-    preparedText: z.string().nullable(),
     wakeWhenIdle: z.boolean(),
     acceptedAt: z.string().datetime(),
   })
@@ -142,11 +117,6 @@ export const submitInputRequestSchema = z
   });
 export type InputSource = z.infer<typeof inputSourceSchema>;
 export type DeliveryTarget = z.infer<typeof deliveryTargetSchema>;
-export type CommandPreparationState = z.infer<
-  typeof commandPreparationStateSchema
->;
-export type CommandResult = z.infer<typeof commandResultSchema>;
-export type CommandPreparation = z.infer<typeof commandPreparationSchema>;
 export type SystemNotice = z.infer<typeof systemNoticeSchema>;
 export type QueuedInput = z.infer<typeof queuedInputSchema>;
 export type SubmitInputRequest = z.infer<typeof submitInputRequestSchema>;

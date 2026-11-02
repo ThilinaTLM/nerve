@@ -94,7 +94,6 @@ test("latest execution follows append sequence across branches, not timestamps o
         acceptedAt: now,
         source: "user",
         senderConversationId: null,
-        commandPreparation: null,
       },
     });
     assert.deepEqual(latestExecution(storage, "conv_test"), failed);

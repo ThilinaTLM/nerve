@@ -60,9 +60,7 @@ export function eventEntry(
         ...base,
         role: "user",
         inputId: event.inputId ?? undefined,
-        commandPreparation: event.payload.commandPreparation ?? undefined,
         text: event.payload.originalText,
-        details: { preparedText: event.payload.text },
       };
     case "assistant_message":
       return {
@@ -158,7 +156,7 @@ export function eventEntry(
         kind:
           p.subtype === "sub_conversation_event"
             ? "subagent_run_event"
-            : "inline_command_result",
+            : "message",
         text: p.text,
         details: p,
       };
@@ -372,8 +370,6 @@ export function conversationTranscript(input: {
     .map((q) => ({
       id: q.inputId,
       presentation: presentations.get(q.inputId),
-      preparedText: q.preparedText ?? undefined,
-      commandPreparation: q.commandPreparation ?? undefined,
       agentId: snapshot.conversation.id,
       conversationId: snapshot.conversation.id,
       projectId: snapshot.conversation.projectId,

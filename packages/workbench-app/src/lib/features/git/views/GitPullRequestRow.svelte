@@ -22,7 +22,11 @@ import { notify } from "$lib/application/notifications/notify.svelte";
 import { writeClipboardText } from "$lib/platform/clipboard/write-text";
 import { ItemSurface } from "$lib/presentation/items";
 import { checksTone, formatCompactAge, stateTone } from "./pr-pane-helpers";
-import { githubCheckRunOutcome } from "./github-pr-checks";
+import {
+  checksBreakdown,
+  checksRunning,
+  githubCheckRunOutcome,
+} from "./github-pr-checks";
 
 type Props = {
   pr: GithubPr;
@@ -45,6 +49,8 @@ let {
 }: Props = $props();
 
 const hasCheckDetails = $derived(pr.checks.runs.length > 0);
+// The tone carries the outcome so far; the spinner shows checks still running.
+const running = $derived(checksRunning(pr.checks));
 const StateIcon = $derived(
   pr.isDraft
     ? GitPullRequestDraft
@@ -195,7 +201,7 @@ const menuItems = $derived<ContextMenuItem[]>([
       disabled={!hasCheckDetails}
       aria-expanded={hasCheckDetails ? expanded : undefined}
       title={hasCheckDetails
-        ? `${expanded ? "Collapse" : "Expand"} check details`
+        ? `${checksBreakdown(pr.checks)} · ${expanded ? "Collapse" : "Expand"} check details`
         : "No check details"}
       class="shrink-0 rounded-sm focus-visible:ring-3 focus-visible:ring-focus focus-visible:outline-none disabled:pointer-events-none"
       onclick={(event) => {
@@ -204,12 +210,12 @@ const menuItems = $derived<ContextMenuItem[]>([
       }}
     >
       <Badge variant={checksTone(pr.checks)}>
-        {#if pr.checks.status === "passing"}
+        {#if running}
+          <Spinner class="size-3" />
+        {:else if pr.checks.status === "passing"}
           <Check class="size-3" aria-hidden="true" />
         {:else if pr.checks.status === "failing"}
           <X class="size-3" aria-hidden="true" />
-        {:else if pr.checks.status === "pending"}
-          <Spinner class="size-3" />
         {/if}
         {pr.checks.status === "none"
           ? "no checks"

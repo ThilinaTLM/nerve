@@ -235,6 +235,28 @@ export function createRuntimeServices(deps: RuntimeDeps) {
         dir: project.directory,
       })),
     getConversation: (id) => conversationCore.getSnapshot(id),
+    openPullRequestForBranch: (projectId, repo, branch) => {
+      const snapshot = prSync.snapshot(projectId, repo);
+      if (
+        snapshot.updatedAt === null ||
+        snapshot.status === "unavailable" ||
+        snapshot.status === "unauthenticated"
+      )
+        return undefined;
+      const pr = snapshot.prs
+        .filter((pr) => pr.state === "OPEN" && pr.headRefName === branch)
+        .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))[0];
+      return pr
+        ? {
+            number: pr.number,
+            url: pr.url,
+            isDraft: pr.isDraft,
+            checks: pr.checks.status,
+            checksRunning: pr.checks.pending > 0,
+            reviewRequested: pr.reviewRequested,
+          }
+        : null;
+    },
     getAgentContext: async (id) => {
       const view = await agentConfiguration.getEffective(id);
       if (view.status !== "available") return undefined;

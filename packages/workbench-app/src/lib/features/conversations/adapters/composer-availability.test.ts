@@ -10,8 +10,6 @@ const ready = {
   blockedForReview: false,
   compacting: false,
   stopping: false,
-  sending: false,
-  commandMode: false,
   voiceSubmitPending: false,
 };
 
@@ -68,25 +66,7 @@ describe("composer availability", () => {
     }
   });
 
-  it("keeps a running non-command prompt editable and queueable", () => {
-    const availability = deriveComposerAvailability({
-      ...ready,
-      sending: true,
-    });
-
-    assert.equal(availability.canEdit, true);
-    assert.equal(availability.canSubmit, true);
-  });
-
-  it("does not run commands or submit while voice transcription is pending", () => {
-    assert.equal(
-      deriveComposerAvailability({
-        ...ready,
-        sending: true,
-        commandMode: true,
-      }).canSubmit,
-      false,
-    );
+  it("does not submit while voice transcription is pending", () => {
     assert.equal(
       deriveComposerAvailability({
         ...ready,

@@ -33,8 +33,14 @@ export type PromptSuggestionDefinition = {
   label: string;
   description?: string;
   prompt: string;
+  /** Static "Appears when…" text; derived from `when` when absent. */
+  conditionSummary?: string;
+  /** Sample rendering shown in Settings; defaults to the prompt body. */
+  promptPreview?: string;
   buildLabel?: (input: PromptSuggestionEvaluationInput) => string;
   buildPrompt?: (input: PromptSuggestionEvaluationInput) => string;
+  /** One-line summary of the state that triggered the suggestion. */
+  buildContext?: (input: PromptSuggestionEvaluationInput) => string | undefined;
   order: number;
   defaultEnabled: boolean;
   enabled: boolean;
@@ -58,11 +64,29 @@ export type PromptSuggestionConversationContext = {
   status: Conversation["status"];
 };
 
+/** Open pull request for a repo's current branch, from the PR sync cache. */
+export type PromptSuggestionPullRequest = {
+  number: number;
+  url: string;
+  isDraft: boolean;
+  /** Outcome so far; a failure outranks checks still running. */
+  checks: "pending" | "passing" | "failing" | "none";
+  /** Whether any check is still running or queued, whatever `checks` says. */
+  checksRunning: boolean;
+  reviewRequested: boolean;
+};
+
+export type PromptSuggestionRepo = GitRepoSummary & {
+  /** `undefined` = unknown (not GitHub / unavailable); `null` = no open PR. */
+  pullRequest?: PromptSuggestionPullRequest | null;
+};
+
 export type PromptSuggestionEnableContext = {
   timestamp: string;
   platform: NodeJS.Platform;
   project: { id: string; name: string; dir: string };
-  git: GitDiscoveryResponse & {
+  git: Omit<GitDiscoveryResponse, "repos"> & {
+    repos: PromptSuggestionRepo[];
     github?: Pick<GithubStatusResponse, "available" | "authenticated">;
   };
   conversation?: PromptSuggestionConversationContext;
@@ -75,6 +99,6 @@ export type PromptSuggestionEvaluationInput = {
   definitions: PromptSuggestionDefinition[];
 };
 
-export function anyDirtyRepo(repos: GitRepoSummary[]): boolean {
+export function anyDirtyRepo(repos: PromptSuggestionRepo[]): boolean {
   return repos.some((repo) => repo.dirty);
 }

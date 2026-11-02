@@ -6,11 +6,9 @@ import { createId } from "@nervekit/contracts";
 import { storedToolResultSchema } from "@nervekit/contracts/core";
 import type { TransferredConversationEvent } from "@nervekit/contracts/core";
 import { submitInputRequestSchema } from "@nervekit/contracts/core";
-import { parseInlineCommandPrompt } from "@nervekit/contracts/completions";
 import type {
   PreviewSystemPromptParams,
   QueuedInput,
-  ToolCall,
   ConversationSnapshot,
   ConversationConfig,
   ListConversationsRequest,
@@ -196,7 +194,6 @@ export class ConversationCore {
     this.assets = new AssetStore(options.dataDir, options.storage);
     this.inputs = new InputQueueService({
       storage: options.storage,
-      processes: options.processes,
       emit,
       requestWake: (id) => this.scheduler?.wake(id),
     });
@@ -539,35 +536,11 @@ export class ConversationCore {
   continue(id: string) {
     this.scheduler.continue(id);
   }
-  submitInput(
-    request: SubmitInputRequest,
-  ): QueuedInput | "delivered" | Promise<ToolCall | "delivered"> {
+  submitInput(request: SubmitInputRequest): QueuedInput | "delivered" {
     const input = submitInputRequestSchema.parse(request);
     if (this.creations.has(input.conversationId))
       throw new Error("Conversation configuration is still being initialized");
     this.inputs.assertAcceptsSource(input.conversationId, input.source);
-    const inline =
-      input.source === "user"
-        ? parseInlineCommandPrompt(input.text)
-        : undefined;
-    if (inline) {
-      this.compactions.assertIdle(input.conversationId);
-      return this.toolCalls.runUserCommand(
-        input.conversationId,
-        inline.command,
-        true,
-        { inputId: input.inputId, originalText: input.text },
-      );
-    }
-    if (
-      this.options.storage.toolCalls
-        .listAll()
-        .some(
-          (call) =>
-            call.origin === "user" && call.arguments.inputId === input.inputId,
-        )
-    )
-      throw new Error("Input ID reused with different content");
     return this.inputs.submit(input);
   }
   cancelInput(inputId: string) {
@@ -625,7 +598,6 @@ export class ConversationCore {
   }
   private async shutdown(): Promise<void> {
     if (this.starting) await this.starting;
-    this.inputs.close();
     await this.scheduler.close();
     await this.asyncBash.cancelForConversations(
       this.options.storage.conversations

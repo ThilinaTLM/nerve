@@ -69,7 +69,6 @@ export function options(
     ),
     processes: {
       start: unexpectedProcess,
-      run: unexpectedProcess,
       reattach: async () => null,
     },
     defaultConfig: () => ({

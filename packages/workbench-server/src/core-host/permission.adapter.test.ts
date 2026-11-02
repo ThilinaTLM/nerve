@@ -34,8 +34,6 @@ void test(
       },
     });
     const call = await f.command();
-    if (call === "delivered" || !("toolName" in call))
-      assert.fail("Expected call");
     const result = f.runtime.storage.events
       .since("c", 0)
       .find(

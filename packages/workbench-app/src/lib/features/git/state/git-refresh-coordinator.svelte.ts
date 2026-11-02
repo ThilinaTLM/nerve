@@ -38,6 +38,7 @@ import {
 } from "./pr-store.svelte";
 import { GIT_STALE_MS } from "./git-refresh-policy";
 import { prFileDiffStateKey } from "./pr-file-diff";
+import { checksRunning } from "../views/github-pr-checks";
 
 export const GIT_RESOURCE_STALE_MS = GIT_STALE_MS;
 export const PR_CONVERSATION_STALE_MS = 60_000;
@@ -290,10 +291,9 @@ export async function loadPrSection(
         "checks",
       ),
       query: () => getGithubPrChecks(view.projectId, view.repo, view.number),
-      staleTime:
-        view.checks.data?.checks.status === "pending"
-          ? 0
-          : GIT_RESOURCE_STALE_MS,
+      staleTime: checksRunning(view.checks.data?.checks)
+        ? 0
+        : GIT_RESOURCE_STALE_MS,
       resource: view.checks,
       options,
       apply: ({ checks }) =>

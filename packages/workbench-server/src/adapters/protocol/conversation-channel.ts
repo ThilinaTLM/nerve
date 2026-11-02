@@ -302,8 +302,8 @@ export function createConversationProtocolSession(
       core.continue(conversationId);
       return null;
     },
-    "input.submit": async (input) => {
-      await core.submitInput(input);
+    "input.submit": (input) => {
+      core.submitInput(input);
       return null;
     },
     "input.cancel": ({ inputId }) => {

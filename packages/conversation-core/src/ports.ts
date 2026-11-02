@@ -1,6 +1,5 @@
 import type { ModelSelection } from "@nervekit/contracts/models";
 import type {
-  CommandResult,
   Conversation,
   ConversationConfig,
   Supervision,
@@ -135,12 +134,6 @@ export interface ProcessPort {
     process: BackgroundProcess;
     readiness?: { status: "ready" | "timed_out" | "exited"; url?: string };
   }>;
-  run(input: {
-    conversationId: string;
-    command: string;
-    cwd: string;
-    signal: AbortSignal;
-  }): Promise<CommandResult>;
   reattach(processRef: string): Promise<BackgroundProcess | null>;
 }
 
@@ -158,4 +151,4 @@ export interface BackgroundProcess {
 export interface ClockPort {
   now(): string;
 }
-export type { CommandResult, ToolProgress } from "@nervekit/contracts/core";
+export type { ToolProgress } from "@nervekit/contracts/core";

@@ -27,7 +27,6 @@ export type {
   BackgroundProcess,
   ClockPort,
   PiModel,
-  CommandResult,
   ToolProgress,
 } from "./ports.js";
 
