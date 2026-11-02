@@ -2,7 +2,7 @@
 
 Official prompt-skill content bundled with Nerve.
 
-- `src/builtin/`: catalog skills shown in settings and available-skill prompts.
+- `src/builtin/`: catalog skills shown in settings and available-skill prompts. A skill folder may include supporting files (`reference/`, `scripts/`) resolved relative to its `SKILL.md`; the build copies whole folders.
 - `src/guides/`: tool-group guides, excluded from the toggleable catalog.
 - `src/catalog.ts`: validated immutable catalog loader.
 - `src/paths.ts`: `builtinSkillFilePath(name)` resolves bundled skills/guides beside the installed module; `resolveSkillPlaceholders(text)` expands `{{skill:name}}`, preserving unknown names.

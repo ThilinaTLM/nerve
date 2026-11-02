@@ -18,6 +18,9 @@ test("loads the complete validated built-in Nerve skill catalog", async () => {
   assert.match(creator?.description ?? "", /Create or improve/);
   assert.match(creator?.content ?? "", /Establish the destination/);
   assert.match(creator?.filePath ?? "", /skill-creator[/\\]SKILL\.md$/);
+  const docs = skills.find((skill) => skill.name === "engineering-docs");
+  assert.match(docs?.description ?? "", /^Use when /);
+  assert.ok((docs?.description.length ?? Infinity) < 200);
   assert.ok(
     !skills.some((skill) => ["planning", "team-lead"].includes(skill.name)),
   );

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { existsSync } from "node:fs";
-import { isAbsolute } from "node:path";
+import { dirname, isAbsolute, join } from "node:path";
 import test from "node:test";
 import {
   builtinSkillFilePath,
@@ -9,7 +9,12 @@ import {
 } from "../src/index.js";
 
 test("resolves bundled skills and guides but rejects unknown names and traversal", () => {
-  for (const name of ["skill-creator", "jira", "confluence"]) {
+  for (const name of [
+    "engineering-docs",
+    "skill-creator",
+    "jira",
+    "confluence",
+  ]) {
     const path = builtinSkillFilePath(name);
     assert.ok(path);
     assert.ok(isAbsolute(path));
@@ -26,6 +31,17 @@ test("resolves bundled skills and guides but rejects unknown names and traversal
     "guides/jira",
   ]) {
     assert.equal(builtinSkillFilePath(name), undefined);
+  }
+});
+
+test("bundles supporting files beside a built-in skill", () => {
+  const root = dirname(builtinSkillFilePath("engineering-docs") ?? "");
+  for (const file of [
+    "reference/architecture.md",
+    "reference/proposals.md",
+    "scripts/doccheck.mjs",
+  ]) {
+    assert.ok(existsSync(join(root, file)), file);
   }
 });
 
