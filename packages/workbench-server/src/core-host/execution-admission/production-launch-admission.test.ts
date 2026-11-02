@@ -72,7 +72,7 @@ function grantAtDispatch(f: ProductionAdmissionFixture) {
 }
 async function request(f: ProductionAdmissionFixture) {
   await f.runtime.core.start();
-  await f.runtime.core.submitInput({
+  f.runtime.core.submitInput({
     conversationId: "c",
     inputId: "launch-prompt",
     text: "Run the selected launch.",

@@ -7,6 +7,7 @@ import test from "node:test";
 import { setTimeout as delay } from "node:timers/promises";
 import { registerAgentScriptedProvider } from "@nervekit/harness/models";
 import type { ConversationEvent } from "@nervekit/contracts/core";
+import { createId } from "@nervekit/contracts";
 import { ConversationCore } from "../core.js";
 import {
   waitUntil,
@@ -14,6 +15,32 @@ import {
   createConversation,
 } from "./lifecycle-test-helpers.js";
 import type { ModelPort, ToolHostPort } from "../ports.js";
+
+/** Inserts an open bash call and starts it; prompts no longer execute commands. */
+function startCommand(
+  core: ConversationCore,
+  storage: ReturnType<typeof options>["storage"],
+  conversationId: string,
+  command: string,
+): Promise<void> {
+  const call = storage.toolCalls.insert({
+    id: createId("tool"),
+    conversationId,
+    turnId: createId("turn"),
+    providerCallId: null,
+    assistantEventId: null,
+    contentIndex: null,
+    origin: "user",
+    toolName: "bash",
+    arguments: { command },
+    state: "supervising",
+    supervision: null,
+    interaction: null,
+    executionClaim: null,
+    updatedAt: new Date().toISOString(),
+  });
+  return core.toolCalls.start([call.id]);
+}
 
 function deferred<T>() {
   let resolve!: (value: T) => void;
@@ -229,12 +256,7 @@ void test(
     try {
       await core.start();
       await createConversation(core, "conv_approval");
-      await core.submitInput({
-        conversationId: "conv_approval",
-        inputId: "input_approval",
-        text: "!long command",
-        source: "user",
-      });
+      await startCommand(core, config.storage, "conv_approval", "long command");
       const call = core.getSnapshot("conv_approval").toolCalls[0];
       assert.equal(call.state, "awaiting_approval");
       const resolution = {
@@ -252,7 +274,6 @@ void test(
         config.storage.toolCalls.get(call.id)?.interaction?.resolutionRequestId,
         "resolution_test",
       );
-      assert.equal(config.storage.events.findByInputId("input_approval"), null);
       await core.resolveInteraction(resolution);
       await started.promise;
       assert.equal(executions, 1);
@@ -292,7 +313,6 @@ void test(
         authority: null,
       });
       assert.equal(event.payload.resolutionRequestId, "resolution_test");
-      assert.equal(event.inputId, "input_approval");
       assert.equal(config.storage.toolCalls.get(call.id), null);
     } finally {
       execution.resolve();
@@ -475,24 +495,23 @@ void test(
     const directory = await mkdtemp(join(tmpdir(), "nerve-settling-"));
     const writing = deferred<void>();
     const release = deferred<void>();
-    const core = new ConversationCore(
-      options(
-        directory,
-        ":memory:",
-        {
-          resolve: async () => {
-            throw new Error("Inline command must not call a provider");
-          },
+    const config = options(
+      directory,
+      ":memory:",
+      {
+        resolve: async () => {
+          throw new Error("Inline command must not call a provider");
         },
-        {
-          execute: async () => ({
-            kind: "completed",
-            result: { content: "owned completion" },
-          }),
-          isReplaySafe: () => false,
-        },
-      ),
+      },
+      {
+        execute: async () => ({
+          kind: "completed",
+          result: { content: "owned completion" },
+        }),
+        isReplaySafe: () => false,
+      },
     );
+    const core = new ConversationCore(config);
     const write = core.assets.write.bind(core.assets);
     core.assets.write = async (input) => {
       writing.resolve();
@@ -502,12 +521,12 @@ void test(
     try {
       await core.start();
       await createConversation(core, "conv_settling");
-      const submission = core.submitInput({
-        conversationId: "conv_settling",
-        inputId: "input_settling",
-        text: "!command",
-        source: "user",
-      });
+      const submission = startCommand(
+        core,
+        config.storage,
+        "conv_settling",
+        "command",
+      );
       await writing.promise;
       const stopped = core.stop("conv_settling");
       release.resolve();
@@ -576,12 +595,12 @@ void test(
     try {
       await core.start();
       await createConversation(core, "conv_adoption");
-      const submission = core.submitInput({
-        conversationId: "conv_adoption",
-        inputId: "input_adoption",
-        text: "!command",
-        source: "user",
-      });
+      const submission = startCommand(
+        core,
+        config.storage,
+        "conv_adoption",
+        "command",
+      );
       await adopting.promise;
       await core.forcePush("conv_adoption");
       assert.equal(core.getSnapshot("conv_adoption").toolCalls.length, 0);
