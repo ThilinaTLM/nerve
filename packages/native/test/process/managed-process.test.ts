@@ -396,7 +396,7 @@ describe("native managed process facade", () => {
         [
           "-e",
           `const { spawn } = require("node:child_process");
-         const child = spawn(process.execPath, ["-e", ${JSON.stringify(descendant)}], { stdio: ["ignore", "inherit", "inherit"] });
+         const child = spawn(process.execPath, ["-e", ${JSON.stringify(descendant)}], { stdio: ["ignore", "inherit", "inherit"], detached: process.platform === "win32" });
          child.unref();
          process.stdout.write(child.pid + "\\n");
          ${rootOutput}`,
@@ -477,7 +477,7 @@ describe("native managed process facade", () => {
           [
             "-e",
             `const { spawn } = require("node:child_process");
-           const child = spawn(process.execPath, ["-e", "setTimeout(() => {}, 5000)"], { stdio: ["ignore", "inherit", "inherit"] });
+           const child = spawn(process.execPath, ["-e", "setTimeout(() => {}, 5000)"], { stdio: ["ignore", "inherit", "inherit"], detached: process.platform === "win32" });
            child.unref();
            process.stderr.write(child.pid + "\\n");
            process.stdout.write("x".repeat(${size}));`,
