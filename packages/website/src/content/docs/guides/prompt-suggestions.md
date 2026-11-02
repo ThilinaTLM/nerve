@@ -1,42 +1,37 @@
 ---
 title: Use prompt suggestions
-description: Manage reusable contextual prompt chips and their trust settings.
+description: Turn reusable prompts into chips above the composer, and control which ones appear.
 sidebar:
   order: 11
 ---
 
-Nerve shows reusable prompt chips above the composer. Manage them in **Settings → Suggestions → Prompt suggestions**.
+Prompt suggestions are one-click chips above the composer for prompts you use often, such as committing changes or opening a pull request.
 
-## Built-in suggestions
+## Turn suggestions on or off
 
-Three contextual Git suggestions are included:
+1. Open **Settings → Suggestions**.
+2. Switch individual suggestions on or off.
 
-- **Commit changes** when a repository has uncommitted changes.
-- **Commit on a feature branch** when changes are on a base branch.
-- **Create a PR** when a relevant GitHub repository is ready and GitHub CLI is authenticated.
+Nerve includes three Git suggestions: **Commit changes**, **Commit on a feature branch**, and **Create a PR**. Each appears only when it applies, for example when the repository has uncommitted changes. Settings lists them even when they aren't applicable right now.
 
-Settings lists built-ins even when their runtime condition is false. Each can be disabled independently.
+## Add your own
 
-## User and project definitions
+1. In **Settings → Suggestions**, create a suggestion with a label and the prompt to send. Use your user settings for all projects, or project settings to share it with your team.
+2. Optionally choose when it should appear, such as only when the repository has uncommitted changes.
 
-Create suggestions in Settings or edit Markdown files:
+You can also write suggestions as Markdown files. A project suggestion overrides a user suggestion of the same name, and a user suggestion overrides a built-in one. See the [format reference](/reference/prompt-suggestions/) for fields and file locations.
 
-- User: `<NERVE_HOME>/agent/suggestions/*.md` (normally `~/.nerve/agent/suggestions/*.md`)
-- Project: `<project>/.nerve/suggestions/*.md`
+## Approve JavaScript conditions
 
-Project definitions override user definitions with the same name; user definitions override built-ins. A disabled higher-precedence definition remains authoritative instead of revealing the lower one. Settings identifies shadowed definitions.
-
-A definition can set label, description, order, default enabled state, prompt body, and declarative conditions for Git state and permission. See the [format reference](/reference/prompt-suggestions/).
-
-## JavaScript predicates
-
-An `enable-js` predicate, or the compatible nested `enable: { js: ... }` form, can synchronously inspect JSON-safe project, Git, conversation, and agent context. Nerve does not run it until you approve the warning. Trust is tied to a hash of the predicate; editing code requires approval again.
+A suggestion can use a small JavaScript check to decide when it appears. Nerve doesn't run it until you approve it, and approval applies only to that exact code, so editing it asks again.
 
 :::danger
-A project suggestion predicate is executable JavaScript from the project. Review it as code. Deny or reset trust in Settings if its origin or behavior is unclear.
+A project suggestion's JavaScript comes from the repository. Review it as code, and deny it if you don't recognize its origin.
 :::
+
+You can deny or reset approval under **Settings → Suggestions** or in the project's **Trust** page.
 
 ## Next steps
 
 - [Prompt suggestion format](/reference/prompt-suggestions/)
-- [Skills and resources](/guides/skills-and-resources/)
+- [Skills and project resources](/guides/skills-and-resources/)

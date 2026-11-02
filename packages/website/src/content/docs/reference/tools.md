@@ -55,7 +55,30 @@ Questions suspend a run. To-dos are structured current-work state, not backgroun
 
 Bash accepts a project-relative or absolute `cwd` inside the project. With auto-promotion enabled, a still-running command moves to the background after the configured wait; there is no `timeout` parameter. With promotion disabled, foreground calls require `timeout` in seconds and are killed when it expires. Explicit background runs return at once and have no time limit. Their optional `ready` string is an HTTP(S) URL or output regex, checked for up to 60 seconds without stopping the process on readiness timeout.
 
-Check `launch status` before starting a server; prefer the user's definitions in `.nerve/launches/definitions.json`. Agents cannot create or edit definitions. Launch actions select an exact, case-sensitive `name` (the trimmed label, or trimmed command when unnamed); `status` takes no selector. `logs`, `stop`, and `restart` optionally accept `runId` from status, otherwise they select the latest run. `start` accepts only `name`. Definition IDs and the old `id` argument are not selectors. Duplicate saved names require renaming in the UI even when a run ID is supplied. See the [launch guide](/guides/background-tasks/#agent-tool-contract). Async Bash and agent-started launches notify the conversation on exit; do not poll. Both log tools use a 0-based `offset` and `limit` (default 100, maximum 500), returning the last lines when offset is omitted. Read actions never ask for approval; start, restart, and stop use command policy.
+Check `launch status` before starting a server; prefer the user's definitions in `.nerve/launches/definitions.json`. Agents cannot create or edit definitions. Launch actions select an exact, case-sensitive `name` (the trimmed label, or trimmed command when unnamed); `status` takes no selector. `logs`, `stop`, and `restart` optionally accept `runId` from status, otherwise they select the latest run. `start` accepts only `name`. Definition IDs and the old `id` argument are not selectors. Duplicate saved names require renaming in the UI even when a run ID is supplied. See [Launch tool details](#launch-tool-details). Async Bash and agent-started launches notify the conversation on exit; do not poll. Both log tools use a 0-based `offset` and `limit` (default 100, maximum 500), returning the last lines when offset is omitted. Read actions never ask for approval; start, restart, and stop use command policy.
+
+### Launch tool details
+
+| Action            | Arguments                                   |
+| ----------------- | ------------------------------------------- |
+| `status`          | none                                        |
+| `start`           | `name`                                      |
+| `logs`            | `name`, optional `runId`, `offset`, `limit` |
+| `stop`, `restart` | `name`, optional `runId`                    |
+
+```ts
+launch({ action: "start", name: "Web dev" }); // command shown by status: pnpm dev
+launch({ action: "logs", name: "Web dev", runId: "launch_…", limit: 100 });
+launch({ action: "restart", name: "Web dev" });
+launch({ action: "stop", name: "pnpm preview" }); // command fallback for an unnamed launch
+```
+
+- Use `async_bash list` for running commands (`all: true` includes finished runs), `async_bash logs` to inspect output, and `async_bash stop` to end a process tree.
+- Without `runId`, logs, stop, and restart select the latest run. A run ID from status targets one execution of that name; mismatched names or projects are rejected. Restart uses the current definition and starts it if nothing is running.
+- Saved definitions are matched before ad-hoc launches. Duplicate saved names fail even with a run ID; rename them in the UI. Distinct ad-hoc launches with the same display name need a run ID.
+- A `single` definition that is already running returns its active launch. If a definition declares a port, start and restart wait up to 30 seconds for it to listen. Port conflicts report the listener's PID and process name; agents never terminate foreign listeners.
+- Large output is summarized with file paths for `read`/`grep` instead of filling the conversation context.
+- Background Bash and agent-started launches queue a completion notice when they exit on their own. Launch notice ownership is held in memory and doesn't survive a daemon restart.
 
 ## Delegation and planning
 

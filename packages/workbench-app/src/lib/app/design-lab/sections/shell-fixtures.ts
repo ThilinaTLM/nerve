@@ -4,6 +4,9 @@
  * status bar and Discover views receive.
  */
 import type { LatestRelease, StatusResponse } from "@nervekit/contracts/status";
+import { discoverNewsCatalog } from "$lib/app/discover/content/news";
+import { discoverTipsCatalog } from "$lib/app/discover/content/tips";
+import { buildDiscoverSections, resolveNews } from "$lib/app/discover/policy";
 import type { DiscoverPageModel } from "$lib/app/discover/state.svelte";
 import type { ResolvedGuide } from "$lib/app/discover/guides/catalog-policy";
 import type { ProjectSwitcherItem } from "$lib/features/projects/state/project-switcher";
@@ -276,126 +279,37 @@ const completedGuides: ResolvedGuide[] = [
   }),
 ];
 
+const walkthroughGuides: ResolvedGuide[] = [
+  guide({
+    id: "workbench",
+    version: 1,
+    title: "Work through the Workbench",
+    description:
+      "Tour conversations, capabilities, sub-agents, background commands and launch configs.",
+    category: "walkthrough",
+    priority: "optional",
+    actionLabel: "Start tour",
+    run: { kind: "workbench-tour" },
+    completed: false,
+  }),
+];
+
+/** Release the lab pretends to run, so the next-release news is current and 0.37.0 is archived. */
+const labDiscoverVersion = "0.38.0";
+
+/** The real news and tips catalogs, so the lab shows the shipped Discover content. */
+const labDiscoverSections = buildDiscoverSections({
+  guides: [...pendingGuides, ...completedGuides, ...walkthroughGuides],
+  news: resolveNews(discoverNewsCatalog, {}),
+  tips: discoverTipsCatalog,
+  appVersion: labDiscoverVersion,
+});
+
 export const labDiscoverModel: DiscoverPageModel = {
-  currentVersion: labVersion,
-  latestVersion: labVersion,
+  currentVersion: labDiscoverVersion,
+  latestVersion: labDiscoverVersion,
   latestReleaseUrl: undefined,
   autoOpenEnabled: true,
-  unreadCount: 2,
-  sections: {
-    news: {
-      featured: {
-        id: "news_featured",
-        version: 1,
-        releasedIn: labVersion,
-        title: "From prompt to pull request, without losing your place",
-        summary:
-          "Refreshed Git and PR panels, header Activity, clearer questions, and steadier tool updates.",
-        details: [
-          "Git and Pull requests share a repository list with branch and status context.",
-          "Open the bell in the header for Activity: items needing you come first.",
-          "Tool cards keep stable sections and progress chips while arguments stream.",
-        ],
-        featured: true,
-        artwork: "workbench",
-        action: {
-          kind: "guide",
-          guideId: "workbench",
-          label: "Tour the Workbench",
-        },
-        unread: true,
-      },
-      current: [
-        {
-          id: "news_composer",
-          version: 1,
-          releasedIn: labVersion,
-          title: "One toolbar for the composer",
-          summary:
-            "Attachments, mode, model, permissions and voice now live together.",
-          action: {
-            kind: "settings",
-            pageId: "composer",
-            sectionId: "toolbar",
-            label: "Open settings",
-          },
-          unread: true,
-        },
-      ],
-      archive: [
-        {
-          id: "news_launches",
-          version: 1,
-          releasedIn: "0.36.0",
-          title: "Launch configs",
-          summary: "Save repeatable commands and run them from the panel.",
-          unread: false,
-        },
-        {
-          id: "news_notes",
-          version: 1,
-          releasedIn: "0.35.0",
-          title: "Scratch notes",
-          summary: "Keep project notes beside your conversations.",
-          unread: false,
-        },
-      ],
-      unreadCount: 2,
-    },
-    setup: {
-      pending: pendingGuides,
-      completed: completedGuides,
-      completedCount: completedGuides.length,
-      totalCount: pendingGuides.length + completedGuides.length,
-    },
-    walkthroughs: [
-      guide({
-        id: "workbench",
-        version: 1,
-        title: "Work through the Workbench",
-        description:
-          "Tour conversations, capabilities, sub-agents, background commands and launch configs.",
-        category: "walkthrough",
-        priority: "optional",
-        actionLabel: "Start tour",
-        run: { kind: "workbench-tour" },
-        completed: false,
-      }),
-    ],
-    tips: [
-      {
-        id: "tip_profiles",
-        version: 1,
-        title: "You choose which profile runs",
-        summary:
-          "Pick Coding, Planning or a custom profile beside the composer, or type /plan.",
-      },
-      {
-        id: "tip_html",
-        version: 1,
-        title: "Inspect HTML in a sandboxed preview",
-        summary:
-          "Open an HTML file and use its preview to inspect the rendered page.",
-      },
-      {
-        id: "tip_subagents",
-        version: 1,
-        title: "Give teammates a reusable profile",
-        summary:
-          "Configure a profile's instructions, model, permissions and tools in Settings.",
-        action: {
-          kind: "settings",
-          pageId: "subagents",
-          sectionId: "profiles",
-          label: "Configure Sub-agents",
-        },
-      },
-      {
-        id: "tip_launches",
-        version: 1,
-        title: "Save repeatable commands as launch configs",
-        summary: "Run dev servers and watchers from the Launches panel.",
-      },
-    ],
-  },
+  unreadCount: labDiscoverSections.news.unreadCount,
+  sections: labDiscoverSections,
 };

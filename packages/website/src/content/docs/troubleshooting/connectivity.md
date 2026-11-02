@@ -17,7 +17,7 @@ Configuration precedence is CLI → environment → saved settings → defaults.
 
 ## Browser shows unauthorized
 
-Use the URL produced by the owning daemon/tray. A LAN URL's query token should redirect into a Strict HttpOnly cookie. Clearing site cookies requires token bootstrap again. API clients can use `Authorization: Bearer <token>`.
+Use the URL produced by the owning daemon (the desktop tray menu shows it when tray mode is on). A LAN URL's query token should redirect into a Strict HttpOnly cookie. Clearing site cookies requires token bootstrap again. API clients can use `Authorization: Bearer <token>`.
 
 ## Mobile HTTPS fails
 

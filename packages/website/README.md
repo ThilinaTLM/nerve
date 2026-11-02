@@ -45,6 +45,16 @@ The site is static and must not call a local Nerve daemon. GitHub Pages deployme
 - Repository governance: root `CONTRIBUTING.md` and `SECURITY.md`.
 - Behavioral authority: owning contracts, catalogs, implementation, and tests.
 
+## Authoring docs
+
+The sidebar in `astro.config.mjs` is organized by user task: Get started, Everyday work, Review and ship, Delegate and automate, Customize, Models and integrations, Set up and operate, Troubleshooting, Reference, and Developers (last, collapsed). The full order and the redirect map are in [`content-strategy.md`](content-strategy.md).
+
+- Open each user page with one sentence on what the reader will accomplish, group sections by task, and use Starlight `Steps` for procedures.
+- Use at most one or two screenshots per page, through `DocsScreenshot` with a “What to notice” caption. Put limits and edge cases in a short “Good to know” list.
+- Keep source paths and internal terms out of user pages. Mechanism detail and exhaustive precedence rules belong in Reference or Developers.
+- Use “profile” for the agent profile (Coding, Planning, custom), not “mode”. There is one Theme picker with five themes; do not describe separate light/dark pickers or name retired themes.
+- Four old routes redirect (`/start/guides/`, `/guides/git-and-pull-requests/`, `/guides/import-export-editors/`, `/models/usage-images-voice/`). Link to the new routes; `scripts/check-content.mjs` rejects internal links to a redirect source.
+
 ## Product screenshots
 
 Product captures come from the live loopback workbench at desktop and phone viewports. Generate them through `scripts/screenshots/run.mjs`, which seeds synthetic projects in throwaway directories, starts an isolated daemon, captures scenes, checks captured text for sensitive or unexpected data, and optimizes the results. See [`scripts/screenshots/README.md`](scripts/screenshots/README.md) for scene names and capture options.

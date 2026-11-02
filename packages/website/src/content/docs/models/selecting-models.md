@@ -34,5 +34,5 @@ Use a fast model for small, well-scoped changes and a deeper supported thinking 
 ## Next steps
 
 - [Custom providers](/models/custom-providers/)
-- [Agents and delegation](/guides/agents-and-delegation/)
-- [Usage, images, and voice](/models/usage-images-voice/)
+- [Sub-agents and delegation](/guides/agents-and-delegation/)
+- [Usage and limits](/models/usage/)

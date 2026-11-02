@@ -1,77 +1,79 @@
 ---
-title: Configure Settings
-description: Manage Workbench behavior, models, agents, tools, storage, and system controls.
+title: Settings at a glance
+description: A tour of the Settings pages and where to find each control.
 sidebar:
   order: 14
 ---
 
-Open **Settings** from the title bar. Settings is organized into focused areas and saves changes through the application state. Some controls are supplied by the daemon or launch environment; those controls show their effective source and can be locked when a CLI flag or environment variable takes precedence.
+Open **Settings** from the title bar to find every preference in one place. This page is a map; files, environment variables, and flags are in [Configuration](/operations/configuration/).
 
-## Workbench, notifications, and transcription
+## User and project scope
 
-**Workbench** contains Appearance and Desktop options, including theme and desktop-specific behavior. **Notifications** separates general notification delivery from sounds. **Shortcuts** shows the current fixed keyboard bindings; bindings are not currently remappable.
+Settings has two scopes. **User** settings apply everywhere. **Project** settings apply to the current project and override your user settings; they can be shared with everyone who opens the repository. Anything left unset in a project follows your user settings.
 
-**Transcription** configures the speech-to-text model and context used by voice input. Voice transcription still requires an OpenAI Codex OAuth subscription connection. The default `gpt-4o-transcribe` model preserves the existing behavior; `gpt-transcribe` and `gpt-4o-mini-transcribe` are also selectable. Nerve sends expected languages and custom vocabulary as structured hints for `gpt-transcribe`, and as prompt context for the GPT-4o transcription models.
+## User pages
 
-Nerve accesses transcription through ChatGPT's subscription endpoint rather than the public OpenAI Audio API. That endpoint is undocumented, so model availability can depend on the connected account. Vocabulary is advisory and may bias a transcript; include only relevant names, acronyms, and preferred spellings.
+| Group           | Pages                                                     | Use them to                                                                                                                       |
+| --------------- | --------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| **Connections** | Providers, Integrations                                   | Sign in to model providers and add accounts for tools such as Tavily and Atlassian. See [Providers](/models/providers-and-auth/). |
+| **Agent**       | General, Tools, Skills                                    | Set defaults for new conversations, turn tools on or off, and enable skills.                                                      |
+| **Catalog**     | Agents, Sub-Agents, Permission rules, Models, Suggestions | Edit agent profiles, choose teammate profiles, define permission rules, limit the models in pickers, and manage prompt chips.     |
+| **App**         | Workbench, Notifications, Shortcuts, Voice, Titles        | Pick a theme, set desktop options, tune notifications and sounds, review shortcuts, set up voice input, and enable AI titles.     |
+| **System**      | Storage, System                                           | See what Nerve stores, clean up space, and change network, diagnostics, and daemon options.                                       |
 
-## Models and agents
+### Workbench
 
-- **Scoped Models** controls the models shown in conversation pickers. An empty scope keeps all authenticated models available.
-- **Agents → Defaults** sets the default agent profile, permission, model, thinking level and approval behavior. User/project agent preferences are sparse overrides; the default start profile and picker models are creation preferences. Remember-last-selection has been removed.
-- **Agents → Compaction** controls automatic conversation compaction, profile, and trigger threshold. Every profile retains about 10,000 recent tokens.
+- **Appearance** has the theme picker. See [Themes and appearance](/guides/personalize/).
+- **Desktop** has the header style and **Close to system tray**. By default, closing the window quits Nerve and stops running launches and commands. Turn on the tray option to hide Nerve instead.
 
-Model availability depends on authentication and provider metadata. Default changes affect inheriting lead conversations at the next provider request; explicit conversation choices and profile requirements take priority. Existing children retain their captured preferences.
+### Agent
 
-## Suggestions, tools, and skills
+- **General** holds defaults for new conversations: profile, permission level, model, thinking level, and compaction. Projects and conversations can override them.
+- **Tools** lists core and third-party tools. Controls include enablement, background-command behavior, Python, image explanation, and image generation. Integration tools appear only when their module is available.
+- **Skills** lists your, project, built-in, and Agent Browser skills. See [Skills and project resources](/guides/skills-and-resources/).
 
-**Suggestions** manages reusable prompt chips and their trust settings. **Tools** has separate **Core** and **Third party** sections. Controls include tool enablement, Bash auto-promotion and background-command behavior, Python runtime settings, image explanation, and image generation. Image generation settings choose the provider, model, and provider-specific output defaults; agents receive only a prompt argument. **Agent profiles** edits complete user/project definitions with **Use settings/Recommend/Require** (see the [profile reference](/reference/agent-profiles/)). Project files live at `.nerve/agent-profiles/<name>.json` and require exact-byte trust. Editing an inherited profile creates a complete local copy; deleting it exposes the lower definition for future applications. Existing conversations retain an applied snapshot until explicit switch or **Apply updated profile**. Effective source labels explain defaults, conversation choices, recommendations and requirements. Reset removes an editable override and inherits; it cannot remove a profile requirement. Integration cards appear only when the corresponding module is available and can manage enablement and credentials.
+### Catalog
 
-**Skills** lists user, project, Built-in Nerve, and Agent Browser resources. Built-in Nerve and Agent Browser skills are disabled by default; enabling one adds it to subsequent agent runs without modifying its source. User defaults can be refined by trusted project overrides.
+- **Agents** edits lead profiles such as Coding and Planning, and your own. See [Choose a profile](/guides/agent-controls/).
+- **Sub-Agents** edits the teammate profiles the lead can delegate to. See [Sub-agents](/guides/agents-and-delegation/).
+- **Models** limits which models the composer offers. An empty list keeps every signed-in model available.
+- **Suggestions** manages [prompt suggestions](/guides/prompt-suggestions/).
 
-### Diagram export
+### Notifications, voice, and titles
 
-**Settings → Tools → Third party → Diagram export** configures `kroki_export`, which renders diagrams through a Kroki server. It is disabled by default, including after upgrading an existing home. Configure the Kroki URL (default `https://kroki.io/`), then enable the tool separately. The summary row marks the public `kroki.io` service with a warning while the tool is enabled, because diagram source leaves your machine. Local/self-hosted HTTP(S) servers and reverse-proxy path prefixes are supported; URL credentials, query parameters, and fragments are not. The agent reads diagram source from a file (`source_path`, preferred) or inline, and writes to a chosen `output_path` or to a managed tool-call artifact; both paths are subject to the active permission rules.
+- **Notifications** has General and Sounds sections. See [Notifications and activity](/guides/notifications/).
+- **Voice** picks the speech-to-text model and context hints. Voice input needs an OpenAI Codex sign-in.
+- **Titles** turns on AI titles. Every new conversation gets an instant local title first; the AI title replaces it once in the background and never overrides a name you set.
 
-```json
-{
-  "diagram_type": "mermaid",
-  "source": "graph TD; A-->B",
-  "output_format": "svg"
-}
-```
+### Storage and System
 
-SVG is the default; PNG is also supported. Available engines and formats depend on your Kroki deployment. Exports are retained under the tool call’s managed artifact directory and linked from its normal transcript card. Click the path to preview the image in a file tab; saving into the project is a separate filesystem action. PDF, renderer options, custom authentication, and dedicated browser downloads are not currently supported. Diagram source is limited to 128 KiB, output to 5 MiB, and requests to 60 seconds.
+- **Storage** shows what Nerve keeps on disk and runs cancellable cleanup. See [Back up, move, and upgrade data](/operations/storage-migration/).
+- **System** covers network access, diagnostics, resource limits, the daemon, desktop rendering, and version details. A control that a command-line flag or environment variable owns shows as locked. Some changes need a restart.
 
-**Privacy:** diagram source is sent to the configured server when the tool runs. Use a trusted self-hosted instance for private diagrams, with updated Kroki and secure renderer safe modes. Nerve does not contact Kroki while configuring the URL or while the tool is disabled, and it does not follow redirects when exporting. Scoped agent settings and profiles can configure enablement and the Kroki URL; source labels show which contribution controls the effective value.
+## Project pages
 
-## Configuration health and manual edits
+Besides the agent and catalog pages above, a project has:
 
-UI saves publish validated configuration directly. No file watchers run: manual edits need restart for guaranteed activation or explicit Reload/Retry. Review configuration health diagnostics and repair previews before confirming a repair; damaged sources are backed up, and dismissal alone changes nothing. Invalid security configuration puts affected tool calls in **configuration-blocked** waiting with **Retry/Cancel**, not an approval bypass.
+- **Launch** for the project's launch definitions.
+- **Instructions files** for `AGENTS.md` files and extra system prompt text.
+- **Trust** for project files Nerve reads only after you review them, such as profile files and suggestion scripts.
 
-## Storage
+## Diagram export
 
-**Storage** shows an ownership and retention breakdown of readable files under `NERVE_HOME` and provides cancellable cleanup. The authoritative database is `data/nerve.sqlite`; cache and temporary files are separate disposable data. Depending on the selected targets, cleanup can remove old inactive conversations, dated and rotated logs, crash and Node reports, cache, and temporary data. Cleanup is asynchronous and reports progress; it never treats the canonical database, migrations, or backups as disposable cache targets. The current runtime does not use a separate query-cache database or offer a query-cache rebuild.
+**Settings → Tools → Third party → Diagram export** lets the agent render diagrams through a Kroki server. It is off by default. Set the Kroki URL (default `https://kroki.io/`), then enable the tool.
 
-## System
+Diagram source is sent to the configured server when the tool runs. Use a trusted self-hosted server for private diagrams. SVG is the default output; PNG is also supported, depending on your server. Exports appear as a linked file in the tool call's card.
 
-**System** groups:
+## Good to know
 
-- **Network** — remote connections, bind host, daemon ports, and Mobile HTTPS.
-- **Diagnostics** — application logging, performance sampling, log level, retention, and buffered records.
-- **Daemon** — server lifecycle and capability-related controls.
-- **Desktop rendering** — desktop rendering behavior.
-- **Launch context** — information about how the application was started.
-- **System information** — versions and runtime details.
-
-Network, daemon, and diagnostic changes may require a restart. CLI and environment settings take precedence over saved Settings values, and Nerve marks those effective values as locked. Do not put API keys or proxy credentials in shared configuration files.
+- UI changes are saved immediately. Manual edits to configuration files need a restart or an explicit Reload to take effect.
+- If a configuration file is damaged, review the repair preview before confirming. Damaged files are backed up first.
+- Default changes reach existing conversations at their next request; choices made in a conversation and profile requirements take priority.
+- Don't put API keys or proxy credentials in shared configuration files.
 
 ## Related pages
 
-- [Personalize Nerve](/guides/personalize/)
-- [Select models](/models/selecting-models/)
-- [Configure agent controls](/guides/agent-controls/)
-- [Manage skills and resources](/guides/skills-and-resources/)
-- [Work with agents and delegation](/guides/agents-and-delegation/)
-- [Storage and migration](/operations/storage-migration/)
+- [Themes and appearance](/guides/personalize/)
+- [Configuration](/operations/configuration/)
 - [Diagnostics](/operations/diagnostics/)
+- [Select models](/models/selecting-models/)

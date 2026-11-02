@@ -10,9 +10,8 @@ import type { GuideId } from "../guides/catalog.js";
 import type { DiscoverPageModel } from "../state.svelte.js";
 import DiscoverNewsSection from "./DiscoverNewsSection.svelte";
 import DiscoverResourceLinks from "./DiscoverResourceLinks.svelte";
-import DiscoverSetupSection from "./DiscoverSetupSection.svelte";
+import DiscoverGetSetUpSection from "./DiscoverGetSetUpSection.svelte";
 import DiscoverTipsSection from "./DiscoverTipsSection.svelte";
-import DiscoverWalkthroughSection from "./DiscoverWalkthroughSection.svelte";
 
 type Props = {
   model: DiscoverPageModel;
@@ -47,7 +46,7 @@ const outdated = $derived(
         <div class="grid gap-0.5">
           <h1 class="text-title font-medium text-foreground">Discover</h1>
           <p class="text-ui text-muted-foreground">
-            What's new in Nerve, plus setup guides and everyday tips.
+            What's new in Nerve, how to get set up, and a few tips.
           </p>
         </div>
         <div class="flex flex-wrap items-center gap-1.5">
@@ -85,19 +84,13 @@ const outdated = $derived(
         {onAction}
       />
 
-      <DiscoverSetupSection
+      <DiscoverGetSetUpSection
         setup={model.sections.setup}
+        walkthroughs={model.sections.walkthroughs}
+        {workbenchBlocked}
         {onStartGuide}
         {onMarkCompleted}
       />
-
-      {#if model.sections.walkthroughs.length > 0}
-        <DiscoverWalkthroughSection
-          walkthroughs={model.sections.walkthroughs}
-          {workbenchBlocked}
-          {onStartGuide}
-        />
-      {/if}
 
       {#if model.sections.tips.length > 0}
         <DiscoverTipsSection tips={model.sections.tips} {onAction} />

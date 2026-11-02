@@ -765,13 +765,13 @@ function openWhileVisible(
 
   <GalleryGroup
     title="Discover"
-    description="The Discover center tab: the real DiscoverView with a mock page model (news, setup guides, walkthroughs, tips). Actions are no-ops."
+    description="The Discover center tab: the real DiscoverView with the shipped news and tips and mock guide progress. Actions are no-ops."
   >
     <GallerySpecimen
       title="DiscoverView"
       source="app/discover/components/DiscoverView"
       usage="1 file · discover"
-      description="Featured release news with artwork, unread news, archived updates, setup progress with a must-do guide, completed guides, a walkthrough and tips."
+      description="Featured release news, artwork cards, archived updates, Get set up with a must-do guide and tours, completed guides and tips."
       layout="bare"
     >
       <div class="h-200 overflow-hidden rounded-md border">

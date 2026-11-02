@@ -51,15 +51,15 @@ const ogImage = new URL(socialPreview.src, Astro.site).href;
     tone="sunken"
     eyebrow="The whole loop, one window"
     title="From prompt to pull request without leaving."
-    lede="Review staged and unstaged changes, see the current branch's PR, and check review status without losing the conversation. Background Git operations report progress and failures in the header's Activity popover."
+    lede="Review staged and unstaged changes, see the current branch's PR, and check review status without losing the conversation. The PR pane keeps checks and linked conversations current as you work."
   >
     <WorkbenchMap />
     <div class="grid gap-8 md:grid-cols-3">
       <article class="grid content-start gap-3">
         <h3 class="card-title">Less friction between thought and prompt.</h3>
         <p class="body-text">
-          Reference files, paste images, insert path chips, and find commands in
-          grouped suggestions. Model and permission controls share one toolbar. Agent
+          Reference files, paste images, quote exactly what you need from a reply,
+          and find commands in grouped suggestions. Model and permission controls share one toolbar. Agent
           questions get individual answer fields with completion, dictation, and
           saved drafts.
           <a class="text-primary" href="/guides/composer/">Explore the composer →</a>
@@ -68,10 +68,10 @@ const ogImage = new URL(socialPreview.src, Astro.site).href;
       <article class="grid content-start gap-3">
         <h3 class="card-title">Background work, foreground feedback.</h3>
         <p class="body-text">
-          The header’s Activity popover puts requests that need you first,
-          followed by running work and finished results. Inspect Git failures,
-          retry supported operations, or return to the conversation that needs
-          your attention.
+          The header’s Notifications popover puts requests that need you first,
+          followed by running work and finished results. Nerve notices when
+          you’re away, flags results you haven’t seen, and lets you mute for an
+          hour.
           <a class="text-primary" href="/guides/workbench/">Find your way around →</a>
         </p>
       </article>
@@ -91,7 +91,7 @@ const ogImage = new URL(socialPreview.src, Astro.site).href;
     id="parallel"
     eyebrow="Parallel by nature"
     title="Many projects. A team of agents. All at once."
-    lede="Every conversation is its own tab in its own project. Inside one, a lead agent hands work to sub-agents you shape — and they report back with receipts."
+    lede="Every conversation is its own tab in its own project. Inside one, a lead agent running your chosen profile hands work to sub-agents you shape — and they report back with receipts."
   >
     <ParallelTeam />
   </Section>

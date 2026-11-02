@@ -18,6 +18,20 @@ Damaged manifests, unreadable or unexpected ledgers, and unrecognized layouts sh
 
 Nerve does not move or delete the folder for you, carry over providers or credentials, or track an archived-home location. Do not modify the home while Nerve is running.
 
+## A project file is corrupted
+
+Nerve shows a notice for the affected project file with **Open file**, **Reload**, and **Reset**.
+
+1. Choose **Open file** and fix the problem in your editor, or restore the file from a backup or version control.
+2. Choose **Reload** to read it again.
+3. Choose **Reset** only if you want to discard the file. It asks for confirmation.
+
+Until it's fixed, Nerve uses a safe fallback and never saves over the corrupted file. A project file written by a newer Nerve opens read-only. If a notice offers **Remove old files**, those are leftovers from older file names and can be removed after confirming.
+
+## A conversation is unreadable
+
+Unreadable conversations don't stop Nerve from starting. They're listed in **Notifications** under System, each with a delete action, plus **Delete all**. Back up the home first if you might want to inspect the data. An upgrade report appears there once after an upgrade that set files aside.
+
 ## Migration aborts
 
 Read the reported stage and error before retrying. Startup upgrades check source records, schema checksums, referenced assets, and destination integrity. The current conversation-core conversion keeps resumable work until verification; do not delete its retained source database, sidecars, work directory, or ledger to bypass a failure.

@@ -1,6 +1,6 @@
 ---
 title: Get started with Nerve
-description: Install Nerve, connect a model, open a project, and complete a safe first coding task.
+description: Install Nerve, connect a model, open a project, and finish a small reviewed task.
 sidebar:
   order: 0
 ---
@@ -10,16 +10,16 @@ import DocsScreenshot from "../../../components/docs/DocsScreenshot.astro";
 import conversationDark from "../../../assets/screenshots/desktop/conversation-dark.webp";
 import conversationLight from "../../../assets/screenshots/desktop/conversation-light.webp";
 
-Nerve is a local-first desktop coding harness for people who want an agent's work to stay visible and controllable. This path takes you from installation to a small, reviewed change with supervised permission.
+This path takes you from a fresh install to a small, reviewed change made with Supervised permission, where Nerve asks before it acts.
 
 ## Your first run
 
 <Steps>
 
-1. **[Install Nerve](/start/install/).** Launch the desktop app from npm or a source checkout. You need Node.js 24 or newer.
-2. **[Connect a model provider](/start/providers/).** Choose API-key or OAuth authentication, then select a default model.
-3. **[Open a project](/start/first-project/).** Select a local directory and begin with the Coding profile plus Supervised permission.
-4. **[Complete a safe first task](/start/first-task/).** Inspect first, review approvals and diffs, run focused validation, and verify the final Git state yourself.
+1. **[Install Nerve](/start/install/).** Start the desktop app from npm. You need Node.js 24 or newer.
+2. **[Connect a model](/start/providers/).** Sign in or add an API key, then pick a default model.
+3. **[Open a project](/start/first-project/).** Choose a folder on your computer. Start with the Coding profile and Supervised permission.
+4. **[Do your first task](/start/first-task/).** Inspect first, approve actions as they come up, then check the result in Git.
 
 </Steps>
 
@@ -27,37 +27,35 @@ Nerve is a local-first desktop coding harness for people who want an agent's wor
   light={conversationLight}
   dark={conversationDark}
   alt="The Nerve desktop workbench showing a completed Bash result, two sub-agent assignment cards, and the expanded Agents activity island above the composer"
-  caption="What to notice: command results and sub-agent assignments share the transcript. The expanded Agents activity island keeps delegated work accessible above the composer."
+  caption="Command results and sub-agent assignments share the transcript, and the Agents island above the composer keeps delegated work one click away."
   widths={[480, 768, 1024, 1440]}
   sizes="(min-width: 72rem) 48rem, calc(100vw - 3rem)"
   loading="eager"
 />
 
-## Choose the path you need
+## Where to go next
 
 <CardGrid>
   <LinkCard
     title="Learn the daily workflow"
-    description="Navigate conversations, the composer, reviews, files, Git, pull requests, launch configurations, and background commands."
+    description="Prompts, approvals, conversations, notifications, files, Git, and pull requests."
     href="/guides/"
   />
   <LinkCard
-    title="Configure models and integrations"
-    description="Connect providers, select models, and enable optional Web, Python, Atlassian, or browser guidance."
+    title="Take the in-app tour"
+    description="Discover shows what's new and walks you through setup and the workbench."
+    href="/start/learn-in-app/"
+  />
+  <LinkCard
+    title="Models and integrations"
+    description="Providers, model choice, and optional Web, Python, Jira, or Confluence tools."
     href="/models/providers-and-auth/"
   />
   <LinkCard
-    title="Operate Nerve safely"
-    description="Understand configuration, storage, security, browser access, LAN/mobile use, and remote daemons."
+    title="Set up and operate"
+    description="Configuration, storage, security, remote access, and mobile use."
     href="/operations/security/"
-  />
-  <LinkCard
-    title="Build and extend Nerve"
-    description="Explore package boundaries, the harness, tools, persistence, and Protocol v1."
-    href="/developers/architecture/"
   />
 </CardGrid>
 
-## Understand the product first
-
-If you are still evaluating Nerve, start with [What is Nerve?](/start/overview/) for the local-first topology, core concepts, and authority model. For a symptom you are already troubleshooting, use the [troubleshooting index](/troubleshooting/).
+Still deciding? Read [What is Nerve?](/start/overview/). Hit a problem? Start at [Troubleshooting](/troubleshooting/).

@@ -1,9 +1,21 @@
 ---
 title: Prompt suggestion format
-description: Markdown frontmatter, conditions, precedence, and JavaScript trust.
+description: Built-in suggestions, Markdown frontmatter, conditions, precedence, and JavaScript trust.
 sidebar:
   order: 5
 ---
+
+To turn suggestions on or off, add your own, or approve scripts, see the [prompt suggestions guide](/guides/prompt-suggestions/).
+
+## Built-in suggestions
+
+- **Commit changes**: the repository has uncommitted changes.
+- **Commit on a feature branch**: changes are on a base branch.
+- **Create a PR**: a relevant GitHub repository is ready and GitHub CLI is authenticated.
+
+Settings lists built-ins even when their condition is false. Each can be disabled independently.
+
+## Files
 
 User files live in `<NERVE_HOME>/agent/suggestions/*.md` (normally `~/.nerve/agent/suggestions/*.md`); project files live in `<project>/.nerve/suggestions/*.md`. Internal enablement/trust state is created lazily on first use, so a fresh Nerve home does not contain an empty prompt-suggestion state directory.
 

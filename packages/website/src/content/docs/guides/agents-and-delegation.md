@@ -1,62 +1,70 @@
 ---
-title: Work with agents and delegation
-description: Delegate research and implementation to sub-agents, follow their progress, and define your own profiles.
+title: Sub-agents and delegation
+description: Let the lead agent hand research and implementation to sub-agents, follow their progress, and define your own teammate profiles.
 sidebar:
   order: 11
 ---
 
-A conversation has one **lead agent**, the agent you direct through the composer. The lead can delegate work to **sub-agents**: separate agents that run asynchronously in the same project worktree and report back when they finish. What a sub-agent is (its model, permission, tools, skills, and instructions) comes from a **profile**.
+Turn on delegation so the lead agent can run research and implementation in parallel, then follow and steer the sub-agents it starts.
 
-## Enable sub-agents
+A conversation has one **lead agent**, the one you talk to in the composer. The lead can delegate to **sub-agents**: separate agents that work asynchronously in the same project folder and report back when they finish. A **profile** decides each sub-agent's model, permissions, tools, skills, and instructions.
 
-Sub-agents are disabled by default. Turn on **Sub-agents** under **Settings → Agent profiles** (user or project scope) or for the current conversation through **Capabilities → Sub-agents** beside the composer. The lead is offered only usable profiles. With none but existing children, it retains prompt follow-ups, status and stop, but cannot create new children; the prompt schema omits `profile`. With neither usable profiles nor existing children, the tools are hidden. Turning the master Sub-agents capability off removes the whole tool group regardless of existing children. Manage profiles under **Settings → Agent profiles**.
+## Turn on delegation
+
+Delegation is off by default.
+
+1. Open **Capabilities** beside the composer.
+2. Switch on **Delegation** for this conversation.
+
+To change the default for new conversations, use the **Sub-agents** row in **Settings → Tools**.
+
+The lead can only start sub-agents from profiles that are usable as teammates. Manage them in **Settings → Sub-Agents**.
 
 ## What the lead does
 
-The lead assigns work in batches of up to ten sub-agents. Each assignment has a name, a profile, and a prompt, and a batch can share one block of background context. Then it continues independent work or ends its turn; completion notices wake it. Naming an existing sub-agent sends it a follow-up, and a stopped sub-agent is resumed.
+The lead assigns work to up to ten sub-agents at a time. Each assignment has a name, a profile, and a prompt. The lead then keeps working on independent tasks or ends its turn, and is woken when a sub-agent finishes. Naming an existing sub-agent sends it a follow-up, and a stopped sub-agent resumes.
 
-Two built-in profiles support sub-agent delegation:
+Two built-in teammate profiles are included:
 
-- **Explore** is read-only. Use it for parallel inventory, tracing independent subsystems, or comparing tests and implementation. It ends with a short report of findings and evidence.
-- **Developer** works autonomously in the shared worktree. Use it for implementation with follow-ups. Give developers non-overlapping scopes: simultaneous edits to the same files can conflict.
+- **Explore** is read-only. Use it for parallel inventory, tracing separate subsystems, or comparing tests with implementation. It ends with a short report of findings.
+- **Developer** works on its own in the shared folder. Use it for implementation with follow-ups. Give developers non-overlapping scopes; simultaneous edits to the same files can conflict.
 
-A sub-agent keeps its own context between assignments and does **not** see the lead's transcript, so a good assignment includes findings, paths, constraints, and the expected outcome. Sub-agents never ask you questions, present plans, or create further sub-agents.
+A sub-agent keeps its own context between assignments but does not see the lead's transcript, so a good assignment spells out findings, paths, constraints, and the expected outcome. Sub-agents never ask you questions, present plans, or start more sub-agents.
 
-## Use the Team Lead skill
-
-Select the built-in **Lead** lead profile for orchestration. Its instructions cover requirements ownership, scoped delegation, evidence-based review, and validation; no separate skill read is needed. Lead requires **Sub-agents** but inherits which subagent profiles are available. Delegation does not grant extra authority or bypass permissions.
+For larger efforts, choose the built-in **Lead** profile. Its instructions cover scoping work, delegating, reviewing evidence, and validating. Delegation never grants extra authority or bypasses permissions.
 
 ## Follow progress
 
-The **activity island** sits at the bottom of the transcript, beside the activity row above the composer. Its **Agents** section lists retained sub-agents with state and profile; **Commands** lists all running async Bash commands and the five most recently settled commands. Select an agent to open its conversation or a command to open its output tab.
+The activity island at the bottom of the transcript has an **Agents** section listing sub-agents with their state and profile, and a **Commands** section for background commands. Select an agent to open its conversation.
 
-Lists fold by count, not age: a six-row budget keeps live work and the viewed agent visible, with older settled rows under **Show older**. Counts show running/total while work is active. In a child view, the island also provides a way back to the lead; when scrolled away from the newest transcript entries, it offers a jump to the latest output.
+While the lead waits, the activity row names what it is waiting for.
 
-While the lead waits for sub-agents or background commands, the activity row at the bottom of the transcript names what it is waiting for.
+In a sub-agent's view you see the same transcript and controls as the lead. You can't prompt a sub-agent directly, but you can stop it and change its model, thinking level, permission (read-only or autonomous), tools, skills, and instructions. Changes apply from its next turn.
 
-Select a sub-agent to open it in the main view with the same transcript and controls as the lead. You cannot prompt a sub-agent directly: the composer is covered, with a way back to the lead. You can still stop it, and you can change its model, thinking level, permission (read-only or autonomous), tools, skills, compaction, and instructions from the composer toolbar and the context popover. Changes apply from its next turn, and the lead sees them through `subagent_status`.
+Each time a sub-agent finishes, the lead receives its final response or error. If it is very long, the lead gets the first part and a path to the full text. Stopping a sub-agent from its own view tells the lead; stopping it through the lead, or stopping the lead, does not.
 
-## Completion notices
+## Write your own teammate profile
 
-Each time a sub-agent finishes an execution, the lead receives a notice with its final response, or its error. If the response is longer than 16 KB, the notice carries the first part and a path to the full text, saved with the sub-agent's conversation. A sub-agent that ends its turn while background commands are still running is reported as waiting; it finishes again when a command completes.
+1. Open **Settings → Sub-Agents** and choose **New profile**.
+2. Pick user scope (all projects) or project scope (shared through the repository).
+3. Start blank or copy an existing profile, then set its model, permissions, tools, and skills.
+4. Describe when the lead should use it. The lead picks profiles from that description.
 
-Stopping a sub-agent from its own view notifies the lead. Stopping it through the lead, or stopping the lead (which stops its sub-agents), does not.
+Editing an inherited profile creates a complete local copy that replaces the original. Project profiles need your trust before they apply. Sub-agents start from their own profile defaults, not the lead's current model, tools, or skills. Later profile or default changes don't reconfigure sub-agents that already started.
 
-## Write your own profile
+If a sub-agent's model hits a usage limit, open its view and change its model directly. See the [profile format](/reference/agent-profiles/) for details.
 
-Choose **New profile** under **Settings → Agent profiles** in user scope (all projects) or project scope (shared through the repository). Start blank or from a copy of an existing profile. For a sub-agent profile, choose `usableBy: "subagent"` or `"both"`, recommend or require read-only/autonomous permission and choose other profile contributions as appropriate. Children use their own defaults, never copies of the lead's effective model, tools or skills. Describe when the lead should use the profile, because the lead chooses profiles by their `whenToUse` text. Editing an inherited profile creates a complete local definition that shadows the lower definition; profile fields do not merge across catalog scopes. Project profiles require trust in the exact document content. In a saved lead conversation, **Capabilities → Sub-agents** changes availability, model and thinking for newly created children only. See the [profile format reference](/reference/agent-profiles/).
+## Sub-agent or launch?
 
-Creation captures complete underlying preferences and an applied profile snapshot. Launch model/thinking choices beat recommendations but not requirements. Later default, profile or launch-selection changes never reconfigure an existing child; child profile switching/reapplication is unsupported. If its model hits usage limits, open that child's view and change its own model and thinking level directly. A follow-up to the same name keeps those changes; it does not reapply the profile.
-
-| Choose                   | When you need                                        | Authority                                   | Lifecycle                                               |
-| ------------------------ | ---------------------------------------------------- | ------------------------------------------- | ------------------------------------------------------- |
-| **Sub-agent**            | Parallel research, or implementation with follow-ups | Set by its profile: read-only or autonomous | Reusable; stays until its lead conversation is deleted  |
-| **Launch configuration** | A server, watcher, or other long-running process     | Process supervision, not model reasoning    | Durable launch definition with separately retained runs |
+| Choose        | When you need                                        | Lifecycle                                         |
+| ------------- | ---------------------------------------------------- | ------------------------------------------------- |
+| **Sub-agent** | Parallel research, or implementation with follow-ups | Reusable; stays until its conversation is deleted |
+| **Launch**    | A server, watcher, or other long-running process     | Saved definition; each run keeps its own output   |
 
 ## Related pages
 
-- [Control the lead agent](/guides/agent-controls/)
-- [Launch configurations and async Bash](/guides/background-tasks/)
-- [Configure Settings](/guides/settings/)
+- [Choose a profile, model, and permissions](/guides/agent-controls/)
+- [Launches and background commands](/guides/background-tasks/)
+- [Settings at a glance](/guides/settings/)
 - [Agent tool catalog](/reference/tools/)
 - [Agent profile format](/reference/agent-profiles/)

@@ -1,54 +1,42 @@
 ---
-title: Complete a safe first task
-description: Use planning, approvals, Git review, and validation on a small change.
+title: Your first task
+description: Make a small change with the agent while you review each step.
 sidebar:
   order: 5
 ---
 
-Use a clean or disposable Git workspace for your first modifying task. Supervised permission makes the review points visible without assuming that every read needs confirmation.
+This walkthrough has you make a small change, approve what the agent does, and check the result in Git. Use a clean or disposable repository.
 
-## 1. Establish the current state
+## 1. Check where you're starting
 
-Open the Git panel and confirm the working tree. Commit or stash unrelated work. Ask the agent to inspect the relevant code and tests before changing anything.
+Open **Git Changes** and confirm the working tree is clean. Commit or stash anything unrelated. Then ask the agent to read the relevant code and tests before changing anything.
 
-## 2. Plan when the change is uncertain
+## 2. Plan if the change is unclear
 
-Switch the composer to the **Planning** profile and describe the desired outcome. The Planning profile allows research and constrains plan writes to Nerve's plan directory. When the agent presents a plan, review it in the transcript.
+Switch to the **Planning** profile (type `/plan`, or press `Shift+Tab`) and describe the outcome you want. The agent researches and presents a plan in the transcript. When you accept it, you can implement in the same conversation, compact the context first, or start a new conversation for the implementation.
 
-You can accept implementation in the same conversation, compact context before implementing, or optionally start implementation in a new conversation and select its model.
+Planning is a guardrail, not a sandbox. Use Supervised permission when you implement in an unfamiliar repository.
 
-Planning locks its permission policy. Its shell restrictions are guardrails, not a security sandbox; use supervised permission for implementation in unfamiliar repositories.
+## 3. Approve actions as they come up
 
-## 3. Review actions as they happen
-
-With the Coding profile, the agent can request an edit, command, Python run, network call, or other action. An approval card describes the request and remains the active interaction; the main composer is disabled until you approve, deny, or otherwise resolve the gate.
-
-Use the transcript to inspect:
-
-- exact tool arguments;
-- file edit diffs and bounded output;
-- command output and exit state;
-- questions where the agent needs a decision;
-- failures, retries, and recovery actions.
+With the **Coding** profile, the agent asks before it edits a file, runs a command, or reaches the network. Each approval card shows what it wants to do. The composer stays disabled until you approve, deny, or answer. Read the card before approving, then check the file diffs and command output in the transcript.
 
 ## 4. Redirect or stop
 
-Send another normal prompt while a run is active to queue a steering message. It appears in the transcript and can be discarded or **Cancel & Edit**-ed back into the composer. Inline command prompts cannot be queued.
+Send another prompt while the agent is working to steer it. The message is queued, and you can discard it or edit it before it's sent. Press the stop button if the work is heading the wrong way.
 
-Stop the run if it heads in the wrong direction. Nerve targets the active run and guards against duplicate stop actions and late events.
+## 5. Check the result
 
-## 5. Validate and inspect Git
+Ask the agent to run the project's focused checks. Then review the changes yourself in **Git Changes**. You can stage and unstage files, switch branches, and fetch, pull, or push from there. To commit, ask the agent. See [Git changes](/guides/git/).
 
-Ask the agent to run the project's focused checks. Review the final Git changes yourself. The Git panel can stage/unstage, create or switch branches, fetch, pull, push, and sync; destructive discard requires confirmation.
+## Good to know
 
-GitHub pull request views require a GitHub remote plus the `gh` CLI authenticated with `gh auth login`.
-
-:::caution
-Autonomous permission removes normal approval pauses for allowed actions. Use it only when you trust the model, project instructions, enabled integrations, and the scope of the task.
-:::
+- Autonomous permission removes the normal approval pauses. Use it only for bounded tasks in a repository you can recover.
+- Pull request views need a GitHub remote and the `gh` command-line tool signed in with `gh auth login`.
 
 ## Next steps
 
-- [Agent controls and permissions](/guides/agent-controls/)
+- [Choose a profile, model, and permissions](/guides/agent-controls/)
 - [Approvals, questions, and plans](/guides/reviews/)
-- [Git and pull requests](/guides/git-and-pull-requests/)
+- [Git changes](/guides/git/)
+- [Pull requests](/guides/pull-requests/)

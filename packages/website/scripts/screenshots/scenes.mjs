@@ -18,6 +18,9 @@ export const MOBILE_SCALE = 3;
 const DEMO_PROJECT = "Aurora";
 const RATE_LIMIT_CONVERSATION = "Add rate limiting to the booking API";
 const DEPLOY_CONVERSATION = "Investigate flaky staging deploys";
+const RICH_CONVERSATION = "Compare limiter strategies for POST /bookings";
+/** The seed's workspace parent, so the folder browser shows demo folders only. */
+const DEMO_WORKSPACE_ROOT = "/tmp/nerve-demo-workspace";
 
 async function selectProject(page, name = DEMO_PROJECT) {
   await page.getByRole("button", { name: "Switch project" }).click();
@@ -56,18 +59,83 @@ export const DESKTOP_SCENES = [
           exact: true,
         })
         .waitFor();
-      await page.getByText("waiting for you", { exact: true }).waitFor();
+      /* The pending question is a real card with selectable options. */
+      await page.getByRole("button", { name: /Staging first/ }).waitFor();
     },
   },
   {
-    id: "activity",
-    alt: "The header Notifications popover showing a conversation that needs a rollout decision",
+    id: "notifications",
+    alt: "The Notifications popover listing a question that needs an answer, a failed agent, and a stopped agent, with mute and clear actions",
     async drive(page) {
       await openConversation(page, RATE_LIMIT_CONVERSATION);
       await page.getByRole("button", { name: /^Notifications/ }).click();
       await page
-        .getByRole("button", { name: "Clear finished", exact: true })
+        .getByRole("button", { name: "Mute 1 h", exact: true })
         .waitFor();
+      await page.getByText("Question for you", { exact: true }).waitFor();
+    },
+  },
+  {
+    id: "folder-browser",
+    alt: "The Open project folder browser showing places, a path bar, and nested demo folders",
+    async drive(page) {
+      await selectProject(page);
+      await page.getByRole("button", { name: "Switch project" }).click();
+      await page.getByRole("button", { name: /^Open folder/ }).click();
+      const dialog = page.getByRole("dialog", { name: /Open project/ });
+      await dialog.waitFor();
+      /* Never show the real home directory: jump to the throwaway workspace. */
+      await dialog.getByRole("button", { name: /edit path/i }).click();
+      await page.keyboard.insertText(DEMO_WORKSPACE_ROOT);
+      await page.keyboard.press("Enter");
+      await dialog.getByText("archive", { exact: true }).waitFor();
+      await dialog.getByText("archive", { exact: true }).click();
+    },
+  },
+  {
+    id: "quote",
+    alt: "A rich assistant reply with a text selection and the floating Quote and Quote and dictate toolbar",
+    async drive(page) {
+      await openConversation(page, RICH_CONVERSATION);
+      const item = page
+        .getByRole("listitem")
+        .filter({ hasText: "Shared counter store" })
+        .first();
+      await item.evaluate((node) =>
+        node.scrollIntoView({ block: "center", behavior: "instant" }),
+      );
+      await page.waitForTimeout(500);
+      const box = await item.boundingBox();
+      if (!box) throw new Error("The rich reply must be visible");
+      /* Drag across the sentence like a user; a pointer-up raises the toolbar. */
+      await page.mouse.move(box.x + 2, box.y + box.height / 2);
+      await page.mouse.down();
+      await page.mouse.move(box.x + box.width - 2, box.y + box.height / 2, {
+        steps: 8,
+      });
+      await page.mouse.up();
+      await page.getByRole("toolbar", { name: "Selection actions" }).waitFor();
+    },
+  },
+  {
+    id: "discover",
+    alt: "The Discover page with the release story, setup steps, and tips",
+    async drive(page) {
+      await selectProject(page);
+      await page.getByRole("button", { name: /^Open Discover/ }).click();
+      await page.waitForTimeout(800);
+    },
+  },
+  {
+    id: "themes",
+    alt: "Settings, Workbench, Appearance with the theme picker previewing the five Nerve themes",
+    async drive(page) {
+      await selectProject(page);
+      await page.getByRole("button", { name: "Open settings" }).click();
+      await page
+        .getByRole("button", { name: "Workbench", exact: true })
+        .click();
+      await page.getByText("Appearance", { exact: true }).first().waitFor();
     },
   },
   {
@@ -167,21 +235,8 @@ export const DESKTOP_SCENES = [
       await page.getByRole("menuitem", { name: "Branch history" }).click();
       await page.waitForSelector('[data-tour-id="conversation-history"]');
       await page.waitForTimeout(1200);
-      const closeDetails = page.getByRole("button", {
-        name: "Close details",
-        exact: true,
-      });
-      if (await closeDetails.isVisible()) await closeDetails.click();
-      await page.getByRole("button", { name: "Fit entire graph" }).click();
-      await page.waitForTimeout(400);
-      /* Zoom past the graph's "detail" tier (0.85) so node cards render their
-       * text; a fitted graph shows shape but no readable content. */
-      const zoomIn = page.getByRole("button", { name: "Zoom in" });
-      for (let index = 0; index < 4; index += 1) {
-        await zoomIn.click();
-        await page.waitForTimeout(150);
-      }
-      await page.waitForTimeout(800);
+      await page.getByRole("button", { name: "Fit tree" }).click();
+      await page.waitForTimeout(1200);
     },
   },
   {
@@ -299,14 +354,16 @@ export const MOBILE_SCENES = [
     },
   },
   {
-    id: "model-picker",
-    alt: "The Nerve model and reasoning-effort picker open at phone width",
+    id: "composer-sheet",
+    alt: "The compact phone composer with the agent profile bottom sheet open",
     async drive(page) {
       await openMobileConversation(page);
-      /* Open the fixed composer picker after the transcript has settled. */
       await page.waitForTimeout(500);
-      await page.locator('[data-tour-id="composer-model"]:visible').click();
-      await page.waitForTimeout(500);
+      await page
+        .getByRole("button", { name: "Conversation settings" })
+        .last()
+        .click();
+      await page.waitForTimeout(600);
     },
   },
   {

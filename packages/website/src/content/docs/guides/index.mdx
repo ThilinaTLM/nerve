@@ -1,23 +1,23 @@
 ---
 title: Use Nerve day to day
-description: Choose the shortest guide for the work you want to do in Nerve.
+description: A short loop for everyday work, and where to find each guide.
 sidebar:
   order: 0
 ---
 
 import { CardGrid, LinkCard, Steps } from "@astrojs/starlight/components";
 
-You do not need to learn every panel before starting. Begin with one conversation in **Supervised** mode, then add the workflows you need.
+You don't need to learn every panel before you start. Begin with one conversation using the Coding profile and **Supervised** permission, then add what you need.
 
 ## The everyday loop
 
 <Steps>
 
-1. **Describe the outcome.** Use the [composer](/guides/composer/) to add a prompt, project paths, or an image.
-2. **Keep the authority appropriate.** Choose [a Coding or Planning profile and a permission level](/guides/agent-controls/).
-3. **Stay involved.** Read the transcript and resolve [approvals, questions, and plan reviews](/guides/reviews/).
-4. **Inspect the result.** [Edit or review files](/guides/files-context-notes/), inspect the Git diff, and run focused validation.
-5. **Continue or branch.** Steer active work, return to an earlier history point, or start another conversation without losing the original record.
+1. **Describe the outcome.** Use the [composer](/guides/composer/) to write a prompt, reference files, or add an image.
+2. **Set how much the agent can do.** [Choose a profile and a permission level](/guides/agent-controls/).
+3. **Stay involved.** Read the transcript and answer [approvals, questions, and plans](/guides/reviews/).
+4. **Check the result.** [Review files](/guides/files-context-notes/), then look at the [Git changes](/guides/git/) and run your checks.
+5. **Continue or branch.** Steer the agent, go back to an earlier point, or start a new conversation. The original stays intact.
 
 </Steps>
 
@@ -25,43 +25,43 @@ You do not need to learn every panel before starting. Begin with one conversatio
 
 <CardGrid>
   <LinkCard
-    title="Learn the interface"
-    description="Understand projects, dock panels, center tabs, compact layouts, and the built-in tour."
+    title="Find your way around"
+    description="Projects, panels, tabs, and the phone layout."
     href="/guides/workbench/"
   />
   <LinkCard
-    title="Work with conversations"
-    description="Create and search conversations, read transcripts, branch history, and recover interrupted work."
+    title="Find and organize conversations"
+    description="Search, group, and title your conversations."
     href="/guides/conversations/"
   />
   <LinkCard
-    title="Review code and files"
-    description="Edit small text files, inspect context, use notes, and review Git or pull requests."
-    href="/guides/files-context-notes/"
+    title="Notifications and activity"
+    description="See what needs you, and mute what doesn't."
+    href="/guides/notifications/"
+  />
+  <LinkCard
+    title="Review and ship"
+    description="Git changes and live pull requests."
+    href="/guides/git/"
   />
   <LinkCard
     title="Delegate work"
-    description="Delegate research and implementation to sub-agents and define your own profiles."
+    description="Hand research and implementation to sub-agents."
     href="/guides/agents-and-delegation/"
   />
   <LinkCard
-    title="Supervise long-running commands"
-    description="Save launch configurations for servers and watchers, and inspect asynchronous Bash commands."
+    title="Run servers and long commands"
+    description="Save launches and follow background commands."
     href="/guides/background-tasks/"
-  />
-  <LinkCard
-    title="Customize Nerve"
-    description="Configure models, tools, skills, suggestions, appearance, notifications, storage, and system behavior."
-    href="/guides/settings/"
   />
 </CardGrid>
 
-## Keep these concepts separate
+## Terms you'll see
 
-- An **agent** performs work in a conversation. A lead can delegate to sub-agents created from profiles such as Explore and Developer.
-- A **to-do** is the agent's structured checklist for its current work.
-- A **launch configuration** saves how to run a server or watcher; its runs have separate status and logs.
-- **Async Bash** runs a conversation-owned shell command in the background and notifies the agent when it exits.
-- A **skill** supplies instructions. Enabling one does not grant extra tool permissions.
+- **Agent:** the model-driven worker in a conversation. It can hand work to **sub-agents** such as Explore and Developer.
+- **To-do:** the agent's checklist for its current work.
+- **Launch:** a saved command for a server or watcher, with its own status and logs.
+- **Background command:** a shell command the agent runs while you keep working.
+- **Skill:** extra instructions for the agent. Enabling a skill doesn't grant new permissions.
 
-If you have not installed Nerve or connected a provider yet, use the [guided quickstart](/start/) first.
+New here? Start with the [Get started](/start/) path.

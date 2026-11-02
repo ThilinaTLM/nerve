@@ -517,7 +517,10 @@ const repairReplacement = $derived(
     tone="warning"
     text={`${diagnostic.code}: ${diagnostic.path}${diagnostic.pointer}`}
   />{/each}
-<div class="flex items-center justify-between gap-2">
+<div
+  class="flex items-center justify-between gap-2"
+  data-tour-id="setup-agent-profiles"
+>
   <SearchInput
     bind:value={filter}
     placeholder="Search profiles"

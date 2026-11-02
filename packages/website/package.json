@@ -15,7 +15,7 @@
   "scripts": {
     "build": "astro build",
     "check": "node scripts/check-token-parity.mjs && node scripts/check-content.mjs && astro check",
-    "test": "node --test \"scripts/**/*.test.mjs\"",
+    "test": "tsx --test \"scripts/**/*.test.mjs\"",
     "dev": "astro dev --host 127.0.0.1",
     "screenshots": "node scripts/screenshots/run.mjs",
     "preview": "astro preview --host 127.0.0.1"
@@ -35,6 +35,7 @@
   "devDependencies": {
     "@astrojs/check": "0.9.10",
     "playwright": "1.62.1",
+    "tsx": "4.22.4",
     "typescript": "5.9.3"
   },
   "engines": {

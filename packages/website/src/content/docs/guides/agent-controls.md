@@ -1,45 +1,54 @@
 ---
-title: Control the agent
-description: Choose agent profiles, permissions, model, and thinking level.
+title: Choose a profile, model, and permissions
+description: Decide what role the agent plays, which model it uses, and how much it can do without asking.
 sidebar:
   order: 4
 ---
 
-## Agent profiles
+Pick a profile, a model, and a permission level to set how the agent works. You can change all of them in the middle of a conversation.
 
-Choose a lead/both profile in the composer or use `/profile <name>`. `/plan` selects Planning. Agents cannot switch their own profiles.
+## Choose a profile
 
-**Coding** contributes instructions and otherwise uses settings. **Planning** points to the planning skill and requires the Planning rule set and `plan_present` enablement. Leaving Planning reveals underlying choices; Coding does not grant write permission. Research stays read-only outside plan storage; planning restrictions are guardrails, not an operating-system sandbox.
+A profile sets the agent's instructions and can also set its model, thinking level, permissions, tools, and skills. Nerve includes two for the main agent:
 
-The agent researches, resolves requirement-dependent decisions with `ask_user`, writes a complete plan in plan storage, and submits it with `plan_present`. **Accept & Implement** switches to `defaultAgentProfile` (project → user → built-in Coding). Rejection leaves the profile unchanged and the agent idle until your next prompt.
+- **Coding** carries out the work.
+- **Planning** researches, asks you questions, and presents a plan for you to review. It can't change your project.
 
-Profiles offer **Use settings**, **Recommend**, and **Require**. Conversation choices beat recommendations; requirements temporarily disable controls without overwriting underlying choices. Reset removes an editable override and inherits. The applied profile is a snapshot: catalog edits/deletion do not change it. Use **Apply updated profile** to reapply explicitly. Source labels show what controls each value. See [Agent profiles](/reference/agent-profiles/).
+You can add your own profiles, and set them for all projects or just one.
 
-## Permission levels
+To switch, use the profile control in the composer, type `/plan` or `/profile <name>`, or press `Shift+Tab` to cycle. The agent can't switch its own profile.
 
-- **Read-only:** permits local inspection and interaction, plus enabled sub-agent prompting and stopping. It denies other capabilities unless an applicable override changes that decision. It is not a restriction on a child's profile-selected authority.
-- **Supervised:** automatically allows safe local reads and audited read-only integrations, then asks for commands, writes, opaque execution, and network access unless a matching permission rule allows the request.
-- **Autonomous:** executes allowed risks without normal approval pauses, while explicit block exceptions and hard guardrails still apply.
+Accepting a plan switches to your default profile for the implementation, and rejecting it keeps Planning. See [Approvals, questions, and plans](/guides/reviews/#review-a-plan).
 
-Policy is rechecked at execution admission, including after approval waits. Invalid security configuration waits **configuration-blocked** with **Retry/Cancel**; repair the cause and Retry to re-read it. Approval cannot bypass the block.
+A profile can **recommend** or **require** a setting. A conversation choice beats a recommendation, and a requirement locks the control until you leave that profile. If you change a profile later, a conversation keeps the version it started with until you choose **Apply updated profile**. Details are in [Agent profiles](/reference/agent-profiles/).
 
-## Model and thinking
+## Choose a permission level
 
-Select an authenticated model and one of its declared thinking levels. Nerve knows seven possible levels from `off` through `max`, but the picker only presents supported choices and runtime resolution can clamp a stale request.
+| Level          | The agent can                                                        | Use it for                                     |
+| -------------- | -------------------------------------------------------------------- | ---------------------------------------------- |
+| **Read-only**  | Look around, and prompt or stop sub-agents. Nothing else.            | Investigating a codebase.                      |
+| **Supervised** | Read freely. It asks before commands, file changes, and network use. | Most work, and your first runs.                |
+| **Autonomous** | Act without asking, except where you've blocked something.           | Bounded tasks in a repository you can recover. |
 
-Changing model, thinking, profile, or permission on an active conversation does not recreate it. Changes made during a run apply to subsequent work—especially the next provider request—not the request already streaming.
+Permissions are checked again right before an action runs, including after you approve it. If your permission configuration is invalid, the action waits as **configuration-blocked** with **Retry** and **Cancel**. Fix the cause, then choose Retry.
 
-## Delegation and authority
+## Choose a model and thinking level
 
-The built-in Read only rule set explicitly permits `subagent_prompt` and `subagent_stop` when delegation is enabled. A sub-agent's profile selects its own rule set, either read-only or autonomous; the lead's selection is not inherited as a ceiling. Autonomous sub-agents (such as Developer) work in the shared worktree without asking you, so enabling them grants more authority even if the lead is read-only. Disable autonomous profiles when you want delegation to remain inspection-only. See [Agents and delegation](/guides/agents-and-delegation/) before assigning overlapping implementation work.
+Pick any model you've connected, then one of the thinking levels it supports. Changing the model, thinking level, profile, or permission doesn't restart the conversation. During a run, a change applies from the next model request.
 
-## Choosing a baseline
+## Sub-agents have their own permissions
 
-Use read-only for local investigation, with delegation disabled or limited to read-only profiles. Use supervised for unfamiliar work and most first runs. Reserve autonomous—and autonomous sub-agents—for bounded tasks in a trusted, recoverable workspace.
+A sub-agent's profile sets its own permission level, and it doesn't inherit the main agent's. Developer works on its own without asking you, so enabling it gives more authority even when the main agent is read-only. To keep delegation inspection-only, turn off autonomous profiles. See [Sub-agents](/guides/agents-and-delegation/).
+
+## Good to know
+
+- Planning's restrictions are guardrails, not an operating-system sandbox.
+- Cycle shortcuts for model, permission, and thinking are in [Keyboard shortcuts](/reference/shortcuts/).
+- Set defaults for new conversations in **Settings**, or use the **Configure agent defaults** guide in Discover.
 
 ## Next steps
 
 - [Approvals, questions, and plans](/guides/reviews/)
-- [Agents and delegation](/guides/agents-and-delegation/)
+- [Sub-agents](/guides/agents-and-delegation/)
 - [Security model](/operations/security/)
 - [Tool reference](/reference/tools/)

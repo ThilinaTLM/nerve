@@ -1,0 +1,65 @@
+---
+title: Notifications and activity
+description: See what needs you, follow running work, and mute noise without missing results.
+sidebar:
+  order: 8
+---
+
+import DocsScreenshot from "../../../components/docs/DocsScreenshot.astro";
+import notificationsDark from "../../../assets/screenshots/desktop/notifications-dark.webp";
+import notificationsLight from "../../../assets/screenshots/desktop/notifications-light.webp";
+
+Nerve tells you when an agent needs a decision or finishes, and stays quiet while you're already watching.
+
+## Check the bell
+
+The bell in the header opens **Notifications**. Entries are grouped as **Needs attention**, **Running**, and **Finished**, with a **System** section for notices about Nerve itself. Each entry has the actions that make sense for it, such as opening the conversation, stopping or retrying an operation, or deleting it. Use the search box to filter, and **Clear finished** to tidy up settled entries. Clearing doesn't undo what they did.
+
+The bell badge counts conversations waiting for you. A red dot means a failure or a notice you haven't looked at.
+
+<DocsScreenshot
+  light={notificationsLight}
+  dark={notificationsDark}
+  alt="Nerve's header Notifications popover showing one conversation that needs attention and an Open action"
+  caption="The bell lists a conversation waiting for you with an Open action, so you can go straight back to the decision."
+  widths={[480, 768, 1024, 1440]}
+  sizes="(min-width: 72rem) 48rem, calc(100vw - 3rem)"
+/>
+
+## How Nerve decides how to tell you
+
+- **You're watching that conversation:** nothing pops up.
+- **You're elsewhere in Nerve:** a toast appears.
+- **You're away** (the window is unfocused, or you haven't touched the keyboard or mouse for 60 seconds): you get an operating-system notification.
+
+## Spot unseen results
+
+Conversations that finished or failed while you weren't looking show an indicator until you open them, and the bell dot stays on for an unseen failure. On the desktop app, the app icon shows a badge too.
+
+## Mute notifications for an hour
+
+Open the bell and choose **Mute 1 h** to silence sounds, toasts, and system notifications in this window for an hour. Entries still collect in the list. Choose **Unmute** to turn them back on early.
+
+Adjust notification and sound preferences in **Settings → Notifications**.
+
+## Fix problems Nerve reports
+
+The **System** section is where Nerve reports problems it recovered from:
+
+- After an upgrade, a broken conversation or settings file is set aside so the rest of Nerve keeps working. A one-time upgrade report appears here.
+- Conversations Nerve can't read are listed with **Delete** (or **Delete all**) so you can clear them.
+- A corrupted project file offers **Open file**, **Reload**, and a confirmed **Reset**. Until you resolve it, Nerve uses safe defaults and won't overwrite the file.
+- A project file written by a newer version of Nerve is read-only.
+- Old project file names offer a confirmed **Remove old files**.
+
+## Good to know
+
+- Background Git operations report progress and failures here, with Stop or Retry when they apply.
+- This bell is separate from the **Agents** and **Commands** island above the composer, which tracks the current conversation's sub-agents and background commands.
+- Mute applies to this window, not to your other devices.
+
+## Next steps
+
+- [Find and organize conversations](/guides/conversations/)
+- [Themes and appearance](/guides/personalize/)
+- [Back up, move, and upgrade data](/operations/storage-migration/)

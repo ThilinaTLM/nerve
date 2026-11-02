@@ -7,6 +7,89 @@ import type { DiscoverNewsEntry } from "./entries.js";
  */
 export const discoverNewsCatalog: readonly DiscoverNewsEntry[] = [
   {
+    id: "live-pull-requests",
+    version: 1,
+    releasedIn: "next",
+    featured: true,
+    artwork: "pull-requests",
+    title: "Pull requests that stay live",
+    summary:
+      "Checks, reviews, and merge state update on their own, with linked conversations in the details pane.",
+    details: [
+      "Open a pull request to see a header that shows its merge state, plus activity, commits grouped by day, live checks, and unified file diffs.",
+      "Linked conversations list the work in Nerve that mentions the pull request, so you can jump back to the discussion behind a change.",
+      "Nerve refreshes pull requests after pushes, merges, and when an agent opens one. Filter the list by All, Mine, or To review.",
+    ],
+    action: {
+      kind: "guide",
+      guideId: "workbench",
+      label: "Tour the Workbench",
+    },
+  },
+  {
+    id: "away-notifications",
+    version: 1,
+    releasedIn: "next",
+    artwork: "notifications",
+    title: "Notifications that know when you're away",
+    summary:
+      "Nothing interrupts a conversation you're watching. Toasts and system pop-ups wait until you're elsewhere.",
+    action: {
+      kind: "settings",
+      pageId: "notifications",
+      sectionId: "general",
+      label: "Notification settings",
+    },
+  },
+  {
+    id: "folder-browser",
+    version: 1,
+    releasedIn: "next",
+    artwork: "projects",
+    title: "Open any folder, or just drop it in",
+    summary:
+      "Browse to a project with the new folder browser, or drag a folder onto the title bar to open it.",
+  },
+  {
+    id: "quote-selection",
+    version: 1,
+    releasedIn: "next",
+    artwork: "quote",
+    title: "Quote exactly what you need",
+    summary:
+      "Select text in a reply, then Quote it into the composer. Lists, code, and tables keep their formatting.",
+  },
+  {
+    id: "new-themes",
+    version: 1,
+    releasedIn: "next",
+    artwork: "themes",
+    title: "New themes: Graphite and Melange",
+    summary:
+      "Pick Nerve, Melange, or Graphite in one Theme picker. Each browser or window remembers its own.",
+    action: {
+      kind: "settings",
+      pageId: "workbench",
+      sectionId: "appearance",
+      label: "Choose a theme",
+    },
+  },
+  {
+    id: "profiles-replace-modes",
+    version: 1,
+    releasedIn: "next",
+    artwork: "profiles",
+    title: "Agent profiles replace modes",
+    summary:
+      "Pick Coding, Planning, or your own profile, each with its own instructions, model, and permissions.",
+    action: {
+      kind: "settings",
+      pageId: "agents",
+      sectionId: "agents",
+      label: "Manage profiles",
+    },
+  },
+  {
     id: "connected-workbench",
     version: 1,
     releasedIn: "0.37.0",
@@ -18,7 +101,7 @@ export const discoverNewsCatalog: readonly DiscoverNewsEntry[] = [
     details: [
       "Git and Pull requests share a repository list with branch and status context. Sync from a repository row, see the current branch's PR beside your changes, and filter PRs by All, Mine, or To review.",
       "Open the bell in the header for Activity: items needing you come first, followed by running and finished work. Background Git operations report progress and failures there while you keep working.",
-      "The prompt composer brings attachments, mode, model, permissions, capabilities, context, and voice into one toolbar. Grouped suggestions insert references as chips, and dictation appears at the caret.",
+      "The prompt composer brings attachments, profile, model, permissions, capabilities, context, and voice into one toolbar. Grouped suggestions insert references as chips, and dictation appears at the caret.",
       "Agent questions (ask_user) can collect several answers in one card. Choose an option or add detail with completions, images, and voice; drafts survive reloads and submitted answers stay visible.",
       "Tool cards keep stable sections and progress chips from streaming arguments through completion. Reserved result slots and in-place updates reduce layout jumps as output arrives.",
       "Under the hood, Rust-native completion indexing joins native Git reads, file watching, and managed processes. Startup and storage accounting have also been streamlined; Git mutations still use the Git CLI.",
@@ -28,110 +111,5 @@ export const discoverNewsCatalog: readonly DiscoverNewsEntry[] = [
       guideId: "workbench",
       label: "Tour the Workbench",
     },
-  },
-  {
-    id: "unified-async-work",
-    version: 1,
-    releasedIn: "0.35.0",
-    featured: true,
-    artwork: "workbench",
-    title: "Keep delegated work in view",
-    summary:
-      "Profile-based sub-agents and background commands share a transcript activity island.",
-    details: [
-      "In Settings → Sub-agents → Delegation, turn on Let the lead delegate, or enable Sub-agents in Capabilities beside the composer for this conversation. Profiles configure instructions, model, thinking, permissions, tools, and skills for new teammates.",
-      "The lead assigns work asynchronously with subagent_prompt. Reusing a teammate's name queues a follow-up in its existing context; completion notices wake the lead without polling.",
-      "Teammates share the project worktree, not the lead's conversation. Give each assignment relevant paths, findings, and constraints, and separate editing scopes to avoid conflicts.",
-      "Open Agents in the transcript activity island to inspect teammate conversations, or Commands to open background command output. Back to lead returns from a teammate; Jump to latest returns to the newest transcript content.",
-      "Use launch for saved dev-server commands and bash for ad hoc commands. Background bash runs notify the agent on exit; async_bash can list runs, read logs, or stop them.",
-    ],
-    action: {
-      kind: "settings",
-      pageId: "sub-agents",
-      sectionId: "sub-agents",
-      label: "Configure Sub-agents",
-    },
-  },
-  {
-    id: "launch-configurations",
-    version: 1,
-    releasedIn: "0.35.0",
-    title: "Launch configs replace task definitions",
-    summary:
-      "Save project commands in Launches, then start, restart, stop, or inspect their output.",
-    action: {
-      kind: "guide",
-      guideId: "workbench",
-      label: "Tour the Workbench",
-    },
-  },
-  {
-    id: "async-subagents",
-    version: 2,
-    releasedIn: "0.32.0",
-    featured: true,
-    artwork: "workbench",
-    title: "Delegate coding work to persistent teammates",
-    summary:
-      "Async Subagents let the lead assign autonomous implementation work while it continues with its own tasks.",
-    details: [
-      "Async delegation was introduced in 0.32.0. This overview reflects the current controls; see Keep delegated work in view for the profile-based workflow.",
-      "Enable Let the lead delegate under Settings → Sub-agents → Delegation, or use Capabilities → Sub-agents beside the composer for this conversation.",
-      "Named teammates share the project worktree and retain their own context for follow-up assignments. Open Agents in the transcript activity island to inspect their conversations.",
-      "Teammates cannot see the lead's conversation, so assignments should include relevant findings, paths, and constraints. Completion notices report back to the lead without repeated status checks.",
-    ],
-    action: {
-      kind: "settings",
-      pageId: "sub-agents",
-      sectionId: "sub-agents",
-      label: "Configure Sub-agents",
-    },
-  },
-  {
-    id: "composer-power-tools",
-    version: 2,
-    releasedIn: "0.31.0",
-    featured: true,
-    artwork: "workbench",
-    title: "A faster, more connected prompt composer",
-    summary:
-      "Reference live work, use editing actions, and move through composer settings without leaving the keyboard.",
-    details: [
-      "Type @launch: to find a background launch and insert its launch ID, or @pr: to find a pull request and insert its GitHub URL.",
-      "Right-click in the editor for Undo, Redo, Cut, Copy, Paste, and Select all.",
-      "Use Shift+Tab for Coding or Planning, Alt+M for models, and Alt+T for reasoning levels. Ctrl or Cmd+N now works while typing.",
-      "Open Capabilities beside the composer to quickly enable or disable capabilities for this conversation. Changes apply to the next run.",
-      "Slash commands have distinct icons, and /new starts a fresh conversation.",
-    ],
-    action: {
-      kind: "settings",
-      pageId: "shortcuts",
-      sectionId: "shortcuts",
-      label: "View shortcuts",
-    },
-  },
-  {
-    id: "conversation-inbox",
-    version: 1,
-    releasedIn: "0.29.0",
-    featured: true,
-    artwork: "conversations",
-    title: "Conversations work like a focused inbox",
-    summary:
-      "Pinned, Today, and Yesterday groups keep active work in front of you.",
-    details: [
-      "Mark a finished conversation complete to move it out of the active list.",
-      "Use the conversations settings menu to tune grouping or clean up old threads.",
-    ],
-  },
-  {
-    id: "workbench-tour",
-    version: 1,
-    releasedIn: "0.29.0",
-    artwork: "workbench",
-    title: "Guided tour of the Workbench",
-    summary:
-      "A short walkthrough of conversations, composer controls, panels, Git, and launches.",
-    action: { kind: "guide", guideId: "workbench", label: "Start tour" },
   },
 ];

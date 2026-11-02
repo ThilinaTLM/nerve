@@ -94,7 +94,7 @@ export const guideCatalog: readonly GuideDefinition[] = [
     version: 1,
     title: "Configure agent defaults",
     description:
-      "Choose the mode, permissions, model, and thinking defaults used by new agents.",
+      "Choose the profile, permissions, model, and thinking defaults used by new agents.",
     category: "setup",
     priority: "highly-recommended",
     lifecycle: "available",

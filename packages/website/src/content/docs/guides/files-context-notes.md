@@ -1,34 +1,42 @@
 ---
-title: Edit files, inspect context, and keep notes
-description: Review and edit project files, monitor agents and context, and keep project scratch notes.
+title: Files, context, and notes
+description: Read and edit project files, check what's in the model's context, and keep scratch notes.
 sidebar:
-  order: 8
+  order: 9
 ---
 
-## File viewing and editing
+Open files from the Files panel, a tool card, an `@` reference, Git changes, or a pull request. Use context and notes to keep a long task on track.
 
-Open files from the Files panel, tool cards, project references, Git changes, or pull request files. Nerve displays text, images, and Markdown, can target a line, toggle wrapping, highlight selection matches, and switch Markdown or Mermaid render modes.
+## View and edit files
 
-Small regular text files inside the project are directly editable. Type in the text view and save with `Ctrl/Cmd+S`. A modified indicator remains until the draft is saved, and closing one or more modified file tabs asks whether to save, discard, or cancel. Saving is atomic and revision-checked: if another program changed the file after Nerve loaded it, Nerve preserves your draft and reports a conflict instead of overwriting the newer content.
+Nerve shows text, images, and Markdown. You can jump to a line, wrap long lines, and switch Markdown and Mermaid diagrams between rendered and source views.
 
-Editing is unavailable for files outside the project, symbolic links, binary files, and text files larger than 1 MiB. Large files are bounded and show truncation state; unsupported binary content cannot be rendered. Use an external editor or approved agent tools when the built-in editor is not suitable.
+Small text files inside the project can be edited in place. Type your change and save with `Mod+S`. A marker shows unsaved edits, and closing a modified tab asks whether to save or discard. If another program changed the file after you opened it, Nerve keeps your draft and reports a conflict instead of overwriting the newer version.
 
-## Context and active agents
+For larger changes or a full IDE, open the project in an [external editor](/integrations/external-editors/).
 
-The context popover beside the composer shows context usage and the conversation's token totals, with a button to compact the conversation. Three icon buttons in its header hold the secondary details: hover the clipboard to see session details (project, directory, conversation ID) and click it to copy them, use the gauge to choose this conversation's compaction profile (Aggressive, Balanced, or Conservative; it inherits the project or user setting until you pick one, and the reset icon returns to it), and hover the document icon to read the conversation's custom instructions or click it to edit them. Sub-agents appear under **Agents** in the activity island above the composer; see [Agents and delegation](/guides/agents-and-delegation/).
+## Check the context
 
-The composer meter shows current usage as a fraction of the model's declared context window when usage information is available. It can display `?` before the provider reports enough information. Automatic compaction creates an explicit transcript event. The full stored history graph remains available even when the active model context contains a summary.
+The context popover beside the composer shows how full the model's context is and the conversation's token totals. Select the context indicator to open it. From the popover you can:
 
-## Notes
+- compact the conversation;
+- choose the conversation's compaction preset (Aggressive, Balanced, or Conservative);
+- copy the session details, such as the project, folder, and conversation ID;
+- read or edit the conversation's custom instructions.
 
-Notes are project-scoped scratch records in Nerve state. Create and delete them from the Notes dock panel. They are useful for temporary observations that should not become repository instructions or source files.
+The meter can show `?` before the provider has reported usage. See [History, branches, and recovery](/guides/history-and-recovery/) for how compaction works.
 
-For durable agent guidance, use `AGENTS.md`, `SYSTEM.md`, or a skill in the documented resource locations. Notes are not automatically loaded as agent instructions.
+## Keep scratch notes
+
+**Scratch Notes** is a panel of notes for the current project. Create and delete notes there for observations that shouldn't become repository files. Agents don't read notes automatically. For lasting guidance, use `AGENTS.md`, `SYSTEM.md`, or a [skill](/guides/skills-and-resources/).
+
+## Good to know
+
+- You can't edit files outside the project, symbolic links, binary files, or text files over 1 MiB.
+- Large files may be shortened in the viewer, with a note when they are.
 
 ## Next steps
 
-- [Agents and delegation](/guides/agents-and-delegation/)
-- [Skills and resources](/guides/skills-and-resources/)
-- [Storage and migration](/operations/storage-migration/)
-
-After compaction, context usage is unknown until the next successful model response. Checkpoint “after” and savings figures are estimates of summary plus retained messages, not exact full-request usage. Signed reasoning is included conservatively in retention budgets; a complete newest tool group may exceed the requested retention target. Failed summary generation leaves the existing context unchanged.
+- [Sub-agents](/guides/agents-and-delegation/)
+- [Skills and project resources](/guides/skills-and-resources/)
+- [Git changes](/guides/git/)

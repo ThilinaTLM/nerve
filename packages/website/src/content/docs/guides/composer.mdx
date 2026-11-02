@@ -1,0 +1,97 @@
+---
+title: Write prompts
+description: Send and steer prompts, reference files, quote replies, and control tools from the composer.
+sidebar:
+  order: 2
+---
+
+import DocsScreenshot from "../../../components/docs/DocsScreenshot.astro";
+import quoteDark from "../../../assets/screenshots/desktop/quote-dark.webp";
+import quoteLight from "../../../assets/screenshots/desktop/quote-light.webp";
+import composerSheetDark from "../../../assets/screenshots/mobile/composer-sheet-dark.webp";
+import composerSheetLight from "../../../assets/screenshots/mobile/composer-sheet-light.webp";
+
+The composer is where you send prompts, steer the agent, and set the model, profile, and permissions for the conversation. Everything else is a click or a keystroke away.
+
+## Send, steer, and stop
+
+Press `Enter` or `Mod+Enter` to send. If the agent is already working, your prompt is queued as a steering message and shows in the transcript. You can discard a queued prompt, edit it with **Cancel & Edit**, or choose **Force Push** to interrupt the current step and deliver it now. Press the stop button (or `Mod+.`) to stop the run.
+
+## Run a command
+
+Type `/` to see the commands. None of them sends a prompt.
+
+| Command           | What it does                        |
+| ----------------- | ----------------------------------- |
+| `/plan`           | Switch to the Planning profile.     |
+| `/profile <name>` | Switch to another profile.          |
+| `/compact`        | Compact the conversation's context. |
+| `/abort`          | Stop the current run.               |
+| `/new`            | Start a new conversation.           |
+
+## Reference files and more
+
+Type `@` to search the project. A bare `@` shows recent items. Narrow the search with a prefix:
+
+| Prefix     | Finds             |
+| ---------- | ----------------- |
+| `@file:`   | Files and folders |
+| `@pr:`     | Pull requests     |
+| `@issue:`  | Issues            |
+| `@skill:`  | Skills            |
+| `@tool:`   | Tools             |
+| `@agent:`  | Agent profiles    |
+| `@launch:` | Launches          |
+
+Pick a result with the arrow keys and `Enter`. Results from GitHub can load a moment after local ones. Referencing a skill, tool, or profile turns it on for this conversation, but never bypasses permissions.
+
+## Quote a reply
+
+Select text inside an assistant message, and a small toolbar appears with **Quote** and **Quote & dictate**. The second one only shows where voice is available. The quote keeps its formatting, including numbered lists, code blocks, tables, and links, and shows as a styled block in the composer. Press `Backspace` at the start of a quote to turn it back into plain text.
+
+<DocsScreenshot
+  light={quoteLight}
+  dark={quoteDark}
+  alt="An assistant reply with a numbered list, a table, and a code block, with one list item selected and the floating Quote toolbar above it"
+  caption="The toolbar appears only over text in an assistant reply. Quote copies the selection into the composer with its list numbering and formatting intact."
+  widths={[480, 768, 1024, 1440]}
+  sizes="(min-width: 72rem) 48rem, calc(100vw - 3rem)"
+/>
+
+## Drop files and folders
+
+On the desktop app, drag files or folders onto the composer to insert their paths. Paths inside the project are relative to it, and paths outside keep their full path. Nerve doesn't copy or upload anything; the agent reads the files where they are, within its permissions. In a browser or installed web app, use `@` instead.
+
+## Choose tools, skills, and sub-agents
+
+The **Capabilities** control beside the composer has **Tools**, **Skills**, and **Sub-agents** tabs. Toggle items for this conversation without changing your defaults. A dot marks a conversation with its own choices, and the reset button returns to your defaults.
+
+On the **Sub-agents** tab, the **Delegation** switch controls whether the agent can hand work to teammates, and each profile has its own switch. Changes apply to sub-agents started afterwards. See [Sub-agents](/guides/agents-and-delegation/).
+
+## On a phone or narrow window
+
+The toolbar shrinks to the model, a permission icon when it isn't the default, conversation settings (⚙), to-dos, context, the microphone, and send or stop. Profile, permissions, and capabilities are in ⚙. On phones, these open as bottom sheets you can pull down to dismiss.
+
+<DocsScreenshot
+  light={composerSheetLight}
+  dark={composerSheetDark}
+  alt="A phone conversation with the Conversation settings bottom sheet open, listing Agent profile, Permissions, Tools, Skills, and Sub-agents"
+  caption="On a phone, the controls that don't fit in the toolbar live in one Conversation settings sheet. Pull the handle down to dismiss it."
+  widths={[390, 585, 780, 1170]}
+  sizes="min(24rem, calc(100vw - 3rem))"
+  variant="phone"
+/>
+
+## Good to know
+
+- A pending approval, question, or plan review disables the composer until you resolve it. See [Approvals, questions, and plans](/guides/reviews/).
+- The context indicator shows how full the model's context is. It can read `?` until the first response. Select it to compact.
+- Suggestion chips above the editor insert common follow-ups, such as committing changes. See [Prompt suggestions](/guides/prompt-suggestions/).
+- Dropped items are path mentions, not uploads. Pasted images are separate; see [Images and voice](/guides/images-and-voice/).
+- Keyboard shortcuts for profile, model, permission, and thinking are listed in [Keyboard shortcuts](/reference/shortcuts/).
+
+## Next steps
+
+- [Images and voice](/guides/images-and-voice/)
+- [Choose a profile, model, and permissions](/guides/agent-controls/)
+- [Sub-agents](/guides/agents-and-delegation/)

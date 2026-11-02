@@ -332,7 +332,7 @@ function reset(key: Key) {
         >
       {/snippet}
       {#snippet control()}
-        <div class="w-full">
+        <div class="w-full" data-tour-id="setup-agent-default-permission">
           <SelectField
             disabled={projectState.saving}
             items={ruleSetOptions}
