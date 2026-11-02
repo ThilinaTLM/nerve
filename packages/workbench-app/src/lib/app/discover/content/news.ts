@@ -9,7 +9,7 @@ export const discoverNewsCatalog: readonly DiscoverNewsEntry[] = [
   {
     id: "repo-aware-suggestions",
     version: 1,
-    releasedIn: "next",
+    releasedIn: "0.39.0",
     featured: true,
     artwork: "suggestions",
     title: "The next step, one click away",
@@ -31,7 +31,7 @@ export const discoverNewsCatalog: readonly DiscoverNewsEntry[] = [
   {
     id: "engineering-docs-skill",
     version: 1,
-    releasedIn: "next",
+    releasedIn: "0.39.0",
     artwork: "engineering-docs",
     title: "Built-in skill: engineering docs",
     summary:
@@ -46,7 +46,7 @@ export const discoverNewsCatalog: readonly DiscoverNewsEntry[] = [
   {
     id: "native-phone-shell",
     version: 1,
-    releasedIn: "next",
+    releasedIn: "0.39.0",
     artwork: "mobile",
     title: "Nerve feels at home on your phone",
     summary:
