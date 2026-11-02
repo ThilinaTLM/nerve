@@ -109,7 +109,7 @@ export function checkUiStyles({ files: trackedFiles, read }, fail) {
    */
   function checkAppColours() {
     const illustrations =
-      /\/(?:DiscoverNewsArtwork|ThemePreviewPicker|SettingsPreviewCards)\.svelte$/;
+      /\/(?:ThemePreviewPicker|SettingsPreviewCards)\.svelte$/;
     for (const file of trackedFiles) {
       if (
         !/packages\/workbench-app\/src\/lib\/.*\.svelte$/.test(file) ||

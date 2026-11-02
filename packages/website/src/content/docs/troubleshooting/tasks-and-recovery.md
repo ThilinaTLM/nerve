@@ -29,7 +29,7 @@ Launch start reports the listener's PID and process name. Agents never terminate
 
 ## Quitting Nerve
 
-Quitting the desktop application terminates active local process trees before the owned daemon shuts down. Closing a window to the system tray does not quit Nerve or stop processes.
+Closing the window quits Nerve by default, which stops active local launches and commands before the owned daemon shuts down. If you turned on **Close to system tray** (**Settings → Workbench → Desktop**), closing the window only hides Nerve and processes keep running until you quit from the tray.
 
 ## Agent run recovery is separate
 

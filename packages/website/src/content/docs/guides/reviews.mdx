@@ -1,6 +1,6 @@
 ---
-title: Review approvals, questions, and plans
-description: Resolve human-in-the-loop decisions in the transcript.
+title: Approvals, questions, and plans
+description: Answer the decisions the agent brings to you, right where they come up.
 sidebar:
   order: 5
 ---
@@ -9,50 +9,49 @@ import DocsScreenshot from "../../../components/docs/DocsScreenshot.astro";
 import askUserDark from "../../../assets/screenshots/desktop/ask-user-dark.webp";
 import askUserLight from "../../../assets/screenshots/desktop/ask-user-light.webp";
 
-Nerve places review gates beside the work that caused them. While one is pending, the normal composer is disabled so a new prompt cannot bypass the decision.
+When the agent needs you, it shows a card in the transcript beside the work that caused it. The composer stays disabled until you answer, so a new prompt can't skip the decision.
 
-## Tool approvals
+## Approve an action
 
-In supervised mode, non-read actions pause before execution. Review the tool name, arguments, risk, workspace target, and any preview. Approve only the request you understand. A denied or failed action remains visible in the transcript.
+With Supervised permission, the agent pauses before commands, file changes, and network use. Each card shows the tool, its arguments, and any preview. Approve only what you understand. A denied or failed action stays in the transcript.
 
-Supervised mode automatically allows safe reads. When Nerve can describe a bounded tool rule, **Always in project** saves it only for the current Nerve project; **Always for user** applies it to every project. User rules live in `<NERVE_HOME>/config/permissions.json`; project rules live in `.nerve/config/permissions.json`. Project allow rules require trust in the exact document content; external edits invalidate that trust. Review imported project rules before trusting them. Python and destructive, secret, or deployment calls offer approval once only. Autonomous permission skips normal approval for allowed risks but still honors explicit blocks; Read only denies disallowed tools rather than offering an approval override.
+To avoid repeated prompts for a rule Nerve can describe, choose **Always in project** or **Always for user**. Rules saved to a project need your trust before they apply, and editing the project's rules outside Nerve withdraws that trust. Python runs and destructive, secret, or deployment actions can only be approved once. Autonomous permission skips approvals for allowed actions but still honors blocks, and Read-only denies instead of asking.
 
-Approval does not freeze authority: current permissions are checked again before execution. If security configuration is invalid, the call waits **configuration-blocked** with **Retry/Cancel**, not Approve. Repair the reported source, then Retry to re-read it; Cancel settles the call without executing it.
+Permissions are checked again right before an action runs, so approving never overrides a block.
 
-## User questions
+## Answer a question
 
-An `ask_user` card can contain one or several questions, each with its own context, recommendation, options, and free-text answer. For a single question, choosing an option with no typed detail submits it immediately. For several questions, select answers and add detail before sending the set.
+A question card can hold one or several questions, each with options, a recommendation, and a free-text answer. With a single question, choosing an option sends it right away. With several, choose your answers, add detail where you want, then send them together.
 
-Use **Add detail** to expand an option question's editor, or answer in your own words. The reply editor shares the composer's reference completion, image paste, and desktop path drops. **Speak** or the microphone starts dictation; an inline recording/transcription chip marks where the text will arrive. Only one recording session can be active across question replies and the main composer.
-
-Draft answers survive switching conversations. Once resolved, the question and options remain visible with the chosen answer marked, rather than disappearing into a generic tool result. Dismiss when the question is no longer relevant.
+Use **Add detail** to explain an option, or reply in your own words. The reply box supports `@` references and image paste, and you can dictate with the microphone. Drafts survive switching conversations, and answered questions stay in the transcript with your choice marked. Dismiss a question that no longer matters.
 
 <DocsScreenshot
   light={askUserLight}
   dark={askUserDark}
   alt="A pending ask_user rollout question with three options, a recommended choice, a reply editor with a microphone, and the main composer disabled"
-  caption="What to notice: answer where the question was asked: compare the rollout options, add your own detail, or use the microphone. The main composer stays disabled while the agent waits for this decision."
+  caption="The question sits in the transcript with its options and your reply box. The main composer stays disabled until you answer."
   widths={[480, 768, 1024, 1440]}
   sizes="(min-width: 72rem) 48rem, calc(100vw - 3rem)"
 />
 
-## Plan review
+## Review a plan
 
-The Planning profile writes a complete plan in Nerve plan storage and submits it with `plan_present`, ending the turn for review. Approval switches to the default lead profile (`defaultAgentProfile`); rejection keeps Planning and ends the run until your next prompt. Acceptance options can:
+In the Planning profile, the agent finishes by presenting a plan for you to read. **Accept & Implement** starts the work in the same conversation. Its menu has more choices:
 
-- implement in the same conversation;
-- compact context, then implement;
-- optionally open a new implementation conversation and choose its model.
+- **Compact & implement** starts with a smaller context.
+- **Accept in new chat** begins the implementation in a fresh conversation.
+- **Choose model & …** lets you pick the model for any of these.
 
-The review previews the target profile requirements and constrains implementation model/thinking choices. If the target changes or becomes unavailable, refresh confirmation; incompatible choices do not silently substitute a model. Accepted choices and the new applied snapshot commit together, preserving other conversation overrides.
+Rejecting the plan keeps Planning, and the agent waits for your next prompt. Before accepting, check the files affected, how it will be validated, and any migration or security impact. A plan is a proposal, not finished work.
 
-Review file scope, validation, migration impact, and security assumptions before accepting. A plan is a proposal, not evidence that implementation is already complete.
+## Good to know
 
-## Transparency after resolution
-
-Tool arguments, decisions, results, and failures stay associated with the requesting work. Pending tool state is distinct from completed history; reconnect reconciles it with stored conversation events. Long output is bounded or stored as linked artifacts rather than silently injected in full.
+- If the profile you're switching to has requirements, the review shows them. Choices that don't fit are flagged rather than silently changed.
+- If a security configuration is invalid, the action waits as **configuration-blocked** with **Retry** and **Cancel**, not Approve.
+- Long output is stored as linked files rather than pasted into the conversation.
 
 ## Next steps
 
-- [History and recovery](/guides/history-and-recovery/)
+- [History, branches, and recovery](/guides/history-and-recovery/)
+- [Choose a profile, model, and permissions](/guides/agent-controls/)
 - [Tools and approval policy](/developers/tools-policy/)

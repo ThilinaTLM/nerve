@@ -1,0 +1,67 @@
+---
+title: Pull requests
+description: Follow pull requests as they update, review checks and diffs, and merge from the workbench.
+sidebar:
+  order: 11
+---
+
+import DocsScreenshot from "../../../components/docs/DocsScreenshot.astro";
+import pullRequestDark from "../../../assets/screenshots/desktop/pull-request-dark.webp";
+import pullRequestLight from "../../../assets/screenshots/desktop/pull-request-light.webp";
+
+Review, check, and merge GitHub pull requests without leaving the workbench. They stay up to date on their own, so you don't need to refresh.
+
+## Before you start
+
+You need a Git repository with a GitHub remote, and the `gh` command-line tool signed in with `gh auth login` for that host.
+
+## Find a pull request
+
+Open the **Pull Requests** panel. Pull requests are grouped by repository. Use **All**, **Mine**, or **To review** to narrow the list.
+
+## Review a pull request
+
+Open a pull request to see it in a tab. The header shows its merge state at a glance. Then switch between:
+
+- **Conversation:** the description, reviews, and comments, plus reviewers, labels, and **linked conversations**.
+- **Commits:** the commits, grouped by day.
+- **Checks:** live check results, which update as they run.
+- **Files changed:** each file's diff in the same view.
+
+<DocsScreenshot
+  light={pullRequestLight}
+  dark={pullRequestDark}
+  alt="Nerve pull request view showing the pull request summary, mergeability, checks, commits, and changed files beside the list of open pull requests"
+  caption="Merge state, checks, commits, and changed files sit in one tab beside the pull request list."
+  widths={[480, 768, 1024, 1440]}
+  sizes="(min-width: 72rem) 48rem, calc(100vw - 3rem)"
+/>
+
+## Keep up with changes
+
+Nerve refreshes pull requests in the background and again after pushes, merges, and when an agent creates one with `gh pr create`. If GitHub rate-limits requests, Nerve slows down and catches up later. If one section fails to load, it offers **Retry**, and the details appear in [Notifications](/guides/notifications/).
+
+## Jump to the conversation behind it
+
+When a conversation mentions a pull request or issue, Nerve links them. A pull request's **Conversation** tab lists the linked conversations, with their status, so you can open the one that produced the change.
+
+## Check out or merge
+
+- **Check out** switches your local repository to the pull request branch.
+- **Merge** merges it. Use the menu on the button to choose the merge method. Nerve asks you to confirm first.
+
+If requirements aren't met, the button explains what's blocking. When you're allowed to bypass them, the menu offers **Merge without waiting for requirements**.
+
+Both actions change local or remote state. Read the confirmation, your working-tree status, the base branch, and the check results first.
+
+## Good to know
+
+- A loading indicator doesn't mean a checkout or merge succeeded. Wait for the result.
+- To open a pull request, ask the agent, or use the suggestion chip that appears when a branch has changes to publish. See [Git changes](/guides/git/).
+- Refer to a pull request in a prompt with `@pr:`. See [Write prompts](/guides/composer/).
+
+## Next steps
+
+- [Git changes](/guides/git/)
+- [Notifications and activity](/guides/notifications/)
+- [GitHub troubleshooting](/troubleshooting/providers/)

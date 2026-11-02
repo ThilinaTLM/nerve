@@ -6,7 +6,14 @@ export type DiscoverAction =
   | { kind: "settings"; pageId: string; sectionId: string; label: string }
   | { kind: "external"; href: string; label: string };
 
-export type DiscoverArtwork = "conversations" | "discover" | "workbench";
+export type DiscoverArtwork =
+  | "workbench"
+  | "pull-requests"
+  | "notifications"
+  | "projects"
+  | "quote"
+  | "themes"
+  | "profiles";
 
 /**
  * A release-tagged announcement. `releasedIn` anchors the entry to an app

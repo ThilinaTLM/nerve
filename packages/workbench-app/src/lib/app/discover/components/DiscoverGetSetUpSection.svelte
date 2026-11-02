@@ -7,6 +7,7 @@ import { Badge } from "@nervekit/ui-kit/components/ui/badge";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
 import { Progress } from "@nervekit/ui-kit/components/ui/progress";
 import type { GuideId } from "../guides/catalog.js";
+import type { ResolvedGuide } from "../guides/catalog-policy.js";
 import type { DiscoverSetupSection } from "../policy.js";
 import DiscoverList from "./DiscoverList.svelte";
 import DiscoverListRow from "./DiscoverListRow.svelte";
@@ -15,11 +16,23 @@ import { guideIcons } from "./guide-icons.js";
 
 type Props = {
   setup: DiscoverSetupSection;
+  walkthroughs: ResolvedGuide[];
+  workbenchBlocked: boolean;
   onStartGuide: (id: GuideId) => void;
   onMarkCompleted: (id: GuideId) => void;
 };
 
-let { setup, onStartGuide, onMarkCompleted }: Props = $props();
+let {
+  setup,
+  walkthroughs,
+  workbenchBlocked,
+  onStartGuide,
+  onMarkCompleted,
+}: Props = $props();
+
+function blocked(guide: ResolvedGuide): boolean {
+  return guide.run?.kind === "workbench-tour" && workbenchBlocked;
+}
 
 let completedOpen = $state(false);
 
@@ -30,7 +43,7 @@ const progress = $derived(
 );
 </script>
 
-<DiscoverSection id="discover-setup-title" title="Set up Nerve">
+<DiscoverSection id="discover-setup-title" title="Get set up">
   {#snippet trailing()}
     <span class="text-ui text-muted-foreground">
       {setup.completedCount} of {setup.totalCount} done
@@ -83,6 +96,31 @@ const progress = $derived(
         Setup is complete.
       </p>
     {/if}
+
+    {#each walkthroughs as guide (guide.id)}
+      <DiscoverListRow
+        icon={guideIcons[guide.id]}
+        title={guide.title}
+        description={blocked(guide)
+          ? "Open a project before starting this tour."
+          : guide.description}
+      >
+        {#snippet meta()}
+          {#if guide.completed}
+            <CircleCheck class="size-3.5 text-success" aria-hidden="true" />
+          {/if}
+        {/snippet}
+        {#snippet actions()}
+          <Button
+            variant={guide.completed ? "ghost" : "outline"}
+            size="sm"
+            onclick={() => onStartGuide(guide.id)}
+          >
+            {guide.completed ? "Replay" : (guide.actionLabel ?? "Start")}
+          </Button>
+        {/snippet}
+      </DiscoverListRow>
+    {/each}
 
     {#if setup.completed.length > 0}
       <div class="px-1 py-1">

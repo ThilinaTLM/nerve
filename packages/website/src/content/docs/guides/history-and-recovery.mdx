@@ -1,6 +1,6 @@
 ---
-title: Use history, branches, and recovery
-description: Navigate prior entries, edit prompts, compact context, retry, and continue failures.
+title: History, branches, and recovery
+description: Go back to an earlier point, edit a prompt, manage context, and recover from failures.
 sidebar:
   order: 7
 ---
@@ -9,48 +9,49 @@ import DocsScreenshot from "../../../components/docs/DocsScreenshot.astro";
 import historyDark from "../../../assets/screenshots/desktop/history-dark.webp";
 import historyLight from "../../../assets/screenshots/desktop/history-light.webp";
 
-## Navigate and branch
+Every conversation keeps its full history. You can step back to an earlier point and try a different direction without losing what you had.
 
-Open the history graph to inspect the conversation tree, minimap, entry details, and segments. Navigating to an earlier entry makes that lineage active. New work from there creates a branch while the rest of the stored tree remains available.
+## Go back and branch
 
-Optional navigation summarization is extractive: Nerve assembles a local branch summary from discarded messages and writes a `branch_summary` system entry. It does not call a model for that operation.
+Open the history graph to see the conversation as a tree. Navigate to an earlier entry to continue from there. New work starts a branch, and the rest of the tree stays available.
 
 <DocsScreenshot
   light={historyLight}
   dark={historyDark}
   alt="The Nerve conversation history graph zoomed into a cluster where several branches diverge, with the selected entry shown in the details pane"
-  caption="What to notice: each fork is a point where work continued from an earlier entry. The original lineage is still there — nothing was overwritten to make room for the new branch."
+  caption="Each fork is a point where work continued from an earlier entry. The original lineage is still there."
   widths={[480, 768, 1024, 1440]}
   sizes="(min-width: 72rem) 48rem, calc(100vw - 3rem)"
 />
 
-## Edit a prior prompt
+## Edit an earlier prompt
 
-Choose edit on a user entry. Nerve navigates to its parent, copies the old text into the composer, and focuses the editor. Review and send manually; editing never resubmits automatically.
+Choose edit on one of your messages. Nerve goes back to just before it and puts the text in the composer. Change it and send it yourself, since Nerve never resends on its own.
 
-## Context compaction
+## Make room in the context
 
-Automatic compaction defaults to a balanced profile that triggers near 80% context use. Aggressive and conservative profiles trigger at 70% and 90%; Custom chooses a trigger from 60–90%. Every profile, manual compaction, and subagents retain a target of about 10,000 estimated tokens of recent messages, plus a summary of older history. Retention is not configurable and does not scale with the model's context window. Small or unknown context windows can reduce the target to preserve headroom for the summary. A run can automatically continue after compaction up to three times.
+Long conversations eventually fill the model's context. Nerve compacts them by summarizing older work and keeping recent messages.
 
-While compaction runs, its transcript card previews the checkpoint as it is generated. You can switch conversations and return without losing the active preview; sending is paused until the operation settles. Automatic compaction keeps the existing conversation timer running rather than starting a separate timer. A stopped or failed draft is not a saved checkpoint, and the existing context remains unchanged. In-progress previews are runtime state, not durable history across daemon restarts.
+- **Automatic:** compaction starts when context use reaches a threshold. Balanced (about 80%) is the default. Aggressive (70%) and Conservative (90%) are the other presets, and Custom lets you pick between 60% and 90%.
+- **Manual:** use `/compact` or the compact button in the context popover beside the composer.
 
-Compaction keeps recent messages intact, including provider reasoning state. Retention estimates account for signed reasoning using individual assistant output usage where available. Tool calls and their results stay together; one oversized newest group may exceed the retention target and is reported as a warning.
+While compaction runs, a card previews the summary and sending is paused. If the summary can't be made, the existing context stays unchanged. Your stored history is never deleted. The figures it reports are estimates.
 
-New checkpoints target about 3,000 estimated text tokens, with a ceiling of 4,000 or less for smaller model/reserve budgets. Repeated checkpoints consolidate current state rather than accumulate a history of completed steps. Invalid or truncated summaries get one repair attempt; if that fails, or a model is unavailable, compaction fails without replacing the current context. Manual compaction also rejects results that would not reduce estimated retained context.
+The context meter shows `?` right after compaction until the next response. Summaries lose detail, so keep lasting requirements in project instructions or repeat them.
 
-The “after” and “freed” figures are approximate conversation-content estimates, not full provider-request measurements. System instructions, tool schemas, images, and provider accounting can change the next measured total. The context meter is unknown immediately after compaction and becomes authoritative again after a fresh provider response. Stored transcript history is not deleted.
+## Recover from a failure
 
-Compaction summarizes earlier work. Important file-operation context is preserved where possible, but summaries are lossy; keep durable requirements in project resources or restate them.
+- **Retries:** Nerve retries temporary model errors automatically, up to three times.
+- **Restart:** after Nerve restarts, an unfinished run is marked interrupted and isn't silently rerun. Read the last messages and tool results, then send a follow-up prompt to continue.
+- **Background work:** commands the agent started don't survive a restart. Their status becomes `lost`. Saved launch definitions and their logs remain, so you can start them again.
 
-## Retry and continue
+## Good to know
 
-Host retries are enabled by default for retryable failures: three retries with a 2-second exponential base delay, for four total attempts. Provider-library request retries are a separate layer and should not be assumed to share the same classification.
-
-After daemon restart, Nerve reconciles pending tool calls, queued input, and async Bash records. An open execution without pending tool work becomes interrupted. Recovery does not silently rerun the old provider execution; new deliverable queued input can wake a conversation. Inspect the last stored messages and tool results before continuing with a follow-up prompt.
-
-Background work is separate from model execution. Explicit and auto-promoted async Bash runs always queue completion notices, and launches started by an agent notify the starting conversation when they exit on their own. Sub-agents deliver a completion notice to their lead when each execution finishes. A daemon restart does not recover processes: async Bash becomes `lost`, and launch instances are memory-only. Durable launch definitions and retained output remain available for inspection and a fresh start.
+- Background commands tell the agent when they finish, and sub-agents report back to the main agent.
+- For stuck or lost processes, see [Process recovery](/troubleshooting/tasks-and-recovery/).
 
 ## Next steps
 
+- [Find and organize conversations](/guides/conversations/)
+- [Back up, move, and upgrade data](/operations/storage-migration/)
 - [Process recovery](/troubleshooting/tasks-and-recovery/)
-- [Backups and external editors](/guides/import-export-editors/)

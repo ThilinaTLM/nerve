@@ -1,0 +1,59 @@
+---
+title: Git changes
+description: Review, stage, and sync changes, switch branches, and stash work from the Git Changes panel.
+sidebar:
+  order: 10
+---
+
+import DocsScreenshot from "../../../components/docs/DocsScreenshot.astro";
+import gitDark from "../../../assets/screenshots/desktop/git-dark.webp";
+import gitLight from "../../../assets/screenshots/desktop/git-light.webp";
+
+Use the **Git Changes** panel to review what the agent changed, stage it, and sync with your remote. Looking for pull requests? They have their own page: [Pull requests](/guides/pull-requests/).
+
+<DocsScreenshot
+  light={gitLight}
+  dark={gitDark}
+  alt="Nerve Git panel showing four repositories discovered in one project, the selected repository's branch, and its staged and unstaged changes"
+  caption="Every repository under the project folder gets its own branch and working-tree state beside the conversation. Discarding changes still asks first."
+  widths={[480, 768, 1024, 1440]}
+  sizes="(min-width: 72rem) 48rem, calc(100vw - 3rem)"
+/>
+
+## Review changes
+
+Nerve finds every Git repository in the project. Pick one from the repository chips to see its branch, change counts, and staged and unstaged files. Open a changed file to read its diff. If the current branch has a pull request, the panel links to it and its checks.
+
+## Stage and unstage
+
+1. Open a changed file to review its diff.
+2. Stage or unstage it from its row. The **Staged** and **Unstaged** headings stage or unstage a whole group. Right-click a repository, group, folder, or file for actions on just that part.
+3. To commit, ask the agent, or use the commit suggestion that appears when you have changes to commit.
+
+Discarding changes asks for confirmation first.
+
+## Switch branches
+
+Create or switch branches from the branch control. When you're on a base branch with work to do, a suggestion offers to move the work to a new branch.
+
+## Stash work
+
+Stash from the **Staged** heading to save staged changes, or from **Unstaged** to save unstaged and untracked ones. Right-click a file or folder to stash just that path. When a repository has stashes, **Stashes (N)** opens a manager where you can apply a stash (keeping it) or drop it after confirming.
+
+## Fetch, pull, and push
+
+Fetch, pull, push, and sync run in the background, so you can keep working. The sync control shows progress and a **Stop** button when stopping is possible. Failures show up in [Notifications](/guides/notifications/) with **Retry** and **Dismiss**.
+
+With several repositories, the **All repositories** menu offers **Fetch all**, **Pull all**, and **Switch all to base and pull**. The last one asks first and only fast-forwards. Git stops if local files would be overwritten.
+
+## Good to know
+
+- Stopping an operation doesn't undo steps that already finished.
+- These panel actions are yours. The agent uses Git through shell commands, under your permission settings.
+- Suggestion chips can offer to commit, move work off a base branch, or create a pull request. They only insert a prompt, so approvals still apply.
+
+## Next steps
+
+- [Pull requests](/guides/pull-requests/)
+- [Prompt suggestions](/guides/prompt-suggestions/)
+- [External editors](/integrations/external-editors/)

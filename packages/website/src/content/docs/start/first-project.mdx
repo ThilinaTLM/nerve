@@ -1,70 +1,73 @@
 ---
-title: Open your first project
-description: Select a directory, create a conversation, and send a supervised prompt.
+title: Open a project
+description: Open a folder as a project and send your first read-only prompt.
 sidebar:
   order: 4
 ---
 
+import { Steps } from "@astrojs/starlight/components";
 import DocsScreenshot from "../../../components/docs/DocsScreenshot.astro";
 import projectsDark from "../../../assets/screenshots/desktop/projects-dark.webp";
 import projectsLight from "../../../assets/screenshots/desktop/projects-light.webp";
+import folderBrowserDark from "../../../assets/screenshots/desktop/folder-browser-dark.webp";
+import folderBrowserLight from "../../../assets/screenshots/desktop/folder-browser-light.webp";
 
-A Nerve project points to a local directory. The project record and conversation history live in `NERVE_HOME`; the code remains in the directory you select.
+A project is a folder on your computer. Nerve keeps its conversations, launches, and notes with the project, and your code stays in the folder.
 
-## Select a directory
+## Open a folder
 
-1. Open the project switcher from the title bar.
-2. Choose a recent project, or select **Browse for a project** to open the full directory picker.
-3. In the picker, choose **Recent** or **Browse**. You can browse from your home directory or enter a path directly.
-4. Select the repository or workspace root, then create a conversation.
+<Steps>
 
-The switcher filters known projects by name and directory path and supports arrow-key navigation. Its activity indicators highlight projects with conversations waiting for you, active or failed runs, or running launches. The full picker highlights common project signals such as Git, package workspaces, Python, Rust, and Go; hidden directories are omitted from normal browsing.
+1. Open the project switcher in the title bar and choose **Open folder**.
+2. In the folder browser, pick a place on the left, or type a path in the path bar. Use the filter to narrow a long list, and **New folder** to create one.
+3. Select your repository or workspace root and choose **Open**. If the folder is already a project, the button reads **Switch to project**.
+4. Start a conversation.
 
-Nerve resolves absolute and symbolic paths where possible and reuses an existing project record for the same canonical directory. Switching changes the selected Workbench scope; it does not discard the other project's persisted conversations or launches.
+</Steps>
 
-Selecting a directory gives enabled agent tools direct access to that workspace according to the current permission level. Nerve does not require the directory to contain Git, but a clean Git working tree makes review and recovery easier.
+You have two faster ways in:
 
-## Start supervised
+- **Drag a folder onto the title bar** to open it as a project.
+- On the desktop app, choose **System picker** in the project switcher to use your operating system's folder dialog.
 
-Choose:
-
-- **Coding** profile;
-- **Supervised** permission;
-- your authenticated model and supported thinking level.
-
-Send an inspection-first prompt such as:
-
-> Inspect this project and explain its architecture. Do not modify files.
-
-You will see text and any thinking returned by the provider, plus cards for file reads, search, and other tool calls. Supervised mode automatically allows safe reads. Commands, changes, and network access remain gated unless a focused allow exception applies.
-
-## Navigate the workbench
-
-- Conversations, Files, Launches, and Notes start in the left dock; Git, Pull Requests, and Context start in the right dock.
-- Conversations, file previews, launch and background-command output, PR details, settings, auth, and logs open as center tabs.
-- Panels can move, hide, and resize; layout is stored in browser local storage.
-
-:::tip
-Below 1024px, dock views move into compact sheets. Below 640px, **Inbox**, **Projects**, and **Activity** become the primary phone navigation. Open a project from **Projects** to reach its conversations, workspace tools, Git changes, and pull requests as focused detail screens. The same project and conversation data remains available.
-:::
+The switcher also lists your recent projects, with a filter and activity markers for projects that have conversations waiting for you, active or failed runs, or running launches.
 
 <DocsScreenshot
   light={projectsLight}
   dark={projectsDark}
   alt="The Nerve project switcher showing three local projects with activity indicators and workspace paths"
-  caption="What to notice: each project keeps its own conversations, launches, Git state, context, and notes, while activity remains visible when you switch away."
+  caption="Each project keeps its own conversations, launches, and Git state, and activity stays visible when you switch away."
   widths={[480, 768, 1024, 1440]}
   sizes="(min-width: 72rem) 48rem, calc(100vw - 3rem)"
 />
 
-## Use the built-in guide
+<DocsScreenshot
+  light={folderBrowserLight}
+  dark={folderBrowserDark}
+  alt="The Open project folder browser with Places on the left, a path bar showing the demo workspace, and a list of project and plain folders"
+  caption="Places and recent project roots sit on the left, the path bar is editable, and folders that are already projects are marked. Open adds the selected folder."
+  widths={[480, 768, 1024, 1440]}
+  sizes="(min-width: 72rem) 48rem, calc(100vw - 3rem)"
+/>
 
-After opening a project, choose **Help → Guides → Work through the Workbench** for an interactive tour. The catalog also includes provider, voice, model, agent-default, and web-search setup coaches.
+## Send a first prompt
+
+Check that the composer shows the **Coding** profile and **Supervised** permission, then ask:
+
+> Inspect this project and explain its architecture. Do not modify files.
+
+You'll see the agent's text, any thinking the provider returns, and cards for each file read or search. Supervised permission lets safe reads through and asks before anything else.
+
+## Good to know
+
+- Opening a project gives the agent access to that folder, within the permission level you chose. A clean Git working tree makes review and recovery easier, but Git isn't required.
+- Opening the same folder twice reuses its project. Switching projects doesn't close the others' conversations or launches.
+- Removing a project from Nerve doesn't delete the folder.
+- On a phone, projects live under the **Projects** tab. See [Find your way around](/guides/workbench/).
 
 ## Next steps
 
-- [Complete a safe first task](/start/first-task/)
-- [Use the built-in Guides](/start/guides/)
-- [Learn the workbench](/guides/workbench/)
-- [Configure Settings](/guides/settings/)
-- [Learn the composer](/guides/composer/)
+- [Do your first task](/start/first-task/)
+- [Discover and in-app guides](/start/learn-in-app/)
+- [Find your way around](/guides/workbench/)
+- [Write prompts](/guides/composer/)

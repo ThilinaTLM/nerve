@@ -58,7 +58,7 @@ node scripts/screenshots/run.mjs --kind=desktop --scenes=conversation,async-bash
 node scripts/screenshots/run.mjs --kind=desktop --scenes=git --skip-seed --skip-build
 
 # Capture the synthetic PR, header Notifications, and pending decision scenes
-node scripts/screenshots/run.mjs --kind=desktop --scenes=pull-request,activity,ask-user
+node scripts/screenshots/run.mjs --kind=desktop --scenes=pull-request,notifications,ask-user
 ```
 
 `--kind` selects `desktop`, `mobile`, or `both` (default). `--scenes` accepts
@@ -70,9 +70,19 @@ conversation available in the adjacent tab. Optimization requires both
 light and dark captures, so omit `--theme` when running the full pipeline.
 The runner prints the isolated raw-output directory for inspection.
 
-The `activity` scene opens the header Notifications popover with a pending
-rollout decision. `ask-user` shows that decision's recommended choices and
-answer field above the composer. Both use a schema-valid retained `ask_user`
+Desktop scenes: `ask-user`, `notifications` (popover with a question, a failure, and a
+stopped agent plus Mute 1 h), `folder-browser` (Open project dialog on the demo
+workspace), `quote` (selection toolbar over a rich reply), `discover`, `themes`
+(Settings → Workbench → Appearance), `projects`, `conversation`, `async-bash`,
+`git`, `editor`, `history`, `launches`, `pull-request`. Mobile scenes:
+`conversation`, `composer-sheet`, `right-sheet`. Re-run one with
+e.g. `node scripts/screenshots/run.mjs --scenes=discover --kind=desktop`
+(single scenes need both themes, so omit `--theme`).
+
+Capture seeds only `nerve-theme` (nerve-light or nerve-dark) and a
+`nerve.discover.state` that disables Discover auto-open; the `discover` scene
+opens it explicitly. `ask-user` shows the pending decision's recommended choices and
+answer field above the composer, and `notifications` lists it. They use a schema-valid retained `ask_user`
 interaction seeded through the current event/tool repositories, without a
 provider call. Voice input remains disconnected in this synthetic environment.
 

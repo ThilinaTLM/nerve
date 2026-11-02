@@ -1,46 +1,52 @@
 ---
-title: Add images and voice
-description: Paste clipboard images and transcribe voice into a prompt.
+title: Images and voice
+description: Paste images, get image descriptions from text-only models, generate images, and dictate prompts.
 sidebar:
   order: 3
 ---
 
+Show the agent an image, have it generate one, or dictate a prompt instead of typing.
+
 ## Paste an image
 
-Copy an image and paste with `Ctrl/Cmd+V` inside the composer. Nerve intercepts clipboard files with an `image/*` MIME type, stores each image under the operating system temp directory in `nerve/`, and inserts newline-separated local paths at the cursor.
+Copy an image and paste it into the composer with `Mod+V`. Nerve saves a temporary copy on your computer and inserts its path at the cursor. PNG, JPEG, GIF, WebP, SVG, BMP, TIFF, and AVIF images work. A model that accepts images can then read it.
 
-Accepted MIME families include PNG, JPEG, GIF, WebP, SVG, BMP, TIFF, and AVIF. The path lets the agent's file-reading pipeline send image content to a capable model.
+The copy is temporary, not a project attachment. To refer to a file that already exists, drop it onto the desktop composer or use `@file:`. See [Write prompts](/guides/composer/#drop-files-and-folders).
 
-For a text-only model, configure and enable `explain_image` under **Settings → Tools**. The agent can then send the temporary path to the selected vision model and receive a detailed text explanation. The tool is completely hidden from vision-capable models and whenever it is disabled.
+## Use images with a text-only model
 
-:::caution
-Pasted files are temporary paths, not durable project attachments. `explain_image` uploads image bytes when its configured model is remote; use a compatible local vision provider when images must remain local.
-:::
+If your main model can't read images, turn on the **Image explanation** tool in **Settings → Tools** and choose an image-capable model for it. The agent can then ask that model to describe a JPEG, PNG, GIF, or WebP image and use the answer. The tool stays hidden while it's off, and when the main model already accepts images.
 
-Dropping an image, another file, or a folder onto the desktop composer is different from clipboard image paste: it inserts the item's existing filesystem path without copying, uploading, or creating a durable attachment. See [Use the composer](/guides/composer/#drop-files-and-folders) for the full workflow. In a browser or installed PWA, use `@` completion to reference paths inside the project.
+The image is sent to the model you choose for this tool. To keep images on your machine, point it at a local vision model through a compatible custom provider. Its usage and billing are separate from your main model's.
 
 ## Generate an image
 
-Agents can use the provider-neutral `generate_image` tool to generate raster images. Each generated image is retained as a tool-call artifact, and its file path appears as a link in the conversation. The agent receives that path rather than inline image bytes.
+Turn on **Image generation** in **Settings → Tools → Image generation** and choose a provider, model, and output defaults. The agent then writes the prompt, and the finished image appears in the conversation as a link to the file.
 
-Choose the provider, model, and provider-specific output defaults under **Settings → Tools → Image generation**. The initial OpenAI Codex provider defaults to `gpt-image-2.5-flare`, with `gpt-image-2.5-sunburst` available for higher-quality or precision-focused work. The agent supplies only the image prompt.
+The OpenAI Codex provider uses your ChatGPT subscription's image access and limits, not API billing. Availability and options can vary by account.
 
-The OpenAI Codex provider uses ChatGPT's subscription image endpoint and usage limits, not OpenAI API billing. Availability and accepted options can change with the connected account because this endpoint is not part of the public OpenAI API contract.
+## Dictate a prompt
 
-## Record voice
+1. Select the microphone in the composer, or use its [keyboard shortcut](/reference/shortcuts/).
+2. Speak. A recording chip marks where the text will land.
+3. Stop recording. The transcript replaces the chip, and nothing is sent until you press send.
 
-Use the microphone control or its keyboard shortcut. Recording can target the main composer or a user-question reply. Nerve shares one recording session across those surfaces.
+You can also dictate an answer to an agent's question, or use **Quote & dictate** on selected text. Cancel a recording with `Escape` or by right-clicking it.
 
-- Maximum duration: 8 minutes.
-- Maximum upload: 25 MB.
-- Client transcription retries: up to 3.
-- Right-click an active recording to cancel it.
+Voice needs a ChatGPT (OpenAI Codex) sign-in, and audio is uploaded to ChatGPT for transcription. A plain OpenAI API key isn't enough. See [Connect a model](/start/providers/).
 
-Recording and transcription appear as an inline chip at the editor's insertion point, including in user-question replies. The transcribed text replaces that chip (or is appended if the marker is no longer available); it is not sent automatically. The microphone has a distinct active-recording state, and Escape or right-click cancels recording.
+## Good to know
 
-Voice requires OpenAI Codex/ChatGPT OAuth and uploads audio to ChatGPT's audio transcription endpoint using `gpt-4o-transcribe`. An OpenAI API key alone is not sufficient. Common WebM, MP4/M4A, WAV, MPEG/MP3, OGG, and FLAC recordings are accepted.
+- Recordings can be up to 8 minutes and 25 MB. Nerve retries a failed upload up to three times.
+- Audio isn't saved in the conversation. Only the transcript text is.
+- The microphone appears only where voice is supported.
+
+:::caution
+Image explanation and image generation can send image data to a remote provider. Check the model you chose before using sensitive images.
+:::
 
 ## Next steps
 
-- [Model usage, images, and voice](/models/usage-images-voice/)
-- [Provider troubleshooting](/troubleshooting/providers/)
+- [Write prompts](/guides/composer/)
+- [Usage and limits](/models/usage/)
+- [Troubleshoot providers](/troubleshooting/providers/)

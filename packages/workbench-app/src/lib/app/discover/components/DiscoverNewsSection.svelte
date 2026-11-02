@@ -12,6 +12,7 @@ import {
 import DiscoverActionButton from "./DiscoverActionButton.svelte";
 import DiscoverFeaturedNews from "./DiscoverFeaturedNews.svelte";
 import DiscoverList from "./DiscoverList.svelte";
+import DiscoverNewsCard from "./DiscoverNewsCard.svelte";
 import DiscoverListRow from "./DiscoverListRow.svelte";
 import DiscoverSection from "./DiscoverSection.svelte";
 
@@ -57,39 +58,41 @@ const empty = $derived(!news.featured && news.current.length === 0);
       <DiscoverFeaturedNews entry={news.featured} {onAction} />
     {/if}
 
-    {#if news.current.length > 0 || empty || news.archive.length > 0}
-      <DiscoverList>
+    {#if news.current.length > 0}
+      <div class="grid gap-2.5 sm:grid-cols-2">
         {#each news.current as entry (entry.id)}
-          {@render newsRow(entry)}
+          <DiscoverNewsCard {entry} {onAction} />
         {/each}
+      </div>
+    {/if}
 
-        {#if empty}
-          <p class="px-3 py-2.5 text-ui text-muted-foreground">
-            {currentVersion
-              ? `Nothing new since ${currentVersion}.`
-              : "Nothing new right now."}
-          </p>
-        {/if}
+    {#if empty}
+      <p class="text-ui text-muted-foreground">
+        {currentVersion
+          ? `Nothing new since ${currentVersion}.`
+          : "Nothing new right now."}
+      </p>
+    {/if}
 
-        {#if news.archive.length > 0}
-          <div class="px-1 py-1">
-            <Button
-              variant="ghost"
-              size="sm"
-              onclick={() => (archiveOpen = !archiveOpen)}
-              aria-expanded={archiveOpen}
-            >
-              {#if archiveOpen}
-                <ChevronDown class="size-3.5" aria-hidden="true" />
-              {:else}
-                <ChevronRight class="size-3.5" aria-hidden="true" />
-              {/if}
-              {archiveOpen
-                ? "Hide earlier updates"
-                : `Show ${news.archive.length} earlier updates`}
-            </Button>
-          </div>
-        {/if}
+    {#if news.archive.length > 0}
+      <DiscoverList>
+        <div class="px-1 py-1">
+          <Button
+            variant="ghost"
+            size="sm"
+            onclick={() => (archiveOpen = !archiveOpen)}
+            aria-expanded={archiveOpen}
+          >
+            {#if archiveOpen}
+              <ChevronDown class="size-3.5" aria-hidden="true" />
+            {:else}
+              <ChevronRight class="size-3.5" aria-hidden="true" />
+            {/if}
+            {archiveOpen
+              ? "Hide earlier updates"
+              : `Show ${news.archive.length} earlier updates`}
+          </Button>
+        </div>
 
         {#if archiveOpen}
           {#each news.archive as entry (entry.id)}

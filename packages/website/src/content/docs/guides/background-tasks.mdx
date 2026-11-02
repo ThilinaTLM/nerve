@@ -1,6 +1,6 @@
 ---
-title: Launch configurations and async Bash
-description: Supervise servers, watchers, and other long-running processes.
+title: Launches and background commands
+description: Save, start, and monitor dev servers, watchers, and other long-running processes.
 sidebar:
   order: 10
 ---
@@ -11,97 +11,62 @@ import launchesLight from "../../../assets/screenshots/desktop/launches-light.we
 import asyncBashDark from "../../../assets/screenshots/desktop/async-bash-dark.webp";
 import asyncBashLight from "../../../assets/screenshots/desktop/async-bash-light.webp";
 
-Nerve separates a durable **launch configuration** (a saved definition) from its individual **launch runs**. A definition owns its name (stored as a label), command, working directory, and launch policy. Restarting creates a new run in the same lineage, so the launch and tab remain stable while prior output stays in History.
+Save the commands you run often as launches, start them from the Launches panel, and watch background commands the agent runs for you.
 
-- `single` (default): launching an active definition focuses its current run.
-- `concurrent`: launching can create another active run.
+A **launch** is a saved definition: a name, a command, an optional working directory and port, and a run policy. Each start creates a new **run** of that launch, so the launch stays in place and earlier output stays available.
 
-Use `bash` for commands and `launch` for the user's saved dev servers. Bash can run explicitly in the background or move there automatically after a user-controlled wait. Background runs always notify the conversation on exit. A launch is separate from an agent todo: launches supervise processes, while todos describe work inside a conversation.
+- **Single run** (default): starting a launch that is already running focuses the current run.
+- **Concurrent runs**: starting again creates another run.
 
-Before starting a server, check `launch status` and prefer an existing launch definition. Definitions live in `.nerve/launches/definitions.json`; only the user can create or edit them.
+Agents can start, stop, restart, and read logs for your launches, but they can't create or edit them. A launch supervises a process; a to-do describes work inside a conversation.
 
-## Create a launch configuration
+## Create a launch
 
 1. Open **Launches** and choose **Create launch**.
 2. Enter a name and command, such as `Web dev` and `pnpm dev`.
-3. Optionally choose a working directory and TCP port. A blank working directory uses the project root; relative paths resolve from it.
-4. Choose **Single run** to focus an existing active process, or **Concurrent runs** to allow multiple processes.
-5. Save, then use the play control to start it. Inspect output and readiness before opening the service.
+3. Optionally choose a working directory and a TCP port. A blank directory uses the project root.
+4. Choose **Single run** or **Concurrent runs**.
+5. Save, then press play. Check the output and readiness before opening the service.
 
-The panel also supports editing, duplicating, deleting configurations, and saving an existing run as a configuration. Editing changes future starts; existing runs keep their original command. Deleting a configuration is distinct from stopping a process or removing retained run output. Give saved configurations unique names so the agent can select them reliably.
+You can also edit, duplicate, and delete launches, or save an existing run as a launch. Editing changes future starts only. Give launches unique names so the agent can pick the right one.
 
-## Agent tool contract
+## Pick up edited launch definitions
 
-`bash` accepts a command and an optional project-relative or absolute `cwd` inside the project. `background: true` returns at once. Its optional `ready` string is an HTTP(S) URL or a regex matched against stdout and stderr. Readiness waits at most 60 seconds; a timeout does not stop the process.
-
-With auto-promotion enabled, foreground commands still running after the configured wait become async Bash, and `timeout` is not available. With promotion disabled, foreground calls require a timeout in seconds and the process tree is killed when it expires. Background runs have no time limit.
-
-Use `async_bash list` for running commands (`all: true` includes finished runs), `async_bash logs` to inspect output, and `async_bash stop` to terminate a process tree.
-
-Use `launch({ action: "status" })` to discover launch names, commands, statuses, and available run IDs. A saved launch's name is its trimmed label, or its trimmed command if no name was set. Names match exactly and case-sensitively in the current project; surrounding selector whitespace is ignored. Definition IDs are internal and are not tool selectors.
-
-| Action            | Arguments                                   |
-| ----------------- | ------------------------------------------- |
-| `status`          | none                                        |
-| `start`           | `name`                                      |
-| `logs`            | `name`, optional `runId`, `offset`, `limit` |
-| `stop`, `restart` | `name`, optional `runId`                    |
-
-```ts
-launch({ action: "start", name: "Web dev" }); // command shown by status: pnpm dev
-launch({ action: "logs", name: "Web dev", runId: "launch_…", limit: 100 });
-launch({ action: "restart", name: "Web dev" });
-launch({ action: "stop", name: "pnpm preview" }); // command fallback for an unnamed launch
-```
-
-Without `runId`, logs, stop, and restart select the latest run. Supply a run ID from status to target a particular execution of that name; mismatched names or projects are rejected. Start does not accept a run ID. Restart uses the current definition, starting it if nothing is running. Status distinguishes the current command from an older run's command when they differ. Lifecycle responses, including nothing-running responses, and log headers identify the name and command; run IDs remain secondary diagnostics.
-
-Saved definitions are matched before ad-hoc launches. Multiple runs of one definition do not make its name ambiguous, but duplicate saved names fail rather than silently selecting one—even with a run ID. Rename duplicate definitions in the UI, then refresh status. Distinct ad-hoc launch lineages with the same display name also require disambiguation; a run ID can select one. After renaming any launch, use its new name. New tool calls do not accept the old `id` argument; historical calls remain readable.
-
-## Supervision
-
-A `single` definition already running returns its active launch rather than starting another. If a definition declares a port, start and restart wait up to 30 seconds for it to listen. Port conflicts report the listener's PID and process name; agents never terminate foreign listeners.
-
-Both log tools accept a 0-based `offset` and `limit` (default 100, maximum 500). Omitting offset returns the last lines. Large output is summarized with file paths for `read`/`grep`, rather than flooding the conversation context. Status and log actions are reads and never ask for approval; process-changing actions use command policy.
-
-## Recovery
-
-Nerve does not recover processes after a daemon restart. Async Bash becomes `lost`; launch instances are memory-only. Saved launch definitions and log files remain, so inspect the retained output and start the current definition when needed.
-
-Async Bash ends on process exit, `async_bash stop`, conversation stop/delete, or daemon shutdown. Stop terminates the process tree gracefully, then escalates after a bounded wait.
-
-Quitting the desktop app terminates active local process trees before its owned daemon exits. Closing to the tray leaves processes running.
-
-## Launch controls
-
-Async Bash appears under **Commands** in the transcript's activity island. Select a command to open its output tab, inspect exit state and elapsed time, load earlier output, jump to the latest lines, or stop it while it is running. This is separate from the saved Launches panel.
-
-<DocsScreenshot
-  light={asyncBashLight}
-  dark={asyncBashDark}
-  alt="The transcript activity island with Commands expanded to show a completed background verification command"
-  caption="Commands stays beside Agents above the composer. Select a command to inspect its output without confusing it with a saved launch configuration."
-  widths={[480, 768, 1024, 1440]}
-  sizes="(min-width: 72rem) 48rem, calc(100vw - 3rem)"
-/>
-
-The Launches panel lets you inspect saved definitions and their runs, start or restart the current definition, stop a launch, and inspect retained output. Agents use the same definitions through `launch`; they cannot create or edit them. A new start or restart creates a new launch without changing the definition's identity.
+Launches live in `.nerve/launches/definitions.json` in the project. If you or a teammate edits the file outside Nerve, choose the **refresh** button in the Launches header to reload the definitions from disk.
 
 <DocsScreenshot
   light={launchesLight}
   dark={launchesDark}
   alt="The Nerve Launches panel listing saved launch definitions and their recent runs beside the conversation that started them"
-  caption="What to notice: a launch definition keeps its identity while each run stays separately inspectable, with its readiness, status, and retained output."
+  caption="A launch keeps its identity while each run stays separately inspectable, with its status and retained output."
   widths={[480, 768, 1024, 1440]}
   sizes="(min-width: 72rem) 48rem, calc(100vw - 3rem)"
 />
 
-## Agent notifications
+## Watch background commands
 
-Explicit and auto-promoted background Bash runs always queue an `async_bash_event` completion notice. When a launch started by an agent exits on its own, the starting conversation receives a notice with its name, command, status, exit code, and a projected output tail. These notices can wake the agent; do not poll for completion. Launch notification ownership is held in memory and does not survive daemon restart. Workbench launch updates to the UI are separate from desktop/browser toast notifications.
+When the agent runs a command in the background, or a foreground command runs longer than the wait you set, it appears under **Commands** in the activity island at the bottom of the transcript. Select a command to open its output, see its exit state and elapsed time, load earlier output, or stop it. Commands are separate from saved launches.
+
+<DocsScreenshot
+  light={asyncBashLight}
+  dark={asyncBashDark}
+  alt="The transcript activity island with Commands expanded to show a completed background verification command"
+  caption="Commands sits beside Agents above the composer, separate from saved launches."
+  widths={[480, 768, 1024, 1440]}
+  sizes="(min-width: 72rem) 48rem, calc(100vw - 3rem)"
+/>
+
+When a background command, or a launch the agent started, exits on its own, the agent is told and can pick up from there, so there's no need to ask it to poll.
+
+## Good to know
+
+- If a launch declares a port, starting it waits up to 30 seconds for the port to listen. If another program holds the port, Nerve shows which one; it never stops other programs for you.
+- Quitting Nerve stops running launches and commands. Closing the window quits by default; if you turned on **Close to system tray** in **Settings → Workbench → Desktop**, closing hides the window and leaves them running.
+- After a restart of the Nerve daemon, running processes are not recovered. Commands show as lost and launch runs disappear, but saved launches and their logs remain. Start the launch again when needed.
+- Large output is summarized for the agent rather than pasted into the conversation.
 
 ## Next steps
 
-- [Launch recovery troubleshooting](/troubleshooting/tasks-and-recovery/)
-- [Configure Settings](/guides/settings/)
-- [Launch tool reference](/reference/tools/#background-processes)
+- [Troubleshoot launches](/troubleshooting/tasks-and-recovery/)
+- [Sub-agents](/guides/agents-and-delegation/)
+- [Launch tool details](/reference/tools/#launch-tool-details)

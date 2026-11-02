@@ -2,10 +2,12 @@ import { defineConfig } from "astro/config";
 import sitemap from "@astrojs/sitemap";
 import starlight from "@astrojs/starlight";
 import tailwindcss from "@tailwindcss/vite";
+import { redirects } from "./redirects.mjs";
 
 export default defineConfig({
   site: "https://nerve.tlmtech.dev",
   output: "static",
+  redirects,
   vite: {
     plugins: [tailwindcss()],
   },
@@ -80,81 +82,95 @@ export default defineConfig({
       sidebar: [
         { label: "Home", link: "/" },
         {
-          label: "Start here",
-          items: [{ autogenerate: { directory: "start" } }],
-        },
-        {
-          label: "Use Nerve",
+          label: "Get started",
           items: [
-            { label: "Workflow overview", link: "/guides/" },
+            { label: "Get started", slug: "start" },
+            { label: "What is Nerve?", slug: "start/overview" },
+            { label: "Install", slug: "start/install" },
+            { label: "Connect a model", slug: "start/providers" },
+            { label: "Open a project", slug: "start/first-project" },
+            { label: "Your first task", slug: "start/first-task" },
             {
-              label: "Everyday work",
-              items: [
-                { label: "Navigate the workbench", link: "/guides/workbench/" },
-                { label: "Use the composer", link: "/guides/composer/" },
-                {
-                  label: "Add images and voice",
-                  link: "/guides/images-and-voice/",
-                },
-                { label: "Control the agent", link: "/guides/agent-controls/" },
-                {
-                  label: "Review approvals, questions, and plans",
-                  link: "/guides/reviews/",
-                },
-                {
-                  label: "Organize conversations",
-                  link: "/guides/conversations/",
-                },
-                {
-                  label: "Use history, branches, and recovery",
-                  link: "/guides/history-and-recovery/",
-                },
-                {
-                  label: "Edit files, inspect context, and keep notes",
-                  link: "/guides/files-context-notes/",
-                },
-                {
-                  label: "Work with Git and pull requests",
-                  link: "/guides/git-and-pull-requests/",
-                },
-              ],
-            },
-            {
-              label: "Delegate and automate",
-              items: [
-                {
-                  label: "Work with agents and delegation",
-                  link: "/guides/agents-and-delegation/",
-                },
-                {
-                  label: "Launch configurations and async Bash",
-                  link: "/guides/background-tasks/",
-                },
-                {
-                  label: "Use prompt suggestions",
-                  link: "/guides/prompt-suggestions/",
-                },
-                {
-                  label: "Load skills and project resources",
-                  link: "/guides/skills-and-resources/",
-                },
-              ],
-            },
-            {
-              label: "Customize and move work",
-              items: [
-                { label: "Personalize Nerve", link: "/guides/personalize/" },
-                { label: "Configure Settings", link: "/guides/settings/" },
-                {
-                  label: "Back up history and open editors",
-                  link: "/guides/import-export-editors/",
-                },
-              ],
+              label: "Discover and in-app guides",
+              slug: "start/learn-in-app",
             },
           ],
         },
         {
-          label: "Models & integrations",
+          label: "Everyday work",
+          items: [
+            { label: "Workflow overview", slug: "guides" },
+            { label: "Find your way around", slug: "guides/workbench" },
+            { label: "Write prompts", slug: "guides/composer" },
+            { label: "Images and voice", slug: "guides/images-and-voice" },
+            {
+              label: "Choose a profile, model, and permissions",
+              slug: "guides/agent-controls",
+            },
+            {
+              label: "Approvals, questions, and plans",
+              slug: "guides/reviews",
+            },
+            {
+              label: "Find and organize conversations",
+              slug: "guides/conversations",
+            },
+            {
+              label: "History, branches, and recovery",
+              slug: "guides/history-and-recovery",
+            },
+            {
+              label: "Notifications and activity",
+              slug: "guides/notifications",
+            },
+            {
+              label: "Files, context, and notes",
+              slug: "guides/files-context-notes",
+            },
+          ],
+        },
+        {
+          label: "Review and ship",
+          items: [
+            { label: "Git changes", slug: "guides/git" },
+            { label: "Pull requests", slug: "guides/pull-requests" },
+            {
+              label: "External editors",
+              slug: "integrations/external-editors",
+            },
+          ],
+        },
+        {
+          label: "Delegate and automate",
+          items: [
+            {
+              label: "Sub-agents",
+              slug: "guides/agents-and-delegation",
+            },
+            {
+              label: "Launches and background commands",
+              slug: "guides/background-tasks",
+            },
+            {
+              label: "Prompt suggestions",
+              slug: "guides/prompt-suggestions",
+            },
+            {
+              label: "Skills and project resources",
+              slug: "guides/skills-and-resources",
+            },
+          ],
+        },
+        {
+          label: "Customize",
+          items: [
+            { label: "Themes and appearance", slug: "guides/personalize" },
+            { label: "Settings at a glance", slug: "guides/settings" },
+            { label: "Keyboard shortcuts", slug: "reference/shortcuts" },
+          ],
+        },
+        {
+          label: "Models and integrations",
           items: [
             {
               label: "Models",
@@ -167,7 +183,7 @@ export default defineConfig({
           ],
         },
         {
-          label: "Operate safely",
+          label: "Set up and operate",
           items: [{ autogenerate: { directory: "operations" } }],
         },
         {
@@ -175,12 +191,13 @@ export default defineConfig({
           items: [{ autogenerate: { directory: "troubleshooting" } }],
         },
         {
-          label: "Developers",
-          items: [{ autogenerate: { directory: "developers" } }],
-        },
-        {
           label: "Reference",
           items: [{ autogenerate: { directory: "reference" } }],
+        },
+        {
+          label: "Developers",
+          collapsed: true,
+          items: [{ autogenerate: { directory: "developers" } }],
         },
       ],
     }),

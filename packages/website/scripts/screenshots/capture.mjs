@@ -42,11 +42,23 @@ const wanted = values.scenes
   : undefined;
 const themes = values.theme === "both" ? ["light", "dark"] : [values.theme];
 
+/** Capture themes. `nerve-theme` is the only theme key; the legacy
+ * light/dark/mode-watcher keys are migrated and removed by the app. */
+const SCENE_THEMES = { light: "nerve-light", dark: "nerve-dark" };
+
+/** Discover must not auto-open over a scene; a dedicated scene opens it. */
+const DISCOVER_STATE = {
+  schemaVersion: 1,
+  seen: {},
+  autoOpen: { enabled: false, count: 0 },
+};
+
 /** Applied before the app boots so the first paint is already correct. */
-function themeBootstrap(mode) {
+function themeBootstrap(mode, theme = SCENE_THEMES[mode]) {
   return `
     try {
-      localStorage.setItem("nerve-theme", ${JSON.stringify(`nerve-${mode}`)});
+      localStorage.setItem("nerve-theme", ${JSON.stringify(theme)});
+      localStorage.setItem("nerve.discover.state", ${JSON.stringify(JSON.stringify(DISCOVER_STATE))});
       document.documentElement.classList.toggle("dark", ${mode === "dark"});
       document.documentElement.style.colorScheme = ${JSON.stringify(mode)};
     } catch {}
@@ -131,6 +143,18 @@ async function captureGroup({ browser, scenes, viewport, scale, kind }) {
         "utf8",
       );
       console.log(`shot  ${name}`);
+      /* Tabs opened by one scene must not leak into the next frame. */
+      for (const tab of ["Discover", "Settings"]) {
+        const close = page.getByRole("button", {
+          name: `Close ${tab}`,
+          exact: true,
+        });
+        if (await close.count())
+          await close
+            .first()
+            .click()
+            .catch(() => {});
+      }
       results.push(name);
     }
 

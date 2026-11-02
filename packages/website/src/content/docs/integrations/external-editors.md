@@ -24,5 +24,6 @@ Nerve can edit small regular text files inside the project, with revision-checke
 ## Next steps
 
 - [Files, context, and notes](/guides/files-context-notes/)
+- [Back up, move, and upgrade data](/operations/storage-migration/)
 - [Remote daemon behavior](/operations/remote-daemon/)
 - [Platform troubleshooting](/troubleshooting/platform/)

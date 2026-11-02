@@ -9,6 +9,7 @@ import {
   sep,
 } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import { redirects as siteRedirects } from "../redirects.mjs";
 
 const MARKDOWN_EXTENSION = /\.mdx?$/i;
 const EXTERNAL_SCHEME = /^[a-z][a-z\d+.-]*:/i;
@@ -101,7 +102,7 @@ function resolveLinkRoute(sourceRoute, pathname) {
   return normalizeRoute(posix.resolve(sourceRoute, "..", pathname));
 }
 
-export function inspectContent({ contentRoot, publicRoot }) {
+export function inspectContent({ contentRoot, publicRoot, redirects = {} }) {
   const files = walk(contentRoot, (file) =>
     MARKDOWN_EXTENSION.test(file),
   ).sort();
@@ -141,6 +142,18 @@ export function inspectContent({ contentRoot, publicRoot }) {
   );
   const knownPageRoutes = new Set(["/", ...recordsByRoute.keys()]);
 
+  for (const [source, target] of Object.entries(redirects)) {
+    const sourceRoute = normalizeRoute(source);
+    const targetRoute = normalizeRoute(target.split("#", 1)[0]);
+    if (knownPageRoutes.has(sourceRoute)) {
+      errors.push(`redirect ${source}: source is still a page`);
+    }
+    if (!knownPageRoutes.has(targetRoute)) {
+      errors.push(`redirect ${source}: unknown target ${target}`);
+    }
+  }
+  const redirectSources = new Set(Object.keys(redirects).map(normalizeRoute));
+
   for (const record of records) {
     const display = relative(contentRoot, record.file).split(sep).join("/");
     for (const rawLink of links(record.source)) {
@@ -161,6 +174,12 @@ export function inspectContent({ contentRoot, publicRoot }) {
           !pathname.startsWith("/") && MARKDOWN_EXTENSION.test(pathname)
             ? routeForFile(contentRoot, resolve(dirname(record.file), pathname))
             : resolveLinkRoute(record.route, pathname);
+        if (redirectSources.has(route)) {
+          errors.push(
+            `${display}: link ${rawLink} points at a redirect source`,
+          );
+          continue;
+        }
         targetRecord = recordsByRoute.get(route);
         if (!targetRecord) {
           const publicPath = pathname.startsWith("/")
@@ -186,8 +205,12 @@ export function inspectContent({ contentRoot, publicRoot }) {
   return { records, errors };
 }
 
-export function runContentCheck({ contentRoot, publicRoot }) {
-  const { records, errors } = inspectContent({ contentRoot, publicRoot });
+export function runContentCheck({ contentRoot, publicRoot, redirects }) {
+  const { records, errors } = inspectContent({
+    contentRoot,
+    publicRoot,
+    redirects,
+  });
   if (errors.length > 0) {
     throw new Error(
       `Documentation content check failed:\n${errors.map((error) => `- ${error}`).join("\n")}`,
@@ -206,6 +229,7 @@ if (
     const count = runContentCheck({
       contentRoot: join(packageRoot, "src/content/docs"),
       publicRoot: join(packageRoot, "public"),
+      redirects: siteRedirects,
     });
     console.log(`Documentation content check passed (${count} pages).`);
   } catch (error) {

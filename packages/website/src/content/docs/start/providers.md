@@ -1,53 +1,40 @@
 ---
-title: Connect a model provider
-description: Authenticate a provider and choose default models and thinking levels.
+title: Connect a model
+description: Sign in to a provider or add an API key, then choose your default model.
 sidebar:
   order: 3
 ---
 
-Nerve gets its current built-in provider and model catalog through its pi-ai integration. The Workbench shows the providers and authentication methods available in the installed version; the underlying library's complete transport support is not automatically a Nerve product promise.
+Connect at least one model provider so the agent has a model to use.
 
-## Add authentication
+## Connect a provider
 
-Open **Providers & authentication** from the title bar, then use its **Connections** page to choose a provider. Model defaults and scopes live separately under **Settings**. Depending on provider metadata, Nerve can offer:
+1. Open **Settings → Connections**, or start the **Connect a model provider** guide from Discover.
+2. Under **Subscriptions**, choose **Connect subscription** and sign in. Or, under **API keys**, choose **Add API key** and paste your key.
+3. Choose a default model and thinking level in the composer or in Settings.
 
-- an API key;
-- an OAuth or subscription flow;
-- both methods as alternatives.
+A provider uses one sign-in method at a time. Saving an API key replaces a subscription sign-in for that provider, and signing in replaces the key.
 
-A provider has one active credential type. Saving an API key replaces OAuth for that provider, and completing OAuth replaces its API key.
-
-OAuth-capable options vary by release and provider. Current code exercises flows for Anthropic, GitHub Copilot, Kimi Coding, OpenAI Codex, OpenRouter, Radius, and xAI, but consult the installed provider dialog rather than treating this as a permanent support matrix.
+Running a local model or a self-hosted endpoint? Add it as a [custom provider](/models/custom-providers/).
 
 :::caution[Provider terms and billing apply]
-Subscription authentication does not make usage free. In particular, Nerve displays an Anthropic warning that OAuth use may incur paid extra usage outside normal Claude plan limits. Check the provider's terms and usage dashboard.
+A subscription sign-in doesn't make usage free. For Anthropic, Nerve warns that OAuth use may incur paid extra usage outside normal Claude plan limits. Check the provider's terms and usage dashboard.
 :::
 
-## Pick defaults
+## Choose models
 
-After authentication, choose:
+- Set a default model and thinking level once, then change them per conversation from the composer. A change made during a run applies to the next model request.
+- Use a scoped list to keep the model picker short. An empty list shows every authenticated model.
+- Thinking levels depend on the model. The picker offers only the levels the selected model supports.
 
-- a global default model and thinking level;
-- an optional scoped list for the conversation picker;
-- optionally, a model and thinking level in an agent profile; by default sub-agents use the lead's.
+## Good to know
 
-An empty scope means all authenticated models. If a scoped model later disappears, Nerve retains it as unavailable but ignores it in the picker.
-
-Thinking choices are model-dependent. Nerve's complete level vocabulary is `off`, `minimal`, `low`, `medium`, `high`, `xhigh`, and `max`; the runtime clamps a choice to levels the selected model reports supporting.
-
-## During a conversation
-
-The composer can change model and thinking level without recreating a conversation. If a run is active, the change applies to the **next model request**, not the request already streaming.
-
-Some providers expose only the first eight models in Nerve's catalog. Full lists are currently enabled for a limited set of provider families. Add a [custom model definition](/models/custom-providers/) when a compatible model is not listed.
-
-## Voice authentication is separate
-
-Voice transcription requires OpenAI Codex/ChatGPT OAuth. An ordinary OpenAI API key is not enough. Audio is uploaded to ChatGPT's transcription service.
+- Voice input needs a ChatGPT (OpenAI Codex) sign-in. An ordinary OpenAI API key isn't enough. See [Images and voice](/guides/images-and-voice/).
+- Some providers show only part of their model list. If a model you need is missing, add a [custom model](/models/custom-providers/).
 
 ## Next steps
 
-- [Built-in Guides](/start/guides/)
 - [Open a project](/start/first-project/)
-- [Provider and authentication details](/models/providers-and-auth/)
+- [Sign-in methods and remote machines](/models/providers-and-auth/)
+- [Select models and thinking](/models/selecting-models/)
 - [Troubleshoot providers](/troubleshooting/providers/)

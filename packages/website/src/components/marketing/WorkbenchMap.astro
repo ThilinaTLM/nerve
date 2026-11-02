@@ -1,6 +1,6 @@
 ---
-import activityDark from "../../assets/screenshots/desktop/activity-dark.webp";
-import activityLight from "../../assets/screenshots/desktop/activity-light.webp";
+import notificationsDark from "../../assets/screenshots/desktop/notifications-dark.webp";
+import notificationsLight from "../../assets/screenshots/desktop/notifications-light.webp";
 import conversationDark from "../../assets/screenshots/desktop/conversation-dark.webp";
 import conversationLight from "../../assets/screenshots/desktop/conversation-light.webp";
 import editorDark from "../../assets/screenshots/desktop/editor-dark.webp";
@@ -50,9 +50,9 @@ const slides = {
     alt: "Nerve launches panel listing launch configurations beside the retained output of a test run",
   },
   activity: {
-    dark: activityDark,
-    light: activityLight,
-    alt: "Nerve header Activity popover showing a conversation that needs your attention and an Open action",
+    dark: notificationsDark,
+    light: notificationsLight,
+    alt: "Nerve header Notifications popover showing a conversation that needs your attention and an Open action",
   },
 } as const;
 
@@ -89,14 +89,14 @@ const stops = [
     x: 76.3,
     y: 8.8,
     w: 23.4,
-    h: 31.5,
+    h: 33.5,
   },
   {
     key: "pr",
     chip: "Pull requests",
     slide: "pr",
     title: "Pull requests",
-    line: "Filter All, Mine or To review; inspect changes and checks. Needs authenticated gh.",
+    line: "Filter All, Mine or To review; PRs stay live with checks, commits and linked conversations. Needs authenticated gh.",
     x: 19.8,
     y: 9,
     w: 55.4,
@@ -116,14 +116,14 @@ const stops = [
   },
   {
     key: "activity",
-    chip: "Activity",
+    chip: "Notifications",
     slide: "activity",
-    title: "Activity",
-    line: "See what needs your attention and open the conversation from the header.",
-    x: 67.5,
-    y: 0.8,
-    w: 27,
-    h: 15.5,
+    title: "Notifications",
+    line: "See what needs you and open the conversation from the header; Nerve notices when you are away.",
+    x: 67.6,
+    y: 5.4,
+    w: 26.8,
+    h: 42.8,
   },
 ] as const;
 

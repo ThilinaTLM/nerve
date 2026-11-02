@@ -17,10 +17,14 @@
 
 import { mkdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join, resolve } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { createId } from "@nervekit/contracts";
 import { z } from "zod";
 import type { AssistantContent } from "@nervekit/contracts/core";
+import {
+  childLaunchOverridesSchema,
+  freezeChildPreferences,
+} from "@nervekit/contracts/agent-configuration";
 import {
   composeServerRuntime,
   shutdownServerRuntime,
@@ -200,18 +204,25 @@ async function seedConversation(
 ): Promise<void> {
   const { services, projectId, workspace } = context;
   const { conversationCore, coreStorage } = services;
-  const { conversation } = await conversationCore.conversations.create({
+  const lead = await services.agentConfiguration.profiles.get(
+    demo.agentProfile,
+    projectId,
+    "lead",
+  );
+  if (lead.status !== "available")
+    throw new Error(`Profile unavailable: ${demo.agentProfile}`);
+  /* Go through the host creation path so the conversation gets the scoped
+   * agent document that Settings, the composer, and summaries read. */
+  const { conversation } = await conversationCore.createConversation({
     projectId,
     title: demo.title,
-    config: {
+    agentProfile: { name: demo.agentProfile, digest: lead.digest },
+    overrides: {
       model: DEMO_MODEL,
       reasoningLevel: "medium",
-      systemPrompt: null,
-      instructions: null,
-      agentProfile: demo.agentProfile,
       permissionRuleSetId: demo.permissionRuleSetId,
-      workingDirectory: workspace,
     },
+    config: { workingDirectory: workspace },
   });
   let head: string | null = null;
   const anchors: string[] = [];
@@ -268,6 +279,8 @@ async function seedConversation(
     if (response.type !== "tool_call_response")
       throw new Error("Missing sub-agent creation response");
     const parentToolCallId = response.payload.toolCallId;
+    /* Children normally need a live trusted launch; the seed writes the same
+     * frozen child document that launch would have produced. */
     const created = await conversationCore.conversations.create({
       projectId,
       parentConversationId: conversation.id,
@@ -283,6 +296,41 @@ async function seedConversation(
         workingDirectory: workspace,
       },
     });
+    const childProfile = await services.agentConfiguration.profiles.get(
+      child.profile,
+      projectId,
+      "child",
+    );
+    if (childProfile.status !== "available")
+      throw new Error(`Profile unavailable: ${child.profile}`);
+    const applied = {
+      name: child.profile,
+      source: childProfile.source,
+      sourceDigest: childProfile.digest,
+      instructions: childProfile.definition.instructions,
+      recommendations: childProfile.definition.recommendations ?? {},
+      requirements: childProfile.definition.requirements ?? {},
+    };
+    const defaults =
+      await services.agentConfiguration.captureDefaults(projectId);
+    const launch = childLaunchOverridesSchema.parse({
+      model: DEMO_MODEL,
+      reasoningLevel: "medium",
+    });
+    await services.agentConfiguration.createConversation(
+      created.conversation.id,
+      {
+        schemaVersion: 1,
+        revision: 1,
+        overrides: {},
+        appliedProfile: applied,
+        frozenDefaults: freezeChildPreferences({
+          ...defaults.options,
+          appliedProfile: applied,
+          launch,
+        }),
+      },
+    );
     appendStep(
       context,
       created.conversation.id,
@@ -402,6 +450,56 @@ async function seedConversation(
       updatedAt: createdAt,
     });
   }
+  if (demo.outcome) {
+    const started = coreStorage.events.append({
+      id: createId("evt"),
+      conversationId: conversation.id,
+      type: "system_event",
+      llmRepresentation: "none",
+      turnId: null,
+      inputId: null,
+      payload: { subtype: "execution_state", transition: "started" },
+      createdAt: at(demo.ageHours, demo.steps.length * 45 + 5),
+    });
+    if (demo.outcome === "failed")
+      coreStorage.events.append({
+        id: createId("evt"),
+        conversationId: conversation.id,
+        type: "system_event",
+        llmRepresentation: "none",
+        turnId: null,
+        inputId: null,
+        payload: {
+          subtype: "execution_state",
+          transition: "failed",
+          executionId: started.id,
+          failure: {
+            message:
+              "The provider rejected the request: the venue-photos manifest exceeded the context window.",
+            category: "provider",
+          },
+        },
+        createdAt: at(demo.ageHours, demo.steps.length * 45 + 30),
+      });
+  }
+  for (const reference of demo.references ?? []) {
+    const [owner, repo] = reference.repository.split("/");
+    coreStorage.references.upsert(
+      conversation.id,
+      {
+        provider: "github",
+        resourceKey:
+          `github.com/${reference.repository}#${reference.number}`.toLowerCase(),
+        kind: reference.kind,
+        relationship: reference.relationship,
+        url: `https://github.com/${owner}/${repo}/${reference.kind === "pull_request" ? "pull" : "issues"}/${reference.number}`,
+        container: reference.repository,
+        identifier: String(reference.number),
+      },
+      head ?? mainHead!,
+      at(demo.ageHours, 10),
+    );
+  }
   coreStorage.conversations.update(conversation.id, {
     headEventId: head ?? mainHead,
     pinnedAt: demo.pinned ? at(demo.ageHours) : null,
@@ -415,8 +513,24 @@ async function seedConversation(
 async function writeLaunchDefinitions(workspace: string): Promise<void> {
   const now = new Date(SEED_NOW).toISOString();
   const definitions = [
-    { label: "aurora-web dev", command: "pnpm dev", cwd: "aurora-web" },
+    {
+      label: "aurora-web dev",
+      command:
+        "node -e \"console.log('aurora-web dev server ready on http://localhost:5173'); setInterval(() => console.log('hmr update /src/venue-card.css'), 20000)\"",
+      cwd: "aurora-web",
+    },
     { label: "aurora-api tests", command: "pnpm test", cwd: "aurora-api" },
+    {
+      label: "migration check",
+      command:
+        "node -e \"console.log('Checking pending migrations...'); console.error('Error: migration 0042_add_venue_slug is missing a down step'); process.exit(1)\"",
+      cwd: "aurora-api",
+    },
+    {
+      label: "venue seed data",
+      command: "node -e \"console.log('Seeding 12 demo venues')\"",
+      cwd: "aurora-api",
+    },
     {
       label: "staging smoke",
       command: "pnpm smoke --env staging",
@@ -437,6 +551,52 @@ async function writeLaunchDefinitions(workspace: string): Promise<void> {
   await writeFile(
     join(directory, "definitions.json"),
     `${JSON.stringify({ version: 1, definitions }, undefined, 2)}\n`,
+    "utf8",
+  );
+}
+
+/** Non-project folders so the folder browser has places worth navigating. */
+async function createBrowsableFolders(workspaceRoot: string): Promise<void> {
+  const files: Record<string, string> = {
+    "archive/2025-festival-season/README.md":
+      "# 2025 festival season\n\nClosed bookings export.\n",
+    "archive/2025-festival-season/exports/.gitkeep": "",
+    "archive/old-prototypes/booking-form/index.html": "<h1>Prototype</h1>\n",
+    "experiments/map-clustering/notes.md": "Cluster venues by district.\n",
+    "experiments/offline-sync/notes.md": "Queue edits while offline.\n",
+    "design-assets/logos/.gitkeep": "",
+    "design-assets/illustrations/.gitkeep": "",
+    "shared/docs/runbooks/on-call.md": "# On-call runbook\n",
+    "shared/docs/handbook/README.md": "# Team handbook\n",
+  };
+  for (const [relative, content] of Object.entries(files)) {
+    const path = join(workspaceRoot, relative);
+    await mkdir(dirname(path), { recursive: true });
+    await writeFile(path, content, "utf8");
+  }
+}
+
+/** A user-level custom profile, stored where Settings → Agent profiles saves it. */
+async function writeCustomProfile(home: string): Promise<void> {
+  const directory = join(home, "data", "agent-profiles");
+  await mkdir(directory, { recursive: true });
+  await writeFile(
+    join(directory, "release-reviewer.json"),
+    `${JSON.stringify(
+      {
+        schemaVersion: 1,
+        name: "release-reviewer",
+        label: "Release reviewer",
+        whenToUse:
+          "Use before a release to review changes for rollout risk, missing tests, and unclear changelog entries.",
+        enabled: true,
+        usableBy: "both",
+        instructions:
+          "Review the pending changes as a release gate.\n\n- Call out rollout risk, migrations, and missing tests.\n- Check that user-facing changes have changelog entries.\n- Report blockers first, then nice-to-haves.",
+      },
+      undefined,
+      2,
+    )}\n`,
     "utf8",
   );
 }
@@ -475,6 +635,8 @@ async function main(): Promise<void> {
     console.log("Cloned the public Nerve repository for the PR scene");
   }
 
+  await createBrowsableFolders(workspaceRoot);
+
   const storage = await initializeStorage(home);
   const fixture = composeServerRuntime(storage, "127.0.0.1", 0);
   await fixture.lifecycle.hydrate();
@@ -487,6 +649,8 @@ async function main(): Promise<void> {
       DEMO_MODEL.provider,
       "sk-ant-demo-screenshot-fixture-key",
     );
+
+    await writeCustomProfile(home);
 
     /* Create Aurora last so narrow layouts, which intentionally hide the
      * title-bar project switcher, open on the project used by mobile scenes. */
@@ -519,6 +683,29 @@ async function main(): Promise<void> {
 
       if (demoProject.id === "aurora") {
         await writeLaunchDefinitions(workspace);
+        const noteAt = (minutesAgo: number) =>
+          new Date(SEED_NOW - minutesAgo * 60_000).toISOString();
+        for (const [index, note] of [
+          {
+            title: "Rollout checklist",
+            content:
+              "- [ ] Enable the limiter on staging\n- [ ] Watch rejected POST /bookings for an hour\n- [ ] Canary on one production replica\n- [ ] Write the rollback note\n",
+          },
+          {
+            title: "Festival on-sale ideas",
+            content:
+              "Waiting-room page for the first minute?\nPer-event burst allowance instead of one global value.\n",
+          },
+        ].entries()) {
+          fixture.services.coreStorage.scratchNotes.insert({
+            id: createId("note"),
+            projectId: project.id,
+            title: note.title,
+            content: note.content,
+            createdAt: noteAt(600 - index * 120),
+            updatedAt: noteAt(90 - index * 30),
+          });
+        }
       }
     }
 

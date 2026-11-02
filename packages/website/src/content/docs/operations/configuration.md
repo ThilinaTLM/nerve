@@ -1,11 +1,13 @@
 ---
 title: Configuration and ports
-description: Understand saved application settings, environment overrides, desktop flags, and restart behavior.
+description: "Where Nerve reads settings from: the config file, environment variables, and desktop flags, and which changes need a restart."
 sidebar:
   order: 4
 ---
 
-Nerve program-level configuration has one resolution order:
+This page covers the files, environment variables, and flags that configure Nerve. For a tour of the Settings pages, see [Settings at a glance](/guides/settings/).
+
+Program-level configuration has one resolution order:
 
 1. command-line option;
 2. environment variable;
@@ -16,15 +18,16 @@ The effective value and its source are visible under **Settings → System**. A 
 
 Defaults are `NERVE_HOME=~/.nerve`, host `127.0.0.1`, HTTP port `3747`, remote access off, and mobile HTTPS port `3748`.
 
-## Settings → System
+## Saved settings
 
-The System page persists safe application configuration for:
+**Settings → System** and **Settings → Workbench → Desktop** save to `<NERVE_HOME>/config.json`. They cover:
 
 - bind host, HTTP/HTTPS ports, remote access, and mobile HTTPS;
 - application logging and performance diagnostics;
 - log policy, owned-daemon startup timeout, and heap cap;
 - automatic or manually overridden model, tool-batch, and process concurrency;
-- Linux Electron Ozone platform and font rendering.
+- Linux Electron Ozone platform and font rendering;
+- whether closing the window hides Nerve in the tray (**Close to system tray**) instead of quitting, which is the default.
 
 Enabling **Allow remote connections** also changes a loopback bind host to `0.0.0.0`, so the next daemon launch can accept LAN clients. Disabling it restores `127.0.0.1` when the host is a wildcard. You can still enter a specific interface address in the advanced host field.
 

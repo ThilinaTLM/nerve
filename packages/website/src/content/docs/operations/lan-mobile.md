@@ -17,7 +17,7 @@ For mobile browsers, add self-signed HTTPS:
 npx @nervekit/desktop@latest -- --host 0.0.0.0 --allow-remote --mobile-https
 ```
 
-HTTP defaults to 3747 and mobile HTTPS to 3748. The tray exposes setup/share URLs and the local certificate-authority download.
+HTTP defaults to 3747 and mobile HTTPS to 3748. When Nerve runs with **Close to system tray** turned on (**Settings → Workbench → Desktop**), the tray menu offers the setup and share URLs and the local certificate-authority download.
 
 ## Trust the local CA
 

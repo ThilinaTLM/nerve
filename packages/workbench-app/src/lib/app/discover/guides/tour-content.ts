@@ -16,7 +16,6 @@ export type TourStepId =
   | "launches"
   | "files"
   | "scratch-notes"
-  | "providers"
   | "settings"
   | "status"
   | "help"
@@ -78,7 +77,7 @@ export const tourSteps: readonly TourStep[] = [
     introducedIn: 2,
     title: "Choose an agent profile",
     description:
-      "You choose the profile here, or with Shift+Tab or /profile; the agent cannot switch profiles. Coding implements changes. Planning inspects the project and presents a written plan for your review, then approval returns to the default profile.",
+      "You choose the profile here, with Shift+Tab, or by typing /plan or /profile followed by a name; the agent cannot switch profiles. Coding implements changes. Planning inspects the project and presents a written plan for your review, then approval returns to the default profile.",
     targetId: "composer-profile",
   },
   {
@@ -108,12 +107,12 @@ export const tourSteps: readonly TourStep[] = [
   {
     id: "capabilities",
     introducedIn: 2,
-    title: "Choose capabilities and sub-agents",
+    title: "Choose capabilities and Sub-Agents",
     description:
-      "Tools, Skills, and Sub-agents beside the composer each open their own controls; changes apply to the next run. Enable Sub-agents to delegate asynchronous work using profiles configured in Settings → Sub-agents. Teammates share your worktree but cannot see the lead's conversation, so include context and clear editing boundaries in assignments.",
+      "Tools, Skills, and Sub-Agents beside the composer each open their own controls; changes apply to the next run. Turn on Delegation to hand off asynchronous work to teammates using profiles configured in Settings → Sub-Agents. Teammates share your worktree but cannot see the lead's conversation, so include context and clear editing boundaries in assignments.",
     targetId: "composer-tools",
     fallback:
-      "Open a conversation to find Tools, Skills, and Sub-agents beside the composer, or configure profiles in Settings → Sub-agents.",
+      "Open a conversation to find Tools, Skills, and Sub-Agents beside the composer, or configure profiles in Settings → Sub-Agents.",
   },
   {
     id: "activity",
@@ -153,7 +152,7 @@ export const tourSteps: readonly TourStep[] = [
     introducedIn: 2,
     title: "Run saved project commands",
     description:
-      "Launch configs replace task definitions for reusable project commands such as dev servers. Create a config in Launches with a command, optional working directory and port, and a single or concurrent run policy. Start, restart, stop, and inspect output here. The agent's launch tool runs existing configs but cannot create or edit them.",
+      "Save reusable project commands such as dev servers as launch configs, with a command, optional working directory and port, and a single or concurrent run policy. Start, restart, stop, and inspect output here, and use Refresh to reload definitions edited outside Nerve. The agent can run existing configs but cannot create or edit them.",
     targetId: "launches-panel",
   },
   {
@@ -173,19 +172,11 @@ export const tourSteps: readonly TourStep[] = [
     targetId: "scratch-notes-panel",
   },
   {
-    id: "providers",
-    introducedIn: 1,
-    title: "Manage model providers",
-    description:
-      "Open Providers and authentication from the titlebar to connect subscriptions, API keys, and custom model providers.",
-    targetId: "providers",
-  },
-  {
     id: "settings",
     introducedIn: 1,
     title: "Customize Nerve",
     description:
-      "Settings is the central place for workbench preferences, scoped models, conversation defaults, tools, skills, storage, and system options.",
+      "Settings is where you connect model providers and sign in, choose themes and notifications, and set model, profile, permission, tool, and skill defaults.",
     targetId: "settings",
   },
   {

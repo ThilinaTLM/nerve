@@ -1,6 +1,6 @@
 ---
 title: Install Nerve
-description: Launch the Nerve desktop app from npm or a source checkout.
+description: Launch the Nerve desktop app from npm.
 sidebar:
   order: 2
 ---
@@ -25,39 +25,19 @@ pnpm dlx @nervekit/desktop@latest
 
 The first launch may download Electron's platform binary. Later launches use the package manager cache. Nerve currently ships through npm; signed and notarized native installers are not part of the release path.
 
-The desktop app normally:
+On launch, the desktop app starts a local background service (the daemon) on `127.0.0.1:3747`, or reuses one that is already running, and then opens the workbench.
 
-1. checks the local Nerve data directory;
-2. adopts a healthy existing local daemon or starts an owned one;
-3. waits for the daemon at `127.0.0.1:3747`;
-4. opens the bundled workbench.
+Closing the window quits Nerve and stops the daemon it started. (To keep Nerve running in the tray instead, turn on **Close to system tray** in **Settings → Workbench → Desktop**.) A daemon that was already running, or a remote one, is left alone.
 
-The shell stops only a daemon it owns. An existing local daemon or a configured remote daemon is monitored but not terminated on quit.
+## Where Nerve keeps your data
 
-## Develop from source
-
-```sh
- git clone https://github.com/ThilinaTLM/nerve.git
- cd nerve
- pnpm install
- pnpm desktop:dev
-```
-
-The repository pins pnpm 11.20.0. Use `pnpm dev` to run the daemon and browser UI development servers, or connect the UI to an existing daemon:
-
-```sh
-NERVE_HOME="$HOME/.nerve" NERVE_API_TARGET=http://127.0.0.1:3747 pnpm dev:ui
-```
-
-## Data created on first launch
-
-Repository development uses disposable `data/storage-1` and a separate Electron profile by default; `--slot N` selects another slot. Explicit `pnpm desktop:prod` runs source code against real user data.
-
-Installed Nerve uses `~/.nerve` by default for portable application state, credentials, logs, reports, and daemon metadata. Override it with `NERVE_HOME` when you need an isolated test profile. Electron's active Chromium profile is deliberately stored elsewhere, so also isolate Electron user data when a test requires a completely separate browser profile.
+Nerve stores settings, credentials, conversations, and logs in `~/.nerve`. Your code stays in your project folders. Set `NERVE_HOME` to use a separate home, for example when testing.
 
 :::note
-If Nerve recognizes a supported legacy v2 home (`manifest.json` format `nerve-workbench-state`), the desktop asks before migration. Read [Storage and migration](/operations/storage-migration/) before accepting if you need old conversations or project history.
+If Nerve finds a supported older Nerve home, it asks before migrating it. Read [Back up, move, and upgrade data](/operations/storage-migration/) first if you need your old conversations.
 :::
+
+Want to run Nerve from source? See [Development setup](/developers/development/).
 
 ## If installation fails
 

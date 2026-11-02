@@ -1,41 +1,50 @@
 ---
-title: Organize conversations
-description: Create, search, open, and manage project conversations.
+title: Find and organize conversations
+description: Search, group, pin, and title your conversations, and follow the work happening in them.
 sidebar:
   order: 6
 ---
 
-Conversations belong to a project and persist under `NERVE_HOME`. The navigator shows recent conversations, open/activity state, and bounded lists with **See more** for larger histories. Activity is a server-derived snapshot: running, waiting for you, waiting for background work, error, stopped, idle, or completed. Coding and Planning are profiles that change presentation and policy, not lifecycle states.
+Conversations belong to a project and are saved on your computer. Use the Conversations panel to start new ones and get back to old ones.
 
-## Create and find
+## Start and open a conversation
 
-Create a conversation from the project navigator or a new-conversation shortcut. Conversation search opens a modal for the selected project's rows; it is separate from recent-project and directory search in the project picker.
+Create a conversation from the Conversations panel, or with `Mod+N`. `Mod+Shift+N` starts one from a project of your choice. An open conversation becomes a tab, and a hidden tab keeps streaming, so you can look at something else meanwhile.
 
-Open conversations become center tabs. Hidden conversation tabs stay mounted, allowing live streaming state and scroll position to remain stable while you inspect another tab.
+## Find a conversation
+
+The list is grouped so the urgent ones come first: **Needs you**, **Pinned**, **Today**, **Yesterday**, **Previous 7 days**, and **Older**. A colored rail on each row shows its status: running, waiting for you, waiting for background work, failed, stopped, or done.
+
+- Search the list with `Mod+K`. It searches the selected project's conversations.
+- Right-click a conversation (or its tab) to **Pin** it so it stays near the top.
+- Choose **Mark done** to move a finished conversation out of the way, and **Reopen** to bring it back.
+
+## Get better titles
+
+Every new conversation gets an instant title taken from your first prompt. To have a model write a better one in the background, turn on **Improve titles with AI** in **Settings → Titles**. It's off by default and only affects new conversations. A title you set yourself is never replaced.
+
+AI titles send a shortened version of your first prompt to the model you choose there, which may bill for usage. Pick a small, fast model.
+
+## Link conversations to GitHub
+
+When you mention a GitHub pull request or issue in a conversation, Nerve links them. The pull request's details show the conversations linked to it. See [Pull requests](/guides/pull-requests/).
 
 ## Read the transcript
 
-The virtualized transcript can show:
+The transcript shows your messages, the agent's replies and any thinking the provider returns, tool calls with their output, approvals, questions, plans, queued prompts, and notes about compaction, retries, and interruptions. Nerve shows only the thinking a provider returns. Select text in a reply to [quote it](/guides/composer/#quote-a-reply).
 
-- user and assistant messages;
-- provider-returned thinking;
-- tool calls, live output, and artifacts;
-- approvals, questions, and plans;
-- queued prompts and background-work notices;
-- compaction and branch summaries;
-- retry, interruption, failure, and continuation states.
+## Follow work in progress
 
-Thinking is only visible when a provider returns it. Nerve does not reconstruct private reasoning a provider withholds. Transcript entries are durable history and model context; the current activity indicator is a rebuildable projection rather than another transcript state machine.
+The island above the composer collects **Agents** and **Commands**. Agents open sub-agent conversations, and commands open their live output. Saved servers and watchers live in **Launches** instead. See [Sub-agents](/guides/agents-and-delegation/) and [Launches](/guides/background-tasks/).
 
-## Follow concurrent work
+## Good to know
 
-The activity island above the composer brings **Agents**, **Commands**, return-to-lead navigation, and the jump to the latest output into one place. Agents open child conversations; commands open async Bash output tabs. Saved servers and watchers are managed separately in **Launches**. See [delegation](/guides/agents-and-delegation/#follow-progress) and [launch configurations](/guides/background-tasks/).
-
-## Delete carefully
-
-Removing a project first removes its Nerve conversations and associated state; it does not mean “delete the source directory.” Conversation pruning protects conversations with active runs, pending human input, or awaited asynchronous work, and can remove related inactive records and managed files.
+- Removing a project from Nerve removes its conversations from Nerve, not the project folder.
+- Pruning old conversations skips ones that are running, waiting for you, or waiting on background work.
+- To hear about conversations without watching the list, see [Notifications and activity](/guides/notifications/).
 
 ## Next steps
 
 - [History, branches, and recovery](/guides/history-and-recovery/)
-- [Backups and external editors](/guides/import-export-editors/)
+- [Notifications and activity](/guides/notifications/)
+- [Back up, move, and upgrade data](/operations/storage-migration/)

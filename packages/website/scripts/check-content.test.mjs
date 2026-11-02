@@ -99,3 +99,24 @@ test("detects routes duplicated by Markdown and MDX files", () => {
     site.cleanup();
   }
 });
+
+test("validates redirect targets and links that point at redirect sources", () => {
+  const site = fixture({
+    "index.md": page("[Old](/old/) [New](/new/)"),
+    "new.md": page("Text", "New"),
+  });
+  try {
+    assert.deepEqual(
+      inspectContent({ ...site, redirects: { "/old/": "/new/" } }).errors,
+      ["index.md: link /old/ points at a redirect source"],
+    );
+    const errors = inspectContent({
+      ...site,
+      redirects: { "/new/": "/gone/" },
+    }).errors;
+    assert(errors.some((error) => error.includes("source is still a page")));
+    assert(errors.some((error) => error.includes("unknown target /gone/")));
+  } finally {
+    site.cleanup();
+  }
+});

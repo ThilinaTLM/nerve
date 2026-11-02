@@ -1,0 +1,52 @@
+---
+title: Themes and appearance
+description: Pick a theme, adjust zoom, and arrange the workbench for your screen.
+sidebar:
+  order: 13
+---
+
+import DocsScreenshot from "../../../components/docs/DocsScreenshot.astro";
+import themesDark from "../../../assets/screenshots/desktop/themes-dark.webp";
+import themesLight from "../../../assets/screenshots/desktop/themes-light.webp";
+
+Make Nerve look and fit the way you like: choose a theme, set the zoom, and arrange your panels.
+
+## Change the theme
+
+1. Open **Settings → Workbench → Appearance**.
+2. Choose a **Theme**: Nerve Light, Nerve Dark (the default), Melange Light, Melange Dark, or Graphite.
+
+There is no separate light/dark or system setting; each theme is a complete look. Your choice is saved in the browser or window you are using, so two devices connected to the same daemon can use different themes.
+
+<DocsScreenshot
+  light={themesLight}
+  dark={themesDark}
+  alt="Settings, Workbench page, with the Appearance theme picker showing Nerve Light, Nerve Dark, Melange Light, Melange Dark, and Graphite"
+  caption="Each card previews a complete theme. The choice applies to this browser or window only."
+  widths={[480, 768, 1024, 1440]}
+  sizes="(min-width: 72rem) 48rem, calc(100vw - 3rem)"
+/>
+
+## Zoom
+
+Press `Mod+=` to zoom in, `Mod+-` to zoom out, and `Mod+0` to reset. Zoom moves in fixed steps and applies to the whole workbench. On small screens, zoom does not replace the compact layout.
+
+## Panels and layout
+
+Panel positions, sizes, visibility, and active tabs are remembered per browser, so another browser starts with its own layout.
+
+Below 1024 px wide, use the sheet controls to open dock content. On phones, spacing tightens further and popovers open as bottom sheets you can pull down to dismiss.
+
+## Sounds and notifications
+
+Sounds, toasts, and desktop notifications are covered in [Notifications and activity](/guides/notifications/). Their preferences live in **Settings → Notifications**.
+
+## Good to know
+
+- Shortcuts are fixed and can't be remapped. See the [shortcut reference](/reference/shortcuts/).
+- Retired themes switch to a current theme automatically.
+
+## Next steps
+
+- [Settings at a glance](/guides/settings/)
+- [Browser and PWA](/operations/browser-pwa/)

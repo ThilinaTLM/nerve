@@ -1,0 +1,57 @@
+---
+title: Discover and in-app guides
+description: Use Discover to see what's new, finish setup, and take a tour of the workbench.
+sidebar:
+  order: 2
+---
+
+import DocsScreenshot from "../../../components/docs/DocsScreenshot.astro";
+import discoverDark from "../../../assets/screenshots/desktop/discover-dark.webp";
+import discoverLight from "../../../assets/screenshots/desktop/discover-light.webp";
+
+Discover is a page inside Nerve that shows what's new, helps you finish setup, and offers a tour of the workbench. Open it from the Discover button in the title bar.
+
+## What's on the page
+
+- **What's new:** highlights of the current release, with a short archive of earlier ones.
+- **Setup guides:** short coaches that take you to the right screen and point at the control to use.
+- **Workbench tour:** a walk through conversations, the composer, approvals, panels, files, Git, launches, and Settings.
+- **Tips:** short pointers to features you might miss.
+- **Links:** documentation, release notes, and issue reporting.
+
+<DocsScreenshot
+  light={discoverLight}
+  dark={discoverDark}
+  alt="The Discover page with a featured Pull requests that stay live card and artwork cards for other new features"
+  caption="The newest release leads with one featured story. Each card's button takes you to the setting or tour it describes."
+  widths={[480, 768, 1024, 1440]}
+  sizes="(min-width: 72rem) 48rem, calc(100vw - 3rem)"
+/>
+
+## Setup guides
+
+| Guide                       | What it does                                                   |
+| --------------------------- | -------------------------------------------------------------- |
+| Open a project              | Choose a folder to work in.                                    |
+| Connect a model provider    | Sign in or add an API key.                                     |
+| Enable voice input          | Connect a ChatGPT subscription so the microphone is available. |
+| Configure scoped models     | Choose which models appear in the picker.                      |
+| Configure agent defaults    | Set the default profile, permission, model, and thinking.      |
+| Set up web search           | Add a Tavily key so agents can search the web.                 |
+| Connect Jira and Confluence | Add an Atlassian profile and enable both tool groups.          |
+
+Open a guide with **Start guide**. The tour needs an open project, so Nerve offers to open one first.
+
+## Good to know
+
+- Discover can open on its own after an update. Turn that off from the **Discover options** menu with **Open Discover after updates**.
+- Nerve marks a guide done when its goal is already met, for example when a provider is connected. Use **Replay** to run one again. A revised guide can appear again.
+- The title bar shows a badge on the Discover button when there are unread updates or unfinished setup.
+
+## Related
+
+- [Open a project](/start/first-project/)
+- [Connect a model](/start/providers/)
+- [Choose a profile, model, and permissions](/guides/agent-controls/)
+- [Find your way around](/guides/workbench/)
+- [Settings at a glance](/guides/settings/)

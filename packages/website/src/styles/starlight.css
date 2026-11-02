@@ -200,6 +200,18 @@ site-search kbd {
   border-color: var(--hairline);
 }
 
+/* Starlight drops the outer cell padding because its tables are frameless;
+ * inside the bordered frame the first and last columns need it back. */
+.sl-markdown-content
+  :is(th, td):is(:first-child, :last-child):not(:where(.not-content *)) {
+  padding-inline: 1rem;
+}
+
+/* The frame already closes the table; a final row rule would double it. */
+.sl-markdown-content tr:last-child td:not(:where(.not-content *)) {
+  border-bottom: 0;
+}
+
 .sl-markdown-content th:not(:where(.not-content *)) {
   background-color: color-mix(in oklab, var(--foreground) 6%, transparent);
 }
