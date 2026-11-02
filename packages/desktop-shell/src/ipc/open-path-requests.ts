@@ -26,16 +26,25 @@ const VALUE_FLAGS = new Set([
   "--https-port",
 ]);
 
+/**
+ * Directory paths requested on the command line. `argv` excludes the
+ * executable. Unpackaged Electron receives its app path as the first
+ * positional argument, possibly after Chromium switches; `skipAppPath` drops it.
+ */
 export function directoryPathsFromArgv(
   argv: readonly string[],
   cwd: string,
+  { skipAppPath = false }: { skipAppPath?: boolean } = {},
 ): string[] {
   const candidates: string[] = [];
+  let skipNextPositional = skipAppPath;
   for (let index = 0; index < argv.length; index += 1) {
     const arg = argv[index];
     if (!arg) continue;
     if (VALUE_FLAGS.has(arg)) index += 1;
-    else if (!arg.startsWith("-")) candidates.push(resolve(cwd, arg));
+    else if (arg.startsWith("-")) continue;
+    else if (skipNextPositional) skipNextPositional = false;
+    else candidates.push(resolve(cwd, arg));
   }
   return filterOpenPaths(candidates, true);
 }
