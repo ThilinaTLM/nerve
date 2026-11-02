@@ -21,7 +21,7 @@ A skill is a Markdown file with a name and a description, which the agent reads 
 2. Add a `SKILL.md` file with a `description`. The folder name, in lowercase with hyphens, is the skill's name.
 3. Open **Settings → Skills** to confirm Nerve found it.
 
-To get started quickly, enable the built-in **skill-creator** skill and ask the agent to create a skill for you.
+To get started quickly, enable the built-in **skill-creator** skill and ask the agent to create a skill for you. Enable the built-in **engineering-docs** skill to have the agent write, maintain, or audit your project's architecture docs and proposals.
 
 If two skills share a name, the project's wins over your own. The [resource reference](/reference/resources/) lists the exact order and discovery rules.
 
