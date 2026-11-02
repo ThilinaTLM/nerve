@@ -22,7 +22,12 @@ const hint = $derived(
 </script>
 
 {#if suggestions.length > 0}
-  <Tooltip.Provider delayDuration={300} disableHoverableContent>
+  <!-- Long delay: chips are clicked often, the tooltip is reference only. -->
+  <Tooltip.Provider
+    delayDuration={700}
+    skipDelayDuration={0}
+    disableHoverableContent
+  >
     <div
       class="flex flex-wrap gap-1"
       role="group"
