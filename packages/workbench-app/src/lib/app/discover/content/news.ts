@@ -9,7 +9,7 @@ export const discoverNewsCatalog: readonly DiscoverNewsEntry[] = [
   {
     id: "live-pull-requests",
     version: 1,
-    releasedIn: "next",
+    releasedIn: "0.38.0",
     featured: true,
     artwork: "pull-requests",
     title: "Pull requests that stay live",
@@ -29,7 +29,7 @@ export const discoverNewsCatalog: readonly DiscoverNewsEntry[] = [
   {
     id: "away-notifications",
     version: 1,
-    releasedIn: "next",
+    releasedIn: "0.38.0",
     artwork: "notifications",
     title: "Notifications that know when you're away",
     summary:
@@ -44,7 +44,7 @@ export const discoverNewsCatalog: readonly DiscoverNewsEntry[] = [
   {
     id: "folder-browser",
     version: 1,
-    releasedIn: "next",
+    releasedIn: "0.38.0",
     artwork: "projects",
     title: "Open any folder, or just drop it in",
     summary:
@@ -53,7 +53,7 @@ export const discoverNewsCatalog: readonly DiscoverNewsEntry[] = [
   {
     id: "quote-selection",
     version: 1,
-    releasedIn: "next",
+    releasedIn: "0.38.0",
     artwork: "quote",
     title: "Quote exactly what you need",
     summary:
@@ -62,7 +62,7 @@ export const discoverNewsCatalog: readonly DiscoverNewsEntry[] = [
   {
     id: "new-themes",
     version: 1,
-    releasedIn: "next",
+    releasedIn: "0.38.0",
     artwork: "themes",
     title: "New themes: Graphite and Melange",
     summary:
@@ -77,7 +77,7 @@ export const discoverNewsCatalog: readonly DiscoverNewsEntry[] = [
   {
     id: "profiles-replace-modes",
     version: 1,
-    releasedIn: "next",
+    releasedIn: "0.38.0",
     artwork: "profiles",
     title: "Agent profiles replace modes",
     summary:
