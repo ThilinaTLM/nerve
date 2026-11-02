@@ -76,7 +76,7 @@ Derived conversation status and presentation state are covered by [conversation 
 
 ## Deletion
 
-Conversation deletion collects descendants, stops work, cancels async bash and queued preparation, removes managed conversation files, then deletes the conversation. Foreign keys cascade relational ownership. Deletion removes the conversation's configuration and permission overlay—a scoped file extending permission rules—along with its assets, so no conversation-owned files remain after removal.
+Conversation deletion collects descendants, stops work, cancels async bash, removes managed conversation files, then deletes the conversation. Foreign keys cascade relational ownership. Deletion removes the conversation's configuration and permission overlay—a scoped file extending permission rules—along with its assets, so no conversation-owned files remain after removal.
 
 Orphan cleanup removes unreferenced assets only when no pending tool or async-bash producer remains. This protects files produced before settlement attaches them to an event.
 
@@ -84,14 +84,14 @@ Project deletion deletes conversations before the project row; project-owned scr
 
 ## Where it lives
 
-| Concern                          | Owner                                                                                                                                                       |
-| -------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Physical schema                  | [`coreSchemaV1`](../../../packages/conversation-core/src/storage/schema.ts), [`coreSchemaV2`](../../../packages/conversation-core/src/storage/schema-v2.ts) |
-| Schema verification and upgrades | [`migrate`](../../../packages/conversation-core/src/storage/migrations.ts)                                                                                  |
-| Event reads and writes           | [`ConversationEventRepository`](../../../packages/conversation-core/src/storage/conversation-event.repository.ts)                                           |
-| Trust decisions                  | [`TrustedResourceRepository`](../../../packages/conversation-core/src/storage/trusted-resource.repository.ts)                                               |
-| Application shapes               | [Core contracts](../../../packages/contracts/src/domains/core/)                                                                                             |
-| Atomic updates                   | [`CoreStorage.transaction`](../../../packages/conversation-core/src/storage/core-storage.ts)                                                                |
-| Conversation deletion            | [`ConversationService.delete`](../../../packages/conversation-core/src/conversations/conversation.service.ts)                                               |
-| File cleanup                     | [`AssetStore.cleanupOrphans`](../../../packages/conversation-core/src/assets/asset-store.ts)                                                                |
-| Project deletion                 | [`ProjectService.delete`](../../../packages/conversation-core/src/conversations/project.service.ts)                                                         |
+| Concern                          | Owner                                                                                                                                                                                                                                       |
+| -------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Physical schema                  | [`coreSchemaV1`](../../../packages/conversation-core/src/storage/schema.ts), [`coreSchemaV2`](../../../packages/conversation-core/src/storage/schema-v2.ts), [`coreSchemaV3`](../../../packages/conversation-core/src/storage/schema-v3.ts) |
+| Schema verification and upgrades | [`migrate`](../../../packages/conversation-core/src/storage/migrations.ts)                                                                                                                                                                  |
+| Event reads and writes           | [`ConversationEventRepository`](../../../packages/conversation-core/src/storage/conversation-event.repository.ts)                                                                                                                           |
+| Trust decisions                  | [`TrustedResourceRepository`](../../../packages/conversation-core/src/storage/trusted-resource.repository.ts)                                                                                                                               |
+| Application shapes               | [Core contracts](../../../packages/contracts/src/domains/core/)                                                                                                                                                                             |
+| Atomic updates                   | [`CoreStorage.transaction`](../../../packages/conversation-core/src/storage/core-storage.ts)                                                                                                                                                |
+| Conversation deletion            | [`ConversationService.delete`](../../../packages/conversation-core/src/conversations/conversation.service.ts)                                                                                                                               |
+| File cleanup                     | [`AssetStore.cleanupOrphans`](../../../packages/conversation-core/src/assets/asset-store.ts)                                                                                                                                                |
+| Project deletion                 | [`ProjectService.delete`](../../../packages/conversation-core/src/conversations/project.service.ts)                                                                                                                                         |

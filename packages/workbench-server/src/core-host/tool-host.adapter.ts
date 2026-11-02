@@ -2,7 +2,6 @@ import type { BashToolSettings } from "@nervekit/contracts/settings";
 import { realpath, readFile } from "node:fs/promises";
 import { projectProcessOutput } from "@nervekit/tools/result-projection";
 import type { ToolHostPort } from "@nervekit/conversation-core";
-import type { ToolCallOrigin } from "@nervekit/contracts/core";
 import {
   toolManifest,
   buildBashToolDefinition,
@@ -26,9 +25,8 @@ import { prepareShellProcess } from "../infrastructure/process-host/shell-proces
 
 export function requiresBashTimeoutArgument(
   settings: BashToolSettings,
-  origin: ToolCallOrigin,
 ): boolean {
-  return !settings.autoPromotion.enabled && origin !== "user";
+  return !settings.autoPromotion.enabled;
 }
 
 export function createToolHostPort(
@@ -208,7 +206,7 @@ export function createToolHostPort(
           (args.projectEnvironment !== undefined &&
             typeof args.projectEnvironment !== "boolean") ||
           (args.ready !== undefined && typeof args.ready !== "string") ||
-          (requiresBashTimeoutArgument(settings, input.origin) &&
+          (requiresBashTimeoutArgument(settings) &&
             (!Number.isInteger(args.timeout) ||
               Number(args.timeout) < 1 ||
               Number(args.timeout) > Math.floor(settings.maxTimeoutMs / 1000)))
@@ -291,9 +289,7 @@ export function createToolHostPort(
             cwd,
             artifactDir: input.artifactDir,
             timeoutMs: !settings.autoPromotion.enabled
-              ? input.origin === "user"
-                ? settings.maxTimeoutMs
-                : Number(args.timeout) * 1000
+              ? Number(args.timeout) * 1000
               : undefined,
             onProgress: (update) => {
               if (reportProgress) input.onProgress(update);

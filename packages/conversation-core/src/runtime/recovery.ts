@@ -8,7 +8,7 @@ import type { ConversationScheduler } from "./scheduler.js";
 export async function recoverCore(input: {
   storage: CoreStorage;
   toolCalls: Pick<ToolCallService, "recover" | "openRows">;
-  inputs: Pick<InputQueueService, "recover" | "hasDeliverable">;
+  inputs: Pick<InputQueueService, "hasDeliverable">;
   asyncBash: Pick<AsyncBashService, "recover">;
   status: Pick<StatusService, "transition" | "refresh">;
   scheduler: Pick<ConversationScheduler, "enable" | "wake">;
@@ -19,7 +19,6 @@ export async function recoverCore(input: {
       if (!input.storage.conversations.get(id)) continue;
       input.storage.events.validate(id);
       await input.toolCalls.recover(id);
-      await input.inputs.recover(id);
       await input.asyncBash.recover(id);
       const executionId = openExecutionId(input.storage, id);
       if (executionId && !input.toolCalls.openRows(id).length)

@@ -171,7 +171,6 @@ export class ConversationScheduler {
       this.stopping.add(id);
       this.options.compactions.cancelQueued(id);
       this.slots.get(id)?.controller.abort(shutdownReason);
-      this.options.inputs.discard(this.options.storage.inputs.ids(id));
     }
     try {
       await this.options.toolCalls.discard(

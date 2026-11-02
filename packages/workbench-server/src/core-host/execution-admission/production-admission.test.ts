@@ -13,8 +13,6 @@ import {
 
 type Fixture = Awaited<ReturnType<typeof productionAdmissionFixture>>;
 function callId(call: Awaited<ReturnType<Fixture["command"]>>) {
-  if (call === "delivered" || !("toolName" in call))
-    throw new Error("Expected inline tool call");
   return call.id;
 }
 

@@ -1,13 +1,10 @@
 <script lang="ts">
 import type { Snippet } from "svelte";
-import type { CommandPreparation } from "@nervekit/contracts/core";
-import UserMessageContent from "./UserMessageContent.svelte";
+import PlainText from "@nervekit/ui-kit/renderers/plain-text/PlainText.svelte";
 
 type Props = {
   text: string;
   queued?: boolean;
-  pending?: boolean;
-  commandPreparation?: CommandPreparation;
   actions?: Snippet;
   showActions?: boolean;
   children?: Snippet;
@@ -16,8 +13,6 @@ type Props = {
 let {
   text,
   queued = false,
-  pending = false,
-  commandPreparation,
   actions,
   showActions = queued,
   children,
@@ -43,7 +38,7 @@ let {
   ></div>
   <div class="relative min-w-0 overflow-hidden">
     {#if text}
-      <UserMessageContent {text} {pending} {commandPreparation} />
+      <PlainText {text} />
     {/if}
     {@render children?.()}
   </div>

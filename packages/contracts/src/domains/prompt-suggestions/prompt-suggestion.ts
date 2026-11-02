@@ -4,6 +4,7 @@ export const PROMPT_SUGGESTION_NAME_MAX_LENGTH = 64;
 export const PROMPT_SUGGESTION_LABEL_MAX_LENGTH = 80;
 export const PROMPT_SUGGESTION_DESCRIPTION_MAX_LENGTH = 1024;
 export const PROMPT_SUGGESTION_PROMPT_MAX_LENGTH = 100_000;
+export const PROMPT_SUGGESTION_PREVIEW_MAX_LENGTH = 2_000;
 
 export const promptSuggestionNameSchema = z
   .string()
@@ -50,6 +51,8 @@ export const promptSuggestionSchema = z.object({
   label: z.string().min(1),
   description: z.string().optional(),
   prompt: z.string().min(1),
+  /** One-line summary of the state that triggered the suggestion (built-ins). */
+  context: z.string().optional(),
   order: z.number(),
   source: promptSuggestionSourceSchema,
   requiresTrust: z.boolean(),
@@ -87,6 +90,13 @@ export const promptSuggestionStatusSchema = z.object({
   overriddenBy: promptSuggestionSourceKindSchema.optional(),
   predicateHash: z.string().min(1).optional(),
   stale: z.boolean().optional(),
+  /** Human-readable "Appears when…" text. */
+  conditionSummary: z.string().optional(),
+  /** Prompt body (or a sample rendering for built-ins), truncated for display. */
+  promptPreview: z
+    .string()
+    .max(PROMPT_SUGGESTION_PREVIEW_MAX_LENGTH + 1)
+    .optional(),
 });
 export type PromptSuggestionStatus = z.infer<
   typeof promptSuggestionStatusSchema
@@ -172,6 +182,10 @@ export const promptSuggestionWhenSchema = z.object({
   gitDirty: z.boolean().optional(),
   hasRepos: z.boolean().optional(),
   githubAuthenticated: z.boolean().optional(),
+  gitAhead: z.boolean().optional(),
+  gitBehind: z.boolean().optional(),
+  onBaseBranch: z.boolean().optional(),
+  hasPullRequest: z.boolean().optional(),
   permissionRuleSets: z.array(z.string().min(1)).optional(),
 });
 export type PromptSuggestionWhen = z.infer<typeof promptSuggestionWhenSchema>;

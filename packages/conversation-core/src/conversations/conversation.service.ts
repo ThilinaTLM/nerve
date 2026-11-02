@@ -234,14 +234,6 @@ export class ConversationService {
       this.options.storage.events.get(eventId)?.conversationId !== id
     )
       throw new Error("Head event belongs to another conversation");
-    if (
-      this.options.inputs
-        .list(id)
-        .some(
-          (input) => input.commandPreparation && input.preparedText === null,
-        )
-    )
-      throw new Error("Input command preparation is unfinished");
     this.options.storage.conversations.update(id, {
       headEventId: eventId,
       updatedAt: this.options.now(),

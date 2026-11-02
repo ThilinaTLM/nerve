@@ -1,6 +1,5 @@
 export * from "./completion.js";
 export * from "./unified-completion.js";
 export * from "./events.js";
-export * from "./inline-command.js";
 export * from "./operations.js";
 export * from "./slash-command.js";

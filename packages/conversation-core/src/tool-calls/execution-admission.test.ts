@@ -7,6 +7,7 @@ import type {
   ConfigurationBlockedRequest,
   ToolApprovalBinding,
 } from "@nervekit/contracts/core";
+import { createId } from "@nervekit/contracts";
 import { AssetStore } from "../assets/asset-store.js";
 import { ConversationCore } from "../core.js";
 import {
@@ -137,6 +138,27 @@ async function fixture(
       return service;
     },
     storage: config.storage,
+    /** Inserts and starts a bash call. The row shape is a plain open tool call. */
+    runCommand: async (conversationId: string, command: string) => {
+      const call = config.storage.toolCalls.insert({
+        id: createId("tool"),
+        conversationId,
+        turnId: createId("turn"),
+        providerCallId: null,
+        assistantEventId: null,
+        contentIndex: null,
+        origin: "user",
+        toolName: "bash",
+        arguments: { command },
+        state: "supervising",
+        supervision: null,
+        interaction: null,
+        executionClaim: null,
+        updatedAt: new Date().toISOString(),
+      });
+      await service.start([call.id]);
+      return call;
+    },
     createChild: () =>
       core.createConversation({
         id: "conv_child",
@@ -174,9 +196,7 @@ async function fixture(
 
 test("later denial defeats approval without dispatch", async (t) => {
   const f = await fixture(t);
-  const call = await f.service.runUserCommand("conv_admission", "echo hello");
-  assert.notEqual(call, "delivered");
-  if (call === "delivered") return;
+  const call = await f.runCommand("conv_admission", "echo hello");
   assert.equal(f.storage.toolCalls.get(call.id)?.state, "awaiting_approval");
   f.setPolicy("deny");
   await f.service.resolveInteraction({
@@ -190,8 +210,7 @@ test("later denial defeats approval without dispatch", async (t) => {
 
 test("restart re-captures a changed target and requires fresh approval", async (t) => {
   const f = await fixture(t);
-  const call = await f.service.runUserCommand("conv_admission", "echo hello");
-  if (call === "delivered") throw new Error("Expected call");
+  const call = await f.runCommand("conv_admission", "echo hello");
   const row = f.storage.toolCalls.get(call.id)!;
   f.storage.toolCalls.update(call.id, {
     state: "ready",
@@ -219,8 +238,7 @@ test("restart re-captures a changed target and requires fresh approval", async (
 test("configuration blocked Retry is never approval and Cancel is readable cancellation", async (t) => {
   const f = await fixture(t);
   f.setBlocked(true);
-  const call = await f.service.runUserCommand("conv_admission", "echo hello");
-  if (call === "delivered") throw new Error("Expected call");
+  const call = await f.runCommand("conv_admission", "echo hello");
   assert.equal(f.storage.toolCalls.get(call.id)?.state, "awaiting_input");
   await assert.rejects(
     f.service.resolveInteraction({
@@ -259,8 +277,7 @@ test("configuration blocked Retry is never approval and Cancel is readable cance
 
 test("approval grants presented binding, not a silently changed target", async (t) => {
   const f = await fixture(t);
-  const call = await f.service.runUserCommand("conv_admission", "echo hello");
-  if (call === "delivered") throw new Error("Expected call");
+  const call = await f.runCommand("conv_admission", "echo hello");
   f.setTarget("c");
   await f.service.resolveInteraction({
     toolCallId: call.id,
@@ -294,8 +311,7 @@ test("approval grants presented binding, not a silently changed target", async (
 test("health recovery retries admission and still asks for approval", async (t) => {
   const f = await fixture(t);
   f.setBlocked(true);
-  const call = await f.service.runUserCommand("conv_admission", "echo hello");
-  if (call === "delivered") throw new Error("Expected call");
+  const call = await f.runCommand("conv_admission", "echo hello");
   f.setBlocked(false);
   await f.service.retryConfigurationBlocked();
   assert.equal(f.storage.toolCalls.get(call.id)?.state, "awaiting_approval");
@@ -312,8 +328,7 @@ test("execution independently bans child management tools", async (t) => {
     "subagent_status",
   ]) {
     f.setBlocked(true);
-    const call = await f.service.runUserCommand("conv_child", "echo hello");
-    if (call === "delivered") throw new Error("Expected call");
+    const call = await f.runCommand("conv_child", "echo hello");
     f.storage.toolCalls.update(call.id, {
       toolName,
       state: "ready",
@@ -330,19 +345,15 @@ test("execution independently bans child management tools", async (t) => {
 test("current permission change affects next fresh and queued execution", async (t) => {
   const f = await fixture(t);
   f.setPolicy("allow");
-  await f.service.runUserCommand("conv_admission", "echo first");
+  await f.runCommand("conv_admission", "echo first");
   assert.equal(f.executions(), 1);
   f.setBlocked(true);
-  const queued = await f.service.runUserCommand(
-    "conv_admission",
-    "echo queued",
-  );
-  if (queued === "delivered") throw new Error("Expected call");
+  const queued = await f.runCommand("conv_admission", "echo queued");
   f.storage.toolCalls.update(queued.id, { state: "ready", interaction: null });
   f.setPolicy("deny");
   f.setBlocked(false);
   await f.service.start([queued.id, queued.id]);
-  await f.service.runUserCommand("conv_admission", "echo fresh");
+  await f.runCommand("conv_admission", "echo fresh");
   assert.equal(f.executions(), 1);
 });
 
@@ -350,8 +361,7 @@ test("synchronous publication cannot insert a policy-change gap before dispatch"
   const f = await fixture(t);
   f.setPolicy("allow");
   f.onRunning(() => f.setPolicy("deny"));
-  const call = await f.service.runUserCommand("conv_admission", "echo hello");
-  if (call === "delivered") throw new Error("Expected call");
+  const call = await f.runCommand("conv_admission", "echo hello");
   assert.equal(f.executions(), 0);
   assert.equal(f.storage.toolCalls.get(call.id), null);
 });
@@ -359,8 +369,7 @@ test("synchronous publication cannot insert a policy-change gap before dispatch"
 test("parallel attempts for one queued call dispatch only once", async (t) => {
   const f = await fixture(t);
   f.setBlocked(true);
-  const call = await f.service.runUserCommand("conv_admission", "echo hello");
-  if (call === "delivered") throw new Error("Expected call");
+  const call = await f.runCommand("conv_admission", "echo hello");
   f.storage.toolCalls.update(call.id, { state: "ready", interaction: null });
   f.setBlocked(false);
   f.setPolicy("allow");
@@ -373,8 +382,7 @@ test("parallel attempts for one queued call dispatch only once", async (t) => {
 
 test("approved running calls retain durable evidence through restart and readmission", async (t) => {
   const f = await fixture(t, { replaySafe: true, holdExecutions: true });
-  const call = await f.service.runUserCommand("conv_admission", "echo hello");
-  if (call === "delivered") throw new Error("Expected call");
+  const call = await f.runCommand("conv_admission", "echo hello");
   const resolution = { kind: "approval", decision: "approve" } as const;
   const resolutionRequestId = "approval-before-restart";
   await f.service.resolveInteraction({

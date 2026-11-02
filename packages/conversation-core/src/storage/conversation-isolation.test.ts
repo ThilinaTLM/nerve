@@ -66,7 +66,6 @@ function fixture() {
         originalText: "hello",
         source: "user",
         senderConversationId: null,
-        commandPreparation: null,
       },
     });
   db.sqlite.exec("PRAGMA ignore_check_constraints=ON");
@@ -217,7 +216,6 @@ test("recovery validates raw identities independently and never recovers or wake
         openRows: () => [],
       },
       inputs: {
-        recover: () => {},
         hasDeliverable: (id) => {
           if (id === "wake-fails") throw new Error("damaged input");
           return true;

@@ -112,16 +112,12 @@ function systemEventNoticeHeader(
   }
   if (isSubagentNotice(notice))
     return subagentNoticeHeader(notice, options.onOpenFile);
-  if (
-    notice.kind === "tool_result" ||
-    notice.kind === "inline_command_result"
-  ) {
+  if (notice.kind === "tool_result") {
     return {
       kind: "tool_result",
       tone: details.isError === true ? "destructive" : "neutral",
       glyph: "system",
-      badge:
-        notice.kind === "tool_result" ? "tool_result" : "inline_command_result",
+      badge: "tool_result",
       arg: textValue(details.toolName) ?? textValue(details.command),
       statusLabel: "Unpaired tool result in agent context",
     };

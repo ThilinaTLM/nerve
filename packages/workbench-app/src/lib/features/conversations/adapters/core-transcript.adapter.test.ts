@@ -67,7 +67,7 @@ test("historical profile receipts are hidden before transcript row accounting", 
     result.entries.map((entry) => entry.id),
     ["ordinary"],
   );
-  assert.equal(result.entries[0].kind, "inline_command_result");
+  assert.equal(result.entries[0].kind, "message");
   assert.equal(events.length, 4, "stored history is not rewritten");
 });
 
@@ -80,6 +80,6 @@ test("unrelated notifications and actual command results remain visible", () => 
   const result = transcript(events);
   assert.deepEqual(
     result.entries.map(({ id, kind, text }) => ({ id, kind, text })),
-    events.map(({ id }) => ({ id, kind: "inline_command_result", text: id })),
+    events.map(({ id }) => ({ id, kind: "message", text: id })),
   );
 });

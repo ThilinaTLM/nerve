@@ -2,8 +2,6 @@
 import UserMessageBubble from "$lib/presentation/transcript/UserMessageBubble.svelte";
 import NoticeCard from "$lib/presentation/transcript/notice/NoticeCard.svelte";
 import TranscriptContextMenu from "$lib/presentation/transcript/TranscriptContextMenu.svelte";
-import { formatInlineCommandResultText } from "@nervekit/contracts/completions";
-import type { CommandPreparation } from "@nervekit/contracts/core";
 import type { ContextMenuItem } from "@nervekit/ui-kit/components/composites/context-menu-list";
 import Markdown from "@nervekit/ui-kit/renderers/markdown/Markdown.svelte";
 import ConversationBanner from "$lib/presentation/conversations/ConversationBanner.svelte";
@@ -20,14 +18,12 @@ import type {
 } from "$lib/presentation/state/transcript-types";
 import RunActivitySlot from "$lib/presentation/transcript/activity/RunActivitySlot.svelte";
 import type { RunActivityView } from "$lib/presentation/transcript/activity/run-activity";
-import CommandBlockCard from "$lib/presentation/transcript/CommandBlockCard.svelte";
 import CompactionNoticeCard from "$lib/presentation/transcript/notice/CompactionNoticeCard.svelte";
 import RunStatusNoticeCard from "$lib/presentation/transcript/notice/RunStatusNoticeCard.svelte";
 import SystemEventNoticeCard from "$lib/presentation/transcript/notice/SystemEventNoticeCard.svelte";
 import TaskNoticeCard from "$lib/presentation/transcript/notice/TaskNoticeCard.svelte";
 import ThinkingGroup from "$lib/presentation/transcript/ThinkingGroup.svelte";
 import TranscriptList from "$lib/presentation/transcript/TranscriptList.svelte";
-import UserMessageContent from "$lib/presentation/transcript/UserMessageContent.svelte";
 import UserPromptRow from "$lib/presentation/transcript/UserPromptRow.svelte";
 import type { QueuedPromptRecord } from "$lib/presentation/view-models/conversation";
 import GalleryGroup from "../GalleryGroup.svelte";
@@ -80,38 +76,6 @@ const messageItem = (
 });
 
 /* ------------------------------ User messages ------------------------------ */
-
-const commandResultText = [
-  "Here is the current state:",
-  formatInlineCommandResultText({
-    command: "git status --short",
-    status: "completed",
-    exitCode: 0,
-    output: " M src/app.ts\n?? notes.md",
-  }),
-  formatInlineCommandResultText({
-    command: "pnpm test",
-    status: "completed",
-    exitCode: 1,
-    output: "FAIL src/store.test.ts\n  expected 3, received 2",
-  }),
-  "What should I do next?",
-].join("\n");
-
-const rawCommandText =
-  "Run these first:\n```!!!\npnpm install\n```\nthen\n```!!!\npnpm build\n```";
-
-const preparation: CommandPreparation = {
-  blocks: [
-    {
-      index: 0,
-      command: "pnpm install",
-      state: "completed",
-      result: { stdout: "Done in 3.1s", stderr: "", exitCode: 0 },
-    },
-    { index: 1, command: "pnpm build", state: "running", result: null },
-  ],
-};
 
 const longPrompt =
   "/home/tlm/Projects/nerve/data/storage-4/data/images/image-20261014T080316Z.png the plan mode present tool view not showing the body and footer which it was showing when it is on waiting for approval state. Can we fix that?";
@@ -361,8 +325,6 @@ const contextTimeline: TimelineItem[] = [
     },
   },
 ];
-const commandStatusOutput = " M src/app.ts\n?? notes.md";
-const commandTestOutput = "FAIL src/store.test.ts\n  expected 3, received 2";
 </script>
 
 {#snippet guarded(error: unknown)}
@@ -452,22 +414,6 @@ const commandTestOutput = "FAIL src/store.test.ts\n  expected 3, received 2";
         {transcriptMenu}
       />
     </GallerySpecimen>
-
-    <GallerySpecimen
-      title="UserMessageContent"
-      description="Inline command results, and raw / pending / per-command-prepared command blocks."
-      source="presentation/transcript/UserMessageContent"
-      usage="1 file · conversation"
-      layout="stack"
-      surface="card"
-    >
-      <UserMessageContent text={commandResultText} />
-      <UserMessageContent text={rawCommandText} pending />
-      <UserMessageContent
-        text={rawCommandText}
-        commandPreparation={preparation}
-      />
-    </GallerySpecimen>
   </GalleryGroup>
 
   <GalleryGroup
@@ -496,31 +442,6 @@ const commandTestOutput = "FAIL src/store.test.ts\n  expected 3, received 2";
     >
       <ThinkingGroup items={thinkingDone} />
       <ThinkingGroup items={thinkingLive} />
-    </GallerySpecimen>
-
-    <GallerySpecimen
-      title="CommandBlockCard"
-      description="Running, done ok, done failed."
-      source="presentation/transcript/CommandBlockCard"
-      usage="1 file · conversation"
-      layout="stack"
-      class="mx-auto w-[760px] max-w-full"
-    >
-      <CommandBlockCard command="pnpm install" phase="running" />
-      <CommandBlockCard
-        command="git status --short"
-        phase="done"
-        status="completed"
-        exitCode={0}
-        output={commandStatusOutput}
-      />
-      <CommandBlockCard
-        command="pnpm test"
-        phase="done"
-        status="completed"
-        exitCode={1}
-        output={commandTestOutput}
-      />
     </GallerySpecimen>
   </GalleryGroup>
 

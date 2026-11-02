@@ -45,10 +45,10 @@ void test("async bash cancellation sends SIGTERM then escalates after the launch
   }
 });
 
-void test("run and start resolve current shell settings with their conversation identity", async () => {
+void test("start resolves current shell settings with their conversation identity", async () => {
   let calls = 0;
-  let current = "first";
-  let conversationId = "conv-run";
+  const current = "updated";
+  const conversationId = "conv-start";
   const host = new CoreProcessHost(async (cwd, id) => {
     calls++;
     assert.equal(id, conversationId);
@@ -56,17 +56,6 @@ void test("run and start resolve current shell settings with their conversation 
     throw new Error(`shell unavailable: ${current}`);
   });
   assert.equal(calls, 0, "construction must not require an installed shell");
-  await assert.rejects(
-    host.run({
-      conversationId: "conv-run",
-      command: "pwd",
-      cwd: "project-directory",
-      signal: new AbortController().signal,
-    }),
-    /shell unavailable: first/,
-  );
-  current = "updated";
-  conversationId = "conv-start";
   const dir = await mkdtemp(join(tmpdir(), "nerve-shell-settings-"));
   try {
     await assert.rejects(
@@ -79,7 +68,7 @@ void test("run and start resolve current shell settings with their conversation 
       }),
       /shell unavailable: updated/,
     );
-    assert.equal(calls, 2);
+    assert.equal(calls, 1);
   } finally {
     await rm(dir, { recursive: true, force: true });
   }

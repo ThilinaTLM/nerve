@@ -2,10 +2,12 @@ import { createHash } from "node:crypto";
 import type { CoreDatabase } from "./database.js";
 import { coreSchemaV1 } from "./schema.js";
 import { coreSchemaV2, applyCoreSchemaV2 } from "./schema-v2.js";
+import { coreSchemaV3 } from "./schema-v3.js";
 
 export const coreMigrations = [
   { version: 1, name: "conversation core foundation", sql: coreSchemaV1 },
   { version: 2, name: "agent profiles", sql: coreSchemaV2 },
+  { version: 3, name: "remove command preparation", sql: coreSchemaV3 },
 ] as const;
 
 export function migrate(db: CoreDatabase): void {

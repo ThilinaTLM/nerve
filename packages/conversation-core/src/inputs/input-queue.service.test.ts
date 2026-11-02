@@ -51,16 +51,8 @@ test("user input resumes a paused conversation with a complete summary", () => {
     );
     const changes: InputQueueChange[] = [];
     const wakes: string[] = [];
-    const unexpectedProcess = async (): Promise<never> => {
-      throw new Error("No process expected");
-    };
     const service = new InputQueueService({
       storage,
-      processes: {
-        start: unexpectedProcess,
-        run: unexpectedProcess,
-        reattach: unexpectedProcess,
-      },
       emit: (change) => changes.push(change),
       requestWake: (id) => wakes.push(id),
     });
@@ -113,20 +105,6 @@ test("user input resumes a paused conversation with a complete summary", () => {
       text: "Later",
       source: "user",
     });
-    // An unfinished earlier preparation still blocks delivery even with a cutoff.
-    storage.inputs.update("input_test", {
-      preparedText: null,
-      commandPreparation: { blocks: [] },
-    });
-    assert.deepEqual(
-      service.deliver(
-        "conv_test",
-        { kind: "turn" },
-        { beforeSequence: position },
-      ),
-      [],
-    );
-    storage.inputs.update("input_test", { commandPreparation: null });
     const delivered = service.deliver(
       "conv_test",
       { kind: "turn" },
@@ -159,16 +137,8 @@ test("empty queues skip history decoding at both delivery boundaries", () => {
     storage.events.since = () => {
       throw new Error("Empty queues must not load transcript history");
     };
-    const unexpectedProcess = async (): Promise<never> => {
-      throw new Error("No process expected");
-    };
     const service = new InputQueueService({
       storage,
-      processes: {
-        start: unexpectedProcess,
-        run: unexpectedProcess,
-        reattach: unexpectedProcess,
-      },
       emit: () => {
         throw new Error("Empty queues must not emit changes");
       },

@@ -77,7 +77,6 @@ async function fixture(
       payload: {
         text: `Message ${index}: ${"history ".repeat(historyRepeats)}`,
         originalText: "History",
-        commandPreparation: null,
         source: "user",
         senderConversationId: null,
       },
@@ -162,16 +161,6 @@ void test("manual compaction snapshots real streaming and repair replacement, co
     const first = f.core.getSnapshot("conversation").compaction!;
     assert.match(first.summaryPreview, /Invalid/);
     assert.equal(first.attempt, 1);
-    assert.throws(
-      () =>
-        f.core.submitInput({
-          conversationId: "conversation",
-          inputId: "inline",
-          text: "!echo unsafe",
-          source: "user",
-        }),
-      /compacting/,
-    );
     assert.throws(() => f.core.selectHead("conversation", null), /compacting/);
     f.core.compact("conversation");
     assert.equal(f.core.getSnapshot("conversation").compaction?.id, started.id);
@@ -267,16 +256,6 @@ for (const outcome of ["failed", "cancelled"] as const) {
         assert.equal(
           f.core.getSnapshot("conversation").compaction?.status,
           "stopping",
-        );
-        assert.throws(
-          () =>
-            f.core.submitInput({
-              conversationId: "conversation",
-              inputId: "blocked",
-              text: "!echo unsafe",
-              source: "user",
-            }),
-          /compacting/,
         );
         await stop;
       } else {

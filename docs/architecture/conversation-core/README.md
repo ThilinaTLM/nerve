@@ -45,7 +45,7 @@ sequenceDiagram
     participant T as Tool lifecycle
     Note over C,R: channels.md — submission and updates
     C->>R: Submit prompt with input ID
-    Note over Q,E: input-queue.md — acceptance, preparation and safe delivery
+    Note over Q,E: input-queue.md — acceptance and safe delivery
     R->>Q: Accept and deduplicate
     R->>Q: Deliver at a safe boundary
     Q->>E: Append user_message and remove queue row atomically
@@ -103,7 +103,7 @@ The data model defines storage ownership. Events explain how that history become
 | [Data model](data-model.md)                           | Storage boundaries, relationships and deletion.          |
 | [Events and context](events-and-context.md)           | Canonical history, projection, branching and compaction. |
 | [Tool-call lifecycle](tool-call-lifecycle.md)         | Checkpoints, admission, settlement and recovery.         |
-| [Input queue](input-queue.md)                         | Ordering, command preparation and retry identity.        |
+| [Input queue](input-queue.md)                         | Ordering and retry identity.                             |
 | [Delegation](delegation.md)                           | Child conversations, profiles and completion notices.    |
 | [Async bash and launches](async-bash-and-launches.md) | Conversation-owned processes versus workbench launches.  |
 | [Channels](channels.md)                               | Connection boundaries, replay and reconnect.             |

@@ -6,8 +6,6 @@ export type ComposerAvailabilityInput = {
   blockedForReview: boolean;
   compacting: boolean;
   stopping: boolean;
-  sending: boolean;
-  commandMode: boolean;
   voiceSubmitPending: boolean;
 };
 
@@ -35,11 +33,7 @@ export function deriveComposerAvailability(
     hasTarget,
     canEdit,
     canPrompt,
-    canSubmit: Boolean(
-      canPrompt &&
-      !input.voiceSubmitPending &&
-      !(input.commandMode && input.sending),
-    ),
+    canSubmit: canPrompt && !input.voiceSubmitPending,
     canConfigureRuntime: Boolean(
       input.interactive && hasTarget && !input.compacting && !input.stopping,
     ),

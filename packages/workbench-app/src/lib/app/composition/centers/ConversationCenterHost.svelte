@@ -13,6 +13,13 @@ import { onEvent } from "$lib/application/events/workbench-event-bus";
 import GitBranchPlus from "@lucide/svelte/icons/git-branch-plus";
 import GitCommitHorizontal from "@lucide/svelte/icons/git-commit-horizontal";
 import GitPullRequest from "@lucide/svelte/icons/git-pull-request";
+import GitPullRequestArrow from "@lucide/svelte/icons/git-pull-request-arrow";
+import CircleX from "@lucide/svelte/icons/circle-x";
+import ArrowUp from "@lucide/svelte/icons/arrow-up";
+import ArrowDown from "@lucide/svelte/icons/arrow-down";
+import ScanSearch from "@lucide/svelte/icons/scan-search";
+import Trash2 from "@lucide/svelte/icons/trash-2";
+import RotateCcw from "@lucide/svelte/icons/rotate-ccw";
 import Sparkles from "@lucide/svelte/icons/sparkles";
 import { gitState } from "$lib/features/git/state/git-state.svelte";
 import { gitContextFingerprint } from "$lib/features/git/state/git-context.svelte";
@@ -436,12 +443,21 @@ const builtinSuggestionIcons = {
   "commit-changes": GitCommitHorizontal,
   "commit-on-feature-branch": GitBranchPlus,
   "create-pull-request": GitPullRequest,
+  "update-pull-request": GitPullRequestArrow,
+  "fix-failing-checks": CircleX,
+  "push-commits": ArrowUp,
+  "pull-upstream": ArrowDown,
+  "review-changes": ScanSearch,
+  "cleanup-merged-branch": Trash2,
+  "continue-after-failure": RotateCcw,
 } as const;
 const composerSuggestions = $derived.by<ComposerSuggestion[]>(() =>
   promptSuggestionsState.suggestions.map((suggestion) => ({
     id: `prompt:${suggestion.id}`,
     label: suggestion.label,
     prompt: suggestion.prompt,
+    description: suggestion.description,
+    context: suggestion.context,
     icon:
       suggestion.source.kind === "builtin"
         ? (builtinSuggestionIcons[
@@ -454,10 +470,31 @@ const promptSuggestionRefreshKey = $derived.by(() => {
   const ctx = gitState.gitContext;
   return ctx ? `${ctx.projectId}:${gitContextFingerprint(ctx)}` : "none";
 });
+// Suggestions read the cached open PR, so a PR/check change can add or drop
+// chips without any git or conversation change. Debounced: sync bursts.
+let prChangeTick = $state(0);
+$effect(() => {
+  if (!workbenchStartupState.progressiveActive || !active) return;
+  const projectId = activeProject?.id;
+  if (!projectId) return;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const stop = onEvent("github.pr.changed", (event) => {
+    if (event.data?.projectId !== projectId) return;
+    clearTimeout(timer);
+    timer = setTimeout(() => {
+      prChangeTick += 1;
+    }, 1000);
+  });
+  return () => {
+    stop();
+    clearTimeout(timer);
+  };
+});
 $effect(() => {
   if (!workbenchStartupState.progressiveActive || !active || !activeProject?.id)
     return;
   void promptSuggestionRefreshKey;
+  void prChangeTick;
   void store?.snapshot?.config;
   void store?.snapshot?.conversation.status;
   void store?.snapshot?.conversation.title;

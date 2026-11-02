@@ -137,7 +137,6 @@ function appendStep(
         originalText: step.text,
         source: "user",
         senderConversationId: null,
-        commandPreparation: null,
       },
     }).id;
   if (step.type === "tool") {

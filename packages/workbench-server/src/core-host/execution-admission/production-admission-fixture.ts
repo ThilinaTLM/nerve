@@ -13,6 +13,8 @@ import type {
 } from "../../domains/launches/application/launch-supervisor.js";
 import type { InitializedStorage } from "../../infrastructure/storage-bootstrap/index.js";
 import { randomUUID } from "node:crypto";
+import { createId } from "@nervekit/contracts";
+import type { ToolCall } from "@nervekit/contracts/core";
 import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -43,10 +45,7 @@ export interface ProductionAdmissionFixture {
   launchSpawns: { command: string; options: SpawnManagedLaunchOptions }[];
   events: WorkbenchNoticePublisher;
   settings: InitializedStorage["settings"];
-  command(
-    command?: string,
-    conversationId?: string,
-  ): Promise<Awaited<ReturnType<Runtime["core"]["submitInput"]>>>;
+  command(command?: string, conversationId?: string): Promise<ToolCall>;
   save(changes: LeadSettingsOverrides): Promise<unknown>;
   restartWithShell(shellPath: string): Promise<void>;
   createChild(): Promise<void>;
@@ -302,13 +301,27 @@ export async function productionAdmissionFixture(
     get runtime() {
       return runtime;
     },
-    command: async (command = "echo test", conversationId = "c") =>
-      runtime.core.submitInput({
+    // Inserts an open bash call directly; prompts no longer execute commands.
+    command: async (command = "echo test", conversationId = "c") => {
+      const call = runtime.storage.toolCalls.insert({
+        id: createId("tool"),
         conversationId,
-        inputId: randomUUID(),
-        text: `!${command}`,
-        source: "user",
-      }),
+        turnId: createId("turn"),
+        providerCallId: null,
+        assistantEventId: null,
+        contentIndex: null,
+        origin: "user",
+        toolName: "bash",
+        arguments: { command },
+        state: "supervising",
+        supervision: null,
+        interaction: null,
+        executionClaim: null,
+        updatedAt: new Date().toISOString(),
+      });
+      await runtime.core.toolCalls.start([call.id]);
+      return call;
+    },
     save: async (changes: LeadSettingsOverrides) => {
       const state = await runtime.agentConfiguration.ensureLoaded({
         scope: "conversation",

@@ -71,17 +71,8 @@ const menuTarget = $derived(
     triggerClass="block select-text"
   >
     <UserMessageBubble
-      text={prompt?.preparedText ??
-        prompt?.text ??
-        item?.preparedText ??
-        item?.text ??
-        ""}
-      commandPreparation={prompt?.commandPreparation ??
-        item?.commandPreparation}
+      text={prompt?.text ?? item?.text ?? ""}
       queued={Boolean(prompt && prompt.presentation !== "starting")}
-      pending={Boolean(
-        item?.optimistic && (!prompt || prompt.presentation === "starting"),
-      )}
       showActions={Boolean(prompt)}
     >
       {#snippet actions()}

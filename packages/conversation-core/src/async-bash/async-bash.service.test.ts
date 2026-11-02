@@ -293,7 +293,6 @@ for (const exitCode of [0, 7, null]) {
         );
       const inputs = new InputQueueService({
         storage: f.storage,
-        processes,
         emit: observe,
         requestWake: () => {},
       });
@@ -368,9 +367,6 @@ void test("async bash start supplies conversation identity for effective shell r
       starts.push(input);
       throw new Error("Host refused process");
     },
-    async run() {
-      throw new Error("No run expected");
-    },
     async reattach() {
       return null;
     },
@@ -401,7 +397,6 @@ void test("deletion ignores completed process refs and never cancels an unverifi
   };
   const f = await fixture({
     start: unexpected,
-    run: unexpected,
     reattach: async () => {
       reattachments++;
       throw new Error("Unverifiable process");

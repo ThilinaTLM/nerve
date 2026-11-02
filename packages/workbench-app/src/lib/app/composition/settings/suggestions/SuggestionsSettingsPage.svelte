@@ -168,6 +168,21 @@ function copyPath(path: string): void {
             {/if}
           {/snippet}
           {#snippet detail()}
+            {#if status.conditionSummary}
+              <p class="text-muted-foreground">{status.conditionSummary}</p>
+            {/if}
+            {#if status.promptPreview}
+              <!-- Scrollable region must be keyboard-focusable to scroll. -->
+              <!-- svelte-ignore a11y_no_noninteractive_tabindex -->
+              <div
+                class="max-h-40 overflow-y-auto rounded-md border bg-well px-2.5 py-2 whitespace-pre-wrap break-words text-foreground"
+                role="region"
+                tabindex="0"
+                aria-label={`${status.label} prompt preview`}
+              >
+                {status.promptPreview}
+              </div>
+            {/if}
             {#if status.sourceKind !== "builtin"}
               <div class="flex min-w-0 items-center gap-2">
                 <span class="truncate font-mono" title={status.path}

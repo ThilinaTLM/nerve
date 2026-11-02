@@ -54,7 +54,6 @@ for (const fault of ["payload", "status"] as const) {
           originalText: "probe",
           source: "user",
           senderConversationId: null,
-          commandPreparation: null,
         },
       });
       opts.storage.inputs.insert({
@@ -65,8 +64,6 @@ for (const fault of ["payload", "status"] as const) {
         content: "probe",
         deliveryTarget: "next_turn",
         targetExecutionId: null,
-        commandPreparation: null,
-        preparedText: null,
         wakeWhenIdle: true,
         acceptedAt: new Date().toISOString(),
       });

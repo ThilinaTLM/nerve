@@ -100,14 +100,11 @@ export type SystemEventNotice = {
 export type TranscriptItem = {
   id?: string;
   inputId?: string;
-  commandPreparation?: ConversationEntry["commandPreparation"];
   runId?: string;
   role: "user" | "assistant" | "system";
   kind?: ConversationEntry["kind"];
   displayKind?: TranscriptDisplayKind;
   text: string;
-  /** Display-only expanded user prompt; text retains the original input. */
-  preparedText?: string;
   createdAt?: string;
   optimistic?: boolean;
   live?: boolean;

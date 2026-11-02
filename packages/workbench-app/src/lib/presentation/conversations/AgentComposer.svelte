@@ -1,9 +1,5 @@
 <script lang="ts">
 import type { Snippet } from "svelte";
-import {
-  hasExecutableCommandBlocks,
-  isInlineCommandPrompt,
-} from "@nervekit/contracts/completions";
 import ArrowLeft from "@lucide/svelte/icons/arrow-left";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
 import type { ComposerEditorApi } from "../composer/composer-editor-api.js";
@@ -31,16 +27,12 @@ let {
 } = $props();
 
 const mobile = isMobileSurface();
-const commandMode = $derived(isInlineCommandPrompt(model.text));
-const executableBlocks = $derived(hasExecutableCommandBlocks(model.text));
 const blocked = $derived(Boolean(model.disabled || model.compacting));
 const editorDisabled = $derived(
   Boolean(model.editorOverlay) || (model.editorDisabled ?? blocked),
 );
 const submitDisabled = $derived(
-  Boolean(model.editorOverlay) ||
-    (model.submitDisabled ??
-      Boolean(blocked || (commandMode && model.sending))),
+  Boolean(model.editorOverlay) || (model.submitDisabled ?? Boolean(blocked)),
 );
 const controlsDisabled = $derived(
   model.controlsDisabled ?? (blocked || Boolean(model.sending)),
@@ -55,13 +47,7 @@ const placeholder = $derived(
 );
 const sendTitle = $derived(
   model.sendTitle ??
-    (commandMode
-      ? model.sending
-        ? "Wait for the current agent turn before running a command"
-        : "Run command"
-      : model.sending
-        ? "Queue prompt for the next agent turn"
-        : "Send prompt"),
+    (model.sending ? "Queue prompt for the next agent turn" : "Send prompt"),
 );
 
 let editorApi = $state<ComposerEditorApi>();
@@ -224,8 +210,6 @@ function submit(): void {
 {#if mobile}
   <MobileComposerShell
     agentProfile={model.agentProfile}
-    {commandMode}
-    {executableBlocks}
     pendingApproval={model.pendingApproval}
     pendingQuestion={model.pendingQuestion}
     pendingPlan={model.pendingPlan}
@@ -236,8 +220,7 @@ function submit(): void {
     stopShortcutAria={model.stopShortcutAria}
     stopTitle={model.stopTitle}
     {submitDisabled}
-    sendAriaLabel={model.sendAriaLabel ??
-      (commandMode ? "Run command" : "Send prompt")}
+    sendAriaLabel={model.sendAriaLabel ?? "Send prompt"}
     {sendTitle}
     onAbort={actions.onAbort}
     onSubmit={submit}
@@ -252,8 +235,6 @@ function submit(): void {
 {:else}
   <ComposerShell
     agentProfile={model.agentProfile}
-    {commandMode}
-    {executableBlocks}
     pendingApproval={model.pendingApproval}
     pendingQuestion={model.pendingQuestion}
     pendingPlan={model.pendingPlan}
@@ -264,8 +245,7 @@ function submit(): void {
     stopShortcutAria={model.stopShortcutAria}
     stopTitle={model.stopTitle}
     {submitDisabled}
-    sendAriaLabel={model.sendAriaLabel ??
-      (commandMode ? "Run command" : "Send prompt")}
+    sendAriaLabel={model.sendAriaLabel ?? "Send prompt"}
     {sendTitle}
     onAbort={actions.onAbort}
     onSubmit={submit}

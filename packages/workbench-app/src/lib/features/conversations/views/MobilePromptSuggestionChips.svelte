@@ -10,12 +10,13 @@ import type { ComposerSuggestion } from "./composer-suggestion";
  */
 type Props = {
   suggestions?: ComposerSuggestion[];
-  disabled?: boolean;
+  /** The agent is running: tapping queues the prompt. */
+  running?: boolean;
   onSend?: (suggestion: ComposerSuggestion) => void;
   onDraft?: (suggestion: ComposerSuggestion) => void;
 };
 
-let { suggestions = [], disabled = false, onSend, onDraft }: Props = $props();
+let { suggestions = [], running = false, onSend, onDraft }: Props = $props();
 </script>
 
 {#if suggestions.length > 0}
@@ -30,8 +31,7 @@ let { suggestions = [], disabled = false, onSend, onDraft }: Props = $props();
         type="button"
         variant="outline"
         class="flex-none text-muted-foreground"
-        {disabled}
-        aria-label={`${suggestion.label}. Tap to send. Long-press to edit first.`}
+        aria-label={`${suggestion.label}. ${running ? "Tap to queue — sends when the agent finishes." : "Tap to send."} Long-press to edit first.`}
         onclick={() => onSend?.(suggestion)}
         oncontextmenu={(event) => {
           event.preventDefault();

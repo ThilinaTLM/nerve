@@ -62,14 +62,11 @@ void test("bash host validates turn settings, project cwd and untimed background
       bash: structuredClone(settings),
       target: {},
     }));
-    const execute = (
-      args: Record<string, unknown>,
-      origin: "model" | "user" = "model",
-    ) =>
+    const execute = (args: Record<string, unknown>) =>
       tools.port.execute({
         toolCallId: "tool",
         conversationId: "conversation",
-        origin,
+        origin: "model",
         toolName: "bash",
         args,
         cwd: project,
@@ -88,10 +85,6 @@ void test("bash host validates turn settings, project cwd and untimed background
         /Invalid bash arguments/,
       );
     }
-    settings.maxTimeoutMs = 2001;
-    await execute({ command: "echo" }, "user");
-    assert.equal(spawned?.timeoutMs, 2001);
-    settings.maxTimeoutMs = 2000;
     await assert.rejects(
       execute({ command: "echo", timeout: 3 }),
       /Invalid bash arguments/,
@@ -124,30 +117,25 @@ void test("bash host validates turn settings, project cwd and untimed background
         "Status: completed; exit code: 0\nhello",
       );
     }
-    for (const origin of ["model", "user"] as const) {
-      for (const code of [0, 7, null]) {
-        exitCode = code;
-        const completed = await execute(
-          { command: "echo", timeout: 1 },
-          origin,
-        );
-        assert.equal(completed.kind, "completed");
-        if (completed.kind !== "completed")
-          throw new Error("Expected completion");
-        const status =
-          code === null ? "cancelled" : code === 0 ? "completed" : "failed";
-        assert.equal(completed.result.exitCode, code ?? undefined);
-        assert.ok(
-          completed.result.details &&
-            typeof completed.result.details === "object" &&
-            "exitCode" in completed.result.details,
-        );
-        assert.equal(completed.result.details.exitCode, code);
-        assert.equal(
-          completed.result.content,
-          `Status: ${status}; exit code: ${code ?? "unknown"}\nhello`,
-        );
-      }
+    for (const code of [0, 7, null]) {
+      exitCode = code;
+      const completed = await execute({ command: "echo", timeout: 1 });
+      assert.equal(completed.kind, "completed");
+      if (completed.kind !== "completed")
+        throw new Error("Expected completion");
+      const status =
+        code === null ? "cancelled" : code === 0 ? "completed" : "failed";
+      assert.equal(completed.result.exitCode, code ?? undefined);
+      assert.ok(
+        completed.result.details &&
+          typeof completed.result.details === "object" &&
+          "exitCode" in completed.result.details,
+      );
+      assert.equal(completed.result.details.exitCode, code);
+      assert.equal(
+        completed.result.content,
+        `Status: ${status}; exit code: ${code ?? "unknown"}\nhello`,
+      );
     }
     exitCode = 0;
     const backgrounded = await execute({

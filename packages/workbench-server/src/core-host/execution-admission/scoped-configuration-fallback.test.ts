@@ -81,7 +81,7 @@ for (const [filename, type] of [
       assert.equal(preview.settings.model?.modelId, "test");
 
       await f.runtime.core.start();
-      await f.runtime.core.submitInput({
+      f.runtime.core.submitInput({
         conversationId: "fallback",
         inputId: "fallback-input",
         text: "Reply using the defaults.",
@@ -167,7 +167,7 @@ void test(
       projectId: "proj_admission",
     });
     await f.runtime.core.start();
-    await f.runtime.core.submitInput({
+    f.runtime.core.submitInput({
       conversationId: "model-only",
       inputId: "model-input",
       text: "Reply without tools.",
@@ -183,8 +183,6 @@ void test(
         ),
     );
     const call = await f.command("echo blocked", "model-only");
-    if (call === "delivered" || !("toolName" in call))
-      assert.fail("Expected tool call");
     assert.equal(
       f.runtime.storage.toolCalls.get(call.id)?.interaction?.kind,
       "configuration_blocked",

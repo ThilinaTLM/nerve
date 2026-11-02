@@ -323,7 +323,6 @@ test("conversation adapter replays durable events from the requested cursor", as
         originalText: `Prompt ${index}`,
         source: "user",
         senderConversationId: null,
-        commandPreparation: null,
       },
     });
   const peer = await open(
