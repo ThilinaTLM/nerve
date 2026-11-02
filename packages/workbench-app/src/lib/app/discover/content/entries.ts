@@ -13,7 +13,11 @@ export type DiscoverArtwork =
   | "projects"
   | "quote"
   | "themes"
-  | "profiles";
+  | "profiles"
+  | "suggestions"
+  | "engineering-docs"
+  | "mobile"
+  | "git-actions";
 
 /**
  * A release-tagged announcement. `releasedIn` anchors the entry to an app

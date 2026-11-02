@@ -13,10 +13,19 @@ type Props = {
 let { entry, onAction }: Props = $props();
 </script>
 
-<div
-  class="grid items-center gap-4 overflow-hidden rounded-md bg-card p-4 text-body text-card-foreground ring-1 ring-border sm:grid-cols-[minmax(0,1fr)_13rem]"
+<article
+  class="col-span-full grid overflow-hidden rounded-md bg-card text-body text-card-foreground ring-1 ring-border @xl:grid-cols-[minmax(0,1fr)_minmax(0,0.9fr)]"
 >
-  <div class="grid min-w-0 gap-2">
+  {#if entry.artwork}
+    <div
+      class="flex items-center justify-center border-b bg-background px-5 py-4 @xl:order-last @xl:border-b-0 @xl:border-l"
+    >
+      <div class="aspect-[2/1] w-full max-w-sm">
+        <DiscoverNewsArtwork artwork={entry.artwork} />
+      </div>
+    </div>
+  {/if}
+  <div class="grid min-w-0 content-center gap-2 p-4">
     <div class="flex flex-wrap items-center gap-1.5">
       <Badge variant="neutral">{discoverReleaseLabel(entry.releasedIn)}</Badge>
       {#if entry.unread}
@@ -24,7 +33,7 @@ let { entry, onAction }: Props = $props();
       {/if}
     </div>
     <div class="grid gap-1">
-      <h3 class="text-title font-medium leading-tight">{entry.title}</h3>
+      <h3 class="text-title font-semibold leading-tight">{entry.title}</h3>
       <p class="text-ui leading-relaxed text-muted-foreground">
         {entry.summary}
       </p>
@@ -47,9 +56,4 @@ let { entry, onAction }: Props = $props();
       </div>
     {/if}
   </div>
-  {#if entry.artwork}
-    <div class="hidden h-28 sm:block">
-      <DiscoverNewsArtwork artwork={entry.artwork} />
-    </div>
-  {/if}
-</div>
+</article>

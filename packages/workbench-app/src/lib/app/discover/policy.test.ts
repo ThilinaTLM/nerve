@@ -13,7 +13,8 @@ import {
   exhaustAutoOpen,
   resolveNews,
   unreadNewsCount,
-  unreadReleasedNewsCount,
+  releaseLine,
+  unreadNewsForVersion,
   type DiscoverAutoOpenState,
 } from "./policy.js";
 import { guideCatalog } from "./guides/catalog.js";
@@ -44,15 +45,30 @@ const news: DiscoverNewsEntry[] = [
     summary: "Plain summary",
   },
   {
-    id: "older",
+    id: "patch",
+    version: 1,
+    releasedIn: "0.28.1",
+    title: "Patch",
+    summary: "Patch summary",
+  },
+  {
+    id: "previous-featured",
     version: 1,
     releasedIn: "0.28.0",
+    featured: true,
+    title: "Previous featured",
+    summary: "Previous featured summary",
+  },
+  {
+    id: "older",
+    version: 1,
+    releasedIn: "0.27.0",
     title: "Older",
     summary: "Older summary",
   },
 ];
 
-function sectionsFor(seen: Record<string, number>, appVersion?: string) {
+function sectionsFor(seen: Record<string, number>) {
   return buildDiscoverSections({
     guides: resolveGuides(
       guideCatalog,
@@ -61,33 +77,33 @@ function sectionsFor(seen: Record<string, number>, appVersion?: string) {
     ),
     news: resolveNews(news, seen),
     tips: discoverTipsCatalog,
-    appVersion,
   });
 }
 
 describe("Discover sections", () => {
-  it("splits news by the running release and lifts the featured entry", () => {
-    const sections = sectionsFor({}, "v0.29.0");
-    assert.equal(sections.news.featured?.id, "current-featured");
+  it("spotlights the newest line and keeps two minor lines out of the archive", () => {
+    const sections = sectionsFor({});
+    assert.equal(sections.news.spotlight?.id, "current-featured");
     assert.deepEqual(
-      sections.news.current.map((entry) => entry.id),
-      ["current-plain"],
+      sections.news.releases.map((group) => [
+        group.label,
+        group.featured?.id,
+        group.entries.map((entry) => entry.id),
+      ]),
+      [
+        ["New in 0.29", undefined, ["current-plain"]],
+        ["New in 0.28", "previous-featured", ["patch"]],
+      ],
     );
     assert.deepEqual(
       sections.news.archive.map((entry) => entry.id),
       ["older"],
     );
-    assert.equal(sections.news.unreadCount, 3);
+    assert.equal(sections.news.unreadCount, 5);
   });
 
-  it("treats every entry as current when the app version is unknown", () => {
-    const sections = sectionsFor({}, undefined);
-    assert.equal(sections.news.archive.length, 0);
-    assert.equal(sections.news.current.length, 2);
-  });
-
-  it("previews pending announcements without treating them as released", () => {
-    const pending = resolveNews(
+  it("folds pending announcements into the newest line without counting them as released", () => {
+    const withPending = resolveNews(
       [
         {
           id: "pending",
@@ -97,34 +113,58 @@ describe("Discover sections", () => {
           title: "Pending",
           summary: "Pending summary",
         },
+        ...news,
       ],
       {},
     );
     const sections = buildDiscoverSections({
       guides: [],
-      news: pending,
+      news: withPending,
       tips: [],
-      appVersion: "0.29.0",
     });
 
-    assert.equal(sections.news.featured?.id, "pending");
+    assert.equal(sections.news.spotlight?.id, "pending");
+    assert.deepEqual(
+      sections.news.releases.map((group) => group.release),
+      ["0.29", "0.28"],
+    );
+    assert.equal(sections.news.releases[0]?.featured, undefined);
+    assert.deepEqual(
+      sections.news.releases[0]?.entries.map((entry) => entry.id),
+      ["current-featured", "current-plain"],
+    );
+    assert.deepEqual(
+      sections.news.archive.map((entry) => entry.id),
+      ["older"],
+    );
     assert.equal(discoverReleaseLabel("next"), "Next release");
-    assert.equal(unreadNewsCount(pending), 1);
-    assert.equal(unreadReleasedNewsCount(pending), 0);
+    assert.equal(unreadNewsForVersion(withPending, "v0.29.0"), 2);
+    assert.equal(unreadNewsForVersion(withPending, undefined), 0);
   });
 
   it("marks entries read once the stored version catches up", () => {
-    const sections = sectionsFor(
-      { "current-featured": 1, "current-plain": 1 },
-      "0.29.0",
-    );
-    assert.equal(sections.news.featured?.unread, false);
-    assert.equal(sections.news.current[0]?.unread, true);
-    assert.equal(sections.news.unreadCount, 2);
+    const sections = sectionsFor({ "current-featured": 1, "current-plain": 1 });
+    assert.equal(sections.news.spotlight?.unread, false);
+    assert.equal(sections.news.releases[0]?.entries[0]?.unread, true);
+    assert.equal(sections.news.unreadCount, 4);
+  });
+
+  it("leads with setup only while must-do setup is pending", () => {
+    assert.equal(sectionsFor({}).setup.leading, true);
+    const done = buildDiscoverSections({
+      guides: resolveGuides(
+        guideCatalog,
+        { provider: 1, workbench: 1, "open-project": 1 },
+        noSignals,
+      ),
+      news: [],
+      tips: [],
+    });
+    assert.equal(done.setup.leading, false);
   });
 
   it("orders pending setup by priority and collapses completed setup", () => {
-    const sections = sectionsFor({}, "0.29.0");
+    const sections = sectionsFor({});
     assert.equal(sections.setup.pending[0]?.id, "open-project");
     assert.equal(
       sections.setup.pending.some((guide) => guide.id === "provider"),
@@ -166,10 +206,10 @@ describe("Discover badge", () => {
   });
 
   it("counts unread news entries", () => {
-    assert.equal(unreadNewsCount(resolveNews(news, {})), 3);
+    assert.equal(unreadNewsCount(resolveNews(news, {})), 5);
     assert.equal(
       unreadNewsCount(resolveNews(news, { "current-plain": 2, older: 1 })),
-      1,
+      3,
     );
   });
 });
@@ -265,7 +305,7 @@ describe("Discover auto-open", () => {
 });
 
 describe("Discover news catalog", () => {
-  it("keeps ids unique, summaries single-line, and one feature per release", () => {
+  it("keeps ids unique, summaries single-line, and one feature per release line", () => {
     const ids = new Set<string>();
     const featuredByRelease = new Map<string, number>();
     for (const entry of discoverNewsCatalog) {
@@ -275,8 +315,9 @@ describe("Discover news catalog", () => {
       assert.equal(entry.summary.includes("\n"), false);
       assert.equal(entry.summary.length <= 110, true, entry.id);
       if (!entry.featured) continue;
-      const count = (featuredByRelease.get(entry.releasedIn) ?? 0) + 1;
-      featuredByRelease.set(entry.releasedIn, count);
+      const line = releaseLine(entry.releasedIn);
+      const count = (featuredByRelease.get(line) ?? 0) + 1;
+      featuredByRelease.set(line, count);
       assert.equal(
         count,
         1,

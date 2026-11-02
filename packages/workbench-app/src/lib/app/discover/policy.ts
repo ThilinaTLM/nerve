@@ -6,14 +6,27 @@ export const PENDING_DISCOVER_RELEASE = "next";
 
 export type ResolvedNewsEntry = DiscoverNewsEntry & { unread: boolean };
 
-export type DiscoverNewsSection = {
+/** Minor release lines that stay out of the archive. */
+export const DISCOVER_RELEASE_WINDOW = 2;
+
+/** News for one `major.minor` release line such as `0.38`. */
+export type DiscoverReleaseGroup = {
+  release: string;
+  label: string;
   featured?: ResolvedNewsEntry;
-  current: ResolvedNewsEntry[];
+  entries: ResolvedNewsEntry[];
+};
+
+export type DiscoverNewsSection = {
+  spotlight?: ResolvedNewsEntry;
+  releases: DiscoverReleaseGroup[];
   archive: ResolvedNewsEntry[];
   unreadCount: number;
 };
 
 export type DiscoverSetupSection = {
+  /** Must-do setup is unfinished, so getting started outranks the news. */
+  leading: boolean;
   pending: ResolvedGuide[];
   completed: ResolvedGuide[];
   completedCount: number;
@@ -49,15 +62,15 @@ export function resolveNews(
 }
 
 /**
- * News for the running version and pending release stays in the main list;
- * anything tagged with a different released version drops into the archive.
- * Without a known app version every entry is treated as current.
+ * News is grouped by minor release line, newest first. The latest
+ * `DISCOVER_RELEASE_WINDOW` lines stay prominent so highlights outlive a patch
+ * or two; older lines drop into the archive. Pending entries join the newest
+ * line, and its featured entry (pending first) becomes the spotlight.
  */
 export function buildDiscoverSections(input: {
   guides: readonly ResolvedGuide[];
   news: readonly ResolvedNewsEntry[];
   tips: readonly DiscoverTipEntry[];
-  appVersion: string | undefined;
 }): DiscoverSections {
   const available = input.guides.filter((guide) => guide.available);
   const setupGuides = available.filter((guide) => guide.category === "setup");
@@ -69,22 +82,10 @@ export function buildDiscoverSections(input: {
     );
   const completed = setupGuides.filter((guide) => guide.completed);
 
-  const isCurrent = (entry: ResolvedNewsEntry) =>
-    entry.releasedIn === PENDING_DISCOVER_RELEASE ||
-    !input.appVersion ||
-    entry.releasedIn === normalizeVersion(input.appVersion);
-  const current = input.news.filter(isCurrent);
-  const archive = input.news.filter((entry) => !isCurrent(entry));
-  const featured = current.find((entry) => entry.featured);
-
   return {
-    news: {
-      featured,
-      current: current.filter((entry) => entry.id !== featured?.id),
-      archive,
-      unreadCount: input.news.filter((entry) => entry.unread).length,
-    },
+    news: buildNewsSection(input.news),
     setup: {
+      leading: pending.some((guide) => guide.priority === "must-do"),
       pending,
       completed,
       completedCount: completed.length,
@@ -95,21 +96,100 @@ export function buildDiscoverSections(input: {
   };
 }
 
+function buildNewsSection(
+  news: readonly ResolvedNewsEntry[],
+): DiscoverNewsSection {
+  const released = news.filter(
+    (entry) => entry.releasedIn !== PENDING_DISCOVER_RELEASE,
+  );
+  const lines = [
+    ...new Set(released.map((entry) => releaseLine(entry.releasedIn))),
+  ]
+    .sort(compareReleaseLines)
+    .slice(0, DISCOVER_RELEASE_WINDOW);
+  // Pending entries are stamped with the real version at release time, so
+  // they read as part of the newest line rather than a separate section.
+  const newest = lines[0] ?? PENDING_DISCOVER_RELEASE;
+  const lineOf = (entry: ResolvedNewsEntry) =>
+    entry.releasedIn === PENDING_DISCOVER_RELEASE
+      ? newest
+      : releaseLine(entry.releasedIn);
+  const prominent = new Set([newest, ...lines]);
+
+  let spotlight: ResolvedNewsEntry | undefined;
+  const releases = [...prominent].map((line): DiscoverReleaseGroup => {
+    const entries = news
+      .filter((entry) => lineOf(entry) === line)
+      .sort(
+        (left, right) =>
+          Number(right.releasedIn === PENDING_DISCOVER_RELEASE) -
+          Number(left.releasedIn === PENDING_DISCOVER_RELEASE),
+      );
+    if (line === newest) {
+      spotlight = entries.find((entry) => entry.featured);
+    }
+    // The spotlight's line shows everything else as plain cards.
+    const featured =
+      line === newest && spotlight
+        ? undefined
+        : entries.find((entry) => entry.featured);
+    return {
+      release: line,
+      label: releaseGroupLabel(line),
+      featured,
+      entries: entries.filter(
+        (entry) => entry !== spotlight && entry !== featured,
+      ),
+    };
+  });
+
+  return {
+    spotlight,
+    releases: releases.filter(
+      (group) => group.featured || group.entries.length > 0,
+    ),
+    archive: news.filter((entry) => !prominent.has(lineOf(entry))),
+    unreadCount: unreadNewsCount(news),
+  };
+}
+
+/** `0.38.1` -> `0.38`; the pending release keeps its own line. */
+export function releaseLine(releasedIn: string): string {
+  if (releasedIn === PENDING_DISCOVER_RELEASE) return releasedIn;
+  return normalizeVersion(releasedIn).split(".").slice(0, 2).join(".");
+}
+
+function compareReleaseLines(left: string, right: string): number {
+  const [lMajor = 0, lMinor = 0] = left.split(".").map(Number);
+  const [rMajor = 0, rMinor = 0] = right.split(".").map(Number);
+  return rMajor - lMajor || rMinor - lMinor;
+}
+
 export function unreadNewsCount(news: readonly ResolvedNewsEntry[]): number {
   return news.filter((entry) => entry.unread).length;
 }
 
-/** Pending announcements are previewable but must not trigger release auto-open. */
-export function unreadReleasedNewsCount(
+/**
+ * Only news shipped in the running version may trigger release auto-open;
+ * pending announcements are previewable but never pull Discover open.
+ */
+export function unreadNewsForVersion(
   news: readonly ResolvedNewsEntry[],
+  appVersion: string | undefined,
 ): number {
-  return news.filter(
-    (entry) => entry.unread && entry.releasedIn !== PENDING_DISCOVER_RELEASE,
-  ).length;
+  if (!appVersion) return 0;
+  const version = normalizeVersion(appVersion);
+  return news.filter((entry) => entry.unread && entry.releasedIn === version)
+    .length;
 }
 
 export function discoverReleaseLabel(releasedIn: string): string {
   return releasedIn === PENDING_DISCOVER_RELEASE ? "Next release" : releasedIn;
+}
+
+/** Heading for a release line group. */
+export function releaseGroupLabel(line: string): string {
+  return line === PENDING_DISCOVER_RELEASE ? "New" : `New in ${line}`;
 }
 
 /**
