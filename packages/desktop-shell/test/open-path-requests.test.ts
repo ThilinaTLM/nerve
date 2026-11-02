@@ -35,6 +35,15 @@ test("filters OS requests to existing files/directories and argv to directories"
       [folder],
     );
     assert.deepEqual(directoryPathsFromArgv(["--token", "a folder"], root), []);
+    // Unpackaged Electron: Chromium switches precede the app path ".".
+    assert.deepEqual(
+      directoryPathsFromArgv(
+        ["--class=nerve", "--ozone-platform=wayland", ".", "a folder"],
+        root,
+        { skipAppPath: true },
+      ),
+      [folder],
+    );
   } finally {
     rmSync(root, { recursive: true, force: true });
   }

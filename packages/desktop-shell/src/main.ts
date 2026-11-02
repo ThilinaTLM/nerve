@@ -20,10 +20,9 @@ app.on("open-file", (event, path) => {
 });
 app.on("second-instance", (_event, argv, workingDirectory) => {
   openPathRequests.enqueue(
-    directoryPathsFromArgv(
-      argv.slice(app.isPackaged ? 1 : 2),
-      workingDirectory,
-    ),
+    directoryPathsFromArgv(argv.slice(1), workingDirectory, {
+      skipAppPath: !app.isPackaged,
+    }),
   );
 });
 
@@ -72,10 +71,9 @@ if (!app.requestSingleInstanceLock()) {
   // macOS delivers launch paths through `open-file`; elsewhere they are argv.
   if (process.platform !== "darwin") {
     openPathRequests.enqueue(
-      directoryPathsFromArgv(
-        process.argv.slice(app.isPackaged ? 1 : 2),
-        process.cwd(),
-      ),
+      directoryPathsFromArgv(process.argv.slice(1), process.cwd(), {
+        skipAppPath: !app.isPackaged,
+      }),
     );
   }
   createDesktopRuntime({
