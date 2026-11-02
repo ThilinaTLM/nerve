@@ -36,7 +36,18 @@ const dec = (x) => {
 };
 const stripFences = (s) =>
   s.replace(/^(```|~~~)[^\n]*\n[\s\S]*?^\1[^\n]*$/gm, "");
-const stripComments = (s) => s.replace(/<!--[\s\S]*?-->/g, "");
+// Linear scan: drops every comment, including an unterminated trailing one.
+const stripComments = (s) => {
+  let out = "";
+  let i = 0;
+  for (let start; (start = s.indexOf("<!--", i)) !== -1;) {
+    out += s.slice(i, start);
+    const end = s.indexOf("-->", start + 4);
+    if (end === -1) return out;
+    i = end + 3;
+  }
+  return out + s.slice(i);
+};
 const stripCode = (s) =>
   stripComments(stripFences(s)).replace(/`[^`\n]*`/g, "");
 const git = (...a) => {
