@@ -7,10 +7,13 @@ import {
   runUnit,
 } from "./toolkit.js";
 import { MigrationFilesystem } from "./filesystem.js";
-import { readFileSync } from "node:fs";
+import { readFileSync, realpathSync } from "node:fs";
 import { appendFile, mkdir, statfs } from "node:fs/promises";
 import { join } from "node:path";
-import type { StoragePaths } from "../../storage-bootstrap/paths.js";
+import {
+  storagePaths,
+  type StoragePaths,
+} from "../../storage-bootstrap/paths.js";
 import type { MigrationProgress, StepContext } from "./step.js";
 
 export async function assertFreeDisk(
@@ -45,11 +48,14 @@ export function readDiscardedItems(scratchDir: string): Set<string> {
 }
 
 export function createStepContext(
-  paths: StoragePaths,
+  requestedPaths: StoragePaths,
   id: string,
   description: string,
   onProgress: (progress: MigrationProgress) => void,
 ): { context: StepContext; flushLog(): Promise<void> } {
+  // Steps reject symlinks inside the home; resolve the home itself once so
+  // system links above it (macOS /var -> /private/var) are not mistaken for redirects.
+  const paths = storagePaths(realpathSync(requestedPaths.home));
   const scratchDir = join(paths.migrationWorkPath, id);
   let logging = Promise.resolve();
   // Keep logging failure observable without an unhandled rejection during run.

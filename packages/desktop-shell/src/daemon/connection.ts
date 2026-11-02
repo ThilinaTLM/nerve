@@ -10,6 +10,7 @@ import {
 import { DAEMON_LEASE_CONFLICT_CODE } from "@nervekit/contracts/storage";
 import { DaemonStartupError, isDaemonStartupErrorCode } from "./diagnostics.js";
 import { DAEMON_READY_POLL_INTERVAL_MS } from "./policy.js";
+import { resolveLoginShellPath } from "./login-shell-path.js";
 import { DaemonSupervisor } from "./supervisor.js";
 import type {
   EnsureDaemonOptions,
@@ -17,6 +18,17 @@ import type {
   ManagedDaemon,
 } from "./contracts.js";
 import { isLoopbackHost, normalizeRemoteDaemonUrl } from "./urls.js";
+
+let loginShellPath: Promise<string | undefined> | undefined;
+
+/** Resolves the login-shell PATH once per process (darwin only). */
+async function withLoginShellPath(
+  env: NodeJS.ProcessEnv,
+): Promise<NodeJS.ProcessEnv> {
+  loginShellPath ??= resolveLoginShellPath(env);
+  const PATH = await loginShellPath;
+  return PATH ? { ...env, PATH } : env;
+}
 
 /**
  * `ensureDaemon` orchestration: remote validation/monitoring, existing local
@@ -116,7 +128,11 @@ async function ensureLocalDaemon(
       owned: true,
       paths,
       serverMain,
-      launchEnv: buildOrchestratorEnv(options, ports.env, heapProfile),
+      launchEnv: buildOrchestratorEnv(
+        options,
+        await withLoginShellPath(ports.env),
+        heapProfile,
+      ),
       launchArgs: buildOrchestratorArgs(options),
       readinessTimeoutMs,
       effectiveMaxOldSpaceMb: heapProfile.effectiveMb,

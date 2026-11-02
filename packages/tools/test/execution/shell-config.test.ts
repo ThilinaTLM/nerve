@@ -168,4 +168,26 @@ describe("bash shell config resolver", () => {
       { shell: "sh", args: ["-c"] },
     );
   });
+
+  it("prefers a PATH bash over /bin/bash on macOS", () => {
+    assert.deepEqual(
+      resolveBashShellConfig({
+        platform: "darwin",
+        pathExists: () => true,
+        runCommand: () => ({
+          stdout: "/bin/bash\n/opt/homebrew/bin/bash\n",
+          status: 0,
+        }),
+      }),
+      { shell: "/opt/homebrew/bin/bash", args: ["-c"] },
+    );
+    assert.deepEqual(
+      resolveBashShellConfig({
+        platform: "darwin",
+        pathExists: (path) => path === "/bin/bash",
+        runCommand: () => ({ stdout: "/bin/bash\n", status: 0 }),
+      }),
+      { shell: "/bin/bash", args: ["-c"] },
+    );
+  });
 });

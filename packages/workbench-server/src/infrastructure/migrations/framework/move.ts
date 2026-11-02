@@ -1,20 +1,19 @@
-import { syncDirectory } from "./durability.js";
+import { renameWithRetrySync, syncDirectory, syncFile } from "./durability.js";
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import {
   closeSync,
   cpSync,
-  fsyncSync,
   lstatSync,
   openSync,
   readdirSync,
   readSync,
   readlinkSync,
-  renameSync,
   rmSync,
 } from "node:fs";
 import { dirname, join } from "node:path";
 
+const REMOVE_RETRY = { maxRetries: 5, retryDelay: 50 };
 const present = (path: string) => !!lstatSync(path, { throwIfNoEntry: false });
 
 function digest(path: string): string {
@@ -54,12 +53,7 @@ function syncTree(path: string): void {
     syncDirectory(path);
     return;
   }
-  const fd = openSync(path, "r");
-  try {
-    fsyncSync(fd);
-  } finally {
-    closeSync(fd);
-  }
+  syncFile(path);
 }
 /** Rename first; across devices publish only a completely synced copy before removing source. */
 export function movePreservingSource(from: string, to: string): void {
@@ -73,18 +67,18 @@ export function movePreservingSource(from: string, to: string): void {
       digest(to),
       `Conflicting move destination ${to}`,
     );
-    rmSync(from, { recursive: true, force: true });
+    rmSync(from, { recursive: true, force: true, ...REMOVE_RETRY });
     syncDirectory(dirname(from));
     return;
   }
   try {
-    renameSync(from, to);
+    renameWithRetrySync(from, to);
     syncDirectory(dirname(from));
     syncDirectory(dirname(to));
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code !== "EXDEV") throw error;
     const temporary = `${to}.copying`;
-    rmSync(temporary, { recursive: true, force: true });
+    rmSync(temporary, { recursive: true, force: true, ...REMOVE_RETRY });
     cpSync(from, temporary, {
       recursive: true,
       errorOnExist: true,
@@ -92,9 +86,9 @@ export function movePreservingSource(from: string, to: string): void {
       verbatimSymlinks: true,
     });
     syncTree(temporary);
-    renameSync(temporary, to);
+    renameWithRetrySync(temporary, to);
     syncDirectory(dirname(to));
-    rmSync(from, { recursive: true, force: true });
+    rmSync(from, { recursive: true, force: true, ...REMOVE_RETRY });
     syncDirectory(dirname(from));
   }
 }

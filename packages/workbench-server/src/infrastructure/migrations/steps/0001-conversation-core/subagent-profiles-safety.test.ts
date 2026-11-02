@@ -202,7 +202,15 @@ void test("symlinked .nerve/config cannot read/write outside scope or delete leg
   mkdirSync(outside);
   const original = '{"schemaVersion":1,"profiles":{}}';
   writeFileSync(join(outside, "subagents.json"), original);
-  symlinkSync(outside, join(root, "config"), "dir");
+  try {
+    symlinkSync(outside, join(root, "config"), "dir");
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "EPERM") {
+      t.skip("Symlink privilege unavailable");
+      return;
+    }
+    throw error;
+  }
   const source = join(root, "subagents/review.md");
   writeFileSync(source, markdown());
   assert.throws(

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { readFile, readdir, rm, writeFile } from "node:fs/promises";
-import { join, relative } from "node:path";
+import { join, relative, sep } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import type { TestContext } from "node:test";
 import { storagePaths } from "../../../storage-bootstrap/paths.js";
@@ -30,7 +30,7 @@ async function files(root: string): Promise<string[]> {
 async function snapshot(home: string) {
   const result: Record<string, string> = {};
   for (const path of await files(home)) {
-    const name = relative(home, path);
+    const name = relative(home, path).split(sep).join("/");
     if (name.startsWith("migrations/")) continue;
     result[name] = createHash("sha256")
       .update(await readFile(path))

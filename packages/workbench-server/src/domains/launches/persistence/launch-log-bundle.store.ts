@@ -7,12 +7,14 @@ import {
   mkdir,
   readdir,
   readFile,
-  rename,
   rm,
   writeFile,
 } from "node:fs/promises";
 import { dirname, join } from "node:path";
+import { retryRename } from "../../../infrastructure/storage-bootstrap/file-mutations.js";
 import { randomUUID } from "node:crypto";
+
+const REMOVE_RETRY = { maxRetries: 5, retryDelay: 50 };
 
 export type LaunchLogBundlePaths = {
   dir: string;
@@ -89,9 +91,9 @@ export class LaunchLogBundleStore {
         { mode: 0o600 },
       ),
     ]);
-    await rm(paths.dir, { recursive: true, force: true });
+    await rm(paths.dir, { recursive: true, force: true, ...REMOVE_RETRY });
     await mkdir(dirname(paths.dir), { recursive: true, mode: 0o700 });
-    await rename(staging, paths.dir);
+    await retryRename(staging, paths.dir);
     await rm(legacy, { force: true });
   }
 
@@ -112,11 +114,19 @@ export class LaunchLogBundleStore {
           .then(() => true)
           .catch(() => false);
         if (validLaunchIds.has(launchId) && !targetExists) {
-          await rename(candidate, target).catch(async () => {
-            await rm(candidate, { recursive: true, force: true });
+          await retryRename(candidate, target).catch(async () => {
+            await rm(candidate, {
+              recursive: true,
+              force: true,
+              ...REMOVE_RETRY,
+            });
           });
         } else {
-          await rm(candidate, { recursive: true, force: true });
+          await rm(candidate, {
+            recursive: true,
+            force: true,
+            ...REMOVE_RETRY,
+          });
         }
         continue;
       }
@@ -125,7 +135,11 @@ export class LaunchLogBundleStore {
         /^launch_[A-Za-z0-9_-]+$/.test(entry.name) &&
         !validLaunchIds.has(entry.name)
       ) {
-        await rm(join(this.root, entry.name), { recursive: true, force: true });
+        await rm(join(this.root, entry.name), {
+          recursive: true,
+          force: true,
+          ...REMOVE_RETRY,
+        });
       }
     }
   }
@@ -135,12 +149,13 @@ export class LaunchLogBundleStore {
     const tombstone = join(this.root, `.${launchId}.tombstone-${randomUUID()}`);
     let renamed = false;
     try {
-      await rename(paths.dir, tombstone);
+      await retryRename(paths.dir, tombstone);
       renamed = true;
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
     }
-    if (renamed) await rm(tombstone, { recursive: true, force: true });
+    if (renamed)
+      await rm(tombstone, { recursive: true, force: true, ...REMOVE_RETRY });
     await rm(join(this.root, `${launchId}.logs.jsonl`), { force: true });
   }
 }

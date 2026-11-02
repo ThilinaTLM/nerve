@@ -1,8 +1,9 @@
 import { syncDirectory, syncFile } from "./durability.js";
 import { existsSync } from "node:fs";
 import { RollbackJournal } from "./rollback-journal.js";
-import { copyFile, readFile, rename, rm } from "node:fs/promises";
+import { copyFile, readFile, rm } from "node:fs/promises";
 import { dirname, join } from "node:path";
+import { retryRename } from "../../storage-bootstrap/file-mutations.js";
 import { atomicWriteJson, pathExists } from "../../storage-bootstrap/json.js";
 import {
   storagePaths,
@@ -163,7 +164,7 @@ export async function rollbackFailedMigration(
       const temporary = `${paths.manifestPath}.rollback`;
       await copyFile(backup, temporary);
       syncFile(temporary);
-      await rename(temporary, paths.manifestPath);
+      await retryRename(temporary, paths.manifestPath);
       syncDirectory(dirname(paths.manifestPath));
       // Keep the chosen bytes until this marker is durable. In particular, a
       // resumed baseline rollback must never fall back to the admitted ledger.

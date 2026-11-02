@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { syncDirectory, syncFile } from "./durability.js";
+import { syncDirectory, syncFile, renameWithRetrySync } from "./durability.js";
 import { movePreservingSource } from "./move.js";
 import assert from "node:assert/strict";
 import {
@@ -8,7 +8,6 @@ import {
   existsSync,
   lstatSync,
   mkdirSync,
-  renameSync,
   rmSync,
   writeFileSync,
 } from "node:fs";
@@ -78,7 +77,7 @@ export class MigrationFilesystem {
         closeSync(fd);
       }
       syncFile(temporary);
-      renameSync(temporary, path);
+      renameWithRetrySync(temporary, path);
       syncDirectory(dirname(path));
     } finally {
       rmSync(temporary, { force: true });
@@ -94,7 +93,7 @@ export class MigrationFilesystem {
       `Destination already exists: ${to}`,
     );
     for (const journal of this.journals()) journal.recordRename(from, to);
-    renameSync(from, to);
+    renameWithRetrySync(from, to);
   }
   move(from: string, to: string): void {
     if (!lstatSync(from, { throwIfNoEntry: false })) {

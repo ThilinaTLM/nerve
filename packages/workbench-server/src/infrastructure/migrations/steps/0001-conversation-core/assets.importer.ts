@@ -1,6 +1,6 @@
 import { assetSchema, type Asset } from "./shapes.js";
 import { existsSync, lstatSync, readdirSync, realpathSync } from "node:fs";
-import { extname, isAbsolute, join, relative, resolve } from "node:path";
+import { extname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import type { EventMapping } from "./events.mapper.js";
 import {
   iso,
@@ -22,6 +22,10 @@ function* walk(path: string): Generator<string> {
     if (entry.isDirectory()) yield* walk(child);
     else if (entry.isFile()) yield child;
   }
+}
+
+function escapesRoot(rel: string): boolean {
+  return isAbsolute(rel) || rel === ".." || rel.startsWith(`..${sep}`);
 }
 
 export function collectAssets(
@@ -64,7 +68,7 @@ export function collectAssets(
         },
       );
     const rel = relative(root, path);
-    if (isAbsolute(rel) || rel === ".." || rel.startsWith("../")) {
+    if (escapesRoot(rel)) {
       preserve("Unsafe asset path");
       mapping.report.loss("Unsafe asset path");
       return;
@@ -76,7 +80,7 @@ export function collectAssets(
       if (!stat.isFile()) invalid = true;
       else {
         const resolved = relative(root, realpathSync(path));
-        invalid = resolved.startsWith("../") || isAbsolute(resolved);
+        invalid = escapesRoot(resolved);
       }
     } catch {
       mapping.report.missingFiles++;

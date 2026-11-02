@@ -1,4 +1,8 @@
-import { syncDirectory, syncFile } from "../../framework/durability.js";
+import {
+  syncDirectory,
+  syncFile,
+  renameWithRetrySync,
+} from "../../framework/durability.js";
 import type { StepContext } from "../../framework/step.js";
 import { HOME_CONFIGURATION_FILES } from "./owned-paths.js";
 import { convertPermissionRules } from "./process-history.js";
@@ -10,7 +14,6 @@ import {
   mkdirSync,
   readFileSync,
   readdirSync,
-  renameSync,
   rmSync,
   writeFileSync,
 } from "node:fs";
@@ -32,7 +35,7 @@ export function atomicWrite(path: string, content: string): void {
   try {
     writeFileSync(temporary, content, { flag: "wx", mode: 0o600 });
     syncFile(temporary);
-    renameSync(temporary, path);
+    renameWithRetrySync(temporary, path);
     syncDirectory(dirname(path));
   } finally {
     rmSync(temporary, { force: true });

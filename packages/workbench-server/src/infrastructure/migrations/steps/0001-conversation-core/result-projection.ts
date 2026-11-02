@@ -1,3 +1,4 @@
+import { renameWithRetrySync } from "../../framework/durability.js";
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import {
@@ -5,7 +6,6 @@ import {
   lstatSync,
   mkdirSync,
   realpathSync,
-  renameSync,
   writeFileSync,
 } from "node:fs";
 import { dirname, isAbsolute, relative, resolve } from "node:path";
@@ -57,7 +57,7 @@ export function prepareImportedResult(
       assert(lstatSync(temp).isFile() && !lstatSync(temp).isSymbolicLink());
     }
     writeFileSync(temp, content, { mode: 0o600 });
-    renameSync(temp, path);
+    renameWithRetrySync(temp, path);
     const asset = {
       ...(original ?? {}),
       id: original?.id ?? mapping.ids.get("asset", logicalPath),

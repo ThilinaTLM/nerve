@@ -5,9 +5,10 @@ import {
   readFileSync,
   rmSync,
   writeFileSync,
+  realpathSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { basename, join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import test from "node:test";
 import {
@@ -30,7 +31,9 @@ import { currentMigrationArchive } from "./released-archive.js";
 
 for (const damaged of [0, 1, 2, 3, 4])
   void test(`home conversion isolates project configuration and damaged home documents (${damaged})`, async (t) => {
-    const home = mkdtempSync(join(tmpdir(), "nerve-home-only-0002-"));
+    const home = mkdtempSync(
+      join(realpathSync(tmpdir()), "nerve-home-only-0002-"),
+    );
     t.after(() => rmSync(home, { recursive: true, force: true }));
     t.mock.method(NodeAgentBrowserCommandRunner.prototype, "run", async () =>
       JSON.stringify({ data: [] }),
@@ -247,7 +250,7 @@ for (const damaged of [0, 1, 2, 3, 4])
         assert.ok(item, file);
         assert.equal(
           readFileSync(
-            join(item.quarantinePath, "payload", file.split("/").at(-1)!),
+            join(item.quarantinePath, "payload", basename(file)),
             "utf8",
           ),
           "broken JSON",
@@ -317,7 +320,7 @@ for (const damaged of [0, 1, 2, 3, 4])
 
     // An archive created by the previous implementation must not replay project IO.
     const planPath = join(
-      currentMigrationArchive(home)!.directory,
+      currentMigrationArchive(context.paths.home)!.directory,
       "plan.json",
     );
     const plan = JSON.parse(readFileSync(planPath, "utf8"));

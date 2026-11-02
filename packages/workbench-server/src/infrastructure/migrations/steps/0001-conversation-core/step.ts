@@ -1,3 +1,4 @@
+import { renameWithRetrySync } from "../../framework/durability.js";
 import { includeFailures, replaceLosses } from "../../framework/toolkit.js";
 import { quarantineDiscardedConversations } from "./quarantine.js";
 import { HOME_CONFIGURATION_FILES } from "./owned-paths.js";
@@ -12,7 +13,6 @@ import {
   lstatSync,
   mkdirSync,
   readdirSync,
-  renameSync,
   rmSync,
   statfsSync,
 } from "node:fs";
@@ -89,7 +89,7 @@ async function preserveBashOutputs(ctx: StepContext): Promise<void> {
         const temporary = `${destination}.migrating`;
         try {
           copyFileSync(old, temporary);
-          renameSync(temporary, destination);
+          renameWithRetrySync(temporary, destination);
         } finally {
           rmSync(temporary, { force: true });
         }
@@ -444,7 +444,7 @@ async function convert(
           !existsSync(`${source}${suffix}`),
           `Conflicting migration sidecar ${suffix}`,
         );
-        renameSync(`${original}${suffix}`, `${source}${suffix}`);
+        renameWithRetrySync(`${original}${suffix}`, `${source}${suffix}`);
       }
   }
   const sourceReader = new LegacyReader(source, ctx);
@@ -564,7 +564,7 @@ async function convert(
         continue;
       }
       journal.recordRename(join(launches, entry.name), target);
-      renameSync(join(launches, entry.name), target);
+      renameWithRetrySync(join(launches, entry.name), target);
     }
   writeJson(summaryPath(ctx), summary);
   ctx.log(
@@ -719,6 +719,6 @@ export default defineStep({
     if (existsSync(restoring))
       for (const suffix of ["-wal", "-shm", ""])
         if (existsSync(`${source}${suffix}`))
-          renameSync(`${source}${suffix}`, `${original}${suffix}`);
+          renameWithRetrySync(`${source}${suffix}`, `${original}${suffix}`);
   },
 });

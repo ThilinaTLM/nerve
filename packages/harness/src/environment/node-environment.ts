@@ -19,7 +19,7 @@ import {
   writeFile,
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { basename, isAbsolute, join, resolve } from "node:path";
+import { basename, isAbsolute, join, resolve, win32 } from "node:path";
 import { createInterface } from "node:readline";
 import { ExecutionError, FileError } from "../errors.js";
 import { err, ok, type Result, toError } from "../result.js";
@@ -150,14 +150,54 @@ async function runCommand(
   });
 }
 
-async function findBashOnPath(): Promise<string | null> {
+export interface BashLookupDeps {
+  platform: NodeJS.Platform;
+  env: NodeJS.ProcessEnv;
+  pathExists: (path: string) => Promise<boolean>;
+  runCommand: (
+    command: string,
+    args: string[],
+    timeoutMs: number,
+  ) => Promise<{ stdout: string; status: number | null }>;
+}
+
+const defaultBashLookupDeps = (): BashLookupDeps => ({
+  platform: process.platform,
+  env: process.env,
+  pathExists,
+  runCommand,
+});
+
+export async function findBashOnPath(
+  deps: BashLookupDeps = defaultBashLookupDeps(),
+): Promise<string | null> {
+  const { platform, env } = deps;
   const result =
-    process.platform === "win32"
-      ? await runCommand("where", ["bash.exe"], 5000)
-      : await runCommand("which", ["bash"], 5000);
+    platform === "win32"
+      ? await deps.runCommand("where", ["bash.exe"], 5000)
+      : await deps.runCommand(
+          "which",
+          platform === "darwin" ? ["-a", "bash"] : ["bash"],
+          5000,
+        );
   if (result.status !== 0 || !result.stdout) return null;
-  const firstMatch = result.stdout.trim().split(/\r?\n/)[0];
-  return firstMatch && (await pathExists(firstMatch)) ? firstMatch : null;
+  const windowsRoot = env.SystemRoot ?? env.WINDIR;
+  const wslLauncher = windowsRoot
+    ? win32.join(windowsRoot, "System32", "bash.exe").toLowerCase()
+    : undefined;
+  for (const line of result.stdout.split(/\r?\n/)) {
+    const path = line.trim();
+    if (!path) continue;
+    if (platform === "darwin" && path === "/bin/bash") continue;
+    if (
+      platform === "win32" &&
+      win32.normalize(path).toLowerCase() === wslLauncher
+    ) {
+      continue;
+    }
+    if (await deps.pathExists(path)) return path;
+  }
+  return null;
 }
 
 async function getShellConfig(
@@ -181,6 +221,12 @@ async function getShellConfig(
     const programFilesX86 = process.env["ProgramFiles(x86)"];
     if (programFilesX86)
       candidates.push(`${programFilesX86}\\Git\\bin\\bash.exe`);
+    const localAppData = process.env.LOCALAPPDATA;
+    if (localAppData) {
+      candidates.push(
+        win32.join(localAppData, "Programs", "Git", "bin", "bash.exe"),
+      );
+    }
     for (const candidate of candidates) {
       if (await pathExists(candidate)) {
         return ok({ shell: candidate, args: ["-c"] });
@@ -198,12 +244,17 @@ async function getShellConfig(
     );
   }
 
+  // macOS ships an old /bin/bash; prefer a newer bash from PATH.
+  if (process.platform === "darwin") {
+    const bashOnPath = await findBashOnPath();
+    if (bashOnPath) return ok({ shell: bashOnPath, args: ["-c"] });
+  }
   if (await pathExists("/bin/bash")) {
     return ok({ shell: "/bin/bash", args: ["-c"] });
   }
-  const bashOnPath = await findBashOnPath();
-  if (bashOnPath) {
-    return ok({ shell: bashOnPath, args: ["-c"] });
+  if (process.platform !== "darwin") {
+    const bashOnPath = await findBashOnPath();
+    if (bashOnPath) return ok({ shell: bashOnPath, args: ["-c"] });
   }
   return ok({ shell: "sh", args: ["-c"] });
 }

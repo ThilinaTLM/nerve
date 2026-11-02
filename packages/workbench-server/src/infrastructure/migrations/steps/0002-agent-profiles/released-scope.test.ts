@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { join } from "node:path";
 import { test } from "node:test";
 import {
   releasedBuiltins,
@@ -13,6 +14,8 @@ import {
   convertConversationV037,
   convertPreferencesV037,
 } from "./released-format.js";
+// Product code builds paths with the host separator; expectations must too.
+const configFile = (root: string, name: string) => join(root, "config", name);
 const context = {
   builtins: releasedBuiltins,
   skillSources: {},
@@ -21,13 +24,16 @@ const context = {
 for (const scope of ["user", "project"] as const) {
   await test(`D12 ${scope} source inspection isolates malformed/unsupported files without changing bytes or other scopes`, () => {
     const files = new Map([
-        ["/bad/config/harness.json", "{bad JSON\n"],
-        ["/bad/config/capabilities.json", '{"schemaVersion":3}'],
+        [configFile("/bad", "harness.json"), "{bad JSON\n"],
+        [configFile("/bad", "capabilities.json"), '{"schemaVersion":3}'],
         [
-          "/good/config/capabilities.json",
+          configFile("/good", "capabilities.json"),
           '{"schemaVersion":2,"tools":{"jira":{"enabled":true}}}',
         ],
-        ["/bad/config/integrations.json", '{"version":2,"profiles":{}}'],
+        [
+          configFile("/bad", "integrations.json"),
+          '{"version":2,"profiles":{}}',
+        ],
       ]),
       before = new Map(files),
       io = { read: (path: string) => files.get(path) };
@@ -35,7 +41,10 @@ for (const scope of ["user", "project"] as const) {
     assert.equal(bad.issues.length, 2);
     assert.deepEqual(
       bad.issues.map((issue) => issue.path),
-      ["/bad/config/harness.json", "/bad/config/capabilities.json"],
+      [
+        configFile("/bad", "harness.json"),
+        configFile("/bad", "capabilities.json"),
+      ],
     );
     assert.deepEqual(bad.before, {});
     assert.equal(bad.snapshots.size, 0);
@@ -61,15 +70,15 @@ await test("D12 unconvertible catalog skill identities are scoped issues, not pa
   assert.equal(input.issues.length, 0);
   validateReleasedCatalog(input, "/project", "project", context);
   assert.equal(input.before.subagents, undefined);
-  assert.equal(input.issues[0].path, "/project/config/subagents.json");
+  assert.equal(input.issues[0].path, configFile("/project", "subagents.json"));
   assert.match(input.issues[0].reason, /skill source identity/);
 });
 
 await test("D12 existing canonical targets isolate the scoped export without overwriting either file", () => {
   const source = '{"schemaVersion":2,"tools":{"jira":{"enabled":true}}}';
   const files = new Map([
-    ["/project/config/capabilities.json", source],
-    ["/project/config/agent.json", "existing bytes"],
+    [configFile("/project", "capabilities.json"), source],
+    [configFile("/project", "agent.json"), "existing bytes"],
   ]);
   const io = { read: (path: string) => files.get(path) };
   const input = readReleasedScope("/project", io, "project", context);
@@ -84,10 +93,16 @@ await test("D12 existing canonical targets isolate the scoped export without ove
     releasedScopeTargets("/project", "project", input.before, context, result),
   );
   assert.deepEqual(targets, {});
-  assert.equal(input.issues[0].path, "/project/config/capabilities.json");
+  assert.equal(
+    input.issues[0].path,
+    configFile("/project", "capabilities.json"),
+  );
   assert.match(input.issues[0].reason, /Existing conversion target/);
-  assert.equal(files.get("/project/config/capabilities.json"), source);
-  assert.equal(files.get("/project/config/agent.json"), "existing bytes");
+  assert.equal(files.get(configFile("/project", "capabilities.json")), source);
+  assert.equal(
+    files.get(configFile("/project", "agent.json")),
+    "existing bytes",
+  );
 });
 
 await test("released conversation sources use their own sparse shapes, not user preferences", () => {
@@ -104,9 +119,12 @@ await test("released conversation sources use their own sparse shapes, not user 
     profiles: { custom: { enabled: false, label: "Legacy label" } },
   };
   const files = new Map([
-    ["/conversation/config/harness.json", JSON.stringify(harness)],
-    ["/conversation/config/capabilities.json", JSON.stringify(capabilities)],
-    ["/conversation/config/subagents.json", JSON.stringify(subagents)],
+    [configFile("/conversation", "harness.json"), JSON.stringify(harness)],
+    [
+      configFile("/conversation", "capabilities.json"),
+      JSON.stringify(capabilities),
+    ],
+    [configFile("/conversation", "subagents.json"), JSON.stringify(subagents)],
   ]);
   const io = {
     read(path: string) {
