@@ -1,4 +1,5 @@
 export * from "./mobile-inbox.js";
+export * from "./mobile-surface.js";
 export { default as MobileActionSheet } from "./MobileActionSheet.svelte";
 export { default as MobileInboxView } from "./MobileInboxView.svelte";
 export { default as MobileLayer } from "./MobileLayer.svelte";
@@ -8,3 +9,7 @@ export { default as MobileSection } from "./MobileSection.svelte";
 export { default as MobileShell } from "./MobileShell.svelte";
 export { default as MobileTabBar } from "./MobileTabBar.svelte";
 export type { MobileTabModel } from "./MobileTabBar.svelte";
+export * from "./mobile-swipe.js";
+export { default as MobileFab } from "./MobileFab.svelte";
+export { default as MobileSegmentedControl } from "./MobileSegmentedControl.svelte";
+export type { MobileSegment } from "./MobileSegmentedControl.svelte";

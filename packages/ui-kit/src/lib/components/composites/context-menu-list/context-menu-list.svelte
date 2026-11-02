@@ -27,6 +27,7 @@ export type ContextMenuItem =
 <script lang="ts">
 import type { Snippet } from "svelte";
 import * as ContextMenu from "@nervekit/ui-kit/components/ui/context-menu";
+import { cn } from "@nervekit/ui-kit/utils";
 import ContextMenuListItems from "./context-menu-list-items.svelte";
 
 let {
@@ -35,6 +36,7 @@ let {
   class: className,
   triggerClass,
   disabled = false,
+  nativeTouch = false,
   onOpenChange,
 }: {
   children: Snippet;
@@ -43,8 +45,21 @@ let {
   triggerClass?: string;
   /** Keep the trigger mounted but inert (e.g. while no actions exist yet). */
   disabled?: boolean;
+  /** Leave touch long-press to the platform (text selection and the OS edit
+   * menu) instead of opening this menu. Use on editable or selectable text,
+   * where the menu would steal focus and dismiss the on-screen keyboard. */
+  nativeTouch?: boolean;
   onOpenChange?: (open: boolean) => void;
 } = $props();
+
+// Pointer type of the latest press. Disabling the trigger also clears its
+// pending long-press timer, and its `contextmenu` handler then lets the
+// native menu through.
+let touchPress = $state(false);
+
+function trackPointer(event: PointerEvent): void {
+  touchPress = nativeTouch && event.pointerType !== "mouse";
+}
 
 function assertNoEllipsis(list: ContextMenuItem[]): void {
   if (!import.meta.env.DEV) return;
@@ -73,7 +88,11 @@ $effect(() => assertNoEllipsis(items));
 </script>
 
 <ContextMenu.Root {onOpenChange}>
-  <ContextMenu.Trigger class={triggerClass} {disabled}>
+  <ContextMenu.Trigger
+    class={cn(nativeTouch && "select-text", triggerClass)}
+    disabled={disabled || touchPress}
+    onpointerdowncapture={trackPointer}
+  >
     {@render children()}
   </ContextMenu.Trigger>
   <ContextMenu.Content class={className}>

@@ -2,7 +2,9 @@
 import { appearanceState } from "$lib/platform/appearance/appearance.svelte";
 import { untrack } from "svelte";
 import type { Project } from "@nervekit/contracts/core";
+import Monitor from "@lucide/svelte/icons/monitor";
 import { MobileScreen } from "$lib/presentation/shell";
+import { SettingsEmptyState } from "$lib/presentation/settings";
 import {
   resolveSettingsPageId,
   settingsPageFor,
@@ -23,6 +25,7 @@ import { backFromMobileScreen } from "$lib/app/shell/mobile/mobile-shell.svelte"
 import SettingsPageActions from "../settings/SettingsPageActions.svelte";
 import SettingsPageContent from "../settings/SettingsPageContent.svelte";
 import { createSettingsPageControllers } from "../settings/settings-page-controllers.svelte";
+import { isDesktopOnlySettingsPage } from "./mobile-settings";
 
 /**
  * One settings page as a phone screen. The body is the desktop page component;
@@ -45,6 +48,7 @@ let {
 const page = $derived(
   settingsPageFor(target, resolveSettingsPageId(target.kind, pageId)),
 );
+const desktopOnly = $derived(isDesktopOnlySettingsPage(page.id));
 const status = $derived(workspaceSelectors.status);
 const controllers = createSettingsPageControllers({
   target: () => target,
@@ -89,37 +93,45 @@ $effect(() => {
   {backLabel}
 >
   {#snippet actions()}
-    <SettingsPageActions
-      {page}
-      {target}
-      {controllers}
-      settingsDraft={settingsState.settingsDraft}
-      onSettingsChange={queueSettingsSave}
-    />
+    {#if !desktopOnly}<SettingsPageActions
+        {page}
+        {target}
+        {controllers}
+        settingsDraft={settingsState.settingsDraft}
+        onSettingsChange={queueSettingsSave}
+      />{/if}
   {/snippet}
 
   <div class="grid gap-4 px-3 py-3">
-    <SettingsPageContent
-      {page}
-      {target}
-      {controllers}
-      {status}
-      settingsDraft={settingsState.settingsDraft}
-      applicationConfiguration={settingsState.applicationConfiguration}
-      daemonCapability={settingsState.daemonCapability}
-      daemonRestarting={settingsState.daemonRestarting}
-      models={settingsState.models}
-      authProviders={settingsState.authProviders}
-      {project}
-      skills={settingsState.skills}
-      skillsLoading={settingsState.skillsLoading}
-      skillsError={settingsState.skillsError}
-      onSkillsRetry={() => loadSettingsSkills(skillsProjectId)}
-      onSettingsChange={queueSettingsSave}
-      onApplicationConfigurationChange={saveApplicationConfiguration}
-      onRestartDaemon={restartOwnedDaemon}
-      theme={appearanceState.theme}
-      onThemeChange={setTheme}
-    />
+    {#if desktopOnly}
+      <SettingsEmptyState
+        icon={Monitor}
+        title="Available on desktop"
+        description={`Open ${page.label} in Nerve on a computer to change it.`}
+      />
+    {:else}
+      <SettingsPageContent
+        {page}
+        {target}
+        {controllers}
+        {status}
+        settingsDraft={settingsState.settingsDraft}
+        applicationConfiguration={settingsState.applicationConfiguration}
+        daemonCapability={settingsState.daemonCapability}
+        daemonRestarting={settingsState.daemonRestarting}
+        models={settingsState.models}
+        authProviders={settingsState.authProviders}
+        {project}
+        skills={settingsState.skills}
+        skillsLoading={settingsState.skillsLoading}
+        skillsError={settingsState.skillsError}
+        onSkillsRetry={() => loadSettingsSkills(skillsProjectId)}
+        onSettingsChange={queueSettingsSave}
+        onApplicationConfigurationChange={saveApplicationConfiguration}
+        onRestartDaemon={restartOwnedDaemon}
+        theme={appearanceState.theme}
+        onThemeChange={setTheme}
+      />
+    {/if}
   </div>
 </MobileScreen>

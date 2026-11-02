@@ -3,7 +3,7 @@ import type { ConversationSummary } from "@nervekit/contracts/core";
 
 /**
  * Project home on a phone: the few conversations worth reopening first, then
- * one summary line per project tool so the list reads as a dashboard.
+ * the repository status and a tile per project tool so it reads as a dashboard.
  */
 
 export const PROJECT_HOME_RECENT_LIMIT = 5;
@@ -14,24 +14,39 @@ export type MobileProjectHomeInput = {
   conversations: readonly ConversationSummary[];
   activityById: Readonly<Record<string, ActivityLike | undefined>>;
   liveLaunchCount: number;
-  git?: { changeCount: number; branch?: string };
+  git?: {
+    changeCount: number;
+    branch?: string;
+    ahead?: number | null;
+    behind?: number | null;
+    hasUpstream?: boolean;
+    detached?: boolean;
+  };
   prCount: number;
 };
 
 export type MobileProjectHomeModel = {
   recent: ConversationSummary[];
   conversationCount: number;
-  launchesDetail: string;
-  gitDetail: string;
-  pullRequestsDetail: string;
+  /** Present when the project is a repository. */
+  repo?: { branch: string; sync?: string };
+  changedCount: number;
+  prCount: number;
+  liveLaunchCount: number;
 };
 
 function lastPromptAt(conversation: ConversationSummary): string {
   return conversation.lastUserMessageAt ?? conversation.createdAt;
 }
 
-function plural(count: number, one: string, many: string): string {
-  return `${count} ${count === 1 ? one : many}`;
+/** "↑2 ↓0" against the upstream; nothing when there is none to compare. */
+export function repoSyncLabel(git: {
+  ahead?: number | null;
+  behind?: number | null;
+  hasUpstream?: boolean;
+}): string | undefined {
+  if (!git.hasUpstream) return undefined;
+  return `↑${git.ahead ?? 0} ↓${git.behind ?? 0}`;
 }
 
 export function buildMobileProjectHome(
@@ -54,16 +69,14 @@ export function buildMobileProjectHome(
   return {
     recent,
     conversationCount: input.conversations.length,
-    launchesDetail:
-      input.liveLaunchCount > 0
-        ? `${plural(input.liveLaunchCount, "launch", "launches")} running`
-        : "No running launches",
-    gitDetail: !git
-      ? "No repository"
-      : git.changeCount > 0
-        ? `${plural(git.changeCount, "uncommitted change", "uncommitted changes")}`
-        : "Working tree clean",
-    pullRequestsDetail:
-      input.prCount > 0 ? `${input.prCount} open` : "No open pull requests",
+    repo: git
+      ? {
+          branch: git.detached ? "Detached HEAD" : (git.branch ?? "HEAD"),
+          sync: repoSyncLabel(git),
+        }
+      : undefined,
+    changedCount: git?.changeCount ?? 0,
+    prCount: input.prCount,
+    liveLaunchCount: input.liveLaunchCount,
   };
 }

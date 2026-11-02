@@ -242,7 +242,7 @@ const menuItems = $derived<ContextMenuItem[]>([
 >
   <Sheet.Content
     side="bottom"
-    class="max-h-[80dvh] rounded-t-lg pb-[env(safe-area-inset-bottom)]"
+    class="max-h-[80dvh] rounded-t-lg pb-[max(0.5rem,var(--safe-bottom))]"
     swipeToDismiss
     onSwipeDismiss={() => (selected = undefined)}
   >

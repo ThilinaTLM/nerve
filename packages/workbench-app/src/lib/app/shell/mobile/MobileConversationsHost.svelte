@@ -15,7 +15,7 @@ import { sidebarConversations, sidebarAgents } from "$lib/features/projects";
 import { conversationListPreferences } from "$lib/features/projects";
 import { selection } from "$lib/application/workspace/selection.svelte";
 import { workspaceSelectors } from "$lib/application/workspace";
-import { mobileConversationMenu } from "./mobile-conversation-menu.svelte";
+import { mobileConversationRowActions } from "./mobile-conversation-swipe.svelte";
 import {
   openMobileConversation,
   startMobileConversation,
@@ -98,6 +98,7 @@ const total = $derived(
     <MobileSection title={section.label} meta={`${section.rows.length}`}>
       {#each section.rows as row (row.conversation.id)}
         {@const activity = activityById[row.conversation.id]}
+        {@const actions = mobileConversationRowActions(row.conversation)}
         <MobileListRow
           title={row.conversation.title}
           meta={relativeTimeLabel(
@@ -107,7 +108,10 @@ const total = $derived(
           tone={activity?.tone ?? "neutral"}
           pulse={activity?.pulse ?? false}
           selected={selection.conversationId === row.conversation.id}
-          menuItems={mobileConversationMenu(row.conversation)}
+          chevron={false}
+          menuItems={actions.menuItems}
+          swipeLeading={actions.swipeLeading}
+          swipeTrailing={actions.swipeTrailing}
           onclick={() => void openMobileConversation(row.conversation.id)}
         />
       {/each}

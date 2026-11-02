@@ -18,6 +18,7 @@ import {
   pushMobileScreen,
 } from "$lib/app/shell/mobile/mobile-shell.svelte";
 import type { MobileScreenProps } from "./mobile-screen-registry";
+import { mobileSettingsGroups } from "./mobile-settings";
 
 /** Project settings index; the route carries the project, so it never drifts. */
 let { route }: MobileScreenProps<"project-settings"> = $props();
@@ -28,7 +29,7 @@ const project = $derived(
   ),
 );
 const target = $derived(projectSettingsScope(route.projectId));
-const groups = $derived(settingsNavFor(target));
+const groups = $derived(mobileSettingsGroups(settingsNavFor(target)));
 const homeDir = $derived(workspaceSelectors.status?.storage.userHome);
 
 $effect(() => {

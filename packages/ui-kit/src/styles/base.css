@@ -1,6 +1,17 @@
 /* Global base layer: resets, app-shell sizing, scrollbars, reduced-motion. */
 
 @layer base {
+  /* Device safe areas (notches, rounded corners, home indicator), read once
+   * here. Shells and edge-docked bars use these instead of `env()` so a
+   * preview frame can simulate a device by overriding them. All are 0 on
+   * desktop. */
+  :root {
+    --safe-top: env(safe-area-inset-top, 0px);
+    --safe-right: env(safe-area-inset-right, 0px);
+    --safe-bottom: env(safe-area-inset-bottom, 0px);
+    --safe-left: env(safe-area-inset-left, 0px);
+  }
+
   /* Insets follow their surface (see `--well-on-*` in theme.css): whatever
    * paints a ladder surface points `--well` at that surface's inset, so code
    * and output keep the same contrast in a card, a popover or a panel. */

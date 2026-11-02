@@ -137,3 +137,20 @@ export function buildMobileInbox(input: MobileInboxInput): MobileInboxModel {
   }
   return model;
 }
+
+/**
+ * The one supporting line under an inbox row: where it is and what state it
+ * is in. Errors and runs already read as a state; requests also name what
+ * they ask for.
+ */
+export function inboxSupportingLine(item: MobileInboxItem): string {
+  const state =
+    item.interaction &&
+    item.kind !== "error" &&
+    item.kind !== "running" &&
+    item.kind !== "awaiting-async" &&
+    item.kind !== "recent"
+      ? [item.kindLabel, item.detail].filter(Boolean).join(" · ")
+      : item.detail;
+  return [item.projectLabel, state].filter(Boolean).join(" · ");
+}

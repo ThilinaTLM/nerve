@@ -1,22 +1,26 @@
 <script lang="ts">
-import type { ContextMenuItem } from "@nervekit/ui-kit/components/composites/context-menu-list";
 import {
   MobileInboxView,
   MobileScreen,
   type MobileInboxItem,
 } from "$lib/presentation/shell";
 import { workspaceSelectors } from "$lib/application/workspace";
+import MobileNewChatFab from "./MobileNewChatFab.svelte";
 import MobileRootActions from "./MobileRootActions.svelte";
 import MobileStatusStrip from "./MobileStatusStrip.svelte";
 import { mobileInboxModel } from "./mobile-inbox-model.svelte";
-import { mobileConversationMenu } from "./mobile-conversation-menu.svelte";
+import { mobileConversationRowActions } from "./mobile-conversation-swipe.svelte";
 import { openMobileConversation } from "./mobile-route-activation.svelte";
+import {
+  mobileConnectionText,
+  mobileStatusSheet,
+} from "./mobile-status.svelte";
 
 /**
  * Triage home: approvals, questions, plan reviews and agent errors first, then
  * everything still running, then recent conversations — across every project.
- * Approvals resolve straight from the row menu; questions and plans need the
- * full transcript card, so they open the conversation.
+ * Rows swipe to mark done, pin or delete; long-press opens the full action
+ * sheet. The header subtitle carries the daemon status (tap for details).
  */
 const model = $derived(mobileInboxModel());
 const subtitle = $derived.by(() => {
@@ -25,31 +29,39 @@ const subtitle = $derived.by(() => {
   if (model.running.length) parts.push(`${model.running.length} running`);
   if (model.awaitingAsync.length)
     parts.push(`${model.awaitingAsync.length} in background`);
-  return parts.length ? parts.join(" · ") : "All caught up";
+  if (!parts.length) parts.push("All caught up");
+  parts.push(mobileConnectionText());
+  return parts.join(" · ");
 });
 
 function open(item: MobileInboxItem) {
   void openMobileConversation(item.conversationId);
 }
 
-function menu(item: MobileInboxItem): ContextMenuItem[] {
+function rowActions(item: MobileInboxItem) {
   const conversation = workspaceSelectors.conversations.find(
     (candidate) => candidate.id === item.conversationId,
   );
-  const conversationItems = conversation
-    ? mobileConversationMenu(conversation)
-    : [];
-  return conversationItems;
+  return conversation
+    ? mobileConversationRowActions(conversation)
+    : { menuItems: [] };
 }
 </script>
 
-<MobileScreen title="Inbox" {subtitle}>
-  {#snippet actions()}
-    <MobileRootActions />
-  {/snippet}
-  <MobileInboxView {model} onOpen={open} menuItems={menu}>
-    {#snippet summary()}
-      <MobileStatusStrip />
+<MobileNewChatFab>
+  <MobileScreen
+    title="Inbox"
+    {subtitle}
+    onSubtitleSelect={() => (mobileStatusSheet.open = true)}
+    subtitleLabel="Daemon status and usage"
+  >
+    {#snippet actions()}
+      <MobileRootActions />
     {/snippet}
-  </MobileInboxView>
-</MobileScreen>
+    <MobileInboxView {model} onOpen={open} {rowActions}>
+      {#snippet summary()}
+        <MobileStatusStrip />
+      {/snippet}
+    </MobileInboxView>
+  </MobileScreen>
+</MobileNewChatFab>

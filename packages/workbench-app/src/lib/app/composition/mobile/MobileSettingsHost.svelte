@@ -19,6 +19,7 @@ import {
   backFromMobileScreen,
   pushMobileScreen,
 } from "$lib/app/shell/mobile/mobile-shell.svelte";
+import { mobileSettingsGroups } from "./mobile-settings";
 
 /**
  * User settings index: the nav groups as sections, one row per page, each
@@ -27,7 +28,7 @@ import {
  */
 const discoverBadge = $derived(discoverTitlebarBadge());
 const status = $derived(workspaceSelectors.status);
-const groups = settingsNavFor(userSettingsScope);
+const groups = mobileSettingsGroups(settingsNavFor(userSettingsScope));
 
 $effect(() => {
   untrack(() => void loadSettingsPanel());

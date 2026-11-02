@@ -171,7 +171,7 @@ function handleOpenChange(next: boolean) {
       onSwipeDismiss={() => handleOpenChange(false)}
       aria-label={ariaLabel}
       class={cn(
-        "max-h-[85dvh] rounded-t-xl bg-popover pb-[env(safe-area-inset-bottom)] text-popover-foreground",
+        "max-h-[85dvh] rounded-t-xl bg-popover pb-[max(0.5rem,var(--safe-bottom))] text-popover-foreground",
         className,
       )}
       onOpenAutoFocus={(event) => {
