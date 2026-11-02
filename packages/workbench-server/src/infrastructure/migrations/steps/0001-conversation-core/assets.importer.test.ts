@@ -8,10 +8,18 @@ import { fixture, registry } from "./step-fixture.js";
 
 void test("missing, unsafe and linked assets preserve their descriptors without blocking conversations", async (t) => {
   const home = await fixture(t);
-  await symlink(
-    "/outside-home/not-readable",
-    join(home, "data/conversations/one/linked.txt"),
-  );
+  try {
+    await symlink(
+      join(home, "..", "outside-home", "not-readable"),
+      join(home, "data/conversations/one/linked.txt"),
+    );
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "EPERM") {
+      t.skip("Symlink privilege unavailable");
+      return;
+    }
+    throw error;
+  }
   const db = new DatabaseSync(join(home, "data/nerve.sqlite"));
   for (const [id, path] of [
     ["missing", "conversations/one/missing.txt"],

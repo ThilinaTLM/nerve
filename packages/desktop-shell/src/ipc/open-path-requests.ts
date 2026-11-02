@@ -17,16 +17,27 @@ export function filterOpenPaths(
   });
 }
 
+/** Flags (see `parseDesktopOptions`) whose value is a separate argument. */
+const VALUE_FLAGS = new Set([
+  "--connect",
+  "--token",
+  "--host",
+  "--port",
+  "--https-port",
+]);
+
 export function directoryPathsFromArgv(
   argv: readonly string[],
   cwd: string,
 ): string[] {
-  return filterOpenPaths(
-    argv
-      .filter((arg) => arg.length > 0 && !arg.startsWith("-"))
-      .map((arg) => resolve(cwd, arg)),
-    true,
-  );
+  const candidates: string[] = [];
+  for (let index = 0; index < argv.length; index += 1) {
+    const arg = argv[index];
+    if (!arg) continue;
+    if (VALUE_FLAGS.has(arg)) index += 1;
+    else if (!arg.startsWith("-")) candidates.push(resolve(cwd, arg));
+  }
+  return filterOpenPaths(candidates, true);
 }
 
 /** Single-window queue: requests survive startup and renderer reloads. */

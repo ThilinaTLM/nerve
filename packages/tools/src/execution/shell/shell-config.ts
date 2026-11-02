@@ -50,13 +50,15 @@ function findBashOnPath(
   const result =
     platform === "win32"
       ? runCommand("where", ["bash.exe"])
-      : runCommand("which", ["bash"]);
+      : runCommand("which", platform === "darwin" ? ["-a", "bash"] : ["bash"]);
   if (result.status !== 0 || !result.stdout) return undefined;
   return result.stdout
     .split(/\r?\n/)
     .map((path) => path.trim())
     .find((path) => {
       if (!path) return false;
+      if (platform === "darwin")
+        return path !== "/bin/bash" && pathExists(path);
       if (platform !== "win32") return true;
       const windowsRoot = env.SystemRoot ?? env.WINDIR;
       const isWslLauncher =
@@ -131,10 +133,18 @@ export function resolveBashShellConfig(
     );
   }
 
+  // macOS ships an old /bin/bash; prefer a newer bash from PATH.
+  if (platform === "darwin") {
+    const bashOnPath = findBashOnPath(platform, pathExists, runCommand, env);
+    if (bashOnPath) return { shell: bashOnPath, args: ["-c"] };
+  }
+
   if (pathExists("/bin/bash")) return { shell: "/bin/bash", args: ["-c"] };
 
-  const bashOnPath = findBashOnPath(platform, pathExists, runCommand, env);
-  if (bashOnPath) return { shell: bashOnPath, args: ["-c"] };
+  if (platform !== "darwin") {
+    const bashOnPath = findBashOnPath(platform, pathExists, runCommand, env);
+    if (bashOnPath) return { shell: bashOnPath, args: ["-c"] };
+  }
 
   return { shell: "sh", args: ["-c"] };
 }

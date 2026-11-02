@@ -69,6 +69,15 @@ if (!app.requestSingleInstanceLock()) {
 } else {
   app.setName(DESKTOP_APP_NAME);
   app.setAppUserModelId(DESKTOP_APP_ID);
+  // macOS delivers launch paths through `open-file`; elsewhere they are argv.
+  if (process.platform !== "darwin") {
+    openPathRequests.enqueue(
+      directoryPathsFromArgv(
+        process.argv.slice(app.isPackaged ? 1 : 2),
+        process.cwd(),
+      ),
+    );
+  }
   createDesktopRuntime({
     desktopOptions,
     desktopDataDir,

@@ -1,4 +1,4 @@
-import { syncDirectory, syncFile } from "./durability.js";
+import { syncDirectory, syncFile, renameWithRetrySync } from "./durability.js";
 import { movePreservingSource } from "./move.js";
 import assert from "node:assert/strict";
 import {
@@ -10,13 +10,43 @@ import {
   readFileSync,
   readdirSync,
   readlinkSync,
-  renameSync,
   rmSync,
   rmdirSync,
+  statSync,
   symlinkSync,
   writeFileSync,
 } from "node:fs";
 import { dirname, isAbsolute, join, relative, resolve } from "node:path";
+
+/**
+ * Windows symlinks need Developer Mode or admin; fall back to a junction for
+ * directory targets, otherwise explain how to enable them.
+ */
+export function restoreSymlink(
+  target: string,
+  path: string,
+  platform: NodeJS.Platform = process.platform,
+  create: typeof symlinkSync = symlinkSync,
+): void {
+  try {
+    create(target, path);
+    return;
+  } catch (error) {
+    if (
+      platform !== "win32" ||
+      (error as NodeJS.ErrnoException).code !== "EPERM"
+    )
+      throw error;
+  }
+  const absolute = resolve(dirname(path), target);
+  if (statSync(absolute, { throwIfNoEntry: false })?.isDirectory()) {
+    create(absolute, path, "junction");
+    return;
+  }
+  throw new Error(
+    `Cannot restore symbolic link ${path} -> ${target}: enable Windows Developer Mode or run as administrator`,
+  );
+}
 
 type JournalEntry =
   /**
@@ -132,7 +162,7 @@ export class RollbackJournal {
       const temporary = `${progressPath}.tmp`;
       writeFileSync(temporary, JSON.stringify([...completed]), { mode: 0o600 });
       syncFile(temporary);
-      renameSync(temporary, progressPath);
+      renameWithRetrySync(temporary, progressPath);
       syncDirectory(this.#root);
       onProgress?.(completed.size, this.#entries.length);
     }
@@ -148,13 +178,23 @@ export class RollbackJournal {
     } else if (entry.kind === "directory") {
       if (!existsSync(entry.path)) return;
       if (entry.entries === null) {
-        rmSync(entry.path, { recursive: true, force: true });
+        rmSync(entry.path, {
+          recursive: true,
+          force: true,
+          maxRetries: 5,
+          retryDelay: 50,
+        });
         return;
       }
       const original = new Set(entry.entries);
       for (const name of readdirSync(entry.path))
         if (!original.has(name))
-          rmSync(join(entry.path, name), { recursive: true, force: true });
+          rmSync(join(entry.path, name), {
+            recursive: true,
+            force: true,
+            maxRetries: 5,
+            retryDelay: 50,
+          });
     } else if (entry.link !== undefined) {
       if (
         lstatSync(entry.path, { throwIfNoEntry: false })?.isSymbolicLink() &&
@@ -163,14 +203,15 @@ export class RollbackJournal {
         return;
       rmSync(entry.path, { force: true });
       mkdirSync(dirname(entry.path), { recursive: true });
-      symlinkSync(entry.link, entry.path);
+      restoreSymlink(entry.link, entry.path);
     } else if (entry.backup) {
       mkdirSync(dirname(entry.path), { recursive: true });
       const temporary = `${entry.path}.rollback`;
       copyFileSync(join(this.#root, entry.backup), temporary);
-      if (entry.mode !== undefined) chmodSync(temporary, entry.mode);
+      // Sync first: a mode without the write bit blocks the write-access open on Windows.
       syncFile(temporary);
-      renameSync(temporary, entry.path);
+      if (entry.mode !== undefined) chmodSync(temporary, entry.mode);
+      renameWithRetrySync(temporary, entry.path);
       syncDirectory(dirname(entry.path));
     } else {
       rmSync(entry.path, { force: true });
@@ -202,7 +243,7 @@ export class RollbackJournal {
     const temporary = `${this.#index}.tmp`;
     writeFileSync(temporary, JSON.stringify(this.#entries), { mode: 0o600 });
     syncFile(temporary);
-    renameSync(temporary, this.#index);
+    renameWithRetrySync(temporary, this.#index);
     syncDirectory(this.#root);
   }
 }

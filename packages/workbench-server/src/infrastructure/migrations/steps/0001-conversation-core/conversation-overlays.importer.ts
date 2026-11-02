@@ -1,3 +1,4 @@
+import { renameWithRetrySync } from "../../framework/durability.js";
 import { convertPermissionRules } from "./process-history.js";
 import { randomUUID } from "node:crypto";
 import {
@@ -5,7 +6,6 @@ import {
   mkdirSync,
   readFileSync,
   realpathSync,
-  renameSync,
   rmSync,
   writeFileSync,
 } from "node:fs";
@@ -94,7 +94,7 @@ export class ConversationOverlaysImporter {
     const temporary = `${path}.import-${randomUUID()}`;
     try {
       writeFileSync(temporary, content, { flag: "wx", mode: 0o600 });
-      renameSync(temporary, path);
+      renameWithRetrySync(temporary, path);
     } finally {
       rmSync(temporary, { force: true });
     }

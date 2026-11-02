@@ -6,18 +6,16 @@ import {
 } from "./released-schema-verification.js";
 import assert from "node:assert/strict";
 import { backup, DatabaseSync } from "node:sqlite";
-import {
-  existsSync,
-  readFileSync,
-  renameSync,
-  rmSync,
-  chmodSync,
-} from "node:fs";
+import { existsSync, readFileSync, rmSync, chmodSync } from "node:fs";
 import { join, dirname, basename } from "node:path";
 import { randomUUID } from "node:crypto";
 import { coreMigrations } from "@nervekit/conversation-core";
 import type { StepContext } from "../../framework/step.js";
-import { syncDirectory, syncFile } from "../../framework/durability.js";
+import {
+  syncDirectory,
+  syncFile,
+  renameWithRetrySync,
+} from "../../framework/durability.js";
 import { json, readText, writeProtected, safePath } from "./files.js";
 import {
   sha256,
@@ -144,7 +142,7 @@ export class ReleasedSqliteBackend implements MigrationBackend {
         syncFile(temporary);
       },
       install(temporary, target) {
-        renameSync(temporary, target);
+        renameWithRetrySync(temporary, target);
         syncDirectory(dirname(target));
       },
     };

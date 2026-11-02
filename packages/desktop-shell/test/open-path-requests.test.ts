@@ -27,6 +27,14 @@ test("filters OS requests to existing files/directories and argv to directories"
       ),
       [folder],
     );
+    assert.deepEqual(
+      directoryPathsFromArgv(
+        ["--host", "a folder", "--port=1", "a folder"],
+        root,
+      ),
+      [folder],
+    );
+    assert.deepEqual(directoryPathsFromArgv(["--token", "a folder"], root), []);
   } finally {
     rmSync(root, { recursive: true, force: true });
   }

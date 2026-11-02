@@ -1,10 +1,10 @@
+import { renameWithRetrySync } from "../../framework/durability.js";
 import {
   existsSync,
   readdirSync,
   rmSync,
   mkdirSync,
   copyFileSync,
-  renameSync,
   lstatSync,
   readFileSync,
 } from "node:fs";
@@ -413,7 +413,7 @@ export function copyExploreReports(
         const temporary = `${target}.migrating`;
         try {
           copyFileSync(join(root, batch.name, file.name), temporary);
-          renameSync(temporary, target);
+          renameWithRetrySync(temporary, target);
         } finally {
           rmSync(temporary, { force: true });
         }

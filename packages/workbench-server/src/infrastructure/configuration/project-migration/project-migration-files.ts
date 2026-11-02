@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { readFile, mkdir, open, realpath, lstat } from "node:fs/promises";
 import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
+import { synchronizeDirectory } from "../scoped-store/durable-write.js";
 import type { ProjectConfigurationContext } from "./project-migration.js";
 export const digest = (value: string | Buffer) =>
   createHash("sha256").update(value).digest("hex");
@@ -75,12 +76,7 @@ export async function quarantine(
   } finally {
     await file.close();
   }
-  const directory = await open(dirname(target), "r");
-  try {
-    await directory.sync();
-  } finally {
-    await directory.close();
-  }
+  await synchronizeDirectory(target);
 }
 
 function assertWithin(root: string, target: string): void {

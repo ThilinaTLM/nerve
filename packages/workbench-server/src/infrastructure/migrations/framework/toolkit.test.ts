@@ -227,7 +227,21 @@ void test("retained runtime settings preserve bytes and symlinks without followi
   const settings = join(ctx.paths.home, "settings");
   await mkdir(settings);
   await writeFile(join(settings, "broken.json"), "broken bytes");
-  await symlink("/does-not-exist/outside-home", join(settings, "linked.json"));
+  const linkTarget = join(
+    ctx.paths.home,
+    "..",
+    "does-not-exist",
+    "outside-home",
+  );
+  try {
+    await symlink(linkTarget, join(settings, "linked.json"));
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "EPERM") {
+      t.skip("Symlink privilege unavailable");
+      return;
+    }
+    throw error;
+  }
   startPhase(ctx, "run");
   const path = ctx.quarantine(
     { kind: "configuration", id: settings, reason: "Invalid settings" },
@@ -241,10 +255,7 @@ void test("retained runtime settings preserve bytes and symlinks without followi
     await readFile(join(path, "payload/settings/broken.json"), "utf8"),
     "broken bytes",
   );
-  assert.equal(
-    await readlink(join(settings, "linked.json")),
-    "/does-not-exist/outside-home",
-  );
+  assert.equal(await readlink(join(settings, "linked.json")), linkTarget);
   assert.deepEqual(
     JSON.parse(
       await readFile(
@@ -252,6 +263,6 @@ void test("retained runtime settings preserve bytes and symlinks without followi
         "utf8",
       ),
     ),
-    { target: "/does-not-exist/outside-home" },
+    { target: linkTarget },
   );
 });

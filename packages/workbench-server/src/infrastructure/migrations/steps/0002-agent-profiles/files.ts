@@ -5,11 +5,14 @@ import {
   readFileSync,
   mkdirSync,
   writeFileSync,
-  renameSync,
   rmSync,
 } from "node:fs";
 import { randomUUID } from "node:crypto";
-import { syncFile, syncDirectory } from "../../framework/durability.js";
+import {
+  syncFile,
+  syncDirectory,
+  renameWithRetrySync,
+} from "../../framework/durability.js";
 import { dirname, resolve } from "node:path";
 import type { StepContext } from "../../framework/step.js";
 
@@ -46,7 +49,7 @@ export function writeProtected(path: string, bytes: string | Uint8Array): void {
   try {
     writeFileSync(temporary, bytes, { flag: "wx", mode: 0o600 });
     syncFile(temporary);
-    renameSync(temporary, path);
+    renameWithRetrySync(temporary, path);
     syncDirectory(dirname(path));
     for (const directory of created) syncDirectory(dirname(directory));
   } finally {

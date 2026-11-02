@@ -7,7 +7,7 @@ import {
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { basename, join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import test from "node:test";
 import {
@@ -247,7 +247,7 @@ for (const damaged of [0, 1, 2, 3, 4])
         assert.ok(item, file);
         assert.equal(
           readFileSync(
-            join(item.quarantinePath, "payload", file.split("/").at(-1)!),
+            join(item.quarantinePath, "payload", basename(file)),
             "utf8",
           ),
           "broken JSON",
