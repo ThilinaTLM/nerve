@@ -304,7 +304,14 @@ const ACTION_TONE: Record<string, string> = {
     onclickcapture={onClickCapture}
     oncontextmenu={onContextMenu}
   >
-    <button type="button" class="mobile-row-main" {onclick}>
+    <!-- Read in reading order (title, supporting line, then the time) even
+         though the time sits visually on the title line. -->
+    <button
+      type="button"
+      class="mobile-row-main"
+      aria-label={[title, detail, meta].filter(Boolean).join(" ")}
+      {onclick}
+    >
       {#if leading}
         {@render leading()}
       {:else if Icon}

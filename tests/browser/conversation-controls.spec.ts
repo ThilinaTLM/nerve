@@ -17,7 +17,15 @@ for (const width of [1440, 390]) {
       const prompt = `Browser prompt ${width}`;
       const composer = promptEditor(page);
       await composer.fill(prompt);
-      await composer.press("Enter");
+      if (width < 640) {
+        // Phones: Enter inserts a newline; the send button submits.
+        await composer.press("Enter");
+        await expect(composer).toContainText(prompt);
+        await composer.press("Backspace");
+        await page.getByRole("button", { name: "Send prompt" }).click();
+      } else {
+        await composer.press("Enter");
+      }
       await expect(
         page.getByText(prompt, { exact: true }).first(),
       ).toBeVisible();
