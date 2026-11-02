@@ -173,3 +173,11 @@ function launchDetail(launch: LaunchRecord): string {
       return "Running";
   }
 }
+
+/** The single supporting line of an activity row: where, then what state. */
+export function activitySupportingLine(row: {
+  projectLabel?: string;
+  detail: string;
+}): string {
+  return [row.projectLabel, row.detail].filter(Boolean).join(" · ");
+}

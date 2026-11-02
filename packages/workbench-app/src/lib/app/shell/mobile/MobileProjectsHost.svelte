@@ -1,6 +1,7 @@
 <script lang="ts">
 import FolderOpen from "@lucide/svelte/icons/folder-open";
 import SearchInput from "@nervekit/ui-kit/components/composites/search-input";
+import { relativeTimeLabel } from "@nervekit/ui-kit/display/time";
 import {
   MobileListRow,
   MobileScreen,
@@ -8,15 +9,16 @@ import {
 } from "$lib/presentation/shell";
 import { ProjectIcon, type ProjectSwitcherItem } from "$lib/features/projects";
 import { tildePath } from "$lib/domain/filesystem/project-path";
-import { conversationRowStatusLabel } from "$lib/presentation/conversations/conversation-row-state";
 import { workspaceSelectors, workspaceState } from "$lib/application/workspace";
+import MobileNewChatFab from "./MobileNewChatFab.svelte";
 import MobileRootActions from "./MobileRootActions.svelte";
+import { groupMobileProjects, projectCountsLine } from "./mobile-projects";
 import { pushMobileScreen } from "./mobile-shell.svelte";
 
 /**
  * Projects tab root. On a phone the project is a top-level destination, not a
- * popover anchored to a corner: large rows with a per-project activity summary,
- * each opening that project's home screen.
+ * popover anchored to a corner: projects with live work come first with a
+ * count line, the rest follow by recency, each opening that project's home.
  */
 let query = $state("");
 
@@ -32,18 +34,22 @@ const filtered = $derived.by(() => {
       item.project.directory.toLowerCase().includes(needle),
   );
 });
+const groups = $derived(
+  groupMobileProjects(
+    filtered,
+    workspaceSelectors.conversations,
+    workspaceSelectors.conversationActivityById,
+  ),
+);
 
-// Same vocabulary as the desktop header: one status per project, taken from
-// its most urgent conversation; text only when it needs the user.
-function activityDetail(item: ProjectSwitcherItem): string {
-  return (
-    conversationRowStatusLabel(item.activity) ??
-    tildePath(item.project.directory, homeDir)
-  );
-}
-
-function activityTone(item: ProjectSwitcherItem) {
-  return item.activity.tone === "neutral" ? undefined : item.activity.tone;
+function recentDetail(item: ProjectSwitcherItem): string {
+  const parsed = Date.parse(item.sortAt);
+  return [
+    tildePath(item.project.directory, homeDir),
+    Number.isNaN(parsed) ? "" : relativeTimeLabel(item.sortAt),
+  ]
+    .filter(Boolean)
+    .join(" · ");
 }
 
 function choose(item: ProjectSwitcherItem) {
@@ -57,50 +63,59 @@ function browse() {
 }
 </script>
 
-<MobileScreen title="Projects" subtitle={`${items.length} known`}>
-  {#snippet actions()}
-    <MobileRootActions />
-  {/snippet}
-  <div class="px-3 pt-2">
-    <SearchInput
-      bind:value={query}
-      placeholder="Search projects"
-      ariaLabel="Search projects"
-    />
-  </div>
+{#snippet projectRow(item: ProjectSwitcherItem, detail: string)}
+  <MobileListRow
+    title={item.project.name}
+    {detail}
+    selected={item.key === workspaceState.selectedProjectKey}
+    onclick={() => choose(item)}
+  >
+    {#snippet leading()}
+      <ProjectIcon projectId={item.project.id} class="size-8" />
+    {/snippet}
+  </MobileListRow>
+{/snippet}
 
-  {#if filtered.length}
+<MobileNewChatFab>
+  <MobileScreen title="Projects" subtitle={`${items.length} known`}>
+    {#snippet actions()}
+      <MobileRootActions />
+    {/snippet}
+    <div class="px-3 pt-2">
+      <SearchInput
+        bind:value={query}
+        placeholder="Search projects"
+        ariaLabel="Search projects"
+      />
+    </div>
+
+    {#if groups.active.length}
+      <MobileSection title="Active" meta={`${groups.active.length}`}>
+        {#each groups.active as entry (entry.item.key)}
+          {@render projectRow(entry.item, projectCountsLine(entry.counts))}
+        {/each}
+      </MobileSection>
+    {/if}
+
+    {#if groups.recent.length}
+      <MobileSection title={groups.active.length ? "Recent" : "Projects"}>
+        {#each groups.recent as item (item.key)}
+          {@render projectRow(item, recentDetail(item))}
+        {/each}
+      </MobileSection>
+    {:else if !groups.active.length}
+      <p class="px-6 py-12 text-center text-ui text-muted-foreground">
+        No projects match your search.
+      </p>
+    {/if}
+
     <MobileSection>
-      {#each filtered as item (item.key)}
-        <MobileListRow
-          title={item.project.name}
-          detail={activityDetail(item)}
-          meta={item.conversationCount === 1
-            ? "1 chat"
-            : `${item.conversationCount} chats`}
-          tone={activityTone(item)}
-          pulse={item.activity.pulse}
-          selected={item.key === workspaceState.selectedProjectKey}
-          onclick={() => choose(item)}
-        >
-          {#snippet leading()}
-            <ProjectIcon projectId={item.project.id} class="size-8" />
-          {/snippet}
-        </MobileListRow>
-      {/each}
+      <MobileListRow
+        title="Open folder"
+        detail="Choose a folder to open as a project"
+        icon={FolderOpen}
+        onclick={browse}
+      />
     </MobileSection>
-  {:else}
-    <p class="px-6 py-12 text-center text-ui text-muted-foreground">
-      No projects match your search.
-    </p>
-  {/if}
-
-  <MobileSection>
-    <MobileListRow
-      title="Open folder"
-      detail="Choose a folder to open as a project"
-      icon={FolderOpen}
-      onclick={browse}
-    />
-  </MobileSection>
-</MobileScreen>
+  </MobileScreen>
+</MobileNewChatFab>

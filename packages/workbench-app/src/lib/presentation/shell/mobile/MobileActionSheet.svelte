@@ -66,7 +66,7 @@ function select(item: MenuAction) {
 <Sheet.Root {open} {onOpenChange}>
   <Sheet.Content
     side="bottom"
-    class="rounded-t-lg pb-[env(safe-area-inset-bottom)]"
+    class="rounded-t-lg pb-[max(0.5rem,var(--safe-bottom))]"
     swipeToDismiss
     onSwipeDismiss={() => onOpenChange(false)}
   >

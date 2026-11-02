@@ -440,6 +440,7 @@ onDestroy(() => {
   <ContextMenuList
     items={menuItems}
     triggerClass="block h-full min-h-0 min-w-0"
+    nativeTouch
   >
     <div
       bind:this={host}

@@ -2,7 +2,11 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import type { ConversationSummary, ToolCall } from "@nervekit/contracts/core";
 import { summaryActivity } from "../../conversations/conversation-activity.js";
-import { buildMobileInbox } from "./mobile-inbox.js";
+import {
+  buildMobileInbox,
+  inboxSupportingLine,
+  type MobileInboxItem,
+} from "./mobile-inbox.js";
 
 function conversation(
   id: string,
@@ -123,4 +127,33 @@ test("configuration-blocked requests show the failing document without a plan or
   assert.equal(model.needsYou[0].kindLabel, "Configuration blocked");
   assert.equal(model.needsYou[0].detail, "/config/permissions.json");
   assert.equal(model.needsYou[0].interaction, undefined);
+});
+
+test("supporting line is project plus state", () => {
+  const base: MobileInboxItem = {
+    id: "a",
+    kind: "running",
+    conversationId: "a",
+    title: "A",
+    kindLabel: "Agent running",
+    detail: "Agent running",
+    projectLabel: "nerve",
+    tone: "info",
+    pulse: true,
+  };
+  assert.equal(inboxSupportingLine(base), "nerve · Agent running");
+  assert.equal(
+    inboxSupportingLine({
+      ...base,
+      kind: "plan",
+      kindLabel: "Plan review",
+      detail: "plan.md",
+      interaction: { kind: "plan", id: "t" },
+    }),
+    "nerve · Plan review · plan.md",
+  );
+  assert.equal(
+    inboxSupportingLine({ ...base, projectLabel: undefined, detail: "" }),
+    "",
+  );
 });

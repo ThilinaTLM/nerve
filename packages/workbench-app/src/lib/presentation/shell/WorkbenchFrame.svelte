@@ -28,7 +28,13 @@ let {
   height: 100vh;
   min-width: 0;
   min-height: 0;
-  grid-template-rows: 3rem minmax(0, 1fr) 1.75rem;
+  /* Insets are 0 on desktop; a landscape phone lands here (compact tier)
+   * with side notches and a home indicator. */
+  grid-template-rows:
+    calc(3rem + var(--safe-top))
+    minmax(0, 1fr)
+    calc(1.75rem + var(--safe-bottom));
+  padding-inline: var(--safe-left) var(--safe-right);
   overflow: hidden;
   background: var(--background);
   color: var(--foreground);
@@ -43,9 +49,9 @@ let {
 @media (max-width: 639px) {
   .app-frame {
     grid-template-rows:
-      calc(3rem + env(safe-area-inset-top))
+      calc(3rem + var(--safe-top))
       minmax(0, 1fr)
-      calc(2.5rem + env(safe-area-inset-bottom));
+      calc(2.5rem + var(--safe-bottom));
   }
 }
 </style>

@@ -76,6 +76,9 @@ type Props = {
   ariaLabel?: string;
   disabled?: boolean;
   focusToken?: number;
+  /** Plain Enter submits; off on phones, where Enter is a newline and the
+   * send button submits. Mod-Enter always submits. */
+  enterSends?: boolean;
   slashCompletions?: readonly CompletionItem[];
   completionSource?: ComposerReferenceSource;
   /** Profile and run state for the slash list (`abort` only while running). */
@@ -100,6 +103,7 @@ let {
   ariaLabel = "Prompt editor drop area",
   disabled = false,
   focusToken = 0,
+  enterSends = true,
   slashCompletions = [],
   completionSource,
   slashContext,
@@ -170,7 +174,7 @@ function submit() {
 // The suggestion keymap runs first, so Enter only reaches here when no
 // suggestion was accepted.
 function submitOnEnter() {
-  return submit();
+  return enterSends && submit();
 }
 
 // Esc with no popup open cancels a pending dictation placeholder; the host
@@ -611,7 +615,7 @@ onDestroy(() => {
   ondragleavecapture={handleFileDragLeave}
   ondropcapture={handleFileDrop}
 >
-  <ContextMenuList items={menuItems} triggerClass="block min-w-0">
+  <ContextMenuList items={menuItems} triggerClass="block min-w-0" nativeTouch>
     <div
       bind:this={host}
       role="presentation"

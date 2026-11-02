@@ -30,18 +30,18 @@ let {
     <button
       type="button"
       class={cn(
-        "relative flex min-w-0 flex-col items-center justify-center gap-1 rounded-md py-1.5 text-ui transition-colors",
-        active ? "text-foreground" : "text-muted-foreground",
+        "relative flex min-h-12 min-w-0 flex-col items-center justify-center gap-0.5 rounded-md py-1 text-caption transition-colors",
+        active ? "text-primary" : "text-muted-foreground",
       )}
       aria-current={active ? "page" : undefined}
       aria-label={tab.badge ? `${tab.label}, ${tab.badge} waiting` : tab.label}
       onclick={() => onSelect(tab.id)}
     >
       <span class="relative inline-flex">
-        <Icon size={22} strokeWidth={active ? 2.2 : 1.8} />
+        <Icon size={22} strokeWidth={active ? 2.1 : 1.7} />
         {#if tab.badge}
           <span
-            class="absolute -right-2 -top-1.5 inline-flex min-w-4 items-center justify-center rounded-full bg-warning px-1 text-ui text-warning-foreground"
+            class="absolute -right-2 -top-1.5 inline-flex min-w-4 items-center justify-center rounded-full bg-warning px-1 text-caption text-warning-foreground"
             aria-hidden="true">{tab.badge > 99 ? "99+" : tab.badge}</span
           >
         {:else if tab.dot}
@@ -65,7 +65,7 @@ let {
   grid-auto-columns: 1fr;
   gap: 0.25rem;
   padding: 0.25rem 0.5rem;
-  padding-bottom: calc(0.25rem + env(safe-area-inset-bottom));
+  padding-bottom: calc(0.25rem + var(--safe-bottom));
   border-top: 1px solid var(--border);
   background: var(--panel);
 }

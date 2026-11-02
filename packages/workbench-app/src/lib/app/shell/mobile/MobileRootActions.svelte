@@ -1,67 +1,18 @@
 <script lang="ts">
-import FolderOpen from "@lucide/svelte/icons/folder-open";
-import Plus from "@lucide/svelte/icons/plus";
 import Settings from "@lucide/svelte/icons/settings";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
-import type { ContextMenuItem } from "@nervekit/ui-kit/components/composites/context-menu-list";
-import { MobileActionSheet } from "$lib/presentation/shell";
-import { workspaceSelectors, workspaceState } from "$lib/application/workspace";
 import { discoverTitlebarBadge } from "$lib/app/discover";
-import { startMobileConversation } from "./mobile-route-activation.svelte";
 import { pushMobileScreen } from "./mobile-shell.svelte";
 
 /**
- * Header actions shared by the root screens: start a chat anywhere and reach
- * settings without spending a tab on them. A project screen passes its own
- * project so "New chat" skips the picker.
+ * Header action shared by the root screens: settings, without spending a tab
+ * on it. Starting a chat lives in the floating "New chat" pill instead.
  */
-let {
-  project,
-}: {
-  project?: { id: string; directory: string };
-} = $props();
 
-const RECENT_PROJECT_LIMIT = 8;
-
-let pickerOpen = $state(false);
 // Discover lives under Settings on the phone, so its attention badge does too.
 const discoverBadge = $derived(discoverTitlebarBadge());
-
-const pickerItems = $derived.by((): ContextMenuItem[] => {
-  const recent = workspaceSelectors.projectSwitcherItems
-    .slice(0, RECENT_PROJECT_LIMIT)
-    .map(
-      (item): ContextMenuItem => ({
-        label: item.project.name,
-        onSelect: () => void startMobileConversation(item.project),
-      }),
-    );
-  return [
-    ...recent,
-    { type: "separator" },
-    {
-      label: "Open folder",
-      icon: FolderOpen,
-      onSelect: () => {
-        workspaceState.projectPickerPath = undefined;
-        workspaceState.projectPickerOpen = true;
-      },
-    },
-  ];
-});
-
-function newChat() {
-  if (project) {
-    void startMobileConversation(project);
-    return;
-  }
-  pickerOpen = true;
-}
 </script>
 
-<Button variant="ghost" size="icon" ariaLabel="New chat" onclick={newChat}>
-  <Plus size={18} strokeWidth={2.1} />
-</Button>
 <Button
   variant="ghost"
   size="icon"
@@ -86,12 +37,3 @@ function newChat() {
     {/if}
   </span>
 </Button>
-
-{#if !project}
-  <MobileActionSheet
-    open={pickerOpen}
-    title="New chat in project"
-    items={pickerItems}
-    onOpenChange={(open) => (pickerOpen = open)}
-  />
-{/if}

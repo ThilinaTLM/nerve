@@ -1,6 +1,7 @@
 <script lang="ts">
 import type { Snippet } from "svelte";
 import MobileTabBar, { type MobileTabModel } from "./MobileTabBar.svelte";
+import { setMobileSurface } from "./mobile-surface";
 
 /**
  * The phone shell frame: a stack of full-screen layers above a tab bar in the
@@ -24,9 +25,11 @@ let {
   children: Snippet;
   overlays?: Snippet;
 } = $props();
+
+setMobileSurface();
 </script>
 
-<main class="mobile-frame">
+<main class="mobile-frame" class:bare-bottom={!tabBarVisible}>
   <div class="mobile-stack">
     {@render children()}
   </div>
@@ -48,8 +51,18 @@ let {
   min-height: 0;
   grid-template-rows: minmax(0, 1fr) auto;
   overflow: hidden;
+  /* Side notches (landscape) are kept clear for every layer at once; top
+   * and bottom belong to whatever is docked at that edge. */
+  padding-inline: var(--safe-left) var(--safe-right);
   background: var(--background);
   color: var(--foreground);
+  /* Bottom clearance for scrolling content. The tab bar absorbs the home
+   * indicator itself; without it, screens pad their last row past it. */
+  --mobile-content-bottom: 0px;
+}
+
+.mobile-frame.bare-bottom {
+  --mobile-content-bottom: var(--safe-bottom);
 }
 
 @supports (height: 100dvh) {

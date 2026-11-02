@@ -94,7 +94,7 @@ async function submit(event: SubmitEvent) {
 >
   <Sheet.Content
     side="bottom"
-    class="max-h-[90dvh] rounded-t-lg pb-[env(safe-area-inset-bottom)]"
+    class="max-h-[90dvh] rounded-t-lg pb-[max(0.5rem,var(--safe-bottom))]"
   >
     <Sheet.Title class="px-4 pb-1 pt-3 text-ui font-medium">{title}</Sheet.Title
     >

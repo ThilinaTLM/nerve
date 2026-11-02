@@ -4,6 +4,7 @@ import type { ConversationSummary } from "@nervekit/contracts/core";
 import { summaryActivity } from "$lib/presentation/conversations/conversation-activity";
 import type { LaunchRecord } from "@nervekit/contracts/launches";
 import {
+  activitySupportingLine,
   launchProject,
   launchesInProject,
   buildMobileActivity,
@@ -90,4 +91,12 @@ test("launch ownership follows project IDs, never working-directory containment"
     launchProject({ ...run, projectId: undefined }, projects),
     undefined,
   );
+});
+
+test("activity supporting line joins project and state", () => {
+  assert.equal(
+    activitySupportingLine({ projectLabel: "nerve", detail: "Agent running" }),
+    "nerve · Agent running",
+  );
+  assert.equal(activitySupportingLine({ detail: "Ready" }), "Ready");
 });

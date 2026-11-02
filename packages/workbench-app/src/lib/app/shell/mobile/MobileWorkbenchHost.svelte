@@ -19,6 +19,7 @@ import MobileConversationDialogs from "./MobileConversationDialogs.svelte";
 import MobileInboxHost from "./MobileInboxHost.svelte";
 import MobileProjectsHost from "./MobileProjectsHost.svelte";
 import MobileRouteHost from "./MobileRouteHost.svelte";
+import MobileStatusSheet from "./MobileStatusSheet.svelte";
 import { LIVE_LAUNCH_STATUSES } from "./mobile-activity";
 import { followMobileHistory } from "./mobile-history.svelte";
 import { mobileInboxModel } from "./mobile-inbox-model.svelte";
@@ -26,6 +27,7 @@ import {
   activateMobileRoute,
   followMobileCenterTab,
 } from "./mobile-route-activation.svelte";
+import { observeMobileStatus } from "./mobile-status.svelte";
 import {
   MOBILE_TAB_IDS,
   isMobileTabId,
@@ -48,6 +50,7 @@ let { overlays }: { overlays?: Snippet } = $props();
 
 followMobileCenterTab();
 followMobileHistory();
+$effect(() => observeMobileStatus());
 
 const inbox = $derived(mobileInboxModel());
 const anythingRunning = $derived(
@@ -112,8 +115,12 @@ $effect(() => {
 const topKey = $derived(mobileNav.top ? mobileRouteKey(mobileNav.top) : "");
 $effect(() => {
   if (!topKey || !restoredStackPruned) return;
-  const route = untrack(() => mobileNav.top);
-  if (route) void activateMobileRoute(route);
+  // Untracked: activation reads the active center tab synchronously, and
+  // opening a diff or file from a conversation must not re-trigger it.
+  untrack(() => {
+    const route = mobileNav.top;
+    if (route) void activateMobileRoute(route);
+  });
 });
 
 function selectTab(tab: string) {
@@ -152,3 +159,4 @@ function selectTab(tab: string) {
 </MobileShell>
 
 <MobileConversationDialogs />
+<MobileStatusSheet />

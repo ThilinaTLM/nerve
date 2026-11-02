@@ -29,6 +29,8 @@ import {
   chatGptAudioAuth,
 } from "$lib/features/audio";
 import PromptSuggestionChips from "$lib/features/conversations/views/PromptSuggestionChips.svelte";
+import MobilePromptSuggestionChips from "$lib/features/conversations/views/MobilePromptSuggestionChips.svelte";
+import { isMobileSurface } from "$lib/presentation/shell";
 import {
   getShortcutAriaLabel,
   getShortcutLabel,
@@ -111,6 +113,10 @@ let {
 } = $props();
 
 let headerEl = $state<HTMLDivElement>();
+const mobile = isMobileSurface();
+const SuggestionChips = mobile
+  ? MobilePromptSuggestionChips
+  : PromptSuggestionChips;
 let activityWidth = $state(0);
 $effect(() => {
   const element = headerEl;
@@ -688,12 +694,17 @@ function handleMicContextMenu(event: MouseEvent) {
   {#snippet header()}
     <div
       bind:this={headerEl}
-      class="@container/conversation-activity flex min-w-0 items-start justify-between gap-2"
+      class={[
+        "@container/conversation-activity flex min-w-0 justify-between gap-2",
+        // Phone chips are a single row, so the island centres on it; the
+        // desktop lift lines the island up with wrapped chip rows.
+        mobile ? "items-center" : "items-start",
+      ]}
       style:--conversation-activity-width={`${activityWidth}px`}
     >
       <div class="min-w-0 flex-1 overflow-hidden">
         {#if composerSuggestions.length > 0 && !blockedForReview && !compacting && canPrompt}
-          <PromptSuggestionChips
+          <SuggestionChips
             suggestions={composerSuggestions}
             disabled={sending}
             onSend={onSendSuggestion}
@@ -702,7 +713,7 @@ function handleMicContextMenu(event: MouseEvent) {
         {/if}
       </div>
       {#if activity}
-        <div class="relative -translate-y-1.5 shrink-0">
+        <div class={["relative shrink-0", !mobile && "-translate-y-1.5"]}>
           {@render activity()}
         </div>
       {/if}

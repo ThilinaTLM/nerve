@@ -3,6 +3,8 @@ import { onDestroy, type Snippet } from "svelte";
 import ArrowDown from "@lucide/svelte/icons/arrow-down";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
 import ConversationPaneLayout from "./ConversationPaneLayout.svelte";
+import MobileConversationPaneLayout from "./MobileConversationPaneLayout.svelte";
+import { isMobileSurface } from "../shell/mobile/mobile-surface.js";
 import TranscriptAnnouncer from "../transcript/TranscriptAnnouncer.svelte";
 import TranscriptList from "../transcript/TranscriptList.svelte";
 import TranscriptSelectionToolbar from "../transcript/TranscriptSelectionToolbar.svelte";
@@ -34,6 +36,9 @@ let {
   activity?: Snippet<[showLatest: boolean, onJumpToBottom: () => void]>;
 } = $props();
 
+const Layout = isMobileSurface()
+  ? MobileConversationPaneLayout
+  : ConversationPaneLayout;
 const active = $derived(model.active ?? true);
 const lastTimelineKey = $derived(
   model.timeline.tail.at(-1)?.key ?? model.timeline.prefix.at(-1)?.key,
@@ -124,10 +129,7 @@ function goToQuestion(): void {
   {/if}
 {/snippet}
 
-<ConversationPaneLayout
-  open={model.open}
-  bind:composerWrapRef={scroll.composerWrapEl}
->
+<Layout open={model.open} bind:composerWrapRef={scroll.composerWrapEl}>
   {#snippet announcer()}
     <TranscriptAnnouncer
       {active}
@@ -237,4 +239,4 @@ function goToQuestion(): void {
       />
     {/if}
   {/snippet}
-</ConversationPaneLayout>
+</Layout>
