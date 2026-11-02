@@ -228,7 +228,7 @@ test(
         marker = join(root, "filter.pid");
       await writeFile(
         script,
-        `const fs = require('node:fs'); process.on('SIGTERM', () => {}); fs.writeFileSync(${JSON.stringify(marker)}, String(process.pid)); process.stdin.resume(); setInterval(() => {}, 1000);\n`,
+        `const fs = require('node:fs'); const path = require('node:path'); process.on('SIGTERM', () => {}); fs.writeFileSync(path.join(__dirname, 'filter.pid'), String(process.pid)); process.stdin.resume(); setInterval(() => {}, 1000);\n`,
       );
       await git([
         "config",

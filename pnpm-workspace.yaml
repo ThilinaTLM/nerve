@@ -8,6 +8,13 @@ overrides:
   postcss-selector-parser: 7.1.6
   mermaid>katex: 0.18.2
   oxfmt>tinypool: 2.1.2
+  undici@6: ^6.29.1
+  undici@7: ^7.30.1
+  undici@8: ^8.12.2
+  fast-uri@3: ^3.1.9
+  serialize-javascript@7: ^7.1.3
+  glob@11: ^14.0.2
+  glob@13: ^14.0.2
 allowBuilds:
   "@google/genai": true
   electron: true
@@ -33,7 +40,7 @@ minimumReleaseAgeExclude:
   - postcss-selector-parser@7.1.6
   - katex@0.18.2
   - tinypool@2.1.2
-  - hono@4.13.7
+  - hono@4.13.16
   - js-yaml@4.3.2
   - svgo@4.1.0
   - mermaid@11.16.1

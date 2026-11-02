@@ -37,7 +37,7 @@
   },
   "dependencies": {
     "@earendil-works/pi-ai": "1.4.0",
-    "@hono/node-server": "2.0.12",
+    "@hono/node-server": "2.1.5",
     "@nervekit/contracts": "workspace:*",
     "@nervekit/conversation-core": "workspace:*",
     "@nervekit/harness": "workspace:*",
@@ -47,12 +47,12 @@
     "@nervekit/tools": "workspace:*",
     "@peculiar/x509": "^2.0.0",
     "fdir": "6.5.0",
-    "hono": "4.13.7",
+    "hono": "4.13.16",
     "parse5": "8.0.0",
     "reflect-metadata": "^0.2.2",
     "ws": "8.21.0",
     "yaml": "2.9.0",
-    "zod": "4.1.12"
+    "zod": "4.6.7"
   },
   "devDependencies": {
     "@types/node": "24.10.1",

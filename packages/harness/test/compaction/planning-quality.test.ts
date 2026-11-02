@@ -366,7 +366,13 @@ it("annotates success, error, abandoned and unknown outcomes with bounded eviden
       call("ok"),
       result("ok"),
       call("bad"),
-      result("bad", true, "x".repeat(5000) + "\n/tmp/artifact.txt"),
+      result(
+        "bad",
+        true,
+        "x".repeat(5000) +
+          "\n/tmp/artifact.txt src/a.ts (artifact://run/1) plain a+b " +
+          "+".repeat(50_000),
+      ),
       call("gap"),
       entry("boundary", user("continue")),
       call("unknown"),
@@ -381,7 +387,13 @@ it("annotates success, error, abandoned and unknown outcomes with bounded eviden
   );
   assert.match(text, /id=unknown name=read outcome=unknown/);
   assert.match(text, /truncated; omitted evidence does not prove success/);
-  assert.match(text, /\/tmp\/artifact.txt/);
+  const references = text.slice(text.indexOf("[Path/artifact references"));
+  assert.deepEqual(references.split("\n").slice(1, 4), [
+    "/tmp/artifact.txt",
+    "src/a.ts",
+    "artifact://run/1",
+  ]);
+  assert.doesNotMatch(references, /plain|a\+b/);
   assert.ok(text.length < 4000);
 });
 
