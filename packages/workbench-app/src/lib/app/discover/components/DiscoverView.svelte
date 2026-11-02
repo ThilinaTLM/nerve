@@ -39,14 +39,26 @@ const outdated = $derived(
 );
 </script>
 
+{#snippet getSetUp()}
+  <DiscoverGetSetUpSection
+    setup={model.sections.setup}
+    walkthroughs={model.sections.walkthroughs}
+    {workbenchBlocked}
+    {onStartGuide}
+    {onMarkCompleted}
+  />
+{/snippet}
+
 <div class="h-full min-h-0 bg-background">
   <ScrollArea class="h-full">
-    <main class="mx-auto grid w-full max-w-4xl gap-6 px-4 py-5 sm:px-6">
+    <main
+      class="@container mx-auto grid w-full max-w-5xl gap-7 px-4 py-5 sm:px-6"
+    >
       <header class="flex flex-wrap items-start justify-between gap-3">
         <div class="grid gap-0.5">
           <h1 class="text-title font-medium text-foreground">Discover</h1>
           <p class="text-ui text-muted-foreground">
-            What's new in Nerve, how to get set up, and a few tips.
+            Highlights from recent releases, how to get started, and a few tips.
           </p>
         </div>
         <div class="flex flex-wrap items-center gap-1.5">
@@ -78,19 +90,19 @@ const outdated = $derived(
         </div>
       </header>
 
+      {#if model.sections.setup.leading}
+        {@render getSetUp()}
+      {/if}
+
       <DiscoverNewsSection
         news={model.sections.news}
         currentVersion={versionLabel}
         {onAction}
       />
 
-      <DiscoverGetSetUpSection
-        setup={model.sections.setup}
-        walkthroughs={model.sections.walkthroughs}
-        {workbenchBlocked}
-        {onStartGuide}
-        {onMarkCompleted}
-      />
+      {#if !model.sections.setup.leading}
+        {@render getSetUp()}
+      {/if}
 
       {#if model.sections.tips.length > 0}
         <DiscoverTipsSection tips={model.sections.tips} {onAction} />

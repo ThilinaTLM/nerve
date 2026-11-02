@@ -12,7 +12,7 @@ import {
   exhaustAutoOpen,
   resolveNews,
   unreadNewsCount,
-  unreadReleasedNewsCount,
+  unreadNewsForVersion,
   type DiscoverBadge,
   type DiscoverSections,
 } from "./policy.js";
@@ -59,7 +59,6 @@ export function discoverSections(): DiscoverSections {
     guides: catalogGuides(),
     news: resolvedNews(),
     tips: discoverTipsCatalog,
-    appVersion: appVersion(),
   });
 }
 
@@ -120,17 +119,12 @@ export function considerAutomaticDiscover(): void {
     return;
   reconcileComputedGuideCompletion();
   const generation = workbenchStartupState.generation;
-  const sections = discoverSections();
   const decision = decideDiscoverAutoOpen({
     ready: true,
     alreadyConsidered: discoverState.consideredGeneration === generation,
     firstRun: discoverState.firstRun,
     appVersion: appVersion(),
-    unreadForCurrentVersion: unreadReleasedNewsCount(
-      [sections.news.featured, ...sections.news.current].filter(
-        (entry) => entry !== undefined,
-      ),
-    ),
+    unreadForCurrentVersion: unreadNewsForVersion(resolvedNews(), appVersion()),
     autoOpen: discoverState.progress.autoOpen,
   });
   discoverState.consideredGeneration = generation;

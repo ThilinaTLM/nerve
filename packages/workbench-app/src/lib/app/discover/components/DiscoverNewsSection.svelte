@@ -11,6 +11,7 @@ import {
 } from "../policy.js";
 import DiscoverActionButton from "./DiscoverActionButton.svelte";
 import DiscoverFeaturedNews from "./DiscoverFeaturedNews.svelte";
+import DiscoverSpotlight from "./DiscoverSpotlight.svelte";
 import DiscoverList from "./DiscoverList.svelte";
 import DiscoverNewsCard from "./DiscoverNewsCard.svelte";
 import DiscoverListRow from "./DiscoverListRow.svelte";
@@ -26,7 +27,15 @@ let { news, currentVersion, onAction }: Props = $props();
 
 let archiveOpen = $state(false);
 
-const empty = $derived(!news.featured && news.current.length === 0);
+// Illustrated cards fill the grid; text-only notes (fixes, small changes)
+// follow as compact full-width rows. Pick the column count that leaves no
+// orphan cell when the card count allows it.
+function gridColumns(count: number): string {
+  if (count === 2 || count === 4) return "@xl:grid-cols-2";
+  return "@xl:grid-cols-2 @3xl:grid-cols-3";
+}
+
+const empty = $derived(!news.spotlight && news.releases.length === 0);
 </script>
 
 {#snippet newsRow(entry: ResolvedNewsEntry)}
@@ -53,18 +62,44 @@ const empty = $derived(!news.featured && news.current.length === 0);
     {/if}
   {/snippet}
 
-  <div class="grid gap-2.5">
-    {#if news.featured}
-      <DiscoverFeaturedNews entry={news.featured} {onAction} />
+  <div class="grid gap-5">
+    {#if news.spotlight}
+      <DiscoverSpotlight entry={news.spotlight} {onAction} />
     {/if}
 
-    {#if news.current.length > 0}
-      <div class="grid gap-2.5 sm:grid-cols-2">
-        {#each news.current as entry (entry.id)}
-          <DiscoverNewsCard {entry} {onAction} />
-        {/each}
-      </div>
-    {/if}
+    {#each news.releases as group (group.release)}
+      {@const cards = group.entries.filter((entry) => entry.artwork)}
+      {@const notes = group.entries.filter((entry) => !entry.artwork)}
+      <section
+        class="grid gap-2.5"
+        aria-labelledby={`discover-release-${group.release}`}
+      >
+        <div class="flex items-center gap-3">
+          <h3
+            id={`discover-release-${group.release}`}
+            class="shrink-0 text-caption font-medium uppercase tracking-wide text-muted-foreground"
+          >
+            {group.label}
+          </h3>
+          <div class="h-px flex-1 bg-border" aria-hidden="true"></div>
+        </div>
+        <div class={["grid gap-2.5", gridColumns(cards.length)]}>
+          {#if group.featured}
+            <DiscoverFeaturedNews entry={group.featured} {onAction} />
+          {/if}
+          {#each cards as entry (entry.id)}
+            <DiscoverNewsCard {entry} {onAction} />
+          {/each}
+        </div>
+        {#if notes.length > 0}
+          <DiscoverList>
+            {#each notes as entry (entry.id)}
+              {@render newsRow(entry)}
+            {/each}
+          </DiscoverList>
+        {/if}
+      </section>
+    {/each}
 
     {#if empty}
       <p class="text-ui text-muted-foreground">

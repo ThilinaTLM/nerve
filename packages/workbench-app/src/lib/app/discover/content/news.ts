@@ -7,6 +7,60 @@ import type { DiscoverNewsEntry } from "./entries.js";
  */
 export const discoverNewsCatalog: readonly DiscoverNewsEntry[] = [
   {
+    id: "repo-aware-suggestions",
+    version: 1,
+    releasedIn: "next",
+    featured: true,
+    artwork: "suggestions",
+    title: "The next step, one click away",
+    summary:
+      "Suggestions above the composer follow your Git and PR state: commit, open a PR, push, or fix failing checks.",
+    details: [
+      "Built-in Git and GitHub suggestions appear only when they apply, such as Commit changes, Create a PR, Update PR, Pull upstream, and Fix failing checks.",
+      "Each one sends a plain prompt that ends with the last known repository state, so the agent starts from facts instead of guesses.",
+      "Click to send, or to queue while the agent is busy. Right-click to edit the prompt in the composer first.",
+      "Review my changes, Clean up merged branch, and Continue are opt-in. Turn them on in Settings, or add your own suggestions.",
+    ],
+    action: {
+      kind: "settings",
+      pageId: "suggestions",
+      sectionId: "suggestions",
+      label: "Manage suggestions",
+    },
+  },
+  {
+    id: "engineering-docs-skill",
+    version: 1,
+    releasedIn: "next",
+    artwork: "engineering-docs",
+    title: "Built-in skill: engineering docs",
+    summary:
+      "Let agents write architecture docs and proposals, record decisions, and check your docs for drift.",
+    action: {
+      kind: "settings",
+      pageId: "skills",
+      sectionId: "skills",
+      label: "Turn on in Skills",
+    },
+  },
+  {
+    id: "native-phone-shell",
+    version: 1,
+    releasedIn: "next",
+    artwork: "mobile",
+    title: "Nerve feels at home on your phone",
+    summary:
+      "A conversation hub with Chat, Changes, Files, and PR, plus swipe actions and a docked composer.",
+  },
+  {
+    id: "windows-macos-fixes",
+    version: 1,
+    releasedIn: "0.38.1",
+    title: "Steadier on Windows and macOS",
+    summary:
+      "Windows upgrades no longer fail on locked files, and the macOS app picks up your login shell PATH.",
+  },
+  {
     id: "live-pull-requests",
     version: 1,
     releasedIn: "0.38.0",
@@ -25,6 +79,15 @@ export const discoverNewsCatalog: readonly DiscoverNewsEntry[] = [
       guideId: "workbench",
       label: "Tour the Workbench",
     },
+  },
+  {
+    id: "smart-repo-actions",
+    version: 1,
+    releasedIn: "0.38.0",
+    artwork: "git-actions",
+    title: "Repository rows that know the next step",
+    summary:
+      "Publish a new branch, pull, push, or sync, switch back to base, or open stashes right from the repo row.",
   },
   {
     id: "away-notifications",
@@ -99,12 +162,9 @@ export const discoverNewsCatalog: readonly DiscoverNewsEntry[] = [
     summary:
       "Refreshed Git and PR panels, header Activity, clearer questions, and steadier tool updates.",
     details: [
-      "Git and Pull requests share a repository list with branch and status context. Sync from a repository row, see the current branch's PR beside your changes, and filter PRs by All, Mine, or To review.",
-      "Open the bell in the header for Activity: items needing you come first, followed by running and finished work. Background Git operations report progress and failures there while you keep working.",
-      "The prompt composer brings attachments, profile, model, permissions, capabilities, context, and voice into one toolbar. Grouped suggestions insert references as chips, and dictation appears at the caret.",
-      "Agent questions (ask_user) can collect several answers in one card. Choose an option or add detail with completions, images, and voice; drafts survive reloads and submitted answers stay visible.",
-      "Tool cards keep stable sections and progress chips from streaming arguments through completion. Reserved result slots and in-place updates reduce layout jumps as output arrives.",
-      "Under the hood, Rust-native completion indexing joins native Git reads, file watching, and managed processes. Startup and storage accounting have also been streamlined; Git mutations still use the Git CLI.",
+      "Git and Pull requests share one repository list, with the current branch's PR beside your changes.",
+      "The header bell gathers Activity: what needs you first, then running and finished work.",
+      "One composer toolbar holds attachments, profile, model, permissions, and voice.",
     ],
     action: {
       kind: "guide",

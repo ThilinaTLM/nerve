@@ -302,7 +302,6 @@ const labDiscoverSections = buildDiscoverSections({
   guides: [...pendingGuides, ...completedGuides, ...walkthroughGuides],
   news: resolveNews(discoverNewsCatalog, {}),
   tips: discoverTipsCatalog,
-  appVersion: labDiscoverVersion,
 });
 
 export const labDiscoverModel: DiscoverPageModel = {
