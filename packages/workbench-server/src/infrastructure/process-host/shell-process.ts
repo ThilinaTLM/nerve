@@ -78,6 +78,7 @@ export function prepareShellProcess(
 export function spawnPreparedShellProcess(
   prepared: PreparedShellProcess,
   policy: ManagedProcessResourcePolicy,
+  options: { detachOutputAfterExit?: boolean } = {},
 ) {
   const shell = prepared.invocation;
   let child: ChildProcess;
@@ -86,6 +87,7 @@ export function spawnPreparedShellProcess(
       cwd: prepared.cwd,
       env: shell.env,
       policy,
+      detachOutputAfterExit: options.detachOutputAfterExit,
     });
   } catch (error) {
     throw contextualizeShellSpawnError(error, shell.launch);
@@ -105,11 +107,13 @@ export function spawnShellProcess(
     login?: boolean;
     projectEnvironment?: boolean;
     policy: ManagedProcessResourcePolicy;
+    detachOutputAfterExit?: boolean;
   },
 ) {
   return spawnPreparedShellProcess(
     prepareShellProcess(command, options),
     options.policy,
+    { detachOutputAfterExit: options.detachOutputAfterExit },
   );
 }
 

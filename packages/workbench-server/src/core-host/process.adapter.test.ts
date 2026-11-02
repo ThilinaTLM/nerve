@@ -268,3 +268,37 @@ void test("admitted foreground/background processes never reselect shell, cwd, m
     await rm(dir, { recursive: true, force: true });
   }
 });
+
+void test("bash completes when the shell exits even if a background child holds its output", async (t) => {
+  if (process.platform === "win32") return t.skip("POSIX shell fixture");
+  const dir = await mkdtemp(join(tmpdir(), "nerve-detach-"));
+  const host = new CoreProcessHost("/bin/bash");
+  let childPid: number | undefined;
+  try {
+    const started = Date.now();
+    const background = await host.spawn({
+      command: "sleep 5 & echo $!; echo done",
+      cwd: dir,
+      artifactDir: dir,
+    });
+    const outcome = await background.wait();
+    assert.ok(Date.now() - started < 3_000, "must not wait for sleep");
+    assert.equal(outcome.status, "completed");
+    const stdout = await readFile(background.outputFiles.stdout, "utf8");
+    childPid = Number(stdout.split("\n")[0]);
+    assert.match(stdout, /done/);
+    assert.doesNotThrow(
+      () => process.kill(childPid!, 0),
+      "background child stays alive",
+    );
+  } finally {
+    if (childPid) {
+      try {
+        process.kill(childPid, "SIGKILL");
+      } catch {
+        // Already exited.
+      }
+    }
+    await rm(dir, { recursive: true, force: true });
+  }
+});

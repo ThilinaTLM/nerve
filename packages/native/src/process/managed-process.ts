@@ -14,6 +14,12 @@ import type {
   TcpListenerProcess,
 } from "./contracts.js";
 
+const DETACH_QUIET_MS = 250;
+const DETACH_MAX_WAIT_MS = 2_000;
+const DETACH_RETRY_MS = 25;
+const DETACH_NOTICE =
+  "[Nerve: command exited; background processes still hold its output, later output is discarded]";
+
 export function configureManagedProcessRuntime(
   options: ManagedProcessRuntimeOptions,
 ): void {
@@ -77,25 +83,66 @@ export function spawnManagedProcess(
   const blocked = new Set<PassThrough>();
   let handle: NativeProcessHandle | undefined;
 
+  const detachEnabled = options.detachOutputAfterExit === true;
+  let detached = false;
+  let exitedAt = 0;
+  let lastOutputAt = 0;
+  let detachTimer: NodeJS.Timeout | undefined;
+
   const settleCloseIfReady = () => {
-    if (closeSettled || !exitValue || !pipesDrained || blocked.size > 0) return;
-    if (!outputMarkerWritten && lastStats.totalOmittedBytes > 0) {
+    if (
+      closeSettled ||
+      !exitValue ||
+      !(pipesDrained || detached) ||
+      blocked.size > 0
+    )
+      return;
+    const outputDetached = detached && !pipesDrained;
+    if (!outputMarkerWritten) {
       outputMarkerWritten = true;
-      const accepted = stderr.write(
-        Buffer.from(
-          `\n[${lastStats.totalOmittedBytes} output bytes omitted by native process policy]\n`,
-        ),
-      );
-      if (!accepted) {
+      let notice = "";
+      if (lastStats.totalOmittedBytes > 0)
+        notice += `\n[${lastStats.totalOmittedBytes} output bytes omitted by native process policy]\n`;
+      if (outputDetached) notice += `\n${DETACH_NOTICE}\n`;
+      if (notice && !stderr.write(Buffer.from(notice))) {
         waitForDrain(stderr);
         return;
       }
     }
     closeSettled = true;
+    if (detachTimer) clearTimeout(detachTimer);
     stdout.end();
     stderr.end();
     outputStats.resolve(lastStats);
-    closed.resolve(exitValue);
+    closed.resolve(
+      outputDetached ? { ...exitValue, outputDetached } : exitValue,
+    );
+  };
+
+  // After the root exits, descendants may keep the inherited pipes open
+  // indefinitely. Deliver everything already queued, then detach once output
+  // has been quiet briefly (or a cap passes). Native draining continues so
+  // descendants never block, and containment is released on real EOF.
+  const checkDetach = () => {
+    detachTimer = undefined;
+    if (closeSettled || pipesDrained) return;
+    const now = performance.now();
+    const quietFor = now - Math.max(lastOutputAt, exitedAt);
+    const sinceExit = now - exitedAt;
+    const backlogFlushed =
+      !ready && pendingIndex >= pending.length && blocked.size === 0;
+    if (
+      backlogFlushed &&
+      (quietFor >= DETACH_QUIET_MS || sinceExit >= DETACH_MAX_WAIT_MS)
+    ) {
+      detached = true;
+      settleCloseIfReady();
+      return;
+    }
+    const delay = backlogFlushed
+      ? Math.min(DETACH_QUIET_MS - quietFor, DETACH_MAX_WAIT_MS - sinceExit)
+      : DETACH_RETRY_MS;
+    detachTimer = setTimeout(checkDetach, Math.max(DETACH_RETRY_MS, delay));
   };
 
   const waitForDrain = (stream: PassThrough) => {
@@ -142,6 +189,7 @@ export function spawnManagedProcess(
         const drained = handle.drainOutput(handle.batchBytes);
         lastStats = drained.stats;
         pending = drained.events;
+        if (pending.length > 0) lastOutputAt = performance.now();
         if (drained.pipesClosed && !drained.hasMore && pending.length === 0) {
           ready = false;
           pipesDrained = true;
@@ -196,6 +244,10 @@ export function spawnManagedProcess(
           exitValue = exitResult(result);
         }
         exited.resolve(exitValue);
+        if (detachEnabled && !pipesDrained) {
+          exitedAt = performance.now();
+          detachTimer = setTimeout(checkDetach, DETACH_QUIET_MS);
+        }
         settleCloseIfReady();
       },
     );

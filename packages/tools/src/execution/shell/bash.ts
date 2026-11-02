@@ -81,6 +81,7 @@ export async function executeBash(
             ? timeoutSeconds * 1000
             : undefined,
         ),
+        detachOutputAfterExit: true,
       });
     } catch (error) {
       reject(contextualizeShellSpawnError(error, invocation.launch));

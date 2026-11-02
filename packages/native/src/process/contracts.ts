@@ -53,6 +53,8 @@ export interface ManagedProcessExit {
   exitCode: number | null;
   signal: NodeJS.Signals | null;
   reason?: ManagedProcessExitReason;
+  /** Set on `closed` when output was detached while descendants still held the pipes. */
+  outputDetached?: boolean;
 }
 
 export interface ManagedProcessOutputStats {
@@ -108,6 +110,11 @@ export interface ManagedProcessOptions {
   cwd?: string;
   env?: NodeJS.ProcessEnv;
   policy?: ManagedProcessResourcePolicy;
+  /**
+   * Settle `closed` shortly after the root exits even if descendants still hold
+   * the output pipes. Later output is drained and discarded; containment is kept.
+   */
+  detachOutputAfterExit?: boolean;
 }
 
 export interface ManagedProcessRuntimeOptions {

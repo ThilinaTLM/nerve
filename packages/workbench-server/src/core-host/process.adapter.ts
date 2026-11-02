@@ -68,10 +68,19 @@ export class CoreProcessHost implements ProcessPort {
       stderr: join(input.artifactDir, "stderr.txt"),
       combined: join(input.artifactDir, "output.txt"),
     };
-    const { managed: process, launch } = spawnPreparedShellProcess(prepared, {
-      wallTimeMs: input.timeoutMs,
-      output: { totalBytes: PROCESS_OUTPUT_LIMIT_BYTES, overflow: "truncate" },
-    });
+    // Daemons started by the command (e.g. agent-browser) may hold the output
+    // pipes indefinitely; the call settles when the shell itself exits.
+    const { managed: process, launch } = spawnPreparedShellProcess(
+      prepared,
+      {
+        wallTimeMs: input.timeoutMs,
+        output: {
+          totalBytes: PROCESS_OUTPUT_LIMIT_BYTES,
+          overflow: "truncate",
+        },
+      },
+      { detachOutputAfterExit: true },
+    );
     let cancelled = false;
     let exited = false;
     void process.exited.then(() => {
@@ -184,6 +193,7 @@ export class CoreProcessHost implements ProcessPort {
       login: true,
       cwd: input.cwd,
       policy: { output: { totalBytes: 1024 * 1024, overflow: "truncate" } },
+      detachOutputAfterExit: true,
     });
     const stdout: Buffer[] = [],
       stderr: Buffer[] = [];

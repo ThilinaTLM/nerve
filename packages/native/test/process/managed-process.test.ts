@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
+import { once } from "node:events";
 import { cp, mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -387,6 +388,124 @@ describe("native managed process facade", () => {
       await waitForProcessExit(childPid);
     },
   );
+
+  describe("detachOutputAfterExit", () => {
+    const spawnWithDescendant = (descendant: string, rootOutput = "") => {
+      const managed = spawnManagedProcess(
+        node,
+        [
+          "-e",
+          `const { spawn } = require("node:child_process");
+         const child = spawn(process.execPath, ["-e", ${JSON.stringify(descendant)}], { stdio: ["ignore", "inherit", "inherit"] });
+         child.unref();
+         process.stdout.write(child.pid + "\\n");
+         ${rootOutput}`,
+        ],
+        { detachOutputAfterExit: true },
+      );
+      const stdout: Buffer[] = [];
+      const stderr: Buffer[] = [];
+      managed.stdout.on("data", (chunk: Buffer) => stdout.push(chunk));
+      managed.stderr.on("data", (chunk: Buffer) => stderr.push(chunk));
+      const text = (chunks: Buffer[]) => Buffer.concat(chunks).toString("utf8");
+      return {
+        managed,
+        stdout: () => text(stdout),
+        stderr: () => text(stderr),
+        childPid: () => Number(text(stdout).split("\n")[0]),
+      };
+    };
+    const cleanup = async (pid: number) => {
+      try {
+        process.kill(pid, "SIGKILL");
+      } catch {
+        // Already exited.
+      }
+      await waitForProcessExit(pid);
+    };
+
+    it(
+      "closes shortly after root exit while a silent descendant lives on",
+      { timeout: 5_000 },
+      async () => {
+        const run = spawnWithDescendant(
+          "setTimeout(() => {}, 4000)",
+          `process.stdout.write("root done\\n");`,
+        );
+        const exitedAt = await run.managed.exited.then(() => performance.now());
+        const closed = await run.managed.closed;
+        try {
+          assert.ok(performance.now() - exitedAt < 1_000);
+          assert.equal(closed.exitCode, 0);
+          assert.equal(closed.outputDetached, true);
+          assert.match(run.stdout(), /root done/);
+          assert.match(run.stderr(), /background processes still hold/);
+          assert.equal(await processIsAlive(run.childPid()), true);
+        } finally {
+          await cleanup(run.childPid());
+        }
+      },
+    );
+
+    it(
+      "detaches from a chatty descendant without blocking or killing it",
+      { timeout: 6_000 },
+      async () => {
+        const run = spawnWithDescendant(
+          `setInterval(() => process.stdout.write("tick\\n"), 10)`,
+        );
+        await run.managed.exited;
+        const closed = await run.managed.closed;
+        try {
+          assert.equal(closed.outputDetached, true);
+          await new Promise((resolve) => setTimeout(resolve, 200));
+          assert.equal(await processIsAlive(run.childPid()), true);
+        } finally {
+          await cleanup(run.childPid());
+        }
+      },
+    );
+
+    it(
+      "delivers all pre-exit output to a slow consumer before detaching",
+      { timeout: 10_000 },
+      async () => {
+        // Fits in the native queue so the root can exit while the consumer is paused.
+        const size = 512 * 1024;
+        const managed = spawnManagedProcess(
+          node,
+          [
+            "-e",
+            `const { spawn } = require("node:child_process");
+           const child = spawn(process.execPath, ["-e", "setTimeout(() => {}, 5000)"], { stdio: ["ignore", "inherit", "inherit"] });
+           child.unref();
+           process.stderr.write(child.pid + "\\n");
+           process.stdout.write("x".repeat(${size}));`,
+          ],
+          { detachOutputAfterExit: true },
+        );
+        const childPid = await firstOutputNumber(managed.stderr);
+        let received = 0;
+        managed.stdout.pause();
+        await managed.exited;
+        await new Promise((resolve) => setTimeout(resolve, 600));
+        managed.stdout.on("data", (chunk: Buffer) => {
+          received += chunk.length;
+        });
+        managed.stdout.resume();
+        try {
+          const [closed] = await Promise.all([
+            managed.closed,
+            once(managed.stdout, "end"),
+          ]);
+          assert.equal(closed.outputDetached, true);
+          assert.equal(received, size);
+        } finally {
+          await cleanup(childPid);
+        }
+      },
+    );
+  });
 
   it(
     "terminates a managed process tree promptly",
