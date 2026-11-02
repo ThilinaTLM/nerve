@@ -1,5 +1,4 @@
 import { execFile } from "node:child_process";
-import { delimiter } from "node:path";
 
 const START_MARKER = "__NERVE_PATH_START_7f3a9c__";
 const END_MARKER = "__NERVE_PATH_END_7f3a9c__";
@@ -51,12 +50,11 @@ export async function resolveLoginShellPath(
     if (!loginPath) return undefined;
     const merged = [
       ...new Set(
-        [
-          ...loginPath.split(delimiter),
-          ...(env.PATH ?? "").split(delimiter),
-        ].filter(Boolean),
+        [...loginPath.split(":"), ...(env.PATH ?? "").split(":")].filter(
+          Boolean,
+        ),
       ),
-    ].join(delimiter);
+    ].join(":");
     return merged === env.PATH ? undefined : merged;
   } catch {
     return undefined;
