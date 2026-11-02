@@ -447,8 +447,9 @@ test("child exit stops other owned children; failed launches propagate and signa
   const root = await temporary(t);
   const ready = join(root, "ready");
   const stopped = join(root, "stopped");
-  const owner = `const fs = require('node:fs'); process.on('SIGTERM', () => { fs.writeFileSync(${JSON.stringify(stopped)}, 'stopped'); process.exit(0); }); fs.writeFileSync(${JSON.stringify(ready)}, String(process.pid)); setInterval(() => {}, 1000);`;
-  const exit = `const fs = require('node:fs'); const timer = setInterval(() => { if (fs.existsSync(${JSON.stringify(ready)})) { clearInterval(timer); process.exit(7); } }, 10);`;
+  // Paths travel via env so the inline scripts stay constant code.
+  const owner = `const fs = require('node:fs'); process.on('SIGTERM', () => { fs.writeFileSync(process.env.TEST_STOPPED_FILE, 'stopped'); process.exit(0); }); fs.writeFileSync(process.env.TEST_READY_FILE, String(process.pid)); setInterval(() => {}, 1000);`;
+  const exit = `const fs = require('node:fs'); const timer = setInterval(() => { if (fs.existsSync(process.env.TEST_READY_FILE)) { clearInterval(timer); process.exit(7); } }, 10);`;
   const before = process.listenerCount("SIGTERM");
   await assert.rejects(
     runOwned(
@@ -456,7 +457,14 @@ test("child exit stops other owned children; failed launches propagate and signa
         [process.execPath, ["-e", owner]],
         [process.execPath, ["-e", exit]],
       ],
-      { cwd: root, env: process.env },
+      {
+        cwd: root,
+        env: {
+          ...process.env,
+          TEST_READY_FILE: ready,
+          TEST_STOPPED_FILE: stopped,
+        },
+      },
     ),
     /exited with code 7/,
   );

@@ -90,7 +90,7 @@ async function fixture(
   await writeFile(mode, "copy");
   await writeFile(
     script,
-    `const fs = require('node:fs'); const block = fs.readFileSync(${JSON.stringify(mode)},'utf8') === 'block'; if(block) { process.on('SIGTERM',()=>{}); process.stdin.resume(); setInterval(()=>{},1000); } fs.appendFileSync(${JSON.stringify(marker)}, process.pid+'\\n'); if(!block) process.stdin.pipe(process.stdout);\n`,
+    `const fs = require('node:fs'); const path = require('node:path'); const block = fs.readFileSync(path.join(__dirname, 'filter-mode'),'utf8') === 'block'; if(block) { process.on('SIGTERM',()=>{}); process.stdin.resume(); setInterval(()=>{},1000); } fs.appendFileSync(path.join(__dirname, 'filter-pids'), process.pid+'\\n'); if(!block) process.stdin.pipe(process.stdout);\n`,
   );
   const environment = Object.fromEntries(
     Object.entries(process.env).filter(([key]) => key.startsWith("GIT_")),

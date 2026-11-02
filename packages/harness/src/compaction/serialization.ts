@@ -8,12 +8,22 @@ const safeJsonStringify = (value: unknown): string => {
     return "[unserializable]";
   }
 };
+// Single-class tokens keep matching linear on large, attacker-shaped tool output.
+const REFERENCE_TOKEN = /(?:artifact|file):\/\/[^\s)]+|[\w.@+~/-]+/g;
+const pathReference = (token: string): string | undefined => {
+  if (token.includes("://")) return token;
+  const segments = token.split("/");
+  const absolute = segments[0] === "";
+  const parts = segments.filter(Boolean);
+  if (parts.length < (absolute ? 1 : 2)) return undefined;
+  return `${absolute ? "/" : ""}${parts.join("/")}`;
+};
 const references = (text: string) =>
   [
     ...new Set(
-      text.match(
-        /(?:\/[\w.@+~-]+)+|(?:[\w.@+~-]+\/)+[\w.@+~-]+|(?:artifact|file):\/\/[^\s)]+/g,
-      ) ?? [],
+      (text.match(REFERENCE_TOKEN) ?? [])
+        .map(pathReference)
+        .filter((reference) => reference !== undefined),
     ),
   ]
     .slice(0, 40)
