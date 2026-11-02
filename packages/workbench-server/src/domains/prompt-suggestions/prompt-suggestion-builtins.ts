@@ -32,6 +32,7 @@ const SAMPLE_REPO: Repo = {
     url: "https://github.com/example/project/pull/123",
     isDraft: false,
     checks: "failing",
+    checksRunning: false,
     reviewRequested: false,
   },
 };
@@ -168,7 +169,11 @@ function stateParts(repo: Repo, facts: Fact[], code: boolean): string[] {
   if (facts.includes("pr") && repo.pullRequest)
     parts.push(
       `PR #${repo.pullRequest.number}${repo.pullRequest.isDraft ? " (draft)" : ""}${
-        repo.pullRequest.checks === "failing" ? ", checks failing" : ""
+        repo.pullRequest.checks === "failing"
+          ? repo.pullRequest.checksRunning
+            ? ", checks failing (others still running)"
+            : ", checks failing"
+          : ""
       }`,
     );
   return parts;
@@ -404,7 +409,7 @@ export function builtinPromptSuggestionDefinitions(): PromptSuggestionDefinition
           : "Fix failing checks";
       },
       steps: [
-        "Inspect the failing checks, for example with `gh pr checks` and `gh run view --log-failed`.",
+        "Inspect the failing checks, for example with `gh pr checks` and `gh run view --log-failed`. If other checks are still running, fix what has already failed rather than waiting for them.",
         "Find the root cause and fix it in the code; reproduce locally when practical.",
         "Commit the fix with a clear message and push it to the pull request branch.",
         "Summarize what failed and what you changed.",

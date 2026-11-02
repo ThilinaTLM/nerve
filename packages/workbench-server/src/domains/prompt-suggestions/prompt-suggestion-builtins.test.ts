@@ -33,6 +33,7 @@ const pr = {
   url: "https://github.com/o/r/pull/7",
   isDraft: false,
   checks: "passing" as const,
+  checksRunning: false,
   reviewRequested: false,
 };
 
@@ -225,6 +226,20 @@ void test("builtins: state lists only relevant non-zero facts, at the end", () =
   assert.equal(
     update.buildContext?.(input),
     "feature/x (base main) · 3 uncommitted changes · 2 unpushed commits · PR #7, checks failing",
+  );
+  // A failure while other checks still run is reported as in progress.
+  const running = {
+    ...input,
+    git: {
+      ...input.git,
+      repos: [
+        { ...repo, pullRequest: { ...repo.pullRequest, checksRunning: true } },
+      ],
+    },
+  };
+  assert.match(
+    update.buildContext?.(running) ?? "",
+    /PR #7, checks failing \(others still running\)$/,
   );
   // Commit only reports changes; zero "behind" never appears.
   const commit = defs.find((d) => d.name === "commit-changes")!;

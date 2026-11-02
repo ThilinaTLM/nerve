@@ -69,7 +69,10 @@ export type PromptSuggestionPullRequest = {
   number: number;
   url: string;
   isDraft: boolean;
+  /** Outcome so far; a failure outranks checks still running. */
   checks: "pending" | "passing" | "failing" | "none";
+  /** Whether any check is still running or queued, whatever `checks` says. */
+  checksRunning: boolean;
   reviewRequested: boolean;
 };
 

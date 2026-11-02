@@ -32,6 +32,7 @@ void test("when: ahead/behind/base/pull-request fields and JS context expose pul
       url: "https://example.test/9",
       isDraft: false,
       checks: "failing" as const,
+      checksRunning: false,
       reviewRequested: false,
     },
   };

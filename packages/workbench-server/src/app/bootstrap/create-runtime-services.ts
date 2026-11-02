@@ -252,6 +252,7 @@ export function createRuntimeServices(deps: RuntimeDeps) {
             url: pr.url,
             isDraft: pr.isDraft,
             checks: pr.checks.status,
+            checksRunning: pr.checks.pending > 0,
             reviewRequested: pr.reviewRequested,
           }
         : null;
