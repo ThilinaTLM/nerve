@@ -6,7 +6,7 @@ import {
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { basename, join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { storagePaths } from "../../../storage-bootstrap/paths.js";
 import { createStepContext } from "../../framework/context.js";
@@ -142,7 +142,7 @@ void test("damaged applied-home profile documents are retained and quarantined i
     assert.equal(readFileSync(item.id, "utf8"), "broken JSON");
     assert.equal(
       readFileSync(
-        join(item.quarantinePath, "payload", item.id.split("/").at(-1)!),
+        join(item.quarantinePath, "payload", basename(item.id)),
         "utf8",
       ),
       "broken JSON",

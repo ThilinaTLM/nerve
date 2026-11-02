@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, realpath, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
@@ -24,7 +24,10 @@ export const registry: RegisteredStep[] = [
   { step, checksum: "a".repeat(64), stage: "draft" },
 ];
 export async function fixture(t: TestContext): Promise<string> {
-  const temporary = await mkdtemp(join(tmpdir(), "nerve-step-0001-"));
+  // Reports record canonical paths, so compare against the resolved temp dir.
+  const temporary = await mkdtemp(
+    join(await realpath(tmpdir()), "nerve-step-0001-"),
+  );
   // Every step test uses a fresh pre-step slot 2 and temporary fixture projects.
   const home = join(temporary, "storage-2");
   t.after(() => rm(temporary, { recursive: true, force: true }));

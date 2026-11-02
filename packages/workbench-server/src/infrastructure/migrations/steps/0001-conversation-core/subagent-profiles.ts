@@ -19,7 +19,7 @@ import {
   parseProfileMarkdown,
   type ProfileEntry,
 } from "./subagent-profile-format.js";
-import { join, resolve, parse, relative, isAbsolute, sep } from "node:path";
+import { dirname, join, resolve, relative, isAbsolute, sep } from "node:path";
 import { readJson, writeJson } from "./configuration.js";
 import type { Legacy } from "./legacy.reader.js";
 import { preserveForRollback } from "../../framework/rollback-journal.js";
@@ -127,14 +127,19 @@ const hash = (text: string) => createHash("sha256").update(text).digest("hex");
 const own = <T>(record: Record<string, T>, name: string): T | undefined =>
   Object.hasOwn(record, name) ? record[name] : undefined;
 
-/** Reject symlinks in every existing ancestor, including dangling target links.
- * Migration paths must be regular directories/files, not redirects outside a scope.
+/** Reject symlinks at or below `scope`, including dangling target links.
+ * Migration paths inside a scope must be regular directories/files, not
+ * redirects; the scope root and its system ancestors (macOS /var) are trusted.
  */
-function verifyAncestors(path: string): void {
+function verifyAncestors(path: string, scope: string): void {
   const absolute = resolve(path);
-  const root = parse(absolute).root;
-  const parts = absolute.slice(root.length).split(sep).filter(Boolean);
-  let current = root;
+  const inside = relative(resolve(scope), absolute);
+  assert(
+    !inside.startsWith("..") && !isAbsolute(inside),
+    `Path outside migration scope: ${absolute}`,
+  );
+  const parts = inside.split(sep).filter(Boolean);
+  let current = resolve(scope);
   for (let index = 0; index < parts.length; index++) {
     current = join(current, parts[index]);
     let stat;
@@ -156,13 +161,13 @@ export function captureLegacyProfileEnablement(
   scratch: string,
 ): Record<string, boolean> {
   const snapshot = join(scratch, "subagent-legacy-enablement.json");
-  verifyAncestors(snapshot);
+  verifyAncestors(snapshot, scratch);
   if (existsSync(snapshot))
     return enabledPreferences.parse(readJson(snapshot)).enabled;
   const target = join(home, "config", "subagents.json");
   const harnessPath = join(home, "config", "harness.json");
-  verifyAncestors(target);
-  verifyAncestors(harnessPath);
+  verifyAncestors(target, home);
+  verifyAncestors(harnessPath, home);
   const existing = existsSync(target) ? readJson(target) : undefined;
   const preferences =
     existing && !Object.hasOwn(existing, "schemaVersion")
@@ -212,9 +217,10 @@ export function convertProfileScope(
       !isAbsolute(sourceRelative),
     "Profile sources outside scope",
   );
-  verifyAncestors(target);
-  verifyAncestors(markdownDirectory);
-  if (options.receiptPath) verifyAncestors(options.receiptPath);
+  verifyAncestors(target, root);
+  verifyAncestors(markdownDirectory, root);
+  if (options.receiptPath)
+    verifyAncestors(options.receiptPath, dirname(options.receiptPath));
   const hasTarget = existsSync(target);
   const existing = hasTarget ? readJson(target) : undefined;
   const oldPreferences =
@@ -244,7 +250,7 @@ export function convertProfileScope(
     for (const file of readdirSync(markdownDirectory).sort()) {
       if (file.startsWith(".") || !/\.md$/i.test(file)) continue;
       const path = join(markdownDirectory, file);
-      verifyAncestors(path);
+      verifyAncestors(path, root);
       assert(lstatSync(path).isFile(), `Expected regular profile file ${path}`);
       const name = file.replace(/\.md$/i, "");
       const raw = readFileSync(path, "utf8");
@@ -305,10 +311,10 @@ export function convertProfileScope(
     return 0;
   profilesDocument.parse(document);
   if (options.receiptPath) {
-    verifyAncestors(options.receiptPath);
+    verifyAncestors(options.receiptPath, dirname(options.receiptPath));
     writeJson(options.receiptPath, { document, sources });
   }
-  verifyAncestors(target);
+  verifyAncestors(target, root);
   writeJson(target, document);
   assert.deepEqual(
     profilesDocument.parse(readJson(target)),
@@ -316,7 +322,7 @@ export function convertProfileScope(
     `Subagent JSON verification failed: ${target}`,
   );
   for (const [path, digest] of Object.entries(sources)) {
-    verifyAncestors(path);
+    verifyAncestors(path, root);
     assert.equal(
       hash(readFileSync(path, "utf8")),
       digest,
@@ -338,7 +344,7 @@ export function convertSubagentSettings(
   scratch?: string,
 ): number {
   const path = join(home, "config", "harness.json");
-  verifyAncestors(path);
+  verifyAncestors(path, home);
   const harness = readJson(path);
   const disabled: unknown = harness.tools?.disabled;
   const names = Array.isArray(disabled) ? disabled.map(String) : [];
