@@ -57,7 +57,11 @@ export type ComposerViewDependencies = {
 /** One configuration authority per pane. API and store bindings live at composition. */
 export function createComposerView(deps: ComposerViewDependencies) {
   let revision = $state(0);
-  let preview = $state<ProjectAgentDefaultsResult>();
+  /** Last resolved draft preview, kept while a newer resolve is in flight. */
+  let preview = $state<{
+    pendingId: string;
+    result: ProjectAgentDefaultsResult;
+  }>();
   let loading = $state(false);
   let capabilityLoading = $state(false);
   $effect(() =>
@@ -68,6 +72,7 @@ export function createComposerView(deps: ComposerViewDependencies) {
   $effect(() => {
     void revision;
     const target = deps.target();
+    loading = false;
     if (target.kind !== "draft") return;
     const pending = deps.pending();
     const name = pending?.explicitAgentProfile;
@@ -76,9 +81,10 @@ export function createComposerView(deps: ComposerViewDependencies) {
     const profile = deps
       .profiles(target.projectId)
       .find((p) => p.name === name);
-    preview = undefined;
-    loading = false;
-    if (name && !profile?.digest) return;
+    if (name && !profile?.digest) {
+      preview = undefined;
+      return;
+    }
     let current = true;
     loading = true;
     void deps
@@ -90,7 +96,7 @@ export function createComposerView(deps: ComposerViewDependencies) {
         overrides,
       })
       .then((result) => {
-        if (current) preview = result;
+        if (current) preview = { pendingId: target.pendingId, result };
       })
       .catch(() => {
         if (current) preview = undefined;
@@ -126,10 +132,14 @@ export function createComposerView(deps: ComposerViewDependencies) {
     const target = deps.target();
     if (target.kind === "conversation") return deps.store()?.effective;
     const pending = deps.pending();
-    return !pending?.explicitAgentProfile &&
+    if (
+      !pending?.explicitAgentProfile &&
       !Object.keys(pending?.overrides ?? {}).length
-      ? deps.defaults(target.projectId)
-      : preview;
+    )
+      return deps.defaults(target.projectId);
+    // Stale-while-revalidate: keep the last view until the new resolve lands.
+    if (preview?.pendingId === target.pendingId) return preview.result;
+    return loading ? deps.defaults(target.projectId) : undefined;
   });
   const available = $derived(
     result?.status === "available" ? result : undefined,
