@@ -152,6 +152,7 @@ for (const [label, url] of trayCopies) {
         MACOS_TRAY_GUID: "test",
       },
       "../window/preload-paths.js": { resolveTrayIconPath: () => "/icon.png" },
+      "../window/gpu-process.js": { restartGpuProcess: () => undefined },
     });
     const controller = createTrayController({
       getMainWindow: () => undefined,

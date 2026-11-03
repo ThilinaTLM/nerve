@@ -7,6 +7,7 @@ import type {
   TrayType,
 } from "../platform/electron/electron-api.js";
 import {
+  app,
   clipboard,
   Menu,
   nativeImage,
@@ -15,6 +16,7 @@ import {
 } from "../platform/electron/electron-api.js";
 import type { QuitOptions } from "../app/quit-contracts.js";
 import { resolveTrayIconPath } from "../window/preload-paths.js";
+import { restartGpuProcess } from "../window/gpu-process.js";
 
 export interface TrayControllerDependencies {
   getMainWindow: () => BrowserWindowType | undefined;
@@ -119,6 +121,11 @@ export function createTrayController(
         },
         { type: "separator" },
         {
+          label: "Restart UI",
+          click: restartGraphics,
+        },
+        { type: "separator" },
+        {
           label: "Quit",
           click: () =>
             dependencies.requestQuit({
@@ -128,6 +135,29 @@ export function createTrayController(
         },
       ]),
     );
+  }
+
+  function restartGraphics(): void {
+    try {
+      const pid = restartGpuProcess({
+        getAppMetrics: () => app.getAppMetrics(),
+        kill: (target, signal) => process.kill(target, signal),
+      });
+      void desktopLog(
+        pid === undefined ? "warn" : "info",
+        "tray",
+        pid === undefined
+          ? "No GPU process to restart"
+          : "Restarted GPU process from tray",
+        { context: { pid } },
+      );
+      // Hard reload (Ctrl+F5) so the UI also re-fetches its assets.
+      dependencies.getMainWindow()?.webContents.reloadIgnoringCache();
+    } catch (error) {
+      void desktopLog("error", "tray", "Failed to restart GPU process", {
+        error,
+      });
+    }
   }
 
   function copyUrl(url: string): void {
