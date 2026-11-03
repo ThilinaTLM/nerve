@@ -92,17 +92,21 @@ test("snapshot revision ordering replaces the repository set, including removals
   assert.equal(acceptSnapshot(undefined, current), current);
 });
 
-test("branch selector retains merged/closed PRs and chooses the latest number", () => {
+test("branch selector skips merged PRs and chooses the latest number", () => {
+  const open = pr(3);
+  const closed = pr(7, { state: "CLOSED" });
   const merged = pr(9, { state: "MERGED" });
   assert.equal(
     selectBranchPr(
-      [pr(1), merged, pr(10, { headRefName: "other" })],
+      [pr(1), open, merged, pr(10, { headRefName: "other" })],
       "feature",
     ),
-    merged,
+    open,
   );
-  assert.equal(selectBranchPr([merged], "missing"), undefined);
-  assert.equal(selectBranchPr([merged], undefined), undefined);
+  assert.equal(selectBranchPr([open, closed, merged], "feature"), closed);
+  assert.equal(selectBranchPr([merged], "feature"), undefined);
+  assert.equal(selectBranchPr([open], "missing"), undefined);
+  assert.equal(selectBranchPr([open], undefined), undefined);
 });
 
 test("watch interests merge tabs, list, branch and document visibility", () => {

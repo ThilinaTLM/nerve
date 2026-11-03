@@ -53,13 +53,17 @@ export function filterRepoPrs(
     );
 }
 
+/**
+ * The branch's current pull request. Merged PRs are history, not current work:
+ * long-lived branches accumulate them and they would otherwise pin the card.
+ */
 export function selectBranchPr(
   prs: readonly GithubPr[],
   branch?: string | null,
 ): GithubPr | undefined {
   return branch
     ? prs
-        .filter((pr) => pr.headRefName === branch)
+        .filter((pr) => pr.headRefName === branch && pr.state !== "MERGED")
         .sort((a, b) => b.number - a.number)[0]
     : undefined;
 }
