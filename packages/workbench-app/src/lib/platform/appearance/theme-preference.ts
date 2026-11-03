@@ -48,6 +48,7 @@ export const themeBackgrounds: Record<ColorTheme, string> = {
   "melange-light": "#f4f0ed",
   "melange-dark": "#292522",
   graphite: "#1d1a18",
+  indigo: "#262541",
 };
 
 export function parseColorTheme(value: unknown): ColorTheme {

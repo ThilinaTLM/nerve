@@ -86,6 +86,7 @@
           "melange-light": "#f4f0ed",
           "melange-dark": "#292522",
           graphite: "#1d1a18",
+          indigo: "#262541",
         };
         const light = ["nerve-light", "melange-light"];
         const valid = (theme) => Object.hasOwn(backgrounds, theme);
@@ -208,6 +209,13 @@
         --splash-primary: oklch(0.7 0.15 40);
         --splash-muted: oklch(0.7858 0.00597 77.32);
         --splash-border: oklch(0.3511 0.005968 67.83);
+      }
+      :root[data-theme="indigo"] {
+        --splash-bg: oklch(0.28 0.05 283.5);
+        --splash-fg: oklch(0.946 0.026 251.7);
+        --splash-primary: oklch(0.868 0.178 94.1);
+        --splash-muted: oklch(0.8794 0.02777 257.14);
+        --splash-border: oklch(0.4065 0.04477 280.17);
       }
       :root[data-theme="melange-light"] {
         --splash-bg: oklch(0.958 0.006 70);

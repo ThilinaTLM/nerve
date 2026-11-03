@@ -24,7 +24,7 @@ Application `*Host` components are state/effect adapters around canonical featur
   tokens of their own. Never reach for a surface to get a shade you like — pick
   the one that matches the role.
 - **The theme is one flat choice and each theme is either light or dark**:
-  `nerve-light`, `nerve-dark`, `melange-light`, `melange-dark`, `graphite`
+  `nerve-light`, `nerve-dark`, `melange-light`, `melange-dark`, `graphite`, `indigo`
   (family order, `colorThemeSchema`), default `nerve-dark`, with
   `colorThemeKind` in `contracts/settings` as the source of truth. The app
   does not follow the OS colour scheme: the client stores one theme
