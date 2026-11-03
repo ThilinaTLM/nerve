@@ -21,6 +21,7 @@ export const colorThemeSchema = z.enum([
   "melange-light",
   "melange-dark",
   "graphite",
+  "indigo",
 ]);
 export type ColorTheme = z.infer<typeof colorThemeSchema>;
 export const defaultColorTheme = "nerve-dark" satisfies ColorTheme;
@@ -36,6 +37,7 @@ export const colorThemeKind: Record<ColorTheme, ColorThemeKind> = {
   "melange-light": "light",
   "melange-dark": "dark",
   graphite: "dark",
+  indigo: "dark",
 };
 
 export const headerTypeSchema = z.enum(["auto", "linux", "windows", "macos"]);

@@ -390,6 +390,37 @@
   --syntax-property: oklch(0.75 0.09 150);
 }
 
+/* Indigo: adapted from Shades of Purple (github.com/ahmadawais/shades-of-purple-vscode),
+ * a deep indigo base with a golden-yellow accent and bright neon status and
+ * code colours. The base keeps the official hue at the shared surface-chroma
+ * ceiling; the solid red is deepened for white text. */
+
+:root[data-theme="indigo"],
+[data-theme-preview="indigo"] {
+  --background: oklch(0.28 0.05 283.5);
+  --foreground: oklch(0.946 0.026 251.7);
+  --primary: oklch(0.868 0.178 94.1);
+  --success: oklch(0.918 0.169 139.8);
+  --warning: oklch(0.86 0.135 68);
+  --info: oklch(0.94 0.092 195.7);
+  --destructive: oklch(0.83 0.125 7);
+  --destructive-solid: oklch(0.55 0.2 26.8);
+  --mix-muted-foreground: 90%;
+
+  /* Shades of Purple's code roles: orange keywords, yellow functions, green
+   * strings, pink numbers, cyan types, violet comments and lilac properties.
+   * Identifiers and punctuation stay near the foreground. */
+  --syntax-variable: oklch(0.93 0.026 251.7);
+  --syntax-punctuation: oklch(0.78 0.035 285);
+  --syntax-comment: oklch(0.75 0.16 304.7);
+  --syntax-keyword: oklch(0.86 0.135 68);
+  --syntax-string: oklch(0.918 0.169 139.8);
+  --syntax-number: oklch(0.83 0.125 7);
+  --syntax-function: oklch(0.868 0.178 94.1);
+  --syntax-type: oklch(0.94 0.092 195.7);
+  --syntax-property: oklch(0.81 0.18 325.7);
+}
+
 /* Control heights. A non-inline @theme keeps the utilities (`h-control`,
  * `size-control-sm`, ...) pointing at the variable, so the coarse-pointer
  * override below reaches every control without per-component media queries. */

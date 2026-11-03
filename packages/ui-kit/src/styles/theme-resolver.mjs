@@ -8,7 +8,7 @@
 
 /** @typedef {readonly [lightness: number, chroma: number, hue: number]} Oklch */
 /** @typedef {readonly [lightness: number, a: number, b: number]} Oklab */
-/** @typedef {"nerve-light" | "nerve-dark" | "melange-light" | "melange-dark" | "graphite"} ColorTheme */
+/** @typedef {"nerve-light" | "nerve-dark" | "melange-light" | "melange-dark" | "graphite" | "indigo"} ColorTheme */
 /** @typedef {"light" | "dark"} ColorMode */
 
 /** Mirrors `colorThemeKind` in contracts: each theme is either light or dark.
@@ -19,6 +19,7 @@ export const colorThemeKind = Object.freeze({
   "melange-light": "light",
   "melange-dark": "dark",
   graphite: "dark",
+  indigo: "dark",
 });
 
 /** @param {string} css @param {RegExp} pattern @param {string} label */

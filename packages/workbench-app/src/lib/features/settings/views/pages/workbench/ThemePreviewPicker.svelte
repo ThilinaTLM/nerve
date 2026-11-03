@@ -2,6 +2,7 @@
 import Coffee from "@lucide/svelte/icons/coffee";
 import Flame from "@lucide/svelte/icons/flame";
 import Layers from "@lucide/svelte/icons/layers";
+import Sparkles from "@lucide/svelte/icons/sparkles";
 import {
   colorThemeKind,
   colorThemeSchema,
@@ -38,9 +39,14 @@ const themeOptions: Record<ColorTheme, Omit<SettingsPreviewOption, "value">> = {
     description: "Neutral near-black with an ember accent",
     icon: Layers,
   },
+  indigo: {
+    label: "Indigo",
+    description: "Deep indigo with a golden accent",
+    icon: Sparkles,
+  },
 };
 
-// Family order (Nerve, Melange, Graphite), as in `colorThemeSchema`.
+// Family order (Nerve, Melange, Graphite, Indigo), as in `colorThemeSchema`.
 const options = colorThemeSchema.options.map((theme) => ({
   ...themeOptions[theme],
   value: theme,

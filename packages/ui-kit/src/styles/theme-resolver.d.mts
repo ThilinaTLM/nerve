@@ -5,7 +5,8 @@ export type ColorTheme =
   | "nerve-dark"
   | "melange-light"
   | "melange-dark"
-  | "graphite";
+  | "graphite"
+  | "indigo";
 export type ColorMode = "light" | "dark";
 
 export const colorThemeKind: Readonly<Record<ColorTheme, ColorMode>>;
