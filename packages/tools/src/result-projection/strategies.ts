@@ -296,13 +296,6 @@ export function continuationAwareHead(
   return withLineCount(candidate, blocks);
 }
 
-export function compactDiagnosticIndex(
-  candidate: ProjectionCandidate,
-  profile: AgentResultProfileId,
-): StrategyProjection {
-  return itemAwareHead(candidate, profile);
-}
-
 export function artifactIndex(
   candidate: ProjectionCandidate,
   profile: AgentResultProfileId,

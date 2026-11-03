@@ -13,7 +13,11 @@ import type {
 import { toolDefinitionByName } from "@nervekit/tools/catalog";
 import type { ConversationCore, ExecutionFinished } from "../core.js";
 import type { CoreToolHandler } from "../tool-calls/core-tool.js";
-import { finalAssistantText, inlineReport } from "./child-report.js";
+import {
+  finalAssistantText,
+  inlineReport,
+  lastMessageLabel,
+} from "./child-report.js";
 import type { SubagentHost } from "./subagent-host.js";
 import {
   backgroundLabel,
@@ -110,9 +114,15 @@ export function createDelegationTools(
     const head = `Sub-agent "${child.conversation.title}"${profile ? ` (${profile})` : ""}`;
     const background = runningBash(result.conversationId);
     const response = finalAssistantText(core, result);
-    const body = response
-      ? `\n${inlineReport(core, result.conversationId, result.executionId, response)}`
+    const report = response
+      ? inlineReport(core, result.conversationId, result.executionId, response)
       : "";
+    // A completed notice already says so; other outcomes label the message so it is not taken as a report.
+    const body = !report
+      ? ""
+      : result.transition === "completed"
+        ? `\n${report}`
+        : `\n${lastMessageLabel(false)}\n${report}`;
     const now = Date.now();
     let first: string;
     if (result.transition === "cancelled")

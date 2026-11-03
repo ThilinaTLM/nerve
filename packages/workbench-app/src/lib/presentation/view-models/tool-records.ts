@@ -154,7 +154,7 @@ export type ToolCallRecord = {
         version: 1;
         profile:
           | "source_text"
-          | "process_diagnostics"
+          | "process_output"
           | "script_output"
           | "search_matches"
           | "file_listing"
@@ -163,6 +163,7 @@ export type ToolCallRecord = {
           | "resource_detail"
           | "mutation_acknowledgement"
           | "lifecycle_state"
+          | "delegation_report"
           | "primary_file_result"
           | "human_response"
           | "vision_explanation"
@@ -174,11 +175,9 @@ export type ToolCallRecord = {
           | "head"
           | "tail"
           | "head_tail"
-          | "compact_diagnostic"
           | "item_aware"
           | "continuation_aware"
-          | "artifact_index"
-          | "task_log_window";
+          | "artifact_index";
         terminalOutcomePrecedence: boolean;
         fastPath: boolean;
         recovery: "none" | "artifact" | "complete_payload";

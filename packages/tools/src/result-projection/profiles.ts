@@ -1,4 +1,5 @@
 import type { AgentResultProfileId } from "@nervekit/contracts/tools";
+import { SUBAGENT_REPORT_INLINE_BYTES } from "@nervekit/contracts/subagents";
 import { DEFAULT_MAX_BYTES } from "../execution/output/truncate.js";
 
 export type ProjectionBudget = Readonly<{
@@ -18,6 +19,10 @@ const PROCESS_OVERFLOW = { maxLines: 200, maxBytes: 8_000, headShare: 0.2 };
 const SOURCE_TEXT_MAX_BYTES = DEFAULT_MAX_BYTES + 2_048;
 const SOURCE_TEXT_MAX_LINES = 5_010;
 
+/** Sub-agent reports are already capped at the inline limit; leave room for status lines and the cap notice. */
+const DELEGATION_REPORT_MAX_BYTES = SUBAGENT_REPORT_INLINE_BYTES + 4_096;
+const DELEGATION_REPORT_MAX_LINES = 5_000;
+
 export type AgentResultProfile = Readonly<{
   inline: ProjectionBudget;
   overflow: ProjectionBudget;
@@ -36,7 +41,7 @@ export const AGENT_RESULT_PROFILES: Readonly<
     inline: budget(SOURCE_TEXT_MAX_LINES, SOURCE_TEXT_MAX_BYTES),
     overflow: budget(SOURCE_TEXT_MAX_LINES, SOURCE_TEXT_MAX_BYTES),
   },
-  process_diagnostics: {
+  process_output: {
     inline: budget(400, 12_000),
     overflow: budget(PROCESS_OVERFLOW.maxLines, PROCESS_OVERFLOW.maxBytes, {
       headShare: PROCESS_OVERFLOW.headShare,
@@ -67,6 +72,10 @@ export const AGENT_RESULT_PROFILES: Readonly<
     overflow: budget(40, 4_000),
   },
   lifecycle_state: { inline: budget(80, 8_000), overflow: budget(80, 8_000) },
+  delegation_report: {
+    inline: budget(DELEGATION_REPORT_MAX_LINES, DELEGATION_REPORT_MAX_BYTES),
+    overflow: budget(DELEGATION_REPORT_MAX_LINES, DELEGATION_REPORT_MAX_BYTES),
+  },
   primary_file_result: {
     inline: budget(80, 8_000),
     overflow: budget(12, 3_000),

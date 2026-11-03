@@ -6,7 +6,6 @@ import { conservativeFallbackCandidate } from "./fallback.js";
 import { measureBlocks } from "./measure.js";
 import {
   artifactIndex,
-  compactDiagnosticIndex,
   continuationAwareHead,
   headTailText,
   headText,
@@ -132,8 +131,6 @@ function applyStrategy(
       return itemAwareHead(candidate, profile);
     case "continuation_aware":
       return continuationAwareHead(candidate, profile);
-    case "compact_diagnostic":
-      return compactDiagnosticIndex(candidate, profile);
     case "artifact_index":
       return artifactIndex(candidate, profile);
 

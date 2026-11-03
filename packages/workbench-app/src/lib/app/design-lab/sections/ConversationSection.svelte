@@ -208,7 +208,7 @@ const systemNotices: SystemEventNotice[] = [
   {
     entryId: "s2",
     kind: "subagent_run_event",
-    text: 'Sub-agent "research" (explore) completed.\nFound 3 relevant modules.\n[truncated; full response: /reports/research.md]',
+    text: 'Sub-agent "research" (explore) completed.\nFound 3 relevant modules.\n[Showing the first 50.0KB of 61.2KB; 11.2KB omitted. Full response: /reports/research.md]',
     summary: 'Sub-agent "research" (explore) completed.',
     createdAt: stamp,
   },

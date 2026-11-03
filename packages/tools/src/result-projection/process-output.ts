@@ -77,7 +77,7 @@ export async function projectProcessOutputResult(
       offset ?? Math.max(0, lines.length - limit),
     );
     // Pages stay within the overflow budget so lifecycle text around them still fits inline.
-    const budget = profileBudget("process_diagnostics", "overflow");
+    const budget = profileBudget("process_output", "overflow");
     const selected: string[] = [];
     // Reserve the header, continuation, locator and capture notice within the same budget.
     let bytes = Buffer.byteLength(
@@ -123,7 +123,7 @@ export async function projectProcessOutputResult(
       stdout: files.stdout ? { path: files.stdout, text: stdout } : undefined,
       stderr: files.stderr ? { path: files.stderr, text: stderr } : undefined,
     },
-    profile: "process_diagnostics",
+    profile: "process_output",
   });
 }
 
@@ -145,7 +145,7 @@ export function projectProcessText(input: {
     stdout?: RecoveryText;
     stderr?: RecoveryText;
   };
-  profile: "process_diagnostics" | "script_output";
+  profile: "process_output" | "script_output";
 }): ProcessOutputProjection {
   const { combined, stdout, stderr } = input.files;
   const recovery = combined

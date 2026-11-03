@@ -64,7 +64,7 @@ export type ProcessResultOptions = {
    * When set, the content is the final agent projection for this profile (the same projection the tool
    * result service applies), and its snapshot is returned in `details.agentProjectionSnapshot`.
    */
-  agentProfile?: "process_diagnostics" | "script_output";
+  agentProfile?: "process_output" | "script_output";
 };
 
 export type ProcessTextResultOptions = {

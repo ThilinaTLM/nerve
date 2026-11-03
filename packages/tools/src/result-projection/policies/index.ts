@@ -40,10 +40,12 @@ import {
 } from "./web.js";
 
 const subagentPolicy = policy("lifecycle_state", "item_aware", textCandidate);
+// Status repeats the child's capped report, so it must fit whole rather than be cut again.
+const subagentStatusPolicy = policy("delegation_report", "head", textCandidate);
 
 const map: Record<ToolName, AgentResultPolicy> = {
   subagent_prompt: subagentPolicy,
-  subagent_status: subagentPolicy,
+  subagent_status: subagentStatusPolicy,
   subagent_stop: subagentPolicy,
 
   read: readAgentResultPolicy,
@@ -91,8 +93,8 @@ const map: Record<ToolName, AgentResultPolicy> = {
   confluence_manage_restriction: confluenceMutationAgentResultPolicy,
   confluence_manage_attachment: confluenceMutationAgentResultPolicy,
   // Log pages are bounded by the process overflow budget, below this inline budget.
-  async_bash: policy("process_diagnostics", "head", textCandidate),
-  launch: policy("process_diagnostics", "head", textCandidate),
+  async_bash: policy("process_output", "head", textCandidate),
+  launch: policy("process_output", "head", textCandidate),
   plan_present: planReviewAgentResultPolicy,
 };
 

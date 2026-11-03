@@ -12,3 +12,4 @@ export * from "./types.js";
 export { buildUserProjection } from "./user-projection/tool-user-projection.js";
 
 export * from "./process-output.js";
+export { formatByteSize } from "../execution/output/truncate.js";

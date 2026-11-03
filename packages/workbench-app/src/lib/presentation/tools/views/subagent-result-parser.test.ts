@@ -145,7 +145,7 @@ describe("sub_conversation_event notice", () => {
 
   it("reads failures, stops and legacy notices without a profile", () => {
     const failed = parseSubagentNotice(
-      'Sub-agent "x" (developer) failed: boom\nlast words',
+      'Sub-agent "x" (developer) failed: boom\nLast message:\nlast words',
     );
     assert.equal(failed?.outcome, "failed");
     assert.equal(failed?.detail, "boom");
@@ -174,11 +174,16 @@ describe("sub_conversation_event notice", () => {
   });
 
   it("extracts the report path of a truncated response", () => {
-    const notice = parseSubagentNotice(
-      'Sub-agent "x" (explore) completed.\nlong text\n[truncated; full response: /data/conversations/c/reports/e.md]',
-    );
-    assert.equal(notice?.response, "long text");
-    assert.equal(notice?.reportPath, "/data/conversations/c/reports/e.md");
+    for (const marker of [
+      "[Showing the first 50.0KB of 53.9KB; 3.9KB omitted. Full response: /data/conversations/c/reports/e.md]",
+      "[truncated; full response: /data/conversations/c/reports/e.md]",
+    ]) {
+      const notice = parseSubagentNotice(
+        `Sub-agent "x" (explore) completed.\nlong text\n${marker}`,
+      );
+      assert.equal(notice?.response, "long text");
+      assert.equal(notice?.reportPath, "/data/conversations/c/reports/e.md");
+    }
   });
 
   it("ignores other text", () => {

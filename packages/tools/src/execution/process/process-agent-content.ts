@@ -10,7 +10,7 @@ export function projectAgentContent({
   recovery,
   fullOutputPath,
 }: {
-  profile: "process_diagnostics" | "script_output";
+  profile: "process_output" | "script_output";
   combined: string;
   footerLines: string[];
   status: (string | undefined)[];

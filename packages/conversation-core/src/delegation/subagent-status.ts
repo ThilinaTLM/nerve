@@ -4,6 +4,7 @@ import type {
   ToolCall,
 } from "@nervekit/contracts/core";
 import { SUBAGENT_STATUS_ACTIVITY_ITEMS } from "@nervekit/contracts/subagents";
+import { lastMessageLabel } from "./child-report.js";
 
 const LINE_LIMIT = 120;
 
@@ -107,7 +108,7 @@ export function formatStatusHeader(child: ChildStatus, now: number): string {
 
 export interface NamedStatusInput {
   child: ChildStatus;
-  /** Inline-capped final response of the last execution, if any. */
+  /** Inline-capped last message of the last execution, if any. */
   finalResponse: string;
   /** Message of the last failed execution, when the child is failed. */
   failure: string | null;
@@ -122,15 +123,20 @@ export function formatNamedStatus(input: NamedStatusInput, now: number) {
       "Recent activity:",
       ...(input.activity.length ? input.activity : ["(none yet)"]),
     );
-  } else if (child.state === "failed")
-    lines.push(`Outcome: failed: ${input.failure ?? "unknown error"}`);
-  else if (child.state === "interrupted") lines.push("Outcome: interrupted");
-  else if (child.state === "stopped") {
-    lines.push("Outcome: stopped");
-    if (finalResponse) lines.push("Last response:", finalResponse);
+  } else if (
+    child.state === "failed" ||
+    child.state === "interrupted" ||
+    child.state === "stopped"
+  ) {
+    lines.push(
+      child.state === "failed"
+        ? `Outcome: failed: ${input.failure ?? "unknown error"}`
+        : `Outcome: ${child.state}`,
+    );
+    if (finalResponse) lines.push(lastMessageLabel(false), finalResponse);
   } else {
     lines.push(
-      finalResponse ? "Final response:" : "No response yet.",
+      finalResponse ? lastMessageLabel(true) : "No response yet.",
       ...(finalResponse ? [finalResponse] : []),
     );
     if (child.background.length)
