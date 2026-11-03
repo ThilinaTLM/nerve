@@ -1,5 +1,5 @@
 import type { BashToolSettings } from "@nervekit/contracts/settings";
-import { realpath, readFile } from "node:fs/promises";
+import { realpath } from "node:fs/promises";
 import { projectProcessOutputResult } from "@nervekit/tools/result-projection";
 import type { ToolHostPort } from "@nervekit/conversation-core";
 import {
@@ -324,8 +324,6 @@ export function createToolHostPort(
                 kind: "backgrounded",
                 process,
                 result: {
-                  stdout: await readFile(process.outputFiles.stdout, "utf8"),
-                  stderr: await readFile(process.outputFiles.stderr, "utf8"),
                   content: projected.text,
                   details: {
                     agentProjectionSnapshot: projected.snapshot,
@@ -337,11 +335,8 @@ export function createToolHostPort(
                 },
               };
             }
-            const stdout = await readFile(process.outputFiles.stdout, "utf8");
-            const stderr = await readFile(process.outputFiles.stderr, "utf8");
+            // The capture files hold the full output; the result keeps only its projection.
             const projected = await projectProcessOutputResult({
-              stdout,
-              stderr,
               outputFiles: process.outputFiles,
               status: outcome.status,
               exitCode: outcome.exitCode,
@@ -349,8 +344,6 @@ export function createToolHostPort(
             return {
               kind: "completed",
               result: {
-                stdout,
-                stderr,
                 exitCode: outcome.exitCode ?? undefined,
                 content: projected.text,
                 details: {

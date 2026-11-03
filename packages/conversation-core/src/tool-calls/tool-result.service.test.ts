@@ -102,7 +102,7 @@ void test("results reduced by this pass record its own snapshot", async () => {
   });
 });
 
-void test("stored payloads keep text once unless content blocks add to it", async () => {
+void test("stored payloads keep text once: no repeated content blocks or process streams", async () => {
   await withAssets(async (assets) => {
     const text = "line 1\nline 2";
     await prepareToolResult(assets, call("read"), "completed", {
@@ -114,6 +114,17 @@ void test("stored payloads keep text once unless content blocks add to it", asyn
     );
     assert.equal(stored.content, text);
     assert.equal(stored.contentBlocks, undefined);
+
+    await prepareToolResult(assets, call("python_exec"), "completed", {
+      stdout: "out",
+      stderr: "err",
+      content: "outerr",
+    });
+    const process = JSON.parse(
+      writes["conversations/conv_1/tool-calls/tool_1/result.json"]!,
+    );
+    assert.equal(process.stdout, undefined);
+    assert.equal(process.stderr, undefined);
 
     await prepareToolResult(assets, call("read"), "completed", {
       content: "Read image file [image/png]",

@@ -109,8 +109,8 @@ void test("bash host validates turn settings, project cwd and untimed background
         (result.result.details as { launch: unknown }).launch,
         process.launch,
       );
-      assert.equal(result.result.stdout, "hello");
-      assert.equal(result.result.stderr, "");
+      // Full streams stay in the capture files rather than the result.
+      assert.equal(result.result.stdout, undefined);
       assert.equal(result.result.exitCode, 0);
       assert.equal(
         result.result.content,

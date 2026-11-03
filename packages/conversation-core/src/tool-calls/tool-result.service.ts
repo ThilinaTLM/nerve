@@ -195,24 +195,33 @@ export async function prepareToolResult(
   };
 }
 
-/** Text-only content blocks that repeat `content` are not stored twice; readers fall back to `content`. */
+/**
+ * Stores each result's text once. `content` is what readers use first, so text-only content blocks that repeat
+ * it are dropped, and so are process streams: their full text lives in the capture files.
+ */
 function withoutRedundantText<
-  T extends { content?: unknown; contentBlocks?: unknown },
+  T extends {
+    content?: unknown;
+    contentBlocks?: unknown;
+    stdout?: unknown;
+    stderr?: unknown;
+  },
 >(result: T): T {
+  if (typeof result.content !== "string") return result;
+  const stored = { ...result };
+  delete stored.stdout;
+  delete stored.stderr;
   const blocks = result.contentBlocks;
   if (
-    typeof result.content !== "string" ||
-    !Array.isArray(blocks) ||
-    !blocks.every(
+    Array.isArray(blocks) &&
+    blocks.every(
       (block: { type?: unknown; text?: unknown }) =>
         block.type === "text" && typeof block.text === "string",
-    ) ||
-    blocks.map((block: { text: string }) => block.text).join("\n") !==
+    ) &&
+    blocks.map((block: { text: string }) => block.text).join("\n") ===
       result.content
   )
-    return result;
-  const stored = { ...result };
-  delete stored.contentBlocks;
+    delete stored.contentBlocks;
   return stored;
 }
 
