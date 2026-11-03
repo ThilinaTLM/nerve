@@ -26,25 +26,20 @@ export type AsyncBash = z.infer<typeof asyncBashSchema>;
 export const asyncBashLogsRequestSchema = z.object({
   conversationId: z.string(),
   bashId: z.string(),
-  // Byte offsets; omitted streams start at the tail of their file.
-  offsets: z
-    .object({ combined: z.number().int().nonnegative().optional() })
-    .optional(),
+  // Byte offset into the run's single output file; omitted starts at the tail.
+  offset: z.number().int().nonnegative().optional(),
   // Byte budget for the returned page.
   limit: z.number().int().positive().max(65536).optional(),
 });
 export const asyncBashLogsResponseSchema = z.object({
   bash: asyncBashSchema,
-  streams: z.array(
-    z.object({
-      // Runs capture one file with both streams in arrival order.
-      stream: z.literal("combined"),
-      text: z.string(),
-      offset: z.number().int().nonnegative(),
-      nextOffset: z.number().int().nonnegative(),
-      totalBytes: z.number().int().nonnegative(),
-    }),
-  ),
+  // Runs capture one file with both streams in arrival order.
+  page: z.object({
+    text: z.string(),
+    offset: z.number().int().nonnegative(),
+    nextOffset: z.number().int().nonnegative(),
+    totalBytes: z.number().int().nonnegative(),
+  }),
 });
 export type AsyncBashLogsRequest = z.infer<typeof asyncBashLogsRequestSchema>;
 export type AsyncBashLogsResponse = z.infer<typeof asyncBashLogsResponseSchema>;

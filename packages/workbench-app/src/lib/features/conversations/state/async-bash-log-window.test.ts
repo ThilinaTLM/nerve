@@ -9,15 +9,14 @@ import {
   WINDOW_BYTES,
   type LogResult,
   type LogParams,
-  type LogStream,
+  type LogPage,
 } from "./async-bash-log-window";
 const bash = { id: "bash1", status: "completed" } as AsyncBash;
 const chunk = (
   text: string,
   offset = 0,
   totalBytes = offset + Buffer.byteLength(text),
-): LogStream => ({
-  stream: "combined",
+): LogPage => ({
   text,
   offset,
   nextOffset: offset + Buffer.byteLength(text),
@@ -25,19 +24,16 @@ const chunk = (
 });
 
 test("append and earlier merge byte windows without duplicate UTF-8", () => {
-  const current = [chunk("αβγ", 2, 10)];
-  assert.equal(mergeLogWindow(current, [chunk("γδ", 6, 10)])[0].text, "αβγδ");
-  assert.equal(
-    mergeLogWindow(current, [chunk("xαβ", 1, 10)], true)[0].text,
-    "xαβγ",
-  );
-  assert.deepEqual(mergeLogWindow(current, [chunk("new")]), [chunk("new")]);
+  const current = chunk("αβγ", 2, 10);
+  assert.equal(mergeLogWindow(current, chunk("γδ", 6, 10)).text, "αβγδ");
+  assert.equal(mergeLogWindow(current, chunk("xαβ", 1, 10), true).text, "xαβγ");
+  assert.deepEqual(mergeLogWindow(current, chunk("new")), chunk("new"));
 });
 
 test("bounds display bytes and trims at UTF-8 boundaries in either direction", () => {
   const text = "α".repeat(WINDOW_BYTES);
   for (const earlier of [false, true]) {
-    const [window] = mergeLogWindow([], [chunk(text)], earlier);
+    const window = mergeLogWindow(undefined, chunk(text), earlier);
     assert.ok(Buffer.byteLength(window.text) <= WINDOW_BYTES);
     assert.equal(window.text.includes("�"), false);
     assert.equal(
@@ -54,7 +50,7 @@ test("tail, append, earlier use bounded byte offsets; completed sessions do not 
     "bash1",
     async (params) => {
       requests.push(params);
-      return { bash, streams: [chunk("α", PAGE_BYTES)] };
+      return { bash, page: chunk("α", PAGE_BYTES) };
     },
     () => {},
     5,
@@ -68,19 +64,19 @@ test("tail, append, earlier use bounded byte offsets; completed sessions do not 
     {
       conversationId: "conv",
       bashId: "bash1",
-      offsets: undefined,
+      offset: undefined,
       limit: PAGE_BYTES,
     },
     {
       conversationId: "conv",
       bashId: "bash1",
-      offsets: { combined: PAGE_BYTES + 2 },
+      offset: PAGE_BYTES + 2,
       limit: PAGE_BYTES,
     },
     {
       conversationId: "conv",
       bashId: "bash1",
-      offsets: { combined: 0 },
+      offset: 0,
       limit: PAGE_BYTES,
     },
   ]);
@@ -95,15 +91,11 @@ test("earlier inspection pauses live append until tail refresh resumes", async (
     "bash1",
     async (params) => {
       count++;
-      const stream =
-        params.offsets?.combined === undefined
+      const page =
+        params.offset === undefined
           ? tail
-          : chunk(
-              "x".repeat(PAGE_BYTES),
-              params.offsets.combined,
-              tail.totalBytes,
-            );
-      return { bash: { ...bash, status: "running" }, streams: [stream] };
+          : chunk("x".repeat(PAGE_BYTES), params.offset, tail.totalBytes);
+      return { bash: { ...bash, status: "running" }, page };
     },
     () => {},
     5,
@@ -111,17 +103,17 @@ test("earlier inspection pauses live append until tail refresh resumes", async (
   session.start();
   await new Promise((done) => setTimeout(done, 0));
   await session.load("earlier");
-  const earlier = session.streams[0];
+  const earlier = session.page!;
   assert.equal(session.following, false);
   assert.ok(earlier.nextOffset < tail.nextOffset);
   assert.ok(Buffer.byteLength(earlier.text) <= WINDOW_BYTES);
   await session.load("append");
   await new Promise((done) => setTimeout(done, 15));
   assert.equal(count, 2);
-  assert.equal(session.streams[0], earlier);
+  assert.equal(session.page!, earlier);
   await session.load("tail");
   assert.equal(session.following, true);
-  assert.equal(session.streams[0].nextOffset, tail.nextOffset);
+  assert.equal(session.page!.nextOffset, tail.nextOffset);
   await new Promise((done) => setTimeout(done, 15));
   assert.ok(count >= 4);
   session.stop();
@@ -141,7 +133,7 @@ test("earlier requested during an in-flight append queues once and cancels live 
         });
       return Promise.resolve({
         bash: { ...bash, status: "running" },
-        streams: [chunk("earlier")],
+        page: chunk("earlier"),
       });
     },
     () => {},
@@ -151,7 +143,7 @@ test("earlier requested during an in-flight append queues once and cancels live 
   await session.load("earlier");
   resolve({
     bash: { ...bash, status: "running" },
-    streams: [chunk("latest", PAGE_BYTES)],
+    page: chunk("latest", PAGE_BYTES),
   });
   await new Promise((done) => setTimeout(done, 15));
   assert.equal(count, 2);
@@ -162,7 +154,7 @@ test("earlier requested during an in-flight append queues once and cancels live 
 test("a tail refresh queued during an earlier read resumes following and discards the historical window", async () => {
   let resolveEarlier!: (result: LogResult) => void;
   const requests: LogParams[] = [];
-  const latest = { bash, streams: [chunk("latest", PAGE_BYTES)] };
+  const latest = { bash, page: chunk("latest", PAGE_BYTES) };
   const session = new AsyncBashLogSession(
     "conv",
     "bash1",
@@ -180,13 +172,13 @@ test("a tail refresh queued during an earlier read resumes following and discard
   await new Promise((done) => setTimeout(done, 0));
   const earlierRead = session.load("earlier");
   await session.load("tail");
-  resolveEarlier({ bash, streams: [chunk("earlier")] });
+  resolveEarlier({ bash, page: chunk("earlier") });
   await earlierRead;
   await new Promise((done) => setTimeout(done, 0));
   assert.equal(requests.length, 3);
-  assert.equal(requests[2].offsets, undefined);
+  assert.equal(requests[2].offset, undefined);
   assert.equal(session.following, true);
-  assert.deepEqual(session.streams, latest.streams);
+  assert.deepEqual(session.page, latest.page);
   session.stop();
 });
 
@@ -233,7 +225,7 @@ test("hidden/closed session ignores stale success and never schedules another re
   );
   session.start();
   session.stop();
-  resolve({ bash: { ...bash, status: "running" }, streams: [chunk("late")] });
+  resolve({ bash: { ...bash, status: "running" }, page: chunk("late") });
   await new Promise((done) => setTimeout(done, 15));
   assert.equal(count, 1);
   assert.equal(published, 0);
@@ -254,7 +246,7 @@ test("stale errors cannot overwrite a restarted session; running sessions poll o
         });
       return Promise.resolve({
         bash: { ...bash, status: "running" },
-        streams: [chunk("ok")],
+        page: chunk("ok"),
       });
     },
     (_, error) => failures.push(error),
@@ -281,14 +273,14 @@ test("earlier output inside the window budget keeps following live output", asyn
     "bash1",
     async (params) => {
       requests.push(params);
-      const offset = params.offsets?.combined;
-      const stream =
+      const offset = params.offset;
+      const page =
         offset === undefined
           ? tail
           : offset === 0
             ? chunk("x".repeat(PAGE_BYTES), 0, tail.totalBytes)
             : chunk("", offset, tail.totalBytes);
-      return { bash: { ...bash, status: "running" }, streams: [stream] };
+      return { bash: { ...bash, status: "running" }, page };
     },
     () => {},
     5,
@@ -297,8 +289,8 @@ test("earlier output inside the window budget keeps following live output", asyn
   await new Promise((done) => setTimeout(done, 0));
   await session.load("earlier");
   assert.equal(session.following, true);
-  assert.equal(session.streams[0].offset, 0);
-  assert.equal(session.streams[0].nextOffset, tail.nextOffset);
+  assert.equal(session.page!.offset, 0);
+  assert.equal(session.page!.nextOffset, tail.nextOffset);
   await new Promise((done) => setTimeout(done, 15));
   assert.ok(requests.length > 2);
   session.stop();
@@ -312,11 +304,11 @@ test("catches up immediately while the capture is ahead of the window", async ()
     "bash1",
     async (params) => {
       requests.push(params);
-      const offset = params.offsets?.combined ?? 0;
+      const offset = params.offset ?? 0;
       const end = Math.min(total, offset + PAGE_BYTES);
       return {
         bash,
-        streams: [chunk("x".repeat(end - offset), offset, total)],
+        page: chunk("x".repeat(end - offset), offset, total),
       };
     },
     () => {},
@@ -324,29 +316,29 @@ test("catches up immediately while the capture is ahead of the window", async ()
   );
   session.start();
   await new Promise((done) => setTimeout(done, 20));
-  assert.equal(session.streams[0].nextOffset, total);
+  assert.equal(session.page!.nextOffset, total);
   assert.equal(requests.length, 3);
   session.stop();
 });
 
-test("projects byte windows into stable, terminal-like lines", () => {
-  const first = asyncBashLogLines([
+test("projects the byte window into stable, terminal-like lines", () => {
+  const first = asyncBashLogLines(
     chunk("tail of a\nb\r\nprogress 1\rprogress 2\npart", 10),
-  ]);
+  );
   assert.deepEqual(
     first.map((line) => [line.key, line.text]),
     [
-      ["combined:20", "b"],
-      ["combined:23", "progress 2"],
-      ["combined:45", "part"],
+      ["20", "b"],
+      ["23", "progress 2"],
+      ["45", "part"],
     ],
   );
-  const appended = asyncBashLogLines([
+  const appended = asyncBashLogLines(
     chunk("b\r\nprogress 1\rprogress 2\npartial line\n", 20),
-  ]);
+  );
   assert.deepEqual(
     appended.map((line) => line.key),
-    ["combined:23", "combined:45"],
+    ["23", "45"],
   );
   assert.equal(appended.at(-1)?.text, "partial line");
 });

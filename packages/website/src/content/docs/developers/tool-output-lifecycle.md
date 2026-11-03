@@ -19,7 +19,7 @@ A running call has an execution claim. Recovery retries only tools declared safe
 
 | Boundary              | Responsibility                                                                                      |
 | --------------------- | --------------------------------------------------------------------------------------------------- |
-| Process capture       | Preserve captured stdout/stderr in managed files, reporting capture truncation.                     |
+| Process capture       | Preserve output in one arrival-order managed file, reporting capture truncation.                    |
 | Live updates          | Send ephemeral text, argument, progress and output deltas; bounded delivery may merge or drop them. |
 | Complete result       | Preserve recoverable payload bytes in owner-scoped assets when bounding requires them.              |
 | Agent projection      | Apply the catalog's semantic result policy and byte/line/item strategy.                             |
@@ -29,13 +29,13 @@ The contracts define the durable facts and live delta shapes. `packages/tools/sr
 
 ## Final results and process logs
 
-Every active catalog tool declares a semantic result policy. A fitting canonical candidate is unchanged. Overflow uses a strategy such as continuation-aware source heads, process diagnostics, whole-item listings or artifact indexes. Exact payload recovery is owner/digest verified; managed result files live beneath `data/conversations/<conversationId>/tool-calls/<toolCallId>/`.
+Every active catalog tool declares a semantic result policy. A fitting canonical candidate is unchanged. Overflow uses a strategy such as continuation-aware source heads, process head/tail views, whole-item listings or artifact indexes. Exact payload recovery is owner/digest verified; managed result files live beneath `data/conversations/<conversationId>/tool-calls/<toolCallId>/`.
 
-Foreground Bash, promotion, async Bash notices, process log reads and launch exit notices share the `process_diagnostics` projection. Up to 84 lines and 12 KB stays inline without a file path. Larger output uses a 16-line, 4 KB summary with head, tail and diagnostic lines selected from the whole captured file, plus paths for `read`/`grep`. Capture truncation at 16 MiB is reported. These are candidate-payload budgets, not strict total response caps: status, truncation and path formatting can add text. They are not performance claims.
+Foreground Bash, promotion, async Bash notices, process log reads and launch exit notices share the `process_output` projection; `python_exec` uses `script_output`, which allows 24 KB inline. Up to 400 lines and 12 KB stays inline without a file path. Larger output shows contiguous head and tail lines within 8 KB and 200 lines, biased toward the tail, and ends with a notice stating the lines shown, the bytes omitted and the one capture file to inspect with `read` or `grep`. Capture truncation at 16 MiB is reported. These are candidate-payload budgets, not strict total response caps: status, truncation and path formatting can add text. They are not performance claims.
 
-Async Bash captures `stdout.txt`, `stderr.txt` and interleaved `output.txt` as conversation-owned assets. Launch logs live under `data/launches/<launchId>/`. `async_bash logs` and `launch logs` use a 0-based `offset` and `limit` (default 100, maximum 500); omitted offset returns the last lines. Pages report ranges, status, a next offset when needed and a path when the page does not cover all output.
+Bash, async Bash and `python_exec` capture one `output.txt` with both streams in arrival order as a conversation-owned asset. Launch logs live under `data/launches/<launchId>/`. `async_bash logs` and `launch logs` use a 0-based `offset` and `limit` (default 100, maximum 500); omitted offset returns the last lines. Pages report ranges, status, a next offset when needed and a path when the page does not cover all output.
 
-A promoted Bash call settles with its async run identity; later completion arrives as a queued `async_bash_event`, not another settlement of the original tool call. Sub-agent final responses have a separate notice cap, spilling the full text to the child's report file.
+A promoted Bash call settles with its async run identity; later completion arrives as a queued `async_bash_event`, not another settlement of the original tool call. Sub-agent responses are capped at 50 KiB in the completion notice and in `subagent_status`, spilling the full text to the child's report file; after a failure, interruption or stop the text is labelled as the last message rather than a report.
 
 ## Transcript presentation
 

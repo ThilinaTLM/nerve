@@ -113,7 +113,7 @@ export class AsyncBashService {
     const {
       conversationId,
       bashId,
-      offsets,
+      offset,
       limit = 65536,
     } = asyncBashLogsRequestSchema.parse(input);
     const bash = this.options.storage.asyncBash.get(bashId);
@@ -130,16 +130,9 @@ export class AsyncBashService {
       asset.logicalPath.endsWith("/output.txt"),
     );
     const page = combined
-      ? await this.options.assets.readTextPage(
-          combined.id,
-          offsets?.combined,
-          limit,
-        )
+      ? await this.options.assets.readTextPage(combined.id, offset, limit)
       : { text: "", offset: 0, nextOffset: 0, totalBytes: 0 };
-    const streams: AsyncBashLogsResponse["streams"] = [
-      { stream: "combined", ...page },
-    ];
-    return { bash, streams };
+    return { bash, page };
   }
 
   private outputFiles(assets: Asset[]): { combined?: string } {

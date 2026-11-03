@@ -87,7 +87,7 @@ async function fixture(processes: ProcessPort = {} as ProcessPort) {
     },
     read: (
       page: {
-        offsets?: { combined?: number };
+        offset?: number;
         limit?: number;
       } = {},
     ) =>
@@ -110,32 +110,17 @@ void test("completed history tails and appends byte pages of the combined output
     const tail = await f.read({ limit: 4 });
     assert.deepEqual(tail, {
       bash: f.bash,
-      streams: [
-        {
-          stream: "combined",
-          text: "6789",
-          offset: 6,
-          nextOffset: 10,
-          totalBytes: 10,
-        },
-      ],
+      page: { text: "6789", offset: 6, nextOffset: 10, totalBytes: 10 },
     });
-    assert.equal(
-      (await f.read({ offsets: { combined: 0 }, limit: 4 })).streams[0]!.text,
-      "0123",
-    );
+    assert.equal((await f.read({ offset: 0, limit: 4 })).page.text, "0123");
     await appendFile(f.assets.path(asset.logicalPath), "abc");
-    assert.deepEqual((await f.read({ offsets: { combined: 10 } })).streams[0], {
-      stream: "combined",
+    assert.deepEqual((await f.read({ offset: 10 })).page, {
       text: "abc",
       offset: 10,
       nextOffset: 13,
       totalBytes: 13,
     });
-    assert.equal(
-      (await f.read({ offsets: { combined: 999 } })).streams[0]!.nextOffset,
-      13,
-    );
+    assert.equal((await f.read({ offset: 999 })).page.nextOffset, 13);
     // Existing agent diagnostics remain a formatted string API.
     assert.match(
       await f.service.logs("conv_1", "bash_1"),
@@ -151,12 +136,8 @@ void test("log pages enforce ownership and the total byte budget", async () => {
   try {
     await f.output("output", "a".repeat(100000));
     const page = await f.read();
-    assert.deepEqual(
-      page.streams.map((stream) => stream.stream),
-      ["combined"],
-    );
-    assert.equal(Buffer.byteLength(page.streams[0]!.text), 65536);
-    assert.equal(page.streams[0]!.totalBytes, 100000);
+    assert.equal(Buffer.byteLength(page.page.text), 65536);
+    assert.equal(page.page.totalBytes, 100000);
     for (const input of [
       { conversationId: "foreign", bashId: "bash_1" },
       { conversationId: "conv_1", bashId: "unknown" },
@@ -167,7 +148,7 @@ void test("log pages enforce ownership and the total byte budget", async () => {
       );
     for (const limit of [0, -1, 65537, 1.5])
       await assert.rejects(f.read({ limit }));
-    await assert.rejects(f.read({ offsets: { combined: -1 } }));
+    await assert.rejects(f.read({ offset: -1 }));
   } finally {
     await f.close();
   }
@@ -177,38 +158,24 @@ void test("UTF-8 pages skip partial starts and retain partial ends for the next 
   const f = await fixture();
   try {
     const asset = await f.output("output", "a😀éZ");
-    assert.deepEqual((await f.read({ limit: 5 })).streams[0], {
-      stream: "combined",
+    assert.deepEqual((await f.read({ limit: 5 })).page, {
       text: "éZ",
       offset: 5,
       nextOffset: 8,
       totalBytes: 8,
     });
-    assert.equal(
-      (await f.read({ offsets: { combined: 0 }, limit: 4 })).streams[0]!.text,
-      "a",
-    );
-    assert.deepEqual(
-      (await f.read({ offsets: { combined: 1 }, limit: 4 })).streams[0],
-      {
-        stream: "combined",
-        text: "😀",
-        offset: 1,
-        nextOffset: 5,
-        totalBytes: 8,
-      },
-    );
+    assert.equal((await f.read({ offset: 0, limit: 4 })).page.text, "a");
+    assert.deepEqual((await f.read({ offset: 1, limit: 4 })).page, {
+      text: "😀",
+      offset: 1,
+      nextOffset: 5,
+      totalBytes: 8,
+    });
     const path = f.assets.path(asset.logicalPath);
     await writeFile(path, Buffer.from([0x61, 0xf0, 0x9f]));
-    assert.equal(
-      (await f.read({ offsets: { combined: 0 } })).streams[0]!.nextOffset,
-      1,
-    );
+    assert.equal((await f.read({ offset: 0 })).page.nextOffset, 1);
     await appendFile(path, Buffer.from([0x98, 0x80]));
-    assert.equal(
-      (await f.read({ offsets: { combined: 1 } })).streams[0]!.text,
-      "😀",
-    );
+    assert.equal((await f.read({ offset: 1 })).page.text, "😀");
   } finally {
     await f.close();
   }
@@ -217,13 +184,16 @@ void test("UTF-8 pages skip partial starts and retain partial ends for the next 
 void test("missing outputs are empty and unsafe asset files never expose paths", async () => {
   const f = await fixture();
   try {
-    assert.ok((await f.read()).streams.every((stream) => stream.text === ""));
+    assert.equal((await f.read()).page.text, "");
     const asset = await f.output("output", "hello");
     const path = f.assets.path(asset.logicalPath);
     await rm(path);
-    assert.deepEqual((await f.read()).streams, [
-      { stream: "combined", text: "", offset: 0, nextOffset: 0, totalBytes: 0 },
-    ]);
+    assert.deepEqual((await f.read()).page, {
+      text: "",
+      offset: 0,
+      nextOffset: 0,
+      totalBytes: 0,
+    });
     await symlink("/etc/passwd", path);
     await assert.rejects(f.read(), { message: "Unable to read log asset" });
     assert.throws(

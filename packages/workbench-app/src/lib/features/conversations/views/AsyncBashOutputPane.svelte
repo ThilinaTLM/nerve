@@ -6,7 +6,7 @@ import { FloatingToolbar } from "@nervekit/ui-kit/components/composites/floating
 import LogStream from "$lib/presentation/logs/LogStream.svelte";
 import {
   asyncBashLogLines,
-  type LogStream as LogWindow,
+  type LogPage,
 } from "../state/async-bash-log-window";
 import AsyncBashStatusIcon from "./AsyncBashStatusIcon.svelte";
 
@@ -14,7 +14,7 @@ let {
   bashId,
   bash,
   command,
-  streams = [],
+  page,
   error,
   elapsed,
   detached = false,
@@ -26,7 +26,7 @@ let {
   bashId: string;
   bash?: AsyncBash;
   command?: string;
-  streams?: LogWindow[];
+  page?: LogPage;
   error?: string;
   elapsed?: string;
   /** Paged back far enough that the window no longer holds live output. */
@@ -37,7 +37,7 @@ let {
   onStop: () => void;
 } = $props();
 
-const lines = $derived(asyncBashLogLines(streams));
+const lines = $derived(asyncBashLogLines(page));
 </script>
 
 <section
@@ -50,7 +50,7 @@ const lines = $derived(asyncBashLogLines(streams));
     emptyLabel={bash ? "No output yet." : "Loading output…"}
     {lines}
     command={bash?.command ?? command}
-    hasMoreBefore={streams.some((stream) => stream.offset > 0)}
+    hasMoreBefore={(page?.offset ?? 0) > 0}
     {detached}
     loadError={error}
     {onLoadEarlier}
