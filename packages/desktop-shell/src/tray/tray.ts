@@ -121,7 +121,7 @@ export function createTrayController(
         },
         { type: "separator" },
         {
-          label: "Restart Graphics Process",
+          label: "Restart UI",
           click: restartGraphics,
         },
         { type: "separator" },
@@ -151,6 +151,8 @@ export function createTrayController(
           : "Restarted GPU process from tray",
         { context: { pid } },
       );
+      // Hard reload (Ctrl+F5) so the UI also re-fetches its assets.
+      dependencies.getMainWindow()?.webContents.reloadIgnoringCache();
     } catch (error) {
       void desktopLog("error", "tray", "Failed to restart GPU process", {
         error,
