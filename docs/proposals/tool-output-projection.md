@@ -1,6 +1,6 @@
 # Tool output projection budgets
 
-> **Status:** Proposal. This document describes intended behavior, not current behavior.
+> **Status:** Changes 1–8 and the stored-output follow-up are implemented on `feat/tool-output-projection`. Change 9 (clearing old tool output) remains a proposal. Measurements below describe behavior before the changes.
 
 ## Summary
 
@@ -286,21 +286,29 @@ Resolution:
 
 ## Rollout and validation
 
-- Ship 1–8 in one PR. The baseline is this proposal's heuristic analysis.
-- Implement 1–5 in `profiles.ts`, `process-output.ts`, `candidates/process.ts`, the process policy and the `bash` tool description, with unit tests for:
-  - the inline threshold and line ceiling
-  - head/tail overflow and notice text, including the single output path
-  - removal of keyword diagnostics
-  - single-owner projection, so producer-projected output is not cut again
-- Implement 6 in `profiles.ts`, with a unit test that a 500-line, 20 KB file is returned in one page and a file above 50 KB continues at the right offset.
-- Implement 7 as a constant change, adjusting the existing truncation test in `delegation-tools.test.ts`.
-- Implement 8 with a contract update and a payload codec test.
-- Propose 9 separately, using data from persisted snapshots.
-- After about two weeks, rerun the analysis using persisted snapshots. Success criteria:
-  - The share of reduced process results that are recovered drops from about 62% to below 25%.
-  - Recovery-only turns drop by at least half.
-  - Default `read` calls followed by a continuation drop from 41% to below 10%.
-  - Mean context tokens per conversation do not grow by more than a few percent.
+Implemented in one PR, with unit tests for:
+
+- the inline threshold and line ceiling
+- head/tail overflow and notice text, including the single output path
+- removal of keyword diagnostics
+- single-owner projection, so producer-projected output is not cut again
+- `python_exec` projection through the shared function
+- size-based `read` pages
+- persisted projection snapshots and once-stored result text
+- the single capture file and migration 0003, including rollback and re-runs
+
+Migration 0003 was rehearsed on a copy of a production-like home and on the 0.34.1 snapshot through 0001 → 0002 → 0003, followed by the read-only history gate. An end-to-end run on a dev instance covered inline and reduced bash, a failing command, large `python_exec` output, a background run and its log page, and a 50 KB `read` page.
+
+Change 9 is proposed separately, using data from persisted snapshots.
+
+### Measuring the result
+
+After about two weeks, rerun the analysis using `agentProjectionSnapshot` instead of notice-text heuristics. Success criteria:
+
+- The share of reduced process results that are recovered drops from about 62% to below 25%.
+- Recovery-only turns drop by at least half.
+- Default `read` calls followed by a continuation drop from 41% to below 10%.
+- Mean context tokens per conversation do not grow by more than a few percent, and compaction frequency does not rise noticeably.
 
 ## Methodology notes
 
