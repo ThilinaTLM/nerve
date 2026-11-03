@@ -85,3 +85,29 @@ void test("waiting notice commands match the fixture", () => {
     fixture.noticeWaiting,
   );
 });
+
+void test("named status labels the last message by outcome", () => {
+  const named = (state: ChildStatus["state"], failure: string | null = null) =>
+    formatNamedStatus(
+      {
+        child: child({ state, runningSince: null }),
+        finalResponse: "text",
+        failure,
+        activity: [],
+      },
+      NOW,
+    )
+      .split("\n")
+      .slice(1)
+      .join("\n");
+  assert.equal(named("idle"), "Final response:\ntext");
+  assert.equal(
+    named("failed", "boom"),
+    "Outcome: failed: boom\nLast message:\ntext",
+  );
+  assert.equal(
+    named("interrupted"),
+    "Outcome: interrupted\nLast message:\ntext",
+  );
+  assert.equal(named("stopped"), "Outcome: stopped\nLast message:\ntext");
+});

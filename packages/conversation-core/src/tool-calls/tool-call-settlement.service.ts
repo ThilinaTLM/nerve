@@ -142,6 +142,7 @@ export class ToolCallSettlement {
             this.executionStarts.get(row.id) ??
             (row.state === "running" ? row.updatedAt : undefined),
           agentProjection: prepared.agentProjection,
+          agentProjectionSnapshot: prepared.agentProjectionSnapshot,
           userProjection: prepared.userProjection,
           supervision: row.supervision,
           interactionResolution: row.interaction?.resolution ?? null,

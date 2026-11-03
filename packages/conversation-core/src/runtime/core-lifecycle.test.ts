@@ -389,7 +389,7 @@ for (const action of ["stop", "forcePush"] as const) {
                 result: { content: "late background" },
                 process: {
                   ref: "late-process",
-                  outputFiles: { stdout: "unused", stderr: "unused" },
+                  outputFiles: { combined: "unused" },
                   wait: async () => ({ exitCode: null, status: "cancelled" }),
                   cancel: async () => {
                     backgroundCancelled = true;
@@ -572,7 +572,7 @@ void test(
             result: { content: "background" },
             process: {
               ref: "pending-adoption",
-              outputFiles: { stdout: "unused", stderr: "unused" },
+              outputFiles: { combined: "unused" },
               wait: async () => ({ exitCode: null, status: "cancelled" }),
               cancel: async () => {
                 cancelled = true;

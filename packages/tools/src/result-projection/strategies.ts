@@ -4,7 +4,14 @@ import type {
   ProjectionCount,
 } from "@nervekit/contracts/tools";
 import { ProjectionBudgetLedger } from "./budget-ledger.js";
-import { blocksFit, measureBlocks, textHead, textTail } from "./measure.js";
+import { formatByteSize } from "../execution/output/truncate.js";
+import {
+  blocksFit,
+  measureBlocks,
+  measureText,
+  textHead,
+  textTail,
+} from "./measure.js";
 import { profileBudget, type ProjectionBudget } from "./profiles.js";
 import type {
   ProjectableBlock,
@@ -51,38 +58,138 @@ export function tailText(
   );
 }
 
+const HEAD_TAIL_MAX_LINE_CHARS = 2_000;
+
+/**
+ * Contiguous head and tail lines of `candidate.body` (or its text), with `status` kept whole above them.
+ * The budget's `headShare` splits the space; the notice states the ranges shown and the recovery file.
+ */
 export function headTailText(
   candidate: ProjectionCandidate,
   profile: AgentResultProfileId,
 ): StrategyProjection {
   const budget = profileBudget(profile, "overflow");
-  const notice = overflowNotice(
-    candidate,
-    "Output shortened with a head/tail view.",
+  const prefix = joinText(candidate.status ?? []);
+  const body = (candidate.body ?? joinText(candidate.blocks)).replace(
+    /\r?\n$/,
+    "",
   );
-  const reserved = measureBlocks(notice);
-  const text = candidate.blocks
+  const source = body.length > 0 ? body.split(/\r?\n/) : [];
+  const total = source.length;
+  const locator = recoveryLocator(candidate);
+  const notice = (head: number, tailStart: number, omittedBytes: number) => {
+    const ranges =
+      tailStart >= total
+        ? `lines 1-${head}`
+        : head === 0
+          ? `lines ${tailStart + 1}-${total}`
+          : `lines 1-${head} and ${tailStart + 1}-${total}`;
+    const shown =
+      head >= tailStart
+        ? "Long lines shortened."
+        : `Showing ${ranges} of ${total}; ${formatByteSize(omittedBytes)} omitted.`;
+    return `[${shown}${locator ? ` ${locator}` : ""}]`;
+  };
+  // Reserve the widest notice, the status prefix and the gap marker before selecting lines.
+  const widest = `[Showing lines 1-${total} and ${total}-${total} of ${total}; ${formatByteSize(Buffer.byteLength(body, "utf8"))} omitted.${locator ? ` ${locator}` : ""}]`;
+  const reserved = measureText(`${widest}        `);
+  const prefixSize = prefix ? measureText(prefix) : { bytes: -1, lines: 0 };
+  const maxBytes = Math.max(
+    0,
+    budget.maxBytes - (prefixSize.bytes + 1) - (reserved.bytes + 1) - 4,
+  );
+  const maxLines = Math.max(
+    1,
+    budget.maxLines - prefixSize.lines - reserved.lines - 1,
+  );
+  const shorten = (line: string) =>
+    line.length > HEAD_TAIL_MAX_LINE_CHARS
+      ? `${line.slice(0, HEAD_TAIL_MAX_LINE_CHARS - 1)}…`
+      : line;
+  const share = budget.headShare ?? 0.5;
+  const head: string[] = [];
+  let headBytes = 0;
+  for (const line of source) {
+    if (head.length >= Math.floor(maxLines * share)) break;
+    const shown = shorten(line);
+    const size = Buffer.byteLength(shown, "utf8") + 1;
+    if (headBytes + size > Math.floor(maxBytes * share)) break;
+    head.push(shown);
+    headBytes += size;
+  }
+  const tail: string[] = [];
+  let tailBytes = 0;
+  for (let index = total - 1; index >= head.length; index -= 1) {
+    if (head.length + tail.length >= maxLines) break;
+    const shown = shorten(source[index]);
+    const size = Buffer.byteLength(shown, "utf8") + 1;
+    if (headBytes + tailBytes + size > maxBytes) {
+      // One oversized final line still shows its end rather than nothing.
+      if (head.length === 0 && tail.length === 0)
+        tail.unshift(textTail(shown, maxBytes, 1));
+      break;
+    }
+    tail.unshift(shown);
+    tailBytes += size;
+  }
+  const tailStart = total - tail.length;
+  const shownBytes = [
+    ...source.slice(0, head.length),
+    ...source.slice(tailStart),
+  ].reduce((sum, line) => sum + Buffer.byteLength(line, "utf8") + 1, 0);
+  const omittedBytes = Math.max(
+    0,
+    Buffer.byteLength(body, "utf8") + 1 - shownBytes,
+  );
+  const lines = [
+    ...(prefix ? [prefix] : []),
+    ...head,
+    ...(tailStart > head.length && head.length > 0 && tail.length > 0
+      ? ["…"]
+      : []),
+    ...tail,
+    notice(head.length, tailStart, omittedBytes),
+  ];
+  const blocks: ProjectableBlock[] = [
+    { type: "text", text: lines.join("\n") },
+    ...candidate.blocks.filter((block) => block.type === "image"),
+  ];
+  return withLineCount(candidate, blocks);
+}
+
+function joinText(blocks: readonly ProjectableBlock[]): string {
+  return blocks
     .filter(
       (block): block is Extract<ProjectableBlock, { type: "text" }> =>
         block.type === "text",
     )
     .map((block) => block.text)
     .join("\n");
-  const lines = Math.max(1, budget.maxLines - reserved.lines);
-  const bytes = Math.max(0, budget.maxBytes - reserved.bytes);
-  const head = textHead(text, Math.floor(bytes / 2), Math.ceil(lines / 2));
-  const tail = textTail(
-    text,
-    bytes - Buffer.byteLength(head, "utf8"),
-    Math.floor(lines / 2),
+}
+
+/** One recovery locator: the combined output when retained, else stdout plus non-empty stderr. */
+function recoveryLocator(candidate: ProjectionCandidate): string | undefined {
+  const files = candidate.artifacts.flatMap((item) =>
+    item.availability === "available" &&
+    (item.role === "primary_result" || item.role === "overflow_recovery") &&
+    item.access.kind === "agent_file"
+      ? [{ item, path: item.access.path }]
+      : [],
   );
-  const separator = head && tail ? "\n…\n" : "";
-  const blocks: ProjectableBlock[] = [
-    { type: "text", text: `${head}${separator}${tail}` },
-    ...candidate.blocks.filter((block) => block.type === "image"),
-    ...notice,
-  ];
-  return withLineCount(candidate, blocks);
+  const named = (pattern: RegExp) =>
+    files.find(({ item }) => pattern.test(`${item.id} ${item.label}`));
+  const combined = named(/combined/i);
+  if (combined) return `Full output: ${combined.path}`;
+  const stdout = named(/stdout/i);
+  const stderr = named(/stderr/i);
+  const streams = [
+    stdout && (stdout.item.size.bytes > 0 || !stderr)
+      ? `stdout: ${stdout.path}`
+      : undefined,
+    stderr && stderr.item.size.bytes > 0 ? `stderr: ${stderr.path}` : undefined,
+  ].filter((value): value is string => Boolean(value));
+  if (streams.length > 0) return `Full output: ${streams.join("; ")}`;
+  return files[0] ? `Full output: ${files[0].path}` : undefined;
 }
 
 export function itemAwareHead(
@@ -187,13 +294,6 @@ export function continuationAwareHead(
     { type: "text", text: noticeText },
   ];
   return withLineCount(candidate, blocks);
-}
-
-export function compactDiagnosticIndex(
-  candidate: ProjectionCandidate,
-  profile: AgentResultProfileId,
-): StrategyProjection {
-  return itemAwareHead(candidate, profile);
 }
 
 export function artifactIndex(
@@ -308,14 +408,6 @@ function recoveryText(candidate: ProjectionCandidate): string | undefined {
       (item.role === "primary_result" || item.role === "overflow_recovery") &&
       item.access.kind === "agent_file",
   );
-  if (candidate.overflow?.noun === "output line") {
-    const paths = recoverable.flatMap((item) =>
-      item.access.kind === "agent_file" ? [`File: ${item.access.path}`] : [],
-    );
-    return paths.length
-      ? `${paths.join("\n")}\nUse read/grep for details.`
-      : undefined;
-  }
   const combined = recoverable.find(
     (item) =>
       item.id.includes("combined") ||

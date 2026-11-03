@@ -6,5 +6,9 @@
   "0002-agent-profiles": {
     "checksum": "4bc089e0c758119861523ef4234aa6f008206334d0a65cd524293c9908ca646e",
     "stage": "draft"
+  },
+  "0003-process-output-files": {
+    "checksum": "119be1caaafe005905a69b6cbfe495d99da383cfddb5882fbd5feb3a59d23ffd",
+    "stage": "draft"
   }
 }

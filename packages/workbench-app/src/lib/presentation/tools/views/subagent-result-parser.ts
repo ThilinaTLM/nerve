@@ -189,7 +189,9 @@ export type SubagentNotice = {
   reportPath?: string;
 };
 
-const TRUNCATION = /\n?\[truncated; full response: ([^\]\n]+)\]\s*$/;
+// Older notices used `[truncated; full response: path]`.
+const TRUNCATION =
+  /\n?\[(?:truncated; full response: |Showing the first [^\]\n]*? omitted\. Full response: )([^\]\n]+)\]\s*$/;
 
 /**
  * The completion notice sent to the lead:
@@ -224,7 +226,9 @@ export function parseSubagentNotice(
   const truncated = TRUNCATION.exec(afterFirst);
   const response = (
     truncated ? afterFirst.slice(0, truncated.index) : afterFirst
-  ).trim();
+  )
+    .replace(/^Last message:\n/, "")
+    .trim();
   return {
     name,
     profile,

@@ -19,7 +19,7 @@ void test("readiness matches combined stderr and does not stop a process on read
     let cancelled = false;
     const process = {
       ref: "process",
-      outputFiles: { stdout, stderr, combined },
+      outputFiles: { combined },
       wait: () => new Promise(() => {}),
       cancel: async () => {
         cancelled = true;

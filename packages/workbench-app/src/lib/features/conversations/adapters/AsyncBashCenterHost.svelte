@@ -8,7 +8,7 @@ import { workspaceState } from "$lib/application/workspace/workspace-state.svelt
 import AsyncBashOutputPane from "../views/AsyncBashOutputPane.svelte";
 import {
   AsyncBashLogSession,
-  type LogStream,
+  type LogPage,
 } from "../state/async-bash-log-window";
 import { asyncBashTabs } from "../state/async-bash-tabs.svelte";
 
@@ -18,7 +18,7 @@ const tab = $derived(
     : undefined,
 );
 let bash = $state<AsyncBash>();
-let streams = $state<LogStream[]>([]);
+let page = $state<LogPage>();
 let error = $state<string>();
 let session = $state<AsyncBashLogSession>();
 let stopping = $state(false);
@@ -36,7 +36,7 @@ $effect(() => {
     selected ? asyncBashTabs.commands[selected.id] : undefined,
   );
   bash = initialBash;
-  streams = [];
+  page = undefined;
   error = undefined;
   stopping = false;
   detached = false;
@@ -50,7 +50,7 @@ $effect(() => {
     (params) => requestConversation("asyncBash.logs", params),
     (state, failure) => {
       bash = state.bash ?? bash;
-      streams = state.streams;
+      page = state.page;
       error = failure;
       detached = !state.following;
       now = Date.now();
@@ -100,7 +100,7 @@ async function stop() {
       bashId={tab.id}
       {bash}
       command={tab.command}
-      {streams}
+      {page}
       {error}
       {elapsed}
       {detached}

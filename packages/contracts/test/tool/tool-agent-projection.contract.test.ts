@@ -104,8 +104,8 @@ describe("agent projection contracts", () => {
     assert.equal(
       agentProjectionSnapshotSchema.safeParse({
         version: 1,
-        profile: "process_diagnostics",
-        strategy: "compact_diagnostic",
+        profile: "process_output",
+        strategy: "head_tail",
         terminalOutcomePrecedence: false,
         fastPath: false,
         recovery: "artifact",

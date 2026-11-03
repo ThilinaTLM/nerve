@@ -1,6 +1,7 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { SUBAGENT_REPORT_INLINE_BYTES } from "@nervekit/contracts/subagents";
+import { formatByteSize } from "@nervekit/tools/result-projection";
 import type { ConversationCore, ExecutionFinished } from "../core.js";
 
 export function finalAssistantText(
@@ -46,5 +47,14 @@ export function inlineReport(
     .subarray(0, SUBAGENT_REPORT_INLINE_BYTES)
     .toString("utf8")
     .replace(/\uFFFD+$/u, "");
-  return `${head}\n[truncated; full response: ${path}]`;
+  const omitted = bytes.length - Buffer.byteLength(head, "utf8");
+  return `${head}\n[Showing the first ${formatByteSize(bytes.length - omitted)} of ${formatByteSize(bytes.length)}; ${formatByteSize(omitted)} omitted. Full response: ${path}]`;
+}
+
+/**
+ * Labels a child's last message. Only a completed execution ends with a report; after a failure,
+ * interruption or stop the last message is often mid-task narration and must not read as one.
+ */
+export function lastMessageLabel(finished: boolean): string {
+  return finished ? "Final response:" : "Last message:";
 }

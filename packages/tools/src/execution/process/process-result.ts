@@ -3,8 +3,10 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { ToolOutputLimitsPayload } from "@nervekit/contracts/tools";
+import { blocksFit } from "../../result-projection/measure.js";
+import { profileBudget } from "../../result-projection/profiles.js";
+import { projectAgentContent } from "./process-agent-content.js";
 import type { ToolExecutionResult } from "../execution-context.js";
-import type { ProcessOutputChunk } from "../output/bounded-process-output.js";
 import {
   appendBoundedTextNotice,
   type BoundedTextResult,
@@ -45,7 +47,6 @@ export type ProcessResultOptions = {
   stdoutChunks: Buffer[];
   stderrChunks: Buffer[];
   combinedChunks: Buffer[];
-  orderedChunks?: ProcessOutputChunk[];
   code: number | null;
   signal: NodeJS.Signals | null;
   outputFilePrefix: string;
@@ -59,6 +60,11 @@ export type ProcessResultOptions = {
   timeoutMessage?: string;
   contentFooterLines?: string[];
   recoveryFiles?: ProcessRecoveryFiles;
+  /**
+   * When set, the content is the final agent projection for this profile (the same projection the tool
+   * result service applies), and its snapshot is returned in `details.agentProjectionSnapshot`.
+   */
+  agentProfile?: "process_output" | "script_output";
 };
 
 export type ProcessTextResultOptions = {
@@ -92,12 +98,8 @@ type BuiltStreamResult = ProcessStreamResultDetails & {
 };
 
 export type ProcessRecoveryFiles = {
-  stdoutPath: string;
-  stderrPath: string;
-  combinedPath?: string;
-  stdoutBytes: number;
-  stderrBytes: number;
-  combinedBytes?: number;
+  combinedPath: string;
+  combinedBytes: number;
 };
 
 export async function buildProcessTextResult({
@@ -114,7 +116,6 @@ export async function buildProcessTextResult({
     stdoutChunks: text.length > 0 ? [buffer] : [],
     stderrChunks: [],
     combinedChunks: text.length > 0 ? [buffer] : [],
-    orderedChunks: text.length > 0 ? [{ stream: "stdout", data: buffer }] : [],
     code: 0,
     signal: null,
     outputFilePrefix,
@@ -130,7 +131,6 @@ export async function buildProcessResult({
   stdoutChunks,
   stderrChunks,
   combinedChunks,
-  orderedChunks,
   code,
   signal,
   outputFilePrefix,
@@ -144,6 +144,7 @@ export async function buildProcessResult({
   timeoutMessage,
   contentFooterLines = [],
   recoveryFiles,
+  agentProfile,
 }: ProcessResultOptions): Promise<ToolExecutionResult> {
   const stdout = Buffer.concat(stdoutChunks).toString("utf8");
   const stderr = Buffer.concat(stderrChunks).toString("utf8");
@@ -158,28 +159,28 @@ export async function buildProcessResult({
   const recovery =
     recoveryFiles ??
     (artifactDir && hasOutput
-      ? await writeRecoveryFiles(
-          artifactDir,
-          orderedChunks,
-          stdoutChunks,
-          stderrChunks,
-        )
+      ? await writeRecoveryFiles(artifactDir, combinedChunks)
       : undefined);
+  const exceedsAgentInline =
+    agentProfile !== undefined &&
+    hasOutput &&
+    !blocksFit(
+      [{ type: "text", text: combined }],
+      profileBudget(agentProfile, "inline"),
+    );
   const fullOutputPath =
     recovery?.combinedPath ??
-    (boundedOutput
+    (boundedOutput || (exceedsAgentInline && !recovery)
       ? await writeTranscriptFile({ outputFilePrefix, text: combined })
       : undefined);
 
   const stdoutStream = buildStreamResult({
     label: "stdout",
     text: stdout,
-    savedTo: recovery?.stdoutPath,
   });
   const stderrStream = buildStreamResult({
     label: "stderr",
     text: stderr,
-    savedTo: recovery?.stderrPath,
   });
   const combinedStream = buildStreamResult({
     label: "output",
@@ -196,8 +197,39 @@ export async function buildProcessResult({
       ? textBoundaryDetails(boundedCombined)
       : undefined;
 
+  const footerLines = [...contentFooterLines];
+  if (timedOut) {
+    footerLines.push(
+      timeoutMessage ??
+        `${exitMessagePrefix} timed out and ${timeoutKilled ? "was killed" : "was not killed"}.`,
+    );
+  }
+  // The agent projection's status already states the exit code.
+  const agentFooterLines = [...footerLines];
+  if (exitCode !== 0) {
+    footerLines.push(`${exitMessagePrefix} exited with code ${exitCode}.`);
+  }
+  const agentProjection =
+    agentProfile && hasOutput
+      ? projectAgentContent({
+          profile: agentProfile,
+          combined,
+          footerLines: agentFooterLines,
+          status: [
+            `Process exit code ${exitCode}.`,
+            signal ? `Signal: ${signal}` : undefined,
+            timedOut ? "Timed out: yes" : undefined,
+            durationMs !== undefined ? `Duration: ${durationMs} ms` : undefined,
+          ],
+          recovery,
+          fullOutputPath,
+        })
+      : undefined;
+
   let content = noOutputText;
-  if (hasOutput && outputPreview) {
+  if (agentProjection) {
+    content = agentProjection.text;
+  } else if (hasOutput && outputPreview) {
     content = formatLargeOutputContent({
       exitMessagePrefix,
       fullOutputPath: fullOutputPath ?? "",
@@ -229,17 +261,7 @@ export async function buildProcessResult({
     content = combined;
   }
 
-  const footerLines = [...contentFooterLines];
-  if (timedOut) {
-    footerLines.push(
-      timeoutMessage ??
-        `${exitMessagePrefix} timed out and ${timeoutKilled ? "was killed" : "was not killed"}.`,
-    );
-  }
-  if (exitCode !== 0) {
-    footerLines.push(`${exitMessagePrefix} exited with code ${exitCode}.`);
-  }
-  if (footerLines.length > 0) {
+  if (!agentProjection && footerLines.length > 0) {
     content += `${content.endsWith("\n") ? "" : "\n"}${footerLines.join("\n")}`;
   }
 
@@ -255,7 +277,11 @@ export async function buildProcessResult({
       durationMs,
       timedOut,
       timeoutKilled,
-      processStatusIncluded: timedOut || exitCode !== 0,
+      processStatusIncluded:
+        agentProjection !== undefined || timedOut || exitCode !== 0,
+      ...(agentProjection
+        ? { agentProjectionSnapshot: agentProjection.snapshot }
+        : {}),
       truncation: outputTruncation,
       outputLimits: processOutputLimits({
         existing: (details as { outputLimits?: ToolOutputLimitsPayload })
@@ -321,48 +347,18 @@ function processOutputLimits({
     ...(recovery
       ? [
           {
-            id: "stdout",
+            id: "combined",
             role: "overflow_recovery" as const,
-            path: recovery.stdoutPath,
+            path: recovery.combinedPath,
             format: {
               kind: "text" as const,
               mediaType: "text/plain",
               encoding: "utf-8" as const,
             },
-            bytes: recovery.stdoutBytes,
-            label: "Retained stdout",
+            bytes: recovery.combinedBytes,
+            label: "Retained combined output",
             recommendedTools: ["read", "grep"] as ("read" | "grep")[],
           },
-          {
-            id: "stderr",
-            role: "overflow_recovery" as const,
-            path: recovery.stderrPath,
-            format: {
-              kind: "text" as const,
-              mediaType: "text/plain",
-              encoding: "utf-8" as const,
-            },
-            bytes: recovery.stderrBytes,
-            label: "Retained stderr",
-            recommendedTools: ["read", "grep"] as ("read" | "grep")[],
-          },
-          ...(recovery.combinedPath
-            ? [
-                {
-                  id: "combined",
-                  role: "overflow_recovery" as const,
-                  path: recovery.combinedPath,
-                  format: {
-                    kind: "text" as const,
-                    mediaType: "text/plain",
-                    encoding: "utf-8" as const,
-                  },
-                  bytes: recovery.combinedBytes,
-                  label: "Retained combined output in observed callback order",
-                  recommendedTools: ["read", "grep"] as ("read" | "grep")[],
-                },
-              ]
-            : []),
         ]
       : fullOutputPath
         ? [
@@ -625,54 +621,16 @@ function formatBoundedOutputContent({
   return lines.join("\n");
 }
 
+/** One raw capture in arrival order, so line numbers in agent notices match the file. */
 async function writeRecoveryFiles(
   artifactDir: string,
-  orderedChunks: ProcessOutputChunk[] | undefined,
-  stdoutChunks: Buffer[],
-  stderrChunks: Buffer[],
+  combinedChunks: Buffer[],
 ): Promise<ProcessRecoveryFiles> {
   await mkdir(artifactDir, { recursive: true, mode: 0o700 });
-  const stdoutBytes = Buffer.concat(
-    orderedChunks
-      ? orderedChunks
-          .filter((chunk) => chunk.stream === "stdout")
-          .map((chunk) => chunk.data)
-      : stdoutChunks,
-  );
-  const stderrBytes = Buffer.concat(
-    orderedChunks
-      ? orderedChunks
-          .filter((chunk) => chunk.stream === "stderr")
-          .map((chunk) => chunk.data)
-      : stderrChunks,
-  );
-  const stdoutPath = join(artifactDir, "stdout.txt");
-  const stderrPath = join(artifactDir, "stderr.txt");
-  await Promise.all([
-    writeFile(stdoutPath, stdoutBytes, { mode: 0o600 }),
-    writeFile(stderrPath, stderrBytes, { mode: 0o600 }),
-  ]);
-  let combinedPath: string | undefined;
-  let combinedBytes: Buffer | undefined;
-  if (orderedChunks) {
-    combinedBytes = Buffer.concat(
-      orderedChunks.flatMap((chunk) => [
-        Buffer.from(`[${chunk.stream}]\n`, "utf8"),
-        chunk.data,
-        chunk.data.at(-1) === 0x0a ? Buffer.alloc(0) : Buffer.from("\n"),
-      ]),
-    );
-    combinedPath = join(artifactDir, "combined.txt");
-    await writeFile(combinedPath, combinedBytes, { mode: 0o600 });
-  }
-  return {
-    stdoutPath,
-    stderrPath,
-    ...(combinedPath ? { combinedPath } : {}),
-    stdoutBytes: stdoutBytes.byteLength,
-    stderrBytes: stderrBytes.byteLength,
-    ...(combinedBytes ? { combinedBytes: combinedBytes.byteLength } : {}),
-  };
+  const combined = Buffer.concat(combinedChunks);
+  const combinedPath = join(artifactDir, "output.txt");
+  await writeFile(combinedPath, combined, { mode: 0o600 });
+  return { combinedPath, combinedBytes: combined.byteLength };
 }
 
 async function writeTranscriptFile({

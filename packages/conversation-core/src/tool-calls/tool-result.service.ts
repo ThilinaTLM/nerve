@@ -8,10 +8,14 @@ import type {
   ToolCallOutcome,
 } from "@nervekit/contracts/core";
 import type {
+  AgentProjectionSnapshot,
   ToolExecutionResultPayload,
   ValidatedToolArtifact,
 } from "@nervekit/contracts/tools";
-import { toolArtifactClaimSchema } from "@nervekit/contracts/tools";
+import {
+  agentProjectionSnapshotSchema,
+  toolArtifactClaimSchema,
+} from "@nervekit/contracts/tools";
 import {
   toolDefinitionByName,
   type ToolDefinition,
@@ -31,6 +35,7 @@ export async function prepareToolResult(
   definition?: ToolDefinition,
 ): Promise<{
   agentProjection: AgentProjection;
+  agentProjectionSnapshot: AgentProjectionSnapshot;
   userProjection: ToolUserProjection;
   assetIds: string[];
 }> {
@@ -70,7 +75,7 @@ export async function prepareToolResult(
     ...planReviewDisplayResult(call, outcome, result),
     ...(result.contentBlocks ? { contentBlocks: completeBlocks } : {}),
   };
-  const full = JSON.stringify(completeResult);
+  const full = JSON.stringify(withoutRedundantText(completeResult));
   const payload = await assets.write({
     conversationId: call.conversationId,
     toolCallId: call.id,
@@ -165,8 +170,18 @@ export async function prepareToolResult(
   for (const block of projection.blocks)
     blocks.push(block.type === "image" ? await saveImage(block) : block);
   const agentProjection: AgentProjection = blocks;
+  // Producers such as foreground bash project with the same policy first, leaving this pass unchanged;
+  // their snapshot records the real reduction.
+  const producerSnapshot = agentProjectionSnapshotSchema.safeParse(
+    (result.details as Record<string, unknown> | undefined)
+      ?.agentProjectionSnapshot,
+  );
   return {
     agentProjection,
+    agentProjectionSnapshot:
+      projection.snapshot.fastPath && producerSnapshot.success
+        ? producerSnapshot.data
+        : projection.snapshot,
     userProjection: buildUserProjection(
       call.toolName,
       call.arguments,
@@ -178,6 +193,36 @@ export async function prepareToolResult(
       ...imageAssets.map((asset) => asset.id),
     ],
   };
+}
+
+/**
+ * Stores each result's text once. `content` is what readers use first, so text-only content blocks that repeat
+ * it are dropped, and so are process streams: their full text lives in the capture files.
+ */
+function withoutRedundantText<
+  T extends {
+    content?: unknown;
+    contentBlocks?: unknown;
+    stdout?: unknown;
+    stderr?: unknown;
+  },
+>(result: T): T {
+  if (typeof result.content !== "string") return result;
+  const stored = { ...result };
+  delete stored.stdout;
+  delete stored.stderr;
+  const blocks = result.contentBlocks;
+  if (
+    Array.isArray(blocks) &&
+    blocks.every(
+      (block: { type?: unknown; text?: unknown }) =>
+        block.type === "text" && typeof block.text === "string",
+    ) &&
+    blocks.map((block: { text: string }) => block.text).join("\n") ===
+      result.content
+  )
+    delete stored.contentBlocks;
+  return stored;
 }
 
 async function collectFiles(directory: string): Promise<string[]> {

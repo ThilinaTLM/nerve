@@ -25,7 +25,7 @@ describe("subagent transcript notices", () => {
       const event = notice({
         ...variant,
         summary: 'Sub-agent "research" (explore) completed.',
-        text: 'Sub-agent "research" (explore) completed.\nFindings\n[truncated; full response: /reports/research.md]',
+        text: 'Sub-agent "research" (explore) completed.\nFindings\n[Showing the first 50.0KB of 61.2KB; 11.2KB omitted. Full response: /reports/research.md]',
       });
       let opened: string | undefined;
       const model = systemEventNoticeModel(event, {

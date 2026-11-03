@@ -14,11 +14,7 @@ for (const capped of [false, true]) {
     const dir = await mkdtemp(join(tmpdir(), "nerve-capture-"));
     const stdout = new PassThrough();
     const stderr = new PassThrough();
-    const files = {
-      stdout: join(dir, "stdout"),
-      stderr: join(dir, "stderr"),
-      combined: join(dir, "combined"),
-    };
+    const files = { combined: join(dir, "combined") };
     const progress: { stream: string; chunk: string }[] = [];
     let close!: () => void;
     const closed = new Promise<void>((resolve) => {
@@ -44,22 +40,21 @@ for (const capped of [false, true]) {
       );
       close();
       await drained;
-      assert.equal(await readFile(files.stdout, "utf8"), "PROBE\n");
-      const error = await readFile(files.stderr, "utf8");
       const combined = await readFile(files.combined, "utf8");
-      assert.ok(error.endsWith(diagnostic));
+      assert.ok(combined.includes("PROBE\n"));
       assert.ok(combined.endsWith(diagnostic));
-      assert.equal(error.split(diagnostic).length, 2);
+      assert.equal(combined.split(diagnostic).length, 2);
       assert.equal(
         progress.filter(
           (update) => update.chunk === diagnostic && update.stream === "stderr",
         ).length,
         1,
       );
-      if (capped) assert.match(error, /Nerve: process output truncated/);
-      else assert.equal(error, `child error\n${diagnostic}`);
-      for (const path of Object.values(files))
-        assert.ok((await stat(path)).size <= PROCESS_OUTPUT_LIMIT_BYTES);
+      if (capped) assert.match(combined, /Nerve: process output truncated/);
+      else assert.ok(combined.endsWith(`child error\n${diagnostic}`));
+      assert.ok(
+        (await stat(files.combined)).size <= PROCESS_OUTPUT_LIMIT_BYTES,
+      );
     } finally {
       await rm(dir, { recursive: true, force: true });
     }
@@ -70,18 +65,14 @@ void test("successful capped capture reports truncation without a failure diagno
   const dir = await mkdtemp(join(tmpdir(), "nerve-capture-success-"));
   const stdout = new PassThrough();
   const stderr = new PassThrough();
-  const files = {
-    stdout: join(dir, "stdout"),
-    stderr: join(dir, "stderr"),
-    combined: join(dir, "combined"),
-  };
+  const files = { combined: join(dir, "combined") };
   try {
     const drained = captureProcessOutput({ stdout, stderr }, files);
     stdout.end(Buffer.alloc(PROCESS_OUTPUT_LIMIT_BYTES + 1024, 120));
     stderr.end();
     await drained;
     assert.match(
-      await readFile(files.stderr, "utf8"),
+      await readFile(files.combined, "utf8"),
       /Nerve: process output truncated/,
     );
     assert.ok((await stat(files.combined)).size <= PROCESS_OUTPUT_LIMIT_BYTES);
@@ -95,14 +86,7 @@ void test("capture rejects writer errors and settles pending writes", async () =
   const stdout = new PassThrough();
   const stderr = new PassThrough();
   try {
-    const drained = captureProcessOutput(
-      { stdout, stderr },
-      {
-        stdout: dir,
-        stderr: join(dir, "stderr"),
-        combined: join(dir, "combined"),
-      },
-    );
+    const drained = captureProcessOutput({ stdout, stderr }, { combined: dir });
     stdout.end("pending stdout");
     stderr.end("pending stderr");
     await assert.rejects(drained, /EISDIR/);

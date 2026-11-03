@@ -25,6 +25,8 @@ export type SemanticItem = {
 export type ProjectionCandidate = {
   blocks: ProjectableBlock[];
   status?: ProjectableBlock[];
+  /** Line-oriented text that head/tail views cut; `status` is kept whole above it. */
+  body?: string;
   items?: SemanticItem[];
   overflow?: {
     noun: string;

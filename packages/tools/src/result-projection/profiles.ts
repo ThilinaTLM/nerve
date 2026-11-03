@@ -1,4 +1,6 @@
 import type { AgentResultProfileId } from "@nervekit/contracts/tools";
+import { SUBAGENT_REPORT_INLINE_BYTES } from "@nervekit/contracts/subagents";
+import { DEFAULT_MAX_BYTES } from "../execution/output/truncate.js";
 
 export type ProjectionBudget = Readonly<{
   maxBytes: number;
@@ -6,7 +8,20 @@ export type ProjectionBudget = Readonly<{
   maxContentLines?: number;
   maxItems?: number;
   maxItemBytes?: number;
+  /** Share of a head/tail view given to the head; the rest goes to the tail. */
+  headShare?: number;
 }>;
+
+/** Process output: size decides; the line ceiling only guards many-short-line output. */
+const PROCESS_OVERFLOW = { maxLines: 200, maxBytes: 8_000, headShare: 0.2 };
+
+/** `read` already bounds pages to 50 KiB; leave room for its range and continuation notices. */
+const SOURCE_TEXT_MAX_BYTES = DEFAULT_MAX_BYTES + 2_048;
+const SOURCE_TEXT_MAX_LINES = 5_010;
+
+/** Sub-agent reports are already capped at the inline limit; leave room for status lines and the cap notice. */
+const DELEGATION_REPORT_MAX_BYTES = SUBAGENT_REPORT_INLINE_BYTES + 4_096;
+const DELEGATION_REPORT_MAX_LINES = 5_000;
 
 export type AgentResultProfile = Readonly<{
   inline: ProjectionBudget;
@@ -23,12 +38,20 @@ export const AGENT_RESULT_PROFILES: Readonly<
   Record<AgentResultProfileId, AgentResultProfile>
 > = Object.freeze({
   source_text: {
-    inline: budget(202, 24_000, { maxContentLines: 200 }),
-    overflow: budget(202, 24_000, { maxContentLines: 200 }),
+    inline: budget(SOURCE_TEXT_MAX_LINES, SOURCE_TEXT_MAX_BYTES),
+    overflow: budget(SOURCE_TEXT_MAX_LINES, SOURCE_TEXT_MAX_BYTES),
   },
-  process_diagnostics: {
-    inline: budget(84, 12_000),
-    overflow: budget(16, 4_000, { maxItems: 8, maxItemBytes: 1_000 }),
+  process_output: {
+    inline: budget(400, 12_000),
+    overflow: budget(PROCESS_OVERFLOW.maxLines, PROCESS_OVERFLOW.maxBytes, {
+      headShare: PROCESS_OVERFLOW.headShare,
+    }),
+  },
+  script_output: {
+    inline: budget(600, 24_000),
+    overflow: budget(PROCESS_OVERFLOW.maxLines, PROCESS_OVERFLOW.maxBytes, {
+      headShare: PROCESS_OVERFLOW.headShare,
+    }),
   },
   search_matches: { inline: budget(80, 16_000), overflow: budget(80, 16_000) },
   file_listing: {
@@ -49,6 +72,10 @@ export const AGENT_RESULT_PROFILES: Readonly<
     overflow: budget(40, 4_000),
   },
   lifecycle_state: { inline: budget(80, 8_000), overflow: budget(80, 8_000) },
+  delegation_report: {
+    inline: budget(DELEGATION_REPORT_MAX_LINES, DELEGATION_REPORT_MAX_BYTES),
+    overflow: budget(DELEGATION_REPORT_MAX_LINES, DELEGATION_REPORT_MAX_BYTES),
+  },
   primary_file_result: {
     inline: budget(80, 8_000),
     overflow: budget(12, 3_000),

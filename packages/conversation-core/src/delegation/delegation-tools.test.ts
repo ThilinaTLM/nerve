@@ -542,7 +542,10 @@ void test("long final responses are truncated and spilled to the report file", a
     await waitUntil(() => f.notices().length === 1);
     const id = f.child("a").id;
     const notice = f.notices()[0];
-    const match = /\[truncated; full response: (.+)\]$/.exec(notice);
+    const match =
+      /\[Showing the first 50\.0KB of 53\.9KB; 3\.9KB omitted\. Full response: (.+)\]$/.exec(
+        notice,
+      );
     assert.ok(match);
     assert.ok(
       match[1].startsWith(join(f.dataDir, "conversations", id, "reports")),
@@ -551,13 +554,10 @@ void test("long final responses are truncated and spilled to the report file", a
     assert.equal(readFileSync(match[1], "utf8"), long);
     assert.ok(notice.length < long.length);
     await waitUntil(f.idle("a"));
+    // Status repeats the capped report whole, so the agent sees the same notice and path.
     const status = await f.lead("subagent_status", { name: "a" });
-    const full = await f.core.getToolCallDetails(LEAD, status.toolCallId);
-    assert.ok(
-      String(full.result.content).includes(
-        `[truncated; full response: ${match[1]}]`,
-      ),
-    );
+    assert.ok(status.text.endsWith(`Full response: ${match[1]}]`));
+    assert.ok(status.text.includes(`Final response:\n${"x".repeat(1000)}`));
   } finally {
     await f.cleanup();
   }

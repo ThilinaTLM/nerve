@@ -2,7 +2,8 @@ import { z } from "zod";
 
 export const agentResultProfileIdSchema = z.enum([
   "source_text",
-  "process_diagnostics",
+  "process_output",
+  "script_output",
   "search_matches",
   "file_listing",
   "search_summaries",
@@ -10,6 +11,7 @@ export const agentResultProfileIdSchema = z.enum([
   "resource_detail",
   "mutation_acknowledgement",
   "lifecycle_state",
+  "delegation_report",
   "primary_file_result",
   "human_response",
   "vision_explanation",
@@ -23,11 +25,9 @@ export const agentResultStrategyIdSchema = z.enum([
   "head",
   "tail",
   "head_tail",
-  "compact_diagnostic",
   "item_aware",
   "continuation_aware",
   "artifact_index",
-  "task_log_window",
   "terminal_outcome",
 ]);
 export type AgentResultStrategyId = z.infer<typeof agentResultStrategyIdSchema>;
