@@ -27,11 +27,14 @@ function call(toolName: string) {
   });
 }
 
+const writes: Record<string, string> = {};
+
 async function withAssets(run: (assets: AssetStore) => Promise<void>) {
   const root = await mkdtemp(join(tmpdir(), "nerve-tool-result-"));
   const assets = {
     path: (path: string) => join(root, path),
     async write(input: { content: string; logicalPath: string }) {
+      writes[input.logicalPath] = input.content;
       return {
         id: "asset_payload",
         logicalPath: input.logicalPath,
@@ -96,5 +99,32 @@ void test("results reduced by this pass record its own snapshot", async () => {
     assert.equal(prepared.agentProjectionSnapshot.profile, "script_output");
     assert.equal(prepared.agentProjectionSnapshot.strategy, "head_tail");
     assert.equal(prepared.agentProjectionSnapshot.fastPath, false);
+  });
+});
+
+void test("stored payloads keep text once unless content blocks add to it", async () => {
+  await withAssets(async (assets) => {
+    const text = "line 1\nline 2";
+    await prepareToolResult(assets, call("read"), "completed", {
+      content: text,
+      contentBlocks: [{ type: "text", text }],
+    });
+    const stored = JSON.parse(
+      writes["conversations/conv_1/tool-calls/tool_1/result.json"]!,
+    );
+    assert.equal(stored.content, text);
+    assert.equal(stored.contentBlocks, undefined);
+
+    await prepareToolResult(assets, call("read"), "completed", {
+      content: "Read image file [image/png]",
+      contentBlocks: [
+        { type: "text", text: "Read image file [image/png]" },
+        { type: "text", text: "extra" },
+      ],
+    });
+    const kept = JSON.parse(
+      writes["conversations/conv_1/tool-calls/tool_1/result.json"]!,
+    );
+    assert.equal(kept.contentBlocks.length, 2);
   });
 });

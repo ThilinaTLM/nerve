@@ -75,7 +75,7 @@ export async function prepareToolResult(
     ...planReviewDisplayResult(call, outcome, result),
     ...(result.contentBlocks ? { contentBlocks: completeBlocks } : {}),
   };
-  const full = JSON.stringify(completeResult);
+  const full = JSON.stringify(withoutRedundantText(completeResult));
   const payload = await assets.write({
     conversationId: call.conversationId,
     toolCallId: call.id,
@@ -193,6 +193,27 @@ export async function prepareToolResult(
       ...imageAssets.map((asset) => asset.id),
     ],
   };
+}
+
+/** Text-only content blocks that repeat `content` are not stored twice; readers fall back to `content`. */
+function withoutRedundantText<
+  T extends { content?: unknown; contentBlocks?: unknown },
+>(result: T): T {
+  const blocks = result.contentBlocks;
+  if (
+    typeof result.content !== "string" ||
+    !Array.isArray(blocks) ||
+    !blocks.every(
+      (block: { type?: unknown; text?: unknown }) =>
+        block.type === "text" && typeof block.text === "string",
+    ) ||
+    blocks.map((block: { text: string }) => block.text).join("\n") !==
+      result.content
+  )
+    return result;
+  const stored = { ...result };
+  delete stored.contentBlocks;
+  return stored;
 }
 
 async function collectFiles(directory: string): Promise<string[]> {
