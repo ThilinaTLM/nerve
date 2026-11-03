@@ -87,7 +87,7 @@ async function fixture(processes: ProcessPort = {} as ProcessPort) {
     },
     read: (
       page: {
-        offsets?: { combined?: number; stdout?: number; stderr?: number };
+        offsets?: { combined?: number };
         limit?: number;
       } = {},
     ) =>
@@ -103,11 +103,10 @@ async function fixture(processes: ProcessPort = {} as ProcessPort) {
   };
 }
 
-void test("completed history prefers combined output, tails and appends byte pages", async () => {
+void test("completed history tails and appends byte pages of the combined output", async () => {
   const f = await fixture();
   try {
     const asset = await f.output("output", "0123456789");
-    await f.output("stdout", "not combined");
     const tail = await f.read({ limit: 4 });
     assert.deepEqual(tail, {
       bash: f.bash,
@@ -150,17 +149,13 @@ void test("completed history prefers combined output, tails and appends byte pag
 void test("log pages enforce ownership and the total byte budget", async () => {
   const f = await fixture();
   try {
-    await f.output("stdout", "a".repeat(100000));
-    await f.output("stderr", "b".repeat(100000));
+    await f.output("output", "a".repeat(100000));
     const page = await f.read();
     assert.deepEqual(
       page.streams.map((stream) => stream.stream),
-      ["stdout", "stderr"],
+      ["combined"],
     );
-    assert.equal(
-      page.streams.reduce((n, stream) => n + Buffer.byteLength(stream.text), 0),
-      65536,
-    );
+    assert.equal(Buffer.byteLength(page.streams[0]!.text), 65536);
     assert.equal(page.streams[0]!.totalBytes, 100000);
     for (const input of [
       { conversationId: "foreign", bashId: "bash_1" },
@@ -172,7 +167,7 @@ void test("log pages enforce ownership and the total byte budget", async () => {
       );
     for (const limit of [0, -1, 65537, 1.5])
       await assert.rejects(f.read({ limit }));
-    await assert.rejects(f.read({ offsets: { stdout: -1 } }));
+    await assert.rejects(f.read({ offsets: { combined: -1 } }));
   } finally {
     await f.close();
   }
@@ -268,8 +263,7 @@ for (const exitCode of [0, 7, null]) {
   void test(`process completion automatically queues one explicit exit-code notice (${exitCode ?? "unknown"})`, async () => {
     const f = await fixture();
     try {
-      const stdout = await f.output("stdout", "hello");
-      const stderr = await f.output("stderr", "");
+      const output = await f.output("output", "hello");
       const status =
         exitCode === null
           ? "cancelled"
@@ -278,10 +272,7 @@ for (const exitCode of [0, 7, null]) {
             : "failed";
       const process: BackgroundProcess = {
         ref: "process",
-        outputFiles: {
-          stdout: f.assets.path(stdout.logicalPath),
-          stderr: f.assets.path(stderr.logicalPath),
-        },
+        outputFiles: { combined: f.assets.path(output.logicalPath) },
         wait: async () => ({ status, exitCode }),
         cancel: async () => {},
       };

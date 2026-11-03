@@ -62,11 +62,7 @@ export class CoreProcessHost implements ProcessPort {
     if (prepared.command !== input.command || prepared.cwd !== input.cwd)
       throw new Error("Prepared process target does not match execution");
     await mkdir(input.artifactDir, { recursive: true });
-    const outputFiles = {
-      stdout: join(input.artifactDir, "stdout.txt"),
-      stderr: join(input.artifactDir, "stderr.txt"),
-      combined: join(input.artifactDir, "output.txt"),
-    };
+    const outputFiles = { combined: join(input.artifactDir, "output.txt") };
     // Daemons started by the command (e.g. agent-browser) may hold the output
     // pipes indefinitely; the call settles when the shell itself exits.
     const { managed: process, launch } = spawnPreparedShellProcess(

@@ -28,20 +28,17 @@ export const asyncBashLogsRequestSchema = z.object({
   bashId: z.string(),
   // Byte offsets; omitted streams start at the tail of their file.
   offsets: z
-    .object({
-      combined: z.number().int().nonnegative().optional(),
-      stdout: z.number().int().nonnegative().optional(),
-      stderr: z.number().int().nonnegative().optional(),
-    })
+    .object({ combined: z.number().int().nonnegative().optional() })
     .optional(),
-  // Total byte budget across all returned streams.
+  // Byte budget for the returned page.
   limit: z.number().int().positive().max(65536).optional(),
 });
 export const asyncBashLogsResponseSchema = z.object({
   bash: asyncBashSchema,
   streams: z.array(
     z.object({
-      stream: z.enum(["combined", "stdout", "stderr"]),
+      // Runs capture one file with both streams in arrival order.
+      stream: z.literal("combined"),
       text: z.string(),
       offset: z.number().int().nonnegative(),
       nextOffset: z.number().int().nonnegative(),

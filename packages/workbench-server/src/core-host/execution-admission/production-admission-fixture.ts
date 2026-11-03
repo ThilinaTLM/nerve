@@ -116,7 +116,7 @@ export async function productionAdmissionFixture(
     return {
       ref: randomUUID(),
       launch: input.preparedShell.invocation.launch,
-      outputFiles: { stdout, stderr, combined },
+      outputFiles: { combined },
       wait: async () => ({ exitCode: 0, status: "completed" }),
       cancel: async () => {},
     };

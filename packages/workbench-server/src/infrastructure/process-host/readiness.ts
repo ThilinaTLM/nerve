@@ -2,7 +2,7 @@ import { readFile } from "node:fs/promises";
 
 export async function waitForOutputReadiness(
   background: {
-    outputFiles: { stdout: string; combined?: string };
+    outputFiles: { combined: string };
     wait(): Promise<unknown>;
     cancel(): Promise<void>;
   },
@@ -29,7 +29,7 @@ export async function waitForOutputReadiness(
   const deadline = Date.now() + Math.min(ready.timeoutMs ?? 60_000, 60_000);
   while (Date.now() < deadline && !exited && !input.signal.aborted) {
     const output = await readFile(
-      background.outputFiles.combined ?? background.outputFiles.stdout,
+      background.outputFiles.combined,
       "utf8",
     ).catch(() => "");
     if (pattern?.test(output)) return { status: "ready" as const };

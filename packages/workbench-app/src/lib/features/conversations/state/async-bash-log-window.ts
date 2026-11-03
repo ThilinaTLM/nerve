@@ -232,12 +232,6 @@ export function asyncBashLogLines(streams: LogStream[]): LogStreamLine[] {
       lines.push({
         key: `${stream.stream}:${offset}`,
         text: visibleLine(raw),
-        ...(stream.stream === "combined"
-          ? {}
-          : {
-              stream: stream.stream,
-              tone: stream.stream === "stderr" ? ("error" as const) : undefined,
-            }),
       });
       offset += encoder.encode(raw).length + 1;
     }

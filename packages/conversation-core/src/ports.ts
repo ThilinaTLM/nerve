@@ -145,7 +145,8 @@ export interface BackgroundProcess {
     status: "completed" | "failed" | "timed_out" | "cancelled";
   }>;
   cancel(): Promise<void>;
-  outputFiles: { stdout: string; stderr: string; combined?: string };
+  /** Both streams in arrival order; the only capture file. */
+  outputFiles: { combined: string };
 }
 
 export interface ClockPort {

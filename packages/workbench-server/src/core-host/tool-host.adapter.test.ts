@@ -29,7 +29,7 @@ void test("bash host validates turn settings, project cwd and untimed background
         manager: "direnv",
         configFile: join(project, ".envrc"),
       },
-      outputFiles: { stdout, stderr, combined },
+      outputFiles: { combined },
       wait: async () => ({
         exitCode,
         status:

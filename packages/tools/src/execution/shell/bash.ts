@@ -217,7 +217,6 @@ async function buildResult(
     stdoutChunks: output.stdoutChunks,
     stderrChunks: output.stderrChunks,
     combinedChunks: output.combinedChunks,
-    orderedChunks: output.orderedChunks,
     code,
     signal,
     outputFilePrefix: "nerve-bash",

@@ -45,11 +45,8 @@ describe("owner-scoped artifact routing", () => {
       );
       const path = (result.details as { fullOutputPath?: string })
         .fullOutputPath;
-      assert.equal(path, join(artifactDir, "combined.txt"));
-      assert.match(
-        await readFile(path ?? "", "utf8"),
-        /^\[stdout\]\n\*\*Answer:\*\*/,
-      );
+      assert.equal(path, join(artifactDir, "output.txt"));
+      assert.match(await readFile(path ?? "", "utf8"), /^\*\*Answer:\*\*/);
     } finally {
       fetchMock.mock.restore();
     }
@@ -74,10 +71,7 @@ describe("owner-scoped artifact routing", () => {
       },
     );
     const path = (result.details as { fullOutputPath?: string }).fullOutputPath;
-    assert.equal(path, join(artifactDir, "combined.txt"));
-    assert.match(
-      await readFile(path ?? "", "utf8"),
-      /^\[stdout\]\nvision vision/,
-    );
+    assert.equal(path, join(artifactDir, "output.txt"));
+    assert.match(await readFile(path ?? "", "utf8"), /^vision vision/);
   });
 });

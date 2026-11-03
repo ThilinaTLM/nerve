@@ -488,7 +488,6 @@ async function runPythonProcess({
             stdoutChunks: snapshot.stdoutChunks,
             stderrChunks: snapshot.stderrChunks,
             combinedChunks: snapshot.combinedChunks,
-            orderedChunks: snapshot.orderedChunks,
             code,
             signal: closeSignal,
             outputFilePrefix: "nerve-python",

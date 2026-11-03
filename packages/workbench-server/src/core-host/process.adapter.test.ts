@@ -22,7 +22,7 @@ void test("async bash cancellation sends SIGTERM then escalates after the launch
     const deadline = Date.now() + 10_000;
     while (
       !(
-        await readFile(background.outputFiles.stdout, "utf8").catch(() => "")
+        await readFile(background.outputFiles.combined, "utf8").catch(() => "")
       ).includes("READY")
     ) {
       assert.ok(Date.now() < deadline, "fixture startup timed out");
@@ -35,7 +35,7 @@ void test("async bash cancellation sends SIGTERM then escalates after the launch
       "SIGKILL must wait for the 5s grace period",
     );
     assert.match(
-      await readFile(background.outputFiles.stderr, "utf8"),
+      await readFile(background.outputFiles.combined, "utf8"),
       /TERM received/,
     );
     assert.equal((await background.wait()).status, "cancelled");
@@ -96,8 +96,7 @@ void test("project launch diagnostics are drained before completion, bypass is e
     assert.equal((await failed.wait()).exitCode, 23);
     assert.equal(failed.launch?.manager, "direnv");
     assert.equal(failed.launch?.configFile, join(dir, ".envrc"));
-    assert.equal(await readFile(failed.outputFiles.stdout, "utf8"), "");
-    const diagnostic = await readFile(failed.outputFiles.stderr, "utf8");
+    const diagnostic = await readFile(failed.outputFiles.combined, "utf8");
     assert.ok(
       diagnostic.startsWith(
         "manager error\n\n[Nerve project-environment diagnostic]",
@@ -106,10 +105,6 @@ void test("project launch diagnostics are drained before completion, bypass is e
     assert.match(
       diagnostic,
       /activation or the submitted command may have failed/,
-    );
-    assert.equal(
-      await readFile(failed.outputFiles.combined!, "utf8"),
-      diagnostic,
     );
 
     const bypass = await host.start({
@@ -124,10 +119,9 @@ void test("project launch diagnostics are drained before completion, bypass is e
     assert.equal((await bypass.process.wait()).status, "completed");
     assert.equal(bypass.process.launch?.manager, undefined);
     assert.equal(
-      await readFile(bypass.process.outputFiles.stdout, "utf8"),
+      await readFile(bypass.process.outputFiles.combined, "utf8"),
       "PROBE\n",
     );
-    assert.equal(await readFile(bypass.process.outputFiles.stderr, "utf8"), "");
 
     await writeFile(manager, '#!/bin/sh\nshift 2\nexec "$@"\n', {
       mode: 0o755,
@@ -140,7 +134,7 @@ void test("project launch diagnostics are drained before completion, bypass is e
     });
     assert.equal((await child.wait()).exitCode, 7);
     assert.match(
-      await readFile(child.outputFiles.stderr, "utf8"),
+      await readFile(child.outputFiles.combined, "utf8"),
       /child-error\n\n\[Nerve project-environment diagnostic\]/,
     );
     const success = await host.spawn({
@@ -150,7 +144,7 @@ void test("project launch diagnostics are drained before completion, bypass is e
       artifactDir: join(dir, "success"),
     });
     assert.equal((await success.wait()).status, "completed");
-    assert.equal(await readFile(success.outputFiles.stderr, "utf8"), "");
+    assert.equal(await readFile(success.outputFiles.combined, "utf8"), "OK\n");
     for (const stop of ["timeout", "cancel"] as const) {
       const stopped = await host.spawn({
         command: "exec sleep 10",
@@ -165,7 +159,7 @@ void test("project launch diagnostics are drained before completion, bypass is e
         stop === "timeout" ? "timed_out" : "cancelled",
       );
       assert.doesNotMatch(
-        await readFile(stopped.outputFiles.stderr, "utf8"),
+        await readFile(stopped.outputFiles.combined, "utf8"),
         /Nerve project-environment diagnostic/,
       );
     }
@@ -189,7 +183,7 @@ void test("an explicitly captured default shell never reloads conversation setti
     });
     assert.equal((await running.wait()).exitCode, 0);
     assert.match(
-      await readFile(running.outputFiles.stdout, "utf8"),
+      await readFile(running.outputFiles.combined, "utf8"),
       /captured/,
     );
   } finally {
@@ -238,7 +232,7 @@ void test("admitted foreground/background processes never reselect shell, cwd, m
       assert.equal(child.launch?.cwd, dir);
       assert.equal(child.launch?.shell, "/bin/sh");
       assert.equal(
-        await readFile(child.outputFiles.stdout, "utf8"),
+        await readFile(child.outputFiles.combined, "utf8"),
         `admitted\n${dir}\n`,
       );
     }
@@ -273,7 +267,7 @@ void test("bash completes when the shell exits even if a background child holds 
     const outcome = await background.wait();
     assert.ok(Date.now() - started < 3_000, "must not wait for sleep");
     assert.equal(outcome.status, "completed");
-    const stdout = await readFile(background.outputFiles.stdout, "utf8");
+    const stdout = await readFile(background.outputFiles.combined, "utf8");
     childPid = Number(stdout.split("\n")[0]);
     assert.match(stdout, /done/);
     assert.doesNotThrow(

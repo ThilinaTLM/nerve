@@ -242,6 +242,25 @@ Design constraints:
 
 Once clearing exists, rerun the cost model. Inline budgets near the prior-art range (24–32 KB for process output) are likely to become worthwhile.
 
+## Follow-up: stored output
+
+Each bash call stored its output about three times. Production totals so far:
+
+| Copy                                               | Size          |
+| -------------------------------------------------- | ------------- |
+| `stdout.txt` + `stderr.txt`                        | 113 MB + 5 MB |
+| `output.txt`                                       | 59 MB         |
+| `result.json` payload, with full stdout and stderr | 155 MB        |
+
+Separately, `read`, `grep` and `find` payloads stored their text twice, as `content` and as identical text-only `contentBlocks`. That accounted for 46%, 35% and 28% of their bytes; read payloads alone are 416 MB.
+
+Changes:
+
+- **Text stored once.** Stored payloads drop `contentBlocks` that repeat `content`, and drop process `stdout`/`stderr` when `content` exists. Readers already prefer `content`.
+- **No stream copies in results.** Foreground bash no longer reads its capture files into the result.
+- **One capture file.** Bash, background bash and `python_exec` write only `output.txt`, the raw output in arrival order. Line numbers in agent notices therefore match the file. Background-bash log pages return that one stream. Launches keep their own per-stream logs.
+- **Migration 0003.** Older background runs without an `output.txt` (5 in production, converted by 0001 from the old task layout) get one built from their ordered `combined.txt`, or from stdout followed by stderr. The fallback reader is removed. Original stream files are kept because older transcripts quote their paths.
+
 ## Out of scope
 
 - **Other tool profiles.** `grep`, `find`, `ls` and web tools show negligible recovery.

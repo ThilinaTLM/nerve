@@ -45,17 +45,6 @@ test("bounds display bytes and trims at UTF-8 boundaries in either direction", (
       Buffer.byteLength(window.text),
     );
   }
-  const windows = mergeLogWindow(
-    [],
-    [
-      { ...chunk(text), stream: "stdout" },
-      { ...chunk(text), stream: "stderr" },
-    ],
-  );
-  assert.ok(
-    windows.reduce((sum, stream) => sum + Buffer.byteLength(stream.text), 0) <=
-      WINDOW_BYTES,
-  );
 });
 
 test("tail, append, earlier use bounded byte offsets; completed sessions do not poll", async () => {
@@ -95,33 +84,6 @@ test("tail, append, earlier use bounded byte offsets; completed sessions do not 
       limit: PAGE_BYTES,
     },
   ]);
-  session.stop();
-});
-
-test("load earlier splits the page budget across separate streams without gaps", async () => {
-  const requests: LogParams[] = [];
-  const session = new AsyncBashLogSession(
-    "conv",
-    "bash1",
-    async (params) => {
-      requests.push(params);
-      return {
-        bash,
-        streams: [
-          { ...chunk("out", PAGE_BYTES), stream: "stdout" },
-          { ...chunk("err", PAGE_BYTES), stream: "stderr" },
-        ],
-      };
-    },
-    () => {},
-  );
-  session.start();
-  await new Promise((resolve) => setTimeout(resolve, 0));
-  await session.load("earlier");
-  assert.deepEqual(requests[1].offsets, {
-    stdout: PAGE_BYTES / 2,
-    stderr: PAGE_BYTES / 2,
-  });
   session.stop();
 });
 
@@ -387,6 +349,4 @@ test("projects byte windows into stable, terminal-like lines", () => {
     ["combined:23", "combined:45"],
   );
   assert.equal(appended.at(-1)?.text, "partial line");
-  const [error] = asyncBashLogLines([{ ...chunk("boom\n"), stream: "stderr" }]);
-  assert.equal(error.tone, "error");
 });

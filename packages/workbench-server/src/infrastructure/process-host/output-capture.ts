@@ -8,15 +8,12 @@ export const PROCESS_DIAGNOSTIC_RESERVE_BYTES = 16 * 1024;
 
 export function captureProcessOutput(
   process: Pick<ManagedProcess, "stdout" | "stderr">,
-  outputFiles: { stdout: string; stderr: string; combined: string },
+  outputFiles: { combined: string },
   onProgress?: (update: { chunk: string; stream: "stdout" | "stderr" }) => void,
   diagnostic?: () => Promise<string | undefined>,
 ) {
-  const files = {
-    stdout: createWriteStream(outputFiles.stdout),
-    stderr: createWriteStream(outputFiles.stderr),
-    combined: createWriteStream(outputFiles.combined),
-  };
+  // One file keeps both streams in arrival order; nothing reads them separately.
+  const files = { combined: createWriteStream(outputFiles.combined) };
   // Observe errors immediately, including files that have not received output yet.
   const fileDrains = Promise.all(
     Object.values(files).map((file) => finished(file)),
@@ -45,7 +42,6 @@ export function captureProcessOutput(
     bytes += bounded.length;
     queue = queue.then(async () => {
       if (!bounded.length) return;
-      await write(files[stream], bounded);
       await write(files.combined, bounded);
       onProgress?.({ stream, chunk: bounded.toString() });
     });

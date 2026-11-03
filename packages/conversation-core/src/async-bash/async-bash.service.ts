@@ -125,49 +125,29 @@ export class AsyncBashService {
         (asset) =>
           asset.asyncBashId === bashId && asset.category === "bash_output",
       );
-    const find = (name: string) =>
-      assets.find((asset) => asset.logicalPath.endsWith(`/${name}.txt`));
-    const combined = find("output");
-    const selected = combined
-      ? [{ stream: "combined" as const, asset: combined }]
-      : [
-          { stream: "stdout" as const, asset: find("stdout") },
-          { stream: "stderr" as const, asset: find("stderr") },
-        ];
-    const streams: AsyncBashLogsResponse["streams"] = [];
-    // Split the total response budget so separate streams cannot double it.
-    for (let index = 0; index < selected.length; index++) {
-      const { stream, asset } = selected[index]!;
-      const budget =
-        Math.floor(limit / selected.length) +
-        (index < limit % selected.length ? 1 : 0);
-      const page = asset
-        ? await this.options.assets.readTextPage(
-            asset.id,
-            offsets?.[stream],
-            budget,
-          )
-        : { text: "", offset: 0, nextOffset: 0, totalBytes: 0 };
-      streams.push({ stream, ...page });
-    }
+    // Every run has one capture file; storage migration 0003 created it for older runs.
+    const combined = assets.find((asset) =>
+      asset.logicalPath.endsWith("/output.txt"),
+    );
+    const page = combined
+      ? await this.options.assets.readTextPage(
+          combined.id,
+          offsets?.combined,
+          limit,
+        )
+      : { text: "", offset: 0, nextOffset: 0, totalBytes: 0 };
+    const streams: AsyncBashLogsResponse["streams"] = [
+      { stream: "combined", ...page },
+    ];
     return { bash, streams };
   }
 
-  private outputFiles(assets: Asset[]): {
-    stdout?: string;
-    stderr?: string;
-    combined?: string;
-  } {
-    const file = (name: string) => {
-      const asset = assets.find((asset) =>
-        asset.logicalPath.endsWith(`/${name}.txt`),
-      );
-      return asset ? this.options.assets.path(asset.logicalPath) : undefined;
-    };
+  private outputFiles(assets: Asset[]): { combined?: string } {
+    const asset = assets.find((asset) =>
+      asset.logicalPath.endsWith("/output.txt"),
+    );
     return {
-      stdout: file("stdout"),
-      stderr: file("stderr"),
-      combined: file("output"),
+      combined: asset ? this.options.assets.path(asset.logicalPath) : undefined,
     };
   }
 
