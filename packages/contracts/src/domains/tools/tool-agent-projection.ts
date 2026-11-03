@@ -3,6 +3,7 @@ import { z } from "zod";
 export const agentResultProfileIdSchema = z.enum([
   "source_text",
   "process_diagnostics",
+  "script_output",
   "search_matches",
   "file_listing",
   "search_summaries",

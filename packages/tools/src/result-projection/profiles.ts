@@ -1,4 +1,5 @@
 import type { AgentResultProfileId } from "@nervekit/contracts/tools";
+import { DEFAULT_MAX_BYTES } from "../execution/output/truncate.js";
 
 export type ProjectionBudget = Readonly<{
   maxBytes: number;
@@ -6,7 +7,16 @@ export type ProjectionBudget = Readonly<{
   maxContentLines?: number;
   maxItems?: number;
   maxItemBytes?: number;
+  /** Share of a head/tail view given to the head; the rest goes to the tail. */
+  headShare?: number;
 }>;
+
+/** Process output: size decides; the line ceiling only guards many-short-line output. */
+const PROCESS_OVERFLOW = { maxLines: 200, maxBytes: 8_000, headShare: 0.2 };
+
+/** `read` already bounds pages to 50 KiB; leave room for its range and continuation notices. */
+const SOURCE_TEXT_MAX_BYTES = DEFAULT_MAX_BYTES + 2_048;
+const SOURCE_TEXT_MAX_LINES = 5_010;
 
 export type AgentResultProfile = Readonly<{
   inline: ProjectionBudget;
@@ -23,12 +33,20 @@ export const AGENT_RESULT_PROFILES: Readonly<
   Record<AgentResultProfileId, AgentResultProfile>
 > = Object.freeze({
   source_text: {
-    inline: budget(202, 24_000, { maxContentLines: 200 }),
-    overflow: budget(202, 24_000, { maxContentLines: 200 }),
+    inline: budget(SOURCE_TEXT_MAX_LINES, SOURCE_TEXT_MAX_BYTES),
+    overflow: budget(SOURCE_TEXT_MAX_LINES, SOURCE_TEXT_MAX_BYTES),
   },
   process_diagnostics: {
-    inline: budget(84, 12_000),
-    overflow: budget(16, 4_000, { maxItems: 8, maxItemBytes: 1_000 }),
+    inline: budget(400, 12_000),
+    overflow: budget(PROCESS_OVERFLOW.maxLines, PROCESS_OVERFLOW.maxBytes, {
+      headShare: PROCESS_OVERFLOW.headShare,
+    }),
+  },
+  script_output: {
+    inline: budget(600, 24_000),
+    overflow: budget(PROCESS_OVERFLOW.maxLines, PROCESS_OVERFLOW.maxBytes, {
+      headShare: PROCESS_OVERFLOW.headShare,
+    }),
   },
   search_matches: { inline: budget(80, 16_000), overflow: budget(80, 16_000) },
   file_listing: {

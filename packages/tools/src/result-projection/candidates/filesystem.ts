@@ -45,20 +45,6 @@ export function sourceCandidate(
         totalLines ??
         Math.max(nextOffset, number(truncation.originalLines) ?? nextOffset),
     });
-  } else if (
-    range.mode === "lines" &&
-    number(range.returnedContentLines) !== undefined &&
-    number(range.returnedContentLines)! > 200
-  ) {
-    const start = number(range.returnedStartLine) ?? 1;
-    const total = totalLines ?? start + number(range.returnedContentLines)! - 1;
-    continuation.push({
-      kind: "line",
-      nextOffset: start + 200,
-      displayedStart: start,
-      displayedEnd: start + 199,
-      total,
-    });
   } else if (nextByteOffset !== undefined) {
     continuation.push({
       kind: "byte",

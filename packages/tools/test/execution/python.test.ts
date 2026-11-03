@@ -159,6 +159,33 @@ describe("python executor", () => {
     },
   );
 
+  it("projects large output with the script budget, one recovery path and a snapshot", async (t) => {
+    const runtime = await runtimeOrSkip(t);
+    if (!runtime) return;
+    const project = await createTempProject();
+    const result = await executePython(
+      { code: 'for i in range(1500): print(f"py {i} " + "y" * 30)' },
+      { cwd: project.root, pythonRuntime: runtime },
+    );
+    const content = result.content ?? "";
+    assert.match(
+      content,
+      /^Process exit code 0\.\nDuration: \d+ ms\npy 0 y+\n/,
+    );
+    assert.match(
+      content,
+      /py 1499 y+\n\[Showing lines 1-\d+ and \d+-1500 of 1500; [\d.]+KB omitted\. Full output: [^\n]+\]$/,
+    );
+    assert.ok(Buffer.byteLength(content) <= 8_000);
+    const details = result.details as {
+      processStatusIncluded?: boolean;
+      agentProjectionSnapshot?: { profile?: string; strategy?: string };
+    };
+    assert.equal(details.processStatusIncluded, true);
+    assert.equal(details.agentProjectionSnapshot?.profile, "script_output");
+    assert.equal(details.agentProjectionSnapshot?.strategy, "head_tail");
+  });
+
   it("rejects missing or non-file Python script paths", async (t) => {
     const runtime = await runtimeOrSkip(t);
     if (!runtime) return;

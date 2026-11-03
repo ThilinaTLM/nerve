@@ -492,6 +492,7 @@ async function runPythonProcess({
             code,
             signal: closeSignal,
             outputFilePrefix: "nerve-python",
+            agentProfile: "script_output",
             exitMessagePrefix: "Python",
             artifactDir,
             durationMs,

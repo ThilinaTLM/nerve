@@ -47,7 +47,7 @@ function bashDescription(settings: BashToolSettings): string {
   const background = settings.autoPromotion.enabled
     ? `Moves to the background after ${afterS}s (\`background: true\` returns at once)`
     : `Requires timeout (max ${maxS}s); the process is killed when it expires. \`background: true\` returns at once`;
-  return `Run a shell command in the project. Prefer read/grep/find/ls for inspection and launch for the user's servers. ${background}; background runs notify you on exit. Large output is saved to files for read/grep.`;
+  return `Run a shell command in the project. Use read for file contents and grep/find/ls to search, not cat/sed/head/tail/rg; use launch for the user's servers. ${background}; background runs notify you on exit. Large output is shortened to its head and tail, with the full output saved to a file.`;
 }
 
 const bashParameters = Type.Object(

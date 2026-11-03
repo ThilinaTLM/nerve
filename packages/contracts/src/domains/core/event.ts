@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { agentProjectionSnapshotSchema } from "../tools/tool-agent-projection.js";
 import { toolExecutionResultSchema } from "../tools/tool-results.js";
 import { systemNoticeSchema } from "./input.js";
 import {
@@ -196,6 +197,8 @@ export const toolCallResponsePayloadSchema = z.object({
   outcome: toolCallOutcomeSchema,
   startedAt: z.string().datetime().optional(),
   agentProjection: agentProjectionSchema,
+  /** How the agent projection was derived; absent on events recorded before it was kept. */
+  agentProjectionSnapshot: agentProjectionSnapshotSchema.optional(),
   userProjection: toolUserProjectionSchema,
   supervision: supervisionSchema.nullable(),
   interactionResolution: interactionResolutionSchema.nullable(),

@@ -28,7 +28,10 @@ import {
   jiraSearchAgentResultPolicy,
 } from "./jira.js";
 import { planReviewAgentResultPolicy } from "./plan-review.js";
-import { processAgentResultPolicy } from "./process.js";
+import {
+  processAgentResultPolicy,
+  scriptAgentResultPolicy,
+} from "./process.js";
 import { generateImageAgentResultPolicy } from "./image-generation.js";
 import { explainImageAgentResultPolicy } from "./vision.js";
 import {
@@ -50,7 +53,7 @@ const map: Record<ToolName, AgentResultPolicy> = {
   find: findAgentResultPolicy,
   ls: lsAgentResultPolicy,
   bash: processAgentResultPolicy,
-  python_exec: processAgentResultPolicy,
+  python_exec: scriptAgentResultPolicy,
   web_search: webSearchAgentResultPolicy,
   web_fetch: webFetchAgentResultPolicy,
   explain_image: explainImageAgentResultPolicy,
@@ -87,8 +90,9 @@ const map: Record<ToolName, AgentResultPolicy> = {
   confluence_manage_label: confluenceMutationAgentResultPolicy,
   confluence_manage_restriction: confluenceMutationAgentResultPolicy,
   confluence_manage_attachment: confluenceMutationAgentResultPolicy,
-  async_bash: policy("lifecycle_state", "head", textCandidate),
-  launch: policy("lifecycle_state", "head", textCandidate),
+  // Log pages are bounded by the process overflow budget, below this inline budget.
+  async_bash: policy("process_diagnostics", "head", textCandidate),
+  launch: policy("process_diagnostics", "head", textCandidate),
   plan_present: planReviewAgentResultPolicy,
 };
 

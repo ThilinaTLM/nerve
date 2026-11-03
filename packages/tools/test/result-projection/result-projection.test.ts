@@ -135,66 +135,75 @@ describe("adaptive agent tool-result projection", () => {
     assert.match(text(fitting.blocks), /Range: lines 1-35 of 35\.$/);
 
     const large = Array.from(
-      { length: 500 },
-      (_, index) => `line ${index + 1}`,
+      { length: 2000 },
+      (_, index) => `line ${index + 1} ${"x".repeat(15)}`,
     ).join("\n");
     const largeResult = {
-      content: large,
+      content: `${large}\n\n[...output truncated to 2000 lines. Continue with offset 2001.]`,
       contentBlocks: [{ type: "text", text: large }],
       details: {
         range: {
           mode: "lines",
           requestedStartLine: 1,
           requestedLimit: 2000,
-          sourceTotalLines: 500,
+          sourceTotalLines: 2600,
           returnedStartLine: 1,
-          returnedEndLine: 500,
-          returnedContentLines: 500,
+          returnedEndLine: 2000,
+          returnedContentLines: 2000,
           sourceEndsWithNewline: false,
+          nextOffset: 2001,
         },
       },
     };
-    const projected = projectAgentResult(
+    // Pages are bounded by size in the read tool; the projection keeps a full page whole.
+    const page = projectAgentResult(
       context("read", largeResult),
       agentResultPolicyForTool("read"),
     );
-    const measured = measureBlocks(projected.blocks);
-    assert.ok(measured.lines <= 202);
-    assert.ok(measured.bytes <= 24_000);
-    assert.match(text(projected.blocks), /Continue with offset=201\./);
+    assert.equal(page.snapshot.fastPath, true);
+    assert.match(
+      text(page.blocks),
+      /line 2000 x+\nRange: lines 1-2000 of 2600\.$/,
+    );
   });
 
-  it("uses a compact process diagnostic index with truthful recovery", () => {
-    const stdout = Array.from({ length: 700 }, (_, index) =>
-      index % 50 === 0 ? `error diagnostic ${index}` : `routine ${index}`,
-    ).join("\n");
-    const projected = projectAgentResult(
-      context(
-        "bash",
-        {
-          stdout,
-          stderr: "",
-          exitCode: 1,
-          details: {
-            durationMs: 10,
-            streams: { combined: { lines: 700, bytes: 20_000 } },
+  it("keeps script output whole up to its budget and shows a head/tail view beyond it", () => {
+    const run = (lines: number) =>
+      projectAgentResult(
+        context(
+          "python_exec",
+          {
+            stdout: "",
+            stderr: "",
+            content: Array.from({ length: lines }, (_, index) =>
+              index === 500 ? "error in the middle" : `routine ${index}`,
+            ).join("\n"),
+            exitCode: 0,
+            details: { durationMs: 10 },
           },
-        },
-        [
-          artifact("/tmp/stdout.txt", "stdout"),
-          artifact("/tmp/stderr.txt", "stderr"),
-        ],
-      ),
-      agentResultPolicyForTool("bash"),
-    );
+          [
+            artifact("/tmp/stdout.txt", "stdout"),
+            artifact("/tmp/combined.txt", "combined"),
+          ],
+        ),
+        agentResultPolicyForTool("python_exec"),
+      );
+    const whole = run(500);
+    assert.equal(whole.snapshot.profile, "script_output");
+    assert.equal(whole.snapshot.fastPath, true);
+
+    const projected = run(3000);
+    const shown = text(projected.blocks);
     const measured = measureBlocks(projected.blocks);
-    assert.ok(measured.lines <= 16);
-    assert.ok(measured.bytes <= 4_000);
-    assert.match(text(projected.blocks), /exit code 1/i);
-    assert.match(text(projected.blocks), /\/tmp\/stdout\.txt/);
-    assert.match(text(projected.blocks), /\/tmp\/stderr\.txt/);
-    assert.match(text(projected.blocks), /of 700 diagnostic lines/);
-    assert.doesNotMatch(text(projected.blocks), /routine 0/);
+    assert.ok(measured.lines <= 200);
+    assert.ok(measured.bytes <= 8_000);
+    assert.match(shown, /^Process exit code 0\.\nDuration: 10 ms\nroutine 0\n/);
+    assert.match(
+      shown,
+      /routine 2999\n\[Showing lines 1-\d+ and \d+-3000 of 3000;/,
+    );
+    assert.match(shown, /Full output: \/tmp\/combined\.txt\]$/);
+    assert.doesNotMatch(shown, /stdout\.txt|error in the middle/);
   });
 
   it("preserves media while excluding image bytes from the text ledger", () => {

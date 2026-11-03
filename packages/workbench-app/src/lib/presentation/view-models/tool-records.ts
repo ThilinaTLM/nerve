@@ -155,6 +155,7 @@ export type ToolCallRecord = {
         profile:
           | "source_text"
           | "process_diagnostics"
+          | "script_output"
           | "search_matches"
           | "file_listing"
           | "search_summaries"

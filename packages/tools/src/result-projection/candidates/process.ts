@@ -1,11 +1,8 @@
-import type {
-  CandidateContext,
-  ProjectionCandidate,
-  SemanticItem,
-} from "../types.js";
+import type { CandidateContext, ProjectionCandidate } from "../types.js";
 import { artifacts } from "../candidate-artifacts.js";
-import { count, record, string, number } from "../candidate-values.js";
+import { record, string, number } from "../candidate-values.js";
 
+/** Process output keeps its status whole and cuts the output to a tail-biased head/tail view. */
 export function processCandidate(
   context: CandidateContext,
 ): ProjectionCandidate | undefined {
@@ -19,11 +16,9 @@ export function processCandidate(
   const stdout = string(result.stdout);
   const stderr = string(result.stderr);
   const details = record(result.details);
-  const streams = record(details.streams);
-  const combined = record(streams.combined);
   const timedOut = details.timedOut === true || result.timedOut === true;
   const exitCode = number(result.exitCode) ?? number(details.exitCode);
-  const basicStatus = [
+  const status = [
     `Process ${exitCode === undefined ? "finished" : `exit code ${String(exitCode)}`}.`,
     typeof result.signal === "string"
       ? `Signal: ${result.signal}`
@@ -34,15 +29,9 @@ export function processCandidate(
     number(details.durationMs) !== undefined
       ? `Duration: ${String(details.durationMs)} ms`
       : undefined,
-  ].filter((line): line is string => Boolean(line));
-  const outputFacts = [
-    number(combined.lines) !== undefined
-      ? `Output lines: ${String(combined.lines)}`
-      : undefined,
-    number(combined.bytes) !== undefined
-      ? `Output bytes: ${String(combined.bytes)}`
-      : undefined,
-  ].filter((line): line is string => Boolean(line));
+  ]
+    .filter((line): line is string => Boolean(line))
+    .join("\n");
   const producerStatusIncluded = details.processStatusIncluded === true;
   const body =
     typeof result.content === "string"
@@ -50,55 +39,15 @@ export function processCandidate(
       : [stdout ? `stdout:\n${stdout}` : "", stderr ? `stderr:\n${stderr}` : ""]
           .filter(Boolean)
           .join("\n\n");
-  const fullText = [
-    body,
-    producerStatusIncluded ? undefined : basicStatus.join("\n"),
-  ]
+  const fullText = [body, producerStatusIncluded ? undefined : status]
     .filter((value): value is string => Boolean(value))
     .join("\n\n");
-  const diagnosticLines = diagnosticItems(stdout, stderr, exitCode, timedOut);
   return {
     blocks: [{ type: "text", text: fullText }],
-    status: [
-      { type: "text", text: [...basicStatus, ...outputFacts].join("\n") },
-    ],
-    items: diagnosticLines,
-    overflow: { noun: "diagnostic line" },
-    counts:
-      number(combined.lines) !== undefined
-        ? [count("event", number(combined.lines)!, diagnosticLines.length)]
-        : undefined,
+    ...(producerStatusIncluded
+      ? {}
+      : { status: [{ type: "text", text: status }] }),
+    body,
     artifacts: artifacts(context),
   };
-}
-
-function diagnosticItems(
-  stdout: string,
-  stderr: string,
-  exitCode: unknown,
-  timedOut: boolean,
-): SemanticItem[] {
-  const all = [
-    ...stdout
-      .split(/\r?\n/)
-      .filter(Boolean)
-      .map((line) => ({ stream: "stdout", line })),
-    ...stderr
-      .split(/\r?\n/)
-      .filter(Boolean)
-      .map((line) => ({ stream: "stderr", line })),
-  ];
-  const diagnostic = all.filter(({ line }) =>
-    /\b(error|warn(?:ing)?|fatal|fail(?:ed|ure)?|exception|traceback|timeout|timed out)\b/i.test(
-      line,
-    ),
-  );
-  const selected = (
-    diagnostic.length > 0 ? diagnostic : exitCode !== 0 || timedOut ? all : []
-  ).slice(-8);
-  return selected.map(({ stream, line }, index) => ({
-    id: String(index),
-    countsAs: "event",
-    blocks: [{ type: "text", text: `[${stream}] ${line}` }],
-  }));
 }

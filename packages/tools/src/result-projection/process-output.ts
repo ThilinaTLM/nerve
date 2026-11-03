@@ -1,9 +1,11 @@
 import { readFile } from "node:fs/promises";
-import { processCandidate } from "./candidates/process.js";
-import { textHead } from "./measure.js";
+import type {
+  AgentProjectionSnapshot,
+  ValidatedToolArtifact,
+} from "@nervekit/contracts/tools";
 import { profileBudget } from "./profiles.js";
 import { projectAgentResult } from "./projector.js";
-import type { CandidateContext } from "./types.js";
+import type { ProjectionCandidate } from "./types.js";
 
 export type ProcessOutputInput = {
   stdout?: string;
@@ -16,10 +18,23 @@ export type ProcessOutputInput = {
   page?: { offset?: number; limit?: number };
 };
 
-/** The shared process projection, including bounded line pages. Reads the whole capture for diagnostics. */
+export type ProcessOutputProjection = {
+  text: string;
+  /** Present for overview projections; pages are bounded reads, not reductions. */
+  snapshot?: AgentProjectionSnapshot;
+};
+
+/** The shared process projection, including bounded line pages. */
 export async function projectProcessOutput(
   input: ProcessOutputInput,
 ): Promise<string> {
+  return (await projectProcessOutputResult(input)).text;
+}
+
+/** Projects process output with the same policy the tool result service applies, so a second pass is a no-op. */
+export async function projectProcessOutputResult(
+  input: ProcessOutputInput,
+): Promise<ProcessOutputProjection> {
   const exitStatus =
     input.exitCode != null
       ? `; exit code: ${input.exitCode}`
@@ -61,7 +76,8 @@ export async function projectProcessOutput(
       lines.length,
       offset ?? Math.max(0, lines.length - limit),
     );
-    const budget = profileBudget("process_diagnostics", "inline");
+    // Pages stay within the overflow budget so lifecycle text around them still fits inline.
+    const budget = profileBudget("process_diagnostics", "overflow");
     const selected: string[] = [];
     // Reserve the header, continuation, locator and capture notice within the same budget.
     let bytes = Buffer.byteLength(
@@ -73,10 +89,7 @@ export async function projectProcessOutput(
       : requested) {
       const cut = line.length > 2000 ? `${line.slice(0, 1999)}…` : line;
       const size = Buffer.byteLength(cut) + 1;
-      if (
-        selected.length >= budget.maxLines - 4 ||
-        bytes + size > budget.maxBytes
-      )
+      if (selected.length >= budget.maxLines || bytes + size > budget.maxBytes)
         break;
       if (offset === undefined) selected.unshift(cut);
       else selected.push(cut);
@@ -88,7 +101,7 @@ export async function projectProcessOutput(
       from !== 0 ||
       next < lines.length ||
       selected.some((line, i) => line !== lines[from + i]);
-    return [
+    const text = [
       `Lines ${from}-${selected.length ? next - 1 : from} of ${lines.length} (${pageStatus}).`,
       ...selected,
       ...(next < lines.length ? [`Next offset: ${next}`] : []),
@@ -97,93 +110,94 @@ export async function projectProcessOutput(
         : []),
       ...(capture ? [capture] : []),
     ].join("\n");
+    return { text };
   }
-  const context: CandidateContext = {
-    toolName: "bash",
-    args: {},
-    status: "completed",
-    validatedArtifacts: [],
-    result: {
-      stdout: output,
-      stderr: "",
-      content: [processStatus, output, capture].filter(Boolean).join("\n"),
-      details: {
-        exitCode: input.exitCode,
-        processStatusIncluded: true,
-        streams: {
-          combined: { lines: lines.length, bytes: Buffer.byteLength(output) },
-        },
-      },
+  return projectProcessText({
+    header: [processStatus, capture].filter(Boolean).join("\n"),
+    inline: [processStatus, output, capture].filter(Boolean).join("\n"),
+    output,
+    files: {
+      combined: files.combined
+        ? { path: files.combined, text: output }
+        : undefined,
+      stdout: files.stdout ? { path: files.stdout, text: stdout } : undefined,
+      stderr: files.stderr ? { path: files.stderr, text: stderr } : undefined,
     },
-  };
-  const candidate = processCandidate(context)!;
-  candidate.status = [
-    {
-      type: "text",
-      text: [processStatus, `Output lines: ${lines.length}`, capture]
-        .filter(Boolean)
-        .join("\n"),
-    },
-  ];
-  candidate.items = [
-    ...lines.slice(0, 2).map((line) => ({
-      countsAs: "event" as const,
-      blocks: [{ type: "text" as const, text: line }],
-    })),
-    ...(candidate.items ?? []).slice(-4).map((item) => ({
-      ...item,
-      blocks: item.blocks.map((block) =>
-        block.type === "text"
-          ? { ...block, text: block.text.replace(/^\[stdout\] /, "") }
-          : block,
-      ),
-    })),
-    ...lines.slice(-2).map((line) => ({
-      countsAs: "event" as const,
-      blocks: [{ type: "text" as const, text: line }],
-    })),
-  ];
-  const itemBudget = profileBudget("process_diagnostics", "overflow");
-  candidate.items = candidate.items.map((item) => ({
-    ...item,
-    blocks: item.blocks.map((block) =>
-      block.type === "text"
-        ? {
-            ...block,
-            text: textHead(
-              block.text,
-              Math.min(
-                itemBudget.maxItemBytes ?? 1000,
-                Math.floor((itemBudget.maxBytes - 1000) / 8),
-              ),
-              1,
-            ),
-          }
-        : block,
-    ),
-  }));
-  candidate.overflow = { noun: "output line" };
-  candidate.artifacts = Object.entries(files)
-    .filter(([, path]) => Boolean(path))
-    .map(([name, path]) => ({
-      version: 1,
-      id: name,
-      label: name,
-      role: "overflow_recovery",
-      availability: "available",
-      access: { kind: "agent_file", path: path },
-      format: { kind: "text", mediaType: "text/plain", encoding: "utf-8" },
-      size: { bytes: 0 },
-      recommendedTools: ["read", "grep"],
-    }));
-  return projectAgentResult(context, {
     profile: "process_diagnostics",
-    overflow: "compact_diagnostic",
-    buildCandidate: () => candidate,
-  })
-    .blocks.filter((block) => block.type === "text")
-    .map((block) => block.text)
-    .join("\n");
+  });
+}
+
+type RecoveryText = { path: string; text: string };
+
+/**
+ * Projects process text with the process policy's profile and head/tail view. Producers that project before
+ * the tool result service use this, so its output always fits the inline budget and the second pass is a no-op.
+ */
+export function projectProcessText(input: {
+  /** Status lines kept whole above a reduced view. */
+  header: string;
+  /** The exact text shown when everything fits. */
+  inline: string;
+  /** Output lines that a reduced view cuts. */
+  output: string;
+  files: {
+    combined?: RecoveryText;
+    stdout?: RecoveryText;
+    stderr?: RecoveryText;
+  };
+  profile: "process_diagnostics" | "script_output";
+}): ProcessOutputProjection {
+  const { combined, stdout, stderr } = input.files;
+  const recovery = combined
+    ? [recoveryFile("combined", combined)]
+    : [
+        ...(stdout ? [recoveryFile("stdout", stdout)] : []),
+        ...(stderr ? [recoveryFile("stderr", stderr)] : []),
+      ];
+  const candidate: ProjectionCandidate = {
+    blocks: [{ type: "text", text: input.inline }],
+    status: input.header ? [{ type: "text", text: input.header }] : undefined,
+    body: input.output,
+    artifacts: recovery,
+  };
+  const projection = projectAgentResult(
+    {
+      toolName: "bash",
+      args: {},
+      status: "completed",
+      validatedArtifacts: [],
+      result: {},
+    },
+    {
+      profile: input.profile,
+      overflow: "head_tail",
+      buildCandidate: () => candidate,
+    },
+  );
+  return {
+    text: projection.blocks
+      .filter((block) => block.type === "text")
+      .map((block) => block.text)
+      .join("\n"),
+    snapshot: projection.snapshot,
+  };
+}
+
+function recoveryFile(
+  id: "combined" | "stdout" | "stderr",
+  { path, text }: RecoveryText,
+): ValidatedToolArtifact {
+  return {
+    version: 1,
+    id,
+    label: id,
+    role: "overflow_recovery",
+    availability: "available",
+    access: { kind: "agent_file", path },
+    format: { kind: "text", mediaType: "text/plain", encoding: "utf-8" },
+    size: { bytes: Buffer.byteLength(text) },
+    recommendedTools: ["read", "grep"],
+  };
 }
 
 export function projectProcessOutputPage(

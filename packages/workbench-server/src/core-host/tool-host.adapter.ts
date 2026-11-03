@@ -1,6 +1,6 @@
 import type { BashToolSettings } from "@nervekit/contracts/settings";
 import { realpath, readFile } from "node:fs/promises";
-import { projectProcessOutput } from "@nervekit/tools/result-projection";
+import { projectProcessOutputResult } from "@nervekit/tools/result-projection";
 import type { ToolHostPort } from "@nervekit/conversation-core";
 import {
   toolManifest,
@@ -315,18 +315,20 @@ export function createToolHostPort(
               await process.cancel();
               throw new DOMException("Cancelled", "AbortError");
             }
-            if (!outcome)
+            if (!outcome) {
+              const projected = await projectProcessOutputResult({
+                outputFiles: process.outputFiles,
+                status: "running",
+              });
               return {
                 kind: "backgrounded",
                 process,
                 result: {
                   stdout: await readFile(process.outputFiles.stdout, "utf8"),
                   stderr: await readFile(process.outputFiles.stderr, "utf8"),
-                  content: await projectProcessOutput({
-                    outputFiles: process.outputFiles,
-                    status: "running",
-                  }),
+                  content: projected.text,
                   details: {
+                    agentProjectionSnapshot: projected.snapshot,
                     cwd,
                     launch: process.launch,
                     processStatusIncluded: true,
@@ -334,22 +336,25 @@ export function createToolHostPort(
                   },
                 },
               };
+            }
             const stdout = await readFile(process.outputFiles.stdout, "utf8");
             const stderr = await readFile(process.outputFiles.stderr, "utf8");
+            const projected = await projectProcessOutputResult({
+              stdout,
+              stderr,
+              outputFiles: process.outputFiles,
+              status: outcome.status,
+              exitCode: outcome.exitCode,
+            });
             return {
               kind: "completed",
               result: {
                 stdout,
                 stderr,
                 exitCode: outcome.exitCode ?? undefined,
-                content: await projectProcessOutput({
-                  stdout,
-                  stderr,
-                  outputFiles: process.outputFiles,
-                  status: outcome.status,
-                  exitCode: outcome.exitCode,
-                }),
+                content: projected.text,
                 details: {
+                  agentProjectionSnapshot: projected.snapshot,
                   launch: process.launch,
                   exitCode: outcome.exitCode,
                   status: outcome.status,

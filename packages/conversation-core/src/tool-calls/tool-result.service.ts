@@ -8,10 +8,14 @@ import type {
   ToolCallOutcome,
 } from "@nervekit/contracts/core";
 import type {
+  AgentProjectionSnapshot,
   ToolExecutionResultPayload,
   ValidatedToolArtifact,
 } from "@nervekit/contracts/tools";
-import { toolArtifactClaimSchema } from "@nervekit/contracts/tools";
+import {
+  agentProjectionSnapshotSchema,
+  toolArtifactClaimSchema,
+} from "@nervekit/contracts/tools";
 import {
   toolDefinitionByName,
   type ToolDefinition,
@@ -31,6 +35,7 @@ export async function prepareToolResult(
   definition?: ToolDefinition,
 ): Promise<{
   agentProjection: AgentProjection;
+  agentProjectionSnapshot: AgentProjectionSnapshot;
   userProjection: ToolUserProjection;
   assetIds: string[];
 }> {
@@ -165,8 +170,18 @@ export async function prepareToolResult(
   for (const block of projection.blocks)
     blocks.push(block.type === "image" ? await saveImage(block) : block);
   const agentProjection: AgentProjection = blocks;
+  // Producers such as foreground bash project with the same policy first, leaving this pass unchanged;
+  // their snapshot records the real reduction.
+  const producerSnapshot = agentProjectionSnapshotSchema.safeParse(
+    (result.details as Record<string, unknown> | undefined)
+      ?.agentProjectionSnapshot,
+  );
   return {
     agentProjection,
+    agentProjectionSnapshot:
+      projection.snapshot.fastPath && producerSnapshot.success
+        ? producerSnapshot.data
+        : projection.snapshot,
     userProjection: buildUserProjection(
       call.toolName,
       call.arguments,

@@ -356,7 +356,7 @@ describe("bash executor", () => {
     assert.equal(details.streams?.combined?.truncated, false);
   });
 
-  it("saves large output to one transcript and returns first/last previews", async () => {
+  it("saves large output to one transcript and returns a head/tail agent projection", async () => {
     const project = await createTempProject();
     const result = await executeBash(
       {
@@ -365,12 +365,14 @@ describe("bash executor", () => {
       { cwd: project.root },
     );
 
-    assert.match(result.content ?? "", /output exceeded inline limits/);
-    assert.match(result.content ?? "", /Preview — first 40 lines/);
-    assert.match(result.content ?? "", /line 0/);
-    assert.match(result.content ?? "", /Preview — last 40 lines/);
-    assert.match(result.content ?? "", /line 599/);
-    assert.match(result.content ?? "", /Use read with offset\/limit or grep/);
+    assert.match(
+      result.content ?? "",
+      /^Process exit code 0\.\nDuration: \d+ ms\nline 0\n/,
+    );
+    assert.match(
+      result.content ?? "",
+      /line 599\n\[Showing lines 1-\d+ and \d+-600 of 600; [\d.]+KB omitted\. Full output: .*nerve-bash-.*\]$/,
+    );
 
     const details = result.details as {
       fullOutputPath?: string;
@@ -488,6 +490,6 @@ describe("bash executor", () => {
     assert.equal(result.stdout, "out");
     assert.equal(result.stderr, "err");
     assert.equal(result.exitCode, 7);
-    assert.match(result.content ?? "", /Command exited with code 7/);
+    assert.match(result.content ?? "", /^outerr\n\nProcess exit code 7\./);
   });
 });

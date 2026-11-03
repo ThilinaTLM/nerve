@@ -221,6 +221,7 @@ async function buildResult(
     code,
     signal,
     outputFilePrefix: "nerve-bash",
+    agentProfile: "process_diagnostics",
     exitMessagePrefix: "Command",
     artifactDir,
     durationMs: options.durationMs,

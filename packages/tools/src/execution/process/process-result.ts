@@ -3,6 +3,9 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { ToolOutputLimitsPayload } from "@nervekit/contracts/tools";
+import { blocksFit } from "../../result-projection/measure.js";
+import { profileBudget } from "../../result-projection/profiles.js";
+import { projectAgentContent } from "./process-agent-content.js";
 import type { ToolExecutionResult } from "../execution-context.js";
 import type { ProcessOutputChunk } from "../output/bounded-process-output.js";
 import {
@@ -59,6 +62,11 @@ export type ProcessResultOptions = {
   timeoutMessage?: string;
   contentFooterLines?: string[];
   recoveryFiles?: ProcessRecoveryFiles;
+  /**
+   * When set, the content is the final agent projection for this profile (the same projection the tool
+   * result service applies), and its snapshot is returned in `details.agentProjectionSnapshot`.
+   */
+  agentProfile?: "process_diagnostics" | "script_output";
 };
 
 export type ProcessTextResultOptions = {
@@ -144,6 +152,7 @@ export async function buildProcessResult({
   timeoutMessage,
   contentFooterLines = [],
   recoveryFiles,
+  agentProfile,
 }: ProcessResultOptions): Promise<ToolExecutionResult> {
   const stdout = Buffer.concat(stdoutChunks).toString("utf8");
   const stderr = Buffer.concat(stderrChunks).toString("utf8");
@@ -165,9 +174,16 @@ export async function buildProcessResult({
           stderrChunks,
         )
       : undefined);
+  const exceedsAgentInline =
+    agentProfile !== undefined &&
+    hasOutput &&
+    !blocksFit(
+      [{ type: "text", text: combined }],
+      profileBudget(agentProfile, "inline"),
+    );
   const fullOutputPath =
     recovery?.combinedPath ??
-    (boundedOutput
+    (boundedOutput || (exceedsAgentInline && !recovery)
       ? await writeTranscriptFile({ outputFilePrefix, text: combined })
       : undefined);
 
@@ -196,8 +212,41 @@ export async function buildProcessResult({
       ? textBoundaryDetails(boundedCombined)
       : undefined;
 
+  const footerLines = [...contentFooterLines];
+  if (timedOut) {
+    footerLines.push(
+      timeoutMessage ??
+        `${exitMessagePrefix} timed out and ${timeoutKilled ? "was killed" : "was not killed"}.`,
+    );
+  }
+  // The agent projection's status already states the exit code.
+  const agentFooterLines = [...footerLines];
+  if (exitCode !== 0) {
+    footerLines.push(`${exitMessagePrefix} exited with code ${exitCode}.`);
+  }
+  const agentProjection =
+    agentProfile && hasOutput
+      ? projectAgentContent({
+          profile: agentProfile,
+          combined,
+          stdout,
+          stderr,
+          footerLines: agentFooterLines,
+          status: [
+            `Process exit code ${exitCode}.`,
+            signal ? `Signal: ${signal}` : undefined,
+            timedOut ? "Timed out: yes" : undefined,
+            durationMs !== undefined ? `Duration: ${durationMs} ms` : undefined,
+          ],
+          recovery,
+          fullOutputPath,
+        })
+      : undefined;
+
   let content = noOutputText;
-  if (hasOutput && outputPreview) {
+  if (agentProjection) {
+    content = agentProjection.text;
+  } else if (hasOutput && outputPreview) {
     content = formatLargeOutputContent({
       exitMessagePrefix,
       fullOutputPath: fullOutputPath ?? "",
@@ -229,17 +278,7 @@ export async function buildProcessResult({
     content = combined;
   }
 
-  const footerLines = [...contentFooterLines];
-  if (timedOut) {
-    footerLines.push(
-      timeoutMessage ??
-        `${exitMessagePrefix} timed out and ${timeoutKilled ? "was killed" : "was not killed"}.`,
-    );
-  }
-  if (exitCode !== 0) {
-    footerLines.push(`${exitMessagePrefix} exited with code ${exitCode}.`);
-  }
-  if (footerLines.length > 0) {
+  if (!agentProjection && footerLines.length > 0) {
     content += `${content.endsWith("\n") ? "" : "\n"}${footerLines.join("\n")}`;
   }
 
@@ -255,7 +294,11 @@ export async function buildProcessResult({
       durationMs,
       timedOut,
       timeoutKilled,
-      processStatusIncluded: timedOut || exitCode !== 0,
+      processStatusIncluded:
+        agentProjection !== undefined || timedOut || exitCode !== 0,
+      ...(agentProjection
+        ? { agentProjectionSnapshot: agentProjection.snapshot }
+        : {}),
       truncation: outputTruncation,
       outputLimits: processOutputLimits({
         existing: (details as { outputLimits?: ToolOutputLimitsPayload })
