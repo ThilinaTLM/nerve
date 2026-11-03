@@ -84,7 +84,11 @@ function setup() {
   let target = { kind: "draft", pendingId: "draft", projectId: "project" };
   let defaults = available();
   let invalidate = () => {};
-  const requests: { resolve(value: unknown): void; input: unknown }[] = [];
+  const requests: {
+    resolve(value: unknown): void;
+    reject(error: unknown): void;
+    input: unknown;
+  }[] = [];
   const writes: unknown[] = [];
   const deps = {
     target: () => target,
@@ -102,7 +106,9 @@ function setup() {
     defaults: () => defaults,
     profiles: () => [{ name: "planning", digest: "a".repeat(64) }],
     resolve: (input: unknown) =>
-      new Promise((resolve) => requests.push({ resolve, input })),
+      new Promise((resolve, reject) =>
+        requests.push({ resolve, reject, input }),
+      ),
     clampReasoning: (_key: string, level: string) => level,
     capabilityEditor: {
       load: async () => {},
@@ -278,7 +284,35 @@ test("a resolved configuration without a model is unavailable, not a draft-creat
   }
 });
 
-test("failed refreshes and unavailable profiles never present an earlier preview as current", async () => {
+test("draft edits keep the last view while resolving; failures clear it", async () => {
+  const { mount } = await harness();
+  const s = setup();
+  const { view, stop } = mount(s.deps);
+  try {
+    flushSync();
+    s.setPending({ ...s.pending(), overrides: { reasoningLevel: "high" } });
+    flushSync();
+    assert.equal(s.requests.length, 1);
+    assert.equal(view.status, "ready");
+    assert.equal(view.resolution?.settings.model?.modelId, "test");
+    const first = available();
+    first.resolution.settings.model.modelId = "first";
+    s.requests[0]!.resolve(first);
+    await settle();
+    s.setPending({ ...s.pending(), overrides: { reasoningLevel: "low" } });
+    flushSync();
+    assert.equal(view.status, "ready");
+    assert.equal(view.resolution?.settings.model?.modelId, "first");
+    s.requests[1]!.reject(new Error("offline"));
+    await settle();
+    assert.equal(view.resolution, undefined);
+    assert.equal(view.status, "unavailable");
+  } finally {
+    stop();
+  }
+});
+
+test("unavailable replies and profiles never present an earlier preview as current", async () => {
   const { mount } = await harness();
   const s = setup();
   const { view, stop } = mount(s.deps);
@@ -294,7 +328,7 @@ test("failed refreshes and unavailable profiles never present an earlier preview
       overrides: { permissionRuleSetId: "read_only" },
     });
     flushSync();
-    assert.equal(view.resolution, undefined);
+    assert.equal(view.resolution?.settings.model?.modelId, "test");
     s.requests[1]!.resolve({ status: "unavailable", diagnostics: [] });
     await settle();
     assert.equal(view.resolution, undefined);
