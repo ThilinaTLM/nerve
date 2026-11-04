@@ -109,9 +109,10 @@ export class ProjectPathIndexes {
       return;
     }
     index.builtAt = Date.now();
-    void (changedPaths.length > 0
-      ? index.native.applyChanges(changedPaths)
-      : index.native.rebuild()
+    void (
+      changedPaths.length > 0
+        ? index.native.applyChanges(changedPaths)
+        : index.native.rebuild()
     ).catch(() => undefined);
   }
 
@@ -165,9 +166,7 @@ export class ProjectPathIndexes {
           ...scored,
         });
     }
-    matches.sort(
-      (a, b) => b.score - a.score || a.path.localeCompare(b.path),
-    );
+    matches.sort((a, b) => b.score - a.score || a.path.localeCompare(b.path));
     return { matches: matches.slice(0, limit), incomplete: false };
   }
 

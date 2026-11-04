@@ -8,7 +8,9 @@ import { activeComposer } from "./active-composer.svelte";
 export const composerMentionRequests = $state({ paths: [] as string[] });
 
 /** Queues path references; false when no composer is available to take them. */
-export function requestComposerMentions(references: readonly string[]): boolean {
+export function requestComposerMentions(
+  references: readonly string[],
+): boolean {
   if (references.length === 0) return true;
   if (!activeComposer()) return false;
   composerMentionRequests.paths = [

@@ -102,6 +102,7 @@ type Props = {
   class?: string;
 };
 
+/* eslint-disable no-useless-assignment -- $bindable defaults declare parent bindings before the effect assigns the handle. */
 let {
   nodes,
   ariaLabel,
@@ -143,6 +144,7 @@ let {
   getGroupMenuItems,
   class: className,
 }: Props = $props();
+/* eslint-enable no-useless-assignment */
 
 let root: HTMLElement | undefined = $state();
 let virtualController = $state<VirtualScrollerController>();

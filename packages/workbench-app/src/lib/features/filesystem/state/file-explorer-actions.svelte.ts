@@ -278,7 +278,8 @@ async function loadUntilListed(
   target: string,
 ): Promise<FilesystemProjectEntry | undefined> {
   const project = ensureFileExplorerProject(projectId);
-  let directory = project.directories[directoryPath];
+  let directory: FileExplorerDirectoryState | undefined =
+    project.directories[directoryPath];
   if (!directory) {
     await loadFileExplorerDirectory(projectId, directoryPath);
   } else if (directory.stale) {

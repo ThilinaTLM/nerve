@@ -255,16 +255,11 @@ const activityExamples: {
             {...filesPanelFixture}
             rootMenu={() => menuItems}
             itemMenu={() => menuItems}
-            pendingCreate={undefined}
-            pendingTrash={undefined}
             onRefresh={noop}
             onRetry={noop}
             onActivate={noop}
             onExpansionChange={noop}
             onDragStart={noop}
-            onCreate={async () => {}}
-            onConfirmTrash={noop}
-            onCancelTrash={noop}
           />
         </div>
         <div class="h-150 w-70 overflow-hidden rounded-md border">
@@ -306,16 +301,11 @@ const activityExamples: {
             nodes={[]}
             rootMenu={() => menuItems}
             itemMenu={() => menuItems}
-            pendingCreate={undefined}
-            pendingTrash={undefined}
             onRefresh={noop}
             onRetry={noop}
             onActivate={noop}
             onExpansionChange={noop}
             onDragStart={noop}
-            onCreate={async () => {}}
-            onConfirmTrash={noop}
-            onCancelTrash={noop}
           />
         </div>
         <div class="h-150 w-70 overflow-hidden rounded-md border">
@@ -325,16 +315,11 @@ const activityExamples: {
             nodes={[]}
             rootMenu={() => menuItems}
             itemMenu={() => menuItems}
-            pendingCreate={undefined}
-            pendingTrash={undefined}
             onRefresh={noop}
             onRetry={noop}
             onActivate={noop}
             onExpansionChange={noop}
             onDragStart={noop}
-            onCreate={async () => {}}
-            onConfirmTrash={noop}
-            onCancelTrash={noop}
           />
         </div>
         <div class="h-150 w-70 overflow-hidden rounded-md border">
@@ -344,16 +329,11 @@ const activityExamples: {
             nodes={[]}
             rootMenu={() => menuItems}
             itemMenu={() => menuItems}
-            pendingCreate={undefined}
-            pendingTrash={undefined}
             onRefresh={noop}
             onRetry={noop}
             onActivate={noop}
             onExpansionChange={noop}
             onDragStart={noop}
-            onCreate={async () => {}}
-            onConfirmTrash={noop}
-            onCancelTrash={noop}
           />
         </div>
         <div class="h-150 w-70 overflow-hidden rounded-md border">

@@ -20,19 +20,21 @@ test("selects ranges from the anchor in either direction", () => {
   const forward = selectRange(visible, selectOnly("b"), "d");
   assert.deepEqual([...forward.ids], ["b", "c", "d"]);
   assert.equal(forward.anchorId, "b");
-  assert.deepEqual([...selectRange(visible, selectOnly("c"), "a").ids], [
-    "a",
-    "b",
-    "c",
-  ]);
-  assert.deepEqual([...selectRange(visible, { ids: new Set() }, "b").ids], ["b"]);
+  assert.deepEqual(
+    [...selectRange(visible, selectOnly("c"), "a").ids],
+    ["a", "b", "c"],
+  );
+  assert.deepEqual(
+    [...selectRange(visible, { ids: new Set() }, "b").ids],
+    ["b"],
+  );
 });
 
 test("prunes ids that disappeared", () => {
   const selection = selectRange(visible, selectOnly("a"), "c");
-  assert.deepEqual([...pruneSelection(selection, new Set(["a", "c"])).ids], [
-    "a",
-    "c",
-  ]);
+  assert.deepEqual(
+    [...pruneSelection(selection, new Set(["a", "c"])).ids],
+    ["a", "c"],
+  );
   assert.equal(pruneSelection(selection, new Set(visible)), selection);
 });

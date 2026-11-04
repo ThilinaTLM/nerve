@@ -1,3 +1,4 @@
+import { SvelteSet } from "svelte/reactivity";
 import type { FilesystemProjectEntry } from "@nervekit/contracts/filesystem";
 import { notify } from "$lib/application/notifications/notify.svelte";
 import { confirmFileTabsAtPath } from "$lib/application/workspace";
@@ -37,7 +38,7 @@ export type FileOperationContext = {
 export type PathPair = { from: string; to: string };
 
 function uniqueDirectories(paths: readonly string[]): string[] {
-  return [...new Set(paths)];
+  return [...new SvelteSet(paths)];
 }
 
 function describeNames(paths: readonly string[]): string {
@@ -50,7 +51,7 @@ function describeNames(paths: readonly string[]): string {
 /** Names present in `directory` (as last listed), for collision-free copies. */
 export function listedNames(projectId: string, directory: string): Set<string> {
   const project = ensureFileExplorerProject(projectId);
-  return new Set(
+  return new SvelteSet(
     (project.directories[directory]?.entries ?? []).map((e) => e.name),
   );
 }

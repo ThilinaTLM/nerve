@@ -22,7 +22,9 @@ test("reads codes from API errors and protocol error data", () => {
 test("maps known codes to friendly text and falls back to the message", () => {
   assert.match(
     describeFileOperationError(
-      Object.assign(new Error("raw"), { data: { code: "PROJECT_ENTRY_EXISTS" } }),
+      Object.assign(new Error("raw"), {
+        data: { code: "PROJECT_ENTRY_EXISTS" },
+      }),
     ),
     /already exists/,
   );

@@ -79,7 +79,7 @@ function handleBlur(): void {
     autocomplete="off"
     aria-label={ariaLabel}
     aria-invalid={error ? true : undefined}
-    class="h-5 min-w-0 flex-1 rounded-sm border bg-input-background px-1 text-ui text-foreground outline-none focus-visible:border-ring aria-invalid:border-destructive"
+    class="h-5 w-0 min-w-0 flex-1 rounded-sm border bg-input-background px-1 text-ui text-foreground outline-none focus-visible:border-ring aria-invalid:border-destructive"
     oninput={() => onValueChange?.(value)}
     onkeydown={handleKeydown}
     onblur={handleBlur}

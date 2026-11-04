@@ -431,7 +431,10 @@ function closeFilter(): void {
                   )}
                   siblings={siblingNames(
                     item.entry.path.includes("/")
-                      ? item.entry.path.slice(0, item.entry.path.lastIndexOf("/"))
+                      ? item.entry.path.slice(
+                          0,
+                          item.entry.path.lastIndexOf("/"),
+                        )
                       : "",
                   )}
                   onCommit={(name) => onCommitEdit(item, name)}
@@ -451,7 +454,8 @@ function closeFilter(): void {
                     role="img"
                     title={decoration.title}
                     aria-label={decoration.title}
-                    ><span class="size-1.5 rounded-full bg-current"></span></span
+                    ><span class="size-1.5 rounded-full bg-current"
+                    ></span></span
                   >
                 {:else if decoration?.label && item.entry.kind === "file"}
                   <span

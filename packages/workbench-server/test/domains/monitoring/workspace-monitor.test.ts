@@ -343,9 +343,7 @@ test("tree-capable monitors watch the project recursively and feed changed paths
     assert.equal(result.watchedDirectoryCount, 1234);
     assert.equal(native.directoryScopes.length, 0);
     const canonicalRoot = treeScopes[0]?.root ?? "";
-    const notice = (
-      overrides: Partial<ChangeNotice>,
-    ): ChangeNotice => ({
+    const notice = (overrides: Partial<ChangeNotice>): ChangeNotice => ({
       scopeId: "project:proj",
       generation: 1,
       causes: ["filesystem"],

@@ -15,14 +15,14 @@ import { afterEach, beforeEach, describe, it } from "node:test";
 import {
   clearProjectListingCache,
   projectDirectoryEntries,
-} from "./filesystem.service.js";
-import { setNativeFilesForTesting } from "./native-files.js";
+} from "../../../src/domains/filesystem/project-listing.js";
+import { setNativeFilesForTesting } from "../../../src/domains/filesystem/native-files.js";
 import {
   copyProjectEntry,
   deleteProjectEntries,
   moveProjectEntry,
   uploadProjectFiles,
-} from "./project-entry-mutations.js";
+} from "../../../src/domains/filesystem/project-entry-mutations.js";
 
 let root: string;
 let outside: string;
@@ -73,19 +73,31 @@ describe("move", () => {
 
   it("rejects existing targets, self moves, root and escapes", async () => {
     await rejects(
-      moveProjectEntry({ projectId: "p", from: "src/a.txt", to: "src/nested" }, dir),
+      moveProjectEntry(
+        { projectId: "p", from: "src/a.txt", to: "src/nested" },
+        dir,
+      ),
       "PROJECT_ENTRY_EXISTS",
     );
     await rejects(
-      moveProjectEntry({ projectId: "p", from: "src", to: "src/nested/src" }, dir),
+      moveProjectEntry(
+        { projectId: "p", from: "src", to: "src/nested/src" },
+        dir,
+      ),
       "PROJECT_ENTRY_INTO_SELF",
     );
     await rejects(
-      moveProjectEntry({ projectId: "p", from: "src/a.txt", to: "link/a.txt" }, dir),
+      moveProjectEntry(
+        { projectId: "p", from: "src/a.txt", to: "link/a.txt" },
+        dir,
+      ),
       "FILE_PATH_OUTSIDE_PROJECT",
     );
     await rejects(
-      moveProjectEntry({ projectId: "p", from: "link/secret.txt", to: "s.txt" }, dir),
+      moveProjectEntry(
+        { projectId: "p", from: "link/secret.txt", to: "s.txt" },
+        dir,
+      ),
       "FILE_PATH_OUTSIDE_PROJECT",
     );
     await rejects(
@@ -151,14 +163,23 @@ describe("upload", () => {
   it("fails on conflict without writing anything, unless overwriting", async () => {
     await rejects(
       uploadProjectFiles(
-        { projectId: "p", path: "src", files: [file("new.txt", "x"), file("a.txt", "z")] },
+        {
+          projectId: "p",
+          path: "src",
+          files: [file("new.txt", "x"), file("a.txt", "z")],
+        },
         dir,
       ),
       "PROJECT_ENTRY_EXISTS",
     );
     await assert.rejects(stat(join(root, "src/new.txt")));
     await uploadProjectFiles(
-      { projectId: "p", path: "src", overwrite: true, files: [file("a.txt", "z")] },
+      {
+        projectId: "p",
+        path: "src",
+        overwrite: true,
+        files: [file("a.txt", "z")],
+      },
       dir,
     );
     assert.equal(await readFile(join(root, "src/a.txt"), "utf8"), "z");
@@ -166,11 +187,17 @@ describe("upload", () => {
 
   it("rejects traversal names and symlinked destinations", async () => {
     await rejects(
-      uploadProjectFiles({ projectId: "p", path: "", files: [file("../x", "x")] }, dir),
+      uploadProjectFiles(
+        { projectId: "p", path: "", files: [file("../x", "x")] },
+        dir,
+      ),
       "INVALID_UPLOAD_NAME",
     );
     await rejects(
-      uploadProjectFiles({ projectId: "p", path: "link", files: [file("x", "x")] }, dir),
+      uploadProjectFiles(
+        { projectId: "p", path: "link", files: [file("x", "x")] },
+        dir,
+      ),
       "FILE_PATH_OUTSIDE_PROJECT",
     );
   });
@@ -180,14 +207,19 @@ describe("cached listing paging", () => {
   it("pages with cursors over the cached listing", async () => {
     for (const name of ["c", "b", "a", "d"])
       await writeFile(join(root, `f-${name}`), name);
-    const first = await projectDirectoryEntries({ projectId: "p", path: "", limit: 3 }, dir);
+    const first = await projectDirectoryEntries(
+      { projectId: "p", path: "", limit: 3 },
+      dir,
+    );
     assert.equal(first.entries.length, 3);
     assert.ok(first.nextCursor);
     const second = await projectDirectoryEntries(
       { projectId: "p", path: "", limit: 3, cursor: first.nextCursor },
       dir,
     );
-    const names = [...first.entries, ...second.entries].map((entry) => entry.name);
+    const names = [...first.entries, ...second.entries].map(
+      (entry) => entry.name,
+    );
     assert.deepEqual(names, ["src", "f-a", "f-b", "f-c", "f-d", "link"]);
     assert.equal(second.nextCursor, undefined);
   });
@@ -199,7 +231,13 @@ describe("cached listing paging", () => {
         calls += 1;
         return [
           { name: "x", path: "x", kind: "file", symlink: false, ignored: true },
-          { name: "y", path: "y", kind: "file", symlink: false, ignored: false },
+          {
+            name: "y",
+            path: "y",
+            kind: "file",
+            symlink: false,
+            ignored: false,
+          },
         ];
       },
       createPathIndex: () => {
@@ -209,7 +247,10 @@ describe("cached listing paging", () => {
         throw new Error("unused");
       },
     });
-    const first = await projectDirectoryEntries({ projectId: "p", path: "", limit: 1 }, dir);
+    const first = await projectDirectoryEntries(
+      { projectId: "p", path: "", limit: 1 },
+      dir,
+    );
     assert.equal(first.entries[0]?.ignored, true);
     await projectDirectoryEntries(
       { projectId: "p", path: "", limit: 1, cursor: first.nextCursor },

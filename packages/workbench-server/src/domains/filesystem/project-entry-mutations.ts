@@ -20,7 +20,7 @@ import {
   filesystemProjectEntryMoveRequestSchema,
 } from "@nervekit/contracts/filesystem";
 import { ApplicationError } from "../../core/application-error.js";
-import { normalizeProjectRelativeDirectory } from "./filesystem.service.js";
+import { normalizeProjectRelativeDirectory } from "./project-listing.js";
 
 type ProjectDirectoryResolver = (projectId: string) => string;
 
@@ -204,7 +204,10 @@ export async function deleteProjectEntries(
   const paths = [...new Set(request.paths.map(normalizeEntryPath))];
   // Resolve everything first so one bad path rejects the batch before deleting.
   const resolved = await Promise.all(
-    paths.map(async (path) => ({ path, absolute: await resolveEntry(root, path) })),
+    paths.map(async (path) => ({
+      path,
+      absolute: await resolveEntry(root, path),
+    })),
   );
   const deleted: string[] = [];
   for (const { path, absolute } of resolved) {
@@ -327,7 +330,8 @@ export async function uploadProjectFiles(
   }
   if (conflicts.length > 0) {
     const shown = conflicts.slice(0, 3).join(", ");
-    const more = conflicts.length > 3 ? ` and ${conflicts.length - 3} more` : "";
+    const more =
+      conflicts.length > 3 ? ` and ${conflicts.length - 3} more` : "";
     throw new ApplicationError(
       409,
       "PROJECT_ENTRY_EXISTS",
@@ -365,7 +369,11 @@ export async function uploadProjectFiles(
       try {
         await writeFile(target, data, { flag: "wx" });
       } catch (error) {
-        if (error instanceof Error && "code" in error && error.code === "EEXIST")
+        if (
+          error instanceof Error &&
+          "code" in error &&
+          error.code === "EEXIST"
+        )
           throw new ApplicationError(
             409,
             "PROJECT_ENTRY_EXISTS",

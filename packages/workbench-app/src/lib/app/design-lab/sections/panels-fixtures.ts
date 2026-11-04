@@ -687,6 +687,8 @@ const gitStatus = (
   untracked: options.untracked ?? false,
 });
 
+import { filesPanelStaticProps } from "./panels-files-static-props";
+
 export const filesPanelFixture = {
   projectName: "nerve",
   root: filesProject.directories[""],
@@ -695,7 +697,10 @@ export const filesPanelFixture = {
   busy: false,
   isEntryOpen: (path: string) =>
     filesProject.expandedIds.has(fileExplorerEntryNodeId(PROJECT_ID, path)),
-  activeRelativePath: filesActiveRelativePath,
+  ...filesPanelStaticProps,
+  selectedPaths: new Set(
+    filesActiveRelativePath ? [filesActiveRelativePath] : [],
+  ),
   gitDecorations: indexFileTreeGitDecorations([
     gitStatus("packages/workbench-app/src/main.ts", " ", "M"),
     gitStatus("packages/workbench-app/src/App.svelte", "A", " ", {

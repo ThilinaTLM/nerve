@@ -15,7 +15,10 @@ type FileSystemEntryLike = {
   isFile: boolean;
   isDirectory: boolean;
   name: string;
-  file?: (success: (file: File) => void, failure: (error: Error) => void) => void;
+  file?: (
+    success: (file: File) => void,
+    failure: (error: Error) => void,
+  ) => void;
   createReader?: () => {
     readEntries: (
       success: (entries: FileSystemEntryLike[]) => void,
@@ -31,8 +34,8 @@ async function readAllEntries(
   if (!reader) return [];
   const all: FileSystemEntryLike[] = [];
   for (;;) {
-    const batch = await new Promise<FileSystemEntryLike[]>(
-      (resolve, reject) => reader.readEntries(resolve, reject),
+    const batch = await new Promise<FileSystemEntryLike[]>((resolve, reject) =>
+      reader.readEntries(resolve, reject),
     );
     if (batch.length === 0) return all;
     all.push(...batch);
@@ -83,11 +86,15 @@ export async function collectDroppedFiles(
 }
 
 /** Client-side limit check mirroring the server so the toast is immediate. */
-export function uploadLimitError(files: readonly DroppedFile[]): string | undefined {
+export function uploadLimitError(
+  files: readonly DroppedFile[],
+): string | undefined {
   if (files.length > FILESYSTEM_PROJECT_UPLOAD_MAX_FILES)
     return `Drop at most ${FILESYSTEM_PROJECT_UPLOAD_MAX_FILES} files at a time.`;
   if (
-    files.some(({ file }) => file.size > FILESYSTEM_PROJECT_UPLOAD_MAX_FILE_BYTES)
+    files.some(
+      ({ file }) => file.size > FILESYSTEM_PROJECT_UPLOAD_MAX_FILE_BYTES,
+    )
   )
     return `Files must be ${FILESYSTEM_PROJECT_UPLOAD_MAX_FILE_BYTES / 1024 / 1024} MiB or smaller.`;
   const total = files.reduce((sum, { file }) => sum + file.size, 0);

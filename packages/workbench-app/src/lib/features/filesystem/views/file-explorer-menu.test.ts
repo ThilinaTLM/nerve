@@ -93,7 +93,9 @@ describe("file explorer menus", () => {
       false,
       icons,
     );
-    assert.ok(pasteable.some((item) => "label" in item && item.label === "Paste"));
+    assert.ok(
+      pasteable.some((item) => "label" in item && item.label === "Paste"),
+    );
   });
 
   it("inserts target-appropriate external launch groups", () => {
