@@ -4,12 +4,14 @@ import Popover, {
   PopoverHeader,
 } from "@nervekit/ui-kit/components/composites/popover-panel";
 import { ModelPickerPanel } from "$lib/presentation/model-picker";
+import ProviderIcon from "$lib/presentation/model-picker/ProviderIcon.svelte";
 import {
   supportedThinkingLevelsForModel,
   thinkingLevelShortLabel,
 } from "$lib/presentation/state/thinking-levels";
 import {
   contextualModelLabel,
+  modelDisplayName,
   modelKey,
   parseModelKey,
 } from "$lib/presentation/utils/model";
@@ -61,6 +63,10 @@ const triggerLabel = $derived(
       ? `${selectedModelKey} (unavailable)`
       : "Select model",
 );
+/* The provider icon disambiguates, so the visible label is just the model name. */
+const visibleLabel = $derived(
+  selectedModel ? modelDisplayName(selectedModel) : triggerLabel,
+);
 const showSuffix = $derived(hasThinking && thinkingLevel !== "off");
 const triggerTitle = $derived(
   `${showSuffix ? `${triggerLabel} (${thinkingLevelLabel(thinkingLevel)})` : triggerLabel}${lockReason ? ` · ${lockReason}` : ""}`,
@@ -73,7 +79,7 @@ $effect(() => {
 
 <Popover
   triggerWidthKey={selectedModel
-    ? `${triggerLabel}:${showSuffix ? thinkingLevelShortLabel(thinkingLevel) : ""}`
+    ? `${selectedModelKey}:${showSuffix ? thinkingLevelShortLabel(thinkingLevel) : ""}`
     : null}
   bind:open
   size="md"
@@ -91,7 +97,8 @@ $effect(() => {
       aria-disabled={disabled}
       data-tour-id="composer-model"
     >
-      <span class="min-w-0 truncate">{triggerLabel}</span>
+      {#if selectedModel}<ProviderIcon provider={selectedModel.provider} />{/if}
+      <span class="min-w-0 truncate">{visibleLabel}</span>
       {#if showSuffix}<span
           class="flex-none text-muted-foreground @max-[300px]/composer-toolbar:hidden @min-[481px]/composer-toolbar:@max-[560px]/composer-toolbar:hidden"
           >({thinkingLevelShortLabel(thinkingLevel)})</span
