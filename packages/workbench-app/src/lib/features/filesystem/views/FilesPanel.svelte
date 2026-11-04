@@ -34,6 +34,7 @@ let {
   nodes,
   expandedIds,
   busy,
+  statusIssues = [],
   isEntryOpen,
   activeRelativePath,
   gitDecorations,
@@ -44,6 +45,7 @@ let {
   pendingTrash,
   onRefresh,
   onRetry,
+  onRetryStatus,
   onActivate,
   onExpansionChange,
   onDragStart,
@@ -57,6 +59,8 @@ let {
   nodes: PanelTreeNode<FileExplorerTreeItem>[];
   expandedIds: ReadonlySet<string>;
   busy: boolean;
+  /** Live-update or Git status problems; shown as a retryable header warning. */
+  statusIssues?: readonly string[];
   isEntryOpen: (path: string) => boolean;
   activeRelativePath?: string;
   gitDecorations: ReadonlyMap<string, FileGitDecoration>;
@@ -70,6 +74,7 @@ let {
   pendingTrash?: FilesystemProjectEntry;
   onRefresh: () => void;
   onRetry: () => void;
+  onRetryStatus?: () => void;
   onActivate: (item: FileExplorerTreeItem) => void;
   onExpansionChange: (item: FileExplorerTreeItem, expanded: boolean) => void;
   onDragStart: (event: DragEvent, item: FileExplorerTreeItem) => void;
@@ -91,8 +96,18 @@ function isDraggableEntry(item: FileExplorerTreeItem): boolean {
 </script>
 
 {#snippet header()}
-  <PanelHeader title="Files" count={root?.entries.length}>
+  <PanelHeader title="Files">
     {#snippet trailing()}
+      {#if statusIssues.length > 0}
+        <PanelToolbarButton
+          icon={TriangleAlert}
+          label="Retry live updates and Git status"
+          title={`${statusIssues.join("\n")}\nClick to retry.`}
+          class="text-warning"
+          disabled={busy}
+          onclick={onRetryStatus}
+        />
+      {/if}
       <PanelToolbarButton
         icon={RefreshCw}
         label="Refresh files"
@@ -181,12 +196,20 @@ function isDraggableEntry(item: FileExplorerTreeItem): boolean {
             {/if}
           {/snippet}
           {#snippet itemBadges(item)}
-            {#if item.type === "entry" && item.entry.kind === "file"}
+            {#if item.type === "entry"}
               {@const decoration = fileTreeGitDecoration(
                 gitDecorations,
                 item.entry.path,
               )}
-              {#if decoration?.label}
+              {#if decoration && item.entry.kind === "directory" && decoration.tone !== "neutral"}
+                <span
+                  class={cn("flex w-3 justify-center", decoration.class)}
+                  role="img"
+                  title={decoration.title}
+                  aria-label={decoration.title}
+                  ><span class="size-1.5 rounded-full bg-current"></span></span
+                >
+              {:else if decoration?.label && item.entry.kind === "file"}
                 <span
                   class={cn("w-3 text-center text-ui", decoration.class)}
                   title={decoration.title}

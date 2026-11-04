@@ -11,6 +11,7 @@ import type {
   FilesystemProjectEntriesResponse,
   FilesystemProjectEntryCreateRequest,
   FilesystemProjectEntryCreateResponse,
+  FilesystemProjectMonitorState,
 } from "@nervekit/contracts/filesystem";
 import {
   apiDeleteNoContent,
@@ -84,7 +85,7 @@ export async function listProjectEntries(
 export function syncProjectMonitor(
   projectId: string,
   directories: string[],
-): Promise<void> {
+): Promise<FilesystemProjectMonitorState | undefined> {
   return workspaceMonitorDemand.syncProject(projectId, directories);
 }
 

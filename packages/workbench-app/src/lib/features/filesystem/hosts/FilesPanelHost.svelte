@@ -47,6 +47,10 @@ import {
 } from "$lib/features/filesystem/state/file-explorer-tree";
 import { indexFileTreeGitDecorations } from "$lib/features/filesystem/state/file-git-status";
 import {
+  describeGitStatusErrors,
+  describeGitStatusFailure,
+} from "$lib/features/filesystem/state/file-panel-status";
+import {
   errorDetails,
   showCriticalError,
 } from "$lib/application/notifications/critical-errors.svelte";
@@ -86,6 +90,8 @@ let {
 const noExpandedIds: ReadonlySet<string> = new Set();
 
 let gitFiles = $state<GitProjectFileStatus[]>([]);
+let gitIssue = $state<string>();
+let monitorIssue = $state<string>();
 let pendingCreate = $state<{
   kind: "file" | "directory";
   parent: FilesystemProjectEntry;
@@ -114,6 +120,9 @@ const rootEntry = $derived<FilesystemProjectEntry | undefined>(
         symlink: false,
       }
     : undefined,
+);
+const statusIssues = $derived(
+  [monitorIssue, gitIssue].filter((issue) => issue !== undefined),
 );
 const busy = $derived(
   Object.values(project?.directories ?? {}).some(
@@ -146,6 +155,15 @@ function activate(item: FileExplorerTreeItem): void {
   activateFileExplorerItem(activeProject.id, item);
 }
 
+/** Expansion changes monitor demand, so every expand/collapse path goes through here. */
+function setExpanded(item: FileExplorerTreeItem, expanded: boolean): void {
+  if (!activeProject) return;
+  setFileExplorerItemExpanded(activeProject.id, item, expanded);
+  void fileController?.updateMonitorDemand(
+    monitoredFileExplorerDirectories(activeProject.id),
+  );
+}
+
 function openFromMenu(item: FileExplorerEntryItem): void {
   if (!activeProject || !project) return;
   if (item.entry.kind === "file") {
@@ -154,14 +172,7 @@ function openFromMenu(item: FileExplorerEntryItem): void {
   }
   if (item.entry.kind === "directory") {
     const id = fileExplorerEntryNodeId(activeProject.id, item.entry.path);
-    setFileExplorerItemExpanded(
-      activeProject.id,
-      item,
-      !project.expandedIds.has(id),
-    );
-    void fileController?.updateMonitorDemand(
-      monitoredFileExplorerDirectories(activeProject.id),
-    );
+    setExpanded(item, !project.expandedIds.has(id));
   }
 }
 
@@ -170,12 +181,21 @@ function parentPath(path: string): string {
   return separator < 0 ? "" : path.slice(0, separator);
 }
 
-async function refreshGitStatus(projectId: string): Promise<void> {
+async function refreshGitStatus(
+  projectId: string,
+  followup = false,
+): Promise<void> {
   try {
     const response = await getProjectGitFileStatus(projectId);
-    if (activeProject?.id === projectId) gitFiles = response.files;
-  } catch {
-    // Git decoration is best effort; preserve the last successful status.
+    if (activeProject?.id !== projectId) return;
+    gitFiles = response.files;
+    gitIssue = describeGitStatusErrors(response.errors);
+    // A stale read crossed a monitor poll; re-read once, without retrying further.
+    if (response.stale && !followup) await refreshGitStatus(projectId, true);
+  } catch (caught) {
+    // Decorations are best effort: keep the last status but say it may be outdated.
+    if (activeProject?.id === projectId)
+      gitIssue = describeGitStatusFailure(caught);
   }
 }
 
@@ -240,11 +260,9 @@ async function createEntry(name: string): Promise<void> {
   await loadFileExplorerDirectory(activeProject.id, target.parent.path, {
     refresh: true,
   });
-  setFileExplorerItemExpanded(
-    activeProject.id,
-    { type: "entry", entry: target.parent },
-    true,
-  );
+  // The root is always shown and monitored; only nested parents need expanding.
+  if (target.parent.path)
+    setExpanded({ type: "entry", entry: target.parent }, true);
   await refreshGitStatus(activeProject.id);
   if (target.kind === "file")
     await openFilePane({
@@ -377,8 +395,13 @@ $effect(() => {
   const projectId = activeProject?.id;
   if (!projectId || !workbenchStartupState.progressiveActive) return;
   gitFiles = [];
+  gitIssue = undefined;
+  monitorIssue = undefined;
   fileController = startFilePanelController({
     projectId,
+    onMonitorIssue: (issue) => {
+      if (activeProject?.id === projectId) monitorIssue = issue;
+    },
     initialize: async () => {
       await Promise.all([
         ensureFileExplorerRoot(projectId),
@@ -400,6 +423,7 @@ $effect(() => {
   {nodes}
   expandedIds={project?.expandedIds ?? noExpandedIds}
   {busy}
+  {statusIssues}
   isEntryOpen={(path) =>
     Boolean(
       activeProject &&
@@ -418,11 +442,13 @@ $effect(() => {
   onRetry={() => {
     if (activeProject) void ensureFileExplorerRoot(activeProject.id);
   }}
-  onActivate={activate}
-  onExpansionChange={(item, expanded) => {
-    if (activeProject)
-      setFileExplorerItemExpanded(activeProject.id, item, expanded);
+  onRetryStatus={() => {
+    if (!activeProject) return;
+    void fileController?.updateMonitorDemand();
+    void fileController?.requestRefresh();
   }}
+  onActivate={activate}
+  onExpansionChange={setExpanded}
   onDragStart={startEntryDrag}
   onCreate={createEntry}
   onConfirmTrash={() => void movePendingToTrash()}

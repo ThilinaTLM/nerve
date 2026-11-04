@@ -38,6 +38,14 @@ describe("file Git decorations", () => {
     assert.equal(decorations.get("src")?.tone, "warning");
   });
 
+  it("matches directory statuses reported with a trailing slash", () => {
+    const decorations = indexFileTreeGitDecorations([
+      status({ path: "packages/new-tool/", untracked: true }),
+    ]);
+    assert.equal(decorations.get("packages/new-tool")?.tone, "success");
+    assert.equal(decorations.get("packages")?.tone, "success");
+  });
+
   it("mutes ignored entries, their descendants, and Git metadata", () => {
     const decorations = indexFileTreeGitDecorations([
       status({ path: "release", index: "!", worktree: "!" }),

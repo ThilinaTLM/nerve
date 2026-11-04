@@ -32,8 +32,10 @@ export function indexFileTreeGitDecorations(
   for (const file of files) {
     const decoration = fileGitDecoration(file);
     if (!decoration) continue;
-    decorations.set(file.path, decoration);
-    let directory = file.path.slice(0, file.path.lastIndexOf("/"));
+    // Collapsed untracked/ignored directories may be reported with a trailing slash.
+    const path = file.path.replace(/\/+$/, "");
+    decorations.set(path, decoration);
+    let directory = path.slice(0, path.lastIndexOf("/"));
     while (directory) {
       const current = decorations.get(directory);
       if (

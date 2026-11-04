@@ -99,9 +99,14 @@ export type FilesystemProjectEntriesResponse = z.infer<
   typeof filesystemProjectEntriesResponseSchema
 >;
 
+/** Maximum directories one client may ask the project monitor to watch. */
+export const FILESYSTEM_PROJECT_MONITOR_MAX_DIRECTORIES = 512;
+
 export const filesystemProjectMonitorSyncRequestSchema = z.object({
   projectId: z.string().startsWith("proj_"),
-  directories: z.array(z.string().max(4_096)).max(512),
+  directories: z
+    .array(z.string().max(4_096))
+    .max(FILESYSTEM_PROJECT_MONITOR_MAX_DIRECTORIES),
 });
 export type FilesystemProjectMonitorSyncRequest = z.infer<
   typeof filesystemProjectMonitorSyncRequestSchema
