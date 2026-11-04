@@ -21,6 +21,10 @@ class FakeMonitor implements NativeChangeMonitorPort {
   removed: string[] = [];
   generation = 0;
   refreshRequests = 0;
+  syncTree?: (input: {
+    id: string;
+    root: string;
+  }) => Promise<MonitorScopeState>;
 
   async syncDirectories(input: { id: string; paths: string[] }) {
     this.directoryScopes.push(input);
@@ -308,6 +312,54 @@ void test("native notices publish cause hints and callback options without chang
       fullRefreshRequired: true,
     });
     assert.equal(published[3]?.data.refreshCause, undefined);
+  } finally {
+    await monitor.close();
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("tree-capable monitors watch the project recursively and feed changed paths to the path index", async () => {
+  const root = await mkdtemp(join(tmpdir(), "nerve-workspace-tree-"));
+  let emit: (notice: ChangeNotice) => void = () => {};
+  const treeScopes: Array<{ id: string; root: string }> = [];
+  const native = new FakeMonitor();
+  native.syncTree = async (input) => {
+    treeScopes.push(input);
+    return state(1234);
+  };
+  const changes: Array<[string, string[] | undefined]> = [];
+  const monitor = new WorkspaceMonitor(
+    { publishBestEffort() {} },
+    {
+      createMonitor: (onNotice) => {
+        emit = onNotice;
+        return native;
+      },
+      onProjectChanged: (projectId, paths) => changes.push([projectId, paths]),
+    },
+  );
+  try {
+    const result = await monitor.syncProject("owner", "proj", root, ["a"]);
+    assert.equal(result.watchedDirectoryCount, 1234);
+    assert.equal(native.directoryScopes.length, 0);
+    const canonicalRoot = treeScopes[0]?.root ?? "";
+    const notice = (
+      overrides: Partial<ChangeNotice>,
+    ): ChangeNotice => ({
+      scopeId: "project:proj",
+      generation: 1,
+      causes: ["filesystem"],
+      paths: [],
+      fullRefreshRequired: false,
+      ...overrides,
+    });
+    emit(notice({ paths: [join(canonicalRoot, "src", "a.ts")] }));
+    emit(notice({ causes: ["poll"], fullRefreshRequired: true }));
+    emit(notice({ causes: ["overflow"], fullRefreshRequired: true }));
+    assert.deepEqual(changes, [
+      ["proj", ["src/a.ts"]],
+      ["proj", undefined],
+    ]);
   } finally {
     await monitor.close();
     await rm(root, { recursive: true, force: true });

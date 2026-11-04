@@ -1,6 +1,11 @@
 import { Hono } from "hono";
 import { bodyLimit } from "hono/body-limit";
-import { ATTACHMENT_MAX_BYTES } from "@nervekit/contracts/filesystem";
+import {
+  ATTACHMENT_MAX_BYTES,
+  FILESYSTEM_PROJECT_UPLOAD_MAX_TOTAL_BYTES,
+} from "@nervekit/contracts/filesystem";
+import { ApplicationError } from "../../../core/application-error.js";
+import { uploadProjectFiles } from "../../../domains/filesystem/project-entry-mutations.js";
 import type { ServerAdapterContexts } from "../../../app/bootstrap/create-server-adapter-contexts.js";
 type FilesystemContentRoutesContext =
   ServerAdapterContexts["http"]["filesystem"];
@@ -61,6 +66,53 @@ export function createFilesystemContentRoutes(
         await saveAttachment(await c.req.json(), state.storage.paths.home),
       ),
     ),
+  );
+  app.post(
+    "/filesystem/project/upload",
+    bodyLimit({
+      maxSize: FILESYSTEM_PROJECT_UPLOAD_MAX_TOTAL_BYTES + 1024 * 1024,
+      onError: (c) =>
+        c.json(
+          {
+            error: {
+              code: "UPLOAD_TOO_LARGE",
+              message: "The upload is too large.",
+            },
+          },
+          413,
+        ),
+    }),
+    routeHandler(async (c) => {
+      const form = await c.req.formData().catch(() => {
+        throw new ApplicationError(
+          400,
+          "INVALID_UPLOAD",
+          "Expected a multipart/form-data upload.",
+        );
+      });
+      const projectId = form.get("projectId");
+      const path = form.get("path");
+      if (typeof projectId !== "string" || !projectId)
+        throw new ApplicationError(400, "INVALID_UPLOAD", "Missing projectId.");
+      const files = form
+        .getAll("files")
+        .filter((value): value is File => typeof value !== "string");
+      return c.json(
+        await uploadProjectFiles(
+          {
+            projectId,
+            path: typeof path === "string" ? path : "",
+            overwrite: form.get("overwrite") === "true",
+            files: files.map((file) => ({
+              name: file.name,
+              size: file.size,
+              bytes: async () => new Uint8Array(await file.arrayBuffer()),
+            })),
+          },
+          (id) => state.getProject(id).directory,
+        ),
+      );
+    }),
   );
   return app;
 }

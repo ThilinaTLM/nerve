@@ -256,7 +256,9 @@ describe("filesystem application service", () => {
       const entries = Object.fromEntries(
         result.entries.map((entry) => [entry.name, entry]),
       );
-      assert.deepEqual(entries["inside-link"], {
+      // `ignored` is only reported by the native listing.
+      const { ignored: _ignored, ...insideLink } = entries["inside-link"] ?? {};
+      assert.deepEqual(insideLink, {
         name: "inside-link",
         path: "inside-link",
         kind: "file",

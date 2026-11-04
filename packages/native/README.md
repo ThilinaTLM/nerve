@@ -18,7 +18,8 @@ Domains use only their own modules and `core`. `pnpm check:boundaries` (part of 
 
 - **Process:** managed processes with bounded output, containment, inspection and termination. A permit is held for each process's lifetime; spawning at capacity rejects.
 - **Git:** asynchronous repository, snapshot, ancestry and document reads via `gix`, with bounded output and categorized errors (`NativeOperationError`). Reads are not cancellable. Mutations stay with the Git CLI.
-- **Monitor:** filesystem and Git change watching with bounded scopes, event coalescing and polling fallback. `close()` removes the handle and joins its worker.
+- **Monitor:** filesystem and Git change watching with bounded scopes, event coalescing and polling fallback. `close()` removes the handle and joins its worker. `syncTree` scopes watch a project recursively while skipping ignored directories (per-directory inotify watches on Linux, one recursive watch elsewhere), bounded by `maxTreeDirectories`.
+- **Files:** ignore-aware project primitives exported as `files` (`isAvailable`, `listDirectory`, `createPathIndex`, `searchContent`), built on the `ignore` crate (`.gitignore`/`.ignore`/git excludes/global excludes, with or without a repo; `.git` always ignored). The path index walks in the background, publishes progressively, matches fuzzily with `nucleo-matcher` (UTF-16 positions) and updates through `applyChanges`. Content search uses `grep-*` with a parallel walk, binary skipping, windowed previews, and result/time budgets.
 - **Search:** in-memory lexical indexes for completion (below).
 
 ## Search

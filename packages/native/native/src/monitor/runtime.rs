@@ -13,6 +13,7 @@ use super::model::{
 };
 use super::pipeline::{is_due, merge_trigger, notice};
 use super::watch::{WatchBackend, canonical_directory};
+use crate::core::ignore_rules::{IgnoreMatcher, walk_builder};
 
 const COMMAND_CAPACITY: usize = 1_024;
 const LOOP_INTERVAL: Duration = Duration::from_millis(50);
@@ -129,8 +130,18 @@ impl Drop for Monitor {
     }
 }
 
+/// Linux watches directories one by one (inotify); other platforms watch the
+/// root recursively and rely on event filtering.
+const RECURSIVE_NATIVE: bool = !cfg!(target_os = "linux");
+
+struct TreeState {
+    root: PathBuf,
+    matcher: IgnoreMatcher,
+}
+
 struct Scope {
     kind: ScopeKind,
+    tree: Option<TreeState>,
     paths: HashSet<PathBuf>,
     poll_interval: Duration,
     next_poll: Instant,
@@ -225,15 +236,39 @@ impl Worker {
         }
         let maximum = match &spec.kind {
             ScopeKind::Directories => self.limits.max_directories_per_scope,
+            ScopeKind::Tree { .. } => self.limits.max_tree_directories,
             ScopeKind::Git { .. } => self.limits.max_git_paths,
         };
+        let mut tree = None;
+        let mut tree_truncated = false;
         let paths = match &spec.kind {
             ScopeKind::Directories => spec.paths.clone(),
+            ScopeKind::Tree { root } => {
+                let root = canonical_directory(root.clone())?;
+                let directories = if RECURSIVE_NATIVE {
+                    vec![root.clone()]
+                } else {
+                    let (directories, truncated) = tree_directories(&root, maximum);
+                    tree_truncated = truncated;
+                    directories
+                };
+                tree = Some(TreeState {
+                    matcher: IgnoreMatcher::new(&root),
+                    root,
+                });
+                directories
+            }
             ScopeKind::Git { repository } => git::watch_paths(repository, maximum, self.git_reads)?,
         };
+        let is_tree = tree.is_some();
         let mut canonical = Vec::new();
         for path in paths {
-            let path = canonical_directory(path)?;
+            // Tree paths come from a walk of the canonical root; no per-path resolve.
+            let path = if is_tree {
+                path
+            } else {
+                canonical_directory(path)?
+            };
             if !canonical.contains(&path) {
                 canonical.push(path);
             }
@@ -245,6 +280,13 @@ impl Worker {
                 .then_with(|| left.cmp(right))
         });
         let requested_count = canonical.len();
+        let registration_cap = if is_tree {
+            self.limits
+                .max_registrations
+                .max(self.limits.max_tree_directories)
+        } else {
+            self.limits.max_registrations
+        };
         canonical.truncate(maximum);
         let existing = self
             .scopes
@@ -266,12 +308,10 @@ impl Worker {
                         .is_some_and(|owners| owners.len() == 1)
             })
             .count();
-        let available = self
-            .limits
-            .max_registrations
+        let available = registration_cap
             .saturating_sub(self.registrations.len().saturating_sub(removed_unique));
         let mut selected = desired;
-        let mut degraded = requested_count > maximum;
+        let mut degraded = tree_truncated || requested_count > maximum;
         if new_unique > available {
             let mut unique: Vec<_> = selected
                 .iter()
@@ -288,7 +328,7 @@ impl Worker {
         let mut newly_watched: Vec<PathBuf> = Vec::new();
         for path in &additions {
             if !self.registrations.contains_key(path) {
-                if let Err(error) = self.backend.watch(path) {
+                if let Err(error) = self.backend.watch(path, RECURSIVE_NATIVE && is_tree) {
                     for watched in newly_watched {
                         let _ = self.backend.unwatch(&watched);
                     }
@@ -312,13 +352,14 @@ impl Worker {
             .map_or(0, |scope| scope.generation);
         let fingerprint = match &spec.kind {
             ScopeKind::Git { repository } => (self.git_reads.fingerprint)(repository).ok(),
-            ScopeKind::Directories => None,
+            ScopeKind::Directories | ScopeKind::Tree { .. } => None,
         };
         let watched_paths = selected.len();
         self.scopes.insert(
             spec.id,
             Scope {
                 kind: spec.kind,
+                tree,
                 paths: selected,
                 poll_interval: spec.poll_interval,
                 next_poll: Instant::now() + spec.poll_interval,
@@ -354,6 +395,8 @@ impl Worker {
             return;
         }
         let now = Instant::now();
+        let mut resync: HashSet<String> = HashSet::new();
+        let mut discovered: Vec<(String, PathBuf)> = Vec::new();
         for changed in paths {
             let ids: HashSet<_> = self
                 .registrations
@@ -362,18 +405,129 @@ impl Worker {
                 .flat_map(|(_, ids)| ids.iter().cloned())
                 .collect();
             for id in ids {
-                if let Some(scope) = self.scopes.get_mut(&id)
-                    && merge_trigger(
-                        &mut scope.pending,
-                        "filesystem",
-                        Some(changed.clone()),
-                        false,
-                        now,
-                    )
-                {
+                let Some(scope) = self.scopes.get_mut(&id) else {
+                    continue;
+                };
+                if let Some(tree) = scope.tree.as_mut() {
+                    let name = changed.file_name().and_then(|name| name.to_str());
+                    if matches!(name, Some(".gitignore" | ".ignore")) {
+                        tree.matcher.invalidate();
+                        resync.insert(id.clone());
+                    }
+                    let is_dir = std::fs::symlink_metadata(&changed)
+                        .map(|info| info.is_dir())
+                        .unwrap_or(false);
+                    if tree.matcher.is_ignored(&changed, is_dir) {
+                        continue;
+                    }
+                    if is_dir && !RECURSIVE_NATIVE && !scope.paths.contains(&changed) {
+                        discovered.push((id.clone(), changed.clone()));
+                    }
+                }
+                if merge_trigger(
+                    &mut scope.pending,
+                    "filesystem",
+                    Some(changed.clone()),
+                    false,
+                    now,
+                ) {
                     self.diagnostics.coalesced_triggers += 1;
                 }
             }
+            self.forget_removed_directory(&changed);
+        }
+        for (id, directory) in discovered {
+            self.watch_new_directory(&id, &directory);
+        }
+        for id in resync {
+            self.resync_tree(&id);
+        }
+    }
+
+    /// Drops registrations for a directory that no longer exists, with its subtree.
+    fn forget_removed_directory(&mut self, removed: &PathBuf) {
+        if RECURSIVE_NATIVE || removed.exists() {
+            return;
+        }
+        let doomed: Vec<(String, PathBuf)> = self
+            .scopes
+            .iter()
+            .filter(|(_, scope)| scope.tree.is_some())
+            .flat_map(|(id, scope)| {
+                scope
+                    .paths
+                    .iter()
+                    .filter(|path| path.starts_with(removed))
+                    .map(|path| (id.clone(), path.clone()))
+            })
+            .collect();
+        for (id, path) in doomed {
+            if let Some(scope) = self.scopes.get_mut(&id) {
+                scope.paths.remove(&path);
+            }
+            self.release_registration(&path, &id);
+        }
+    }
+
+    /// Linux only: a directory appeared under a tree scope, so watch it and its
+    /// non-ignored subdirectories (within the directory budget).
+    fn watch_new_directory(&mut self, id: &str, directory: &std::path::Path) {
+        let limit = self.limits.max_tree_directories;
+        let Some(scope) = self.scopes.get_mut(id) else {
+            return;
+        };
+        let Some(tree) = scope.tree.as_ref() else {
+            return;
+        };
+        if !directory.starts_with(&tree.root) || !directory.is_dir() {
+            return;
+        }
+        let (found, _) = tree_directories(directory, limit);
+        for path in found {
+            let scope = self.scopes.get_mut(id).expect("scope exists");
+            if scope.paths.contains(&path) {
+                continue;
+            }
+            if scope.paths.len() >= limit {
+                scope.degraded = true;
+                return;
+            }
+            if !self.registrations.contains_key(&path) && self.backend.watch(&path, false).is_err()
+            {
+                scope.degraded = true;
+                continue;
+            }
+            scope.paths.insert(path.clone());
+            self.registrations
+                .entry(path)
+                .or_default()
+                .insert(id.to_string());
+        }
+    }
+
+    /// Ignore rules changed: recompute the watched directory set, keeping pending changes.
+    fn resync_tree(&mut self, id: &str) {
+        if RECURSIVE_NATIVE {
+            return;
+        }
+        let Some(scope) = self.scopes.get(id) else {
+            return;
+        };
+        let spec = ScopeSpec {
+            id: id.to_string(),
+            kind: scope.kind.clone(),
+            paths: Vec::new(),
+            poll_interval: scope.poll_interval,
+        };
+        let pending = self
+            .scopes
+            .get_mut(id)
+            .and_then(|scope| scope.pending.take());
+        if self.sync_scope(spec).is_err() {
+            self.overflow();
+        }
+        if let Some(scope) = self.scopes.get_mut(id) {
+            scope.pending = pending;
         }
     }
 
@@ -400,7 +554,7 @@ impl Worker {
             scope.next_poll = now + scope.poll_interval;
             self.diagnostics.poll_count += 1;
             match &scope.kind {
-                ScopeKind::Directories => {
+                ScopeKind::Directories | ScopeKind::Tree { .. } => {
                     merge_trigger(&mut scope.pending, "poll", None, true, now);
                 }
                 ScopeKind::Git { repository } if !scope.fingerprint_inflight => {
@@ -511,4 +665,19 @@ impl Worker {
         self.diagnostics.degraded_scopes =
             self.scopes.values().filter(|scope| scope.degraded).count();
     }
+}
+
+/// Directories below `root` (including it) that ignore rules do not exclude.
+fn tree_directories(root: &std::path::Path, maximum: usize) -> (Vec<PathBuf>, bool) {
+    let mut directories = Vec::new();
+    for entry in walk_builder(root).build().flatten() {
+        if !entry.file_type().is_some_and(|kind| kind.is_dir()) {
+            continue;
+        }
+        if directories.len() >= maximum {
+            return (directories, true);
+        }
+        directories.push(entry.into_path());
+    }
+    (directories, false)
 }

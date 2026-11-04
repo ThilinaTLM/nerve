@@ -3,7 +3,7 @@ import { dirname, extname, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import ts from "typescript";
 
-const domains = new Set(["git", "monitor", "process", "search"]);
+const domains = new Set(["files", "git", "monitor", "process", "search"]);
 
 // Small lexical mask, not a Rust parser: nested comments, ordinary/raw/byte strings,
 // and character literals cannot introduce fake paths or hide following real ones.

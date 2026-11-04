@@ -29,9 +29,14 @@ impl WatchBackend {
         Ok(Self { watcher })
     }
 
-    pub fn watch(&mut self, path: &Path) -> Result<(), String> {
+    pub fn watch(&mut self, path: &Path, recursive: bool) -> Result<(), String> {
+        let mode = if recursive {
+            RecursiveMode::Recursive
+        } else {
+            RecursiveMode::NonRecursive
+        };
         self.watcher
-            .watch(path, RecursiveMode::NonRecursive)
+            .watch(path, mode)
             .map_err(|error| error.to_string())
     }
 

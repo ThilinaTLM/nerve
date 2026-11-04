@@ -4,6 +4,7 @@ use std::time::{Duration, Instant};
 pub const DEFAULT_MAX_SCOPES: usize = 64;
 pub const DEFAULT_MAX_REGISTRATIONS: usize = 4_096;
 pub const DEFAULT_MAX_DIRECTORIES_PER_SCOPE: usize = 512;
+pub const DEFAULT_MAX_TREE_DIRECTORIES: usize = 20_000;
 pub const DEFAULT_MAX_GIT_PATHS: usize = 12;
 pub const DEFAULT_MAX_PATHS_PER_NOTICE: usize = 256;
 pub const DEFAULT_QUIET: Duration = Duration::from_millis(300);
@@ -14,6 +15,7 @@ pub struct MonitorLimits {
     pub max_scopes: usize,
     pub max_registrations: usize,
     pub max_directories_per_scope: usize,
+    pub max_tree_directories: usize,
     pub max_git_paths: usize,
     pub max_paths_per_notice: usize,
 }
@@ -24,6 +26,7 @@ impl Default for MonitorLimits {
             max_scopes: DEFAULT_MAX_SCOPES,
             max_registrations: DEFAULT_MAX_REGISTRATIONS,
             max_directories_per_scope: DEFAULT_MAX_DIRECTORIES_PER_SCOPE,
+            max_tree_directories: DEFAULT_MAX_TREE_DIRECTORIES,
             max_git_paths: DEFAULT_MAX_GIT_PATHS,
             max_paths_per_notice: DEFAULT_MAX_PATHS_PER_NOTICE,
         }
@@ -33,7 +36,13 @@ impl Default for MonitorLimits {
 #[derive(Clone, Debug)]
 pub enum ScopeKind {
     Directories,
-    Git { repository: PathBuf },
+    /// A project tree watched recursively while skipping ignored directories.
+    Tree {
+        root: PathBuf,
+    },
+    Git {
+        repository: PathBuf,
+    },
 }
 
 #[derive(Clone, Debug)]

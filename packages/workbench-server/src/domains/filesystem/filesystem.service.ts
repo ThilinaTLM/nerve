@@ -33,6 +33,7 @@ import {
   filesystemProjectEntriesQuerySchema,
   filesystemProjectEntryCreateRequestSchema,
 } from "@nervekit/contracts/filesystem";
+import { loadNativeFiles } from "./native-files.js";
 import { ApplicationError } from "../../core/application-error.js";
 import { atomicWriteFile } from "../../infrastructure/storage-bootstrap/file-mutations.js";
 import { storagePaths } from "../../infrastructure/storage-bootstrap/paths.js";
@@ -241,7 +242,7 @@ const defaultProjectEntryLimit = 500;
 
 type ProjectEntrySortKey = [number, string, string, string];
 
-function normalizeProjectRelativeDirectory(
+export function normalizeProjectRelativeDirectory(
   rawPath: string | undefined,
 ): string {
   const path = rawPath?.trim().replaceAll("\\", "/") ?? "";
@@ -402,6 +403,91 @@ export async function createProjectEntry(
   };
 }
 
+type ListingCacheEntry = {
+  mtimeMs: number;
+  ino: number;
+  cachedAt: number;
+  entries: FilesystemProjectEntry[];
+};
+
+const listingMaxAgeMs = 30_000;
+const listingPagingWindowMs = 1_000;
+const listingSettleMs = 2_000;
+
+const listingCacheLimit = 128;
+const listingCache = new Map<string, ListingCacheEntry>();
+
+export function clearProjectListingCache(): void {
+  listingCache.clear();
+}
+
+/**
+ * Full sorted listing of one directory, cached per directory and validated by
+ * its mtime so paging does not re-read it. Native (ignore-aware) when
+ * available, Node `readdir` otherwise.
+ */
+async function sortedDirectoryEntries(
+  root: string,
+  resolvedDirectory: string,
+  relativeDirectory: string,
+  info: import("node:fs").Stats,
+): Promise<FilesystemProjectEntry[]> {
+  const key = resolvedDirectory;
+  const cached = listingCache.get(key);
+  const now = Date.now();
+  if (
+    cached &&
+    cached.mtimeMs === info.mtimeMs &&
+    cached.ino === info.ino &&
+    now - cached.cachedAt < listingMaxAgeMs &&
+    // A directory modified right before listing may change again within the
+    // same mtime tick; only trust settled listings beyond the paging window.
+    (cached.cachedAt - cached.mtimeMs > listingSettleMs ||
+      now - cached.cachedAt < listingPagingWindowMs)
+  ) {
+    listingCache.delete(key);
+    listingCache.set(key, cached);
+    return cached.entries;
+  }
+  const files = await loadNativeFiles();
+  let entries: FilesystemProjectEntry[];
+  if (files) {
+    entries = (
+      await files.listDirectory(root, relativeDirectory, {
+        includeHidden: true,
+      })
+    ).map(({ name, path, kind, symlink, ignored }) => ({
+      name,
+      path,
+      kind,
+      symlink,
+      ignored,
+    }));
+  } else {
+    entries = await mapBatched(
+      await readdir(resolvedDirectory, { withFileTypes: true }),
+      32,
+      (entry) =>
+        classifyProjectEntry(root, resolvedDirectory, relativeDirectory, entry),
+    );
+    entries.sort((left, right) =>
+      compareProjectEntryKeys(
+        projectEntrySortKey(left),
+        projectEntrySortKey(right),
+      ),
+    );
+  }
+  listingCache.set(key, {
+    mtimeMs: info.mtimeMs,
+    ino: info.ino,
+    cachedAt: now,
+    entries,
+  });
+  if (listingCache.size > listingCacheLimit)
+    listingCache.delete(listingCache.keys().next().value as string);
+  return entries;
+}
+
 export async function projectDirectoryEntries(
   input: unknown,
   getProjectDirectory: (projectId: string) => string,
@@ -420,17 +506,11 @@ export async function projectDirectoryEntries(
   if (!info.isDirectory())
     throw new Error(`${relativeDirectory || "."} is not a directory.`);
 
-  const entries = await mapBatched(
-    await readdir(resolvedDirectory, { withFileTypes: true }),
-    32,
-    (entry) =>
-      classifyProjectEntry(root, resolvedDirectory, relativeDirectory, entry),
-  );
-  entries.sort((left, right) =>
-    compareProjectEntryKeys(
-      projectEntrySortKey(left),
-      projectEntrySortKey(right),
-    ),
+  const entries = await sortedDirectoryEntries(
+    root,
+    resolvedDirectory,
+    relativeDirectory,
+    info,
   );
 
   let start = 0;

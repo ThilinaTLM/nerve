@@ -19,6 +19,17 @@ export interface DirectoryMonitorScope {
   pollIntervalMs?: number;
 }
 
+/**
+ * A project tree watched recursively while skipping directories excluded by
+ * `.gitignore`/`.ignore`/git excludes (and `.git`). Notices carry absolute paths of
+ * changed, non-ignored entries; `fullRefreshRequired` means paths were dropped.
+ */
+export interface TreeMonitorScope {
+  id: string;
+  root: string;
+  pollIntervalMs?: number;
+}
+
 export interface GitMonitorScope {
   id: string;
   repository: string;
@@ -46,6 +57,8 @@ export interface ChangeMonitorOptions {
   maxScopes?: number;
   maxRegistrations?: number;
   maxDirectoriesPerScope?: number;
+  /** Directory watch budget for tree scopes (default 20_000). */
+  maxTreeDirectories?: number;
   maxGitPaths?: number;
   maxPathsPerNotice?: number;
 }

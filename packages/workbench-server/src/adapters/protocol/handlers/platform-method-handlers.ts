@@ -13,6 +13,15 @@ import {
   projectDirectoryEntries,
 } from "../../../domains/filesystem/filesystem.service.js";
 import {
+  copyProjectEntry,
+  deleteProjectEntries,
+  moveProjectEntry,
+} from "../../../domains/filesystem/project-entry-mutations.js";
+import {
+  projectPathIndexes,
+  searchProjectContent,
+} from "../../../domains/filesystem/project-path-index.js";
+import {
   assertApplicationConfigurationEditable,
   resolveApplicationConfiguration,
 } from "../../../infrastructure/configuration/index.js";
@@ -138,6 +147,31 @@ export const platformMethodHandlers: WorkbenchMethodHandlerMapFor<PlatformMethod
       state.workspaceMonitor.requestProjectRefresh(params.projectId),
     "filesystem.project.entries.create": (state, params) =>
       createProjectEntry(
+        params,
+        (projectId) => requireProject(state, projectId).directory,
+      ),
+    "filesystem.project.entries.move": (state, params) =>
+      moveProjectEntry(
+        params,
+        (projectId) => requireProject(state, projectId).directory,
+      ),
+    "filesystem.project.entries.copy": (state, params) =>
+      copyProjectEntry(
+        params,
+        (projectId) => requireProject(state, projectId).directory,
+      ),
+    "filesystem.project.entries.delete": (state, params) =>
+      deleteProjectEntries(
+        params,
+        (projectId) => requireProject(state, projectId).directory,
+      ),
+    "filesystem.project.paths.search": (state, params) =>
+      projectPathIndexes.search(
+        params,
+        (projectId) => requireProject(state, projectId).directory,
+      ),
+    "filesystem.project.content.search": (state, params) =>
+      searchProjectContent(
         params,
         (projectId) => requireProject(state, projectId).directory,
       ),

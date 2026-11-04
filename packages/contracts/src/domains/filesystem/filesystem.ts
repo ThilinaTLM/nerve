@@ -74,6 +74,8 @@ export const filesystemProjectEntrySchema = z.object({
   path: z.string().min(1),
   kind: z.enum(["file", "directory", "other"]),
   symlink: z.boolean(),
+  /** Matched by ignore rules (.gitignore, .ignore, Git excludes). */
+  ignored: z.boolean().optional(),
 });
 export type FilesystemProjectEntry = z.infer<
   typeof filesystemProjectEntrySchema
@@ -154,6 +156,147 @@ export const filesystemProjectEntryCreateResponseSchema = z.object({
 });
 export type FilesystemProjectEntryCreateResponse = z.infer<
   typeof filesystemProjectEntryCreateResponseSchema
+>;
+
+const projectRelativePathSchema = z.string().min(1).max(4_096);
+
+/** Rename or move within the project. Fails when `to` exists. */
+export const filesystemProjectEntryMoveRequestSchema = z.object({
+  projectId: z.string().min(1),
+  from: projectRelativePathSchema,
+  to: projectRelativePathSchema,
+});
+export type FilesystemProjectEntryMoveRequest = z.infer<
+  typeof filesystemProjectEntryMoveRequestSchema
+>;
+
+/** Copy a file or directory (recursively) within the project. Fails when `to` exists. */
+export const filesystemProjectEntryCopyRequestSchema = z.object({
+  projectId: z.string().min(1),
+  from: projectRelativePathSchema,
+  to: projectRelativePathSchema,
+});
+export type FilesystemProjectEntryCopyRequest = z.infer<
+  typeof filesystemProjectEntryCopyRequestSchema
+>;
+
+/** Shared response for create, move, copy and upload. */
+export const filesystemProjectEntryResponseSchema = z.object({
+  entry: filesystemProjectEntrySchema,
+});
+export type FilesystemProjectEntryResponse = z.infer<
+  typeof filesystemProjectEntryResponseSchema
+>;
+
+export const FILESYSTEM_PROJECT_DELETE_MAX_PATHS = 1_000;
+
+/** Permanently delete entries (for clients without an OS trash bridge). */
+export const filesystemProjectEntriesDeleteRequestSchema = z.object({
+  projectId: z.string().min(1),
+  paths: z
+    .array(projectRelativePathSchema)
+    .min(1)
+    .max(FILESYSTEM_PROJECT_DELETE_MAX_PATHS),
+});
+export type FilesystemProjectEntriesDeleteRequest = z.infer<
+  typeof filesystemProjectEntriesDeleteRequestSchema
+>;
+export const filesystemProjectEntriesDeleteResponseSchema = z.object({
+  deleted: z.array(z.string()),
+});
+export type FilesystemProjectEntriesDeleteResponse = z.infer<
+  typeof filesystemProjectEntriesDeleteResponseSchema
+>;
+
+/** Fuzzy project path search (quick open). Respects ignore rules. */
+export const filesystemProjectPathSearchRequestSchema = z.object({
+  projectId: z.string().min(1),
+  query: z.string().max(1_024),
+  limit: z.number().int().positive().max(500).optional(),
+  kinds: z.array(z.enum(["file", "directory"])).optional(),
+});
+export type FilesystemProjectPathSearchRequest = z.infer<
+  typeof filesystemProjectPathSearchRequestSchema
+>;
+export const filesystemProjectPathMatchSchema = z.object({
+  path: z.string().min(1),
+  kind: z.enum(["file", "directory"]),
+  score: z.number(),
+  /** Matched character indices into `path` for highlighting. */
+  positions: z.array(z.number().int().nonnegative()),
+});
+export type FilesystemProjectPathMatch = z.infer<
+  typeof filesystemProjectPathMatchSchema
+>;
+export const filesystemProjectPathSearchResponseSchema = z.object({
+  matches: z.array(filesystemProjectPathMatchSchema),
+  /** The index was still building or hit its entry budget. */
+  incomplete: z.boolean(),
+});
+export type FilesystemProjectPathSearchResponse = z.infer<
+  typeof filesystemProjectPathSearchResponseSchema
+>;
+
+/** Content search (grep) over project files. Respects ignore rules. */
+export const filesystemProjectContentSearchRequestSchema = z.object({
+  projectId: z.string().min(1),
+  query: z.string().min(1).max(1_024),
+  regex: z.boolean().optional(),
+  caseSensitive: z.boolean().optional(),
+  wholeWord: z.boolean().optional(),
+  /** Glob patterns relative to the project root, e.g. `src/**`, `!*.test.ts`. */
+  include: z.array(z.string().max(1_024)).max(64).optional(),
+  exclude: z.array(z.string().max(1_024)).max(64).optional(),
+  includeIgnored: z.boolean().optional(),
+  maxResults: z.number().int().positive().max(10_000).optional(),
+});
+export type FilesystemProjectContentSearchRequest = z.infer<
+  typeof filesystemProjectContentSearchRequestSchema
+>;
+export const filesystemProjectContentMatchSchema = z.object({
+  line: z.number().int().positive(),
+  /** Line text, truncated to a bounded preview length. */
+  text: z.string(),
+  /** Match ranges as UTF-16 [start, end) offsets into `text`. */
+  ranges: z.array(z.tuple([z.number().int(), z.number().int()])),
+});
+export type FilesystemProjectContentMatch = z.infer<
+  typeof filesystemProjectContentMatchSchema
+>;
+export const filesystemProjectContentFileResultSchema = z.object({
+  path: z.string().min(1),
+  matches: z.array(filesystemProjectContentMatchSchema),
+});
+export type FilesystemProjectContentFileResult = z.infer<
+  typeof filesystemProjectContentFileResultSchema
+>;
+export const filesystemProjectContentSearchResponseSchema = z.object({
+  files: z.array(filesystemProjectContentFileResultSchema),
+  /** Result cap or time budget reached. */
+  truncated: z.boolean(),
+  searchedFiles: z.number().int().nonnegative(),
+});
+export type FilesystemProjectContentSearchResponse = z.infer<
+  typeof filesystemProjectContentSearchResponseSchema
+>;
+
+/**
+ * Project upload (HTTP `POST /api/filesystem/project/upload`, multipart/form-data).
+ * Form fields: `projectId`, `path` (target directory, project-relative, "" = root),
+ * optional `overwrite` ("true"), and one or more `files` parts. A part filename may
+ * contain "/" separated subdirectories (folder drops); they are created under `path`.
+ * Without `overwrite`, any existing target fails the whole request with 409
+ * `PROJECT_ENTRY_EXISTS` before anything is written.
+ */
+export const FILESYSTEM_PROJECT_UPLOAD_MAX_FILE_BYTES = 50 * 1024 * 1024;
+export const FILESYSTEM_PROJECT_UPLOAD_MAX_TOTAL_BYTES = 128 * 1024 * 1024;
+export const FILESYSTEM_PROJECT_UPLOAD_MAX_FILES = 500;
+export const filesystemProjectUploadResponseSchema = z.object({
+  /** Written files, in request order. */
+  entries: z.array(filesystemProjectEntrySchema),
+});
+export type FilesystemProjectUploadResponse = z.infer<
+  typeof filesystemProjectUploadResponseSchema
 >;
 
 export const filesystemFileQuerySchema = z.object({
