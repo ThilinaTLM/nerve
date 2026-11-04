@@ -153,7 +153,6 @@ const promptDraftTarget = $derived<PromptDraftTarget | undefined>(
       : undefined,
 );
 let editText = $state("");
-let stopping = $state(false);
 let retryingResponse = $state(false);
 let editTarget = $state<ConversationEntry>();
 /** Shows a sub-agent in the main view; the lead id (or none) returns. */
@@ -203,7 +202,8 @@ const view = $derived(
     ? {
         ...transcript,
         stopping:
-          stopping || Boolean(transcript.transient?.compaction?.stopping),
+          Boolean(store?.stopping) ||
+          Boolean(transcript.transient?.compaction?.stopping),
         retryingResponse,
         responseRevision: store.responseRevision,
         transient: transcript.transient,
@@ -639,12 +639,7 @@ async function submitPrompt(
     editTarget = undefined;
 }
 async function abortActiveRun() {
-  stopping = true;
-  try {
-    await store?.control("stop");
-  } finally {
-    stopping = false;
-  }
+  await store?.control("stop");
 }
 async function retryActiveResponse() {
   if (retryingResponse) return;

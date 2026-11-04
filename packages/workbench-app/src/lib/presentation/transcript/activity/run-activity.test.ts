@@ -26,6 +26,27 @@ function input(overrides: Partial<RunActivityInput> = {}): RunActivityInput {
   };
 }
 
+describe("stop while waiting on background work", () => {
+  it("shows stopping while the request is in flight, then the stopped cue", () => {
+    const stopping = deriveRunActivity(input({ pending, stopping: true }));
+    assert.equal(stopping.label, "Stopping…");
+    const drained = deriveRunActivity(
+      input({ pending: [], stoppedSeenAtMs: NOW }),
+    );
+    assert.equal(drained.kind, "stopped");
+    assert.equal(drained.open, true);
+    const exiting = deriveRunActivity(
+      input({ pending: [], stoppedSeenAtMs: NOW - 2_300 }),
+    );
+    assert.equal(exiting.open, false);
+    assert.equal(exiting.mounted, true);
+    const gone = deriveRunActivity(
+      input({ pending: [], stoppedSeenAtMs: NOW - 10_000 }),
+    );
+    assert.equal(gone.mounted, false);
+  });
+});
+
 describe("waiting activity", () => {
   it("keeps the row mounted with the slow waiting spinner when work is pending", () => {
     const view = deriveRunActivity(

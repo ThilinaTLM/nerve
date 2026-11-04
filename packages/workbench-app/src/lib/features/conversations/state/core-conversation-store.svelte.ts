@@ -53,6 +53,8 @@ export class ConversationStore {
   activity = $state<string>();
   /** Bumps on each provider-request restart so views can reset wait timing. */
   responseRevision = $state(0);
+  /** A Stop request is in flight from any surface (button, shortcut). */
+  stopping = $state(false);
   loading = $state(false);
   hasOlder = $state(true);
   connected = $state(false);
@@ -503,7 +505,13 @@ export class ConversationStore {
     action: "pause" | "resume" | "stop" | "forcePush" | "continue" | "compact",
   ): Promise<null> {
     // Stop ends as idle; tell attention so it is not announced as a result.
-    if (action === "stop") suppressNextCompletion(this.conversationId);
+    if (action === "stop") {
+      suppressNextCompletion(this.conversationId);
+      this.stopping = true;
+      return requestConversation(`conversation.${action}`, {
+        conversationId: this.conversationId,
+      }).finally(() => (this.stopping = false));
+    }
     return requestConversation(`conversation.${action}`, {
       conversationId: this.conversationId,
     });

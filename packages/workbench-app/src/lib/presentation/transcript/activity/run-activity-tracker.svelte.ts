@@ -43,6 +43,10 @@ export function createRunActivityTracker(source: () => RunActivitySource): {
   let outcomeSeenAtMs: number | undefined;
   let stable: StableRunActivity | undefined;
   let waitingSeenAtMs: number | undefined;
+  // Stop pressed while only background work remained: its cue outlives the
+  // request until that work has actually drained.
+  let stopWhileWaiting = false;
+  let stoppedSeenAtMs: number | undefined;
 
   const view = $derived.by(() => {
     const input = source();
@@ -72,6 +76,16 @@ export function createRunActivityTracker(source: () => RunActivitySource): {
     if (!active && input.pending?.length) waitingSeenAtMs ??= nowMs;
     else waitingSeenAtMs = undefined;
 
+    if (active) {
+      stopWhileWaiting = false;
+      stoppedSeenAtMs = undefined;
+    } else if (input.stopping && input.pending?.length) {
+      stopWhileWaiting = true;
+    } else if (stopWhileWaiting && !input.pending?.length) {
+      stopWhileWaiting = false;
+      stoppedSeenAtMs = nowMs;
+    }
+
     stable = stabilizeRunActivity(
       stable,
       deriveRunActivity({
@@ -81,6 +95,7 @@ export function createRunActivityTracker(source: () => RunActivitySource): {
         lastChangeAtMs,
         outcomeSeenAtMs,
         waitingSeenAtMs,
+        stoppedSeenAtMs,
       }),
       nowMs,
     );
