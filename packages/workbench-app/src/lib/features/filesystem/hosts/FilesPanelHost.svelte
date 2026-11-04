@@ -479,6 +479,7 @@ function cancelEdit(): void {
   const previous = editing;
   editing = undefined;
   if (previous?.mode === "rename") void focusRow(previous.entry.path);
+  else if (previous?.parentPath) void focusRow(previous.parentPath);
 }
 
 async function commitEdit(

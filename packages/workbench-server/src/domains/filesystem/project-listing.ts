@@ -140,6 +140,8 @@ async function classifyProjectEntry(
 }
 
 type ListingCacheEntry = {
+  /** mtimes of the project-level ignore files the `ignored` flags depend on. */
+  ignoreStamp: string;
   mtimeMs: number;
   ino: number;
   cachedAt: number;
@@ -158,6 +160,24 @@ export function clearProjectListingCache(): void {
 }
 
 /**
+ * Editing an ignore file does not change any directory mtime, so cached
+ * `ignored` flags are also keyed by the project-level ignore files. Nested
+ * `.gitignore` files are covered by the cache's maximum age.
+ */
+async function ignoreFilesStamp(root: string): Promise<string> {
+  const stamps = await Promise.all(
+    [".gitignore", ".ignore", ".git/info/exclude"].map(async (name) => {
+      try {
+        return String((await stat(join(root, name))).mtimeMs);
+      } catch {
+        return "-";
+      }
+    }),
+  );
+  return stamps.join(":");
+}
+
+/**
  * Full sorted listing of one directory, cached per directory and validated by
  * its mtime so paging does not re-read it. Native (ignore-aware) when
  * available, Node `readdir` otherwise.
@@ -168,11 +188,14 @@ async function sortedDirectoryEntries(
   relativeDirectory: string,
   info: Stats,
 ): Promise<FilesystemProjectEntry[]> {
-  const key = resolvedDirectory;
+  // Entry paths are relative to the project root, so the root is part of the key.
+  const key = `${root}\0${resolvedDirectory}`;
   const cached = listingCache.get(key);
   const now = Date.now();
+  const ignoreStamp = await ignoreFilesStamp(root);
   if (
     cached &&
+    cached.ignoreStamp === ignoreStamp &&
     cached.mtimeMs === info.mtimeMs &&
     cached.ino === info.ino &&
     now - cached.cachedAt < listingMaxAgeMs &&
@@ -214,6 +237,7 @@ async function sortedDirectoryEntries(
     );
   }
   listingCache.set(key, {
+    ignoreStamp,
     mtimeMs: info.mtimeMs,
     ino: info.ino,
     cachedAt: now,

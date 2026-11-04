@@ -253,6 +253,17 @@ function activateFromPointer(event: MouseEvent, node: PanelTreeNode<T>): void {
   activate(node);
 }
 
+/**
+ * App shortcuts run first and can unmount this tree (Ctrl+Shift+F swaps the
+ * dock panel) before the row's own handler is called. A handled key must not
+ * touch the row's reactive state: reading it after teardown logs
+ * `derived_inert`. The node is therefore read lazily, after this guard.
+ */
+function handleRowKeydown(event: KeyboardEvent, node: () => PanelTreeNode<T>) {
+  if (event.defaultPrevented) return;
+  handleKeydown(event, node());
+}
+
 function handleKeydown(event: KeyboardEvent, node: PanelTreeNode<T>): void {
   if (event.target !== event.currentTarget) return;
   if (node.kind === "item" && onItemKeydown?.(event, node.value) === true) {
@@ -352,7 +363,7 @@ function handleKeydown(event: KeyboardEvent, node: PanelTreeNode<T>): void {
       ariaSetSize={row.setSize}
       dataId={node.id}
       onfocus={() => (focusedId = node.id)}
-      onkeydown={(event) => handleKeydown(event, node)}
+      onkeydown={(event) => handleRowKeydown(event, () => node)}
       onclick={(event) => activateFromPointer(event, node)}
     />
   {:else}
@@ -370,9 +381,6 @@ function handleKeydown(event: KeyboardEvent, node: PanelTreeNode<T>): void {
     {/snippet}
     {#snippet leafBadges()}
       {#if itemBadges}{@render itemBadges(node.value)}{/if}
-    {/snippet}
-    {#snippet editorSnippet()}
-      {#if itemEditor}{@render itemEditor(node.value)}{/if}
     {/snippet}
     {#snippet leafActions()}
       {#if itemActions}{@render itemActions(node.value)}{/if}
@@ -411,8 +419,9 @@ function handleKeydown(event: KeyboardEvent, node: PanelTreeNode<T>): void {
       dimmed={getItemDimmed?.(node.value) ?? false}
       dropTarget={getItemDropTarget?.(node.value) ?? false}
       editor={itemEditor && getItemEditing?.(node.value)
-        ? editorSnippet
+        ? itemEditor
         : undefined}
+      editorArg={node.value}
       ondragstart={(event) => onItemDragStart?.(event, node.value)}
       ondragend={(event) => onItemDragEnd?.(event, node.value)}
       ondragenter={(event) => onItemDragEnter?.(event, node.value)}
@@ -420,7 +429,7 @@ function handleKeydown(event: KeyboardEvent, node: PanelTreeNode<T>): void {
       ondragleave={(event) => onItemDragLeave?.(event, node.value)}
       ondrop={(event) => onItemDrop?.(event, node.value)}
       onfocus={() => (focusedId = node.id)}
-      onkeydown={(event) => handleKeydown(event, node)}
+      onkeydown={(event) => handleRowKeydown(event, () => node)}
       onclick={(event) => activateFromPointer(event, node)}
     />
   {/if}

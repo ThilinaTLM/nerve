@@ -13,6 +13,7 @@ import {
   captureItemKeySnapshot,
   createItemKeyAccessor,
   deriveVirtualDomIdentities,
+  resolveVirtualRowItem,
   itemKeySnapshotsEqual,
   measurementTargetIsCurrent,
   type VirtualScrollerItemKey,
@@ -495,14 +496,20 @@ $effect(() => {
   >
     {#each renderedVirtualRows as rendered (rendered.domKey)}
       {@const virtualRow = rendered.virtualRow}
-      {@const item = items[virtualRow.index]}
-      {#if item !== undefined}
+      {@const resolved = resolveVirtualRowItem(
+        items,
+        virtualRow.key as VirtualScrollerItemKey,
+        virtualRow.index,
+        getKey,
+      )}
+      {#if resolved !== undefined}
+        {@const item = resolved.item}
         <div
           class={cn("virtual-scroller-row", rowClass)}
           class:cv-auto={contentVisibility}
           data-index={virtualRow.index}
           data-item-key={rendered.encodedItemKey}
-          use:measure={getMeasurementVersion?.(item, virtualRow.index)}
+          use:measure={getMeasurementVersion?.(item, resolved.index)}
           style:transform={`translateY(${virtualRow.start}px)`}
           style:contain-intrinsic-size={contentVisibility
             ? `auto ${Math.max(1, Math.round(virtualRow.size))}px`
@@ -510,7 +517,7 @@ $effect(() => {
         >
           {@render row({
             item,
-            index: virtualRow.index,
+            index: resolved.index,
             visible:
               visibleRange !== null &&
               virtualRow.index >= visibleRange.startIndex &&

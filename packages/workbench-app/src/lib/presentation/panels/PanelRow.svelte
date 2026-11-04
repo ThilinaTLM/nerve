@@ -1,4 +1,4 @@
-<script lang="ts">
+<script lang="ts" generics="E = undefined">
 import type { StatusTone } from "@nervekit/ui-kit/display/status";
 import type { Snippet } from "svelte";
 import ContextMenuList, {
@@ -42,6 +42,7 @@ let {
   dimmed = false,
   dropTarget = false,
   editor,
+  editorArg,
   ondragstart,
   ondragend,
   ondragenter,
@@ -112,7 +113,13 @@ let {
    * Inline editor replacing the label (rename, create). The row content stops
    * being a button so the field can live inside it.
    */
-  editor?: Snippet;
+  editor?: Snippet<[E]>;
+  /**
+   * Passed to `editor`. Keep the snippet itself stable (a prop of the owner,
+   * not one declared per render): a new snippet identity re-mounts the field
+   * and drops its focus and text.
+   */
+  editorArg?: E;
   ondragstart?: (event: DragEvent) => void;
   ondragend?: (event: DragEvent) => void;
   ondragenter?: (event: DragEvent) => void;
@@ -227,7 +234,7 @@ const twoLine = $derived(labelLines === 2);
             {@render leading()}
           </span>
         {/if}
-        {@render editor()}
+        {@render editor(editorArg as E)}
       </div>
     {:else}
       <button

@@ -26,6 +26,10 @@ type Props = {
   controls?: string;
   /** Id of the highlighted row, announced while focus stays in the field. */
   activeDescendant?: string;
+  /** Marks the field invalid (`aria-invalid`), e.g. a rejected query pattern. */
+  invalid?: boolean;
+  /** Id of the element describing the field, such as an inline error. */
+  describedBy?: string;
 };
 
 let {
@@ -43,6 +47,8 @@ let {
   onkeydown,
   controls,
   activeDescendant,
+  invalid = false,
+  describedBy,
 }: Props = $props();
 
 function setValue(next: string): void {
@@ -81,6 +87,8 @@ function setValue(next: string): void {
       {onkeydown}
       aria-controls={controls}
       aria-activedescendant={activeDescendant}
+      aria-invalid={invalid || undefined}
+      aria-describedby={describedBy}
     />
     {#if clearable && value}
       <Button

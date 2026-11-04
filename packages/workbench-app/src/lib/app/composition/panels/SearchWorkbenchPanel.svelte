@@ -46,6 +46,7 @@ $effect(() => {
     ? contentSearch.response
     : undefined}
   error={contentSearch.error}
+  patternError={contentSearch.patternError}
   onChange={() => contentSearch.schedule(projectId)}
   onSubmit={() => contentSearch.schedule(projectId, true)}
   onClear={() => contentSearch.clear()}

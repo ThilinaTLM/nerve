@@ -25,6 +25,7 @@ import { renameSelectionEnd } from "../state/file-explorer-paths";
 import type { FilesPanelPreferences } from "../state/files-panel-preferences";
 import {
   fileTreeGitDecoration,
+  isFileEntryDimmed,
   type FileGitDecoration,
 } from "../state/file-git-status";
 import type {
@@ -364,10 +365,11 @@ function closeFilter(): void {
             getItemDraggable={isDraggableEntry}
             getItemDimmed={(item) =>
               item.type === "entry" &&
-              (item.entry.ignored === true ||
-                cutPaths.has(item.entry.path) ||
-                fileTreeGitDecoration(gitDecorations, item.entry.path)
-                  ?.ignored === true)}
+              (cutPaths.has(item.entry.path) ||
+                isFileEntryDimmed(
+                  item.entry,
+                  fileTreeGitDecoration(gitDecorations, item.entry.path),
+                ))}
             getItemDropTarget={(item) =>
               item.type === "entry" && item.entry.path === dropTargetPath}
             getItemEditing={isEditing}

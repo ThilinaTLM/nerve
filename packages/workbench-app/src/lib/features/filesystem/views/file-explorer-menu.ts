@@ -92,10 +92,16 @@ export function buildProjectRootMenu(
   shortcuts?: FileExplorerShortcutLabels,
 ): ContextMenuItem[] {
   const items: ContextMenuItem[] = [
-    { label: "New file", icon: icons.newFile, onSelect: actions.createFile },
+    {
+      label: "New file",
+      icon: icons.newFile,
+      movesFocus: true,
+      onSelect: actions.createFile,
+    },
     {
       label: "New folder",
       icon: icons.newFolder,
+      movesFocus: true,
       onSelect: actions.createFolder,
     },
   ];
@@ -151,10 +157,16 @@ export function buildFileExplorerMenu(
   if (directory) {
     items.push(
       { type: "separator" },
-      { label: "New file", icon: icons.newFile, onSelect: actions.createFile },
+      {
+        label: "New file",
+        icon: icons.newFile,
+        movesFocus: true,
+        onSelect: actions.createFile,
+      },
       {
         label: "New folder",
         icon: icons.newFolder,
+        movesFocus: true,
         onSelect: actions.createFolder,
       },
     );
@@ -165,6 +177,7 @@ export function buildFileExplorerMenu(
       label: "Rename",
       icon: icons.rename,
       shortcut: shortcuts?.rename,
+      movesFocus: true,
       onSelect: actions.rename,
     },
     {

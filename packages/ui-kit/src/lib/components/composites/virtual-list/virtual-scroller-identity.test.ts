@@ -6,6 +6,7 @@ import {
   encodeItemKey,
   itemKeySnapshotsEqual,
   measurementTargetIsCurrent,
+  resolveVirtualRowItem,
 } from "./virtual-scroller-identity";
 
 type Item = { key: string | number };
@@ -51,4 +52,30 @@ describe("virtual scroller identity", () => {
     );
     assert.equal(measurementTargetIsCurrent(next, "9", encodedDraft), false);
   });
+});
+
+it("a stale row index keeps rendering its own item after an insert", () => {
+  const key = (item: { id: string }) => item.id;
+  // The virtualizer still holds keys [a, b, c]; an editor row was inserted at 1.
+  const items = [{ id: "a" }, { id: "editor" }, { id: "b" }, { id: "c" }];
+  assert.deepEqual(resolveVirtualRowItem(items, "a", 0, key), {
+    item: items[0],
+    index: 0,
+  });
+  // Row "b" (stale index 1) must not receive the inserted item.
+  assert.deepEqual(resolveVirtualRowItem(items, "b", 1, key), {
+    item: items[2],
+    index: 2,
+  });
+  assert.deepEqual(resolveVirtualRowItem(items, "c", 2, key), {
+    item: items[3],
+    index: 3,
+  });
+});
+
+it("a row whose item was removed renders nothing", () => {
+  const key = (item: { id: string }) => item.id;
+  const items = [{ id: "a" }, { id: "c" }];
+  assert.equal(resolveVirtualRowItem(items, "b", 1, key), undefined);
+  assert.equal(resolveVirtualRowItem(items, "z", 5, key), undefined);
 });

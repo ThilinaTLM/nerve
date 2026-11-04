@@ -96,7 +96,7 @@ pub fn search_content(
         .line_terminator(Some(b'\n'));
     let matcher = builder
         .build(&options.query)
-        .map_err(|error| format!("Invalid search pattern: {error}"))?;
+        .map_err(|error| invalid_pattern_error(&error.to_string(), &options.query))?;
     let include = globs(&root, &options.include)?;
     let exclude = globs(&root, &options.exclude)?;
     let shared = Shared {
@@ -234,6 +234,39 @@ fn globs(root: &Path, patterns: &[String]) -> Result<Option<Gitignore>, String> 
         .build()
         .map(Some)
         .map_err(|error| format!("Invalid glob: {error}"))
+}
+
+/// Prefix of the structured error raised for an invalid search pattern. The
+/// message is `INVALID_SEARCH_PATTERN:<1-based column or empty>:<description>`.
+pub const INVALID_PATTERN_CODE: &str = "INVALID_SEARCH_PATTERN";
+
+/// Condenses a regex engine diagnostic (a multi-line snippet with a caret) into
+/// a short description and, when the caret points inside the user's query, the
+/// 1-based column. The engine reports the pattern wrapped as `(?:<query>)`.
+fn invalid_pattern_error(raw: &str, query: &str) -> String {
+    const WRAPPER: usize = 3;
+    let lines: Vec<&str> = raw.lines().collect();
+    let description = lines
+        .iter()
+        .rev()
+        .find_map(|line| line.strip_prefix("error: "))
+        .unwrap_or_else(|| lines.first().copied().unwrap_or("Invalid pattern"))
+        .trim();
+    let mut chars = description.chars();
+    let description = match chars.next() {
+        Some(first) => first.to_uppercase().collect::<String>() + chars.as_str(),
+        None => "Invalid pattern".to_string(),
+    };
+    let column = lines
+        .iter()
+        .find(|line| line.trim_start().starts_with('^'))
+        .and_then(|line| {
+            let caret = line.len() - line.trim_start().len();
+            let offset = caret.checked_sub(4 + WRAPPER)?;
+            (offset < query.encode_utf16().count()).then_some(offset + 1)
+        });
+    let column = column.map(|column| column.to_string()).unwrap_or_default();
+    format!("{INVALID_PATTERN_CODE}:{column}:{description}")
 }
 
 struct FileSink<'a> {
@@ -376,6 +409,31 @@ mod tests {
             .is_err()
         );
         let _ = fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn invalid_patterns_are_condensed_with_a_column() {
+        let err = |query: &str| {
+            search_content(
+                Path::new("."),
+                ContentOptions {
+                    query: query.into(),
+                    regex: true,
+                    ..Default::default()
+                },
+                Arc::new(AtomicBool::new(false)),
+            )
+            .unwrap_err()
+        };
+        assert_eq!(err("(").as_str(), "INVALID_SEARCH_PATTERN::Unclosed group");
+        assert_eq!(
+            err("ab[").as_str(),
+            "INVALID_SEARCH_PATTERN:3:Unclosed character class"
+        );
+        assert_eq!(
+            err("*a").as_str(),
+            "INVALID_SEARCH_PATTERN:1:Repetition operator missing expression"
+        );
     }
 
     #[test]

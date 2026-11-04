@@ -220,10 +220,32 @@ export async function searchProjectContent(
     });
   } catch (error) {
     if (error instanceof ApplicationError) throw error;
-    throw new ApplicationError(
-      400,
-      "CONTENT_SEARCH_FAILED",
-      error instanceof Error ? error.message : "Content search failed.",
-    );
+    throw mapContentSearchError(error);
   }
+}
+
+const INVALID_SEARCH_PATTERN = "INVALID_SEARCH_PATTERN";
+
+/** Maps a native content-search failure to an ApplicationError. The addon
+ * reports a bad pattern as `INVALID_SEARCH_PATTERN:<column>:<description>`,
+ * which becomes a 422 carrying `details.code` and an optional `details.column`. */
+export function mapContentSearchError(error: unknown): ApplicationError {
+  const message = error instanceof Error ? error.message : "";
+  const match = new RegExp(`^${INVALID_SEARCH_PATTERN}:(\\d*):(.+)$`, "s").exec(
+    message,
+  );
+  if (match) {
+    const column = match[1] ? Number(match[1]) : undefined;
+    return new ApplicationError(422, INVALID_SEARCH_PATTERN, match[2].trim(), {
+      details: {
+        code: INVALID_SEARCH_PATTERN,
+        ...(column !== undefined ? { column } : {}),
+      },
+    });
+  }
+  return new ApplicationError(
+    400,
+    "CONTENT_SEARCH_FAILED",
+    message || "Content search failed.",
+  );
 }

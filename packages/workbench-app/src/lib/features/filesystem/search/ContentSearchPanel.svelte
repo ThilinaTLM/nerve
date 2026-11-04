@@ -20,6 +20,10 @@ import {
   PanelView,
   buildPanelItemTree,
 } from "$lib/presentation/panels";
+import {
+  formatSearchPatternError,
+  type SearchPatternError,
+} from "./content-search-error";
 import { segmentsFromRanges } from "../highlight-segments";
 import MaterialFileIcon from "../views/MaterialFileIcon.svelte";
 import type { ContentSearchStatus } from "./content-search-controller.svelte";
@@ -43,6 +47,7 @@ let {
   status,
   response,
   error,
+  patternError,
   inputRef = $bindable(null),
   onChange,
   onSubmit,
@@ -61,6 +66,8 @@ let {
   status: ContentSearchStatus;
   response?: FilesystemProjectContentSearchResponse;
   error?: string;
+  /** Invalid query pattern, reported inline under the field. */
+  patternError?: SearchPatternError;
   inputRef?: HTMLInputElement | null;
   /** Any input or option changed. */
   onChange: () => void;
@@ -70,6 +77,7 @@ let {
   onOpenMatch: (path: string, line: number) => void;
 } = $props();
 
+const patternErrorId = $props.id();
 const items = $derived(buildSearchResultItems(response?.files ?? []));
 const nodes = $derived(
   buildPanelItemTree(items, {
@@ -137,9 +145,16 @@ function activate(item: SearchResultItem): void {
       bind:ref={inputRef}
       placeholder="Search in files"
       ariaLabel="Search in files"
+      invalid={patternError !== undefined}
+      describedBy={patternError ? patternErrorId : undefined}
       onValueChange={() => onChange()}
       onkeydown={submitOnEnter}
     />
+    {#if patternError}
+      <p id={patternErrorId} class="text-caption text-destructive" role="alert">
+        {formatSearchPatternError(patternError)}
+      </p>
+    {/if}
     <ToggleGroup.Root
       type="multiple"
       variant="chip"

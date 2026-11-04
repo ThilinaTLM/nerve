@@ -151,4 +151,26 @@ describe("file explorer menus", () => {
     );
     assert.equal(absoluteProjectPath("/", "etc.txt", "linux"), "/etc.txt");
   });
+
+  it("marks actions that start inline editing so the menu leaves focus alone", () => {
+    const directory: FilesystemProjectEntry = {
+      name: "src",
+      path: "src",
+      kind: "directory",
+      symlink: false,
+    };
+    const movers = [
+      ...buildFileExplorerMenu(directory, actions, false, icons),
+      ...buildProjectRootMenu({ ...actions }, false, icons),
+    ].flatMap((item) =>
+      "movesFocus" in item && item.movesFocus ? [item.label] : [],
+    );
+    assert.deepEqual(movers.sort(), [
+      "New file",
+      "New file",
+      "New folder",
+      "New folder",
+      "Rename",
+    ]);
+  });
 });

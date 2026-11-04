@@ -27,10 +27,6 @@ let {
 let value = $state(untrack(() => initialName));
 let input: HTMLInputElement | undefined = $state();
 let settled = false;
-let touched = false;
-const mountedAt = performance.now();
-/** A context menu hands focus back to its row as it closes; ignore that blur. */
-const FOCUS_RESTORE_GRACE_MS = 500;
 
 const error = $derived(
   value === "" ? undefined : validateEntryName(value, siblings, current),
@@ -57,7 +53,6 @@ function cancel(): void {
 }
 
 function handleKeydown(event: KeyboardEvent): void {
-  touched = true;
   event.stopPropagation();
   if (event.key === "Enter") {
     event.preventDefault();
@@ -69,10 +64,6 @@ function handleKeydown(event: KeyboardEvent): void {
 }
 
 function handleBlur(): void {
-  if (!touched && performance.now() - mountedAt < FOCUS_RESTORE_GRACE_MS) {
-    queueMicrotask(() => input?.focus());
-    return;
-  }
   // Leaving the field applies a valid change and drops anything else.
   if (!settled && !error) commit();
   else cancel();
