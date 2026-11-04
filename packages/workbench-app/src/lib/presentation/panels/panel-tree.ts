@@ -336,3 +336,28 @@ export function parentPanelTreeRowId<T>(
 ): string | undefined {
   return rows.find((row) => row.node.id === currentId)?.parentId;
 }
+
+/**
+ * Type-to-jump target. A single repeated character cycles through rows
+ * starting with it; a longer buffer matches its prefix from the current row.
+ */
+export function typeaheadPanelTreeRowId<T>(
+  rows: readonly PanelTreeRow<T>[],
+  currentId: string | undefined,
+  buffer: string,
+): string | undefined {
+  const query = buffer.toLocaleLowerCase();
+  if (!query || rows.length === 0) return undefined;
+  const cycling = [...query].every((character) => character === query[0]);
+  const prefix = cycling ? query[0]! : query;
+  const currentIndex = rows.findIndex((row) => row.node.id === currentId);
+  // A growing prefix may keep the current row; a cycle always moves on.
+  const start =
+    currentIndex < 0 ? 0 : cycling ? currentIndex + 1 : currentIndex;
+  for (let offset = 0; offset < rows.length; offset += 1) {
+    const row = rows[(start + offset) % rows.length];
+    if (row?.node.label.toLocaleLowerCase().startsWith(prefix))
+      return row.node.id;
+  }
+  return undefined;
+}

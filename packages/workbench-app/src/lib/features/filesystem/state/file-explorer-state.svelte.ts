@@ -35,3 +35,16 @@ export function ensureFileExplorerProject(
   // raw right-hand side of `??=` would make later async mutations non-reactive.
   return fileExplorerState.projects[projectId];
 }
+
+/**
+ * Latest request to reveal a path. The mounted Files panel observes it to sync
+ * monitor demand, select the row and scroll it into view; an unmounted panel
+ * handles it when it mounts.
+ */
+export const fileExplorerRevealRequest = $state({
+  projectId: undefined as string | undefined,
+  path: undefined as string | undefined,
+  /** Auto reveal follows the editor without stealing keyboard focus. */
+  focus: true,
+  token: 0,
+});

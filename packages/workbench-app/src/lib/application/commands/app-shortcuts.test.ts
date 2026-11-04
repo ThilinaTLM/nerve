@@ -64,6 +64,8 @@ function shortcutOptions(
     centerTabsExcept: () => [],
     refreshCenterTab: () => undefined,
     focusProjectSearch: () => undefined,
+    openQuickOpen: () => undefined,
+    focusContentSearch: () => undefined,
     hasConversationComposer: () => false,
     canStop: () => false,
     abortActiveRun: () => undefined,

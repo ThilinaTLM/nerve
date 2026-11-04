@@ -11,13 +11,21 @@ import type {
   FilesystemProjectEntriesResponse,
   FilesystemProjectEntryCreateRequest,
   FilesystemProjectEntryCreateResponse,
+  FilesystemProjectEntryResponse,
+  FilesystemProjectEntriesDeleteResponse,
+  FilesystemProjectUploadResponse,
   FilesystemProjectMonitorState,
+  FilesystemProjectContentSearchRequest,
+  FilesystemProjectContentSearchResponse,
+  FilesystemProjectPathSearchRequest,
+  FilesystemProjectPathSearchResponse,
 } from "@nervekit/contracts/filesystem";
 import {
   apiDeleteNoContent,
   apiGet,
   apiPost,
   apiPut,
+  fetchJson,
   fileToBase64,
 } from "$lib/platform/http/api-client";
 import { requestWorkbench } from "$lib/application/startup/workbench-connection";
@@ -99,6 +107,63 @@ export async function createProjectEntry(
   return await requestWorkbench("filesystem.project.entries.create", request);
 }
 
+export async function moveProjectEntry(
+  projectId: string,
+  from: string,
+  to: string,
+): Promise<FilesystemProjectEntryResponse> {
+  return await requestWorkbench("filesystem.project.entries.move", {
+    projectId,
+    from,
+    to,
+  });
+}
+
+export async function copyProjectEntry(
+  projectId: string,
+  from: string,
+  to: string,
+): Promise<FilesystemProjectEntryResponse> {
+  return await requestWorkbench("filesystem.project.entries.copy", {
+    projectId,
+    from,
+    to,
+  });
+}
+
+/** Permanent delete, for clients without the desktop trash bridge. */
+export async function deleteProjectEntries(
+  projectId: string,
+  paths: string[],
+): Promise<FilesystemProjectEntriesDeleteResponse> {
+  return await requestWorkbench("filesystem.project.entries.delete", {
+    projectId,
+    paths,
+  });
+}
+
+/**
+ * Writes OS files into a project folder. A file's `webkitRelativePath`-style
+ * name (with "/") recreates subfolders under `parentPath`.
+ */
+export async function uploadProjectFiles(
+  projectId: string,
+  parentPath: string,
+  files: ReadonlyArray<{ file: File; name?: string }>,
+  options: { overwrite?: boolean } = {},
+): Promise<FilesystemProjectUploadResponse> {
+  const form = new FormData();
+  form.set("projectId", projectId);
+  form.set("path", parentPath);
+  if (options.overwrite) form.set("overwrite", "true");
+  for (const { file, name } of files)
+    form.append("files", file, name ?? file.name);
+  return await fetchJson<FilesystemProjectUploadResponse>(
+    "/api/filesystem/project/upload",
+    { method: "POST", body: form },
+  );
+}
+
 export async function getFileContent(
   projectId: string,
   path: string,
@@ -115,4 +180,16 @@ export async function saveFileContent(
   request: FilesystemFileSaveRequest,
 ): Promise<FilesystemFileResponse> {
   return apiPut<FilesystemFileResponse>("/api/filesystem/file", request);
+}
+
+export async function searchProjectPaths(
+  request: FilesystemProjectPathSearchRequest,
+): Promise<FilesystemProjectPathSearchResponse> {
+  return await requestWorkbench("filesystem.project.paths.search", request);
+}
+
+export async function searchProjectContent(
+  request: FilesystemProjectContentSearchRequest,
+): Promise<FilesystemProjectContentSearchResponse> {
+  return await requestWorkbench("filesystem.project.content.search", request);
 }

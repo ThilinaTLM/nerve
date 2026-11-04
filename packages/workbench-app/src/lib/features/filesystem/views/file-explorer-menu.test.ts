@@ -17,6 +17,11 @@ const icons = {
   reveal: {},
   newFolder: {},
   trash: {},
+  rename: {},
+  duplicate: {},
+  cut: {},
+  paste: {},
+  mention: {},
 } as FileExplorerMenuIcons;
 
 const actions: FileExplorerMenuActions = {
@@ -27,7 +32,14 @@ const actions: FileExplorerMenuActions = {
   reveal() {},
   copyPath() {},
   copyRelativePath() {},
-  trash() {},
+  rename() {},
+  duplicate() {},
+  cut() {},
+  copy() {},
+  paste() {},
+  canPaste: false,
+  mention() {},
+  remove() {},
 };
 
 function labels(
@@ -58,14 +70,30 @@ describe("file explorer menus", () => {
       kind: "directory",
       symlink: false,
     };
-    assert.deepEqual(labels(file, false), [
-      "Open",
-      "Copy path",
-      "Copy relative path",
-    ]);
+    assert.ok(!labels(file, false).includes("New file"));
+    assert.ok(labels(file, false).includes("Mention in conversation"));
     assert.ok(labels(directory, false).includes("New file"));
+    assert.ok(!labels(directory, false).includes("Open with default app"));
     assert.ok(labels(directory, true).includes("Open with default app"));
-    assert.ok(labels(directory, true).includes("Move to trash"));
+  });
+
+  it("trashes on desktop and deletes permanently elsewhere", () => {
+    const file: FilesystemProjectEntry = {
+      name: "a.ts",
+      path: "a.ts",
+      kind: "file",
+      symlink: false,
+    };
+    assert.ok(labels(file, true).includes("Move to trash"));
+    assert.ok(labels(file, false).includes("Delete"));
+    assert.ok(!labels(file, false).includes("Paste"));
+    const pasteable = buildFileExplorerMenu(
+      { ...file, name: "src", path: "src", kind: "directory" },
+      { ...actions, canPaste: true },
+      false,
+      icons,
+    );
+    assert.ok(pasteable.some((item) => "label" in item && item.label === "Paste"));
   });
 
   it("inserts target-appropriate external launch groups", () => {
@@ -95,7 +123,7 @@ describe("file explorer menus", () => {
   });
 
   it("offers root operations without destructive or relative-path actions", () => {
-    const rootLabels = buildProjectRootMenu(actions, true, icons, [
+    const rootLabels = buildProjectRootMenu({ ...actions }, true, icons, [
       { label: "Open in VS Code", onSelect() {} },
       { label: "Open in Terminal", onSelect() {} },
     ]).flatMap((item) => ("label" in item ? [item.label] : []));

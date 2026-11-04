@@ -6,6 +6,8 @@ export type FileGitDecoration = {
   title: string;
   class: string;
   tone: StatusTone;
+  /** Ignored paths recede in the tree. */
+  ignored?: boolean;
 };
 
 const conflictCodes = new Set(["U"]);
@@ -65,6 +67,7 @@ export function fileTreeGitDecoration(
       title: "Git metadata",
       class: "text-muted-foreground",
       tone: "neutral",
+      ignored: true,
     };
   let directory = path.slice(0, path.lastIndexOf("/"));
   while (directory) {
@@ -86,6 +89,7 @@ export function fileGitDecoration(
       title: "Ignored by Git",
       class: "text-muted-foreground",
       tone: "neutral",
+      ignored: true,
     };
   const conflicted =
     conflictCodes.has(index) ||
