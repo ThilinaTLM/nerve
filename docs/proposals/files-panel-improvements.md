@@ -26,16 +26,16 @@ The Files panel is a solid read-mostly tree. It loads folders only when opened, 
 
 ## Phase 1: calm, navigable tree (client-first)
 
-| Feature | Notes |
-|---|---|
-| Dim ignored entries | Request file status with `includeIgnored: true` (add the parameter to `getProjectGitFileStatus`) and use the existing neutral decoration. Measure the cost on this repository first: gix walks ignored directories, so prefer collapsed ignored directories (directory-level `!` entries) over per-file emission. |
-| Hide ignored / hide dotfiles toggles | Header overflow menu. Per-project UI preference. Hidden entries are filtered client-side in `buildFileExplorerTree`; `.git` stays hidden when dotfiles are hidden. |
-| Reveal active file | On active tab change (and an explicit "Reveal in Files" action), expand ancestors, load missing pages, then scroll the row into view. Requires a `PanelTree` scroll-to-item API. Opt-out preference ("Auto reveal"). |
-| Collapse all | Header button; clears expanded IDs and syncs monitor demand. |
-| Typeahead | Typing a prefix moves focus to the next visible matching row. Implement in `PanelTree` so every tree gets it. |
-| Filter box | Header toggle that filters loaded entries by name and keeps ancestors of matches visible. Phase 3 makes it whole-project via the native index. |
-| Inline create | Replace `CreateProjectEntryDialog` with an editable row under the target folder (Enter commits, Esc cancels, validation inline). Also used by rename. |
-| Mention in conversation | Context-menu item that reuses the drag-to-composer path reference. |
+| Feature                              | Notes                                                                                                                                                                                                                                                                                                             |
+| ------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Dim ignored entries                  | Request file status with `includeIgnored: true` (add the parameter to `getProjectGitFileStatus`) and use the existing neutral decoration. Measure the cost on this repository first: gix walks ignored directories, so prefer collapsed ignored directories (directory-level `!` entries) over per-file emission. |
+| Hide ignored / hide dotfiles toggles | Header overflow menu. Per-project UI preference. Hidden entries are filtered client-side in `buildFileExplorerTree`; `.git` stays hidden when dotfiles are hidden.                                                                                                                                                |
+| Reveal active file                   | On active tab change (and an explicit "Reveal in Files" action), expand ancestors, load missing pages, then scroll the row into view. Requires a `PanelTree` scroll-to-item API. Opt-out preference ("Auto reveal").                                                                                              |
+| Collapse all                         | Header button; clears expanded IDs and syncs monitor demand.                                                                                                                                                                                                                                                      |
+| Typeahead                            | Typing a prefix moves focus to the next visible matching row. Implement in `PanelTree` so every tree gets it.                                                                                                                                                                                                     |
+| Filter box                           | Header toggle that filters loaded entries by name and keeps ancestors of matches visible. Phase 3 makes it whole-project via the native index.                                                                                                                                                                    |
+| Inline create                        | Replace `CreateProjectEntryDialog` with an editable row under the target folder (Enter commits, Esc cancels, validation inline). Also used by rename.                                                                                                                                                             |
+| Mention in conversation              | Context-menu item that reuses the drag-to-composer path reference.                                                                                                                                                                                                                                                |
 
 ## Phase 2: file operations
 
@@ -47,13 +47,13 @@ New operations in `packages/contracts/src/domains/filesystem/operations.ts`, imp
 
 Client features built on them:
 
-| Feature | Notes |
-|---|---|
-| Rename (F2, context menu) | Inline row editor; selects the base name without extension. |
-| Multi-select | Ctrl/Cmd-click toggles, Shift-click selects a range over visible rows. Selection is separate from the active-file highlight. Bulk actions: trash/delete, copy paths, mention in conversation, drag. |
-| Drag and drop | Moving within the tree (drop on a folder, auto-expand on hover, Alt/Option to copy), and dropping OS files into a folder (upload via the existing attachment path or a new write operation; decide in review). Dragging to the composer keeps working. |
-| Cut / copy / paste, duplicate | Keyboard shortcuts scoped to the focused tree. |
-| Undo last operation | Optional: a toast with Undo for move/rename (inverse move). Not for delete. |
+| Feature                       | Notes                                                                                                                                                                                                                                                  |
+| ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Rename (F2, context menu)     | Inline row editor; selects the base name without extension.                                                                                                                                                                                            |
+| Multi-select                  | Ctrl/Cmd-click toggles, Shift-click selects a range over visible rows. Selection is separate from the active-file highlight. Bulk actions: trash/delete, copy paths, mention in conversation, drag.                                                    |
+| Drag and drop                 | Moving within the tree (drop on a folder, auto-expand on hover, Alt/Option to copy), and dropping OS files into a folder (upload via the existing attachment path or a new write operation; decide in review). Dragging to the composer keeps working. |
+| Cut / copy / paste, duplicate | Keyboard shortcuts scoped to the focused tree.                                                                                                                                                                                                         |
+| Undo last operation           | Optional: a toast with Undo for move/rename (inverse move). Not for delete.                                                                                                                                                                            |
 
 ## Phase 3: native-backed listing and quick open
 
