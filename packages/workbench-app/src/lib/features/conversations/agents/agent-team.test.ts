@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import type { AgentActivitySnapshot } from "$lib/presentation/view-models/conversation";
-import { agentRowState, pendingWork } from "./agent-team";
+import { agentRowState, hasStoppableWork, pendingWork } from "./agent-team";
 
 function activity(
   state: AgentActivitySnapshot["state"],
@@ -69,5 +69,38 @@ describe("pending work", () => {
       { kind: "agent", id: "c1", label: "auth-research" },
       { kind: "command", id: "b1", label: "pnpm test" },
     ]);
+  });
+});
+
+describe("stoppable work", () => {
+  const idle = { status: "idle" as const, pendingWork: false };
+  const snapshot = (
+    patch: Partial<Parameters<typeof hasStoppableWork>[0] & object> = {},
+  ) => ({
+    conversation: { status: "idle" as const },
+    children: [idle],
+    asyncBash: [{ status: "completed" }] as never,
+    ...patch,
+  });
+
+  it("stays stoppable while idle with background work that can wake it", () => {
+    assert.equal(hasStoppableWork(undefined), false);
+    assert.equal(hasStoppableWork(snapshot()), false);
+    assert.equal(
+      hasStoppableWork(snapshot({ conversation: { status: "waiting" } })),
+      true,
+    );
+    assert.equal(
+      hasStoppableWork(
+        snapshot({ asyncBash: [{ status: "running" }] as never }),
+      ),
+      true,
+    );
+    assert.equal(
+      hasStoppableWork(
+        snapshot({ children: [idle, { status: "idle", pendingWork: true }] }),
+      ),
+      true,
+    );
   });
 });

@@ -46,7 +46,8 @@ export type PromptComposerProps = {
   interactive?: boolean;
   sending?: boolean;
   stopping?: boolean;
-  teamRunning?: boolean;
+  /** Stop applies even without a running turn, e.g. background commands or sub-agents. */
+  stoppable?: boolean;
   compacting?: boolean;
   models?: ModelInfo[];
   selectedModelKey?: string;

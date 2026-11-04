@@ -65,7 +65,7 @@ function shortcutOptions(
     refreshCenterTab: () => undefined,
     focusProjectSearch: () => undefined,
     hasConversationComposer: () => false,
-    sending: () => false,
+    canStop: () => false,
     abortActiveRun: () => undefined,
     composerEscape: () => undefined,
     toggleMic: () => undefined,

@@ -80,7 +80,7 @@ export type WorkbenchConversationAdapterProps = {
   stopping?: boolean;
   responseRevision?: number;
   retryingResponse?: boolean;
-  teamRunning?: boolean;
+  stoppable?: boolean;
   composerText?: string;
   models?: ModelInfo[];
   selectedModelKey?: string;

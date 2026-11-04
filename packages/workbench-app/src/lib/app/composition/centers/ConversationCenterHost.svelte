@@ -95,6 +95,7 @@ import ConversationActivityIsland from "$lib/features/conversations/agents/Conve
 import { openAsyncBashTab } from "$lib/features/conversations";
 import {
   pendingWork as derivePendingWork,
+  hasStoppableWork,
   agentProfileLabel,
 } from "$lib/features/conversations/agents/agent-team";
 import ConversationSettingsDialogs from "$lib/features/conversations/context/ConversationSettingsDialogs.svelte";
@@ -938,9 +939,7 @@ const session = $derived({
     );
   },
 });
-const teamRunning = $derived(
-  store?.snapshot?.children.some((c) => c.status === "running") ?? false,
-);
+const stoppable = $derived(hasStoppableWork(store?.snapshot));
 </script>
 
 <WorkbenchConversationAdapter
@@ -981,7 +980,7 @@ const teamRunning = $derived(
   queuedPrompts={view?.queuedPrompts ?? []}
   recoveryIssues={view?.recoveryIssues ?? []}
   sending={activePendingConversation?.sending ?? view?.sending ?? false}
-  {teamRunning}
+  {stoppable}
   stopping={view?.stopping ?? false}
   retryingResponse={view?.retryingResponse ?? false}
   responseRevision={view?.responseRevision ?? 0}

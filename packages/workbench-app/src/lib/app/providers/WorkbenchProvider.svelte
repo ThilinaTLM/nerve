@@ -1,6 +1,7 @@
 <script lang="ts">
 import { activeComposer } from "$lib/application/composer/active-composer.svelte";
 import { onDestroy, onMount, type Snippet } from "svelte";
+import { hasStoppableWork } from "$lib/features/conversations/agents/agent-team";
 import {
   desktopRuntime,
   getDesktopBridge,
@@ -112,7 +113,6 @@ $effect(() => {
     });
 });
 $effect(() => creationPreferences.observe());
-const activeConversation = $derived(activeStore?.snapshot?.conversation);
 const activeCenterTab = $derived(workspaceSelectors.activeCenterTab);
 const centerTabs = $derived(workspaceSelectors.centerTabs);
 const hasDirtyFiles = $derived(hasDirtyFileViews());
@@ -126,7 +126,7 @@ const permissionRuleSetIds = $derived(
     permissionRuleSetCatalog.summaries(activeProject?.id),
   ).map((ruleSet) => ruleSet.id),
 );
-const sending = $derived(activeConversation?.status === "running");
+const canStop = $derived(hasStoppableWork(activeStore?.snapshot));
 const settingsDraft = $derived(settingsSelectors.settingsDraft);
 const usableModels = $derived(
   scopedUsableModelOptions(
@@ -200,7 +200,7 @@ const appShortcuts = createAppShortcuts({
       !!view && !(view.target.kind === "conversation" && view.target.readOnly)
     );
   },
-  sending: () => sending,
+  canStop: () => canStop,
   abortActiveRun: async () => {
     await activeStore?.control("stop");
   },

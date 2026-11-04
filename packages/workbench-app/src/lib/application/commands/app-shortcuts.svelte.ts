@@ -34,7 +34,7 @@ type AppShortcutsOptions = {
   refreshCenterTab: (tab: CenterTabIdentity) => void;
   focusProjectSearch: () => void;
   hasConversationComposer: () => boolean;
-  sending: () => boolean;
+  canStop: () => boolean;
   abortActiveRun: () => void | Promise<void>;
   composerEscape: () => void;
   toggleMic: () => void;
@@ -222,7 +222,7 @@ export function createAppShortcuts(options: AppShortcutsOptions) {
         options.composerEscape();
         return true;
       case "composer.stopRun":
-        if (!options.sending()) return false;
+        if (!options.canStop()) return false;
         void options.abortActiveRun();
         return true;
       case "composer.toggleMic":

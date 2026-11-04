@@ -64,7 +64,7 @@ let {
   queuedPrompts = [],
   recoveryIssues = [],
   sending = false,
-  teamRunning = false,
+  stoppable = false,
   stopping: stoppingRequested = false,
   responseRevision = 0,
   retryingResponse = false,
@@ -408,7 +408,7 @@ function menuForTranscript(
       interactive={active}
       {sending}
       {stopping}
-      {teamRunning}
+      {stoppable}
       {compacting}
       {models}
       {selectedModelKey}
