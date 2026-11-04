@@ -94,17 +94,18 @@ Selection, execution preparation and notification ownership live in [`LaunchTool
 
 ## Shared output projection
 
-Process output uses the common tool-result projection machinery so foreground results and background notices share diagnostic and recovery policy. Small output can remain inline; larger output is reduced around useful evidence and references to fuller files. Log pages provide bounded inspection and continuation.
+Process output uses the common tool-result projection machinery so foreground results and background notices share budget and recovery policy. Output below the size budget stays inline; larger output is reduced to a tail-biased head/tail excerpt that names the capture file. Log pages provide bounded inspection and continuation. See [agent projection](../tool-result-projection.md#agent-projection).
 
-For example, a long build log can produce a compact failure summary that points to retained output, allowing the agent to investigate with file tools instead of receiving the whole log on completion. Capture limits, pagination and budgets remain implementation policy rather than duplicated architectural constants.
+Bash, background bash and `python_exec` capture into one file, `output.txt`, with raw output in arrival order, so line ranges in notices and log pages match the file. For example, a long build log shows its final summary and errors with the path to `output.txt`, allowing the agent to investigate with file tools instead of receiving the whole log on completion. Capture limits, pagination and budgets remain implementation policy rather than duplicated architectural constants.
 
 Async-bash output assets belong to the conversation. Launch logs belong to the execution domain independently of catalog placement, so reorganizing definitions cannot relocate or reinterpret a run's output.
 
-| Concern                                  | Owner                                                                                                                                           |
-| ---------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
-| Output and log-page projection           | `projectProcessOutput` and `projectProcessOutputPage` in [`process-output.ts`](../../../packages/tools/src/result-projection/process-output.ts) |
-| Launch log storage                       | [`LaunchRepository`](../../../packages/workbench-server/src/domains/launches/persistence/launch.repository.ts)                                  |
-| Complete payload and consumer boundaries | [Tool-result projection](../tool-result-projection.md)                                                                                          |
+| Concern                                  | Owner                                                                                                                                                                                  |
+| ---------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Output and log-page projection           | `projectProcessOutput` and `projectProcessOutputPage` in [`process-output.ts`](../../../packages/tools/src/result-projection/process-output.ts)                                        |
+| Capture files and stored results         | [`process-result.ts`](../../../packages/tools/src/execution/process/process-result.ts); [`AsyncBashService`](../../../packages/conversation-core/src/async-bash/async-bash.service.ts) |
+| Launch log storage                       | [`LaunchRepository`](../../../packages/workbench-server/src/domains/launches/persistence/launch.repository.ts)                                                                         |
+| Complete payload and consumer boundaries | [Tool-result projection](../tool-result-projection.md)                                                                                                                                 |
 
 ## Recovery without process resurrection
 
