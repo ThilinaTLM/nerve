@@ -64,6 +64,33 @@ function commandLabel(command: string): string {
 }
 
 /**
+ * Whether `conversation.stop` has anything to stop: the conversation's own
+ * turn, its background commands, or any descendant's work. Idle
+ * conversations can still wake when background work reports back.
+ */
+export function hasStoppableWork(
+  snapshot:
+    | {
+        conversation: Pick<ConversationSummary, "status">;
+        children: readonly Pick<
+          ConversationSummary,
+          "status" | "pendingWork"
+        >[];
+        asyncBash: readonly AsyncBash[];
+      }
+    | undefined,
+): boolean {
+  if (!snapshot) return false;
+  const active = (status: ConversationSummary["status"]) =>
+    status === "running" || status === "waiting";
+  return (
+    active(snapshot.conversation.status) ||
+    runningCommands(snapshot.asyncBash).length > 0 ||
+    snapshot.children.some((child) => active(child.status) || child.pendingWork)
+  );
+}
+
+/**
  * What a conversation with no running turn is still waiting for: sub-agents
  * that have not finished and background commands that are still running.
  */

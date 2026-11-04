@@ -95,6 +95,7 @@ import ConversationActivityIsland from "$lib/features/conversations/agents/Conve
 import { openAsyncBashTab } from "$lib/features/conversations";
 import {
   pendingWork as derivePendingWork,
+  hasStoppableWork,
   agentProfileLabel,
 } from "$lib/features/conversations/agents/agent-team";
 import ConversationSettingsDialogs from "$lib/features/conversations/context/ConversationSettingsDialogs.svelte";
@@ -152,7 +153,6 @@ const promptDraftTarget = $derived<PromptDraftTarget | undefined>(
       : undefined,
 );
 let editText = $state("");
-let stopping = $state(false);
 let retryingResponse = $state(false);
 let editTarget = $state<ConversationEntry>();
 /** Shows a sub-agent in the main view; the lead id (or none) returns. */
@@ -202,7 +202,8 @@ const view = $derived(
     ? {
         ...transcript,
         stopping:
-          stopping || Boolean(transcript.transient?.compaction?.stopping),
+          Boolean(store?.stopping) ||
+          Boolean(transcript.transient?.compaction?.stopping),
         retryingResponse,
         responseRevision: store.responseRevision,
         transient: transcript.transient,
@@ -638,12 +639,7 @@ async function submitPrompt(
     editTarget = undefined;
 }
 async function abortActiveRun() {
-  stopping = true;
-  try {
-    await store?.control("stop");
-  } finally {
-    stopping = false;
-  }
+  await store?.control("stop");
 }
 async function retryActiveResponse() {
   if (retryingResponse) return;
@@ -938,9 +934,7 @@ const session = $derived({
     );
   },
 });
-const teamRunning = $derived(
-  store?.snapshot?.children.some((c) => c.status === "running") ?? false,
-);
+const stoppable = $derived(hasStoppableWork(store?.snapshot));
 </script>
 
 <WorkbenchConversationAdapter
@@ -981,7 +975,7 @@ const teamRunning = $derived(
   queuedPrompts={view?.queuedPrompts ?? []}
   recoveryIssues={view?.recoveryIssues ?? []}
   sending={activePendingConversation?.sending ?? view?.sending ?? false}
-  {teamRunning}
+  {stoppable}
   stopping={view?.stopping ?? false}
   retryingResponse={view?.retryingResponse ?? false}
   responseRevision={view?.responseRevision ?? 0}

@@ -83,6 +83,8 @@ export type RunActivityInput = {
   pending?: readonly PendingWorkItem[];
   /** Client time pending work was first observed with no turn running. */
   waitingSeenAtMs?: number;
+  /** Client time a Stop ended pending work that had no turn running. */
+  stoppedSeenAtMs?: number;
 };
 
 export type TailPhase =
@@ -184,11 +186,36 @@ function finishedView(input: RunActivityInput): RunActivityView {
   };
 }
 
+/** Stop acknowledged with the same stop/exit choreography as a stopped run. */
+function stoppedWaitingView(input: RunActivityInput): RunActivityView {
+  const since = input.nowMs - (input.stoppedSeenAtMs ?? input.nowMs);
+  if (since >= DONE_LINGER_MS + CLOSE_MS) return HIDDEN;
+  return {
+    mounted: true,
+    open: since < DONE_LINGER_MS,
+    kind: "stopped",
+    labelKey: "stopped",
+    label: "Stopped",
+    tone: "neutral",
+    spinnerRate: 1,
+  };
+}
+
 /** Calm, slowly spinning row while asynchronous work outlives the turn. */
 function waitingView(
   input: RunActivityInput,
   pending: readonly PendingWorkItem[],
 ): RunActivityView {
+  if (input.stopping)
+    return {
+      mounted: true,
+      open: true,
+      kind: "active",
+      labelKey: "stopping",
+      label: "Stopping…",
+      tone: "neutral",
+      spinnerRate: 1,
+    };
   const since = parseMs(input.lastRunOutcome?.endedAt) ?? input.waitingSeenAtMs;
   return {
     mounted: true,
@@ -235,9 +262,10 @@ export function deriveRunActivity(input: RunActivityInput): RunActivityView {
   const active = input.sending || Boolean(run && run.status !== "interrupted");
   if (input.compaction) return compactionView(input);
   if (!active) {
-    return input.pending?.length
-      ? waitingView(input, input.pending)
-      : finishedView(input);
+    if (input.pending?.length) return waitingView(input, input.pending);
+    return input.stoppedSeenAtMs === undefined
+      ? finishedView(input)
+      : stoppedWaitingView(input);
   }
   if (run?.status === "interrupted") return HIDDEN;
 
