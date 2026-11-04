@@ -11,7 +11,10 @@ import {
 import { fileViewKey } from "$lib/domain/navigation/view-keys";
 import { workspaceSelectors } from "$lib/application/workspace";
 import { notify } from "$lib/application/notifications/notify.svelte";
-import { revealPanelView } from "$lib/app/shell/shell-layout.svelte";
+import {
+  activatePanelView,
+  revealPanelView,
+} from "$lib/app/shell/shell-layout.svelte";
 import { responsive } from "$lib/app/shell/responsive.svelte";
 
 const projectId = $derived(workspaceSelectors.activeProject?.id);
@@ -21,12 +24,13 @@ const recentPaths = $derived.by(() => {
   const views = filesystemWorkspaceReadModel.fileViews;
   const paths = filesystemWorkspaceReadModel.openFileTabIds.flatMap((id) => {
     const view = views[fileViewKey(id)];
-    return view && view.projectId === projectId ? [view.path] : [];
+    return view && view.projectId === projectId
+      ? [view.content?.relativePath ?? view.path]
+      : [];
   });
-  const active =
-    activeTab?.kind === "file"
-      ? views[fileViewKey(activeTab.id)]?.path
-      : undefined;
+  const activeView =
+    activeTab?.kind === "file" ? views[fileViewKey(activeTab.id)] : undefined;
+  const active = activeView?.content?.relativePath ?? activeView?.path;
   return recentQuickOpenPaths(paths, active);
 });
 
@@ -44,6 +48,7 @@ async function choose(item: QuickOpenItem, options: { reveal: boolean }) {
   if (!projectId) return;
   if (options.reveal) {
     revealPanelView("files", responsive.isCompact);
+    activatePanelView("files");
     try {
       await revealFileExplorerPath(projectId, item.path);
     } catch (caught) {

@@ -41,6 +41,9 @@ class QuickOpenController {
   setQuery(query: string): void {
     this.query = query;
     this.#retries = 0;
+    // Until the debounced request runs, stale (or empty) results must not read
+    // as "No files match".
+    if (this.parsed.query) this.loading = true;
     this.schedule(SEARCH_DEBOUNCE_MS);
   }
 

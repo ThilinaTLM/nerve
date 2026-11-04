@@ -27,6 +27,8 @@ import type {
 } from "$lib/presentation/shell";
 import type { ContextMenuItem } from "@nervekit/ui-kit/components/composites/context-menu-list";
 import { revealFileExplorerPath } from "$lib/features/filesystem";
+import { activatePanelView, revealPanelView } from "./shell-layout.svelte";
+import { responsive } from "./responsive.svelte";
 import { writeClipboardText } from "$lib/platform/clipboard/write-text";
 import type {
   CenterTabIdentity,
@@ -255,8 +257,10 @@ function tabMenu(tab: WorkbenchTabModel): ContextMenuItem[] {
           icon: Locate,
           disabled: !projectId || !relativePath,
           onSelect: () => {
-            if (projectId && relativePath)
-              void revealFileExplorerPath(projectId, relativePath);
+            if (!projectId || !relativePath) return;
+            revealPanelView("files", responsive.isCompact);
+            activatePanelView("files");
+            void revealFileExplorerPath(projectId, relativePath);
           },
         },
         {
