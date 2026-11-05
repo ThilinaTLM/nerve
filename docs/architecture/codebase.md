@@ -30,20 +30,20 @@ flowchart TB
 
 Arrows mean “is consumed by.” The diagram highlights key direct dependencies; contracts supply shared domain types throughout the engine and product, so their other edges are omitted. The exact allowed graph lives in [`workspacePackages`](../../scripts/shared/workspace-architecture.mjs) and is enforced by the [boundary checker](../../scripts/checks/check-package-boundaries.mjs).
 
-| Package             | Layer      | One-line responsibility                                                     |
-| ------------------- | ---------- | --------------------------------------------------------------------------- |
-| `contracts`         | Foundation | Transport-neutral domain schemas and policy contracts.                      |
-| `protocol`          | Foundation | Sessions, remote procedure calls, replay and transport lifecycle.           |
-| `native`            | Foundation | Rust-backed Git reads, managed processes, filesystem monitoring and search. |
-| `ui-kit`            | Foundation | Domain-independent UI primitives and shared styles.                         |
-| `harness`           | Engine     | Model execution and the agent loop, with conversation orchestration.        |
-| `skills`            | Engine     | Built-in skills and their integration with harness resources.               |
-| `tools`             | Engine     | Tool execution, policy and result projection.                               |
-| `conversation-core` | Engine     | Portable conversation storage and durable runtime behavior.                 |
-| `workbench-server`  | Product    | Host services, core composition and client-facing adapters.                 |
-| `workbench-app`     | Product    | Web UI, application workflows and feature state.                            |
-| `desktop-shell`     | Product    | Electron windows, integration and daemon supervision.                       |
-| `website`           | Standalone | Public website and documentation.                                           |
+| Package             | Layer      | One-line responsibility                                                                           |
+| ------------------- | ---------- | ------------------------------------------------------------------------------------------------- |
+| `contracts`         | Foundation | Transport-neutral domain schemas and policy contracts.                                            |
+| `protocol`          | Foundation | Sessions, remote procedure calls, replay and transport lifecycle.                                 |
+| `native`            | Foundation | Rust-backed Git reads, managed processes, filesystem monitoring, ignore-aware listing and search. |
+| `ui-kit`            | Foundation | Domain-independent UI primitives and shared styles.                                               |
+| `harness`           | Engine     | Model execution and the agent loop, with conversation orchestration.                              |
+| `skills`            | Engine     | Built-in skills and their integration with harness resources.                                     |
+| `tools`             | Engine     | Tool execution, policy and result projection.                                                     |
+| `conversation-core` | Engine     | Portable conversation storage and durable runtime behavior.                                       |
+| `workbench-server`  | Product    | Host services, core composition and client-facing adapters.                                       |
+| `workbench-app`     | Product    | Web UI, application workflows and feature state.                                                  |
+| `desktop-shell`     | Product    | Electron windows, integration and daemon supervision.                                             |
+| `website`           | Standalone | Public website and documentation.                                                                 |
 
 ## Reusable engine
 
