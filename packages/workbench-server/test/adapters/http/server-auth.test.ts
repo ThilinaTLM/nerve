@@ -16,6 +16,7 @@ import type {
   EncryptedSecretEnvelope,
 } from "@nervekit/contracts/auth";
 import { shutdownServerRuntime } from "../../../src/app/runtime/server-runtime.js";
+import { withPeer } from "../../support/peer-address.js";
 import { createApp } from "../../../src/app/server.js";
 import { initializeStorage } from "../../../src/infrastructure/storage-bootstrap/index.js";
 
@@ -72,7 +73,7 @@ describe("server credential route auth", () => {
   it("lets an authenticated UI session manage credentials and rejects anonymous requests", async () => {
     const storage = await initializeStorage(await tempHome());
     const { runtime: state } = createRuntimeFixture(storage, "127.0.0.1", 0);
-    const app = createApp(state);
+    const app = withPeer(createApp(state));
     const cookie = `nerve_token=${storage.localToken}`;
 
     try {

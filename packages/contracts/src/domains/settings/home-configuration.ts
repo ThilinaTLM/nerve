@@ -17,6 +17,8 @@ import {
 import {
   electronFontRenderHintingSchema,
   electronOzonePlatformSchema,
+  publicUrlSchema,
+  trustProxySchema,
 } from "./application-configuration.js";
 
 const homeMigrationLedgerSchema = z.array(
@@ -76,6 +78,8 @@ export const daemonConfigSchema = z
         allowRemote: z.boolean(),
         mobileHttps: z.boolean(),
         httpsPort: z.number().int().min(1).max(65_535),
+        publicUrl: publicUrlSchema.optional(),
+        trustProxy: trustProxySchema.optional(),
       })
       .strict(),
     diagnostics: z

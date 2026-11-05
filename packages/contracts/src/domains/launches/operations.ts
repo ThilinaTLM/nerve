@@ -37,9 +37,7 @@ export const launchStartDefinitionResultSchema = z.discriminatedUnion(
     }),
   ],
 );
-export type LaunchStartDefinitionResult = z.infer<
-  typeof launchStartDefinitionResultSchema
->;
+
 const launchLogsParamsSchema = launchIdParamsSchema.merge(launchLogQuerySchema);
 const launchCancelParamsSchema = launchIdParamsSchema.extend({
   signal: z.enum(["SIGTERM", "SIGINT", "SIGKILL"]).optional(),

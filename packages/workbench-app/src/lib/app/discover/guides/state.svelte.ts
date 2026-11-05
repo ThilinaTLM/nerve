@@ -22,7 +22,6 @@ import { workspaceState } from "$lib/application/workspace/workspace-state.svelt
 import { guideCatalog, type GuideId } from "./catalog.js";
 import {
   autoCompletedGuideIds,
-  incompleteGuideCount as countIncompleteGuides,
   resolveGuides,
   type GuideSignals,
   type ResolvedGuide,
@@ -118,10 +117,6 @@ export function catalogGuides(): ResolvedGuide[] {
     guideState.completionVersions,
     guideSignals(),
   );
-}
-
-export function incompleteGuideCount(): number {
-  return countIncompleteGuides(catalogGuides());
 }
 
 function persistCompletionVersions(versions: GuideCompletionVersions): void {

@@ -20,8 +20,6 @@ import type {
 } from "../ports.js";
 import type { CoreStorage } from "../storage/core-storage.js";
 
-export type { AsyncBashChange } from "../background-tasks/bash-runner.js";
-
 /** Async bash commands: starting, adoption and log reads; the task lifecycle is shared. */
 export class AsyncBashService {
   private readonly runner: BashRunner;

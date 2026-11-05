@@ -121,12 +121,3 @@ export function githubStatusFingerprint(
 export function reposFingerprint(repos: GitRepoSummary[]): string {
   return JSON.stringify(repos.map((repo) => repoSummaryFingerprint(repo)));
 }
-
-export function overviewFingerprint(next: GitOverviewResponse): string {
-  return JSON.stringify({
-    repo: repoSummaryFingerprint(next.repo),
-    changes: changesFingerprint(changesFromOverview(next)),
-    recentCommits: recentCommitsFingerprint(next.recentCommits),
-    stashes: stashesFingerprint(next.stashes),
-  });
-}

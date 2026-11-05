@@ -57,16 +57,7 @@ async function connectRemoteDaemon(
     throw new Error("Missing remote daemon URL. Use --connect <url>.");
   }
   const url = normalizeRemoteDaemonUrl(options.remoteUrl);
-  const token = options.token?.trim() || ports.env.NERVE_DAEMON_TOKEN?.trim();
-  if (!token) {
-    throw new Error(
-      "Missing remote daemon token. Use --token <token> or NERVE_DAEMON_TOKEN.",
-    );
-  }
-
-  if (!(await ports.health.check(url, token)).healthy) {
-    throw new Error(`Could not connect to remote Nerve daemon at ${url}.`);
-  }
+  const credential = await resolveRemoteCredential(url, options, ports);
   const supervisor = new DaemonSupervisor(
     {
       mode: "remote",
@@ -78,7 +69,117 @@ async function connectRemoteDaemon(
     },
     ports,
   );
-  return supervisor.initMonitorOnly({ url, token });
+  return supervisor.initMonitorOnly({ url, token: credential });
+}
+
+const MISSING_CREDENTIAL_MESSAGE =
+  "This desktop is not paired with the remote daemon. Create a code in Nerve (Settings → Devices → Pair a device, or `nerve pair --purpose desktop` on the host) and start with --connect <url> --pair-code <CODE>.";
+
+/**
+ * Finds a credential the remote daemon accepts, in order: the device
+ * credential stored for this origin, a one-time `--pair-code`, then the
+ * deprecated daemon token (exchanged for a device credential when possible).
+ * The paired credential is stored per origin, so the code is only needed once.
+ */
+async function resolveRemoteCredential(
+  url: string,
+  options: EnsureDaemonOptions,
+  ports: DaemonConnectionPorts,
+): Promise<string> {
+  const origin = new URL(url).origin;
+  const stored = await ports.credentials.load(origin);
+  if (stored) {
+    const health = await ports.health.check(url, stored);
+    if (health.healthy) {
+      if (options.pairCode) {
+        ports.logger.log(
+          "info",
+          "Ignoring --pair-code: this desktop is already paired with the remote daemon",
+        );
+      }
+      return stored;
+    }
+    if (health.status !== 401) {
+      throw new Error(`Could not connect to remote Nerve daemon at ${url}.`);
+    }
+    ports.logger.log(
+      "warn",
+      "The stored device credential was rejected; it was revoked or expired",
+    );
+    await ports.credentials.forget(origin);
+  }
+
+  const pairCode = options.pairCode?.trim();
+  const legacyToken =
+    options.token?.trim() || ports.env.NERVE_DAEMON_TOKEN?.trim();
+  if (!pairCode && !legacyToken) {
+    throw new Error(
+      stored
+        ? `The device credential for ${url} was rejected. ${MISSING_CREDENTIAL_MESSAGE}`
+        : MISSING_CREDENTIAL_MESSAGE,
+    );
+  }
+
+  let credential: string;
+  if (pairCode) {
+    credential = await redeemForDevice(url, pairCode, ports);
+  } else {
+    credential = await bootstrapFromLegacyToken(url, legacyToken!, ports);
+  }
+
+  const health = await ports.health.check(url, credential);
+  if (!health.healthy) {
+    throw new Error(`Could not connect to remote Nerve daemon at ${url}.`);
+  }
+  if (credential !== legacyToken)
+    await ports.credentials.save(origin, credential);
+  return credential;
+}
+
+async function redeemForDevice(
+  url: string,
+  code: string,
+  ports: DaemonConnectionPorts,
+): Promise<string> {
+  try {
+    return await ports.access.redeemPairingCode(url, {
+      code,
+      deviceName: ports.deviceName,
+    });
+  } catch (error) {
+    throw new Error(
+      `Could not pair with the remote Nerve daemon: ${error instanceof Error ? error.message : String(error)}`,
+      { cause: error },
+    );
+  }
+}
+
+/**
+ * `--token` / `NERVE_DAEMON_TOKEN` is deprecated: it only bootstraps a device
+ * credential. If that is refused, the token itself still works for one release
+ * (the server accepts it from remote peers and flags it), so connecting is not
+ * broken, but it is never stored.
+ */
+async function bootstrapFromLegacyToken(
+  url: string,
+  token: string,
+  ports: DaemonConnectionPorts,
+): Promise<string> {
+  ports.logger.log(
+    "warn",
+    "--token and NERVE_DAEMON_TOKEN are deprecated and will be removed. This desktop will pair as a device instead; use --pair-code next time.",
+  );
+  try {
+    const pairing = await ports.access.createPairingCode(url, token, "desktop");
+    return await redeemForDevice(url, pairing.code, ports);
+  } catch (error) {
+    ports.logger.log(
+      "warn",
+      "Could not exchange the daemon token for a device credential; using the token directly",
+      { error },
+    );
+    return token;
+  }
 }
 
 async function ensureLocalDaemon(

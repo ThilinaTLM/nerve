@@ -154,6 +154,9 @@ export class ProtocolClientSession {
 
   async receive(message: ProtocolV1Message): Promise<void> {
     this.#lastReceivedAt = this.#clock.now();
+    // Heartbeats are unordered control frames (handled inline by the
+    // connection) and may overtake the welcome.
+    if (message.kind === "heartbeat" && this.state === "hello_sent") return;
     if (this.state === "hello_sent") {
       await this.#receiveWelcome(message);
       return;

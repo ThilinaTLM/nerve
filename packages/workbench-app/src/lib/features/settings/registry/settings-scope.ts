@@ -14,14 +14,3 @@ export const userSettingsScope: SettingsScopeTarget = Object.freeze({
 export function projectSettingsScope(projectId: string): SettingsScopeTarget {
   return Object.freeze({ kind: "project", projectId });
 }
-
-export function settingsScopeKey(target: SettingsScopeTarget): string {
-  return target.kind === "user" ? "user" : `project:${target.projectId}`;
-}
-
-export function settingsScopesEqual(
-  a: SettingsScopeTarget,
-  b: SettingsScopeTarget,
-): boolean {
-  return settingsScopeKey(a) === settingsScopeKey(b);
-}

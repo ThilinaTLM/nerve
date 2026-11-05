@@ -15,7 +15,6 @@ import {
   type CompletionItem,
 } from "@nervekit/contracts/completions";
 import {
-  COMPLETION_SCOPES,
   RECENT_REQUEST_LIMIT,
   buildMentionGroups,
   buildSlashGroups,
@@ -24,7 +23,6 @@ import {
   flattenRows,
   loadingState,
   parseMentionScope,
-  sourceLabel,
   unavailableFooter,
   type CompletionScopeId,
   type ComposerSearchResponse,
@@ -736,8 +734,6 @@ export function closeCompletion(view: EditorView): void {
 export function refreshComposerReferenceCompletions(view: EditorView): void {
   controllers.get(view)?.refresh();
 }
-
-export { COMPLETION_SCOPES, sourceLabel };
 
 export function composerCompletionExtensions(
   options: ComposerCompletionOptions,

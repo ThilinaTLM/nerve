@@ -47,14 +47,6 @@ function boundedHead(text: string | undefined): string | undefined {
   return lines.slice(0, BODY_LINES).join("\n").slice(0, BODY_CHARS);
 }
 
-function lineCount(text: string | undefined): number | undefined {
-  return text === undefined
-    ? undefined
-    : text.length === 0
-      ? 0
-      : text.split(/\r?\n/).length;
-}
-
 function pathArg(
   source: ToolArgumentSource,
   cwd?: string,
@@ -688,12 +680,4 @@ export const coreToolLifecycleSpecs = {
   ToolLifecycleSpec
 >;
 
-export {
-  boundedText,
-  codeBody,
-  keyValues,
-  lineCount,
-  pathArg,
-  plural,
-  textArg,
-};
+export { boundedText, codeBody, keyValues, pathArg, plural, textArg };

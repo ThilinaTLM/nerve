@@ -10,6 +10,7 @@ export function isWorkbenchEvent(type: string): boolean {
     "projectSettings.",
     "applicationConfiguration.",
     "auth.",
+    "access.",
     "providers.",
     "secrets.",
     "daemon.",

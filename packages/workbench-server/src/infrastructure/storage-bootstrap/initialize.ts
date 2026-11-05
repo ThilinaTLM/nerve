@@ -210,6 +210,11 @@ async function applySettingsPatch(
       network: {
         ...storage.settings.application.network,
         ...(patch.application?.network ?? {}),
+        // An empty string clears the saved public URL.
+        publicUrl:
+          (patch.application?.network?.publicUrl ??
+            storage.settings.application.network.publicUrl) ||
+          undefined,
       },
       diagnostics: {
         ...storage.settings.application.diagnostics,

@@ -22,7 +22,6 @@ import {
 import { planMigrations, readMigrationHome } from "./ledger.js";
 import type { DiscardableItem, RegisteredStep } from "./step.js";
 import { manifestBackupPath } from "./cleanup.js";
-export { manifestBackupPath } from "./cleanup.js";
 
 /** Persisted by the runner after a failed attempt; read by startup and recovery. */
 export interface MigrationFailureReport {

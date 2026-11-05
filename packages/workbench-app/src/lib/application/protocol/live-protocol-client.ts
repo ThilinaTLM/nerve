@@ -37,10 +37,6 @@ export function installLiveProtocolRequester(
   };
 }
 
-export function isLiveProtocolReady(): boolean {
-  return requester?.isReady() ?? false;
-}
-
 export function requestLiveProtocol<M extends OperationName>(
   method: M,
   params: OperationParams<M>,

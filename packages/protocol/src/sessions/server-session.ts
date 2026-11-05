@@ -163,6 +163,9 @@ export class ProtocolServerSession {
       return;
     }
     this.#heartbeat.received();
+    // Heartbeats are handled inline by the connection, so they are unordered
+    // control frames and may overtake a queued ready.
+    if (message.kind === "heartbeat" && this.state === "awaiting_ready") return;
     if (this.state === "awaiting_ready") {
       if (
         message.kind !== "ready" ||

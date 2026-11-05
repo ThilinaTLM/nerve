@@ -2,6 +2,8 @@ import type { GitStashArea, GitStashEntry } from "@nervekit/contracts/git";
 import { GitWorkflowError } from "./git-errors.js";
 import type { GitService } from "./git-service.js";
 
+type GitCommandRunner = Pick<GitService, "runGit">;
+
 const STASH_REF_PATTERN = /^stash@\{(\d+)\}$/;
 
 export function parseStashList(output: string): GitStashEntry[] {
@@ -26,7 +28,7 @@ export function parseStashList(output: string): GitStashEntry[] {
 }
 
 export async function listStashes(
-  service: GitService,
+  service: GitCommandRunner,
   repoDir: string,
 ): Promise<GitStashEntry[]> {
   const { stdout } = await service.runGit(repoDir, [
@@ -51,7 +53,7 @@ export function stashCreateArgs(
 }
 
 export async function createAreaStash(
-  service: GitService,
+  service: GitCommandRunner,
   repoDir: string,
   area: GitStashArea,
   paths?: readonly string[],
@@ -106,7 +108,7 @@ export async function createAreaStash(
 }
 
 async function unstagedPathspecs(
-  service: GitService,
+  service: GitCommandRunner,
   repoDir: string,
   paths?: readonly string[],
 ): Promise<string[]> {
@@ -127,7 +129,7 @@ async function unstagedPathspecs(
 }
 
 async function restoreTemporaryStash(
-  service: GitService,
+  service: GitCommandRunner,
   repoDir: string,
   hash: string,
   paths: readonly string[],
@@ -153,7 +155,7 @@ async function restoreTemporaryStash(
 }
 
 export async function stashApplyArgs(
-  service: GitService,
+  service: GitCommandRunner,
   repoDir: string,
   ref: string,
 ): Promise<string[]> {
@@ -169,7 +171,7 @@ export async function stashApplyArgs(
 }
 
 export async function verifyStashTarget(
-  service: GitService,
+  service: GitCommandRunner,
   repoDir: string,
   index: number,
   expectedHash: string,

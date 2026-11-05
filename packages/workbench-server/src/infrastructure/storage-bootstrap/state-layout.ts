@@ -9,10 +9,15 @@ import { pathExists } from "./json.js";
 
 /**
  * Entries the server itself may create before the first migration: the lease
- * file, the pre-migration local token, and boot diagnostics. A home holding
+ * file, the pre-migration local token and device store, and boot diagnostics. A home holding
  * only these is still a fresh home.
  */
 const BOOT_ONLY_ENTRIES = new Set(["daemon.json", "logs", "crashes"]);
+
+/** `devices.json` (and its atomic-write temp files) may exist before the first migration. */
+function isPreMigrationSecret(name: string): boolean {
+  return name === "daemon-token" || name.startsWith("devices.json");
+}
 
 export async function isFreshNerveHome(home: string): Promise<boolean> {
   let entries;
@@ -26,7 +31,7 @@ export async function isFreshNerveHome(home: string): Promise<boolean> {
     if (BOOT_ONLY_ENTRIES.has(entry.name)) continue;
     if (entry.name === "secrets" && entry.isDirectory()) {
       const secrets = await readdir(join(home, "secrets"));
-      if (secrets.every((name) => name === "daemon-token")) continue;
+      if (secrets.every(isPreMigrationSecret)) continue;
     }
     return false;
   }

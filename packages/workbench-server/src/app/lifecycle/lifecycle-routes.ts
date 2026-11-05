@@ -1,4 +1,3 @@
-import { getConnInfo } from "@hono/node-server/conninfo";
 import {
   serverLifecycleRetryRequestSchema,
   type ServerLifecycle,
@@ -7,8 +6,11 @@ import type { MiddlewareHandler } from "hono";
 import { Hono } from "hono";
 import {
   createApiAuthMiddleware,
-  unauthorized,
+  gateFailureResponse,
 } from "../../adapters/http/auth-middleware.js";
+import { peerAddressOf } from "../../adapters/http/gate-request.js";
+import type { AccessGate } from "../../domains/access/access-gate.js";
+import { isLoopbackAddress } from "../../infrastructure/network/client-address.js";
 import type { ServerLifecycleHolder } from "./server-lifecycle.js";
 
 export interface LifecycleControls {
@@ -97,30 +99,23 @@ export function createLifecycleRoutes(controls: LifecycleControls): Hono {
 }
 
 /**
- * Bearer/cookie auth when a local token exists. Without one (unsupported or
- * damaged home) only loopback clients may read the lifecycle.
+ * Gate-based auth when the home has a local token. Without one (unsupported
+ * or damaged home) only loopback clients may read the lifecycle.
  */
 export function createLifecycleAuthMiddleware(
-  token: string | undefined,
+  gate: AccessGate | undefined,
 ): MiddlewareHandler {
-  if (token) return createApiAuthMiddleware(token);
+  if (gate) return createApiAuthMiddleware(gate);
   return async (c, next) => {
-    let address = "";
-    try {
-      address = getConnInfo(c).remote.address ?? "";
-    } catch {
-      // No socket info: treat as non-local.
-    }
-    if (
-      address === "::1" ||
-      address.startsWith("127.") ||
-      address.startsWith("::ffff:127.")
-    ) {
+    if (isLoopbackAddress(peerAddressOf(c))) {
       await next();
       return;
     }
-    return c.body(await unauthorized().text(), 401, {
-      "content-type": "application/json",
+    return gateFailureResponse({
+      ok: false,
+      status: 401,
+      code: "UNAUTHORIZED",
+      message: "Authentication required.",
     });
   };
 }

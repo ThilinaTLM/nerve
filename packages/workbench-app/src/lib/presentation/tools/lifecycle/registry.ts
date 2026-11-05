@@ -77,14 +77,4 @@ export function presentToolArguments(
 }
 
 export * from "./tool-lifecycle-contracts";
-export {
-  isSuspiciousKey,
-  isSuspiciousValue,
-  redactStructuredValue,
-  toolArgumentSource,
-  ToolArgumentSource,
-} from "./argument-source";
-export type {
-  RedactedStructuredEntry,
-  ToolArgumentSourceInput,
-} from "./argument-source";
+export type { ToolArgumentSourceInput } from "./argument-source";

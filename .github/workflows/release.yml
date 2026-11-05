@@ -50,7 +50,7 @@ jobs:
         run: echo "RELEASE_TAG=v$(node -p "require('./package.json').version")" >> "$GITHUB_ENV"
 
       - name: Verify release tag
-        run: node scripts/release/verify-release-tag.mjs "${RELEASE_TAG}"
+        run: node scripts/release/verify-release-tag.ts "${RELEASE_TAG}"
 
   native-prebuilds:
     name: Native prebuild (${{ matrix.target }})
@@ -150,7 +150,7 @@ jobs:
           merge-multiple: true
 
       - name: Verify native prebuild inventory
-        run: node scripts/release/verify-native-prebuilds.mjs
+        run: node scripts/release/verify-native-prebuilds.ts
 
       - name: Check formatting, lint, and packages
         run: pnpm check
@@ -165,19 +165,19 @@ jobs:
         run: pnpm build
 
       - name: Smoke built workbench HTTP and WebSocket parity
-        run: node scripts/release/smoke-workbench-release.mjs
+        run: node scripts/release/smoke-workbench-release.ts
 
       - name: Smoke desktop resolution and CLI
-        run: node scripts/release/smoke-desktop-release.mjs
+        run: node scripts/release/smoke-desktop-release.ts
 
       - name: Package unpacked desktop bundle
         run: pnpm --filter @nervekit/desktop-shell package:dir
 
       - name: Smoke packaged desktop identity and assets
-        run: node scripts/release/smoke-desktop-package.mjs
+        run: node scripts/release/smoke-desktop-package.ts
 
       - name: Pack and verify npm tarball
-        run: node scripts/release/pack-npm.mjs
+        run: node scripts/release/pack-npm.ts
 
       - name: Upload verified npm tarball
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -225,7 +225,7 @@ jobs:
           merge-multiple: true
 
       - name: Verify native prebuild inventory
-        run: node scripts/release/verify-native-prebuilds.mjs
+        run: node scripts/release/verify-native-prebuilds.ts
 
       - name: Build all packages
         run: pnpm build
@@ -237,13 +237,13 @@ jobs:
         run: pnpm --filter @nervekit/desktop-shell package:dir
 
       - name: Smoke packaged desktop identity and assets
-        run: node scripts/release/smoke-desktop-package.mjs
+        run: node scripts/release/smoke-desktop-package.ts
 
       - name: Pack and verify npm tarball
-        run: node scripts/release/pack-npm.mjs
+        run: node scripts/release/pack-npm.ts
 
       - name: Verify built desktop runtime
-        run: node scripts/release/smoke-desktop-release.mjs
+        run: node scripts/release/smoke-desktop-release.ts
 
   build-website:
     name: Build website

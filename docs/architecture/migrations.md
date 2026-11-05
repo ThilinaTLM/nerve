@@ -48,7 +48,7 @@ A **home step** coordinates an on-disk conversion across stores or files in the 
 
 All unreleased home changes since the root `package.json` release version belong in one draft step. Extend that step so the next release has one coherent conversion from its released predecessor. Releases without storage changes need no step.
 
-Steps use frozen local shapes and helpers so later application refactors cannot reinterpret an old conversion. Validate each source with the shape its released writer actually produced, at that source's scope; a stricter or differently scoped validator turns valid history into false set-asides. Released steps are immutable and fixes ship in a subsequent step, preserving the meaning of their recorded checksums. A **checksum** identifies the conversion's file contents so the framework can detect unexpected changes. Legacy core conversion details live in the [0001 step README](../../packages/workbench-server/src/infrastructure/migrations/steps/0001-conversation-core/README.md).
+Steps use frozen local shapes and helpers so later application refactors cannot reinterpret an old conversion. Validate each source with the shape its released writer actually produced, at that source's scope; a stricter or differently scoped validator turns valid history into false set-asides. Released steps are immutable and fixes ship in a subsequent step, preserving the meaning of their recorded checksums. A released step's registry `checksum` must equal its folder hash (`migrations.lock.json` enforces this). Homes record the checksum that was current when they applied a step, so a step whose files or label changed between releases lists those earlier values in `previousChecksums`: a released step admits a ledger entry matching its checksum or any previous checksum and refuses anything else, and a draft `rerunOnChange` step does not rerun for a listed previous checksum. List only revisions whose applied homes are valid inputs for later steps. A **checksum** identifies the conversion's file contents so the framework can detect unexpected changes. Legacy core conversion details live in the [0001 step README](../../packages/workbench-server/src/infrastructure/migrations/steps/0001-conversation-core/README.md).
 
 ## Isolating damage
 
@@ -88,6 +88,10 @@ The standalone `storage:migrate` command uses the same runner and lock as startu
 4. Write fixture tests for corruption, set-aside, rollback and resume so recovery is exercised alongside successful conversion. Include byte-preservation and quarantine assertions where the step changes sources.
 5. Rehearse on a stopped home copied into an unused slot with `pnpm storage:copy --from <stopped-home> --slot N` and `pnpm storage:migrate --home data/storage-N`. Choose a slot other than 1 so rehearsal cannot modify the normal development home.
 6. After rehearsal, run `pnpm exec tsx scripts/storage-migrations/validate-history.ts --home data/storage-N` and read every report's set-aside list. A clean exit only proves the history parses; an unexpected set-aside usually means a source was validated with the wrong shape.
+
+## Registry integrity
+
+Released steps are frozen: their folder hash is recorded in `migrations.lock.json`, and a step that changed after release lists its earlier hashes in `previousChecksums` so homes upgraded by older builds still verify. An unreleased (draft) step may be edited freely, but the lock check requires its registry checksum in `registry-metadata.ts` to equal its current folder hash. After editing a draft run `pnpm storage:checksums`; it rewrites the draft checksums in both `migrations.lock.json` and `registry-metadata.ts`. `pnpm release:tag X.Y.Z` releases draft steps (see the [release runbook](../runbooks/release.md)).
 
 ## Validation and ownership
 

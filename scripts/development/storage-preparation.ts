@@ -1,6 +1,6 @@
 import { inspectNerveHome } from "../../packages/workbench-server/src/infrastructure/storage-bootstrap/state-layout.js";
 import { initializeStorage } from "../../packages/workbench-server/src/infrastructure/storage-bootstrap/initialize.js";
-import { createSlotParent } from "./storage-slot.mjs";
+import { createSlotParent } from "./storage-slot.ts";
 
 export async function prepareDevelopmentSlot(slot: {
   repo: string;

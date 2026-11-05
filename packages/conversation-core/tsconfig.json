@@ -10,13 +10,7 @@
       "path": "../contracts"
     },
     {
-      "path": "../native"
-    },
-    {
       "path": "../harness"
-    },
-    {
-      "path": "../skills"
     },
     {
       "path": "../tools"

@@ -6,12 +6,6 @@ export function confluenceStatusBadgeVariant(
   return confluenceStatusTone(status);
 }
 
-export function confluenceOutcomeBadgeVariant(
-  status: string | undefined,
-): StatusTone {
-  return confluenceOutcomeTone(status);
-}
-
 export function confluenceStatusTone(status: string | undefined): StatusTone {
   const normalized = status?.trim().toLowerCase();
   if (!normalized) return "neutral";
@@ -19,14 +13,6 @@ export function confluenceStatusTone(status: string | undefined): StatusTone {
   if (normalized === "draft") return "warning";
   if (normalized === "archived" || normalized === "deleted") return "neutral";
   return "info";
-}
-
-export function confluenceOutcomeTone(status: string | undefined): StatusTone {
-  const normalized = status?.trim().toLowerCase();
-  if (normalized === "created" || normalized === "updated") return "success";
-  if (normalized === "dry_run" || normalized === "skipped") return "warning";
-  if (normalized === "error") return "warning";
-  return "neutral";
 }
 
 export function confluencePageUrl(
@@ -42,21 +28,4 @@ export function confluencePageUrl(
   const wikiPath =
     path === "/wiki" || path.startsWith("/wiki/") ? path : `/wiki${path}`;
   return `${baseUrl}${wikiPath}`;
-}
-
-export function confluenceInitials(value: string | undefined): string {
-  const text = value?.trim();
-  if (!text) return "CF";
-  const words = text.split(/\s+/).filter(Boolean);
-  if (words.length === 1) return words[0].slice(0, 2).toUpperCase();
-  return `${words[0][0] ?? ""}${words[1][0] ?? ""}`.toUpperCase() || "CF";
-}
-
-export function confluenceBytesLabel(
-  value: number | undefined,
-): string | undefined {
-  if (value === undefined) return undefined;
-  if (value < 1024) return `${value} B`;
-  if (value < 1024 * 1024) return `${(value / 1024).toFixed(1)} KB`;
-  return `${(value / (1024 * 1024)).toFixed(1)} MB`;
 }

@@ -1,6 +1,7 @@
-import type {
-  DaemonChildHandle,
-  DaemonConnectionPorts,
+import {
+  DaemonAccessError,
+  type DaemonChildHandle,
+  type DaemonConnectionPorts,
 } from "../../src/daemon/ports.ts";
 import type {
   ChildExit,
@@ -198,7 +199,33 @@ export interface FakeDaemonWorld {
     status?: number;
     error?: string;
     lifecycle?: "starting" | "upgrading" | "ready" | "failed";
+    /** Sent back as the rotation header on the next healthy check. */
+    rotatedCredential?: string;
+    /** Bearers answered with 401. */
+    rejectedTokens: Set<string>;
   };
+  /** `secrets/daemon-token` as the discovery port would re-read it. */
+  localToken: { value: string };
+  accessCalls: Array<
+    | {
+        kind: "createPairingCode";
+        url: string;
+        bearer: string;
+        purpose: string;
+      }
+    | {
+        kind: "redeemPairingCode";
+        url: string;
+        code: string;
+        deviceName: string;
+      }
+  >;
+  access: {
+    /** Set to make the next access calls fail. */
+    failWith?: DaemonAccessError;
+    deviceCredential: string;
+  };
+  storedCredentials: Map<string, string>;
   healthChecks: Array<{ url: string; token: string }>;
   discoveryResults: Array<HealthyDaemon | undefined>;
   discoveryCalls: DaemonPaths[];
@@ -228,7 +255,14 @@ export function fakeDaemonWorld(
     value: true,
     outcome: "ok",
     status: 200,
+    rejectedTokens: new Set(),
   };
+  const localToken = { value: "tok_local" };
+  const accessCalls: FakeDaemonWorld["accessCalls"] = [];
+  const access: FakeDaemonWorld["access"] = {
+    deviceCredential: "nd_dev_1.secret",
+  };
+  const storedCredentials = new Map<string, string>();
   const healthChecks: Array<{ url: string; token: string }> = [];
   const discoveryResults = overrides.discovery ?? [healthyDaemon()];
   const discoveryCalls: DaemonPaths[] = [];
@@ -240,10 +274,21 @@ export function fakeDaemonWorld(
     health: {
       check: async (url, token) => {
         healthChecks.push({ url, token });
+        if (healthResults.rejectedTokens.has(token)) {
+          return {
+            healthy: false,
+            outcome: "http_error",
+            durationMs: 1,
+            status: 401,
+          };
+        }
         return {
           healthy: healthResults.value,
           outcome: healthResults.value ? "ok" : healthResults.outcome,
           durationMs: 1,
+          rotatedCredential: healthResults.value
+            ? healthResults.rotatedCredential
+            : undefined,
           status: healthResults.status,
           error: healthResults.error,
           lifecycle: healthResults.value ? healthResults.lifecycle : undefined,
@@ -259,7 +304,30 @@ export function fakeDaemonWorld(
             : discoveryResults[0];
         return result;
       },
+      readLocalToken: async () => localToken.value,
     },
+    access: {
+      createPairingCode: async (url, bearer, purpose) => {
+        accessCalls.push({ kind: "createPairingCode", url, bearer, purpose });
+        if (access.failWith) throw access.failWith;
+        return { code: "ABCD-EFGH", expiresAt: 1, purpose };
+      },
+      redeemPairingCode: async (url, input) => {
+        accessCalls.push({ kind: "redeemPairingCode", url, ...input });
+        if (access.failWith) throw access.failWith;
+        return access.deviceCredential;
+      },
+    },
+    credentials: {
+      load: async (origin) => storedCredentials.get(origin),
+      save: async (origin, credential) => {
+        storedCredentials.set(origin, credential);
+      },
+      forget: async (origin) => {
+        storedCredentials.delete(origin);
+      },
+    },
+    deviceName: "Nerve Desktop (test)",
     launcher: {
       launch: (input) => {
         launches.push({
@@ -309,6 +377,10 @@ export function fakeDaemonWorld(
     crashReports,
     logs,
     healthResults,
+    localToken,
+    accessCalls,
+    access,
+    storedCredentials,
     healthChecks,
     discoveryResults,
     discoveryCalls,

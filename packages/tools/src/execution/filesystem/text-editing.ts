@@ -39,18 +39,3 @@ export function generateDiffString(before: string, after: string): string {
   const diff = formatPatch(patch, OMIT_HEADERS);
   return diff.endsWith("\n") ? diff.slice(0, -1) : diff;
 }
-
-export function normalizeSmartPunctuation(input: string): string {
-  return input
-    .replace(/[“”]/g, '"')
-    .replace(/[‘’]/g, "'")
-    .replace(/[–—]/g, "-");
-}
-
-export function normalizeForTrimmedMatch(input: string): string {
-  return normalizeSmartPunctuation(normalizeLineEndings(input))
-    .split("\n")
-    .map((line) => line.trimEnd())
-    .join("\n")
-    .trim();
-}

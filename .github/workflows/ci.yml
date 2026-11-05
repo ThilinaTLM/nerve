@@ -34,17 +34,24 @@ jobs:
         with:
           fetch-depth: 0
 
+      # The classifier is plain erasable TypeScript run by Node's native type
+      # stripping, so this job needs no pnpm install.
+      - name: Set up Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24
+
       - name: Classify pull request impact
         id: impact
         if: github.event_name == 'pull_request'
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
-        run: node scripts/testing/ci-impact.mjs --base "${BASE_SHA}"
+        run: node scripts/impact/ci.ts --base "${BASE_SHA}"
 
       - name: Select full coverage for main
         id: impact_main
         if: github.event_name != 'pull_request'
-        run: node scripts/testing/ci-impact.mjs --full
+        run: node scripts/impact/ci.ts --full
 
   lint:
     name: Format, lint and script tests
@@ -74,14 +81,21 @@ jobs:
         run: pnpm exec eslint .
       - name: Check package boundaries
         if: ${{ !cancelled() && steps.install.outcome == 'success' }}
-        run: node scripts/checks/check-package-boundaries.mjs
-      - name: Build contracts for scripts tests
-        id: contracts
+        run: node scripts/checks/check-package-boundaries.ts
+      - name: Build workspace packages imported by scripts
+        id: workspace
         if: ${{ !cancelled() && steps.install.outcome == 'success' }}
-        # Storage script tests import workbench-server sources that resolve @nervekit/contracts from dist.
-        run: pnpm --filter @nervekit/contracts build
+        # Storage scripts import workbench-server sources, which resolve their
+        # workspace dependencies (types and runtime) from dist; release smoke scripts
+        # import desktop-shell dist (types only here, so plain tsc without icons/preload).
+        run: |
+          pnpm --filter "@nervekit/desktop-shell^..." build
+          pnpm --filter @nervekit/desktop-shell exec tsc -b
+      - name: Type-check scripts
+        if: ${{ !cancelled() && steps.workspace.outcome == 'success' }}
+        run: pnpm exec tsc -p scripts
       - name: Run scripts tests
-        if: ${{ !cancelled() && steps.contracts.outcome == 'success' }}
+        if: ${{ !cancelled() && steps.workspace.outcome == 'success' }}
         run: pnpm test:scripts
 
   native-linux:
@@ -135,7 +149,7 @@ jobs:
         run: pnpm build:native
 
       - name: Smoke-load native addon
-        run: node scripts/testing/smoke-native-addon.mjs
+        run: node scripts/testing/smoke-native-addon.ts
       - name: Pack native addon
         run: tar -cf native-addon.tar -C packages/native/prebuilds local
       - name: Upload native addon
@@ -200,7 +214,7 @@ jobs:
         run: pnpm build:native
 
       - name: Smoke-load native addon
-        run: node scripts/testing/smoke-native-addon.mjs
+        run: node scripts/testing/smoke-native-addon.ts
       - name: Pack native addon
         run: tar -cf native-addon.tar -C packages/native/prebuilds local
       - name: Upload native addon
@@ -245,9 +259,18 @@ jobs:
       - name: Check Rust formatting and clippy
         run: pnpm --filter @nervekit/native check:native
 
+  # Narrow (non-full) pull requests: the package check (~1 min) and the package
+  # tests (~3-4 min) are independent, so they run as parallel matrix entries
+  # instead of back to back. Each entry repeats only install + dependency prep.
   validate:
-    name: Check and test affected packages (Ubuntu)
+    name: ${{ matrix.task == 'check' && 'Check' || 'Test' }} affected packages (Ubuntu)
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        task:
+          - check
+          - test
     needs:
       - paths
       - native-linux
@@ -293,22 +316,24 @@ jobs:
         run: |
           mkdir -p packages/native/prebuilds
           tar -xf .native-addon/native-addon.tar -C packages/native/prebuilds
-          node scripts/testing/smoke-native-addon.mjs
+          node scripts/testing/smoke-native-addon.ts
 
       - name: Prepare affected package dependencies
         env:
           NERVE_AFFECTED_PACKAGES: ${{ needs.paths.outputs.dependency_packages }}
-        run: node scripts/testing/run-affected-packages.mjs build
+        run: node scripts/testing/run-affected-packages.ts build
 
       - name: Check affected packages
+        if: matrix.task == 'check'
         env:
           NERVE_AFFECTED_PACKAGES: ${{ needs.paths.outputs.packages }}
-        run: node scripts/testing/run-affected-packages.mjs check
+        run: node scripts/testing/run-affected-packages.ts check
 
       - name: Test affected packages
+        if: matrix.task == 'test'
         env:
           NERVE_AFFECTED_PACKAGES: ${{ needs.paths.outputs.packages }}
-        run: node scripts/testing/run-affected-packages.mjs test
+        run: node scripts/testing/run-affected-packages.ts test
 
   typecheck:
     name: Type and lint checks (Ubuntu)
@@ -354,7 +379,7 @@ jobs:
         run: |
           mkdir -p packages/native/prebuilds
           tar -xf .native-addon/native-addon.tar -C packages/native/prebuilds
-          node scripts/testing/smoke-native-addon.mjs
+          node scripts/testing/smoke-native-addon.ts
 
       - name: Check all packages
         run: pnpm -r check
@@ -403,7 +428,7 @@ jobs:
         run: |
           mkdir -p packages/native/prebuilds
           tar -xf .native-addon/native-addon.tar -C packages/native/prebuilds
-          node scripts/testing/smoke-native-addon.mjs
+          node scripts/testing/smoke-native-addon.ts
 
       # Tests import workspace packages through their emitted dist, which the
       # type-check job produces in its own workspace. Frontend packages and the
@@ -438,6 +463,12 @@ jobs:
       - native-linux
     if: ${{ !cancelled() && needs.paths.result == 'success' && needs.native-linux.result == 'success' && needs.paths.outputs.workbench == 'true' }}
     timeout-minutes: 15
+    # Official image with Chromium and its system libraries preinstalled (no apt-get or
+    # browser download). The tag must match the locked @playwright/test version; the
+    # scripts tests in the lint job assert that (scripts/checks/test/playwright-image.test.ts).
+    container:
+      image: mcr.microsoft.com/playwright:v1.63.0-noble
+      options: --user 1001
 
     steps:
       - name: Check out repository
@@ -463,29 +494,14 @@ jobs:
         run: |
           mkdir -p packages/native/prebuilds
           tar -xf .native-addon/native-addon.tar -C packages/native/prebuilds
-          node scripts/testing/smoke-native-addon.mjs
-      - name: Resolve Playwright version
-        id: playwright
-        run: echo "version=$(pnpm exec playwright --version | awk '{print $2}')" >> "$GITHUB_OUTPUT"
-      - name: Cache Playwright browsers
-        id: playwright-cache
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: ~/.cache/ms-playwright
-          key: playwright-${{ runner.os }}-${{ steps.playwright.outputs.version }}-chromium
-      - name: Install Chromium
-        if: steps.playwright-cache.outputs.cache-hit != 'true'
-        run: pnpm exec playwright install --with-deps chromium
-      - name: Install Chromium system dependencies
-        if: steps.playwright-cache.outputs.cache-hit == 'true'
-        run: pnpm exec playwright install-deps chromium
+          node scripts/testing/smoke-native-addon.ts
       - name: Build workbench runtime
         run: pnpm build:workbench-runtime
       - name: Smoke Electron image normalization
         if: needs.paths.outputs.electron_smoke == 'true'
-        run: xvfb-run -a node scripts/release/smoke-electron-image-resize.mjs
+        run: xvfb-run -a node scripts/release/smoke-electron-image-resize.ts
       - name: Smoke built workbench HTTP and WebSocket parity
-        run: node scripts/release/smoke-workbench-release.mjs
+        run: node scripts/release/smoke-workbench-release.ts
       - name: Run browser tests
         run: pnpm exec playwright test
       - name: Upload browser failure artifacts
@@ -554,10 +570,9 @@ jobs:
         run: pnpm --filter @nervekit/ui-kit test:components
 
   knip:
-    name: Unused exports (advisory)
+    name: Unused code (knip)
     runs-on: ubuntu-latest
     needs: paths
-    # Advisory until the baseline is triaged: not part of the CI gate.
     timeout-minutes: 10
 
     steps:
@@ -574,9 +589,8 @@ jobs:
           cache: pnpm
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
-      - name: Report unused code
-        # Findings are reported but do not fail the job (advisory).
-        continue-on-error: true
+      - name: Check for unused files, exports and dependencies
+        # Intentional exceptions live in knip.jsonc with a reason.
         run: pnpm knip --reporter compact
 
   native-tests:
@@ -630,7 +644,7 @@ jobs:
         run: |
           mkdir -p packages/native/prebuilds
           tar -xf .native-addon/native-addon.tar -C packages/native/prebuilds
-          node scripts/testing/smoke-native-addon.mjs
+          node scripts/testing/smoke-native-addon.ts
 
       # cargo fmt and clippy are OS-independent and run once on Ubuntu
       # (validate or rust-lint); only cargo test and tsx tests run per OS.
@@ -716,6 +730,7 @@ jobs:
       - browser-tests
       - website
       - component-tests
+      - knip
       - native-gate
 
     steps:
@@ -725,6 +740,7 @@ jobs:
           PATHS_RESULT: ${{ needs.paths.result }}
           LINT_RESULT: ${{ needs.lint.result }}
           NATIVE_RESULT: ${{ needs.native-gate.result }}
+          KNIP_RESULT: ${{ needs.knip.result }}
           CONDITIONAL_RESULTS: >-
             native-linux=${{ needs.native-linux.result }}
             rust-lint=${{ needs.rust-lint.result }}
@@ -736,8 +752,8 @@ jobs:
             component-tests=${{ needs.component-tests.result }}
         run: |
           set -euo pipefail
-          if [ "${PATHS_RESULT}" != "success" ] || [ "${LINT_RESULT}" != "success" ] || [ "${NATIVE_RESULT}" != "success" ]; then
-            echo "Required CI job failed: paths=${PATHS_RESULT}, lint=${LINT_RESULT}, native=${NATIVE_RESULT}" >&2
+          if [ "${PATHS_RESULT}" != "success" ] || [ "${LINT_RESULT}" != "success" ] || [ "${NATIVE_RESULT}" != "success" ] || [ "${KNIP_RESULT}" != "success" ]; then
+            echo "Required CI job failed: paths=${PATHS_RESULT}, lint=${LINT_RESULT}, native=${NATIVE_RESULT}, knip=${KNIP_RESULT}" >&2
             exit 1
           fi
           # Conditional jobs are skipped when their area is unaffected. A skip
@@ -750,4 +766,4 @@ jobs:
               exit 1
             fi
           done
-          echo "CI passed: paths=${PATHS_RESULT}, lint=${LINT_RESULT}, native=${NATIVE_RESULT}, ${CONDITIONAL_RESULTS}"
+          echo "CI passed: paths=${PATHS_RESULT}, lint=${LINT_RESULT}, native=${NATIVE_RESULT}, knip=${KNIP_RESULT}, ${CONDITIONAL_RESULTS}"

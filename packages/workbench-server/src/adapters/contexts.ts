@@ -208,7 +208,7 @@ export function createServerAdapterContexts(
         storage: infrastructure.storage,
       },
       conversationAssets: { assets: services.conversationCore.assets },
-      projectAssets: { projectIcons: services.projectIcons },
+      projectAssets: { projectIcons: services.projectIcons, getProject },
       staticFiles: {
         host: infrastructure.host,
         port: infrastructure.port,

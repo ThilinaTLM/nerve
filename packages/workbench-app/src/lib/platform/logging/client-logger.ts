@@ -80,25 +80,6 @@ export function clientLog(
   scheduleFlush();
 }
 
-export function logApiFailure(
-  method: string,
-  path: string,
-  status: number | undefined,
-  durationMs: number,
-  error: unknown,
-): void {
-  clientLog(
-    status && status < 500 ? "warn" : "error",
-    "api",
-    "API request failed",
-    {
-      durationMs,
-      context: { method, path, status },
-      error,
-    },
-  );
-}
-
 function scheduleFlush(delayMs = NORMAL_FLUSH_DELAY_MS): void {
   if (flushTimer !== undefined) return;
   flushTimer = setTimeout(() => {

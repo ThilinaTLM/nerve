@@ -1,9 +1,7 @@
 <script lang="ts">
-import { replacementSettingsMutation } from "$lib/application/agent-configuration/override-view";
 import ProfileUpdateNotice from "$lib/features/conversations/views/ProfileUpdateNotice.svelte";
 import { projectAgentDefaults } from "$lib/application/agent-configuration/project-agent-defaults.svelte";
 import { CreationPreferencesState } from "$lib/features/settings/state/creation-preferences.svelte";
-import { switchAgentProfile } from "$lib/features/conversations/adapters/core-agent-configuration.adapter";
 import { compareSubagents } from "$lib/presentation/conversations/subagent-order";
 import { untrack } from "svelte";
 import { createComposerView } from "$lib/application/composer/composer-view.svelte";
@@ -30,22 +28,8 @@ import {
 import PromptSuggestionTrustDialog from "$lib/features/prompt-suggestions/views/PromptSuggestionTrustDialog.svelte";
 import type { ComposerSuggestion } from "$lib/features/conversations/views/composer-suggestion";
 import { workbenchStartupState } from "$lib/application/startup/workbench-startup-state.svelte";
-import { submitPendingConversation } from "$lib/app/composition/conversations/submit-pending-conversation";
-import { captureSystemPromptPreview } from "$lib/app/composition/conversations/system-prompt-preview";
-import { openSystemPromptPane } from "$lib/features/conversations/state/system-prompt-pane.svelte";
-import { createId } from "@nervekit/contracts";
-import type {
-  ConversationConfig,
-  InteractionResolution,
-  EventTreeNode,
-  UserInputAnswer,
-} from "@nervekit/contracts/core";
+import type { EventTreeNode } from "@nervekit/contracts/core";
 import type { CompletionItem } from "@nervekit/contracts/completions";
-import type {
-  QueuedPromptRecord,
-  ConversationEntry,
-  PlanReviewResolveOptions,
-} from "$lib/presentation/view-models/conversation";
 import { workspaceState } from "$lib/application/workspace/workspace-state.svelte";
 import { workspaceSelectors } from "$lib/application/workspace/workspace-selectors.svelte";
 import { pendingConversations } from "$lib/application/workspace/pending-conversations.svelte";
@@ -53,11 +37,6 @@ import {
   conversationDraftStore,
   type PromptDraftTarget,
 } from "$lib/application/workspace/conversation-draft-store";
-import {
-  replaceOpenCenterTabs,
-  selectCenterTab,
-} from "$lib/application/workspace/center-tabs.svelte";
-import type { ModelSelection } from "@nervekit/contracts/models";
 import type { CenterTabIdentity } from "$lib/application/workspace";
 import { newConversationInProject } from "$lib/application/workspace/workspace-actions.svelte";
 import { clampThinkingLevelForModel } from "$lib/presentation/state/thinking-levels";
@@ -116,6 +95,14 @@ import {
   agentProfileCatalog,
   leadAgentProfiles,
 } from "$lib/application/agent-profiles/agent-profile-catalog.svelte";
+import {
+  createComposerConfigActions,
+  createSystemPromptOpener,
+} from "./conversation-center/composer-config.svelte";
+import { createInteractionActions } from "./conversation-center/interaction-actions.svelte";
+import { ComposerSession } from "./conversation-center/composer-session.svelte";
+import { runActivePaneAction } from "./conversation-center/prompt-submission.svelte";
+import { createQueuedPromptActions } from "./conversation-center/queued-prompts.svelte";
 let { tab, active = true }: { tab?: CenterTabIdentity; active?: boolean } =
   $props();
 const paneTab = $derived(tab ?? workspaceState.activeCenterTab);
@@ -152,9 +139,15 @@ const promptDraftTarget = $derived<PromptDraftTarget | undefined>(
       ? { kind: "conversation", id: conversationId }
       : undefined,
 );
-let editText = $state("");
-let retryingResponse = $state(false);
-let editTarget = $state<ConversationEntry>();
+const composerSession = new ComposerSession({
+  store: () => store,
+  promptDraftTarget: () => promptDraftTarget,
+  pending: () => activePendingConversation,
+  viewedChildId: () => viewedChildId,
+  inherited: () => composerView.inherited,
+  drafts,
+  focusComposer,
+});
 /** Shows a sub-agent in the main view; the lead id (or none) returns. */
 function viewAgent(id: string | undefined) {
   releaseChild?.();
@@ -162,7 +155,7 @@ function viewAgent(id: string | undefined) {
   childStore = undefined;
   viewedChildId = undefined;
   activityOpen = null;
-  editTarget = undefined;
+  composerSession.clearEdit();
   if (!id || id === conversationId) return;
   const retained = retainConversationStore(id);
   releaseChild = retained.release;
@@ -179,7 +172,7 @@ $effect(() => {
   leadStore = undefined;
   untrack(() => viewAgent(undefined));
   tree = [];
-  editTarget = undefined;
+  composerSession.clearEdit();
   if (!id) return;
   const retained = retainConversationStore(id);
   leadStore = retained.store;
@@ -204,7 +197,7 @@ const view = $derived(
         stopping:
           Boolean(store?.stopping) ||
           Boolean(transcript.transient?.compaction?.stopping),
-        retryingResponse,
+        retryingResponse: composerSession.retryingResponse,
         responseRevision: store.responseRevision,
         transient: transcript.transient,
       }
@@ -433,13 +426,6 @@ const contextWindow = $derived(
       ?.contextWindow ??
     0,
 );
-const activeComposerText = $derived(
-  editTarget
-    ? editText
-    : promptDraftTarget
-      ? drafts.getPrompt(promptDraftTarget)
-      : "",
-);
 const builtinSuggestionIcons = {
   "commit-changes": GitCommitHorizontal,
   "commit-on-feature-branch": GitBranchPlus,
@@ -501,196 +487,19 @@ $effect(() => {
   void store?.snapshot?.conversation.title;
   void refreshPromptSuggestions(activeProject.id, { conversationId });
 });
-function applySuggestion(suggestion: { prompt: string }) {
-  const current = activeComposerText.trim();
-  setPaneComposerText(
-    current
-      ? `${activeComposerText}\n\n${suggestion.prompt}`
-      : suggestion.prompt,
-  );
-}
-function sendSuggestion(suggestion: { prompt: string }) {
-  void runActivePaneAction(() =>
-    submitPrompt(suggestion.prompt, { clearComposer: false }),
-  );
-}
-function setPaneComposerText(text: string) {
-  if (editTarget) editText = text;
-  else if (promptDraftTarget) drafts.setPrompt(promptDraftTarget, text);
-}
-async function runActivePaneAction(action: () => unknown | Promise<unknown>) {
-  try {
-    await action();
-  } catch (e) {
-    notify.error(e instanceof Error ? e.message : String(e));
-  }
-}
-async function submitPrompt(
-  text = activeComposerText,
-  options: { clearComposer?: boolean } = {},
-) {
-  if (!text.trim() || viewedChildId) return;
-  const pending = activePendingConversation;
-  if (pending) {
-    if (pending.sending) return;
-    pending.sending = true;
-    try {
-      const snapshot = await submitPendingConversation(pending, text, {
-        inherited: composerView.inherited,
-        create: (input) =>
-          requestConversation("conversation.create", {
-            id: createId("conv"),
-            ...input,
-          }),
-        getSnapshot: (conversationId) =>
-          requestConversation("conversation.getSnapshot", { conversationId }),
-        configure: (conversationId, patch) =>
-          requestConversation("conversation.configure", {
-            conversationId,
-            patch,
-          }),
-        resolveProfile: async (projectId, name) => {
-          const profile = (await agentProfileCatalog.ensure(projectId)).find(
-            (p) => p.name === name,
-          );
-          if (!profile?.digest)
-            throw new Error("Profile unavailable. Refresh and try again.");
-          return { name, digest: profile.digest };
-        },
-        setAgentProfile: switchAgentProfile,
-        saveOverrides: async (conversationId, changes) => {
-          const scope = { scope: "conversation" as const, conversationId };
-          const current = await requestConversation("agentConfiguration.get", {
-            scope,
-          });
-          if (current.status !== "available")
-            throw new Error("Configuration unavailable.");
-          const result = await requestConversation("agentConfiguration.save", {
-            scope,
-            expectedRevision: current.source.revision,
-            expectedDigest: current.source.digest,
-            ...replacementSettingsMutation(current.overrides, changes),
-          });
-          if (result.status !== "saved")
-            throw new Error(
-              `Configuration ${result.status}. Refresh and try again.`,
-            );
-        },
-        submit: (conversationId, prompt) =>
-          requestConversation("input.submit", {
-            conversationId,
-            inputId: createId("input"),
-            text: prompt,
-            source: "user",
-          }),
-      });
-      const pendingTarget: PromptDraftTarget = {
-        kind: "pending-conversation",
-        id: pending.id,
-        projectId: pending.projectId,
-      };
-      if (options.clearComposer !== false)
-        drafts.clearPromptIfUnchanged(pendingTarget, text);
-      // Move any remaining draft to the created conversation before the tab is promoted.
-      drafts.promotePendingPrompt(pending.id, snapshot.conversation.id);
-      workspaceState.conversations = [
-        ...workspaceState.conversations,
-        {
-          ...snapshot.conversation,
-          references: [],
-          childCount: 0,
-          pendingWork: false,
-          pendingInput: null,
-          agentProfile: snapshot.config.agentProfile,
-          model: snapshot.config.model,
-          permissionRuleSetId: snapshot.config.permissionRuleSetId,
-        },
-      ];
-      replaceOpenCenterTabs(
-        workspaceState.openCenterTabs.map((t) =>
-          t.kind === "pending-conversation" && t.id === pending.id
-            ? { kind: "conversation", id: snapshot.conversation.id }
-            : t,
-        ),
-      );
-      pendingConversations.delete(pending.id);
-      await selectCenterTab({
-        kind: "conversation",
-        id: snapshot.conversation.id,
-      });
-    } catch (e) {
-      pending.error = String(e);
-      throw e;
-    } finally {
-      pending.sending = false;
-    }
-    return;
-  }
-  const submittingStore = store;
-  const submittingEdit = editTarget;
-  const submittingTarget = promptDraftTarget;
-  if (!submittingStore) return;
-  if (submittingEdit)
-    await submittingStore.selectHead(submittingEdit.parentEntryId ?? null);
-  await submittingStore.submit(text);
-  if (!submittingEdit && submittingTarget && options.clearComposer !== false)
-    drafts.clearPromptIfUnchanged(submittingTarget, text);
-  if (editTarget === submittingEdit && (!submittingEdit || editText === text))
-    editTarget = undefined;
-}
-async function abortActiveRun() {
-  await store?.control("stop");
-}
-async function retryActiveResponse() {
-  if (retryingResponse) return;
-  retryingResponse = true;
-  try {
-    await store?.retryResponse();
-  } finally {
-    retryingResponse = false;
-  }
-}
 async function compactActiveConversation() {
   await store?.control("compact");
 }
 async function cancelPendingCompaction() {
   await store?.cancelCompaction();
 }
-let openingSystemPrompt = false;
-async function openSystemPrompt() {
-  if (openingSystemPrompt) return;
-  const target = captureSystemPromptPreview({
-    pending: activePendingConversation,
-    inherited: composerView.inherited,
-    targetProfile: (() => {
-      const name = activePendingConversation?.explicitAgentProfile;
-      const profile = resolvedProfiles.find((p) => p.name === name);
-      return profile?.digest
-        ? { name: profile.name, digest: profile.digest }
-        : undefined;
-    })(),
-    conversation: store?.snapshot?.conversation,
-  });
-  if (!target) return;
-  openingSystemPrompt = true;
-  try {
-    const preview = await requestConversation(
-      "conversation.previewSystemPrompt",
-      target.params,
-    );
-    await openSystemPromptPane({
-      projectId: target.projectId,
-      sourceId: target.sourceId,
-      text:
-        preview.status === "available"
-          ? preview.systemPrompt
-          : "Configuration unavailable. Check scoped configuration diagnostics.",
-    });
-  } finally {
-    openingSystemPrompt = false;
-  }
-}
-const cancelActiveCompaction = abortActiveRun;
+const openSystemPrompt = createSystemPromptOpener({
+  pending: () => activePendingConversation,
+  inherited: () => composerView.inherited,
+  profiles: () => resolvedProfiles,
+  conversation: () => store?.snapshot?.conversation,
+});
+const cancelActiveCompaction = composerSession.abortActiveRun;
 function openToolFile(path: string, line?: number) {
   if (activeProject)
     void openFilePane({ projectId: activeProject.id, path, line });
@@ -702,147 +511,36 @@ function openTaskFromNotice(id: string) {
   if (command) void openAsyncBashTab(command, activeProject?.id);
   else void openLaunchTab(id);
 }
-/** The combined picker changes model and reasoning; locks keep either out. */
-function setComposerModelSelection(next: {
-  model?: ModelSelection;
-  thinkingLevel?: ConversationConfig["reasoningLevel"];
-}) {
-  return (async () => {
-    if (next.model)
-      await composerView.setModel(modelKey(next.model), next.thinkingLevel);
-    else if (next.thinkingLevel !== undefined)
-      await composerView.setReasoning(next.thinkingLevel);
-  })();
-}
-function resetComposerPermission() {
-  return composerView.setPermission("");
-}
-function setComposerAgentProfile(name: string) {
-  return composerView.setProfile(name);
-}
-function setComposerPermissionRuleSet(value: string) {
-  return composerView.setPermission(value);
-}
-async function resolve(toolCallId: string, resolution: InteractionResolution) {
-  const result = await store?.resolve(toolCallId, resolution);
-  if (result?.status === "refresh_required") {
-    const message =
-      result.reason === "requirement_conflict"
-        ? "Profile requirements conflict with the chosen model or reasoning. The plan remains open; repair the conflict and confirm again. No implementation request was submitted."
-        : "Profile or configuration changed, or a previous approval was interrupted. The plan remains open; review the current configuration and refreshed requirements, then confirm again. No implementation request was submitted.";
-    notify.warning("Plan review needs new confirmation", {
-      description: message,
-      duration: 10000,
-    });
-    throw new Error(message);
-  }
-  if (result?.status === "unavailable")
-    throw new Error(
-      "Configuration unavailable; reload it before confirming again. The review remains open and no implementation request was submitted.",
-    );
-}
-function answerUserQuestion(
-  toolCallId: string,
-  answers: Record<string, UserInputAnswer>,
-) {
-  return resolve(toolCallId, { kind: "user_input", answers });
-}
-function dismissUserQuestion(toolCallId: string) {
-  return resolve(toolCallId, {
-    kind: "user_input",
-    answers: {},
-    dismissed: true,
-  });
-}
-function grantApproval(
-  toolCallId: string,
-  scope?:
-    | "single_call"
-    | "always_conversation"
-    | "always_project"
-    | "always_user",
-) {
-  return resolve(toolCallId, {
-    kind: "approval",
-    decision: "approve",
-    persistScope:
-      scope === "always_conversation"
-        ? "conversation"
-        : scope === "always_project"
-          ? "project"
-          : scope === "always_user"
-            ? "user"
-            : undefined,
-  });
-}
-function denyApproval(toolCallId: string) {
-  return resolve(toolCallId, { kind: "approval", decision: "deny" });
-}
-async function acceptPendingPlanReview(
-  toolCallId: string,
-  options?: PlanReviewResolveOptions,
-) {
-  if (options?.compactBeforeImplementation)
-    throw new Error(
-      "Compacting a pending plan is not supported by the conversation core",
-    );
-
-  const interaction = store?.snapshot?.toolCalls.find(
-    (item) => item.id === toolCallId,
-  )?.interaction;
-  if (interaction?.kind !== "plan_review")
-    throw new Error("Plan review unavailable. Refresh and try again.");
-  const request = interaction.request;
-  await resolve(toolCallId, {
-    kind: "plan_review",
-    decision: "approve",
-    feedback: options?.feedback,
-    confirmation: {
-      targetProfile: request.targetProfile,
-      expectedRevision: request.expectedRevision,
-      expectedDigest: request.expectedDigest,
-      transitionId: createId("input"),
-      choices: {
-        ...(options?.implementationModel
-          ? { model: options.implementationModel }
-          : {}),
-        ...(options?.implementationThinkingLevel !== undefined
-          ? { reasoningLevel: options.implementationThinkingLevel }
-          : {}),
-      },
-    },
-  });
-}
-
-function rejectPendingPlanReview(toolCallId: string) {
-  return resolve(toolCallId, { kind: "plan_review", decision: "reject" });
-}
+const {
+  setComposerModelSelection,
+  resetComposerPermission,
+  setComposerAgentProfile,
+  setComposerPermissionRuleSet,
+} = createComposerConfigActions(composerView);
+const {
+  answerUserQuestion,
+  dismissUserQuestion,
+  grantApproval,
+  denyApproval,
+  acceptPendingPlanReview,
+  rejectPendingPlanReview,
+} = createInteractionActions(() => store);
 const continueFromFailure: (runId: string) => Promise<null> | undefined = () =>
   store?.control("continue");
-function forcePushQueuedPrompts() {
-  return store?.control("forcePush").then(() => undefined);
-}
-function discardQueuedPrompt(prompt: QueuedPromptRecord) {
-  return store?.cancelInput(prompt.id).then(() => undefined);
-}
-async function moveQueuedPromptToComposer(prompt: QueuedPromptRecord) {
-  const text = await store?.moveInputToComposer(prompt.id);
-  if (text !== undefined) {
-    setPaneComposerText(text);
-    focusComposer();
-  }
-}
+const {
+  forcePushQueuedPrompts,
+  discardQueuedPrompt,
+  moveQueuedPromptToComposer,
+} = createQueuedPromptActions({
+  store: () => store,
+  setComposerText: composerSession.setComposerText,
+});
 const jumpToConversationEntry: (
   id: string | undefined,
   summarize?: boolean,
 ) => Promise<void> = async (id) => {
   await store?.selectHead(id ?? null);
 };
-async function editConversationEntry(entry: ConversationEntry) {
-  editTarget = entry;
-  editText = entry.text;
-  focusComposer();
-}
 $effect(() => {
   const entry = composerSignals.editEntry;
   if (
@@ -852,7 +550,7 @@ $effect(() => {
     !viewedChildId
   ) {
     composerSignals.editEntry = undefined;
-    void editConversationEntry(entry);
+    composerSession.editEntry(entry);
   }
 });
 const completionProjectId = $derived(activeProject?.id);
@@ -979,10 +677,10 @@ const stoppable = $derived(hasStoppableWork(store?.snapshot));
   stopping={view?.stopping ?? false}
   retryingResponse={view?.retryingResponse ?? false}
   responseRevision={view?.responseRevision ?? 0}
-  composerText={activeComposerText}
+  composerText={composerSession.composerText}
   composerSuggestions={viewedChildId ? [] : composerSuggestions}
-  onSendSuggestion={sendSuggestion}
-  onDraftSuggestion={applySuggestion}
+  onSendSuggestion={composerSession.sendSuggestion}
+  onDraftSuggestion={composerSession.applySuggestion}
   models={usableModels}
   {selectedModelKey}
   thinkingLevel={selectedThinkingLevel}
@@ -1013,9 +711,9 @@ const stoppable = $derived(hasStoppableWork(store?.snapshot));
   composerEscapeToken={composerSignals.escapeToken}
   micShortcutToken={composerSignals.micToken}
   {completionSource}
-  onComposerChange={setPaneComposerText}
+  onComposerChange={composerSession.setComposerText}
   onSubmit={() => {
-    void runActivePaneAction(submitPrompt);
+    void runActivePaneAction(composerSession.submit);
   }}
   onAnswerUserQuestion={answerUserQuestion}
   onDismissUserQuestion={dismissUserQuestion}
@@ -1023,7 +721,7 @@ const stoppable = $derived(hasStoppableWork(store?.snapshot));
     void runActivePaneAction(
       view?.transient?.compaction?.state === "running"
         ? cancelActiveCompaction
-        : abortActiveRun,
+        : composerSession.abortActiveRun,
     );
   }}
   onCompact={() => {
@@ -1059,7 +757,7 @@ const stoppable = $derived(hasStoppableWork(store?.snapshot));
   onAcceptPlanReviewInNewChat={undefined}
   onRejectPlanReview={rejectPendingPlanReview}
   onRetryResponse={() => {
-    void runActivePaneAction(retryActiveResponse);
+    void runActivePaneAction(composerSession.retryActiveResponse);
   }}
   onCancelCompaction={() => {
     void runActivePaneAction(cancelPendingCompaction);
@@ -1074,7 +772,7 @@ const stoppable = $derived(hasStoppableWork(store?.snapshot));
     void jumpToConversationEntry(entryId, summarize);
   }}
   onEditEntry={(entry) => {
-    void editConversationEntry(entry);
+    composerSession.editEntry(entry);
   }}
   onOpenHistory={() => {
     void runActivePaneAction(openConversationHistory);

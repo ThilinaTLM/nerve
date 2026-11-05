@@ -9,42 +9,36 @@ import {
   sep,
   win32,
 } from "node:path";
+import { parseProjectRelativePath } from "@nervekit/contracts/paths";
 
-export type DesktopProjectEntryTarget = {
-  root: string;
-  relativePath: string;
-};
-
-export function resolveProjectEntryPath(
-  input: unknown,
-  platform: NodeJS.Platform = process.platform,
-): string {
+export function parseProjectEntryTarget(input: unknown): {
+  projectId: string;
+  segments: readonly string[];
+} {
   if (!input || typeof input !== "object")
     throw new Error("Project entry target is required.");
-  const { root, relativePath } = input as Record<string, unknown>;
-  if (typeof root !== "string" || typeof relativePath !== "string")
-    throw new Error("Project entry root and relative path must be strings.");
+  const { projectId, relativePath } = input as Record<string, unknown>;
+  if (typeof projectId !== "string" || typeof relativePath !== "string")
+    throw new Error("Project entry project id and path must be strings.");
+  if (!projectId.trim()) throw new Error("Project entry project is required.");
+  const parsed = parseProjectRelativePath(relativePath, { allowEmpty: true });
+  if (!parsed.ok)
+    throw new Error(`Project entry path is invalid (${parsed.reason}).`);
+  return { projectId: projectId.trim(), segments: parsed.segments };
+}
 
+/** Lexically joins validated segments onto a daemon-provided project root. */
+export function resolveProjectEntryPath(
+  root: string,
+  segments: readonly string[],
+  platform: NodeJS.Platform = process.platform,
+): string {
   const pathApi = platform === "win32" ? win32 : posix;
-  const normalizedRoot = root.trim();
-  const normalizedRelative = relativePath.trim().replaceAll("\\", "/");
-  if (!normalizedRoot || !pathApi.isAbsolute(normalizedRoot))
+  if (!root || !pathApi.isAbsolute(root))
     throw new Error("Project entry root must be absolute.");
-  if (!normalizedRelative) return pathApi.resolve(normalizedRoot);
-  if (
-    normalizedRelative.includes("\0") ||
-    normalizedRelative.startsWith("/") ||
-    /^[A-Za-z]:\//.test(normalizedRelative)
-  )
-    throw new Error("Project entry path must be relative.");
-  const segments = normalizedRelative.split("/");
-  if (
-    segments.some((segment) => !segment || segment === "." || segment === "..")
-  )
-    throw new Error("Project entry path contains an invalid segment.");
-
-  const resolvedRoot = pathApi.resolve(normalizedRoot);
+  const resolvedRoot = pathApi.resolve(root);
   const target = pathApi.resolve(resolvedRoot, ...segments);
+  if (segments.length === 0) return target;
   const fromRoot = pathApi.relative(resolvedRoot, target);
   if (
     !fromRoot ||
@@ -62,15 +56,16 @@ export function resolveProjectEntryPath(
  * canonicalized so a symlink entry itself can be revealed or trashed.
  */
 export async function resolveContainedProjectEntryPath(
-  input: unknown,
+  root: string,
+  segments: readonly string[],
   options: { followLeaf: boolean },
 ): Promise<string> {
-  const target = resolveProjectEntryPath(input);
-  const root = await realpath((input as DesktopProjectEntryTarget).root.trim());
+  const target = resolveProjectEntryPath(root, segments);
+  const realRoot = await realpath(root);
   const real = options.followLeaf
     ? await realpath(target)
     : join(await realpath(dirname(target)), basename(target));
-  const fromRoot = relative(root, real);
+  const fromRoot = relative(realRoot, real);
   if (
     fromRoot === ".." ||
     fromRoot.startsWith(`..${sep}`) ||

@@ -1,5 +1,6 @@
 import { desktopLog } from "../logging.js";
 import type { ManagedDaemon } from "../daemon/composition.js";
+import type { ShareUrls } from "../daemon/contracts.js";
 import { DESKTOP_APP_NAME, MACOS_TRAY_GUID } from "../desktop-identity.js";
 import type {
   BrowserWindowType,
@@ -9,6 +10,7 @@ import type {
 import {
   app,
   clipboard,
+  dialog,
   Menu,
   nativeImage,
   shell,
@@ -90,27 +92,16 @@ export function createTrayController(
           },
         },
         {
-          label: managedDaemon?.mobileSetupUrl
+          label: managedDaemon?.mobileShareAvailable
             ? "Copy Mobile Setup URL"
-            : managedDaemon?.shareUrl
-              ? "Copy Mobile URL"
-              : "Copy Mobile URL (unavailable)",
-          enabled: Boolean(
-            managedDaemon?.mobileSetupUrl ?? managedDaemon?.shareUrl,
-          ),
-          click: () => {
-            const url =
-              managedDaemon?.mobileSetupUrl ?? managedDaemon?.shareUrl;
-            if (url) copyUrl(url);
-          },
+            : "Copy Mobile Setup URL (unavailable)",
+          enabled: Boolean(managedDaemon?.mobileShareAvailable),
+          click: () => void copyShareUrl(managedDaemon, "mobileSetupUrl"),
         },
         {
           label: "Copy HTTPS App URL",
-          enabled: Boolean(managedDaemon?.secureShareUrl),
-          click: () => {
-            if (managedDaemon?.secureShareUrl)
-              copyUrl(managedDaemon.secureShareUrl);
-          },
+          enabled: Boolean(managedDaemon?.mobileShareAvailable),
+          click: () => void copyShareUrl(managedDaemon, "secureShareUrl"),
         },
         {
           label: "Copy CA Certificate URL",
@@ -157,6 +148,28 @@ export function createTrayController(
       void desktopLog("error", "tray", "Failed to restart GPU process", {
         error,
       });
+    }
+  }
+
+  /**
+   * Mints a single-use pairing code at click time, so no menu entry or log
+   * ever holds a reusable credential, and copies the link that carries it.
+   */
+  async function copyShareUrl(
+    daemon: ManagedDaemon | undefined,
+    kind: keyof ShareUrls,
+  ): Promise<void> {
+    if (!daemon) return;
+    try {
+      copyUrl((await daemon.createShareUrls())[kind]);
+    } catch (error) {
+      void desktopLog("warn", "tray", "Could not create a pairing link", {
+        error,
+      });
+      dialog.showErrorBox(
+        "Could not create a pairing link",
+        error instanceof Error ? error.message : String(error),
+      );
     }
   }
 

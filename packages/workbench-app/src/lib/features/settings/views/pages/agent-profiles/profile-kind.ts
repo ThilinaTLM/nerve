@@ -13,18 +13,6 @@ export const PROFILE_KIND_PAGES: Record<ProfileKind, string> = {
   subagent: "sub-agents",
 };
 
-export const profileKindText: Record<
-  ProfileKind,
-  { plural: string; singular: string; singularLower: string }
-> = {
-  lead: { plural: "Agents", singular: "Agent", singularLower: "agent" },
-  subagent: {
-    plural: "Sub-Agents",
-    singular: "Sub-Agent",
-    singularLower: "sub-agent",
-  },
-};
-
 export function profileKindForPage(pageId: string): ProfileKind {
   return pageId === PROFILE_KIND_PAGES.subagent ? "subagent" : "lead";
 }

@@ -29,6 +29,9 @@ export {
   ProtocolDecodeError,
 } from "./transports/codec.js";
 export {
+  DEFAULT_MAX_QUEUED_FRAMES,
+  INBOUND_QUEUE_OVERFLOW_CLOSE_CODE,
+  INBOUND_QUEUE_OVERFLOW_CLOSE_REASON,
   ProtocolConnection,
   type ProtocolConnectionOptions,
   type ProtocolReceiveContext,

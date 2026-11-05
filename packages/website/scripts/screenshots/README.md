@@ -18,19 +18,19 @@ That runs, in order:
 2. **Build** — `pnpm build:workbench-runtime`, so the daemon serves the current
    workbench rather than a stale bundle.
 3. **Daemon** — started on `127.0.0.1:3847` against the demo home.
-4. **Capture** — `capture.mjs` drives Chromium through each scene in
-   `scenes.mjs`, in light and dark, writing PNGs and text snapshots to
+4. **Capture** — `capture.ts` drives Chromium through each scene in
+   `scenes.ts`, in light and dark, writing PNGs and text snapshots to
    an isolated `.screenshots/refresh-*` directory (gitignored). Only this
    invocation's output is privacy-checked and optimized. The capture context
    supplies synthetic Anthropic subscription quotas and GitHub read responses
-   via `demo-usage.mjs` and `demo-github.mjs`. The browser advertises a fictional
+   via `demo-usage.ts` and `demo-github.ts`. The browser advertises a fictional
    GitHub remote for aurora-api; no remote is added on disk. All other requests
    reach the demo daemon unchanged. No account credentials or live GitHub data
    are needed.
-5. **Privacy check** — `check-captures.mjs` scans the text snapshots for
+5. **Privacy check** — `check-captures.ts` scans the text snapshots for
    credentials, emails, private IPs, real home paths, and unexpected absolute
    paths.
-6. **Optimize** — `optimize.mjs` converts to WebP into
+6. **Optimize** — `optimize.ts` converts to WebP into
    `src/assets/screenshots/{desktop,mobile}/`, rejecting incomplete light/dark
    pairs and wrong dimensions.
 
@@ -52,17 +52,17 @@ pnpm --filter @nervekit/website exec playwright install chromium
 
 ```sh
 # From packages/website: refresh the three current desktop pairs
-node scripts/screenshots/run.mjs --kind=desktop --scenes=conversation,async-bash,launches
+tsx scripts/screenshots/run.ts --kind=desktop --scenes=conversation,async-bash,launches
 
 # One scene in both themes, reusing an existing seed and build
-node scripts/screenshots/run.mjs --kind=desktop --scenes=git --skip-seed --skip-build
+tsx scripts/screenshots/run.ts --kind=desktop --scenes=git --skip-seed --skip-build
 
 # Capture the synthetic PR, header Notifications, and pending decision scenes
-node scripts/screenshots/run.mjs --kind=desktop --scenes=pull-request,notifications,ask-user
+tsx scripts/screenshots/run.ts --kind=desktop --scenes=pull-request,notifications,ask-user
 ```
 
 `--kind` selects `desktop`, `mobile`, or `both` (default). `--scenes` accepts
-comma-separated IDs from `scenes.mjs`: `conversation` shows retained sub-agents,
+comma-separated IDs from `scenes.ts`: `conversation` shows retained sub-agents,
 `async-bash` shows retained background command output, and `launches` shows
 project launch configurations and a completed run. `editor` opens the rate-limit
 middleware in the built-in text editor and leaves an unsaved draft with the
@@ -76,7 +76,7 @@ workspace), `quote` (selection toolbar over a rich reply), `discover`, `themes`
 (Settings → Workbench → Appearance), `projects`, `conversation`, `async-bash`,
 `git`, `editor`, `history`, `launches`, `pull-request`. Mobile scenes:
 `conversation`, `composer-sheet`, `right-sheet`. Re-run one with
-e.g. `node scripts/screenshots/run.mjs --scenes=discover --kind=desktop`
+e.g. `tsx scripts/screenshots/run.ts --scenes=discover --kind=desktop`
 (single scenes need both themes, so omit `--theme`).
 
 Capture seeds only `nerve-theme` (nerve-light or nerve-dark) and a
@@ -104,12 +104,12 @@ aspect ratio.
 The pull-request scene always runs against invented Aurora PRs. A browser-only
 WebSocket proxy answers GitHub status/list/detail reads and annotates the demo
 repository summary; it never intercepts mutations. Fixtures are checked against
-the current contracts in `demo-github.test.mjs`. No clone, network access, GitHub
+the current contracts in `demo-github.test.ts`. No clone, network access, GitHub
 authentication, or real author/comment data is required.
 
 ## Adding a scene
 
-1. Add an entry to `DESKTOP_SCENES` or `MOBILE_SCENES` in `scenes.mjs` with an
+1. Add an entry to `DESKTOP_SCENES` or `MOBILE_SCENES` in `scenes.ts` with an
    `id`, descriptive `alt`, and a `drive(page)` that leaves the UI in the exact
    state to capture. Prefer accessible names and `data-view-id` over CSS paths.
 2. If the scene needs new demo content, extend the declarative project data in

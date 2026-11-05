@@ -40,8 +40,3 @@ export function getRowHeightCache(scopeKey: string): RowHeightCache {
     },
   };
 }
-
-/** Drop all cached heights. Intended for tests. */
-export function clearRowHeightCaches(): void {
-  scopes.clear();
-}

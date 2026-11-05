@@ -5,7 +5,8 @@ import { join } from "node:path";
 import { after, describe, it } from "node:test";
 import { createHostAllowlist } from "../../../src/adapters/http/host-allowlist.js";
 import { tokensEqual } from "../../../src/adapters/http/token-compare.js";
-import { cookieHeader } from "../../../src/adapters/http/auth-middleware.js";
+import { sessionCookie } from "../../../src/domains/access/access-cookies.js";
+import { withPeer } from "../../support/peer-address.js";
 import { createApp } from "../../../src/app/server.js";
 import { serveStatic } from "../../../src/adapters/http/static-files.js";
 import { initializeStorage } from "../../../src/infrastructure/storage-bootstrap/index.js";
@@ -71,10 +72,23 @@ describe("token hygiene", () => {
     assert.equal(tokensEqual(undefined, "nt_a"), false);
   });
 
-  it("issues a 30 day cookie, Secure only over HTTPS", () => {
-    assert.match(cookieHeader("t"), /Max-Age=2592000/);
-    assert.doesNotMatch(cookieHeader("t"), /Secure/);
-    assert.match(cookieHeader("t", { secure: true }), /; Secure/);
+  it("issues device cookies that expire with the device, Secure and __Host- over HTTPS", () => {
+    const expiresAt = Date.UTC(2030, 0, 1);
+    const plain = sessionCookie({
+      credential: "nd_x",
+      expiresAt,
+      secure: false,
+    });
+    assert.match(plain, /^nerve_session=/);
+    assert.match(plain, /Expires=Tue, 01 Jan 2030/);
+    assert.doesNotMatch(plain, /Secure/);
+    const secure = sessionCookie({
+      credential: "nd_x",
+      expiresAt,
+      secure: true,
+    });
+    assert.match(secure, /^__Host-nerve_session=/);
+    assert.match(secure, /; Secure/);
   });
 });
 
@@ -88,7 +102,7 @@ describe("server host guard and static cookie", () => {
     process.env.NERVE_WEB_DIST = web;
     const storage = await initializeStorage(join(home, "home"));
     const { runtime } = createRuntimeFixture(storage, "127.0.0.1", 0);
-    return { app: createApp(runtime), token: storage.localToken };
+    return { app: withPeer(createApp(runtime)), token: storage.localToken };
   }
 
   it("rejects a rebinding Host on API, static and health with valid credentials", async () => {
@@ -116,7 +130,7 @@ describe("server host guard and static cookie", () => {
     assert.equal(direct.headers.get("set-cookie"), null);
   });
 
-  it("exchanges ?token= for a cookie via a clean redirect", async () => {
+  it("exchanges ?token= once for a revocable legacy-token device via a clean redirect", async () => {
     const { app: server, token } = await app();
     const response = await server.request(`/?token=${token}&x=1`, {
       headers: { host: "127.0.0.1:43967" },
@@ -124,8 +138,30 @@ describe("server host guard and static cookie", () => {
     assert.equal(response.status, 302);
     assert.equal(response.headers.get("location"), "/?x=1");
     assert.equal(response.headers.get("referrer-policy"), "no-referrer");
-    assert.match(response.headers.get("set-cookie") ?? "", /^nerve_token=/);
+    const cookie = response.headers.get("set-cookie") ?? "";
+    assert.match(cookie, /^nerve_session=nd_dev_/);
+    const devices = await server.request("/api/access/devices", {
+      headers: { host: "127.0.0.1:43967", cookie: cookie.split(";")[0]! },
+    });
+    const listed = (await devices.json()) as {
+      devices: Array<{ name: string; method: string; current: boolean }>;
+    };
+    assert.deepEqual(
+      listed.devices.map((d) => [d.name, d.method, d.current]),
+      [["Legacy link", "legacy-token", true]],
+    );
     const bad = await server.request("/?token=nope");
     assert.equal(bad.status, 200);
+  });
+
+  it("refuses to redeem a legacy link over plaintext from a LAN peer", async () => {
+    const { app: server, token } = await app();
+    const lan = withPeer(server, "192.168.1.20");
+    const response = await lan.request(`/?token=${token}`, {
+      headers: { host: "127.0.0.1:43967" },
+    });
+    assert.equal(response.status, 403);
+    assert.equal(response.headers.get("set-cookie"), null);
+    assert.match(await response.text(), /HTTPS pairing/);
   });
 });

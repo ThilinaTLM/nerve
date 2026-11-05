@@ -12,6 +12,7 @@ import {
   inspectNerveHome,
 } from "../../storage-bootstrap/state-layout.js";
 import type { StoragePaths } from "../../storage-bootstrap/paths.js";
+import { isKnownChecksum } from "./step.js";
 import type { MigrationRegistryEntry, RegisteredStep } from "./step.js";
 
 /** Read only the manifest; legacy baseline admission belongs in the worker. */
@@ -121,7 +122,10 @@ export function planMigrations<T extends MigrationRegistryEntry>(
         "ledger_unexpected",
         `Unknown or out-of-order migration ledger ID: ${applied.id}`,
       );
-    if (entry.stage === "released" && entry.checksum !== applied.checksum) {
+    if (
+      entry.stage === "released" &&
+      !isKnownChecksum(entry, applied.checksum)
+    ) {
       throw new HomeAdmissionError(
         "ledger_unexpected",
         `Released migration checksum mismatch: ${applied.id}`,
@@ -135,7 +139,7 @@ export function planMigrations<T extends MigrationRegistryEntry>(
         (entry, index) =>
           entry.stage === "draft" &&
           entry.rerunOnChange &&
-          entry.checksum !== ledger[index].checksum,
+          !isKnownChecksum(entry, ledger[index].checksum),
       ),
     ...registry.slice(ledger.length),
   ];

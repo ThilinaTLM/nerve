@@ -1,0 +1,69 @@
+{
+  "$schema": "https://unpkg.com/knip@6/schema.json",
+  "workspaces": {
+    ".": {
+      "entry": ["scripts/**/*.{mjs,ts}", "tests/**/*.ts"],
+      "project": ["scripts/**/*.{mjs,ts}", "tests/**/*.ts"],
+    },
+    "packages/*": {
+      "entry": ["{test,src}/**/*.test.ts"],
+    },
+    "packages/desktop-shell": {
+      "entry": ["src/preload.cjs", "{test,src}/**/*.test.ts"],
+    },
+    "packages/workbench-server": {
+      "entry": ["scripts/**/*.ts", "{test,src}/**/*.test.ts"],
+    },
+    "packages/website": {
+      "entry": ["scripts/**/*.ts"],
+    },
+    "packages/tools": {
+      // Spawned as a worker by path string in git-isolated-reader.ts.
+      "entry": [
+        "{test,src}/**/*.test.ts",
+        "src/git/read/git-isolated-reader-helper.ts",
+      ],
+      // Types for shell-quote are consumed implicitly by tsc, not by an import.
+      "ignoreDependencies": ["@types/shell-quote"],
+    },
+    "packages/ui-kit": {
+      "entry": ["{test,src}/**/*.test.ts"],
+      // Type sidecar for theme-resolver.mjs, picked up by TypeScript only.
+      "ignore": ["src/styles/theme-resolver.d.mts"],
+    },
+    "packages/skills": {
+      // Shipped in the skill and invoked by the agent, not imported.
+      "entry": [
+        "{test,src}/**/*.test.ts",
+        "src/builtin/engineering-docs/scripts/doccheck.mjs",
+      ],
+    },
+    "packages/workbench-app": {
+      "entry": ["{test,src}/**/*.test.ts"],
+      // Fixture modules are consumed via `import * as fx` in Svelte (namespace members).
+      "ignore": ["src/lib/app/design-lab/sections/tool-card-*fixtures.ts"],
+      // Resolved by @tailwindcss/vite (peer); kept explicit in the app.
+      "ignoreDependencies": ["tailwindcss"],
+    },
+    "packages/harness": {
+      "entry": ["{test,src}/**/*.test.ts"],
+      // resize-worker.ts runs inside Electron, which provides the module.
+      "ignoreDependencies": ["electron"],
+    },
+  },
+  "ignoreExportsUsedInFile": true,
+  // plutil is a macOS system binary used by the desktop package smoke test.
+  "ignoreBinaries": ["plutil"],
+  "ignoreIssues": {
+    // Migration step files are checksummed and must never be edited.
+    "packages/workbench-server/src/infrastructure/migrations/steps/**": [
+      "files",
+      "exports",
+      "types",
+      "duplicates",
+    ],
+    // Intentional semantic aliases (event/request schemas) in the public contracts.
+    "packages/contracts/src/domains/maintenance/maintenance.ts": ["duplicates"],
+    "packages/contracts/src/domains/providers/providers.ts": ["duplicates"],
+  },
+}

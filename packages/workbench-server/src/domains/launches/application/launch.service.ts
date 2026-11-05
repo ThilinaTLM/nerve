@@ -26,8 +26,6 @@ import { LaunchProcessSupervisor } from "./launch-process-supervisor.js";
 import { isTerminalLaunchStatus } from "../model/launch-status.js";
 import { resolveLaunchWorkingDirectory } from "../model/launch-working-directory.js";
 
-export { isTerminalLaunchStatus } from "../model/launch-status.js";
-
 export type LaunchProcessEvidence =
   | "running"
   | "unsupervised_running"

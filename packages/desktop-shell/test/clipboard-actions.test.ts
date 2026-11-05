@@ -132,6 +132,7 @@ for (const [label, url] of trayCopies) {
     }>("../src/tray/tray.ts", {
       "../platform/electron/electron-api.js": {
         clipboard: write,
+        dialog: { showErrorBox: () => undefined },
         Menu: { buildFromTemplate: (template: typeof menu) => template },
         nativeImage: { createFromPath: () => ({ setTemplateImage() {} }) },
         Tray: class {
@@ -158,8 +159,11 @@ for (const [label, url] of trayCopies) {
       getMainWindow: () => undefined,
       getManagedDaemon: () =>
         ({
-          mobileSetupUrl: trayCopies[0][1],
-          secureShareUrl: trayCopies[1][1],
+          mobileShareAvailable: true,
+          createShareUrls: async () => ({
+            mobileSetupUrl: trayCopies[0][1],
+            secureShareUrl: trayCopies[1][1],
+          }),
           caCertUrl: trayCopies[2][1],
           getStatus: () => "ready",
         }) as unknown as ReturnType<
@@ -172,6 +176,8 @@ for (const [label, url] of trayCopies) {
     });
     controller.ensureTray();
     menu.find((item) => item.label === label)!.click!();
+    // Share links are minted on click, so the copy happens a few ticks later.
+    for (let tick = 0; tick < 5; tick += 1) await Promise.resolve();
     assert.deepEqual(write.writes, [url]);
     assert.equal(logs.length, 0);
     const failure = new Error("Clipboard unavailable");

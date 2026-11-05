@@ -2,7 +2,6 @@ import type {
   AtlassianProfile,
   AuthProviderMetadata,
   Settings,
-  TavilyProfile,
   UpdateSettingsRequest,
 } from "$lib/api";
 
@@ -53,16 +52,6 @@ export function atlassianProfileReady(
     profile?.siteUrl &&
     profile.email &&
     credentialConfigured(authProviders, atlassianCredentialId(profile.id)),
-  );
-}
-
-export function tavilyProfileReady(
-  profile: TavilyProfile | undefined,
-  authProviders: AuthProviderMetadata[],
-): boolean {
-  return Boolean(
-    profile &&
-    credentialConfigured(authProviders, tavilyCredentialId(profile.id)),
   );
 }
 

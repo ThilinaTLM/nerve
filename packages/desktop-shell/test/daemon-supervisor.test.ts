@@ -247,6 +247,92 @@ describe("daemon supervisor", () => {
     await daemon.stop();
   });
 
+  it("re-reads a rotated local token after a 401 and notifies listeners", async () => {
+    const world = fakeDaemonWorld();
+    const supervisor = new DaemonSupervisor(
+      { mode: "local", owned: false, paths, readinessTimeoutMs: 1_000 },
+      world.ports,
+    );
+    const daemon = supervisor.initMonitorOnly({
+      url: "http://127.0.0.1:3747",
+      token: "tok_old",
+    });
+    let changes = 0;
+    daemon.onCredentialChange(() => (changes += 1));
+    world.healthResults.rejectedTokens.add("tok_old");
+    world.localToken.value = "tok_new";
+    await world.scheduler.advance(5_000);
+    assert.equal(daemon.token, "tok_new");
+    assert.equal(changes, 1);
+    assert.equal(daemon.getStatus(), "ready", "rotation is not an outage");
+    assert.equal(await daemon.refreshCredential(), false, "already current");
+    await daemon.stop();
+  });
+
+  it("adopts and stores a rotated remote device credential", async () => {
+    const world = fakeDaemonWorld();
+    const supervisor = new DaemonSupervisor(
+      { mode: "remote", owned: false, readinessTimeoutMs: 1_000 },
+      world.ports,
+    );
+    const daemon = supervisor.initMonitorOnly({
+      url: "https://nerve.example:8443",
+      token: "nd_dev.old",
+    });
+    world.healthResults.rotatedCredential = "nd_dev.new";
+    await world.scheduler.advance(5_000);
+    assert.equal(daemon.token, "nd_dev.new");
+    assert.equal(
+      world.storedCredentials.get("https://nerve.example:8443"),
+      "nd_dev.new",
+    );
+    await daemon.stop();
+  });
+
+  it("mints a pairing code on demand and never embeds the daemon token", async () => {
+    const world = fakeDaemonWorld();
+    const supervisor = new DaemonSupervisor(
+      { mode: "local", owned: false, paths, readinessTimeoutMs: 1_000 },
+      world.ports,
+    );
+    const daemon = supervisor.initMonitorOnly(
+      healthyDaemon({ host: "0.0.0.0", mobileHttps: { port: 3748 } } as never),
+    );
+    assert.equal(daemon.mobileShareAvailable, true);
+    assert.equal(world.accessCalls.length, 0, "nothing is minted up front");
+    const urls = await daemon.createShareUrls();
+    assert.equal(
+      urls.secureShareUrl,
+      "https://192.168.1.20:3748/#pair=ABCD-EFGH",
+    );
+    assert.equal(
+      urls.mobileSetupUrl,
+      "http://192.168.1.20:3747/mobile-setup#pair=ABCD-EFGH",
+    );
+    assert.deepEqual(world.accessCalls, [
+      {
+        kind: "createPairingCode",
+        url: "http://127.0.0.1:3747",
+        bearer: "tok_local",
+        purpose: "mobile",
+      },
+    ]);
+    assert.doesNotMatch(JSON.stringify(urls), /tok_local/);
+    await daemon.stop();
+  });
+
+  it("refuses to build share links without mobile HTTPS", async () => {
+    const world = fakeDaemonWorld();
+    const supervisor = new DaemonSupervisor(
+      { mode: "local", owned: false, paths, readinessTimeoutMs: 1_000 },
+      world.ports,
+    );
+    const daemon = supervisor.initMonitorOnly(healthyDaemon());
+    assert.equal(daemon.mobileShareAvailable, false);
+    await assert.rejects(daemon.createShareUrls(), /mobile HTTPS/);
+    await daemon.stop();
+  });
+
   it("never diagnoses or restarts a monitor-only daemon", async () => {
     const world = fakeDaemonWorld();
     const supervisor = new DaemonSupervisor(

@@ -1,22 +1,16 @@
-import { constants, createReadStream } from "node:fs";
+import { constants } from "node:fs";
 import {
   access,
   chmod,
   mkdir,
   open,
-  readdir,
   readFile,
-  stat,
   writeFile,
 } from "node:fs/promises";
 import { dirname } from "node:path";
-import { createInterface } from "node:readline";
+
 import type { z } from "zod";
-import {
-  atomicReplaceFile,
-  atomicWriteFile,
-  withFileMutation,
-} from "./file-mutations.js";
+import { atomicWriteFile, withFileMutation } from "./file-mutations.js";
 
 export async function pathExists(path: string): Promise<boolean> {
   try {
@@ -178,94 +172,6 @@ function parseJsonTailLine<S extends z.ZodType>(
   }
 }
 
-/**
- * Stream `path` one JSONL entry at a time, invoking `onValue` for each valid
- * parsed line. Memory stays O(1) regardless of file size. Invalid lines are
- * skipped with a warning.
- */
-export async function forEachJsonLine<S extends z.ZodType>(
-  path: string,
-  schema: S,
-  onValue: (value: z.infer<S>) => void,
-): Promise<void> {
-  if (!(await pathExists(path))) return;
-  const stream = createReadStream(path, { encoding: "utf8" });
-  const rl = createInterface({ input: stream, crlfDelay: Infinity });
-  let index = 0;
-  for await (const line of rl) {
-    index += 1;
-    const trimmed = line.trim();
-    if (!trimmed) continue;
-    let value: z.infer<S>;
-    try {
-      value = parseJsonLine(trimmed, schema).value;
-    } catch (error) {
-      process.emitWarning(
-        `Skipping invalid JSONL line ${path}:${index}: ${
-          error instanceof Error ? error.message : String(error)
-        }`,
-      );
-      continue;
-    }
-    onValue(value);
-  }
-}
-
-/**
- * Stream `path`, keeping only the lines for which `predicate` returns true, and
- * atomically replace the file with the filtered result. Parsing/predicate runs
- * one line at a time so the full file is never materialized in memory. Returns
- * the number of retained entries.
- */
-export async function filterJsonLinesToFile<S extends z.ZodType>(
-  path: string,
-  schema: S,
-  predicate: (value: z.infer<S>) => boolean,
-  mode?: number,
-): Promise<number> {
-  if (!(await pathExists(path))) return 0;
-  let kept = 0;
-  await atomicReplaceFile(
-    path,
-    async (output) => {
-      const input = createReadStream(path, { encoding: "utf8" });
-      const rl = createInterface({ input, crlfDelay: Infinity });
-      let index = 0;
-      for await (const line of rl) {
-        index += 1;
-        const trimmed = line.trim();
-        if (!trimmed) continue;
-        let value: z.infer<S>;
-        let raw: unknown;
-        try {
-          ({ value, raw } = parseJsonLine(trimmed, schema));
-        } catch (error) {
-          process.emitWarning(
-            `Skipping invalid JSONL line ${path}:${index}: ${
-              error instanceof Error ? error.message : String(error)
-            }`,
-          );
-          continue;
-        }
-        if (!predicate(value)) continue;
-        await output.write(`${JSON.stringify(raw)}\n`, undefined, "utf8");
-        kept += 1;
-      }
-    },
-    { mode },
-  );
-  return kept;
-}
-
-export async function listChildDirs(path: string): Promise<string[]> {
-  if (!(await pathExists(path))) return [];
-  const entries = await readdir(path, { withFileTypes: true });
-  return entries
-    .filter((entry) => entry.isDirectory())
-    .map((entry) => entry.name)
-    .sort();
-}
-
 export async function atomicWriteJson(
   path: string,
   value: unknown,
@@ -330,10 +236,4 @@ async function appendJsonLinesDirect(
     await handle.close();
   }
   if (mode !== undefined) await chmod(path, mode).catch(() => undefined);
-}
-
-export async function getMtime(path: string): Promise<number | undefined> {
-  return stat(path)
-    .then((value) => value.mtimeMs)
-    .catch(() => undefined);
 }

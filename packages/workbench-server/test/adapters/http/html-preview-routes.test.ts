@@ -4,7 +4,11 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 import { Hono } from "hono";
-import { createApiAuthMiddleware } from "../../../src/adapters/http/auth-middleware.js";
+import {
+  createApiAuthMiddleware,
+  createLocalOnlyGate,
+} from "../../../src/adapters/http/auth-middleware.js";
+import { withPeer } from "../../support/peer-address.js";
 import { createHtmlPreviewRoutes } from "../../../src/adapters/http/routes/html-preview-routes.js";
 
 test("authenticated lifecycle shares a public read-only capability, revocation, HEAD and safe errors", async (t) => {
@@ -12,8 +16,8 @@ test("authenticated lifecycle shares a public read-only capability, revocation, 
   t.after(() => rm(root, { recursive: true, force: true }));
   await writeFile(join(root, "demo.html"), "saved");
   await writeFile(join(root, "demo.mjs"), "export const value = 1;");
-  const app = new Hono();
-  app.use("/api/*", createApiAuthMiddleware("token"));
+  const app = withPeer(new Hono());
+  app.use("/api/*", createApiAuthMiddleware(createLocalOnlyGate("token")));
   app.route(
     "/",
     createHtmlPreviewRoutes(() => root),

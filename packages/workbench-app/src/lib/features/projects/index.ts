@@ -15,7 +15,6 @@ export { parentPath, resolveTypedPath } from "./state/folder-browser-path";
 export type {
   DeleteTarget,
   PruneTarget,
-  ProjectAgentTreeProps,
 } from "./views/project-agent-tree-props";
 export {
   buildConversationMenu,
@@ -28,19 +27,11 @@ export {
 } from "./views/project-tree-menus";
 export {
   buildProjectSwitcherItems,
-  projectActivity,
-  projectNeedsAttention,
   quickProjectItems,
 } from "./state/project-switcher";
 export type { ProjectSwitcherItem } from "./state/project-switcher";
-export {
-  focusProjectSearch,
-  projectNavigatorSignals,
-} from "./state/project-navigator-signals.svelte";
-export {
-  conversationListPreferences,
-  setHideCompletedConversations,
-} from "./state/conversation-list-preferences.svelte";
+export { focusProjectSearch } from "./state/project-navigator-signals.svelte";
+export { conversationListPreferences } from "./state/conversation-list-preferences.svelte";
 
 export {
   sidebarProjects,

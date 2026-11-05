@@ -72,4 +72,23 @@ describe("browser id store", () => {
     assert.ok(protocolClientId());
     assert.match(protocolInstanceId(), /^tab_/);
   });
+
+  it("keeps a stable id when getItem and setItem throw", () => {
+    const broken = {
+      getItem: () => {
+        throw new Error("denied");
+      },
+      setItem: () => {
+        throw new Error("quota");
+      },
+    };
+    install("localStorage", broken);
+    install("sessionStorage", broken);
+    const clientId = protocolClientId();
+    assert.ok(clientId);
+    assert.equal(protocolClientId(), clientId);
+    const instanceId = protocolInstanceId();
+    assert.match(instanceId, /^tab_/);
+    assert.equal(protocolInstanceId(), instanceId);
+  });
 });

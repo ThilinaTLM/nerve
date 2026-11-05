@@ -61,12 +61,6 @@ export async function openLaunchTab(launchId: string) {
   await selectCenterLaunchTab(entryId);
 }
 
-export async function selectCenterConversationTab(conversationId: string) {
-  const tab = { kind: "conversation" as const, id: conversationId };
-  addCenterTab(tab);
-  await selectCenterTab(tab);
-}
-
 export async function selectCenterLaunchTab(entryId: string) {
   const launch = runForLaunchEntry(entryId);
   addCenterTab({ kind: "launch", id: entryId });

@@ -16,16 +16,6 @@ export function updateLabelCache(
   }
 }
 
-export function buildLabelsById(
-  entries: ConversationTreeEntry[],
-): Map<string, string> {
-  const labelsById = new Map<string, string>();
-  for (const entry of entries) {
-    updateLabelCache(labelsById, entry);
-  }
-  return labelsById;
-}
-
 export function leafIdAfterEntry(entry: ConversationTreeEntry): string | null {
   return entry.type === "leaf" ? entry.targetId : entry.id;
 }

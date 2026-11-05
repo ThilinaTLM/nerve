@@ -49,11 +49,6 @@ export type AskUserViewQuestion = {
   skipped?: boolean;
 };
 
-export type ToolOutputInfo = {
-  outputLimits?: ToolOutputLimitsPayload;
-  outputArtifacts?: ToolOutputArtifactPayload[];
-};
-
 export type JiraToolAction =
   | "search_users"
   | "search_issues"
@@ -92,8 +87,6 @@ export type GroupedMatches = {
   openPath?: string;
   matches: GrepMatchView[];
 };
-
-export type SubagentToolAction = "prompt" | "status" | "stop";
 
 /** One `subagent_prompt` assignment, joined with its result line when settled. */
 export type SubagentAssignmentView = {

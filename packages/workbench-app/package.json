@@ -21,7 +21,7 @@
     "build": "vite build",
     "check": "svelte-check --tsconfig ./tsconfig.json",
     "dev": "vite --host 127.0.0.1",
-    "test": "node scripts/run-tests.mjs"
+    "test": "node scripts/run-tests.ts"
   },
   "dependencies": {
     "@codemirror/autocomplete": "^6.20.2",
@@ -58,12 +58,14 @@
     "@nervekit/protocol": "workspace:*",
     "@nervekit/ui-kit": "workspace:*",
     "@replit/codemirror-lang-svelte": "^6.0.0",
+    "@simplewebauthn/browser": "^14.0.0",
     "@tailwindcss/vite": "4.3.1",
     "@tanstack/query-core": "5.90.2",
     "@tanstack/svelte-query": "6.0.0",
     "@xyflow/svelte": "1.6.2",
     "bits-ui": "^2.18.1",
     "material-icon-theme": "^5.37.0",
+    "qrcode-generator": "^2.0.4",
     "svelte": "5.56.3",
     "svelte-sonner": "^1.1.1",
     "tailwindcss": "4.3.1"

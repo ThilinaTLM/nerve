@@ -44,8 +44,6 @@ export type GitPanelOperationsState = {
   -readonly [Key in keyof GitPanelOperationState]: GitPanelOperationState[Key];
 };
 
-export type GitPanelLoadStatus = "idle" | "loading" | "refreshing" | "error";
-
 export type GitPanelRepoState = {
   overviewRequest: {
     inFlight: boolean;
@@ -542,20 +540,4 @@ export function applyGitContextFromProject(projectId: string): void {
     current.projectId !== next.projectId ||
     gitContextFingerprint(current) !== gitContextFingerprint(next);
   if (changed) gitState.gitContext = next;
-}
-
-export function selectedGitProjectState(
-  projectId: string | undefined,
-): GitPanelProjectState | undefined {
-  return projectId
-    ? gitPanelState.projects[gitProjectStateKey(projectId)]
-    : undefined;
-}
-
-export function selectedGitRepoState(
-  projectId: string | undefined,
-): GitPanelRepoState | undefined {
-  const project = selectedGitProjectState(projectId);
-  if (!project) return undefined;
-  return project.repoStates[gitRepoStateKey(project.selectedRepo)];
 }

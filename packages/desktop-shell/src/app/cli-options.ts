@@ -1,7 +1,6 @@
 import { app } from "../platform/electron/electron-api.js";
 import {
   type ElectronFontRenderHinting,
-  parseElectronFontRenderHinting,
   resolveElectronFontRenderHinting,
 } from "../platform/chromium/font-rendering.js";
 import {
@@ -12,6 +11,9 @@ import {
 export interface DesktopCliOptions {
   mode?: "local" | "remote";
   remoteUrl?: string;
+  /** One-time pairing code for `--connect`. */
+  pairCode?: string;
+  /** Deprecated bootstrap-only alias; prefer `--pair-code`. */
   token?: string;
   host?: string;
   port?: number;
@@ -21,11 +23,7 @@ export interface DesktopCliOptions {
 }
 
 export type { ElectronFontRenderHinting, ElectronOzonePlatform };
-export {
-  parseElectronFontRenderHinting,
-  parseElectronOzonePlatform,
-  resolveElectronFontRenderHinting,
-};
+export { parseElectronOzonePlatform, resolveElectronFontRenderHinting };
 
 export function parseDesktopOptions(args: string[]): DesktopCliOptions {
   const options: DesktopCliOptions = {};
@@ -62,6 +60,17 @@ export function parseDesktopOptions(args: string[]): DesktopCliOptions {
       sawConnect = true;
       options.remoteUrl = arg.slice("--connect=".length);
       options.mode = "remote";
+      continue;
+    }
+    if (arg === "--pair-code") {
+      const value = args[index + 1];
+      if (!value) throw new Error("Missing value for --pair-code.");
+      options.pairCode = value;
+      index += 1;
+      continue;
+    }
+    if (arg.startsWith("--pair-code=")) {
+      options.pairCode = arg.slice("--pair-code=".length);
       continue;
     }
     if (arg === "--token") {

@@ -33,6 +33,10 @@ export async function findHealthyDaemon(
     : undefined;
 }
 
+export function readLocalToken(paths: DaemonPaths): Promise<string> {
+  return readToken(paths.localTokenPath);
+}
+
 async function readDaemonFile(path: string): Promise<DaemonMetadataRead> {
   let raw: string;
   try {

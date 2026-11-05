@@ -5,3 +5,4 @@ export * from "./local-token.js";
 export * from "./managed-owner-path.js";
 export * from "./paths.js";
 export * from "./state-layout.js";
+export * from "./devices-file.js";

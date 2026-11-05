@@ -14,10 +14,10 @@
   "type": "module",
   "scripts": {
     "build": "astro build",
-    "check": "node scripts/check-token-parity.mjs && node scripts/check-content.mjs && astro check",
-    "test": "tsx --test \"scripts/**/*.test.mjs\"",
+    "check": "tsx scripts/check-token-parity.ts && tsx scripts/check-content.ts && astro check",
+    "test": "tsx --test \"scripts/**/*.test.ts\"",
     "dev": "astro dev --host 127.0.0.1",
-    "screenshots": "node scripts/screenshots/run.mjs",
+    "screenshots": "tsx scripts/screenshots/run.ts",
     "preview": "astro preview --host 127.0.0.1"
   },
   "dependencies": {

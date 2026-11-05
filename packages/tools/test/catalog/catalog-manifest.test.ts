@@ -3,7 +3,7 @@ import { describe, it } from "node:test";
 import { Check } from "typebox/value";
 import { toolNameSchema } from "@nervekit/contracts/tools";
 import {
-  allToolDefinitions,
+  toolManifest,
   requireToolDefinition,
 } from "../../src/catalog/manifest.js";
 
@@ -29,16 +29,16 @@ const flattenedActionTools = new Set(Object.keys(validActionArguments));
 describe("model-facing tool schema compatibility", () => {
   it("declares a reviewed agent-result policy for every active tool", () => {
     assert.deepEqual(
-      allToolDefinitions.map((definition) => definition.name).sort(),
+      toolManifest.map((definition) => definition.name).sort(),
       [...toolNameSchema.options].sort(),
     );
     assert.deepEqual(
-      allToolDefinitions.filter((definition) => !definition.agentResult),
+      toolManifest.filter((definition) => !definition.agentResult),
       [],
     );
     assert.equal(
-      new Set(allToolDefinitions.map((definition) => definition.name)).size,
-      allToolDefinitions.length,
+      new Set(toolManifest.map((definition) => definition.name)).size,
+      toolManifest.length,
     );
 
     it("locks the simplified model-facing property sets and schema budget", () => {
@@ -100,7 +100,7 @@ describe("model-facing tool schema compatibility", () => {
         assert.deepEqual(Object.keys(schema.properties ?? {}), expected, name);
       }
 
-      for (const definition of allToolDefinitions) {
+      for (const definition of toolManifest) {
         const properties = Object.keys(
           (definition.parameters as { properties?: Record<string, unknown> })
             .properties ?? {},
@@ -126,7 +126,7 @@ describe("model-facing tool schema compatibility", () => {
       const editSchemaSize = JSON.stringify(
         requireToolDefinition("edit").parameters,
       ).length;
-      const catalogSchemaSize = allToolDefinitions.reduce(
+      const catalogSchemaSize = toolManifest.reduce(
         (total, definition) =>
           total + JSON.stringify(definition.parameters).length,
         0,
@@ -143,7 +143,7 @@ describe("model-facing tool schema compatibility", () => {
   });
 
   it("uses a JSON object root for every tool definition", () => {
-    for (const definition of allToolDefinitions) {
+    for (const definition of toolManifest) {
       const serialized = JSON.parse(JSON.stringify(definition.parameters)) as {
         type?: unknown;
       };
@@ -155,7 +155,7 @@ describe("model-facing tool schema compatibility", () => {
     for (const name of ["plan_mode_enter", "plan_mode_force_exit"]) {
       assert.equal(toolNameSchema.safeParse(name).success, false, name);
       assert.equal(
-        allToolDefinitions.some((definition) => definition.name === name),
+        toolManifest.some((definition) => definition.name === name),
         false,
         name,
       );
@@ -195,7 +195,7 @@ describe("model-facing tool schema compatibility", () => {
   });
 
   it("does not expose top-level schema composition for action tools", () => {
-    for (const definition of allToolDefinitions) {
+    for (const definition of toolManifest) {
       if (!flattenedActionTools.has(definition.name)) continue;
       const schema = definition.parameters as Record<string, unknown>;
       assert.equal(schema.type, "object", definition.name);

@@ -7,6 +7,7 @@ import {
   shutdownServerRuntime,
   type ServerRuntime,
 } from "../../src/app/runtime/server-runtime.js";
+import { withPeer } from "./../support/peer-address.js";
 import { createApp } from "../../src/app/server.js";
 import { initializeStorage } from "../../src/infrastructure/storage-bootstrap/index.js";
 
@@ -39,7 +40,7 @@ export async function createAuthenticatedApp(
   states.push(fixture.runtime);
   await fixture.runtime.logger.hydrate();
   await fixture.lifecycle.hydrate();
-  const app = createApp(fixture.runtime);
+  const app = withPeer(createApp(fixture.runtime));
   const headers = { authorization: `Bearer ${storage.localToken}` };
   return { app, runtime: fixture.runtime, services: fixture.services, headers };
 }

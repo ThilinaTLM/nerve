@@ -2,7 +2,7 @@ import { basename, join, resolve } from "node:path";
 import {
   repositoryRoot,
   resolveStorageSlot,
-} from "../development/storage-slot.mjs";
+} from "../development/storage-slot.ts";
 export const presets = [
   "config",
   "overlay",

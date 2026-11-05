@@ -1,10 +1,16 @@
 import { notifyServerStarting } from "./server-starting-signal";
+import {
+  isSessionLostResponse,
+  notifyUnauthorized,
+} from "./unauthorized-signal";
 
 export class ApiRequestError extends Error {
   constructor(
     readonly status: number | undefined,
     readonly code: string | undefined,
     message: string,
+    /** Seconds from a `Retry-After` header (rate limiting). */
+    readonly retryAfterSeconds?: number,
   ) {
     super(message);
     this.name = "ApiRequestError";
@@ -51,11 +57,15 @@ async function parseResponse<T>(response: Response): Promise<T> {
     const body = await response.text();
     if (response.status === 503 && isStartingBody(body)) notifyServerStarting();
     const error = parseApiErrorBody(body);
+    if (isSessionLostResponse(response.status, error.code)) {
+      notifyUnauthorized();
+    }
     throw new ApiRequestError(
       response.status,
       error.code,
       error.message ??
         (body || `Request failed with status ${response.status}.`),
+      parseRetryAfter(response.headers.get("retry-after")),
     );
   }
   if (!contentType.includes("application/json")) {
@@ -133,6 +143,12 @@ export function fileToBase64(file: File): Promise<string> {
     };
     reader.readAsDataURL(file);
   });
+}
+
+export function parseRetryAfter(value: string | null): number | undefined {
+  if (value === null) return undefined;
+  const seconds = Number(value.trim());
+  return Number.isFinite(seconds) && seconds >= 0 ? seconds : undefined;
 }
 
 export function parseApiErrorBody(body: string): {

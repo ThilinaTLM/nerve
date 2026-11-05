@@ -20,13 +20,13 @@ import {
   createSlotParent,
   developmentEnvironment,
   resolveStorageSlot,
-} from "../storage-slot.mjs";
+} from "../storage-slot.ts";
 import {
   assertPortFree,
   inspectSlotDaemon,
   preflightSlot,
-} from "../slot-preflight.mjs";
-import { runOwned } from "../owned-processes.mjs";
+} from "../slot-preflight.ts";
+import { runOwned } from "../owned-processes.ts";
 import { prepareDevelopmentSlot } from "../storage-preparation.js";
 import { acquireStorageHomeLock } from "../../../packages/workbench-server/src/infrastructure/storage-bootstrap/home-lock.js";
 

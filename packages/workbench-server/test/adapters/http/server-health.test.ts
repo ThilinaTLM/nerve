@@ -4,6 +4,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, it } from "node:test";
+import { withPeer } from "../../support/peer-address.js";
 import { createApp } from "../../../src/app/server.js";
 import { initializeStorage } from "../../../src/infrastructure/storage-bootstrap/index.js";
 
@@ -12,7 +13,7 @@ describe("server health routes", () => {
     const home = await mkdtemp(join(tmpdir(), "nerve-server-health-"));
     const storage = await initializeStorage(home);
     const { runtime: state } = createRuntimeFixture(storage, "127.0.0.1", 0);
-    const app = createApp(state);
+    const app = withPeer(createApp(state));
 
     try {
       const publicHealth = await app.request("/health");

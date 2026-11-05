@@ -105,10 +105,6 @@ function currentCursors(): StreamCursor[] {
   }));
 }
 
-export function conversationReplaySequence(conversationId: string): number {
-  return cursors.get(conversationId) ?? 0;
-}
-
 export function installConversationReplaySequence(
   conversationId: string,
   sequence: number,

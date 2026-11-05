@@ -6,5 +6,6 @@ Inherits the root `AGENTS.md`. This package is the source of official shadcn-sve
 - Use theme-token Tailwind utilities and official shadcn-svelte components; use `@lucide/svelte` for icons.
 - Keep mono typography for code, logs, and paths only.
 - Global shared CSS belongs in `src/styles/` with `app.css` as its entry.
-- `src/lib/utils.ts` is the shadcn-required cohesive naming exception; other broad production filenames must be reviewed in `scripts/checks/source-naming-policy.mjs`.
+- `src/lib/utils.ts` is the shadcn-required cohesive naming exception; other broad production filenames must be reviewed in `scripts/checks/source-naming-policy.ts`.
 - Validate with `pnpm --filter @nervekit/ui-kit check` and relevant tests.
+- Colocate tests with the module. Pure logic uses `*.test.ts` (`pnpm test`, `tsx --test`); component behavior uses `*.svelte.test.ts` (`pnpm test:components`, Vitest + jsdom). Test interaction only, not classes or layout; bits-ui content is `visibility: hidden` in jsdom, so query it by text and stub `ResizeObserver`/pointer-capture where needed.

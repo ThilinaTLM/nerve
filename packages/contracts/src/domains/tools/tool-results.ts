@@ -374,7 +374,6 @@ export const grepResultDetailsSchema = z.looseObject({
 export const findResultDetailsSchema = z.looseObject({
   totalEntries: z.number().int().nonnegative().optional(),
 });
-export const lsResultDetailsSchema = findResultDetailsSchema;
 const generatedImageSchema = z.looseObject({
   path: z.string(),
   mimeType: z.string().optional(),

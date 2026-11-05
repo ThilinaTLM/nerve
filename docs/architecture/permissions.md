@@ -58,6 +58,10 @@ Children use an allowed rule set without Baseline or overlays. Their rule sets d
 
 Rule-set definitions and overlays are separate resources so reusable policy can remain distinct from local grants. Persistent approval writes go into overlays; rules contain no secrets. Policy controls tool admission rather than operating-system isolation, so it should not be treated as a sandbox or a proof that shell or Python source is safe.
 
+## Risk and shell classification
+
+Two risk vocabularies exist on purpose. A tool's static **category** (`StaticToolRisk`: `read`, `write`, `unknown`, …) is what rule sets match on; a call's **effective risk** (`ToolRisk`, persisted as `supervision.effectiveRisk`) is what the approval UI and evidence show. `effectiveRiskForCategory` is the single mapping between them (`write` → `workspace_write`, `unknown` → `command`). Shell commands are assessed per invocation: wrappers are unwrapped, then `git` is classified as `read` only when its subcommand, sub-form and every flag match an explicit allowlist (`git-rules.ts`); anything else, including flags that run programs or write files, stays a command. Plan mode uses the same classifier.
+
 ## Admission and evidence
 
 Core stores the decision and its supporting authority with the call and preserves supervision evidence in history, so later edits do not erase why execution was allowed or stopped. Approval binds to the reviewed execution evidence: a changed target requires fresh approval, and a later denial defeats earlier approval.
@@ -74,4 +78,6 @@ Current policy is rechecked after approval waits and during restart recovery bec
 | Loading, health and current selection     | [`createPermissionConfigurationService`](../../packages/workbench-server/src/core-host/permission-configuration.ts) and [`createScopedPermissionSource`](../../packages/workbench-server/src/core-host/scoped-permission-source.ts)     |
 | Overlay locations and persistent grants   | [`ConfigurationScopePaths`](../../packages/workbench-server/src/infrastructure/configuration/scope-paths.ts) and [`createPermissionPort`](../../packages/workbench-server/src/core-host/permission.adapter.ts)                          |
 | Exact-content project trust               | [`trustProjectPermissions`](../../packages/workbench-server/src/core-host/permission-overlays.ts)                                                                                                                                       |
+| Risk vocabulary mapping                   | [`effectiveRiskForCategory`](../../packages/contracts/src/domains/permissions/permissions.ts)                                                                                                                                           |
+| Shell and git read-only classification    | [`assessment.ts`](../../packages/tools/src/policy/shell/assessment.ts) and [`git-rules.ts`](../../packages/tools/src/policy/shell/git-rules.ts)                                                                                         |
 | Admission and durable evidence            | [`ToolCallService`](../../packages/conversation-core/src/tool-calls/tool-call.service.ts) and [admission tests](../../packages/conversation-core/src/tool-calls/execution-admission.test.ts)                                            |

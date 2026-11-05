@@ -2,46 +2,143 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { DAEMON_LEASE_CONFLICT_CODE } from "@nervekit/contracts/storage";
 import { ensureDaemonConnection } from "../src/daemon/connection.ts";
+import { DaemonAccessError } from "../src/daemon/ports.ts";
 import { fakeDaemonWorld, healthyDaemon } from "./support/fake-daemon-ports.ts";
 
 describe("daemon connection service", () => {
-  it("connects to a healthy remote daemon in monitor-only mode", async () => {
+  it("redeems a pairing code for a device credential and stores it per origin", async () => {
     const world = fakeDaemonWorld();
     const daemon = await ensureDaemonConnection(
       {
         mode: "remote",
         remoteUrl: "https://nerve.example.com:8443/path",
-        token: "tok_remote",
+        pairCode: "ABCD-EFGH",
       },
       world.ports,
     );
     assert.equal(daemon.mode, "remote");
     assert.equal(daemon.owned, false);
     assert.equal(daemon.url, "https://nerve.example.com:8443");
-    assert.equal(daemon.token, "tok_remote");
+    assert.equal(daemon.token, "nd_dev_1.secret");
+    assert.deepEqual(world.accessCalls, [
+      {
+        kind: "redeemPairingCode",
+        url: "https://nerve.example.com:8443",
+        code: "ABCD-EFGH",
+        deviceName: "Nerve Desktop (test)",
+      },
+    ]);
+    assert.equal(
+      world.storedCredentials.get("https://nerve.example.com:8443"),
+      "nd_dev_1.secret",
+    );
     assert.equal(world.launches.length, 0, "remote mode never launches");
     await daemon.stop();
   });
 
-  it("requires a remote token and a passing health check", async () => {
-    const noToken = fakeDaemonWorld();
+  it("reuses the stored credential and ignores a spent pairing code", async () => {
+    const world = fakeDaemonWorld();
+    world.storedCredentials.set("http://10.0.0.5:3747", "nd_old.secret");
+    const daemon = await ensureDaemonConnection(
+      { remoteUrl: "http://10.0.0.5:3747", pairCode: "ABCD-EFGH" },
+      world.ports,
+    );
+    assert.equal(daemon.token, "nd_old.secret");
+    assert.equal(world.accessCalls.length, 0);
+    await daemon.stop();
+  });
+
+  it("drops a rejected stored credential and pairs again", async () => {
+    const world = fakeDaemonWorld();
+    world.storedCredentials.set("http://10.0.0.5:3747", "nd_revoked.secret");
+    world.healthResults.rejectedTokens.add("nd_revoked.secret");
+    const daemon = await ensureDaemonConnection(
+      { remoteUrl: "http://10.0.0.5:3747", pairCode: "ABCD-EFGH" },
+      world.ports,
+    );
+    assert.equal(daemon.token, "nd_dev_1.secret");
+    assert.equal(
+      world.storedCredentials.get("http://10.0.0.5:3747"),
+      "nd_dev_1.secret",
+    );
+    await daemon.stop();
+  });
+
+  it("explains how to pair when no credential is available", async () => {
+    const world = fakeDaemonWorld();
     await assert.rejects(
       ensureDaemonConnection(
         { remoteUrl: "http://10.0.0.5:3747" },
-        noToken.ports,
+        world.ports,
       ),
-      /Missing remote daemon token/,
+      /--pair-code/,
     );
+  });
 
-    const unhealthy = fakeDaemonWorld();
-    unhealthy.healthResults.value = false;
+  it("surfaces pairing failures with the server's message", async () => {
+    const world = fakeDaemonWorld();
+    world.access.failWith = new DaemonAccessError(
+      400,
+      "PAIRING_CODE_INVALID",
+      "Pairing code is invalid or expired.",
+    );
     await assert.rejects(
       ensureDaemonConnection(
-        { remoteUrl: "http://10.0.0.5:3747", token: "tok_remote" },
-        unhealthy.ports,
+        { remoteUrl: "https://nerve.example.com", pairCode: "ABCD-EFGH" },
+        world.ports,
+      ),
+      /Could not pair.*invalid or expired/,
+    );
+    assert.equal(world.storedCredentials.size, 0);
+  });
+
+  it("fails when the remote daemon is unreachable after pairing", async () => {
+    const world = fakeDaemonWorld();
+    world.healthResults.value = false;
+    await assert.rejects(
+      ensureDaemonConnection(
+        { remoteUrl: "http://10.0.0.5:3747", pairCode: "ABCD-EFGH" },
+        world.ports,
       ),
       /Could not connect to remote Nerve daemon/,
     );
+    assert.equal(world.storedCredentials.size, 0);
+  });
+
+  it("treats --token as a deprecated bootstrap for a device credential", async () => {
+    const world = fakeDaemonWorld();
+    const daemon = await ensureDaemonConnection(
+      { remoteUrl: "https://nerve.example.com", token: "tok_remote" },
+      world.ports,
+    );
+    assert.equal(daemon.token, "nd_dev_1.secret");
+    assert.equal(world.accessCalls[0]?.kind, "createPairingCode");
+    assert.equal(
+      (world.accessCalls[0] as { bearer: string }).bearer,
+      "tok_remote",
+    );
+    assert.ok(
+      world.logs.some(
+        (entry) => entry.level === "warn" && /deprecated/.test(entry.message),
+      ),
+    );
+    assert.equal(
+      world.storedCredentials.get("https://nerve.example.com"),
+      "nd_dev_1.secret",
+    );
+    await daemon.stop();
+  });
+
+  it("falls back to the legacy token without storing it when bootstrap is refused", async () => {
+    const world = fakeDaemonWorld({ env: { NERVE_DAEMON_TOKEN: "tok_env" } });
+    world.access.failWith = new DaemonAccessError(403, "FORBIDDEN", "no");
+    const daemon = await ensureDaemonConnection(
+      { remoteUrl: "https://nerve.example.com" },
+      world.ports,
+    );
+    assert.equal(daemon.token, "tok_env");
+    assert.equal(world.storedCredentials.size, 0);
+    await daemon.stop();
   });
 
   it("adopts an existing healthy local daemon in monitor-only mode", async () => {

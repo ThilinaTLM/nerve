@@ -7,11 +7,13 @@ import type {
   UpdateApplicationConfigurationRequest,
 } from "@nervekit/contracts/settings";
 import {
+  DEFAULT_TRUST_PROXY_PEERS,
   MAX_ACTIVE_PROCESSES,
   MAX_CONCURRENT_MODEL_RUNS,
   MAX_PARALLEL_TOOLS_PER_RUN,
   MIN_DAEMON_MAX_OLD_SPACE_MB,
 } from "@nervekit/contracts/settings";
+import { PeerMatcher } from "../network/client-address.js";
 import {
   detectHostResourceFacts,
   recommendResourcePolicy,
@@ -26,6 +28,9 @@ export interface ResolvedApplicationStartup {
     allowRemote: boolean;
     mobileHttps: boolean;
     httpsPort: number;
+    /** Empty when unset. */
+    publicUrl: string;
+    trustProxyPeers: string[];
     loggingEnabled: boolean;
     performanceEnabled: boolean;
     startupTimeoutMs: number;
@@ -145,6 +150,45 @@ function automaticSelection<T>(value: T): {
   return { value, source: source("automatic"), editable: true };
 }
 
+function sameValue(a: unknown, b: unknown): boolean {
+  return Array.isArray(a) && Array.isArray(b)
+    ? a.length === b.length && a.every((entry, index) => entry === b[index])
+    : Object.is(a, b);
+}
+
+/** `https://host[:port]` origin only; plain http is accepted for loopback testing. */
+export function validatePublicUrl(value: string, source: string): string {
+  let url: URL;
+  try {
+    url = new URL(value);
+  } catch {
+    throw new Error(
+      `Invalid ${source}=${JSON.stringify(value)}. Expected a URL such as https://nerve.example.com.`,
+    );
+  }
+  if (url.protocol !== "https:" && url.protocol !== "http:") {
+    throw new Error(
+      `Invalid ${source}=${JSON.stringify(value)}. Expected an http(s) URL.`,
+    );
+  }
+  return url.origin;
+}
+
+export function validateTrustProxyPeers(
+  peers: readonly string[],
+  source: string,
+): string[] {
+  try {
+    new PeerMatcher(peers);
+  } catch (error) {
+    throw new Error(
+      `Invalid ${source}: ${error instanceof Error ? error.message : String(error)}`,
+      { cause: error },
+    );
+  }
+  return [...peers];
+}
+
 function leaf<T>(input: {
   selected: { value: T; source: ConfigurationSource; editable: boolean };
   saved: T;
@@ -162,7 +206,7 @@ function leaf<T>(input: {
       input.selected.editable &&
       input.selected.source.kind !== "automatic" &&
       input.restartTarget !== "none" &&
-      !Object.is(activeValue, input.saved),
+      !sameValue(activeValue, input.saved),
   };
 }
 
@@ -255,6 +299,44 @@ export function resolveApplicationConfiguration(
             65_535,
           ),
           name: "NERVE_HTTPS_PORT",
+        }
+      : undefined,
+  });
+
+  const savedPublicUrl = saved.network.publicUrl ?? "";
+  const cliPublicUrl = commandLineValue(argv, "--public-url");
+  const environmentPublicUrl = envString(env, "NERVE_PUBLIC_URL");
+  const publicUrl = select({
+    saved: savedPublicUrl,
+    commandLine: cliPublicUrl
+      ? {
+          value: validatePublicUrl(cliPublicUrl, "--public-url"),
+          name: "--public-url",
+        }
+      : undefined,
+    environment: environmentPublicUrl
+      ? {
+          value: validatePublicUrl(environmentPublicUrl, "NERVE_PUBLIC_URL"),
+          name: "NERVE_PUBLIC_URL",
+        }
+      : undefined,
+  });
+  const savedTrustPeers = saved.network.trustProxy?.peers ?? [
+    ...DEFAULT_TRUST_PROXY_PEERS,
+  ];
+  const environmentTrustPeers = envString(env, "NERVE_TRUST_PROXY_PEERS");
+  const trustProxyPeers = select({
+    saved: savedTrustPeers,
+    environment: environmentTrustPeers
+      ? {
+          value: validateTrustProxyPeers(
+            environmentTrustPeers
+              .split(",")
+              .map((entry) => entry.trim())
+              .filter(Boolean),
+            "NERVE_TRUST_PROXY_PEERS",
+          ),
+          name: "NERVE_TRUST_PROXY_PEERS",
         }
       : undefined,
   });
@@ -431,6 +513,18 @@ export function resolveApplicationConfiguration(
           restartTarget: "daemon",
           active: active?.network.httpsPort.activeValue,
         }),
+        publicUrl: leaf({
+          selected: publicUrl,
+          saved: savedPublicUrl,
+          restartTarget: "daemon",
+          active: active?.network.publicUrl.activeValue,
+        }),
+        trustProxyPeers: leaf({
+          selected: trustProxyPeers,
+          saved: savedTrustPeers,
+          restartTarget: "daemon",
+          active: active?.network.trustProxyPeers.activeValue,
+        }),
       },
       diagnostics: {
         loggingEnabled: leaf({
@@ -556,6 +650,8 @@ export function resolveApplicationConfiguration(
       allowRemote: allowRemote.value,
       mobileHttps: mobileHttps.value,
       httpsPort: httpsPort.value,
+      publicUrl: publicUrl.value,
+      trustProxyPeers: trustProxyPeers.value,
       loggingEnabled: loggingEnabled.value,
       performanceEnabled: performanceEnabled.value,
       startupTimeoutMs: startupTimeoutMs.value,
@@ -592,6 +688,14 @@ export function assertApplicationConfigurationEditable(
     [
       patch.application?.network?.httpsPort,
       snapshot.application.network.httpsPort,
+    ],
+    [
+      patch.application?.network?.publicUrl,
+      snapshot.application.network.publicUrl,
+    ],
+    [
+      patch.application?.network?.trustProxy,
+      snapshot.application.network.trustProxyPeers,
     ],
     [
       patch.application?.diagnostics?.loggingEnabled,
@@ -631,6 +735,10 @@ export function assertApplicationConfigurationEditable(
       snapshot.application.electron.fontRenderHinting,
     ],
   ];
+  const publicUrl = patch.application?.network?.publicUrl;
+  if (publicUrl) validatePublicUrl(publicUrl, "network.publicUrl");
+  const peers = patch.application?.network?.trustProxy?.peers;
+  if (peers) validateTrustProxyPeers(peers, "network.trustProxy.peers");
   for (const [value, setting] of checks) {
     if (value === undefined || setting.editable) continue;
     throw new Error(

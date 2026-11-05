@@ -9,6 +9,7 @@ export type MigrationLock = Record<
     checksum: string;
     stage: "draft" | "released";
     releasedIn?: string;
+    previousChecksums?: string[];
   }
 >;
 
@@ -57,7 +58,9 @@ export async function checkMigrationLock(
     if (
       metadata.checksum !== entry.checksum ||
       metadata.stage !== entry.stage ||
-      metadata.releasedIn !== entry.releasedIn
+      metadata.releasedIn !== entry.releasedIn ||
+      JSON.stringify(metadata.previousChecksums ?? []) !==
+        JSON.stringify(entry.previousChecksums ?? [])
     ) {
       throw new Error(
         `Migration registry metadata differs from lock: ${entry.step.id}`,
@@ -66,6 +69,13 @@ export async function checkMigrationLock(
     const checksum = await hashStepFolder(join(stepsPath, entry.step.id));
     if (metadata.stage === "released" && checksum !== metadata.checksum) {
       throw new Error(`Released migration changed: ${entry.step.id}`);
+    }
+    // Homes record the registry checksum, so a stale draft label would make
+    // edits invisible to `rerunOnChange` and to the eventual released checksum.
+    if (metadata.stage === "draft" && checksum !== metadata.checksum) {
+      throw new Error(
+        `Draft migration checksum is stale: ${entry.step.id} (files hash to ${checksum}); run \`pnpm storage:checksums\`.`,
+      );
     }
   }
 }

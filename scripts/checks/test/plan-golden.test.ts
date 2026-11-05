@@ -15,11 +15,11 @@ import { tmpdir } from "node:os";
 import { dirname, join, relative } from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
-import { describePlan as describeValidation } from "../focused-validation-runner.mjs";
-import { selectFocusedValidation } from "../focused-validation-selection.mjs";
-import { loadWorkspace } from "../../testing/ci-impact.mjs";
-import { selectFocusedTests } from "../../testing/focused-test-selection.mjs";
-import { describePlan as describeTests } from "../../testing/run-focused-tests.mjs";
+import { describePlan as describeValidation } from "../focused-validation-runner.ts";
+import { selectFocusedValidation } from "../focused-validation-selection.ts";
+import { loadWorkspace } from "../../workspace/graph.ts";
+import { selectFocusedTests } from "../../testing/focused-test-selection.ts";
+import { describePlan as describeTests } from "../../testing/run-focused-tests.ts";
 
 // Mirrors the `test` scripts of packages that also run colocated src tests.
 const colocatedTestGlobs: Record<string, string[]> = {
@@ -110,8 +110,8 @@ function buildFixture() {
     "packages/ui-kit/src/Button.svelte.test.ts",
     'import "./Button.svelte";',
   );
-  write("scripts/checks/check-package-boundaries.mjs");
-  write("scripts/testing/ci-impact.mjs");
+  write("scripts/checks/check-package-boundaries.ts");
+  write("scripts/testing/ci-impact.ts");
   write("scripts/README.md", "# scripts");
   write("docs/guide.md", "# guide");
   write("README.md", "# readme");
@@ -155,8 +155,8 @@ const changeSets: Record<string, string[]> = {
   "runtime-markdown": ["packages/workbench-app/src/skill.md"],
   "package-asset-markdown": ["packages/protocol/src/asset.md"],
   migrations: ["packages/workbench-server/src/storage-migrations/001.ts"],
-  "scripts-tooling": ["scripts/checks/check-package-boundaries.mjs"],
-  "ci-impact-script": ["scripts/testing/ci-impact.mjs"],
+  "scripts-tooling": ["scripts/checks/check-package-boundaries.ts"],
+  "ci-impact-script": ["scripts/testing/ci-impact.ts"],
   lockfile: ["pnpm-lock.yaml"],
   "workspace-config": ["pnpm-workspace.yaml"],
   "root-package-json": ["package.json"],

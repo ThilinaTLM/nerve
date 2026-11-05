@@ -13,9 +13,7 @@ import {
   editAgentResultPolicy,
   findAgentResultPolicy,
   grepAgentResultPolicy,
-  lsAgentResultPolicy,
   readAgentResultPolicy,
-  writeAgentResultPolicy,
 } from "./filesystem.js";
 import {
   askUserAgentResultPolicy,
@@ -50,10 +48,10 @@ const map: Record<ToolName, AgentResultPolicy> = {
 
   read: readAgentResultPolicy,
   edit: editAgentResultPolicy,
-  write: writeAgentResultPolicy,
+  write: editAgentResultPolicy,
   grep: grepAgentResultPolicy,
   find: findAgentResultPolicy,
-  ls: lsAgentResultPolicy,
+  ls: findAgentResultPolicy,
   bash: processAgentResultPolicy,
   python_exec: scriptAgentResultPolicy,
   web_search: webSearchAgentResultPolicy,

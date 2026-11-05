@@ -5,6 +5,7 @@ import { agentProfileEventDefinitions } from "../domains/agent-profiles/events.j
 import { conversationChannelEvents } from "../domains/core/channel.js";
 import { z } from "zod";
 import { scratchNoteEventDefinitions } from "../domains/scratch-notes/events.js";
+import { accessEventDefinitions } from "../domains/access/events.js";
 import { authEventDefinitions } from "../domains/auth/events.js";
 import { filesystemEventDefinitions } from "../domains/filesystem/events.js";
 import { gitEventDefinitions } from "../domains/git/events.js";
@@ -40,6 +41,7 @@ const definitions: PublicEventDefinition[] = [
   ...planEventDefinitions,
   ...projectEventDefinitions,
   ...settingsEventDefinitions,
+  ...accessEventDefinitions,
   ...authEventDefinitions,
   ...daemonEventDefinitions,
   ...maintenanceEventDefinitions,

@@ -37,11 +37,16 @@ Core uses ports—interfaces supplied by its host—to request process work with
 
 The [launch catalog](../launch-definitions.md) covers saved definitions and organization.
 
-| Concern               | Owner                                                                                                    |
-| --------------------- | -------------------------------------------------------------------------------------------------------- |
-| Core/host interfaces  | `ProcessPort` and `ToolHostPort` in [`ports.ts`](../../../packages/conversation-core/src/ports.ts)       |
-| Host-tool composition | [`createToolHostPort`](../../../packages/workbench-server/src/core-host/tool-host.adapter.ts)            |
-| Launch execution      | [`LaunchService`](../../../packages/workbench-server/src/domains/launches/application/launch.service.ts) |
+| Concern                  | Owner                                                                                                          |
+| ------------------------ | -------------------------------------------------------------------------------------------------------------- |
+| Core/host interfaces     | `ProcessPort` and `ToolHostPort` in [`ports.ts`](../../../packages/conversation-core/src/ports.ts)             |
+| Host-tool composition    | [`createToolHostPort`](../../../packages/workbench-server/src/core-host/tool-host.adapter.ts)                  |
+| Background task settling | [`BackgroundTaskService`](../../../packages/conversation-core/src/background-tasks/background-task.service.ts) |
+| Launch execution         | [`LaunchService`](../../../packages/workbench-server/src/domains/launches/application/launch.service.ts)       |
+
+## Background tasks
+
+Async bash and background sub-agents share one settle path, [`BackgroundTaskService`](../../../packages/conversation-core/src/background-tasks/background-task.service.ts). A `TaskRunner` per kind ([bash](../../../packages/conversation-core/src/background-tasks/bash-runner.ts), [sub-agent](../../../packages/conversation-core/src/background-tasks/subagent-runner.ts)) supplies recovery, a terminal description for outcomes it did not observe, and persistence; the service owns waiting, cancellation, startup recovery and settling in one transaction. Settling announces exactly one parent-facing `task_result` input ([`buildTaskNotice`](../../../packages/conversation-core/src/background-tasks/task-notice.ts)) carrying the task kind, outcome and asset ids, deduplicated by a stable input id and waking an idle parent. Launches are not background tasks; the host queues their notice itself.
 
 ## Async-bash lifecycle
 

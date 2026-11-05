@@ -112,7 +112,7 @@ export default defineConfig(({ mode }) => {
           maximumFileSizeToCacheInBytes: 3 * 1024 * 1024,
           cleanupOutdatedCaches: true,
           // Serve the cached app shell for in-app navigations (fast + offline),
-          // but never hijack the token->cookie auth redirect, the CA download,
+          // but never hijack the CA download,
           // the mobile setup page, or the dynamic API/WS endpoints.
           navigateFallback: "/index.html",
           navigateFallbackDenylist: [
@@ -121,7 +121,6 @@ export default defineConfig(({ mode }) => {
             /^\/ws\b/,
             /^\/mobile-setup\b/,
             /^\/nerve-local-ca\.pem$/,
-            /[?&]token=/,
           ],
         },
       }),

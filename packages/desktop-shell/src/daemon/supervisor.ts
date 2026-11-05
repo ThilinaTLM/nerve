@@ -11,10 +11,11 @@ import {
   restartBackoffMs,
   shouldResetRestartBudget,
 } from "./policy.js";
-import type {
-  DaemonChildHandle,
-  DaemonHealthCheckResult,
-  DaemonRuntimePorts,
+import { DaemonCredential } from "./credential.js";
+import {
+  type DaemonChildHandle,
+  type DaemonHealthCheckResult,
+  type DaemonRuntimePorts,
 } from "./ports.js";
 import type {
   ChildExit,
@@ -27,7 +28,11 @@ import type {
   ManagedDaemon,
   ShareUrls,
 } from "./contracts.js";
-import { buildShareUrls } from "./urls.js";
+import {
+  buildShareEndpoints,
+  buildShareUrls,
+  type ShareEndpoints,
+} from "./urls.js";
 
 export interface DaemonSupervisorConfig {
   mode: DaemonMode;
@@ -84,14 +89,20 @@ export class DaemonSupervisor {
   /** Last lifecycle reported by a healthy check; undefined when unknown. */
   private lifecycle?: ServerLifecycleState;
   private url = "";
-  private token?: string;
-  private shareUrls: ShareUrls = {};
+  private shareEndpoints?: ShareEndpoints;
+  private readonly credential: DaemonCredential;
 
   constructor(
     private readonly config: DaemonSupervisorConfig,
     private readonly ports: DaemonRuntimePorts,
   ) {
     this.lastHealthyAt = ports.scheduler.now();
+    this.credential = new DaemonCredential({
+      mode: config.mode,
+      paths: config.paths,
+      url: () => this.url,
+      ports,
+    });
   }
 
   /** Launch the owned workbench-server child, wait until healthy, then monitor. */
@@ -113,15 +124,37 @@ export class DaemonSupervisor {
   }
 
   /** Attach monitoring to an already-running (existing/remote) daemon. */
-  initMonitorOnly(connection: { url: string; token: string }): ManagedDaemon {
+  initMonitorOnly(connection: {
+    url: string;
+    token: string;
+    daemon?: HealthyDaemon["daemon"];
+  }): ManagedDaemon {
     this.url = connection.url;
-    this.token = connection.token;
+    this.credential.set(connection.token);
+    this.shareEndpoints = connection.daemon
+      ? buildShareEndpoints(connection.daemon, this.ports.networkInterfaces())
+      : undefined;
     this.startHealthMonitor();
     return this.toManagedDaemon();
   }
 
   getStatus(): DaemonStatus {
     return this.status;
+  }
+
+  // --- sharing ---
+
+  private async createShareUrls(): Promise<ShareUrls> {
+    const endpoints = this.shareEndpoints;
+    if (!endpoints) {
+      throw new Error(
+        "Mobile sharing needs a LAN-bound daemon with mobile HTTPS enabled (--allow-remote --mobile-https).",
+      );
+    }
+    const pairing = await this.credential.withRetry((token) =>
+      this.ports.access.createPairingCode(this.url, token, "mobile"),
+    );
+    return buildShareUrls(endpoints, pairing);
   }
 
   onStatusChange(listener: DaemonStatusListener): () => void {
@@ -145,11 +178,10 @@ export class DaemonSupervisor {
 
   private applyHealthy(healthy: HealthyDaemon): void {
     this.url = healthy.url;
-    this.token = healthy.token;
+    this.credential.set(healthy.token);
     this.lifecycle = healthy.lifecycle;
-    this.shareUrls = buildShareUrls(
+    this.shareEndpoints = buildShareEndpoints(
       healthy.daemon,
-      healthy.token,
       this.ports.networkInterfaces(),
     );
     this.lastHealthyAt = this.ports.scheduler.now();
@@ -165,20 +197,20 @@ export class DaemonSupervisor {
         return supervisor.url;
       },
       get token() {
-        return supervisor.token;
-      },
-      get shareUrl() {
-        return supervisor.shareUrls.shareUrl;
-      },
-      get mobileSetupUrl() {
-        return supervisor.shareUrls.mobileSetupUrl;
-      },
-      get secureShareUrl() {
-        return supervisor.shareUrls.secureShareUrl;
+        return supervisor.credential.token;
       },
       get caCertUrl() {
-        return supervisor.shareUrls.caCertUrl;
+        return supervisor.shareEndpoints?.caCertUrl;
       },
+      get mobileShareAvailable() {
+        return supervisor.shareEndpoints !== undefined;
+      },
+      createShareUrls: () => supervisor.createShareUrls(),
+      refreshCredential: () => supervisor.credential.refresh(),
+      acceptRotatedCredential: (credential) =>
+        supervisor.credential.accept(credential),
+      onCredentialChange: (listener) =>
+        supervisor.credential.onChange(listener),
       owned: supervisor.config.owned,
       mode: supervisor.config.mode,
       getStatus: () => supervisor.getStatus(),
@@ -424,8 +456,18 @@ export class DaemonSupervisor {
 
   private async performHealthCheck(): Promise<void> {
     if (this.stopped || this.restarting) return;
-    if (!this.url || !this.token) return;
-    const health = await this.ports.health.check(this.url, this.token);
+    if (!this.url || !this.credential.token) return;
+    let health = await this.ports.health.check(this.url, this.credential.token);
+    if (
+      health.status === 401 &&
+      (await this.credential.refresh()) &&
+      this.credential.token
+    ) {
+      health = await this.ports.health.check(this.url, this.credential.token);
+    }
+    if (health.rotatedCredential) {
+      this.credential.accept(health.rotatedCredential);
+    }
     if (health.healthy) {
       this.lifecycle = health.lifecycle;
       this.consecutiveFailures = 0;
@@ -456,7 +498,10 @@ export class DaemonSupervisor {
     const reason = `Daemon stopped responding after ${this.consecutiveFailures} failed health checks (${health.outcome}${status}).`;
     await this.captureUnhealthyDiagnostics(reason);
     if (this.stopped || this.restarting || this.child?.exited) return;
-    const recovery = await this.ports.health.check(this.url, this.token);
+    const recovery = await this.ports.health.check(
+      this.url,
+      this.credential.token,
+    );
     if (recovery.healthy) {
       this.consecutiveFailures = 0;
       this.failedHealthChecks.length = 0;
@@ -535,8 +580,8 @@ export class DaemonSupervisor {
     ) {
       // Already recovered by a previous chained restart.
       const healthy =
-        this.url && this.token
-          ? await this.ports.health.check(this.url, this.token)
+        this.url && this.credential.token
+          ? await this.ports.health.check(this.url, this.credential.token)
           : undefined;
       if (healthy?.healthy) return;
     }
@@ -611,6 +656,7 @@ export class DaemonSupervisor {
   async stop(): Promise<void> {
     if (this.stopped) return;
     this.stopped = true;
+    this.credential.close();
     this.stopHealthMonitor();
     const child = this.child;
     if (child) {

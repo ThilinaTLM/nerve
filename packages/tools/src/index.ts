@@ -1,5 +1,4 @@
 export {
-  allToolDefinitions,
   allToolDescriptors,
   coreToolDefinitions,
   coreToolDescriptors,

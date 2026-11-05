@@ -28,7 +28,6 @@ import {
 
 export type FileOperationContext = {
   projectId: string;
-  projectDirectory: string;
   /** Re-lists the loaded directories and Git status. */
   refresh: (directories: string[]) => Promise<void>;
   /** Pushes expansion changes to the live-update monitor. */
@@ -204,7 +203,7 @@ export async function deleteFileExplorerEntries(
         break;
       if (bridge) {
         await bridge.files.trashProjectEntry({
-          root: context.projectDirectory,
+          projectId: context.projectId,
           relativePath: entry.path,
         });
       } else {

@@ -27,8 +27,6 @@ export type SettingsChoice = {
   disabled?: boolean;
 };
 
-export type SettingsStatus = "ok" | "warning" | "error" | "muted";
-
 /** A count or flag at the end of a nav row, e.g. project changes on a page. */
 export type SettingsNavBadge = {
   text: string;

@@ -18,6 +18,8 @@ export interface StoragePaths {
   masterKeyPath: string;
   credentialsPath: string;
   localTokenPath: string;
+  /** Per-device credential hashes and owner passkeys (0600). */
+  devicesPath: string;
   dataPath: string;
   sqlitePath: string;
   conversationsPath: string;
@@ -31,6 +33,8 @@ export interface StoragePaths {
   cachePath: string;
   queryCachePath: string;
   logsPath: string;
+  /** JSONL audit trail of authentication events (never secrets). */
+  accessAuditPath: string;
   crashesPath: string;
   migrationsPath: string;
   migrationWorkPath: string;
@@ -69,6 +73,7 @@ export function storagePaths(home = resolveDataDir()): StoragePaths {
     masterKeyPath: join(secretsPath, "master.key"),
     credentialsPath: join(secretsPath, "credentials.enc"),
     localTokenPath: join(secretsPath, "daemon-token"),
+    devicesPath: join(secretsPath, "devices.json"),
     dataPath,
     sqlitePath: join(dataPath, "nerve.sqlite"),
     conversationsPath: join(dataPath, "conversations"),
@@ -82,6 +87,7 @@ export function storagePaths(home = resolveDataDir()): StoragePaths {
     cachePath,
     queryCachePath: join(cachePath, "query-cache.sqlite"),
     logsPath: join(home, "logs"),
+    accessAuditPath: join(home, "logs", "access-audit.jsonl"),
     crashesPath: join(home, "crashes"),
     migrationsPath,
     migrationWorkPath: join(migrationsPath, "work"),

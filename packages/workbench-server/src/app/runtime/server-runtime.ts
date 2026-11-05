@@ -57,6 +57,10 @@ import {
 } from "../../adapters/contexts.js";
 import { RuntimeLifecycle } from "./runtime-lifecycle.js";
 import { version } from "../version.js";
+import {
+  AccessService,
+  accessSettingsFromSnapshot,
+} from "../../domains/access/access-service.js";
 
 export interface ServerRuntime {
   daemonId: string;
@@ -65,6 +69,7 @@ export interface ServerRuntime {
   port: number;
   mobileHttps?: MobileHttpsInfo & { caCertPem: string; hosts: string[] };
   storage: InitializedStorage;
+  access: AccessService;
   events: WorkbenchNoticePublisher;
   logger: ApplicationLogger;
   applicationLogsEnabled: boolean;
@@ -97,6 +102,8 @@ export interface ServerRuntimeOptions {
   daemonId?: string;
   startedAt?: string;
   resources?: ResourceLimits & { controlWorkConcurrency: number };
+  /** Created early by the daemon so devices authenticate during storage upgrade. */
+  access?: AccessService;
 }
 
 export function createServerRuntime(
@@ -235,6 +242,25 @@ export function composeServerRuntime(
       env: {},
       argv: [],
     }).snapshot;
+  const access =
+    options.access ??
+    new AccessService({
+      paths: storage.paths,
+      localToken: storage.localToken,
+      settings: accessSettingsFromSnapshot(applicationConfiguration),
+    });
+  access.logger = { warn: (message) => void logger.warn(message) };
+  access.notifier = {
+    devicePaired: (device) =>
+      events.publishBestEffort("access.device_paired", { device }),
+    deviceRevoked: (deviceId, reason) =>
+      events.publishBestEffort("access.device_revoked", { deviceId, reason }),
+    passkeysChanged: (count) =>
+      events.publishBestEffort("access.passkeys_changed", { count }),
+  };
+  access.onLocalTokenRotated = (token) => {
+    storage.localToken = token;
+  };
   const infrastructure = {
     daemonId,
     host,
@@ -265,6 +291,7 @@ export function composeServerRuntime(
     host,
     port,
     storage,
+    access,
     events,
     logger,
     applicationLogsEnabled: options.applicationLogsEnabled ?? false,

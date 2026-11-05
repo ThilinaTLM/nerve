@@ -6,7 +6,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { test, type TestContext } from "node:test";
 
-const runner = fileURLToPath(new URL("./run-tests.mjs", import.meta.url));
+const runner = fileURLToPath(new URL("./run-tests.ts", import.meta.url));
 
 function fixture(t: TestContext) {
   const cwd = mkdtempSync(join(tmpdir(), "workbench-tests-"));

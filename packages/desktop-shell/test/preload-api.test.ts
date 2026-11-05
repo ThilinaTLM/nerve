@@ -4,7 +4,7 @@ import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, it } from "node:test";
-import { bundleDesktopPreload } from "../scripts/copy-preload.mjs";
+import { bundleDesktopPreload } from "../scripts/copy-preload.ts";
 
 const require = createRequire(import.meta.url);
 const { createDesktopPreloadApi } = require("../src/preload-api.cjs") as {
@@ -166,7 +166,7 @@ describe("desktop preload API", () => {
 
   it("forwards every invoke channel, argument, and returned value", async () => {
     const { api, invocations } = fixture();
-    const target = { projectDir: "/tmp/project", path: "README.md" };
+    const target = { projectId: "proj_1", relativePath: "README.md" };
     const results = await Promise.all([
       api.window.minimize(),
       api.window.toggleMaximize(),

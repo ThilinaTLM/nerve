@@ -70,7 +70,6 @@ import {
   removeQueuedHarnessMessage,
   steerHarness,
 } from "./queue/operations.js";
-import { convertToLlm } from "../messages/messages.js";
 import type {
   AgentHarnessOptions,
   AgentHarnessResources,
@@ -93,6 +92,7 @@ import {
   type AgentHarnessTurnState,
   createTurnState as createAgentHarnessTurnState,
 } from "./configuration/turn-state.js";
+import { createHarnessLoopConfig } from "./run/loop-config.js";
 import { HarnessRunState } from "./run/run-state.js";
 import { HarnessTurnController } from "./run/turn-controller.js";
 export class AgentHarness<
@@ -367,114 +367,37 @@ export class AgentHarness<
     streamFn: HarnessStreamFn,
     initialSystemPrompt?: string,
   ): AgentLoopConfig {
-    let invocationSystemPrompt = initialSystemPrompt;
-    const turnState = getTurnState();
-    return {
-      model: turnState.model,
-      prepareProviderDispatch: async () => {
-        const result = await streamFn.prepareRequest();
-        if (result.kind === "ready") return result;
-        await this.flushPendingConversationWrites();
-        const refreshed = await this.createTurnState(true);
-        setTurnState(refreshed);
-        return {
-          kind: "refresh",
-          update: {
-            context: this.createContext(refreshed, invocationSystemPrompt),
-            model: refreshed.model,
-            thinkingLevel: refreshed.thinkingLevel,
-          },
-        };
-      },
-      maxParallelToolCalls: this.maxParallelToolCalls,
-      reasoning:
-        turnState.thinkingLevel === "off" ? undefined : turnState.thinkingLevel,
-      convertToLlm,
-      transformContext: async (messages) => {
-        const result = await this.emitHook({
-          type: "context",
-          messages: [...messages],
-        });
-        return result?.messages ?? messages;
-      },
-      beforeToolCall: async ({ toolCall, args }) => {
-        const result = await this.emitHook({
-          type: "tool_call",
-          toolCallId: toolCall.id,
-          toolName: toolCall.name,
-          input: args as Record<string, unknown>,
-        });
-        return result
-          ? { block: result.block, reason: result.reason }
-          : undefined;
-      },
-      afterToolCall: async ({ toolCall, args, result, isError }) => {
-        const patch = await this.emitHook({
-          type: "tool_result",
-          toolCallId: toolCall.id,
-          toolName: toolCall.name,
-          input: args as Record<string, unknown>,
-          content: result.content,
-          details: result.details,
-          isError,
-        });
-        return patch
-          ? {
-              content: patch.content,
-              details: patch.details,
-              isError: patch.isError,
-              terminate: patch.terminate,
-            }
-          : undefined;
-      },
-      prepareNextTurn: async (context) => {
-        // before_agent_start overrides belong only to the initial logical invocation.
-        invocationSystemPrompt = undefined;
-        await this.flushPendingConversationWrites();
-        const boundaryResult = await this.emitHook({
-          type: "iteration_boundary",
-          message: context.message,
-          toolResults: context.toolResults,
-          hasMoreToolCalls: context.hasMoreToolCalls,
-          signal:
-            this.runAbortController?.signal ?? new AbortController().signal,
-        });
-        if (boundaryResult?.followUp && !context.hasMoreToolCalls) {
-          await enqueueAutomaticFollowUp(
-            this.queueState(),
-            boundaryResult.followUp,
+    return createHarnessLoopConfig(
+      {
+        maxParallelToolCalls: this.maxParallelToolCalls,
+        hasPendingTurnInput: this.hasPendingTurnInput,
+        emitHook: (event) => this.emitHook(event),
+        flushPendingConversationWrites: () =>
+          this.flushPendingConversationWrites(),
+        createTurnState: (refresh) => this.createTurnState(refresh),
+        createContext: (turnState, systemPrompt) =>
+          this.createContext(turnState, systemPrompt),
+        getRunSignal: () => this.runAbortController?.signal,
+        enqueueAutomaticFollowUp: (text) =>
+          enqueueAutomaticFollowUp(this.queueState(), text),
+        hasQueuedSteeringOrFollowUp: () =>
+          this.steerQueue.length > 0 || this.followUpQueue.length > 0,
+        drainSteeringMessages: () => {
+          const forceDrainAll = this.forceDrainAll;
+          this.forceDrainAll = false;
+          return this.drainQueuedMessages(
+            this.steerQueue,
+            forceDrainAll ? "all" : this.steeringQueueMode,
           );
-        }
-        if (
-          !context.hasMoreToolCalls &&
-          this.hasPendingTurnInput &&
-          !this.steerQueue.length &&
-          !this.followUpQueue.length &&
-          !(await this.hasPendingTurnInput())
-        )
-          return undefined;
-        const nextTurnState = await this.createTurnState();
-        setTurnState(nextTurnState);
-        return {
-          continue: ["user", "harness"].includes(
-            nextTurnState.messages.at(-1)?.role ?? "",
-          ),
-          context: this.createContext(nextTurnState),
-          model: nextTurnState.model,
-          thinkingLevel: nextTurnState.thinkingLevel,
-        };
+        },
+        drainFollowUpMessages: () =>
+          this.drainQueuedMessages(this.followUpQueue, this.followUpQueueMode),
       },
-      getSteeringMessages: async () => {
-        const forceDrainAll = this.forceDrainAll;
-        this.forceDrainAll = false;
-        return this.drainQueuedMessages(
-          this.steerQueue,
-          forceDrainAll ? "all" : this.steeringQueueMode,
-        );
-      },
-      getFollowUpMessages: async () =>
-        this.drainQueuedMessages(this.followUpQueue, this.followUpQueueMode),
-    };
+      getTurnState,
+      setTurnState,
+      streamFn,
+      initialSystemPrompt,
+    );
   }
 
   private validateToolNames(
