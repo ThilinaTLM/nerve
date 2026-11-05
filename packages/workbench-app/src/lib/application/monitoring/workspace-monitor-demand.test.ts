@@ -212,3 +212,24 @@ test("orders a project refresh after the project's monitor sync", async () => {
     ["filesystem.project.monitor.sync", "filesystem.project.refresh"],
   );
 });
+
+test("project sync resolves with the server monitor state, or undefined when skipped", async () => {
+  let ready = false;
+  const state = { active: true, degraded: true, watchedDirectoryCount: 2 };
+  const coordinator = new WorkspaceMonitorDemandCoordinator({
+    isReady: () => ready,
+    request: (async () => state) as ConstructorParameters<
+      typeof WorkspaceMonitorDemandCoordinator
+    >[0]["request"],
+  });
+
+  assert.equal(
+    await coordinator.syncProject("proj_one", ["", "src"]),
+    undefined,
+  );
+  ready = true;
+  assert.deepEqual(
+    await coordinator.syncProject("proj_one", ["", "src"]),
+    state,
+  );
+});

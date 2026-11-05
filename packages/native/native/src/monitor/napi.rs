@@ -17,6 +17,7 @@ pub struct NativeMonitorOptions {
     pub max_scopes: Option<f64>,
     pub max_registrations: Option<f64>,
     pub max_directories_per_scope: Option<f64>,
+    pub max_tree_directories: Option<f64>,
     pub max_git_paths: Option<f64>,
     pub max_paths_per_notice: Option<f64>,
 }
@@ -25,6 +26,13 @@ pub struct NativeMonitorOptions {
 pub struct NativeDirectoryMonitorScope {
     pub id: String,
     pub paths: Vec<String>,
+    pub poll_interval_ms: Option<f64>,
+}
+
+#[napi(object)]
+pub struct NativeTreeMonitorScope {
+    pub id: String,
+    pub root: String,
     pub poll_interval_ms: Option<f64>,
 }
 
@@ -91,6 +99,24 @@ pub fn sync_change_monitor_directories(
             id: scope.id,
             kind: ScopeKind::Directories,
             paths: scope.paths.into_iter().map(PathBuf::from).collect(),
+            poll_interval: duration(scope.poll_interval_ms, 20_000.0)?,
+        },
+    }))
+}
+
+#[napi]
+pub fn sync_change_monitor_tree(
+    handle: NativeMonitorHandle,
+    scope: NativeTreeMonitorScope,
+) -> Result<AsyncTask<SyncTask>> {
+    Ok(AsyncTask::new(SyncTask {
+        monitor: registered_monitor(handle.id)?,
+        spec: ScopeSpec {
+            id: scope.id,
+            kind: ScopeKind::Tree {
+                root: PathBuf::from(scope.root),
+            },
+            paths: Vec::new(),
             poll_interval: duration(scope.poll_interval_ms, 20_000.0)?,
         },
     }))
@@ -275,6 +301,11 @@ impl TryFrom<NativeMonitorOptions> for MonitorLimits {
                 .map(|value| positive_usize("maxDirectoriesPerScope", value))
                 .transpose()?
                 .unwrap_or(defaults.max_directories_per_scope),
+            max_tree_directories: value
+                .max_tree_directories
+                .map(|value| positive_usize("maxTreeDirectories", value))
+                .transpose()?
+                .unwrap_or(defaults.max_tree_directories),
             max_git_paths: value
                 .max_git_paths
                 .map(|value| positive_usize("maxGitPaths", value))

@@ -1,3 +1,10 @@
+<script lang="ts" module>
+export type PanelTreeController = {
+  /** Scrolls the row into view and, with `focus`, moves keyboard focus to it. */
+  revealRow: (id: string, options?: { focus?: boolean }) => Promise<void>;
+};
+</script>
+
 <script lang="ts" generics="T">
 import type { StatusTone } from "@nervekit/ui-kit/display/status";
 import ChevronDown from "@lucide/svelte/icons/chevron-down";
@@ -19,6 +26,7 @@ import {
   firstPanelTreeChildId,
   panelTreeExpandableIds,
   parentPanelTreeRowId,
+  typeaheadPanelTreeRowId,
   visiblePanelTreeRows,
   type PanelTreeNode,
   type PanelTreeRow,
@@ -54,7 +62,37 @@ type Props = {
   onItemActivate?: (item: T) => void;
   getItemDraggable?: (item: T) => boolean;
   onItemDragStart?: (event: DragEvent, item: T) => void;
+  onItemDragEnd?: (event: DragEvent, item: T) => void;
+  /** Row drop-target handlers; the tree only forwards the events. */
+  onItemDragEnter?: (event: DragEvent, item: T) => void;
+  onItemDragOver?: (event: DragEvent, item: T) => void;
+  onItemDragLeave?: (event: DragEvent, item: T) => void;
+  onItemDrop?: (event: DragEvent, item: T) => void;
+  getItemDropTarget?: (item: T) => boolean;
+  /** Recedes the row (e.g. ignored files). */
+  getItemDimmed?: (item: T) => boolean;
+  /** Rows for which `itemEditor` replaces the label. */
+  getItemEditing?: (item: T) => boolean;
+  itemEditor?: Snippet<[T]>;
+  /**
+   * Called before the default pointer handling; return true to consume the
+   * click (modifier-click selection) so the row is neither activated nor toggled.
+   */
+  onItemClick?: (event: MouseEvent, item: T) => boolean | void;
+  /**
+   * Called for keys on a focused row before the built-in navigation; return
+   * true to consume the key. Receives the rows currently visible.
+   */
+  onItemKeydown?: (event: KeyboardEvent, item: T) => boolean | void;
+  /** Allows more than one selected row (adds `aria-multiselectable`). */
+  multiselectable?: boolean;
+  /** Bindable imperative handle for scroll-to-row and focus. */
+  controller?: PanelTreeController;
   itemLeading?: Snippet<[T]>;
+  /** Replaces the default folder icon of generated path groups. */
+  groupIcon?: Snippet<[readonly string[], boolean]>;
+  /** Segmented label (e.g. highlighted search matches); the node label stays the accessible fallback. */
+  itemLabel?: Snippet<[T]>;
   itemBadges?: Snippet<[T]>;
   itemActions?: Snippet<[T]>;
   /** Actions for generated directory groups, receiving the full path. */
@@ -66,6 +104,7 @@ type Props = {
   class?: string;
 };
 
+/* eslint-disable no-useless-assignment -- $bindable defaults declare parent bindings before the effect assigns the handle. */
 let {
   nodes,
   ariaLabel,
@@ -84,7 +123,22 @@ let {
   onItemActivate,
   getItemDraggable,
   onItemDragStart,
+  onItemDragEnd,
+  onItemDragEnter,
+  onItemDragOver,
+  onItemDragLeave,
+  onItemDrop,
+  getItemDropTarget,
+  getItemDimmed,
+  getItemEditing,
+  itemEditor,
+  onItemClick,
+  onItemKeydown,
+  multiselectable = false,
+  controller = $bindable(),
   itemLeading,
+  groupIcon,
+  itemLabel,
   itemBadges,
   itemActions,
   groupActions,
@@ -93,6 +147,7 @@ let {
   getGroupMenuItems,
   class: className,
 }: Props = $props();
+/* eslint-enable no-useless-assignment */
 
 let root: HTMLElement | undefined = $state();
 let virtualController = $state<VirtualScrollerController>();
@@ -151,19 +206,44 @@ function activate(node: PanelTreeNode<T>): void {
   toggle(node);
 }
 
-async function focusRow(id: string | undefined): Promise<void> {
+async function focusRow(
+  id: string | undefined,
+  options: { focus?: boolean } = {},
+): Promise<void> {
   if (!id) return;
-  focusedId = id;
-  if (virtualized) {
-    const index = rows.findIndex((row) => row.node.id === id);
-    if (index >= 0) virtualController?.scrollToIndex(index, { align: "auto" });
-  }
+  const index = rows.findIndex((row) => row.node.id === id);
+  if (index < 0) return;
+  if (options.focus !== false) focusedId = id;
+  if (virtualized) virtualController?.scrollToIndex(index, { align: "auto" });
   await tick();
   if (virtualized) await tick();
   const element = [
     ...(root?.querySelectorAll<HTMLElement>("[data-panel-row-id]") ?? []),
   ].find((candidate) => candidate.dataset.panelRowId === id);
-  element?.focus();
+  if (options.focus === false) element?.scrollIntoView({ block: "nearest" });
+  else element?.focus();
+}
+
+$effect(() => {
+  controller = {
+    revealRow: (id, options) => focusRow(id, options),
+  };
+});
+
+const TYPEAHEAD_RESET_MS = 700;
+let typeaheadBuffer = "";
+let typeaheadTimer: ReturnType<typeof setTimeout> | undefined;
+
+function typeahead(event: KeyboardEvent, node: PanelTreeNode<T>): boolean {
+  if (event.ctrlKey || event.metaKey || event.altKey || event.key.length !== 1)
+    return false;
+  if (event.key === " " && typeaheadBuffer === "") return false;
+  typeaheadBuffer += event.key;
+  clearTimeout(typeaheadTimer);
+  typeaheadTimer = setTimeout(() => (typeaheadBuffer = ""), TYPEAHEAD_RESET_MS);
+  const destination = typeaheadPanelTreeRowId(rows, node.id, typeaheadBuffer);
+  if (destination) void focusRow(destination);
+  return true;
 }
 
 function activateFromPointer(event: MouseEvent, node: PanelTreeNode<T>): void {
@@ -172,11 +252,27 @@ function activateFromPointer(event: MouseEvent, node: PanelTreeNode<T>): void {
   );
   focusedId = node.id;
   row?.focus();
+  if (node.kind === "item" && onItemClick?.(event, node.value) === true) return;
   activate(node);
+}
+
+/**
+ * App shortcuts run first and can unmount this tree (Ctrl+Shift+F swaps the
+ * dock panel) before the row's own handler is called. A handled key must not
+ * touch the row's reactive state: reading it after teardown logs
+ * `derived_inert`. The node is therefore read lazily, after this guard.
+ */
+function handleRowKeydown(event: KeyboardEvent, node: () => PanelTreeNode<T>) {
+  if (event.defaultPrevented) return;
+  handleKeydown(event, node());
 }
 
 function handleKeydown(event: KeyboardEvent, node: PanelTreeNode<T>): void {
   if (event.target !== event.currentTarget) return;
+  if (node.kind === "item" && onItemKeydown?.(event, node.value) === true) {
+    event.preventDefault();
+    return;
+  }
 
   let destination: string | undefined;
   switch (event.key) {
@@ -210,10 +306,16 @@ function handleKeydown(event: KeyboardEvent, node: PanelTreeNode<T>): void {
       break;
     case "Enter":
     case " ":
+      if (event.key === " " && typeaheadBuffer !== "") {
+        typeahead(event, node);
+        event.preventDefault();
+        return;
+      }
       activate(node);
       destination = node.id;
       break;
     default:
+      if (typeahead(event, node)) event.preventDefault();
       return;
   }
 
@@ -229,15 +331,16 @@ function handleKeydown(event: KeyboardEvent, node: PanelTreeNode<T>): void {
   {@const open = expandable && expanded.has(node.id)}
   {#if node.kind === "group"}
     {#snippet groupLeading()}
-      {#if open}
-        {#if showGroupDisclosure}
-          <ChevronDown class="size-3" aria-hidden="true" />
-        {/if}
+      {#if open && showGroupDisclosure}
+        <ChevronDown class="size-3" aria-hidden="true" />
+      {:else if !open && showGroupDisclosure}
+        <ChevronRight class="size-3" aria-hidden="true" />
+      {/if}
+      {#if groupIcon}
+        {@render groupIcon(node.path, open)}
+      {:else if open}
         <FolderOpen class="size-3.5" aria-hidden="true" />
       {:else}
-        {#if showGroupDisclosure}
-          <ChevronRight class="size-3" aria-hidden="true" />
-        {/if}
         <Folder class="size-3.5" aria-hidden="true" />
       {/if}
     {/snippet}
@@ -264,7 +367,7 @@ function handleKeydown(event: KeyboardEvent, node: PanelTreeNode<T>): void {
       ariaSetSize={row.setSize}
       dataId={node.id}
       onfocus={() => (focusedId = node.id)}
-      onkeydown={(event) => handleKeydown(event, node)}
+      onkeydown={(event) => handleRowKeydown(event, () => node)}
       onclick={(event) => activateFromPointer(event, node)}
     />
   {:else}
@@ -286,8 +389,12 @@ function handleKeydown(event: KeyboardEvent, node: PanelTreeNode<T>): void {
     {#snippet leafActions()}
       {#if itemActions}{@render itemActions(node.value)}{/if}
     {/snippet}
+    {#snippet leafLabel()}
+      {#if itemLabel}{@render itemLabel(node.value)}{/if}
+    {/snippet}
     <PanelRow
       label={node.label}
+      labelContent={itemLabel ? leafLabel : undefined}
       title={getItemTitle?.(node.value)}
       selected={getItemSelected?.(node.value) ?? false}
       tone={getItemTone?.(node.value)}
@@ -313,9 +420,20 @@ function handleKeydown(event: KeyboardEvent, node: PanelTreeNode<T>): void {
       ariaSetSize={row.setSize}
       dataId={node.id}
       draggable={getItemDraggable?.(node.value) ?? false}
+      dimmed={getItemDimmed?.(node.value) ?? false}
+      dropTarget={getItemDropTarget?.(node.value) ?? false}
+      editor={itemEditor && getItemEditing?.(node.value)
+        ? itemEditor
+        : undefined}
+      editorArg={node.value}
       ondragstart={(event) => onItemDragStart?.(event, node.value)}
+      ondragend={(event) => onItemDragEnd?.(event, node.value)}
+      ondragenter={(event) => onItemDragEnter?.(event, node.value)}
+      ondragover={(event) => onItemDragOver?.(event, node.value)}
+      ondragleave={(event) => onItemDragLeave?.(event, node.value)}
+      ondrop={(event) => onItemDrop?.(event, node.value)}
       onfocus={() => (focusedId = node.id)}
-      onkeydown={(event) => handleKeydown(event, node)}
+      onkeydown={(event) => handleRowKeydown(event, () => node)}
       onclick={(event) => activateFromPointer(event, node)}
     />
   {/if}
@@ -325,9 +443,12 @@ function handleKeydown(event: KeyboardEvent, node: PanelTreeNode<T>): void {
   bind:this={root}
   role="tree"
   aria-label={ariaLabel}
+  aria-multiselectable={multiselectable || undefined}
   class={cn(
     "flex min-w-0 flex-col",
-    virtualized && "min-h-0 flex-1",
+    // PanelView insets content by one step. The virtualized scroller bleeds
+    // back to the panel edge so its scrollbar sits flush, and re-pads its rows.
+    virtualized && "-mx-2 min-h-0 flex-1",
     className,
   )}
 >
@@ -337,7 +458,7 @@ function handleKeydown(event: KeyboardEvent, node: PanelTreeNode<T>): void {
       getKey={(row) => row.node.id}
       estimateSize={() => 20}
       bind:controller={virtualController}
-      viewportClass="h-full"
+      viewportClass="h-full px-2"
       {horizontalScroll}
       rowClass={horizontalScroll ? "w-max min-w-full" : undefined}
     >

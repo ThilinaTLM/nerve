@@ -12,6 +12,7 @@ export {
 export { default as PanelSectionHeader } from "./PanelSectionHeader.svelte";
 export { default as PanelToolbarButton } from "./PanelToolbarButton.svelte";
 export { default as PanelTree } from "./PanelTree.svelte";
+export type { PanelTreeController } from "./PanelTree.svelte";
 export {
   adjacentPanelTreeRowId,
   buildPanelItemTree,
@@ -19,6 +20,7 @@ export {
   firstPanelTreeChildId,
   panelTreeExpandableIds,
   parentPanelTreeRowId,
+  typeaheadPanelTreeRowId,
   visiblePanelTreeRows,
 } from "./panel-tree.js";
 export type {

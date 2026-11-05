@@ -43,6 +43,12 @@ import { conversationCatalog } from "$lib/features/conversations/state/conversat
 import type { CapabilityToolGroup } from "$lib/presentation/composer/capability-tool-labels";
 import ConversationToolSettingsDialog from "./ConversationToolSettingsDialog.svelte";
 import type { ComposerEditorApi } from "$lib/presentation/composer/composer-editor-api";
+import { activeComposer } from "$lib/application/composer/active-composer.svelte";
+import {
+  composerMentionRequests,
+  takeComposerMentionRequests,
+} from "$lib/application/composer/composer-mention-requests.svelte";
+import { pathMentionReference } from "$lib/presentation/composer/composer-path-references";
 import { ComposerDictationBridge } from "$lib/presentation/composer/composer-dictation-bridge";
 import { bindComposerVoiceInput } from "./composer-voice-input";
 
@@ -258,6 +264,13 @@ const voiceTarget = $derived.by<VoiceInputTarget | undefined>(() => {
   return undefined;
 });
 let editorApi = $state<ComposerEditorApi>();
+// Mentions requested elsewhere (Files panel "Mention in conversation").
+$effect(() => {
+  if (!editorApi || composerMentionRequests.paths.length === 0) return;
+  if (activeComposer() !== composerView) return;
+  const paths = takeComposerMentionRequests();
+  editorApi.insertReferences(paths.map((path) => pathMentionReference(path)));
+});
 const dictation = new ComposerDictationBridge(
   () => editorApi,
   () => {

@@ -13,6 +13,8 @@ export class ApplicationError extends Error {
     readonly options: {
       retryable?: boolean;
       recovery?: ErrorRecovery;
+      /** Structured, client-readable context (forwarded as protocol `details`). */
+      details?: Record<string, unknown>;
     } = {},
   ) {
     super(message);

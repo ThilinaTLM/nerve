@@ -4,6 +4,7 @@ import { SvelteSet } from "svelte/reactivity";
 import type { FileExplorerProjectState } from "./file-explorer-state.svelte";
 import {
   buildFileExplorerTree,
+  buildFileExplorerTreeView,
   fileExplorerEntryNodeId,
 } from "./file-explorer-tree";
 
@@ -75,4 +76,71 @@ test("keeps symlink directories visible but non-expandable", () => {
   assert.equal(linked?.label, "linked");
   assert.equal(linked?.kind, "item");
   if (linked?.kind === "item") assert.equal(linked.expandable, false);
+});
+
+function nestedProject(): FileExplorerProjectState {
+  const state = project();
+  state.directories[""].entries.push({
+    name: "node_modules",
+    path: "node_modules",
+    kind: "directory",
+    symlink: false,
+    ignored: true,
+  });
+  state.directories[".git"] = {
+    ...state.directories[""],
+    path: ".git",
+    entries: [],
+  };
+  state.directories["node_modules"] = {
+    ...state.directories[""],
+    path: "node_modules",
+    entries: [
+      {
+        name: "readme.txt",
+        path: "node_modules/readme.txt",
+        kind: "file",
+        symlink: false,
+      },
+    ],
+  };
+  return state;
+}
+
+test("hides ignored entries and dotfiles on request", () => {
+  const state = nestedProject();
+  const labels = (options: Parameters<typeof buildFileExplorerTree>[1]) =>
+    buildFileExplorerTree(state, options).map((node) => node.label);
+  assert.deepEqual(labels({}), [".git", "README.md", "node_modules"]);
+  assert.deepEqual(labels({ hideDotfiles: true }), [
+    "README.md",
+    "node_modules",
+  ]);
+  assert.deepEqual(labels({ hideIgnored: true }), [".git", "README.md"]);
+});
+
+test("name filter keeps ancestors of matches and forces them open", () => {
+  const state = nestedProject();
+  const { nodes, filterExpandedIds } = buildFileExplorerTreeView(state, {
+    filter: "READ",
+  });
+  assert.deepEqual(
+    nodes.map((node) => node.label),
+    ["README.md", "node_modules"],
+  );
+  assert.deepEqual(
+    nodes[1]?.children.map((node) => node.label),
+    ["readme.txt"],
+  );
+  assert.ok(
+    filterExpandedIds.has(fileExplorerEntryNodeId("project", "node_modules")),
+  );
+});
+
+test("adds the inline create row first in its directory", () => {
+  const { nodes } = buildFileExplorerTreeView(nestedProject(), {
+    creating: { parentPath: "", kind: "file" },
+  });
+  const first = nodes[0];
+  assert.equal(first?.kind === "item" && first.value.type, "editor");
 });

@@ -6,9 +6,17 @@ export type FileGitDecoration = {
   title: string;
   class: string;
   tone: StatusTone;
+  /** Ignored paths recede in the tree. */
+  ignored?: boolean;
 };
 
 const conflictCodes = new Set(["U"]);
+
+/** Parent of a project-relative path; "" for top-level entries. */
+export function parentDirectory(path: string): string {
+  const separator = path.lastIndexOf("/");
+  return separator < 0 ? "" : path.slice(0, separator);
+}
 
 export function indexProjectFileStatuses(
   files: readonly GitProjectFileStatus[],
@@ -32,8 +40,12 @@ export function indexFileTreeGitDecorations(
   for (const file of files) {
     const decoration = fileGitDecoration(file);
     if (!decoration) continue;
-    decorations.set(file.path, decoration);
-    let directory = file.path.slice(0, file.path.lastIndexOf("/"));
+    // Collapsed untracked/ignored directories may be reported with a trailing slash.
+    const path = file.path.replace(/\/+$/, "");
+    decorations.set(path, decoration);
+    // An ignored path says nothing about its ancestors (`.nerve/*` is ignored
+    // while `.nerve/skills` is tracked), so only status tones propagate up.
+    let directory = decoration.tone === "neutral" ? "" : parentDirectory(path);
     while (directory) {
       const current = decorations.get(directory);
       if (
@@ -45,7 +57,7 @@ export function indexFileTreeGitDecorations(
           title: `Contains ${decoration.title.toLocaleLowerCase()} files`,
         });
       }
-      directory = directory.slice(0, directory.lastIndexOf("/"));
+      directory = parentDirectory(directory);
     }
   }
   return decorations;
@@ -63,12 +75,14 @@ export function fileTreeGitDecoration(
       title: "Git metadata",
       class: "text-muted-foreground",
       tone: "neutral",
+      ignored: true,
     };
-  let directory = path.slice(0, path.lastIndexOf("/"));
+  // Only an ignored ancestor passes its state down to its contents.
+  let directory = parentDirectory(path);
   while (directory) {
     const inherited = decorations.get(directory);
-    if (inherited?.tone === "neutral") return inherited;
-    directory = directory.slice(0, directory.lastIndexOf("/"));
+    if (inherited?.ignored) return inherited;
+    directory = parentDirectory(directory);
   }
   return undefined;
 }
@@ -84,6 +98,7 @@ export function fileGitDecoration(
       title: "Ignored by Git",
       class: "text-muted-foreground",
       tone: "neutral",
+      ignored: true,
     };
   const conflicted =
     conflictCodes.has(index) ||
@@ -134,4 +149,16 @@ export function fileGitDecoration(
       tone: "warning",
     };
   return undefined;
+}
+
+/**
+ * Whether the tree dims an entry. The listing's `ignored` flag (native ignore
+ * rules) is authoritative; the Git decoration only fills in when the listing
+ * could not evaluate ignore rules.
+ */
+export function isFileEntryDimmed(
+  entry: { ignored?: boolean },
+  decoration: FileGitDecoration | undefined,
+): boolean {
+  return entry.ignored ?? decoration?.ignored === true;
 }

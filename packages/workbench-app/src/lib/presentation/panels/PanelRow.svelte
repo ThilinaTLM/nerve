@@ -1,4 +1,4 @@
-<script lang="ts">
+<script lang="ts" generics="E = undefined">
 import type { StatusTone } from "@nervekit/ui-kit/display/status";
 import type { Snippet } from "svelte";
 import ContextMenuList, {
@@ -39,7 +39,16 @@ let {
   ariaSetSize,
   dataId,
   draggable,
+  dimmed = false,
+  dropTarget = false,
+  editor,
+  editorArg,
   ondragstart,
+  ondragend,
+  ondragenter,
+  ondragover,
+  ondragleave,
+  ondrop,
   onkeydown,
   onfocus,
   leading,
@@ -96,7 +105,27 @@ let {
   /** Stable DOM lookup key for composite widgets such as trees. */
   dataId?: string;
   draggable?: boolean;
+  /** Recedes the row content (e.g. ignored files) without changing its tone. */
+  dimmed?: boolean;
+  /** Highlights the row as the current drop target while dragging. */
+  dropTarget?: boolean;
+  /**
+   * Inline editor replacing the label (rename, create). The row content stops
+   * being a button so the field can live inside it.
+   */
+  editor?: Snippet<[E]>;
+  /**
+   * Passed to `editor`. Keep the snippet itself stable (a prop of the owner,
+   * not one declared per render): a new snippet identity re-mounts the field
+   * and drops its focus and text.
+   */
+  editorArg?: E;
   ondragstart?: (event: DragEvent) => void;
+  ondragend?: (event: DragEvent) => void;
+  ondragenter?: (event: DragEvent) => void;
+  ondragover?: (event: DragEvent) => void;
+  ondragleave?: (event: DragEvent) => void;
+  ondrop?: (event: DragEvent) => void;
   onkeydown?: (event: KeyboardEvent) => void;
   onfocus?: (event: FocusEvent) => void;
   /** Compact content rendered before the primary label. */
@@ -175,6 +204,7 @@ const twoLine = $derived(labelLines === 2);
             ? "h-5 gap-1 pr-1 text-ui"
             : "h-7 gap-1.5 pr-1.5 text-ui",
         selected && "text-foreground",
+        dropTarget && "bg-primary-subtle ring-1 ring-primary-strong ring-inset",
         className,
       ),
     })}
@@ -182,100 +212,119 @@ const twoLine = $derived(labelLines === 2);
     {role}
     {tabindex}
     aria-expanded={role === "treeitem" ? ariaExpanded : undefined}
+    aria-selected={role === "treeitem" ? selected : undefined}
     aria-level={ariaLevel}
     aria-posinset={ariaPosInSet}
     aria-setsize={ariaSetSize}
     data-panel-row-id={dataId}
     {draggable}
     {ondragstart}
+    {ondragend}
+    {ondragenter}
+    {ondragover}
+    {ondragleave}
+    {ondrop}
     {onkeydown}
     {onfocus}
   >
-    <button
-      type="button"
-      {disabled}
-      tabindex={contentTabindex}
-      aria-expanded={role === "treeitem" ? undefined : ariaExpanded}
-      aria-current={active ? "true" : undefined}
-      aria-label={ariaLabel}
-      title={title ?? description ?? label}
-      class={cn(
-        "flex min-w-0 flex-1 cursor-pointer items-center rounded-md text-left focus-visible:ring-3 focus-visible:ring-focus focus-visible:outline-none disabled:cursor-default disabled:opacity-50",
-        twoLine
-          ? titleTrailing
-            ? "items-start gap-2"
-            : "items-start gap-1"
-          : dense
-            ? "gap-1"
-            : "gap-1.5",
-      )}
-      {onclick}
-    >
-      {#if leading}
-        <span
-          class={rowStyles.icon({
-            class: cn("flex shrink-0 items-center", twoLine && "h-4"),
-          })}
-        >
-          {@render leading()}
-        </span>
-      {/if}
-      {#if twoLine}
-        <span
-          class={cn(
-            "flex min-w-0 flex-1 flex-col",
-            meta && !titleTrailing ? "gap-1" : "gap-0.5",
-          )}
-        >
-          {#if titleTrailing}
-            <span class="flex min-w-0 items-start gap-2">
+    {#if editor}
+      <div class="flex min-w-0 flex-1 items-center gap-1">
+        {#if leading}
+          <span class={rowStyles.icon({ class: "flex shrink-0 items-center" })}>
+            {@render leading()}
+          </span>
+        {/if}
+        {@render editor(editorArg as E)}
+      </div>
+    {:else}
+      <button
+        type="button"
+        {disabled}
+        tabindex={contentTabindex}
+        aria-expanded={role === "treeitem" ? undefined : ariaExpanded}
+        aria-current={active ? "true" : undefined}
+        aria-label={ariaLabel}
+        title={title ?? description ?? label}
+        class={cn(
+          "flex min-w-0 flex-1 cursor-pointer items-center rounded-md text-left focus-visible:ring-3 focus-visible:ring-focus focus-visible:outline-none disabled:cursor-default disabled:opacity-50",
+          twoLine
+            ? titleTrailing
+              ? "items-start gap-2"
+              : "items-start gap-1"
+            : dense
+              ? "gap-1"
+              : "gap-1.5",
+          dimmed && "opacity-60",
+        )}
+        {onclick}
+      >
+        {#if leading}
+          <span
+            class={rowStyles.icon({
+              class: cn("flex shrink-0 items-center", twoLine && "h-4"),
+            })}
+          >
+            {@render leading()}
+          </span>
+        {/if}
+        {#if twoLine}
+          <span
+            class={cn(
+              "flex min-w-0 flex-1 flex-col",
+              meta && !titleTrailing ? "gap-1" : "gap-0.5",
+            )}
+          >
+            {#if titleTrailing}
+              <span class="flex min-w-0 items-start gap-2">
+                <span
+                  class={cn(
+                    labelLayoutClass,
+                    "flex-1",
+                    toneClass,
+                    labelStateClass,
+                    labelClass,
+                  )}
+                  >{#if labelContent}{@render labelContent()}{:else}{label}{/if}</span
+                >
+                {@render titleTrailing()}
+              </span>
+            {:else}
               <span
                 class={cn(
                   labelLayoutClass,
-                  "flex-1",
                   toneClass,
                   labelStateClass,
                   labelClass,
                 )}
                 >{#if labelContent}{@render labelContent()}{:else}{label}{/if}</span
               >
-              {@render titleTrailing()}
-            </span>
-          {:else}
-            <span
-              class={cn(
-                labelLayoutClass,
-                toneClass,
-                labelStateClass,
-                labelClass,
-              )}
-              >{#if labelContent}{@render labelContent()}{:else}{label}{/if}</span
-            >
-          {/if}
-          {#if meta}
-            {@render meta()}
-          {:else if detail}
-            <span class={cn("truncate leading-4", toneTextClass(detailTone))}
-              >{detail}</span
-            >
-          {/if}
-        </span>
-      {:else}
-        <span
-          class={cn(
-            labelLayoutClass,
-            toneClass,
-            mono && "font-mono",
-            labelStateClass,
-          )}>{label}</span
-        >
-        {#if description}
-          <span class="min-w-0 flex-1 truncate text-muted-foreground"
-            >{description}</span
+            {/if}
+            {#if meta}
+              {@render meta()}
+            {:else if detail}
+              <span class={cn("truncate leading-4", toneTextClass(detailTone))}
+                >{detail}</span
+              >
+            {/if}
+          </span>
+        {:else}
+          <span
+            class={cn(
+              labelLayoutClass,
+              toneClass,
+              mono && "font-mono",
+              labelStateClass,
+            )}
+            >{#if labelContent}{@render labelContent()}{:else}{label}{/if}</span
           >
+          {#if description}
+            <span class="min-w-0 flex-1 truncate text-muted-foreground"
+              >{description}</span
+            >
+          {/if}
         {/if}
-      {/if}
-    </button>
+      </button>
+    {/if}
     {#if badges}
       <div class="flex shrink-0 items-center gap-1 text-muted-foreground">
         {@render badges()}

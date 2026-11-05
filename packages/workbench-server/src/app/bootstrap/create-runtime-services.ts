@@ -48,6 +48,7 @@ import { ProjectIconService } from "../../domains/projects/project-icon.service.
 import { GitService, GitOperationService } from "@nervekit/tools/git";
 import { withGitMutationEvents } from "../../domains/git/git-mutation-publisher.js";
 import { WorkspaceMonitor } from "../../domains/monitoring/workspace-monitor.js";
+import { projectPathIndexes } from "../../domains/filesystem/project-path-index.js";
 
 export interface RuntimeDeps {
   storage: InitializedStorage;
@@ -198,6 +199,8 @@ export function createRuntimeServices(deps: RuntimeDeps) {
   const workspaceMonitor = new WorkspaceMonitor(
     createWorkspaceMonitorPublisher(events, git),
     {
+      onProjectChanged: (projectId, changedPaths) =>
+        projectPathIndexes.notifyChanged(projectId, changedPaths),
       onRemoteRefsChanged: (projectId, repo, branches) => {
         if (branches.length)
           for (const branch of branches) prSync.expect(projectId, repo, branch);

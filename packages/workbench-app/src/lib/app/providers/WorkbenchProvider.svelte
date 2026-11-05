@@ -34,6 +34,7 @@ import {
   scopedUsableModelOptions,
 } from "$lib/presentation/utils/model";
 import { focusProjectSearch } from "$lib/features/projects";
+import { contentSearch, quickOpen } from "$lib/features/filesystem";
 import { createAppShortcuts } from "$lib/application/commands/app-shortcuts.svelte";
 import {
   clearGitContext,
@@ -180,6 +181,23 @@ function focusProjectSearchShortcut() {
   focusProjectSearch();
 }
 
+function openQuickOpenShortcut() {
+  quickOpen.show(activeProject?.id);
+}
+
+function focusContentSearchShortcut() {
+  const selected =
+    typeof window === "undefined"
+      ? ""
+      : (window.getSelection()?.toString().trim() ?? "");
+  const prefill =
+    selected && selected.length <= 200 && !selected.includes("\n")
+      ? selected
+      : undefined;
+  revealPanelView("search", responsive.isCompact);
+  contentSearch.requestFocus(prefill);
+}
+
 const appShortcuts = createAppShortcuts({
   currentZoomLevel: () => currentZoomLevel,
   setUiZoomLevel,
@@ -194,6 +212,8 @@ const appShortcuts = createAppShortcuts({
   centerTabsExcept,
   refreshCenterTab,
   focusProjectSearch: focusProjectSearchShortcut,
+  openQuickOpen: openQuickOpenShortcut,
+  focusContentSearch: focusContentSearchShortcut,
   hasConversationComposer: () => {
     const view = activeComposer();
     return (

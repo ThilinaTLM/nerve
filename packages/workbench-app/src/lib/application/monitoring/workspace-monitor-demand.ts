@@ -1,3 +1,4 @@
+import type { FilesystemProjectMonitorState } from "@nervekit/contracts/filesystem";
 import type {
   OperationName,
   OperationParams,
@@ -37,19 +38,23 @@ export class WorkspaceMonitorDemandCoordinator {
     this.#isReady = options.isReady;
   }
 
+  /**
+   * Resolves with the server monitor state, or undefined when the delivery was
+   * skipped (superseded by newer demand or the session is not ready).
+   */
   syncProject(
     projectId: string,
     directories: readonly string[],
-  ): Promise<void> {
+  ): Promise<FilesystemProjectMonitorState | undefined> {
     const revision = (this.#projects.get(projectId)?.revision ?? 0) + 1;
     this.#projects.set(projectId, { directories: [...directories], revision });
     return this.#deliverProject(projectId, revision, this.#epoch);
   }
 
-  clearProject(projectId: string): Promise<void> {
+  async clearProject(projectId: string): Promise<void> {
     const revision = (this.#projects.get(projectId)?.revision ?? 0) + 1;
     this.#projects.delete(projectId);
-    return this.#deliverProject(projectId, revision, this.#epoch);
+    await this.#deliverProject(projectId, revision, this.#epoch);
   }
 
   syncRepository(
@@ -136,19 +141,19 @@ export class WorkspaceMonitorDemandCoordinator {
     projectId: string,
     revision: number,
     epoch: number,
-  ): Promise<void> {
+  ): Promise<FilesystemProjectMonitorState | undefined> {
     return this.#enqueue(`project:${projectId}`, async () => {
-      if (epoch !== this.#epoch || !this.#isReady()) return;
+      if (epoch !== this.#epoch || !this.#isReady()) return undefined;
       const demand = this.#projects.get(projectId);
-      if (demand && demand.revision !== revision) return;
+      if (demand && demand.revision !== revision) return undefined;
       if (demand) {
-        await this.#request("filesystem.project.monitor.sync", {
+        return await this.#request("filesystem.project.monitor.sync", {
           projectId,
           directories: demand.directories,
         });
-        return;
       }
       await this.#request("filesystem.project.monitor.clear", { projectId });
+      return undefined;
     });
   }
 

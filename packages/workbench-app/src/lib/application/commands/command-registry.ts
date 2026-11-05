@@ -22,6 +22,8 @@ export type ShortcutCommandId =
   | "pane.next"
   | `pane.focusByIndex.${1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9}`
   | "projectSearch.focus"
+  | "quickOpen.open"
+  | "contentSearch.focus"
   | "composer.focus"
   | "composer.send"
   | "composer.stopRun"
@@ -115,6 +117,20 @@ export const DEFAULT_SHORTCUTS: ShortcutCommand[] = [
     label: "Search conversations",
     category: "Conversation",
     defaultBinding: { key: "k", mod: true },
+  },
+  {
+    id: "quickOpen.open",
+    label: "Go to file",
+    category: "Project",
+    defaultBinding: { key: "p", mod: true },
+    allowInEditable: true,
+  },
+  {
+    id: "contentSearch.focus",
+    label: "Search in files",
+    category: "Project",
+    defaultBinding: { key: "f", mod: true, shift: true },
+    allowInEditable: true,
   },
   {
     id: "composer.focus",

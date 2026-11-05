@@ -8,6 +8,7 @@ import {
   firstPanelTreeChildId,
   panelTreeExpandableIds,
   parentPanelTreeRowId,
+  typeaheadPanelTreeRowId,
   visiblePanelTreeRows,
 } from "./panel-tree.js";
 
@@ -233,4 +234,21 @@ test("expands and collapses item parents like group nodes", () => {
     ],
   );
   assert.equal(parentPanelTreeRowId(rows, "item:sub"), "item:main");
+});
+
+test("typeahead matches prefixes and cycles repeated characters", () => {
+  const nodes = buildPanelItemTree(
+    ["alpha", "beta", "bravo", "charlie"].map((name) => ({ name })),
+    {
+      getKey: (item) => item.name,
+      getParentKey: () => undefined,
+      getLabel: (item) => item.name,
+    },
+  );
+  const rows = visiblePanelTreeRows(nodes, new Set());
+  assert.equal(typeaheadPanelTreeRowId(rows, "item:alpha", "b"), "item:beta");
+  assert.equal(typeaheadPanelTreeRowId(rows, "item:beta", "b"), "item:bravo");
+  assert.equal(typeaheadPanelTreeRowId(rows, "item:bravo", "bb"), "item:beta");
+  assert.equal(typeaheadPanelTreeRowId(rows, "item:beta", "br"), "item:bravo");
+  assert.equal(typeaheadPanelTreeRowId(rows, "item:alpha", "z"), undefined);
 });

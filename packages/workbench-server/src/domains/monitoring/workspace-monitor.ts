@@ -22,6 +22,12 @@ export interface NativeChangeMonitorPort {
     paths: string[];
     pollIntervalMs?: number;
   }): Promise<MonitorScopeState>;
+  /** Recursive, ignore-filtered project watching; absent on monitors without it. */
+  syncTree?(input: {
+    id: string;
+    root: string;
+    pollIntervalMs?: number;
+  }): Promise<MonitorScopeState>;
   syncGit(input: {
     id: string;
     repository: string;
@@ -79,6 +85,9 @@ export class WorkspaceMonitor {
     Map<string, RepositoryDemand>
   >();
   readonly #projects = new Map<string, ProjectResource>();
+  /** Projects whose scope is a reliable recursive tree watch (poll is only a safety net). */
+  readonly #treeProjects = new Set<string>();
+  #treeUnavailable = false;
   readonly #repositories = new Map<string, RepositoryResource>();
   #monitor?: NativeChangeMonitorPort;
   #operationTail: Promise<void> = Promise.resolve();
@@ -92,6 +101,14 @@ export class WorkspaceMonitor {
         onNotice: (notice: ChangeNotice) => void,
       ) => NativeChangeMonitorPort;
       onWarning?: (message: string, error: unknown) => void;
+      /**
+       * Project files changed. `changedPaths` are project-relative ("/" separators);
+       * `undefined` means unknown (rescan everything). Feeds the native path index.
+       */
+      onProjectChanged?: (
+        projectId: string,
+        changedPaths: string[] | undefined,
+      ) => void;
       onRemoteRefsChanged?: (
         projectId: string,
         repo: string,
@@ -113,6 +130,10 @@ export class WorkspaceMonitor {
       onNotice: (notice: ChangeNotice) => void,
     ) => NativeChangeMonitorPort;
     onWarning?: (message: string, error: unknown) => void;
+    onProjectChanged?: (
+      projectId: string,
+      changedPaths: string[] | undefined,
+    ) => void;
     onRemoteRefsChanged?: (
       projectId: string,
       repo: string,
@@ -318,7 +339,14 @@ export class WorkspaceMonitor {
     for (const projectId of previous)
       await this.#native().remove(projectScopeId(projectId));
     const states = new Map<string, MonitorScopeState>();
-    for (const resource of this.#projects.values())
+    this.#treeProjects.clear();
+    for (const resource of this.#projects.values()) {
+      const tree = await this.#syncTree(resource);
+      if (tree) {
+        states.set(resource.projectId, tree);
+        if (!tree.degraded) this.#treeProjects.add(resource.projectId);
+        continue;
+      }
       states.set(
         resource.projectId,
         await this.#native().syncDirectories({
@@ -329,7 +357,35 @@ export class WorkspaceMonitor {
           pollIntervalMs: 20_000,
         }),
       );
+    }
     return states;
+  }
+
+  /** Recursive ignore-filtered watch when the native monitor supports it. */
+  async #syncTree(
+    resource: ProjectResource,
+  ): Promise<MonitorScopeState | undefined> {
+    const monitor = this.#native();
+    if (
+      this.#treeUnavailable ||
+      typeof monitor.syncTree !== "function" ||
+      (monitor instanceof ChangeMonitor && !ChangeMonitor.supportsTreeScopes())
+    )
+      return undefined;
+    try {
+      return await monitor.syncTree({
+        id: projectScopeId(resource.projectId),
+        root: resource.projectDir,
+        pollIntervalMs: 20_000,
+      });
+    } catch (error) {
+      this.#treeUnavailable = true;
+      this.options.onWarning?.(
+        "Recursive project watching unavailable; using per-directory watches",
+        error,
+      );
+      return undefined;
+    }
   }
 
   async #rebuildRepositories(): Promise<Map<string, MonitorScopeState>> {
@@ -390,6 +446,18 @@ export class WorkspaceMonitor {
       const directories = notice.fullRefreshRequired
         ? []
         : changedDirectories(project.projectDir, notice.paths);
+      try {
+        // A directory-poll safety net on a healthy tree watch proves nothing changed.
+        if (!(refreshCause && this.#treeProjects.has(project.projectId))) {
+          const changed = notice.fullRefreshRequired
+            ? undefined
+            : projectRelativePaths(project.projectDir, notice.paths);
+          if (!changed || changed.length > 0)
+            this.options.onProjectChanged?.(project.projectId, changed);
+        }
+      } catch (error) {
+        this.options.onWarning?.("Could not update project path index", error);
+      }
       this.publisher.publishBestEffort(
         "filesystem.project.changed",
         {
@@ -499,6 +567,20 @@ function changedDirectories(root: string, paths: readonly string[]): string[] {
     result.add(value === "." ? "" : value.split(sep).join("/"));
   }
   return [...result].slice(0, 256);
+}
+
+function projectRelativePaths(
+  root: string,
+  paths: readonly string[],
+): string[] {
+  const result: string[] = [];
+  for (const path of paths) {
+    const value = relative(root, path);
+    if (value === "" || value === ".." || value.startsWith(`..${sep}`))
+      continue;
+    result.push(value.split(sep).join("/"));
+  }
+  return result;
 }
 
 function emptyDiagnostics(): MonitorDiagnostics {

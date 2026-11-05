@@ -3,6 +3,7 @@ import type {
   ChangeNotice,
   DirectoryMonitorScope,
   GitMonitorScope,
+  TreeMonitorScope,
   MonitorDiagnostics,
   MonitorScopeState,
 } from "./contracts.js";
@@ -19,6 +20,11 @@ export interface NativeMonitorBinding {
   syncChangeMonitorDirectories(
     handle: NativeChangeMonitorHandle,
     scope: DirectoryMonitorScope,
+  ): Promise<MonitorScopeState>;
+  /** Absent in addons built before recursive tree watching. */
+  syncChangeMonitorTree?(
+    handle: NativeChangeMonitorHandle,
+    scope: TreeMonitorScope,
   ): Promise<MonitorScopeState>;
   syncChangeMonitorGit(
     handle: NativeChangeMonitorHandle,

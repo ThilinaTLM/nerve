@@ -8,6 +8,7 @@ import FileDiff from "@lucide/svelte/icons/file-diff";
 import FileText from "@lucide/svelte/icons/file-text";
 import GitPullRequest from "@lucide/svelte/icons/git-pull-request";
 import Logs from "@lucide/svelte/icons/logs";
+import Locate from "@lucide/svelte/icons/locate";
 import Pin from "@lucide/svelte/icons/pin";
 import PinOff from "@lucide/svelte/icons/pin-off";
 import RotateCcw from "@lucide/svelte/icons/rotate-ccw";
@@ -25,6 +26,9 @@ import type {
   WorkbenchTabModel,
 } from "$lib/presentation/shell";
 import type { ContextMenuItem } from "@nervekit/ui-kit/components/composites/context-menu-list";
+import { revealFileExplorerPath } from "$lib/features/filesystem";
+import { activatePanelView, revealPanelView } from "./shell-layout.svelte";
+import { responsive } from "./responsive.svelte";
 import { writeClipboardText } from "$lib/platform/clipboard/write-text";
 import type {
   CenterTabIdentity,
@@ -246,12 +250,26 @@ function tabMenu(tab: WorkbenchTabModel): ContextMenuItem[] {
       },
     );
     if (source.kind === "file") {
-      content.push({
-        label: fileWrapLabel(source),
-        icon: TextAlignStart,
-        disabled: !onToggleFileLineWrap,
-        onSelect: () => onToggleFileLineWrap?.(source.id),
-      });
+      const projectId = source.file?.projectId;
+      content.push(
+        {
+          label: "Reveal in Files",
+          icon: Locate,
+          disabled: !projectId || !relativePath,
+          onSelect: () => {
+            if (!projectId || !relativePath) return;
+            revealPanelView("files", responsive.isCompact);
+            activatePanelView("files");
+            void revealFileExplorerPath(projectId, relativePath);
+          },
+        },
+        {
+          label: fileWrapLabel(source),
+          icon: TextAlignStart,
+          disabled: !onToggleFileLineWrap,
+          onSelect: () => onToggleFileLineWrap?.(source.id),
+        },
+      );
     }
   }
 

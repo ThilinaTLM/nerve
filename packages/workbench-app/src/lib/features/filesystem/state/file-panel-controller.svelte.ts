@@ -7,11 +7,18 @@ import {
 import { registerFileExplorerEventHandler } from "./file-explorer-events";
 import { createFilePanelRefreshQueue } from "./file-panel-refresh-queue";
 import { startFileExplorerRefreshScheduler } from "./file-explorer-refresh-scheduler";
+import {
+  describeFileMonitorFailure,
+  describeFileMonitorState,
+  limitMonitoredDirectories,
+} from "./file-panel-status";
 
 export interface FilePanelControllerOptions {
   readonly projectId: string;
   readonly refresh: (directories?: readonly string[]) => Promise<void> | void;
   readonly initialize?: () => Promise<void> | void;
+  /** Reports a live-update problem, or undefined once the monitor is healthy. */
+  readonly onMonitorIssue?: (issue: string | undefined) => void;
 }
 
 export interface FilePanelController {
@@ -25,9 +32,33 @@ export function startFilePanelController({
   projectId,
   refresh,
   initialize,
+  onMonitorIssue,
 }: FilePanelControllerOptions): FilePanelController {
   let stopped = false;
   const queue = createFilePanelRefreshQueue(refresh);
+
+  const syncMonitor = async (
+    directories: readonly string[] = monitoredFileExplorerDirectories(
+      projectId,
+    ),
+  ): Promise<void> => {
+    if (stopped) return;
+    const limited = limitMonitoredDirectories(directories);
+    try {
+      const state = await syncProjectMonitor(projectId, limited.directories);
+      // Skipped deliveries (superseded or not connected) keep the last status.
+      if (stopped || !state) return;
+      onMonitorIssue?.(
+        describeFileMonitorState(
+          state,
+          limited.requestedCount,
+          limited.directories.length,
+        ),
+      );
+    } catch (error) {
+      if (!stopped) onMonitorIssue?.(describeFileMonitorFailure(error));
+    }
+  };
 
   const requestRefresh = async (): Promise<void> => {
     if (stopped) return;
@@ -37,18 +68,15 @@ export function startFilePanelController({
   void Promise.resolve(
     initialize ? initialize() : ensureFileExplorerRoot(projectId),
   )
-    .then(() =>
-      syncProjectMonitor(
-        projectId,
-        monitoredFileExplorerDirectories(projectId),
-      ),
-    )
-    .catch(() => undefined);
+    .catch(() => undefined)
+    .then(() => syncMonitor());
   const scheduler = startFileExplorerRefreshScheduler({
     refresh: requestRefresh,
     intervalMs: false,
   });
-  const unregisterReconnect = onWorkbenchReconnect(requestRefresh);
+  const unregisterReconnect = onWorkbenchReconnect(async () => {
+    await Promise.all([syncMonitor(), requestRefresh()]);
+  });
   const unregisterEvents = registerFileExplorerEventHandler(
     projectId,
     (change) => {
@@ -57,14 +85,7 @@ export function startFilePanelController({
   );
 
   return {
-    async updateMonitorDemand(
-      directories = monitoredFileExplorerDirectories(projectId),
-    ) {
-      if (stopped) return;
-      await syncProjectMonitor(projectId, [...directories]).catch(
-        () => undefined,
-      );
-    },
+    updateMonitorDemand: syncMonitor,
     requestRefresh,
     stop() {
       if (stopped) return;

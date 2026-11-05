@@ -1,8 +1,15 @@
 import { listProjectEntries } from "$lib/features/filesystem/api/filesystem.api";
 import {
   ensureFileExplorerProject,
+  fileExplorerRevealRequest,
   type FileExplorerDirectoryState,
 } from "./file-explorer-state.svelte";
+import {
+  filesPanelPreferences,
+  setFilesPanelPreference,
+} from "./files-panel-preferences.svelte";
+import { retargetPath } from "./file-explorer-paths";
+import type { FilesystemProjectEntry } from "@nervekit/contracts/filesystem";
 import { SvelteMap, SvelteSet } from "svelte/reactivity";
 import {
   fileExplorerEntryNodeId,
@@ -211,4 +218,130 @@ export async function refreshFileExplorerProject(
           loadFileExplorerDirectory(projectId, path, { refresh: true }),
       ),
   );
+}
+
+export function collapseAllFileExplorerItems(projectId: string): void {
+  const project = ensureFileExplorerProject(projectId);
+  project.expandedIds.clear();
+  for (const [path, directory] of Object.entries(project.directories)) {
+    if (path !== "") directory.stale = true;
+  }
+}
+
+/** Moves cached listings and expansion of `from` to `to` after a rename or move. */
+export function retargetFileExplorerPath(
+  projectId: string,
+  from: string,
+  to: string,
+): void {
+  const project = ensureFileExplorerProject(projectId);
+  const fromId = fileExplorerEntryNodeId(projectId, from);
+  const expanded = [...project.expandedIds].filter(
+    (id) => id === fromId || id.startsWith(`${fromId}/`),
+  );
+  for (const id of expanded) {
+    project.expandedIds.delete(id);
+    project.expandedIds.add(
+      fileExplorerEntryNodeId(
+        projectId,
+        retargetPath(id.slice(`file:${projectId}:`.length), from, to),
+      ),
+    );
+  }
+  for (const directoryPath of Object.keys(project.directories)) {
+    if (directoryPath === from || directoryPath.startsWith(`${from}/`))
+      delete project.directories[directoryPath];
+  }
+}
+
+const REVEAL_POLL_MS = 40;
+const REVEAL_MAX_POLLS = 125;
+
+async function whenDirectoryIdle(
+  projectId: string,
+  path: string,
+): Promise<FileExplorerDirectoryState | undefined> {
+  const project = ensureFileExplorerProject(projectId);
+  for (let poll = 0; poll < REVEAL_MAX_POLLS; poll += 1) {
+    const directory = project.directories[path];
+    if (directory && !directory.loading && !directory.refreshing)
+      return directory;
+    await new Promise((resolve) => setTimeout(resolve, REVEAL_POLL_MS));
+  }
+  return project.directories[path];
+}
+
+/** Loads `path`'s directory, then pages until `target` is listed. */
+async function loadUntilListed(
+  projectId: string,
+  directoryPath: string,
+  target: string,
+): Promise<FilesystemProjectEntry | undefined> {
+  const project = ensureFileExplorerProject(projectId);
+  let directory: FileExplorerDirectoryState | undefined =
+    project.directories[directoryPath];
+  if (!directory) {
+    await loadFileExplorerDirectory(projectId, directoryPath);
+  } else if (directory.stale) {
+    await loadFileExplorerDirectory(projectId, directoryPath, {
+      refresh: true,
+    });
+  }
+  directory = await whenDirectoryIdle(projectId, directoryPath);
+  while (directory) {
+    const found = directory.entries.find((entry) => entry.path === target);
+    if (found) return found;
+    if (!directory.nextCursor) return undefined;
+    await loadFileExplorerDirectory(projectId, directoryPath, { append: true });
+    directory = await whenDirectoryIdle(projectId, directoryPath);
+    if (directory?.error) return undefined;
+  }
+  return undefined;
+}
+
+/**
+ * Expands every ancestor of `path`, loads missing pages, then asks the Files
+ * panel to select the row and scroll it into view. Resolves once the row is
+ * part of the tree state; a missing path resolves without a request.
+ *
+ * Explicit reveals (the default) also lift the hidden-dotfile and hide-ignored
+ * filters that would keep the row out of view; `auto` reveals never touch
+ * preferences.
+ */
+export async function revealFileExplorerPath(
+  projectId: string,
+  path: string,
+  options: { auto?: boolean } = {},
+): Promise<void> {
+  const segments = path.split("/").filter(Boolean);
+  if (segments.length === 0) return;
+  const project = ensureFileExplorerProject(projectId);
+  await ensureFileExplorerRoot(projectId);
+
+  let listed: FilesystemProjectEntry | undefined;
+  let directoryPath = "";
+  const hiddenBy = { dotfile: false, ignored: false };
+  for (const [index, segment] of segments.entries()) {
+    const target = directoryPath ? `${directoryPath}/${segment}` : segment;
+    listed = await loadUntilListed(projectId, directoryPath, target);
+    if (!listed) return;
+    if (listed.name.startsWith(".")) hiddenBy.dotfile = true;
+    if (listed.ignored) hiddenBy.ignored = true;
+    if (index < segments.length - 1) {
+      if (listed.kind !== "directory" || listed.symlink) return;
+      project.expandedIds.add(fileExplorerEntryNodeId(projectId, target));
+      directoryPath = target;
+    }
+  }
+
+  if (!options.auto) {
+    if (hiddenBy.dotfile && !filesPanelPreferences.showDotfiles)
+      setFilesPanelPreference("showDotfiles", true);
+    if (hiddenBy.ignored && filesPanelPreferences.hideIgnored)
+      setFilesPanelPreference("hideIgnored", false);
+  }
+  fileExplorerRevealRequest.projectId = projectId;
+  fileExplorerRevealRequest.path = path;
+  fileExplorerRevealRequest.focus = !options.auto;
+  fileExplorerRevealRequest.token += 1;
 }

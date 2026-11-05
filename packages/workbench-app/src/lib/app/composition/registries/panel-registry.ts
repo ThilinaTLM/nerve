@@ -3,6 +3,7 @@ import GitBranch from "@lucide/svelte/icons/git-branch";
 import GitPullRequest from "@lucide/svelte/icons/git-pull-request";
 import MessagesSquare from "@lucide/svelte/icons/messages-square";
 import NotebookPen from "@lucide/svelte/icons/notebook-pen";
+import Search from "@lucide/svelte/icons/search";
 import Terminal from "@lucide/svelte/icons/terminal";
 import type { GitPanelActions, GitPanelModel } from "$lib/features/git";
 import type { PanelViewDescriptor } from "$lib/presentation/shell";
@@ -52,6 +53,15 @@ export const panelViewDescriptors = [
     load: () => import("../panels/FilesWorkbenchPanel.svelte"),
   },
   {
+    id: "search",
+    propsKind: "none",
+    title: "Search",
+    icon: Search,
+    defaultDock: "left",
+    defaultOrder: 2,
+    load: () => import("../panels/SearchWorkbenchPanel.svelte"),
+  },
+  {
     id: "git",
     propsKind: "git",
     title: "Git Changes",
@@ -75,7 +85,7 @@ export const panelViewDescriptors = [
     title: "Launches",
     icon: Terminal,
     defaultDock: "left",
-    defaultOrder: 2,
+    defaultOrder: 3,
     load: () => import("../panels/LaunchesWorkbenchPanel.svelte"),
   },
   {
@@ -84,7 +94,7 @@ export const panelViewDescriptors = [
     title: "Scratch Notes",
     icon: NotebookPen,
     defaultDock: "left",
-    defaultOrder: 3,
+    defaultOrder: 4,
     load: () => import("../panels/NotesWorkbenchPanel.svelte"),
   },
 ] as const satisfies WorkbenchPanelDescriptor[];

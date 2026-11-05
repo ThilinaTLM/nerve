@@ -33,6 +33,8 @@ type AppShortcutsOptions = {
   centerTabsExcept: (tab: CenterTabIdentity) => CenterTabIdentity[];
   refreshCenterTab: (tab: CenterTabIdentity) => void;
   focusProjectSearch: () => void;
+  openQuickOpen: () => void;
+  focusContentSearch: () => void;
   hasConversationComposer: () => boolean;
   canStop: () => boolean;
   abortActiveRun: () => void | Promise<void>;
@@ -215,6 +217,12 @@ export function createAppShortcuts(options: AppShortcutsOptions) {
         return selectRelativeCenterTab(1);
       case "projectSearch.focus":
         options.focusProjectSearch();
+        return true;
+      case "quickOpen.open":
+        options.openQuickOpen();
+        return true;
+      case "contentSearch.focus":
+        options.focusContentSearch();
         return true;
       case "composer.focus":
       case "composer.cancelMic":

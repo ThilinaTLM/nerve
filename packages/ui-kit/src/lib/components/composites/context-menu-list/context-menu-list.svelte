@@ -11,6 +11,11 @@ export type ContextMenuItem =
       shortcut?: string;
       disabled?: boolean;
       destructive?: boolean;
+      /**
+       * The action moves focus itself (an inline editor, a dialog), so closing
+       * the menu must not hand focus back to the trigger afterwards.
+       */
+      movesFocus?: boolean;
       onSelect?: () => void;
     }
   | { type: "separator" }
@@ -25,10 +30,14 @@ export type ContextMenuItem =
 </script>
 
 <script lang="ts">
-import type { Snippet } from "svelte";
+import { setContext, type Snippet } from "svelte";
 import * as ContextMenu from "@nervekit/ui-kit/components/ui/context-menu";
 import { cn } from "@nervekit/ui-kit/utils";
 import ContextMenuListItems from "./context-menu-list-items.svelte";
+import {
+  CONTEXT_MENU_FOCUS_KEY,
+  shouldRestoreMenuFocus,
+} from "./context-menu-focus";
 
 let {
   children,
@@ -51,6 +60,27 @@ let {
   nativeTouch?: boolean;
   onOpenChange?: (open: boolean) => void;
 } = $props();
+
+// Closing a menu returns focus to its trigger. That is right after a plain
+// action, but wrong when the action already moved focus (an inline editor
+// mounted by "Rename"): the restore would blur it again.
+let contentRef = $state<HTMLElement | null>(null);
+let skipFocusRestore = false;
+setContext(CONTEXT_MENU_FOCUS_KEY, {
+  skipNextRestore: () => (skipFocusRestore = true),
+});
+
+function handleCloseAutoFocus(event: Event): void {
+  const skip = skipFocusRestore;
+  skipFocusRestore = false;
+  const active = document.activeElement;
+  const focusOutsideMenu =
+    active instanceof HTMLElement &&
+    active !== document.body &&
+    !contentRef?.contains(active);
+  if (!shouldRestoreMenuFocus({ skipRequested: skip, focusOutsideMenu }))
+    event.preventDefault();
+}
 
 // Pointer type of the latest press. Disabling the trigger also clears its
 // pending long-press timer, and its `contextmenu` handler then lets the
@@ -95,7 +125,11 @@ $effect(() => assertNoEllipsis(items));
   >
     {@render children()}
   </ContextMenu.Trigger>
-  <ContextMenu.Content class={className}>
+  <ContextMenu.Content
+    class={className}
+    bind:ref={contentRef}
+    onCloseAutoFocus={handleCloseAutoFocus}
+  >
     <ContextMenuListItems {items} />
   </ContextMenu.Content>
 </ContextMenu.Root>

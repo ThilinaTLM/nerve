@@ -79,3 +79,30 @@ export function measurementTargetIsCurrent(
     encodeItemKey(snapshot[index] as VirtualScrollerItemKey) === encodedItemKey
   );
 }
+
+/**
+ * Resolve the item a virtual row (identified by its captured key) should show.
+ *
+ * The virtualizer's rows lag `items` by one update, so an insert or removal
+ * leaves a row's stale index pointing at a neighbour. Rendering that neighbour
+ * into the row would hand its component instance (focus, an inline editor,
+ * local state) to the wrong item for a moment. Fast path: the item at the
+ * stale index still has the row's key. Otherwise look the key up, and render
+ * nothing when the item is gone.
+ */
+export function resolveVirtualRowItem<T>(
+  items: readonly T[],
+  rowKey: VirtualScrollerItemKey,
+  rowIndex: number,
+  getKey: (item: T, index: number) => VirtualScrollerItemKey,
+): { item: T; index: number } | undefined {
+  const direct = items[rowIndex];
+  if (direct !== undefined && Object.is(getKey(direct, rowIndex), rowKey))
+    return { item: direct, index: rowIndex };
+  for (let index = 0; index < items.length; index += 1) {
+    const candidate = items[index];
+    if (candidate !== undefined && Object.is(getKey(candidate, index), rowKey))
+      return { item: candidate, index };
+  }
+  return undefined;
+}

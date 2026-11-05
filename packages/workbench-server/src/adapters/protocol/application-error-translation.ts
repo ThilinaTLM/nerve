@@ -12,6 +12,7 @@ export function translateApplicationError(
     message: error.message,
     retryable:
       error.options.retryable ?? (error.status === 429 || error.status >= 500),
+    ...(error.options.details ? { details: error.options.details } : {}),
   };
 }
 

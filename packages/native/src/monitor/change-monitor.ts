@@ -7,6 +7,7 @@ import type {
   GitMonitorScope,
   MonitorDiagnostics,
   MonitorScopeState,
+  TreeMonitorScope,
 } from "./contracts.js";
 
 const monitorFinalizer = new FinalizationRegistry<NativeChangeMonitorHandle>(
@@ -36,6 +37,18 @@ export class ChangeMonitor {
   ): Promise<MonitorScopeState> {
     this.#assertOpen();
     return binding.syncChangeMonitorDirectories(this.#handle, scope);
+  }
+
+  /** Whether the loaded addon supports recursive, ignore-filtered tree scopes. */
+  static supportsTreeScopes(): boolean {
+    return typeof binding.syncChangeMonitorTree === "function";
+  }
+
+  async syncTree(scope: TreeMonitorScope): Promise<MonitorScopeState> {
+    this.#assertOpen();
+    if (!binding.syncChangeMonitorTree)
+      throw new Error("Native tree monitoring is not available");
+    return binding.syncChangeMonitorTree(this.#handle, scope);
   }
 
   async syncGit(scope: GitMonitorScope): Promise<MonitorScopeState> {

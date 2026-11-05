@@ -11,6 +11,7 @@ import {
   addCenterTab,
   nextCenterTabAfterClose,
   removeCenterTab,
+  replaceCenterTab,
   replaceOpenCenterTabs,
   selectCenterTab,
   setActiveCenterTab,
@@ -18,6 +19,7 @@ import {
 import { workspaceState } from "$lib/application/workspace/workspace-state.svelte";
 import { SvelteSet } from "svelte/reactivity";
 import { ApiRequestError } from "$lib/platform/http/api-client";
+import { retargetPath } from "./file-explorer-paths";
 import {
   isFileDraftDirty,
   reconcileSavedFileDraft,
@@ -217,6 +219,82 @@ export function closeFileTabsAtPath(input: {
     delete fileState.mermaidViews[mermaidViewKey(id)];
   replaceOpenCenterTabs(remaining);
   if (closesActive) void selectCenterTab(remaining.at(-1));
+}
+
+/** Swaps `oldRelative` for `newRelative` at the end of an absolute-or-relative path. */
+function retargetViewPath(
+  path: string,
+  oldRelative: string,
+  newRelative: string,
+): string {
+  if (path === oldRelative) return newRelative;
+  if (path.endsWith(`/${oldRelative}`))
+    return `${path.slice(0, path.length - oldRelative.length)}${newRelative}`;
+  return path;
+}
+
+/**
+ * Follows a rename or move: open file tabs at or under `from` keep their draft,
+ * scroll and position but point at the new path (and get a new tab id, since
+ * ids encode the path). Markdown-mermaid tabs of moved files are closed.
+ */
+export function retargetFileTabsAtPath(input: {
+  projectId: string;
+  from: string;
+  to: string;
+}): void {
+  const { projectId, from, to } = input;
+  const underFrom = (path: string) =>
+    path === from || path.startsWith(`${from}/`);
+
+  const mermaidIds = Object.values(fileState.mermaidViews)
+    .filter(
+      (view) =>
+        view.origin === "file" &&
+        view.projectId === projectId &&
+        underFrom(view.relativePath ?? view.path),
+    )
+    .map((view) => view.id);
+  if (mermaidIds.length > 0) {
+    const closing = new SvelteSet(mermaidIds);
+    const closesActive =
+      workspaceState.activeCenterTab?.kind === "mermaid" &&
+      closing.has(workspaceState.activeCenterTab.id);
+    const remaining = workspaceState.openCenterTabs.filter(
+      (tab) => tab.kind !== "mermaid" || !closing.has(tab.id),
+    );
+    for (const id of closing) delete fileState.mermaidViews[mermaidViewKey(id)];
+    replaceOpenCenterTabs(remaining);
+    if (closesActive) void selectCenterTab(remaining.at(-1));
+  }
+
+  for (const view of Object.values(fileState.fileViews)) {
+    if (view.projectId !== projectId) continue;
+    const oldRelative = view.content?.relativePath ?? view.path;
+    if (!underFrom(oldRelative)) continue;
+    const newRelative = retargetPath(oldRelative, from, to);
+    const previousId = view.id;
+    const nextId = encodeFileTabId(projectId, newRelative);
+    if (nextId === previousId) continue;
+
+    const moved: typeof view = {
+      ...view,
+      id: nextId,
+      path: retargetViewPath(view.path, oldRelative, newRelative),
+      content: view.content && {
+        ...view.content,
+        path: retargetViewPath(view.content.path, oldRelative, newRelative),
+        relativePath: newRelative,
+        name: newRelative.slice(newRelative.lastIndexOf("/") + 1),
+      },
+    };
+    delete fileState.fileViews[fileViewKey(previousId)];
+    fileState.fileViews[fileViewKey(nextId)] = moved;
+    replaceCenterTab(
+      { kind: "file", id: previousId },
+      { kind: "file", id: nextId },
+    );
+  }
 }
 
 export function closeFileTab(id: string) {

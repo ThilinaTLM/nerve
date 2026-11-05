@@ -30,6 +30,11 @@ tokio = { version = "1.53.0", features = [
   "time",
 ] }
 notify = "8.2.0"
+ignore = "0.4.34"
+grep-searcher = "0.1.17"
+grep-regex = "0.1.14"
+grep-matcher = "0.1.9"
+nucleo-matcher = "0.3.1"
 
 [target.'cfg(unix)'.dependencies]
 libc = "0.2.180"

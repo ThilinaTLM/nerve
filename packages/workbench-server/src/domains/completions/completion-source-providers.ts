@@ -22,7 +22,8 @@ import {
   type LeadSettingsOverrides,
 } from "@nervekit/contracts/agent-configuration";
 import type { AgentConfigurationService } from "../../infrastructure/configuration/agent-configuration/agent-configuration-service.js";
-import { discoverEntries } from "./file-completion-candidates.js";
+import type { discoverEntries } from "./file-completion-candidates.js";
+import { projectPathIndexes } from "../filesystem/project-path-index.js";
 import { completionDocumentId } from "./completion-document-identity.js";
 import { FileCompletionDocument } from "./file-completion-document.js";
 import type {
@@ -294,7 +295,9 @@ export function createCompletionProviders(
         if (project.id !== scope.projectId)
           throw new Error("Wrong project completion root");
         return (
-          await (ports.discover ?? discoverEntries)(project.directory)
+          await (ports.discover
+            ? ports.discover(project.directory)
+            : projectPathIndexes.entries(project.id, project.directory))
         ).map(
           (candidate) =>
             new FileCompletionDocument(
