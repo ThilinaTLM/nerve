@@ -54,7 +54,6 @@ import { Buffer } from "node:buffer";
 import { readFile } from "node:fs/promises";
 import { resizeImage } from ${JSON.stringify(harnessNodeUrl)};
 import { normalizeImagesForModel } from ${JSON.stringify(normalizationUrl)};
-import { repoRoot } from "../workspace/repo.ts";
 
 const oversized = await readFile(process.argv[2]);
 const small = await readFile(process.argv[3]);

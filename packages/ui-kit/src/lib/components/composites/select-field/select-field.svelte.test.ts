@@ -19,7 +19,14 @@ beforeAll(() => {
     },
   );
 });
-afterEach(cleanup);
+afterEach(async () => {
+  cleanup();
+  // bits-ui restores the body scroll lock on a 24 ms timer after unmount; wait for it
+  // so the timer cannot fire after the jsdom environment is torn down.
+  await vi.waitFor(() =>
+    expect(document.body.style.overflow).not.toBe("hidden"),
+  );
+});
 
 const items = [
   { value: "a", label: "Alpha" },

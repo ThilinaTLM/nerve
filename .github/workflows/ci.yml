@@ -86,8 +86,11 @@ jobs:
         id: workspace
         if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         # Storage scripts import workbench-server sources, which resolve their
-        # workspace dependencies (types and runtime) from dist.
-        run: pnpm --filter "@nervekit/workbench-server^..." build
+        # workspace dependencies (types and runtime) from dist; release smoke scripts
+        # import desktop-shell dist (types only here, so plain tsc without icons/preload).
+        run: |
+          pnpm --filter "@nervekit/desktop-shell^..." build
+          pnpm --filter @nervekit/desktop-shell exec tsc -b
       - name: Type-check scripts
         if: ${{ !cancelled() && steps.workspace.outcome == 'success' }}
         run: pnpm exec tsc -p scripts
