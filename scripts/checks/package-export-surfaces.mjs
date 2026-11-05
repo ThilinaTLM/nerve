@@ -86,6 +86,7 @@ export const packageExportSurfaces = Object.freeze({
     "./renderers/markdown/streaming-markdown",
     "./renderers/mermaid/MermaidDiagram.svelte",
     "./renderers/mermaid/mermaid-blocks",
+    "./renderers/media/ImageViewer.svelte",
     "./renderers/plain-text/PlainText.svelte",
     "./scheduling/*",
     "./terminal/*",

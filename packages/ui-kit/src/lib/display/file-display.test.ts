@@ -5,6 +5,7 @@ import {
   fileRenderKind,
   isMarkdownPath,
   isMermaidPath,
+  isRenderedContentEmpty,
 } from "./file-display";
 
 describe("file display classification", () => {
@@ -49,11 +50,39 @@ describe("file display classification", () => {
   });
 
   it("keeps other files in raw mode", () => {
-    for (const path of [undefined, "README", "diagram.svg", "notes.txt"]) {
+    for (const path of [undefined, "README", "notes.txt"]) {
       assert.equal(fileRenderKind(path), undefined, String(path));
       assert.equal(isMarkdownPath(path), false, String(path));
       assert.equal(isMermaidPath(path), false, String(path));
       assert.equal(defaultFileDisplayMode(path), "raw", String(path));
     }
+  });
+
+  it("opens files whose preview would be empty as source", () => {
+    assert.equal(defaultFileDisplayMode("README.md", ""), "raw");
+    assert.equal(defaultFileDisplayMode("README.md", "  \n\n"), "raw");
+    assert.equal(
+      defaultFileDisplayMode(
+        "README.md",
+        "---\ntitle: x\n---\n<!-- todo -->\n",
+      ),
+      "raw",
+    );
+    assert.equal(defaultFileDisplayMode("README.md", "# Title"), "rendered");
+    assert.equal(defaultFileDisplayMode("README.md"), "rendered");
+    assert.equal(defaultFileDisplayMode("flow.mmd", "%% draft\n"), "raw");
+    assert.equal(
+      defaultFileDisplayMode("flow.mmd", "graph TD; A-->B"),
+      "rendered",
+    );
+    assert.equal(defaultFileDisplayMode("icon.svg", ""), "raw");
+    assert.equal(defaultFileDisplayMode("icon.svg", "<svg/>"), "rendered");
+    assert.equal(defaultFileDisplayMode("index.html", "<p>x</p>"), "raw");
+  });
+
+  it("detects empty rendered content", () => {
+    assert.equal(isRenderedContentEmpty("markdown", "<!-- open"), true);
+    assert.equal(isRenderedContentEmpty("markdown", "text <!-- c -->"), false);
+    assert.equal(isRenderedContentEmpty("html", " "), true);
   });
 });

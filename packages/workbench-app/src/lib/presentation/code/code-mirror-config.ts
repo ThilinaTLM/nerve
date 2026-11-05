@@ -116,6 +116,7 @@ const extensionLanguages: Record<string, CodeLanguageId> = {
   xslt: "xml",
   xsd: "xml",
   xhtml: "xml",
+  svg: "xml",
   rs: "rust",
   sass: "sass",
   scss: "scss",

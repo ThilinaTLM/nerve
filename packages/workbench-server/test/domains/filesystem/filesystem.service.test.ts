@@ -303,6 +303,23 @@ describe("filesystem application service", () => {
     }
   });
 
+  it("serves SVG as editable text so the client can render and edit it", async () => {
+    const root = await mkdtemp(join(tmpdir(), "nerve-filesystem-svg-"));
+    try {
+      const markup = '<svg xmlns="http://www.w3.org/2000/svg"/>';
+      await writeFile(join(root, "icon.svg"), markup);
+      const result = await fileContent(
+        { projectId: "proj_test", path: "icon.svg" },
+        () => root,
+      );
+      assert.equal(result.type, "text");
+      assert.equal(result.editable, true);
+      assert.equal(result.text, markup);
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
   it("saves project text files and rejects stale or unsafe writes", async () => {
     const root = await mkdtemp(join(tmpdir(), "nerve-filesystem-save-"));
     const outside = await mkdtemp(join(tmpdir(), "nerve-filesystem-outside-"));

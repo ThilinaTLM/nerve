@@ -23,6 +23,7 @@
     "./renderers/markdown/streaming-markdown": "./src/lib/renderers/markdown/streaming-markdown.ts",
     "./renderers/mermaid/MermaidDiagram.svelte": "./src/lib/renderers/mermaid/MermaidDiagram.svelte",
     "./renderers/mermaid/mermaid-blocks": "./src/lib/renderers/mermaid/mermaid-blocks.ts",
+    "./renderers/media/ImageViewer.svelte": "./src/lib/renderers/media/ImageViewer.svelte",
     "./renderers/plain-text/PlainText.svelte": "./src/lib/renderers/plain-text/PlainText.svelte",
     "./scheduling/*": "./src/lib/scheduling/*.ts",
     "./terminal/*": "./src/lib/terminal/*.ts",
