@@ -9,6 +9,7 @@ export type MigrationLock = Record<
     checksum: string;
     stage: "draft" | "released";
     releasedIn?: string;
+    previousChecksums?: string[];
   }
 >;
 
@@ -57,7 +58,9 @@ export async function checkMigrationLock(
     if (
       metadata.checksum !== entry.checksum ||
       metadata.stage !== entry.stage ||
-      metadata.releasedIn !== entry.releasedIn
+      metadata.releasedIn !== entry.releasedIn ||
+      JSON.stringify(metadata.previousChecksums ?? []) !==
+        JSON.stringify(entry.previousChecksums ?? [])
     ) {
       throw new Error(
         `Migration registry metadata differs from lock: ${entry.step.id}`,

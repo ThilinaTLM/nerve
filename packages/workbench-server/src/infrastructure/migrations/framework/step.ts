@@ -93,8 +93,26 @@ export interface MigrationRegistryEntry {
   checksum: string;
   stage: "draft" | "released";
   releasedIn?: string;
+  /**
+   * Checksums of earlier shipped revisions of this step. A home whose ledger
+   * records one of them counts as having applied the step: released steps admit
+   * it instead of failing, and draft `rerunOnChange` steps do not rerun for it.
+   * Only list revisions whose applied homes are valid inputs for later steps.
+   */
+  previousChecksums?: readonly string[];
   /** Explicit opt-in for an unreleased step with a safe applied-home path. */
   rerunOnChange?: boolean;
+}
+
+/** Whether a ledger checksum identifies the current or an earlier accepted revision. */
+export function isKnownChecksum(
+  entry: Pick<MigrationRegistryEntry, "checksum" | "previousChecksums">,
+  applied: string,
+): boolean {
+  return (
+    applied === entry.checksum ||
+    (entry.previousChecksums?.includes(applied) ?? false)
+  );
 }
 
 export interface RegisteredStep extends MigrationRegistryEntry {
@@ -116,6 +134,16 @@ export function validateRegistry(
       (entry.stage === "released" && !entry.releasedIn)
     ) {
       throw new Error(`Invalid migration metadata: ${entry.step.id}`);
+    }
+    const previous = entry.previousChecksums ?? [];
+    if (
+      previous.some(
+        (checksum) =>
+          !/^[a-f0-9]{64}$/.test(checksum) || checksum === entry.checksum,
+      ) ||
+      new Set(previous).size !== previous.length
+    ) {
+      throw new Error(`Invalid previous migration checksums: ${entry.step.id}`);
     }
     if (
       entry.step.requiresFreeBytes !== undefined &&
