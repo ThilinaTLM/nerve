@@ -10,6 +10,7 @@ let {
   onTitleDblClick,
   titleEditing = false,
   titleMaxLength,
+  titleLabel,
   onTitleCommit,
   onTitleCancel,
   titleActions,
@@ -26,6 +27,8 @@ let {
   /** Swaps the title for an inline editor. */
   titleEditing?: boolean;
   titleMaxLength?: number;
+  /** Accessible name of the inline title editor. */
+  titleLabel?: string;
   onTitleCommit?: (title: string) => void;
   onTitleCancel?: () => void;
   /** Icon actions rendered inline after the title. */
@@ -80,7 +83,7 @@ function cancel(): void {
         type="text"
         value={title}
         maxlength={titleMaxLength}
-        aria-label="Note title"
+        aria-label={titleLabel}
         class="min-w-0 flex-1 font-normal shadow-none"
         onkeydown={(event) => {
           if (event.key === "Enter") {

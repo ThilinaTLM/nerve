@@ -1,3 +1,4 @@
+import { isSubagentTool } from "@nervekit/contracts/tools";
 import { createId } from "@nervekit/contracts";
 import {
   toolApprovalBindingMatches,
@@ -347,7 +348,7 @@ export class ToolCallService {
         child &&
         (call.toolName === "ask_user" ||
           call.toolName === "plan_present" ||
-          call.toolName.startsWith("subagent_"))
+          isSubagentTool(call.toolName))
       ) {
         const reason =
           "Child agents cannot ask users, present plans, or delegate/manage sub-agents.";

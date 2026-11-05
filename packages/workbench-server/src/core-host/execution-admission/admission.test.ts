@@ -149,7 +149,7 @@ void test("children cannot execute advertised restricted tools", async () => {
     "plan_present",
     "subagent_prompt",
     "subagent_status",
-    "subagent_cancel",
+    "subagent_stop",
   ]) {
     const result = (await f.prepare({ ...input, toolName })).check();
     assert.equal(result.kind, "policy");

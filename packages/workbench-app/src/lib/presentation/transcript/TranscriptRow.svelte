@@ -132,6 +132,27 @@ const thinkingMenuTarget = $derived.by(() => {
   };
 });
 
+const noticeMenuTarget = $derived.by(() => {
+  switch (node.kind) {
+    case "tool_result_error":
+      return {
+        kind: "tool_result_error" as const,
+        toolName: node.toolName,
+        error: node.error,
+      };
+    case "run_status":
+      return { kind: "run_status" as const, notice: node.notice };
+    case "compaction":
+      return { kind: "compaction" as const, notice: node.notice };
+    case "task_event":
+      return { kind: "task_event" as const, notice: node.notice };
+    case "system_event":
+      return { kind: "system_event" as const, notice: node.notice };
+    default:
+      return undefined;
+  }
+});
+
 const messageState = $derived.by<"running" | "complete" | "static">(() => {
   if (node.kind !== "message") return "static";
   const item = node.item;
@@ -276,73 +297,31 @@ $effect(() => {
           />
         </TranscriptContextMenu>
       </div>
-    {:else if node.kind === "tool_result_error"}
+    {:else if noticeMenuTarget}
       <TranscriptContextMenu
-        target={{
-          kind: "tool_result_error",
-          toolName: node.toolName,
-          error: node.error,
-        }}
+        target={noticeMenuTarget}
         menu={transcriptMenu}
         triggerClass="block select-text"
       >
         <div
           class="relative min-w-0 px-[calc(var(--conversation-content-inset,1.5rem)/2)]"
         >
-          <ToolResultErrorCard toolName={node.toolName} error={node.error} />
-        </div>
-      </TranscriptContextMenu>
-    {:else if node.kind === "run_status"}
-      <TranscriptContextMenu
-        target={{ kind: "run_status", notice: node.notice }}
-        menu={transcriptMenu}
-        triggerClass="block select-text"
-      >
-        <div
-          class="relative min-w-0 px-[calc(var(--conversation-content-inset,1.5rem)/2)]"
-        >
-          <RunStatusNoticeCard
-            notice={node.notice}
-            isLast={node.key === lastTimelineKey}
-            {sending}
-            {onContinueFromFailure}
-          />
-        </div>
-      </TranscriptContextMenu>
-    {:else if node.kind === "compaction"}
-      <TranscriptContextMenu
-        target={{ kind: "compaction", notice: node.notice }}
-        menu={transcriptMenu}
-        triggerClass="block select-text"
-      >
-        <div
-          class="relative min-w-0 px-[calc(var(--conversation-content-inset,1.5rem)/2)]"
-        >
-          <CompactionNoticeCard notice={node.notice} {onCancelCompaction} />
-        </div>
-      </TranscriptContextMenu>
-    {:else if node.kind === "task_event"}
-      <TranscriptContextMenu
-        target={{ kind: "task_event", notice: node.notice }}
-        menu={transcriptMenu}
-        triggerClass="block select-text"
-      >
-        <div
-          class="relative min-w-0 px-[calc(var(--conversation-content-inset,1.5rem)/2)]"
-        >
-          <TaskNoticeCard notice={node.notice} {onOpenTask} />
-        </div>
-      </TranscriptContextMenu>
-    {:else if node.kind === "system_event"}
-      <TranscriptContextMenu
-        target={{ kind: "system_event", notice: node.notice }}
-        menu={transcriptMenu}
-        triggerClass="block select-text"
-      >
-        <div
-          class="relative min-w-0 px-[calc(var(--conversation-content-inset,1.5rem)/2)]"
-        >
-          <SystemEventNoticeCard notice={node.notice} {onOpenFile} />
+          {#if node.kind === "tool_result_error"}
+            <ToolResultErrorCard toolName={node.toolName} error={node.error} />
+          {:else if node.kind === "run_status"}
+            <RunStatusNoticeCard
+              notice={node.notice}
+              isLast={node.key === lastTimelineKey}
+              {sending}
+              {onContinueFromFailure}
+            />
+          {:else if node.kind === "compaction"}
+            <CompactionNoticeCard notice={node.notice} {onCancelCompaction} />
+          {:else if node.kind === "task_event"}
+            <TaskNoticeCard notice={node.notice} {onOpenTask} />
+          {:else if node.kind === "system_event"}
+            <SystemEventNoticeCard notice={node.notice} {onOpenFile} />
+          {/if}
         </div>
       </TranscriptContextMenu>
     {:else if node.kind === "thinking_group" && thinkingMenuTarget}

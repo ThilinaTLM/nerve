@@ -680,6 +680,40 @@ test("existing symlinks are canonicalized to external targets", async () => {
   }
 });
 
+test("non-existent leaf under a symlinked directory is classified outside the root", async () => {
+  const root = await mkdtemp(join(tmpdir(), "nerve-policy-symlink-"));
+  try {
+    const project = join(root, "project");
+    const nerveHome = join(root, "nerve");
+    const outside = join(root, "outside");
+    await mkdir(project);
+    await mkdir(nerveHome);
+    await mkdir(outside);
+    await symlink(outside, join(project, "link"));
+    const request = normalizePermissionRequest({
+      toolName: "write",
+      args: { path: join(project, "link", "sub", "new.txt"), content: "x" },
+      roots: {
+        project,
+        nerve_home: nerveHome,
+        nerve_data: join(nerveHome, "data"),
+        plans: join(nerveHome, "data", "plans"),
+      },
+      conversationId: "conv_test",
+    });
+    assert.deepEqual(request.targets, [
+      {
+        kind: "path",
+        access: "write",
+        scope: "exact",
+        absolutePath: join(realpathSync(outside), "sub", "new.txt"),
+      },
+    ]);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
 test("source schemas reject forbidden guardrails and broad project grants", () => {
   assert.throws(() =>
     permissionOverlayForOriginSchema("conversation").parse(

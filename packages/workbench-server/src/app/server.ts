@@ -20,8 +20,6 @@ import {
 } from "./lifecycle/lifecycle-routes.js";
 import { createServerLifecycleHolder } from "./lifecycle/server-lifecycle.js";
 
-export { isWebSocketAuthorized } from "../adapters/http/auth-middleware.js";
-
 export function remoteUiAuthRedirect(
   request: Request,
   localToken: string,

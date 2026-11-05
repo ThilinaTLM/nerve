@@ -257,6 +257,8 @@ export class HtmlPreviewService {
       "Cache-Control": "no-store",
       "Referrer-Policy": "no-referrer",
       "X-Content-Type-Options": "nosniff",
+      // The sandboxed iframe has an opaque origin ("null"), so CORS-mode
+      // loads (fonts, module scripts, crossorigin assets) need this header.
       "Access-Control-Allow-Origin": "*",
       "Content-Security-Policy":
         "default-src 'none'; sandbox; style-src 'unsafe-inline'; frame-ancestors 'none'",

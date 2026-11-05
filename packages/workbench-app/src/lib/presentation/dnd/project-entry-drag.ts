@@ -65,15 +65,17 @@ export function parseProjectEntryDrag(
 ): ProjectEntryDragItem[] | undefined {
   if (!value) return undefined;
   try {
-    const payload = JSON.parse(value) as Partial<ProjectEntryDragPayload>;
+    const payload: unknown = JSON.parse(value);
+    if (!payload || typeof payload !== "object") return undefined;
+    const { version, entries: rawEntries } = payload as Record<string, unknown>;
     if (
-      payload.version !== 1 ||
-      !Array.isArray(payload.entries) ||
-      payload.entries.length === 0
+      version !== 1 ||
+      !Array.isArray(rawEntries) ||
+      rawEntries.length === 0
     ) {
       return undefined;
     }
-    const entries = payload.entries.map(normalizeProjectEntryDragItem);
+    const entries = rawEntries.map(normalizeProjectEntryDragItem);
     return entries.every(
       (entry): entry is ProjectEntryDragItem => entry !== undefined,
     )

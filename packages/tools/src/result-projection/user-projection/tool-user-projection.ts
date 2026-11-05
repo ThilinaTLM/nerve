@@ -1,3 +1,4 @@
+import { isSubagentTool } from "@nervekit/contracts/tools";
 import type { ToolUserProjection } from "@nervekit/contracts/core";
 import { AGENT_RESULT_PROFILES } from "../profiles.js";
 import {
@@ -726,7 +727,7 @@ export function buildUserProjection(
     toolName === "async_bash" ||
     toolName === "ask_user" ||
     toolName === "launch" ||
-    toolName.startsWith("subagent_") ||
+    isSubagentTool(toolName) ||
     toolName.startsWith("web_") ||
     toolName === "explain_image";
   const finalized = finalizePublicPreview(

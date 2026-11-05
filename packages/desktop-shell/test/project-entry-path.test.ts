@@ -53,3 +53,51 @@ describe("desktop project entry paths", () => {
     );
   });
 });
+
+describe("contained project entry paths", () => {
+  it("rejects symlinked entries and parents that escape the root", async () => {
+    const { mkdtemp, mkdir, rm, symlink, writeFile } =
+      await import("node:fs/promises");
+    const { tmpdir } = await import("node:os");
+    const { join } = await import("node:path");
+    const { resolveContainedProjectEntryPath } =
+      await import("../src/ipc/project-entry-path.js");
+    const base = await mkdtemp(join(tmpdir(), "nerve-entry-"));
+    try {
+      const root = join(base, "project");
+      const outside = join(base, "outside");
+      await mkdir(root);
+      await mkdir(outside);
+      await writeFile(join(outside, "f.txt"), "x");
+      await writeFile(join(root, "ok.txt"), "x");
+      await symlink(outside, join(root, "dir"));
+      await symlink(join(outside, "f.txt"), join(root, "file-link"));
+
+      await resolveContainedProjectEntryPath(
+        { root, relativePath: "ok.txt" },
+        { followLeaf: true },
+      );
+      await assert.rejects(
+        resolveContainedProjectEntryPath(
+          { root, relativePath: "dir/f.txt" },
+          { followLeaf: false },
+        ),
+        /escapes/,
+      );
+      await assert.rejects(
+        resolveContainedProjectEntryPath(
+          { root, relativePath: "file-link" },
+          { followLeaf: true },
+        ),
+        /escapes/,
+      );
+      // The link itself may be revealed/trashed.
+      await resolveContainedProjectEntryPath(
+        { root, relativePath: "file-link" },
+        { followLeaf: false },
+      );
+    } finally {
+      await rm(base, { recursive: true, force: true });
+    }
+  });
+});

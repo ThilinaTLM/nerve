@@ -1,4 +1,14 @@
-import { posix, win32 } from "node:path";
+import { realpath } from "node:fs/promises";
+import {
+  basename,
+  dirname,
+  isAbsolute,
+  join,
+  posix,
+  relative,
+  sep,
+  win32,
+} from "node:path";
 
 export type DesktopProjectEntryTarget = {
   root: string;
@@ -44,4 +54,28 @@ export function resolveProjectEntryPath(
   )
     throw new Error("Project entry path escapes the project root.");
   return target;
+}
+
+/**
+ * Resolves the entry and verifies, after following symlinks, that it stays
+ * inside the real project root. With `followLeaf: false` only the parent is
+ * canonicalized so a symlink entry itself can be revealed or trashed.
+ */
+export async function resolveContainedProjectEntryPath(
+  input: unknown,
+  options: { followLeaf: boolean },
+): Promise<string> {
+  const target = resolveProjectEntryPath(input);
+  const root = await realpath((input as DesktopProjectEntryTarget).root.trim());
+  const real = options.followLeaf
+    ? await realpath(target)
+    : join(await realpath(dirname(target)), basename(target));
+  const fromRoot = relative(root, real);
+  if (
+    fromRoot === ".." ||
+    fromRoot.startsWith(`..${sep}`) ||
+    isAbsolute(fromRoot)
+  )
+    throw new Error("Project entry path escapes the project root.");
+  return real;
 }

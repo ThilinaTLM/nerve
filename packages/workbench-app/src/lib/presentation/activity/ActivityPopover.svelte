@@ -1,4 +1,5 @@
 <script lang="ts">
+import { createClock } from "../clock/clock.svelte";
 import type { Snippet } from "svelte";
 import type { UnreadableConversation } from "@nervekit/contracts/activity";
 import Bell from "@lucide/svelte/icons/bell";
@@ -121,18 +122,8 @@ const ping = $derived(
   !muted && attentionKey !== "" && attentionKey !== seenAttentionKey,
 );
 
-let now = $state(Date.now());
-$effect(() => {
-  if (!open) return;
-  now = Date.now();
-  const timer = setInterval(
-    () => {
-      now = Date.now();
-    },
-    running ? 1000 : 30_000,
-  );
-  return () => clearInterval(timer);
-});
+const clock = createClock(() => (open ? (running ? 1000 : 30_000) : undefined));
+const now = $derived(clock.now);
 // Unread dots clear shortly after the list has been on screen.
 $effect(() => {
   if (!open || !unreadIds.length) return;

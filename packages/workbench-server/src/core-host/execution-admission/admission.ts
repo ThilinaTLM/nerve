@@ -1,3 +1,4 @@
+import { isSubagentTool } from "@nervekit/contracts/tools";
 import { createHash } from "node:crypto";
 import type { PermissionPort } from "@nervekit/conversation-core";
 import type {
@@ -76,7 +77,7 @@ export function createExecutionAdmission(
           current.child &&
           (identity.toolName === "ask_user" ||
             identity.toolName === "plan_present" ||
-            identity.toolName.startsWith("subagent_"));
+            isSubagentTool(identity.toolName));
         const supervision: Supervision = childBan
           ? {
               decision: "deny",

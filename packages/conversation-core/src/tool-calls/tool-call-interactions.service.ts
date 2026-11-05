@@ -76,8 +76,7 @@ export class ToolCallInteractions {
         throw new Error(`Tool call not found: ${input.toolCallId}`);
       if (
         event.payload.resolutionRequestId === input.resolutionRequestId &&
-        JSON.stringify(event.payload.interactionResolution) ===
-          JSON.stringify(input.resolution)
+        sameResolution(event.payload.interactionResolution, input.resolution)
       )
         return { status: "resolved" };
       throw new Error("Tool call already settled with another resolution");
@@ -90,10 +89,9 @@ export class ToolCallInteractions {
       interaction.kind === "plan_review" &&
       interaction.resolution?.decision === "approve"
     ) {
-      const sameResolution =
+      const resolvedAgain =
         interaction.resolutionRequestId === input.resolutionRequestId &&
-        JSON.stringify(interaction.resolution) ===
-          JSON.stringify(input.resolution);
+        sameResolution(interaction.resolution, input.resolution);
       const handler = this.options.coreTools.get(call.toolName);
       if (!handler?.recover)
         throw new Error("Plan transition recovery is not configured");
@@ -109,7 +107,7 @@ export class ToolCallInteractions {
           result,
           controller.signal,
         );
-        if (transition.status !== "refresh_required" || sameResolution)
+        if (transition.status !== "refresh_required" || resolvedAgain)
           return transition;
       } finally {
         this.hooks.controllers.delete(call.id);
@@ -121,8 +119,7 @@ export class ToolCallInteractions {
     if (
       interaction.resolutionRequestId &&
       (interaction.resolutionRequestId !== input.resolutionRequestId ||
-        JSON.stringify(interaction.resolution) !==
-          JSON.stringify(input.resolution))
+        !sameResolution(interaction.resolution, input.resolution))
     )
       throw new Error("Interaction already resolved");
     if (call.state !== "awaiting_input" && call.state !== "awaiting_approval")
@@ -288,4 +285,8 @@ export class ToolCallInteractions {
     }
     return transition;
   }
+}
+
+function sameResolution(a: unknown, b: unknown): boolean {
+  return JSON.stringify(a) === JSON.stringify(b);
 }
