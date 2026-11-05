@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { test } from "node:test";
 import { openCoreStorage } from "../storage/core-storage.js";
 import { AssetStore } from "../assets/asset-store.js";
+import { BackgroundTaskService } from "../background-tasks/background-task.service.js";
 import { AsyncBashService } from "./async-bash.service.js";
 import { InputQueueService } from "../inputs/input-queue.service.js";
 import type { BackgroundProcess, ProcessPort } from "../ports.js";
@@ -69,7 +70,12 @@ async function fixture(processes: ProcessPort = {} as ProcessPort) {
     assets,
     emit: () => {},
     processes,
-    inputs: {} as ConstructorParameters<typeof AsyncBashService>[0]["inputs"],
+    tasks: new BackgroundTaskService({
+      storage,
+      inputs: {} as ConstructorParameters<
+        typeof BackgroundTaskService
+      >[0]["inputs"],
+    }),
   });
   return {
     storage,
@@ -257,6 +263,7 @@ for (const exitCode of [0, 7, null]) {
         emit: observe,
         requestWake: () => {},
       });
+      const tasks = new BackgroundTaskService({ storage: f.storage, inputs });
       let finished!: () => void;
       const completion = new Promise<void>((resolve) => {
         finished = resolve;
@@ -265,7 +272,7 @@ for (const exitCode of [0, 7, null]) {
         storage: f.storage,
         assets: f.assets,
         processes,
-        inputs,
+        tasks,
         emit: (change) => {
           observe();
           if (
@@ -290,15 +297,16 @@ for (const exitCode of [0, 7, null]) {
       const notice = queued[0]!.content;
       assert.notEqual(typeof notice, "string");
       if (typeof notice === "string") throw new Error("Expected system notice");
-      assert.equal(notice.subtype, "async_bash_event");
-      if (notice.subtype !== "async_bash_event")
+      assert.equal(notice.subtype, "task_result");
+      if (notice.subtype !== "task_result" || notice.task.kind !== "bash")
         throw new Error("Expected bash notice");
       assert.equal(
         notice.text,
         `echo hello\nStatus: ${status}; exit code: ${exitCode ?? "unknown"}\nhello`,
       );
-      assert.equal(notice.exitCode, exitCode);
-      assert.equal(notice.status, status);
+      assert.equal(notice.task.exitCode, exitCode);
+      assert.equal(notice.task.id, bash.id);
+      assert.equal(notice.outcome, status);
       assert.equal(notice.producer, bash.id);
       assert.equal(f.storage.asyncBash.get(bash.id)?.exitCode, exitCode);
       assert.ok(pendingSnapshots.length > 0);
@@ -327,6 +335,9 @@ void test("async bash start supplies conversation identity for effective shell r
     async start(input) {
       starts.push(input);
       throw new Error("Host refused process");
+    },
+    async awaitReadiness() {
+      throw new Error("No readiness expected");
     },
     async reattach() {
       return null;
@@ -358,6 +369,7 @@ void test("deletion ignores completed process refs and never cancels an unverifi
   };
   const f = await fixture({
     start: unexpected,
+    awaitReadiness: unexpected,
     reattach: async () => {
       reattachments++;
       throw new Error("Unverifiable process");

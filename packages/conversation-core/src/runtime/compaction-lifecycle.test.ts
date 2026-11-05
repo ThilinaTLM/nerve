@@ -168,13 +168,16 @@ void test("manual compaction snapshots real streaming and repair replacement, co
     f.core.inputs.enqueueNotice({
       conversationId: "conversation",
       inputId: "system",
-      subtype: "sub_conversation_event",
+      subtype: "task_result",
       producer: "conv_child",
       text: "System notice",
       details: {
-        childConversationId: "conv_child",
-        assignmentId: "input_assignment",
-        status: "completed",
+        task: {
+          kind: "subagent",
+          id: "conv_child",
+          assignmentId: "input_assignment",
+        },
+        outcome: "completed",
         assetIds: [],
       },
       wakeWhenIdle: false,
@@ -435,13 +438,12 @@ void test("prompts and wake notices accepted during compaction follow the checkp
     f.core.inputs.enqueueNotice({
       conversationId: "conversation",
       inputId: "notice",
-      subtype: "sub_conversation_event",
+      subtype: "task_result",
       producer: "child",
       text: "Notice",
       details: {
-        childConversationId: "child",
-        assignmentId: "assignment",
-        status: "completed",
+        task: { kind: "subagent", id: "child", assignmentId: "assignment" },
+        outcome: "completed",
         assetIds: [],
       },
       wakeWhenIdle: true,

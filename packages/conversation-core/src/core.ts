@@ -20,6 +20,7 @@ import { loadProjectionOptions } from "./context/asset-projection.js";
 import { estimatePathUsage } from "./context/context-usage.js";
 import { AssetStore, MissingAssetError } from "./assets/asset-store.js";
 import { AsyncBashService } from "./async-bash/async-bash.service.js";
+import { BackgroundTaskService } from "./background-tasks/background-task.service.js";
 import {
   ConversationService,
   type CreateConversationInput,
@@ -90,6 +91,7 @@ export class ConversationCore {
   readonly conversations: ConversationService;
   readonly inputs: InputQueueService;
   readonly toolCalls: ToolCallService;
+  readonly tasks: BackgroundTaskService;
   readonly asyncBash: AsyncBashService;
   readonly assets: AssetStore;
   readonly dataDir: string;
@@ -126,13 +128,9 @@ export class ConversationCore {
       publish,
       now,
       (result) => {
-        for (const listener of this.finishedListeners) {
-          try {
-            listener(result);
-          } catch {
-            /* Observers own their error reporting. */
-          }
-        }
+        // Runs inside the terminal-state transaction: a throwing listener (for example a
+        // parent notice that cannot be enqueued) aborts it rather than being swallowed.
+        for (const listener of this.finishedListeners) listener(result);
       },
       (id) => this.scheduler?.isProcessing(id) ?? false,
     );
@@ -197,11 +195,15 @@ export class ConversationCore {
       emit,
       requestWake: (id) => this.scheduler?.wake(id),
     });
+    this.tasks = new BackgroundTaskService({
+      storage: options.storage,
+      inputs: this.inputs,
+    });
     this.asyncBash = new AsyncBashService({
       storage: options.storage,
       assets: this.assets,
       processes: options.processes,
-      inputs: this.inputs,
+      tasks: this.tasks,
       emit,
     });
     this.toolCalls = new ToolCallService({

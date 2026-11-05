@@ -19,7 +19,7 @@ import type {
   CompactionNotice,
   ConversationTransientState,
   RunStatusNotice,
-  TaskEventNotice,
+  TaskResultNotice,
   SystemEventNotice,
   TranscriptItem,
 } from "./transcript-types.js";
@@ -52,7 +52,7 @@ export type TimelineItem =
       error: string;
     }
   | { kind: "run_status"; key: string; notice: RunStatusNotice }
-  | { kind: "task_event"; key: string; notice: TaskEventNotice }
+  | { kind: "task_result"; key: string; notice: TaskResultNotice }
   | { kind: "system_event"; key: string; notice: SystemEventNotice };
 
 /**
@@ -267,11 +267,11 @@ export function buildCommittedTimeline(
       });
       return;
     }
-    if (item.taskEvent) {
+    if (item.taskResult) {
       items.push({
-        kind: "task_event",
-        key: item.taskEvent.entryId ?? item.id ?? `task-event-${index}`,
-        notice: item.taskEvent,
+        kind: "task_result",
+        key: item.taskResult.entryId ?? item.id ?? `task-result-${index}`,
+        notice: item.taskResult,
       });
       return;
     }
@@ -355,7 +355,7 @@ export function buildCommittedTimeline(
     });
   });
 
-  moveContinuableStatusesAfterTaskEvents(items);
+  moveContinuableStatusesAfterTaskResults(items);
 
   const statusRunIds = new Set(
     items.flatMap((node) =>
@@ -425,7 +425,7 @@ export function buildCommittedTimeline(
   };
 }
 
-function moveContinuableStatusesAfterTaskEvents(items: TimelineItem[]): void {
+function moveContinuableStatusesAfterTaskResults(items: TimelineItem[]): void {
   for (const status of [...items]) {
     if (
       status.kind !== "run_status" ||
@@ -439,7 +439,7 @@ function moveContinuableStatusesAfterTaskEvents(items: TimelineItem[]): void {
     for (let index = statusIndex + 1; index < items.length; index += 1) {
       const candidate = items[index];
       if (
-        candidate?.kind === "task_event" &&
+        candidate?.kind === "task_result" &&
         candidate.notice.runId === status.notice.runId
       ) {
         targetIndex = index;
@@ -462,7 +462,7 @@ function timelineItemCreatedAt(item: TimelineItem): string | undefined {
   if (item.kind === "tool") return item.toolCall?.createdAt;
   if (item.kind === "compaction") return item.notice.createdAt;
   if (item.kind === "run_status") return item.notice.createdAt;
-  if (item.kind === "task_event") return item.notice.createdAt;
+  if (item.kind === "task_result") return item.notice.createdAt;
   if (item.kind === "system_event") return item.notice.createdAt;
   return undefined;
 }

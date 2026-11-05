@@ -129,9 +129,7 @@ export function projectModelMessages(
             event,
             convertToLlm([
               createHarnessMessage(
-                event.payload.subtype === "async_bash_event"
-                  ? "task_event"
-                  : event.payload.subtype,
+                event.payload.subtype,
                 event.payload.text,
                 event.payload,
                 event.createdAt,

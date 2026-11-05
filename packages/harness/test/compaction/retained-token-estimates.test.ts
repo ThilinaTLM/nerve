@@ -36,7 +36,7 @@ describe("retained context accounting", () => {
     assert.ok(
       estimateRetainedMessageTokens({
         role: "harness",
-        eventType: "task_event",
+        eventType: "task_result",
         content: "done",
         timestamp: 0,
       }) > 1,

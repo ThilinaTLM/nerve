@@ -69,6 +69,9 @@ export function options(
     ),
     processes: {
       start: unexpectedProcess,
+      awaitReadiness: async () => {
+        throw new Error("No process expected");
+      },
       reattach: async () => null,
     },
     defaultConfig: () => ({

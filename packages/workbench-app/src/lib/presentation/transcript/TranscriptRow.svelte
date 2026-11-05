@@ -144,8 +144,8 @@ const noticeMenuTarget = $derived.by(() => {
       return { kind: "run_status" as const, notice: node.notice };
     case "compaction":
       return { kind: "compaction" as const, notice: node.notice };
-    case "task_event":
-      return { kind: "task_event" as const, notice: node.notice };
+    case "task_result":
+      return { kind: "task_result" as const, notice: node.notice };
     case "system_event":
       return { kind: "system_event" as const, notice: node.notice };
     default:
@@ -317,7 +317,7 @@ $effect(() => {
             />
           {:else if node.kind === "compaction"}
             <CompactionNoticeCard notice={node.notice} {onCancelCompaction} />
-          {:else if node.kind === "task_event"}
+          {:else if node.kind === "task_result"}
             <TaskNoticeCard notice={node.notice} {onOpenTask} />
           {:else if node.kind === "system_event"}
             <SystemEventNoticeCard notice={node.notice} {onOpenFile} />

@@ -116,10 +116,10 @@ void test("project launch diagnostics are drained before completion, bypass is e
       artifactDir: join(dir, "bypass"),
       signal: new AbortController().signal,
     });
-    assert.equal((await bypass.process.wait()).status, "completed");
-    assert.equal(bypass.process.launch?.manager, undefined);
+    assert.equal((await bypass.wait()).status, "completed");
+    assert.equal(bypass.launch?.manager, undefined);
     assert.equal(
-      await readFile(bypass.process.outputFiles.combined, "utf8"),
+      await readFile(bypass.outputFiles.combined, "utf8"),
       "PROBE\n",
     );
 
@@ -226,7 +226,7 @@ void test("admitted foreground/background processes never reselect shell, cwd, m
       const child =
         mode === "foreground"
           ? await host.spawn(input)
-          : (await host.start(input)).process;
+          : await host.start(input);
       assert.equal((await child.wait()).exitCode, 0);
       assert.equal(child.launch?.manager, undefined);
       assert.equal(child.launch?.cwd, dir);

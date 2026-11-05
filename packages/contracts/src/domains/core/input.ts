@@ -10,22 +10,34 @@ export const deliveryTargetSchema = z.enum([
   "specific_execution",
   "next_execution",
 ]);
+/** Terminal outcome shared by every background task kind. */
+export const taskOutcomeSchema = z.enum([
+  "completed",
+  "failed",
+  "cancelled",
+  "timed_out",
+  "interrupted",
+]);
+export type TaskOutcome = z.infer<typeof taskOutcomeSchema>;
 export const systemNoticeSchema = z.discriminatedUnion("subtype", [
   z.object({
-    subtype: z.literal("async_bash_event"),
+    subtype: z.literal("task_result"),
     producer: z.string(),
-    bashId: z.string(),
-    status: z.enum(["completed", "failed", "timed_out", "cancelled", "lost"]),
-    exitCode: z.number().int().nullable(),
-    text: z.string(),
-    assetIds: z.array(z.string()),
-  }),
-  z.object({
-    subtype: z.literal("sub_conversation_event"),
-    producer: z.string(),
-    childConversationId: z.string(),
-    assignmentId: z.string(),
-    status: z.enum(["completed", "failed", "cancelled", "interrupted"]),
+    task: z.discriminatedUnion("kind", [
+      z.object({
+        kind: z.literal("bash"),
+        /** The bashId. */
+        id: z.string(),
+        exitCode: z.number().int().nullable(),
+      }),
+      z.object({
+        kind: z.literal("subagent"),
+        /** The child conversationId. */
+        id: z.string(),
+        assignmentId: z.string(),
+      }),
+    ]),
+    outcome: taskOutcomeSchema,
     text: z.string(),
     assetIds: z.array(z.string()),
   }),

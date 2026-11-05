@@ -91,7 +91,7 @@ describe("safe compaction suffixes", () => {
       entry("call", call),
       entry("notice", {
         role: "harness",
-        eventType: "task_event",
+        eventType: "task_result",
         content: "still waiting",
         timestamp: 0,
       }),

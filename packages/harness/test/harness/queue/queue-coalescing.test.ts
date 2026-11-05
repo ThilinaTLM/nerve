@@ -34,7 +34,7 @@ function harnessEntry(text: string): InboundQueuedMessage {
     id: `harness_${text}`,
     source: "harness",
     message: createHarnessMessage(
-      "task_event",
+      "task_result",
       text,
       { event: "completed" },
       new Date().toISOString(),

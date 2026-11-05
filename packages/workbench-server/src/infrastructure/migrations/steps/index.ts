@@ -3,9 +3,15 @@ import { MIGRATION_METADATA } from "../framework/registry-metadata.js";
 import conversationCore from "./0001-conversation-core/step.js";
 import agentProfiles from "./0002-agent-profiles/step.js";
 import processOutputFiles from "./0003-process-output-files/step.js";
+import taskResultNotices from "./0004-task-result-notices/step.js";
 
 /** Append implementations in metadata order; the migration checker verifies both. */
-const implementations = [conversationCore, agentProfiles, processOutputFiles];
+const implementations = [
+  conversationCore,
+  agentProfiles,
+  processOutputFiles,
+  taskResultNotices,
+];
 if (implementations.length !== MIGRATION_METADATA.length)
   throw new Error("Migration metadata and implementations must match.");
 

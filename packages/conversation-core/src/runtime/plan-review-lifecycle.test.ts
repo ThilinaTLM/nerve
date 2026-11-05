@@ -336,13 +336,16 @@ for (const scenario of [
         core.inputs.enqueueNotice({
           conversationId: "conv_plan",
           inputId: "input_notice",
-          subtype: "sub_conversation_event",
+          subtype: "task_result",
           producer: "conv_child",
           text: "Background work finished",
           details: {
-            childConversationId: "conv_child",
-            assignmentId: "input_assignment",
-            status: "completed",
+            task: {
+              kind: "subagent",
+              id: "conv_child",
+              assignmentId: "input_assignment",
+            },
+            outcome: "completed",
             assetIds: [],
           },
           wakeWhenIdle: true,

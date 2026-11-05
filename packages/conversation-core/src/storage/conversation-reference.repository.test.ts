@@ -231,18 +231,17 @@ test("settled async bash extracts output only and records descendant creation on
       type: "system_event",
       llmRepresentation: "user",
       payload: {
-        subtype: "async_bash_event",
+        subtype: "task_result",
         producer: "bash",
-        bashId: "bash",
-        status: "completed",
-        exitCode: 0,
+        task: { kind: "bash", id: "bash", exitCode: 0 },
+        outcome: "completed",
         text: `${command}\nno URL`,
         assetIds: [],
       },
     };
     await extraction.committed(event);
     assert.equal(s.references.load(["child"]).size, 0);
-    if (event.payload.subtype !== "async_bash_event")
+    if (event.payload.subtype !== "task_result")
       throw new Error("fixture subtype");
     event.payload.text = `${command}\nhttps://github.com/Acme/API/issues/5`;
     await extraction.committed(event);
@@ -330,11 +329,10 @@ test("remote discovery skips unrelated prompts and settled bash commands", async
       type: "system_event",
       llmRepresentation: "user",
       payload: {
-        subtype: "async_bash_event",
+        subtype: "task_result",
         producer: "unrelated",
-        bashId: "unrelated",
-        status: "completed",
-        exitCode: 0,
+        task: { kind: "bash", id: "unrelated", exitCode: 0 },
+        outcome: "completed",
         text: "pnpm check\nOK",
         assetIds: [],
       },

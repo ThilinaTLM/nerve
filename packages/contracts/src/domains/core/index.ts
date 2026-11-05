@@ -113,7 +113,10 @@ export type {
   ConfigurationBlockedRequest,
   ConfigurationBlockedResolution,
   ConfigurationBlockedInteraction,
+  InteractionKind,
+  InteractionOf,
   InteractionResolution,
+  InteractionResolutionOf,
   ApprovalRequest,
   UserInputRequest,
   UserInputOption,
@@ -126,6 +129,7 @@ export type {
 export {
   inputSourceSchema,
   deliveryTargetSchema,
+  taskOutcomeSchema,
   systemNoticeSchema,
   queuedInputSchema,
   submitInputRequestSchema,
@@ -133,6 +137,7 @@ export {
 export type {
   InputSource,
   DeliveryTarget,
+  TaskOutcome,
   SystemNotice,
   QueuedInput,
   SubmitInputRequest,

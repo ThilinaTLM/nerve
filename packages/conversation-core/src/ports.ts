@@ -116,9 +116,14 @@ export type ProcessReadiness =
   | { kind: "detected_url"; timeoutMs?: number }
   | { kind: "pattern"; pattern: string; timeoutMs?: number };
 
+export type ProcessReadinessResult = {
+  status: "ready" | "timed_out" | "exited";
+  url?: string;
+};
+
 export interface ProcessPort {
-  // Capture output under artifactDir and perform readiness detection in the host.
-  // A rejected start must clean up its process. After return, cancel() owns its lifetime.
+  // Capture output under artifactDir. A rejected start must clean up its process.
+  // After return, cancel() owns its lifetime.
   start(input: {
     /** Host resolves conversation-scoped bash configuration, including shellPath. */
     conversationId: string;
@@ -128,12 +133,15 @@ export interface ProcessPort {
     artifactDir: string;
     env?: Record<string, string>;
     projectEnvironment?: boolean;
-    ready?: ProcessReadiness;
     timeoutMs?: number;
-  }): Promise<{
-    process: BackgroundProcess;
-    readiness?: { status: "ready" | "timed_out" | "exited"; url?: string };
-  }>;
+  }): Promise<BackgroundProcess>;
+  // Readiness is a policy over a running process, so the host runs it as a separate step
+  // callers invoke right after `start`. A rejection (including abort) cancels the process.
+  awaitReadiness(
+    process: BackgroundProcess,
+    ready: ProcessReadiness,
+    signal: AbortSignal,
+  ): Promise<ProcessReadinessResult>;
   reattach(processRef: string): Promise<BackgroundProcess | null>;
 }
 

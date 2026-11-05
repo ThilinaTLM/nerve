@@ -13,7 +13,7 @@ import type {
   CompactionNotice,
   RunStatusNotice,
   SystemEventNotice,
-  TaskEventNotice,
+  TaskResultNotice,
   TranscriptItem,
 } from "$lib/presentation/state/transcript-types";
 import RunActivitySlot from "$lib/presentation/transcript/activity/RunActivitySlot.svelte";
@@ -146,7 +146,7 @@ const runStatuses: RunStatusNotice[] = [
   },
 ];
 
-const taskNotices: TaskEventNotice[] = [
+const taskNotices: TaskResultNotice[] = [
   {
     ...base,
     event: "completed",

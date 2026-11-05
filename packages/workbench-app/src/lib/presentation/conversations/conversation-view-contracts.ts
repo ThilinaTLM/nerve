@@ -46,7 +46,7 @@ import type {
 import type {
   CompactionNotice,
   RunStatusNotice,
-  TaskEventNotice,
+  TaskResultNotice,
   SystemEventNotice,
   TranscriptItem,
 } from "../state/transcript-types.js";
@@ -311,7 +311,7 @@ export type TranscriptMenuTarget =
   | { kind: "tool_result_error"; toolName: string; error: string }
   | { kind: "run_status"; notice: RunStatusNotice }
   | { kind: "compaction"; notice: CompactionNotice }
-  | { kind: "task_event"; notice: TaskEventNotice }
+  | { kind: "task_result"; notice: TaskResultNotice }
   | { kind: "system_event"; notice: SystemEventNotice }
   | {
       kind: "queued_prompt";

@@ -196,7 +196,7 @@ export function createHarnessMessage<T = unknown>(
 }
 
 function harnessMessageToText(message: HarnessMessage): string {
-  if (message.eventType === "task_event") {
+  if (message.eventType === "task_result") {
     return [
       "<background_task_update>",
       "This is an asynchronous harness event, not a user request.",

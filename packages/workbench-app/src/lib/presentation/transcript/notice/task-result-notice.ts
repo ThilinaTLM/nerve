@@ -1,6 +1,6 @@
 import type { StatusTone } from "@nervekit/ui-kit/display/status";
 import { taskTone } from "@nervekit/ui-kit/display/status";
-import type { TaskEventNotice } from "../../state/transcript-types";
+import type { TaskResultNotice } from "../../state/transcript-types";
 import type { CardGlyph } from "../../cards/card-presentation";
 import type { NoticeChip, TranscriptNoticeModel } from "./notice-presentation";
 
@@ -20,7 +20,7 @@ type EventVocabulary = {
  * mutes finished tasks for panel lists, which is wrong for a one-shot
  * completion notice in the transcript.
  */
-function vocabularyFor(notice: TaskEventNotice): EventVocabulary {
+function vocabularyFor(notice: TaskResultNotice): EventVocabulary {
   switch (notice.event) {
     case "ready":
       return {
@@ -65,6 +65,14 @@ function vocabularyFor(notice: TaskEventNotice): EventVocabulary {
         spokenLabel: "task timed out",
         impliedStatuses: ["timed_out", "running", "ready"],
       };
+    case "interrupted":
+      return {
+        tone: "warning",
+        glyph: "bell-dot",
+        badge: "task_interrupted",
+        spokenLabel: "task interrupted",
+        impliedStatuses: ["interrupted"],
+      };
     case "cancelled":
       return {
         tone: "warning",
@@ -85,7 +93,7 @@ function vocabularyFor(notice: TaskEventNotice): EventVocabulary {
 }
 
 function chipsFor(
-  notice: TaskEventNotice,
+  notice: TaskResultNotice,
   implied: readonly string[],
 ): NoticeChip[] {
   const chips: NoticeChip[] = [];
@@ -106,8 +114,8 @@ function chipsFor(
   return chips;
 }
 
-export function taskEventNoticeModel(
-  notice: TaskEventNotice,
+export function taskResultNoticeModel(
+  notice: TaskResultNotice,
   options: { onOpenTask?: (taskId: string) => void } = {},
 ): TranscriptNoticeModel {
   const vocabulary = vocabularyFor(notice);

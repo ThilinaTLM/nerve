@@ -15,7 +15,8 @@ import {
   createConversation,
   waitUntil,
 } from "../runtime/lifecycle-test-helpers.js";
-import { ToolCallService, type ToolCallChange } from "./tool-call.service.js";
+import { ToolCallService } from "./tool-call.service.js";
+import type { ToolCallChange } from "./tool-call-types.js";
 
 async function fixture(
   t: TestContext,

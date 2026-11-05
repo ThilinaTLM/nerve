@@ -337,7 +337,7 @@ describe("agent loop steering queue", () => {
     };
     let steeringCalls = 0;
     const harnessMessage = createHarnessMessage(
-      "task_event",
+      "task_result",
       "Task typecheck (task_123) finished: failed; cursor=7.",
       { taskId: "task_123", event: "failed", status: "failed" },
       new Date().toISOString(),
@@ -393,7 +393,7 @@ describe("agent loop steering queue", () => {
     };
     let steeringCalls = 0;
     const harnessMessage = createHarnessMessage(
-      "task_event",
+      "task_result",
       "Task tests (task_456) finished: completed; cursor=3.",
       { taskId: "task_456", event: "completed", status: "completed" },
       new Date().toISOString(),

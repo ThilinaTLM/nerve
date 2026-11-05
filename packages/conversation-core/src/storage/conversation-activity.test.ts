@@ -203,13 +203,16 @@ test("child status changes publish every ancestor, and completion stays pending 
         f.inputs.enqueueNotice({
           conversationId: "child",
           inputId: "report",
-          subtype: "sub_conversation_event",
+          subtype: "task_result",
           producer: "grandchild",
           text: "Completed",
           details: {
-            childConversationId: "grandchild",
-            assignmentId: result.executionId,
-            status: result.transition,
+            task: {
+              kind: "subagent",
+              id: "grandchild",
+              assignmentId: result.executionId,
+            },
+            outcome: result.transition,
             assetIds: [],
           },
           wakeWhenIdle: true,

@@ -35,7 +35,7 @@ Foreground Bash, promotion, async Bash notices, process log reads and launch exi
 
 Bash, async Bash and `python_exec` capture one `output.txt` with both streams in arrival order as a conversation-owned asset. Launch logs live under `data/launches/<launchId>/`. `async_bash logs` and `launch logs` use a 0-based `offset` and `limit` (default 100, maximum 500); omitted offset returns the last lines. Pages report ranges, status, a next offset when needed and a path when the page does not cover all output.
 
-A promoted Bash call settles with its async run identity; later completion arrives as a queued `async_bash_event`, not another settlement of the original tool call. Sub-agent responses are capped at 50 KiB in the completion notice and in `subagent_status`, spilling the full text to the child's report file; after a failure, interruption or stop the text is labelled as the last message rather than a report.
+A promoted Bash call settles with its async run identity; later completion arrives as a queued `task_result` notice, not another settlement of the original tool call. Sub-agent responses are capped at 50 KiB in the completion notice and in `subagent_status`, spilling the full text to the child's report file; after a failure, interruption or stop the text is labelled as the last message rather than a report.
 
 ## Transcript presentation
 

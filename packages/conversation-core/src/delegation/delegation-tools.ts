@@ -13,15 +13,10 @@ import type {
 import { toolDefinitionByName } from "@nervekit/tools/catalog";
 import type { ConversationCore, ExecutionFinished } from "../core.js";
 import type { CoreToolHandler } from "../tool-calls/core-tool.js";
-import {
-  finalAssistantText,
-  inlineReport,
-  lastMessageLabel,
-} from "./child-report.js";
+import { SubagentRunner } from "../background-tasks/subagent-runner.js";
+import { finalAssistantText, inlineReport } from "./child-report.js";
 import type { SubagentHost } from "./subagent-host.js";
 import {
-  backgroundLabel,
-  backgroundLines,
   formatNamedStatus,
   formatStatusList,
   recentActivity,
@@ -51,8 +46,6 @@ export function createDelegationTools(
   core: ConversationCore,
   host: SubagentHost,
 ): CoreToolHandler[] {
-  // Children stopped by `subagent_stop`: the tool result already reports it, so no notice.
-  const stoppedByTool = new Set<string>();
   const children = (parentId: string) => core.getSnapshot(parentId).children;
   const findChild = (parentId: string, name: string) =>
     children(parentId).find((child) => key(child.title) === key(name));
@@ -100,69 +93,16 @@ export function createDelegationTools(
   const runningBash = (id: string) =>
     core.getSnapshot(id).asyncBash.filter((row) => row.status === "running");
 
+  const runner = new SubagentRunner({
+    core,
+    profileOf,
+    recent,
+    failureMessage,
+  });
+  core.tasks.register(runner);
   core.onExecutionFinished((result) => {
-    const child = core.getSnapshot(result.conversationId);
-    const parentId = child.conversation.parentConversationId;
-    if (!parentId) return;
-    if (result.transition === "cancelled") {
-      // A lead's `subagent_stop` is reported by its own result. A stop cascading from
-      // the lead pauses the lead first, and a notice would only grow its next turn.
-      if (stoppedByTool.has(result.conversationId)) return;
-      if (core.getSnapshot(parentId).conversation.paused) return;
-    }
-    const profile = profileOf(parentId, child.conversation);
-    const head = `Sub-agent "${child.conversation.title}"${profile ? ` (${profile})` : ""}`;
-    const background = runningBash(result.conversationId);
-    const response = finalAssistantText(core, result);
-    const report = response
-      ? inlineReport(core, result.conversationId, result.executionId, response)
-      : "";
-    // A completed notice already says so; other outcomes label the message so it is not taken as a report.
-    const body = !report
-      ? ""
-      : result.transition === "completed"
-        ? `\n${report}`
-        : `\n${lastMessageLabel(false)}\n${report}`;
-    const now = Date.now();
-    let first: string;
-    if (result.transition === "cancelled")
-      first = `${head} was stopped by the user.`;
-    else if (result.transition === "failed")
-      first = `${head} failed: ${failureMessage(result) ?? "unknown error"}`;
-    else if (result.transition === "interrupted")
-      first = `${head} interrupted.`;
-    else if (background.length)
-      first = [
-        `${head} is waiting on ${backgroundLabel(background.length)} and accepts follow-ups:`,
-        ...backgroundLines(background, now),
-      ].join("\n");
-    else first = `${head} completed.`;
-    // The assignment this execution worked on: its first parent-sourced message.
-    let assignmentId = result.executionId;
-    for (const event of recent(result.conversationId)) {
-      if (event.id === result.executionId) break;
-      if (
-        event.sequence < result.event.sequence &&
-        event.type === "user_message" &&
-        event.payload.source === "parent_conversation" &&
-        event.inputId
-      )
-        assignmentId = event.inputId;
-    }
-    core.inputs.enqueueNotice({
-      conversationId: parentId,
-      inputId: `input_${result.executionId}`,
-      subtype: "sub_conversation_event",
-      producer: result.conversationId,
-      text: `${first}${body}`,
-      details: {
-        childConversationId: result.conversationId,
-        assignmentId,
-        status: result.transition,
-        assetIds: [],
-      },
-      wakeWhenIdle: true,
-    });
+    const task = runner.terminalOf(result);
+    if (task) core.tasks.settle(task.ref, task.terminal);
   });
 
   const prompt: CoreToolHandler = {
@@ -456,16 +396,13 @@ ${errors.map((line) => `- ${line}`).join("\n")}`;
         const runMs = started
           ? Math.max(0, Date.now() - Date.parse(started.createdAt))
           : undefined;
-        stoppedByTool.add(child.id);
         try {
-          await core.stop(child.id);
+          await runner.stoppingByTool(child.id, () => core.stop(child.id));
         } catch (error) {
           const reason = error instanceof Error ? error.message : String(error);
           details.results!.push({ name, outcome: "failed", runMs, reason });
           lines.push(`${child.title}: failed to stop: ${reason}`);
           continue;
-        } finally {
-          stoppedByTool.delete(child.id);
         }
         details.results!.push({ name, outcome: "stopped", runMs });
         lines.push(`${child.title}: stopped`);

@@ -4,7 +4,7 @@ import { failureCategory } from "$lib/presentation/view-models/failure-category"
 import type {
   CompactionNotice,
   RunStatusNotice,
-  TaskEventNotice,
+  TaskResultNotice,
   TranscriptItem,
 } from "./transcript-types";
 
@@ -204,12 +204,12 @@ function runStatusNotice(
   };
 }
 
-function taskEventNotice(
+function taskResultNotice(
   entry: ConversationEntry,
-): TaskEventNotice | undefined {
-  if (entry.kind !== "task_event") return undefined;
+): TaskResultNotice | undefined {
+  if (entry.kind !== "task_result") return undefined;
   const details = entryDetails(entry);
-  if (details?.type !== "task_event") return undefined;
+  if (details?.type !== "task_result") return undefined;
   return {
     entryId: entry.id,
     conversationId: entry.conversationId,
@@ -265,8 +265,8 @@ export function entryToTranscriptItems(
     ];
   }
 
-  const taskEvent = taskEventNotice(entry);
-  if (taskEvent) {
+  const taskResult = taskResultNotice(entry);
+  if (taskResult) {
     return [
       {
         id: entry.id,
@@ -276,7 +276,7 @@ export function entryToTranscriptItems(
         displayKind: "message",
         text: entry.text,
         createdAt: entry.createdAt,
-        taskEvent,
+        taskResult,
       },
     ];
   }
