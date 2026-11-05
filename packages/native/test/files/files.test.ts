@@ -73,9 +73,18 @@ test("tree monitor reports changes outside ignored directories only", async (t) 
       pollIntervalMs: 600_000,
     });
     assert.equal(state.degraded, false);
+    // FSEvents (macOS) may replay the fixture's own writes just after the
+    // stream starts; let them settle so only later changes are asserted.
+    await new Promise((resolve) => setTimeout(resolve, 700));
+    notices.length = 0;
     await writeFile(join(root, "node_modules/pkg/ignored.js"), "x");
     await new Promise((resolve) => setTimeout(resolve, 700));
-    assert.equal(notices.length, 0);
+    assert.deepEqual(
+      notices.flatMap((notice) =>
+        notice.paths.filter((path) => path.includes("node_modules")),
+      ),
+      [],
+    );
     await mkdir(join(root, "src/new/deeper"), { recursive: true });
     await writeFile(join(root, "src/new/deeper/file.ts"), "x");
     await until(() =>

@@ -7,6 +7,7 @@ import {
   type ConversationActivity,
 } from "$lib/presentation/conversations/conversation-activity";
 import NotificationEntry from "$lib/presentation/activity/NotificationEntry.svelte";
+import MaterialFileIcon from "$lib/presentation/files/MaterialFileIcon.svelte";
 import type { StatusTone } from "@nervekit/ui-kit/display/status";
 import ArchiveIcon from "@lucide/svelte/icons/archive";
 import ArrowDownToLineIcon from "@lucide/svelte/icons/arrow-down-to-line";
@@ -746,6 +747,23 @@ const activityExamples: {
           { label: "View logs", onSelect: () => {}, disabled: true },
         ]}
       />
+    </GallerySpecimen>
+    <GallerySpecimen
+      title="MaterialFileIcon"
+      source="presentation/files/MaterialFileIcon.svelte"
+      usage="Files, Git changes, PR files, quick open, search"
+      layout="stack"
+      description="Material icon theme by name; folders switch icon when open."
+    >
+      {#each [{ name: "src", kind: "directory", open: false }, { name: "src", kind: "directory", open: true }, { name: "package.json", kind: "file", open: false }, { name: "main.rs", kind: "file", open: false }, { name: "App.svelte", kind: "file", open: false }] as const as icon (`${icon.name}-${icon.open}`)}
+        <div class="flex items-center gap-1.5 text-ui text-foreground">
+          <MaterialFileIcon
+            name={icon.name}
+            kind={icon.kind}
+            open={icon.open}
+          />{icon.name}{icon.open ? " (open)" : ""}
+        </div>
+      {/each}
     </GallerySpecimen>
   </GalleryGroup>
 </div>
