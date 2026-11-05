@@ -29,8 +29,8 @@ test(
       JSON.stringify({ type: "module" }),
     );
     await cp(
-      new URL("../scripts/start-electron.mjs", import.meta.url),
-      join(root, "scripts/start-electron.mjs"),
+      new URL("../scripts/start-electron.ts", import.meta.url),
+      join(root, "scripts/start-electron.ts"),
     );
     await writeFile(
       join(root, "dist/platform/electron/download-environment.js"),
@@ -49,7 +49,7 @@ test(
     );
     const wrapper = spawn(
       process.execPath,
-      [join(root, "scripts/start-electron.mjs")],
+      [join(root, "scripts/start-electron.ts")],
       {
         env: {
           ...process.env,

@@ -173,7 +173,7 @@ test("known operational scripts map to their owning runtime", () => {
   }
 
   const brand = classifyChanges(
-    ["scripts/build/generate-brand-assets.mjs"],
+    ["scripts/build/generate-brand-assets.ts"],
     workspace,
   );
   assert.equal(brand.full, false);
@@ -181,7 +181,7 @@ test("known operational scripts map to their owning runtime", () => {
   assert.equal(brand.website, false);
 
   const skills = classifyChanges(
-    ["scripts/build/copy-skills-assets.mjs"],
+    ["scripts/build/copy-skills-assets.ts"],
     workspace,
   );
   assert.equal(skills.full, false);

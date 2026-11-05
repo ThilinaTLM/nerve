@@ -6,7 +6,7 @@ import { fileURLToPath } from "node:url";
 import {
   checkSource,
   checkTree,
-} from "../../scripts/check-internal-dependencies.mjs";
+} from "../../scripts/check-internal-dependencies.ts";
 
 test("native source tree obeys internal boundaries", () => {
   assert.deepEqual(

@@ -81,8 +81,6 @@ import type {
   GitReadMetadataOptions,
   GitReadMetadataSnapshot,
   GitReadSnapshot,
-  GitReadDiscovery,
-  GitReadProjectResult,
 } from "./read/types.js";
 import { GithubApiClient } from "./git-github-api-client.js";
 import {
@@ -119,12 +117,9 @@ import {
   GitRepositoryMetadataCache,
   type StableRepoMetadata,
 } from "./git-repository-metadata.js";
-import { GitProjectReadCache } from "./read/project-read-cache.js";
-import {
-  inGitLane,
-  hasGitRepositoryLane,
-  outsideGitOperation,
-} from "./git-operation-context.js";
+import { GitProjectReader } from "./git-project-reader.js";
+import { GitOverviewCoalescer } from "./git-overview-coalescer.js";
+import { inGitLane, outsideGitOperation } from "./git-operation-context.js";
 import { GitRemoteCache } from "./git-remote-cache.js";
 import {
   listGithubIssues,
@@ -140,22 +135,8 @@ export class GitService {
   readonly #stableMetadataCache: GitRepositoryMetadataCache;
   readonly #githubApi: GithubApiClient;
   readonly #readBackend: GitReadBackend;
-  readonly #projectReads = new GitProjectReadCache<{
-    discovery: GitReadDiscovery;
-    snapshots: GitReadProjectResult[];
-    signal: AbortSignal;
-    freshness: { stale: boolean };
-  }>();
-  readonly #overviewReads = new Map<
-    string,
-    {
-      projectId: string;
-      freshness: { stale: boolean };
-      controller: AbortController;
-      value: Promise<GitOverviewResponse>;
-    }
-  >();
-  #readsClosed = false;
+  readonly #projectReader: GitProjectReader;
+  readonly #overviews: GitOverviewCoalescer;
   readonly #mutations: GitMutationContext;
   readonly #fileDiffContext: GitFileDiffContext;
   readonly #issues = new GitRemoteCache<GithubIssueSummary[]>();
@@ -179,6 +160,19 @@ export class GitService {
         new NativeGitReadBackend(options.now),
         (observation) => options.onReadCompleted?.(observation),
       );
+    this.#projectReader = new GitProjectReader({
+      getProject: (projectId) => this.getProject(projectId),
+      readBackend: this.#readBackend,
+      invalidateProjectReads: (projectId) =>
+        this.invalidateProjectReads(projectId),
+      summarizeRepo: (...args) => this.summarizeRepo(...args),
+    });
+    this.#overviews = new GitOverviewCoalescer({
+      resolveRepoDir: (projectId, relativePath) =>
+        this.resolveRepoDir(projectId, relativePath),
+      readOverview: (projectId, relativePath) =>
+        this.readOverview(projectId, relativePath),
+    });
     this.#mutations = {
       resolveRepoDir: (projectId, relativePath) =>
         this.resolveRepoDir(projectId, relativePath),
@@ -355,15 +349,8 @@ export class GitService {
     projectId: string,
     options: { uncertain?: boolean } = {},
   ): void {
-    this.#projectReads.invalidate(projectId, options);
-    for (const read of this.#overviewReads.values()) {
-      if (read.projectId !== projectId) continue;
-      read.freshness.stale = true;
-      if (!options.uncertain)
-        read.controller.abort(
-          new DOMException("Git overview superseded", "AbortError"),
-        );
-    }
+    this.#projectReader.invalidate(projectId, options);
+    this.#overviews.invalidate(projectId, options);
     if (options.uncertain) return;
     try {
       this.#stableMetadataCache.invalidateWithin(
@@ -374,128 +361,18 @@ export class GitService {
     }
   }
 
-  private readProject(projectId: string, refresh = false) {
-    const root = realpathSync(this.getProject(projectId).dir);
-    if (refresh) this.invalidateProjectReads(projectId);
-    return this.#projectReads.get(
-      projectId,
-      root,
-      async (signal, freshness) => {
-        const discovery = await this.#readBackend.discoverProject(root, signal);
-        signal.throwIfAborted();
-        const snapshots = await this.#readBackend.projectSnapshots(
-          discovery.repositories,
-          true,
-          signal,
-        );
-        signal.throwIfAborted();
-        return { discovery, snapshots, signal, freshness };
-      },
-      refresh,
-    );
-  }
-
-  async discoverRepos(
+  discoverRepos(
     projectId: string,
     refresh = false,
   ): Promise<GitDiscoveryResponse> {
-    const project = this.getProject(projectId);
-    const { discovery, snapshots, signal, freshness } = await this.readProject(
-      projectId,
-      refresh,
-    );
-    const repos: GitRepoSummary[] = [];
-    const errors: NonNullable<GitDiscoveryResponse["errors"]> = [];
-    let next = 0;
-    const summarize = async () => {
-      while (next < snapshots.length) {
-        const { repository, snapshot, error } = snapshots[next++];
-        if (!snapshot) {
-          errors.push({
-            repo: repository.relativePath,
-            category: error?.category ?? "internal",
-            message: "Repository could not be read.",
-            retryable: error?.retryable ?? true,
-          });
-          continue;
-        }
-        try {
-          repos.push(
-            await this.summarizeRepo(
-              repository.workDir,
-              repository.relativePath,
-              repository.relativePath === "."
-                ? project.name
-                : basename(repository.workDir),
-              undefined,
-              {
-                ...snapshot,
-                files: snapshot.files.filter(
-                  (file) => file.index !== "!" && file.worktree !== "!",
-                ),
-              },
-            ),
-          );
-        } catch {
-          errors.push({
-            repo: repository.relativePath,
-            category: "read",
-            message: "Repository metadata could not be read.",
-            retryable: true,
-          });
-        }
-      }
-    };
-    await Promise.all(
-      Array.from({ length: Math.min(4, snapshots.length) }, summarize),
-    );
-    signal.throwIfAborted();
-    repos.sort((a, b) => a.relativePath.localeCompare(b.relativePath));
-    errors.sort((a, b) => a.repo.localeCompare(b.repo));
-    return {
-      projectIsRepo: discovery.projectIsRepo,
-      repos,
-      errors,
-      ...(freshness.stale ? { stale: true } : {}),
-    };
+    return this.#projectReader.discoverRepos(projectId, refresh);
   }
 
-  async projectFileStatus(
+  projectFileStatus(
     projectId: string,
     refresh = false,
   ): Promise<GitProjectFileStatusResponse> {
-    const { snapshots, signal, freshness } = await this.readProject(
-      projectId,
-      refresh,
-    );
-    signal.throwIfAborted();
-    const files: GitProjectFileStatusResponse["files"] = [];
-    const errors: NonNullable<GitProjectFileStatusResponse["errors"]> = [];
-    for (const { repository, snapshot, error } of snapshots) {
-      const repo = repository.relativePath;
-      if (!snapshot) {
-        errors.push({
-          repo,
-          category: error?.category ?? "internal",
-          message: "Repository could not be read.",
-          retryable: error?.retryable ?? true,
-        });
-        continue;
-      }
-      const prefix = repo === "." ? "" : `${repo}/`;
-      for (const file of snapshot.files)
-        files.push({
-          ...file,
-          repo,
-          path: `${prefix}${file.path.replace(/\/$/, "")}`,
-          ...(file.renamedFrom
-            ? { renamedFrom: `${prefix}${file.renamedFrom}` }
-            : {}),
-        });
-    }
-    files.sort((a, b) => a.path.localeCompare(b.path));
-    errors.sort((a, b) => a.repo.localeCompare(b.repo));
-    return { files, errors, ...(freshness.stale ? { stale: true } : {}) };
+    return this.#projectReader.projectFileStatus(projectId, refresh);
   }
 
   summarizeRepo(
@@ -524,41 +401,7 @@ export class GitService {
     projectId: string,
     relativePath: string,
   ): Promise<GitOverviewResponse> {
-    if (this.#readsClosed)
-      return Promise.reject(new Error("Git reads are closed"));
-    // Resolve/authorize on every caller; never join a read from a mutation scope.
-    const cwd = this.resolveRepoDir(projectId, relativePath);
-    if (hasGitRepositoryLane())
-      return this.readOverview(projectId, relativePath);
-    const key = JSON.stringify([projectId, cwd]);
-    const cached = this.#overviewReads.get(key);
-    if (cached)
-      return cached.controller.signal.aborted
-        ? cached.value
-            .catch(() => {})
-            .then(() => this.overview(projectId, relativePath))
-        : cached.value;
-    if (this.#overviewReads.size >= 128)
-      return Promise.reject(new Error("Git operation queue is full"));
-    const freshness = { stale: false };
-    const controller = new AbortController();
-    const value = inGitLane(
-      cwd,
-      false,
-      () => this.readOverview(projectId, relativePath),
-      { signal: controller.signal },
-    ).then((result) => ({
-      ...result,
-      ...(freshness.stale ? { stale: true } : {}),
-    }));
-    this.#overviewReads.set(key, { projectId, freshness, controller, value });
-    void value
-      .finally(() => {
-        if (this.#overviewReads.get(key)?.value === value)
-          this.#overviewReads.delete(key);
-      })
-      .catch(() => {});
-    return value;
+    return this.#overviews.overview(projectId, relativePath);
   }
 
   private async readOverview(
@@ -947,17 +790,10 @@ export class GitService {
   }
 
   async closeRemoteCaches(): Promise<void> {
-    this.#readsClosed = true;
-    for (const read of this.#overviewReads.values())
-      read.controller.abort(
-        new DOMException("Git reads are closed", "AbortError"),
-      );
     this.#remoteCacheListeners.clear();
     const results = await Promise.allSettled([
-      ...[...this.#overviewReads.values()].map((read) =>
-        read.value.catch(() => {}),
-      ),
-      this.#projectReads.close(),
+      this.#overviews.close(),
+      this.#projectReader.close(),
       this.#stableMetadataCache.close(),
       this.#issues.close(),
       this.#githubApi.close(),

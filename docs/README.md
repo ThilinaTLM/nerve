@@ -12,11 +12,12 @@ Start with the codebase overview, then the conversation core.
 - [Startup and reconnection](architecture/startup.md) — daemon early bind, shell supervision, storage failure handoff and client reconnect.
 - [Storage architecture](architecture/storage.md) — `NERVE_HOME` areas, SQLite versus files versus memory, restart behavior and settings health.
 - [Storage migrations](architecture/migrations.md) — home upgrades, damage isolation, rollback and how to add a step.
+- [Access and authentication](architecture/access.md) — principals, device credentials, pairing, owner passkeys, public URL and proxy trust, and the audit log.
 - [Scoped configuration](architecture/configuration.md) — user/project/conversation scopes, save guarantees and when changes take effect.
 
 **Conversations and agents**
 
-- [Conversation core](architecture/conversation-core/README.md) — the portable agent core: data model, events and context, tool-call lifecycle, input queue, delegation, async bash and channels.
+- [Conversation core](architecture/conversation-core/README.md) — the portable agent core: data model, events and context, tool-call lifecycle, input queue, delegation, async bash, background tasks and channels.
 - [Agent profiles and delegation](architecture/conversation-core/delegation.md) — profile catalog and precedence, lead lifecycle, child configuration and sub-agent lifecycle.
 - [Permissions](architecture/permissions.md) — rule sets, overlays, guardrails and tool-call authorization.
 - [System prompt and tool descriptions](architecture/system-prompt.md) — prompt assembly and tool-writing rules.

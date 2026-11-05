@@ -21,7 +21,7 @@
     "build": "vite build",
     "check": "svelte-check --tsconfig ./tsconfig.json",
     "dev": "vite --host 127.0.0.1",
-    "test": "node scripts/run-tests.mjs"
+    "test": "node scripts/run-tests.ts"
   },
   "dependencies": {
     "@codemirror/autocomplete": "^6.20.2",

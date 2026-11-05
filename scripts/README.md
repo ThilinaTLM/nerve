@@ -22,7 +22,6 @@ Package-local script trees (`packages/*/scripts/`) are outside this layout.
 - No generic `lib/`, global tests directory or domain `lib/` nesting. A module belongs in `cli/` or `workspace/` only when several domains consume it; shared code must not import domain entry points.
 - Entry points use `defineCli(import.meta.url, main)` so modules stay importable. Expected failures throw `CliError` (message only, no stack).
 - Modules launched by CI before `pnpm install` (`impact/ci.ts` and its imports) and by release workflows run under plain Node's type stripping: erasable TypeScript only (no enums, namespaces or parameter properties) and `.ts` import specifiers.
-- Five scripts remain `.mjs` because packages call or import them directly (`build/copy-skills-assets.mjs`, `build/generate-brand-assets.mjs`) or import them (`development/{storage-slot,slot-preflight,owned-processes}.mjs`, used by the desktop-shell dev launcher).
 
 ## Standard flags
 

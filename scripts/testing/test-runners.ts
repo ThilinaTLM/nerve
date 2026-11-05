@@ -58,15 +58,12 @@ export const TEST_RUNNERS: ReadonlyMap<string, TestRunner> = new Map([
   ],
   ["@nervekit/tools", tsxRunner(["test/**/*.test.ts", "src/**/*.test.ts"])],
   ["@nervekit/ui-kit", tsxRunner(["src/**/!(*.svelte).test.ts"])],
+  ["@nervekit/website", tsxRunner(["scripts/**/*.test.ts"])],
   [
-    "@nervekit/website",
-    tsxRunner(["scripts/**/*.test.mjs"], { suffix: ".test.mjs" }),
-  ],
-  [
-    // `node scripts/run-tests.mjs` globs these and runs them under tsx --test.
+    // `node scripts/run-tests.ts` globs these and runs them under tsx --test.
     "@nervekit/workbench-app",
     tsxRunner(["src/**/*.test.ts", "scripts/**/*.test.ts"], {
-      script: "node scripts/run-tests.mjs",
+      script: "node scripts/run-tests.ts",
     }),
   ],
   [

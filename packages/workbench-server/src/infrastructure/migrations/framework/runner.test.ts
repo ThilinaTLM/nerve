@@ -259,7 +259,7 @@ void test("registry rejects malformed previous checksums", () => {
   }
 });
 
-void test("lock check freezes released folders, permits draft edits, rejects removed steps", async (t) => {
+void test("lock check freezes released folders, requires current draft checksums, rejects removed steps", async (t) => {
   const home = await temporaryHome(t);
   const stepsPath = join(home, "steps");
   const folder = join(stepsPath, "0001-example");
@@ -290,10 +290,26 @@ void test("lock check freezes released folders, permits draft edits, rejects rem
     ),
     /differs from lock/,
   );
+  const changed = await hashStepFolder(folder);
+  await assert.rejects(
+    checkMigrationLock(
+      stepsPath,
+      [{ ...registry[0], stage: "draft", releasedIn: undefined }],
+      { "0001-example": { checksum: original, stage: "draft" } },
+    ),
+    /Draft migration checksum is stale/,
+  );
   await checkMigrationLock(
     stepsPath,
-    [{ ...registry[0], stage: "draft", releasedIn: undefined }],
-    { "0001-example": { checksum: original, stage: "draft" } },
+    [
+      {
+        ...registry[0],
+        checksum: changed,
+        stage: "draft",
+        releasedIn: undefined,
+      },
+    ],
+    { "0001-example": { checksum: changed, stage: "draft" } },
   );
   await assert.rejects(
     checkMigrationLock(stepsPath, [], lock),

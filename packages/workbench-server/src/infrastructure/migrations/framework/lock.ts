@@ -70,5 +70,12 @@ export async function checkMigrationLock(
     if (metadata.stage === "released" && checksum !== metadata.checksum) {
       throw new Error(`Released migration changed: ${entry.step.id}`);
     }
+    // Homes record the registry checksum, so a stale draft label would make
+    // edits invisible to `rerunOnChange` and to the eventual released checksum.
+    if (metadata.stage === "draft" && checksum !== metadata.checksum) {
+      throw new Error(
+        `Draft migration checksum is stale: ${entry.step.id} (files hash to ${checksum}); run \`pnpm storage:checksums\`.`,
+      );
+    }
   }
 }

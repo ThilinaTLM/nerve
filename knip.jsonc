@@ -15,7 +15,7 @@
       "entry": ["scripts/**/*.ts", "{test,src}/**/*.test.ts"],
     },
     "packages/website": {
-      "entry": ["scripts/**/*.mjs"],
+      "entry": ["scripts/**/*.ts"],
     },
     "packages/tools": {
       // Spawned as a worker by path string in git-isolated-reader.ts.

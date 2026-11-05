@@ -40,6 +40,10 @@ Recovery re-admits work that has not started so current authorization governs ex
 
 A running call is retried only if the host declares the tool safe to repeat after interruption; otherwise it settles as indeterminate. This is deliberate: a committed claim cannot prove whether an external effect happened before a crash. Core recovery repairs lifecycle state without invoking a provider merely to finish an old execution; newly deliverable queued work can still wake processing. This avoids turning a status repair into fresh model work.
 
+## Interaction handlers
+
+Each interaction kind (`approval`, `user_input`, `plan_review`, `configuration_blocked`) is declared once in contracts and has one `InteractionHandler` that validates a resolution and returns a closed outcome: settle the call, retry it, reopen the interaction with refreshed content, or report a profile transition. `ToolCallInteractions` owns only the shared skeleton (idempotency on the resolution request id, stopping and state checks, recording the resolution, controller cleanup) and is the single place that acts on an outcome, so a new kind adds a handler rather than branches. A handler may also reconcile an already-recorded resolution after a restart.
+
 ## Cancellation and force push
 
 Stopping cancels work, pauses the conversation and cascades through descendants and their async bash (conversation-owned background commands), so delegated work cannot continue after a deliberate user stop. Cancellation settles unfinished calls but cannot undo external effects; uncertain running outcomes may be indeterminate.
@@ -52,11 +56,12 @@ Promotion to [async bash](async-bash-and-launches.md) settles the foreground cal
 
 ## Where it lives
 
-| Concern                                  | Owner                                                                                                      |
-| ---------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
-| Durable call and interaction shapes      | [`toolCallSchema`](../../../packages/contracts/src/domains/core/tool-call.ts)                              |
-| Admission, transitions and call recovery | [`ToolCallService`](../../../packages/conversation-core/src/tool-calls/tool-call.service.ts)               |
-| Settlement and turn barrier              | [`ToolCallSettlement`](../../../packages/conversation-core/src/tool-calls/tool-call-settlement.service.ts) |
-| Startup recovery                         | [`recoverCore`](../../../packages/conversation-core/src/runtime/recovery.ts)                               |
-| Stop and force push                      | [`ConversationScheduler`](../../../packages/conversation-core/src/runtime/scheduler.ts)                    |
-| Direct-command routing                   | [`ConversationCore.submitInput`](../../../packages/conversation-core/src/core.ts)                          |
+| Concern                                  | Owner                                                                                                                                                                                                                                                                                                                      |
+| ---------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Durable call and interaction shapes      | [`toolCallSchema`](../../../packages/contracts/src/domains/core/tool-call.ts)                                                                                                                                                                                                                                              |
+| Admission, transitions and call recovery | [`ToolCallService`](../../../packages/conversation-core/src/tool-calls/tool-call.service.ts)                                                                                                                                                                                                                               |
+| Interaction handlers                     | [`interaction-handlers.ts`](../../../packages/conversation-core/src/tool-calls/interaction-handlers.ts); [`InteractionHandler`](../../../packages/conversation-core/src/tool-calls/interaction-handler.ts); [`ToolCallInteractions`](../../../packages/conversation-core/src/tool-calls/tool-call-interactions.service.ts) |
+| Settlement and turn barrier              | [`ToolCallSettlement`](../../../packages/conversation-core/src/tool-calls/tool-call-settlement.service.ts)                                                                                                                                                                                                                 |
+| Startup recovery                         | [`recoverCore`](../../../packages/conversation-core/src/runtime/recovery.ts)                                                                                                                                                                                                                                               |
+| Stop and force push                      | [`ConversationScheduler`](../../../packages/conversation-core/src/runtime/scheduler.ts)                                                                                                                                                                                                                                    |
+| Direct-command routing                   | [`ConversationCore.submitInput`](../../../packages/conversation-core/src/core.ts)                                                                                                                                                                                                                                          |

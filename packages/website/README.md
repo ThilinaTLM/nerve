@@ -53,11 +53,11 @@ The sidebar in `astro.config.mjs` is organized by user task: Get started, Everyd
 - Use at most one or two screenshots per page, through `DocsScreenshot` with a “What to notice” caption. Put limits and edge cases in a short “Good to know” list.
 - Keep source paths and internal terms out of user pages. Mechanism detail and exhaustive precedence rules belong in Reference or Developers.
 - Use “profile” for the agent profile (Coding, Planning, custom), not “mode”. There is one Theme picker with five themes; do not describe separate light/dark pickers or name retired themes.
-- Four old routes redirect (`/start/guides/`, `/guides/git-and-pull-requests/`, `/guides/import-export-editors/`, `/models/usage-images-voice/`). Link to the new routes; `scripts/check-content.mjs` rejects internal links to a redirect source.
+- Four old routes redirect (`/start/guides/`, `/guides/git-and-pull-requests/`, `/guides/import-export-editors/`, `/models/usage-images-voice/`). Link to the new routes; `scripts/check-content.ts` rejects internal links to a redirect source.
 
 ## Product screenshots
 
-Product captures come from the live loopback workbench at desktop and phone viewports. Generate them through `scripts/screenshots/run.mjs`, which seeds synthetic projects in throwaway directories, starts an isolated daemon, captures scenes, checks captured text for sensitive or unexpected data, and optimizes the results. See [`scripts/screenshots/README.md`](scripts/screenshots/README.md) for scene names and capture options.
+Product captures come from the live loopback workbench at desktop and phone viewports. Generate them through `scripts/screenshots/run.ts`, which seeds synthetic projects in throwaway directories, starts an isolated daemon, captures scenes, checks captured text for sensitive or unexpected data, and optimizes the results. See [`scripts/screenshots/README.md`](scripts/screenshots/README.md) for scene names and capture options.
 
 Review scenes against the current UI: launch configurations replace the former Tasks workflow, subagents use Explore/Developer profiles, and background Bash activity has completion notices, log tabs, and a conversation activity island. The header Notifications popover and pending `ask_user` decision have dedicated scenes; pull-request reads are synthetic browser fixtures, so all scenes run without GitHub credentials. Describe what the capture actually shows; do not infer current behavior from an older screenshot or rename asset paths without updating their consumers. Screenshot refreshes do not require changes to landing-page source, layout, or marketing copy.
 

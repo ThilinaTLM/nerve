@@ -107,7 +107,7 @@ export const SPECIAL_OWNERS: ReadonlyMap<string, SpecialOwner> = new Map([
     "scripts/build/copy-workbench-app-dist-to-workbench-server.ts",
     { owners: ["@nervekit/workbench-app", "@nervekit/workbench-server"] },
   ],
-  ["scripts/build/copy-skills-assets.mjs", { owners: ["@nervekit/skills"] }],
+  ["scripts/build/copy-skills-assets.ts", { owners: ["@nervekit/skills"] }],
   [
     "scripts/release/smoke-workbench-release.ts",
     { owners: ["@nervekit/workbench-app", "@nervekit/workbench-server"] },
@@ -117,7 +117,7 @@ export const SPECIAL_OWNERS: ReadonlyMap<string, SpecialOwner> = new Map([
     { owners: ["@nervekit/harness"], electronSmoke: true },
   ],
   [
-    "scripts/build/generate-brand-assets.mjs",
+    "scripts/build/generate-brand-assets.ts",
     { owners: ["@nervekit/desktop-shell"] },
   ],
 ]);

@@ -4,7 +4,7 @@ import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, it } from "node:test";
-import { bundleDesktopPreload } from "../scripts/copy-preload.mjs";
+import { bundleDesktopPreload } from "../scripts/copy-preload.ts";
 
 const require = createRequire(import.meta.url);
 const { createDesktopPreloadApi } = require("../src/preload-api.cjs") as {

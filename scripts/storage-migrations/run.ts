@@ -4,6 +4,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 const root = fileURLToPath(new URL("../../", import.meta.url));
 const scripts = new Map([
   ["check", "check.ts"],
+  ["checksums", "update-draft-checksums.ts"],
   ["migrate", "migrate.ts"],
   ["rehearse", "rehearse.ts"],
   ["copy", "storage-copy.ts"],

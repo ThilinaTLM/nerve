@@ -89,6 +89,10 @@ The standalone `storage:migrate` command uses the same runner and lock as startu
 5. Rehearse on a stopped home copied into an unused slot with `pnpm storage:copy --from <stopped-home> --slot N` and `pnpm storage:migrate --home data/storage-N`. Choose a slot other than 1 so rehearsal cannot modify the normal development home.
 6. After rehearsal, run `pnpm exec tsx scripts/storage-migrations/validate-history.ts --home data/storage-N` and read every report's set-aside list. A clean exit only proves the history parses; an unexpected set-aside usually means a source was validated with the wrong shape.
 
+## Registry integrity
+
+Released steps are frozen: their folder hash is recorded in `migrations.lock.json`, and a step that changed after release lists its earlier hashes in `previousChecksums` so homes upgraded by older builds still verify. An unreleased (draft) step may be edited freely, but the lock check requires its registry checksum in `registry-metadata.ts` to equal its current folder hash. After editing a draft run `pnpm storage:checksums`; it rewrites the draft checksums in both `migrations.lock.json` and `registry-metadata.ts`. `pnpm release:tag X.Y.Z` releases draft steps (see the [release runbook](../runbooks/release.md)).
+
 ## Validation and ownership
 
 Exception-injected phase tests do not cover every process-kill or filesystem durability boundary, so a passing fixture suite alone does not establish crash safety. Rehearsal also has isolation limits: copied credentials can still reach real providers, and a daemon started on a copied home will open the registered projects' real directories. Point project paths at disposable locations before starting a daemon on a rehearsal slot.

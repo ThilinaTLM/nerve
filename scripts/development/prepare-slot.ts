@@ -1,4 +1,4 @@
-import { resolveStorageSlot } from "./storage-slot.mjs";
+import { resolveStorageSlot } from "./storage-slot.ts";
 import { prepareDevelopmentSlot } from "./storage-preparation.js";
 
 try {

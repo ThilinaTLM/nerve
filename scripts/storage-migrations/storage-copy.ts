@@ -1,7 +1,7 @@
 import {
   assertSlotPaths,
   createSlotParent,
-} from "../development/storage-slot.mjs";
+} from "../development/storage-slot.ts";
 import { cloneNerveHome } from "./home-operations.js";
 import { resolveStorageCopyOptions } from "./storage-copy-options.js";
 

@@ -104,7 +104,7 @@ The summary cache lets conversation-list rows show fields such as model and prof
 | `publicUrl`        | `NERVE_PUBLIC_URL`, `--public-url`     | External origin behind a reverse proxy (`https://nerve.example.com`). Adds its host to the Host allowlist, is the passkey RP ID/origin and enables the owner passkey gate. The snapshot reports `""` when unset; a patch value of `""` clears the saved URL. |
 | `trustProxy.peers` | `NERVE_TRUST_PROXY_PEERS` (comma list) | Proxy peer addresses or CIDR ranges allowed to supply `X-Forwarded-*`; default `127.0.0.1`, `::1`; honored only when `publicUrl` is set. Surfaced in the snapshot as `trustProxyPeers`. Invalid entries are rejected on save and at startup.                 |
 
-Device credentials, pairing state and owner passkeys are **not** settings: they live in the 0600 file `secrets/devices.json` (no database table), and the authentication audit trail in `logs/access-audit.jsonl`. `secrets/devices.json` may exist before the first migration; home admission treats it like `secrets/daemon-token`. See [remote access authentication](../proposals/remote-access-authentication.md) and the [hosted-server guide](../../packages/website/src/content/docs/operations/hosted-server.md).
+Device credentials, pairing state and owner passkeys are **not** settings: they live in the 0600 file `secrets/devices.json` (no database table), and the authentication audit trail in `logs/access-audit.jsonl`. `secrets/devices.json` may exist before the first migration; home admission treats it like `secrets/daemon-token`. See [access and authentication](access.md) and the [hosted-server guide](../../packages/website/src/content/docs/operations/hosted-server.md).
 
 ## Where it lives
 

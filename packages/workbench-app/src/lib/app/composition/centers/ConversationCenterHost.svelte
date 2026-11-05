@@ -30,7 +30,6 @@ import type { ComposerSuggestion } from "$lib/features/conversations/views/compo
 import { workbenchStartupState } from "$lib/application/startup/workbench-startup-state.svelte";
 import type { EventTreeNode } from "@nervekit/contracts/core";
 import type { CompletionItem } from "@nervekit/contracts/completions";
-import type { ConversationEntry } from "$lib/presentation/view-models/conversation";
 import { workspaceState } from "$lib/application/workspace/workspace-state.svelte";
 import { workspaceSelectors } from "$lib/application/workspace/workspace-selectors.svelte";
 import { pendingConversations } from "$lib/application/workspace/pending-conversations.svelte";
@@ -101,10 +100,8 @@ import {
   createSystemPromptOpener,
 } from "./conversation-center/composer-config.svelte";
 import { createInteractionActions } from "./conversation-center/interaction-actions.svelte";
-import {
-  runActivePaneAction,
-  submitPendingPrompt,
-} from "./conversation-center/prompt-submission.svelte";
+import { ComposerSession } from "./conversation-center/composer-session.svelte";
+import { runActivePaneAction } from "./conversation-center/prompt-submission.svelte";
 import { createQueuedPromptActions } from "./conversation-center/queued-prompts.svelte";
 let { tab, active = true }: { tab?: CenterTabIdentity; active?: boolean } =
   $props();
@@ -142,9 +139,15 @@ const promptDraftTarget = $derived<PromptDraftTarget | undefined>(
       ? { kind: "conversation", id: conversationId }
       : undefined,
 );
-let editText = $state("");
-let retryingResponse = $state(false);
-let editTarget = $state<ConversationEntry>();
+const composerSession = new ComposerSession({
+  store: () => store,
+  promptDraftTarget: () => promptDraftTarget,
+  pending: () => activePendingConversation,
+  viewedChildId: () => viewedChildId,
+  inherited: () => composerView.inherited,
+  drafts,
+  focusComposer,
+});
 /** Shows a sub-agent in the main view; the lead id (or none) returns. */
 function viewAgent(id: string | undefined) {
   releaseChild?.();
@@ -152,7 +155,7 @@ function viewAgent(id: string | undefined) {
   childStore = undefined;
   viewedChildId = undefined;
   activityOpen = null;
-  editTarget = undefined;
+  composerSession.clearEdit();
   if (!id || id === conversationId) return;
   const retained = retainConversationStore(id);
   releaseChild = retained.release;
@@ -169,7 +172,7 @@ $effect(() => {
   leadStore = undefined;
   untrack(() => viewAgent(undefined));
   tree = [];
-  editTarget = undefined;
+  composerSession.clearEdit();
   if (!id) return;
   const retained = retainConversationStore(id);
   leadStore = retained.store;
@@ -194,7 +197,7 @@ const view = $derived(
         stopping:
           Boolean(store?.stopping) ||
           Boolean(transcript.transient?.compaction?.stopping),
-        retryingResponse,
+        retryingResponse: composerSession.retryingResponse,
         responseRevision: store.responseRevision,
         transient: transcript.transient,
       }
@@ -423,13 +426,6 @@ const contextWindow = $derived(
       ?.contextWindow ??
     0,
 );
-const activeComposerText = $derived(
-  editTarget
-    ? editText
-    : promptDraftTarget
-      ? drafts.getPrompt(promptDraftTarget)
-      : "",
-);
 const builtinSuggestionIcons = {
   "commit-changes": GitCommitHorizontal,
   "commit-on-feature-branch": GitBranchPlus,
@@ -491,63 +487,6 @@ $effect(() => {
   void store?.snapshot?.conversation.title;
   void refreshPromptSuggestions(activeProject.id, { conversationId });
 });
-function applySuggestion(suggestion: { prompt: string }) {
-  const current = activeComposerText.trim();
-  setPaneComposerText(
-    current
-      ? `${activeComposerText}\n\n${suggestion.prompt}`
-      : suggestion.prompt,
-  );
-}
-function sendSuggestion(suggestion: { prompt: string }) {
-  void runActivePaneAction(() =>
-    submitPrompt(suggestion.prompt, { clearComposer: false }),
-  );
-}
-function setPaneComposerText(text: string) {
-  if (editTarget) editText = text;
-  else if (promptDraftTarget) drafts.setPrompt(promptDraftTarget, text);
-}
-async function submitPrompt(
-  text = activeComposerText,
-  options: { clearComposer?: boolean } = {},
-) {
-  if (!text.trim() || viewedChildId) return;
-  const pending = activePendingConversation;
-  if (pending) {
-    await submitPendingPrompt({
-      pending,
-      text,
-      inherited: composerView.inherited,
-      drafts,
-      clearComposer: options.clearComposer !== false,
-    });
-    return;
-  }
-  const submittingStore = store;
-  const submittingEdit = editTarget;
-  const submittingTarget = promptDraftTarget;
-  if (!submittingStore) return;
-  if (submittingEdit)
-    await submittingStore.selectHead(submittingEdit.parentEntryId ?? null);
-  await submittingStore.submit(text);
-  if (!submittingEdit && submittingTarget && options.clearComposer !== false)
-    drafts.clearPromptIfUnchanged(submittingTarget, text);
-  if (editTarget === submittingEdit && (!submittingEdit || editText === text))
-    editTarget = undefined;
-}
-async function abortActiveRun() {
-  await store?.control("stop");
-}
-async function retryActiveResponse() {
-  if (retryingResponse) return;
-  retryingResponse = true;
-  try {
-    await store?.retryResponse();
-  } finally {
-    retryingResponse = false;
-  }
-}
 async function compactActiveConversation() {
   await store?.control("compact");
 }
@@ -560,7 +499,7 @@ const openSystemPrompt = createSystemPromptOpener({
   profiles: () => resolvedProfiles,
   conversation: () => store?.snapshot?.conversation,
 });
-const cancelActiveCompaction = abortActiveRun;
+const cancelActiveCompaction = composerSession.abortActiveRun;
 function openToolFile(path: string, line?: number) {
   if (activeProject)
     void openFilePane({ projectId: activeProject.id, path, line });
@@ -594,7 +533,7 @@ const {
   moveQueuedPromptToComposer,
 } = createQueuedPromptActions({
   store: () => store,
-  setComposerText: setPaneComposerText,
+  setComposerText: composerSession.setComposerText,
 });
 const jumpToConversationEntry: (
   id: string | undefined,
@@ -602,11 +541,6 @@ const jumpToConversationEntry: (
 ) => Promise<void> = async (id) => {
   await store?.selectHead(id ?? null);
 };
-async function editConversationEntry(entry: ConversationEntry) {
-  editTarget = entry;
-  editText = entry.text;
-  focusComposer();
-}
 $effect(() => {
   const entry = composerSignals.editEntry;
   if (
@@ -616,7 +550,7 @@ $effect(() => {
     !viewedChildId
   ) {
     composerSignals.editEntry = undefined;
-    void editConversationEntry(entry);
+    composerSession.editEntry(entry);
   }
 });
 const completionProjectId = $derived(activeProject?.id);
@@ -743,10 +677,10 @@ const stoppable = $derived(hasStoppableWork(store?.snapshot));
   stopping={view?.stopping ?? false}
   retryingResponse={view?.retryingResponse ?? false}
   responseRevision={view?.responseRevision ?? 0}
-  composerText={activeComposerText}
+  composerText={composerSession.composerText}
   composerSuggestions={viewedChildId ? [] : composerSuggestions}
-  onSendSuggestion={sendSuggestion}
-  onDraftSuggestion={applySuggestion}
+  onSendSuggestion={composerSession.sendSuggestion}
+  onDraftSuggestion={composerSession.applySuggestion}
   models={usableModels}
   {selectedModelKey}
   thinkingLevel={selectedThinkingLevel}
@@ -777,9 +711,9 @@ const stoppable = $derived(hasStoppableWork(store?.snapshot));
   composerEscapeToken={composerSignals.escapeToken}
   micShortcutToken={composerSignals.micToken}
   {completionSource}
-  onComposerChange={setPaneComposerText}
+  onComposerChange={composerSession.setComposerText}
   onSubmit={() => {
-    void runActivePaneAction(submitPrompt);
+    void runActivePaneAction(composerSession.submit);
   }}
   onAnswerUserQuestion={answerUserQuestion}
   onDismissUserQuestion={dismissUserQuestion}
@@ -787,7 +721,7 @@ const stoppable = $derived(hasStoppableWork(store?.snapshot));
     void runActivePaneAction(
       view?.transient?.compaction?.state === "running"
         ? cancelActiveCompaction
-        : abortActiveRun,
+        : composerSession.abortActiveRun,
     );
   }}
   onCompact={() => {
@@ -823,7 +757,7 @@ const stoppable = $derived(hasStoppableWork(store?.snapshot));
   onAcceptPlanReviewInNewChat={undefined}
   onRejectPlanReview={rejectPendingPlanReview}
   onRetryResponse={() => {
-    void runActivePaneAction(retryActiveResponse);
+    void runActivePaneAction(composerSession.retryActiveResponse);
   }}
   onCancelCompaction={() => {
     void runActivePaneAction(cancelPendingCompaction);
@@ -838,7 +772,7 @@ const stoppable = $derived(hasStoppableWork(store?.snapshot));
     void jumpToConversationEntry(entryId, summarize);
   }}
   onEditEntry={(entry) => {
-    void editConversationEntry(entry);
+    composerSession.editEntry(entry);
   }}
   onOpenHistory={() => {
     void runActivePaneAction(openConversationHistory);

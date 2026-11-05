@@ -2,11 +2,11 @@
 
 Manual verification of everything delivered by the code-quality programme
 (Wave 1 = PR #530, Wave 2 = #531, Wave 3 = #532, Wave 4 = branch
-`wave-4/auth-pairing-splits-tooling`) plus core regression areas. Specs live in
-`docs/proposals/*.md`; this plan is the executable checklist.
+`wave-4/auth-pairing-splits-tooling`) plus core regression areas. Designs are described in
+`docs/architecture/`; this plan is the executable checklist.
 
 Legend: `[ ]` = to run. Sections marked **(Wave 4)**
-come from the proposals, not from merged code; UI labels, endpoint paths and
+were written ahead of implementation; UI labels, endpoint paths and
 flags may differ. Adjust the case, don't skip it.
 
 ---
@@ -197,7 +197,7 @@ In a project, create `ln -s /tmp/outside link`; ask agent to write `link/new.txt
 
 ## 5. Authentication & pairing **(Wave 4)**
 
-Spec: `docs/proposals/remote-access-authentication.md` phases 1-3.
+Design: `docs/architecture/access.md`.
 
 ### AUTH-1 Local desktop unaffected
 
@@ -342,7 +342,7 @@ Conversation streams over proxy; idle for >60 s stays connected (long idle timeo
 
 ## 10. Background tasks (Wave 3)
 
-Spec: `docs/proposals/background-jobs.md`.
+Design: `docs/architecture/conversation-core/async-bash-and-launches.md`.
 
 - [ ] **BG-1** `bash` with `background:true`; let finish → task card, model receives `<background_task_update>`, outcome `completed`.
 - [ ] **BG-2** Failing command → `failed`; nonzero exit shown.
@@ -359,7 +359,7 @@ Spec: `docs/proposals/background-jobs.md`.
 
 ## 11. Interactions (Wave 3)
 
-Spec: `docs/proposals/interaction-handlers.md`.
+Design: `docs/architecture/conversation-core/tool-call-lifecycle.md`.
 
 - [ ] **INT-1** `ask_user`: question with options + free text; answer → model continues; cancel/dismiss handled; answer persists across reload.
 - [ ] **INT-2** Approval approve → tool runs. Approve-always/rule creation (if offered) creates a rule.
@@ -431,7 +431,7 @@ Spec: `docs/architecture/permissions.md`.
 
 ## 18. Tooling, scripts and CI **(Wave 4)**
 
-Spec: `docs/proposals/scripts-tooling-refactor.md`, `testing-improvements.md`.
+Design: `scripts/README.md`, `docs/architecture/codebase.md`.
 
 - [ ] **TOOLS-1** `pnpm fix:focused` and `pnpm check:focused` on a small change: correct scope, green; `--dry-run` prints stage scope, reasons, commands; `--base HEAD` limits to local changes.
 - [ ] **TOOLS-2** Plan golden tests: `cd scripts && pnpm exec tsx --test checks/test/plan-golden*.test.ts` (adapt path) pass for all change sets.

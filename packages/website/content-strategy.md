@@ -256,7 +256,7 @@ User pages open with one sentence on what the reader will accomplish, organize s
 
 #### Redirect map
 
-Configured with Astro `redirects` in `astro.config.mjs`; `scripts/check-content.mjs` verifies every target is a known route and no internal link points at a source.
+Configured with Astro `redirects` in `astro.config.mjs`; `scripts/check-content.ts` verifies every target is a known route and no internal link points at a source.
 
 | Old route                        | New route                                                                                    |
 | -------------------------------- | -------------------------------------------------------------------------------------------- |

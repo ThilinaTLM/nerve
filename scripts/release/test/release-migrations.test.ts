@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { cp, mkdtemp, readFile, rm } from "node:fs/promises";
+import { cp, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
@@ -11,6 +11,8 @@ import {
   applyReleaseToMetadataSource,
   planMigrationRelease,
   releaseDraftMigrations,
+  setMetadataChecksum,
+  updateDraftChecksums,
 } from "../release-migrations.ts";
 
 const a = "a".repeat(64);
@@ -138,4 +140,48 @@ void test("releasing the repository's real draft steps yields a consistent lock 
   }
   assert.doesNotMatch(source, /stage: "draft"/);
   assert.deepEqual((await releaseDraftMigrations(root, "9.9.10")).releases, []);
+});
+
+void test("draft checksums refresh to the folder hash; released entries stay", async (t) => {
+  assert.match(
+    setMetadataChecksum(metadata, "0002-new", c),
+    new RegExp(`id: "0002-new"[\\s\\S]*"${c}"`),
+  );
+  assert.equal(
+    setMetadataChecksum(metadata, "0002-new", c).split('id: "0002-new"')[0],
+    metadata.split('id: "0002-new"')[0],
+  );
+
+  const root = await mkdtemp(join(tmpdir(), "nerve-draft-checksums-"));
+  t.after(() => rm(root, { recursive: true, force: true }));
+  const migrations = join(
+    "packages",
+    "workbench-server",
+    "src",
+    "infrastructure",
+    "migrations",
+  );
+  await cp(join(repoRoot, migrations), join(root, migrations), {
+    recursive: true,
+  });
+  assert.deepEqual(await updateDraftChecksums(root), []);
+  const lock = JSON.parse(
+    await readFile(join(root, MIGRATION_LOCK_PATH), "utf8"),
+  ) as Record<string, { stage: string; checksum: string }>;
+  const draft = Object.keys(lock).find((id) => lock[id]!.stage === "draft");
+  if (!draft) return;
+  await writeFile(join(root, migrations, "steps", draft, "edit.txt"), "edit");
+  const [update] = await updateDraftChecksums(root);
+  assert.equal(update?.id, draft);
+  const after = JSON.parse(
+    await readFile(join(root, MIGRATION_LOCK_PATH), "utf8"),
+  ) as Record<string, { checksum: string }>;
+  assert.equal(after[draft]!.checksum, update!.to);
+  assert.ok(
+    (await readFile(join(root, MIGRATION_METADATA_PATH), "utf8")).includes(
+      update!.to,
+    ),
+  );
+  for (const id of Object.keys(lock))
+    if (id !== draft) assert.equal(after[id]!.checksum, lock[id]!.checksum);
 });

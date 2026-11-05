@@ -8,6 +8,7 @@ const root = fileURLToPath(new URL("../../../", import.meta.url));
 test("migration commands prepare workspace dependencies before loading TypeScript", () => {
   for (const [command, script] of [
     ["check", "check.ts"],
+    ["checksums", "update-draft-checksums.ts"],
     ["migrate", "migrate.ts"],
     ["rehearse", "rehearse.ts"],
     ["copy", "storage-copy.ts"],

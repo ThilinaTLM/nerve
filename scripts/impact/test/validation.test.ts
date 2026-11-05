@@ -216,7 +216,7 @@ test("only ordinary package and special-owner paths enter package classification
     "packages/example/src/code.ts",
     "packages/example/tsconfig.json",
     "packages/example/test/tsconfig.test.json",
-    "scripts/build/copy-skills-assets.mjs",
+    "scripts/build/copy-skills-assets.ts",
     "assets/brand/icon.svg",
   ];
   const impact = classifyValidationImpact(

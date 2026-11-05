@@ -1,6 +1,11 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { ProtocolConnection, createMessageFactory } from "../../src/index.js";
+import {
+  INBOUND_QUEUE_OVERFLOW_CLOSE_CODE,
+  INBOUND_QUEUE_OVERFLOW_CLOSE_REASON,
+  ProtocolConnection,
+  createMessageFactory,
+} from "../../src/index.js";
 import { ManualTransport } from "../test-runtime.js";
 
 const messages = createMessageFactory({
@@ -202,4 +207,62 @@ test("close returns within the drain bound when a handler hangs", async () => {
   await closing;
   assert.equal(closed, true);
   assert.match(errors.join(), /drain timed out after 1000ms/);
+});
+
+const heartbeat = () =>
+  messages("heartbeat", {
+    sessionId: "session_connection",
+    sentAt: new Date(0).toISOString(),
+  }) as never;
+
+test("heartbeat frames are handled inline while a queued handler hangs", async () => {
+  const transport = new ManualTransport();
+  const handled: string[] = [];
+  const first = hello();
+  const beat = heartbeat();
+  const connection = new ProtocolConnection({
+    transport,
+    onMessage: (message) => {
+      handled.push(message.kind);
+      if (message.id === first.id) return new Promise<void>(() => undefined);
+    },
+  });
+  void transport.emit(first);
+  await tick();
+  void transport.emit(beat);
+  await tick();
+  assert.deepEqual(handled, ["hello", "heartbeat"]);
+  connection.dispose();
+});
+
+test("exceeding maxQueuedFrames closes the connection with a backpressure code", async () => {
+  const transport = new ManualTransport();
+  const errors: string[] = [];
+  const closes: Array<{ code: number; reason: string }> = [];
+  transport.onClose((close) => closes.push(close));
+  const handled: string[] = [];
+  const first = hello();
+  const connection = new ProtocolConnection({
+    transport,
+    maxQueuedFrames: 2,
+    onMessage: (message) => {
+      handled.push(message.id);
+      if (message.id === first.id) return new Promise<void>(() => undefined);
+    },
+    onError: (error) => errors.push((error as Error).message),
+  });
+  void transport.emit(first); // in flight
+  await tick();
+  void transport.emit(hello()); // queued 1
+  void transport.emit(hello()); // queued 2
+  await tick();
+  assert.equal(transport.state, "open");
+  void transport.emit(hello()); // exceeds the limit
+  await tick();
+  assert.equal(transport.state, "closed");
+  assert.equal(closes[0]?.code, INBOUND_QUEUE_OVERFLOW_CLOSE_CODE);
+  assert.equal(closes[0]?.reason, INBOUND_QUEUE_OVERFLOW_CLOSE_REASON);
+  assert.match(errors.join(), /exceeded 2 queued frames/);
+  assert.deepEqual(handled, [first.id]);
+  connection.dispose();
 });

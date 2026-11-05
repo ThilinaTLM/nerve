@@ -5,13 +5,13 @@ import {
   createSlotParent,
   developmentEnvironment,
   resolveStorageSlot,
-} from "./storage-slot.mjs";
+} from "./storage-slot.ts";
 import {
   assertPortFree,
   inspectSlotDaemon,
   preflightSlot,
-} from "./slot-preflight.mjs";
-import { runCommand, runOwned } from "./owned-processes.mjs";
+} from "./slot-preflight.ts";
+import { runCommand, runOwned, type OwnedCommand } from "./owned-processes.ts";
 
 try {
   const mode = process.argv[2];
@@ -93,7 +93,7 @@ try {
     dirname(appRequire.resolve("vite/package.json")),
     "bin/vite.js",
   );
-  const commands = [
+  const commands: OwnedCommand[] = [
     [
       process.execPath,
       [vite, "--port", String(slot.uiPort), "--strictPort"],

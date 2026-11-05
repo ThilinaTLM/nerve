@@ -16,9 +16,8 @@ import type {
 
 import type { ConversationLiveToolOutputSnapshot } from "$lib/presentation/view-models/conversation";
 
-import type { ToolCallDetails } from "$lib/presentation/view-models/conversation";
 import type { ToolDraftViewModel } from "../state/active-run";
-import type { CardAction, PrimaryArg } from "../cards/card-presentation";
+import type { CardAction } from "../cards/card-presentation";
 import { toolPresentationCached } from "./views/tool-presentation";
 import { parseToolViewCached } from "./views/tool-result-view";
 import { toolViewComponent } from "./views/registry";
@@ -36,6 +35,16 @@ import {
   toolLifecycleStageIndicator,
   visibleLifecycleStage,
 } from "./views/tool-activity-state";
+import { ToolDetailsController } from "./tool-call/tool-details-controller.svelte";
+import {
+  deriveSheetVisibility,
+  draftPrimaryArg,
+  isHilInteractive,
+  isPlanInteractive,
+  resolveConfigurationBlocked,
+  resolveToolApproval,
+  selectPrimaryArg,
+} from "./tool-call/tool-call-view-model";
 import { PacedToolArguments } from "./tool-call/paced-tool-arguments.svelte";
 import {
   argumentLifecycleStage,
@@ -141,25 +150,14 @@ let {
   onRejectPlanReview,
 }: Props = $props();
 
-let detailsOpen = $state(false);
-let detailsLoading = $state(false);
-let detailsError = $state<string | undefined>(undefined);
-let fullToolCall = $state<ToolCallDetails | undefined>(undefined);
-let fullToolCallPreviewUpdatedAt = $state<string | undefined>(undefined);
-let detailsToolId: string | undefined;
-
 // Kept-mounted inactive panes may receive new tool rows while hidden. Avoid
 // hydrating heavy views until active, then keep them mounted for this slot.
 let bodyHydrated = $state(false);
 const shouldHydrateBody = $derived(hydrateBody || bodyHydrated);
 
 const capabilities = getConversationUiCapabilities();
-const configurationBlocked = $derived(
-  toolCall?.interaction?.kind === "configuration_blocked" &&
-    toolCall.interaction.status === "pending"
-    ? toolCall.interaction.request
-    : undefined,
-);
+const details = new ToolDetailsController(() => capabilities.fetchToolCall);
+const configurationBlocked = $derived(resolveConfigurationBlocked(toolCall));
 const initialLiveOutput = untrack(() => liveOutput);
 let displayedLiveOutput = $state(initialLiveOutput);
 let lastEnqueuedOutputText = initialLiveOutput?.text ?? "";
@@ -213,13 +211,7 @@ const meaningfulDraftBody = $derived(
 const hasDurableBodyContent = $derived(
   hasMeaningfulDurableBody(view, toolCall),
 );
-const toolApproval = $derived(
-  toolCall &&
-    pendingApproval?.toolCallId === toolCall.id &&
-    toolCall.status === "waiting"
-    ? pendingApproval
-    : undefined,
-);
+const toolApproval = $derived(resolveToolApproval(toolCall, pendingApproval));
 const lifecycleSpec = $derived(
   toolLifecycleSpec(toolCall?.toolName ?? draft?.block.toolName ?? "tool"),
 );
@@ -261,18 +253,13 @@ const approvalPresentation = $derived.by(() => {
     cwd,
   );
 });
-const hilInteractive = $derived(
-  view?.kind === "ask_user" ||
-    (view?.kind === "plan_present" && view.action === "present"),
-);
+const hilInteractive = $derived(isHilInteractive(view));
 const toolQuestion = $derived(
   resolveAskUserQuestion(toolCall, pendingUserQuestion),
 );
 // ask_user lives inside the sheet in every state; plan review still owns its
 // body and actions.
-const planInteractive = $derived(
-  view?.kind === "plan_present" && view.action === "present",
-);
+const planInteractive = $derived(isPlanInteractive(view));
 const isAskUser = $derived(
   (toolCall?.toolName ?? draft?.block.toolName) === "ask_user",
 );
@@ -370,28 +357,20 @@ const activitySections = $derived.by(() =>
       Boolean(backgroundTaskId && onOpenTask),
   }),
 );
-const draftArg = $derived.by<PrimaryArg | undefined>(() => {
-  if (!draftSummary) return undefined;
-  if (draftSummary.primaryArg) return draftSummary.primaryArg;
-  if (draftSummary.path) return { text: draftSummary.path };
-  return undefined;
-});
+const draftArg = $derived(draftPrimaryArg(draftSummary));
 const badge = $derived(
   presentation?.badge ??
     draftSummary?.toolName ??
     draft?.block.toolName ??
     "tool",
 );
-// For HIL interactive tools (ask_user, plan_present) the durable
-// presentation is authoritative and deliberately omits the header arg so the
-// question/plan is not duplicated in the interactive body. Skip the lifecycle
-// fallback in that case; other tools keep the streaming-arg fallback.
 const primaryArg = $derived(
-  planInteractive
-    ? presentation?.primaryArg
-    : (presentation?.primaryArg ??
-        lifecycleArgumentPresentation?.primaryArg ??
-        draftArg),
+  selectPrimaryArg({
+    planInteractive,
+    durable: presentation?.primaryArg,
+    lifecycle: lifecycleArgumentPresentation?.primaryArg,
+    draft: draftArg,
+  }),
 );
 const layoutRevision = $derived(
   toolCardLayoutRevision({
@@ -418,7 +397,7 @@ const detailsAction = $derived(
     ? {
         label: VIEW_TOOL_DETAILS_LABEL,
         ariaLabel: `View ${toolCall.toolName} details`,
-        onClick: openDetails,
+        onClick: () => details.show(toolCall),
       }
     : undefined,
 );
@@ -448,38 +427,22 @@ const errorPreview = $derived(
     : undefined,
 );
 
-// Interactive tools render outside the sheet until they adopt the sheet
-// sections themselves.
-const hilBodyVisible = $derived(
-  planInteractive && activitySections.resultMode === "output",
-);
-const askUserSheetVisible = $derived(
-  Boolean(askUserDraftViewQuestions?.length) ||
-    (askUserView !== undefined && activitySections.resultMode === "output"),
-);
-const sheetVisible = $derived(
-  !planInteractive &&
-    (askUserSheetVisible ||
-      activitySections.argumentVisible ||
-      activitySections.resultMode !== "none" ||
-      (activitySections.errorVisible && Boolean(errorPreview))),
+const { hilBodyVisible, sheetVisible } = $derived(
+  deriveSheetVisibility({
+    planInteractive,
+    activitySections,
+    hasAskUserDraftQuestions: Boolean(askUserDraftViewQuestions?.length),
+    hasAskUserView: askUserView !== undefined,
+    hasErrorPreview: Boolean(errorPreview),
+  }),
 );
 
 $effect(() => {
   if (hydrateBody) bodyHydrated = true;
 });
 
-// A slot should normally receive one durable id. Reset dialog state
-// defensively if recovery ever supplies a different record to the same slot.
 $effect(() => {
-  const id = toolCall?.id;
-  if (id === detailsToolId) return;
-  detailsToolId = id;
-  detailsOpen = false;
-  detailsLoading = false;
-  detailsError = undefined;
-  fullToolCall = undefined;
-  fullToolCallPreviewUpdatedAt = undefined;
+  details.syncToolId(toolCall?.id);
 });
 
 // Streaming motion for this card. The profile is the one claimed by the most
@@ -518,25 +481,6 @@ provideToolMotion({
     return resultEnter;
   },
 });
-
-async function openDetails() {
-  if (!toolCall) return;
-  detailsOpen = true;
-  if (fullToolCall && fullToolCallPreviewUpdatedAt === toolCall.updatedAt)
-    return;
-  detailsLoading = true;
-  detailsError = undefined;
-  try {
-    const fetchToolCall = capabilities.fetchToolCall;
-    if (!fetchToolCall) throw new Error("Tool details are unavailable here.");
-    fullToolCall = await fetchToolCall(toolCall.id);
-    fullToolCallPreviewUpdatedAt = toolCall.updatedAt;
-  } catch (error) {
-    detailsError = error instanceof Error ? error.message : String(error);
-  } finally {
-    detailsLoading = false;
-  }
-}
 </script>
 
 {#snippet toolViewBody()}
@@ -681,13 +625,13 @@ async function openDetails() {
 
 {#if toolCall && detailsEnabled}
   <ToolCallDetailsDialog
-    open={detailsOpen}
+    open={details.open}
     previewToolCall={toolCall}
-    details={fullToolCall}
-    loading={detailsLoading}
-    error={detailsError}
+    details={details.details}
+    loading={details.loading}
+    error={details.error}
     {onOpenFile}
-    onRetry={openDetails}
-    onOpenChange={(open) => (detailsOpen = open)}
+    onRetry={() => details.show(toolCall)}
+    onOpenChange={(open) => details.setOpen(open)}
   />
 {/if}

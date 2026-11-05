@@ -276,11 +276,11 @@ test("website tests are included, documentation is skipped, and skill Markdown i
   const f = fixture(t);
   f.pkg("website");
   f.pkg("skills");
-  f.write("packages/website/scripts/lib.mjs");
-  f.write("packages/website/scripts/site.test.mjs", 'import "./lib.mjs";');
+  f.write("packages/website/scripts/lib.ts");
+  f.write("packages/website/scripts/site.test.ts", 'import "./lib.ts";');
   f.write("packages/skills/test/skills.test.ts");
-  assert.deepEqual(selected(f.select(["packages/website/scripts/lib.mjs"])), [
-    "packages/website/scripts/site.test.mjs",
+  assert.deepEqual(selected(f.select(["packages/website/scripts/lib.ts"])), [
+    "packages/website/scripts/site.test.ts",
   ]);
   assert.equal(
     f.select(["README.md", "docs/guide.md", "packages/skills/AGENTS.md"]).mode,

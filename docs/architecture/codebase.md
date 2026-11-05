@@ -69,7 +69,16 @@ The desktop shell owns Electron windows and daemon supervision. The server owns 
 | Package graph and enforcement                | [`ALLOWED_INTERNAL_DEPENDENCIES`](../../scripts/checks/package-architecture.rules.ts); [boundary checker](../../scripts/checks/check-package-boundaries.ts) |
 | Portable core facade and host interfaces     | [`ConversationCore`](../../packages/conversation-core/src/core.ts); [ports](../../packages/conversation-core/src/ports.ts)                                  |
 | Server construction and host implementations | [bootstrap](../../packages/workbench-server/src/app/bootstrap/); [core-host](../../packages/workbench-server/src/core-host/)                                |
+| Access control                               | [access and authentication](access.md)                                                                                                                      |
 | Desktop lifetime                             | [`DesktopRuntime`](../../packages/desktop-shell/src/app/desktop-runtime.ts)                                                                                 |
+
+## Workbench app building blocks
+
+Shared mechanics live once instead of per feature: [`FormDialog`](../../packages/ui-kit/src/lib/components/composites/form-dialog/form-dialog.svelte) is the ui-kit composite for form dialogs, [`createPoll`](../../packages/workbench-app/src/lib/platform/polling/poll.ts) is the demand-aware polling primitive, and [`ControllerLifecycle`](../../packages/workbench-app/src/lib/platform/lifecycle/controller-lifecycle.ts) is the lifecycle-only shell (idempotent start, teardown registry, generation guard for in-flight async work) that controllers compose; reconciliation stays in each controller. File viewing and editing, diffs and find share the CodeMirror surface in [`presentation/code`](../../packages/workbench-app/src/lib/presentation/code/); filesystem workflows live in the [`filesystem` feature](../../packages/workbench-app/src/lib/features/filesystem/index.ts).
+
+## Repository tooling
+
+Repository scripts are TypeScript run by `tsx` and type-checked with `tsc -p scripts`. One path-impact engine drives CI areas and the focused fix, check and test commands. The layout, conventions and flags are in [`scripts/README.md`](../../scripts/README.md); validation commands are in the root `AGENTS.md`.
 
 ## Test placement
 

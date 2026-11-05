@@ -12,7 +12,7 @@ import { DatabaseSync } from "node:sqlite";
 import {
   assertSlotPaths,
   createSlotParent,
-} from "../development/storage-slot.mjs";
+} from "../development/storage-slot.ts";
 import { acquireStorageHomeLock } from "../../packages/workbench-server/src/infrastructure/storage-bootstrap/home-lock.js";
 import { cloneNerveHome } from "./home-operations.js";
 import { redirectProject, rehearseOptions } from "./rehearse-options.js";

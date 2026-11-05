@@ -6,7 +6,7 @@ import { pathToFileURL } from "node:url";
 import {
   assertSlotPaths,
   resolveStorageSlot,
-} from "../development/storage-slot.mjs";
+} from "../development/storage-slot.ts";
 import { acquireStorageHomeLock } from "../../packages/workbench-server/src/infrastructure/storage-bootstrap/home-lock.js";
 
 /** Bounded reads even for multi-gigabyte SQLite files. */

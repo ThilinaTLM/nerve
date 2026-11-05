@@ -82,6 +82,55 @@ export function applyReleaseToLock(
   return next;
 }
 
+/** Replace one entry's checksum in `registry-metadata.ts` source. */
+export function setMetadataChecksum(
+  source: string,
+  id: string,
+  checksum: string,
+): string {
+  const start = source.indexOf(`id: "${id}"`);
+  if (start < 0) throw new Error(`registry-metadata.ts has no entry for ${id}`);
+  const end = source.indexOf("\n    }", start);
+  const block = source.slice(start, end);
+  const next = block.replace(
+    /checksum:\s*"[a-f0-9]{64}",/,
+    `checksum:\n        "${checksum}",`,
+  );
+  if (next === block && !block.includes(checksum))
+    throw new Error(`Could not locate the checksum for ${id}`);
+  return source.slice(0, start) + next + source.slice(end);
+}
+
+/**
+ * Refresh every draft step's recorded checksum to its folder hash in both the
+ * lock and the registry metadata (`pnpm storage:checksums`). Released steps are
+ * never touched; their folders must not change.
+ */
+export async function updateDraftChecksums(
+  rootDirectory: string,
+): Promise<Array<{ id: string; from: string; to: string }>> {
+  const lockPath = join(rootDirectory, MIGRATION_LOCK_PATH);
+  const metadataPath = join(rootDirectory, MIGRATION_METADATA_PATH);
+  const lock = JSON.parse(await readFile(lockPath, "utf8")) as MigrationLock;
+  let metadata = await readFile(metadataPath, "utf8");
+  const updates: Array<{ id: string; from: string; to: string }> = [];
+  for (const [id, entry] of Object.entries(lock)) {
+    if (entry.stage !== "draft") continue;
+    const hash = await hashStepFolder(
+      join(rootDirectory, MIGRATIONS_PATH, "steps", id),
+    );
+    if (hash === entry.checksum) continue;
+    updates.push({ id, from: entry.checksum, to: hash });
+    entry.checksum = hash;
+    metadata = setMetadataChecksum(metadata, id, hash);
+  }
+  if (updates.length) {
+    await writeFile(lockPath, `${JSON.stringify(lock, null, 2)}\n`);
+    await writeFile(metadataPath, metadata);
+  }
+  return updates;
+}
+
 /**
  * Rewrite the matching entries of `registry-metadata.ts`. The file is an
  * ordered literal of `{ step: { id }, checksum, previousChecksums?, stage,

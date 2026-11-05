@@ -67,6 +67,51 @@ describe("server heartbeat validation", () => {
     await new Promise((resolve) => setImmediate(resolve));
     assert.equal(server.state, "closed");
   });
+  it("accepts a heartbeat that overtakes the ready frame", async () => {
+    const timers = new FakeTimers();
+    const serverMessages = createMessageFactory({
+      source: { role: "workbench_server", id: "server_test" },
+      target: { role: "ui", id: "ui_test" },
+    });
+    const clientMessages = createMessageFactory({
+      source: { role: "ui", id: "ui_test" },
+      target: { role: "workbench_server", id: "server_test" },
+    });
+    const server = new ProtocolServerSession({
+      acceptingPeer: { role: "workbench_server", id: "server_test" },
+      createMessage: serverMessages,
+      capabilities: [STREAM_SUBSCRIPTION_CAPABILITY],
+      limits: {
+        maxMessageBytes: 1_000_000,
+        maxBatchEvents: 100,
+        maxBatchBytes: 1_000_000,
+      },
+      heartbeat: { intervalMs: 100, timeoutMs: 100 },
+      sessionId: () => "session_test",
+      send: () => {},
+      timers,
+    });
+    await server.receive(
+      clientMessages("hello", {
+        requestedVersion: 1,
+        capabilities: [STREAM_SUBSCRIPTION_CAPABILITY],
+        encodings: ["json"],
+      }) as ProtocolV1Message,
+    );
+    await server.receive(
+      clientMessages("heartbeat", {
+        sessionId: "session_test",
+        sentAt: "2026-01-01T00:00:00.000Z",
+      }) as ProtocolV1Message,
+    );
+    assert.equal(server.state, "awaiting_ready");
+    await server.receive(
+      clientMessages("ready", {
+        sessionId: "session_test",
+      }) as ProtocolV1Message,
+    );
+    assert.equal(server.state, "ready");
+  });
   it("does not let invalid peers refresh an established session", async () => {
     let now = 0;
     const timers = new FakeTimers();

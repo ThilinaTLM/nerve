@@ -23,6 +23,14 @@ const defaultTimers: ProtocolConnectionTimers = {
 
 export const DEFAULT_DRAIN_TIMEOUT_MS = 5_000;
 export const DEFAULT_SLOW_HANDLER_MS = 30_000;
+export const DEFAULT_MAX_QUEUED_FRAMES = 1_000;
+/** WebSocket "Try Again Later": the peer sent faster than we could process. */
+export const INBOUND_QUEUE_OVERFLOW_CLOSE_CODE = 1013;
+export const INBOUND_QUEUE_OVERFLOW_CLOSE_REASON = "inbound_queue_overflow";
+
+/** Heartbeats are tiny; larger frames are never sniffed for inline handling. */
+const INLINE_SNIFF_MAX_CHARS = 4_096;
+const HEARTBEAT_KIND_PATTERN = /"kind"\s*:\s*"heartbeat"/;
 
 export interface ProtocolConnectionOptions {
   readonly timers?: ProtocolConnectionTimers;
@@ -30,6 +38,11 @@ export interface ProtocolConnectionOptions {
   readonly drainTimeoutMs?: number;
   /** A handler running longer than this is reported once through onError. */
   readonly slowHandlerMs?: number;
+  /**
+   * Maximum frames waiting behind the serial queue (excluding the one being
+   * handled). Exceeding it closes the connection with code 1013.
+   */
+  readonly maxQueuedFrames?: number;
   readonly transport: TransportConnection;
   readonly codec?: ProtocolCodec;
   readonly limits?: Pick<ProtocolLimits, "maxMessageBytes">;
@@ -50,6 +63,7 @@ export class ProtocolConnection {
   readonly #abort = new AbortController();
   readonly #timers: ProtocolConnectionTimers;
   #receiveTail: Promise<void> = Promise.resolve();
+  #queuedFrames = 0;
   #generation = 0;
   #disposed = false;
 
@@ -112,13 +126,50 @@ export class ProtocolConnection {
   }
 
   #enqueue(frame: string): void {
+    if (this.#disposed) return;
     const generation = this.#generation;
+    // Control plane: heartbeats must not wait behind slow queued work.
+    if (this.#isInlineFrame(frame)) {
+      void this.receive(frame, generation).catch((error: unknown) =>
+        this.#reportError(error, generation),
+      );
+      return;
+    }
+    const maxQueued = this.options.maxQueuedFrames ?? DEFAULT_MAX_QUEUED_FRAMES;
+    if (this.#queuedFrames >= maxQueued) {
+      this.#notify(
+        new Error(`Protocol inbound queue exceeded ${maxQueued} queued frames`),
+      );
+      this.dispose();
+      void Promise.resolve(
+        this.#transport.close(
+          INBOUND_QUEUE_OVERFLOW_CLOSE_CODE,
+          INBOUND_QUEUE_OVERFLOW_CLOSE_REASON,
+        ),
+      ).catch((error: unknown) => this.#notify(error));
+      return;
+    }
+    this.#queuedFrames += 1;
     this.#receiveTail = this.#receiveTail
       .then(async () => {
+        this.#queuedFrames -= 1;
         if (this.#disposed || generation !== this.#generation) return;
         await this.receive(frame, generation);
       })
       .catch((error: unknown) => this.#reportError(error, generation));
+  }
+
+  #isInlineFrame(frame: string): boolean {
+    if (
+      frame.length > INLINE_SNIFF_MAX_CHARS ||
+      !HEARTBEAT_KIND_PATTERN.test(frame)
+    )
+      return false;
+    try {
+      return this.#codec.decode(frame).kind === "heartbeat";
+    } catch {
+      return false; // invalid frames take the ordered path and its error handling
+    }
   }
 
   #reportError(error: unknown, generation = this.#generation): void {
