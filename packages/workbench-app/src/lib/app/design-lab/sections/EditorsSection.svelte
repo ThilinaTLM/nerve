@@ -1,6 +1,10 @@
 <script lang="ts">
 import { Button } from "@nervekit/ui-kit/components/ui/button";
-import { CodeView } from "$lib/presentation/code";
+import {
+  CodeDiffView,
+  CodeView,
+  type DiffLayout,
+} from "$lib/presentation/code";
 import CodeMirrorFindPanel from "$lib/presentation/code/CodeMirrorFindPanel.svelte";
 import { FilePane } from "$lib/presentation/files";
 import type { FilePaneViewModel } from "$lib/presentation/files";
@@ -143,6 +147,7 @@ let draft = $state(
 );
 let jsonValue = $state(jsonSample);
 let wrap = $state(false);
+let diffLayout = $state<DiffLayout>("split");
 let findQuery = $state("handler");
 let caseSensitive = $state(false);
 let wholeWord = $state(false);
@@ -298,6 +303,26 @@ let regexp = $state(false);
           {wrap}
           onToggleWrap={() => (wrap = !wrap)}
           ariaLabel="TypeScript sample"
+        />
+      </div>
+    </GallerySpecimen>
+
+    <GallerySpecimen
+      title="CodeDiffView"
+      description="Read-only diff with change navigation (Alt+↑/↓, F7), collapsed unchanged lines, the overview ruler and the unified/side-by-side toggle."
+      source="presentation/code/CodeDiffView"
+      usage="2 files · git diff, PR files"
+      layout="stack"
+    >
+      <div
+        class="h-[320px] w-[900px] max-w-full overflow-hidden rounded-md border"
+      >
+        <CodeDiffView
+          original={diffOriginal}
+          modified={diffModified}
+          path="src/greeting.ts"
+          layout={diffLayout}
+          onLayoutChange={(next) => (diffLayout = next)}
         />
       </div>
     </GallerySpecimen>
