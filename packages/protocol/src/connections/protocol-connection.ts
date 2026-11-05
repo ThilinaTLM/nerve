@@ -80,7 +80,11 @@ export class ProtocolConnection {
 
   #reportError(error: unknown, generation = this.#generation): void {
     if (this.#disposed || generation !== this.#generation) return;
-    Promise.resolve(this.options.onError?.(error)).catch(() => undefined);
+    Promise.resolve(this.options.onError?.(error)).catch(
+      (handlerError: unknown) => {
+        console.error("Protocol onError handler failed", handlerError);
+      },
+    );
   }
 
   private async receive(frame: string, generation: number): Promise<void> {

@@ -1,3 +1,4 @@
+import { isSubagentTool } from "@nervekit/contracts/tools";
 import { join } from "node:path";
 import type { BashToolSettings } from "@nervekit/contracts/settings";
 import { subagentBlockedToolNames } from "@nervekit/contracts/subagents";
@@ -41,7 +42,7 @@ export function scopedTurnResources(options: {
       ...input.coreTools,
     ].filter((tool) => {
       if (child && blocked.has(tool.name)) return false;
-      const name = tool.name.startsWith("subagent_")
+      const name = isSubagentTool(tool.name)
         ? "subagents"
         : tool.name.startsWith("jira_")
           ? "jira"

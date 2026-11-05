@@ -1,6 +1,13 @@
 import { createHash } from "node:crypto";
 import { realpathSync } from "node:fs";
-import { isAbsolute, relative, resolve, sep } from "node:path";
+import {
+  basename,
+  dirname,
+  isAbsolute,
+  relative,
+  resolve,
+  sep,
+} from "node:path";
 import { Value } from "typebox/value";
 import type {
   ComparableValue,
@@ -386,12 +393,21 @@ function symbolicPath(
   return undefined;
 }
 
+/** Realpath of the deepest existing ancestor, with the missing tail re-appended. */
 function existingRealpath(path: string): string {
-  try {
-    return realpathSync(path);
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === "ENOENT") return path;
-    throw error;
+  const missing: string[] = [];
+  let current = path;
+  for (;;) {
+    try {
+      return resolve(realpathSync(current), ...missing.reverse());
+    } catch (error) {
+      const code = (error as NodeJS.ErrnoException).code;
+      const parent = dirname(current);
+      if ((code !== "ENOENT" && code !== "ENOTDIR") || parent === current)
+        throw error;
+      missing.push(basename(current));
+      current = parent;
+    }
   }
 }
 

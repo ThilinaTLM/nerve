@@ -1,4 +1,5 @@
 <script lang="ts">
+import { createClock } from "../clock/clock.svelte";
 import ConfigurationBlockedActions from "./tool-call/ConfigurationBlockedActions.svelte";
 import { untrack } from "svelte";
 import type { UserInputAnswer } from "@nervekit/contracts/core";
@@ -455,15 +456,7 @@ const settledAtMs = $derived(parseMs(toolCall?.settledAt));
 const clockRunning = $derived(
   Boolean(toolCall) && toolCall?.status === "running" && !outcomeUnknown,
 );
-let clockMs = $state(Date.now());
-$effect(() => {
-  if (!clockRunning) return;
-  clockMs = Date.now();
-  const interval = setInterval(() => {
-    clockMs = Date.now();
-  }, 1000);
-  return () => clearInterval(interval);
-});
+const clock = createClock(() => (clockRunning ? 1000 : undefined));
 const lifecycleStage = $derived(
   deriveToolLifecycleVisualStage({
     draft: presentedDraftBlock,
@@ -496,7 +489,7 @@ const leadItem = $derived(
     }),
     startedAtMs,
     settledAtMs,
-    nowMs: clockMs,
+    nowMs: clock.now,
   }),
 );
 const riskItem = $derived(riskChip(toolCall?.supervision));

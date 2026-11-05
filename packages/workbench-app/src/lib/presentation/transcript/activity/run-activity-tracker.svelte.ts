@@ -1,3 +1,4 @@
+import { createClock } from "../../clock/clock.svelte";
 import type { ConversationActiveRunSnapshot } from "$lib/presentation/view-models/conversation";
 import type { ConversationRunOutcome } from "../../state/conversation-render-state";
 import type { TimelineItem } from "../../state/timeline";
@@ -33,7 +34,6 @@ const TICK_MS = 250;
 export function createRunActivityTracker(source: () => RunActivitySource): {
   readonly view: RunActivityView;
 } {
-  let now = $state(Date.now());
   let runSeenAtMs: number | undefined;
   let signature: string | undefined;
   let lastChangeAtMs = Date.now();
@@ -50,7 +50,7 @@ export function createRunActivityTracker(source: () => RunActivitySource): {
 
   const view = $derived.by(() => {
     const input = source();
-    const nowMs = Math.max(now, Date.now());
+    const nowMs = Math.max(clock.now, Date.now());
     const active =
       input.sending ||
       Boolean(input.activeRun && input.activeRun.status !== "interrupted");
@@ -103,14 +103,7 @@ export function createRunActivityTracker(source: () => RunActivitySource): {
   });
 
   const mounted = $derived(view.mounted);
-  $effect(() => {
-    if (!mounted) return;
-    now = Date.now();
-    const interval = setInterval(() => {
-      now = Date.now();
-    }, TICK_MS);
-    return () => clearInterval(interval);
-  });
+  const clock = createClock(() => (mounted ? TICK_MS : undefined));
 
   return {
     get view() {

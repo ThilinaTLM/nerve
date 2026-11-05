@@ -7,6 +7,7 @@ import {
   setProviderApiKey,
   startOAuthFlow,
 } from "$lib/api";
+import { subscribeClock } from "$lib/presentation/clock/clock-ticker";
 import { writeClipboardText } from "$lib/platform/clipboard/write-text";
 import { encryptApiKey } from "$lib/platform/crypto/credential-crypto";
 import {
@@ -31,7 +32,7 @@ export class AddProviderFlow {
   copiedLoginUrl = $state(false);
 
   #pollTimer: ReturnType<typeof setTimeout> | undefined;
-  #countdownTimer: ReturnType<typeof setInterval> | undefined;
+  #stopCountdown: (() => void) | undefined;
   #generation = 0;
   #pollFailures = 0;
   readonly #onClosed: () => void;
@@ -67,9 +68,9 @@ export class AddProviderFlow {
 
   #stopTimers(): void {
     if (this.#pollTimer) clearTimeout(this.#pollTimer);
-    if (this.#countdownTimer) clearInterval(this.#countdownTimer);
+    this.#stopCountdown?.();
     this.#pollTimer = undefined;
-    this.#countdownTimer = undefined;
+    this.#stopCountdown = undefined;
   }
 
   #setFlow(flow: OAuthFlowInfo): void {
@@ -84,15 +85,18 @@ export class AddProviderFlow {
         ? flow.interaction.userCode
         : undefined;
     if (nextCode !== previousCode) this.copiedDeviceCode = false;
-    if (this.#countdownTimer) clearInterval(this.#countdownTimer);
-    this.#countdownTimer = undefined;
+    this.#stopCountdown?.();
+    this.#stopCountdown = undefined;
     if (
       flow.state === "active" &&
       flow.interaction.type === "device_code" &&
       flow.interaction.expiresAt
     ) {
       this.now = Date.now();
-      this.#countdownTimer = setInterval(() => (this.now = Date.now()), 1_000);
+      this.#stopCountdown = subscribeClock(
+        1_000,
+        (nowMs) => (this.now = nowMs),
+      );
     }
   }
 

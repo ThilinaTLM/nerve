@@ -28,7 +28,7 @@ const WORKBENCH_CAPABILITIES = [
     .map((definition) => definition.requiredCapability)
     .filter((capability): capability is string => Boolean(capability)),
 ];
-import { isWebSocketAuthorized } from "../../app/server.js";
+import { isWebSocketAuthorized } from "../http/auth-middleware.js";
 import { PROTOCOL_HEARTBEAT, PROTOCOL_SESSION_LIMITS } from "./constants.js";
 import { workbenchWebSocketRpcDispatcher } from "./http-dispatcher.js";
 import { orchestratorSource } from "./messages.js";

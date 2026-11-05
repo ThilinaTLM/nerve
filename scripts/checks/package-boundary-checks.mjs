@@ -148,6 +148,15 @@ export function checkPackageBoundaries(
             file,
             `contracts must remain transport/framework-neutral: ${specifier}`,
           );
+        if (
+          packageName === "@nervekit/protocol" &&
+          file.startsWith("packages/protocol/src/") &&
+          forbiddenProtocolImport(specifier)
+        )
+          fail(
+            file,
+            `protocol must remain transport-library-neutral; inject transports through ports: ${specifier}`,
+          );
       }
     }
   }
@@ -190,6 +199,12 @@ export function checkPackageBoundaries(
     if (!specifier.startsWith(".")) return false;
     return !resolvedImportPath(file, specifier).startsWith(
       "packages/workbench-app/src/lib/presentation/",
+    );
+  }
+
+  function forbiddenProtocolImport(specifier) {
+    return /^(?:node:|hono(?:\/|$)|@hono\/|ws$|electron(?:\/|$)|svelte(?:\/|$)|better-sqlite3$|sqlite3$|(?:http|https|net|tls|fs|child_process)$)/.test(
+      specifier,
     );
   }
 

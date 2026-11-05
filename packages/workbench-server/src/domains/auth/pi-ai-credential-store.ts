@@ -5,6 +5,7 @@ import type {
   CredentialStore,
   OAuthCredential,
 } from "@earendil-works/pi-ai";
+import { z } from "zod";
 import type { SecretProvider } from "../../infrastructure/secrets/index.js";
 
 export function providerApiKeySecretName(provider: string): string {
@@ -15,20 +16,19 @@ export function providerOAuthSecretName(provider: string): string {
   return `provider:${provider}:oauth`;
 }
 
+const oauthCredentialSchema = z.looseObject({
+  type: z.literal("oauth"),
+  access: z.string(),
+  refresh: z.string(),
+  expires: z.number(),
+});
+
 function parseOAuthCredential(
   value: string | undefined,
 ): OAuthCredential | undefined {
   if (!value) return undefined;
-  const parsed = JSON.parse(value) as Partial<OAuthCredential>;
-  if (
-    parsed.type !== "oauth" ||
-    typeof parsed.access !== "string" ||
-    typeof parsed.refresh !== "string" ||
-    typeof parsed.expires !== "number"
-  ) {
-    return undefined;
-  }
-  return parsed as OAuthCredential;
+  const parsed = oauthCredentialSchema.safeParse(JSON.parse(value) as unknown);
+  return parsed.success ? parsed.data : undefined;
 }
 
 /** pi-ai credential storage backed by Nerve's encrypted secret provider. */

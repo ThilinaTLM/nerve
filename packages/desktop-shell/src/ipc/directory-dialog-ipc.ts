@@ -2,21 +2,9 @@ import {
   BrowserWindow,
   dialog,
   ipcMain,
-  type IpcMainInvokeEvent,
 } from "../platform/electron/electron-api.js";
+import { senderWindow } from "./sender-window.js";
 import { openPathRequests } from "./open-path-requests.js";
-
-function senderWindow(event: IpcMainInvokeEvent) {
-  const window = BrowserWindow.fromWebContents(event.sender);
-  if (
-    !window ||
-    window.isDestroyed() ||
-    event.senderFrame !== event.sender.mainFrame
-  ) {
-    throw new Error("Invalid desktop window sender");
-  }
-  return window;
-}
 
 export function registerDirectoryDialogIpc(): void {
   ipcMain.handle(

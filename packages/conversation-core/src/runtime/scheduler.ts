@@ -102,7 +102,9 @@ export class ConversationScheduler {
     this.slots.set(id, { controller, done });
     this.options.status.refresh(id);
     // Provider failures are durable runner transitions, not unhandled promises.
-    void done.catch(() => {});
+    void done.catch((error: unknown) => {
+      console.error(`Conversation ${id} run failed`, error);
+    });
   }
   requestCompaction(id: string): void {
     const conversation = this.options.storage.conversations.get(id);

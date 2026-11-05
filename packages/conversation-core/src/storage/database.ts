@@ -25,12 +25,19 @@ export function openCoreDatabase(path: string): CoreDatabase {
       inTransaction = true;
       try {
         const result = fn();
-        if (result instanceof Promise)
+        if (isPromiseLike(result)) {
+          // The callback's side effects cannot be transactional; avoid an unhandled rejection too.
+          void Promise.resolve(result).catch(() => undefined);
           throw new Error("Core transactions must be synchronous");
+        }
         sqlite.exec("COMMIT");
         return result;
       } catch (error) {
-        sqlite.exec("ROLLBACK");
+        try {
+          if (sqlite.isTransaction) sqlite.exec("ROLLBACK");
+        } catch {
+          // Preserve the original failure.
+        }
         throw error;
       } finally {
         inTransaction = false;
@@ -40,4 +47,8 @@ export function openCoreDatabase(path: string): CoreDatabase {
       sqlite.close();
     },
   };
+}
+
+function isPromiseLike(value: unknown): value is PromiseLike<unknown> {
+  return typeof (value as PromiseLike<unknown> | null)?.then === "function";
 }

@@ -1,4 +1,5 @@
 <script lang="ts">
+import { createClock } from "$lib/presentation/clock/clock.svelte";
 import CircleCheck from "@lucide/svelte/icons/circle-check";
 import CircleMinus from "@lucide/svelte/icons/circle-minus";
 import CircleX from "@lucide/svelte/icons/circle-x";
@@ -24,15 +25,10 @@ type Props = { checks: GithubChecksSummary };
 let { checks }: Props = $props();
 
 /* Running durations tick once a second; settled checks need no timer. */
-let now = $state(Date.now());
 const summary = $derived(summarizeCheckRuns(checks.runs));
 const ticking = $derived(summary.counts.running > 0);
-$effect(() => {
-  if (!ticking) return;
-  now = Date.now();
-  const timer = setInterval(() => (now = Date.now()), 1_000);
-  return () => clearInterval(timer);
-});
+const clock = createClock(() => (ticking ? 1_000 : undefined));
+const now = $derived(clock.now);
 
 const GROUP_LABEL: Record<CheckGroupStatus, string> = {
   failed: "Failing",

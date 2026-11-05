@@ -40,6 +40,7 @@ const status = $derived.by(() => {
   titleHint={`${note.title} — double-click to rename`}
   titleEditing={renaming}
   titleMaxLength={SCRATCH_NOTE_TITLE_MAX_LENGTH}
+  titleLabel="Note title"
   onTitleDblClick={() => (renaming = true)}
   onTitleCommit={(title) => {
     renaming = false;

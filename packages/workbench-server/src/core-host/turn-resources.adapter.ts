@@ -1,3 +1,4 @@
+import { isSubagentTool } from "@nervekit/contracts/tools";
 import type { ToolDefinition } from "@nervekit/tools/catalog";
 
 export function withAgentProfiles(
@@ -6,7 +7,7 @@ export function withAgentProfiles(
   hasExistingSubagents = false,
 ): ToolDefinition[] {
   if (!usable.length && !hasExistingSubagents)
-    return tools.filter((tool) => !tool.name.startsWith("subagent_"));
+    return tools.filter((tool) => !isSubagentTool(tool.name));
   return tools.map((tool) => {
     if (tool.name !== "subagent_prompt") return tool;
     const parameters = tool.parameters as unknown as ObjectSchema;
