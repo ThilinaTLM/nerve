@@ -13,15 +13,7 @@ export async function createProject(directory: string): Promise<Project> {
 export function getProject(projectId: string): Promise<Project | null> {
   return requestConversation("project.get", { projectId });
 }
-export function updateProject(
-  projectId: string,
-  patch: Partial<Pick<Project, "name" | "directory">>,
-): Promise<Project> {
-  return requestConversation("project.update", { projectId, patch });
-}
-export function deleteProject(projectId: string): Promise<null> {
-  return requestConversation("project.delete", { projectId });
-}
+
 export async function openProjectInEditor(
   projectId: string,
   editor: ProjectEditor,

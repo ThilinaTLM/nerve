@@ -16,7 +16,7 @@ export interface DesktopNotificationPayload {
 }
 
 export interface DesktopProjectEntryTarget {
-  root: string;
+  projectId: string;
   relativePath: string;
 }
 

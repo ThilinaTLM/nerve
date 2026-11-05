@@ -207,10 +207,6 @@ function unsavedOverviewMarks(state: EditorState): OverviewMark[] {
   );
 }
 
-export function unsavedChangeChunks(state: EditorState): readonly Chunk[] {
-  return state.field(unsavedField, false)?.chunks ?? [];
-}
-
 export function unsavedMarkersOf(
   state: EditorState,
 ): Array<{ line: number; kind: UnsavedLineKind }> {

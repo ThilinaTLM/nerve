@@ -1,0 +1,20 @@
+{
+  "extends": "../tsconfig.base.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "declaration": false,
+    "declarationMap": false,
+    "sourceMap": false,
+    "outDir": null,
+    "types": ["node"],
+    "allowImportingTsExtensions": true,
+    "allowJs": true,
+    "checkJs": false,
+    "verbatimModuleSyntax": true,
+    "noUncheckedIndexedAccess": false,
+    "incremental": true,
+    "tsBuildInfoFile": "../node_modules/.cache/scripts-tsc/tsbuildinfo"
+  },
+  "include": ["./**/*.ts", "./**/*.mjs"],
+  "exclude": ["./**/node_modules", "./**/*.test.ts"]
+}

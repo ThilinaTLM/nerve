@@ -109,20 +109,6 @@ export async function setPromptSuggestionTrust(
   );
 }
 
-export async function allowPromptSuggestion(trustId: string): Promise<void> {
-  await setPromptSuggestionTrust({ trustId, status: "allowed" });
-}
-
-export async function denyPromptSuggestion(trustId: string): Promise<void> {
-  await setPromptSuggestionTrust({ trustId, status: "denied" });
-}
-
-export async function resetPromptSuggestionTrust(
-  trustId: string,
-): Promise<void> {
-  await setPromptSuggestionTrust({ trustId, status: "unset" });
-}
-
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }

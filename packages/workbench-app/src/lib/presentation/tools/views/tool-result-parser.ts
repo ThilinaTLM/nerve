@@ -59,19 +59,10 @@ import type { ToolView } from "./tool-view-types";
 export {
   ATLASSIAN_COLLAPSED_ITEMS,
   COLLAPSED_LINES,
-  countLogicalLines,
-  groupMatchesByFile,
-  imageDataUrl,
-  relativePath,
   splitLogicalLines,
-  tail,
   tailLogicalText,
 } from "./tool-view-helpers";
-export type {
-  GrepMatchView,
-  GroupedMatches,
-  ToolView,
-} from "./tool-view-types";
+export type { GroupedMatches, ToolView } from "./tool-view-types";
 
 function arrayField(value: unknown): unknown[] {
   return Array.isArray(value) ? value : [];

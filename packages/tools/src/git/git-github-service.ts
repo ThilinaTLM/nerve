@@ -1,17 +1,43 @@
 import {
+  allowedMergeMethods,
+  graphqlPrFileDocument,
+  mapPrCommits,
+  mapPrConversation,
+  mapPrCore,
+  mapPrFiles,
+  mapPrListItem,
+  mapPrOverview,
+  repositoryParts,
+  type GithubPrFileDiffGraphqlRaw,
+  type GithubPrFileRaw,
+} from "./git-github-mappers.js";
+import {
+  CHECK_FIELDS,
+  COMMITS_FIELDS,
+  CONVERSATION_FIELDS,
+  CORE_FIELDS,
+  githubPrSearch,
+  OVERVIEW_FIELDS,
+  PR_FILE_DIFF_QUERY,
+  PR_LIST_QUERY,
+  REPOSITORY_SETTINGS_FIELDS,
+  repositoryQuery,
+  variables,
+  type GithubPrDetailRaw,
+  type GithubRepoRaw,
+  type RepositoryResponse,
+} from "./git-github-queries.js";
+import {
   summarizeRestChecks,
   type RestCheckRun,
   type RestCommitStatus,
 } from "./git-github-checks.js";
-/* eslint-disable max-lines -- GitHub workflows share one typed mapping boundary across GraphQL and REST resources. */
 import type {
-  GithubPr,
   GithubPrCheckoutResponse,
   GithubPrChecksResponse,
   GithubPrCommitsResponse,
   GithubPrConversation,
   GithubPrCore,
-  GithubPrFile,
   GithubPrFileDiffRequest,
   GithubPrFileDiffResponse,
   GithubPrFilesResponse,
@@ -29,7 +55,6 @@ import type { GithubApiClient } from "./git-github-api-client.js";
 import {
   noChecksSummary,
   parseGithubRepositoryUrl,
-  summarizeStatusCheckRollup,
 } from "./git-github-parsers.js";
 import type { GithubRepositoryRef } from "./git-github-parsers.js";
 import type { GitReadSnapshot, GitReadMetadataSnapshot } from "./read/types.js";
@@ -64,158 +89,6 @@ export type GithubServiceContext = {
   ): Promise<GitRepoSummary>;
   repoName(projectId: string, relativePath: string): string;
 };
-
-type GithubAuthorRaw = { login?: string; avatarUrl?: string } | null;
-type GithubCheckRollupRaw = {
-  contexts?: { nodes?: unknown[] | null } | null;
-} | null;
-type GithubCommitNodeRaw = {
-  oid: string;
-  additions?: number;
-  deletions?: number;
-  author?: { user?: { login?: string } | null } | null;
-  messageHeadline?: string;
-  authoredDate?: string;
-  authors?: { nodes?: Array<{ name?: string } | null> | null } | null;
-  statusCheckRollup?: GithubCheckRollupRaw;
-};
-export type GithubPrDetailRaw = {
-  number: number;
-  title: string;
-  url: string;
-  state: string;
-  isDraft: boolean;
-  headRefName: string;
-  baseRefName: string;
-  headRefOid?: string;
-  baseRefOid?: string;
-  headRepository?: { nameWithOwner?: string } | null;
-  updatedAt: string;
-  createdAt: string;
-  body?: string | null;
-  author?: GithubAuthorRaw;
-  additions?: number;
-  deletions?: number;
-  changedFiles?: number;
-  mergeable?: string | null;
-  mergeStateStatus?: string | null;
-  reviewDecision?: string | null;
-  viewerCanMergeAsAdmin?: boolean | null;
-  mergedAt?: string | null;
-  closedAt?: string | null;
-  mergedBy?: { login?: string } | null;
-  mergeCommit?: { abbreviatedOid?: string; oid?: string } | null;
-  /* Aliased so the count can coexist with the conversation's comment nodes. */
-  commentCount?: { totalCount?: number } | null;
-  comments?: {
-    nodes?: Array<{
-      id?: string;
-      databaseId?: number;
-      author?: GithubAuthorRaw;
-      body?: string;
-      createdAt?: string;
-      updatedAt?: string;
-      url?: string;
-    } | null> | null;
-  } | null;
-  reviews?: {
-    nodes?: Array<{
-      id?: string;
-      databaseId?: number;
-      author?: GithubAuthorRaw;
-      state?: string;
-      body?: string;
-      submittedAt?: string;
-      url?: string;
-    } | null> | null;
-  } | null;
-  labels?: {
-    nodes?: Array<{ name?: string; color?: string } | null> | null;
-  } | null;
-  reviewRequests?: {
-    nodes?: Array<{
-      requestedReviewer?: {
-        login?: string;
-        slug?: string;
-        avatarUrl?: string;
-      } | null;
-    } | null> | null;
-  } | null;
-  commits?: {
-    nodes?: Array<{ commit?: GithubCommitNodeRaw } | null> | null;
-  } | null;
-};
-type GithubRepoRaw = {
-  mergeCommitAllowed?: boolean;
-  squashMergeAllowed?: boolean;
-  rebaseMergeAllowed?: boolean;
-  pullRequest?: GithubPrDetailRaw | null;
-};
-type RepositoryResponse = { repository?: GithubRepoRaw | null };
-
-export const CORE_FIELDS = `
-  number title url state isDraft headRefName baseRefName headRefOid baseRefOid
-  headRepository { nameWithOwner }
-  updatedAt createdAt additions deletions changedFiles
-  commentCount: comments { totalCount }
-  author { login avatarUrl }
-`;
-const CONVERSATION_FIELDS = `
-  body createdAt updatedAt
-  comments(first: 100) {
-    nodes { id databaseId body createdAt updatedAt url author { login avatarUrl } }
-  }
-  reviews(first: 100) {
-    nodes { id databaseId state body submittedAt url author { login avatarUrl } }
-  }
-`;
-const OVERVIEW_FIELDS = `
-  headRefOid baseRefOid mergeable mergeStateStatus reviewDecision
-  viewerCanMergeAsAdmin
-  mergedAt closedAt mergedBy { login } mergeCommit { oid abbreviatedOid }
-  labels(first: 100) { nodes { name color } }
-  reviewRequests(first: 100) {
-    nodes {
-      requestedReviewer {
-        ... on User { login avatarUrl }
-        ... on Team { slug avatarUrl }
-      }
-    }
-  }
-`;
-export const CHECK_FIELDS = `
-  commits(last: 1) {
-    nodes {
-      commit {
-        statusCheckRollup {
-          contexts(first: 100) {
-            nodes {
-              __typename
-              ... on CheckRun { name status conclusion detailsUrl startedAt completedAt checkSuite { app { name } } }
-              ... on StatusContext { context state targetUrl }
-            }
-          }
-        }
-      }
-    }
-  }
-`;
-const REPOSITORY_SETTINGS_FIELDS = `
-  mergeCommitAllowed squashMergeAllowed rebaseMergeAllowed
-`;
-
-function repositoryQuery(fields: string, includeSettings = false): string {
-  return `query PullRequest($owner: String!, $repo: String!, $number: Int!) {
-    repository(owner: $owner, name: $repo) {
-      ${includeSettings ? REPOSITORY_SETTINGS_FIELDS : ""}
-      pullRequest(number: $number) { ${fields} }
-    }
-  }`;
-}
-
-function variables(repository: GithubRepositoryRef, number: number) {
-  return { owner: repository.owner, repo: repository.repo, number };
-}
 
 function requireRepository(data: RepositoryResponse): GithubRepoRaw {
   if (!data.repository)
@@ -309,48 +182,6 @@ export async function githubStatus(
   }
 }
 
-function quoteSearchValue(value: string): string {
-  return `"${value.replaceAll("\\", "\\\\").replaceAll('"', '\\"')}"`;
-}
-
-export function githubPrSearch(filters: GithubPrListFilters): string {
-  const search = ["is:pr", "is:open"];
-  if (filters.author === "me") search.push("author:@me");
-  if (filters.author === "username" && filters.username)
-    search.push(`author:${quoteSearchValue(filters.username)}`);
-  if (filters.reviewRequested) search.push("review-requested:@me");
-  if (filters.head) search.push(`head:${quoteSearchValue(filters.head)}`);
-  for (const label of filters.labels)
-    search.push(`label:${quoteSearchValue(label)}`);
-  if (filters.title) search.push(`in:title ${quoteSearchValue(filters.title)}`);
-  if (filters.drafts === "exclude") search.push("draft:false");
-  if (filters.drafts === "only") search.push("draft:true");
-  search.push(
-    `sort:updated-${filters.sort === "updated-asc" ? "asc" : "desc"}`,
-  );
-  return search.join(" ");
-}
-
-const PR_LIST_QUERY = `query PullRequests($query: String!) {
-  viewer { login }
-  search(query: $query, type: ISSUE, first: 10) {
-    nodes {
-      ... on PullRequest {
-        number title url state isDraft headRefName baseRefName headRefOid headRepository { nameWithOwner } labels(first: 100) { nodes { name color } } reviewRequests(first: 100) { nodes { requestedReviewer { ... on User { login } } } } updatedAt
-        additions deletions author { login }
-        commentCount: comments { totalCount }
-        ${CHECK_FIELDS}
-      }
-    }
-  }
-}`;
-
-function checkRollup(raw: GithubPrDetailRaw): readonly unknown[] | null {
-  return (
-    raw.commits?.nodes?.[0]?.commit?.statusCheckRollup?.contexts?.nodes ?? null
-  );
-}
-
 export async function listOpenPrs(
   context: GithubServiceContext,
   projectId: string,
@@ -366,124 +197,8 @@ export async function listOpenPrs(
   });
   return {
     prs: (data.search?.nodes ?? []).flatMap((raw) =>
-      raw
-        ? [
-            {
-              number: raw.number,
-              title: raw.title,
-              url: raw.url,
-              state: raw.state,
-              isDraft: raw.isDraft,
-              headRefName: raw.headRefName,
-              baseRefName: raw.baseRefName,
-              updatedAt: raw.updatedAt,
-              author: raw.author?.login ?? null,
-              commentCount: raw.commentCount?.totalCount ?? 0,
-              additions: raw.additions ?? 0,
-              deletions: raw.deletions ?? 0,
-              headSha: raw.headRefOid ?? "",
-              headRepository: raw.headRepository?.nameWithOwner ?? null,
-              labels: compact(raw.labels?.nodes).map(
-                (label) => label.name ?? "",
-              ),
-              reviewRequested:
-                !!data.viewer?.login &&
-                !!raw.reviewRequests?.nodes?.some(
-                  (request) =>
-                    request?.requestedReviewer?.login === data.viewer?.login,
-                ),
-              checks: summarizeStatusCheckRollup(checkRollup(raw)),
-            } satisfies GithubPr,
-          ]
-        : [],
+      raw ? [mapPrListItem(raw, data.viewer?.login)] : [],
     ),
-  };
-}
-
-export function allowedMergeMethods(raw: GithubRepoRaw): GithubPrMergeMethod[] {
-  const methods: GithubPrMergeMethod[] = [];
-  if (raw.mergeCommitAllowed) methods.push("merge");
-  if (raw.squashMergeAllowed) methods.push("squash");
-  if (raw.rebaseMergeAllowed) methods.push("rebase");
-  return methods;
-}
-
-function mapPrCore(raw: GithubPrDetailRaw): GithubPrCore {
-  return {
-    number: raw.number,
-    title: raw.title,
-    url: raw.url,
-    state: raw.state,
-    isDraft: raw.isDraft,
-    headRefName: raw.headRefName,
-    baseRefName: raw.baseRefName,
-    headSha: raw.headRefOid ?? "",
-    headRefOid: raw.headRefOid ?? "",
-    baseRefOid: raw.baseRefOid ?? "",
-    headRepository: raw.headRepository?.nameWithOwner ?? null,
-    updatedAt: raw.updatedAt,
-    createdAt: raw.createdAt,
-    author: raw.author?.login ?? null,
-    commentCount: raw.commentCount?.totalCount ?? 0,
-    additions: raw.additions ?? 0,
-    deletions: raw.deletions ?? 0,
-    changedFiles: raw.changedFiles ?? 0,
-  };
-}
-
-function compact<T>(values: Array<T | null> | null | undefined): T[] {
-  return (values ?? []).filter((value): value is T => value !== null);
-}
-
-function mapPrConversation(raw: GithubPrDetailRaw): GithubPrConversation {
-  return {
-    body: raw.body ?? "",
-    comments: compact(raw.comments?.nodes).map((comment, index) => ({
-      id: String(comment.id ?? comment.databaseId ?? `comment-${index}`),
-      author: comment.author?.login ?? null,
-      authorAvatarUrl: comment.author?.avatarUrl,
-      body: comment.body ?? "",
-      createdAt: comment.createdAt ?? raw.createdAt,
-      updatedAt: comment.updatedAt,
-      url: comment.url,
-    })),
-    reviews: compact(raw.reviews?.nodes).map((review, index) => ({
-      id: String(review.id ?? review.databaseId ?? `review-${index}`),
-      author: review.author?.login ?? null,
-      authorAvatarUrl: review.author?.avatarUrl,
-      state: review.state ?? "COMMENTED",
-      body: review.body ?? "",
-      submittedAt: review.submittedAt ?? raw.updatedAt,
-      url: review.url,
-    })),
-  };
-}
-
-function mapPrOverview(
-  raw: GithubPrDetailRaw,
-  settings: GithubRepoRaw,
-  behindBy: number | null,
-): GithubPrOverview {
-  return {
-    mergeable: raw.mergeable ?? null,
-    mergeStateStatus: raw.mergeStateStatus ?? null,
-    reviewDecision: raw.reviewDecision ?? null,
-    viewerCanMergeAsAdmin: raw.viewerCanMergeAsAdmin ?? false,
-    behindBy,
-    mergedAt: raw.mergedAt ?? null,
-    mergedBy: raw.mergedBy?.login ?? null,
-    mergeCommitOid:
-      raw.mergeCommit?.abbreviatedOid ?? raw.mergeCommit?.oid ?? null,
-    closedAt: raw.closedAt ?? null,
-    labels: compact(raw.labels?.nodes).flatMap((label) =>
-      label.name ? [{ name: label.name, color: label.color }] : [],
-    ),
-    reviewRequests: compact(raw.reviewRequests?.nodes).flatMap((request) => {
-      const reviewer = request.requestedReviewer;
-      const login = reviewer?.login ?? reviewer?.slug;
-      return login ? [{ login, avatarUrl: reviewer?.avatarUrl }] : [];
-    }),
-    mergeSettings: { allowedMethods: allowedMergeMethods(settings) },
   };
 }
 
@@ -621,10 +336,6 @@ export async function prOverview(
   );
 }
 
-const COMMITS_FIELDS = `commits(first: 100) {
-  nodes { commit { oid messageHeadline authoredDate additions deletions author { user { login } } authors(first: 1) { nodes { name } } } }
-}`;
-
 export async function prCommits(
   context: GithubServiceContext,
   projectId: string,
@@ -641,25 +352,7 @@ export async function prCommits(
       "pull-request-commits",
     )
   ).raw;
-  return {
-    commits: compact(raw.commits?.nodes).flatMap((node) => {
-      const commit = node.commit;
-      return commit
-        ? [
-            {
-              oid: commit.oid,
-              abbrev: commit.oid.slice(0, 7),
-              messageHeadline: commit.messageHeadline ?? "",
-              authoredDate: commit.authoredDate,
-              authorName: compact(commit.authors?.nodes)[0]?.name,
-              authorLogin: commit.author?.user?.login,
-              additions: commit.additions,
-              deletions: commit.deletions,
-            },
-          ]
-        : [];
-    }),
-  };
+  return mapPrCommits(raw);
 }
 
 export async function prChecks(
@@ -693,31 +386,6 @@ export async function prChecks(
 
 const MAX_PR_FILES = 300;
 const PR_FILES_PER_PAGE = 100;
-const MAX_PR_FILE_DOCUMENT_BYTES = 16 * 1024 * 1024;
-
-type GithubPrFileRaw = {
-  filename?: string;
-  previous_filename?: string;
-  status?: string;
-  additions?: number;
-  deletions?: number;
-  changes?: number;
-};
-
-function fileStatus(value?: string): GithubPrFile["status"] {
-  switch (value) {
-    case "added":
-    case "changed":
-    case "copied":
-    case "modified":
-    case "removed":
-    case "renamed":
-    case "unchanged":
-      return value;
-    default:
-      return "changed";
-  }
-}
 
 export async function prFiles(
   context: GithubServiceContext,
@@ -746,108 +414,13 @@ export async function prFiles(
   const totalCount = Number.isInteger(detail.changed_files)
     ? (detail.changed_files ?? rawFiles.length)
     : rawFiles.length;
-  const files = rawFiles.slice(0, MAX_PR_FILES).flatMap((file) =>
-    file.filename
-      ? [
-          {
-            path: file.filename,
-            previousPath: file.previous_filename,
-            status: fileStatus(file.status),
-            additions: file.additions ?? 0,
-            deletions: file.deletions ?? 0,
-            changes: file.changes ?? 0,
-          },
-        ]
-      : [],
-  );
+  const files = mapPrFiles(rawFiles, MAX_PR_FILES);
   return {
     files,
     totalCount,
     truncated: totalCount > files.length,
   };
 }
-
-type GithubGraphqlBlobRaw = {
-  byteSize?: number;
-  isBinary?: boolean;
-  isTruncated?: boolean;
-  text?: string | null;
-};
-
-type GithubPrFileDiffGraphqlRaw = {
-  repository?: {
-    pullRequest?: {
-      baseRefOid?: string;
-      headRefOid?: string;
-      headRepository?: { nameWithOwner?: string } | null;
-    } | null;
-    original?: GithubGraphqlBlobRaw | null;
-  } | null;
-  headRepository?: { modified?: GithubGraphqlBlobRaw | null } | null;
-};
-
-type PrFileDocument =
-  | { kind: "text"; text: string }
-  | { kind: "binary" }
-  | {
-      kind: "unavailable";
-      reason: "content-too-large" | "content-unavailable";
-    };
-
-function graphqlPrFileDocument(
-  raw: GithubGraphqlBlobRaw | null | undefined,
-  required: boolean,
-): PrFileDocument {
-  if (!required) return { kind: "text", text: "" };
-  if (!raw) return { kind: "unavailable", reason: "content-unavailable" };
-  if (
-    raw.isTruncated ||
-    (typeof raw.byteSize === "number" &&
-      raw.byteSize > MAX_PR_FILE_DOCUMENT_BYTES)
-  )
-    return { kind: "unavailable", reason: "content-too-large" };
-  if (raw.isBinary || typeof raw.text !== "string" || raw.text.includes("\0"))
-    return { kind: "binary" };
-  return { kind: "text", text: raw.text };
-}
-
-function repositoryParts(
-  nameWithOwner: string | undefined,
-): { owner: string; repo: string } | undefined {
-  const [owner, repo, ...rest] = nameWithOwner?.split("/") ?? [];
-  return owner && repo && rest.length === 0 ? { owner, repo } : undefined;
-}
-
-const PR_FILE_DIFF_QUERY = `
-  query PullRequestFileDiff(
-    $owner: String!
-    $repo: String!
-    $number: Int!
-    $headOwner: String!
-    $headRepo: String!
-    $originalExpression: String!
-    $modifiedExpression: String!
-    $loadOriginal: Boolean!
-    $loadModified: Boolean!
-  ) {
-    repository(owner: $owner, name: $repo) {
-      pullRequest(number: $number) {
-        baseRefOid
-        headRefOid
-        headRepository { nameWithOwner }
-      }
-      original: object(expression: $originalExpression) @include(if: $loadOriginal) {
-        ... on Blob { byteSize isBinary isTruncated text }
-      }
-    }
-    headRepository: repository(owner: $headOwner, name: $headRepo)
-      @include(if: $loadModified) {
-      modified: object(expression: $modifiedExpression) {
-        ... on Blob { byteSize isBinary isTruncated text }
-      }
-    }
-  }
-`;
 
 export async function prFileDiff(
   context: GithubServiceContext,
@@ -1124,3 +697,11 @@ export async function checkoutPr(
     number,
   };
 }
+
+export {
+  allowedMergeMethods,
+  CHECK_FIELDS,
+  CORE_FIELDS,
+  githubPrSearch,
+  type GithubPrDetailRaw,
+};

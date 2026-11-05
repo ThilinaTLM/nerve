@@ -1,5 +1,3 @@
-import { projectProfileConfiguration } from "../agent-configuration/project-chains/profile-migrations.js";
-import { suggestionConfiguration } from "../../../domains/prompt-suggestions/prompt-suggestion-migrations.js";
 import {
   projectAgentConfiguration,
   projectConversationDefaults,
@@ -36,10 +34,4 @@ export const projectConfigurationTrustKinds: Readonly<
       trustKind ? [[type.id, trustKind]] : [],
     ),
   ),
-};
-
-/** Entry descriptors are registered lazily by their owner, never by scanning projects. */
-export const projectConfigurationFactories = {
-  "agent-profile": projectProfileConfiguration,
-  "prompt-suggestion": suggestionConfiguration,
 };

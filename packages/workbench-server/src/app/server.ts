@@ -1,14 +1,13 @@
 import { createId } from "@nervekit/contracts";
-import { Hono, type MiddlewareHandler } from "hono";
-import {
-  cookieHeader,
-  createApiAuthMiddleware,
-} from "../adapters/http/auth-middleware.js";
+import { Hono, type Context, type MiddlewareHandler } from "hono";
+import { createApiAuthMiddleware } from "../adapters/http/auth-middleware.js";
+import { gateRequestFromContext } from "../adapters/http/gate-request.js";
+import { createAccessRoutes } from "../adapters/http/routes/access-routes.js";
+import type { AccessService } from "../domains/access/access-service.js";
 import {
   createHostAllowlist,
   type HostAllowlist,
 } from "../adapters/http/host-allowlist.js";
-import { tokensEqual } from "../adapters/http/token-compare.js";
 import {
   clearRequestContext,
   setRequestContext,
@@ -25,9 +24,16 @@ import {
 import { createServerLifecycleHolder } from "./lifecycle/server-lifecycle.js";
 
 /** Rejects requests whose Host header is not ours (DNS rebinding); applies to every route. */
-export function hostGuard(isAllowedHost: HostAllowlist): MiddlewareHandler {
+export function hostGuard(
+  isAllowedHost: HostAllowlist,
+  access?: AccessService,
+): MiddlewareHandler {
   return async (c, next) => {
-    if (!isAllowedHost(c.req.header("host") ?? new URL(c.req.url).host)) {
+    // Behind a trusted reverse proxy the public host may arrive as X-Forwarded-Host.
+    const host = access
+      ? access.gate.resolveClient(gateRequestFromContext(c)).host
+      : (c.req.header("host") ?? new URL(c.req.url).host);
+    if (!isAllowedHost(host)) {
       return c.json(
         {
           error: {
@@ -42,46 +48,57 @@ export function hostGuard(isAllowedHost: HostAllowlist): MiddlewareHandler {
   };
 }
 
-export function remoteUiAuthRedirect(
-  request: Request,
-  localToken: string,
-): Response | undefined {
-  const url = new URL(request.url);
+/**
+ * Legacy `?token=` share links. A valid token is redeemed once, over TLS or
+ * loopback only: it mints a revocable `legacy-token` device, sets its cookie
+ * and redirects to the clean URL. Plaintext links get a "switch to HTTPS
+ * pairing" page. Invalid tokens fall through to the app untouched.
+ */
+export async function legacyTokenRedirect(
+  access: AccessService,
+  c: Context,
+): Promise<Response | undefined> {
+  const url = new URL(c.req.url);
   const token = url.searchParams.get("token");
-  if (!tokensEqual(token, localToken)) return undefined;
-
-  url.searchParams.delete("token");
-  const location = `${url.pathname}${url.search}` || "/";
-  return new Response(null, {
-    status: 302,
-    headers: {
-      location,
-      "referrer-policy": "no-referrer",
-      "set-cookie": cookieHeader(localToken, {
-        secure: url.protocol === "https:",
-      }),
-    },
+  if (token === null) return undefined;
+  const request = gateRequestFromContext(c);
+  const result = await access.redeemLegacyToken(token, {
+    client: access.gate.resolveClient(request),
+    userAgent: c.req.header("user-agent") ?? undefined,
   });
+  if (!result.ok) {
+    if (result.reason === "plaintext" || result.reason === "blocked") {
+      return new Response(legacyLinkHtml(result.reason), {
+        status: 403,
+        headers: {
+          "content-type": "text/html; charset=utf-8",
+          "referrer-policy": "no-referrer",
+        },
+      });
+    }
+    return undefined;
+  }
+  url.searchParams.delete("token");
+  const headers = new Headers({
+    location: `${url.pathname}${url.search}` || "/",
+    "referrer-policy": "no-referrer",
+  });
+  if (result.cookie) headers.append("set-cookie", result.cookie);
+  return new Response(null, { status: 302, headers });
 }
 
-function mobileSetupPage(
-  request: Request,
-  state: ServerRuntime,
-): Response | undefined {
-  if (!state.mobileHttps) return undefined;
-  const url = new URL(request.url);
-  const token = url.searchParams.get("token");
-  if (!tokensEqual(token, state.storage.localToken)) {
-    return new Response(mobileSetupErrorHtml(), {
-      status: 401,
-      headers: {
-        "content-type": "text/html; charset=utf-8",
-        "referrer-policy": "no-referrer",
-      },
-    });
-  }
+function legacyLinkHtml(reason: "plaintext" | "blocked"): string {
+  const message =
+    reason === "plaintext"
+      ? "This link carries a credential and cannot be used over an unencrypted connection. Ask the Nerve owner for a new pairing QR code and open it over HTTPS."
+      : "This server is not accepting sign-ins yet. Finish owner passkey setup on the host first.";
+  return `<!doctype html><html lang="en"><head><meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1.0" /><title>Nerve</title></head><body><h1>Switch to HTTPS pairing</h1><p>${message}</p></body></html>`;
+}
 
-  // The setup page redeems the token itself; the secure URL carries none.
+function mobileSetupPage(state: ServerRuntime): Response | undefined {
+  if (!state.mobileHttps) return undefined;
+  // Nothing on this page is secret: the pairing code lives in the URL fragment
+  // (never sent to the server) and is copied onto the secure link by script.
   const secureAppUrl = new URL(state.mobileHttps.url);
   const caCertUrl = new URL(state.mobileHttps.caCertUrl);
   return new Response(
@@ -93,9 +110,7 @@ function mobileSetupPage(
       headers: {
         "content-type": "text/html; charset=utf-8",
         "referrer-policy": "no-referrer",
-        "set-cookie": cookieHeader(state.storage.localToken, {
-          secure: url.protocol === "https:",
-        }),
+        "cache-control": "no-store",
       },
     },
   );
@@ -110,10 +125,6 @@ function caCertificateResponse(state: ServerRuntime): Response | undefined {
       "content-disposition": 'attachment; filename="nerve-local-ca.pem"',
     },
   });
-}
-
-function mobileSetupErrorHtml(): string {
-  return `<!doctype html><html lang="en"><head><meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1.0" /><title>Nerve mobile setup</title></head><body><h1>Invalid mobile setup link</h1><p>Copy a fresh mobile setup URL from the Nerve desktop tray menu.</p></body></html>`;
 }
 
 function mobileSetupHtml(input: {
@@ -140,7 +151,7 @@ function mobileSetupHtml(input: {
       <p>Install and trust this Nerve local CA certificate on your phone, then open the secure Nerve URL. This lets your mobile browser treat the LAN app as a secure context and lets you install Nerve to your home screen. You only need to install the certificate once&mdash;it is reused across daemon restarts.</p>
       <div class="actions">
         <a class="button" href="${caCertUrl}">Download Nerve local CA certificate</a>
-        <a class="button" href="${secureAppUrl}">Open secure Nerve</a>
+        <a class="button" id="secure-link" href="${secureAppUrl}">Open secure Nerve</a>
       </div>
       <ol>
         <li>Download the CA certificate above.</li>
@@ -151,9 +162,19 @@ function mobileSetupHtml(input: {
       </ol>
       <p><strong>iOS:</strong> install the downloaded profile, then enable full trust in Settings → General → About → Certificate Trust Settings.</p>
       <p><strong>Android:</strong> install the certificate from Settings → Security/Privacy → Encryption & credentials. Browser behavior varies by Android version.</p>
-      <p class="warning">This page signed this browser in to Nerve. Only open it on devices you trust.</p>
+      <p>After the certificate is trusted, open the secure link. If you scanned a pairing QR code, it carries a one-time code that pairs this phone automatically.</p>
       <p>Secure URL: <code>${secureAppUrl}</code></p>
     </main>
+    <script>
+      // Carry the one-time pairing code (URL fragment) onto the HTTPS link.
+      (function () {
+        var hash = location.hash;
+        if (!/^#pair=[A-Za-z0-9-]+$/.test(hash)) return;
+        var link = document.getElementById("secure-link");
+        if (link) link.setAttribute("href", link.getAttribute("href").split("#")[0] + hash);
+        history.replaceState(null, "", location.pathname + location.search);
+      })();
+    </script>
   </body>
 </html>`;
 }
@@ -184,7 +205,7 @@ export function createApp(
   },
 ): Hono {
   const app = new Hono();
-  app.use("*", hostGuard(createHostAllowlist(state)));
+  app.use("*", hostGuard(createHostAllowlist(state), state.access));
 
   if (state.applicationLogsEnabled) {
     app.use("/api/*", async (c, next) => {
@@ -220,7 +241,8 @@ export function createApp(
       }
     });
   }
-  app.use("/api/*", createApiAuthMiddleware(state.storage.localToken));
+  app.use("/api/*", createApiAuthMiddleware(state.access.gate));
+  app.route("/api/access", createAccessRoutes(state.access));
   app.route("/", createLifecycleRoutes(lifecycle));
   mountApiRoutes(app, state);
 
@@ -228,7 +250,7 @@ export function createApp(
 
   app.get(
     "/mobile-setup",
-    (c) => mobileSetupPage(c.req.raw, state) ?? c.text("Not found", 404),
+    (c) => mobileSetupPage(state) ?? c.text("Not found", 404),
   );
   app.get(
     "/nerve-local-ca.pem",
@@ -236,10 +258,7 @@ export function createApp(
   );
 
   app.get("*", async (c) => {
-    const remoteAuthRedirect = remoteUiAuthRedirect(
-      c.req.raw,
-      state.storage.localToken,
-    );
+    const remoteAuthRedirect = await legacyTokenRedirect(state.access, c);
     if (remoteAuthRedirect) return remoteAuthRedirect;
 
     return serveStatic(

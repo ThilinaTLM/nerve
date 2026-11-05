@@ -28,10 +28,9 @@ const WORKBENCH_CAPABILITIES = [
     .map((definition) => definition.requiredCapability)
     .filter((capability): capability is string => Boolean(capability)),
 ];
-import {
-  isBlockedWebSocketUpgrade,
-  isWebSocketAuthorized,
-} from "../http/auth-middleware.js";
+import type { Principal } from "../../domains/access/access-gate.js";
+import type { AccessService } from "../../domains/access/access-service.js";
+import { gateRequestFromUpgrade } from "../http/gate-request.js";
 import type { HostAllowlist } from "../http/host-allowlist.js";
 import { PROTOCOL_HEARTBEAT, PROTOCOL_SESSION_LIMITS } from "./constants.js";
 import { workbenchWebSocketRpcDispatcher } from "./http-dispatcher.js";
@@ -42,6 +41,12 @@ export interface LocalProtocolSession {
   dispose(): void;
   shutdown(message?: string): Promise<void>;
 }
+
+const UPGRADE_REJECTION: Record<number, string> = {
+  401: "Unauthorized",
+  403: "Forbidden",
+  429: "Too Many Requests",
+};
 
 const activeSessionCounts = new WeakMap<ProtocolWebSocketContext, number>();
 
@@ -66,7 +71,7 @@ export function installProtocolWebSocketUpgrade(
   server: ProtocolSocketServer,
   webSockets: WebSocketServer,
   state: ProtocolWebSocketContext,
-  token: string,
+  access: AccessService,
   isAllowedHost: HostAllowlist,
 ): Set<LocalProtocolSession> {
   const sessions = new Set<LocalProtocolSession>();
@@ -82,31 +87,52 @@ export function installProtocolWebSocketUpgrade(
       socket.destroy();
       return;
     }
-    if (!isAllowedHost(request.headers.host)) {
+    const gateRequest = gateRequestFromUpgrade(request);
+    if (!isAllowedHost(access.gate.resolveClient(gateRequest).host)) {
       socket.write("HTTP/1.1 421 Misdirected Request\r\n\r\n");
       socket.destroy();
       return;
     }
-    if (isBlockedWebSocketUpgrade(request)) {
-      socket.write("HTTP/1.1 403 Forbidden\r\n\r\n");
-      socket.destroy();
-      return;
-    }
-    if (!isWebSocketAuthorized(request, token)) {
-      socket.write("HTTP/1.1 401 Unauthorized\r\n\r\n");
-      socket.destroy();
-      return;
-    }
-    webSockets.handleUpgrade(request, socket, head, (ws) => {
-      const createSession =
-        url.pathname === "/ws/conversations"
-          ? createConversationProtocolSession
-          : createLocalProtocolSession;
-      const binding = createSession(ws, state, () => sessions.delete(binding));
-      sessions.add(binding);
-      ws.on("close", binding.dispose);
-      ws.on("error", binding.dispose);
-    });
+    void access.gate
+      .authenticate(gateRequest, { websocket: true })
+      .then((outcome) => {
+        if (!outcome.ok || !outcome.principal) {
+          const status = outcome.ok ? 401 : outcome.status;
+          const retry =
+            !outcome.ok && outcome.retryAfterSeconds !== undefined
+              ? `Retry-After: ${outcome.retryAfterSeconds}\r\n`
+              : "";
+          socket.write(
+            `HTTP/1.1 ${status} ${UPGRADE_REJECTION[status] ?? "Unauthorized"}\r\n${retry}Connection: close\r\nContent-Length: 0\r\n\r\n`,
+          );
+          socket.destroy();
+          return;
+        }
+        upgrade(outcome.principal);
+      })
+      .catch(() => {
+        socket.write("HTTP/1.1 500 Internal Server Error\r\n\r\n");
+        socket.destroy();
+      });
+
+    const upgrade = (principal: Principal) => {
+      webSockets.handleUpgrade(request, socket, head, (ws) => {
+        const createSession =
+          url.pathname === "/ws/conversations"
+            ? createConversationProtocolSession
+            : createLocalProtocolSession;
+        const binding = createSession(ws, state, () =>
+          sessions.delete(binding),
+        );
+        sessions.add(binding);
+        const untrack = access.sockets.track(principal, ws);
+        ws.on("close", () => {
+          untrack();
+          binding.dispose();
+        });
+        ws.on("error", binding.dispose);
+      });
+    };
   });
   return sessions;
 }

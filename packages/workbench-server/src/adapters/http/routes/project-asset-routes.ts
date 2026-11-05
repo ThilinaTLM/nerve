@@ -8,6 +8,12 @@ export function createProjectAssetRoutes(
   state: ProjectAssetRoutesContext,
 ): Hono {
   const app = new Hono();
+  // Canonical project record (incl. root directory) for trusted main-process
+  // callers such as the desktop shell's known-project-root registry.
+  app.get(
+    "/:projectId",
+    routeHandler((c) => c.json(state.getProject(routeParam(c, "projectId")))),
+  );
   app.get(
     "/:projectId/icon",
     routeHandler(async (c) => {

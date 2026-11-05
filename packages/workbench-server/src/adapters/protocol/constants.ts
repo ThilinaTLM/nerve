@@ -1,7 +1,4 @@
-import {
-  WORKSPACE_STREAM,
-  conversationStream,
-} from "@nervekit/contracts/events";
+import {} from "@nervekit/contracts/events";
 
 export const PROTOCOL_SESSION_LIMITS = {
   maxMessageBytes: 4 * 1024 * 1024,
@@ -13,5 +10,3 @@ export const PROTOCOL_HEARTBEAT = {
   intervalMs: 30_000,
   timeoutMs: 70_000,
 } as const;
-
-export { WORKSPACE_STREAM, conversationStream };

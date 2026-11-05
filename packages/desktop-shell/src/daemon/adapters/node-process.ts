@@ -1,5 +1,5 @@
 import { access } from "node:fs/promises";
-import { networkInterfaces } from "node:os";
+import { hostname, networkInterfaces } from "node:os";
 import { fileURLToPath } from "node:url";
 import { version as bundledDaemonVersion } from "@nervekit/workbench-server";
 import {
@@ -7,20 +7,29 @@ import {
   writeCrashReportSync,
 } from "../../crash-reports.js";
 import { desktopLog } from "../../logging.js";
-import type { DaemonConnectionPorts } from "../ports.js";
+import type {
+  DaemonConnectionPorts,
+  RemoteCredentialStorePort,
+} from "../ports.js";
 import type { NetworkInterfacesSnapshot } from "../urls.js";
-import { findHealthyDaemon } from "./daemon-discovery.js";
+import { createDaemonAccessClient } from "./daemon-access.js";
+import { findHealthyDaemon, readLocalToken } from "./daemon-discovery.js";
 import { checkHealth } from "./daemon-health.js";
 import { spawnDaemonProcess } from "./direct-process.js";
 import { resolveDaemonLaunch } from "./systemd-scope.js";
 
 /** Compose focused Node adapters behind the daemon runtime ports. */
-export function createNodeDaemonPorts(): DaemonConnectionPorts {
+export function createNodeDaemonPorts(
+  credentials: RemoteCredentialStorePort,
+): DaemonConnectionPorts {
   return {
+    credentials,
+    access: createDaemonAccessClient(),
+    deviceName: `Nerve Desktop (${hostname()})`,
     env: process.env,
     bundledDaemonVersion,
     health: { check: checkHealth },
-    discovery: { findHealthyDaemon },
+    discovery: { findHealthyDaemon, readLocalToken },
     launcher: {
       launch: (input) => spawnDaemonProcess(input, resolveDaemonLaunch(input)),
     },

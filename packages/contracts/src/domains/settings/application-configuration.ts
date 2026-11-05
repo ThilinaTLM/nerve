@@ -53,6 +53,23 @@ export type ElectronFontRenderHinting = z.infer<
   typeof electronFontRenderHintingSchema
 >;
 
+/**
+ * Reverse-proxy trust. `peers` are proxy peer addresses or CIDR ranges
+ * (e.g. `127.0.0.1`, `::1`, `172.17.0.0/16`; default `DEFAULT_TRUST_PROXY_PEERS`); forwarded headers are honored
+ * only from them and only while `publicUrl` is set.
+ */
+export const trustProxySchema = z.object({
+  peers: z.array(z.string().trim().min(1)),
+});
+export type TrustProxy = z.infer<typeof trustProxySchema>;
+export const DEFAULT_TRUST_PROXY_PEERS: readonly string[] = [
+  "127.0.0.1",
+  "::1",
+];
+
+/** `https://nerve.example.com`: the externally visible origin behind a reverse proxy. */
+export const publicUrlSchema = z.string().trim().url();
+
 export const applicationSettingsSchema = z.object({
   network: z.object({
     host: z.string().trim().min(1).default("127.0.0.1"),
@@ -60,6 +77,8 @@ export const applicationSettingsSchema = z.object({
     allowRemote: z.boolean().default(false),
     mobileHttps: z.boolean().default(false),
     httpsPort: z.number().int().min(1).max(65_535).default(3748),
+    publicUrl: publicUrlSchema.optional(),
+    trustProxy: trustProxySchema.optional(),
   }),
   diagnostics: z.object({
     loggingEnabled: z.boolean().default(false),
@@ -104,6 +123,9 @@ export const applicationSettingsPatchSchema = z.object({
       allowRemote: z.boolean().optional(),
       mobileHttps: z.boolean().optional(),
       httpsPort: z.number().int().min(1).max(65_535).optional(),
+      /** Empty string clears the saved value. */
+      publicUrl: z.union([publicUrlSchema, z.literal("")]).optional(),
+      trustProxy: trustProxySchema.optional(),
     })
     .optional(),
   diagnostics: z
@@ -196,6 +218,9 @@ export const applicationConfigurationSnapshotSchema = z.object({
       allowRemote: resolvedBooleanSettingSchema,
       mobileHttps: resolvedBooleanSettingSchema,
       httpsPort: resolvedNumberSettingSchema,
+      /** Empty string when unset. */
+      publicUrl: resolvedStringSettingSchema,
+      trustProxyPeers: resolvedSettingSchema(z.array(z.string())),
     }),
     diagnostics: z.object({
       loggingEnabled: resolvedBooleanSettingSchema,

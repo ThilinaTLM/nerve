@@ -18,6 +18,7 @@ import Shield from "@lucide/svelte/icons/shield";
 import SlidersHorizontal from "@lucide/svelte/icons/sliders-horizontal";
 import Users from "@lucide/svelte/icons/users";
 import Wrench from "@lucide/svelte/icons/wrench";
+import Smartphone from "@lucide/svelte/icons/smartphone";
 import Boxes from "@lucide/svelte/icons/boxes";
 import type {
   SettingsNavBadge,
@@ -28,14 +29,13 @@ import type {
 } from "$lib/presentation/settings";
 import type { SettingsScopeTarget } from "./settings-scope";
 import {
-  defaultSettingsPageId,
   layoutByScope,
   pagesByScope,
   resolveSettingsPageId,
   settingsPageIds,
 } from "./settings-page-data";
 
-export { defaultSettingsPageId, resolveSettingsPageId, settingsPageIds };
+export { resolveSettingsPageId, settingsPageIds };
 
 const icons: Record<string, Component> = {
   providers: CloudCog,
@@ -54,6 +54,7 @@ const icons: Record<string, Component> = {
   titles: TextCursorInput,
   suggestions: Lightbulb,
   storage: HardDrive,
+  devices: Smartphone,
   system: Server,
   launch: Play,
   "instructions-files": FileText,

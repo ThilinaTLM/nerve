@@ -30,10 +30,6 @@ export function beginWorkbenchStartup(): number {
   return generation;
 }
 
-export function isWorkbenchStartupGenerationCurrent(generation: number) {
-  return machine.isCurrent(generation);
-}
-
 export function transitionWorkbenchStartup(
   generation: number,
   phase: WorkbenchStartupPhase,

@@ -1,9 +1,5 @@
 export * from "./api/launches.api";
 export { launchSelectors } from "./state/launch-selectors.svelte";
-export {
-  launchWorkspaceCommands,
-  launchWorkspaceReadModel,
-} from "./workspace.svelte";
 export { openLaunchTab } from "./state/launch-tabs.svelte";
 export { registerLaunchEventHandlers } from "./state/launch-events";
 export {

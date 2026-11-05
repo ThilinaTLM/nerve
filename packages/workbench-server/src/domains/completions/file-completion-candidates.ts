@@ -138,12 +138,6 @@ export function legacyCandidatesFromEntries(
   );
 }
 
-export function shouldUseDirectoryListing(query: string): boolean {
-  if (!query) return true;
-  if (query.endsWith("/")) return true;
-  return !query.includes("/") && !/\s/.test(query) && query.length < 2;
-}
-
 export async function directDirectoryCompletionItems(
   root: string,
   query: string,

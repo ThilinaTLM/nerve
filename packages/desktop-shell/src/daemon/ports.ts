@@ -1,3 +1,4 @@
+import type { PairingCode, PairingPurpose } from "@nervekit/contracts/access";
 import type { DaemonCrashReportKind } from "@nervekit/contracts/logs";
 import type { ServerLifecycleState } from "@nervekit/contracts/status";
 import type { ChildExit, DaemonPaths, HealthyDaemon } from "./contracts.js";
@@ -23,6 +24,8 @@ export interface DaemonHealthCheckResult {
   error?: string;
   /** Server lifecycle from a healthy response body, when it could be parsed. */
   lifecycle?: ServerLifecycleState;
+  /** Replacement device credential from the `x-nerve-credential` header. */
+  rotatedCredential?: string;
 }
 
 export interface DaemonHealthPort {
@@ -32,6 +35,41 @@ export interface DaemonHealthPort {
 export interface DaemonDiscoveryPort {
   /** Reads daemon/token files under `paths` and health-checks the daemon. */
   findHealthyDaemon(paths: DaemonPaths): Promise<HealthyDaemon | undefined>;
+  /** Re-reads `secrets/daemon-token` (it changes on local token rotation). */
+  readLocalToken(paths: DaemonPaths): Promise<string>;
+}
+
+/** Failed `/api/access/*` call; `code` is the access error code when present. */
+export class DaemonAccessError extends Error {
+  constructor(
+    readonly status: number | undefined,
+    readonly code: string | undefined,
+    message: string,
+  ) {
+    super(message);
+    this.name = "DaemonAccessError";
+  }
+}
+
+export interface DaemonAccessPort {
+  /** Mints a pairing code; `bearer` must be an authenticated principal. */
+  createPairingCode(
+    url: string,
+    bearer: string,
+    purpose: PairingPurpose,
+  ): Promise<PairingCode>;
+  /** Redeems a code for a bearer device credential (`nd_<id>.<secret>`). */
+  redeemPairingCode(
+    url: string,
+    input: { code: string; deviceName: string },
+  ): Promise<string>;
+}
+
+/** Device credentials for remote daemons, kept per origin (OS-encrypted). */
+export interface RemoteCredentialStorePort {
+  load(origin: string): Promise<string | undefined>;
+  save(origin: string, credential: string): Promise<void>;
+  forget(origin: string): Promise<void>;
 }
 
 export interface DaemonDiagnosticCaptureResult {
@@ -105,12 +143,16 @@ export interface DaemonRuntimePorts {
   parentExit: ParentExitHookPort;
   crashReporter: DaemonCrashReporterPort;
   logger: DaemonLoggerPort;
+  access: DaemonAccessPort;
+  credentials: RemoteCredentialStorePort;
   networkInterfaces(): NetworkInterfacesSnapshot;
 }
 
 export interface DaemonConnectionPorts extends DaemonRuntimePorts {
   /** Version of the workbench server bundled with this desktop build. */
   readonly bundledDaemonVersion: string;
+  /** Name this desktop registers under when it pairs with a remote daemon. */
+  deviceName: string;
   /** Resolves the workbench-server main entry path. */
   resolveServerMain(): string;
   fileExists(path: string): Promise<boolean>;

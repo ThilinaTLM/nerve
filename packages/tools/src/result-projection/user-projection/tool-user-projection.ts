@@ -449,13 +449,6 @@ function withoutProducerArtifactClaims(value: unknown): unknown {
   return nextResult;
 }
 
-/** Build a bounded, secret-safe public preview of provider arguments. */
-export function toPublicToolCallArgsPreview(
-  args: Record<string, unknown>,
-): Record<string, unknown> {
-  return record(finalizePublicPreview(args, undefined).argsPreview);
-}
-
 export function buildUserProjection(
   toolName: string,
   args: Record<string, unknown>,

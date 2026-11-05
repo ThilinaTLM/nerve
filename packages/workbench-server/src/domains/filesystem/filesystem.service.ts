@@ -613,8 +613,4 @@ export async function saveFileContent(
   }
 }
 
-export {
-  clearProjectListingCache,
-  normalizeProjectRelativeDirectory,
-  projectDirectoryEntries,
-} from "./project-listing.js";
+export { projectDirectoryEntries } from "./project-listing.js";

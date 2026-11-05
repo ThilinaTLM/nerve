@@ -1,4 +1,3 @@
-import type { ConversationLiveToolDraftBlockSnapshot } from "$lib/presentation/view-models/conversation";
 import {
   type ArgSource,
   type AtlassianSummaryOptions,
@@ -18,7 +17,6 @@ import {
   asRecord,
   compactLines,
   countLabel,
-  draftArgSource,
   formatJiraBoard,
   formatJiraField,
   formatJiraIssue,
@@ -82,10 +80,6 @@ const JIRA_INCLUDED_LABELS: Record<string, string> = {
   editmetaFields: "edit fields",
 };
 
-export function isJiraToolName(toolName: string | undefined): boolean {
-  return Boolean(toolName?.startsWith("jira_"));
-}
-
 export function jiraToolSummaryBody(
   toolCall: ToolCallDisplayRecord,
   view: JiraView,
@@ -108,22 +102,6 @@ export function jiraToolSummaryBody(
   appendArtifactLines(lines, view, budget);
   appendPreviewHint(lines, toolCall, options);
 
-  return compactLines(lines).join("\n");
-}
-
-export function jiraDraftSummaryBody(
-  draft: ConversationLiveToolDraftBlockSnapshot,
-  options: AtlassianSummaryOptions = {},
-): string | undefined {
-  const action = jiraActionFromToolName(draft.toolName);
-  if (!action) return undefined;
-  const budget = summaryBudget(options);
-  const source = draftArgSource(draft);
-  const lines = [
-    `${draft.done ? "Prepared" : "Preparing"} Jira ${JIRA_ACTION_LABELS[action]}`,
-  ];
-  appendJiraRequestLines(lines, action, source, undefined, budget);
-  if (lines.length === 1) lines.push("Waiting for arguments…");
   return compactLines(lines).join("\n");
 }
 
@@ -547,49 +525,6 @@ function appendJiraOutcomeLines(
       );
       break;
     }
-  }
-}
-
-function jiraActionFromToolName(
-  toolName: string | undefined,
-): JiraAction | undefined {
-  switch (toolName) {
-    case "jira_search_users":
-      return "search_users";
-    case "jira_search_issues":
-      return "search_issues";
-    case "jira_get_issue":
-      return "get_issue";
-    case "jira_get_project":
-      return "get_project";
-    case "jira_search_boards":
-      return "search_boards";
-    case "jira_get_board":
-      return "get_board";
-    case "jira_get_sprint":
-      return "get_sprint";
-    case "jira_download_attachment":
-      return "download_attachment";
-    case "jira_create_issue":
-      return "create_issue";
-    case "jira_update_issue":
-      return "update_issue";
-    case "jira_manage_comment":
-      return "manage_comment";
-    case "jira_manage_worklog":
-      return "manage_worklog";
-    case "jira_manage_issue_link":
-      return "manage_issue_link";
-    case "jira_manage_attachment":
-      return "manage_attachment";
-    case "jira_manage_sprint":
-      return "manage_sprint";
-    case "jira_manage_backlog":
-      return "manage_backlog";
-    case "jira_transition_issue":
-      return "transition_issue";
-    default:
-      return undefined;
   }
 }
 

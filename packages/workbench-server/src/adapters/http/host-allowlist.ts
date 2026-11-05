@@ -8,6 +8,8 @@ export interface HostAllowlistSource {
   host: string;
   /** Hosts the mobile HTTPS certificate covers (LAN addresses). */
   mobileHttps?: { hosts: string[] };
+  /** `network.publicUrl` host, once the access service knows it. */
+  access?: { publicHost: string | undefined };
 }
 
 /** Extra hostnames from `NERVE_ALLOWED_HOSTS` (comma separated), for DNS names. */
@@ -49,7 +51,7 @@ function interfaceAddresses(): string[] {
 /**
  * Host-header allowlist against DNS rebinding: loopback names, the bound
  * address, the interface addresses when bound to a wildcard, the mobile HTTPS
- * hosts and `NERVE_ALLOWED_HOSTS`. Ports are ignored: only the name can be
+ * hosts, the `network.publicUrl` host and `NERVE_ALLOWED_HOSTS`. Ports are ignored: only the name can be
  * attacker-controlled, and dev proxies forward their own port.
  */
 export function createHostAllowlist(
@@ -67,6 +69,8 @@ export function createHostAllowlist(
     if (!host) return false;
     if (isLoopbackName(host)) return true;
     if (configured.includes(host)) return true;
+    const publicHost = source.access?.publicHost;
+    if (publicHost && normalizeHostname(publicHost) === host) return true;
     if (source.mobileHttps?.hosts.some((h) => normalizeHostname(h) === host))
       return true;
     if (isWildcardHost(source.host)) return addresses().includes(host);

@@ -8,10 +8,7 @@ import {
   startLaunch,
 } from "$lib/features/launches/api/launches.api";
 import { notify } from "$lib/application/notifications/notify.svelte";
-import {
-  loadLaunchLogWindow,
-  refreshLaunchLogWindow,
-} from "$lib/features/launches/state/launch-logs.svelte";
+import { loadLaunchLogWindow } from "$lib/features/launches/state/launch-logs.svelte";
 import { launchState } from "$lib/features/launches/state/launch-state.svelte";
 import {
   activateFallbackCenterTab,
@@ -135,8 +132,4 @@ export async function runLaunchCommand(input: {
     description: input.name ?? input.command,
   });
   return launch;
-}
-
-export async function refreshLaunchLogs() {
-  await refreshLaunchLogWindow();
 }

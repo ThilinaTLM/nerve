@@ -73,6 +73,14 @@ export const GALLERY_SECTIONS: readonly GallerySectionEntry[] = [
     load: () => import("./sections/OverlaysSection.svelte"),
   },
   {
+    id: "access",
+    title: "Access screens",
+    group: "Workbench",
+    summary:
+      "Pairing, passkey sign-in, passkey setup and the blocked-connection screens shown before the app loads.",
+    load: () => import("./sections/AccessSection.svelte"),
+  },
+  {
     id: "shell",
     title: "Shell chrome",
     group: "Workbench",

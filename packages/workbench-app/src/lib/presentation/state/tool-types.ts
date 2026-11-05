@@ -13,13 +13,8 @@ export type {
   AgentRecord,
   QueuedPromptRecord,
 } from "$lib/presentation/view-models/conversation";
-export type { ContextUsage, ModelInfo } from "@nervekit/contracts/models";
+export type { ModelInfo } from "@nervekit/contracts/models";
 
-export type {
-  ConversationActiveRunSnapshot,
-  ConversationEntry,
-  ConversationTreeNode,
-} from "$lib/presentation/view-models/conversation";
 export type { PlanReviewRecord } from "$lib/presentation/view-models/run-review";
 export type { ProjectRecord } from "$lib/presentation/view-models/conversation";
 

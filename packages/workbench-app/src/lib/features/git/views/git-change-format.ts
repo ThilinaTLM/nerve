@@ -1,8 +1,4 @@
-import type {
-  GitFileChange,
-  GithubChecksSummary,
-  GitRepoSummary,
-} from "@nervekit/contracts/git";
+import type { GitFileChange, GitRepoSummary } from "@nervekit/contracts/git";
 import type { StatusTone } from "@nervekit/ui-kit/display/status";
 import {
   repositoryLabels,
@@ -102,18 +98,5 @@ export function fileStatusLabel(
       return "conflict";
     default:
       return group;
-  }
-}
-
-export function checksTone(checks: GithubChecksSummary): StatusTone {
-  switch (checks.status) {
-    case "passing":
-      return "success";
-    case "failing":
-      return "destructive";
-    case "pending":
-      return "warning";
-    default:
-      return "neutral";
   }
 }

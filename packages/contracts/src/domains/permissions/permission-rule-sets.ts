@@ -15,7 +15,6 @@ const primitiveValueSchema = z.union([
 
 export const permissionDecisionSchema = z.enum(["allow", "prompt", "deny"]);
 export type PermissionDecision = z.infer<typeof permissionDecisionSchema>;
-export const ruleDecisionSchema = permissionDecisionSchema;
 export type RuleDecision = PermissionDecision;
 
 export const ruleEnforcementSchema = z.enum(["overridable", "guardrail"]);
@@ -284,7 +283,7 @@ export const permissionRuleSchema = z
     priority: z.number().int().min(-1_000).max(1_000),
     enforcement: ruleEnforcementSchema,
     when: permissionRuleFilterSchema,
-    decision: ruleDecisionSchema,
+    decision: permissionDecisionSchema,
   })
   .strict()
   .superRefine((rule, context) => {

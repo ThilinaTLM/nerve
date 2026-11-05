@@ -24,10 +24,7 @@ import { subagentPresentation } from "./subagent-presentation";
 import { krokiPresentation } from "./kroki-presentation";
 import { generateImagePresentation } from "./generate-image-presentation";
 
-export type {
-  DetailsActionInfo,
-  ToolPresentation,
-} from "./tool-presentation-types";
+export type { ToolPresentation } from "./tool-presentation-types";
 
 // Presentation is a pure product of (view, toolCall); the cached view object
 // from parseToolViewCached is a stable identity per tool-call revision, so a

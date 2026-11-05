@@ -18,26 +18,15 @@ import type { ConversationLiveToolOutputSnapshot } from "$lib/presentation/view-
 
 import type { ToolCallDetails } from "$lib/presentation/view-models/conversation";
 import type { ToolDraftViewModel } from "../state/active-run";
-import type {
-  CardAction,
-  MetaItem,
-  PrimaryArg,
-} from "../cards/card-presentation";
+import type { CardAction, PrimaryArg } from "../cards/card-presentation";
 import { toolPresentationCached } from "./views/tool-presentation";
-import {
-  parseToolViewCached,
-  type ToolView as ParsedToolView,
-} from "./views/tool-result-view";
+import { parseToolViewCached } from "./views/tool-result-view";
 import { toolViewComponent } from "./views/registry";
 import {
   hasMeaningfulToolDraftBody,
   summarizeToolDraft,
 } from "./views/tool-draft-progress";
-import {
-  presentToolArguments,
-  toolLifecycleSpec,
-  type ToolLifecycleStage,
-} from "./lifecycle/registry";
+import { presentToolArguments, toolLifecycleSpec } from "./lifecycle/registry";
 import { isInputValidationFailure } from "./lifecycle/failure-context";
 import {
   deriveToolActivitySections,
@@ -47,11 +36,14 @@ import {
   toolLifecycleStageIndicator,
   visibleLifecycleStage,
 } from "./views/tool-activity-state";
+import { PacedToolArguments } from "./tool-call/paced-tool-arguments.svelte";
 import {
-  pacedDraftBlock,
-  ToolArgumentHandoff,
-} from "./views/tool-argument-reveal";
-import { StreamingRevealLoop } from "@nervekit/ui-kit/scheduling/streaming-reveal-loop";
+  argumentLifecycleStage,
+  hasMeaningfulDurableBody,
+  mergeMetaItems,
+  toolCallTiming,
+  toolSizeArgument,
+} from "./tool-call/tool-call-model";
 import { getConversationUiCapabilities } from "../context.svelte";
 import { trimTextPreview } from "@nervekit/ui-kit/display/text-preview";
 import { LatestPresentationScheduler } from "@nervekit/ui-kit/scheduling/latest-presentation-scheduler";
@@ -199,64 +191,17 @@ const presentation = $derived.by(() =>
 const ToolView = $derived.by(() =>
   view ? toolViewComponent(view.kind) : undefined,
 );
-// Paced argument reveal. Streamed argument text is revealed at the same
-// even cadence as assistant text, upstream of every tool-specific parser, so
-// previews and counters advance smoothly. `applyToolDraftDone` clears
-// `argsText`, so the last streamed text is retained for the drain.
-const argsHandoff = new ToolArgumentHandoff();
-const argumentSource = $derived(
-  argsHandoff.update(
-    draft?.block,
-    Boolean(toolCall),
-    toolCall?.argsPreview ?? draft?.block.args,
-  ),
-);
-const sourceArgsText = $derived(argumentSource.text);
-const argsSourceDone = $derived(argumentSource.done);
-// Starts fully revealed so remounts and virtual-row re-entry never replay.
-let revealedArgsLength = $state(untrack(() => sourceArgsText.length));
-const argsReveal = new StreamingRevealLoop(
-  untrack(() => sourceArgsText.length),
-  {
-    onReveal: (length) => {
-      revealedArgsLength = length;
-    },
-  },
-);
-const pacingArgs = $derived(
-  Boolean(argumentSource.block) &&
-    shouldHydrateBody &&
-    !prefersReducedMotion.current,
-);
-$effect(() => {
-  const length = sourceArgsText.length;
-  const done = argsSourceDone;
-  if (!pacingArgs) {
-    argsReveal.snap(length);
-    revealedArgsLength = length;
-    return;
-  }
-  argsReveal.setTarget(length, { done });
+const paced = new PacedToolArguments({
+  draft: () => draft,
+  hasToolCall: () => Boolean(toolCall),
+  argsPreview: () => toolCall?.argsPreview,
+  hydrated: () => shouldHydrateBody,
 });
-$effect(() => () => argsReveal.destroy());
-const revealSettled = $derived(
-  argsSourceDone && revealedArgsLength >= sourceArgsText.length,
-);
-const presentedDraftBlock = $derived(
-  argumentSource.block
-    ? pacedDraftBlock(
-        argumentSource.block,
-        sourceArgsText,
-        revealedArgsLength,
-        revealSettled,
-      )
-    : undefined,
-);
+const revealSettled = $derived(paced.settled);
+const presentedDraftBlock = $derived(paced.block);
 // The durable record takes over presentation only after the reveal drains
 // (bounded by the pacer's lag and flush limits), so nothing pops in.
-const presentedToolCall = $derived(
-  argumentSource.block && !revealSettled ? undefined : toolCall,
-);
+const presentedToolCall = $derived(paced.draining ? undefined : toolCall);
 const draftSummary = $derived.by(() =>
   presentedDraftBlock
     ? summarizeToolDraft(presentedDraftBlock, cwd)
@@ -265,57 +210,9 @@ const draftSummary = $derived.by(() =>
 const meaningfulDraftBody = $derived(
   draftSummary ? hasMeaningfulToolDraftBody(draftSummary) : false,
 );
-function hasMeaningfulDurableBody(view: ParsedToolView | undefined): boolean {
-  if (!view) return false;
-  switch (view.kind) {
-    case "read":
-      return Boolean(view.image || view.content?.length);
-    case "bash":
-    case "python":
-      return view.output.length > 0;
-    case "edit":
-      return Boolean(view.diff);
-    case "write":
-      return Boolean(view.content?.length);
-    case "grep":
-      return view.matchCount > 0;
-    case "find":
-      return view.count > 0;
-    case "ls":
-      return view.total > 0;
-    case "todos":
-      return view.items.length > 0;
-    case "subagent":
-      return view.action === "prompt"
-        ? view.assignments.length > 0
-        : view.action === "status"
-          ? view.rows.length > 0 || Boolean(view.header)
-          : view.lines.length > 0;
-    case "web_search":
-      return Boolean(view.answer || view.results.length);
-    case "web_fetch":
-      return Boolean(view.content?.length);
-    case "generate_image":
-      return view.paths.length > 0;
-    case "kroki_export":
-      return Boolean(view.path);
-    case "explain_image":
-      return Boolean(
-        view.explanation?.length ||
-        view.thinking?.length ||
-        view.liveExplanation?.length,
-      );
-    case "generic":
-      return Boolean(view.resultText || view.result.length);
-    case "jira":
-    case "confluence":
-      return toolCall?.resultPreview !== undefined;
-    case "ask_user":
-    case "plan_present":
-      return true;
-  }
-}
-const hasDurableBodyContent = $derived(hasMeaningfulDurableBody(view));
+const hasDurableBodyContent = $derived(
+  hasMeaningfulDurableBody(view, toolCall),
+);
 const toolApproval = $derived(
   toolCall &&
     pendingApproval?.toolCallId === toolCall.id &&
@@ -331,19 +228,6 @@ const argumentInput = $derived({
   argsText: draft?.block.argsText,
   argsPreview: toolCall?.argsPreview,
 });
-function argumentLifecycleStage(): ToolLifecycleStage {
-  if (!toolCall) return "drafting";
-  if (
-    toolCall.status === "failed" ||
-    toolCall.status === "denied" ||
-    toolCall.status === "cancelled"
-  )
-    return "failed";
-  if (toolCall.status === "completed") return "completed";
-  // Approval-only details belong to ApprovalPrompt. The persistent argument
-  // section uses the same presentation before and after the decision.
-  return "executing";
-}
 // Drafts already carry the drafting presentation through `draftSummary`;
 // computing it again here would re-parse partial JSON on every delta.
 const lifecycleArgumentPresentation = $derived.by(() => {
@@ -352,17 +236,12 @@ const lifecycleArgumentPresentation = $derived.by(() => {
   return presentToolArguments(
     toolName,
     argumentInput,
-    argumentLifecycleStage(),
+    argumentLifecycleStage(toolCall),
     cwd,
   );
 });
 // Image placeholders reserve their frame from the `size` argument.
-const sizeArgument = $derived.by(() => {
-  const args = toolCall?.argsPreview;
-  const size =
-    args && typeof args === "object" && "size" in args ? args.size : undefined;
-  return typeof size === "string" ? size : undefined;
-});
+const sizeArgument = $derived(toolSizeArgument(toolCall?.argsPreview));
 const argumentBody = $derived.by(() => {
   if (!presentedToolCall) return draftSummary?.argumentBody;
   if (isInputValidationFailure(presentedToolCall)) return undefined;
@@ -419,40 +298,9 @@ const askUserDraftViewQuestions = $derived(
     : undefined,
 );
 const toolPlanReview = $derived(resolvePlanReview(toolCall, pendingPlanReview));
-function mergeMetaItems(...groups: Array<readonly MetaItem[]>): MetaItem[] {
-  // Local deduplication scratch space, not reactive component state.
-  // eslint-disable-next-line svelte/prefer-svelte-reactivity
-  const seen = new Set<string>();
-  return groups
-    .flatMap((group) =>
-      group.map((item) => ({
-        ...item,
-        key: item.key ?? `meta:${item.text.replace(/\d+(?:\.\d+)?/g, "#")}`,
-      })),
-    )
-    .filter((item) => {
-      if (seen.has(item.key)) return false;
-      seen.add(item.key);
-      return true;
-    });
-}
-// Execution clock for the lead chip. An open running call started when it
-// last changed state (`updatedAt`); settled calls carry `startedAt` from the
-// tool_call_response. Queued calls have not started, so the approval wait is
-// never counted.
-function parseMs(value: string | undefined): number | undefined {
-  if (!value) return undefined;
-  const ms = Date.parse(value);
-  return Number.isFinite(ms) ? ms : undefined;
-}
-const startedAtMs = $derived.by(() => {
-  if (!toolCall) return undefined;
-  return parseMs(
-    toolCall.startedAt ??
-      (toolCall.status === "running" ? toolCall.updatedAt : undefined),
-  );
-});
-const settledAtMs = $derived(parseMs(toolCall?.settledAt));
+const timing = $derived(toolCallTiming(toolCall));
+const startedAtMs = $derived(timing.startedAtMs);
+const settledAtMs = $derived(timing.settledAtMs);
 const clockRunning = $derived(
   Boolean(toolCall) && toolCall?.status === "running" && !outcomeUnknown,
 );

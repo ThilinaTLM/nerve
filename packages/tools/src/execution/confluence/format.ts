@@ -9,7 +9,6 @@ import type {
   ConfluenceLabelSummaryPayload,
   ConfluencePageSummaryPayload,
   ConfluencePropertySummaryPayload,
-  ConfluencePublishOutcomePayload,
   ConfluenceRestrictionSummaryPayload,
   ConfluenceSpaceSummaryPayload,
   ToolOutputLimitsPayload,
@@ -427,32 +426,6 @@ export function formatPageSummaryLine(
     .filter(Boolean)
     .join(" · ");
   return `- ${parts}`;
-}
-
-export function formatAttachmentSummaryLine(
-  summary: ConfluenceAttachmentSummaryPayload,
-): string {
-  const parts = [
-    summary.id ?? summary.fileId,
-    summary.filename ?? summary.title,
-    summary.mediaType,
-    summary.fileSize !== undefined ? `${summary.fileSize} bytes` : undefined,
-    summary.versionNumber !== undefined
-      ? `v${summary.versionNumber}`
-      : undefined,
-  ]
-    .filter(Boolean)
-    .join(" · ");
-  return `- ${parts}`;
-}
-
-export function formatPublishOutcomeLine(
-  outcome: ConfluencePublishOutcomePayload,
-): string {
-  const prefix = outcome.status ?? outcome.operation ?? "row";
-  const target = [outcome.id, outcome.title].filter(Boolean).join(" · ");
-  const message = outcome.message ?? outcome.errorCode;
-  return `- ${prefix}${target ? `: ${target}` : ""}${message ? ` — ${message}` : ""}`;
 }
 
 export function valuesFromConfluenceList(value: unknown): unknown[] {

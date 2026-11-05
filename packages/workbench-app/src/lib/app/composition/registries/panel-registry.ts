@@ -98,5 +98,3 @@ export const panelViewDescriptors = [
     load: () => import("../panels/NotesWorkbenchPanel.svelte"),
   },
 ] as const satisfies WorkbenchPanelDescriptor[];
-
-export type PanelViewId = (typeof panelViewDescriptors)[number]["id"];

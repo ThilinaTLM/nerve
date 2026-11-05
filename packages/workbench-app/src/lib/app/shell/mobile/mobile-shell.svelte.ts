@@ -89,10 +89,6 @@ export function pruneMobileNav(existing: {
   nav = pruneMissingRoutes(nav, existing);
 }
 
-export function resetMobileNav(): void {
-  nav = initialMobileNavState();
-}
-
 /*
  * While the phone shell itself changes workspace selection (restoring a
  * route's project or center tab, or opening something it already pushed), the

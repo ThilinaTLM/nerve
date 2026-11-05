@@ -52,7 +52,6 @@ export type HomeMigrationPlannerOutcome = z.infer<
 >;
 
 // Keep the shorter name available to callers that model the outcome separately.
-export const homeMigrationPlanOutcomeSchema = homeMigrationPlannerOutcomeSchema;
 export type HomeMigrationPlanOutcome = HomeMigrationPlannerOutcome;
 
 export const homeMigrationStepKindSchema = z.enum([
@@ -243,7 +242,6 @@ export type UnifiedHomeMigrationPlan = z.infer<
 >;
 
 /** Current framework plan; named distinctly from the legacy current-home plan. */
-export const homeMigrationPlanSchema = unifiedHomeMigrationPlanSchema;
 export type HomeMigrationPlan = UnifiedHomeMigrationPlan;
 
 export const homeMigrationApprovalSchema = z

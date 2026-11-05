@@ -1,4 +1,3 @@
-import type { ConversationLiveToolDraftBlockSnapshot } from "$lib/presentation/view-models/conversation";
 import {
   type ArgSource,
   type AtlassianSummaryOptions,
@@ -15,7 +14,6 @@ import {
   appendPreviewHint,
   compactLines,
   countLabel,
-  draftArgSource,
   formatConfluenceAttachment,
   formatConfluencePage,
   formatConfluenceSpace,
@@ -63,10 +61,6 @@ const CONFLUENCE_INCLUDED_LABELS: Record<string, string> = {
   downloadedAttachments: "downloaded attachments",
 };
 
-export function isConfluenceToolName(toolName: string | undefined): boolean {
-  return Boolean(toolName?.startsWith("confluence_"));
-}
-
 export function confluenceToolSummaryBody(
   toolCall: ToolCallDisplayRecord,
   view: ConfluenceView,
@@ -89,22 +83,6 @@ export function confluenceToolSummaryBody(
   appendArtifactLines(lines, view, budget);
   appendPreviewHint(lines, toolCall, options);
 
-  return compactLines(lines).join("\n");
-}
-
-export function confluenceDraftSummaryBody(
-  draft: ConversationLiveToolDraftBlockSnapshot,
-  options: AtlassianSummaryOptions = {},
-): string | undefined {
-  const action = confluenceActionFromToolName(draft.toolName);
-  if (!action) return undefined;
-  const budget = summaryBudget(options);
-  const source = draftArgSource(draft);
-  const lines = [
-    `${draft.done ? "Prepared" : "Preparing"} Confluence ${CONFLUENCE_ACTION_LABELS[action]}`,
-  ];
-  appendConfluenceRequestLines(lines, action, source, undefined, budget);
-  if (lines.length === 1) lines.push("Waiting for arguments…");
   return compactLines(lines).join("\n");
 }
 
@@ -372,37 +350,6 @@ function appendConfluenceOutcomeLines(
         addTextBlock(lines, "Storage snippet", attachment.snippet, budget);
       break;
     }
-  }
-}
-
-function confluenceActionFromToolName(
-  toolName: string | undefined,
-): ConfluenceAction | undefined {
-  switch (toolName) {
-    case "confluence_search_spaces":
-      return "search_spaces";
-    case "confluence_search_pages":
-      return "search_pages";
-    case "confluence_get_page":
-      return "get_page";
-    case "confluence_download_page":
-      return "download_page";
-    case "confluence_create_page":
-      return "create_page";
-    case "confluence_update_page":
-      return "update_page";
-    case "confluence_manage_comment":
-      return "manage_comment";
-    case "confluence_manage_page":
-      return "manage_page";
-    case "confluence_manage_label":
-      return "manage_label";
-    case "confluence_manage_restriction":
-      return "manage_restriction";
-    case "confluence_manage_attachment":
-      return "manage_attachment";
-    default:
-      return undefined;
   }
 }
 

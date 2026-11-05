@@ -1,21 +1,17 @@
 import type {
-  ApplicationLogLevel,
   ApplicationLogPruneRequest,
   ApplicationLogPruneResponse,
   ApplicationLogQuery,
   ApplicationLogQueryResponse,
-  ApplicationLogSource,
 } from "@nervekit/contracts/logs";
 import { apiGet } from "$lib/platform/http/api-client";
 import { protocolRequest } from "$lib/application/startup/workbench-connection";
 
 export type {
-  ApplicationLogLevel,
   ApplicationLogPruneRequest,
   ApplicationLogPruneResponse,
   ApplicationLogQuery,
   ApplicationLogQueryResponse,
-  ApplicationLogSource,
 };
 
 export async function getApplicationLogs(

@@ -64,7 +64,6 @@ export const toolManifest: readonly ToolDefinition[] = Object.freeze([
 ]);
 
 /** Existing public name retained for callers that consume the complete catalog. */
-export const allToolDefinitions = toolManifest;
 
 function withAgentResultPolicy(definition: ToolDefinition): ToolDefinition {
   const agentResult =

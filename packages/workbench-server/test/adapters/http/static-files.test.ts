@@ -53,6 +53,8 @@ describe("static file serving", () => {
       response.headers.get("content-security-policy") ?? "",
       /unsafe-eval/,
     );
+    // The app only talks to its own origin; no cross-origin exfiltration channel.
+    assert.match(contentSecurityPolicy, /connect-src 'self' ws: wss:;/);
   });
 
   it("does not accept sibling paths that share the distribution prefix", async () => {

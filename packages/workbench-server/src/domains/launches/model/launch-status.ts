@@ -21,9 +21,3 @@ export function isActiveLaunchStatus(status: LaunchRecord["status"]): boolean {
     status === "stopping"
   );
 }
-
-export function isStoppableLaunchStatus(
-  status: LaunchRecord["status"],
-): boolean {
-  return isActiveLaunchStatus(status);
-}

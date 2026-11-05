@@ -1,63 +1,49 @@
 # Repository scripts
 
-Place repository tooling by responsibility; keep filenames descriptive and domain directories flat.
+Repository tooling is TypeScript, run by `tsx` (`pnpm <script>`) and type-checked by `tsc -p scripts` (part of `pnpm check`, selected by `pnpm check:focused` when scripts change). Prefer the stable pnpm commands in [package.json](../package.json). Normal code completion uses `pnpm fix:focused && pnpm check:focused` plus relevant unit tests; docs-only changes need diff review only. Run broader suites only when requested; CI covers them.
 
-| Directory             | Responsibility                                                                                                                                                             |
-| --------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `development/`        | Repository-only slot selection, disposable storage preparation, and owned development process orchestration.                                                               |
-| `build/`              | Asset generation and build assembly.                                                                                                                                       |
-| `checks/`             | Focused fix/check orchestration, architecture, boundaries, policy validation, source inventory, and package-export surfaces.                                               |
-| `testing/`            | CI impact analysis, focused selection/import graphs, and test orchestration.                                                                                               |
-| `release/`            | Versioning, tagging, packaging, artifact verification, and release smoke checks (including Electron). Release-package inventories and native-prebuild helpers belong here. |
-| `storage-migrations/` | Core importer and safe offline home-copy tools; command paths remain unchanged.                                                                                            |
-| `shared/`             | Genuinely cross-domain repository metadata and Git change discovery (`workspace-architecture.mjs`, `git-changes.mjs`).                                                     |
+| Directory             | Responsibility                                                                                                                                         |
+| --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `cli/`                | The only cross-domain runtime helper: flag parsing, subprocess steps, uniform error/exit handling, logging. Every entry point uses it.                 |
+| `workspace/`          | Repository root, manifest types, the package dependency graph and Git change inventory shared by CI, fix, check and test selection.                    |
+| `impact/`             | One path-impact engine: rules (data and the focused-validation semantics), classification into CI areas and validation stages, GitHub Actions outputs. |
+| `checks/`             | Focused fix/check orchestration and repository policy rules (`policy-rules.ts` is the registry).                                                       |
+| `testing/`            | Focused test selection, import graph, per-package runner table, test orchestration.                                                                    |
+| `development/`        | Repository-only slot selection, disposable storage preparation, owned development process orchestration.                                               |
+| `build/`              | Asset generation and build assembly.                                                                                                                   |
+| `release/`            | Versioning, tagging, packaging, artifact verification and release smoke checks (including Electron).                                                   |
+| `storage-migrations/` | Core importer and safe offline home-copy tools; see its [README](storage-migrations/README.md) for slots, copies and rehearsal.                        |
 
-Keep tests in a `test/` subdirectory of their owning domain (`*.test.mjs` or existing `*.test.ts`); create it only where tests exist. The recursive `scripts/**/*.test.mjs` glob discovers these tests. Do not add a generic `lib/`, global tests directory, or domain `lib/` nesting. Admit a module to `shared/` only when multiple domains genuinely consume it; shared implementation must not import domain entrypoints. Domain-owned helpers stay with their domain even when another domain imports them.
+Package-local script trees (`packages/*/scripts/`) are outside this layout.
 
-Prefer the stable pnpm commands in [package.json](../package.json). Normal code completion uses `pnpm fix:focused && pnpm check:focused` plus relevant unit tests; docs-only changes need diff review only. Run broader test suites only when requested; CI covers them.
+## Conventions
 
-## Focused validation
+- Tests live in a `test/` subdirectory of their domain as `*.test.ts` (or beside the code for storage-migrations); `pnpm test:scripts` runs `scripts/**/*.test.ts` and CI runs it in the lint job. Run a single file with `pnpm exec tsx --test scripts/<domain>/test/<file>.test.ts`.
+- No generic `lib/`, global tests directory or domain `lib/` nesting. A module belongs in `cli/` or `workspace/` only when several domains consume it; shared code must not import domain entry points.
+- Entry points use `defineCli(import.meta.url, main)` so modules stay importable. Expected failures throw `CliError` (message only, no stack).
+- Modules launched by CI before `pnpm install` (`impact/ci.ts` and its imports) and by release workflows run under plain Node's type stripping: erasable TypeScript only (no enums, namespaces or parameter properties) and `.ts` import specifiers.
+- Five scripts remain `.mjs` because packages call or import them directly (`build/copy-skills-assets.mjs`, `build/generate-brand-assets.mjs`) or import them (`development/{storage-slot,slot-preflight,owned-processes}.mjs`, used by the desktop-shell dev launcher).
 
-Focused commands default to `--base origin/main` (merge-base with HEAD plus staged, unstaged, and untracked nonignored changes). Use `--base HEAD` for local changes only and `--dry-run` to preview each stage's scope, targets, reasons, and commands without execution. Formatting, linting, package/type checks, and native Rust work are selected independently:
+## Standard flags
 
-- Ordinary source edits select supported changed files for formatting/linting and owning packages plus downstream consumers for package checks. Rust runs only for relevant native inputs.
-- Root `package.json` is compared semantically against the Git baseline: whitespace/key ordering, descriptive metadata, and ordinary scripts do not broaden stages. Validation/build scripts select the stages they govern. Dependencies broaden package checks; formatter/linter dependencies additionally broaden their relevant file stages.
-- Unknown ownership broadens package checks only, not formatting, linting, or Rust. Invalid workspace metadata or unsupported declaration preparation fails clearly without widening file scopes. Known check/testing/shared/migration tooling stays file-scoped apart from global policy/migration checks; workflow YAML and contributor prose normally affect only changed-file formatting.
-- Formatter config/ignore changes broaden formatting; ESLint config broadens linting. Shared TypeScript config broadens linting and package checks; package TypeScript config selects its owner and downstream packages for both. Workspace/runtime settings broaden package checks, with relevant tool settings also broadening file stages.
-- `pnpm-lock.yaml`, `pnpm-workspace.yaml`, and package-manager/override/resolution changes conservatively broaden all npm formatting, linting, and package checks because tool/dependency resolution is uncertain—not unrelated Rust work. Formatter ignores still apply; no lockfile graph analysis is attempted.
+`fix:focused`, `check:focused` and `test:focused` accept the same flags; duplicate, unknown or valueless flags print the usage line and exit non-zero.
 
-Policy/migration checks remain global for non-prose/config/runtime changes; prose-only selection needs no package/policy work. Docs-only completion still requires diff review only.
+| Flag                 | Meaning                                                                                                                                                                                        |
+| -------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `--base <revision>`  | Compare against the merge-base of `<revision>` and HEAD plus local changes (default `origin/main`; `HEAD` = local only).                                                                       |
+| `--dry-run`          | Print every stage's scope, targets, reasons and commands without executing.                                                                                                                    |
+| `--only <stage[,…]>` | `fix:focused`/`check:focused` only: run just these stages (`prepare format lint policies migrations packages native`). Declaration preparation is kept when `lint` or `packages` is requested. |
 
-Only unavailable Git/base or change inventory triggers a whole-command fallback to full `pnpm fix`/`pnpm check`, with a warning: **full fix can mutate files repository-wide**. Repository-wide format/lint autofix also warns. Fix runs formatting, lint autofix, then formatting again; repository-wide lint autofix requires that final formatting pass to cover the full repository. Configuration/planning errors and tool failures fail clearly rather than retrying as full validation.
+Other entry points declare their flags with `parseCli` (`--help` lists them): `check-package-boundaries.ts [--rule <id>] [--list]`, `impact/ci.ts [--base <rev>] [--head <rev>] [--full]`.
 
-Full commands remain available for explicit broad validation. Focused checks do not run tests or replace full validation; CI/release requirements are unchanged.
+`check:focused` runs declaration preparation first, then format, lint, policies, packages and native concurrently (output is buffered per stage and printed in plan order) and migration integrity last, because it builds outputs the others read. `fix:focused` stays strictly ordered (format, lint autofix, format).
 
-See [Contributing](../CONTRIBUTING.md) for test selection and validation, and the [release checklist](../docs/runbooks/release.md) for direct release commands. Package-local script trees are outside this layout.
+## Selection semantics
 
-Daily development: `pnpm desktop:dev`, `pnpm dev`, and `pnpm dev:ui` accept `--slot N`. `pnpm storage:copy --slot N` seeds an unused disposable slot from a stopped `~/.nerve`. Add `--from <path>` to copy another stopped home instead: `pnpm storage:copy --from data/storage-0-34-1-do-not-use --slot 4` or `pnpm storage:copy --from data/storage-2 --slot 4`. Relative source paths resolve from the working directory. The destination must be unused; desktop profiles are not copied. Copied credentials and project paths can still access real providers/files, so storage isolation is not a sandbox. `pnpm desktop:prod` explicitly launches source code against real user data. Home migrations run before startup storage opens; `pnpm storage:migrate --home <copied-home> [--dry-run]` rehearses the same runner against a stopped copy. Released step 0001 replaces the legacy database with its frozen core v1 schema at `data/nerve.sqlite`. Home step 0002 migrates agent-profile documents/data on both legacy and already-upgraded homes; core SQL v2 runs when core storage subsequently opens. Rehearsals must therefore run `storage:migrate` and then open core storage to exercise the full **0001 → 0002 → core v2** path. Released SQL/schema text and applied home steps are immutable, regardless of a historical `draft` lock label. The one exception is an unreleased draft step registered with `rerunOnChange`: when its checksum changes, homes that already applied it re-run its applied-home path (currently 0002 rewrites profile documents) and the ledger entry is replaced; the flag must be removed when the step is released.
+Which files select which stages, the root-manifest comparison, fallback rules and the CI `full` triggers are documented, with their data, in [`impact/rules.ts`](impact/rules.ts); the behaviour is pinned by `impact/test/` and the golden plans in `checks/test/plan-golden.test.ts` (regenerate intentionally with `UPDATE_GOLDEN=1` and review the diff). Test selection reads each package's runner from [`testing/test-runners.ts`](testing/test-runners.ts), which a test keeps in agreement with every `package.json` `test` script.
 
-### Storage migration rehearsal
+## Policy rules
 
-`pnpm storage:rehearse --from /absolute/baseline-home --slot 3 [--corrupt PRESET] [--keep]`
-copies a stopped baseline with `cloneNerveHome`, redirects registered legacy
-projects to `data/storage-3-projects/<basename>` (only `.nerve` is copied), and
-writes `data/storage-3-baseline.sha`. Slot 1 is always refused. Existing homes
-and project copies require `--force-reset` (both are then removed under the slot lock).
-Project basename collisions and symbolic links are refused rather than merged.
+`checks/policy-rules.ts` registers every repository policy as a `PolicyRule` (`id`, `description`, `check(inventory) → Violation[]`). `pnpm exec tsx scripts/checks/check-package-boundaries.ts --list` shows them; `--rule <id>` runs one. Add a rule by writing it with `defineRule`/`defineFileRule` next to its data and listing it in the registry; `checks/test/policy-rules.test.ts` holds a passing and a failing in-memory fixture per rule. Allowed workspace dependency edges are data in `checks/package-architecture.rules.ts`; the package inventory itself is derived from manifests.
 
-Presets are `config`, `overlay`, `conversation`, `message`, `runtime-json`, and
-`runtime-shape`; selection is deterministic and missing inputs are errors.
-Checksums cover the copied home and project configuration **after** redirection
-and corruption. Follow the printed start/restore commands, stop the daemon after
-restoration, then run `sha256sum -c data/storage-3-baseline.sha` from the checkout.
-The script never starts a server or drives destructive recovery automatically.
-Copies remain available for inspection; `--keep` suppresses the printed cleanup
-command. Credentials are copied: this is storage isolation, not a provider sandbox.
-
-Baseline hashing reads files in 64 KiB chunks and streams checksum lines to an
-atomic, mode-0600 output file. If preparation completed but hashing failed, keep
-the slot stopped and run
-`pnpm exec tsx scripts/storage-migrations/rehearse-baseline.ts --slot 3` to create
-only the baseline checksums. This does not copy, redirect projects, or inject
-corruption again; do not use it after starting an upgrade, since it hashes the
-slot's current state.
+See [Contributing](../CONTRIBUTING.md) for test selection and validation, and the [release checklist](../docs/runbooks/release.md) for direct release commands.

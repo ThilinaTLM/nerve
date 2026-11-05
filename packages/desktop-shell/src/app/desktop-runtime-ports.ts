@@ -85,6 +85,7 @@ export interface DesktopRuntimePorts {
       canRestart: boolean;
     };
     restartDaemon: () => Promise<void>;
+    getDaemonConnection: () => { url: string; token?: string } | undefined;
     retryStartup: () => boolean;
     homeDirectory: string;
     startupDiagnostics: () => string;

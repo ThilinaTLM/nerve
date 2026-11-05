@@ -34,6 +34,10 @@
       "types": "./dist/operations/index.d.ts",
       "import": "./dist/operations/index.js"
     },
+    "./access": {
+      "types": "./dist/domains/access/index.d.ts",
+      "import": "./dist/domains/access/index.js"
+    },
     "./auth": {
       "types": "./dist/domains/auth/index.d.ts",
       "import": "./dist/domains/auth/index.js"

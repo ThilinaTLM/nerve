@@ -34,22 +34,6 @@ const REMOVABLE_STATUSES = new Set([
   "cancelled",
 ]);
 
-export type LaunchGroups = {
-  running: LaunchRecord[];
-  finished: LaunchRecord[];
-};
-
-export function groupLaunches(launches: readonly LaunchRecord[]): LaunchGroups {
-  return {
-    running: launches.filter((launch) =>
-      ACTIVE_LAUNCH_STATUSES.has(launch.status),
-    ),
-    finished: launches.filter(
-      (launch) => !ACTIVE_LAUNCH_STATUSES.has(launch.status),
-    ),
-  };
-}
-
 export function normalizeLaunchDefinition(
   definition: LaunchDefinition,
 ): LaunchPanelDefinition {

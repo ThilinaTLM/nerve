@@ -263,10 +263,6 @@ export const changeKeywords: Partial<Record<ChangeKey, string[]>> = {
   compaction: ["compression", "context", "tokens", "summarize"],
   instructions: ["prompt", "system prompt", "guidance"],
 };
-export function defaultText(value: unknown): string {
-  if (typeof value === "boolean") return value ? "On" : "Off";
-  return value === undefined ? "Use settings" : String(value);
-}
 
 export type AddChangeItem = {
   key: ChangeKey;

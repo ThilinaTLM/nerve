@@ -19,7 +19,7 @@ repo_root="$(git rev-parse --show-toplevel 2>/dev/null)" || {
   exit 1
 }
 
-node --input-type=module - "${version}" "${script_dir}/release-version.mjs" <<'NODE'
+node --input-type=module - "${version}" "${script_dir}/release-version.ts" <<'NODE'
 import { pathToFileURL } from "node:url";
 
 const [version, modulePath] = process.argv.slice(2);
@@ -58,9 +58,9 @@ fi
 node --input-type=module - \
   "${repo_root}" \
   "${version}" \
-  "${script_dir}/release-version.mjs" \
-  "${script_dir}/workspace-packages.mjs" \
-  "${script_dir}/discover-release.mjs" <<'NODE'
+  "${script_dir}/release-version.ts" \
+  "${script_dir}/workspace-packages.ts" \
+  "${script_dir}/discover-release.ts" <<'NODE'
 import { pathToFileURL } from "node:url";
 
 const [

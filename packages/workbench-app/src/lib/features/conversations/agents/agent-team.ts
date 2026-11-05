@@ -41,15 +41,6 @@ export function agentRowState(
   }
 }
 
-export const AGENT_STATE_LABEL: Record<AgentRowState, string> = {
-  needs_you: "needs you",
-  working: "working",
-  waiting: "waiting",
-  idle: "idle",
-  failed: "failed",
-  stopped: "stopped",
-};
-
 export function runningCommands(
   asyncBash: readonly AsyncBash[] | undefined,
 ): AsyncBash[] {

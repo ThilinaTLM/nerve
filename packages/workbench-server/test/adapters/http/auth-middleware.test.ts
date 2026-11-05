@@ -1,11 +1,15 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { Hono } from "hono";
-import { createApiAuthMiddleware } from "../../../src/adapters/http/auth-middleware.js";
+import {
+  createApiAuthMiddleware,
+  createLocalOnlyGate,
+} from "../../../src/adapters/http/auth-middleware.js";
+import { withPeer } from "../../support/peer-address.js";
 
 test("rejects opaque and cross-site browser traffic before cookie or injected bearer authorization", async () => {
-  const app = new Hono();
-  app.use("/api/*", createApiAuthMiddleware("token"));
+  const app = withPeer(new Hono());
+  app.use("/api/*", createApiAuthMiddleware(createLocalOnlyGate("token")));
   app.get("/api/test", (c) => c.text("ok"));
   for (const credentials of [
     { authorization: "Bearer token" },

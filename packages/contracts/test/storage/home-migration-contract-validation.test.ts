@@ -8,7 +8,7 @@ import {
 } from "../../src/domains/settings/index.js";
 import {
   homeMigrationApprovalSchema,
-  homeMigrationPlanSchema,
+  unifiedHomeMigrationPlanSchema,
   homeMigrationProgressSchema,
   homeMigrationResultSchema,
 } from "../../src/domains/storage/index.js";
@@ -101,7 +101,7 @@ describe("home manifest contracts", () => {
 
 describe("unified home migration contracts", () => {
   it("validates planner outcomes and strict summaries", () => {
-    const plan = homeMigrationPlanSchema.parse({
+    const plan = unifiedHomeMigrationPlanSchema.parse({
       format: "nerve-home-migration-plan",
       version: 1,
       fingerprint,
@@ -116,11 +116,12 @@ describe("unified home migration contracts", () => {
     assert.equal(plan.outcome, "pending");
     assert.equal(plan.quarantine?.entries[0]?.requiresApproval, true);
     assert.equal(
-      homeMigrationPlanSchema.safeParse({ ...plan, unexpected: true }).success,
+      unifiedHomeMigrationPlanSchema.safeParse({ ...plan, unexpected: true })
+        .success,
       false,
     );
     assert.equal(
-      homeMigrationPlanSchema.safeParse({ ...plan, outcome: "unknown" })
+      unifiedHomeMigrationPlanSchema.safeParse({ ...plan, outcome: "unknown" })
         .success,
       false,
     );

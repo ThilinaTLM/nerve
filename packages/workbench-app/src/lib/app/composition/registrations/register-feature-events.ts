@@ -1,3 +1,4 @@
+import { registerAccessEventHandlers } from "$lib/features/access";
 import { registerPromptSuggestionEventHandlers } from "$lib/features/prompt-suggestions";
 import { registerGitEventHandlers } from "$lib/features/git";
 import {
@@ -10,6 +11,7 @@ import { registerUsageEventHandlers } from "$lib/features/usage";
 
 export function registerFeatureEventHandlers(): () => void {
   const unregister = [
+    registerAccessEventHandlers(),
     registerLaunchEventHandlers(),
     registerSettingsEventHandlers(),
     registerProviderCatalogEventHandlers(),

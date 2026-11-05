@@ -202,10 +202,6 @@ export function relativePath(
   return relativePathForDisplay(path, cwd);
 }
 
-export function tail<T>(items: T[], count: number): T[] {
-  return items.length > count ? items.slice(items.length - count) : items;
-}
-
 export function imageDataUrl(mimeType: string, data: string): string {
   return `data:${mimeType};base64,${data}`;
 }

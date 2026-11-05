@@ -4,6 +4,10 @@ import { registerClipboardIpc } from "./clipboard-ipc.js";
 import { registerDaemonIpc, type DaemonCapability } from "./daemon-ipc.js";
 import { registerDirectoryDialogIpc } from "./directory-dialog-ipc.js";
 import { registerFilesIpc } from "./files-ipc.js";
+import {
+  KnownProjectRoots,
+  type DaemonConnection,
+} from "./known-project-roots.js";
 import { registerNotificationsIpc } from "./notifications-ipc.js";
 import { registerSettingsIpc } from "./settings-ipc.js";
 import { registerStartupIpc } from "./startup-ipc.js";
@@ -18,6 +22,7 @@ export function registerDesktopIpc(options: {
   showDesktopNotification: (payload: unknown) => { shown: boolean };
   getDaemonCapability: () => DaemonCapability;
   restartDaemon: () => Promise<void>;
+  getDaemonConnection: () => DaemonConnection | undefined;
   retryStartup: () => boolean;
   homeDirectory: string;
   startupDiagnostics: () => string;
@@ -30,7 +35,9 @@ export function registerDesktopIpc(options: {
   registerSettingsIpc(options);
   registerNotificationsIpc(options.showDesktopNotification);
   registerClipboardIpc();
-  registerFilesIpc();
+  registerFilesIpc(
+    new KnownProjectRoots({ getDaemon: options.getDaemonConnection }),
+  );
   registerDirectoryDialogIpc();
   registerStartupIpc(options);
 }

@@ -19,7 +19,6 @@ import {
 } from "$lib/api";
 import { closeCenterTabs } from "./center-tab-actions.svelte";
 import { queryClient, queryKeys } from "$lib/platform/query/client";
-import { registerWorkspaceCommands } from "./workspace-commands";
 import { notify } from "$lib/application/notifications/notify.svelte";
 import { selection } from "./selection.svelte";
 import {
@@ -45,7 +44,6 @@ export type ConversationUpdate = {
   completed?: boolean;
   clearStatus?: boolean;
 };
-registerWorkspaceCommands({ reload: loadWorkspaceState, selectProject });
 export async function openConversation(conversationId: string): Promise<void> {
   const snapshot = await requestConversation("conversation.getSnapshot", {
     conversationId,

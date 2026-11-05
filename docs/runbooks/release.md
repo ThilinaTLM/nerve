@@ -23,26 +23,26 @@ Keep the root and workspace versions aligned and tag `v<version>`.
 ```sh
 release_tag=vX.Y.Z
 pnpm install --frozen-lockfile
-node scripts/release/verify-release-tag.mjs "$release_tag"
+node scripts/release/verify-release-tag.ts "$release_tag"
 pnpm fix
 pnpm check
 pnpm run test:full
 pnpm build
-node scripts/release/pack-npm.mjs
+node scripts/release/pack-npm.ts
 ```
 
-`release/npm` is generated and must not be committed. Packing creates a temporary `release/npm-stage/desktop` tree and removes it on completion. Final packing requires the exact six-file native prebuild inventory in `packages/native/prebuilds`; `node scripts/release/verify-native-prebuilds.mjs` rejects missing, extra, or developer-local artifacts. The release workflow produces this inventory. Ordinary local development needs only the host binding under `packages/native/prebuilds/local` and does not produce a publishable package.
+`release/npm` is generated and must not be committed. Packing creates a temporary `release/npm-stage/desktop` tree and removes it on completion. Final packing requires the exact six-file native prebuild inventory in `packages/native/prebuilds`; `node scripts/release/verify-native-prebuilds.ts` rejects missing, extra, or developer-local artifacts. The release workflow produces this inventory. Ordinary local development needs only the host binding under `packages/native/prebuilds/local` and does not produce a publishable package.
 
-`node scripts/release/pack-npm.mjs` must produce only `release/npm/nervekit-desktop-<version>.tgz`; it verifies exact names, versions, contents, bundled package resolution, package entrypoints, native prebuilds, and the desktop launcher through an isolated install.
+`node scripts/release/pack-npm.ts` must produce only `release/npm/nervekit-desktop-<version>.tgz`; it verifies exact names, versions, contents, bundled package resolution, package entrypoints, native prebuilds, and the desktop launcher through an isolated install.
 
 Run the finite built-artifact smokes after `pnpm build`:
 
 ```sh
-node scripts/release/verify-npm-tarballs.mjs       # inspect packed tarballs and isolated install
-node scripts/release/smoke-workbench-release.mjs   # built workbench server HTTP/WS parity
-node scripts/release/smoke-desktop-release.mjs     # desktop --version/--help and server resolution
+node scripts/release/verify-npm-tarballs.ts       # inspect packed tarballs and isolated install
+node scripts/release/smoke-workbench-release.ts   # built workbench server HTTP/WS parity
+node scripts/release/smoke-desktop-release.ts     # desktop --version/--help and server resolution
 pnpm --filter @nervekit/desktop-shell package:dir
-node scripts/release/smoke-desktop-package.mjs
+node scripts/release/smoke-desktop-package.ts
 ```
 
 ## Release dry run

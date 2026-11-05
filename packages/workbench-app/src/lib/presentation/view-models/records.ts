@@ -168,5 +168,3 @@ export type ConversationTreeNode = {
   };
   childEntryIds: string[];
 };
-
-export type AgentActivityState = AgentActivitySnapshot["state"];

@@ -1,6 +1,7 @@
 import { HomeAdmissionError } from "@nervekit/contracts/settings";
 import { chmod, mkdir, readFile } from "node:fs/promises";
 import { dirname } from "node:path";
+import { atomicWriteFile } from "./file-mutations.js";
 import { pathExists, writeTextFileIfMissing } from "./json.js";
 import { storagePaths } from "./paths.js";
 import { inspectNerveHome } from "./state-layout.js";
@@ -41,7 +42,7 @@ export async function ensureLocalToken(
         message: "Nerve daemon token is missing.",
       };
     }
-    const token = `nt_${Buffer.from(crypto.getRandomValues(new Uint8Array(32))).toString("base64url")}`;
+    const token = generateLocalToken();
     await mkdir(dirname(paths.localTokenPath), {
       recursive: true,
       mode: 0o700,
@@ -58,4 +59,17 @@ export async function ensureLocalToken(
     };
   }
   return { ok: true, token };
+}
+
+export function generateLocalToken(): string {
+  return `nt_${Buffer.from(crypto.getRandomValues(new Uint8Array(32))).toString("base64url")}`;
+}
+
+/** Replace `secrets/daemon-token` atomically (0600) and return the new value. */
+export async function rotateLocalToken(home: string): Promise<string> {
+  const paths = storagePaths(home);
+  const token = generateLocalToken();
+  await mkdir(dirname(paths.localTokenPath), { recursive: true, mode: 0o700 });
+  await atomicWriteFile(paths.localTokenPath, `${token}\n`, { mode: 0o600 });
+  return token;
 }

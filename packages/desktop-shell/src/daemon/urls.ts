@@ -1,3 +1,4 @@
+import type { PairingCode } from "@nervekit/contracts/access";
 import type { DaemonFile } from "@nervekit/contracts/status";
 import {
   isLoopbackHost,
@@ -49,65 +50,51 @@ export function localConnectUrl(rawUrl: string): string | undefined {
 
 // Re-exported so daemon peers can keep importing from ./urls.js.
 export { isLoopbackHost } from "@nervekit/workbench-server";
-export function buildShareUrls(
-  daemon: DaemonFile,
-  token: string,
-  interfaces: NetworkInterfacesSnapshot,
-): ShareUrls {
-  const shareUrl = remoteShareUrl(daemon, token, interfaces);
-  const secureUrls = remoteSecureUrls(daemon, token, interfaces);
-  return {
-    shareUrl,
-    mobileSetupUrl: secureUrls?.mobileSetupUrl,
-    secureShareUrl: secureUrls?.secureShareUrl,
-    caCertUrl: secureUrls?.caCertUrl,
-  };
+/** Credential-free origins that pairing links are built on. */
+export interface ShareEndpoints {
+  /** Plain-HTTP LAN origin; serves only the secret-free `/mobile-setup` page. */
+  setupOrigin: string;
+  /** Mobile HTTPS LAN origin of the app itself. */
+  secureOrigin: string;
+  caCertUrl: string;
 }
 
-function remoteShareUrl(
+/**
+ * Where a phone can reach this daemon, or `undefined` when it cannot (loopback
+ * bind, no mobile HTTPS). Contains no secret: links are completed later with a
+ * single-use pairing code.
+ */
+export function buildShareEndpoints(
   daemon: DaemonFile,
-  token: string,
   interfaces: NetworkInterfacesSnapshot,
-): string | undefined {
-  const host = remoteShareHost(daemon.host, interfaces);
-  if (!host) return undefined;
-  const url = new URL(`http://127.0.0.1:${daemon.port}/`);
-  url.hostname = host;
-  url.searchParams.set("token", token);
-  return url.toString();
-}
-
-function remoteSecureUrls(
-  daemon: DaemonFile,
-  token: string,
-  interfaces: NetworkInterfacesSnapshot,
-):
-  | { mobileSetupUrl: string; secureShareUrl: string; caCertUrl: string }
-  | undefined {
+): ShareEndpoints | undefined {
   if (!daemon.mobileHttps) return undefined;
   const host = remoteShareHost(daemon.host, interfaces);
   if (!host) return undefined;
-  const secureShareUrl = new URL(
-    `https://127.0.0.1:${daemon.mobileHttps.port}/`,
-  );
-  secureShareUrl.hostname = host;
-  secureShareUrl.searchParams.set("token", token);
-
-  const mobileSetupUrl = new URL(
-    `http://127.0.0.1:${daemon.port}/mobile-setup`,
-  );
-  mobileSetupUrl.hostname = host;
-  mobileSetupUrl.searchParams.set("token", token);
-
-  const caCertUrl = new URL(
-    `http://127.0.0.1:${daemon.port}/nerve-local-ca.pem`,
-  );
-  caCertUrl.hostname = host;
-
+  const secureOrigin = new URL(`https://127.0.0.1:${daemon.mobileHttps.port}`);
+  secureOrigin.hostname = host;
+  const setupOrigin = new URL(`http://127.0.0.1:${daemon.port}`);
+  setupOrigin.hostname = host;
   return {
-    mobileSetupUrl: mobileSetupUrl.toString(),
-    secureShareUrl: secureShareUrl.toString(),
-    caCertUrl: caCertUrl.toString(),
+    setupOrigin: setupOrigin.origin,
+    secureOrigin: secureOrigin.origin,
+    caCertUrl: `${setupOrigin.origin}/nerve-local-ca.pem`,
+  };
+}
+
+/**
+ * Completes the share links with a pairing code. The code rides in the URL
+ * fragment, which browsers never send to servers or proxies. When the daemon
+ * has a public URL the server returns the link to use for the app itself.
+ */
+export function buildShareUrls(
+  endpoints: ShareEndpoints,
+  pairing: Pick<PairingCode, "code" | "url">,
+): ShareUrls {
+  const fragment = `#pair=${pairing.code}`;
+  return {
+    mobileSetupUrl: `${endpoints.setupOrigin}/mobile-setup${fragment}`,
+    secureShareUrl: pairing.url ?? `${endpoints.secureOrigin}/${fragment}`,
   };
 }
 

@@ -5,25 +5,11 @@ let handledRevealToken = 0;
 
 <script lang="ts">
 import type { Project } from "@nervekit/contracts/core";
-import AtSign from "@lucide/svelte/icons/at-sign";
-import ClipboardPaste from "@lucide/svelte/icons/clipboard-paste";
-import Copy from "@lucide/svelte/icons/copy";
-import CopyPlus from "@lucide/svelte/icons/copy-plus";
-import ExternalLink from "@lucide/svelte/icons/external-link";
-import FilePlus from "@lucide/svelte/icons/file-plus";
-import FileText from "@lucide/svelte/icons/file-text";
-import FolderOpen from "@lucide/svelte/icons/folder-open";
-import FolderPlus from "@lucide/svelte/icons/folder-plus";
-import Locate from "@lucide/svelte/icons/locate";
-import Pencil from "@lucide/svelte/icons/pencil";
-import Scissors from "@lucide/svelte/icons/scissors";
-import Trash2 from "@lucide/svelte/icons/trash-2";
 import { tick, untrack } from "svelte";
 import { SvelteMap } from "svelte/reactivity";
 import type { ProjectEditor, StatusResponse } from "$lib/api";
 import type { FilesystemProjectEntry } from "@nervekit/contracts/filesystem";
 import type { GitProjectFileStatus } from "@nervekit/contracts/git";
-import type { ContextMenuItem } from "@nervekit/ui-kit/components/composites/context-menu-list";
 import { getProjectGitFileStatus } from "$lib/api";
 import { writeClipboardText } from "$lib/platform/clipboard/write-text";
 import { workbenchStartupState } from "$lib/application/startup/workbench-startup-state.svelte";
@@ -31,8 +17,6 @@ import {
   desktopRuntime,
   getDesktopBridge,
 } from "$lib/platform/desktop/desktop-bridge.svelte";
-import { ApiRequestError } from "$lib/platform/http/api-client";
-import { uploadProjectFiles } from "$lib/features/filesystem/api/filesystem.api";
 import { fileSelectors } from "$lib/features/filesystem/state/file-selectors.svelte";
 import { openFilePane } from "$lib/features/filesystem/state/file-tabs.svelte";
 import {
@@ -74,12 +58,7 @@ import {
   planDrop,
   topLevelPaths,
 } from "$lib/features/filesystem/state/file-explorer-paths";
-import {
-  collectDroppedFiles,
-  hasOsFiles,
-  uploadLimitError,
-  type DroppedFile,
-} from "$lib/features/filesystem/state/file-explorer-drop";
+import {} from "$lib/features/filesystem/state/file-explorer-drop";
 import {
   emptyFileExplorerSelection,
   pruneSelection,
@@ -107,24 +86,19 @@ import {
 } from "$lib/application/notifications/critical-errors.svelte";
 import {
   formatProjectEntryReference,
-  PROJECT_ENTRY_DRAG_MIME,
-  serializeProjectEntryDrag,
   type ProjectEntryDragItem,
 } from "$lib/presentation/dnd/project-entry-drag";
-import { buildExternalLaunchMenu } from "$lib/presentation/brand/external-launch-menu";
 import {
   visiblePanelTreeRows,
   type PanelTreeController,
 } from "$lib/presentation/panels";
-import FilesPanel from "../views/FilesPanel.svelte";
 import {
-  absoluteProjectPath,
-  buildFileExplorerMenu,
-  buildFileExplorerSelectionMenu,
-  buildProjectRootMenu,
-  type FileExplorerMenuIcons,
-  type FileExplorerShortcutLabels,
-} from "../views/file-explorer-menu";
+  buildFilesItemMenu,
+  buildFilesRootMenu,
+  type FilesContextMenuContext,
+} from "$lib/features/filesystem/state/files-context-menu";
+import { FilesTreeDrag } from "$lib/features/filesystem/state/files-tree-drag.svelte";
+import FilesPanel from "../views/FilesPanel.svelte";
 
 let {
   activeProject,
@@ -145,7 +119,6 @@ let {
 } = $props();
 
 const noExpandedIds: ReadonlySet<string> = new Set();
-const AUTO_EXPAND_DELAY_MS = 600;
 
 type Editing =
   | { mode: "create"; parentPath: string; kind: "file" | "directory" }
@@ -163,19 +136,7 @@ let clipboard = $state<{
 let filterOpen = $state(false);
 let filterText = $state("");
 let pendingDelete = $state<FilesystemProjectEntry[]>();
-let pendingReplace = $state<{
-  parent: string;
-  files: DroppedFile[];
-  message: string;
-}>();
-let dropTargetPath = $state<string>();
-let rootDropActive = $state(false);
-let externalDropHint = $state(false);
 let treeController = $state<PanelTreeController>();
-let dragSources: ProjectEntryDragItem[] | undefined;
-let autoExpand:
-  | { path: string; timer: ReturnType<typeof setTimeout> }
-  | undefined;
 
 const project = $derived(
   activeProject ? fileExplorerState.projects[activeProject.id] : undefined,
@@ -247,31 +208,6 @@ const busy = $derived(
     (directory) => directory.loading || directory.refreshing,
   ),
 );
-const isMac =
-  typeof navigator !== "undefined" &&
-  /Mac|iPhone|iPad/.test(navigator.platform);
-const shortcuts: FileExplorerShortcutLabels = {
-  rename: "F2",
-  duplicate: isMac ? "⌘D" : "Ctrl+D",
-  cut: isMac ? "⌘X" : "Ctrl+X",
-  copy: isMac ? "⌘C" : "Ctrl+C",
-  paste: isMac ? "⌘V" : "Ctrl+V",
-  delete: isMac ? "⌘⌫" : "Del",
-};
-const menuIcons: FileExplorerMenuIcons = {
-  open: FileText,
-  copy: Copy,
-  openDefault: ExternalLink,
-  newFile: FilePlus,
-  reveal: Locate,
-  newFolder: FolderPlus,
-  trash: Trash2,
-  rename: Pencil,
-  duplicate: CopyPlus,
-  cut: Scissors,
-  paste: ClipboardPaste,
-  mention: AtSign,
-};
 const deleteMethod = $derived<DeleteMethod>(
   desktopRuntime.isDesktop ? "trash" : "delete",
 );
@@ -289,7 +225,6 @@ const operationContext = $derived<FileOperationContext | undefined>(
   activeProject
     ? {
         projectId: activeProject.id,
-        projectDirectory: activeProject.directory,
         refresh: refreshDirectories,
         syncMonitorDemand,
       }
@@ -429,7 +364,7 @@ async function runNativeAction(
   if (!bridge) return;
   try {
     await bridge.files[action]({
-      root: activeProject.directory,
+      projectId: activeProject.id,
       relativePath: entry.path,
     });
   } catch (caught) {
@@ -690,279 +625,51 @@ function handleItemKeydown(
   return false;
 }
 
-// ----- Drag and drop ------------------------------------------------------
+// ----- Drag and drop, menus -----------------------------------------------
 
-function startEntryDrag(event: DragEvent, item: FileExplorerTreeItem): void {
-  if (item.type !== "entry" || !event.dataTransfer) return;
-  const targets = actionTargets(item.entry);
-  const entries = targets.flatMap(dragItem);
-  if (entries.length === 0) return;
-  if (!selection.ids.has(item.entry.path))
-    selection = selectOnly(item.entry.path);
-  dragSources = entries;
-  event.dataTransfer.setData(
-    PROJECT_ENTRY_DRAG_MIME,
-    serializeProjectEntryDrag(entries),
-  );
-  event.dataTransfer.setData(
-    "text/plain",
-    entries.map(formatProjectEntryReference).join(" "),
-  );
-  // Move inside the tree, copy into the composer (or Alt-copy inside the tree).
-  event.dataTransfer.effectAllowed = "copyMove";
-}
+const drag = new FilesTreeDrag({
+  projectId: () => activeProject?.id,
+  operationContext: () => operationContext,
+  actionTargets,
+  dragItem,
+  pasteTargetFor,
+  isSelected: (path) => selection.ids.has(path),
+  selectOnly: (path) => {
+    selection = selectOnly(path);
+  },
+  isExpanded: (directory) =>
+    Boolean(project?.expandedIds.has(nodeId(directory))),
+  expandPath,
+  refreshDirectories,
+});
 
-function clearDragState(): void {
-  dragSources = undefined;
-  dropTargetPath = undefined;
-  rootDropActive = false;
-  externalDropHint = false;
-  if (autoExpand) clearTimeout(autoExpand.timer);
-  autoExpand = undefined;
-}
-
-function dropDirectoryFor(item: FileExplorerTreeItem): string | undefined {
-  if (item.type !== "entry") return undefined;
-  return pasteTargetFor(item.entry);
-}
-
-function highlightDropTarget(directory: string): void {
-  rootDropActive = directory === "";
-  dropTargetPath = directory === "" ? undefined : directory;
-  if (!directory || autoExpand?.path === directory) return;
-  if (autoExpand) clearTimeout(autoExpand.timer);
-  const expanded = project?.expandedIds.has(nodeId(directory));
-  autoExpand = expanded
-    ? undefined
-    : {
-        path: directory,
-        timer: setTimeout(() => expandPath(directory), AUTO_EXPAND_DELAY_MS),
-      };
-}
-
-/** Accepts a drag over `directory` when it is a valid move/copy/upload there. */
-function acceptDrag(event: DragEvent, directory: string): boolean {
-  if (!event.dataTransfer) return false;
-  const types = [...event.dataTransfer.types];
-  if (dragSources) {
-    const copy = event.altKey;
-    const plan = planDrop(dragSources, directory, copy ? "copy" : "move");
-    if (!plan.ok) {
-      event.dataTransfer.dropEffect = "none";
-      dropTargetPath = undefined;
-      rootDropActive = false;
-      return false;
-    }
-    event.preventDefault();
-    event.dataTransfer.dropEffect = copy ? "copy" : "move";
-  } else if (hasOsFiles(types)) {
-    event.preventDefault();
-    event.dataTransfer.dropEffect = "copy";
-    externalDropHint = true;
-  } else {
-    return false;
-  }
-  highlightDropTarget(directory);
-  return true;
-}
-
-function handleItemDragOver(
-  event: DragEvent,
-  item: FileExplorerTreeItem,
-): void {
-  const directory = dropDirectoryFor(item);
-  if (directory === undefined) return;
-  event.stopPropagation();
-  acceptDrag(event, directory);
-}
-
-function handleRootDragOver(event: DragEvent): void {
-  acceptDrag(event, "");
-}
-
-function handleRootDragLeave(event: DragEvent): void {
-  const related = event.relatedTarget;
-  if (
-    related instanceof Node &&
-    (event.currentTarget as Node).contains(related)
-  )
-    return;
-  dropTargetPath = undefined;
-  rootDropActive = false;
-  externalDropHint = false;
-}
-
-async function performDrop(event: DragEvent, directory: string): Promise<void> {
-  const context = operationContext;
-  const dataTransfer = event.dataTransfer;
-  const sources = dragSources;
-  const copy = event.altKey;
-  if (!context || !dataTransfer) return;
-  if (sources) {
-    event.preventDefault();
-    clearDragState();
-    const plan = planDrop(sources, directory, copy ? "copy" : "move");
-    if (!plan.ok) {
-      notify.message(plan.reason);
-      return;
-    }
-    if (copy)
-      await copyFileExplorerEntries(
-        context,
-        planCopyNames(context.projectId, sources, directory),
-      );
-    else await moveFileExplorerEntries(context, plan.moves);
-    if (directory) expandPath(directory);
-    return;
-  }
-  if (hasOsFiles([...dataTransfer.types])) {
-    event.preventDefault();
-    clearDragState();
-    const files = await collectDroppedFiles(dataTransfer);
-    await uploadFiles(directory, files);
-  }
-}
-
-function handleItemDrop(event: DragEvent, item: FileExplorerTreeItem): void {
-  const directory = dropDirectoryFor(item);
-  if (directory === undefined) return;
-  event.stopPropagation();
-  void performDrop(event, directory);
-}
-
-async function uploadFiles(
-  directory: string,
-  files: DroppedFile[],
-  overwrite = false,
-): Promise<void> {
-  const projectId = activeProject?.id;
-  if (!projectId || files.length === 0) return;
-  const tooLarge = uploadLimitError(files);
-  if (tooLarge) {
-    notify.error("Could not add files", { description: tooLarge });
-    return;
-  }
-  try {
-    const response = await uploadProjectFiles(projectId, directory, files, {
-      overwrite,
-    });
-    await refreshDirectories([directory]);
-    if (directory) expandPath(directory);
-    notify.success(
-      response.entries.length === 1
-        ? `Added “${response.entries[0]?.name}”`
-        : `Added ${response.entries.length} files`,
-    );
-  } catch (caught) {
-    if (
-      caught instanceof ApiRequestError &&
-      caught.code === "PROJECT_ENTRY_EXISTS"
-    ) {
-      pendingReplace = { parent: directory, files, message: caught.message };
-      return;
-    }
-    notify.error("Could not add files", {
-      description: describeFileOperationError(caught),
-    });
-  }
-}
-
-function confirmReplace(): void {
-  const pending = pendingReplace;
-  pendingReplace = undefined;
-  if (pending) void uploadFiles(pending.parent, pending.files, true);
-}
-
-// ----- Menus --------------------------------------------------------------
-
-function launchMenu(entry?: FilesystemProjectEntry): ContextMenuItem[] {
-  if (!activeProject || (entry && entry.kind === "other")) return [];
-  const path = entry?.path;
-  return buildExternalLaunchMenu({
-    targetKind: entry?.kind === "file" ? "file" : "directory",
-    editors: editorAvailability,
-    terminal: terminalAvailability,
-    openEditor: (editor) => onOpenInEditor?.(activeProject.id, editor, path),
-    openTerminal: () => onOpenInTerminal?.(activeProject.id, path),
-  });
-}
-
-function rootMenu(): ContextMenuItem[] {
-  const entry = rootEntry;
-  if (!activeProject || !entry) return [];
-  return buildProjectRootMenu(
-    {
-      createFile: () => requestCreate("file", entry),
-      createFolder: () => requestCreate("directory", entry),
-      paste: () => void pasteInto(""),
-      canPaste: clipboard !== undefined,
-      openDefault: () => void runNativeAction("openProjectEntry", entry),
-      reveal: () => void runNativeAction("revealProjectEntry", entry),
-      copyPath: () => void copyText(activeProject.directory, "path"),
-    },
-    desktopRuntime.isDesktop,
-    menuIcons,
-    launchMenu(),
-    shortcuts,
-  );
-}
-
-function itemMenu(item: FileExplorerTreeItem): ContextMenuItem[] {
-  if (item.type !== "entry" || !activeProject) return [];
-  const entry = item.entry;
-  if (selection.ids.has(entry.path) && selection.ids.size > 1) {
-    const targets = actionTargets(entry);
-    return buildFileExplorerSelectionMenu(
-      {
-        count: targets.length,
-        cut: () => setClipboard("cut", targets),
-        copy: () => setClipboard("copy", targets),
-        mention: () => mention(targets),
-        copyPaths: () =>
-          void copyText(
-            targets.map((target) => target.path).join("\n"),
-            "paths",
-          ),
-        remove: () => requestDelete(targets),
-      },
-      desktopRuntime.isDesktop,
-      menuIcons,
-      shortcuts,
-    );
-  }
-  const absolutePath = absoluteProjectPath(
-    activeProject.directory,
-    entry.path,
-    desktopRuntime.platform,
-  );
-  return buildFileExplorerMenu(
-    entry,
-    {
-      open: () => openFromMenu(item),
-      createFile: () => requestCreate("file", entry),
-      createFolder: () => requestCreate("directory", entry),
-      rename: () => requestRename(entry),
-      duplicate: () => void duplicate([entry]),
-      cut: () => setClipboard("cut", [entry]),
-      copy: () => setClipboard("copy", [entry]),
-      paste: () => void pasteInto(pasteTargetFor(entry)),
-      canPaste: clipboard !== undefined,
-      mention: () => mention([entry]),
-      openDefault: () => void runNativeAction("openProjectEntry", entry),
-      reveal: () => void runNativeAction("revealProjectEntry", entry),
-      copyPath: () => void copyText(absolutePath, "path"),
-      copyRelativePath: () => void copyText(entry.path, "relative path"),
-      remove: () => requestDelete([entry]),
-    },
-    desktopRuntime.isDesktop,
-    {
-      ...menuIcons,
-      open: entry.kind === "directory" ? FolderOpen : FileText,
-    },
-    launchMenu(entry),
-    shortcuts,
-  );
-}
+const menuContext = $derived<FilesContextMenuContext>({
+  project: activeProject,
+  isDesktop: desktopRuntime.isDesktop,
+  platform: desktopRuntime.platform,
+  canPaste: clipboard !== undefined,
+  selectionIds: selection.ids,
+  editors: editorAvailability,
+  terminal: terminalAvailability,
+  onOpenInEditor,
+  onOpenInTerminal,
+  actionTargets,
+  pasteTargetFor,
+  openFromMenu,
+  requestCreate,
+  requestRename,
+  requestDelete,
+  duplicate,
+  setClipboard,
+  pasteInto,
+  mention,
+  copyText,
+  openNative: (entry) => void runNativeAction("openProjectEntry", entry),
+  revealNative: (entry) => void runNativeAction("revealProjectEntry", entry),
+});
+const rootMenu = () => buildFilesRootMenu(menuContext, rootEntry);
+const itemMenu = (item: FileExplorerTreeItem) =>
+  buildFilesItemMenu(menuContext, item);
 
 // ----- Lifecycle ----------------------------------------------------------
 
@@ -992,7 +699,7 @@ $effect(() => {
   return () => {
     fileController?.stop();
     fileController = undefined;
-    clearDragState();
+    drag.clear();
   };
 });
 
@@ -1065,13 +772,13 @@ $effect(() => {
     activeProject ? listedNames(activeProject.id, directory) : new Set()}
   {rootMenu}
   {itemMenu}
-  {dropTargetPath}
-  {rootDropActive}
-  {externalDropHint}
+  dropTargetPath={drag.dropTargetPath}
+  rootDropActive={drag.rootDropActive}
+  externalDropHint={drag.externalDropHint}
   {pendingDelete}
   {deleteDescription}
   deleteLabel={deleteMethod === "trash" ? "Move to Trash" : "Delete"}
-  pendingReplace={pendingReplace?.message}
+  pendingReplace={drag.pendingReplace?.message}
   bind:treeController
   onPreferenceChange={setFilesPanelPreference}
   onQuickOpen={() => quickOpen.show(activeProject?.id)}
@@ -1091,19 +798,19 @@ $effect(() => {
   onExpansionChange={setExpanded}
   onItemClick={handleItemClick}
   onItemKeydown={handleItemKeydown}
-  onDragStart={startEntryDrag}
-  onDragEnd={clearDragState}
-  onItemDragEnter={handleItemDragOver}
-  onItemDragOver={handleItemDragOver}
+  onDragStart={drag.start}
+  onDragEnd={drag.clear}
+  onItemDragEnter={drag.itemOver}
+  onItemDragOver={drag.itemOver}
   onItemDragLeave={() => undefined}
-  onItemDrop={handleItemDrop}
-  onRootDragOver={handleRootDragOver}
-  onRootDragLeave={handleRootDragLeave}
-  onRootDrop={(event) => void performDrop(event, "")}
+  onItemDrop={drag.itemDrop}
+  onRootDragOver={drag.rootOver}
+  onRootDragLeave={drag.rootLeave}
+  onRootDrop={(event) => void drag.drop(event, "")}
   onCommitEdit={(item, name) => void commitEdit(item, name)}
   onCancelEdit={cancelEdit}
   onConfirmDelete={() => void confirmDelete()}
   onCancelDelete={() => (pendingDelete = undefined)}
-  onConfirmReplace={confirmReplace}
-  onCancelReplace={() => (pendingReplace = undefined)}
+  onConfirmReplace={drag.confirmReplace}
+  onCancelReplace={drag.cancelReplace}
 />

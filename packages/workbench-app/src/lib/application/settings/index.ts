@@ -1,17 +1,10 @@
 export {
-  closeSettingsTab,
   hasPendingSettingsSave,
   loadCoreSettings,
   loadSettingsPanel,
-  loadSettingsSkills,
   openProjectSettingsPane,
   openSettingsPane,
-  queueSettingsSave,
   refreshAncillarySettingsData,
   refreshSubscriptionUsage,
-  restartOwnedDaemon,
-  saveApplicationConfiguration,
-  selectCenterSettingsTab,
-  setTheme,
   setUiZoomLevel,
 } from "./settings-actions.svelte";

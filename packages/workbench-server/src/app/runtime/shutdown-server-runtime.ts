@@ -5,6 +5,8 @@ export interface ServerShutdownResources {
   agentBrowserSkills: { shutdown(): Promise<void> };
   subscriptionUsage: { stop(): void | Promise<void> };
   logger: { flush(): Promise<void> };
+  /** Flushes buffered device `lastSeenAt` updates. */
+  access?: { dispose(): Promise<void> };
 }
 
 const shutdownOperations = new WeakMap<
@@ -42,6 +44,11 @@ export function shutdownServerRuntime(
     }
     try {
       await state.subscriptionUsage.stop();
+    } catch (error) {
+      failures.push(error);
+    }
+    try {
+      await state.access?.dispose();
     } catch (error) {
       failures.push(error);
     }

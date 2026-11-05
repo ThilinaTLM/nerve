@@ -61,6 +61,7 @@ import {
   initializeStorage,
   readCurrentSettingsForBootstrap,
   resolveDataDir,
+  storagePaths,
   type InitializedStorage,
 } from "./infrastructure/storage-bootstrap/index.js";
 import {
@@ -68,6 +69,11 @@ import {
   type StorageStartupLock,
 } from "./infrastructure/storage-bootstrap/startup-lock.js";
 import { ensureMobileHttpsTlsMaterial } from "./infrastructure/tls/lan-certificate.js";
+import {
+  AccessService,
+  accessSettingsFromSnapshot,
+} from "./domains/access/access-service.js";
+import { isAccessCliCommand, runAccessCli } from "./cli/access-cli.js";
 import { createHostAllowlist } from "./adapters/http/host-allowlist.js";
 import { installProtocolWebSocketUpgrade } from "./adapters/protocol/protocol-websocket.js";
 
@@ -186,12 +192,21 @@ async function main() {
     holder,
     ...storageRecoveryControls(dataDir, () => sequence),
   };
+  // Created before storage opens: devices authenticate during upgrade too.
+  const access = tokenResult.ok
+    ? new AccessService({
+        paths: storagePaths(dataDir),
+        localToken: tokenResult.token,
+        settings: accessSettingsFromSnapshot(bootstrapConfiguration.snapshot),
+      })
+    : undefined;
   const switchable = createAppSwitch(
     createBootApp({
       ...controls,
       host,
       port: () => boundPort,
       localToken: tokenResult.ok ? tokenResult.token : undefined,
+      access,
     }),
   );
   let upgradesAttached = false;
@@ -355,6 +370,7 @@ async function main() {
       daemonId,
       startedAt: processStartedAt,
       resources: { ...resources, controlWorkConcurrency },
+      access,
     });
     const loggerHydrateStartedAt = performance.now();
     await state.logger.hydrate();
@@ -467,13 +483,17 @@ async function main() {
     const appMountStartedAt = performance.now();
     const app = createApp(state, controls);
     const isAllowedHost = createHostAllowlist(state);
+    // First remote start: print a one-time code so the owner can get in.
+    await state.access.announceFirstRun({
+      remote: !isLoopbackHost(host) || state.access.publicUrl !== undefined,
+    });
     const webSockets = new WebSocketServer({ noServer: true });
     const sessionSets = [
       installProtocolWebSocketUpgrade(
         server,
         webSockets,
         state.adapterContexts.websocket,
-        storage.localToken,
+        state.access,
         isAllowedHost,
       ),
     ];
@@ -495,7 +515,7 @@ async function main() {
           httpsServer,
           webSockets,
           state.adapterContexts.websocket,
-          storage.localToken,
+          state.access,
           isAllowedHost,
         ),
       );
@@ -746,4 +766,8 @@ async function fatalStartup(error: unknown): Promise<void> {
   process.exit(1);
 }
 
-main().catch(fatalStartup);
+if (isAccessCliCommand(process.argv.slice(2))) {
+  void runAccessCli(process.argv.slice(2)).then((code) => process.exit(code));
+} else {
+  main().catch(fatalStartup);
+}

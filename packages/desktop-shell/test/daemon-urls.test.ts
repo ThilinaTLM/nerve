@@ -2,6 +2,7 @@ import type { DaemonFile } from "@nervekit/contracts/status";
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
+  buildShareEndpoints,
   buildShareUrls,
   firstLanIpv4Address,
   normalizeRemoteDaemonUrl,
@@ -63,32 +64,59 @@ describe("daemon url policy", () => {
     assert.equal(firstLanIpv4Address({}), undefined);
   });
 
-  it("builds HTTP share urls from wildcard binds using the LAN address", () => {
-    const urls = buildShareUrls(daemonFile(), "tok_abc", lanSnapshot);
-    assert.equal(urls.shareUrl, "http://192.168.1.20:3747/?token=tok_abc");
-    assert.equal(urls.mobileSetupUrl, undefined);
-    assert.equal(urls.secureShareUrl, undefined);
-    assert.equal(urls.caCertUrl, undefined);
+  it("has no share endpoints without mobile HTTPS or on loopback binds", () => {
+    assert.equal(buildShareEndpoints(daemonFile(), lanSnapshot), undefined);
+    assert.equal(
+      buildShareEndpoints(
+        daemonFile({
+          host: "127.0.0.1",
+          mobileHttps: { port: 3748 },
+        } as Partial<DaemonFile>),
+        lanSnapshot,
+      ),
+      undefined,
+    );
   });
 
-  it("builds mobile HTTPS setup, secure share, and CA urls when enabled", () => {
-    const urls = buildShareUrls(
+  it("builds fragment-based pairing links without any long-lived token", () => {
+    const endpoints = buildShareEndpoints(
       daemonFile({
         host: "192.168.1.20",
         mobileHttps: { port: 3748 },
       } as Partial<DaemonFile>),
-      "tok_abc",
       lanSnapshot,
+    )!;
+    assert.equal(
+      endpoints.caCertUrl,
+      "http://192.168.1.20:3747/nerve-local-ca.pem",
     );
-    assert.equal(urls.shareUrl, "http://192.168.1.20:3747/?token=tok_abc");
+    const urls = buildShareUrls(endpoints, { code: "ABCD-EFGH" });
     assert.equal(
       urls.secureShareUrl,
-      "https://192.168.1.20:3748/?token=tok_abc",
+      "https://192.168.1.20:3748/#pair=ABCD-EFGH",
     );
     assert.equal(
       urls.mobileSetupUrl,
-      "http://192.168.1.20:3747/mobile-setup?token=tok_abc",
+      "http://192.168.1.20:3747/mobile-setup#pair=ABCD-EFGH",
     );
-    assert.equal(urls.caCertUrl, "http://192.168.1.20:3747/nerve-local-ca.pem");
+    assert.doesNotMatch(JSON.stringify({ endpoints, urls }), /token/);
+  });
+
+  it("prefers the server's public pairing url for the app link", () => {
+    const endpoints = buildShareEndpoints(
+      daemonFile({
+        host: "192.168.1.20",
+        mobileHttps: { port: 3748 },
+      } as Partial<DaemonFile>),
+      lanSnapshot,
+    )!;
+    const urls = buildShareUrls(endpoints, {
+      code: "ABCD-EFGH",
+      url: "https://nerve.example.com/#pair=ABCD-EFGH",
+    });
+    assert.equal(
+      urls.secureShareUrl,
+      "https://nerve.example.com/#pair=ABCD-EFGH",
+    );
   });
 });

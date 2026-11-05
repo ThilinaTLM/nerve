@@ -29,7 +29,7 @@ flowchart TB
   ui-kit --> workbench-app
 ```
 
-Arrows mean “is consumed by.” The diagram highlights key direct dependencies; contracts supply shared domain types throughout the engine and product, so their other edges are omitted. The exact allowed graph lives in [`workspacePackages`](../../scripts/shared/workspace-architecture.mjs) and is enforced by the [boundary checker](../../scripts/checks/check-package-boundaries.mjs).
+Arrows mean “is consumed by.” The diagram highlights key direct dependencies; contracts supply shared domain types throughout the engine and product, so their other edges are omitted. The exact allowed graph lives in [`ALLOWED_INTERNAL_DEPENDENCIES`](../../scripts/checks/package-architecture.rules.ts) and is enforced by the [boundary checker](../../scripts/checks/check-package-boundaries.ts).
 
 | Package             | Layer      | One-line responsibility                                                                             |
 | ------------------- | ---------- | --------------------------------------------------------------------------------------------------- |
@@ -64,9 +64,16 @@ The desktop shell owns Electron windows and daemon supervision. The server owns 
 
 ## Where it lives
 
-| Concern                                      | Owner                                                                                                                                         |
-| -------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
-| Package graph and enforcement                | [`workspacePackages`](../../scripts/shared/workspace-architecture.mjs); [boundary checker](../../scripts/checks/check-package-boundaries.mjs) |
-| Portable core facade and host interfaces     | [`ConversationCore`](../../packages/conversation-core/src/core.ts); [ports](../../packages/conversation-core/src/ports.ts)                    |
-| Server construction and host implementations | [bootstrap](../../packages/workbench-server/src/app/bootstrap/); [core-host](../../packages/workbench-server/src/core-host/)                  |
-| Desktop lifetime                             | [`DesktopRuntime`](../../packages/desktop-shell/src/app/desktop-runtime.ts)                                                                   |
+| Concern                                      | Owner                                                                                                                                                       |
+| -------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Package graph and enforcement                | [`ALLOWED_INTERNAL_DEPENDENCIES`](../../scripts/checks/package-architecture.rules.ts); [boundary checker](../../scripts/checks/check-package-boundaries.ts) |
+| Portable core facade and host interfaces     | [`ConversationCore`](../../packages/conversation-core/src/core.ts); [ports](../../packages/conversation-core/src/ports.ts)                                  |
+| Server construction and host implementations | [bootstrap](../../packages/workbench-server/src/app/bootstrap/); [core-host](../../packages/workbench-server/src/core-host/)                                |
+| Desktop lifetime                             | [`DesktopRuntime`](../../packages/desktop-shell/src/app/desktop-runtime.ts)                                                                                 |
+
+## Test placement
+
+- **Unit tests colocate** with the module as `<name>.test.ts` (Svelte component tests as `<name>.svelte.test.ts`, run by Vitest only in `ui-kit`). New packages and new `workbench-server` unit tests follow this.
+- **`test/` is for cross-module scenarios, contract tests, `*.integration.test.ts`, fixtures and shared support (`test/support/`).** In `workbench-server`, `test/domains/**` holds service-level tests that need the shared fixtures.
+- Packages that already keep unit tests in `test/` (`native`, `harness`, `contracts`, `desktop-shell`, most of `tools`, `protocol`) stay as they are; mirror the source layout inside `test/` and do not move files wholesale.
+- Do not test exports, pass-through adapters (arguments forwarded to a stub, result returned unchanged) or behavior covered at its owning layer. Adapter tests must encode translation or policy decided in the adapter.

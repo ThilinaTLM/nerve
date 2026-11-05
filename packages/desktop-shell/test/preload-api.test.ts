@@ -166,7 +166,7 @@ describe("desktop preload API", () => {
 
   it("forwards every invoke channel, argument, and returned value", async () => {
     const { api, invocations } = fixture();
-    const target = { projectDir: "/tmp/project", path: "README.md" };
+    const target = { projectId: "proj_1", relativePath: "README.md" };
     const results = await Promise.all([
       api.window.minimize(),
       api.window.toggleMaximize(),

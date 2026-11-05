@@ -1,10 +1,7 @@
-import {
-  conversationLastUserPromptAt,
-  compareConversationsByLastUserPromptDesc,
-} from "@nervekit/contracts/core";
+import { compareConversationsByLastUserPromptDesc } from "@nervekit/contracts/core";
 import type { AgentRecord } from "$lib/domain/projects/sidebar-view-models";
 import type { ConversationRecord } from "$lib/domain/projects/sidebar-view-models";
-import type { ProjectRecord } from "$lib/domain/projects/sidebar-view-models";
+
 import { permissionRuleSetDisplayName } from "$lib/domain/permissions/rule-set-options";
 
 function shortModelLabel(modelId: string): string {
@@ -15,26 +12,6 @@ export type ConversationRow = {
   conversation: ConversationRecord;
   agent?: AgentRecord;
 };
-
-export type ProjectGroup = {
-  key: string;
-  project: ProjectRecord;
-  projects: ProjectRecord[];
-  rows: ConversationRow[];
-  hiddenRows: number;
-  totalRows: number;
-  /** Display label: folder name, or a disambiguated short path on name clashes. */
-  label: string;
-  sortAt: string;
-};
-
-export type ProjectGroupResult = {
-  groups: ProjectGroup[];
-  hiddenProjects: number;
-};
-
-export const MAX_PROJECTS = 20;
-export const MAX_ROWS_PER_PROJECT = 6;
 
 export function projectKey(
   project: { dir: string } | { directory: string },
@@ -93,35 +70,6 @@ export function conversationRowDetails(row: ConversationRow): string[] {
   ];
 }
 
-export function groupIsActive(
-  group: ProjectGroup,
-  selectedProjectId: string | undefined,
-): boolean {
-  return group.projects.some((project) => project.id === selectedProjectId);
-}
-
-export function projectGroupMatches(
-  group: ProjectGroup,
-  query: string,
-): boolean {
-  if (!query) return true;
-  const normalized = query.toLowerCase();
-  return (
-    group.project.name.toLowerCase().includes(normalized) ||
-    group.project.dir.toLowerCase().includes(normalized) ||
-    group.projects.some(
-      (project) =>
-        project.name.toLowerCase().includes(normalized) ||
-        project.dir.toLowerCase().includes(normalized),
-    ) ||
-    group.rows.some(
-      (row) =>
-        row.conversation.title.toLowerCase().includes(normalized) ||
-        row.conversation.id.toLowerCase().includes(normalized),
-    )
-  );
-}
-
 export function activeConversationAgent(
   conversation: ConversationRecord,
   agents: AgentRecord[],
@@ -130,14 +78,6 @@ export function activeConversationAgent(
     agents.find((agent) => agent.id === conversation.activeAgentId) ??
     agents.find((agent) => agent.conversationId === conversation.id)
   );
-}
-
-function compareProjectGroupsDesc(a: ProjectGroup, b: ProjectGroup): number {
-  const sortCompare = b.sortAt.localeCompare(a.sortAt);
-  if (sortCompare !== 0) return sortCompare;
-  const createdCompare = b.project.createdAt.localeCompare(a.project.createdAt);
-  if (createdCompare !== 0) return createdCompare;
-  return a.key.localeCompare(b.key);
 }
 
 export function buildConversationRows(options: {
@@ -164,101 +104,4 @@ export function buildConversationRows(options: {
     .sort((a, b) =>
       compareConversationsByLastUserPromptDesc(a.conversation, b.conversation),
     );
-}
-
-export function buildProjectGroups(options: {
-  projects: ProjectRecord[];
-  conversations: ConversationRecord[];
-  agents: AgentRecord[];
-  filter?: string;
-  homeDir?: string;
-  maxProjects?: number;
-  maxRowsPerProject?: number;
-}): ProjectGroupResult {
-  const { projects, conversations, agents, homeDir } = options;
-  const query = options.filter?.trim() ?? "";
-  const maxProjects = options.maxProjects ?? MAX_PROJECTS;
-  const maxRowsPerProject = options.maxRowsPerProject ?? MAX_ROWS_PER_PROJECT;
-  const projectById = new Map(projects.map((project) => [project.id, project]));
-  const byDir = new Map<string, ProjectGroup>();
-
-  for (const project of projects) {
-    const key = projectKey(project);
-    const existing = byDir.get(key);
-    if (existing) {
-      existing.projects.push(project);
-      if (project.createdAt > existing.sortAt)
-        existing.sortAt = project.createdAt;
-      if (project.createdAt > existing.project.createdAt)
-        existing.project = project;
-    } else {
-      byDir.set(key, {
-        key,
-        project,
-        projects: [project],
-        rows: [],
-        hiddenRows: 0,
-        totalRows: 0,
-        label: projectFolderName(project.dir),
-        sortAt: project.createdAt,
-      });
-    }
-  }
-
-  for (const conversation of conversations) {
-    const project = projectById.get(conversation.projectId);
-    if (!project) continue;
-    const key = projectKey(project);
-    const group = byDir.get(key) ?? {
-      key,
-      project,
-      projects: [project],
-      rows: [],
-      hiddenRows: 0,
-      totalRows: 0,
-      label: projectFolderName(project.dir),
-      sortAt: project.createdAt,
-    };
-    group.rows.push({
-      conversation,
-      agent: activeConversationAgent(conversation, agents),
-    });
-    const conversationSortAt = conversationLastUserPromptAt(conversation);
-    if (conversationSortAt > group.sortAt) group.sortAt = conversationSortAt;
-    byDir.set(key, group);
-  }
-
-  const sorted = [...byDir.values()]
-    .filter((group) => projectGroupMatches(group, query))
-    .sort(compareProjectGroupsDesc);
-
-  const hiddenProjects = Math.max(0, sorted.length - maxProjects);
-
-  // Folder names are the primary label; fall back to a disambiguated short path
-  // only when two visible projects share the same folder name.
-  const folderNameCounts = new Map<string, number>();
-  for (const group of sorted) {
-    const folder = projectFolderName(group.project.dir);
-    folderNameCounts.set(folder, (folderNameCounts.get(folder) ?? 0) + 1);
-  }
-
-  const groups = sorted.slice(0, maxProjects).map((group) => {
-    const rows = group.rows.sort((a, b) =>
-      compareConversationsByLastUserPromptDesc(a.conversation, b.conversation),
-    );
-    const folder = projectFolderName(group.project.dir);
-    const label =
-      (folderNameCounts.get(folder) ?? 0) > 1
-        ? shortProjectLabel(group.project.dir, homeDir)
-        : folder;
-    return {
-      ...group,
-      label,
-      totalRows: rows.length,
-      hiddenRows: Math.max(0, rows.length - maxRowsPerProject),
-      rows: rows.slice(0, maxRowsPerProject),
-    };
-  });
-
-  return { groups, hiddenProjects };
 }

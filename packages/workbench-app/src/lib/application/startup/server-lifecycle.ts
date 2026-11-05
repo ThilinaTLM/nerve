@@ -3,6 +3,7 @@ import {
   type ServerLifecycle,
   type ServerLifecycleFailure,
 } from "@nervekit/contracts/status";
+import { notifyUnauthorized } from "$lib/platform/http/unauthorized-signal";
 
 export const LIFECYCLE_POLL_INTERVAL_MS = 500;
 /** Disconnections shorter than this never show the reconnect overlay. */
@@ -144,6 +145,9 @@ export async function fetchLifecycle(): Promise<ServerLifecycle | undefined> {
       credentials: "same-origin",
       cache: "no-store",
     });
+    // The poll doubles as the liveness probe after a WebSocket drop, so a
+    // revoked or expired device is noticed here.
+    if (response.status === 401) notifyUnauthorized();
     if (!(response.headers.get("content-type") ?? "").includes("json")) {
       return undefined;
     }

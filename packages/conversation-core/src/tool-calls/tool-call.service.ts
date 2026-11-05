@@ -14,16 +14,8 @@ import {
   ToolCallInteractions,
   type ResolveInteraction,
 } from "./tool-call-interactions.service.js";
-export type {
-  CoreToolContext,
-  CoreToolHandler,
-  CoreToolOutcome,
-} from "./core-tool.js";
-export type {
-  ToolCallChange,
-  ToolCallServiceOptions,
-} from "./tool-call-types.js";
-export type { AsyncBashAdopter } from "./background-promotion.js";
+export type { CoreToolContext } from "./core-tool.js";
+export type { ToolCallServiceOptions } from "./tool-call-types.js";
 
 export class ToolCallService {
   private closed = false;

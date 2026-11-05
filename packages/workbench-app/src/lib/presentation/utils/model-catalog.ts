@@ -10,12 +10,6 @@ import {
 /** Capabilities a model catalog can be filtered by. */
 export type ModelCapability = "vision" | "reasoning" | "long-context";
 
-export const modelCapabilities: readonly ModelCapability[] = [
-  "vision",
-  "reasoning",
-  "long-context",
-];
-
 /** Context windows at or above this size count as long context. */
 export const LONG_CONTEXT_TOKENS = 400_000;
 

@@ -110,13 +110,3 @@ export function formatShortcutForAria(binding: ShortcutBinding): string {
   parts.push(displayKey(binding.key));
   return parts.join("+");
 }
-
-export function eventToBinding(event: KeyboardEvent): ShortcutBinding {
-  return {
-    key: normalizedKey(event.key),
-    alt: event.altKey || undefined,
-    shift: event.shiftKey || undefined,
-    ctrl: event.ctrlKey || undefined,
-    meta: event.metaKey || undefined,
-  };
-}

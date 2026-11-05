@@ -21,6 +21,7 @@ import SuggestionsSettingsPage from "./suggestions/SuggestionsSettingsPage.svelt
 import type { Project } from "@nervekit/contracts/core";
 import type { SettingsPageDef } from "$lib/presentation/settings";
 import { SettingsEmptyState } from "$lib/presentation/settings";
+import { DevicesSettingsPage } from "$lib/features/access";
 import GeneralSettingsPage from "$lib/features/settings/views/pages/general/GeneralSettingsPage.svelte";
 import ModelsSettingsPage from "$lib/features/settings/views/pages/models/ModelsSettingsPage.svelte";
 import NotificationsSettingsPage from "$lib/features/settings/views/pages/notifications/NotificationsSettingsPage.svelte";
@@ -196,6 +197,8 @@ const projectId = $derived(
     />
   {:else if page.id === "storage"}
     <StorageSettingsPage controller={controllers.storageController} />
+  {:else if scope === "user" && page.id === "devices"}
+    <DevicesSettingsPage />
   {:else if scope === "user" && page.id === "system"}
     <SystemSettingsPage
       configuration={applicationConfiguration}

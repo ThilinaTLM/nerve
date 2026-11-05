@@ -7,6 +7,5 @@ export {
   discoverTitlebarBadge,
   markDiscoverSeen,
   setDiscoverAutoOpen,
-  type DiscoverPageModel,
 } from "./state.svelte.js";
 export { openDiscoverPane } from "./tabs.svelte.js";

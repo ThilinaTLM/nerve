@@ -22,10 +22,8 @@ export const findAgentResultPolicy = policy(
   "item_aware",
   listingCandidate,
 );
-export const lsAgentResultPolicy = findAgentResultPolicy;
 export const editAgentResultPolicy = policy(
   "mutation_acknowledgement",
   "head",
   mutationCandidate,
 );
-export const writeAgentResultPolicy = editAgentResultPolicy;

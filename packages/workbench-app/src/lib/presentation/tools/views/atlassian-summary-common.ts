@@ -1,4 +1,3 @@
-import type { ConversationLiveToolDraftBlockSnapshot } from "$lib/presentation/view-models/conversation";
 import type { ToolCallDisplayRecord } from "./tool-result-parser";
 import type { ToolView } from "./tool-view-types";
 
@@ -70,16 +69,6 @@ export function toolArgSource(toolCall: ToolCallDisplayRecord): ArgSource {
   };
 }
 
-export function draftArgSource(
-  draft: ConversationLiveToolDraftBlockSnapshot,
-): ArgSource {
-  return {
-    args: draft.args ?? parseJsonRecord(draft.argsText),
-    argsText: draft.argsText,
-    status: draft.done ? "draft_done" : "drafting",
-  };
-}
-
 export function toolResultDetails(
   toolCall: ToolCallDisplayRecord,
 ): Record<string, unknown> {
@@ -89,15 +78,6 @@ export function toolResultDetails(
   };
   const result = asRecord(payloads.result ?? payloads.resultPreview);
   return asRecord(result.details);
-}
-
-function parseJsonRecord(text: string | undefined): Record<string, unknown> {
-  if (!text?.trim()) return {};
-  try {
-    return asRecord(JSON.parse(text));
-  } catch {
-    return {};
-  }
 }
 
 export function appendJiraAssignee(
@@ -172,15 +152,6 @@ export function jiraBodyText(
   adfKey: string,
 ): string | undefined {
   return sourceString(source, textKey) ?? adfPlainText(source.args[adfKey]);
-}
-
-export function enabledFlags(
-  source: ArgSource,
-  flags: Record<string, string>,
-): string[] {
-  return Object.entries(flags).flatMap(([key, label]) =>
-    sourceBoolean(source, key) === true ? [label] : [],
-  );
 }
 
 export function addIncludedCounts(
@@ -460,35 +431,6 @@ export function formatConfluenceAttachment(
   ]
     .filter(Boolean)
     .join(" · ");
-}
-
-export function formatConfluenceOutcome(
-  outcome: ConfluenceView["outcomes"][number],
-): string {
-  return [
-    outcome.index !== undefined ? `#${outcome.index}` : undefined,
-    outcome.operation,
-    outcome.id,
-    outcome.title ? `"${outcome.title}"` : undefined,
-    outcome.status,
-    outcome.message,
-  ]
-    .filter(Boolean)
-    .join(" · ");
-}
-
-export function outcomeStatusSummary(
-  outcomes: ConfluenceView["outcomes"],
-): string | undefined {
-  if (outcomes.length === 0) return undefined;
-  const counts = new Map<string, number>();
-  for (const outcome of outcomes) {
-    const status = outcome.status ?? "unknown";
-    counts.set(status, (counts.get(status) ?? 0) + 1);
-  }
-  return [...counts.entries()]
-    .map(([status, count]) => `${count} ${status}`)
-    .join(", ");
 }
 
 export function formatBytes(value: number): string {

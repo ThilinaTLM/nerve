@@ -1,11 +1,3 @@
-export function conversationViewKey(conversationId: string): string {
-  return `conversation-view:${conversationId}`;
-}
-
-export function pendingConversationKey(pendingId: string): string {
-  return `pending-conversation:${pendingId}`;
-}
-
 export function fileViewKey(fileTabId: string): string {
   return `file-view:${fileTabId}`;
 }

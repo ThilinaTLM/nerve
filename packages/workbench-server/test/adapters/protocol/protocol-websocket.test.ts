@@ -88,7 +88,7 @@ async function fixture() {
     server,
     webSockets,
     state.adapterContexts.websocket,
-    storage.localToken,
+    state.access,
     createHostAllowlist(state),
   );
   cleanups.push(async () => {

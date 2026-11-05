@@ -20,6 +20,30 @@ describe("desktop CLI options", () => {
   });
 });
 
+describe("desktop CLI pairing options", () => {
+  it("parses --connect with --pair-code in both spellings", () => {
+    assert.deepEqual(
+      parseDesktopOptions([
+        "--connect",
+        "https://host",
+        "--pair-code",
+        "ABCD-EFGH",
+      ]),
+      { mode: "remote", remoteUrl: "https://host", pairCode: "ABCD-EFGH" },
+    );
+    assert.equal(
+      parseDesktopOptions(["--connect=https://host", "--pair-code=WXYZ-2345"])
+        .pairCode,
+      "WXYZ-2345",
+    );
+    assert.throws(() => parseDesktopOptions(["--pair-code"]), /--pair-code/);
+  });
+
+  it("still accepts the deprecated --token", () => {
+    assert.equal(parseDesktopOptions(["--token", "tok"]).token, "tok");
+  });
+});
+
 describe("Electron Ozone platform", () => {
   it("treats auto as Chromium's default rather than a literal switch", () => {
     assert.equal(

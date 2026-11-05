@@ -139,4 +139,3 @@ export function disconnectWorkbench(): void {
   disconnectConversationChannel();
   workspaceState.connection = "closed";
 }
-export { disconnectWorkbench as disconnect, initializeWorkbench as connect };

@@ -781,13 +781,3 @@ export async function executeJiraManageBacklog(
     },
   });
 }
-
-export async function fetchJiraIssueLinkTypes(
-  context: IntegrationExecutionContext,
-) {
-  const connection = await requireJiraConnection(context);
-  return jiraRequest(connection, {
-    path: "/issueLinkType",
-    signal: context.signal,
-  });
-}

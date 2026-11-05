@@ -7,7 +7,6 @@ import type {
 } from "@nervekit/contracts/settings";
 import { requestWorkbench } from "$lib/application/startup/workbench-connection";
 
-export type SettingsResponse = Settings;
 export type {
   ApplicationConfigurationSnapshot,
   NotificationTone,

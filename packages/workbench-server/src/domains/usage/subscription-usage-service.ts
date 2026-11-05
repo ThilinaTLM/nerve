@@ -42,6 +42,7 @@ export class SubscriptionUsageService {
   readonly #snapshots = new Map<SubscriptionUsageProvider, SubscriptionUsage>();
   readonly #inFlight = new Map<SubscriptionUsageProvider, Promise<void>>();
   readonly #lastAttemptAt = new Map<SubscriptionUsageProvider, number>();
+  #stopped = false;
 
   constructor(deps: SubscriptionUsageServiceDeps) {
     this.#deps = deps;
@@ -51,8 +52,10 @@ export class SubscriptionUsageService {
     // Refreshes are triggered by client `usage.subscription.get` requests.
   }
 
-  stop(): void {
-    // No background timer to stop.
+  /** Rejects new refreshes and waits for in-flight ones, so no fetch or cache write outlives shutdown. */
+  async stop(): Promise<void> {
+    this.#stopped = true;
+    await Promise.allSettled([...this.#inFlight.values()]);
   }
 
   /** Current snapshots, optionally refreshing all globally supported providers. */
@@ -81,6 +84,7 @@ export class SubscriptionUsageService {
   }
 
   private refreshProvider(provider: SubscriptionUsageProvider): Promise<void> {
+    if (this.#stopped) return Promise.resolve();
     const existing = this.#inFlight.get(provider);
     if (existing) return existing;
 

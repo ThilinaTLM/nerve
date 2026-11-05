@@ -135,11 +135,6 @@ export function dedupeListeningPorts(
   );
 }
 
-export function formatListeningPort(port: LaunchListeningPort): string {
-  const host = port.address.includes(":") ? `[${port.address}]` : port.address;
-  return `${host}:${port.port}/${port.protocol}`;
-}
-
 async function inspectPorts(ports: number[]): Promise<TcpListenerProcess[]> {
   const listeners = await Promise.all(
     ports.map(async (port) => inspectTcpListeners(port)),

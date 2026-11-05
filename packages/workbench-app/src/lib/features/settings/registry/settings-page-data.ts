@@ -135,6 +135,16 @@ const userPages: Record<string, PageData> = {
       "Understand what Nerve keeps locally and safely reclaim space.",
     sections: [{ id: "storage", label: "Storage" }],
   },
+  devices: {
+    label: "Devices",
+    description:
+      "Control which browsers and phones can open this Nerve, and how they sign in.",
+    sections: [
+      { id: "devices", label: "Devices" },
+      { id: "passkeys", label: "Passkeys" },
+      { id: "activity", label: "Recent activity" },
+    ],
+  },
   system: {
     label: "System",
     sections: [
@@ -231,7 +241,7 @@ const userLayout: NavLayout = [
     title: "App",
     pages: ["workbench", "notifications", "shortcuts", "voice", "titles"],
   },
-  { id: "system", title: "System", pages: ["storage", "system"] },
+  { id: "system", title: "System", pages: ["storage", "devices", "system"] },
 ];
 
 const projectLayout: NavLayout = [

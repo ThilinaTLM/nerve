@@ -170,6 +170,7 @@ export class DesktopRuntime {
         owned: runtime.#managedDaemon?.owned ?? false,
         canRestart: runtime.#managedDaemon?.owned === true,
       }),
+      getDaemonConnection: () => runtime.#managedDaemon,
       restartDaemon: async () => {
         if (!runtime.#managedDaemon?.owned) {
           throw new Error(
@@ -452,8 +453,7 @@ export class DesktopRuntime {
                 url: daemon.url,
                 mode: daemon.mode,
                 owned: daemon.owned,
-                shareUrlAvailable: Boolean(daemon.shareUrl),
-                mobileHttpsAvailable: Boolean(daemon.mobileSetupUrl),
+                mobileShareAvailable: daemon.mobileShareAvailable,
               },
             });
             await Promise.all([

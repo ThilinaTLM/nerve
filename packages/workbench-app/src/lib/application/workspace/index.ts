@@ -2,7 +2,6 @@ export {
   centerTabsExcept,
   centerTabsToLeftOf,
   centerTabsToRightOf,
-  closeCenterTabs,
 } from "./center-tab-actions.svelte";
 export {
   confirmFileTabsAtPath,
@@ -14,13 +13,10 @@ export {
 } from "./center-tab-close-requests.svelte";
 export {
   centerTabKey,
-  closeCenterTab,
   reorderCenterTab,
   selectCenterTab,
 } from "./center-tabs.svelte";
-export { selection } from "./selection.svelte";
 export {
-  createConversationForDirectory,
   deleteConversationAndRefresh,
   deleteProjectAndRefresh,
   newConversation,

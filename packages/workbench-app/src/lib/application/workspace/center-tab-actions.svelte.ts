@@ -63,14 +63,6 @@ export function centerTabsExcept(tab: CenterTabIdentity): CenterTabIdentity[] {
   );
 }
 
-export function hasCenterTabsToLeftOf(tab: CenterTabIdentity): boolean {
-  return centerTabsToLeftOf(tab).length > 0;
-}
-
-export function hasCenterTabsToRightOf(tab: CenterTabIdentity): boolean {
-  return centerTabsToRightOf(tab).length > 0;
-}
-
 export async function closeCenterTabs(
   tabs: CenterTabIdentity[],
   fallbackPreferred?: CenterTabIdentity,

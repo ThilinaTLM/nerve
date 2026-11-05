@@ -66,13 +66,6 @@ export function syncGitRepositoryMonitor(
   return workspaceMonitorDemand.syncRepository(projectId, repo, active);
 }
 
-export function clearGitRepositoryMonitor(
-  projectId: string,
-  repo: string,
-): Promise<void> {
-  return workspaceMonitorDemand.clearRepository(projectId, repo);
-}
-
 /** Re-scan the repository monitor after this client's own sync for it lands. */
 export function requestGitRepositoryRefresh(
   projectId: string,

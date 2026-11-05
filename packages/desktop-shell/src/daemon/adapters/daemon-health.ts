@@ -1,3 +1,4 @@
+import { CREDENTIAL_ROTATION_HEADER } from "@nervekit/contracts/access";
 import {
   serverHealthSchema,
   type ServerLifecycleState,
@@ -31,12 +32,15 @@ export async function checkHealth(
     const durationMs = now() - startedAt;
     if (response.ok) {
       const lifecycle = await readLifecycle(response);
+      const rotatedCredential =
+        response.headers.get(CREDENTIAL_ROTATION_HEADER) ?? undefined;
       return {
         healthy: true,
         outcome: "ok",
         durationMs,
         status: response.status,
         ...(lifecycle ? { lifecycle } : {}),
+        ...(rotatedCredential ? { rotatedCredential } : {}),
       };
     }
     return {

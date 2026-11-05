@@ -29,13 +29,6 @@ export const documentThemeTokens = {
   },
 } as const;
 
-/* sRGB fallbacks for hosts that need a plain colour, such as the Electron
- * window background painted before any document loads. */
-export const documentBackgroundHex = {
-  light: "#f6f3eb",
-  dark: "#272521",
-} as const;
-
 function tokenBlock(mode: keyof typeof documentThemeTokens): string {
   return Object.entries(documentThemeTokens[mode])
     .map(([name, value]) => `--${name}: ${value};`)

@@ -1,3 +1,30 @@
+import { readFileDiff, type GitFileDiffContext } from "./git-file-diff.js";
+import type { GitMutationContext } from "./git-mutation-context.js";
+import {
+  createBranch as createBranchImpl,
+  deleteBranch as deleteBranchImpl,
+  switchBranch as switchBranchImpl,
+} from "./git-branch-mutations.js";
+import { runObservedCommand } from "./git-observed-runner.js";
+import {
+  clone as cloneImpl,
+  fetch as fetchImpl,
+  hasUpstream as hasUpstreamImpl,
+  pull as pullImpl,
+  push as pushImpl,
+  switchBaseAndPull as switchBaseAndPullImpl,
+  syncBranch as syncBranchImpl,
+} from "./git-remote-operations.js";
+import {
+  applyStash as applyStashImpl,
+  createStash as createStashImpl,
+  dropStash as dropStashImpl,
+} from "./git-stash-mutations.js";
+import {
+  discardFile as discardFileImpl,
+  stageFile as stageFileImpl,
+  unstageFile as unstageFileImpl,
+} from "./git-working-tree-mutations.js";
 import {
   prSyncAvailability,
   fetchPrSummaries,
@@ -45,7 +72,6 @@ import {
   type ExecResult,
   type GitCommandOptions,
   GitCommandError,
-  runGitCommand,
 } from "./git-command.js";
 import { GitWorkflowError } from "./git-errors.js";
 import { NativeGitReadBackend } from "./read/native-backend.js";
@@ -93,17 +119,9 @@ import {
   GitRepositoryMetadataCache,
   type StableRepoMetadata,
 } from "./git-repository-metadata.js";
-import {
-  createAreaStash,
-  stashApplyArgs,
-  verifyStashTarget,
-} from "./git-stash.js";
-import { parsePorcelainV2 } from "./git-status.js";
 import { GitProjectReadCache } from "./read/project-read-cache.js";
 import {
   inGitLane,
-  inGitCreationLane,
-  currentGitCommandOptions,
   hasGitRepositoryLane,
   outsideGitOperation,
 } from "./git-operation-context.js";
@@ -112,12 +130,6 @@ import {
   listGithubIssues,
   type GithubIssueSummary,
 } from "./git-github-issues.js";
-
-function observedCommand(args: readonly string[]): string {
-  return args[0] === "--no-optional-locks"
-    ? (args[1] ?? "unknown")
-    : (args[0] ?? "unknown");
-}
 
 export interface GitRemoteCacheChange {
   projectId: string;
@@ -144,6 +156,8 @@ export class GitService {
     }
   >();
   #readsClosed = false;
+  readonly #mutations: GitMutationContext;
+  readonly #fileDiffContext: GitFileDiffContext;
   readonly #issues = new GitRemoteCache<GithubIssueSummary[]>();
   readonly #remoteCacheListeners = new Set<
     (change: GitRemoteCacheChange) => void
@@ -165,6 +179,30 @@ export class GitService {
         new NativeGitReadBackend(options.now),
         (observation) => options.onReadCompleted?.(observation),
       );
+    this.#mutations = {
+      resolveRepoDir: (projectId, relativePath) =>
+        this.resolveRepoDir(projectId, relativePath),
+      runGit: (cwd, args) => this.runGit(cwd, args),
+      mapGit: (fn) => this.mapGit(fn),
+      summarizeRepo: (repoDir, relativePath, name) =>
+        this.summarizeRepo(repoDir, relativePath, name),
+      repoName: (projectId, relativePath) =>
+        this.repoName(projectId, relativePath),
+      invalidateStableRepoMetadata: (repoDir) =>
+        this.invalidateStableRepoMetadata(repoDir),
+      stableRepoMetadata: (repoDir) => this.stableRepoMetadata(repoDir),
+      listBranches: (projectId, relativePath) =>
+        this.listBranches(projectId, relativePath),
+      detectBaseBranch: (repoDir) => this.detectBaseBranch(repoDir),
+      validateBranchName: (name) => this.#readBackend.validateBranchName(name),
+    };
+    this.#fileDiffContext = {
+      resolveRepoDir: (projectId, relativePath) =>
+        this.resolveRepoDir(projectId, relativePath),
+      readSnapshot: (repoDir) => this.readSnapshot(repoDir),
+      readFileDiff: (repoDir, original, modified) =>
+        this.#readBackend.fileDiff(repoDir, original, modified),
+    };
     this.#githubApi = new GithubApiClient({
       tokenProvider: async (hostname, signal) =>
         (
@@ -192,71 +230,13 @@ export class GitService {
     args: string[],
     commandOptions: GitCommandOptions = {},
   ): Promise<ExecResult> {
-    const startedAt = performance.now();
-    try {
-      let commandIndex = 0;
-      while (args[commandIndex]?.startsWith("-")) {
-        const option = args[commandIndex++];
-        if (
-          option === "-c" ||
-          option === "-C" ||
-          option === "--git-dir" ||
-          option === "--work-tree"
-        )
-          commandIndex++;
-      }
-      const verb = args[commandIndex];
-      const network =
-        bin === "git" &&
-        ["fetch", "pull", "push", "clone"].includes(verb ?? "");
-      const commandArgs =
-        network && !args.includes("--progress")
-          ? [
-              ...args.slice(0, commandIndex + 1),
-              "--progress",
-              ...args.slice(commandIndex + 1),
-            ]
-          : args;
-      const execute = () =>
-        runGitCommand(bin, cwd, commandArgs, {
-          ...currentGitCommandOptions(),
-          ...commandOptions,
-          network,
-        });
-      const createsRepository =
-        bin === "git" && (verb === "init" || verb === "clone");
-      const destination = createsRepository
-        ? resolve(cwd, args.at(-1) ?? ".")
-        : undefined;
-      // Creation reserves the real parent plus basename before .git exists.
-      const result = destination
-        ? await inGitCreationLane(
-            destination,
-            network,
-            execute,
-            currentGitCommandOptions(),
-          )
-        : bin === "git"
-          ? await inGitLane(cwd, network, execute)
-          : await execute();
-      this.observeCommand({
-        bin,
-        command: observedCommand(args),
-        cwd,
-        durationMs: performance.now() - startedAt,
-        succeeded: true,
-      });
-      return result;
-    } catch (error) {
-      this.observeCommand({
-        bin,
-        command: observedCommand(args),
-        cwd,
-        durationMs: performance.now() - startedAt,
-        succeeded: false,
-      });
-      throw error;
-    }
+    return runObservedCommand(
+      (observation) => this.observeCommand(observation),
+      bin,
+      cwd,
+      args,
+      commandOptions,
+    );
   }
 
   private observeCommand(observation: GitCommandObservation): void {
@@ -700,29 +680,7 @@ export class GitService {
     relativePath: string,
     name: string,
   ): Promise<GitMutationResponse> {
-    return inGitLane(
-      this.resolveRepoDir(projectId, relativePath),
-      false,
-      async () => {
-        const repoDir = this.resolveRepoDir(projectId, relativePath);
-        if (!(await this.#readBackend.validateBranchName(name))) {
-          throw new GitWorkflowError(
-            400,
-            "GIT_INVALID_BRANCH_NAME",
-            `'${name}' is not a valid git branch name.`,
-          );
-        }
-        await this.mapGit(() => this.runGit(repoDir, ["switch", "-c", name]));
-        this.invalidateStableRepoMetadata(repoDir);
-        return {
-          repo: await this.summarizeRepo(
-            repoDir,
-            relativePath,
-            this.repoName(projectId, relativePath),
-          ),
-        };
-      },
-    );
+    return createBranchImpl(this.#mutations, projectId, relativePath, name);
   }
 
   async switchBranch(
@@ -730,34 +688,7 @@ export class GitService {
     relativePath: string,
     name: string,
   ): Promise<GitMutationResponse> {
-    return inGitLane(
-      this.resolveRepoDir(projectId, relativePath),
-      false,
-      async () => {
-        const repoDir = this.resolveRepoDir(projectId, relativePath);
-        const branches = await this.listBranches(projectId, relativePath);
-        const target = branches.branches.find((branch) => branch.name === name);
-        if (!target) {
-          throw new GitWorkflowError(
-            404,
-            "GIT_BRANCH_NOT_FOUND",
-            `Branch '${name}' was not found.`,
-          );
-        }
-        const args = target.remote
-          ? ["switch", "--track", name]
-          : ["switch", name];
-        await this.mapGit(() => this.runGit(repoDir, args));
-        this.invalidateStableRepoMetadata(repoDir);
-        return {
-          repo: await this.summarizeRepo(
-            repoDir,
-            relativePath,
-            this.repoName(projectId, relativePath),
-          ),
-        };
-      },
-    );
+    return switchBranchImpl(this.#mutations, projectId, relativePath, name);
   }
 
   async deleteBranch(
@@ -765,55 +696,7 @@ export class GitService {
     relativePath: string,
     name: string,
   ): Promise<GitMutationResponse> {
-    return inGitLane(
-      this.resolveRepoDir(projectId, relativePath),
-      false,
-      async () => {
-        const repoDir = this.resolveRepoDir(projectId, relativePath);
-        const branches = await this.listBranches(projectId, relativePath);
-        const target = branches.branches.find((branch) => branch.name === name);
-        if (!target) {
-          throw new GitWorkflowError(
-            404,
-            "GIT_BRANCH_NOT_FOUND",
-            `Branch '${name}' was not found.`,
-          );
-        }
-        if (target.remote) {
-          throw new GitWorkflowError(
-            400,
-            "GIT_REMOTE_BRANCH_DELETE_UNSUPPORTED",
-            "Only local branches can be deleted.",
-          );
-        }
-        if (target.current) {
-          throw new GitWorkflowError(
-            409,
-            "GIT_CURRENT_BRANCH_DELETE",
-            "Switch to another branch before deleting the current branch.",
-          );
-        }
-        const baseBranch = await this.detectBaseBranch(repoDir);
-        if (name === baseBranch) {
-          throw new GitWorkflowError(
-            409,
-            "GIT_BASE_BRANCH_DELETE",
-            `The base branch '${baseBranch}' cannot be deleted.`,
-          );
-        }
-        await this.mapGit(() =>
-          this.runGit(repoDir, ["branch", "--delete", "--", name]),
-        );
-        this.invalidateStableRepoMetadata(repoDir);
-        return {
-          repo: await this.summarizeRepo(
-            repoDir,
-            relativePath,
-            this.repoName(projectId, relativePath),
-          ),
-        };
-      },
-    );
+    return deleteBranchImpl(this.#mutations, projectId, relativePath, name);
   }
 
   async fileDiff(
@@ -822,44 +705,13 @@ export class GitService {
     path: string,
     area: GitDiffArea,
   ): Promise<GitFileDiffResponse> {
-    const repoDir = this.resolveRepoDir(projectId, relativePath);
-    const snapshot = await this.readSnapshot(repoDir);
-    const file = snapshot.files.find(
-      (candidate) => candidate.path === path || candidate.renamedFrom === path,
-    );
-    const resolvedPath = file?.path ?? path;
-    const originalPath = file?.renamedFrom ?? resolvedPath;
-    const originalMissing =
-      area === "staged" ? file?.index === "A" : Boolean(file?.untracked);
-    const modifiedMissing =
-      area === "staged" ? file?.index === "D" : file?.worktree === "D";
-    const documents = await this.#readBackend.fileDiff(
-      repoDir,
-      originalMissing
-        ? { kind: "empty", path: originalPath }
-        : area === "staged"
-          ? { kind: "revision", revision: "HEAD", path: originalPath }
-          : { kind: "index", path: originalPath },
-      modifiedMissing
-        ? { kind: "empty", path: resolvedPath }
-        : area === "staged"
-          ? { kind: "index", path: resolvedPath }
-          : { kind: "worktree", path: resolvedPath },
-    );
-    const metadata = {
-      path: resolvedPath,
-      ...(file?.renamedFrom ? { renamedFrom: file.renamedFrom } : {}),
+    return readFileDiff(
+      this.#fileDiffContext,
+      projectId,
+      relativePath,
+      path,
       area,
-    };
-    if (documents.original.binary || documents.modified.binary) {
-      return { ...metadata, binary: true };
-    }
-    return {
-      ...metadata,
-      binary: false,
-      original: documents.original.content ?? "",
-      modified: documents.modified.content ?? "",
-    };
+    );
   }
 
   async stageFile(
@@ -867,21 +719,7 @@ export class GitService {
     relativePath: string,
     path: string,
   ): Promise<GitMutationResponse> {
-    return inGitLane(
-      this.resolveRepoDir(projectId, relativePath),
-      false,
-      async () => {
-        const repoDir = this.resolveRepoDir(projectId, relativePath);
-        await this.mapGit(() => this.runGit(repoDir, ["add", "--", path]));
-        return {
-          repo: await this.summarizeRepo(
-            repoDir,
-            relativePath,
-            this.repoName(projectId, relativePath),
-          ),
-        };
-      },
-    );
+    return stageFileImpl(this.#mutations, projectId, relativePath, path);
   }
 
   async unstageFile(
@@ -889,23 +727,7 @@ export class GitService {
     relativePath: string,
     path: string,
   ): Promise<GitMutationResponse> {
-    return inGitLane(
-      this.resolveRepoDir(projectId, relativePath),
-      false,
-      async () => {
-        const repoDir = this.resolveRepoDir(projectId, relativePath);
-        await this.mapGit(() =>
-          this.runGit(repoDir, ["restore", "--staged", "--", path]),
-        );
-        return {
-          repo: await this.summarizeRepo(
-            repoDir,
-            relativePath,
-            this.repoName(projectId, relativePath),
-          ),
-        };
-      },
-    );
+    return unstageFileImpl(this.#mutations, projectId, relativePath, path);
   }
 
   async discardFile(
@@ -913,39 +735,7 @@ export class GitService {
     relativePath: string,
     path: string,
   ): Promise<GitMutationResponse> {
-    return inGitLane(
-      this.resolveRepoDir(projectId, relativePath),
-      false,
-      async () => {
-        const repoDir = this.resolveRepoDir(projectId, relativePath);
-        const before = parsePorcelainV2(
-          (await this.runGit(repoDir, ["status", "--porcelain=v2"])).stdout,
-        ).files.find((file) => file.path === path || file.renamedFrom === path);
-
-        try {
-          await this.runGit(repoDir, ["restore", "--staged", "--", path]);
-        } catch {
-          // The path may not be staged; continue with worktree cleanup.
-        }
-        if (!before?.untracked) {
-          try {
-            await this.runGit(repoDir, ["restore", "--worktree", "--", path]);
-          } catch {
-            // Newly-added or deleted paths may require git clean instead.
-          }
-        }
-        await this.mapGit(() =>
-          this.runGit(repoDir, ["clean", "-f", "--", path]),
-        );
-        return {
-          repo: await this.summarizeRepo(
-            repoDir,
-            relativePath,
-            this.repoName(projectId, relativePath),
-          ),
-        };
-      },
-    );
+    return discardFileImpl(this.#mutations, projectId, relativePath, path);
   }
 
   async createStash(
@@ -954,21 +744,12 @@ export class GitService {
     area: GitStashArea,
     paths?: readonly string[],
   ): Promise<GitMutationResponse> {
-    return inGitLane(
-      this.resolveRepoDir(projectId, relativePath),
-      false,
-      async () => {
-        const repoDir = this.resolveRepoDir(projectId, relativePath);
-        await this.mapGit(() => createAreaStash(this, repoDir, area, paths));
-        this.invalidateStableRepoMetadata(repoDir);
-        return {
-          repo: await this.summarizeRepo(
-            repoDir,
-            relativePath,
-            this.repoName(projectId, relativePath),
-          ),
-        };
-      },
+    return createStashImpl(
+      this.#mutations,
+      projectId,
+      relativePath,
+      area,
+      paths,
     );
   }
 
@@ -978,24 +759,12 @@ export class GitService {
     index: number,
     expectedHash: string,
   ): Promise<GitMutationResponse> {
-    return inGitLane(
-      this.resolveRepoDir(projectId, relativePath),
-      false,
-      async () => {
-        const repoDir = this.resolveRepoDir(projectId, relativePath);
-        const ref = await verifyStashTarget(this, repoDir, index, expectedHash);
-        await this.mapGit(async () =>
-          this.runGit(repoDir, await stashApplyArgs(this, repoDir, ref)),
-        );
-        this.invalidateStableRepoMetadata(repoDir);
-        return {
-          repo: await this.summarizeRepo(
-            repoDir,
-            relativePath,
-            this.repoName(projectId, relativePath),
-          ),
-        };
-      },
+    return applyStashImpl(
+      this.#mutations,
+      projectId,
+      relativePath,
+      index,
+      expectedHash,
     );
   }
 
@@ -1005,22 +774,12 @@ export class GitService {
     index: number,
     expectedHash: string,
   ): Promise<GitMutationResponse> {
-    return inGitLane(
-      this.resolveRepoDir(projectId, relativePath),
-      false,
-      async () => {
-        const repoDir = this.resolveRepoDir(projectId, relativePath);
-        const ref = await verifyStashTarget(this, repoDir, index, expectedHash);
-        await this.mapGit(() => this.runGit(repoDir, ["stash", "drop", ref]));
-        this.invalidateStableRepoMetadata(repoDir);
-        return {
-          repo: await this.summarizeRepo(
-            repoDir,
-            relativePath,
-            this.repoName(projectId, relativePath),
-          ),
-        };
-      },
+    return dropStashImpl(
+      this.#mutations,
+      projectId,
+      relativePath,
+      index,
+      expectedHash,
     );
   }
 
@@ -1028,56 +787,7 @@ export class GitService {
     projectId: string,
     relativePath: string,
   ): Promise<GitMutationResponse> {
-    return inGitLane(
-      this.resolveRepoDir(projectId, relativePath),
-      true,
-      async () => {
-        const repoDir = this.resolveRepoDir(projectId, relativePath);
-        const repoName = this.repoName(projectId, relativePath);
-        let repo = await this.summarizeRepo(repoDir, relativePath, repoName);
-        if (repo.detached || !repo.currentBranch) {
-          throw new GitWorkflowError(
-            409,
-            "GIT_DETACHED_HEAD",
-            "Cannot sync a detached HEAD. Check out a branch first.",
-          );
-        }
-        const currentBranch = repo.currentBranch;
-        if (!repo.hasRemote) {
-          throw new GitWorkflowError(
-            409,
-            "GIT_NO_REMOTE",
-            "This repository does not have a remote configured.",
-          );
-        }
-
-        await this.mapGit(() => this.runGit(repoDir, ["fetch", "--prune"]));
-        this.invalidateStableRepoMetadata(repoDir);
-        repo = await this.summarizeRepo(repoDir, relativePath, repoName);
-
-        if (!repo.hasUpstream) {
-          await this.mapGit(() =>
-            this.runGit(repoDir, ["push", "-u", "origin", currentBranch]),
-          );
-          return {
-            repo: await this.summarizeRepo(repoDir, relativePath, repoName),
-          };
-        }
-
-        if ((repo.behind ?? 0) > 0) {
-          await this.mapGit(() => this.runGit(repoDir, ["pull", "--ff-only"]));
-          repo = await this.summarizeRepo(repoDir, relativePath, repoName);
-        }
-
-        if ((repo.ahead ?? 0) > 0) {
-          await this.mapGit(() => this.runGit(repoDir, ["push"]));
-        }
-
-        return {
-          repo: await this.summarizeRepo(repoDir, relativePath, repoName),
-        };
-      },
-    );
+    return syncBranchImpl(this.#mutations, projectId, relativePath);
   }
 
   async switchBaseAndPull(
@@ -1085,77 +795,11 @@ export class GitService {
     relativePath: string,
     requestedBaseBranch?: string,
   ): Promise<GitMutationResponse> {
-    return inGitLane(
-      this.resolveRepoDir(projectId, relativePath),
-      true,
-      async () => {
-        const repoDir = this.resolveRepoDir(projectId, relativePath);
-        const repo = await this.summarizeRepo(
-          repoDir,
-          relativePath,
-          this.repoName(projectId, relativePath),
-        );
-        if (!repo.hasRemote) {
-          throw new GitWorkflowError(
-            409,
-            "GIT_NO_REMOTE",
-            "This repository does not have a remote configured.",
-          );
-        }
-
-        if (
-          requestedBaseBranch &&
-          !(await this.#readBackend.validateBranchName(requestedBaseBranch))
-        ) {
-          throw new GitWorkflowError(
-            400,
-            "GIT_INVALID_BRANCH_NAME",
-            `'${requestedBaseBranch}' is not a valid Git branch name.`,
-          );
-        }
-
-        const stable = await this.stableRepoMetadata(repoDir);
-        const baseBranch = requestedBaseBranch ?? stable.baseBranch;
-        const localBaseExists = stable.refSnapshot.refs.has(
-          `refs/heads/${baseBranch}`,
-        );
-
-        if (localBaseExists) {
-          await this.mapGit(() => this.runGit(repoDir, ["switch", baseBranch]));
-        } else {
-          const remoteBaseExists =
-            stable.refSnapshot.refs.has(`refs/remotes/origin/${baseBranch}`) ||
-            stable.refSnapshot.originHead ===
-              `refs/remotes/origin/${baseBranch}`;
-          if (!remoteBaseExists) {
-            throw new GitWorkflowError(
-              404,
-              "GIT_BRANCH_NOT_FOUND",
-              `Base branch '${baseBranch}' was not found locally or on origin.`,
-            );
-          }
-          await this.mapGit(() =>
-            this.runGit(repoDir, ["switch", "--track", `origin/${baseBranch}`]),
-          );
-        }
-
-        if (!(await this.hasUpstream(repoDir))) {
-          throw new GitWorkflowError(
-            409,
-            "GIT_NO_UPSTREAM",
-            `Base branch '${baseBranch}' has no upstream to pull from.`,
-          );
-        }
-        await this.mapGit(() => this.runGit(repoDir, ["pull", "--ff-only"]));
-        this.invalidateStableRepoMetadata(repoDir);
-        return {
-          repo: await this.summarizeRepo(
-            repoDir,
-            relativePath,
-            this.repoName(projectId, relativePath),
-          ),
-        };
-      },
+    return switchBaseAndPullImpl(
+      this.#mutations,
+      projectId,
+      relativePath,
+      requestedBaseBranch,
     );
   }
 
@@ -1163,89 +807,21 @@ export class GitService {
     projectId: string,
     relativePath: string,
   ): Promise<GitMutationResponse> {
-    return inGitLane(
-      this.resolveRepoDir(projectId, relativePath),
-      true,
-      async () => {
-        const repoDir = this.resolveRepoDir(projectId, relativePath);
-        const { stdout: branchOut } = await this.runGit(repoDir, [
-          "rev-parse",
-          "--abbrev-ref",
-          "HEAD",
-        ]);
-        const branch = branchOut.trim();
-        if (!branch || branch === "HEAD") {
-          throw new GitWorkflowError(
-            409,
-            "GIT_DETACHED_HEAD",
-            "Cannot push from a detached HEAD. Check out a branch first.",
-          );
-        }
-        const args = (await this.hasUpstream(repoDir))
-          ? ["push"]
-          : ["push", "-u", "origin", branch];
-        await this.mapGit(() => this.runGit(repoDir, args));
-        this.invalidateStableRepoMetadata(repoDir);
-        return {
-          repo: await this.summarizeRepo(
-            repoDir,
-            relativePath,
-            this.repoName(projectId, relativePath),
-          ),
-        };
-      },
-    );
+    return pushImpl(this.#mutations, projectId, relativePath);
   }
 
   async pull(
     projectId: string,
     relativePath: string,
   ): Promise<GitMutationResponse> {
-    return inGitLane(
-      this.resolveRepoDir(projectId, relativePath),
-      true,
-      async () => {
-        const repoDir = this.resolveRepoDir(projectId, relativePath);
-        if (!(await this.hasUpstream(repoDir))) {
-          throw new GitWorkflowError(
-            409,
-            "GIT_NO_UPSTREAM",
-            "Current branch has no upstream to pull from.",
-          );
-        }
-        await this.mapGit(() => this.runGit(repoDir, ["pull", "--ff-only"]));
-        this.invalidateStableRepoMetadata(repoDir);
-        return {
-          repo: await this.summarizeRepo(
-            repoDir,
-            relativePath,
-            this.repoName(projectId, relativePath),
-          ),
-        };
-      },
-    );
+    return pullImpl(this.#mutations, projectId, relativePath);
   }
 
   async fetch(
     projectId: string,
     relativePath: string,
   ): Promise<GitMutationResponse> {
-    return inGitLane(
-      this.resolveRepoDir(projectId, relativePath),
-      true,
-      async () => {
-        const repoDir = this.resolveRepoDir(projectId, relativePath);
-        await this.mapGit(() => this.runGit(repoDir, ["fetch", "--prune"]));
-        this.invalidateStableRepoMetadata(repoDir);
-        return {
-          repo: await this.summarizeRepo(
-            repoDir,
-            relativePath,
-            this.repoName(projectId, relativePath),
-          ),
-        };
-      },
-    );
+    return fetchImpl(this.#mutations, projectId, relativePath);
   }
 
   async clone(
@@ -1253,48 +829,11 @@ export class GitService {
     relativePath: string,
     remoteUrl: string,
   ): Promise<GitMutationResponse> {
-    if (
-      !remoteUrl.trim() ||
-      remoteUrl.length > 4096 ||
-      /[\0\r\n]/.test(remoteUrl)
-    )
-      throw new GitWorkflowError(
-        400,
-        "GIT_INVALID_REMOTE",
-        "Invalid clone remote.",
-      );
-    const destination = this.resolveRepoDir(projectId, relativePath);
-    return inGitCreationLane(destination, true, async () => {
-      await this.mapGit(() =>
-        this.runGit(dirname(destination), [
-          "clone",
-          "--",
-          remoteUrl,
-          destination,
-        ]),
-      );
-      return {
-        repo: await this.summarizeRepo(
-          destination,
-          relativePath,
-          this.repoName(projectId, relativePath),
-        ),
-      };
-    });
+    return cloneImpl(this.#mutations, projectId, relativePath, remoteUrl);
   }
 
   async hasUpstream(repoDir: string): Promise<boolean> {
-    try {
-      await this.runGit(repoDir, [
-        "rev-parse",
-        "--abbrev-ref",
-        "--symbolic-full-name",
-        "@{u}",
-      ]);
-      return true;
-    } catch {
-      return false;
-    }
+    return hasUpstreamImpl(this.#mutations, repoDir);
   }
 
   async githubStatus(

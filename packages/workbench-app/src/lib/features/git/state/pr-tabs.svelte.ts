@@ -116,11 +116,6 @@ export async function refreshPrPane(id: string): Promise<void> {
   if (view) await refreshCurrentPr(view);
 }
 
-export async function loadPrFiles(id: string, force = false): Promise<void> {
-  const view = gitState.prViews[prViewKey(id)];
-  if (view) await loadPrSection(view, "files", { force });
-}
-
 export function selectPrTab(
   id: string,
   tab: "conversation" | "commits" | "checks" | "files",

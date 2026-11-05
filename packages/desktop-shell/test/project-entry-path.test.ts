@@ -1,32 +1,27 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { resolveProjectEntryPath } from "../src/ipc/project-entry-path.js";
+import {
+  parseProjectEntryTarget,
+  resolveProjectEntryPath,
+} from "../src/ipc/project-entry-path.js";
 
-describe("desktop project entry paths", () => {
-  it("resolves nested POSIX and Windows project-relative paths", () => {
-    assert.equal(
-      resolveProjectEntryPath(
-        { root: "/workspace/project", relativePath: "src/main.ts" },
-        "linux",
-      ),
-      "/workspace/project/src/main.ts",
-    );
-    assert.equal(
-      resolveProjectEntryPath(
-        { root: "C:\\workspace\\project", relativePath: "src/main.ts" },
-        "win32",
-      ),
-      "C:\\workspace\\project\\src\\main.ts",
-    );
-  });
+const segmentsOf = (relativePath: string) =>
+  parseProjectEntryTarget({ projectId: "proj_1", relativePath }).segments;
 
-  it("resolves an empty path to the project root", () => {
-    assert.equal(
-      resolveProjectEntryPath(
-        { root: "/workspace/project", relativePath: "" },
-        "linux",
-      ),
-      "/workspace/project",
+describe("desktop project entry targets", () => {
+  it("requires a project id and string path, and never accepts a root", () => {
+    assert.throws(() => parseProjectEntryTarget(undefined));
+    assert.throws(() => parseProjectEntryTarget({ relativePath: "a" }));
+    assert.throws(() =>
+      parseProjectEntryTarget({ projectId: " ", relativePath: "a" }),
+    );
+    assert.deepEqual(
+      parseProjectEntryTarget({
+        projectId: "proj_1",
+        root: "/",
+        relativePath: "a/b",
+      }),
+      { projectId: "proj_1", segments: ["a", "b"] },
     );
   });
 
@@ -38,18 +33,38 @@ describe("desktop project entry paths", () => {
       "src/../../file",
       "src//file",
     ]) {
-      assert.throws(() =>
-        resolveProjectEntryPath(
-          { root: "/workspace/project", relativePath },
-          "linux",
-        ),
-      );
+      assert.throws(() => segmentsOf(relativePath), relativePath);
     }
-    assert.throws(() =>
+  });
+});
+
+describe("desktop project entry paths", () => {
+  it("resolves nested POSIX and Windows project-relative paths", () => {
+    assert.equal(
       resolveProjectEntryPath(
-        { root: "workspace/project", relativePath: "src/main.ts" },
+        "/workspace/project",
+        segmentsOf("src/main.ts"),
         "linux",
       ),
+      "/workspace/project/src/main.ts",
+    );
+    assert.equal(
+      resolveProjectEntryPath(
+        "C:\\workspace\\project",
+        segmentsOf("src/main.ts"),
+        "win32",
+      ),
+      "C:\\workspace\\project\\src\\main.ts",
+    );
+  });
+
+  it("resolves an empty path to the project root and rejects relative roots", () => {
+    assert.equal(
+      resolveProjectEntryPath("/workspace/project", segmentsOf(""), "linux"),
+      "/workspace/project",
+    );
+    assert.throws(() =>
+      resolveProjectEntryPath("workspace/project", segmentsOf("a"), "linux"),
     );
   });
 });
@@ -73,29 +88,25 @@ describe("contained project entry paths", () => {
       await symlink(outside, join(root, "dir"));
       await symlink(join(outside, "f.txt"), join(root, "file-link"));
 
-      await resolveContainedProjectEntryPath(
-        { root, relativePath: "ok.txt" },
-        { followLeaf: true },
-      );
+      await resolveContainedProjectEntryPath(root, segmentsOf("ok.txt"), {
+        followLeaf: true,
+      });
       await assert.rejects(
-        resolveContainedProjectEntryPath(
-          { root, relativePath: "dir/f.txt" },
-          { followLeaf: false },
-        ),
+        resolveContainedProjectEntryPath(root, segmentsOf("dir/f.txt"), {
+          followLeaf: false,
+        }),
         /escapes/,
       );
       await assert.rejects(
-        resolveContainedProjectEntryPath(
-          { root, relativePath: "file-link" },
-          { followLeaf: true },
-        ),
+        resolveContainedProjectEntryPath(root, segmentsOf("file-link"), {
+          followLeaf: true,
+        }),
         /escapes/,
       );
       // The link itself may be revealed/trashed.
-      await resolveContainedProjectEntryPath(
-        { root, relativePath: "file-link" },
-        { followLeaf: false },
-      );
+      await resolveContainedProjectEntryPath(root, segmentsOf("file-link"), {
+        followLeaf: false,
+      });
     } finally {
       await rm(base, { recursive: true, force: true });
     }

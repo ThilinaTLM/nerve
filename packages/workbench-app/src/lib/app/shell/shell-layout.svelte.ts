@@ -101,10 +101,6 @@ export function hidePanelView(viewId: string) {
   commit(hideShellView(state.layout, viewId));
 }
 
-export function showPanelView(viewId: string) {
-  commit(showShellView(state.layout, viewId));
-}
-
 export function toggleDock(dock: DockId) {
   commit(toggleShellDock(state.layout, dock));
 }
