@@ -55,12 +55,11 @@ export interface TestPlan {
 const sorted = (values: Iterable<string>) => [...values].sort();
 
 function testFiles(files: string[], pkg: WorkspacePackage, runner: TestRunner) {
-  const suffix = runner.suffix;
   // Component tests (*.svelte.test.ts) run under Vitest via `test:components`, never tsx.
   return files.filter(
     (path) =>
       path.startsWith(`${pkg.directory}/`) &&
-      path.endsWith(suffix) &&
+      path.endsWith(".test.ts") &&
       !path.endsWith(".svelte.test.ts") &&
       runner.globs.some((glob) =>
         posix.matchesGlob(path.slice(pkg.directory.length + 1), glob),

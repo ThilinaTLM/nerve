@@ -490,6 +490,10 @@ describe("bash executor", () => {
     assert.equal(result.stdout, "out");
     assert.equal(result.stderr, "err");
     assert.equal(result.exitCode, 7);
-    assert.match(result.content ?? "", /^outerr\n\nProcess exit code 7\./);
+    // stdout and stderr are separate pipes, so their combined order is not fixed.
+    assert.match(
+      result.content ?? "",
+      /^(?:outerr|errout)\n\nProcess exit code 7\./,
+    );
   });
 });
