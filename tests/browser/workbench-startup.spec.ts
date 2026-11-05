@@ -33,7 +33,7 @@ test.describe("without a session", () => {
     expect(config.status()).toBe(401);
   });
 
-  test("?token= is exchanged for a Strict HttpOnly cookie and stripped", async ({
+  test("legacy ?token= link mints a revocable device session and is stripped", async ({
     page,
   }) => {
     await page.goto(`/?token=${token}`);
@@ -41,11 +41,23 @@ test.describe("without a session", () => {
     expect(new URL(page.url()).search).toBe("");
 
     const authCookie = (await page.context().cookies()).find(
-      (cookie) => cookie.name === "nerve_token",
+      (cookie) => cookie.name === "nerve_session",
     );
     expect(authCookie?.httpOnly).toBe(true);
     expect(authCookie?.sameSite).toBe("Strict");
     expect((await page.request.get("/api/client-config")).status()).toBe(200);
+
+    expect(
+      (await page.context().cookies()).some((c) => c.name === "nerve_token"),
+    ).toBe(false);
+    const devices = await page.request.get("/api/access/devices");
+    expect(devices.ok()).toBe(true);
+    const { devices: list } = (await devices.json()) as {
+      devices: Array<{ method: string; current?: boolean }>;
+    };
+    expect(list).toContainEqual(
+      expect.objectContaining({ method: "legacy-token", current: true }),
+    );
 
     await page.reload({ waitUntil: "domcontentloaded" });
     expect((await page.request.get("/api/client-config")).status()).toBe(200);
