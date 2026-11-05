@@ -32,8 +32,9 @@ import {
   FORMAT_TOOLS,
   GLOBAL_FILES,
   HOST_PACKAGES,
-  HOST_SUITES,
   LINT_TOOLS,
+  MIGRATION_INPUT_PACKAGES,
+  MIGRATION_SERVER_PATH,
   NATIVE_OSES,
   NATIVE_RUST_INPUT,
   NATIVE_TOOLCHAIN,
@@ -43,11 +44,11 @@ import {
   RUNTIME_MARKDOWN,
   SHARED_TSCONFIG,
   SPECIAL_OWNERS,
+  TEST_ONLY_PATH,
   TOOLING_ROOT_FILES,
   TOOLING_SCRIPT_PREFIXES,
   VALIDATION_SCRIPTS_FIX,
   WORKBENCH_PACKAGES,
-  type HostSuite,
 } from "./rules.ts";
 
 // ── Path predicates ─────────────────────────────────────────────────────────
@@ -81,6 +82,11 @@ export function isToolingPath(path: string): boolean {
   );
 }
 
+/** Test files and per-package test trees: they affect only their own package. */
+export function isTestOnlyPath(path: string): boolean {
+  return TEST_ONLY_PATH.test(path);
+}
+
 /** Paths that can affect everything CI builds or tests. */
 export function isGlobalPath(path: string): boolean {
   return (
@@ -96,9 +102,11 @@ export function isGlobalPath(path: string): boolean {
 
 // ── CI impact ───────────────────────────────────────────────────────────────
 
-export interface NativeMatrixEntry extends Partial<HostSuite> {
+/** One native job: an OS and the suites it runs (see `NATIVE_SUITES`). */
+export interface NativeMatrixEntry {
   os: string;
-  suite: string;
+  name: string;
+  suites: string[];
 }
 
 export interface CiImpact {
@@ -113,8 +121,6 @@ export interface CiImpact {
   nativeDesktop: boolean;
   nativeMatrix: NativeMatrixEntry[];
   nativeMatrixNeeded: boolean;
-  nativeOsMatrix: { os: string }[];
-  rustLint: boolean;
 }
 
 const intersects = (left: Set<string>, right: ReadonlySet<string>) =>
@@ -134,6 +140,9 @@ export function classifyChanges(
     .filter((path) => path.length > 0);
   let full = options.full === true;
   const direct = new Set<string>();
+  // Packages with test-only changes: affected themselves, not their dependents.
+  const testOnly = new Set<string>();
+  let migrations = false;
   let website = false;
   let electronSmoke = false;
 
@@ -146,7 +155,14 @@ export function classifyChanges(
 
     const packageName = packageForPath(path, workspace);
     if (packageName) {
-      direct.add(packageName);
+      const isTest = isTestOnlyPath(path);
+      (isTest ? testOnly : direct).add(packageName);
+      if (
+        (packageName === "@nervekit/workbench-server" &&
+          MIGRATION_SERVER_PATH.test(path)) ||
+        (!isTest && MIGRATION_INPUT_PACKAGES.has(packageName))
+      )
+        migrations = true;
       if (packageName === "@nervekit/website") website = true;
       if (path.startsWith("packages/ui-kit/src/styles/")) website = true;
       continue;
@@ -171,9 +187,11 @@ export function classifyChanges(
     for (const packageName of workspace.keys()) direct.add(packageName);
     website = true;
     electronSmoke = true;
+    migrations = true;
   }
 
   const affected = reverseDependencyClosure(direct, workspace);
+  for (const packageName of testOnly) affected.add(packageName);
   const corePackages = sorted(
     [...affected].filter((packageName) => CORE_PACKAGES.has(packageName)),
   );
@@ -194,22 +212,18 @@ export function classifyChanges(
     nativeDesktop ||
     dependencyPackages.includes("@nervekit/native") ||
     corePackages.includes("@nervekit/native");
-  const nativeMatrix: NativeMatrixEntry[] = [];
-  for (const os of NATIVE_OSES) {
-    if (nativeHost) {
-      for (const entry of HOST_SUITES) nativeMatrix.push({ os, ...entry });
-    }
-    if (nativeDesktop) nativeMatrix.push({ os, suite: "desktop" });
-  }
-  // One addon build per OS that has consumers (shared artifact).
-  const nativeOsMatrix = NATIVE_OSES.filter((os) =>
-    nativeMatrix.some((entry) => entry.os === os),
-  ).map((os) => ({ os }));
-  // cargo fmt/clippy are OS-independent and run once on Ubuntu. The Ubuntu
-  // validate job already runs them whenever the native package itself is
-  // selected, so only host-only selections need the dedicated job.
-  const rustLint = nativeHost && !corePackages.includes("@nervekit/native");
-
+  const suites = [
+    affected.has("@nervekit/native") && "native",
+    affected.has("@nervekit/tools") && "tools",
+    affected.has("@nervekit/workbench-server") && "server",
+    migrations && "migrations",
+    nativeDesktop && "desktop",
+  ].filter((suite): suite is string => typeof suite === "string");
+  // One job per OS runs the selected suites (and one addon build per OS).
+  const nativeMatrix: NativeMatrixEntry[] =
+    suites.length === 0
+      ? []
+      : NATIVE_OSES.map(({ os, name }) => ({ os, name, suites }));
   return {
     full,
     packages: corePackages,
@@ -222,8 +236,6 @@ export function classifyChanges(
     nativeDesktop,
     nativeMatrix,
     nativeMatrixNeeded: nativeMatrix.length > 0,
-    nativeOsMatrix,
-    rustLint,
   };
 }
 

@@ -10,6 +10,10 @@ import { loadWorkspace } from "../workspace/graph.ts";
 import { repoRoot } from "../workspace/repo.ts";
 import { classifyChanges, type CiImpact } from "./classify.ts";
 
+/** Suites the native job of one OS runs (`[]` skips that OS's jobs). */
+const nativeSuites = (impact: CiImpact, osName: string): string[] =>
+  impact.nativeMatrix.find((entry) => entry.name === osName)?.suites ?? [];
+
 export function githubOutputs(impact: CiImpact): Record<string, string> {
   return {
     full: String(impact.full),
@@ -20,11 +24,8 @@ export function githubOutputs(impact: CiImpact): Record<string, string> {
     workbench: String(impact.workbench),
     electron_smoke: String(impact.electronSmoke),
     native: String(impact.native),
-    native_matrix: JSON.stringify({ include: impact.nativeMatrix }),
-    native_matrix_needed: String(impact.nativeMatrixNeeded),
-    native_os_matrix: JSON.stringify({ include: impact.nativeOsMatrix }),
-    native_os_needed: String(impact.nativeOsMatrix.length > 0),
-    rust_lint: String(impact.rustLint),
+    native_windows_suites: JSON.stringify(nativeSuites(impact, "Windows")),
+    native_macos_suites: JSON.stringify(nativeSuites(impact, "macOS")),
   };
 }
 
