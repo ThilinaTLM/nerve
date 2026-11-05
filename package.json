@@ -31,6 +31,7 @@
     "desktop:prod": "pnpm --filter @nervekit/desktop-shell dev:prod --",
     "storage:copy": "tsx scripts/storage-migrations/run.ts copy",
     "storage:rehearse": "tsx scripts/storage-migrations/run.ts rehearse",
+    "release:tag": "tsx scripts/release/tag-release.ts",
     "storage:migrate": "tsx scripts/storage-migrations/run.ts migrate",
     "migrations:check": "tsx scripts/storage-migrations/run.ts check"
   },

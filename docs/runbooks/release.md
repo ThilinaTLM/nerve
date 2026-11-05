@@ -59,15 +59,21 @@ Manual runs skip npm publication, website deployment, and GitHub release creatio
 
 ## Release tagging flow
 
-Start from a clean checkout on the branch that should contain the release commit, with a local Git identity and commit-signing key configured. Run the local release script with the exact version to publish, without a leading `v`:
+Start from a clean, up-to-date `main` (local `main` must equal `origin/main`) with a local Git identity and commit-signing key configured. Preview, then run, the release with the exact version to publish, without a leading `v`:
 
 ```sh
-scripts/release/tag-release.sh X.Y.Z
+pnpm release:tag X.Y.Z --dry-run   # checks preconditions and prints the plan; changes nothing
+pnpm release:tag X.Y.Z             # asks before pushing; --yes pushes without asking
 ```
 
-The script updates every workspace `package.json`, the native `Cargo.toml`, and the `nerve-native` entry in `Cargo.lock`. It also stamps Discover announcements authored with `releasedIn: "next"` with the release version. It then creates the signed `chore(release): bump version to vX.Y.Z` commit and an annotated `vX.Y.Z` tag. It never pushes the current branch. Put the release commit onto the protected default branch through the repository's normal branch and pull-request process.
+The script (`scripts/release/tag-release.ts`) refuses to run on another branch, with local changes, when `main` differs from `origin/main`, or when the tag already exists locally or on origin. It then:
 
-The final prompt offers to push only the tag. Confirm only when the release commit is ready to publish: pushing the tag immediately starts the **Publish Release** workflow. If the prompt is declined or no interactive terminal is available, push it later with `git push origin refs/tags/vX.Y.Z`.
+1. updates every workspace `package.json`, the native `Cargo.toml` and the `nerve-native` entry in `Cargo.lock`, and stamps Discover announcements authored with `releasedIn: "next"`;
+2. marks every draft migration step released in this version (`stage: "released"`, `releasedIn`) in `migrations.lock.json` and `registry-metadata.ts`, records the step folder hash as its checksum (a drifted draft label is kept in `previousChecksums` so homes that applied the draft stay admitted), drops `rerunOnChange`, and runs the migration lock check;
+3. creates the signed `chore(release): bump version to vX.Y.Z` commit and the annotated `vX.Y.Z` tag;
+4. pushes `main` and the tag to origin in one atomic push.
+
+After the release, the next storage change starts a new draft step. Pushing the tag immediately starts the **Publish Release** workflow, so confirm only when the commit is ready to publish. If the push is declined or no interactive terminal is available, publish later with `git push --atomic origin main refs/tags/vX.Y.Z`. The `main` ruleset requires signed commits and linear history; the release commit satisfies both.
 
 The authenticated SemVer tag push starts the **Publish Release** workflow. It validates the tag and builds the native runtime on architecture-matched runners for Linux x64/ARM64, Windows 11 x64/ARM64, macOS Intel, and macOS Apple Silicon. Every runner executes the generated addon before the artifacts are merged. Representative Linux, Windows, and macOS jobs then run the complete quality and Electron package smokes against the merged inventory. The workflow builds and deploys the website to GitHub Pages, publishes to npm through OIDC, and creates the GitHub release. Website deployment occurs only after release validation and npm publication.
 
@@ -81,9 +87,9 @@ Current homes use `manifest.json` with format `nerve-home`, version `1`. The onl
 
 ## Release commit signing
 
-`scripts/release/tag-release.sh` uses `git commit -S` and refuses to create the tag unless Git records a signature on the release commit. Each maintainer must configure a local Git identity and a signing key whose public identity GitHub recognizes. The script does not read private signing material from repository secrets.
+`pnpm release:tag` uses `git commit -S` and refuses to create the tag unless Git records a signature on the release commit. Each maintainer must configure a local Git identity and a signing key whose public identity GitHub recognizes. The script does not read private signing material from repository secrets.
 
-If signing fails, fix the local Git signing configuration and retry. The script does not reset partially updated files, so inspect the working tree before deciding whether to restore the version changes or complete the commit manually.
+If any step fails before the commit exists (including signing), the script restores the working tree, so fix the cause and rerun it.
 
 ## npm publication and OIDC
 
