@@ -19,7 +19,7 @@ import { cn } from "@nervekit/ui-kit/utils";
 import type { StatusTone } from "@nervekit/ui-kit/display/status";
 import { MaterialFileIcon } from "$lib/presentation/files";
 import { buildPanelTree, PanelTree } from "$lib/presentation/panels";
-import CodeMirrorGitDiff from "../CodeMirrorGitDiff.svelte";
+import { CodeDiffView } from "$lib/presentation/code";
 import type { PrSectionState } from "../github-pr-types";
 import { fileStatusLetter, fileStatusTone } from "../pr-pane-helpers";
 
@@ -156,7 +156,7 @@ function unavailableMessage(
     )}
   {:else if fileDiff?.data?.kind === "text" && fileDiff.data.original !== fileDiff.data.modified}
     {#key current.path}
-      <CodeMirrorGitDiff
+      <CodeDiffView
         original={fileDiff.data.original}
         modified={fileDiff.data.modified}
         path={fileDiff.data.path}

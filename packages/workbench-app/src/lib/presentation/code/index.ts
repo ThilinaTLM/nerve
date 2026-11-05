@@ -1,10 +1,11 @@
-export { default as CodeMirrorEditor } from "./CodeMirrorEditor.svelte";
-export { default as CodeMirrorViewer } from "./CodeMirrorViewer.svelte";
+export { default as CodeDiffView } from "./CodeDiffView.svelte";
+export { default as CodeView } from "./CodeView.svelte";
 export {
   codeLanguageId,
+  codeLanguageLabel,
   codeMirrorTheme,
-  editableCodeExtensions,
+  codeSurfaceExtensions,
   loadCodeLanguage,
+  loadedCodeLanguage,
   localLineNumber,
-  readOnlyCodeExtensions,
 } from "./code-mirror-config.js";

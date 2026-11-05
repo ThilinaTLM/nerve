@@ -7,7 +7,7 @@ import type { MermaidMarkdownBlock } from "@nervekit/ui-kit/renderers/mermaid/me
 import { notifyCopyResult } from "@nervekit/ui-kit/browser/notifications";
 import { ScrollArea } from "@nervekit/ui-kit/components/ui/scroll-area";
 import { Spinner } from "@nervekit/ui-kit/components/ui/spinner";
-import { CodeMirrorViewer } from "$lib/presentation/code";
+import { CodeView } from "$lib/presentation/code";
 import { MermaidPane } from "$lib/presentation/mermaid";
 import { resolveFilePaneModel } from "./file-pane-model.js";
 import type {
@@ -61,7 +61,12 @@ const showMermaidPreview = $derived(
 <section class="grid h-full min-h-0 min-w-0 bg-background">
   {#if showRawText && file?.type === "text" && resolved}
     <div class="flex min-h-0 min-w-0 flex-col">
-      <CodeMirrorViewer
+      {#if view?.saveError}
+        <Callout layout="strip" tone="destructive" class="border-b border-t-0">
+          Save failed: {view.saveError}
+        </Callout>
+      {/if}
+      <CodeView
         class="min-h-0 flex-1"
         text={view?.draft ?? file.text ?? ""}
         language={resolved.language}
@@ -77,35 +82,25 @@ const showMermaidPreview = $derived(
         originalText={file.editable && !file.truncated
           ? (file.text ?? "")
           : undefined}
+        statusBar
         {onChange}
         {onSave}
-      />
-      {#if view?.saveError}
-        <Callout layout="strip" tone="destructive" class="border-t border-b-0">
-          Save failed: {view.saveError}
-        </Callout>
-      {:else if view?.saving}
-        <p
-          class="m-0 border-t border-border-subtle px-4 py-2 text-ui text-muted-foreground"
-        >
-          Saving…
-        </p>
-      {:else if file.truncated}
-        <p
-          class="m-0 border-t border-border-subtle px-4 py-2 text-ui text-muted-foreground"
-        >
-          Preview truncated{resolved.targetLine
-            ? " around the selected line"
-            : ""}. Editing is unavailable.
-        </p>
-      {:else if !file.editable}
-        <p
-          class="m-0 border-t border-border-subtle px-4 py-2 text-ui text-muted-foreground"
-        >
-          Read-only: only small, regular text files inside the project can be
-          edited.
-        </p>
-      {/if}
+      >
+        {#snippet statusMessage()}
+          {#if view?.saving}
+            Saving…
+          {:else if file.truncated}
+            Preview truncated{resolved.targetLine
+              ? " around the selected line"
+              : ""}. Editing is unavailable.
+          {:else if !file.editable}
+            <span
+              title="Only small, regular text files inside the project can be edited."
+              >Read-only</span
+            >
+          {/if}
+        {/snippet}
+      </CodeView>
     </div>
   {:else if file?.type === "text" && resolved?.renderKind === "html" && resolved.displayMode === "rendered"}
     <HtmlPreviewPane

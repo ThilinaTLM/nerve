@@ -20,15 +20,15 @@ Required: an editor that feels like an editor, find and replace, go to line, cle
 
 Code review and the current theme point to these causes:
 
-| Symptom | Cause |
-| --- | --- |
-| Gutter numbers look misaligned or "off" | Line numbers use `--text-ui` (13 px) while code uses `--text-body` (15 px) at line height 1.5. Baselines differ and the gutter reads as a separate widget. |
-| Extra unexplained column on the left | In edit mode, unsaved-change markers come from a full `unifiedMergeView` whose change gutter sits beside the fold gutter. It is an unlabelled colored strip, separate from the line numbers. |
-| No sense of position | `.cm-activeLine` is forced transparent, there is no active-line gutter highlight, and there is no line/column readout. |
-| Text stuck to the bottom edge | No `scrollPastEnd`. The last line pins to the bottom like a `<textarea>`. |
-| Scroll jank on long files | `codeFoldMarker` calls Svelte `mount()` for every fold marker CodeMirror creates and never unmounts it. Scrolling keeps creating component instances. |
-| Typing lag on large files | The unsaved-changes gutter runs a full merge diff against the baseline on every document change, up to the 1 MiB edit limit. |
-| Large body font | 15 px monospace is larger than typical editor defaults (13–14 px), so less code fits on screen. |
+| Symptom                                 | Cause                                                                                                                                                                                                                                                                              |
+| --------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Gutter numbers look misaligned or "off" | Line numbers use `--text-ui` (13 px) while code uses `--text-body` (15 px) at line height 1.5. Baselines differ and the gutter reads as a separate widget.                                                                                                                         |
+| Extra unexplained column on the left    | In edit mode, unsaved-change markers come from a full `unifiedMergeView` whose change gutter sits beside the fold gutter. It is an unlabelled single-color strip, and deleted lines never show because their widgets are hidden with `display: none`.                              |
+| No sense of position                    | `.cm-activeLine` is forced transparent, there is no active-line gutter highlight, and there is no line/column readout.                                                                                                                                                             |
+| Text stuck to the bottom edge           | No `scrollPastEnd`. The last line pins to the bottom like a `<textarea>`.                                                                                                                                                                                                          |
+| Scroll jank on long files               | `codeFoldMarker` calls Svelte `mount()` for every fold marker CodeMirror creates and never unmounts it. Scrolling keeps creating component instances.                                                                                                                              |
+| Wasted work while typing                | The unsaved-changes merge view updates its chunks incrementally, but also builds line decorations and syntax-highlighted deletion widgets that the theme then hides. While find is closed, the last query is still re-counted across the whole document on every selection change. |
+| Large body font                         | 15 px monospace is larger than typical editor defaults (13–14 px), so less code fits on screen.                                                                                                                                                                                    |
 
 ### Diffs
 
@@ -110,15 +110,15 @@ Editing features (editable mode only):
 - **Commands:** move/copy line up or down, toggle comment, indent/outdent selection, duplicate selection. All are standard `@codemirror/commands`.
 - **Status bar:** `Ln, Col`, selection count, indentation, `LF`/`CRLF`, encoding and language. Clicking an item opens its action, for example go to line or change indentation.
 - **Unsaved-change markers:**
-  - Track the composed `ChangeSet` since the baseline. The cost depends on the edits, not on document size.
-  - Recompute the exact diff on idle (debounced) only to clear markers for lines reverted to their original text.
-  - This replaces the per-keystroke merge view.
+  - Keep `@codemirror/merge` chunks in a small state field updated with `Chunk.updateB`, which re-diffs only around each edit.
+  - Render a gutter lane only: added (green), modified (blue) and a deletion marker between lines. No decorations or deletion widgets.
+  - This replaces the hidden merge view.
 - **Save conflict:** when the server returns `FILE_REVISION_CONFLICT`, offer Reload, Compare (opens a diff of disk vs. buffer) or Overwrite.
 - **External changes:** if the tab is clean, reload it silently. If it is dirty, show a "changed on disk" bar (see §6).
 
 ### 3. Finding changes in diffs
 
-**Overview ruler instead of a minimap.** Add a thin (8–10 px) lane beside the scrollbar that shows only *where* things are, not the text itself:
+**Overview ruler instead of a minimap.** Add a thin (8–10 px) lane beside the scrollbar that shows only _where_ things are, not the text itself:
 
 - Added, removed and modified regions from `getChunks()`, in `success`/`destructive`/`info`. Search matches, the target line and unsaved edits use the same lane in the normal editor.
 - A viewport thumb shows the visible part. Click or drag to jump.
@@ -168,13 +168,13 @@ Diff view features:
 
 Budgets, measured on the desktop build with a mid-range laptop:
 
-| Scenario | Budget |
-| --- | --- |
-| Open a 1 MiB text file to first paint | ≤ 150 ms server + ≤ 100 ms client |
-| Typing in a 1 MiB file | p95 input-to-paint ≤ 16 ms |
-| Scroll a 50k-line file | no long tasks > 50 ms |
-| Open a 10k-line diff | ≤ 250 ms to interactive; ruler drawn in ≤ 5 ms |
-| Save a 1 MiB file | one read for the revision check, one write, no re-read |
+| Scenario                              | Budget                                                 |
+| ------------------------------------- | ------------------------------------------------------ |
+| Open a 1 MiB text file to first paint | ≤ 150 ms server + ≤ 100 ms client                      |
+| Typing in a 1 MiB file                | p95 input-to-paint ≤ 16 ms                             |
+| Scroll a 50k-line file                | no long tasks > 50 ms                                  |
+| Open a 10k-line diff                  | ≤ 250 ms to interactive; ruler drawn in ≤ 5 ms         |
+| Save a 1 MiB file                     | one read for the revision check, one write, no re-read |
 
 Server and native changes:
 
@@ -187,6 +187,7 @@ Server and native changes:
    - an optional line window found by seeking with `memchr` over newlines instead of `readline`
 
    For truncated large files, keep a small LRU line-offset index keyed by (path, mtime, size), so opening at line N doesn't rescan the file. The JS path stays as a fallback where the native module is unavailable.
+
 2. **Native `write_text_file`.** Atomic write with the revision check done on bytes already in memory: read once, hash, compare, write, return the new revision and stat. This removes the second `fileContent` read. The same symlink and inside-project rules apply.
 3. **Raw byte route (Node streaming is enough).** `GET /filesystem/raw` sends:
    - the correct `Content-Type`
@@ -197,6 +198,7 @@ Server and native changes:
    Images, SVG, PDF and media load from it by URL instead of base64 JSON. That drops the 5 MiB image cap and the base64 overhead.
 
    **Auth:** a short-lived signed token in the URL, bound to project, path and revision, expiring in minutes. This works the same in browser, desktop and mobile clients.
+
 4. **Push changes to open files.** Extend the workspace monitor notice with the changed file paths (or let clients subscribe to the paths of open tabs). Tabs compare against the stored revision and reload or show the "changed on disk" bar. Coalesce updates with the monitor's existing 300 ms quiet window.
 5. **Git diff path.**
    - Reuse a cached status snapshot (refreshed by the monitor) instead of calling `readSnapshot` on every `git.file.diff.get`.
