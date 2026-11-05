@@ -1,11 +1,11 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { taskEventNoticeModel } from "./task-event-notice";
+import { taskResultNoticeModel } from "./task-result-notice";
 
 describe("background task exit metadata", () => {
   for (const exitCode of [0, 1, 127]) {
     it(`shows exit ${exitCode} with its status tone`, () => {
-      const model = taskEventNoticeModel({
+      const model = taskResultNoticeModel({
         event: "completed",
         status: "completed",
         exitCode,
@@ -23,7 +23,7 @@ describe("background task exit metadata", () => {
   }
 
   it("does not invent a successful exit code when unknown", () => {
-    const model = taskEventNoticeModel({
+    const model = taskResultNoticeModel({
       event: "completed",
       status: "completed",
     });
@@ -31,7 +31,7 @@ describe("background task exit metadata", () => {
   });
 
   it("keeps a termination signal when no code is known", () => {
-    const model = taskEventNoticeModel({
+    const model = taskResultNoticeModel({
       event: "cancelled",
       status: "stopped",
       signal: "SIGTERM",

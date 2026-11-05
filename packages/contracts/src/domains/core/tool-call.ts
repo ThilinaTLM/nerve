@@ -83,42 +83,46 @@ export const configurationBlockedResolutionSchema = z.strictObject({
 export const configurationBlockedRequestSchema = z.strictObject({
   diagnostics: z.array(configurationDiagnosticSchema).min(1),
 });
-export const configurationBlockedInteractionSchema = z.strictObject({
-  kind: z.literal("configuration_blocked"),
-  request: configurationBlockedRequestSchema,
-  resolution: configurationBlockedResolutionSchema.optional(),
-  resolutionRequestId: z.string().min(1).optional(),
-});
-export type ConfigurationBlockedResolution = z.infer<
-  typeof configurationBlockedResolutionSchema
->;
-export type ConfigurationBlockedRequest = z.infer<
-  typeof configurationBlockedRequestSchema
->;
-export type ConfigurationBlockedInteraction = z.infer<
-  typeof configurationBlockedInteractionSchema
->;
 
-export const interactionResolutionSchema = z.discriminatedUnion("kind", [
-  z.object({
-    kind: z.literal("approval"),
-    decision: z.enum(["approve", "deny"]),
-    persistScope: z.enum(["conversation", "project", "user"]).optional(),
-  }),
-  z.object({
-    kind: z.literal("user_input"),
-    answers: z.record(
-      z.string(),
-      z.union([z.string(), z.array(z.string()), userInputAnswerSchema]),
-    ),
-    dismissed: z.literal(true).optional(),
-  }),
-  planReviewResolutionSchema,
-  configurationBlockedResolutionSchema,
-]);
+/** Declares an interaction kind once: its resolution schema and the interaction
+ * envelope that carries the request, the recorded resolution and its request id.
+ * Both unions below are built from these declarations, never by position. */
+function interactionKind<
+  const K extends string,
+  Req extends z.ZodType,
+  Res extends z.ZodType,
+>(kind: K, request: Req, resolution: Res, options: { strict?: boolean } = {}) {
+  const shape = {
+    kind: z.literal(kind),
+    request,
+    resolution: resolution.optional(),
+    resolutionRequestId: options.strict
+      ? z.string().min(1).optional()
+      : z.string().optional(),
+  };
+  return {
+    kind,
+    resolution,
+    interaction: options.strict ? z.strictObject(shape) : z.object(shape),
+  } as const;
+}
+
 export const approvalRequestSchema = z.object({
   reason: z.string(),
   suggestedRules: z.array(z.json()),
+});
+export const approvalResolutionSchema = z.object({
+  kind: z.literal("approval"),
+  decision: z.enum(["approve", "deny"]),
+  persistScope: z.enum(["conversation", "project", "user"]).optional(),
+});
+export const userInputResolutionSchema = z.object({
+  kind: z.literal("user_input"),
+  answers: z.record(
+    z.string(),
+    z.union([z.string(), z.array(z.string()), userInputAnswerSchema]),
+  ),
+  dismissed: z.literal(true).optional(),
 });
 export const userInputOptionSchema = z.object({
   label: z.string().min(1).max(200),
@@ -207,26 +211,51 @@ export const planReviewRequestSchema = z.strictObject({
   summary: z.string().optional(),
   content: z.string().optional(),
 });
+
+export const approvalKind = interactionKind(
+  "approval",
+  approvalRequestSchema,
+  approvalResolutionSchema,
+);
+export const userInputKind = interactionKind(
+  "user_input",
+  z.preprocess(normalizeUserInputShape, userInputRequestSchema),
+  userInputResolutionSchema,
+);
+export const planReviewKind = interactionKind(
+  "plan_review",
+  planReviewRequestSchema,
+  planReviewResolutionSchema,
+);
+export const configurationBlockedKind = interactionKind(
+  "configuration_blocked",
+  configurationBlockedRequestSchema,
+  configurationBlockedResolutionSchema,
+  { strict: true },
+);
+export const configurationBlockedInteractionSchema =
+  configurationBlockedKind.interaction;
+export type ConfigurationBlockedResolution = z.infer<
+  typeof configurationBlockedResolutionSchema
+>;
+export type ConfigurationBlockedRequest = z.infer<
+  typeof configurationBlockedRequestSchema
+>;
+export type ConfigurationBlockedInteraction = z.infer<
+  typeof configurationBlockedInteractionSchema
+>;
+
+export const interactionResolutionSchema = z.discriminatedUnion("kind", [
+  approvalKind.resolution,
+  userInputKind.resolution,
+  planReviewKind.resolution,
+  configurationBlockedKind.resolution,
+]);
 export const interactionSchema = z.discriminatedUnion("kind", [
-  z.object({
-    kind: z.literal("approval"),
-    request: approvalRequestSchema,
-    resolution: interactionResolutionSchema.options[0].optional(),
-    resolutionRequestId: z.string().optional(),
-  }),
-  z.object({
-    kind: z.literal("user_input"),
-    request: z.preprocess(normalizeUserInputShape, userInputRequestSchema),
-    resolution: interactionResolutionSchema.options[1].optional(),
-    resolutionRequestId: z.string().optional(),
-  }),
-  z.object({
-    kind: z.literal("plan_review"),
-    request: planReviewRequestSchema,
-    resolution: interactionResolutionSchema.options[2].optional(),
-    resolutionRequestId: z.string().optional(),
-  }),
-  configurationBlockedInteractionSchema,
+  approvalKind.interaction,
+  userInputKind.interaction,
+  planReviewKind.interaction,
+  configurationBlockedKind.interaction,
 ]);
 export const toolCallSchema = z
   .object({
@@ -291,4 +320,13 @@ export type UserInputAnswer = z.infer<typeof userInputAnswerSchema>;
 export type UserInputRequest = z.infer<typeof userInputRequestSchema>;
 export type PlanReviewRequest = z.infer<typeof planReviewRequestSchema>;
 export type Interaction = z.infer<typeof interactionSchema>;
+export type InteractionKind = Interaction["kind"];
+export type InteractionOf<K extends InteractionKind> = Extract<
+  Interaction,
+  { kind: K }
+>;
+export type InteractionResolutionOf<K extends InteractionKind> = Extract<
+  InteractionResolution,
+  { kind: K }
+>;
 export type ToolCall = z.infer<typeof toolCallSchema>;

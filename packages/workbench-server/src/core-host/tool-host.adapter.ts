@@ -1,7 +1,10 @@
 import type { BashToolSettings } from "@nervekit/contracts/settings";
 import { realpath } from "node:fs/promises";
 import { projectProcessOutputResult } from "@nervekit/tools/result-projection";
-import type { ToolHostPort } from "@nervekit/conversation-core";
+import type {
+  ProcessReadiness,
+  ToolHostPort,
+} from "@nervekit/conversation-core";
 import {
   toolManifest,
   buildBashToolDefinition,
@@ -233,7 +236,13 @@ export function createToolHostPort(
             ? settings.autoPromotion.afterMs
             : null;
           if (args.background === true) {
-            const started = await processes.start({
+            const ready: ProcessReadiness | undefined =
+              typeof args.ready === "string"
+                ? /^https?:\/\//i.test(args.ready)
+                  ? { kind: "url", url: args.ready, timeoutMs: 60_000 }
+                  : { kind: "pattern", pattern: args.ready, timeoutMs: 60_000 }
+                : undefined;
+            const process = await processes.start({
               conversationId: input.conversationId,
               command: String(args.command),
               shellPath: settings.shellPath,
@@ -244,18 +253,11 @@ export function createToolHostPort(
               cwd,
               artifactDir: input.artifactDir,
               signal: input.signal,
-              ready:
-                typeof args.ready === "string"
-                  ? /^https?:\/\//i.test(args.ready)
-                    ? { kind: "url", url: args.ready, timeoutMs: 60_000 }
-                    : {
-                        kind: "pattern",
-                        pattern: args.ready,
-                        timeoutMs: 60_000,
-                      }
-                  : undefined,
             });
-            const readiness = started.readiness;
+            // Same call: the tool still receives the readiness verdict with the process.
+            const readiness = ready
+              ? await processes.awaitReadiness(process, ready, input.signal)
+              : undefined;
             const content = !readiness
               ? ""
               : readiness.status === "ready"
@@ -264,14 +266,14 @@ export function createToolHostPort(
                   : "Ready: matched"
                 : readiness.status === "timed_out"
                   ? "Not ready after 60s"
-                  : `Exited: ${(await started.process.wait()).status}`;
+                  : `Exited: ${(await process.wait()).status}`;
             return {
               kind: "backgrounded",
-              process: started.process,
+              process,
               result: {
                 content,
                 details: {
-                  launch: started.process.launch,
+                  launch: process.launch,
                   backgroundStart: true,
                   processStatusIncluded: true,
                   cwd,

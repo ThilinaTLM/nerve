@@ -137,26 +137,22 @@ export function eventEntry(
               : undefined,
           },
         };
-      if (p.subtype === "async_bash_event")
+      if (p.subtype === "task_result" && p.task.kind === "bash")
         return {
           ...base,
-          kind: "task_event",
+          kind: "task_result",
           text: p.text,
           details: {
-            type: "task_event",
-
-            event: p.status,
-            status: p.status,
-            exitCode: p.exitCode,
+            type: "task_result",
+            event: p.outcome,
+            status: p.outcome,
+            exitCode: p.task.exitCode,
             output: p.text,
           },
         };
       return {
         ...base,
-        kind:
-          p.subtype === "sub_conversation_event"
-            ? "subagent_run_event"
-            : "message",
+        kind: p.subtype === "task_result" ? "subagent_run_event" : "message",
         text: p.text,
         details: p,
       };
@@ -335,9 +331,10 @@ export function conversationTranscript(input: {
     const entry = eventEntry(event);
     if (
       event.type === "system_event" &&
-      event.payload.subtype === "async_bash_event"
+      event.payload.subtype === "task_result" &&
+      event.payload.task.kind === "bash"
     ) {
-      const bashId = event.payload.bashId;
+      const bashId = event.payload.task.id;
       const bash = snapshot.asyncBash.find((item) => item.id === bashId);
       if (bash)
         entry.details = {

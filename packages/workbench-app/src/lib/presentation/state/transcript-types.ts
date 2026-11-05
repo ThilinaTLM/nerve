@@ -67,7 +67,7 @@ export type RunStatusNotice = {
   createdAt?: string;
 };
 
-export type TaskEventNotice = {
+export type TaskResultNotice = {
   entryId?: string;
   conversationId?: string;
   agentId?: string;
@@ -126,7 +126,7 @@ export type TranscriptItem = {
   legacyFailedAttempt?: boolean;
   runStatus?: RunStatusNotice;
   compaction?: CompactionNotice;
-  taskEvent?: TaskEventNotice;
+  taskResult?: TaskResultNotice;
   systemEvent?: SystemEventNotice;
 };
 

@@ -10,5 +10,9 @@
   "0003-process-output-files": {
     "checksum": "119be1caaafe005905a69b6cbfe495d99da383cfddb5882fbd5feb3a59d23ffd",
     "stage": "draft"
+  },
+  "0004-task-result-notices": {
+    "checksum": "6b19831f2bc19fc3494b2835a3bc41507623e2a913e4c5b5fc0b1b62a08a14bc",
+    "stage": "draft"
   }
 }

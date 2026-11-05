@@ -5,21 +5,10 @@ import {
   type ToolApprovalBinding,
 } from "@nervekit/contracts/core";
 import { shutdownReason } from "../runtime/shutdown.js";
-import type {
-  AsyncBash,
-  ConversationConfig,
-  ConversationEvent,
-  ToolCall,
-  ToolProgress,
-} from "@nervekit/contracts/core";
-import type { AssetStore } from "../assets/asset-store.js";
-import type {
-  BackgroundProcess,
-  PermissionPort,
-  ToolHostPort,
-} from "../ports.js";
-import type { CoreStorage } from "../storage/core-storage.js";
-import type { CoreToolContext, CoreToolHandler } from "./core-tool.js";
+import type { ConversationEvent, ToolCall } from "@nervekit/contracts/core";
+import { BackgroundPromotion } from "./background-promotion.js";
+import type { CoreToolContext } from "./core-tool.js";
+import type { ToolCallServiceOptions } from "./tool-call-types.js";
 import { ToolCallSettlement } from "./tool-call-settlement.service.js";
 import {
   ToolCallInteractions,
@@ -30,49 +19,11 @@ export type {
   CoreToolHandler,
   CoreToolOutcome,
 } from "./core-tool.js";
-
-export type ToolCallChange =
-  | { kind: "event_appended"; conversationId: string; event: ConversationEvent }
-  | {
-      kind: "tool_call_changed";
-      conversationId: string;
-      toolCall: ToolCall | { id: string; removed: true };
-    }
-  | {
-      kind: "live";
-      conversationId: string;
-      delta: {
-        type: "tool_progress";
-        toolCallId: string;
-        update: ToolProgress;
-      };
-    };
-export interface AsyncBashAdopter {
-  adopt(input: {
-    conversationId: string;
-    toolCallId: string;
-    command: string;
-    cwd: string;
-    process: BackgroundProcess;
-  }): AsyncBash | Promise<AsyncBash>;
-}
-export interface ToolCallServiceOptions {
-  inputs?: import("../inputs/input-queue.service.js").InputQueueService;
-  storage: CoreStorage;
-  assets: AssetStore;
-  permissions: PermissionPort;
-  host: ToolHostPort;
-  emit(change: ToolCallChange): void;
-  // Runs after the response append and row deletion have committed.
-  onSettled?(conversationId: string): void;
-  coreTools: Map<string, CoreToolHandler>;
-  asyncBash: AsyncBashAdopter;
-  context(
-    conversationId: string,
-  ):
-    | { projectDir: string; config: ConversationConfig }
-    | Promise<{ projectDir: string; config: ConversationConfig }>;
-}
+export type {
+  ToolCallChange,
+  ToolCallServiceOptions,
+} from "./tool-call-types.js";
+export type { AsyncBashAdopter } from "./background-promotion.js";
 
 export class ToolCallService {
   private closed = false;
@@ -83,9 +34,11 @@ export class ToolCallService {
   private readonly controllers = new Map<string, AbortController>();
   private readonly interactions: ToolCallInteractions;
   private readonly settlement: ToolCallSettlement;
+  private readonly promotion: BackgroundPromotion;
 
   constructor(private readonly options: ToolCallServiceOptions) {
     this.settlement = new ToolCallSettlement(options);
+    this.promotion = new BackgroundPromotion(options.asyncBash);
     this.interactions = new ToolCallInteractions(options, {
       controllers: this.controllers,
       settlement: this.settlement,
@@ -520,40 +473,18 @@ export class ToolCallService {
         return;
       }
       if (result.kind === "backgrounded") {
-        let bash: AsyncBash;
-        try {
-          bash = await this.options.asyncBash.adopt({
-            conversationId: call.conversationId,
-            toolCallId: call.id,
-            command: String(call.arguments.command ?? ""),
-            cwd:
-              typeof objectDetails(result.result.details).cwd === "string"
-                ? String(objectDetails(result.result.details).cwd)
-                : config.workingDirectory,
-            process: result.process,
-          });
-        } catch (error) {
-          if (controller.signal.aborted || !this.holdsClaim(call))
-            await result.process.cancel();
-          throw error;
-        }
-        if (controller.signal.aborted || !this.holdsClaim(call)) {
-          await result.process.cancel();
-          return;
-        }
+        const claimed = call;
+        const promoted = await this.promotion.promote({
+          call: claimed,
+          cwd: config.workingDirectory,
+          result,
+          lost: () => controller.signal.aborted || !this.holdsClaim(claimed),
+        });
+        if (!promoted) return;
         await this.settlement.settle(
           call,
           "completed",
-          {
-            ...result.result,
-            content: objectDetails(result.result.details).backgroundStart
-              ? `Started async bash ${bash.id}.${result.result.content ? `\n${result.result.content}` : ""}`
-              : `Still running; continues as async bash ${bash.id}. You will be notified on exit.${result.result.content ? `\n${result.result.content}` : ""}`,
-            details: {
-              ...objectDetails(result.result.details),
-              asyncBashId: bash.id,
-            },
-          },
+          promoted,
           call.executionClaim,
         );
       } else {
@@ -627,10 +558,4 @@ export class ToolCallService {
       },
     };
   }
-}
-
-function objectDetails(value: unknown): Record<string, unknown> {
-  return value && typeof value === "object" && !Array.isArray(value)
-    ? (value as Record<string, unknown>)
-    : {};
 }

@@ -126,7 +126,7 @@ describe("subagent_stop result", () => {
   });
 });
 
-describe("sub_conversation_event notice", () => {
+describe("subagent task_result notice", () => {
   it("reads a completed notice with its response", () => {
     assert.deepEqual(
       parseSubagentNotice(

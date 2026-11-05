@@ -30,16 +30,18 @@ export class ReferenceExtraction {
       /^(?:functions\.)?bash$/.test(event.payload.toolName);
     const asyncBash =
       event.type === "system_event" &&
-      event.payload.subtype === "async_bash_event" &&
-      event.payload.status === "completed";
+      event.payload.subtype === "task_result" &&
+      event.payload.task.kind === "bash" &&
+      event.payload.outcome === "completed";
     if (!prompt && !bash && !asyncBash) return;
     const command =
       bash && event.type === "tool_call_response"
         ? String(event.payload.arguments.command ?? "")
         : asyncBash &&
             event.type === "system_event" &&
-            event.payload.subtype === "async_bash_event"
-          ? (storage.asyncBash.get(event.payload.bashId)?.command ?? "")
+            event.payload.subtype === "task_result" &&
+            event.payload.task.kind === "bash"
+          ? (storage.asyncBash.get(event.payload.task.id)?.command ?? "")
           : "";
     // Cheap candidate checks only; the pure parser still decides what is a reference.
     if (prompt && event.type === "user_message") {
@@ -77,9 +79,10 @@ export class ReferenceExtraction {
         }
       } else if (
         event.type === "system_event" &&
-        event.payload.subtype === "async_bash_event"
+        event.payload.subtype === "task_result" &&
+        event.payload.task.kind === "bash"
       ) {
-        exitCode = event.payload.exitCode;
+        exitCode = event.payload.task.exitCode;
         output = event.payload.text.startsWith(`${command}\n`)
           ? event.payload.text.slice(command.length + 1)
           : "";

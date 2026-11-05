@@ -142,7 +142,10 @@ export async function runMigrations(
       );
     }
     // Recover cleanup after a crash between ledger append and scratch removal.
+    // A pending rerun keeps its old ledger entry; its scratch holds the current attempt's state.
+    const rerunning = new Set(pending.map(({ step }) => step.id));
     for (const applied of manifest.migrations ?? []) {
+      if (rerunning.has(applied.id)) continue;
       await rm(`${paths.migrationWorkPath}/${applied.id}`, {
         recursive: true,
         force: true,

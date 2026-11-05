@@ -103,7 +103,7 @@ export type ConversationEntry = {
     | "compaction"
     | "branch_summary"
     | "run_status"
-    | "task_event";
+    | "task_result";
   text: string;
   createdAt: string;
   agentId?: string | undefined;
@@ -141,7 +141,7 @@ export type ConversationTreeNode = {
       | "compaction"
       | "branch_summary"
       | "run_status"
-      | "task_event";
+      | "task_result";
     text: string;
     createdAt: string;
     agentId?: string | undefined;

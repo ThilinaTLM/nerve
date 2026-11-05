@@ -1,7 +1,7 @@
 import { createId } from "@nervekit/contracts";
 import type { ToolCall, ToolCallOutcome } from "@nervekit/contracts/core";
 import type { ToolExecutionResultPayload } from "@nervekit/contracts/tools";
-import type { ToolCallServiceOptions } from "./tool-call.service.js";
+import type { ToolCallServiceOptions } from "./tool-call-types.js";
 import { planImplementationInput } from "./plan-review-result.js";
 import { prepareToolResult } from "./tool-result.service.js";
 

@@ -24,6 +24,7 @@ export type {
   PermissionPort,
   ToolHostPort,
   ProcessPort,
+  ProcessReadiness,
   BackgroundProcess,
   ClockPort,
   PiModel,

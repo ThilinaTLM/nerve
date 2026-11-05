@@ -42,6 +42,9 @@ void test("bash host validates turn settings, project cwd and untimed background
       cancel: async () => {},
     };
     let started: Parameters<CoreProcessHost["start"]>[0] | undefined;
+    let readyRequest:
+      | Parameters<CoreProcessHost["awaitReadiness"]>[1]
+      | undefined;
     let spawned: Parameters<CoreProcessHost["spawn"]>[0] | undefined;
     const host = {
       spawn: async (input: Parameters<CoreProcessHost["spawn"]>[0]) => {
@@ -50,7 +53,14 @@ void test("bash host validates turn settings, project cwd and untimed background
       },
       start: async (input: Parameters<CoreProcessHost["start"]>[0]) => {
         started = input;
-        return { process, readiness: { status: "ready" as const } };
+        return process;
+      },
+      awaitReadiness: async (
+        _process: unknown,
+        ready: Parameters<CoreProcessHost["awaitReadiness"]>[1],
+      ) => {
+        readyRequest = ready;
+        return { status: "ready" as const };
       },
     } as unknown as CoreProcessHost;
     const settings = {
@@ -149,7 +159,7 @@ void test("bash host validates turn settings, project cwd and untimed background
       process.launch,
     );
     assert.equal(started?.timeoutMs, undefined);
-    assert.deepEqual(started?.ready, {
+    assert.deepEqual(readyRequest, {
       kind: "pattern",
       pattern: "READY",
       timeoutMs: 60000,

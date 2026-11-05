@@ -106,7 +106,7 @@ function targetDetails(
         id: target.notice.id,
         idLabel: "compaction id",
       };
-    case "task_event":
+    case "task_result":
       return {
         content: joinDetails([
           target.notice.taskName

@@ -1,6 +1,7 @@
 import type {
   AsyncBash,
   ConversationEvent,
+  TaskOutcome,
   ToolCall,
 } from "@nervekit/contracts/core";
 import { SUBAGENT_STATUS_ACTIVITY_ITEMS } from "@nervekit/contracts/subagents";
@@ -38,8 +39,7 @@ export type ChildState =
   | "waiting"
   | "idle"
   | "stopped"
-  | "failed"
-  | "interrupted";
+  | Extract<TaskOutcome, "failed" | "interrupted">;
 
 export interface ChildStatus {
   name: string;

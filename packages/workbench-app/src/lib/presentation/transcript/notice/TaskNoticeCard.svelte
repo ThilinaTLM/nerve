@@ -1,17 +1,17 @@
 <script lang="ts">
-import type { TaskEventNotice } from "../../state/transcript-types";
+import type { TaskResultNotice } from "../../state/transcript-types";
 import ToolOutputBlock from "../../tools/tool-call/ToolOutputBlock.svelte";
 import NoticeCard from "./NoticeCard.svelte";
-import { taskEventNoticeModel } from "./task-event-notice";
+import { taskResultNoticeModel } from "./task-result-notice";
 
 type Props = {
-  notice: TaskEventNotice;
+  notice: TaskResultNotice;
   onOpenTask?: (taskId: string) => void;
 };
 
 let { notice, onOpenTask }: Props = $props();
 
-const model = $derived(taskEventNoticeModel(notice, { onOpenTask }));
+const model = $derived(taskResultNoticeModel(notice, { onOpenTask }));
 const command = $derived(notice.command?.trim() ? notice.command : "");
 const multilineCommand = $derived(command.includes("\n") ? command : "");
 const output = $derived(notice.output?.trim() ? notice.output : "");

@@ -123,9 +123,7 @@ export async function productionAdmissionFixture(
   };
   const processHost = {
     spawn,
-    start: async (input: Parameters<CoreProcessHost["start"]>[0]) => ({
-      process: await spawn(input),
-    }),
+    start: (input: Parameters<CoreProcessHost["start"]>[0]) => spawn(input),
     reattach: async () => null,
   } as unknown as CoreProcessHost;
   const events = new WorkbenchNoticePublisher();

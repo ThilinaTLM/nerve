@@ -16,6 +16,7 @@ import { waitForOutputReadiness } from "../infrastructure/process-host/readiness
 import type {
   BackgroundProcess,
   ProcessPort,
+  ProcessReadiness,
 } from "@nervekit/conversation-core";
 
 export class CoreProcessHost implements ProcessPort {
@@ -151,31 +152,30 @@ export class CoreProcessHost implements ProcessPort {
   ): ReturnType<ProcessPort["start"]> {
     if (input.signal.aborted) throw new DOMException("Cancelled", "AbortError");
     const background = await this.spawn(input);
+    if (input.signal.aborted) {
+      await background.cancel().catch(() => undefined);
+      throw new DOMException("Cancelled", "AbortError");
+    }
+    return background;
+  }
+
+  async awaitReadiness(
+    background: BackgroundProcess,
+    ready: ProcessReadiness,
+    signal: AbortSignal,
+  ): ReturnType<ProcessPort["awaitReadiness"]> {
     const cancel = () => {
       void background.cancel().catch(() => undefined);
     };
-    input.signal.addEventListener("abort", cancel, { once: true });
-    if (input.signal.aborted) cancel();
+    signal.addEventListener("abort", cancel, { once: true });
+    if (signal.aborted) cancel();
     try {
-      if (!input.ready) {
-        if (input.signal.aborted) {
-          await background.cancel();
-          throw new DOMException("Cancelled", "AbortError");
-        }
-        return { process: background };
-      }
-      return {
-        process: background,
-        readiness: await waitForOutputReadiness(background, {
-          signal: input.signal,
-          ready: input.ready,
-        }),
-      };
+      return await waitForOutputReadiness(background, { signal, ready });
     } catch (error) {
       await background.cancel().catch(() => undefined);
       throw error;
     } finally {
-      input.signal.removeEventListener("abort", cancel);
+      signal.removeEventListener("abort", cancel);
     }
   }
 

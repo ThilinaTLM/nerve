@@ -495,3 +495,34 @@ void test("only opted-in changed draft steps rerun and replace their ledger entr
     /checksum mismatch/,
   );
 });
+
+void test("a rerun of an applied draft step keeps its scratch across retried attempts", async (t) => {
+  const home = await temporaryHome(t);
+  const first = {
+    ...entry("0001-example", async () => {}),
+    stage: "draft" as const,
+    rerunOnChange: true,
+  };
+  await runMigrations(home, { registry: [first] });
+  let attempts = 0;
+  let kept = false;
+  const revised = {
+    ...entry("0001-example", async (ctx) => {
+      const marker = join(ctx.scratchDir, "marker");
+      if (attempts++ === 0) {
+        await writeFile(marker, "x");
+        throw new Error("first attempt fails");
+      }
+      kept = await readFile(marker, "utf8").then(
+        () => true,
+        () => false,
+      );
+    }),
+    stage: "draft" as const,
+    rerunOnChange: true,
+    checksum: "b".repeat(64),
+  };
+  await assert.rejects(runMigrations(home, { registry: [revised] }));
+  await runMigrations(home, { registry: [revised] });
+  assert.equal(kept, true);
+});

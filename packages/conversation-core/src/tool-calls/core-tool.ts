@@ -18,13 +18,20 @@ export interface CoreToolHandler {
   ): Promise<CoreToolResolution>;
   recover?(call: ToolCall, ctx: CoreToolContext): Promise<CoreToolResolution>;
 }
+export type ProfileTransitionResolution = ToolExecutionResultPayload & {
+  kind: "profile_transition";
+  transition: ProfileTransitionResult;
+  result: ToolExecutionResultPayload;
+};
 export type CoreToolResolution =
   | ToolExecutionResultPayload
-  | (ToolExecutionResultPayload & {
-      kind: "profile_transition";
-      transition: ProfileTransitionResult;
-      result: ToolExecutionResultPayload;
-    });
+  | ProfileTransitionResolution;
+/** The only place that distinguishes the two resolution shapes. */
+export function isProfileTransition(
+  resolution: CoreToolResolution,
+): resolution is ProfileTransitionResolution {
+  return "kind" in resolution && resolution.kind === "profile_transition";
+}
 export type CoreToolOutcome =
   | { kind: "completed"; result: ToolExecutionResultPayload }
   | { kind: "awaiting_input"; interaction: Interaction };

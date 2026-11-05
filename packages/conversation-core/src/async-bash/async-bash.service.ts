@@ -1,21 +1,18 @@
-import { publishSummary } from "../runtime/publish-summary.js";
-import type { ConversationSummary } from "@nervekit/contracts/core";
-import {
-  projectProcessOutput,
-  projectProcessOutputPage,
-} from "@nervekit/tools/result-projection";
+import { projectProcessOutputPage } from "@nervekit/tools/result-projection";
 import { relative } from "node:path";
 import { createId } from "@nervekit/contracts";
 import { asyncBashLogsRequestSchema } from "@nervekit/contracts/core";
 import type {
   AsyncBash,
-  AsyncBashStatus,
   AsyncBashLogsRequest,
   AsyncBashLogsResponse,
-  Asset,
 } from "@nervekit/contracts/core";
 import type { AssetStore } from "../assets/asset-store.js";
-import type { InputQueueService } from "../inputs/input-queue.service.js";
+import {
+  BashRunner,
+  type BashRunnerChange,
+} from "../background-tasks/bash-runner.js";
+import type { BackgroundTaskService } from "../background-tasks/background-task.service.js";
 import type {
   BackgroundProcess,
   ProcessPort,
@@ -23,29 +20,24 @@ import type {
 } from "../ports.js";
 import type { CoreStorage } from "../storage/core-storage.js";
 
-export type AsyncBashChange = {
-  kind: "async_bash_changed";
-  conversationId: string;
-  asyncBash: AsyncBash[];
-};
+export type { AsyncBashChange } from "../background-tasks/bash-runner.js";
 
+/** Async bash commands: starting, adoption and log reads; the task lifecycle is shared. */
 export class AsyncBashService {
-  private readonly processes = new Map<string, BackgroundProcess>();
-  private readonly watchers = new Map<string, Promise<void>>();
+  private readonly runner: BashRunner;
 
   constructor(
     private readonly options: {
       storage: CoreStorage;
       assets: AssetStore;
       processes: ProcessPort;
-      inputs: InputQueueService;
-      emit(
-        change:
-          | AsyncBashChange
-          | { kind: "conversation_changed"; summary: ConversationSummary },
-      ): void;
+      tasks: BackgroundTaskService;
+      emit(change: BashRunnerChange): void;
     },
-  ) {}
+  ) {
+    this.runner = new BashRunner(options);
+    options.tasks.register(this.runner);
+  }
 
   async start(input: {
     conversationId: string;
@@ -64,26 +56,30 @@ export class AsyncBashService {
     const artifactDir = await this.options.assets.directory(
       `conversations/${input.conversationId}/tool-calls/${input.toolCallId}/output`,
     );
-    const started = await this.options.processes.start({
+    const process = await this.options.processes.start({
       conversationId: input.conversationId,
       command: input.command,
       cwd: input.cwd,
       signal: input.signal,
       artifactDir,
       env: input.env,
-      ready: input.ready,
       timeoutMs: input.timeoutMs,
     });
     try {
       input.signal.throwIfAborted();
-      const asyncBash = await this.adopt({
-        ...input,
-        process: started.process,
-      });
+      const readiness = input.ready
+        ? await this.options.processes.awaitReadiness(
+            process,
+            input.ready,
+            input.signal,
+          )
+        : undefined;
       input.signal.throwIfAborted();
-      return { asyncBash, readiness: started.readiness };
+      const asyncBash = await this.adopt({ ...input, process });
+      input.signal.throwIfAborted();
+      return { asyncBash, readiness };
     } catch (error) {
-      await started.process.cancel();
+      await process.cancel();
       throw error;
     }
   }
@@ -100,7 +96,7 @@ export class AsyncBashService {
       .list(conversationId)
       .filter((asset) => asset.asyncBashId === bashId);
     return projectProcessOutputPage({
-      outputFiles: this.outputFiles(assets),
+      outputFiles: this.runner.outputFiles(assets),
       status: row.status,
       exitCode: row.exitCode,
       ...page,
@@ -133,15 +129,6 @@ export class AsyncBashService {
       ? await this.options.assets.readTextPage(combined.id, offset, limit)
       : { text: "", offset: 0, nextOffset: 0, totalBytes: 0 };
     return { bash, page };
-  }
-
-  private outputFiles(assets: Asset[]): { combined?: string } {
-    const asset = assets.find((asset) =>
-      asset.logicalPath.endsWith("/output.txt"),
-    );
-    return {
-      combined: asset ? this.options.assets.path(asset.logicalPath) : undefined,
-    };
   }
 
   async adopt(input: {
@@ -177,7 +164,6 @@ export class AsyncBashService {
       startedAt: new Date().toISOString(),
       finishedAt: null,
     });
-    this.processes.set(row.id, input.process);
     try {
       for (const path of Object.values(input.process.outputFiles)) {
         const logicalPath = relative(this.options.assets.dataDir, path)
@@ -199,8 +185,11 @@ export class AsyncBashService {
         this.options.storage.assets.update(asset.id, { asyncBashId: row.id });
       }
     } finally {
-      this.changed(row.conversationId);
-      this.watch(row, input.process);
+      this.runner.emitChanged(row.conversationId);
+      this.options.tasks.adopt(
+        this.runner.ref(row),
+        this.runner.handle(row, input.process),
+      );
     }
     return row;
   }
@@ -211,148 +200,23 @@ export class AsyncBashService {
 
   async cancel(bashId: string): Promise<void> {
     const row = this.options.storage.asyncBash.get(bashId);
-    if (!row || row.status !== "running") return;
-    let process = this.processes.get(bashId);
-    if (!process && row.processRef) {
-      try {
-        process =
-          (await this.options.processes.reattach(row.processRef)) ?? undefined;
-      } catch {
-        /* Unverifiable processes are lost. */
-      }
-    }
-    if (!process) {
-      await this.finish(row, "lost", null);
-      return;
-    }
-    await process.cancel();
-    await this.finish(row, "cancelled", null);
-    this.processes.delete(bashId);
+    if (row) await this.options.tasks.cancel(this.runner.ref(row));
   }
 
-  private readonly discarded = new Set<string>();
   async discard(ids: readonly string[]): Promise<void> {
-    for (const id of ids) this.discarded.add(id);
-    try {
-      for (const id of ids) {
-        const row = this.options.storage.asyncBash.get(id);
-        let process = this.processes.get(id);
-        if (!process && row?.status === "running" && row.processRef) {
-          try {
-            process =
-              (await this.options.processes.reattach(row.processRef)) ??
-              undefined;
-          } catch {
-            // Never cancel a process whose ownership cannot be verified.
-          }
-        }
-        await process?.cancel();
-      }
-      await Promise.allSettled(
-        ids.flatMap((id) => this.watchers.get(id) ?? []),
-      );
-    } finally {
-      for (const id of ids) {
-        this.discarded.delete(id);
-        this.processes.delete(id);
-      }
-    }
-  }
-
-  async cancelForConversations(ids: string[]): Promise<void> {
-    for (const id of ids)
-      for (const row of this.list(id))
-        if (row.status === "running") await this.cancel(row.id);
-  }
-
-  async recover(conversationId?: string): Promise<void> {
-    const rows =
-      conversationId === undefined
-        ? this.options.storage.asyncBash.listByStatus("running")
-        : this.options.storage.asyncBash
-            .list(conversationId)
-            .filter((row) => row.status === "running");
-    for (const row of rows) {
-      if (this.watchers.has(row.id)) continue;
-      let process: BackgroundProcess | null = null;
-      if (row.processRef) {
-        try {
-          process = await this.options.processes.reattach(row.processRef);
-        } catch {
-          /* Unverifiable processes are lost. */
-        }
-      }
-      if (process) this.watch(row, process);
-      else await this.finish(row, "lost", null);
-    }
-  }
-
-  private watch(row: AsyncBash, process: BackgroundProcess): void {
-    if (this.watchers.has(row.id)) return;
-    this.processes.set(row.id, process);
-    const watcher = (async () => {
-      let outcome: Awaited<ReturnType<BackgroundProcess["wait"]>>;
-      try {
-        outcome = await process.wait();
-      } catch {
-        await this.finish(row, "lost", null);
-        return;
-      }
-      await this.finish(row, outcome.status, outcome.exitCode);
-    })().finally(() => {
-      this.processes.delete(row.id);
-      this.watchers.delete(row.id);
+    const refs = ids.flatMap((id) => {
+      const row = this.options.storage.asyncBash.get(id);
+      return row ? [this.runner.ref(row)] : [];
     });
-    this.watchers.set(row.id, watcher);
+    await this.options.tasks.discard(refs);
   }
 
-  private async finish(
-    row: AsyncBash,
-    status: Exclude<AsyncBashStatus, "running">,
-    exitCode: number | null,
-  ): Promise<void> {
-    if (this.discarded.has(row.id)) return;
-    const assets = this.options.storage.assets
-      .list(row.conversationId)
-      .filter((asset) => asset.asyncBashId === row.id);
-    const output = await projectProcessOutput({
-      outputFiles: this.outputFiles(assets),
-      status,
-      exitCode,
-    });
-    const storage = this.options.storage;
-    storage.transaction(() => {
-      if (storage.asyncBash.get(row.id)?.status !== "running") return;
-      storage.asyncBash.update(row.id, {
-        status,
-        exitCode,
-        finishedAt: new Date().toISOString(),
-      });
-      // Terminal state and its notice commit together, including during recovery.
-      this.options.inputs.enqueueNotice({
-        conversationId: row.conversationId,
-        inputId: createId("input"),
-        subtype: "async_bash_event",
-        producer: row.id,
-        text: `${row.command}\n${output}`,
-        details: {
-          bashId: row.id,
-          status,
-          exitCode,
-          assetIds: assets.map((asset) => asset.id),
-        },
-        wakeWhenIdle: true,
-      });
-    });
-    if (storage.asyncBash.get(row.id)) this.changed(row.conversationId);
+  cancelForConversations(ids: string[]): Promise<void> {
+    return this.options.tasks.cancelForConversations(ids);
   }
 
-  private changed(conversationId: string): void {
-    this.options.emit({
-      kind: "async_bash_changed",
-      conversationId,
-      asyncBash: this.list(conversationId),
-    });
-    publishSummary(this.options.storage, this.options.emit, conversationId);
+  /** Reattach to running commands (or mark them interrupted) after a restart. */
+  recover(conversationId?: string): Promise<void> {
+    return this.options.tasks.recover(conversationId);
   }
 }

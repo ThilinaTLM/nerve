@@ -52,11 +52,11 @@ WHERE t.state IN ('awaiting_approval','awaiting_input') ORDER BY t.updated_at LI
 
 ## 3. Sub-agents
 
-Flow: the lead's `subagent_prompt` creates or reuses a child (case-insensitive name) and queues a `parent_conversation` input. The child runs. On a terminal execution, the core queues a `sub_conversation_event` system input to the lead with `wake_when_idle`. The lead receives it as a `system_event` notice.
+Flow: the lead's `subagent_prompt` creates or reuses a child (case-insensitive name) and queues a `parent_conversation` input. The child runs. On a terminal execution, the core queues a `task_result` system input to the lead with `wake_when_idle`. The lead receives it as a `system_event` notice.
 
 1. Run `$D tool <subagent_prompt tool_id>`. It lists the children it created. Follow-ups reuse existing children, so also look at the lead's `overview` children list.
 2. For each child, run `overview` and `timeline`. Did its execution reach `completed`, `failed`, `cancelled` or `interrupted`? Did it get the parent input as a `user_message` with `source=parent_conversation`?
-3. In the lead, check `input_queue` (is the notice queued but undelivered?) and the timeline (was it delivered as `notice sub_conversation_event`?).
+3. In the lead, check `input_queue` (is the notice queued but undelivered?) and the timeline (was it delivered as `notice task_result`?).
    - Queued with the lead `paused=1`: notices respect pause. Stopping the lead pauses it and cascades.
    - Queued on an idle, unpaused lead with `wake=1`: the wake was lost. This is a real lead.
    - No notice at all: an explicit stop or cascade suppresses cancellation notices by design. Otherwise, check whether the child execution actually ended.
@@ -73,7 +73,7 @@ ORDER BY sequence DESC LIMIT 20;
 
 ## 4. Async bash and launches
 
-- **Async bash** is owned by the conversation. Its terminal status and its `async_bash_event` notice commit together. A `running` row after a daemon restart becomes `lost` during recovery (native handles cannot be reattached). That is expected, not a bug, and must never be rerun automatically.
+- **Async bash** is owned by the conversation. Its terminal status and its `task_result` notice commit together. A `running` row after a daemon restart becomes `lost` (notice outcome `interrupted`) during recovery (native handles cannot be reattached). That is expected, not a bug, and must never be rerun automatically.
   1. Run `$D tool <bash tool_id>` (shows the `async_bash` row and assets) or check `overview`'s async_bash list.
   2. If the status is terminal, look for the notice in the queue (undelivered) or the timeline (delivered). The notice wakes only an unpaused conversation.
   3. Output is in `asset` rows with `async_bash_id`, under `data/conversations/<conv>/async-bash/<bashId>/`.

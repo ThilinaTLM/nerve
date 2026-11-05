@@ -119,7 +119,7 @@ describe("replay-order compaction planning", () => {
     };
     const notice = entry("notice", {
       role: "harness",
-      eventType: "task_event",
+      eventType: "task_result",
       content: "event",
       timestamp: 0,
     });
@@ -237,7 +237,7 @@ describe("bounded lossless checkpoint anchors", () => {
         entry("automatic", user("Automatically continue working.")),
         entry("event", {
           role: "harness",
-          eventType: "task_event",
+          eventType: "task_result",
           content: "not user steering",
           timestamp: 0,
         }),

@@ -1,15 +1,25 @@
 import type { InteractionResolveResult } from "@nervekit/contracts/agent-configuration";
-import type { CoreToolResolution } from "./core-tool.js";
 import type {
   Interaction,
+  InteractionKind,
   InteractionResolution,
   ToolCall,
   ToolApprovalBinding,
 } from "@nervekit/contracts/core";
 import type { CoreToolContext } from "./core-tool.js";
-import type { ToolCallServiceOptions } from "./tool-call.service.js";
+import {
+  InteractionError,
+  type InteractionContext,
+  type InteractionHandler,
+  type InteractionHandlers,
+  type InteractionOutcome,
+} from "./interaction-handler.js";
+import {
+  createInteractionHandlers,
+  sameResolution,
+} from "./interaction-handlers.js";
+import type { ToolCallServiceOptions } from "./tool-call-types.js";
 import type { ToolCallSettlement } from "./tool-call-settlement.service.js";
-import { effectivePermissionRuleSetId } from "./permission-rule-set.js";
 
 export interface ResolveInteraction {
   toolCallId: string;
@@ -33,6 +43,7 @@ export class ToolCallInteractions {
   constructor(
     private readonly options: ToolCallServiceOptions,
     private readonly hooks: InteractionHooks,
+    private readonly handlers: InteractionHandlers = createInteractionHandlers(),
   ) {}
   async resolveInteraction(input: {
     toolCallId: string;
@@ -61,6 +72,7 @@ export class ToolCallInteractions {
     }
   }
 
+  /** Shared skeleton: replay, one handler dispatch, record, apply, act on the outcome. */
   private async resolve(input: {
     toolCallId: string;
     resolutionRequestId: string;
@@ -82,211 +94,151 @@ export class ToolCallInteractions {
       throw new Error("Tool call already settled with another resolution");
     }
     if (this.hooks.isStopping(call.id)) return { status: "resolved" };
-    let interaction = call.interaction;
-    if (!interaction || interaction.kind !== input.resolution.kind)
-      throw new Error("Resolution does not match the pending interaction");
-    if (
-      interaction.kind === "plan_review" &&
-      interaction.resolution?.decision === "approve"
-    ) {
-      const resolvedAgain =
-        interaction.resolutionRequestId === input.resolutionRequestId &&
-        sameResolution(interaction.resolution, input.resolution);
-      const handler = this.options.coreTools.get(call.toolName);
-      if (!handler?.recover)
-        throw new Error("Plan transition recovery is not configured");
-      const controller = new AbortController();
-      this.hooks.controllers.set(call.id, controller);
-      try {
-        const result = await handler.recover(
-          call,
-          this.hooks.toolContext(call, controller.signal),
+    const kind: InteractionKind = input.resolution.kind;
+    if (call.interaction?.kind !== kind)
+      throw new InteractionError(
+        "Resolution does not match the pending interaction",
+      );
+    // One dispatch point; the registry is keyed by kind, so the cast is sound.
+    const handler = this.handlers[kind] as InteractionHandler<InteractionKind>;
+    const resolution = input.resolution;
+
+    let proceed = false;
+    const reconciled = await this.withContext(
+      call,
+      handler,
+      input.resolutionRequestId,
+      async (ctx) => {
+        const reconciliation = await handler.reconcile?.(
+          call!,
+          resolution,
+          ctx,
         );
-        const transition = await this.profileResult(
-          call,
-          result,
-          controller.signal,
-        );
-        if (transition.status !== "refresh_required" || resolvedAgain)
-          return transition;
-      } finally {
-        this.hooks.controllers.delete(call.id);
-      }
+        if (!reconciliation) return undefined;
+        const result = await this.act(call!, reconciliation.outcome, ctx);
+        proceed = reconciliation.proceed;
+        return proceed ? undefined : { result };
+      },
+    );
+    if (reconciled) return reconciled.result;
+    if (proceed) {
       call = this.options.storage.toolCalls.get(call.id);
       if (!call?.interaction) return { status: "resolved" };
-      interaction = call.interaction;
     }
+
+    const interaction = call.interaction;
     if (
-      interaction.resolutionRequestId &&
+      interaction?.resolutionRequestId &&
       (interaction.resolutionRequestId !== input.resolutionRequestId ||
-        !sameResolution(interaction.resolution, input.resolution))
+        !sameResolution(interaction.resolution, resolution))
     )
-      throw new Error("Interaction already resolved");
+      throw new InteractionError("Interaction already resolved");
     if (call.state !== "awaiting_input" && call.state !== "awaiting_approval")
       return { status: "resolved" };
-    if (
-      input.resolution.kind === "approval" &&
-      input.resolution.persistScope &&
-      !call.supervision?.suggestedRules.length
-    )
-      throw new Error("No suggested permission rule to persist");
-    const presentedBinding =
-      input.resolution.kind === "approval"
-        ? this.hooks.presentedApproval(call.id)
-        : undefined;
+    handler.validate(call, resolution);
+    const presentedApproval = this.hooks.presentedApproval(call.id);
+    // Record before applying: idempotent retries rely on the stored resolution.
     call = this.hooks.update(call.id, {
       interaction: {
         ...interaction,
-        resolution: input.resolution,
+        resolution,
         resolutionRequestId: input.resolutionRequestId,
       } as Interaction,
     });
-    if (input.resolution.kind === "configuration_blocked") {
-      if (input.resolution.decision === "cancel") {
-        await this.hooks.settlement.settle(call, "cancelled", {
-          content:
-            "Tool call cancelled because execution configuration is blocked.",
-        });
-        return { status: "resolved" };
-      }
-      this.hooks.update(call.id, { state: "ready", executionClaim: null });
-      void this.hooks
-        .start([call.id])
-        .catch((error) => console.error("Configuration retry failed:", error));
-      return { status: "resolved" };
-    }
-    if (input.resolution.kind === "approval") {
-      if (input.resolution.decision === "deny") {
-        await this.hooks.settlement.settle(call, "denied", {
-          content: "Approval denied.",
-        });
-        return { status: "resolved" };
-      }
-      if (input.resolution.persistScope) {
-        const rule = call.supervision?.suggestedRules[0];
-        if (rule === undefined)
-          throw new Error("No suggested permission rule to persist");
-        const { projectDir, config } = await this.options.context(
-          call.conversationId,
-        );
-        // A profile change must not move a planning approval into the coding overlay.
-        const authority = call.supervision?.authority;
-        const ruleSetId =
-          authority &&
-          typeof authority === "object" &&
-          !Array.isArray(authority) &&
-          typeof authority.ruleSetId === "string"
-            ? authority.ruleSetId
-            : effectivePermissionRuleSetId(config);
-        await this.options.permissions.addRule({
-          scope: input.resolution.persistScope,
-          conversationId: call.conversationId,
-          projectDir,
-          ruleSetId,
-          rule,
-        });
-      }
-      if (
-        this.hooks.isStopping(call.id) ||
-        !this.options.storage.toolCalls.get(call.id)
-      )
-        return { status: "resolved" };
-      const binding = presentedBinding;
-      // After restart there is no transient presentation: never invent a grant.
-      this.hooks.update(call.id, {
-        state: "ready",
-        supervision: call.supervision
-          ? { ...call.supervision, ...(binding ? { approval: binding } : {}) }
-          : null,
-      });
-      // Tool failures settle through the worker's normal failed-outcome path.
-      // Only unexpected persistence errors escape that path and need logging.
-      void this.hooks.start([call.id]).catch((error) => {
-        console.error("Approved tool worker failed:", error);
-      });
-      return { status: "resolved" };
-    }
-    const controller = new AbortController();
-    this.hooks.controllers.set(call.id, controller);
-    try {
-      const handler = this.options.coreTools.get(call.toolName);
-      const result = handler?.resolve
-        ? await handler.resolve(
-            call,
-            input.resolution,
-            this.hooks.toolContext(call, controller.signal),
-          )
-        : { content: JSON.stringify(input.resolution) };
-      if ("kind" in result && result.kind === "profile_transition")
-        return await this.profileResult(call, result, controller.signal);
-      if (!controller.signal.aborted)
-        await this.hooks.settlement.settle(call, "completed", result);
-      return { status: "resolved" };
-    } catch (error) {
-      if (input.resolution.kind === "plan_review") {
-        // Reopen promptly so the review remains actionable after a failed save or
-        // SQLite commit. Recovery only previews; it cannot apply or enqueue.
-        if (input.resolution.decision === "approve") {
-          try {
-            const handler = this.options.coreTools.get(call.toolName);
-            if (handler?.recover)
-              await this.profileResult(
-                call,
-                await handler.recover(
-                  call,
-                  this.hooks.toolContext(call, controller.signal),
-                ),
-                controller.signal,
-              );
-          } catch {
-            // Keep accepted state when configuration cannot be refreshed. Reload
-            // or explicit retry can reopen it once authority is available.
-          }
+    const recorded = call;
+    return this.withContext(
+      recorded,
+      handler,
+      input.resolutionRequestId,
+      async (ctx) => {
+        try {
+          return await this.act(
+            recorded,
+            await handler.apply(recorded, resolution, ctx),
+            ctx,
+          );
+        } catch (error) {
+          const recovery = handler.onError
+            ? await handler.onError(recorded, resolution, error, ctx)
+            : "rethrow";
+          if (recovery === "rethrow") throw error;
+          const result = await this.act(recorded, recovery, ctx);
+          // A reopened review still reports the failure that caused it.
+          if (recovery.kind === "reopen") throw error;
+          return result;
         }
-        throw error;
-      }
-      if (!controller.signal.aborted)
-        await this.hooks.settlement.settle(call, "failed", {
-          content: error instanceof Error ? error.message : String(error),
-        });
-      return { status: "resolved" };
-    } finally {
-      this.hooks.controllers.delete(call.id);
-    }
+      },
+      presentedApproval,
+    );
   }
-  private async profileResult(
-    call: ToolCall,
-    result: CoreToolResolution,
-    signal: AbortSignal,
-  ): Promise<InteractionResolveResult> {
-    if (!("kind" in result) || result.kind !== "profile_transition")
-      throw new Error("Expected profile transition result");
-    const transition = result.transition;
-    if (signal.aborted || !this.options.storage.toolCalls.get(call.id))
-      return transition;
-    if (transition.status === "applied")
-      await this.hooks.settlement.settle(call, "completed", result.result);
-    else if (
-      transition.status === "refresh_required" &&
-      call.interaction?.kind === "plan_review"
-    ) {
-      const request = transition.preview
-        ? {
-            ...call.interaction.request,
-            targetProfile: transition.preview.targetProfile,
-            expectedRevision: transition.preview.expectedRevision,
-            expectedDigest: transition.preview.expectedDigest,
-          }
-        : call.interaction.request;
-      this.hooks.update(call.id, {
-        state: "awaiting_input",
-        interaction: { kind: "plan_review", request },
-      });
-    }
-    return transition;
-  }
-}
 
-function sameResolution(a: unknown, b: unknown): boolean {
-  return JSON.stringify(a) === JSON.stringify(b);
+  private async withContext<T>(
+    call: ToolCall,
+    handler: InteractionHandler<InteractionKind>,
+    resolutionRequestId: string,
+    run: (ctx: InteractionContext) => Promise<T>,
+    presentedApproval?: ToolApprovalBinding,
+  ): Promise<T> {
+    const controller = new AbortController();
+    if (handler.cancellable) this.hooks.controllers.set(call.id, controller);
+    try {
+      return await run({
+        signal: controller.signal,
+        resolutionRequestId,
+        presentedApproval,
+        options: this.options,
+        coreTool: (name) => this.options.coreTools.get(name),
+        toolContext: (target) =>
+          this.hooks.toolContext(target, controller.signal),
+      });
+    } finally {
+      if (handler.cancellable) this.hooks.controllers.delete(call.id);
+    }
+  }
+
+  /** The only place that acts on an outcome. */
+  private async act(
+    call: ToolCall,
+    outcome: InteractionOutcome,
+    ctx: InteractionContext,
+  ): Promise<InteractionResolveResult> {
+    const gone = () =>
+      ctx.signal.aborted || !this.options.storage.toolCalls.get(call.id);
+    switch (outcome.kind) {
+      case "settle":
+        if (!ctx.signal.aborted)
+          await this.hooks.settlement.settle(
+            call,
+            outcome.status,
+            outcome.result,
+          );
+        return { status: "resolved" };
+      case "retry":
+        if (
+          this.hooks.isStopping(call.id) ||
+          !this.options.storage.toolCalls.get(call.id)
+        )
+          return { status: "resolved" };
+        this.hooks.update(call.id, outcome.patch);
+        // Tool failures settle through the worker's normal failed-outcome path.
+        // Only unexpected persistence errors escape that path and need logging.
+        void this.hooks
+          .start([call.id])
+          .catch((error) =>
+            console.error("Resumed tool worker failed:", error),
+          );
+        return { status: "resolved" };
+      case "reopen":
+        if (!gone())
+          this.hooks.update(call.id, {
+            state: "awaiting_input",
+            interaction: outcome.interaction,
+          });
+        return outcome.result;
+      case "transition":
+        if (!gone() && outcome.transition.status === "applied")
+          await this.hooks.settlement.settle(call, "completed", outcome.settle);
+        return outcome.transition;
+    }
+  }
 }

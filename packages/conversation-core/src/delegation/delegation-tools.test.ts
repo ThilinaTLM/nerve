@@ -167,6 +167,9 @@ async function fixture() {
       start: async () => {
         throw new Error("No process expected");
       },
+      awaitReadiness: async () => {
+        throw new Error("No process expected");
+      },
       reattach: async () => null,
     },
     defaultConfig: () => ({
@@ -211,8 +214,7 @@ async function fixture() {
     core
       .getEventsSince(LEAD, 0)
       .flatMap((event) =>
-        event.type === "system_event" &&
-        event.payload.subtype === "sub_conversation_event"
+        event.type === "system_event" && event.payload.subtype === "task_result"
           ? [event.payload.text]
           : [],
       );
