@@ -11,7 +11,7 @@ permissions:
 
 jobs:
   paths:
-    name: Detect changed areas
+    name: Changes / Detect affected areas
     runs-on: ubuntu-latest
     outputs:
       full: ${{ steps.impact.outputs.full || steps.impact_main.outputs.full }}
@@ -22,11 +22,8 @@ jobs:
       workbench: ${{ steps.impact.outputs.workbench || steps.impact_main.outputs.workbench }}
       electron_smoke: ${{ steps.impact.outputs.electron_smoke || steps.impact_main.outputs.electron_smoke }}
       native: ${{ steps.impact.outputs.native || steps.impact_main.outputs.native }}
-      native_matrix: ${{ steps.impact.outputs.native_matrix || steps.impact_main.outputs.native_matrix }}
-      native_matrix_needed: ${{ steps.impact.outputs.native_matrix_needed || steps.impact_main.outputs.native_matrix_needed }}
-      native_os_matrix: ${{ steps.impact.outputs.native_os_matrix || steps.impact_main.outputs.native_os_matrix }}
-      native_os_needed: ${{ steps.impact.outputs.native_os_needed || steps.impact_main.outputs.native_os_needed }}
-      rust_lint: ${{ steps.impact.outputs.rust_lint || steps.impact_main.outputs.rust_lint }}
+      native_windows_suites: ${{ steps.impact.outputs.native_windows_suites || steps.impact_main.outputs.native_windows_suites }}
+      native_macos_suites: ${{ steps.impact.outputs.native_macos_suites || steps.impact_main.outputs.native_macos_suites }}
 
     steps:
       - name: Check out repository
@@ -54,8 +51,9 @@ jobs:
         run: node scripts/impact/ci.ts --full
 
   lint:
-    name: Format, lint and script tests
+    name: Lint / Format, lint, policies and script tests
     runs-on: ubuntu-latest
+    needs: paths
     timeout-minutes: 15
 
     steps:
@@ -73,15 +71,6 @@ jobs:
       - name: Install dependencies
         id: install
         run: pnpm install --frozen-lockfile
-      - name: Check formatting
-        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
-        run: pnpm exec oxfmt --check
-      - name: Lint
-        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
-        run: pnpm exec eslint .
-      - name: Check package boundaries
-        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
-        run: node scripts/checks/check-package-boundaries.ts
       - name: Build workspace packages imported by scripts
         id: workspace
         if: ${{ !cancelled() && steps.install.outcome == 'success' }}
@@ -91,15 +80,34 @@ jobs:
         run: |
           pnpm --filter "@nervekit/desktop-shell^..." build
           pnpm --filter @nervekit/desktop-shell exec tsc -b
-      - name: Type-check scripts
-        if: ${{ !cancelled() && steps.workspace.outcome == 'success' }}
-        run: pnpm exec tsc -p scripts
-      - name: Run scripts tests
-        if: ${{ !cancelled() && steps.workspace.outcome == 'success' }}
-        run: pnpm test:scripts
+      # Independent checks run as parallel steps (workflow syntax: jobs.<job_id>.steps[*].parallel);
+      # every step finishes before the job reports, so one failure never hides another.
+      - parallel:
+          - name: Check formatting
+            if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+            run: pnpm exec oxfmt --check
+          - name: Lint
+            if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+            run: pnpm exec eslint .
+          - name: Check package boundaries
+            if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+            run: node scripts/checks/check-package-boundaries.ts
+          - name: Check for unused files, exports and dependencies (knip)
+            if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+            # Intentional exceptions live in knip.jsonc with a reason.
+            run: pnpm knip --reporter compact
+          - name: Run ui-kit component tests
+            if: ${{ !cancelled() && steps.install.outcome == 'success' && (needs.paths.outputs.full == 'true' || contains(fromJSON(needs.paths.outputs.packages), '@nervekit/ui-kit')) }}
+            run: pnpm --filter @nervekit/ui-kit test:components
+          - name: Type-check scripts
+            if: ${{ !cancelled() && steps.workspace.outcome == 'success' }}
+            run: pnpm exec tsc -p scripts
+          - name: Run scripts tests
+            if: ${{ !cancelled() && steps.workspace.outcome == 'success' }}
+            run: pnpm test:scripts
 
   native-linux:
-    name: Build native addon (Linux)
+    name: Native / Build addon (Linux)
     runs-on: ubuntu-latest
     needs: paths
     if: needs.paths.outputs.native == 'true'
@@ -160,20 +168,19 @@ jobs:
           if-no-files-found: error
           retention-days: 1
 
-  native-os:
-    name: Build native addon (${{ matrix.os }})
-    runs-on: ${{ matrix.os }}
+  native-addon-windows:
+    name: Native / Build addon (Windows)
+    runs-on: windows-latest
     needs: paths
-    if: needs.paths.outputs.native_os_needed == 'true'
+    if: needs.paths.outputs.native_windows_suites != '[]'
     timeout-minutes: 20
-    strategy:
-      fail-fast: false
-      matrix: ${{ fromJSON(needs.paths.outputs.native_os_matrix) }}
     defaults:
       run:
         shell: bash
 
-    steps:
+    # The steps are shared with the macOS job through a YAML anchor
+    # (https://docs.github.com/en/actions/reference/workflows-and-actions/reusing-workflow-configurations).
+    steps: &native_addon_steps
       - name: Check out repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Restore native addon cache
@@ -225,58 +232,33 @@ jobs:
           if-no-files-found: error
           retention-days: 1
 
-  rust-lint:
-    name: Rust format and clippy
-    runs-on: ubuntu-latest
+  native-addon-macos:
+    name: Native / Build addon (macOS)
+    runs-on: macos-latest
     needs: paths
-    if: needs.paths.outputs.rust_lint == 'true'
-    timeout-minutes: 15
+    if: needs.paths.outputs.native_macos_suites != '[]'
+    timeout-minutes: 20
+    defaults:
+      run:
+        shell: bash
 
-    steps:
-      - name: Check out repository
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - name: Set up pnpm
-        uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
-        with:
-          version: 11.20.0
-      - name: Set up Node.js
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
-        with:
-          node-version: 24
-          cache: pnpm
-      - name: Set up Rust
-        uses: dtolnay/rust-toolchain@4360b52568e2003a75bf9bc1d59f33a8e3fc893c # stable 2026-08-05
-        with:
-          toolchain: 1.97.1
-          components: clippy,rustfmt
-      - name: Cache Rust dependencies
-        uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
-        with:
-          shared-key: rust-lint
-          save-if: ${{ github.ref == 'refs/heads/main' }}
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-      - name: Check Rust formatting and clippy
-        run: pnpm --filter @nervekit/native check:native
+    steps: *native_addon_steps
 
   # Narrow (non-full) pull requests: the package check (~1 min) and the package
-  # tests (~3-4 min) are independent, so they run as parallel matrix entries
-  # instead of back to back. Each entry repeats only install + dependency prep.
-  validate:
-    name: ${{ matrix.task == 'check' && 'Check' || 'Test' }} affected packages (Ubuntu)
+  # tests (~3-4 min) are independent, so they run as two parallel jobs instead
+  # of back to back. Each repeats only install + dependency prep; the steps are
+  # shared through a YAML anchor and select their task through `env.TASK`.
+  validate-check:
+    name: Packages / Affected checks (Ubuntu)
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        task:
-          - check
-          - test
+    env:
+      TASK: check
     needs:
       - paths
       - native-linux
     if: ${{ !cancelled() && needs.paths.result == 'success' && (needs.native-linux.result == 'success' || needs.native-linux.result == 'skipped') && needs.paths.outputs.has_packages == 'true' && needs.paths.outputs.full != 'true' }}
 
-    steps:
+    steps: &validate_steps
       - name: Check out repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Set up pnpm
@@ -324,27 +306,40 @@ jobs:
         run: node scripts/testing/run-affected-packages.ts build
 
       - name: Check affected packages
-        if: matrix.task == 'check'
+        if: env.TASK == 'check'
         env:
           NERVE_AFFECTED_PACKAGES: ${{ needs.paths.outputs.packages }}
         run: node scripts/testing/run-affected-packages.ts check
 
+      # Tests of one affected package import another affected package's dist
+      # (e.g. conversation-core tests import @nervekit/tools/dist), and only the
+      # check entry builds them implicitly via tsc -b.
       - name: Build affected packages
-        # The check entry builds them through `tsc -b`; tests of one affected
-        # package can import another affected package's dist.
-        if: matrix.task == 'test'
+        if: env.TASK == 'test'
         env:
           NERVE_AFFECTED_PACKAGES: ${{ needs.paths.outputs.packages }}
         run: node scripts/testing/run-affected-packages.ts build
 
       - name: Test affected packages
-        if: matrix.task == 'test'
+        if: env.TASK == 'test'
         env:
           NERVE_AFFECTED_PACKAGES: ${{ needs.paths.outputs.packages }}
         run: node scripts/testing/run-affected-packages.ts test
 
+  validate-test:
+    name: Packages / Affected tests (Ubuntu)
+    runs-on: ubuntu-latest
+    env:
+      TASK: test
+    needs:
+      - paths
+      - native-linux
+    if: ${{ !cancelled() && needs.paths.result == 'success' && (needs.native-linux.result == 'success' || needs.native-linux.result == 'skipped') && needs.paths.outputs.has_packages == 'true' && needs.paths.outputs.full != 'true' }}
+
+    steps: *validate_steps
+
   typecheck:
-    name: Type and lint checks (Ubuntu)
+    name: Packages / All checks (Ubuntu)
     runs-on: ubuntu-latest
     needs:
       - paths
@@ -393,7 +388,7 @@ jobs:
         run: pnpm -r check
 
   package-tests:
-    name: Package tests (Ubuntu)
+    name: Packages / All tests (Ubuntu)
     runs-on: ubuntu-latest
     needs:
       - paths
@@ -464,7 +459,7 @@ jobs:
           retention-days: 7
 
   browser-tests:
-    name: Workbench browser tests
+    name: Browser / Workbench tests
     runs-on: ubuntu-latest
     needs:
       - paths
@@ -473,7 +468,7 @@ jobs:
     timeout-minutes: 15
     # Official image with Chromium and its system libraries preinstalled (no apt-get or
     # browser download). The tag must match the locked @playwright/test version; the
-    # scripts tests in the lint job assert that (scripts/checks/test/playwright-image.test.ts).
+    # scripts tests in the Lint job assert that (scripts/checks/test/playwright-image.test.ts).
     container:
       image: mcr.microsoft.com/playwright:v1.63.0-noble
       options: --user 1001
@@ -524,7 +519,7 @@ jobs:
           retention-days: 7
 
   website:
-    name: Check and build website
+    name: Website / Check and build
     runs-on: ubuntu-latest
     needs: paths
     if: needs.paths.outputs.website == 'true'
@@ -552,71 +547,25 @@ jobs:
       - name: Build website
         run: pnpm --filter @nervekit/website build
 
-  component-tests:
-    name: UI component tests
-    runs-on: ubuntu-latest
-    needs: paths
-    # Install only (no native or workbench build), off the critical path.
-    if: ${{ needs.paths.outputs.full == 'true' || contains(fromJSON(needs.paths.outputs.packages), '@nervekit/ui-kit') }}
-    timeout-minutes: 10
-
-    steps:
-      - name: Check out repository
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - name: Set up pnpm
-        uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
-        with:
-          version: 11.20.0
-      - name: Set up Node.js
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
-        with:
-          node-version: 24
-          cache: pnpm
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-      - name: Run ui-kit component tests
-        run: pnpm --filter @nervekit/ui-kit test:components
-
-  knip:
-    name: Unused code (knip)
-    runs-on: ubuntu-latest
-    needs: paths
-    timeout-minutes: 10
-
-    steps:
-      - name: Check out repository
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - name: Set up pnpm
-        uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
-        with:
-          version: 11.20.0
-      - name: Set up Node.js
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
-        with:
-          node-version: 24
-          cache: pnpm
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-      - name: Check for unused files, exports and dependencies
-        # Intentional exceptions live in knip.jsonc with a reason.
-        run: pnpm knip --reporter compact
-
-  native-tests:
-    name: Native ${{ matrix.suite }}${{ matrix.shard && format(' {0}', matrix.shard) || '' }} tests (${{ matrix.os }})
+  # One job per OS: install, addon and builds happen once, then the selected
+  # suites run as parallel steps (jobs.<job_id>.steps[*].parallel). The suite
+  # list comes from the paths job (see scripts/impact/rules.ts) and the steps
+  # are shared between the two jobs through a YAML anchor.
+  native-tests-windows:
+    name: Native / Host and desktop tests (Windows)
     needs:
       - paths
-      - native-os
-    if: ${{ !cancelled() && needs.native-os.result == 'success' && needs.paths.outputs.native_matrix_needed == 'true' }}
-    strategy:
-      fail-fast: false
-      matrix: ${{ fromJSON(needs.paths.outputs.native_matrix) }}
-    runs-on: ${{ matrix.os }}
-    timeout-minutes: 15
+      - native-addon-windows
+    if: ${{ !cancelled() && needs.native-addon-windows.result == 'success' && needs.paths.outputs.native_windows_suites != '[]' }}
+    runs-on: windows-latest
+    timeout-minutes: 25
+    env:
+      SUITES: ${{ needs.paths.outputs.native_windows_suites }}
     defaults:
       run:
         shell: bash
 
-    steps:
+    steps: &native_test_steps
       - name: Check out repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Set up pnpm
@@ -629,12 +578,12 @@ jobs:
           node-version: 24
           cache: pnpm
       - name: Set up Rust
-        if: matrix.suite == 'host-native'
+        if: contains(fromJSON(env.SUITES), 'native')
         uses: dtolnay/rust-toolchain@4360b52568e2003a75bf9bc1d59f33a8e3fc893c # stable 2026-08-05
         with:
           toolchain: 1.97.1
       - name: Cache Rust dependencies
-        if: matrix.suite == 'host-native'
+        if: contains(fromJSON(env.SUITES), 'native')
         uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
         with:
           shared-key: native-test
@@ -654,91 +603,114 @@ jobs:
           tar -xf .native-addon/native-addon.tar -C packages/native/prebuilds
           node scripts/testing/smoke-native-addon.ts
 
-      # cargo fmt and clippy are OS-independent and run once on Ubuntu
-      # (validate or rust-lint); only cargo test and tsx tests run per OS.
-      - name: Run native runtime tests
-        if: matrix.suite == 'host-native'
-        run: pnpm --filter @nervekit/native test
-
-      - name: Build native server packages
-        if: matrix.suite == 'host-server' || matrix.suite == 'host-migrations'
+      # Builds run sequentially (shared tsc outputs); each is needed by the
+      # selected suites only. The server build also covers tools.
+      - name: Build server packages
+        if: contains(fromJSON(env.SUITES), 'server') || contains(fromJSON(env.SUITES), 'migrations')
         run: pnpm --filter @nervekit/workbench-server... build
-      - name: Run native server tests
-        if: matrix.suite == 'host-server'
-        timeout-minutes: 8
-        run: pnpm --filter @nervekit/workbench-server test:native
-      # Same globs as the workbench-server test:migrations script, sharded
-      # (pnpm does not forward extra flags past the script's globs).
-      - name: Run storage migration tests on native filesystems
-        if: matrix.suite == 'host-migrations'
-        run: pnpm --filter @nervekit/workbench-server exec tsx --test --test-concurrency=1 --test-shard=${{ matrix.shard }} "src/infrastructure/migrations/**/*.test.ts" "test/infrastructure/persistence/*.test.ts"
-
-      - name: Build native tool packages
-        if: matrix.suite == 'host-tools'
+      - name: Build tool packages
+        if: contains(fromJSON(env.SUITES), 'tools') && !contains(fromJSON(env.SUITES), 'server') && !contains(fromJSON(env.SUITES), 'migrations')
         run: pnpm --filter @nervekit/tools... build
-      - name: Run tool tests on native Windows filesystems
-        if: matrix.suite == 'host-tools' && runner.os == 'Windows'
-        run: pnpm --filter @nervekit/tools test
-      - name: Run native tool tests on macOS
-        if: matrix.suite == 'host-tools' && runner.os == 'macOS'
-        run: pnpm --filter @nervekit/tools test:native
-
-      - name: Build native desktop runtime
-        if: matrix.suite == 'desktop'
+      - name: Build desktop runtime
+        if: contains(fromJSON(env.SUITES), 'desktop')
         run: pnpm build:workbench-runtime && pnpm --filter @nervekit/desktop-shell build
-      - name: Run desktop tests
-        if: matrix.suite == 'desktop'
-        timeout-minutes: 8
-        run: pnpm --filter @nervekit/desktop-shell test
+
+      # cargo fmt and clippy are OS-independent and run once on Ubuntu
+      # (the Packages checks); only cargo test and tsx tests run per OS.
+      - parallel:
+          - name: Run native runtime tests
+            if: contains(fromJSON(env.SUITES), 'native')
+            run: pnpm --filter @nervekit/native test
+          - name: Run native server tests
+            if: contains(fromJSON(env.SUITES), 'server')
+            timeout-minutes: 8
+            run: pnpm --filter @nervekit/workbench-server test:native
+          # Same globs as the workbench-server test:migrations script, in two
+          # shards (pnpm does not forward extra flags past the script's globs).
+          - name: Run storage migration tests on native filesystems (shard 1/2)
+            if: contains(fromJSON(env.SUITES), 'migrations')
+            run: pnpm --filter @nervekit/workbench-server exec tsx --test --test-concurrency=1 --test-shard=1/2 "src/infrastructure/migrations/**/*.test.ts" "test/infrastructure/persistence/*.test.ts"
+          - name: Run storage migration tests on native filesystems (shard 2/2)
+            if: contains(fromJSON(env.SUITES), 'migrations')
+            run: pnpm --filter @nervekit/workbench-server exec tsx --test --test-concurrency=1 --test-shard=2/2 "src/infrastructure/migrations/**/*.test.ts" "test/infrastructure/persistence/*.test.ts"
+          - name: Run tool tests on native Windows filesystems
+            if: contains(fromJSON(env.SUITES), 'tools') && runner.os == 'Windows'
+            run: pnpm --filter @nervekit/tools test
+          - name: Run native tool tests on macOS
+            if: contains(fromJSON(env.SUITES), 'tools') && runner.os == 'macOS'
+            run: pnpm --filter @nervekit/tools test:native
+          - name: Run desktop tests
+            if: contains(fromJSON(env.SUITES), 'desktop')
+            timeout-minutes: 8
+            run: pnpm --filter @nervekit/desktop-shell test
+
+  native-tests-macos:
+    name: Native / Host and desktop tests (macOS)
+    needs:
+      - paths
+      - native-addon-macos
+    if: ${{ !cancelled() && needs.native-addon-macos.result == 'success' && needs.paths.outputs.native_macos_suites != '[]' }}
+    runs-on: macos-latest
+    timeout-minutes: 25
+    env:
+      SUITES: ${{ needs.paths.outputs.native_macos_suites }}
+    defaults:
+      run:
+        shell: bash
+
+    steps: *native_test_steps
 
   native-gate:
-    name: Native host gate
+    name: Native / Gate
     runs-on: ubuntu-latest
     if: always()
     needs:
       - paths
-      - native-os
-      - native-tests
+      - native-addon-windows
+      - native-addon-macos
+      - native-tests-windows
+      - native-tests-macos
 
     steps:
       - name: Require successful native host jobs
         shell: bash
         env:
           PATHS_RESULT: ${{ needs.paths.result }}
-          BUILD_RESULT: ${{ needs.native-os.result }}
-          TEST_RESULT: ${{ needs.native-tests.result }}
+          # Skipped means the OS had no selected suites; anything else but success fails.
+          NATIVE_RESULTS: >-
+            addon-windows=${{ needs.native-addon-windows.result }}
+            addon-macos=${{ needs.native-addon-macos.result }}
+            tests-windows=${{ needs.native-tests-windows.result }}
+            tests-macos=${{ needs.native-tests-macos.result }}
         run: |
           set -euo pipefail
           if [ "${PATHS_RESULT}" != "success" ]; then
             echo "Native path detection failed: ${PATHS_RESULT}" >&2
             exit 1
           fi
-          if [ "${BUILD_RESULT}" != "success" ] && [ "${BUILD_RESULT}" != "skipped" ]; then
-            echo "Native addon build failed: ${BUILD_RESULT}" >&2
-            exit 1
-          fi
-          if [ "${TEST_RESULT}" != "success" ] && [ "${TEST_RESULT}" != "skipped" ]; then
-            echo "Native test matrix failed: ${TEST_RESULT}" >&2
-            exit 1
-          fi
-          echo "Native host CI passed: paths=${PATHS_RESULT}, build=${BUILD_RESULT}, tests=${TEST_RESULT}"
+          for entry in ${NATIVE_RESULTS}; do
+            result="${entry#*=}"
+            if [ "${result}" != "success" ] && [ "${result}" != "skipped" ]; then
+              echo "Native job failed: ${entry}" >&2
+              exit 1
+            fi
+          done
+          echo "Native host CI passed: paths=${PATHS_RESULT}, ${NATIVE_RESULTS}"
 
   gate:
-    name: CI gate
+    name: CI / Gate
     runs-on: ubuntu-latest
     if: always()
     needs:
       - paths
       - lint
       - native-linux
-      - rust-lint
-      - validate
+      - validate-check
+      - validate-test
       - typecheck
       - package-tests
       - browser-tests
       - website
-      - component-tests
-      - knip
       - native-gate
 
     steps:
@@ -748,20 +720,18 @@ jobs:
           PATHS_RESULT: ${{ needs.paths.result }}
           LINT_RESULT: ${{ needs.lint.result }}
           NATIVE_RESULT: ${{ needs.native-gate.result }}
-          KNIP_RESULT: ${{ needs.knip.result }}
           CONDITIONAL_RESULTS: >-
             native-linux=${{ needs.native-linux.result }}
-            rust-lint=${{ needs.rust-lint.result }}
-            validate=${{ needs.validate.result }}
+            validate-check=${{ needs.validate-check.result }}
+            validate-test=${{ needs.validate-test.result }}
             typecheck=${{ needs.typecheck.result }}
             package-tests=${{ needs.package-tests.result }}
             browser=${{ needs.browser-tests.result }}
             website=${{ needs.website.result }}
-            component-tests=${{ needs.component-tests.result }}
         run: |
           set -euo pipefail
-          if [ "${PATHS_RESULT}" != "success" ] || [ "${LINT_RESULT}" != "success" ] || [ "${NATIVE_RESULT}" != "success" ] || [ "${KNIP_RESULT}" != "success" ]; then
-            echo "Required CI job failed: paths=${PATHS_RESULT}, lint=${LINT_RESULT}, native=${NATIVE_RESULT}, knip=${KNIP_RESULT}" >&2
+          if [ "${PATHS_RESULT}" != "success" ] || [ "${LINT_RESULT}" != "success" ] || [ "${NATIVE_RESULT}" != "success" ]; then
+            echo "Required CI job failed: paths=${PATHS_RESULT}, lint=${LINT_RESULT}, native=${NATIVE_RESULT}" >&2
             exit 1
           fi
           # Conditional jobs are skipped when their area is unaffected. A skip
@@ -774,4 +744,4 @@ jobs:
               exit 1
             fi
           done
-          echo "CI passed: paths=${PATHS_RESULT}, lint=${LINT_RESULT}, native=${NATIVE_RESULT}, knip=${KNIP_RESULT}, ${CONDITIONAL_RESULTS}"
+          echo "CI passed: paths=${PATHS_RESULT}, lint=${LINT_RESULT}, native=${NATIVE_RESULT}, ${CONDITIONAL_RESULTS}"

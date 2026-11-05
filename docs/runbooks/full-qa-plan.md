@@ -441,8 +441,8 @@ Design: `scripts/README.md`, `docs/architecture/codebase.md`.
 - [ ] **TOOLS-6** ui-kit component tests: `cd packages/ui-kit && pnpm test:components`.
 - [ ] **TOOLS-7** Per-package unit suites pass (contracts, protocol, tools, conversation-core, harness, workbench-server incl. `src/**`, workbench-app, ui-kit, scripts).
 - [ ] **TOOLS-8** Boundary rule: `adapters/**` importing `app/**` fails lint (add a temp import to confirm; revert).
-- [ ] **TOOLS-9** CI on the PR: `CI gate` required and green; lint job separate; native addon cache hit on rerun; wall time ≤ ~480 s; script-only PR stays narrow; `knip` advisory only.
-- [ ] **TOOLS-10** Branch protection references `CI gate` only (not renamed matrix jobs).
+- [ ] **TOOLS-9** CI on the PR: `CI / Gate` required and green; `Lint / …` job separate (includes knip and ui-kit component tests); native addon cache hit on rerun; wall time ≤ ~480 s; script-only PR stays narrow; `knip` blocking (a step in the Lint job).
+- [ ] **TOOLS-10** Branch protection references `CI / Gate` only (not renamed matrix jobs).
 
 ## 19. Results template
 

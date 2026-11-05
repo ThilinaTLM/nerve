@@ -43,6 +43,16 @@
  * workflows, root TypeScript/ESLint config, a non-tooling `scripts/` path) or
  * a path with unknown ownership. Docs-only paths and developer tooling select
  * nothing beyond the always-on lint job.
+ *
+ * Test-only paths ({@link TEST_ONLY_PATH}) select just their owning package
+ * (no reverse dependents). Native suites are selected per suite: `native`
+ * when the native package is affected, `tools`/`server`/`desktop` when that
+ * package is affected, `migrations` only for migration inputs
+ * ({@link MIGRATION_SERVER_PATH}, {@link MIGRATION_INPUT_PACKAGES}). cargo
+ * fmt/clippy need no selection of their own: a Rust input always selects the
+ * native package, whose `check` runs them. The same classifier backs the
+ * package selection of `check:focused` and `test:focused`, so test-only
+ * edits narrow those too.
  */
 
 export const CORE_PACKAGES: ReadonlySet<string> = new Set([
@@ -152,32 +162,48 @@ export const TOOLING_ROOT_FILES: ReadonlySet<string> = new Set([
 
 // ── Native CI matrix ────────────────────────────────────────────────────────
 
-/** Platform order for native jobs; host work is split into parallel suites. */
-export const NATIVE_OSES: readonly string[] = [
-  "windows-latest",
-  "macos-latest",
+/** Platform order for native jobs: one job per OS runs the selected suites. */
+export const NATIVE_OSES: readonly { os: string; name: string }[] = [
+  { os: "windows-latest", name: "Windows" },
+  { os: "macos-latest", name: "macOS" },
+];
+
+/** Native suites a native OS job can run (see `selectNativeSuites`). */
+export const NATIVE_SUITES: readonly string[] = [
+  "native",
+  "tools",
+  "server",
+  "migrations",
+  "desktop",
 ];
 
 /**
- * Storage migration tests run with --test-concurrency=1 and dominate the
- * Windows/macOS host path, so they are sharded with Node's --test-shard.
+ * Workbench-server paths whose change can alter storage migration or
+ * persistence behavior. The migration tests also import `domains/storage` and
+ * the `test/fixtures/storage` release fixtures, so those count too.
  */
-export const MIGRATION_SHARDS = 2;
+export const MIGRATION_SERVER_PATH =
+  /^packages\/workbench-server\/(?:src\/infrastructure\/(?:migrations|persistence|storage-bootstrap)\/|src\/domains\/storage\/|test\/infrastructure\/persistence\/|test\/fixtures\/storage\/|package\.json$|tsconfig(?:\.[^/]+)?\.json$)/;
 
-export interface HostSuite {
-  suite: string;
-  shard?: string;
-}
+/**
+ * Packages whose non-test source the migration tests import (contracts and
+ * conversation-core schemas, the native addon); a change there reruns them.
+ */
+export const MIGRATION_INPUT_PACKAGES: ReadonlySet<string> = new Set([
+  "@nervekit/contracts",
+  "@nervekit/conversation-core",
+  "@nervekit/native",
+]);
 
-export const HOST_SUITES: readonly HostSuite[] = [
-  { suite: "host-native" },
-  { suite: "host-server" },
-  { suite: "host-tools" },
-  ...Array.from({ length: MIGRATION_SHARDS }, (_, index) => ({
-    suite: "host-migrations",
-    shard: `${index + 1}/${MIGRATION_SHARDS}`,
-  })),
-];
+/**
+ * Test-only paths: test files and per-package `test/` trees. They are never
+ * exported to other packages (packages publish `dist` built from `src`), so a
+ * change selects only the owning package. Source-level helpers and fixtures
+ * (`testing/` directories, `*-fixture.ts`, `*-test-helper.ts`) stay ordinary
+ * source on purpose: some compile into `dist` and are imported cross-package.
+ */
+export const TEST_ONLY_PATH =
+  /^packages\/[^/]+\/(?:test\/.+|(?:.+\/)?[^/]+\.test\.(?:ts|tsx|mts|cts))$/;
 
 // ── Focused validation: file kinds ──────────────────────────────────────────
 

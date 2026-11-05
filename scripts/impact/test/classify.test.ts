@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
+import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import test from "node:test";
 import { loadWorkspace } from "../../workspace/graph.ts";
@@ -55,14 +56,26 @@ test("desktop-only changes prepare runtime dependencies without website or Workb
   assert.equal(impact.website, false);
   assert.equal(impact.workbench, false);
   assert.deepEqual(impact.nativeMatrix, [
-    { os: "windows-latest", suite: "desktop" },
-    { os: "macos-latest", suite: "desktop" },
+    { os: "windows-latest", name: "Windows", suites: ["desktop"] },
+    { os: "macos-latest", name: "macOS", suites: ["desktop"] },
   ]);
 });
 
-test("server changes select host and desktop platform suites", () => {
+const suitesFor = (path: string) => {
+  const impact = classifyChanges([path], workspace);
+  const [first, ...rest] = impact.nativeMatrix;
+  // Every selected OS runs the same suites in one job.
+  for (const entry of rest) assert.deepEqual(entry.suites, first.suites);
+  return {
+    jobs: impact.nativeMatrix.length,
+    suites: first?.suites ?? [],
+    packages: impact.packages,
+  };
+};
+
+test("native suites are selected per suite, one job per OS", () => {
   const impact = classifyChanges(
-    ["packages/workbench-server/src/main.ts"],
+    ["packages/workbench-server/src/domains/git/git.service.ts"],
     workspace,
   );
   assert.deepEqual(impact.packages, [
@@ -71,51 +84,83 @@ test("server changes select host and desktop platform suites", () => {
   ]);
   assert.equal(impact.workbench, true);
   assert.deepEqual(
-    impact.nativeMatrix.map(
-      ({ os, suite, shard }) => `${os}:${suite}${shard ? `:${shard}` : ""}`,
-    ),
-    [
-      "windows-latest:host-native",
-      "windows-latest:host-server",
-      "windows-latest:host-tools",
-      "windows-latest:host-migrations:1/2",
-      "windows-latest:host-migrations:2/2",
-      "windows-latest:desktop",
-      "macos-latest:host-native",
-      "macos-latest:host-server",
-      "macos-latest:host-tools",
-      "macos-latest:host-migrations:1/2",
-      "macos-latest:host-migrations:2/2",
-      "macos-latest:desktop",
-    ],
+    impact.nativeMatrix.map(({ os, name }) => `${os}:${name}`),
+    ["windows-latest:Windows", "macos-latest:macOS"],
   );
-  assert.deepEqual(impact.nativeOsMatrix, [
-    { os: "windows-latest" },
-    { os: "macos-latest" },
-  ]);
-  // The native package itself is untouched, so Ubuntu validate does not run
-  // cargo fmt/clippy and the dedicated job must.
-  assert.equal(impact.rustLint, true);
+  assert.deepEqual(impact.nativeMatrix[0].suites, ["server", "desktop"]);
 });
 
-test("contract changes expand through all reverse dependents", () => {
-  const impact = classifyChanges(
-    ["packages/contracts/src/index.ts"],
-    workspace,
+test("a test-only change selects only its own package and suite", () => {
+  const impact = suitesFor("packages/tools/test/execution/bash.test.ts");
+  assert.deepEqual(impact.packages, ["@nervekit/tools"]);
+  assert.deepEqual(impact.suites, ["tools"]);
+  assert.equal(impact.jobs, 2);
+
+  const contracts = suitesFor("packages/contracts/src/schemas/a.test.ts");
+  assert.deepEqual(contracts.packages, ["@nervekit/contracts"]);
+  assert.equal(contracts.jobs, 0);
+});
+
+test("source-level test helpers still propagate to dependents", () => {
+  for (const path of [
+    "packages/conversation-core/src/runtime/lifecycle-test-helpers.ts",
+    "packages/workbench-server/src/infrastructure/migrations/framework/testing/corruption-suite.ts",
+  ]) {
+    assert.ok(suitesFor(path).packages.length > 0, path);
+  }
+  assert.ok(
+    classifyChanges(
+      ["packages/conversation-core/src/runtime/lifecycle-test-helpers.ts"],
+      workspace,
+    ).packages.includes("@nervekit/workbench-server"),
   );
-  assert.deepEqual(impact.packages, [
-    "@nervekit/contracts",
-    "@nervekit/conversation-core",
-    "@nervekit/desktop-shell",
-    "@nervekit/harness",
-    "@nervekit/protocol",
-    "@nervekit/skills",
-    "@nervekit/tools",
-    "@nervekit/workbench-app",
-    "@nervekit/workbench-server",
-  ]);
-  assert.equal(impact.workbench, true);
-  assert.equal(impact.nativeMatrix.length, 12);
+});
+
+test("tools source selects tools, its dependents' suites and no migrations", () => {
+  const impact = suitesFor("packages/tools/src/index.ts");
+  assert.deepEqual(impact.suites, ["tools", "server", "desktop"]);
+});
+
+test("migration suites run only for migration inputs", () => {
+  const migration = suitesFor(
+    "packages/workbench-server/src/infrastructure/migrations/framework/runner.ts",
+  );
+  assert.deepEqual(migration.suites, ["server", "migrations", "desktop"]);
+  assert.ok(
+    suitesFor(
+      "packages/workbench-server/test/infrastructure/persistence/x.test.ts",
+    ).suites.includes("migrations"),
+  );
+  assert.deepEqual(
+    suitesFor("packages/workbench-server/src/domains/git/git.service.ts")
+      .suites,
+    ["server", "desktop"],
+  );
+});
+
+test("contract source changes run every suite except native", () => {
+  const impact = suitesFor("packages/contracts/src/index.ts");
+  assert.deepEqual(impact.suites, ["tools", "server", "migrations", "desktop"]);
+  assert.equal(impact.jobs, 2);
+});
+
+test("Rust inputs select the native package and suite", () => {
+  const impact = suitesFor("packages/native/native/src/lib.rs");
+  assert.ok(impact.suites.includes("native"));
+  assert.ok(impact.suites.includes("migrations"));
+  // cargo fmt/clippy run through the native package's `check` in the Packages
+  // jobs, so a Rust input must always select the native package.
+  for (const path of [
+    "packages/native/native/src/lib.rs",
+    "packages/native/native/Cargo.toml",
+  ]) {
+    assert.ok(suitesFor(path).packages.includes("@nervekit/native"), path);
+  }
+});
+
+test("frontend-only and docs-only changes select no native jobs", () => {
+  assert.equal(suitesFor("packages/workbench-app/src/lib/app.ts").jobs, 0);
+  assert.equal(suitesFor("docs/runbooks/release.md").jobs, 0);
 });
 
 test("root dependency and unknown script changes fail safe to full coverage", () => {
@@ -128,10 +173,15 @@ test("root dependency and unknown script changes fail safe to full coverage", ()
     const impact = classifyChanges([path], workspace);
     assert.equal(impact.full, true);
     assert.equal(impact.website, true);
-    assert.equal(impact.nativeMatrix.length, 12);
+    assert.deepEqual(impact.nativeMatrix[0].suites, [
+      "native",
+      "tools",
+      "server",
+      "migrations",
+      "desktop",
+    ]);
+    assert.equal(impact.nativeMatrix.length, 2);
     assert.ok(impact.packages.includes("@nervekit/ui-kit"));
-    // Native package is selected, so Ubuntu validate already runs clippy.
-    assert.equal(impact.rustLint, false);
   }
 });
 
@@ -152,7 +202,7 @@ test("developer tooling scripts and tests stay narrow", () => {
     assert.deepEqual(impact.packages, [], path);
     assert.equal(impact.website, false, path);
     assert.equal(impact.nativeMatrixNeeded, false, path);
-    assert.deepEqual(impact.nativeOsMatrix, [], path);
+    assert.deepEqual(impact.nativeMatrix, [], path);
   }
   // Specifically owned scripts keep their owner even inside tooling dirs' siblings.
   assert.equal(
@@ -208,10 +258,8 @@ test("GitHub outputs are stable scalar and JSON values", () => {
   assert.equal(outputs.full, "false");
   assert.equal(outputs.has_packages, "true");
   assert.deepEqual(JSON.parse(outputs.packages), ["@nervekit/workbench-app"]);
-  assert.deepEqual(JSON.parse(outputs.native_matrix), { include: [] });
-  assert.deepEqual(JSON.parse(outputs.native_os_matrix), { include: [] });
-  assert.equal(outputs.native_os_needed, "false");
-  assert.equal(outputs.rust_lint, "false");
+  assert.deepEqual(JSON.parse(outputs.native_windows_suites), []);
+  assert.deepEqual(JSON.parse(outputs.native_macos_suites), []);
 });
 
 test("the CI entry point runs under plain Node without installed dependencies", () => {
@@ -223,4 +271,17 @@ test("the CI entry point runs under plain Node without installed dependencies", 
   );
   assert.equal(result.status, 0, result.stderr);
   assert.equal(JSON.parse(result.stdout).full, true);
+});
+
+test("CI job names are literal so skipped checks render readably", () => {
+  const workflow = readFileSync(
+    new URL("../../../.github/workflows/ci.yml", import.meta.url),
+    "utf8",
+  );
+  const names = [...workflow.matchAll(/^ {4}name: (.+)$/gm)].map(
+    (match) => match[1],
+  );
+  assert.ok(names.includes("CI / Gate"));
+  for (const name of names) assert.doesNotMatch(name, /\$\{\{/, name);
+  assert.doesNotMatch(workflow, /^\s+matrix:/m);
 });
