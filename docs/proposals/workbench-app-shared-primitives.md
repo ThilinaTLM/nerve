@@ -69,25 +69,23 @@ About 10-20 lines of footer markup per migrated dialog and the inconsistent busy
 
 At least four independent polling loops each re-implement start/stop, in-flight guards and (inconsistently) visibility handling:
 
-| Site                                                                          | Mechanism                                                                                                      | Gaps                                                                                   |
-| ----------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------- |
-| `features/releases/state/release-polling.svelte.ts`                           | module `setInterval` (1 h) + `refreshing` flag                                                                 | Runs while hidden; module-level singletons                                             |
-| `platform/pwa/pwa-update-scheduler.ts`                                        | `window.setInterval`, `focus`/`online`/`visibilitychange` listeners, `minimumCheckIntervalMs`, `checkInFlight` | Best implementation; the one to generalise                                             |
-| `application/startup/workbench-client.svelte.ts` (`usageTimer`, ~line 112)    | `setInterval` 10 s for `refreshSubscriptionUsage`, cleared in `disconnectWorkbench`                            | Polls every 10 s regardless of whether any panel shows usage; swallows errors silently |
-| `application/maintenance/maintenance-controller.ts` (`schedule()`, ~line 133) | `setTimeout` 2.5 s re-armed after each `load`, only while the operation is active                              | Self-contained but duplicates in-flight/reload bookkeeping                             |
-
-`application/monitoring/workspace-monitor-demand.ts` already models "demand" for the workspace monitor, so the concept exists for subscriptions but not for polls.
+| Site                                                                          | Mechanism                                                                                                      | Gaps                                                               |
+| ----------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------ |
+| `features/releases/state/release-polling.svelte.ts`                           | module `setInterval` (1 h) + `refreshing` flag                                                                 | Runs while hidden; module-level singletons                         |
+| `platform/pwa/pwa-update-scheduler.ts`                                        | `window.setInterval`, `focus`/`online`/`visibilitychange` listeners, `minimumCheckIntervalMs`, `checkInFlight` | Best implementation; the one to generalise                         |
+| `application/startup/workbench-client.svelte.ts` (`usageTimer`, ~line 112)    | `setInterval` 10 s for `refreshSubscriptionUsage`, cleared in `disconnectWorkbench`                            | Keeps polling while the window is hidden; swallows errors silently |
+| `application/maintenance/maintenance-controller.ts` (`schedule()`, ~line 133) | `setTimeout` 2.5 s re-armed after each `load`, only while the operation is active                              | Self-contained but duplicates in-flight/reload bookkeeping         |
 
 ### Proposal
 
-A small framework-neutral primitive in `platform/` (not `presentation/`, since it touches timers and `document`), with an optional rune wrapper for components. `createClock` stays the reactive "now" source; `createPoll` is the side-effecting "run this".
+A small framework-neutral primitive in `platform/` (not `presentation/`, since it touches timers and `document`; layering is enforced: `scripts/checks/workbench-boundaries.mjs:22-27` forbids `platform` importing `app`, `application`, `features` or `presentation`, while `features` and `application` may import `platform`), with an optional rune wrapper for components. `createClock` stays the reactive "now" source; `createPoll` is the side-effecting "run this".
 
 ```ts
 // platform/polling/poll.ts
 export interface PollOptions {
   run(signal: AbortSignal): Promise<void> | void;
   intervalMs: number | (() => number | undefined); // undefined/0 = paused (cf. createClock)
-  /** Only tick while true; e.g. () => usageVisible or panel demand count > 0. */
+  /** Only tick while true; e.g. () => isMaintenanceActive(operation). */
   enabled?: () => boolean;
   /** Pause while the document is hidden; resume (and run once if stale) on visible/focus/online. */
   whileVisible?: boolean; // default true
@@ -110,12 +108,12 @@ Design points: one in-flight run at a time (a `trigger()` during a run marks one
 ### Migration
 
 1. Implement `createPoll` by lifting `pwa-update-scheduler.ts` logic, keep its tests (they already inject `window`/`document`/`now`) and re-point them to the new primitive; `startPwaUpdateScheduler` becomes a 10-line adapter.
-2. Convert `release-polling.svelte.ts` (smallest) and `workbench-client` usage polling. For usage, drive `enabled` from a demand counter (the usage UI registers while mounted) in the style of `workspace-monitor-demand.ts` so it stops polling when nothing displays it. **Needs product confirmation**: does anything outside the settings UI depend on fresh subscription usage (e.g. a status bar or quota warnings)?
+2. Convert `release-polling.svelte.ts` (smallest) and `workbench-client` usage polling. Usage polling is **not** demand-gated: subscription usage is shown in the always-visible desktop status bar (`app/shell/StatusBar.svelte`, `WorkbenchStatusBarHost.svelte`, `mobile/MobileStatusSheet.svelte`), so a demand counter would almost never be zero. Decision: `intervalMs: 10_000` with the default `whileVisible: true`, i.e. pause while the document is hidden (`visibilitychange`) and refresh immediately on becoming visible (stale-gap rule: run once if the last run is older than the interval). Errors go through `onError` (client log) instead of being swallowed.
 3. Convert `MaintenanceController.schedule()`: `enabled: () => isMaintenanceActive(this.operation)`, `intervalMs: 2500`.
 
 ### Deleted / simplified
 
-Four hand-written timer/in-flight state machines; module-level `refreshTimer`/`refreshing`/`usageTimer`; the manual `clearTimeout` bookkeeping in `MaintenanceController.dispose`.
+Four hand-written timer/in-flight state machines (and usage polling while hidden); module-level `refreshTimer`/`refreshing`/`usageTimer`; the manual `clearTimeout` bookkeeping in `MaintenanceController.dispose`.
 
 ---
 
@@ -211,9 +209,8 @@ One extraction per PR, behavior-preserving; no visual change, so no new screensh
 ## Risks & open questions
 
 - **Dialog Enter-to-submit** via `<form>` can double-fire with dialogs that already handle Enter in a text field; audit each migrated dialog.
-- **Where to host `createPoll`**: `platform/` is correct for layering but `release-polling` lives under `features/`, which may import `platform`. Confirm `platform` does not import `application` (it must not).
-- **Usage polling demand** (B.2) is a behavior change and needs a product decision.
-- **No DB/storage/protocol changes** anywhere in this proposal.
+- **Immediate refresh on visible** (B.2) can briefly double-fetch with other startup refreshes; `minGapMs` coalesces it.
+- **No DB/storage/protocol changes** anywhere in this proposal. No product decisions remain open.
 
 ## Effort
 

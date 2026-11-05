@@ -1,8 +1,83 @@
 # Testing improvements
 
-> **Status:** Proposal. Test-only changes plus one dev-tooling addition (unused-export baseline). No product code or storage changes. Governing rule is the root `AGENTS.md`: run unit tests for touched code; add tests for important behavior only, never for exports, pass-through adapters, cosmetics, or behavior covered at its owning layer.
+> **Status:** Proposal. Test-only changes, CI workflow changes (`.github/workflows/ci.yml`, `scripts/testing/ci-impact.mjs`) and two dev-tooling additions (component tests, unused-export baseline), both approved in principle and bound by the CI budget in section 0. No product code or storage changes. Governing rule is the root `AGENTS.md`: run unit tests for touched code; add tests for important behavior only, never for exports, pass-through adapters, cosmetics, or behavior covered at its owning layer.
 
-Five areas, in priority order.
+Seven areas. Section 0 is the constraint the rest must fit inside; items 1-6 are in priority order.
+
+---
+
+## 0. CI lead time
+
+### Problem
+
+A full PR run takes about 12.5 minutes, and every PR that touches an unrecognized path is "full". Reviewers wait on this for every push, so new tooling (item 3 component tests, item 6 knip) must be paid for, and the suite and CI should get faster overall. All numbers below are from `gh run view <id> --json jobs` (step `startedAt`/`completedAt`); steps under ~8 s are omitted. Workflow: `.github/workflows/ci.yml` (jobs `paths`, `validate`, `browser-tests`, `website`, `native-tests` matrix, `native-gate`, `gate`).
+
+**Measured baseline** (seconds; wall = run `createdAt` to `updatedAt`):
+
+| Run                                               | Kind       | Wall | Slowest job                           |
+| ------------------------------------------------- | ---------- | ---- | ------------------------------------- |
+| `42030419967` (PR #529, touches `scripts/checks`) | PR, full   | 759  | Native host (windows) 731             |
+| `42003812019` (main push)                         | push, full | 727  | Native host (windows) 699             |
+| `42000178568` (feat/code-editor-diff-previews)    | PR, full   | 753  | Native host (windows) 725 / macos 712 |
+| `41880314349` (fix/show-stop-for-background-work) | PR, narrow | 331  | validate 301 (native jobs skipped)    |
+
+Per-job and step durations, run `42030419967` (very similar in `42003812019` and `42000178568`):
+
+| Job                            | Total     | Where the time goes                                                                                                                                                                                                  |
+| ------------------------------ | --------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Native host (windows)          | 731       | setup pnpm/Node/Rust ~65, install 21, **build native 198**, **cargo fmt/clippy + cargo test + tsx 153**, build host packages 52, tools 42, **migrations 177**                                                        |
+| Native host (macos)            | 473       | build native 172, check+test native 107, host packages 58, migrations 44 (run `42000178568`: 712 s, build native 251, check+test 179)                                                                                |
+| Native desktop (windows/macos) | 404 / 315 | **build native 200 / 143**, desktop runtime 87 / 90, tests 19 / 14                                                                                                                                                   |
+| Check and test (Ubuntu)        | 530       | **baseline (oxfmt, eslint, boundaries, `scripts/**` tests) 77**, `pnpm -r check` 84, **`test:coverage` 282** (includes `pnpm build:native` via `test:full`, `package.json:21`), upload 20, runtime build 16, smoke 8 |
+| Workbench browser tests        | 197       | Chromium install 17, `test:browser` 157 (builds native and workbench runtime again, then Playwright with `workers: 1`, 7 specs)                                                                                      |
+| Website                        | 44        | off the critical path                                                                                                                                                                                                |
+| `paths`, gates                 | 8 / 3     | negligible                                                                                                                                                                                                           |
+
+Narrow run `41880314349`: validate 301 s = baseline 75, native build 59, affected build/check/test 28 + 42, runtime build 44; browser 206 s.
+
+**Critical path** (full PR): `paths` (8) then **Native host (windows)** (~730), serial inside the job: toolchain setup, native build, cargo checks and tests, host package build, tool tests, storage migrations. Ubuntu `validate` (430-600 s) is second and macOS host (470-710 s) third; everything else finishes under ~400 s.
+
+**Cache effectiveness.** The only cache is `setup-node` `cache: pnpm` (store), which works: install is 8-40 s. There is **no Rust cache** (no `rust-cache`/`actions/cache` in `ci.yml`), so every run rebuilds the napi addon in release mode (`packages/native/package.json` `build:native`) up to **six times** (windows host, macos host, windows desktop, macos desktop, Ubuntu inside `test:full`, browser job), and recompiles dependencies again for `cargo clippy`/`cargo test` (debug profiles). The Playwright Chromium download (17-23 s) is also uncached.
+
+**Why PRs are "full".** `scripts/testing/ci-impact.mjs` (`classifyChanges`, ~lines 120-154) sets `full` for global paths and for any path with unknown ownership. PR #529 changes `scripts/checks/*`, so it ran everything including both OS matrices (759 s vs 331 s for a narrow PR). The impact engine itself (one shared change inventory and ownership layer behind CI, `fix`, `check` and `test` selection; owner gaps for `scripts/**` and root configs) is owned by `docs/proposals/scripts-tooling-refactor.md` ("One selection engine", rollout steps 4-5, "Ownership drift"). This proposal only states the CI outcome it needs: script-only PRs must stay narrow.
+
+**Not derivable from CI data**: per-test-file and per-package durations, and the c8 overhead inside `test:coverage`. Step 1 below adds the measurement; savings for steps 5-6 are estimates until then.
+
+### CI budget
+
+| Scenario          | Today (p50) | Target   |
+| ----------------- | ----------- | -------- |
+| Narrow PR         | ~5.5 min    | <= 4 min |
+| Full PR (all OS)  | ~12.5 min   | <= 8 min |
+| Critical-path job | ~730 s      | <= 450 s |
+
+Rules:
+
+1. **New checks are a new parallel job** (own runner, own checkout/install), never a step appended to `validate` or the native jobs. They start from `paths` and join `gate`.
+2. **A new check may add at most 30 s to the critical path**: its job must finish before the longest existing job, or it is advisory. Anything slower runs on `main`/nightly only, or only when its package is affected.
+3. **Anything that needs the native addon or a workbench build consumes the shared artifact** (step 2) and never rebuilds it.
+4. A PR that adds time to the critical path shows before/after step durations from `gh run view --json jobs` in its description.
+
+### Speedups, ranked by expected saving on the critical path
+
+1. **Measure first (about 0.5 h, no behavior change).** Emit per-package test timing (e.g. `--test-reporter=junit`, print the 10 slowest files into `$GITHUB_STEP_SUMMARY`) and time `c8 pnpm run test:full` against `pnpm run test:full` once on a branch. This replaces the estimates in steps 5-6 with numbers.
+2. **Cache or share the native build (saves ~130-200 s per native job, ~200 s on the critical path).** Key `packages/native/prebuilds/local` and the cargo target/registry by OS + `hashFiles` of the Rust sources, `Cargo.lock` and the pinned toolchain (`Swatinem/rust-cache` plus `actions/cache` for the prebuild). The key changes only when Rust changes, a minority of PRs. Better: one `build-native` job per OS uploads the addon as an artifact that host, desktop, Ubuntu and browser jobs download. That removes the duplicate build (host and desktop on the same OS build the identical addon today) even on a cache miss. Use the artifact, with the cache behind it for the miss case.
+3. **Split the Windows/macOS host job (saves ~150-250 s on the critical path).** The serial tail is cargo/tsx native tests 153, host package build 52, tools 42, migrations 177 (up to 255). Run migrations and tool tests as separate parallel jobs that need only the native artifact (the `matrix.suite` mechanism and `nativeMatrix` in `ci-impact.mjs` already exist; add suites). Run `cargo fmt --check` and `cargo clippy` (`check:native`, `packages/native/package.json:27`) **once on Ubuntu**, since they are OS-independent, and keep only `cargo test` and `test:native` per OS.
+4. **Do not make script-only and tooling-only PRs full (saves ~7 min on those PRs).** Give `scripts/**`, docs and root tool configs precise owners in `ci-impact.mjs` (`SPECIAL_OWNERS`, `isGlobalPath`, `isIgnoredPath`) so that `scripts/checks/*` runs the script tests and fast baseline, not both OS matrices. The implementation is the ownership work in `docs/proposals/scripts-tooling-refactor.md` (rollout steps 4-5); do it there, not twice. Until it lands, a minimal interim fix is a `scripts/` entry in `SPECIAL_OWNERS` mapping to a script-test-only scope. The same proposal's rollout step 0 widens the scripts test glob (`ci.yml:75`, `package.json:21`) to include the five orphaned `scripts/**/*.test.ts` files; they were run manually and pass (24/24), so wiring them into the new `lint` job below is safe and adds no meaningful time.
+5. **Parallelize the Ubuntu job (saves ~60-80 s).** The baseline (oxfmt, eslint, boundaries, `scripts/**` tests; 60-84 s) needs no build: make it a parallel `lint` job (the scripts proposal's "CI" bullets under Speed defer job structure to this document, so this is the one place that decides it; its own contribution is that the four commands become independent steps so one run reports all failures). `pnpm -r check` (67-96 s) and tests stay together, or split if step 1 shows they share a build artifact cheaply. Standard runners on a public repo have 4 vCPU on Linux and Windows and 3 on macOS (GitHub docs, "Standard GitHub-hosted runners for public repositories"), so `--workspace-concurrency=4` (`package.json:21`) is already at the Linux limit and raising it will not help; `workbench-server` is pinned to `--test-concurrency=1` (`packages/workbench-server/package.json:33`) and is a candidate for splitting by directory only if step 1 shows it dominates.
+6. **Coverage on `main` only (approved; saves 20 s upload plus c8 overhead, estimated 10-25% of the 240-330 s test step).** PRs run `pnpm run test:full` (the same tests without c8); `main` and release keep `test:coverage` and the upload. `.c8rc.json` has `all: true` over `packages/*/src/**/*.ts`, which instruments every source file and is the likely cost.
+7. **Remove duplicate builds (saves ~15-30 s, off the critical path).** `Build workbench runtime` plus the two smoke steps in `validate` repeat what `test:browser` already builds (`package.json:23`); move the smokes into `browser-tests` after its build.
+8. **Cache Playwright browsers (saves ~15 s, off the critical path)** keyed by the `@playwright/test` version. Keep `workers: 1` (`playwright.config.ts`); at 157-232 s the browser job is not critical, so sharding is not worth it yet.
+
+Expected result if steps 2-5 land: windows host ~730 s to ~350-450 s, Ubuntu ~530 s to ~330-400 s, so full PRs take about 7-8 min and script-only PRs 4-5 min. These are estimates from the step table, not measurements.
+
+### How items 3 and 6 fit the budget
+
+- **Component tests (item 3)** run in a new parallel job gated by `paths` (ui-kit or workbench-app affected): install only (8-40 s cached), no native or workbench build, expected 30-60 s in total and entirely off the critical path. They do not enter `validate`, `test:full` or the native jobs.
+- **knip (item 6)** is its own parallel job: install plus `pnpm knip` (estimated 20-40 s), advisory (not in `gate`) until triaged, then failing only on _new_ findings against the baseline. It needs no build.
+- Both obey rule 2: if either would add more than 30 s to the critical path it moves to `main`/nightly.
+
+**Effort:** S-M. Step 1 half an hour; step 2 half a day (artifact plus cache, per OS); step 3 half a day across `ci-impact.mjs` and `ci.yml`; steps 4-8 each under half a day. **Risk:** a stale or poisoned native addon (key on toolchain and all Rust inputs, and smoke-load the addon in each consuming job). Runner minutes are not a constraint (the repo is public, so standard runners are free), so splitting jobs is fine; the practical limits are per-job setup overhead (~40-80 s on Windows) and runner availability. Split only where the saved serial time clearly exceeds that overhead, and keep cache and artifact transfer under ~30 s.
 
 ---
 
@@ -90,10 +165,12 @@ Do this one file at a time; each conversion is verified by running the file 20 t
 
 ### Proposal
 
+Budget: the layer must satisfy the section 0 rules. It runs in its own parallel CI job (30-60 s, no native or workbench build), only when `ui-kit` or `workbench-app` is affected, and never in `validate`.
+
 Add a minimal, opt-in component test layer to `ui-kit` (and not to `workbench-app`, which has its own 231 colocated tests and a `scripts/run-tests.mjs` runner):
 
 - Runner: **Vitest + `@testing-library/svelte` + `jsdom`** (or `happy-dom`), with `@sveltejs/vite-plugin-svelte` for compilation, under `packages/ui-kit/vitest.config.ts`. Alternative: keep `tsx --test` and use Svelte's `mount()` with `jsdom` globals directly, with no new runner but more hand-rolled setup. Recommendation: Vitest, because `node:test` + the Svelte compiler needs a loader and we would be building a harness.
-- Naming: `*.svelte.test.ts` next to the component, picked up by Vitest only; existing `*.test.ts` stay on `tsx --test` so current scripts and the focused-validation runner keep working. Add a `test:components` script in `ui-kit/package.json`; do **not** add it to default `test` until it has proven stable (AGENTS.md says suites run only on request).
+- Naming: `*.svelte.test.ts` next to the component, picked up by Vitest only; existing `*.test.ts` stay on `tsx --test` so current scripts and the focused-validation runner keep working. Add a `test:components` script in `ui-kit/package.json`; do **not** add it to default `test` until it has proven stable (AGENTS.md says suites run only on request). Once stable, CI runs it in the parallel job above, not in `test:full`, so `validate` does not slow down. Set the jsdom environment per file (`// @vitest-environment jsdom`) so pure tests never pay for DOM setup.
 - Scope: behavior of interactive primitives only. Explicitly **not** snapshot or class-name tests (AGENTS.md excludes cosmetics). First targets: `form-dialog` (Enter submits; busy disables both buttons), `confirm-dialog`, `switch-field`, `select-field`, `popover-panel` open/close and escape.
 - jsdom limitations (layout, `ResizeObserver`, pointer capture) mean virtual-list and scroll behaviors stay on the existing pure tests; the browser suite (`test:browser`) remains the place for layout-dependent checks.
 
@@ -162,7 +239,7 @@ Several proposals and AGENTS.md prefer deleting unused structure, but there is n
 ### Proposal
 
 - Add **knip** as a root dev dependency with a workspace-aware `knip.json` (entry points per package from `package.json` `exports`; Svelte + SvelteKit plugins for `workbench-app`/`ui-kit`). Prefer knip over `ts-prune`: it understands workspaces, exports maps, Svelte and unused files/dependencies, and `ts-prune` is unmaintained.
-- **Baseline, do not gate.** First run produces a report; commit a `knip` baseline/ignore list so the check reports only _new_ unused exports. Run it as a manual script (`pnpm knip`) and in CI as non-blocking until the baseline is triaged. It must not be added to `check:focused` (the lead owns that selection and AGENTS.md says suites run on request).
+- **Baseline, do not gate.** First run produces a report; commit a `knip` baseline/ignore list so the check reports only _new_ unused exports. Run it as a manual script (`pnpm knip`) and in CI as a separate, parallel, non-blocking job (install + knip only, no build; target under 40 s, see section 0) until the baseline is triaged; afterwards it fails only on findings not in the baseline. It must not be added to `check:focused` (the lead owns that selection and AGENTS.md says suites run on request).
 - Triage in batches by package, starting with `contracts` (exports used only by tests are the main false-positive source: configure `entry` to include tests, or accept them as "used by test" explicitly).
 - Be careful with public API surfaces enforced by `scripts/checks/package-export-surfaces.mjs` and `check-built-package-exports.mjs`: an export that is part of a documented package surface but unused internally must be `ignoreExportsUsedInFile`/allowlisted, not deleted.
 
@@ -172,7 +249,10 @@ Several proposals and AGENTS.md prefer deleting unused structure, but there is n
 
 ## Suggested order
 
+0. CI lead time (section 0): measure, native cache/artifact, split host job, narrow `scripts/**` ownership. It also sets the budget for items 3 and 6, so land at least its steps 1-3 before them.
 1. Protocol unit tests (item 1) with the extracted fake clock: highest correctness value per line.
 2. Sleep removal (item 2), starting with `native/test/files/files.test.ts` (longest waits).
 3. Adapter test audit (item 5) and convention doc (item 4): cheap and mostly deletion/documentation.
-4. Component layer (item 3) alongside the `FormDialog` work, then knip baseline (item 6).
+4. Component layer (item 3) alongside the `FormDialog` work, then knip baseline (item 6), each as its own parallel CI job within the section 0 budget.
+
+Sleep removal (item 2) also feeds section 0: the 700 ms x2 waits and the 600 ms `settle` run inside the Windows/macOS host path, so they cost critical-path time as well as local time.

@@ -1,6 +1,6 @@
 # Backend hardening and structure
 
-> **Status:** Proposal. A grouped set of small-to-medium backend items from the code-quality review. Each item is independent, can ship alone, and lists its own risk. Items that touch persisted data or wire formats are flagged **[approval]**. Currently none of the items require a DB schema change.
+> **Status:** Proposal. A grouped set of small-to-medium backend items from the code-quality review. Each item is independent, can ship alone, and lists its own risk. Items that touch persisted data or wire formats are flagged **[approval]**. None of the items require a DB schema change. Authentication for remote, self-hosted and mobile access is a separate proposal, [`remote-access-authentication.md`](remote-access-authentication.md); items (c) and (d) touch its edges.
 
 Package dependency rules come from `scripts/shared/workspace-architecture.mjs`: `contracts`, `native`, `ui-kit` have no internal deps; `protocol → contracts`; `harness → contracts, native`; `tools → contracts, native, skills`; `conversation-core → contracts, native, harness, skills, tools`; `workbench-server → everything backend`; `desktop-shell → contracts, workbench-server`.
 
@@ -117,45 +117,37 @@ A non-JSON body on a JSON request becomes an error carrying status, content type
 
 ---
 
-## (c) Local token bootstrap: stop spreading `?token=`
+## (c) Local token hygiene (phase 0 of remote-access authentication)
+
+> A broader authentication redesign for remote, self-hosted and mobile access is covered in [`remote-access-authentication.md`](remote-access-authentication.md). This item is deliberately small: it is that proposal's **phase 0**, a set of hygiene fixes that ship independently and do not change how the desktop shell, share links or the mobile QR flow work.
 
 ### Problem
 
 The daemon's local token is accepted and re-emitted via query string in several places:
 
-- `workbench-server/src/app/server.ts:23-41` `remoteUiAuthRedirect`: any request with `?token=<localToken>` gets a 302 and a long-lived cookie (`Max-Age=31536000`, `cookieHeader` in `adapters/http/auth-middleware.ts:85`).
-- `server.ts:44-62` `mobileSetupPage`: validates `?token=` and _re-emits_ it into the secure app URL.
+- `workbench-server/src/app/server.ts:23-41` `remoteUiAuthRedirect` (also called from `app/lifecycle/boot-app.ts:38`): any request with `?token=<localToken>` gets a 302 to the same URL without the token and a long-lived cookie (`Max-Age=31536000`, `cookieHeader` in `adapters/http/auth-middleware.ts:85`, already `HttpOnly; SameSite=Strict`, `Secure` on HTTPS). So the address bar is already cleaned on this path.
+- `server.ts:44-62` `mobileSetupPage`: validates `?token=` and _re-emits_ it into the secure app URL (`secureAppUrl.searchParams.set("token", ...)`), so the token travels into another generated URL and onto a page that renders links.
 - `adapters/http/auth-middleware.ts:97` `isWebSocketAuthorized`: accepts `url.searchParams.get("token")` for every WebSocket upgrade.
-- `desktop-shell/src/daemon/urls.ts:76,94,100`: builds app, share and mobile-setup URLs with the token embedded.
+- `desktop-shell/src/daemon/urls.ts:76,94,100`: builds the share URL, secure share URL and mobile-setup URL with the token embedded.
+- No response sets `Referrer-Policy` for these routes (the only occurrences are the HTML preview routes: `adapters/http/routes/html-preview-routes.ts:64`, `domains/filesystem/html-preview.service.ts:258`). The mobile-setup page, loaded at a URL that contains the token, can therefore leak it through `Referer` to anything it links or loads.
 
-A long-lived secret in URLs lands in browser history, referrers, proxy and access logs (`adapters/http/request-log-path.ts` exists, which suggests this was already felt) and copied share links.
+### Proposal: small, compatible fixes
 
-### Proposal: one-time exchange
+Decision: keep desktop share links and the mobile QR (`desktop-shell/src/daemon/urls.ts:69-100`) working exactly as today. Do not introduce one-time bootstrap codes here; that belongs to the broader auth proposal.
 
-```ts
-// POST /auth/exchange  or  GET /auth/enter?code=...
-interface BootstrapCode {
-  code: string;
-  expiresAt: number;
-  singleUse: true;
-  purpose: "desktop" | "share" | "mobile";
-}
-```
-
-1. The desktop shell (which already holds the token) asks the daemon for a short-lived (≈60 s), single-use bootstrap code over its authenticated channel, and builds URLs containing `?code=`.
-2. A single route redeems the code and sets the cookie (`HttpOnly; SameSite=Strict`, `Secure` on HTTPS), then redirects to the clean URL.
-3. WebSocket and API auth accept bearer or cookie only; `searchParams.get("token")` is removed from `isWebSocketAuthorized` and the redirect.
-4. `mobileSetupPage` takes a code, and hands the secure app a _new_ code rather than the token.
-
-In-memory code storage is enough (daemon restart invalidates pending codes). The cookie lifetime should also be reconsidered; one year for a bearer-equivalent secret is long.
+1. **Strip from the address bar after exchange.** Already true for `remoteUiAuthRedirect`; make it the _only_ place a `?token=` request is accepted for UI routes, and keep the redirect path free of any body.
+2. **`Referrer-Policy: no-referrer`** on every response from the token-bearing routes: the `remoteUiAuthRedirect` 302, `mobileSetupPage` (success and 401), and the CA download. Simplest: one Hono middleware in `server.ts`/`boot-app.ts` for non-API HTML routes, and the header set directly on the 302.
+3. **Stop re-emitting the token into other generated URLs.** `mobileSetupPage` redeems the token itself: its response sets the same cookie (`cookieHeader`) and the "open the app" link becomes `https://host:port/` with no `token` parameter. Cookies are not port-isolated, so a cookie set on the setup origin is sent to the secure origin on the same host; the HTTPS redirect then re-sets it with `Secure`. **Verify on a real phone (iOS Safari, Android Chrome)** before dropping the fallback: if a browser does not carry the cookie across, keep `?token=` on the secure URL only for the mobile-setup hand-off and record that exception in the auth proposal.
+4. **WebSocket query token.** Audit callers (`pnpm dev:ui` proxy, desktop shell, scripts; a repository search finds no client code that builds `?token=` for WebSockets) and remove `searchParams.get("token")` from `isWebSocketAuthorized` if none exist. If one does, leave it and track it in the auth proposal.
+5. Cookie lifetime (one year for a bearer-equivalent secret) is left to the auth proposal.
 
 ### Risks
 
 - **Dev flows**: `pnpm dev:ui` and dev proxies that inject bearer tokens (see the comment in `auth-middleware.ts:34`) must keep working; check `scripts/` for URLs with `?token=`.
-- **Existing bookmarks/share links** break once; acceptable for a local tool but mention in release notes.
-- No DB change. Security-sensitive: needs a focused review of the redeem route (rate limit, constant-time compare, Origin checks).
+- Mobile cookie hand-off (step 3) is the only behavior change visible to users; it needs a device test.
+- No DB change. Security-sensitive: focused review of the headers and mobile-setup route.
 
-**Effort:** M.
+**Effort:** S.
 
 ---
 
@@ -179,6 +171,7 @@ The main process has no notion of valid roots: projects live in the daemon, not 
 
 - Needs a daemon endpoint (or reuse of `projects.list`) readable by the desktop token; the project record must expose the canonical root. Check this against the existing operation contracts; no DB change.
 - Behavior if the daemon is down: fail closed.
+- Authentication: main's calls to the daemon use the desktop token it already holds. If the auth proposal ([`remote-access-authentication.md`](remote-access-authentication.md)) changes how the desktop shell authenticates to the daemon, `KnownProjectRoots` should consume that client rather than reading the token itself.
 
 **Effort:** M.
 
@@ -188,26 +181,63 @@ The main process has no notion of valid roots: projects live in the daemon, not 
 
 ### Problem
 
-`tools/src/policy/shell/assessment.ts:34` treats any segment whose root is `git` as read-only: `if (root === "git") return true;` and relies on `isBlockedCommandSegment(tokens)` → `isBlockedGitInvocation` in `tools/src/policy/shell/git-rules.ts:63` to exclude mutating subcommands via a blocklist (`stash`, `submodule`, `switch`, `tag`, `worktree`, …). A blocklist fails open: any git subcommand or flag added later, any alias (`git -c alias.x=...`, `core.pager`, `core.fsmonitor`, `--exec-path`), `git config` writes, or `git diff --output=file` is "read-only" unless someone remembered to list it.
+`tools/src/policy/shell/assessment.ts:51` treats any segment whose root is `git` as read-only (`if (root === "git") return true;`), after `isBlockedCommandSegment(tokens)` has run `isBlockedGitInvocation` (`tools/src/policy/shell/git-rules.ts:62`, called from `plan-mode.ts:95`). That is a blocklist (`BLOCKED_GIT_SUBCOMMANDS`: `add, am, apply, bisect, checkout, cherry-pick, clean, clone, commit, fetch, gc, init, merge, mv, pull, push, rebase, reflog, reset, restore, revert, rm, stash, submodule, switch, tag, worktree`) plus special cases for `branch` (only `-d/-D/-m/-M/--delete/--move`), `config` (needs a read flag), `diff` (`--output`) and `remote` (only `get-url`/`show`/no action). It fails open:
+
+- Any subcommand not listed is "read-only": `git archive -o`, `git format-patch -o`, `git update-ref`, `git update-index`, `git symbolic-ref HEAD x`, `git hash-object -w`, `git notes add`, `git filter-branch`, `git replace`, `git prune`, `git repack`, `git maintenance`, `git sparse-checkout`.
+- `git branch new-name`, `git branch -c`, `git branch -f`, `git branch --set-upstream-to` create or modify refs but are not in the `branch` deny set.
+- `getGitSubcommandIndex` skips `-c <k=v>` (and `-C`, `--git-dir`, `--work-tree`, `--namespace`) and any other leading `-` option, so `git -c core.pager=cmd ...`, `git -c alias.x='!cmd' x`, `--exec-path=...` are classified by the subcommand alone.
+- `git log|show --output=file` and `git grep -O/--open-files-in-pager` (runs a command) are not denied; `git diff --ext-diff` runs an external program.
 
 ### Proposal
 
-Invert it: an explicit table of allowed subcommands with allowed/forbidden flags.
+Invert it: an explicit table of allowed subcommands, each with allowed forms or flags. Anything not in the table, and any global option outside a small safe set, is not read-only and falls to the existing approval path (`unsupported(...)`). Unknown is safe by default; the cost is an approval prompt for rare read commands, which users can allow by rule.
 
 ```ts
-const READ_ONLY_GIT: Record<
-  string,
-  { allowFlags?: RegExp; denyFlags?: string[]; maxPositionals?: number }
-> = {
+interface GitReadRule {
+  /** Positional forms permitted as first argument (e.g. stash: list | show). Absent = any. */
+  forms?: readonly string[];
+  /** If set, every flag must be in this set (config, branch, tag). */
+  onlyFlags?: readonly string[];
+  /** Flags that run a program or write a file, denied even in otherwise-read subcommands. */
+  denyFlags?: readonly (string | RegExp)[];
+}
+
+const GLOBAL_DENY = [
+  /^--output(=|$)/,
+  "--ext-diff",
+  "--open-files-in-pager",
+  "-O",
+  "--exec-path",
+];
+const SAFE_GLOBAL_OPTIONS = [
+  "-C",
+  "--no-pager",
+  "--paginate",
+  "--no-optional-locks",
+  "--git-dir",
+  "--work-tree",
+  "--namespace",
+  "--bare",
+];
+
+const READ_ONLY_GIT: Record<string, GitReadRule> = {
   status: {},
   log: {},
+  diff: {},
   show: {},
-  diff: { denyFlags: ["--output", "--ext-diff", "--no-index"] },
+  reflog: { forms: ["", "show"] }, // not expire | delete | exists
+  shortlog: {},
+  describe: {},
+  blame: {},
   "rev-parse": {},
   "ls-files": {},
   "ls-tree": {},
-  blame: {},
-  "cat-file": {},
+  "cat-file": { onlyFlags: ["-p", "-t", "-s", "-e"] },
+  grep: {},
+  "show-ref": {},
+  "merge-base": {},
+  "name-rev": {},
+  "for-each-ref": {},
   branch: {
     onlyFlags: [
       "--list",
@@ -218,23 +248,86 @@ const READ_ONLY_GIT: Record<
       "-v",
       "-vv",
       "--contains",
+      "--no-contains",
       "--merged",
       "--no-merged",
+      "--points-at",
+      "--sort",
+      "--format",
     ],
   },
-  remote: { onlyForms: ["", "-v", "show"] },
-  config: { onlyFlags: ["--get", "--get-all", "--list", "-l"] },
+  tag: {
+    onlyFlags: [
+      "--list",
+      "-l",
+      "-n",
+      "--contains",
+      "--no-contains",
+      "--merged",
+      "--no-merged",
+      "--points-at",
+      "--sort",
+      "--format",
+    ],
+  },
+  remote: { forms: ["", "-v", "show", "get-url"] },
+  config: {
+    onlyFlags: [
+      "--get",
+      "--get-all",
+      "--get-regexp",
+      "--list",
+      "-l",
+      "--name-only",
+      "--show-origin",
+      "--local",
+      "--global",
+      "--system",
+      "--worktree",
+      "--type",
+      "--default",
+      "-z",
+      "--null",
+    ],
+  },
+  worktree: { forms: ["list"] },
+  stash: { forms: ["list", "show"] },
 };
 ```
 
-Global rules stay: reject `-c`/`--config-env`/`--exec-path`/`--git-dir` style prefixes (existing `getGitSubcommandIndex` already parses those), `--ext-diff`, `--textconv` unless proven safe, and any unknown subcommand falls to "requires approval" (the existing `unsupported(...)` path). Unknown is safe by default; the cost is more approval prompts for rare read commands, which users can allow by rule.
+Rules: the subcommand must be in the table; `-c`/`--config-env`/`--exec-path` and any other leading option not in `SAFE_GLOBAL_OPTIONS` make the invocation non-read-only; `GLOBAL_DENY` flags are rejected for every subcommand; a `branch`/`tag` invocation with a positional argument is a creation, so it is allowed only together with a list flag (`git branch --list 'feat/*'`, `git tag -l 'v*'`).
+
+### Classification changes versus today
+
+Verified against `git-rules.ts` behavior:
+
+| Command                                                                                                                                                                                                          | Today                                                  | With the table                                                     |
+| ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------ | ------------------------------------------------------------------ |
+| `git reflog`, `git reflog show`                                                                                                                                                                                  | blocked (listed)                                       | **read-only** (`expire`, `delete`, `exists` stay non-read-only)    |
+| `git worktree list`                                                                                                                                                                                              | blocked (listed)                                       | **read-only** (`add`, `remove`, `move`, `prune`, `lock` still not) |
+| `git stash list`, `git stash show`                                                                                                                                                                               | blocked (listed)                                       | **read-only** (`push`, `pop`, `drop`, `apply`, `clear` still not)  |
+| `git tag`, `git tag -l/--list/-n/--contains`                                                                                                                                                                     | blocked (listed)                                       | **read-only** (`git tag v1`, `-d`, `-a`, `-f` still not)           |
+| `git shortlog`, `describe`, `blame`, `ls-files`, `ls-tree`, `show-ref`, `merge-base`, `name-rev`, `for-each-ref`, `grep`, `rev-parse`, `cat-file -p/-t/-s`                                                       | read-only (unlisted)                                   | unchanged, now explicit                                            |
+| `git branch <name>`, `-c`, `-C`, `-f`, `--set-upstream-to`, `-u`, `--unset-upstream`, `--edit-description`                                                                                                       | read-only (only `-d/-m` family blocked)                | **needs approval**                                                 |
+| `git remote -v` / `git remote`                                                                                                                                                                                   | read-only                                              | unchanged                                                          |
+| `git remote add/remove/rename/set-url/update/prune`                                                                                                                                                              | blocked                                                | unchanged                                                          |
+| `git config` with a write flag mixed with a read flag (e.g. `--get x --unset`, `--list --edit`)                                                                                                                  | read-only (any one read flag suffices)                 | **needs approval** (every flag must be a read flag)                |
+| `git log                                                                                                                                                                                                         | show --output=f`, `git diff --ext-diff`, `git grep -O` | read-only                                                          | **needs approval** |
+| `git -c k=v <read>`, `git --exec-path=... <read>`, other unknown global options                                                                                                                                  | read-only                                              | **needs approval**                                                 |
+| `git archive`, `format-patch`, `update-ref`, `update-index`, `symbolic-ref`, `hash-object`, `notes`, `replace`, `prune`, `repack`, `maintenance`, `sparse-checkout`, `fsck`, `lfs`, any alias/unknown subcommand | read-only (unlisted)                                   | **needs approval**                                                 |
+| `git checkout`, `switch`, `reset`, `clean`, `commit`, `push`, `merge`, `rebase`, ...                                                                                                                             | blocked                                                | unchanged                                                          |
+
+### Plan mode shares the code
+
+`isBlockedGitInvocation` is also consumed by `plan-mode.ts:95` through `isBlockedCommandSegment`, so plan-mode bash gets the same inversion: a git command is allowed in plan mode only if the table says read-only. That makes plan mode strictly safer, but newly allows `git reflog`, `git stash list`, `git worktree list` and `git tag -l` there. Keep one function, `isReadOnlyGitInvocation(tokens)`, and define `isBlockedGitInvocation = isGit && !isReadOnlyGitInvocation` so both call sites agree.
 
 ### Migration
 
-1. Add the allowlist table and a differential test that every currently-"read-only" git command in `tools/test` assessment cases is still read-only _or_ is intentionally demoted (document each).
-2. Switch `isReadOnlySegment` to consult the table; delete the git blocklist in `git-rules.ts` except the global-option parsing.
+1. Add the table and `isReadOnlyGitInvocation` in `git-rules.ts`; keep `getGitSubcommandIndex` for the global-option scan.
+2. Extend `tools/test/policy/command-policy.test.ts` (the existing git cases at lines ~133-155 are the baseline): one differential case per row of the table above, in particular every "needs approval" row, and the compound-command forms (`git -C . status && git diff --stat`).
+3. Switch `assessment.ts:51` to `isReadOnlyGitInvocation` and delete the blocklist set and the special-case branches in `git-rules.ts`.
 
-**Risk:** more approval prompts for niche commands (`git reflog`, `git shortlog`, `git describe` can be added to the table up front). **Effort:** S.
+**Risk:** more approval prompts for niche read commands; the table is generous on purpose to keep that rare. **Effort:** S.
 
 ---
 
@@ -282,7 +375,7 @@ Mechanical, no behavior change. **Effort:** S-M (22 files, mostly one import lin
 `conversation-core/src/tool-calls/tool-call.service.ts` (635 lines) mixes exported types (`ToolCallChange` line 34, `AsyncBashAdopter` line 50, `ToolCallServiceOptions` line 59), the admission/execution pipeline, and the "promote a backgrounded tool to async bash" step (lines ~511-560: `result.kind === "backgrounded"` → `asyncBash.adopt` → asset linking → `asyncBashId` on the tool result). Direction:
 
 - Move the types to `tool-call.types.ts`; `tool-call-interactions.service.ts` currently imports `ToolCallServiceOptions` from the service, a cycle between the service and its helper, which this fixes.
-- Extract `BackgroundPromotion` (`tool-calls/background-promotion.ts`): given a `backgrounded` result, cancel-on-abort, adopt, and produce the final result payload. It is the natural seam to the `BackgroundJobService` in `background-jobs.md`, so do these in order: extract first, then replace its inner `adopt` with the unified service.
+- Extract `BackgroundPromotion` (`tool-calls/background-promotion.ts`): given a `backgrounded` result, cancel-on-abort, adopt, and produce the final result payload. It is the natural seam to the `BackgroundTaskService` in `background-jobs.md`, so do these in order: extract first, then replace its inner `adopt` with the unified service.
 - Interaction handling follows `interaction-handlers.md`.
 
 ### `ProcessPort.start`
@@ -322,36 +415,42 @@ No rewrites; split along existing seams, one PR each, behavior-preserving, with 
 
 ---
 
-## (j) Tool risk vocabulary unification
+## (j) Tool risk vocabulary: two concepts, one shared mapping
 
 ### Problem
 
-Two risk enums describe the same concept and both ride on every tool descriptor:
+Two risk enums exist and are easy to mistake for duplicates. They are **not**; they are two concepts with a missing shared mapping between them:
 
-- `staticToolRiskSchema` (`contracts/src/domains/permissions/permission-rule-sets.ts:37`): the policy-facing vocabulary (`read`, `write`, `network`, …), used by rule sets (`baseRisks`, line 260; `baseRisk`, line 429).
-- `toolRiskSchema` (`contracts/src/domains/permissions/permissions.ts:4`): the older display vocabulary (`read`, `workspace_write`, `command`, …).
+- **`StaticToolRisk`** (`staticToolRiskSchema`, `contracts/src/domains/permissions/permission-rule-sets.ts:37`: `read, write, network, secret, destructive, deployment, agent_spawn, interaction, unknown`): the **static category** of a tool, used by rule sets (`baseRisks`, line ~260; `baseRisk`, line ~429) and `permissionMetadataForTool(name).baseRisk` (`tools/src/catalog/permission-metadata.ts`).
+- **`ToolRisk`** (`toolRiskSchema`, `contracts/src/domains/permissions/permissions.ts:4`: `read, workspace_write, command, network, secret, destructive, agent_spawn, deployment, interaction`): the **effective risk of one call**. It is **persisted**: `supervisionSchema.effectiveRisk: toolRiskSchema.optional()` (`contracts/src/domains/core/tool-call.ts:70`) is written into the `supervision` JSON column of the `tool_call` table (`conversation-core/src/storage/schema.ts:55`), set by `classifyToolRisk` (`tools/src/catalog/manifest.ts:144`, which calls the per-tool `classifyRisk`: `classifyCommandRisk` in `shell.tools.ts:68` via `assessShellCommand`, plus jira/confluence/`orchestration/process.tools.ts`, falling back to the definition's `baseRisk`) in `workbench-server/src/core-host/scoped-permission-source.ts:354`. The app reads it back (`core-transcript.adapter.ts:271`, `presentation/cards/lead-chip.ts:112-118`).
 
-`toolDescriptorSchema` in `contracts/src/domains/tools/records.ts` has both: `baseRisk: staticToolRiskSchema` (line 49) and `/** @deprecated Use baseRisk. */ risk: toolRiskSchema` (line 52). They are populated from different sources in the same function: `tools/src/catalog/descriptors.ts:27` sets `baseRisk: metadata.baseRisk` (permission metadata) and `risk: definition.baseRisk` (the tool definition), so two tables can disagree. `tools/src/runtime/runtime-tool-permission.ts:60` has a `toolRisk(StaticToolRisk): ToolRisk` mapping, a second translation, and the UI consumes the deprecated one: `workbench-app/src/lib/app/composition/conversations/WorkbenchComposerAdapter.svelte:228` builds `conversationCatalog.toolRisks` from `tool.risk`, which feeds `features/conversations/adapters/core-transcript.adapter.ts` and `presentation/tools/tool-call/ApprovalPrompt.svelte` (`riskTone`).
+Because the enums differ in more than names (`write` vs `workspace_write`, `unknown` vs `command`), converting between them needs a table, and today there are three half-copies of it:
+
+1. `tools/src/runtime/runtime-tool-permission.ts:60` private `toolRisk(StaticToolRisk): ToolRisk` (`write`→`workspace_write`, `unknown`→`command`, otherwise identity).
+2. The deprecated `risk: toolRiskSchema` field on `toolDescriptorSchema` (`contracts/src/domains/tools/records.ts:52-53`), populated in `tools/src/catalog/descriptors.ts:27` from `definition.baseRisk` (a `ToolRisk` on the tool definition) while the sibling `baseRisk` on the same descriptor comes from `metadata.baseRisk` (a `StaticToolRisk`). Two tables describe one tool and can disagree.
+3. The app's `conversationCatalog.toolRisks` (`WorkbenchComposerAdapter.svelte:227-229`, `features/conversations/state/conversation-catalog.svelte.ts:5`) is built from that deprecated `tool.risk` and feeds `core-transcript.adapter.ts:205,266,539` and `ApprovalPrompt.svelte` (`riskTone`, line 84).
 
 ### Proposal
 
-Prefer **one vocabulary**: keep `staticToolRiskSchema` (it is the one permission rules and policy already use), delete `toolRiskSchema` and the descriptor's `risk` field.
+Keep both enums; document and connect them.
 
-- The UI maps `baseRisk` to a tone in one function placed next to `riskTone` (presentation owns tone; contracts owns the enum).
-- If the display needs distinctions `StaticToolRisk` does not have (for example, effective risk after argument-sensitive classification: `effectiveRisk` already exists on `supervisionSchema` in `core/tool-call.ts`), the call-time field uses the same enum widened by the specific values, not a second enum.
-- If removing `toolRiskSchema` outright is too large, fallback: keep a single exported `staticToRiskDisplay(risk): ToolRisk` mapping in `contracts/permissions` (replacing the private copy in `runtime-tool-permission.ts:60`) and compute `risk` from `baseRisk` in the descriptor builder so they cannot disagree. This is a smaller step on the way to deletion.
-
-### Migration
-
-1. Inventory `ToolRisk`/`toolRiskSchema` users (`grep` shows contracts, tools runtime, workbench-server permission code, app). Decide per use whether it needs the enum at all.
-2. Switch the app to `tool.baseRisk` (`WorkbenchComposerAdapter.svelte`, `conversation-catalog.svelte.ts`, `core-transcript.adapter.ts`, `ApprovalPrompt.svelte`).
-3. Remove `risk` from `toolDescriptorSchema` and `descriptors.ts`; remove the mapping in `runtime-tool-permission.ts`; delete `toolRiskSchema` if unused.
+- **Names and docs.** Document `StaticToolRisk` as the _static category_ (what rule sets match on) and `ToolRisk` as the _effective risk_ (what a specific call was classified as, persisted in supervision). A comment on each schema states the relationship and points at the mapping.
+- **One shared mapping in contracts.** Move `toolRisk()` out of `tools/src/runtime/runtime-tool-permission.ts:60` into `contracts/src/domains/permissions/` as an exported `effectiveRiskForCategory(risk: StaticToolRisk): ToolRisk` (pure, with a table test covering every `StaticToolRisk` value). `runtime-tool-permission.ts` imports it.
+- **Delete the deprecated descriptor field.** Remove `risk` from `toolDescriptorSchema` (`records.ts:52-53`) and its population in `tools/src/catalog/descriptors.ts:27`. Descriptors are served over the API and not persisted, so this is a normal contract change shipped with the app.
+- **App display risk.** The app derives the display risk from `baseRisk` through the shared mapping (`effectiveRiskForCategory(tool.baseRisk)`) when building `conversationCatalog.toolRisks`, and prefers the call's own `supervision.effectiveRisk` when present (already available on the call record, so `ApprovalPrompt`/`lead-chip` show the argument-sensitive value, for example a `bash` call classified `read`). The mapping import is allowed in the app (it already uses contracts); presentation still owns tone (`riskTone`).
+- **`definition.baseRisk` on `ToolDefinition`** keeps the `ToolRisk` type (it is the fallback for `classifyToolRisk`); no change.
 
 ### Storage / wire impact
 
-Descriptors are served over the API, not persisted, as far as `records.ts` shows. **Verify** whether `ToolRisk` values are stored anywhere (tool call records, supervision `effectiveRisk`, stored permission rules, replayed events). If `toolRiskSchema` values appear in persisted events or rules, removing it is a stored-data change **[approval]**, to be handled in the single pending migration step. If they appear only in the live descriptor, it is a normal contract change shipped with the app in lockstep.
+**None for persisted data.** `effectiveRisk` values are `ToolRisk`, unchanged; `toolRiskSchema` stays. No migration, no schema change. The only wire change is the removed descriptor `risk` field (API response, app and server ship together).
 
-**Effort:** S-M.
+### Migration
+
+1. Add `effectiveRiskForCategory` + table test in contracts; switch `runtime-tool-permission.ts` to it.
+2. Switch `WorkbenchComposerAdapter.svelte` to build `toolRisks` from `baseRisk` via the mapping; let transcript adapters prefer `supervision.effectiveRisk`.
+3. Remove `risk` from `toolDescriptorSchema` and `descriptors.ts`; fix tests/fixtures that set it.
+
+**Effort:** S.
 
 ---
 
