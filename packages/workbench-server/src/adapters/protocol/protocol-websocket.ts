@@ -28,7 +28,11 @@ const WORKBENCH_CAPABILITIES = [
     .map((definition) => definition.requiredCapability)
     .filter((capability): capability is string => Boolean(capability)),
 ];
-import { isWebSocketAuthorized } from "../http/auth-middleware.js";
+import {
+  isBlockedWebSocketUpgrade,
+  isWebSocketAuthorized,
+} from "../http/auth-middleware.js";
+import type { HostAllowlist } from "../http/host-allowlist.js";
 import { PROTOCOL_HEARTBEAT, PROTOCOL_SESSION_LIMITS } from "./constants.js";
 import { workbenchWebSocketRpcDispatcher } from "./http-dispatcher.js";
 import { orchestratorSource } from "./messages.js";
@@ -63,6 +67,7 @@ export function installProtocolWebSocketUpgrade(
   webSockets: WebSocketServer,
   state: ProtocolWebSocketContext,
   token: string,
+  isAllowedHost: HostAllowlist,
 ): Set<LocalProtocolSession> {
   const sessions = new Set<LocalProtocolSession>();
   server.on("upgrade", (request, socket, head) => {
@@ -74,6 +79,16 @@ export function installProtocolWebSocketUpgrade(
       url.pathname !== "/ws/workbench" &&
       url.pathname !== "/ws/conversations"
     ) {
+      socket.destroy();
+      return;
+    }
+    if (!isAllowedHost(request.headers.host)) {
+      socket.write("HTTP/1.1 421 Misdirected Request\r\n\r\n");
+      socket.destroy();
+      return;
+    }
+    if (isBlockedWebSocketUpgrade(request)) {
+      socket.write("HTTP/1.1 403 Forbidden\r\n\r\n");
       socket.destroy();
       return;
     }

@@ -1,10 +1,14 @@
-import { getConnInfo } from "@hono/node-server/conninfo";
 import { createId } from "@nervekit/contracts";
-import { Hono } from "hono";
+import { Hono, type MiddlewareHandler } from "hono";
 import {
   cookieHeader,
   createApiAuthMiddleware,
 } from "../adapters/http/auth-middleware.js";
+import {
+  createHostAllowlist,
+  type HostAllowlist,
+} from "../adapters/http/host-allowlist.js";
+import { tokensEqual } from "../adapters/http/token-compare.js";
 import {
   clearRequestContext,
   setRequestContext,
@@ -20,13 +24,31 @@ import {
 } from "./lifecycle/lifecycle-routes.js";
 import { createServerLifecycleHolder } from "./lifecycle/server-lifecycle.js";
 
+/** Rejects requests whose Host header is not ours (DNS rebinding); applies to every route. */
+export function hostGuard(isAllowedHost: HostAllowlist): MiddlewareHandler {
+  return async (c, next) => {
+    if (!isAllowedHost(c.req.header("host") ?? new URL(c.req.url).host)) {
+      return c.json(
+        {
+          error: {
+            code: "MISDIRECTED_REQUEST",
+            message: "Host header is not allowed.",
+          },
+        },
+        421,
+      );
+    }
+    await next();
+  };
+}
+
 export function remoteUiAuthRedirect(
   request: Request,
   localToken: string,
 ): Response | undefined {
   const url = new URL(request.url);
   const token = url.searchParams.get("token");
-  if (token !== localToken) return undefined;
+  if (!tokensEqual(token, localToken)) return undefined;
 
   url.searchParams.delete("token");
   const location = `${url.pathname}${url.search}` || "/";
@@ -34,6 +56,7 @@ export function remoteUiAuthRedirect(
     status: 302,
     headers: {
       location,
+      "referrer-policy": "no-referrer",
       "set-cookie": cookieHeader(localToken, {
         secure: url.protocol === "https:",
       }),
@@ -48,22 +71,33 @@ function mobileSetupPage(
   if (!state.mobileHttps) return undefined;
   const url = new URL(request.url);
   const token = url.searchParams.get("token");
-  if (token !== state.storage.localToken) {
+  if (!tokensEqual(token, state.storage.localToken)) {
     return new Response(mobileSetupErrorHtml(), {
       status: 401,
-      headers: { "content-type": "text/html; charset=utf-8" },
+      headers: {
+        "content-type": "text/html; charset=utf-8",
+        "referrer-policy": "no-referrer",
+      },
     });
   }
 
+  // The setup page redeems the token itself; the secure URL carries none.
   const secureAppUrl = new URL(state.mobileHttps.url);
-  secureAppUrl.searchParams.set("token", state.storage.localToken);
   const caCertUrl = new URL(state.mobileHttps.caCertUrl);
   return new Response(
     mobileSetupHtml({
       secureAppUrl: secureAppUrl.toString(),
       caCertUrl: caCertUrl.toString(),
     }),
-    { headers: { "content-type": "text/html; charset=utf-8" } },
+    {
+      headers: {
+        "content-type": "text/html; charset=utf-8",
+        "referrer-policy": "no-referrer",
+        "set-cookie": cookieHeader(state.storage.localToken, {
+          secure: url.protocol === "https:",
+        }),
+      },
+    },
   );
 }
 
@@ -71,6 +105,7 @@ function caCertificateResponse(state: ServerRuntime): Response | undefined {
   if (!state.mobileHttps) return undefined;
   return new Response(state.mobileHttps.caCertPem, {
     headers: {
+      "referrer-policy": "no-referrer",
       "content-type": "application/x-pem-file; charset=utf-8",
       "content-disposition": 'attachment; filename="nerve-local-ca.pem"',
     },
@@ -116,7 +151,7 @@ function mobileSetupHtml(input: {
       </ol>
       <p><strong>iOS:</strong> install the downloaded profile, then enable full trust in Settings → General → About → Certificate Trust Settings.</p>
       <p><strong>Android:</strong> install the certificate from Settings → Security/Privacy → Encryption & credentials. Browser behavior varies by Android version.</p>
-      <p class="warning">The secure Nerve URL contains a local auth token. Treat it like a password and only share it with devices you trust.</p>
+      <p class="warning">This page signed this browser in to Nerve. Only open it on devices you trust.</p>
       <p>Secure URL: <code>${secureAppUrl}</code></p>
     </main>
   </body>
@@ -149,6 +184,7 @@ export function createApp(
   },
 ): Hono {
   const app = new Hono();
+  app.use("*", hostGuard(createHostAllowlist(state)));
 
   if (state.applicationLogsEnabled) {
     app.use("/api/*", async (c, next) => {
@@ -209,7 +245,6 @@ export function createApp(
     return serveStatic(
       new URL(c.req.url).pathname,
       state.adapterContexts.http.staticFiles,
-      getConnInfo(c).remote.address,
     );
   });
 

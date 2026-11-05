@@ -21,7 +21,7 @@ Server state mutations use same-directory temporary files, sync/close, atomic re
 
 ## Secrets and authentication
 
-A local token authorizes HTTP and WebSocket access. Browser bootstrap converts query token to a Strict HttpOnly cookie. Provider/tool secrets use encrypted storage and selective migration/re-encryption where possible.
+A local token authorizes HTTP and WebSocket access. Browser bootstrap converts a query token on UI routes to a Strict HttpOnly cookie; WebSockets accept only Bearer or the cookie, and requests with an unexpected `Host` or cross-origin `Origin` are refused. Provider/tool secrets use encrypted storage and selective migration/re-encryption where possible.
 
 Schemas reject secret-like protocol metadata keys, but a broad error/details schema is not itself a redaction guarantee. Host boundaries must sanitize logs/errors before public transmission.
 

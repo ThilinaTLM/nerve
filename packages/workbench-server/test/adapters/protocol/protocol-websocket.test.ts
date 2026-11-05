@@ -18,6 +18,7 @@ import {
   installProtocolWebSocketUpgrade,
   type LocalProtocolSession,
 } from "../../../src/adapters/protocol/protocol-websocket.js";
+import { createHostAllowlist } from "../../../src/adapters/http/host-allowlist.js";
 import { tempHome } from "../../helpers/server-routes.js";
 
 const codec = new ProtocolCodec();
@@ -88,6 +89,7 @@ async function fixture() {
     webSockets,
     state.adapterContexts.websocket,
     storage.localToken,
+    createHostAllowlist(state),
   );
   cleanups.push(async () => {
     const results: PromiseSettledResult<unknown>[] = [];
@@ -353,6 +355,69 @@ test("conversation adapter replays durable events from the requested cursor", as
   );
   assert.equal(batch.data.events[0]?.type, "conversation.event");
   assert.equal(batch.data.events[0]?.data.sequence, 2);
+});
+
+/** Resolves with the handshake outcome: "open" or the HTTP status that refused it. */
+function upgradeOutcome(
+  url: string,
+  headers: Record<string, string>,
+): Promise<string> {
+  return new Promise((resolve) => {
+    const socket = new WebSocket(url, { headers });
+    socket.once("open", () => {
+      socket.terminate();
+      resolve("open");
+    });
+    socket.once("unexpected-response", (_request, response) => {
+      resolve(String(response.statusCode));
+      response.resume();
+    });
+    socket.once("error", () => resolve("error"));
+  });
+}
+
+test("websocket upgrades enforce Host, Origin and credential rules", async () => {
+  const host = await fixture();
+  const bearer = { authorization: `Bearer ${host.token}` };
+  const origin = host.httpUrl;
+  assert.equal(await upgradeOutcome(host.wsUrl, bearer), "open");
+  assert.equal(await upgradeOutcome(host.wsUrl, { ...bearer, origin }), "open");
+  assert.equal(
+    await upgradeOutcome(host.wsUrl, {
+      cookie: `nerve_token=${host.token}`,
+      origin,
+    }),
+    "open",
+  );
+  // DNS rebinding: valid credentials, foreign Host.
+  assert.equal(
+    await upgradeOutcome(host.wsUrl, { ...bearer, host: "evil.example" }),
+    "421",
+  );
+  for (const hostile of [
+    "http://evil.example",
+    "null",
+    // Same host, different port: same-site but not same-origin.
+    "http://127.0.0.1:1",
+  ]) {
+    assert.equal(
+      await upgradeOutcome(host.wsUrl, { ...bearer, origin: hostile }),
+      "403",
+      hostile,
+    );
+  }
+  assert.equal(
+    await upgradeOutcome(host.wsUrl, {
+      ...bearer,
+      "sec-fetch-site": "same-site",
+    }),
+    "403",
+  );
+  // A query-string token is no longer a credential.
+  assert.equal(
+    await upgradeOutcome(`${host.wsUrl}?token=${host.token}`, {}),
+    "401",
+  );
 });
 
 test("invalid frames close and dispose the real socket binding", async () => {

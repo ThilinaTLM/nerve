@@ -27,7 +27,9 @@ Install the CA only on devices you control and verify the source device. Leaf ce
 
 ## Token bootstrap
 
-A shared UI URL contains the daemon token. The server exchanges `?token=...` for a Strict, HttpOnly cookie and redirects to remove the query. APIs accept Bearer token or cookie; WebSockets can also bootstrap with a query token.
+A shared UI URL contains the daemon token. The server exchanges `?token=...` for a Strict, HttpOnly cookie (30 days, renewed while in use; `Secure` over HTTPS) and redirects to remove the query. The mobile setup page signs the phone in itself, so its "Open secure Nerve" link carries no token. APIs and WebSockets accept a Bearer token or the cookie only; a query token is not accepted on WebSockets, and static pages no longer hand out the cookie on their own, so a plain browser on `localhost` needs a token URL once.
+
+The daemon also checks the `Host` header on every request and WebSocket upgrade (protection against DNS rebinding). Loopback names, the bound address, this machine's interface addresses (when bound to `0.0.0.0`) and the mobile HTTPS hosts are accepted. To reach Nerve through another DNS name, list it in `NERVE_ALLOWED_HOSTS` (comma separated); other hosts get `421`.
 
 :::danger[The URL is a credential]
 Do not put a token-bearing URL in screenshots, issue reports, chat, shell history, analytics, or an untrusted clipboard/history service. Self-signed HTTPS protects transport on a trusted LAN; it does not make public Internet exposure safe or repair a leaked token.

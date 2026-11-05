@@ -194,7 +194,7 @@ describe("server startup lifecycle", () => {
     const app = createAppSwitch(h.boot);
 
     const blocked = await app.fetch(
-      new Request("http://x/api/projects", { headers: auth }),
+      new Request("http://localhost/api/projects", { headers: auth }),
     );
     assert.equal(blocked.status, 503);
     const body = (await blocked.json()) as {
@@ -221,15 +221,15 @@ describe("server startup lifecycle", () => {
     await h.sequence.start();
     app.set(full);
     const ok = await app.fetch(
-      new Request("http://x/api/projects", { headers: auth }),
+      new Request("http://localhost/api/projects", { headers: auth }),
     );
     assert.equal(ok.status, 200);
     const ready = await app.fetch(
-      new Request("http://x/api/lifecycle", { headers: auth }),
+      new Request("http://localhost/api/lifecycle", { headers: auth }),
     );
     assert.equal(((await ready.json()) as { state: string }).state, "ready");
     assert.equal(
-      (await app.fetch(new Request("http://x/api/lifecycle"))).status,
+      (await app.fetch(new Request("http://localhost/api/lifecycle"))).status,
       401,
     );
   });

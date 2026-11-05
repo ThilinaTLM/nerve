@@ -70,12 +70,32 @@ test("server changes select host and desktop platform suites", () => {
     "@nervekit/workbench-server",
   ]);
   assert.equal(impact.workbench, true);
-  assert.deepEqual(impact.nativeMatrix, [
-    { os: "windows-latest", suite: "host" },
-    { os: "windows-latest", suite: "desktop" },
-    { os: "macos-latest", suite: "host" },
-    { os: "macos-latest", suite: "desktop" },
+  assert.deepEqual(
+    impact.nativeMatrix.map(
+      ({ os, suite, shard }) => `${os}:${suite}${shard ? `:${shard}` : ""}`,
+    ),
+    [
+      "windows-latest:host-native",
+      "windows-latest:host-server",
+      "windows-latest:host-tools",
+      "windows-latest:host-migrations:1/2",
+      "windows-latest:host-migrations:2/2",
+      "windows-latest:desktop",
+      "macos-latest:host-native",
+      "macos-latest:host-server",
+      "macos-latest:host-tools",
+      "macos-latest:host-migrations:1/2",
+      "macos-latest:host-migrations:2/2",
+      "macos-latest:desktop",
+    ],
+  );
+  assert.deepEqual(impact.nativeOsMatrix, [
+    { os: "windows-latest" },
+    { os: "macos-latest" },
   ]);
+  // The native package itself is untouched, so Ubuntu validate does not run
+  // cargo fmt/clippy and the dedicated job must.
+  assert.equal(impact.rustLint, true);
 });
 
 test("contract changes expand through all reverse dependents", () => {
@@ -95,7 +115,7 @@ test("contract changes expand through all reverse dependents", () => {
     "@nervekit/workbench-server",
   ]);
   assert.equal(impact.workbench, true);
-  assert.equal(impact.nativeMatrix.length, 4);
+  assert.equal(impact.nativeMatrix.length, 12);
 });
 
 test("root dependency and unknown script changes fail safe to full coverage", () => {
@@ -103,13 +123,40 @@ test("root dependency and unknown script changes fail safe to full coverage", ()
     "pnpm-lock.yaml",
     "scripts/release/new-release-step.mjs",
     "scripts/shared/workspace-architecture.mjs",
+    "scripts/build/new-build-step.mjs",
   ]) {
     const impact = classifyChanges([path], workspace);
     assert.equal(impact.full, true);
     assert.equal(impact.website, true);
-    assert.equal(impact.nativeMatrix.length, 4);
+    assert.equal(impact.nativeMatrix.length, 12);
     assert.ok(impact.packages.includes("@nervekit/ui-kit"));
+    // Native package is selected, so Ubuntu validate already runs clippy.
+    assert.equal(impact.rustLint, false);
   }
+});
+
+test("developer tooling scripts and tests stay narrow", () => {
+  for (const path of [
+    "scripts/checks/style-policy.mjs",
+    "scripts/testing/ci-impact.mjs",
+    "scripts/development/dev-workbench.mjs",
+    "scripts/storage-migrations/rehearse.ts",
+    "scripts/release/test/release-version.test.mjs",
+    ".oxfmtrc.json",
+  ]) {
+    const impact = classifyChanges([path], workspace);
+    assert.equal(impact.full, false, path);
+    assert.deepEqual(impact.packages, [], path);
+    assert.equal(impact.website, false, path);
+    assert.equal(impact.nativeMatrixNeeded, false, path);
+    assert.deepEqual(impact.nativeOsMatrix, [], path);
+  }
+  // Specifically owned scripts keep their owner even inside tooling dirs' siblings.
+  assert.equal(
+    classifyChanges(["scripts/release/smoke-workbench-release.mjs"], workspace)
+      .workbench,
+    true,
+  );
 });
 
 test("known operational scripts map to their owning runtime", () => {
@@ -159,4 +206,7 @@ test("GitHub outputs are stable scalar and JSON values", () => {
   assert.equal(outputs.has_packages, "true");
   assert.deepEqual(JSON.parse(outputs.packages), ["@nervekit/workbench-app"]);
   assert.deepEqual(JSON.parse(outputs.native_matrix), { include: [] });
+  assert.deepEqual(JSON.parse(outputs.native_os_matrix), { include: [] });
+  assert.equal(outputs.native_os_needed, "false");
+  assert.equal(outputs.rust_lint, "false");
 });

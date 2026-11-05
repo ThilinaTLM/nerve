@@ -63,6 +63,37 @@ const SPECIAL_OWNERS = new Map([
   ["scripts/build/generate-brand-assets.mjs", ["@nervekit/desktop-shell"]],
 ]);
 
+// Developer tooling whose only CI consumer is the always-on lint job (format,
+// lint, boundaries and the scripts/** test glob). These never reach a product
+// package, so they must not escalate to full coverage. Build and release
+// scripts stay unknown on purpose: they change what CI builds and ships.
+const TOOLING_SCRIPT_PREFIXES = [
+  "scripts/checks/",
+  "scripts/development/",
+  "scripts/storage-migrations/",
+  "scripts/testing/",
+];
+const TOOLING_ROOT_FILES = new Set([
+  ".c8rc.json",
+  ".gitattributes",
+  ".gitignore",
+  ".oxfmtrc.json",
+]);
+// Platform order for native jobs; host work is split into parallel suites.
+const NATIVE_OSES = ["windows-latest", "macos-latest"];
+// Storage migration tests run with --test-concurrency=1 and dominate the
+// Windows/macOS host path, so they are sharded with Node's --test-shard.
+const MIGRATION_SHARDS = 2;
+const HOST_SUITES = [
+  { suite: "host-native" },
+  { suite: "host-server" },
+  { suite: "host-tools" },
+  ...Array.from({ length: MIGRATION_SHARDS }, (_, index) => ({
+    suite: "host-migrations",
+    shard: `${index + 1}/${MIGRATION_SHARDS}`,
+  })),
+];
+
 export function loadWorkspace(root = repoRoot) {
   const packagesRoot = join(root, "packages");
   const packages = new Map();
@@ -127,7 +158,7 @@ export function classifyChanges(changedPaths, workspace, options = {}) {
       full = true;
       continue;
     }
-    if (isIgnoredPath(path)) continue;
+    if (isIgnoredPath(path) || isToolingPath(path)) continue;
 
     const packageName = packageForPath(path, workspace);
     if (packageName) {
@@ -182,10 +213,20 @@ export function classifyChanges(changedPaths, workspace, options = {}) {
     dependencyPackages.includes("@nervekit/native") ||
     corePackages.includes("@nervekit/native");
   const nativeMatrix = [];
-  for (const os of ["windows-latest", "macos-latest"]) {
-    if (nativeHost) nativeMatrix.push({ os, suite: "host" });
+  for (const os of NATIVE_OSES) {
+    if (nativeHost) {
+      for (const entry of HOST_SUITES) nativeMatrix.push({ os, ...entry });
+    }
     if (nativeDesktop) nativeMatrix.push({ os, suite: "desktop" });
   }
+  // One addon build per OS that has consumers (shared artifact).
+  const nativeOsMatrix = NATIVE_OSES.filter((os) =>
+    nativeMatrix.some((entry) => entry.os === os),
+  ).map((os) => ({ os }));
+  // cargo fmt/clippy are OS-independent and run once on Ubuntu. The Ubuntu
+  // validate job already runs them whenever the native package itself is
+  // selected, so only host-only selections need the dedicated job.
+  const rustLint = nativeHost && !corePackages.includes("@nervekit/native");
 
   return {
     full,
@@ -199,6 +240,8 @@ export function classifyChanges(changedPaths, workspace, options = {}) {
     nativeDesktop,
     nativeMatrix,
     nativeMatrixNeeded: nativeMatrix.length > 0,
+    nativeOsMatrix,
+    rustLint,
   };
 }
 
@@ -214,6 +257,9 @@ export function githubOutputs(impact) {
     native: String(impact.native),
     native_matrix: JSON.stringify({ include: impact.nativeMatrix }),
     native_matrix_needed: String(impact.nativeMatrixNeeded),
+    native_os_matrix: JSON.stringify({ include: impact.nativeOsMatrix }),
+    native_os_needed: String(impact.nativeOsMatrix.length > 0),
+    rust_lint: String(impact.rustLint),
   };
 }
 
@@ -265,7 +311,18 @@ function isGlobalPath(path) {
     path.startsWith(".github/workflows/") ||
     /^tsconfig(?:\.[^/]+)?\.json$/.test(path) ||
     /^eslint(?:\.[^/]+)?\.(?:js|mjs|cjs)$/.test(path) ||
-    (path.startsWith("scripts/") && !SPECIAL_OWNERS.has(path))
+    (path.startsWith("scripts/") &&
+      !SPECIAL_OWNERS.has(path) &&
+      !isToolingPath(path))
+  );
+}
+
+function isToolingPath(path) {
+  if (SPECIAL_OWNERS.has(path)) return false;
+  return (
+    TOOLING_ROOT_FILES.has(path) ||
+    TOOLING_SCRIPT_PREFIXES.some((prefix) => path.startsWith(prefix)) ||
+    /^scripts\/(?:[^/]+\/)*test\//.test(path)
   );
 }
 

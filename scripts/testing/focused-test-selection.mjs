@@ -240,8 +240,8 @@ export function selectFocusedTests(
       });
     if (selected.length)
       commands.push({
-        command: "node",
-        args: ["--test", "scripts/**/*.test.mjs"],
+        command: "tsx",
+        args: ["--test", "scripts/**/*.test.mjs", "scripts/**/*.test.ts"],
         reason: "root script baseline (non-import dependencies)",
       });
     for (const pkg of selected) {
