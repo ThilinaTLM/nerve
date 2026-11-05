@@ -9,6 +9,7 @@ import {
 } from "$lib/features/git/state/diff-tabs.svelte";
 import {
   fileViewerPreferences,
+  setDiffLayout,
   setHighlightSelectionMatches,
 } from "$lib/application/workspace/file-viewer-preferences.svelte";
 import { workspaceState } from "$lib/application/workspace/workspace-state.svelte";
@@ -24,6 +25,8 @@ const activeView = $derived.by(() => {
   view={activeView}
   wrap={activeView?.wrapLines}
   highlightSelectionMatches={fileViewerPreferences.highlightSelectionMatches}
+  diffLayout={fileViewerPreferences.diffLayout}
+  onDiffLayoutChange={setDiffLayout}
   onCopy={(ok) => notifyCopyResult(ok, "selection")}
   onRefresh={() => activeView && void refreshDiffPane(activeView.id)}
   onToggleSelectionMatches={() =>

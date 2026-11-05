@@ -11,7 +11,7 @@ import PopoverPanel, {
   PopoverCommandList,
 } from "@nervekit/ui-kit/components/composites/popover-panel";
 import { providerSearchKeywords } from "./provider-profiles";
-import { CodeMirrorEditor } from "$lib/presentation/code";
+import { CodeView } from "$lib/presentation/code";
 import { refreshProviderCatalog } from "$lib/features/settings/state/provider-catalog-actions.svelte";
 import {
   DEFAULT_MODEL_JSON,
@@ -158,13 +158,17 @@ async function submit() {
       <div
         class="h-96 min-h-64 overflow-hidden rounded-md border bg-background"
       >
-        <CodeMirrorEditor
-          value={jsonText}
+        <CodeView
+          text={jsonText}
+          language="json"
+          editable
+          wrap
           onChange={(value) => {
             jsonText = value;
             submitError = undefined;
           }}
           disabled={busy}
+          class={busy ? "opacity-60" : ""}
           ariaLabel="Model definition JSON"
         />
       </div>

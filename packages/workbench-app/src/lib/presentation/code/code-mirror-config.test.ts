@@ -2,10 +2,14 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { codeFolding, ensureSyntaxTree, foldable } from "@codemirror/language";
 import { SearchQuery } from "@codemirror/search";
-import { EditorState } from "@codemirror/state";
+import { EditorSelection, EditorState, Text } from "@codemirror/state";
 import {
   contextSelection,
   copySelectedText,
+  cursorStatus,
+  goToLinePosition,
+  minimalDocumentChange,
+  parseGoToLine,
   isSearchQueryValid,
   searchMatchStatus,
   selectedSearchText,
@@ -16,7 +20,7 @@ import {
   codeLanguageId,
   loadCodeLanguage,
   localLineNumber,
-  readOnlyCodeExtensions,
+  codeSurfaceExtensions,
 } from "./code-mirror-config";
 
 const newLanguageIds: CodeLanguageId[] = [
@@ -40,10 +44,10 @@ const newLanguageIds: CodeLanguageId[] = [
 describe("CodeMirror viewer helpers", () => {
   it("configures file content as editable only when requested", () => {
     const readonly = EditorState.create({
-      extensions: readOnlyCodeExtensions({ ariaLabel: "Readonly" }),
+      extensions: codeSurfaceExtensions({ ariaLabel: "Readonly" }),
     });
     const editable = EditorState.create({
-      extensions: readOnlyCodeExtensions({
+      extensions: codeSurfaceExtensions({
         ariaLabel: "Editable",
         editable: true,
       }),
@@ -224,5 +228,72 @@ describe("CodeMirror viewer helpers", () => {
     });
     assert.equal(contextSelection(state, 3), undefined);
     assert.deepEqual(contextSelection(state, 8), { anchor: 8 });
+  });
+
+  it("replaces only the changed middle of an externally updated document", () => {
+    const current = Text.of(["alpha", "beta", "gamma"]);
+    const next = Text.of(["alpha", "BETA!", "gamma"]);
+    const change = minimalDocumentChange(current, next);
+    assert.ok(change);
+    assert.equal(change.from, 6);
+    assert.equal(change.to, 10);
+    assert.equal(change.insert.toString(), "BETA!");
+    const state = EditorState.create({ doc: current });
+    assert.equal(
+      state.update({ changes: change }).state.doc.toString(),
+      next.toString(),
+    );
+    assert.equal(
+      minimalDocumentChange(current, Text.of(["alpha", "beta", "gamma"])),
+      undefined,
+    );
+
+    const appended = minimalDocumentChange(Text.of(["a"]), Text.of(["a", "a"]));
+    assert.deepEqual(
+      appended && [appended.from, appended.to, appended.insert.toString()],
+      [1, 1, "\na"],
+    );
+  });
+
+  it("parses go-to-line input and clamps it to the document", () => {
+    assert.deepEqual(parseGoToLine("12"), { line: 12, column: undefined });
+    assert.deepEqual(parseGoToLine(" 12:5 "), { line: 12, column: 5 });
+    assert.deepEqual(parseGoToLine("12,5"), { line: 12, column: 5 });
+    assert.equal(parseGoToLine("0"), undefined);
+    assert.equal(parseGoToLine("abc"), undefined);
+    assert.equal(parseGoToLine("3:0"), undefined);
+
+    const state = EditorState.create({ doc: "one\n\ttwo\nthree" });
+    assert.equal(goToLinePosition(state, { line: 2 }), 4);
+    // Columns count tabs at the tab size, matching the status bar.
+    assert.equal(goToLinePosition(state, { line: 2, column: 5 }), 5);
+    assert.equal(goToLinePosition(state, { line: 99 }), 9);
+    // Windowed documents use the external numbering shown in the gutter.
+    assert.equal(goToLinePosition(state, { line: 41 }, 40), 4);
+  });
+
+  it("reports cursor line, tab-expanded column and selections", () => {
+    const state = EditorState.create({
+      doc: "one\n\ttwo",
+      selection: { anchor: 6 },
+    });
+    assert.deepEqual(cursorStatus(state), {
+      line: 2,
+      column: 6,
+      selections: 1,
+      selectedLength: 0,
+    });
+    assert.equal(cursorStatus(state, 40).line, 41);
+
+    const multi = EditorState.create({
+      doc: "alpha beta",
+      selection: EditorSelection.create([
+        EditorSelection.range(0, 5),
+        EditorSelection.range(6, 10),
+      ]),
+      extensions: EditorState.allowMultipleSelections.of(true),
+    });
+    assert.equal(cursorStatus(multi).selections, 2);
+    assert.equal(cursorStatus(multi).selectedLength, 9);
   });
 });

@@ -24,6 +24,7 @@ import PrChecksTab from "./pr/PrChecksTab.svelte";
 import PrCommitsTab from "./pr/PrCommitsTab.svelte";
 import PrConversationTab from "./pr/PrConversationTab.svelte";
 import PrFilesTab from "./pr/PrFilesTab.svelte";
+import type { DiffLayout } from "$lib/presentation/code";
 import PrHeader from "./pr/PrHeader.svelte";
 import PrSkeleton from "./pr/PrSkeleton.svelte";
 import type {
@@ -57,6 +58,8 @@ type Props = {
   fileDiff?: PrSectionState<GithubPrFileDiffResponse>;
   onFileSelect?: (path: string) => void;
   onFileDiffRetry?: () => void;
+  diffLayout?: DiffLayout;
+  onDiffLayoutChange?: (layout: DiffLayout) => void;
   onMergeMethodChange?: (method: GithubPrMergeMethod) => void;
   onMerge?: (method: GithubPrMergeMethod, followUp: PrMergeFollowUp) => void;
 };
@@ -73,6 +76,8 @@ let {
   fileDiff,
   onFileSelect,
   onFileDiffRetry,
+  diffLayout,
+  onDiffLayoutChange,
   onMergeMethodChange,
   onMerge,
 }: Props = $props();
@@ -288,6 +293,8 @@ function changeTab(value: string) {
           onRetry={() => onSectionRetry?.("files")}
           onSelect={onFileSelect}
           {onFileDiffRetry}
+          {diffLayout}
+          {onDiffLayoutChange}
         />
       </Tabs.Content>
     </Tabs.Root>

@@ -11,6 +11,7 @@ import { FilePane } from "$lib/presentation/files";
 import {
   openFilePane,
   saveFileView,
+  toggleFileDisplayMode,
   toggleFileLineWrap,
   updateFileDraft,
 } from "$lib/features/filesystem/state/file-tabs.svelte";
@@ -112,6 +113,8 @@ function openMermaid(block: MermaidMarkdownBlock): void {
   {htmlPreviewUnavailable}
   onHtmlResourceMessage={htmlResourceMessage}
   onRetryHtmlPreview={() => htmlController.retry()}
+  onShowSource={() =>
+    activeCenterFileView && toggleFileDisplayMode(activeCenterFileView.id)}
 />
 
 {#if htmlPreview.pending}

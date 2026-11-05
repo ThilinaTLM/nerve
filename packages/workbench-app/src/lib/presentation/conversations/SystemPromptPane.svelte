@@ -1,6 +1,6 @@
 <script lang="ts">
 import { notifyCopyResult } from "@nervekit/ui-kit/browser/notifications";
-import { CodeMirrorViewer } from "$lib/presentation/code";
+import { CodeView } from "$lib/presentation/code";
 
 let { text }: { text: string } = $props();
 </script>
@@ -11,11 +11,10 @@ let { text }: { text: string } = $props();
   >
     System prompt for the next request. Snapshot from when this pane was opened.
   </p>
-  <CodeMirrorViewer
+  <CodeView
     class="min-h-0 flex-1"
     {text}
     wrap={true}
-    editable={false}
     ariaLabel="System prompt for the next request"
     onCopy={(ok) => notifyCopyResult(ok, "selection")}
   />

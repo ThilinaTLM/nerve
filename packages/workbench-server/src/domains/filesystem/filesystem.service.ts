@@ -301,7 +301,6 @@ const imageMimeByExtension = new Map([
   [".jpeg", "image/jpeg"],
   [".gif", "image/gif"],
   [".webp", "image/webp"],
-  [".svg", "image/svg+xml"],
   [".bmp", "image/bmp"],
   [".avif", "image/avif"],
 ]);
@@ -315,6 +314,8 @@ const textExtensions = new Set([
   ".cs",
   ".css",
   ".csv",
+  // SVG is text so it can be edited; the client renders its preview.
+  ".svg",
   ".env",
   ".go",
   ".h",

@@ -1,28 +1,47 @@
-import {
-  bracketMatching,
-  codeFolding,
-  foldGutter,
-  foldKeymap,
-  HighlightStyle,
-  StreamLanguage,
-  syntaxHighlighting,
-} from "@codemirror/language";
+import { closeBrackets, closeBracketsKeymap } from "@codemirror/autocomplete";
 import {
   defaultKeymap,
   history,
   historyKeymap,
   indentWithTab,
 } from "@codemirror/commands";
-import { highlightSelectionMatches, search } from "@codemirror/search";
-import type { Extension } from "@codemirror/state";
-import { EditorState } from "@codemirror/state";
 import {
+  bracketMatching,
+  codeFolding,
+  foldGutter,
+  foldKeymap,
+  HighlightStyle,
+  indentOnInput,
+  StreamLanguage,
+  syntaxHighlighting,
+} from "@codemirror/language";
+import {
+  highlightSelectionMatches,
+  search,
+  selectNextOccurrence,
+  selectSelectionMatches,
+} from "@codemirror/search";
+import type { Extension } from "@codemirror/state";
+import { EditorState, Prec } from "@codemirror/state";
+import {
+  crosshairCursor,
   drawSelection,
+  dropCursor,
   EditorView,
+  highlightActiveLine,
+  highlightActiveLineGutter,
   highlightSpecialChars,
   keymap,
   lineNumbers,
+  rectangularSelection,
+  scrollPastEnd,
 } from "@codemirror/view";
+import { codeFoldMarker } from "./code-fold-marker";
+import {
+  overviewMarkSource,
+  overviewRuler,
+  searchOverviewMarks,
+} from "./code-overview-ruler";
 import { tags } from "@lezer/highlight";
 
 export type CodeLanguageId =
@@ -97,6 +116,7 @@ const extensionLanguages: Record<string, CodeLanguageId> = {
   xslt: "xml",
   xsd: "xml",
   xhtml: "xml",
+  svg: "xml",
   rs: "rust",
   sass: "sass",
   scss: "scss",
@@ -126,6 +146,7 @@ function filenameLanguage(base: string): CodeLanguageId | undefined {
 
 const languageIds = new Set<CodeLanguageId>(Object.values(extensionLanguages));
 const languageCache = new Map<CodeLanguageId, Promise<Extension>>();
+const resolvedLanguages = new Map<CodeLanguageId, Extension>();
 
 export function codeLanguageId(
   value: string | undefined,
@@ -156,17 +177,29 @@ export function localLineNumber(
   return local >= 1 && local <= lineCount ? local : undefined;
 }
 
-export async function loadCodeLanguage(
+export function loadCodeLanguage(
   value: string | undefined,
 ): Promise<Extension> {
   const id = codeLanguageId(value);
-  if (!id) return [];
+  if (!id) return Promise.resolve([]);
   const cached = languageCache.get(id);
   if (cached) return cached;
 
-  const pending = loadLanguage(id);
+  const pending = loadLanguage(id).then((extension) => {
+    resolvedLanguages.set(id, extension);
+    return extension;
+  });
   languageCache.set(id, pending);
   return pending;
+}
+
+/** The language extension when it has already loaded, so a view can mount
+ * highlighted instead of repainting once the parser arrives. */
+export function loadedCodeLanguage(
+  value: string | undefined,
+): Extension | undefined {
+  const id = codeLanguageId(value);
+  return id ? resolvedLanguages.get(id) : undefined;
 }
 
 async function loadLanguage(id: CodeLanguageId): Promise<Extension> {
@@ -353,43 +386,55 @@ const codeHighlightStyle = HighlightStyle.define([
   { tag: tags.emphasis, fontStyle: "italic" },
 ]);
 
+/* One font size and line height for the content and every gutter, so line
+ * numbers, change markers and fold chevrons share the text's baseline. */
 export const codeMirrorTheme = EditorView.theme({
   "&": {
     height: "100%",
     minWidth: "100%",
     color: "var(--foreground)",
     backgroundColor: "var(--background)",
-    fontSize: "var(--text-body)",
+    fontSize: "var(--text-ui)",
   },
   ".cm-scroller": {
     overflow: "auto",
     fontFamily: "var(--font-mono)",
-    lineHeight: "1.5",
+    lineHeight: "1.25rem",
   },
   ".cm-content": {
     minHeight: "100%",
     padding: "calc(var(--spacing) * 2) 0",
     caretColor: "var(--primary)",
-    cursor: "text",
   },
+  "&.cm-editable .cm-content": { cursor: "text" },
   ".cm-line": {
     padding: "0 calc(var(--spacing) * 4) 0 calc(var(--spacing) * 2)",
   },
   ".cm-gutters": {
     backgroundColor: "var(--background)",
-    color: "var(--muted-foreground)",
+    color: "color-mix(in oklab, var(--muted-foreground) 70%, transparent)",
+    border: "none",
     borderRight:
       "1px solid color-mix(in oklab, var(--background) 55%, var(--border))",
   },
-  ".cm-lineNumbers": {
-    fontSize: "var(--text-ui)",
-  },
   ".cm-lineNumbers .cm-gutterElement": {
-    padding: "0 calc(var(--spacing) * 1) 0 calc(var(--spacing) * 2)",
+    minWidth: "3ch",
+    padding: "0 calc(var(--spacing) * 1) 0 calc(var(--spacing) * 3)",
   },
+  ".cm-activeLineGutter": {
+    backgroundColor: "transparent",
+    color: "var(--foreground)",
+  },
+  "&:not(.cm-focused) .cm-activeLineGutter": {
+    color: "inherit",
+  },
+  ".cm-activeLine": {
+    backgroundColor: "color-mix(in oklab, var(--foreground) 4%, transparent)",
+  },
+  "&:not(.cm-focused) .cm-activeLine": { backgroundColor: "transparent" },
   ".cm-foldGutter .cm-gutterElement": {
     color: "var(--muted-foreground)",
-    padding: "0",
+    padding: "0 calc(var(--spacing) * 0.5)",
   },
   ".cm-fold-marker": {
     alignItems: "center",
@@ -397,20 +442,43 @@ export const codeMirrorTheme = EditorView.theme({
     height: "100%",
     justifyContent: "center",
     width: "calc(var(--spacing) * 4)",
+    cursor: "pointer",
+    transition: "opacity 120ms ease-out",
   },
+  // Open-fold chevrons only show while the gutter is hovered or on the
+  // cursor line; folded ranges keep their marker so collapsed code is visible.
+  ".cm-fold-marker[data-open='true']": { opacity: "0" },
+  ".cm-gutters:hover .cm-fold-marker, &.cm-focused .cm-activeLineGutter .cm-fold-marker":
+    { opacity: "1" },
   ".cm-foldPlaceholder": {
     color: "var(--muted-foreground)",
     backgroundColor: "var(--muted)",
     border: "1px solid var(--border)",
+    borderRadius: "var(--radius-sm)",
+    padding: "0 calc(var(--spacing) * 1)",
   },
   "&.cm-focused": { outline: "none" },
-  "&.cm-focused .cm-cursor": { borderLeftColor: "var(--primary)" },
-  "&.cm-focused .cm-selectionBackground, .cm-selectionBackground, ::selection":
-    {
-      backgroundColor:
-        "color-mix(in oklab, var(--background) 78%, var(--primary)) !important",
-    },
-  ".cm-activeLine": { backgroundColor: "transparent" },
+  ".cm-cursor, .cm-dropCursor": {
+    borderLeft: "2px solid var(--primary)",
+  },
+  ".cm-selectionBackground": {
+    backgroundColor:
+      "color-mix(in oklab, var(--background) 86%, var(--primary)) !important",
+  },
+  "&.cm-focused .cm-selectionBackground, ::selection": {
+    backgroundColor:
+      "color-mix(in oklab, var(--background) 76%, var(--primary)) !important",
+  },
+  ".cm-selectionMatch": {
+    backgroundColor:
+      "color-mix(in oklab, var(--background) 82%, var(--info)) !important",
+  },
+  "&.cm-focused .cm-matchingBracket": {
+    backgroundColor: "transparent",
+    outline:
+      "1px solid color-mix(in oklab, var(--foreground) 35%, transparent)",
+    borderRadius: "2px",
+  },
   ".cm-searchMatch": {
     backgroundColor:
       "color-mix(in oklab, var(--background) 65%, var(--warning)) !important",
@@ -433,50 +501,108 @@ export const codeMirrorTheme = EditorView.theme({
   },
 });
 
-export function editableCodeExtensions(ariaLabel: string): Extension[] {
-  return [
-    history(),
-    lineNumbers(),
-    highlightSpecialChars(),
-    drawSelection(),
-    bracketMatching(),
-    syntaxHighlighting(codeHighlightStyle),
-    keymap.of([indentWithTab, ...defaultKeymap, ...historyKeymap]),
-    EditorView.contentAttributes.of({ "aria-label": ariaLabel }),
-    codeMirrorTheme,
-  ];
-}
-
-export function readOnlyCodeExtensions(input: {
-  lineStart?: number;
+export type CodeSurfaceOptions = {
   ariaLabel: string;
-  highlightSelectionMatches?: boolean;
-  foldMarkerDOM?: (open: boolean) => HTMLElement;
   editable?: boolean;
-}): Extension[] {
+  lineStart?: number;
+  highlightSelectionMatches?: boolean;
+  /** Off for views that don't scroll themselves (split diff sides). */
+  scrollPastEnd?: boolean;
+  /** Off for the original side of a split diff; the modified side owns it. */
+  overviewRuler?: boolean;
+};
+
+/** Base extensions shared by every code view. Editing adds history, bracket
+ * closing, auto-indent and the editing keymaps; it never adds completion. */
+export function codeSurfaceExtensions(input: CodeSurfaceOptions): Extension[] {
   const lineStart = input.lineStart ?? 1;
+  const editable = input.editable ?? false;
   return [
-    input.editable
+    editable
       ? [
           history(),
-          keymap.of([indentWithTab, ...defaultKeymap, ...historyKeymap]),
+          closeBrackets(),
+          indentOnInput(),
+          dropCursor(),
+          EditorView.editorAttributes.of({ class: "cm-editable" }),
+          keymap.of([
+            ...closeBracketsKeymap,
+            { key: "Mod-d", run: selectNextOccurrence, preventDefault: true },
+            { key: "Mod-Shift-l", run: selectSelectionMatches },
+            ...defaultKeymap,
+            ...historyKeymap,
+            indentWithTab,
+          ]),
         ]
-      : [EditorState.readOnly.of(true), EditorView.editable.of(false)],
+      : [
+          EditorState.readOnly.of(true),
+          EditorView.editable.of(false),
+          keymap.of(defaultKeymap),
+        ],
     EditorView.contentAttributes.of({
       "aria-label": input.ariaLabel,
-      ...(input.editable ? { "aria-keyshortcuts": "Control+S Meta+S" } : {}),
+      ...(editable ? { "aria-keyshortcuts": "Control+S Meta+S" } : {}),
       tabindex: "0",
     }),
-    lineNumbers({ formatNumber: (line) => String(lineStart + line - 1) }),
-    foldGutter({ markerDOM: input.foldMarkerDOM }),
+    // Gutter order: line numbers, change markers (default precedence), folds.
+    Prec.high(
+      lineNumbers({ formatNumber: (line) => String(lineStart + line - 1) }),
+    ),
+    Prec.lowest(foldGutter({ markerDOM: codeFoldMarker })),
     codeFolding(),
+    EditorState.allowMultipleSelections.of(true),
+    rectangularSelection(),
+    crosshairCursor(),
     bracketMatching(),
     highlightSpecialChars(),
     drawSelection(),
+    highlightActiveLine(),
+    highlightActiveLineGutter(),
+    input.scrollPastEnd === false ? [] : scrollPastEnd(),
+    EditorView.cursorScrollMargin.of({ x: 32, y: 60 }),
     search(),
+    input.overviewRuler === false ? [] : overviewRuler,
+    overviewMarkSource.of(searchOverviewMarks),
     input.highlightSelectionMatches ? highlightSelectionMatches() : [],
     syntaxHighlighting(codeHighlightStyle),
     keymap.of(foldKeymap),
     codeMirrorTheme,
   ];
+}
+
+const languageLabels: Record<CodeLanguageId, string> = {
+  javascript: "JavaScript",
+  typescript: "TypeScript",
+  jsx: "JavaScript JSX",
+  tsx: "TypeScript JSX",
+  json: "JSON",
+  jsonc: "JSON with Comments",
+  css: "CSS",
+  html: "HTML",
+  svelte: "Svelte",
+  markdown: "Markdown",
+  python: "Python",
+  yaml: "YAML",
+  bash: "Shell",
+  shellscript: "Shell",
+  toml: "TOML",
+  java: "Java",
+  cpp: "C/C++",
+  xml: "XML",
+  rust: "Rust",
+  sass: "Sass",
+  scss: "SCSS",
+  go: "Go",
+  php: "PHP",
+  sql: "SQL",
+  vue: "Vue",
+  less: "Less",
+  angular: "Angular",
+  liquid: "Liquid",
+  wast: "WebAssembly Text",
+};
+
+export function codeLanguageLabel(value: string | undefined): string {
+  const id = codeLanguageId(value);
+  return id ? languageLabels[id] : "Plain text";
 }

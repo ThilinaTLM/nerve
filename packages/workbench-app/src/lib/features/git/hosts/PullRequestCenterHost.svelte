@@ -24,6 +24,10 @@ import {
   selectPrTab,
 } from "$lib/features/git/state/pr-tabs.svelte";
 import { activityInbox } from "$lib/application/activity/activity-state.svelte";
+import {
+  fileViewerPreferences,
+  setDiffLayout,
+} from "$lib/application/workspace/file-viewer-preferences.svelte";
 import { observeGitOperationStart } from "$lib/features/git/state/git-operation-tracking";
 import { needsClientFailureNotice } from "$lib/features/git/state/pr-mutation-feedback";
 import { queueMergedPrFollowUp } from "$lib/features/git/state/pr-merge-follow-up";
@@ -240,6 +244,8 @@ $effect(() => {
     activeCenterPrView && selectPrTab(activeCenterPrView.id, tab)}
   onSectionRetry={retrySection}
   fileDiff={activeFileDiff}
+  diffLayout={fileViewerPreferences.diffLayout}
+  onDiffLayoutChange={setDiffLayout}
   onFileSelect={(path) =>
     activeCenterPrView && selectPrFile(activeCenterPrView.id, path)}
   onFileDiffRetry={() =>

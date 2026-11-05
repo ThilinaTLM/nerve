@@ -1,6 +1,10 @@
 <script lang="ts">
 import { Button } from "@nervekit/ui-kit/components/ui/button";
-import { CodeMirrorEditor, CodeMirrorViewer } from "$lib/presentation/code";
+import {
+  CodeDiffView,
+  CodeView,
+  type DiffLayout,
+} from "$lib/presentation/code";
 import CodeMirrorFindPanel from "$lib/presentation/code/CodeMirrorFindPanel.svelte";
 import { FilePane } from "$lib/presentation/files";
 import type { FilePaneViewModel } from "$lib/presentation/files";
@@ -143,6 +147,7 @@ let draft = $state(
 );
 let jsonValue = $state(jsonSample);
 let wrap = $state(false);
+let diffLayout = $state<DiffLayout>("split");
 let findQuery = $state("handler");
 let caseSensitive = $state(false);
 let wholeWord = $state(false);
@@ -156,7 +161,7 @@ let regexp = $state(false);
   >
     <GallerySpecimen
       title="Code file (read-only)"
-      description="FilePane → CodeMirrorViewer with the read-only footer note."
+      description="FilePane → CodeView with the status bar and read-only note."
       source="presentation/files/FilePane"
       usage="1 file · editor"
       layout="bare"
@@ -189,7 +194,7 @@ let regexp = $state(false);
 
     <GallerySpecimen
       title="Staged diff (inline)"
-      description="GitDiffPane → CodeMirrorGitDiff, unified view."
+      description="GitDiffPane → CodeDiffView, unified view."
       source="features/git/views/GitDiffPane"
       usage="1 file · editor"
       layout="bare"
@@ -278,9 +283,9 @@ let regexp = $state(false);
     description="The CodeMirror pieces behind FilePane and dialogs."
   >
     <GallerySpecimen
-      title="CodeMirrorViewer"
-      description="Syntax highlighting, line numbers, folding, find (Ctrl/⌘+F), context menu (right-click)."
-      source="presentation/code/CodeMirrorViewer"
+      title="CodeView — read-only"
+      description="Syntax highlighting, line numbers, folding, find (Ctrl/⌘+F), go to line (Ctrl+G), context menu (right-click)."
+      source="presentation/code/CodeView"
       usage="1 file · editor"
       layout="stack"
     >
@@ -292,7 +297,7 @@ let regexp = $state(false);
       <div
         class="h-[260px] w-[900px] max-w-full overflow-hidden rounded-md border"
       >
-        <CodeMirrorViewer
+        <CodeView
           text={tsSample}
           language="typescript"
           {wrap}
@@ -303,24 +308,51 @@ let regexp = $state(false);
     </GallerySpecimen>
 
     <GallerySpecimen
-      title="CodeMirrorEditor"
-      description="Compact JSON editor used in the model-definition dialog; shown enabled and disabled."
-      source="presentation/code/CodeMirrorEditor"
+      title="CodeDiffView"
+      description="Read-only diff with change navigation (Alt+↑/↓, F7), collapsed unchanged lines, the overview ruler and the unified/side-by-side toggle."
+      source="presentation/code/CodeDiffView"
+      usage="2 files · git diff, PR files"
+      layout="stack"
+    >
+      <div
+        class="h-[320px] w-[900px] max-w-full overflow-hidden rounded-md border"
+      >
+        <CodeDiffView
+          original={diffOriginal}
+          modified={diffModified}
+          path="src/greeting.ts"
+          layout={diffLayout}
+          onLayoutChange={(next) => (diffLayout = next)}
+        />
+      </div>
+    </GallerySpecimen>
+
+    <GallerySpecimen
+      title="CodeView — editable"
+      description="Editable JSON as used in the model-definition dialog; shown enabled and disabled. Find and replace with Ctrl+H (⌥⌘F)."
+      source="presentation/code/CodeView"
       usage="1 file · dialogs"
       layout="stack"
     >
       <div class="grid w-[900px] max-w-full gap-4 md:grid-cols-2">
         <div class="h-48 overflow-hidden rounded-md border">
-          <CodeMirrorEditor
-            value={jsonValue}
+          <CodeView
+            text={jsonValue}
+            language="json"
+            editable
+            wrap
             onChange={(next) => (jsonValue = next)}
             ariaLabel="JSON editor"
           />
         </div>
         <div class="h-48 overflow-hidden rounded-md border">
-          <CodeMirrorEditor
-            value={jsonSample}
+          <CodeView
+            text={jsonSample}
+            language="json"
+            editable
+            wrap
             disabled
+            class="opacity-60"
             ariaLabel="Disabled JSON editor"
           />
         </div>
@@ -329,21 +361,23 @@ let regexp = $state(false);
 
     <GallerySpecimen
       title="CodeMirrorFindPanel"
-      description="The find bar (normally opened with Ctrl/⌘+F inside a viewer): query, case, whole word, regexp, match status."
+      description="The find and replace bar (Ctrl/⌘+F, Ctrl+H / ⌥⌘F in editable views): query, replacement, case, whole word, regexp, match status."
       source="presentation/code/CodeMirrorFindPanel"
-      usage="2 files · editor, git"
+      usage="1 file · code view"
       layout="bare"
     >
       <div
-        class="relative h-24 w-[900px] max-w-full overflow-hidden rounded-md border bg-background"
+        class="relative h-32 w-[900px] max-w-full overflow-hidden rounded-md border bg-background"
       >
         <CodeMirrorFindPanel
           query={findQuery}
           {caseSensitive}
           {wholeWord}
           {regexp}
-          status="3 matches"
+          status="1 of 3"
           valid
+          canReplace
+          replaceOpen
           onQueryChange={(v) => (findQuery = v)}
           onCaseSensitiveChange={(v) => (caseSensitive = v)}
           onWholeWordChange={(v) => (wholeWord = v)}

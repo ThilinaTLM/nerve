@@ -2,6 +2,7 @@
 import TriangleAlert from "@lucide/svelte/icons/triangle-alert";
 import MermaidDiagram from "@nervekit/ui-kit/renderers/mermaid/MermaidDiagram.svelte";
 import { Spinner } from "@nervekit/ui-kit/components/ui/spinner";
+import { notifyCopyResult } from "@nervekit/ui-kit/browser/notifications";
 
 let {
   source,
@@ -9,12 +10,15 @@ let {
   error,
   truncated = false,
   ariaLabel = "Mermaid diagram",
+  fileName,
 }: {
   source?: string;
   loading?: boolean;
   error?: string;
   truncated?: boolean;
   ariaLabel?: string;
+  /** Download name stem, e.g. the source file's name. */
+  fileName?: string;
 } = $props();
 </script>
 
@@ -40,7 +44,9 @@ let {
       class="h-full"
       {source}
       {ariaLabel}
+      {fileName}
       defaultWheelZoomEnabled
+      onCopy={(ok) => notifyCopyResult(ok, "Mermaid source")}
     />
     {#if truncated}
       <p

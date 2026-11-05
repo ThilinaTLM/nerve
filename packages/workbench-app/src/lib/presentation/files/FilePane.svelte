@@ -3,11 +3,15 @@ import { Callout } from "@nervekit/ui-kit/components/composites/callout";
 import FileText from "@lucide/svelte/icons/file-text";
 import TriangleAlert from "@lucide/svelte/icons/triangle-alert";
 import Markdown from "@nervekit/ui-kit/renderers/markdown/Markdown.svelte";
+import ImageViewer from "@nervekit/ui-kit/renderers/media/ImageViewer.svelte";
+import { isRenderedContentEmpty } from "@nervekit/ui-kit/display/file-display";
+import { Button } from "@nervekit/ui-kit/components/ui/button";
+import Code from "@lucide/svelte/icons/code";
 import type { MermaidMarkdownBlock } from "@nervekit/ui-kit/renderers/mermaid/mermaid-blocks";
 import { notifyCopyResult } from "@nervekit/ui-kit/browser/notifications";
 import { ScrollArea } from "@nervekit/ui-kit/components/ui/scroll-area";
 import { Spinner } from "@nervekit/ui-kit/components/ui/spinner";
-import { CodeMirrorViewer } from "$lib/presentation/code";
+import { CodeView } from "$lib/presentation/code";
 import { MermaidPane } from "$lib/presentation/mermaid";
 import { resolveFilePaneModel } from "./file-pane-model.js";
 import type {
@@ -29,6 +33,7 @@ let {
   htmlPreviewUnavailable,
   onHtmlResourceMessage,
   onRetryHtmlPreview,
+  onShowSource,
 }: {
   view?: FilePaneViewModel;
   onOpenFile?: (path: string, line?: number) => void;
@@ -42,6 +47,8 @@ let {
   htmlPreviewUnavailable?: string;
   onHtmlResourceMessage?: (data: unknown) => void;
   onRetryHtmlPreview?: () => void;
+  /** Switches a rendered file to its source, e.g. from an empty preview. */
+  onShowSource?: () => void;
 } = $props();
 
 const resolved = $derived(view ? resolveFilePaneModel(view) : undefined);
@@ -50,6 +57,24 @@ const showRawText = $derived(
   file?.type === "text" &&
     resolved &&
     !(resolved.renderKind && resolved.displayMode === "rendered"),
+);
+const previewText = $derived(
+  file?.type === "text" ? (view?.draft ?? file.text ?? "") : "",
+);
+const rendered = $derived(
+  file?.type === "text" &&
+    Boolean(resolved?.renderKind) &&
+    resolved?.displayMode === "rendered",
+);
+const previewEmpty = $derived(
+  rendered &&
+    resolved?.renderKind !== undefined &&
+    isRenderedContentEmpty(resolved.renderKind, previewText),
+);
+const svgPreviewSrc = $derived(
+  rendered && resolved?.renderKind === "svg"
+    ? `data:image/svg+xml;charset=utf-8,${encodeURIComponent(previewText)}`
+    : undefined,
 );
 const showMermaidPreview = $derived(
   file?.type === "text" &&
@@ -61,7 +86,12 @@ const showMermaidPreview = $derived(
 <section class="grid h-full min-h-0 min-w-0 bg-background">
   {#if showRawText && file?.type === "text" && resolved}
     <div class="flex min-h-0 min-w-0 flex-col">
-      <CodeMirrorViewer
+      {#if view?.saveError}
+        <Callout layout="strip" tone="destructive" class="border-b border-t-0">
+          Save failed: {view.saveError}
+        </Callout>
+      {/if}
+      <CodeView
         class="min-h-0 flex-1"
         text={view?.draft ?? file.text ?? ""}
         language={resolved.language}
@@ -77,36 +107,70 @@ const showMermaidPreview = $derived(
         originalText={file.editable && !file.truncated
           ? (file.text ?? "")
           : undefined}
+        statusBar
         {onChange}
         {onSave}
+      >
+        {#snippet statusMessage()}
+          {#if view?.saving}
+            Saving…
+          {:else if file.truncated}
+            Preview truncated{resolved.targetLine
+              ? " around the selected line"
+              : ""}. Editing is unavailable.
+          {:else if !file.editable}
+            <span
+              title="Only small, regular text files inside the project can be edited."
+              >Read-only</span
+            >
+          {/if}
+        {/snippet}
+      </CodeView>
+    </div>
+  {:else if previewEmpty && file?.type === "text" && resolved}
+    <div
+      class="grid min-h-72 place-items-center content-center gap-1.5 p-4 text-center text-muted-foreground"
+    >
+      <FileText class="size-7 text-primary" strokeWidth={1.7} />
+      <strong class="font-medium text-foreground">This file is empty</strong>
+      <p class="m-0 max-w-xl text-ui">
+        There is nothing to preview yet{file.editable
+          ? ". Write the content in the source view."
+          : "."}
+      </p>
+      {#if onShowSource}
+        <Button variant="outline" class="mt-2" onclick={onShowSource}>
+          <Code />
+          {file.editable ? "Edit source" : "Show source"}
+        </Button>
+      {/if}
+    </div>
+  {:else if svgPreviewSrc && file?.type === "text" && resolved}
+    <div class="flex min-h-0 min-w-0 flex-col">
+      <ImageViewer
+        class="min-h-0 flex-1"
+        src={svgPreviewSrc}
+        alt={`SVG preview: ${resolved.filePath}`}
+        fileName={file.name}
+        mimeType="image/svg+xml"
+        onCopy={(ok) => notifyCopyResult(ok, "SVG markup")}
       />
-      {#if view?.saveError}
-        <Callout layout="strip" tone="destructive" class="border-t border-b-0">
-          Save failed: {view.saveError}
-        </Callout>
-      {:else if view?.saving}
+      {#if view?.dirty}
         <p
           class="m-0 border-t border-border-subtle px-4 py-2 text-ui text-muted-foreground"
         >
-          Saving…
-        </p>
-      {:else if file.truncated}
-        <p
-          class="m-0 border-t border-border-subtle px-4 py-2 text-ui text-muted-foreground"
-        >
-          Preview truncated{resolved.targetLine
-            ? " around the selected line"
-            : ""}. Editing is unavailable.
-        </p>
-      {:else if !file.editable}
-        <p
-          class="m-0 border-t border-border-subtle px-4 py-2 text-ui text-muted-foreground"
-        >
-          Read-only: only small, regular text files inside the project can be
-          edited.
+          Previewing unsaved changes.
         </p>
       {/if}
     </div>
+  {:else if resolved?.imageSrc && file}
+    <ImageViewer
+      src={resolved.imageSrc}
+      alt={file.relativePath ?? file.name}
+      fileName={file.name}
+      mimeType={file.mimeType}
+      onCopy={(ok) => notifyCopyResult(ok, "image")}
+    />
   {:else if file?.type === "text" && resolved?.renderKind === "html" && resolved.displayMode === "rendered"}
     <HtmlPreviewPane
       preview={htmlPreview}
@@ -121,6 +185,7 @@ const showMermaidPreview = $derived(
       source={view?.draft ?? file.text ?? ""}
       truncated={file.truncated}
       ariaLabel={`Mermaid diagram: ${resolved.filePath}`}
+      fileName={file.name.replace(/\.[^.]+$/, "")}
     />
     {#if view?.dirty}
       <p
@@ -158,14 +223,6 @@ const showMermaidPreview = $derived(
             >Could not open file</strong
           >
           <p class="m-0 max-w-xl text-ui">{view.error}</p>
-        </div>
-      {:else if resolved?.imageSrc}
-        <div class="grid min-h-full place-items-center">
-          <img
-            class="max-h-full max-w-full object-contain"
-            src={resolved.imageSrc}
-            alt={file?.relativePath ?? file?.name ?? "File preview"}
-          />
         </div>
       {:else if file?.type === "text" && resolved?.renderKind === "markdown"}
         <div class="mx-auto max-w-6xl px-1 pb-16 pt-0.5">

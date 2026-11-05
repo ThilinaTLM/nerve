@@ -44,6 +44,7 @@ async function loadFileView(id: string) {
     view.content = content;
     view.path = content.path;
     view.draft = content.type === "text" ? (content.text ?? "") : undefined;
+    pinEmptyFileToSource(view, content);
     view.dirty = false;
     view.saveError = undefined;
   } catch (caught) {
@@ -53,6 +54,18 @@ async function loadFileView(id: string) {
   } finally {
     view.loading = false;
   }
+}
+
+/** A file whose preview would be empty opens as source. The choice is
+ * pinned on first load so typing or saving doesn't flip the tab to preview. */
+function pinEmptyFileToSource(
+  view: { displayMode?: "raw" | "rendered" },
+  content: { type: string; relativePath: string; text?: string },
+): void {
+  if (view.displayMode !== undefined || content.type !== "text") return;
+  const mode = defaultFileDisplayMode(content.relativePath, content.text ?? "");
+  if (mode !== defaultFileDisplayMode(content.relativePath))
+    view.displayMode = mode;
 }
 
 export async function openFilePane(input: {
