@@ -42,32 +42,42 @@ function handleKeydown(event: KeyboardEvent) {
 </script>
 
 <form
-  class="floating-surface absolute top-3 right-3 left-3 z-10 flex items-center gap-1 p-1 sm:left-auto sm:w-80"
+  class="floating-surface absolute top-2 right-3 left-3 z-10 grid gap-1 p-1 sm:left-auto sm:w-80"
   aria-label="Go to line"
   onsubmit={submit}
 >
-  <Input
-    bind:ref={input}
-    bind:value
-    class="border-0 bg-transparent shadow-none focus-visible:ring-0"
-    inputmode="numeric"
-    autocomplete="off"
-    spellcheck={false}
-    aria-invalid={invalid}
-    ariaLabel={`Go to line, ${firstLine} to ${lastLine}`}
-    placeholder={`Line ${firstLine}–${lastLine}, or line:column (now ${currentLine})`}
-    onkeydown={handleKeydown}
-    onblur={onClose}
-  />
-  <Button
-    type="submit"
-    variant="ghost"
-    size="icon-sm"
-    ariaLabel="Go to line"
-    title="Go (Enter)"
-    disabled={!target}
-    onmousedown={(event: MouseEvent) => event.preventDefault()}
+  <div class="flex items-center gap-1">
+    <Input
+      bind:ref={input}
+      bind:value
+      class="min-w-0 flex-1 font-mono placeholder:font-sans"
+      inputmode="numeric"
+      autocomplete="off"
+      spellcheck={false}
+      aria-invalid={invalid}
+      ariaLabel={`Go to line, ${firstLine} to ${lastLine}`}
+      placeholder={`${currentLine}`}
+      onkeydown={handleKeydown}
+      onblur={onClose}
+    />
+    <Button
+      type="submit"
+      variant="ghost"
+      size="icon-sm"
+      ariaLabel="Go to line"
+      title="Go (Enter)"
+      disabled={!target}
+      onmousedown={(event: MouseEvent) => event.preventDefault()}
+    >
+      <CornerDownLeft class="size-3.5" />
+    </Button>
+  </div>
+  <p
+    class={`m-0 px-1 text-ui ${invalid ? "text-destructive" : "text-muted-foreground"}`}
+    aria-live="polite"
   >
-    <CornerDownLeft class="size-3.5" />
-  </Button>
+    {invalid
+      ? "Enter a line number, or line:column"
+      : `Line ${firstLine}–${lastLine}, or line:column`}
+  </p>
 </form>

@@ -134,12 +134,18 @@ const unsavedField = StateField.define<UnsavedChanges | null>({
 
 // Bars are pseudo-elements so the active-line gutter background can't hide them.
 const unsavedTheme = EditorView.theme({
+  // A fixed lane width: CodeMirror only renders gutter elements for lines
+  // with markers (or the active line), so an auto-sized lane would collapse
+  // and shift the text whenever no such line is in view.
+  ".cm-unsavedGutter": {
+    width: "calc(6px + var(--spacing) * 0.5)",
+    paddingLeft: "calc(var(--spacing) * 0.5)",
+  },
   ".cm-unsavedGutter .cm-gutterElement": {
     position: "relative",
     // Wide enough for the deletion triangle; CodeMirror clips each gutter.
     width: "6px",
     padding: "0",
-    marginLeft: "calc(var(--spacing) * 0.5)",
   },
   ".cm-unsavedGutter .cm-gutterElement::before": {
     position: "absolute",

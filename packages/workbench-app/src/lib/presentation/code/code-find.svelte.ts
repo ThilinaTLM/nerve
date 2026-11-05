@@ -15,6 +15,14 @@ import {
 
 export type FindOption = "case" | "word" | "regexp";
 
+/** The find field is one line: line breaks in a seeded selection become the
+ * `\n` escapes CodeMirror's search understands (backslashes are escaped so
+ * they stay literal in plain-text mode). */
+export function searchFieldText(selection: string, regexp: boolean): string {
+  const escaped = regexp ? selection : selection.replace(/\\/g, "\\\\");
+  return escaped.replace(/\r?\n/g, "\\n");
+}
+
 /** Find/replace state for one code view. Match counting only runs while the
  * panel is open and is coalesced to one pass per animation frame. */
 export class CodeFindController {
@@ -80,7 +88,7 @@ export class CodeFindController {
       options.seed === false
         ? undefined
         : selectedSearchText(view.state, options.position);
-    if (selected) this.query = selected;
+    if (selected) this.query = searchFieldText(selected, this.regexp);
     if (options.replace !== undefined) this.replaceOpen = options.replace;
     this.open = true;
     this.focusRequest += 1;
