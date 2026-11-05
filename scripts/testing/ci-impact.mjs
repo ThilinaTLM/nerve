@@ -81,11 +81,17 @@ const TOOLING_ROOT_FILES = new Set([
 ]);
 // Platform order for native jobs; host work is split into parallel suites.
 const NATIVE_OSES = ["windows-latest", "macos-latest"];
+// Storage migration tests run with --test-concurrency=1 and dominate the
+// Windows/macOS host path, so they are sharded with Node's --test-shard.
+const MIGRATION_SHARDS = 2;
 const HOST_SUITES = [
-  "host-native",
-  "host-server",
-  "host-tools",
-  "host-migrations",
+  { suite: "host-native" },
+  { suite: "host-server" },
+  { suite: "host-tools" },
+  ...Array.from({ length: MIGRATION_SHARDS }, (_, index) => ({
+    suite: "host-migrations",
+    shard: `${index + 1}/${MIGRATION_SHARDS}`,
+  })),
 ];
 
 export function loadWorkspace(root = repoRoot) {
@@ -209,7 +215,7 @@ export function classifyChanges(changedPaths, workspace, options = {}) {
   const nativeMatrix = [];
   for (const os of NATIVE_OSES) {
     if (nativeHost) {
-      for (const suite of HOST_SUITES) nativeMatrix.push({ os, suite });
+      for (const entry of HOST_SUITES) nativeMatrix.push({ os, ...entry });
     }
     if (nativeDesktop) nativeMatrix.push({ os, suite: "desktop" });
   }

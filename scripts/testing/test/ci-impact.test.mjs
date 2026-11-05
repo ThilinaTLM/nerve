@@ -71,17 +71,21 @@ test("server changes select host and desktop platform suites", () => {
   ]);
   assert.equal(impact.workbench, true);
   assert.deepEqual(
-    impact.nativeMatrix.map(({ os, suite }) => `${os}:${suite}`),
+    impact.nativeMatrix.map(
+      ({ os, suite, shard }) => `${os}:${suite}${shard ? `:${shard}` : ""}`,
+    ),
     [
       "windows-latest:host-native",
       "windows-latest:host-server",
       "windows-latest:host-tools",
-      "windows-latest:host-migrations",
+      "windows-latest:host-migrations:1/2",
+      "windows-latest:host-migrations:2/2",
       "windows-latest:desktop",
       "macos-latest:host-native",
       "macos-latest:host-server",
       "macos-latest:host-tools",
-      "macos-latest:host-migrations",
+      "macos-latest:host-migrations:1/2",
+      "macos-latest:host-migrations:2/2",
       "macos-latest:desktop",
     ],
   );
@@ -111,7 +115,7 @@ test("contract changes expand through all reverse dependents", () => {
     "@nervekit/workbench-server",
   ]);
   assert.equal(impact.workbench, true);
-  assert.equal(impact.nativeMatrix.length, 10);
+  assert.equal(impact.nativeMatrix.length, 12);
 });
 
 test("root dependency and unknown script changes fail safe to full coverage", () => {
@@ -124,7 +128,7 @@ test("root dependency and unknown script changes fail safe to full coverage", ()
     const impact = classifyChanges([path], workspace);
     assert.equal(impact.full, true);
     assert.equal(impact.website, true);
-    assert.equal(impact.nativeMatrix.length, 10);
+    assert.equal(impact.nativeMatrix.length, 12);
     assert.ok(impact.packages.includes("@nervekit/ui-kit"));
     // Native package is selected, so Ubuntu validate already runs clippy.
     assert.equal(impact.rustLint, false);
