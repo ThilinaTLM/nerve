@@ -14,9 +14,7 @@ import { documentStyles } from "../../infrastructure/documents/index.js";
 interface StaticFileContext {
   host: string;
   port: number;
-  storage: { localToken: string };
 }
-import { cookieHeader } from "./auth-middleware.js";
 
 const contentTypes: Record<string, string> = {
   ".html": "text/html; charset=utf-8",
@@ -62,7 +60,6 @@ export function fallbackHtml(state: StaticFileContext): string {
 export async function serveStatic(
   pathname: string,
   state: StaticFileContext,
-  clientAddress?: string,
 ): Promise<Response> {
   const webDist = resolveWebDistPath();
   const requestedPath = pathname === "/" ? "/index.html" : pathname;
@@ -80,8 +77,6 @@ export async function serveStatic(
     return new Response(contents, {
       headers: staticResponseHeaders(
         contentTypes[extname(finalPath)] ?? "application/octet-stream",
-        state,
-        clientAddress,
         requestedPath,
       ),
     });
@@ -95,8 +90,6 @@ export async function serveStatic(
       return new Response(contents, {
         headers: staticResponseHeaders(
           "text/html; charset=utf-8",
-          state,
-          clientAddress,
           "/index.html",
         ),
       });
@@ -104,8 +97,6 @@ export async function serveStatic(
       return new Response(fallbackHtml(state), {
         headers: staticResponseHeaders(
           "text/html; charset=utf-8",
-          state,
-          clientAddress,
           "/index.html",
         ),
       });
@@ -115,22 +106,15 @@ export async function serveStatic(
 
 function staticResponseHeaders(
   contentType: string,
-  state: StaticFileContext,
-  clientAddress?: string,
   pathname?: string,
 ): HeadersInit {
   const headers: Record<string, string> = {
     "content-type": contentType,
+    "referrer-policy": "no-referrer",
     "cache-control": staticCacheControl(pathname, contentType),
     "content-security-policy":
       "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self' data:; media-src 'self' data: blob:; connect-src 'self' ws: wss: https:; worker-src 'self' blob:; manifest-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'",
   };
-  if (
-    state.storage.localToken &&
-    shouldIssueLocalUiCookie(state, clientAddress)
-  ) {
-    headers["set-cookie"] = cookieHeader(state.storage.localToken);
-  }
   return headers;
 }
 
@@ -152,24 +136,6 @@ function staticCacheControl(pathname = "", contentType: string): string {
   }
 
   return "public, max-age=3600";
-}
-
-function shouldIssueLocalUiCookie(
-  state: StaticFileContext,
-  clientAddress?: string,
-): boolean {
-  return isLoopbackHost(state.host) || isLoopbackHost(clientAddress ?? "");
-}
-
-function isLoopbackHost(host: string): boolean {
-  const normalized = host.toLowerCase();
-  return (
-    normalized === "localhost" ||
-    normalized === "127.0.0.1" ||
-    normalized === "::1" ||
-    normalized.startsWith("127.") ||
-    normalized.startsWith("::ffff:127.")
-  );
 }
 
 function isPathInside(root: string, candidate: string): boolean {

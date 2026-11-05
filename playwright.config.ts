@@ -3,6 +3,9 @@ import { defineConfig, devices } from "@playwright/test";
 const port = Number(process.env.NERVE_BROWSER_TEST_PORT ?? 43_747);
 const baseURL = `http://127.0.0.1:${port}`;
 
+// Must match the token seeded by tests/browser/start-server.mjs.
+const browserTestToken = "nt_browser_test_token";
+
 export default defineConfig({
   testDir: "./tests/browser",
   testMatch: "**/*.spec.ts",
@@ -16,6 +19,21 @@ export default defineConfig({
     : [["list"]],
   use: {
     baseURL,
+    storageState: {
+      cookies: [
+        {
+          name: "nerve_token",
+          value: browserTestToken,
+          domain: "127.0.0.1",
+          path: "/",
+          expires: -1,
+          httpOnly: true,
+          secure: false,
+          sameSite: "Strict",
+        },
+      ],
+      origins: [],
+    },
     trace: "retain-on-failure",
     screenshot: "only-on-failure",
   },

@@ -68,6 +68,7 @@ import {
   type StorageStartupLock,
 } from "./infrastructure/storage-bootstrap/startup-lock.js";
 import { ensureMobileHttpsTlsMaterial } from "./infrastructure/tls/lan-certificate.js";
+import { createHostAllowlist } from "./adapters/http/host-allowlist.js";
 import { installProtocolWebSocketUpgrade } from "./adapters/protocol/protocol-websocket.js";
 
 function prepareEnterpriseNetworkEnvironment(): void {
@@ -465,6 +466,7 @@ async function main() {
     );
     const appMountStartedAt = performance.now();
     const app = createApp(state, controls);
+    const isAllowedHost = createHostAllowlist(state);
     const webSockets = new WebSocketServer({ noServer: true });
     const sessionSets = [
       installProtocolWebSocketUpgrade(
@@ -472,6 +474,7 @@ async function main() {
         webSockets,
         state.adapterContexts.websocket,
         storage.localToken,
+        isAllowedHost,
       ),
     ];
     upgradesAttached = true;
@@ -493,6 +496,7 @@ async function main() {
           webSockets,
           state.adapterContexts.websocket,
           storage.localToken,
+          isAllowedHost,
         ),
       );
     }

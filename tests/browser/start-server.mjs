@@ -1,10 +1,22 @@
 import { spawn } from "node:child_process";
-import { mkdtemp, rm } from "node:fs/promises";
+import { chmod, mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 
 const repoRoot = resolve(import.meta.dirname, "..", "..");
 const home = await mkdtemp(join(tmpdir(), "nerve-browser-test-"));
+// Browsers no longer receive the auth cookie from static responses, so the
+// suite seeds a known token and playwright.config.ts installs the cookie.
+const browserTestToken = "nt_browser_test_token";
+await mkdir(join(home, "secrets"), { recursive: true, mode: 0o700 });
+await writeFile(
+  join(home, "secrets", "daemon-token"),
+  `${browserTestToken}\n`,
+  {
+    mode: 0o600,
+  },
+);
+await chmod(join(home, "secrets", "daemon-token"), 0o600);
 const port = process.env.NERVE_BROWSER_TEST_PORT ?? "43747";
 const child = spawn(
   process.execPath,

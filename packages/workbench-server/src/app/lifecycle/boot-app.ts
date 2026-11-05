@@ -1,4 +1,3 @@
-import { getConnInfo } from "@hono/node-server/conninfo";
 import type { ServerStartingError } from "@nervekit/contracts/status";
 import { Hono } from "hono";
 import { serveStatic } from "../../adapters/http/static-files.js";
@@ -7,7 +6,8 @@ import {
   createLifecycleRoutes,
   type LifecycleControls,
 } from "./lifecycle-routes.js";
-import { remoteUiAuthRedirect } from "../server.js";
+import { createHostAllowlist } from "../../adapters/http/host-allowlist.js";
+import { hostGuard, remoteUiAuthRedirect } from "../server.js";
 
 export interface BootAppOptions extends LifecycleControls {
   host: string;
@@ -19,6 +19,7 @@ export interface BootAppOptions extends LifecycleControls {
 /** The app served while the runtime does not exist yet or storage failed. */
 export function createBootApp(options: BootAppOptions): Hono {
   const app = new Hono();
+  app.use("*", hostGuard(createHostAllowlist({ host: options.host })));
   const startingResponse = () => {
     const body: ServerStartingError = {
       error: "starting",
@@ -38,15 +39,10 @@ export function createBootApp(options: BootAppOptions): Hono {
       ? remoteUiAuthRedirect(c.req.raw, options.localToken)
       : undefined;
     if (redirect) return redirect;
-    return serveStatic(
-      new URL(c.req.url).pathname,
-      {
-        host: options.host,
-        port: options.port(),
-        storage: { localToken: options.localToken ?? "" },
-      },
-      getConnInfo(c).remote.address,
-    );
+    return serveStatic(new URL(c.req.url).pathname, {
+      host: options.host,
+      port: options.port(),
+    });
   });
   return app;
 }

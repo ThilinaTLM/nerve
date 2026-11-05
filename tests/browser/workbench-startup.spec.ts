@@ -1,6 +1,8 @@
 import { expect, test } from "@playwright/test";
 
-test("local UI bootstraps an authenticated browser session", async ({
+const token = "nt_browser_test_token";
+
+test("local UI is authenticated by the seeded session cookie", async ({
   page,
 }) => {
   const pageErrors: Error[] = [];
@@ -11,12 +13,6 @@ test("local UI bootstraps an authenticated browser session", async ({
   await expect(page).toHaveTitle(/nerve/i);
   await expect(page.locator("body")).not.toBeEmpty();
 
-  const cookies = await page.context().cookies();
-  const authCookie = cookies.find((cookie) => cookie.name === "nerve_token");
-  expect(authCookie).toBeDefined();
-  expect(authCookie?.httpOnly).toBe(true);
-  expect(authCookie?.sameSite).toBe("Strict");
-
   const config = await page.request.get("/api/client-config");
   expect(config.ok()).toBe(true);
   await expect(config.json()).resolves.toMatchObject({
@@ -26,22 +22,32 @@ test("local UI bootstraps an authenticated browser session", async ({
   expect(pageErrors).toEqual([]);
 });
 
-test("reload preserves local authentication and renders the workbench", async ({
-  page,
-}) => {
-  await page.goto("/");
-  const initialCookie = (await page.context().cookies()).find(
-    (cookie) => cookie.name === "nerve_token",
-  );
-  expect(initialCookie).toBeDefined();
+test.describe("without a session", () => {
+  test.use({ storageState: { cookies: [], origins: [] } });
 
-  await page.reload({ waitUntil: "domcontentloaded" });
-  await expect(page).toHaveTitle(/nerve/i);
-  const config = await page.request.get("/api/client-config");
-  expect(config.status()).toBe(200);
-  expect(
-    (await page.context().cookies()).find(
+  test("static responses do not hand out the cookie", async ({ page }) => {
+    const response = await page.goto("/");
+    expect(response?.ok()).toBe(true);
+    expect(await page.context().cookies()).toEqual([]);
+    const config = await page.request.get("/api/client-config");
+    expect(config.status()).toBe(401);
+  });
+
+  test("?token= is exchanged for a Strict HttpOnly cookie and stripped", async ({
+    page,
+  }) => {
+    await page.goto(`/?token=${token}`);
+    await expect(page).toHaveTitle(/nerve/i);
+    expect(new URL(page.url()).search).toBe("");
+
+    const authCookie = (await page.context().cookies()).find(
       (cookie) => cookie.name === "nerve_token",
-    )?.value,
-  ).toBe(initialCookie?.value);
+    );
+    expect(authCookie?.httpOnly).toBe(true);
+    expect(authCookie?.sameSite).toBe("Strict");
+    expect((await page.request.get("/api/client-config")).status()).toBe(200);
+
+    await page.reload({ waitUntil: "domcontentloaded" });
+    expect((await page.request.get("/api/client-config")).status()).toBe(200);
+  });
 });
