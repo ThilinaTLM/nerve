@@ -3,31 +3,11 @@ import ProfileUpdateNotice from "$lib/features/conversations/views/ProfileUpdate
 import { projectAgentDefaults } from "$lib/application/agent-configuration/project-agent-defaults.svelte";
 import { CreationPreferencesState } from "$lib/features/settings/state/creation-preferences.svelte";
 import { compareSubagents } from "$lib/presentation/conversations/subagent-order";
-import { untrack } from "svelte";
 import { createComposerView } from "$lib/application/composer/composer-view.svelte";
 import { activateComposer } from "$lib/application/composer/active-composer.svelte";
 import { ScopedAgentState } from "$lib/application/agent-configuration/scoped-agent-state.svelte";
 import { onEvent } from "$lib/application/events/workbench-event-bus";
-import GitBranchPlus from "@lucide/svelte/icons/git-branch-plus";
-import GitCommitHorizontal from "@lucide/svelte/icons/git-commit-horizontal";
-import GitPullRequest from "@lucide/svelte/icons/git-pull-request";
-import GitPullRequestArrow from "@lucide/svelte/icons/git-pull-request-arrow";
-import CircleX from "@lucide/svelte/icons/circle-x";
-import ArrowUp from "@lucide/svelte/icons/arrow-up";
-import ArrowDown from "@lucide/svelte/icons/arrow-down";
-import ScanSearch from "@lucide/svelte/icons/scan-search";
-import Trash2 from "@lucide/svelte/icons/trash-2";
-import RotateCcw from "@lucide/svelte/icons/rotate-ccw";
-import Sparkles from "@lucide/svelte/icons/sparkles";
-import { gitState } from "$lib/features/git/state/git-state.svelte";
-import { gitContextFingerprint } from "$lib/features/git/state/git-context.svelte";
-import {
-  promptSuggestionsState,
-  refreshPromptSuggestions,
-} from "$lib/features/prompt-suggestions";
 import PromptSuggestionTrustDialog from "$lib/features/prompt-suggestions/views/PromptSuggestionTrustDialog.svelte";
-import type { ComposerSuggestion } from "$lib/features/conversations/views/composer-suggestion";
-import { workbenchStartupState } from "$lib/application/startup/workbench-startup-state.svelte";
 import type { EventTreeNode } from "@nervekit/contracts/core";
 import type { CompletionItem } from "@nervekit/contracts/completions";
 import { workspaceState } from "$lib/application/workspace/workspace-state.svelte";
@@ -54,12 +34,6 @@ import {
   focusComposer,
   openConversationHistory,
 } from "$lib/features/conversations/state/composer-signals.svelte";
-import { retainConversationStore } from "$lib/features/conversations/state/open-conversation-stores";
-import type { ConversationStore } from "$lib/features/conversations/state/core-conversation-store.svelte";
-import {
-  ConversationAgentUsageController,
-  type AgentUsageState,
-} from "$lib/features/conversations/state/conversation-agent-usage";
 import { conversationTranscript } from "$lib/features/conversations/adapters/core-transcript.adapter";
 
 import {
@@ -72,17 +46,12 @@ import {
 } from "$lib/application/startup/conversation-connection";
 import ConversationActivityIsland from "$lib/features/conversations/agents/ConversationActivityIsland.svelte";
 import { openAsyncBashTab } from "$lib/features/conversations";
-import {
-  pendingWork as derivePendingWork,
-  hasStoppableWork,
-  agentProfileLabel,
-} from "$lib/features/conversations/agents/agent-team";
+import { hasStoppableWork } from "$lib/features/conversations/agents/agent-team";
 import ConversationSettingsDialogs from "$lib/features/conversations/context/ConversationSettingsDialogs.svelte";
 import ConversationContextActions from "$lib/features/conversations/context/ConversationContextActions.svelte";
 import { ConversationCompactionState } from "$lib/features/conversations/context/conversation-compaction-state.svelte";
 import { sessionFields } from "$lib/features/conversations/views/context-session-fields";
 import { writeClipboardText } from "$lib/platform/clipboard/write-text";
-import type { PendingWorkItem } from "$lib/presentation/transcript/activity/run-activity";
 import type { AsyncBash } from "@nervekit/contracts/core";
 import { openFilePane } from "$lib/features/filesystem/state/file-tabs.svelte";
 import { openLaunchTab } from "$lib/features/launches";
@@ -103,6 +72,13 @@ import { createInteractionActions } from "./conversation-center/interaction-acti
 import { ComposerSession } from "./conversation-center/composer-session.svelte";
 import { runActivePaneAction } from "./conversation-center/prompt-submission.svelte";
 import { createQueuedPromptActions } from "./conversation-center/queued-prompts.svelte";
+import { CenterPromptSuggestions } from "./conversation-center/prompt-suggestions.svelte";
+import { ConversationAgentView } from "./conversation-center/agent-view.svelte";
+import { ConversationUsage } from "./conversation-center/conversation-usage.svelte";
+import {
+  composerProfiles as deriveComposerProfiles,
+  permissionRuleSetsFor,
+} from "./conversation-center/composer-options";
 let { tab, active = true }: { tab?: CenterTabIdentity; active?: boolean } =
   $props();
 const paneTab = $derived(tab ?? workspaceState.activeCenterTab);
@@ -116,16 +92,17 @@ const activePendingConversation = $derived(
   pendingId ? pendingConversations.get(pendingId) : undefined,
 );
 const pendingConversationActive = $derived(!!activePendingConversation);
-/** The tab's conversation (the lead of its sub-agents). */
-let leadStore = $state<ConversationStore>();
-/** A sub-agent shown in place of the lead's transcript, if any. */
-let viewedChildId = $state<string>();
-let childStore = $state<ConversationStore>();
-let releaseChild: (() => void) | undefined;
-let activityOpen = $state<"agents" | "commands" | null>(null);
-/** Everything below acts on the conversation being viewed. */
-const store = $derived(viewedChildId ? childStore : leadStore);
 let tree = $state<EventTreeNode[]>([]);
+const agentView = new ConversationAgentView({
+  conversationId: () => conversationId,
+  context: () => context,
+  clearEdit: () => composerSession.clearEdit(),
+  resetTree: () => {
+    tree = [];
+  },
+});
+/** Everything below acts on the conversation being viewed. */
+const store = $derived(agentView.store);
 const drafts = conversationDraftStore();
 // The composer belongs to the lead, even while a read-only child is viewed.
 const promptDraftTarget = $derived<PromptDraftTarget | undefined>(
@@ -143,41 +120,10 @@ const composerSession = new ComposerSession({
   store: () => store,
   promptDraftTarget: () => promptDraftTarget,
   pending: () => activePendingConversation,
-  viewedChildId: () => viewedChildId,
+  viewedChildId: () => agentView.viewedChildId,
   inherited: () => composerView.inherited,
   drafts,
   focusComposer,
-});
-/** Shows a sub-agent in the main view; the lead id (or none) returns. */
-function viewAgent(id: string | undefined) {
-  releaseChild?.();
-  releaseChild = undefined;
-  childStore = undefined;
-  viewedChildId = undefined;
-  activityOpen = null;
-  composerSession.clearEdit();
-  if (!id || id === conversationId) return;
-  const retained = retainConversationStore(id);
-  releaseChild = retained.release;
-  childStore = retained.store;
-  viewedChildId = id;
-  void retained.ready.catch((e) => notify.error(String(e)));
-}
-$effect(() => () => untrack(() => viewAgent(undefined)));
-$effect(() => {
-  if (viewedChildId && childStore?.deleted) viewAgent(undefined);
-});
-$effect(() => {
-  const id = conversationId;
-  leadStore = undefined;
-  untrack(() => viewAgent(undefined));
-  tree = [];
-  composerSession.clearEdit();
-  if (!id) return;
-  const retained = retainConversationStore(id);
-  leadStore = retained.store;
-  void retained.ready.catch((e) => notify.error(String(e)));
-  return retained.release;
 });
 const transcript = $derived(
   store?.snapshot
@@ -203,7 +149,7 @@ const view = $derived(
       }
     : undefined,
 );
-const context = $derived(
+const context: ReturnType<typeof conversationContext> | undefined = $derived(
   store?.snapshot
     ? conversationContext(store.snapshot, store.events, settingsState.models)
     : undefined,
@@ -256,8 +202,8 @@ const composerView = createComposerView({
         }
       : {
           kind: "conversation",
-          conversationId: viewedChildId ?? conversationId ?? "",
-          readOnly: !!viewedChildId,
+          conversationId: agentView.viewedChildId ?? conversationId ?? "",
+          readOnly: !!agentView.viewedChildId,
         },
   pending: () => activePendingConversation,
   store: () => store,
@@ -326,24 +272,13 @@ const selectedAgentProfile = $derived(
 const selectedPermissionRuleSetId = $derived(
   composerResolution?.settings.permissionRuleSetId ?? "autonomous",
 );
-/** Profiles the selector offers; a viewed sub-agent shows only its own, read-only. */
 const composerProfiles = $derived(
-  viewedChildId
-    ? [
-        {
-          name: selectedAgentProfile,
-          label: selectedAgentProfile,
-          source: resolvedProfiles.find(
-            (profile) => profile.name === selectedAgentProfile,
-          )?.source,
-        },
-      ]
-    : leadAgentProfiles(resolvedProfiles).map((profile) => ({
-        name: profile.name,
-        label: profile.label,
-        whenToUse: profile.whenToUse,
-        source: profile.source,
-      })),
+  deriveComposerProfiles({
+    viewingChild: Boolean(agentView.viewedChildId),
+    selectedProfile: selectedAgentProfile,
+    resolvedProfiles,
+    leadProfiles: leadAgentProfiles(resolvedProfiles),
+  }),
 );
 const lockedFields = $derived({
   ...composerView.locked,
@@ -353,11 +288,12 @@ const activeCompactionLocked = $derived(Boolean(lockedFields.compaction));
 const composerOverrides = $derived(composerView.overrides);
 const settingsDiffers = $derived({
   model:
-    !viewedChildId &&
+    !agentView.viewedChildId &&
     (composerOverrides.model !== undefined ||
       composerOverrides.reasoningLevel !== undefined),
   permission:
-    !viewedChildId && composerOverrides.permissionRuleSetId !== undefined,
+    !agentView.viewedChildId &&
+    composerOverrides.permissionRuleSetId !== undefined,
 });
 $effect(() => {
   void agentProfileCatalog.ensure(profileCatalogProjectId);
@@ -371,12 +307,13 @@ const usableModels = $derived(
 );
 const planReviewModelKey = $derived(selectedModelKey);
 const planReviewThinkingLevel = $derived(selectedThinkingLevel);
-/** Sub-agents run read-only or autonomous; nothing in between. */
-const SUBAGENT_RULE_SETS = new Set(["read_only", "autonomous"]);
 const permissionRuleSets = $derived(
-  selectablePermissionRuleSets(
-    permissionRuleSetCatalog.summaries(activeProject?.id),
-  ).filter((rules) => !viewedChildId || SUBAGENT_RULE_SETS.has(rules.id)),
+  permissionRuleSetsFor(
+    selectablePermissionRuleSets(
+      permissionRuleSetCatalog.summaries(activeProject?.id),
+    ),
+    Boolean(agentView.viewedChildId),
+  ),
 );
 const permissionRuleSetsLoading = $derived(
   permissionRuleSetCatalog.loading(activeProject?.id),
@@ -396,96 +333,18 @@ $effect(() => {
 const conversationUsage = $derived(
   context?.conversationUsage ?? summarizeConversationUsage([]),
 );
-let usageOpen = $state(false);
-let agentUsageState = $state<AgentUsageState>({ loading: false });
-const agentUsageController = new ConversationAgentUsageController({
-  fetch: (conversationId) =>
-    requestConversation("conversation.getUsage", { conversationId }),
-  publish: (state) => {
-    agentUsageState = state;
-  },
+const usage = new ConversationUsage({
+  conversationId: () => store?.conversationId,
+  enabled: () => active && !!store?.connected,
+  responseCount: () => conversationUsage.responseCount,
+  contextWindow: () => context?.contextWindow,
+  selectedModelKey: () => selectedModelKey,
 });
-$effect(() => {
-  // All-time usage also drives the badge's cache warning, so fetch it while the
-  // conversation is active; poll only while the details are open.
-  agentUsageController.configure(
-    store?.conversationId,
-    active && !!store?.connected,
-    usageOpen,
-  );
-});
-// Each new response changes recorded usage.
-$effect(() => {
-  void conversationUsage.responseCount;
-  untrack(() => agentUsageController.invalidate());
-});
-$effect(() => () => agentUsageController.dispose());
-const contextWindow = $derived(
-  context?.contextWindow ??
-    settingsState.models.find((m) => modelKey(m) === selectedModelKey)
-      ?.contextWindow ??
-    0,
-);
-const builtinSuggestionIcons = {
-  "commit-changes": GitCommitHorizontal,
-  "commit-on-feature-branch": GitBranchPlus,
-  "create-pull-request": GitPullRequest,
-  "update-pull-request": GitPullRequestArrow,
-  "fix-failing-checks": CircleX,
-  "push-commits": ArrowUp,
-  "pull-upstream": ArrowDown,
-  "review-changes": ScanSearch,
-  "cleanup-merged-branch": Trash2,
-  "continue-after-failure": RotateCcw,
-} as const;
-const composerSuggestions = $derived.by<ComposerSuggestion[]>(() =>
-  promptSuggestionsState.suggestions.map((suggestion) => ({
-    id: `prompt:${suggestion.id}`,
-    label: suggestion.label,
-    prompt: suggestion.prompt,
-    description: suggestion.description,
-    context: suggestion.context,
-    icon:
-      suggestion.source.kind === "builtin"
-        ? (builtinSuggestionIcons[
-            suggestion.name as keyof typeof builtinSuggestionIcons
-          ] ?? Sparkles)
-        : Sparkles,
-  })),
-);
-const promptSuggestionRefreshKey = $derived.by(() => {
-  const ctx = gitState.gitContext;
-  return ctx ? `${ctx.projectId}:${gitContextFingerprint(ctx)}` : "none";
-});
-// Suggestions read the cached open PR, so a PR/check change can add or drop
-// chips without any git or conversation change. Debounced: sync bursts.
-let prChangeTick = $state(0);
-$effect(() => {
-  if (!workbenchStartupState.progressiveActive || !active) return;
-  const projectId = activeProject?.id;
-  if (!projectId) return;
-  let timer: ReturnType<typeof setTimeout> | undefined;
-  const stop = onEvent("github.pr.changed", (event) => {
-    if (event.data?.projectId !== projectId) return;
-    clearTimeout(timer);
-    timer = setTimeout(() => {
-      prChangeTick += 1;
-    }, 1000);
-  });
-  return () => {
-    stop();
-    clearTimeout(timer);
-  };
-});
-$effect(() => {
-  if (!workbenchStartupState.progressiveActive || !active || !activeProject?.id)
-    return;
-  void promptSuggestionRefreshKey;
-  void prChangeTick;
-  void store?.snapshot?.config;
-  void store?.snapshot?.conversation.status;
-  void store?.snapshot?.conversation.title;
-  void refreshPromptSuggestions(activeProject.id, { conversationId });
+const promptSuggestions = new CenterPromptSuggestions({
+  active: () => active,
+  projectId: () => activeProject?.id,
+  store: () => store,
+  conversationId: () => conversationId,
 });
 async function compactActiveConversation() {
   await store?.control("compact");
@@ -547,48 +406,23 @@ $effect(() => {
     active &&
     entry &&
     entry.conversationId === conversationId &&
-    !viewedChildId
+    !agentView.viewedChildId
   ) {
     composerSignals.editEntry = undefined;
     composerSession.editEntry(entry);
   }
 });
 const completionProjectId = $derived(activeProject?.id);
-const completionConversationId = $derived(viewedChildId ?? conversationId);
+const completionConversationId = $derived(
+  agentView.viewedChildId ?? conversationId,
+);
 // Construction is inert; only an active editor query acquires server data.
 const completionSource = $derived(
   active && completionProjectId
     ? composerReferenceSource(completionProjectId, completionConversationId)
     : undefined,
 );
-/** The lead's context drives the agents tree in both lead and sub-agent views. */
-const leadContext = $derived(
-  !viewedChildId
-    ? context
-    : leadStore?.snapshot
-      ? conversationContext(
-          leadStore.snapshot,
-          leadStore.events,
-          settingsState.models,
-        )
-      : undefined,
-);
-const viewedConversationId = $derived(
-  viewedChildId ?? leadStore?.snapshot?.conversation.id,
-);
 const backgroundCommands = $derived(store?.snapshot?.asyncBash ?? []);
-const pendingWork = $derived(
-  store?.snapshot
-    ? derivePendingWork({
-        children: store.snapshot.children,
-        asyncBash: store.snapshot.asyncBash,
-      })
-    : [],
-);
-function openPendingWork(item: PendingWorkItem) {
-  if (item.kind === "agent") viewAgent(item.id);
-  else activityOpen = "commands";
-}
 function openCommand(command: AsyncBash) {
   void openAsyncBashTab(command, activeProject?.id);
 }
@@ -603,22 +437,6 @@ $effect(() => compactionSettings.observe());
 let compactionDialogOpen = $state(false);
 let instructionsDialogOpen = $state(false);
 const instructions = $derived(store?.snapshot?.config.instructions ?? null);
-const viewedProfile = $derived.by(() => {
-  if (!viewedChildId) return undefined;
-  const agent = leadContext?.conversationAgents.find(
-    (candidate) => candidate.id === viewedChildId,
-  );
-  return agent ? agentProfileLabel(agent) : undefined;
-});
-const composerOverlay = $derived(
-  viewedChildId
-    ? {
-        message: "Sub-agents take prompts only from their lead.",
-        actionLabel: "Back to lead",
-        onAction: () => viewAgent(undefined),
-      }
-    : undefined,
-);
 const session = $derived({
   fields: sessionFields({
     status: workspaceState.status,
@@ -637,20 +455,20 @@ const stoppable = $derived(hasStoppableWork(store?.snapshot));
 
 <WorkbenchConversationAdapter
   {active}
-  {pendingWork}
-  onOpenPendingWork={openPendingWork}
+  pendingWork={agentView.pendingWork}
+  onOpenPendingWork={agentView.openPendingWork}
   subagents={{
     list: () =>
-      [...(leadStore?.snapshot?.children ?? [])]
+      [...(agentView.leadStore?.snapshot?.children ?? [])]
         .sort(compareSubagents)
         .map((child) => ({
           id: child.id,
           name: child.title,
           status: child.status,
         })),
-    open: (id) => viewAgent(id),
+    open: (id) => agentView.viewAgent(id),
   }}
-  editorOverlay={composerOverlay}
+  editorOverlay={agentView.composerOverlay}
   {session}
   {activeProject}
   {activeConversation}
@@ -678,7 +496,9 @@ const stoppable = $derived(hasStoppableWork(store?.snapshot));
   retryingResponse={view?.retryingResponse ?? false}
   responseRevision={view?.responseRevision ?? 0}
   composerText={composerSession.composerText}
-  composerSuggestions={viewedChildId ? [] : composerSuggestions}
+  composerSuggestions={agentView.viewedChildId
+    ? []
+    : promptSuggestions.suggestions}
   onSendSuggestion={composerSession.sendSuggestion}
   onDraftSuggestion={composerSession.applySuggestion}
   models={usableModels}
@@ -691,7 +511,7 @@ const stoppable = $derived(hasStoppableWork(store?.snapshot));
   agentProfiles={composerProfiles}
   {lockedFields}
   {settingsDiffers}
-  profileDisabled={Boolean(viewedChildId)}
+  profileDisabled={Boolean(agentView.viewedChildId)}
   permissionRuleSetId={selectedPermissionRuleSetId}
   {permissionRuleSets}
   {permissionRuleSetsLoading}
@@ -699,14 +519,14 @@ const stoppable = $derived(hasStoppableWork(store?.snapshot));
   {slashCompletions}
   contextUsage={context?.contextUsage}
   {conversationUsage}
-  agentUsage={agentUsageState.usage}
-  agentUsageLoading={agentUsageState.loading}
-  agentUsageError={agentUsageState.error}
+  agentUsage={usage.agentState.usage}
+  agentUsageLoading={usage.agentState.loading}
+  agentUsageError={usage.agentState.error}
   onUsageOpenChange={(open) => {
-    usageOpen = open;
+    usage.open = open;
   }}
-  onUsageRetry={() => agentUsageController.retry()}
-  {contextWindow}
+  onUsageRetry={() => usage.retry()}
+  contextWindow={usage.contextWindow}
   composerFocusToken={composerSignals.focusToken}
   composerEscapeToken={composerSignals.escapeToken}
   micShortcutToken={composerSignals.micToken}
@@ -783,7 +603,7 @@ const stoppable = $derived(hasStoppableWork(store?.snapshot));
       compaction={compactionSettings.compaction}
       compactionOverridden={compactionSettings.overridden}
       {instructions}
-      profile={viewedProfile}
+      profile={agentView.viewedProfile}
       disabled={!store?.snapshot || compactionSettings.saving}
       compactionLocked={activeCompactionLocked}
       onEditCompaction={() => {
@@ -797,24 +617,24 @@ const stoppable = $derived(hasStoppableWork(store?.snapshot));
     />
   {/snippet}
   {#snippet activity(showLatest, onJumpToBottom)}
-    {#if effective?.appliedProfile && store && !viewedChildId}
+    {#if effective?.appliedProfile && store && !agentView.viewedChildId}
       <ProfileUpdateNotice
         conversationId={store.conversationId}
         applied={effective.appliedProfile}
         onApplied={() => store!.refreshConfiguration()}
       />
     {/if}
-    {#if viewedConversationId}
+    {#if agentView.viewedConversationId}
       <ConversationActivityIsland
-        bind:open={activityOpen}
+        bind:open={agentView.activityOpen}
         {active}
-        agents={leadContext?.conversationAgents ?? []}
-        activities={leadContext?.agentActivities ?? {}}
-        viewedId={viewedConversationId}
+        agents={agentView.leadContext?.conversationAgents ?? []}
+        activities={agentView.leadContext?.agentActivities ?? {}}
+        viewedId={agentView.viewedConversationId}
         commands={backgroundCommands}
         {showLatest}
         {onJumpToBottom}
-        onSelectAgent={(id) => viewAgent(id)}
+        onSelectAgent={(id) => agentView.viewAgent(id)}
         onOpenCommand={openCommand}
       />
     {/if}

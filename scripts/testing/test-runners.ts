@@ -11,10 +11,8 @@ export interface TestRunner {
   command: "tsx" | "node";
   /** Extra runner flags that must accompany a file selection. */
   options: string[];
-  /** Package-relative globs of the test files the script covers. */
+  /** Package-relative globs of the `.test.ts` files the script covers. */
   globs: string[];
-  /** Test-file suffix covered (`.test.ts` or `.test.mjs`). */
-  suffix: ".test.ts" | ".test.mjs";
 }
 
 const tsxScript = (globs: string[], options: string[] = []) =>
@@ -24,11 +22,9 @@ function tsxRunner(
   globs: string[],
   {
     options = [],
-    suffix = ".test.ts",
     script,
   }: {
     options?: string[];
-    suffix?: TestRunner["suffix"];
     script?: string;
   } = {},
 ): TestRunner {
@@ -37,7 +33,6 @@ function tsxRunner(
     command: "tsx",
     options,
     globs,
-    suffix,
   };
 }
 
