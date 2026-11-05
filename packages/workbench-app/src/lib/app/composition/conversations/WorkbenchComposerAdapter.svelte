@@ -2,6 +2,7 @@
 import { editableCapabilityResets } from "$lib/domain/capabilities/editable-resets";
 import { agentProfileCatalog } from "$lib/application/agent-profiles/agent-profile-catalog.svelte";
 import { parseSlashCommand } from "@nervekit/contracts/completions";
+import { effectiveRiskForCategory } from "@nervekit/contracts/permissions";
 import { onDestroy, untrack, type Snippet } from "svelte";
 import { DEFAULT_AGENT_PROFILE } from "@nervekit/contracts/agent-profiles";
 import { type LeadSettingsOverrides } from "@nervekit/contracts/agent-configuration";
@@ -225,7 +226,10 @@ $effect(() => {
   void listTools()
     .then((tools) => {
       conversationCatalog.toolRisks = Object.fromEntries(
-        tools.map((tool) => [tool.name, tool.risk]),
+        tools.map((tool) => [
+          tool.name,
+          effectiveRiskForCategory(tool.baseRisk),
+        ]),
       );
     })
     .catch(() => undefined);

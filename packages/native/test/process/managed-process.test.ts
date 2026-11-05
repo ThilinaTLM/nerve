@@ -15,6 +15,7 @@ import {
   terminateManagedTarget,
   terminateTcpListener,
 } from "../../src/index.js";
+import { waitFor } from "../support/wait-for.js";
 
 const node = process.execPath;
 
@@ -39,12 +40,11 @@ async function firstOutputNumber(
 }
 
 async function waitForProcessExit(pid: number): Promise<void> {
-  const deadline = Date.now() + 1_500;
-  while (Date.now() < deadline) {
-    if (!(await processIsAlive(pid))) return;
-    await new Promise((resolve) => setTimeout(resolve, 20));
-  }
-  assert.fail(`Descendant process ${pid} remained alive`);
+  await waitFor(async () => !(await processIsAlive(pid)), {
+    timeoutMs: 1_500,
+    intervalMs: 20,
+    message: `descendant process ${pid} to exit`,
+  });
 }
 
 async function processIsAlive(pid: number): Promise<boolean> {
@@ -179,6 +179,8 @@ describe("native managed process facade", () => {
       ["-e", "process.stdout.write(Buffer.alloc(2 * 1024 * 1024, 97))"],
       { policy: { output: { queueBytes: 32 * 1024, batchBytes: 16 * 1024 } } },
     );
+    // Deliberate pause: the producer blocks on the full queue, which has no
+    // observable signal, so the consumer attaches late on purpose.
     await new Promise((resolve) => setTimeout(resolve, 50));
     const chunks: Buffer[] = [];
     managed.stdout.on("data", (chunk: Buffer) => chunks.push(chunk));

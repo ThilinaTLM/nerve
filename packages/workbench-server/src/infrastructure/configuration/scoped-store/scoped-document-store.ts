@@ -197,6 +197,10 @@ export class ScopedDocumentStore<S, D extends SchemaDocument> {
           current.digest !== expected.digest
         )
           throw new ScopeConflictError();
+        // Detect external edits before the writer's own preflight, which would
+        // otherwise report an externally corrupted file as unavailable.
+        if ((await sourceDigest(current.path)) !== expected.digest)
+          throw new ScopeConflictError();
         let candidate: D | undefined;
         const bytes = await this.writeCandidate(scope, async () => {
           if ((await sourceDigest(current.path)) !== expected.digest)

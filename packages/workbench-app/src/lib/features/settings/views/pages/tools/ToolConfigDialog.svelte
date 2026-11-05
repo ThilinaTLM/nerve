@@ -3,7 +3,7 @@
 import { canonicalSettingRequired } from "$lib/presentation/composer/capability-tool-locks";
 import type { ModelInfo } from "$lib/api";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
-import Dialog from "@nervekit/ui-kit/components/composites/dialog-shell";
+import FormDialog from "@nervekit/ui-kit/components/composites/form-dialog";
 import ToolConfigForm from "./ToolConfigForm.svelte";
 import {
   toolRow,
@@ -59,11 +59,14 @@ function save(): void {
 }
 </script>
 
-<Dialog
+<FormDialog
   bind:open
   size="sm"
   title={`Configure ${toolRow(name).label}`}
   {description}
+  submitLabel="Save"
+  submitDisabled={!valid}
+  onSubmit={save}
 >
   <ToolConfigForm
     {name}
@@ -76,7 +79,7 @@ function save(): void {
     {leadProfiles}
     {resolvedPython}
   />
-  {#snippet footer()}
+  {#snippet footerLeading()}
     {#if onManageAccounts && (name === "web_search" || name === "jira" || name === "confluence")}
       <Button variant="outline" onclick={onManageAccounts}
         >Manage accounts</Button
@@ -98,7 +101,5 @@ function save(): void {
         }}>Use auto-detect</Button
       >
     {/if}
-    <Button variant="ghost" onclick={() => (open = false)}>Cancel</Button>
-    <Button onclick={save} disabled={!valid}>Save</Button>
   {/snippet}
-</Dialog>
+</FormDialog>

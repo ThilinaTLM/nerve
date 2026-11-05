@@ -1,6 +1,6 @@
 import { Hono } from "hono";
 import { createSettingsHealthRoutes } from "./settings-health-routes.js";
-import type { ServerAdapterContexts } from "../../../app/bootstrap/create-server-adapter-contexts.js";
+import type { ServerAdapterContexts } from "../../contexts.js";
 type SettingsRoutesContext = ServerAdapterContexts["http"]["settings"];
 
 export function createSettingsRoutes(state: SettingsRoutesContext): Hono {

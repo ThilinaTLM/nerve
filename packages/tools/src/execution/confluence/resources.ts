@@ -1,3 +1,4 @@
+import { anyJson, jsonObject } from "../atlassian/http.js";
 import { guideErrorMessage } from "./guide-errors.js";
 import { requiredString } from "../atlassian/arguments.js";
 import { readFile } from "node:fs/promises";
@@ -66,7 +67,8 @@ export async function executeConfluenceManageComment(
     );
   let current: Record<string, unknown> | undefined;
   if (commentId)
-    current = await confluenceRequest<Record<string, unknown>>(connection, {
+    current = await confluenceRequest(connection, {
+      parse: jsonObject,
       path: `/${kindPath(kind)}/${pathSegment(commentId)}`,
       query: { "body-format": "storage" },
       signal: context.signal,
@@ -126,7 +128,8 @@ export async function executeConfluenceManageComment(
     action === "create"
       ? `/${kindPath(kind)}`
       : `/${kindPath(kind)}/${pathSegment(commentId ?? "")}`;
-  const data = await confluenceRequest<Record<string, unknown>>(connection, {
+  const data = await confluenceRequest(connection, {
+    parse: jsonObject,
     method:
       action === "create" ? "POST" : action === "delete" ? "DELETE" : "PUT",
     path,
@@ -157,7 +160,8 @@ export async function executeConfluenceManagePage(
   const connection = await requireConfluenceConnection(context);
   const action = actionOf(args);
   const pageId = requiredString(args.page_id, "page_id");
-  const page = await confluenceRequest<Record<string, unknown>>(connection, {
+  const page = await confluenceRequest(connection, {
+    parse: jsonObject,
     path: `/pages/${pathSegment(pageId)}`,
     query: {
       "body-format": "storage",
@@ -400,6 +404,7 @@ export async function executeConfluenceManageAttachment(
     const comment = optionalString(args.comment);
     if (comment) form.append("comment", comment);
     const data = await confluenceAttachmentRequest(connection, {
+      parse: anyJson,
       method: args.update_existing === false ? "POST" : "PUT",
       pageId,
       form,
@@ -427,14 +432,12 @@ export async function executeConfluenceManageAttachment(
   }
   const pageId = requiredString(args.page_id, "page_id");
   const attachmentId = requiredString(args.attachment_id, "attachment_id");
-  const attachment = await confluenceRequest<Record<string, unknown>>(
-    connection,
-    {
-      path: `/attachments/${pathSegment(attachmentId)}`,
-      query: { "include-version": true },
-      signal: context.signal,
-    },
-  );
+  const attachment = await confluenceRequest(connection, {
+    parse: jsonObject,
+    path: `/attachments/${pathSegment(attachmentId)}`,
+    query: { "include-version": true },
+    signal: context.signal,
+  });
   if (args.dry_run === true)
     return dry(
       context,

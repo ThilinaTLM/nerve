@@ -16,9 +16,10 @@ import {
   createScopedRepair,
 } from "../../../infrastructure/configuration/agent-configuration/scoped-repair.js";
 import { diagnostic } from "../../../infrastructure/configuration/agent-configuration/document-adapters.js";
+import { profileDocumentValue } from "../../../infrastructure/configuration/agent-configuration/project-chains/profile-migrations.js";
 import { mutationFailure } from "../../../infrastructure/configuration/agent-configuration/scoped-configuration-operations.js";
 import { defineWorkbenchMethodHandlersFor } from "../method-handler-registry.js";
-import type { ServerAdapterContexts } from "../../../app/bootstrap/create-server-adapter-contexts.js";
+import type { ServerAdapterContexts } from "../../contexts.js";
 
 type Context = ServerAdapterContexts["protocol"]["platform"];
 const define = defineWorkbenchMethodHandlersFor<Context>();
@@ -59,7 +60,11 @@ async function trust(state: Context, input: ScopedTrustRequest) {
         if (input.target.document === "agent")
           agentPreferencesSchema.parse(parsed);
         else if (
-          profileDefinitionSchema.parse(parsed).name !== input.target.name
+          // Project profiles are stored as versioned documents; user profiles are bare definitions.
+          (input.target.scope.scope === "project"
+            ? profileDocumentValue(parsed)
+            : profileDefinitionSchema.parse(parsed)
+          ).name !== input.target.name
         )
           throw new Error("Profile name differs from filename");
       }

@@ -3,6 +3,8 @@ import {
   type MaintenanceOperation,
   type MaintenanceRequest,
 } from "@nervekit/contracts/maintenance";
+import { ControllerLifecycle } from "$lib/platform/lifecycle/controller-lifecycle";
+import { createPoll } from "$lib/platform/polling/poll";
 export interface MaintenanceControllerDeps {
   get(): Promise<MaintenanceOperation | null>;
   start(request: MaintenanceRequest): Promise<MaintenanceOperation>;
@@ -23,54 +25,57 @@ export function shouldIgnoreMaintenanceUpdate(
 }
 export class MaintenanceController {
   operation: MaintenanceOperation | null = null;
-  #generation = 0;
-  #started = false;
-  #unsubscribe?: () => void;
-  #timer?: ReturnType<typeof setTimeout>;
+  #life = new ControllerLifecycle();
   #inFlight?: Promise<void>;
   #reload = false;
   #cancelling = false;
   #observed = new Set<string>();
   #terminal = new Set<string>();
+  // Re-polls an active operation; events are the primary channel, this is the fallback.
+  #poll = createPoll({
+    run: () => this.load(),
+    intervalMs: 2500,
+    enabled: () =>
+      this.#life.started &&
+      !this.#inFlight &&
+      isMaintenanceActive(this.operation),
+  });
   constructor(private readonly deps: MaintenanceControllerDeps) {}
   start(): void {
-    if (this.#started) return;
-    this.#started = true;
-    const generation = ++this.#generation;
-    this.#unsubscribe = this.deps.subscribe((operation) => {
-      if (generation === this.#generation) this.apply(operation, true);
+    this.#life.start((scope) => {
+      scope.onDispose(
+        this.deps.subscribe((operation) => {
+          if (scope.isCurrent()) this.apply(operation, true);
+        }),
+      );
+      this.#poll.start();
+      scope.onDispose(() => this.#poll.stop());
+      void this.load();
     });
-    void this.load();
   }
   dispose(): void {
-    this.#started = false;
-    ++this.#generation;
-    this.#unsubscribe?.();
-    this.#unsubscribe = undefined;
-    if (this.#timer) clearTimeout(this.#timer);
-    this.#timer = undefined;
+    this.#life.dispose();
   }
   reconnect(): void {
-    if (this.#started) void this.load();
+    if (this.#life.started) void this.load();
   }
   async load(): Promise<void> {
     if (this.#inFlight) {
       this.#reload = true;
       return this.#inFlight;
     }
-    const generation = this.#generation;
+    const isCurrent = this.#life.capture();
     this.#inFlight = this.deps
       .get()
       .then((operation) => {
-        if (generation === this.#generation && this.#started)
-          this.apply(operation, false);
+        if (isCurrent() && this.#life.started) this.apply(operation, false);
       })
       .catch(() => {
         /* Retain known active state and retry after transient transport failures. */
       })
       .finally(() => {
         this.#inFlight = undefined;
-        if (this.#reload && this.#started) {
+        if (this.#reload && this.#life.started) {
           this.#reload = false;
           void this.load();
         } else this.schedule();
@@ -79,10 +84,10 @@ export class MaintenanceController {
   }
   async startRequest(request: MaintenanceRequest): Promise<boolean> {
     this.start();
-    const generation = this.#generation;
+    const isCurrent = this.#life.capture();
     try {
       const operation = await this.deps.start(request);
-      if (generation !== this.#generation) return false;
+      if (!isCurrent()) return false;
       this.#observed.add(operation.id);
       this.apply(operation, true);
       return true;
@@ -99,11 +104,11 @@ export class MaintenanceController {
       !this.operation.cancellable
     )
       return;
-    const generation = this.#generation;
+    const isCurrent = this.#life.capture();
     this.#cancelling = true;
     try {
       const operation = await this.deps.cancel(this.operation.id);
-      if (generation === this.#generation) this.apply(operation, true);
+      if (isCurrent()) this.apply(operation, true);
     } catch (error) {
       this.deps.error("Could not stop cleanup", error);
     } finally {
@@ -130,9 +135,6 @@ export class MaintenanceController {
       );
   }
   private schedule(): void {
-    if (this.#timer) clearTimeout(this.#timer);
-    this.#timer = undefined;
-    if (this.#started && !this.#inFlight && isMaintenanceActive(this.operation))
-      this.#timer = setTimeout(() => void this.load(), 2500);
+    this.#poll.reschedule();
   }
 }

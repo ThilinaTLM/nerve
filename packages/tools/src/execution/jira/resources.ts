@@ -1,3 +1,4 @@
+import { anyJson, jsonObject, objectWithFields } from "../atlassian/http.js";
 import { guideErrorMessage } from "./guide-errors.js";
 import {
   enumSet,
@@ -39,6 +40,19 @@ import { boundedNumber } from "../atlassian/arguments.js";
 import { rawOptionalRecord } from "./issue-fields.js";
 import { estimateQuery, past, safeFilename } from "./resource-arguments.js";
 
+const parseLinkTypes = objectWithFields<{
+  issueLinkTypes?: Array<{ name?: string }>;
+}>({
+  issueLinkTypes: (value) =>
+    Array.isArray(value) &&
+    value.every(
+      (type) =>
+        typeof type === "object" &&
+        type !== null &&
+        (!("name" in type) || typeof type.name === "string"),
+    ),
+});
+
 const DEFAULT_ISSUE_FIELDS = [
   "summary",
   "status",
@@ -71,7 +85,8 @@ export async function executeJiraGetBoard(
   const connection = await requireJiraConnection(context);
   const boardId = requiredString(args.board_id, "board_id");
   const include = enumSet(args.include, ["sprints", "backlog"] as const);
-  const board = await jiraRequest<Record<string, unknown>>(connection, {
+  const board = await jiraRequest(connection, {
+    parse: jsonObject,
     api: "agile",
     path: `/board/${pathSegment(boardId)}`,
     signal: context.signal,
@@ -154,7 +169,8 @@ export async function executeJiraGetSprint(
 ): Promise<ToolExecutionResult> {
   const connection = await requireJiraConnection(context);
   const sprintId = requiredString(args.sprint_id, "sprint_id");
-  const sprint = await jiraRequest<Record<string, unknown>>(connection, {
+  const sprint = await jiraRequest(connection, {
+    parse: jsonObject,
     api: "agile",
     path: `/sprint/${pathSegment(sprintId)}`,
     signal: context.signal,
@@ -208,7 +224,8 @@ export async function executeJiraDownloadAttachment(
 ): Promise<ToolExecutionResult> {
   const connection = await requireJiraConnection(context);
   const attachmentId = requiredString(args.attachment_id, "attachment_id");
-  const metadata = await jiraRequest<Record<string, unknown>>(connection, {
+  const metadata = await jiraRequest(connection, {
+    parse: jsonObject,
     path: `/attachment/${pathSegment(attachmentId)}`,
     signal: context.signal,
   });
@@ -342,7 +359,8 @@ export async function executeJiraManageAttachment(
     });
   const form = new FormData();
   form.append("file", new Blob([new Uint8Array(bytes)]), filename);
-  const data = await jiraMultipartRequest<unknown[]>(connection, {
+  const data = await jiraMultipartRequest(connection, {
+    parse: anyJson,
     path: `/issue/${pathSegment(issueKey)}/attachments`,
     form,
     signal: context.signal,
@@ -399,7 +417,8 @@ export async function executeJiraManageComment(
       payload,
     });
   const path = `/issue/${pathSegment(issueKey)}/comment${commentId ? `/${pathSegment(commentId)}` : ""}`;
-  const data = await jiraRequest<Record<string, unknown>>(connection, {
+  const data = await jiraRequest(connection, {
+    parse: jsonObject,
     method:
       action === "create" ? "POST" : action === "update" ? "PUT" : "DELETE",
     path,
@@ -477,7 +496,8 @@ export async function executeJiraManageWorklog(
       query,
     });
   const path = `/issue/${pathSegment(issueKey)}/worklog${worklogId ? `/${pathSegment(worklogId)}` : ""}`;
-  const data = await jiraRequest<Record<string, unknown>>(connection, {
+  const data = await jiraRequest(connection, {
+    parse: jsonObject,
     method:
       action === "create" ? "POST" : action === "update" ? "PUT" : "DELETE",
     path,
@@ -538,9 +558,11 @@ export async function executeJiraManageIssueLink(
   const otherIssueKey = requiredString(args.other_issue_key, "other_issue_key");
   const linkType = requiredString(args.link_type, "link_type");
   const direction = requiredString(args.direction, "direction");
-  const types = await jiraRequest<{
-    issueLinkTypes?: Array<{ name?: string }>;
-  }>(connection, { path: "/issueLinkType", signal: context.signal });
+  const types = await jiraRequest(connection, {
+    parse: parseLinkTypes,
+    path: "/issueLinkType",
+    signal: context.signal,
+  });
   if (
     !types.issueLinkTypes?.some(
       (type) => type.name?.toLowerCase() === linkType.toLowerCase(),
@@ -612,7 +634,8 @@ export async function executeJiraManageSprint(
     );
   let current: Record<string, unknown> | undefined;
   if (sprintId)
-    current = await jiraRequest<Record<string, unknown>>(connection, {
+    current = await jiraRequest(connection, {
+      parse: jsonObject,
       api: "agile",
       path: `/sprint/${pathSegment(sprintId)}`,
       signal: context.signal,
@@ -667,7 +690,8 @@ export async function executeJiraManageSprint(
       `would ${action} Jira sprint ${sprintId ?? "in the selected board"}.`,
       { action, sprintId, current, payload },
     );
-  const data = await jiraRequest<Record<string, unknown>>(connection, {
+  const data = await jiraRequest(connection, {
+    parse: jsonObject,
     api: "agile",
     method:
       action === "create" ? "POST" : action === "delete" ? "DELETE" : "PUT",

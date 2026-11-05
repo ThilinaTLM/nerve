@@ -1,3 +1,10 @@
+import {
+  isArray,
+  jsonArray,
+  objectWithFields,
+  oneOf,
+  type ResponseParser,
+} from "../atlassian/http.js";
 import { guideErrorMessage } from "./guide-errors.js";
 import type {
   IntegrationExecutionContext,
@@ -24,6 +31,11 @@ export type JiraUsersResponse =
   | unknown[]
   | ({ values?: unknown[] } & Record<string, unknown>);
 
+const parseUsers: ResponseParser<JiraUsersResponse> = oneOf(
+  jsonArray,
+  objectWithFields<{ values?: unknown[] }>({ values: isArray }),
+);
+
 export async function searchJiraUsers(
   connection: JiraConnection,
   options: {
@@ -37,20 +49,23 @@ export async function searchJiraUsers(
 ): Promise<JiraUsersResponse> {
   const commonQuery = { query: options.query, maxResults: options.maxResults };
   if (options.issueKey) {
-    return jiraRequest<JiraUsersResponse>(connection, {
+    return jiraRequest(connection, {
+      parse: parseUsers,
       path: "/user/assignable/search",
       query: { ...commonQuery, issueKey: options.issueKey },
       signal: options.signal,
     });
   }
   if (options.projectKey) {
-    return jiraRequest<JiraUsersResponse>(connection, {
+    return jiraRequest(connection, {
+      parse: parseUsers,
       path: "/user/assignable/search",
       query: { ...commonQuery, project: options.projectKey },
       signal: options.signal,
     });
   }
-  return jiraRequest<JiraUsersResponse>(connection, {
+  return jiraRequest(connection, {
+    parse: parseUsers,
     path: "/user/search",
     query: {
       ...commonQuery,

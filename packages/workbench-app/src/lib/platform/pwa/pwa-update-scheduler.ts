@@ -1,56 +1,26 @@
-type UpdateWindow = Pick<
-  Window,
-  "addEventListener" | "removeEventListener" | "setInterval" | "clearInterval"
->;
-
-type UpdateDocument = Pick<
-  Document,
-  "addEventListener" | "removeEventListener" | "visibilityState"
->;
+import {
+  browserPollEnvironment,
+  createPoll,
+  type PollClock,
+} from "$lib/platform/polling/poll";
 
 export function startPwaUpdateScheduler(options: {
-  checkForUpdate: () => void | Promise<void>;
+  checkForUpdate: () => unknown;
   intervalMs?: number;
   minimumCheckIntervalMs?: number;
-  now?: () => number;
-  window?: UpdateWindow;
-  document?: UpdateDocument;
+  clock?: PollClock;
+  window?: Parameters<typeof browserPollEnvironment>[0];
+  document?: Parameters<typeof browserPollEnvironment>[1];
 }): () => void {
-  const targetWindow = options.window ?? window;
-  const targetDocument = options.document ?? document;
-  const now = options.now ?? Date.now;
-  const minimumCheckIntervalMs = options.minimumCheckIntervalMs ?? 60_000;
-  let lastCheckAt = Number.NEGATIVE_INFINITY;
-  let checkInFlight = false;
-
-  const checkWhileVisible = (): void => {
-    if (targetDocument.visibilityState !== "visible" || checkInFlight) return;
-
-    const checkedAt = now();
-    if (checkedAt - lastCheckAt < minimumCheckIntervalMs) return;
-
-    lastCheckAt = checkedAt;
-    checkInFlight = true;
-    void Promise.resolve()
-      .then(options.checkForUpdate)
-      .catch(() => undefined)
-      .finally(() => {
-        checkInFlight = false;
-      });
-  };
-
-  const timer = targetWindow.setInterval(
-    checkWhileVisible,
-    options.intervalMs ?? 60 * 60_000,
-  );
-  targetWindow.addEventListener("focus", checkWhileVisible);
-  targetWindow.addEventListener("online", checkWhileVisible);
-  targetDocument.addEventListener("visibilitychange", checkWhileVisible);
-
-  return () => {
-    targetWindow.clearInterval(timer);
-    targetWindow.removeEventListener("focus", checkWhileVisible);
-    targetWindow.removeEventListener("online", checkWhileVisible);
-    targetDocument.removeEventListener("visibilitychange", checkWhileVisible);
-  };
+  const poll = createPoll({
+    run: options.checkForUpdate,
+    intervalMs: options.intervalMs ?? 60 * 60_000,
+    minGapMs: options.minimumCheckIntervalMs ?? 60_000,
+    // Update checks are best-effort; failures are not worth a log line each hour.
+    onError: () => undefined,
+    clock: options.clock,
+    environment: browserPollEnvironment(options.window, options.document),
+  });
+  poll.start();
+  return () => poll.stop();
 }

@@ -104,16 +104,8 @@ export function checkPackageBoundaries(
           );
         if (file.startsWith("packages/workbench-server/src/adapters/")) {
           const resolved = resolvedImportPath(file, specifier);
-          if (resolved.endsWith("/app/runtime/runtime-lifecycle.js"))
-            fail(
-              file,
-              "server adapters may not depend on process runtime lifecycle",
-            );
-          if (resolved.endsWith("/app/bootstrap/create-runtime-services.js"))
-            fail(
-              file,
-              "server adapters may not import the bootstrap service aggregate",
-            );
+          if (resolved.includes("/workbench-server/src/app/"))
+            fail(file, "server adapters may not import from app/");
         }
         if (
           file === "packages/desktop-shell/src/app/desktop-runtime.ts" &&

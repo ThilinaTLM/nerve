@@ -7,8 +7,8 @@ import {
 } from "$lib/api";
 import { encryptApiKey } from "$lib/platform/crypto/credential-crypto";
 import { settingsState } from "$lib/features/settings/state/settings-state.svelte";
+import FormDialog from "@nervekit/ui-kit/components/composites/form-dialog";
 import { Input } from "@nervekit/ui-kit/components/ui/input";
-import SettingsFormDialog from "../../shared/settings-form-dialog.svelte";
 import SettingsFormField from "../../shared/settings-form-field.svelte";
 import {
   createProfileId,
@@ -77,15 +77,15 @@ async function save(): Promise<void> {
 }
 </script>
 
-<SettingsFormDialog
+<FormDialog
   bind:open
   title={profile ? "Edit Tavily account" : "Add Tavily account"}
   description="Store a named API key for web search."
-  saveLabel="Save account"
-  saveTourId="setup-tavily-save"
+  submitLabel="Save account"
+  submitTourId="setup-tavily-save"
   {busy}
   {error}
-  onSave={() => void save()}
+  onSubmit={save}
 >
   <SettingsFormField id="tavily-profile-name" label="Account name">
     <Input id="tavily-profile-name" bind:value={name} placeholder="Work" />
@@ -107,4 +107,4 @@ async function save(): Promise<void> {
       > from your Tavily dashboard.
     </p>
   </SettingsFormField>
-</SettingsFormDialog>
+</FormDialog>

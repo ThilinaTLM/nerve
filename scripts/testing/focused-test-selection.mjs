@@ -1,5 +1,5 @@
 import { existsSync } from "node:fs";
-import { resolve } from "node:path";
+import { posix, resolve } from "node:path";
 import ts from "typescript";
 import { isIgnoredPath, readGitState } from "../shared/git-changes.mjs";
 import {
@@ -18,25 +18,50 @@ export function testRunner(name, pkg) {
     name,
   );
   const website = name === "@nervekit/website";
-  const glob = website
-    ? "scripts/**/*.test.mjs"
-    : frontend
-      ? "src/**/*.test.ts"
-      : "test/**/*.test.ts";
+  // Mirrors each package's `test` script; supported only while they stay identical.
+  const globs = website
+    ? ["scripts/**/*.test.mjs"]
+    : name === "@nervekit/ui-kit"
+      ? ["src/**/!(*.svelte).test.ts"]
+      : frontend
+        ? ["src/**/*.test.ts"]
+        : name === "@nervekit/workbench-server"
+          ? [
+              "test/**/*.test.ts",
+              "src/{adapters,app,core-host,domains}/**/*.test.ts",
+              "src/infrastructure/{configuration,events,storage-bootstrap}/**/*.test.ts",
+              "src/infrastructure/process-host/!(port-inspector).test.ts",
+            ]
+          : name === "@nervekit/tools"
+            ? ["test/**/*.test.ts", "src/**/*.test.ts"]
+            : ["test/**/*.test.ts"];
   const command = website ? "node" : "tsx";
   const options =
     name === "@nervekit/workbench-server" ? ["--test-concurrency=1"] : [];
-  const expected = `${command} --test${options.length ? ` ${options.join(" ")}` : ""} "${glob}"${name === "@nervekit/native" ? " && pnpm test:native" : ""}`;
-  return { command, options, glob, supported: pkg.scripts.test === expected };
+  const expected = `${command} --test${options.length ? ` ${options.join(" ")}` : ""} ${globs.map((glob) => `"${glob}"`).join(" ")}${name === "@nervekit/native" ? " && pnpm test:native" : ""}`;
+  return { command, options, globs, supported: pkg.scripts.test === expected };
 }
 
 function testFiles(files, pkg, runner) {
-  const [directory] = runner.glob.split("/**");
-  const suffix = runner.glob.endsWith(".mjs") ? ".test.mjs" : ".test.ts";
+  const suffix = runner.globs[0].endsWith(".mjs") ? ".test.mjs" : ".test.ts";
+  // Component tests (*.svelte.test.ts) run under Vitest via `test:components`, never tsx.
   return files.filter(
     (path) =>
-      path.startsWith(`${pkg.directory}/${directory}/`) &&
-      path.endsWith(suffix),
+      path.startsWith(`${pkg.directory}/`) &&
+      path.endsWith(suffix) &&
+      !path.endsWith(".svelte.test.ts") &&
+      runner.globs.some((glob) =>
+        posix.matchesGlob(path.slice(pkg.directory.length + 1), glob),
+      ),
+  );
+}
+
+function componentTestFiles(files, pkg) {
+  if (!pkg.scripts["test:components"]) return [];
+  return files.filter(
+    (path) =>
+      path.startsWith(`${pkg.directory}/src/`) &&
+      path.endsWith(".svelte.test.ts"),
   );
 }
 
@@ -151,8 +176,10 @@ export function selectFocusedTests(
       const runner = testRunner(name, pkg);
       if (!runner.supported) return full(`Unrecognized test runner: ${name}`);
       const inventory = testFiles(state.files, pkg, runner);
+      const componentInventory = componentTestFiles(state.files, pkg);
       const tests = [];
-      for (const file of inventory) {
+      const components = [];
+      for (const file of [...inventory, ...componentInventory]) {
         const trace = graph.trace(file);
         const dependencies = relevant.filter((path) => trace.chains.has(path));
         for (const path of dependencies) matched.add(path);
@@ -165,7 +192,11 @@ export function selectFocusedTests(
           reasons.push(
             ...trace.warnings.map((warning) => `opaque dependency: ${warning}`),
           );
-        if (reasons.length) tests.push({ file, reasons });
+        if (reasons.length)
+          (file.endsWith(".svelte.test.ts") ? components : tests).push({
+            file,
+            reasons,
+          });
       }
       packages.push({
         name,
@@ -173,6 +204,8 @@ export function selectFocusedTests(
         runner,
         inventory,
         tests,
+        componentInventory,
+        components,
       });
     }
     for (const path of relevant) {
@@ -190,14 +223,19 @@ export function selectFocusedTests(
         pkg.fallback.push(
           "native package requires its TypeScript and Rust suite",
         );
-      if (pkg.fallback.length)
+      if (pkg.fallback.length) {
         pkg.tests = pkg.inventory.map((file) => ({
           file,
           reasons: pkg.fallback,
         }));
+        pkg.components = pkg.componentInventory.map((file) => ({
+          file,
+          reasons: pkg.fallback,
+        }));
+      }
     }
     const selected = packages.filter(
-      (pkg) => pkg.fallback.length || pkg.tests.length,
+      (pkg) => pkg.fallback.length || pkg.tests.length || pkg.components.length,
     );
     const required = dependencyClosure(
       new Set(selected.map((pkg) => pkg.name)),
@@ -252,6 +290,12 @@ export function selectFocusedTests(
           args: ["--filter", pkg.name, "test"],
           reason: pkg.fallback.join("; "),
         });
+        if (pkg.components.length)
+          commands.push({
+            command: "pnpm",
+            args: ["--filter", pkg.name, "test:components"],
+            reason: pkg.fallback.join("; "),
+          });
       } else {
         if (manifest.scripts.pretest)
           commands.push({
@@ -259,21 +303,37 @@ export function selectFocusedTests(
             args: ["--filter", pkg.name, "run", "pretest"],
             reason: "package pretest lifecycle",
           });
-        commands.push({
-          command: "pnpm",
-          args: [
-            "--filter",
-            pkg.name,
-            "exec",
-            pkg.runner.command,
-            "--test",
-            ...pkg.runner.options,
-            ...pkg.tests.map((test) =>
-              test.file.slice(pkg.directory.length + 1),
-            ),
-          ],
-          reason: "selected import-related or opaque tests",
-        });
+        if (pkg.tests.length)
+          commands.push({
+            command: "pnpm",
+            args: [
+              "--filter",
+              pkg.name,
+              "exec",
+              pkg.runner.command,
+              "--test",
+              ...pkg.runner.options,
+              ...pkg.tests.map((test) =>
+                test.file.slice(pkg.directory.length + 1),
+              ),
+            ],
+            reason: "selected import-related or opaque tests",
+          });
+        if (pkg.components.length)
+          commands.push({
+            command: "pnpm",
+            args: [
+              "--filter",
+              pkg.name,
+              "exec",
+              "vitest",
+              "run",
+              ...pkg.components.map((test) =>
+                test.file.slice(pkg.directory.length + 1),
+              ),
+            ],
+            reason: "selected import-related component tests",
+          });
         if (manifest.scripts.posttest)
           commands.push({
             command: "pnpm",
@@ -288,8 +348,15 @@ export function selectFocusedTests(
       baseline: state.baseline,
       packages: selected,
       commands,
-      selected: selected.reduce((sum, pkg) => sum + pkg.tests.length, 0),
-      total: packages.reduce((sum, pkg) => sum + pkg.inventory.length, 0),
+      selected: selected.reduce(
+        (sum, pkg) => sum + pkg.tests.length + pkg.components.length,
+        0,
+      ),
+      total: packages.reduce(
+        (sum, pkg) =>
+          sum + pkg.inventory.length + pkg.componentInventory.length,
+        0,
+      ),
     };
   } catch (error) {
     return full(`Cannot establish test impact: ${error.message}`);

@@ -13,7 +13,7 @@ import {
   RpcDispatcher,
 } from "@nervekit/protocol/rpc";
 import { ZodError } from "zod";
-import type { ServerAdapterContexts } from "../../app/bootstrap/create-server-adapter-contexts.js";
+import type { ServerAdapterContexts } from "../contexts.js";
 
 export type ProtocolAdapterContext = ServerAdapterContexts["protocolAdapter"];
 import { ApplicationError } from "../../core/application-error.js";

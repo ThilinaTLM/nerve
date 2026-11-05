@@ -15,7 +15,7 @@ import {
 } from "@nervekit/contracts/wire";
 import type WebSocket from "ws";
 import type { WebSocketServer } from "ws";
-import type { ServerAdapterContexts } from "../../app/bootstrap/create-server-adapter-contexts.js";
+import type { ServerAdapterContexts } from "../contexts.js";
 
 type ProtocolWebSocketContext = ServerAdapterContexts["websocket"];
 import { allOperationDefinitions } from "@nervekit/contracts/operations";

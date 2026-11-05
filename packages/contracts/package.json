@@ -146,6 +146,10 @@
       "types": "./dist/domains/usage/index.d.ts",
       "import": "./dist/domains/usage/index.js"
     },
+    "./paths": {
+      "types": "./dist/paths/index.d.ts",
+      "import": "./dist/paths/index.js"
+    },
     "./activity": {
       "types": "./dist/domains/activity/index.d.ts",
       "import": "./dist/domains/activity/index.js"

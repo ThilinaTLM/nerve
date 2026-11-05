@@ -120,6 +120,20 @@ test("reports forbidden package imports, retired references, style violations an
   assert.deepEqual(failures, [...failures].sort());
 });
 
+test("rejects server adapters importing from app/", (t) => {
+  const { root, write, git } = fixture(t);
+  write(
+    "packages/workbench-server/src/adapters/example.ts",
+    'import type { X } from "../app/bootstrap/anything.js";',
+  );
+  git("add", ".");
+  assert.ok(
+    checkRepositoryBoundaries(root).includes(
+      "packages/workbench-server/src/adapters/example.ts: server adapters may not import from app/",
+    ),
+  );
+});
+
 test("inventory includes non-ignored untracked files, excludes deleted/ignored paths and caches reads", (t) => {
   const { root, write, git } = fixture(t);
   write("tracked.ts", "before");

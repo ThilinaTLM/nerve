@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 import { ChangeMonitor, files, type ChangeNotice } from "../../src/index.js";
+import { waitFor } from "../support/wait-for.js";
 
 async function fixture(): Promise<string> {
   const root = await mkdtemp(join(tmpdir(), "nerve-files-"));
@@ -14,14 +15,6 @@ async function fixture(): Promise<string> {
   await writeFile(join(root, "node_modules/pkg/index.js"), "needle\n");
   return root;
 }
-
-const until = async (check: () => boolean | Promise<boolean>) => {
-  for (let i = 0; i < 200; i++) {
-    if (await check()) return;
-    await new Promise((resolve) => setTimeout(resolve, 25));
-  }
-  assert.fail("condition not met");
-};
 
 test("listing, path index and content search honor ignore rules", async () => {
   assert.equal(files.isAvailable(), true);
@@ -38,7 +31,9 @@ test("listing, path index and content search honor ignore rules", async () => {
     );
     const index = files.createPathIndex(root);
     try {
-      await until(async () => !(await index.search("main")).incomplete);
+      await waitFor(async () => !(await index.search("main")).incomplete, {
+        message: "path index to complete",
+      });
       const result = await index.search("main");
       assert.deepEqual(
         result.matches.map((m) => m.path),
@@ -73,12 +68,17 @@ test("tree monitor reports changes outside ignored directories only", async (t) 
       pollIntervalMs: 600_000,
     });
     assert.equal(state.degraded, false);
+    const saw = (name: string) =>
+      notices.some((n) => n.paths.some((p) => p.endsWith(name)));
     // FSEvents (macOS) may replay the fixture's own writes just after the
-    // stream starts; let them settle so only later changes are asserted.
-    await new Promise((resolve) => setTimeout(resolve, 700));
+    // stream starts. Events are delivered in order, so once a barrier file is
+    // seen everything earlier has been reported and can be discarded.
+    await writeFile(join(root, "src/barrier-1.ts"), "x");
+    await waitFor(() => saw("barrier-1.ts"), { message: "first barrier" });
     notices.length = 0;
     await writeFile(join(root, "node_modules/pkg/ignored.js"), "x");
-    await new Promise((resolve) => setTimeout(resolve, 700));
+    await writeFile(join(root, "src/barrier-2.ts"), "x");
+    await waitFor(() => saw("barrier-2.ts"), { message: "second barrier" });
     assert.deepEqual(
       notices.flatMap((notice) =>
         notice.paths.filter((path) => path.includes("node_modules")),
@@ -87,13 +87,14 @@ test("tree monitor reports changes outside ignored directories only", async (t) 
     );
     await mkdir(join(root, "src/new/deeper"), { recursive: true });
     await writeFile(join(root, "src/new/deeper/file.ts"), "x");
-    await until(() =>
-      notices.some((n) => n.paths.some((p) => p.endsWith("new"))),
+    await waitFor(
+      () => notices.some((n) => n.paths.some((p) => p.endsWith("new"))),
+      {
+        message: "new notice",
+      },
     );
     await writeFile(join(root, "src/new/deeper/second.ts"), "x");
-    await until(() =>
-      notices.some((n) => n.paths.some((p) => p.endsWith("second.ts"))),
-    );
+    await waitFor(() => saw("second.ts"), { message: "second.ts notice" });
   } finally {
     await monitor.close();
     await rm(root, { recursive: true, force: true });

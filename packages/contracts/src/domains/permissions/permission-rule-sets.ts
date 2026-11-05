@@ -34,6 +34,10 @@ export const toolKindSchema = z.enum([
 ]);
 export type ToolKind = z.infer<typeof toolKindSchema>;
 
+/**
+ * Static category of a tool (what rule sets match on). The effective risk of a
+ * specific call is `ToolRisk`; map with `effectiveRiskForCategory`.
+ */
 export const staticToolRiskSchema = z.enum([
   "read",
   "write",

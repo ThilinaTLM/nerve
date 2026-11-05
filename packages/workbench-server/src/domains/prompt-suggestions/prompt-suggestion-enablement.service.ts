@@ -20,13 +20,13 @@ export class PromptSuggestionEnablementService {
   }
 
   async list(): Promise<Record<string, boolean>> {
-    const raw = await readJsonFile<unknown>(this.path).catch(
+    const raw = await readJsonFile(this.path, settingsSchema).catch(
       (error: NodeJS.ErrnoException) => {
         if (error.code === "ENOENT") return { version: 1, enabled: {} };
         throw error;
       },
     );
-    return settingsSchema.parse(raw).enabled;
+    return raw.enabled;
   }
 
   async set(definitionKey: string, enabled: boolean): Promise<void> {

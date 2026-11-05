@@ -1,3 +1,4 @@
+import { jsonObject } from "../atlassian/http.js";
 import { guideErrorMessage } from "./guide-errors.js";
 import type {
   IntegrationExecutionContext,
@@ -51,7 +52,8 @@ export async function executeJiraGetProject(
     "resolutions",
     "issue_link_types",
   ] as const);
-  const project = await jiraRequest<Record<string, unknown>>(connection, {
+  const project = await jiraRequest(connection, {
+    parse: jsonObject,
     path: `/project/${pathSegment(projectKey)}`,
     signal: context.signal,
   });

@@ -1,6 +1,12 @@
 import { z } from "zod";
 import { toolNameSchema } from "../tools/tool-name.js";
+import type { StaticToolRisk } from "./permission-rule-sets.js";
 
+/**
+ * Effective risk of one tool call (persisted as supervision.effectiveRisk).
+ * Distinct from `StaticToolRisk`, the static per-tool category that rule sets
+ * match on; convert with `effectiveRiskForCategory`.
+ */
 export const toolRiskSchema = z.enum([
   "read",
   "workspace_write",
@@ -92,3 +98,10 @@ export const permissionExceptionSchema = z
     }
   });
 export type PermissionException = z.infer<typeof permissionExceptionSchema>;
+
+/** The one mapping from a tool's static category to its default effective risk. */
+export function effectiveRiskForCategory(risk: StaticToolRisk): ToolRisk {
+  if (risk === "write") return "workspace_write";
+  if (risk === "unknown") return "command";
+  return risk;
+}

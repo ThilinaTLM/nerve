@@ -6,7 +6,7 @@ import {
 } from "@nervekit/contracts/filesystem";
 import { ApplicationError } from "../../../core/application-error.js";
 import { uploadProjectFiles } from "../../../domains/filesystem/project-entry-mutations.js";
-import type { ServerAdapterContexts } from "../../../app/bootstrap/create-server-adapter-contexts.js";
+import type { ServerAdapterContexts } from "../../contexts.js";
 type FilesystemContentRoutesContext =
   ServerAdapterContexts["http"]["filesystem"];
 import {

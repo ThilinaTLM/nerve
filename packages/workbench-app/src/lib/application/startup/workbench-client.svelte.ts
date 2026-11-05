@@ -13,6 +13,7 @@ import {
   loadAppearancePreference,
   installAppearanceStorageSync,
 } from "$lib/platform/appearance/appearance.svelte";
+import { createPoll } from "$lib/platform/polling/poll";
 import { installClientLogging } from "$lib/platform/logging/client-logger";
 import {
   loadCoreSettings,
@@ -39,7 +40,10 @@ import {
   startConversationAttention,
 } from "$lib/application/activity/conversation-attention.svelte";
 import { workspaceMonitorDemand } from "$lib/application/monitoring/workspace-monitor-demand";
-let usageTimer: ReturnType<typeof setInterval> | undefined;
+const usagePoll = createPoll({
+  run: refreshSubscriptionUsage,
+  intervalMs: 10_000,
+});
 let unobserve: (() => void) | undefined;
 let stopAppearanceSync: (() => void) | undefined;
 let stopAttention: (() => void) | undefined;
@@ -109,10 +113,7 @@ export async function initializeWorkbench(): Promise<boolean> {
     transitionWorkbenchStartup(generation, "progressive");
     startReleasePolling();
     refreshAncillarySettingsData();
-    usageTimer = setInterval(
-      () => void refreshSubscriptionUsage().catch(() => undefined),
-      10_000,
-    );
+    usagePoll.start();
     return true;
   } catch (error) {
     failWorkbenchStartup(generation, error);
@@ -127,8 +128,7 @@ export function disconnectWorkbench(): void {
   stopWorkbenchStartup();
   stopAppearanceSync?.();
   stopAppearanceSync = undefined;
-  if (usageTimer) clearInterval(usageTimer);
-  usageTimer = undefined;
+  usagePoll.stop();
   unobserve?.();
   unobserve = undefined;
   stopAttention?.();

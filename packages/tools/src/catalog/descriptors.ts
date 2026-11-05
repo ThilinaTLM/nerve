@@ -24,7 +24,6 @@ function descriptor(definition: ToolDefinition): ToolDescriptor {
     baseRisk: metadata.baseRisk,
     primaryArguments: [...metadata.primaryArguments],
     targetKinds: [...metadata.targetKinds],
-    risk: definition.baseRisk,
     argumentSensitive: Boolean(definition.classifyRisk),
     description: definition.description,
     group: definition.group,

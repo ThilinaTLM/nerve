@@ -1,3 +1,4 @@
+import { jsonObject } from "../atlassian/http.js";
 import type {
   IntegrationExecutionContext,
   ToolExecutionResult,
@@ -232,7 +233,8 @@ export async function executeConfluenceGetPage(
     "inline_comments",
     "restrictions",
   ] as const);
-  const page = await confluenceRequest<Record<string, unknown>>(connection, {
+  const page = await confluenceRequest(connection, {
+    parse: jsonObject,
     path: `/pages/${pathSegment(pageId)}`,
     query: {
       "body-format": bodyFormat,
@@ -531,7 +533,8 @@ export async function executeConfluenceDownloadPage(
   const connection = await requireConfluenceConnection(context);
   const pageId = requiredString(args.page_id, "page_id");
   const bodyFormat = enumString(args.body_format, READ_BODY_FORMATS, "storage");
-  const page = await confluenceRequest<Record<string, unknown>>(connection, {
+  const page = await confluenceRequest(connection, {
+    parse: jsonObject,
     path: `/pages/${pathSegment(pageId)}`,
     query: { "body-format": bodyFormat },
     signal: context.signal,
@@ -635,7 +638,8 @@ export async function executeConfluenceCreatePage(
       },
     });
   }
-  const data = await confluenceRequest<Record<string, unknown>>(connection, {
+  const data = await confluenceRequest(connection, {
+    parse: jsonObject,
     method: "POST",
     path: "/pages",
     body: payload,
@@ -693,7 +697,8 @@ export async function executeConfluenceUpdatePage(
       },
     });
   }
-  const data = await confluenceRequest<Record<string, unknown>>(connection, {
+  const data = await confluenceRequest(connection, {
+    parse: jsonObject,
     method: "PUT",
     path: `/pages/${pathSegment(payload.id)}`,
     body: payload,

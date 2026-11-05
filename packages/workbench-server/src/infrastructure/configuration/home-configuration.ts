@@ -16,7 +16,7 @@ import type { StoragePaths } from "../storage-bootstrap/paths.js";
 import {
   atomicWriteJson,
   pathExists,
-  readJsonFile,
+  readJsonFileUnknown,
 } from "../storage-bootstrap/json.js";
 import { mergePreservingUnknown } from "./merge.js";
 import {
@@ -274,7 +274,7 @@ async function readConfigDocument<K extends HomeConfigurationDocumentId>(
 ): Promise<UserConfiguration[K]> {
   try {
     return HOME_CONFIGURATION_CODECS[documentId].decode(
-      await readJsonFile<unknown>(path),
+      await readJsonFileUnknown(path),
     ) as UserConfiguration[K];
   } catch (cause) {
     throw new HomeConfigurationDocumentError(documentId, path, cause);

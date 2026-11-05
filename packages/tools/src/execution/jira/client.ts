@@ -1,10 +1,15 @@
 import { guideErrorMessage } from "./guide-errors.js";
-import { Buffer } from "node:buffer";
 import { trimTrailingSlashes } from "../atlassian/site-url.js";
 import type { IntegrationExecutionContext } from "../execution-context.js";
 import { withTimeoutSignal } from "../process/abort.js";
 import { safeAtlassianError } from "../atlassian/atlassian-error.js";
 import { ToolExecutionError } from "../errors/tool-error.js";
+import {
+  basicAuthHeader,
+  readAtlassianJson,
+  type ResponseParser,
+  anyJson,
+} from "../atlassian/http.js";
 
 export type JiraConnection = {
   siteUrl: string;
@@ -32,6 +37,8 @@ type JiraRequestOptions = {
   body?: unknown;
   signal?: AbortSignal;
 };
+
+type Parsed<T> = { parse: ResponseParser<T> };
 
 type JiraMultipartOptions = {
   path: string;
@@ -73,10 +80,22 @@ export async function requireJiraConnection(
   return { siteUrl, email, token, defaultProjectKey };
 }
 
-export async function jiraRequest<T = unknown>(
+/**
+ * Perform a Jira request. Pass `parse` to validate the consumed response
+ * shape; without it the payload is returned as `unknown`.
+ */
+export function jiraRequest<T>(
+  connection: JiraConnection,
+  options: JiraRequestOptions & Parsed<T>,
+): Promise<T>;
+export function jiraRequest(
   connection: JiraConnection,
   options: JiraRequestOptions,
-): Promise<T> {
+): Promise<unknown>;
+export async function jiraRequest(
+  connection: JiraConnection,
+  options: JiraRequestOptions & Partial<Parsed<unknown>>,
+): Promise<unknown> {
   const apiRoot = options.api === "agile" ? "/rest/agile/1.0" : "/rest/api/3";
   const url = new URL(`${connection.siteUrl}${apiRoot}${options.path}`);
   for (const [key, value] of Object.entries(options.query ?? {})) {
@@ -106,19 +125,16 @@ export async function jiraRequest<T = unknown>(
   if (!response.ok) {
     await throwJiraError(response, init.method ?? "GET", options.path);
   }
-  if (response.status === 204) return undefined as T;
-  const text = await response.text();
-  if (!text.trim()) return undefined as T;
-  try {
-    return JSON.parse(text) as T;
-  } catch {
-    return text as T;
-  }
+  return readAtlassianJson(
+    response,
+    { service: "jira", method: init.method ?? "GET", path: options.path },
+    options.parse ?? anyJson,
+  );
 }
 
-export async function jiraMultipartRequest<T = unknown>(
+export async function jiraMultipartRequest<T>(
   connection: JiraConnection,
-  options: JiraMultipartOptions,
+  options: JiraMultipartOptions & Parsed<T>,
 ): Promise<T> {
   const url = new URL(`${connection.siteUrl}/rest/api/3${options.path}`);
   const response = await fetch(url, {
@@ -132,8 +148,11 @@ export async function jiraMultipartRequest<T = unknown>(
     signal: withTimeoutSignal(options.signal, 60_000),
   });
   if (!response.ok) await throwJiraError(response, "POST", options.path);
-  const text = await response.text();
-  return (text.trim() ? JSON.parse(text) : undefined) as T;
+  return readAtlassianJson(
+    response,
+    { service: "jira", method: "POST", path: options.path },
+    options.parse,
+  );
 }
 
 export async function jiraDownload(
@@ -192,7 +211,7 @@ export async function jiraDownload(
 }
 
 function basicAuth(connection: JiraConnection): string {
-  return `Basic ${Buffer.from(`${connection.email}:${connection.token}`, "utf8").toString("base64")}`;
+  return basicAuthHeader(connection.email, connection.token);
 }
 
 function filenameFromDisposition(value: string | null): string | undefined {

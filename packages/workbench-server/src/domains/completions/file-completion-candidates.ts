@@ -12,6 +12,7 @@ import {
 } from "node:path";
 import { promisify } from "node:util";
 import type { CompletionItem } from "@nervekit/contracts/completions";
+import { parseProjectRelativePath } from "@nervekit/contracts/paths";
 import { fdir } from "fdir";
 import { labelNameOffset, toCompletionItem } from "./file-completion-items.js";
 
@@ -316,23 +317,11 @@ export function candidateFromPath(
 }
 
 function normalizeRelativePath(path: string): string | undefined {
-  const normalized = path
-    .replaceAll("\\", "/")
-    .replace(/^\.\/+/, "")
-    .replace(/\/+$/, "");
-  if (!normalized || normalized.includes("\0")) return undefined;
-  if (
-    normalized.startsWith("/") ||
-    normalized.startsWith("//") ||
-    /^[A-Za-z]:\//.test(normalized) ||
-    isAbsolute(normalized)
-  ) {
-    return undefined;
-  }
-  if (normalized.split("/").some((segment) => !segment || segment === "..")) {
-    return undefined;
-  }
-  return normalized;
+  const parsed = parseProjectRelativePath(path, {
+    allowDot: true,
+    trimTrailingSlash: true,
+  });
+  return parsed.ok ? parsed.path : undefined;
 }
 
 function isExcludedRelativePath(path: string, isDirectory: boolean): boolean {

@@ -6,7 +6,7 @@ import {
   type UpgradeReport,
 } from "@nervekit/contracts/status";
 import { Hono } from "hono";
-import type { ServerAdapterContexts } from "../../../app/bootstrap/create-server-adapter-contexts.js";
+import type { ServerAdapterContexts } from "../../contexts.js";
 
 type UpgradeReportRoutesContext =
   ServerAdapterContexts["http"]["upgradeReports"];

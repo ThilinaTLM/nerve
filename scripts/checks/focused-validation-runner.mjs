@@ -1,23 +1,14 @@
 import { spawnSync } from "node:child_process";
+import { parseFocusedArguments } from "../cli/args.mjs";
+import { runCli } from "../cli/main.mjs";
+import { section } from "../cli/log.mjs";
+import { runStep } from "../cli/run.mjs";
 
 export function parseArguments(args, operation) {
-  const options = { base: "origin/main", dryRun: false };
-  const usage = `Usage: pnpm ${operation}:focused [--base <revision>] [--dry-run]`;
-  const seen = new Set();
-  for (let index = 0; index < args.length; index++) {
-    const arg = args[index];
-    if (seen.has(arg)) throw new Error(usage);
-    seen.add(arg);
-    if (arg === "--dry-run") options.dryRun = true;
-    else if (
-      arg === "--base" &&
-      args[index + 1]?.trim() &&
-      !args[index + 1].startsWith("-")
-    )
-      options.base = args[++index];
-    else throw new Error(usage);
-  }
-  return options;
+  return parseFocusedArguments(
+    args,
+    `Usage: pnpm ${operation}:focused [--base <revision>] [--dry-run]`,
+  );
 }
 
 const stageNames = [
@@ -143,7 +134,7 @@ export function executePlan(
   validateCommands(plan);
   if (dryRun) return;
   for (const step of plan.commands) {
-    log(`\n${step.reason}`);
+    section(step.reason, log);
     let command = step.command;
     let args = step.args;
     // Prefer pnpm's JS entrypoint when available, never cmd.exe or a shell.
@@ -154,16 +145,13 @@ export function executePlan(
       command = process.execPath;
       args = [pnpmPath, ...args];
     }
-    const result = spawn(command, args, {
+    runStep(command, args, {
       cwd: root,
-      stdio: "inherit",
+      spawn,
       shell: false,
-    });
-    if (result.error) throw result.error;
-    if (result.status !== 0)
-      throw new Error(
+      failure: (result) =>
         `${step.command} failed (${result.signal ?? result.status})`,
-      );
+    });
   }
 }
 
@@ -177,21 +165,21 @@ export async function main(operation, root, dependencies = {}) {
     },
     ...executionOptions
   } = dependencies;
-  try {
-    if (operation !== "fix" && operation !== "check")
-      throw new Error(`Unsupported validation operation: ${operation}`);
-    const options = parseArguments(args, operation);
-    const planner =
-      dependencies.planFocusedValidation ??
-      (await import("./focused-validation-selection.mjs"))
-        .planFocusedValidation;
-    const plan = await planner(root, operation, options.base);
-    validateCommands(plan);
-    log(describePlan(plan));
-    if (options.dryRun) log("\nDry run: no validation commands executed.");
-    executePlan(plan, root, { ...executionOptions, ...options, log });
-  } catch (cause) {
-    error(cause instanceof Error ? cause.message : String(cause));
-    setExitCode(1);
-  }
+  await runCli(
+    async () => {
+      if (operation !== "fix" && operation !== "check")
+        throw new Error(`Unsupported validation operation: ${operation}`);
+      const options = parseArguments(args, operation);
+      const planner =
+        dependencies.planFocusedValidation ??
+        (await import("./focused-validation-selection.mjs"))
+          .planFocusedValidation;
+      const plan = await planner(root, operation, options.base);
+      validateCommands(plan);
+      log(describePlan(plan));
+      if (options.dryRun) log("\nDry run: no validation commands executed.");
+      executePlan(plan, root, { ...executionOptions, ...options, log });
+    },
+    { error, setExitCode },
+  );
 }

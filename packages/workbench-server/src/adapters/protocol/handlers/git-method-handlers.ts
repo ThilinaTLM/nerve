@@ -6,7 +6,7 @@ import {
   defineWorkbenchMethodHandlersFor,
   type WorkbenchMethodHandlerMapFor,
 } from "../method-handler-registry.js";
-import type { ServerAdapterContexts } from "../../../app/bootstrap/create-server-adapter-contexts.js";
+import type { ServerAdapterContexts } from "../../contexts.js";
 
 type GitMethodContext = ServerAdapterContexts["protocol"]["git"];
 const defineGitMethodHandlers =

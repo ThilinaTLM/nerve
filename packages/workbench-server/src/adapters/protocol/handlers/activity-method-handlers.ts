@@ -1,4 +1,4 @@
-import type { ServerAdapterContexts } from "../../../app/bootstrap/create-server-adapter-contexts.js";
+import type { ServerAdapterContexts } from "../../contexts.js";
 import { defineWorkbenchMethodHandlersFor } from "../method-handler-registry.js";
 type ActivityContext = ServerAdapterContexts["protocol"]["activity"];
 export const activityMethodHandlers =

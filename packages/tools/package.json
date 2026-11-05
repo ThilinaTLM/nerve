@@ -50,7 +50,7 @@
   "scripts": {
     "build": "tsc -b",
     "check": "tsc -b --pretty false",
-    "test": "tsx --test \"test/**/*.test.ts\"",
+    "test": "tsx --test \"test/**/*.test.ts\" \"src/**/*.test.ts\"",
     "test:native": "tsx --test test/execution/bash.test.ts test/execution/process-tree.test.ts"
   },
   "dependencies": {

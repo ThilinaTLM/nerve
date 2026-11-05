@@ -20,6 +20,7 @@ import ConfirmDialog from "@nervekit/ui-kit/components/composites/confirm-dialog
 import ContextMenuList, {
   type ContextMenuItem,
 } from "@nervekit/ui-kit/components/composites/context-menu-list";
+import FormDialog from "@nervekit/ui-kit/components/composites/form-dialog";
 import DialogShell from "@nervekit/ui-kit/components/composites/dialog-shell";
 import PopoverPanel, {
   PopoverBody,
@@ -35,6 +36,7 @@ import PopoverPanel, {
   SelectRow,
 } from "@nervekit/ui-kit/components/composites/popover-panel";
 import SearchInput from "@nervekit/ui-kit/components/composites/search-input";
+import { Input } from "@nervekit/ui-kit/components/ui/input";
 import { Switch } from "@nervekit/ui-kit/components/ui/switch";
 import {
   PanelHeader,
@@ -75,6 +77,11 @@ $effect(() => {
 
 let confirmOpen = $state(false);
 let destructiveOpen = $state(false);
+let formOpen = $state(false);
+let destructiveFormOpen = $state(false);
+let formName = $state("");
+let formShowError = $state(false);
+let formBusy = $state(false);
 let lastResult = $state("none yet");
 let hideDone = $state(false);
 
@@ -223,6 +230,24 @@ const toolOutput = [
       >
     </GallerySpecimen>
 
+    <GallerySpecimen
+      title="FormDialog"
+      source="composites/form-dialog"
+      usage="settings, launches, projects, providers, tools"
+      description="Form body with Cancel and a submit button; Enter submits. Busy disables both buttons and shows a spinner; the destructive variant only submits from its button. Mock only."
+    >
+      <Button variant="outline" onclick={() => (formOpen = true)}>Form</Button>
+      <Button variant="destructive" onclick={() => (destructiveFormOpen = true)}
+        >Destructive form</Button
+      >
+      <label class="flex items-center gap-2 text-ui">
+        <Switch bind:checked={formShowError} /> Error
+      </label>
+      <label class="flex items-center gap-2 text-ui">
+        <Switch bind:checked={formBusy} /> Busy
+      </label>
+    </GallerySpecimen>
+
     <DialogShell
       {...bindOpen("sm")}
       size="sm"
@@ -294,6 +319,38 @@ const toolOutput = [
       {@render conversationSearchBody()}
     </DialogShell>
 
+    <FormDialog
+      bind:open={formOpen}
+      title="Rename profile"
+      description="Names must be unique."
+      submitLabel="Save"
+      submitDisabled={formName.trim() === ""}
+      busy={formBusy}
+      error={formShowError ? "Could not save the profile." : undefined}
+      onSubmit={() => {
+        lastResult = `form submit: ${formName}`;
+        formOpen = false;
+      }}
+    >
+      <Input bind:value={formName} placeholder="Profile name" />
+    </FormDialog>
+    <FormDialog
+      bind:open={destructiveFormOpen}
+      title="Clean up conversations"
+      submitLabel="Clean up"
+      submitVariant="destructive"
+      busy={formBusy}
+      error={formShowError ? "Cleanup failed." : undefined}
+      onSubmit={() => {
+        lastResult = "destructive form submit";
+        destructiveFormOpen = false;
+      }}
+    >
+      <p class="text-ui text-muted-foreground">
+        Removes old conversations. Enter in a field never submits this form.
+      </p>
+      <Input placeholder="Filter (optional)" />
+    </FormDialog>
     <ConfirmDialog
       bind:open={confirmOpen}
       title="Restart the daemon?"

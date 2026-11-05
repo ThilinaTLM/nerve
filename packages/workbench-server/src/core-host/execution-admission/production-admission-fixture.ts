@@ -286,7 +286,13 @@ export async function productionAdmissionFixture(
     );
     await runtime.core.close();
     provider.unregister();
-    await rm(home, { recursive: true, force: true });
+    // Late background cache writes can race teardown (ENOTEMPTY); rm retries those.
+    await rm(home, {
+      recursive: true,
+      force: true,
+      maxRetries: 5,
+      retryDelay: 50,
+    });
   });
   return {
     home,

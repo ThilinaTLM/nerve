@@ -36,6 +36,7 @@ export const packageExportSurfaces = Object.freeze({
     "./tools",
     "./transcription",
     "./usage",
+    "./paths",
     "./activity",
   ],
   "@nervekit/conversation-core": ["."],
