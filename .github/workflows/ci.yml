@@ -329,6 +329,14 @@ jobs:
           NERVE_AFFECTED_PACKAGES: ${{ needs.paths.outputs.packages }}
         run: node scripts/testing/run-affected-packages.ts check
 
+      - name: Build affected packages
+        # The check entry builds them through `tsc -b`; tests of one affected
+        # package can import another affected package's dist.
+        if: matrix.task == 'test'
+        env:
+          NERVE_AFFECTED_PACKAGES: ${{ needs.paths.outputs.packages }}
+        run: node scripts/testing/run-affected-packages.ts build
+
       - name: Test affected packages
         if: matrix.task == 'test'
         env:
