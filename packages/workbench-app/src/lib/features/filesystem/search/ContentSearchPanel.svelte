@@ -25,7 +25,7 @@ import {
   type SearchPatternError,
 } from "./content-search-error";
 import { segmentsFromRanges } from "../highlight-segments";
-import MaterialFileIcon from "../views/MaterialFileIcon.svelte";
+import { MaterialFileIcon } from "$lib/presentation/files";
 import type { ContentSearchStatus } from "./content-search-controller.svelte";
 import {
   buildSearchResultItems,

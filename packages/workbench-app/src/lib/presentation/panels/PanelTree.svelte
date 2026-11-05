@@ -89,6 +89,8 @@ type Props = {
   /** Bindable imperative handle for scroll-to-row and focus. */
   controller?: PanelTreeController;
   itemLeading?: Snippet<[T]>;
+  /** Replaces the default folder icon of generated path groups. */
+  groupIcon?: Snippet<[readonly string[], boolean]>;
   /** Segmented label (e.g. highlighted search matches); the node label stays the accessible fallback. */
   itemLabel?: Snippet<[T]>;
   itemBadges?: Snippet<[T]>;
@@ -135,6 +137,7 @@ let {
   multiselectable = false,
   controller = $bindable(),
   itemLeading,
+  groupIcon,
   itemLabel,
   itemBadges,
   itemActions,
@@ -328,15 +331,16 @@ function handleKeydown(event: KeyboardEvent, node: PanelTreeNode<T>): void {
   {@const open = expandable && expanded.has(node.id)}
   {#if node.kind === "group"}
     {#snippet groupLeading()}
-      {#if open}
-        {#if showGroupDisclosure}
-          <ChevronDown class="size-3" aria-hidden="true" />
-        {/if}
+      {#if open && showGroupDisclosure}
+        <ChevronDown class="size-3" aria-hidden="true" />
+      {:else if !open && showGroupDisclosure}
+        <ChevronRight class="size-3" aria-hidden="true" />
+      {/if}
+      {#if groupIcon}
+        {@render groupIcon(node.path, open)}
+      {:else if open}
         <FolderOpen class="size-3.5" aria-hidden="true" />
       {:else}
-        {#if showGroupDisclosure}
-          <ChevronRight class="size-3" aria-hidden="true" />
-        {/if}
         <Folder class="size-3.5" aria-hidden="true" />
       {/if}
     {/snippet}

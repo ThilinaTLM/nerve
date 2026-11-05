@@ -40,7 +40,7 @@ import {
   PanelView,
 } from "$lib/presentation/panels";
 import FileExplorerNameEditor from "./FileExplorerNameEditor.svelte";
-import MaterialFileIcon from "./MaterialFileIcon.svelte";
+import { MaterialFileIcon } from "$lib/presentation/files";
 
 let {
   projectName,

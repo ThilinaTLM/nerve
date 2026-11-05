@@ -16,6 +16,8 @@ import { ScrollArea } from "@nervekit/ui-kit/components/ui/scroll-area";
 import { Skeleton } from "@nervekit/ui-kit/components/ui/skeleton";
 import { Spinner } from "@nervekit/ui-kit/components/ui/spinner";
 import { cn } from "@nervekit/ui-kit/utils";
+import type { StatusTone } from "@nervekit/ui-kit/display/status";
+import { MaterialFileIcon } from "$lib/presentation/files";
 import { buildPanelTree, PanelTree } from "$lib/presentation/panels";
 import CodeMirrorGitDiff from "../CodeMirrorGitDiff.svelte";
 import type { PrSectionState } from "../github-pr-types";
@@ -51,6 +53,17 @@ const compact = $derived(width > 0 && width < 640);
 const current = $derived(
   files?.files.find((file) => file.path === selectedPath),
 );
+
+function fileTone(file: GithubPrFile): StatusTone {
+  if (file.status === "added") return "success";
+  if (file.status === "removed") return "destructive";
+  if (file.status === "renamed" || file.status === "copied") return "info";
+  return "warning";
+}
+
+function baseName(path: string): string {
+  return path.slice(path.lastIndexOf("/") + 1);
+}
 
 function unavailableMessage(
   reason: Extract<GithubPrFileDiffResponse, { kind: "unavailable" }>["reason"],
@@ -90,7 +103,7 @@ function unavailableMessage(
 {/snippet}
 
 {#snippet fileLetter(file: GithubPrFile)}
-  <span class={cn("font-mono font-medium", fileStatusTone(file.status))}>
+  <span class={cn("w-3 text-center text-ui", fileStatusTone(file.status))}>
     {fileStatusLetter(file.status)}
   </span>
 {/snippet}
@@ -103,15 +116,22 @@ function unavailableMessage(
         getKey: (file) => file.path,
       })}
       ariaLabel="Pull request changed files"
+      showGroupDisclosure={false}
       getItemSelected={(file) => file.path === selectedPath}
       getItemTitle={(file) => file.path}
-      itemMono
+      getItemTone={fileTone}
       onItemActivate={(file) => onSelect?.(file.path)}
     >
-      {#snippet itemLeading(file)}{@render fileLetter(file)}{/snippet}
+      {#snippet groupIcon(path, open)}
+        <MaterialFileIcon name={path.at(-1) ?? ""} kind="directory" {open} />
+      {/snippet}
+      {#snippet itemLeading(file)}
+        <MaterialFileIcon name={baseName(file.path)} kind="file" />
+      {/snippet}
       {#snippet itemBadges(file)}
-        <span class="font-mono text-success">+{file.additions}</span>
-        <span class="font-mono text-destructive">−{file.deletions}</span>
+        <span class="text-ui text-success">+{file.additions}</span>
+        <span class="text-ui text-destructive">−{file.deletions}</span>
+        {@render fileLetter(file)}
       {/snippet}
     </PanelTree>
     {#if list.truncated}

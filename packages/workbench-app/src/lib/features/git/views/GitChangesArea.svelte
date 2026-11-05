@@ -32,7 +32,13 @@ import type {
   ScopedFileMutation,
   StashMutation,
 } from "./git-panel-types";
-import { fileStatusLabel, fileTone, statusLetter } from "./git-change-format";
+import { MaterialFileIcon } from "$lib/presentation/files";
+import {
+  fileStatusLabel,
+  fileStatusTone,
+  fileTone,
+  statusLetter,
+} from "./git-change-format";
 
 type ChangesState = {
   files: readonly GitFileChange[];
@@ -361,6 +367,7 @@ function fileMenu(area: GitStashArea, file: GitFileChange): ContextMenuItem[] {
       {expandedIds}
       getGroupMenuItems={(path) => scopeMenu(area, path.join("/"))}
       getItemMenuItems={(file) => fileMenu(area, file)}
+      getItemTone={fileStatusTone}
       getItemTitle={(file) =>
         `${fileStatusLabel(file, area)} · ${file.renamedFrom ? `${file.renamedFrom} → ` : ""}${file.path}`}
       onItemActivate={(file) => onOpenDiff(selectedRepo, file, area)}
@@ -374,10 +381,20 @@ function fileMenu(area: GitStashArea, file: GitFileChange): ContextMenuItem[] {
       {#snippet groupActions(path)}
         {@render folderActions(area, path.join("/"))}
       {/snippet}
+      {#snippet groupIcon(path, open)}
+        <MaterialFileIcon name={path.at(-1) ?? ""} kind="directory" {open} />
+      {/snippet}
       {#snippet itemLeading(file)}
+        <MaterialFileIcon
+          name={file.path.slice(file.path.lastIndexOf("/") + 1)}
+          kind="file"
+        />
+      {/snippet}
+      {#snippet itemBadges(file)}
         <span
-          class={cn("font-mono font-medium", fileTone(file))}
+          class={cn("w-3 text-center text-ui", fileTone(file))}
           title={fileStatusLabel(file, area)}
+          aria-label={fileStatusLabel(file, area)}
         >
           {statusLetter(file, area)}
         </span>

@@ -53,11 +53,25 @@ export function repoButtonLabel(
   );
 }
 
+/** Row tone matching the Files panel Git decorations. */
+export function fileStatusTone(file: GitFileChange): StatusTone {
+  if (file.index === "D" || file.worktree === "D") return "destructive";
+  if (file.untracked || file.index === "A") return "success";
+  if (file.index === "R" || file.worktree === "R") return "info";
+  return "warning";
+}
+
+const toneTextClass: Record<StatusTone, string> = {
+  destructive: "text-destructive",
+  success: "text-success",
+  info: "text-info",
+  warning: "text-warning",
+  neutral: "text-muted-foreground",
+  brand: "text-primary",
+};
+
 export function fileTone(file: GitFileChange): string {
-  if (file.untracked) return "text-muted-foreground";
-  if (file.index === "A") return "text-success";
-  if (file.index === "D" || file.worktree === "D") return "text-destructive";
-  return "text-info";
+  return toneTextClass[fileStatusTone(file)];
 }
 
 export function statusLetter(

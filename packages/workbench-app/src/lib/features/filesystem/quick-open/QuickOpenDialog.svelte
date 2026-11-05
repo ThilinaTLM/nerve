@@ -6,7 +6,7 @@ import * as Dialog from "@nervekit/ui-kit/components/ui/dialog";
 import { Kbd } from "@nervekit/ui-kit/components/ui/kbd";
 import { Spinner } from "@nervekit/ui-kit/components/ui/spinner";
 import { cn } from "@nervekit/ui-kit/utils";
-import MaterialFileIcon from "../views/MaterialFileIcon.svelte";
+import { MaterialFileIcon } from "$lib/presentation/files";
 import { quickOpenPathParts } from "./quick-open-query";
 
 export type QuickOpenItem = {

@@ -3,3 +3,4 @@ export type {
   FilePaneContent,
   FilePaneViewModel,
 } from "./file-pane-contracts.js";
+export { default as MaterialFileIcon } from "./MaterialFileIcon.svelte";
