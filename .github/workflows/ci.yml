@@ -558,7 +558,6 @@ jobs:
     runs-on: ubuntu-latest
     needs: paths
     # Advisory until the baseline is triaged: not part of the CI gate.
-    continue-on-error: true
     timeout-minutes: 10
 
     steps:
@@ -576,6 +575,8 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
       - name: Report unused code
+        # Findings are reported but do not fail the job (advisory).
+        continue-on-error: true
         run: pnpm knip --reporter compact
 
   native-tests:
