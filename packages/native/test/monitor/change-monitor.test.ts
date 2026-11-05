@@ -13,6 +13,7 @@ import { join } from "node:path";
 import { test } from "node:test";
 import { promisify } from "node:util";
 import { ChangeMonitor, type ChangeNotice } from "../../src/index.js";
+import { waitFor } from "../support/wait-for.js";
 
 test("manual and filesystem triggers share a bounded monitor scope", async () => {
   const root = await mkdtemp(join(tmpdir(), "nerve-monitor-"));
@@ -33,7 +34,7 @@ test("manual and filesystem triggers share a bounded monitor scope", async () =>
     assert.equal(state.degraded, false);
     const generation = await monitor.requestRefresh("project:test");
     assert.equal(generation, 1);
-    await new Promise((resolve) => setTimeout(resolve, 25));
+    await waitFor(() => notices.length > 0, { message: "manual notice" });
     assert.equal(notices[0]?.scopeId, "project:test");
     assert.equal(notices[0]?.generation, 1);
     assert.deepEqual(notices[0]?.causes, ["manual"]);
@@ -169,7 +170,28 @@ test(
       );
     const notices: ChangeNotice[] = [];
     const monitor = new ChangeMonitor((notice) => notices.push(notice));
-    const settle = () => new Promise((resolve) => setTimeout(resolve, 600));
+    // Watcher events are delivered in order, so once a canary write in the
+    // watched directory is reported, any earlier (unwanted) event would
+    // already have been reported too. `quiesce` drains up to that point.
+    let canaries = 0;
+    const quiesce = async () => {
+      const name = `canary-${(canaries += 1)}.txt`;
+      await writeFile(join(repository, name), name);
+      await waitFor(
+        () =>
+          notices.some(
+            (n) =>
+              n.scopeId === "project:read-only" &&
+              n.paths.some((p) => p.endsWith(name)),
+          ),
+        { message: `canary ${name}` },
+      );
+      const stray = notices.filter(
+        (n) => !n.paths.some((p) => p.endsWith(name)),
+      );
+      notices.length = 0;
+      return stray;
+    };
     try {
       await git("init", "--initial-branch=main");
       await writeFile(join(repository, "tracked.txt"), "initial\n");
@@ -189,34 +211,36 @@ test(
         repository,
         pollIntervalMs: 60_000,
       });
-      await settle();
-      notices.length = 0;
+      await quiesce();
       const head = await readFile(join(repository, ".git", "HEAD"));
-      await settle();
       assert.deepEqual(
-        notices,
+        await quiesce(),
         [],
         "reading HEAD must not produce filesystem invalidation",
       );
       await git("diff", "--shortstat");
-      await settle();
-      assert.deepEqual(notices, [], "unstaged diff reads must not invalidate");
+      assert.deepEqual(
+        await quiesce(),
+        [],
+        "unstaged diff reads must not invalidate",
+      );
       await git("diff", "--staged", "--shortstat");
-      await settle();
-      assert.deepEqual(notices, [], "staged diff reads must not invalidate");
+      assert.deepEqual(
+        await quiesce(),
+        [],
+        "staged diff reads must not invalidate",
+      );
       // Even a same-content write is a genuine write and must remain visible.
       await writeFile(join(repository, ".git", "HEAD"), head);
-      const deadline = Date.now() + 4_000;
       const changed = (scope: string) =>
         notices.some(
           (notice) =>
             notice.scopeId === scope && notice.causes.includes("filesystem"),
         );
-      while (
-        (!changed("project:read-only") || !changed("git:read-only")) &&
-        Date.now() < deadline
-      )
-        await new Promise((resolve) => setTimeout(resolve, 25));
+      await waitFor(
+        () => changed("project:read-only") && changed("git:read-only"),
+        { message: "write notices for both scopes" },
+      );
       assert.ok(
         changed("project:read-only"),
         "directory scope must retain actual writes",

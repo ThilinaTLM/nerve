@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { builtinSkillFilePath } from "@nervekit/skills";
 import { describe, it } from "node:test";
+import { anyJson } from "../../src/execution/atlassian/http.js";
 import {
   jiraDownload,
   jiraMultipartRequest,
@@ -98,6 +99,7 @@ describe("Jira client API roots and downloads", () => {
       await jiraMultipartRequest(connection, {
         path: "/issue/PROJ-1/attachments",
         form,
+        parse: anyJson,
       });
       assert.equal(headers.get("x-atlassian-token"), "nocheck");
       assert.equal(headers.get("content-type"), null);
@@ -136,6 +138,32 @@ describe("Jira client API roots and downloads", () => {
       await assert.rejects(
         jiraDownload(connection, "42"),
         /authenticated redirect/,
+      );
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+});
+
+describe("Jira client response validation", () => {
+  it("rejects a non-JSON body with status, content type and snippet", async () => {
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = async () =>
+      new Response("<html>Proxy error</html>", {
+        status: 200,
+        headers: { "content-type": "text/html" },
+      });
+    try {
+      await assert.rejects(
+        jiraRequest(connection, { path: "/thing" }),
+        (error: unknown) => {
+          const details = (error as { details?: Record<string, unknown> })
+            .details;
+          assert.equal(details?.status, 200);
+          assert.equal(details?.contentType, "text/html");
+          assert.match(String(details?.snippet), /Proxy error/);
+          return true;
+        },
       );
     } finally {
       globalThis.fetch = originalFetch;

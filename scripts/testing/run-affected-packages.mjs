@@ -3,6 +3,8 @@
 import { spawnSync } from "node:child_process";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { isEntrypoint, runCli } from "../cli/main.mjs";
+import { runStep } from "../cli/run.mjs";
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 const VALID_COMMANDS = new Set(["build", "check", "test"]);
@@ -46,18 +48,20 @@ export function runAffectedPackages(
     console.log(`No affected workspace packages require ${command}.`);
     return;
   }
-  const args = pnpmArguments(command, packages);
-  const result = spawn("pnpm", args, { cwd, stdio: "inherit" });
-  if (result.error) throw result.error;
-  if (result.status !== 0) {
-    throw new Error(`pnpm ${command} failed with exit code ${result.status}`);
-  }
+  runStep("pnpm", pnpmArguments(command, packages), {
+    cwd,
+    spawn,
+    failure: (result) =>
+      `pnpm ${command} failed with exit code ${result.status}`,
+  });
 }
 
 function main() {
-  const command = process.argv[2];
-  const packages = parsePackages(process.env.NERVE_AFFECTED_PACKAGES);
-  runAffectedPackages(command, packages);
+  return runCli(() => {
+    const command = process.argv[2];
+    const packages = parsePackages(process.env.NERVE_AFFECTED_PACKAGES);
+    runAffectedPackages(command, packages);
+  });
 }
 
-if (process.argv[1] === fileURLToPath(import.meta.url)) main();
+if (isEntrypoint(import.meta.url)) await main();

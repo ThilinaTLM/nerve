@@ -1,5 +1,5 @@
 import { Hono } from "hono";
-import type { ServerAdapterContexts } from "../../../app/bootstrap/create-server-adapter-contexts.js";
+import type { ServerAdapterContexts } from "../../contexts.js";
 type TranscriptionRoutesContext =
   ServerAdapterContexts["http"]["transcription"];
 import { transcribeAudioWithChatGptSubscription } from "../../../domains/transcription/transcription.service.js";

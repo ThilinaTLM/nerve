@@ -220,12 +220,10 @@ export class LaunchLogService {
   }
 
   async readLogEvents(logsPath: string): Promise<LaunchLogEvent[]> {
-    const values = await readJsonLines<unknown>(logsPath).catch(() => []);
-    return values
-      .map((value) => launchLogEventSchema.safeParse(value))
-      .filter((result) => result.success)
-      .map((result) => result.data)
-      .sort((a, b) => a.seq - b.seq);
+    const values = await readJsonLines(logsPath, launchLogEventSchema).catch(
+      () => [],
+    );
+    return values.sort((a, b) => a.seq - b.seq);
   }
 
   private enqueue(

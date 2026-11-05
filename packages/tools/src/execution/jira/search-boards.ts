@@ -1,3 +1,4 @@
+import { jsonObject } from "../atlassian/http.js";
 import type {
   IntegrationExecutionContext,
   ToolExecutionResult,
@@ -19,7 +20,8 @@ export async function executeJiraSearchBoards(
   context: IntegrationExecutionContext,
 ): Promise<ToolExecutionResult> {
   const connection = await requireJiraConnection(context);
-  const data = await jiraRequest<Record<string, unknown>>(connection, {
+  const data = await jiraRequest(connection, {
+    parse: jsonObject,
     api: "agile",
     path: "/board",
     query: {

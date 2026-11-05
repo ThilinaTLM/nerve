@@ -1,6 +1,7 @@
 import { realpath, stat } from "node:fs/promises";
 import { isAbsolute, relative, resolve, sep } from "node:path";
 import type { Project } from "@nervekit/contracts/core";
+import { parseProjectRelativePath } from "@nervekit/contracts/paths";
 import { ApplicationError } from "../../core/application-error.js";
 
 export async function resolveProjectLaunchTarget(
@@ -38,23 +39,16 @@ export async function resolveProjectLaunchTarget(
 
 function normalizeRelativePath(rawPath: string | undefined): string {
   if (rawPath === undefined) return "";
-  const path = rawPath.trim().replaceAll("\\", "/");
-  if (
-    !path ||
-    path.includes("\0") ||
-    path.startsWith("/") ||
-    isAbsolute(path)
-  ) {
-    throw invalidPath("Project launch path must be relative.");
+  const parsed = parseProjectRelativePath(rawPath.trim());
+  if (parsed.ok) return parsed.path;
+  switch (parsed.reason) {
+    case "empty":
+    case "nul":
+    case "absolute":
+      throw invalidPath("Project launch path must be relative.");
+    default:
+      throw invalidPath("Project launch path contains an invalid segment.");
   }
-  const segments = path.split("/");
-  if (
-    /^[A-Za-z]:\//.test(path) ||
-    segments.some((segment) => !segment || segment === "." || segment === "..")
-  ) {
-    throw invalidPath("Project launch path contains an invalid segment.");
-  }
-  return segments.join("/");
 }
 
 async function canonicalPath(path: string, code: string): Promise<string> {

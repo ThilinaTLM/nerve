@@ -1,36 +1,22 @@
 import assert from "node:assert/strict";
 import { it } from "node:test";
+import { createFakeClock, settle } from "../support/fake-clock.js";
 import { LatestSnapshotDelivery } from "../../src/streams/latest-snapshot-delivery.js";
 
-const settle = () => new Promise<void>((resolve) => setImmediate(resolve));
 function fixture(
   send?: (value: string) => Promise<void>,
   maxItems = 256,
   maxBytes = 1024,
 ) {
-  let now = 0;
-  const timers = new Map<symbol, { at: number; callback: () => void }>();
+  const fake = createFakeClock();
   const sent: string[] = [];
   const errors: unknown[] = [];
   const delivery = new LatestSnapshotDelivery<string>({
     intervalMs: 50,
     maxItems,
     maxBytes,
-    clock: { now: () => now, isoNow: () => new Date(now).toISOString() },
-    timers: {
-      setTimeout: (callback, delay) => {
-        const key = Symbol();
-        timers.set(key, { at: now + delay, callback });
-        return key;
-      },
-      clearTimeout: (key) => {
-        timers.delete(key as symbol);
-      },
-      setInterval: () => {
-        throw new Error("Unexpected interval");
-      },
-      clearInterval: () => {},
-    },
+    clock: fake.clock,
+    timers: fake.timers,
     send: async (value) => {
       sent.push(value);
       await send?.(value);
@@ -43,16 +29,8 @@ function fixture(
     delivery,
     sent,
     errors,
-    timers,
-    advance: async (ms: number) => {
-      now += ms;
-      for (const [key, timer] of [...timers])
-        if (timer.at <= now) {
-          timers.delete(key);
-          timer.callback();
-        }
-      await settle();
-    },
+    timers: fake.timeouts,
+    advance: fake.advance,
   };
 }
 

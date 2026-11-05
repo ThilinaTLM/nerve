@@ -1,3 +1,4 @@
+import { isReadOnlyGitInvocation } from "./git-rules.js";
 import {
   hasDangerousCommandPattern,
   isBlockedCommandSegment,
@@ -48,7 +49,7 @@ function isReadOnlySegment(tokens: string[]): boolean {
   const normalized = normalizedInvocation(tokens);
   if (normalized.length === 0 || isBlockedCommandSegment(tokens)) return false;
   const root = normalizeCommandName(normalized[0] ?? "");
-  if (root === "git") return true;
+  if (root === "git") return isReadOnlyGitInvocation(normalized);
   if (root === "xargs") {
     const index = getXargsInvokedCommandIndex(normalized);
     return index !== undefined && isReadOnlySegment(normalized.slice(index));

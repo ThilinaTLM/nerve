@@ -45,7 +45,7 @@ import {
 } from "@nervekit/protocol/adapters";
 import { ZodError } from "zod";
 import type WebSocket from "ws";
-import type { ServerAdapterContexts } from "../../app/bootstrap/create-server-adapter-contexts.js";
+import type { ServerAdapterContexts } from "../contexts.js";
 import { listAvailableSkills } from "../../core-host/resource-loader.js";
 import { listPermissionRuleSets } from "../../core-host/permission-rule-sets.js";
 import { orchestratorSource } from "./messages.js";

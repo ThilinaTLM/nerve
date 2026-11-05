@@ -2,7 +2,7 @@ import type {
   CreateScratchNoteRequest,
   UpdateScratchNoteRequest,
 } from "@nervekit/contracts/scratch-notes";
-import type { ServerAdapterContexts } from "../../app/bootstrap/create-server-adapter-contexts.js";
+import type { ServerAdapterContexts } from "../contexts.js";
 
 type ScratchNoteMethod =
   | "scratchNote.list"

@@ -6,6 +6,7 @@ import {
   type FilesystemProjectEntry,
   filesystemProjectEntriesQuerySchema,
 } from "@nervekit/contracts/filesystem";
+import { parseProjectRelativePath } from "@nervekit/contracts/paths";
 import { loadNativeFiles } from "./native-files.js";
 
 const isInside = isPathInside;
@@ -33,16 +34,17 @@ type ProjectEntrySortKey = [number, string, string, string];
 export function normalizeProjectRelativeDirectory(
   rawPath: string | undefined,
 ): string {
-  const path = rawPath?.trim().replaceAll("\\", "/") ?? "";
+  const path = rawPath?.trim() ?? "";
   if (!path) return "";
-  if (path.includes("\0") || path.startsWith("/") || /^[A-Za-z]:\//.test(path))
-    throw new Error("Project directory path must be relative.");
-  const segments = path.split("/");
+  const parsed = parseProjectRelativePath(path);
+  if (parsed.ok) return parsed.path;
   if (
-    segments.some((segment) => !segment || segment === "." || segment === "..")
+    parsed.reason === "nul" ||
+    parsed.reason === "absolute" ||
+    parsed.reason === "drive"
   )
-    throw new Error("Project directory path contains an invalid segment.");
-  return segments.join("/");
+    throw new Error("Project directory path must be relative.");
+  throw new Error("Project directory path contains an invalid segment.");
 }
 
 function projectEntrySortKey(

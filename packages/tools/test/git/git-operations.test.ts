@@ -16,15 +16,11 @@ import {
 } from "../../src/git/git-operation-context.js";
 
 import { runNativeGitProjectRead } from "../../src/git/read/git-native-read-admission.js";
+import { waitFor } from "../support/wait-for.js";
 
 const tick = () => new Promise<void>((resolve) => setImmediate(resolve));
-async function until(predicate: () => boolean) {
-  for (let i = 0; i < 100; i++) {
-    if (predicate()) return;
-    await new Promise((resolve) => setTimeout(resolve, 2));
-  }
-  assert.fail("condition did not settle");
-}
+const until = (predicate: () => boolean) =>
+  waitFor(predicate, { intervalMs: 2, message: "condition" });
 function reporter() {
   const entries = new Map<
     string,
@@ -367,7 +363,7 @@ void test("tracked PR checkout reenters workflow and status lanes without admitt
     release = resolve;
   });
   // Bound event waits without relying on a fixed number of short timer spins.
-  async function waitFor<T>(event: Promise<T>, label: string): Promise<T> {
+  async function withTimeout<T>(event: Promise<T>, label: string): Promise<T> {
     let timer: ReturnType<typeof setTimeout> | undefined;
     try {
       return await Promise.race([
@@ -420,7 +416,7 @@ void test("tracked PR checkout reenters workflow and status lanes without admitt
       number: 42,
     });
     const entry = f.entries.get(operationId)!;
-    await waitFor(
+    await withTimeout(
       Promise.race([
         fetching,
         entry.finished.then(() => {
@@ -444,7 +440,7 @@ void test("tracked PR checkout reenters workflow and status lanes without admitt
     assert.deepEqual(steps, ["dirty-guard", "fetch", "unrelated-fetch"]);
     release();
     await competing;
-    await waitFor(entry.finished, "checkout completes");
+    await withTimeout(entry.finished, "checkout completes");
     assert.equal(entry.status, "succeeded", entry.error);
     assert.deepEqual(steps, [
       "dirty-guard",

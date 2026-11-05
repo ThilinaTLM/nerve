@@ -3,7 +3,7 @@ import TriangleAlert from "@lucide/svelte/icons/triangle-alert";
 import type { ModelDefinition } from "$lib/api";
 import { upsertModelDefinition } from "$lib/api";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
-import Dialog from "@nervekit/ui-kit/components/composites/dialog-shell";
+import FormDialog from "@nervekit/ui-kit/components/composites/form-dialog";
 import { Label } from "@nervekit/ui-kit/components/ui/label";
 import type { SelectItem } from "@nervekit/ui-kit/components/composites/select-field";
 import ProviderIcon from "$lib/presentation/model-picker/ProviderIcon.svelte";
@@ -91,119 +91,104 @@ async function submit() {
 }
 </script>
 
-<Dialog
+<FormDialog
   bind:open
   title={editing ? `Edit ${model?.name}` : "Add model"}
   description="Select a configured provider and define one pi-compatible model."
   size="wide"
+  submitLabel={editing ? "Save model" : "Add model"}
+  submitDisabled={!canSubmit}
+  {busy}
+  bodyClass="min-h-0"
+  onSubmit={submit}
 >
-  <div class="grid min-h-0 gap-3">
-    <div class="grid gap-1.5">
-      <Label>Provider</Label>
-      <PopoverPanel
-        bind:open={providerOpen}
-        variant="field"
-        size="lg"
-        ariaLabel="Provider"
-      >
-        {#snippet triggerChild({ props })}
-          <Button {...props} variant="outline" disabled={busy || editing}>
-            {#if provider}<ProviderIcon {provider} class="size-4" />{/if}
-            {selectedProvider?.label ?? "Select a provider"}
-          </Button>
-        {/snippet}
-        {#if providerOpen}
-          <PopoverCommandList
-            items={commandItems}
-            ariaLabel="Providers"
-            placeholder="Search providers…"
-            isSelected={(item) => item.key === provider}
-            onChoose={(item) => {
-              provider = item.key;
-              providerOpen = false;
-            }}
-          >
-            {#snippet icon(item)}<ProviderIcon
-                provider={item.key}
-                class="size-4"
-              />{/snippet}
-          </PopoverCommandList>
-        {/if}
-      </PopoverPanel>
-    </div>
-
-    {#if provider.length > 0 && !providerAvailable}
-      <p
-        class="flex items-center gap-1.5 text-ui text-destructive"
-        role="alert"
-      >
-        <TriangleAlert class="size-3.5" aria-hidden="true" />
-        This provider is not configured or authenticated.
-      </p>
-    {/if}
-
-    <div class="grid min-h-0 gap-1.5">
-      <div class="flex flex-wrap items-end justify-between gap-2">
-        <Label>Model JSON</Label>
-        <p class="text-ui text-muted-foreground">
-          Find model JSON on
-          <a
-            class="text-info underline underline-offset-2"
-            href="https://pi.dev/models"
-            target="_blank"
-            rel="noreferrer">pi.dev/models</a
-          >.
-        </p>
-      </div>
-      <div
-        class="h-96 min-h-64 overflow-hidden rounded-md border bg-background"
-      >
-        <CodeView
-          text={jsonText}
-          language="json"
-          editable
-          wrap
-          onChange={(value) => {
-            jsonText = value;
-            submitError = undefined;
+  <div class="grid gap-1.5">
+    <Label>Provider</Label>
+    <PopoverPanel
+      bind:open={providerOpen}
+      variant="field"
+      size="lg"
+      ariaLabel="Provider"
+    >
+      {#snippet triggerChild({ props })}
+        <Button {...props} variant="outline" disabled={busy || editing}>
+          {#if provider}<ProviderIcon {provider} class="size-4" />{/if}
+          {selectedProvider?.label ?? "Select a provider"}
+        </Button>
+      {/snippet}
+      {#if providerOpen}
+        <PopoverCommandList
+          items={commandItems}
+          ariaLabel="Providers"
+          placeholder="Search providers…"
+          isSelected={(item) => item.key === provider}
+          onChoose={(item) => {
+            provider = item.key;
+            providerOpen = false;
           }}
-          disabled={busy}
-          class={busy ? "opacity-60" : ""}
-          ariaLabel="Model definition JSON"
-        />
-      </div>
-      {#if provider && !parseResult.success}
-        <p
-          class="flex items-start gap-1.5 text-ui text-destructive"
-          role="alert"
         >
-          <TriangleAlert class="mt-0.5 size-3.5 shrink-0" aria-hidden="true" />
-          {parseResult.error}
-        </p>
-      {:else}
-        <p class="text-ui text-muted-foreground">
-          Paste one object from a provider's
-          <code class="font-mono">models</code> array. Provider URLs and API keys
-          stay in provider settings.
-        </p>
+          {#snippet icon(item)}<ProviderIcon
+              provider={item.key}
+              class="size-4"
+            />{/snippet}
+        </PopoverCommandList>
       {/if}
-    </div>
+    </PopoverPanel>
+  </div>
 
-    {#if submitError}
-      <p
-        class="flex items-center gap-1.5 text-ui text-destructive"
-        role="alert"
-      >
-        <TriangleAlert class="size-3.5" aria-hidden="true" />
-        {submitError}
+  {#if provider.length > 0 && !providerAvailable}
+    <p class="flex items-center gap-1.5 text-ui text-destructive" role="alert">
+      <TriangleAlert class="size-3.5" aria-hidden="true" />
+      This provider is not configured or authenticated.
+    </p>
+  {/if}
+
+  <div class="grid min-h-0 gap-1.5">
+    <div class="flex flex-wrap items-end justify-between gap-2">
+      <Label>Model JSON</Label>
+      <p class="text-ui text-muted-foreground">
+        Find model JSON on
+        <a
+          class="text-info underline underline-offset-2"
+          href="https://pi.dev/models"
+          target="_blank"
+          rel="noreferrer">pi.dev/models</a
+        >.
+      </p>
+    </div>
+    <div class="h-96 min-h-64 overflow-hidden rounded-md border bg-background">
+      <CodeView
+        text={jsonText}
+        language="json"
+        editable
+        wrap
+        onChange={(value) => {
+          jsonText = value;
+          submitError = undefined;
+        }}
+        disabled={busy}
+        class={busy ? "opacity-60" : ""}
+        ariaLabel="Model definition JSON"
+      />
+    </div>
+    {#if provider && !parseResult.success}
+      <p class="flex items-start gap-1.5 text-ui text-destructive" role="alert">
+        <TriangleAlert class="mt-0.5 size-3.5 shrink-0" aria-hidden="true" />
+        {parseResult.error}
+      </p>
+    {:else}
+      <p class="text-ui text-muted-foreground">
+        Paste one object from a provider's
+        <code class="font-mono">models</code> array. Provider URLs and API keys stay
+        in provider settings.
       </p>
     {/if}
   </div>
 
-  {#snippet footer()}
-    <Button variant="ghost" onclick={() => (open = false)}>Cancel</Button>
-    <Button onclick={() => void submit()} disabled={!canSubmit}>
-      {busy ? "Saving…" : editing ? "Save model" : "Add model"}
-    </Button>
-  {/snippet}
-</Dialog>
+  {#if submitError}
+    <p class="flex items-center gap-1.5 text-ui text-destructive" role="alert">
+      <TriangleAlert class="size-3.5" aria-hidden="true" />
+      {submitError}
+    </p>
+  {/if}
+</FormDialog>

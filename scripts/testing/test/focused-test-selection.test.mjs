@@ -21,6 +21,17 @@ import {
   parseArguments,
 } from "../run-focused-tests.mjs";
 
+// Packages whose `test` script also covers colocated src tests (mirrors focused-test-selection).
+const extraTestGlobs = {
+  "workbench-server": [
+    "test/**/*.test.ts",
+    "src/{adapters,app,core-host,domains}/**/*.test.ts",
+    "src/infrastructure/{configuration,events,storage-bootstrap}/**/*.test.ts",
+    "src/infrastructure/process-host/!(port-inspector).test.ts",
+  ],
+  tools: ["test/**/*.test.ts", "src/**/*.test.ts"],
+};
+
 function fixture(t) {
   const root = mkdtempSync(join(tmpdir(), "nerve-focused-"));
   t.after(() => rmSync(root, { recursive: true, force: true }));
@@ -35,7 +46,7 @@ function fixture(t) {
       build: frontend || website ? "should-not-build" : "tsc -b",
       test: website
         ? 'node --test "scripts/**/*.test.mjs"'
-        : `tsx --test${directory === "workbench-server" ? " --test-concurrency=1" : ""} "${frontend ? "src" : "test"}/**/*.test.ts"${directory === "native" ? " && pnpm test:native" : ""}`,
+        : `tsx --test${directory === "workbench-server" ? " --test-concurrency=1" : ""} ${(extraTestGlobs[directory] ?? [`${frontend ? "src" : "test"}/**/*.test.ts`]).map((glob) => `"${glob}"`).join(" ")}${directory === "native" ? " && pnpm test:native" : ""}`,
     };
     write(
       `packages/${directory}/package.json`,

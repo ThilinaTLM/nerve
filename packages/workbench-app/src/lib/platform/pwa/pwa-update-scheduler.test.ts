@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
+import { createFakeClock, flush } from "../polling/fake-clock";
 import { startPwaUpdateScheduler } from "./pwa-update-scheduler";
 
 function schedulerHarness(
@@ -7,26 +8,15 @@ function schedulerHarness(
 ) {
   const windowTarget = new EventTarget();
   const documentTarget = new EventTarget();
-  let interval: (() => void) | undefined;
-  let intervalMs: number | undefined;
-  let intervalCleared = false;
+  const fake = createFakeClock();
   let visible = true;
-  let now = 0;
 
   const stop = startPwaUpdateScheduler({
     checkForUpdate,
-    now: () => now,
+    clock: fake.clock,
     window: {
       addEventListener: windowTarget.addEventListener.bind(windowTarget),
       removeEventListener: windowTarget.removeEventListener.bind(windowTarget),
-      setInterval: ((callback: TimerHandler, delay?: number) => {
-        interval = callback as () => void;
-        intervalMs = delay;
-        return 1;
-      }) as Window["setInterval"],
-      clearInterval: (() => {
-        intervalCleared = true;
-      }) as Window["clearInterval"],
     },
     document: {
       addEventListener: documentTarget.addEventListener.bind(documentTarget),
@@ -40,22 +30,13 @@ function schedulerHarness(
 
   return {
     stop,
+    fake,
     windowTarget,
     documentTarget,
-    runInterval: () => interval?.(),
-    intervalMs: () => intervalMs,
-    intervalCleared: () => intervalCleared,
     setVisible: (value: boolean) => {
       visible = value;
     },
-    advance: (milliseconds: number) => {
-      now += milliseconds;
-    },
   };
-}
-
-async function flushChecks(): Promise<void> {
-  await new Promise<void>((resolve) => setImmediate(resolve));
 }
 
 test("checks for updates from visible lifecycle and interval events", async () => {
@@ -64,26 +45,24 @@ test("checks for updates from visible lifecycle and interval events", async () =
     checks += 1;
   });
 
-  assert.equal(harness.intervalMs(), 60 * 60_000);
-
   harness.windowTarget.dispatchEvent(new Event("focus"));
-  await flushChecks();
+  await flush();
   assert.equal(checks, 1);
 
-  harness.advance(60_000);
+  await harness.fake.advance(60_000);
   harness.documentTarget.dispatchEvent(new Event("visibilitychange"));
-  await flushChecks();
+  await flush();
   assert.equal(checks, 2);
 
-  harness.advance(60_000);
+  await harness.fake.advance(60_000);
   harness.windowTarget.dispatchEvent(new Event("online"));
-  await flushChecks();
+  await flush();
   assert.equal(checks, 3);
 
-  harness.advance(60_000);
-  harness.runInterval();
-  await flushChecks();
+  // The hourly tick re-arms after each run, so it fires one hour after the last.
+  await harness.fake.advance(60 * 60_000);
   assert.equal(checks, 4);
+  harness.stop();
 });
 
 test("skips hidden and throttled update checks", async () => {
@@ -95,25 +74,25 @@ test("skips hidden and throttled update checks", async () => {
   harness.setVisible(false);
   harness.windowTarget.dispatchEvent(new Event("focus"));
   harness.windowTarget.dispatchEvent(new Event("online"));
-  harness.runInterval();
-  await flushChecks();
+  await harness.fake.advance(2 * 60 * 60_000);
   assert.equal(checks, 0);
 
   harness.setVisible(true);
   harness.windowTarget.dispatchEvent(new Event("focus"));
   harness.documentTarget.dispatchEvent(new Event("visibilitychange"));
-  await flushChecks();
+  await flush();
   assert.equal(checks, 1);
 
-  harness.advance(59_999);
+  await harness.fake.advance(59_999);
   harness.windowTarget.dispatchEvent(new Event("focus"));
-  await flushChecks();
+  await flush();
   assert.equal(checks, 1);
 
-  harness.advance(1);
+  await harness.fake.advance(1);
   harness.windowTarget.dispatchEvent(new Event("focus"));
-  await flushChecks();
+  await flush();
   assert.equal(checks, 2);
+  harness.stop();
 });
 
 test("contains rejected checks and cleans up all event sources", async () => {
@@ -124,15 +103,16 @@ test("contains rejected checks and cleans up all event sources", async () => {
   });
 
   harness.windowTarget.dispatchEvent(new Event("focus"));
-  await flushChecks();
+  await flush();
   assert.equal(checks, 1);
 
   harness.stop();
-  assert.equal(harness.intervalCleared(), true);
+  assert.equal(harness.fake.pending(), 0);
 
-  harness.advance(60_000);
+  await harness.fake.advance(60_000);
   harness.windowTarget.dispatchEvent(new Event("focus"));
   harness.windowTarget.dispatchEvent(new Event("online"));
   harness.documentTarget.dispatchEvent(new Event("visibilitychange"));
+  await flush();
   assert.equal(checks, 1);
 });

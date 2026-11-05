@@ -1,3 +1,9 @@
+import {
+  isArray,
+  isString,
+  jsonObject,
+  objectWithFields,
+} from "../atlassian/http.js";
 import { guideErrorMessage } from "./guide-errors.js";
 import type {
   IntegrationExecutionContext,
@@ -93,6 +99,13 @@ type JiraTransitionsResponse = { transitions?: unknown[] } & Record<
   string,
   unknown
 >;
+const parseIssue = objectWithFields<JiraIssueResponse>({
+  key: isString,
+  id: isString,
+});
+const parseTransitions = objectWithFields<JiraTransitionsResponse>({
+  transitions: isArray,
+});
 
 export async function executeJiraGetIssue(
   args: Record<string, unknown>,
@@ -116,7 +129,8 @@ export async function executeJiraGetIssue(
     include.has("attachments") && !fields.includes("attachment")
       ? [...fields, "attachment"]
       : fields;
-  const issue = await jiraRequest<JiraIssueResponse>(connection, {
+  const issue = await jiraRequest(connection, {
+    parse: parseIssue,
     path: `/issue/${pathSegment(issueKey)}`,
     query: { fields: issueFields },
     signal: context.signal,
@@ -173,7 +187,8 @@ export async function executeJiraGetIssue(
         (issue.fields as { issuelinks?: unknown[] } | undefined)?.issuelinks ??
         [];
     } else {
-      const linkedIssue = await jiraRequest<JiraIssueResponse>(connection, {
+      const linkedIssue = await jiraRequest(connection, {
+        parse: parseIssue,
         path: `/issue/${pathSegment(issueKey)}`,
         query: { fields: ["issuelinks"] },
         signal: context.signal,
@@ -424,7 +439,8 @@ export async function executeJiraCreateIssue(
     });
   }
 
-  const data = await jiraRequest<Record<string, unknown>>(connection, {
+  const data = await jiraRequest(connection, {
+    parse: jsonObject,
     method: "POST",
     path: "/issue",
     body: payload,
@@ -433,7 +449,8 @@ export async function executeJiraCreateIssue(
   const key = typeof data.key === "string" ? data.key : "(unknown)";
   const createdIssue =
     args.return_issue === true && typeof data.key === "string"
-      ? await jiraRequest<JiraIssueResponse>(connection, {
+      ? await jiraRequest(connection, {
+          parse: parseIssue,
           path: `/issue/${pathSegment(data.key)}`,
           query: { fields: DEFAULT_SEARCH_FIELDS },
           signal: context.signal,
@@ -514,7 +531,8 @@ export async function executeJiraUpdateIssue(
   });
   const returnedIssue =
     args.return_issue === true
-      ? await jiraRequest<JiraIssueResponse>(connection, {
+      ? await jiraRequest(connection, {
+          parse: parseIssue,
           path: `/issue/${pathSegment(issueKey)}`,
           query: { fields: DEFAULT_SEARCH_FIELDS },
           signal: context.signal,
@@ -701,7 +719,8 @@ async function getTransitions(
   issueKey: string,
   context: IntegrationExecutionContext,
 ): Promise<JiraTransitionsResponse> {
-  return jiraRequest<JiraTransitionsResponse>(connection, {
+  return jiraRequest(connection, {
+    parse: parseTransitions,
     path: `/issue/${pathSegment(issueKey)}/transitions`,
     query: { expand: "transitions.fields" },
     signal: context.signal,

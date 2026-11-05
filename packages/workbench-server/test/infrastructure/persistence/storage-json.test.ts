@@ -3,9 +3,11 @@ import { appendFile, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, describe, it } from "node:test";
+import { z } from "zod";
 import {
   appendJsonLines,
   forEachJsonLineReverse,
+  readJsonFile,
   readJsonLines,
   readJsonLinesTail,
   readTextFileConsistent,
@@ -13,6 +15,7 @@ import {
 } from "../../../src/infrastructure/storage-bootstrap/index.js";
 
 const roots: string[] = [];
+const recordSchema = z.object({ index: z.number(), text: z.string() });
 
 after(async () => {
   await Promise.all(
@@ -34,7 +37,7 @@ describe("appendJsonLines", () => {
     const second = appendJsonLines(path, [{ value: 3 }, { value: 4 }]);
     await Promise.all([first, second]);
 
-    assert.deepEqual(await readJsonLines(path), [
+    assert.deepEqual(await readJsonLines(path, z.unknown()), [
       { value: 1 },
       { value: 2 },
       { value: 3 },
@@ -101,7 +104,7 @@ describe("forEachJsonLineReverse", () => {
     );
 
     const visited: number[] = [];
-    await forEachJsonLineReverse<(typeof records)[number]>(path, (record) => {
+    await forEachJsonLineReverse(path, recordSchema, (record) => {
       visited.push(record.index);
       return visited.length < 3;
     });
@@ -112,10 +115,10 @@ describe("forEachJsonLineReverse", () => {
     const path = await tempPath();
     await writeFile(path, '{"value":1}\nnot-json\n\n{"value":2}');
     const values: unknown[] = [];
-    await forEachJsonLineReverse(path, (value) => {
+    await forEachJsonLineReverse(path, z.unknown(), (value) => {
       values.push(value);
     });
-    await forEachJsonLineReverse(`${path}.missing`, () => {
+    await forEachJsonLineReverse(`${path}.missing`, z.unknown(), () => {
       assert.fail("missing files must not yield values");
     });
     assert.deepEqual(values, [{ value: 2 }, { value: 1 }]);
@@ -134,7 +137,7 @@ describe("readJsonLinesTail", () => {
       records.map((record) => JSON.stringify(record)).join("\r\n"),
     );
 
-    const tail = await readJsonLinesTail<(typeof records)[number]>(path, 3);
+    const tail = await readJsonLinesTail(path, recordSchema, 3);
     assert.deepEqual(tail, records.slice(-3));
   });
 
@@ -142,11 +145,36 @@ describe("readJsonLinesTail", () => {
     const path = await tempPath();
     await writeFile(path, '{"value":1}\nnot-json\n\n{"value":2}');
 
-    assert.deepEqual(await readJsonLinesTail(path, 2), [
+    assert.deepEqual(await readJsonLinesTail(path, z.unknown(), 2), [
       { value: 1 },
       { value: 2 },
     ]);
-    assert.deepEqual(await readJsonLinesTail(`${path}.missing`, 2), []);
-    assert.deepEqual(await readJsonLinesTail(path, 0), []);
+    assert.deepEqual(
+      await readJsonLinesTail(`${path}.missing`, z.unknown(), 2),
+      [],
+    );
+    assert.deepEqual(await readJsonLinesTail(path, z.unknown(), 0), []);
+  });
+});
+
+describe("schema validation", () => {
+  it("skips JSONL lines that fail the schema", async () => {
+    const path = await tempPath();
+    await writeFile(path, '{"value":1}\n{"value":"x"}\n{"value":3}\n');
+    const schema = z.object({ value: z.number() });
+    assert.deepEqual(await readJsonLines(path, schema), [
+      { value: 1 },
+      { value: 3 },
+    ]);
+    assert.deepEqual(await readJsonLinesTail(path, schema, 5), [
+      { value: 1 },
+      { value: 3 },
+    ]);
+  });
+
+  it("rejects a JSON file that fails the schema", async () => {
+    const path = await tempPath();
+    await writeFile(path, '{"value":"x"}');
+    await assert.rejects(readJsonFile(path, z.object({ value: z.number() })));
   });
 });

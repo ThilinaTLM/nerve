@@ -6,6 +6,7 @@ import { describe, it, type TestContext } from "node:test";
 import { executePython } from "../../src/execution/python/python.js";
 import { resolvePythonRuntime } from "../../src/execution/python/runtime.js";
 import type { PythonRuntime } from "../../src/index.js";
+import { waitFor } from "../support/wait-for.js";
 import { createTempProject } from "../support/project-fixtures.js";
 
 async function runtimeOrSkip(
@@ -25,29 +26,25 @@ async function runtimeOrSkip(
   };
 }
 
-async function waitForFile(path: string): Promise<string> {
-  const deadline = Date.now() + 2_000;
-  while (Date.now() < deadline) {
-    const value = await readFile(path, "utf8").catch(() => undefined);
-    if (value) return value;
-    await new Promise((resolve) => setTimeout(resolve, 10));
-  }
-  throw new Error(`Timed out waiting for ${path}`);
-}
+const waitForFile = (path: string) =>
+  waitFor(() => readFile(path, "utf8").catch(() => undefined), {
+    timeoutMs: 2_000,
+    message: `file ${path}`,
+  });
 
-async function waitForProcessExit(pid: number): Promise<void> {
-  const deadline = Date.now() + 2_000;
-  while (Date.now() < deadline) {
-    try {
-      process.kill(pid, 0);
-    } catch (error) {
-      if ((error as NodeJS.ErrnoException).code === "ESRCH") return;
-      throw error;
-    }
-    await new Promise((resolve) => setTimeout(resolve, 10));
-  }
-  throw new Error(`Process ${pid} survived abort`);
-}
+const waitForProcessExit = (pid: number) =>
+  waitFor(
+    () => {
+      try {
+        process.kill(pid, 0);
+        return false;
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code === "ESRCH") return true;
+        throw error;
+      }
+    },
+    { timeoutMs: 2_000, message: `process ${pid} to exit after abort` },
+  );
 
 describe("python executor", () => {
   it("rejects missing, empty, or conflicting source inputs", async (t) => {

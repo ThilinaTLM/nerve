@@ -1,6 +1,6 @@
 import { MissingAssetError } from "@nervekit/conversation-core";
 import { Hono } from "hono";
-import type { ServerAdapterContexts } from "../../../app/bootstrap/create-server-adapter-contexts.js";
+import type { ServerAdapterContexts } from "../../contexts.js";
 import { routeHandler } from "../responses.js";
 import { routeParam } from "../route-params.js";
 

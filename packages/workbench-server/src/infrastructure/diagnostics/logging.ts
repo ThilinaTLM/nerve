@@ -198,12 +198,10 @@ export class ApplicationLogger {
     const newestFirst: ApplicationLogRecord[] = [];
     const files = (await this.applicationLogFiles()).reverse();
     for (const file of files) {
-      await forEachJsonLineReverse<unknown>(
+      await forEachJsonLineReverse(
         join(this.logsDir(), file),
-        (value) => {
-          const parsed = applicationLogRecordSchema.safeParse(value);
-          if (!parsed.success) return;
-          const log = parsed.data;
+        applicationLogRecordSchema,
+        (log) => {
           if (query.beforeSeq !== undefined && log.seq >= query.beforeSeq)
             return;
           if (!matchesLogQuery(log, query)) return;
@@ -243,10 +241,10 @@ export class ApplicationLogger {
     this.#buffer = this.#buffer.filter((log) => !matchesLogPrune(log, query));
     for (const file of await this.applicationLogFiles()) {
       const path = join(this.logsDir(), file);
-      const parsed = (await readJsonLines<unknown>(path).catch(() => []))
-        .map((value) => applicationLogRecordSchema.safeParse(value))
-        .filter((result) => result.success)
-        .map((result) => result.data);
+      const parsed = await readJsonLines(
+        path,
+        applicationLogRecordSchema,
+      ).catch(() => []);
       const kept = parsed.filter((log) => !matchesLogPrune(log, query));
       pruned += parsed.length - kept.length;
       remaining += kept.length;
@@ -351,14 +349,11 @@ export class ApplicationLogger {
     for (const file of files) {
       const remaining = this.maxBufferedLogs - recent.length;
       if (remaining <= 0) break;
-      const values = await readJsonLinesTail<unknown>(
+      const parsed = await readJsonLinesTail(
         join(this.logsDir(), file),
+        applicationLogRecordSchema,
         remaining,
       ).catch(() => []);
-      const parsed = values
-        .map((value) => applicationLogRecordSchema.safeParse(value))
-        .filter((result) => result.success)
-        .map((result) => result.data);
       recent.unshift(...parsed);
     }
     return recent.sort((a, b) => a.seq - b.seq).slice(-this.maxBufferedLogs);
@@ -369,15 +364,14 @@ export class ApplicationLogger {
     const values = (
       await Promise.all(
         files.map((file) =>
-          readJsonLines<unknown>(join(this.logsDir(), file)).catch(() => []),
+          readJsonLines(
+            join(this.logsDir(), file),
+            applicationLogRecordSchema,
+          ).catch(() => []),
         ),
       )
     ).flat();
-    return values
-      .map((value) => applicationLogRecordSchema.safeParse(value))
-      .filter((result) => result.success)
-      .map((result) => result.data)
-      .sort((a, b) => a.seq - b.seq);
+    return values.sort((a, b) => a.seq - b.seq);
   }
 
   private async applicationLogFiles(): Promise<string[]> {

@@ -1,5 +1,5 @@
 import type { Hono } from "hono";
-import type { ServerRuntime } from "../../../app/runtime/server-runtime.js";
+import type { ServerAdapterContexts } from "../../contexts.js";
 import { createConversationAssetRoutes } from "./conversation-asset-routes.js";
 import { createAuthRoutes } from "./auth-routes.js";
 import { createHtmlPreviewRoutes } from "./html-preview-routes.js";
@@ -13,7 +13,12 @@ import { createLaunchLogRoutes } from "./launch-log-routes.js";
 import { createUpgradeReportRoutes } from "./upgrade-report-routes.js";
 import { createTranscriptionRoutes } from "./transcription-routes.js";
 
-export function mountApiRoutes(app: Hono, state: ServerRuntime): void {
+export interface ApiRoutesState {
+  readonly adapterContexts: ServerAdapterContexts;
+  readonly applicationLogsEnabled: boolean;
+}
+
+export function mountApiRoutes(app: Hono, state: ApiRoutesState): void {
   const contexts = state.adapterContexts.http;
   app.route(
     "/api/assets",

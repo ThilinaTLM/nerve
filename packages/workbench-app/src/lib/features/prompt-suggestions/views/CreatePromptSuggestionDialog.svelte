@@ -9,8 +9,7 @@ import {
   PROMPT_SUGGESTION_PROMPT_MAX_LENGTH,
   promptSuggestionNameSchema,
 } from "@nervekit/contracts/prompt-suggestions";
-import { Button } from "@nervekit/ui-kit/components/ui/button";
-import Dialog from "@nervekit/ui-kit/components/composites/dialog-shell";
+import FormDialog from "@nervekit/ui-kit/components/composites/form-dialog";
 import { Input } from "@nervekit/ui-kit/components/ui/input";
 import { Label } from "@nervekit/ui-kit/components/ui/label";
 import SelectField from "@nervekit/ui-kit/components/composites/select-field";
@@ -95,86 +94,77 @@ async function submit() {
 }
 </script>
 
-<Dialog
+<FormDialog
   bind:open
   title="New prompt suggestion"
   description="Create a reusable composer prompt in your user profile or the current project."
   size="md"
+  submitLabel="Create suggestion"
+  submitDisabled={!canCreate}
+  busy={saving}
+  bodyClass="gap-4"
+  {error}
+  onSubmit={submit}
 >
-  <div class="grid gap-4">
-    <div class="grid gap-1.5">
-      <Label>Scope</Label>
-      <SelectField items={scopeItems} bind:value={scope} disabled={saving} />
-    </div>
-
-    <div class="grid gap-1.5">
-      <Label for="prompt-suggestion-name">Name</Label>
-      <Input
-        id="prompt-suggestion-name"
-        bind:ref={nameInput}
-        bind:value={name}
-        maxlength={PROMPT_SUGGESTION_NAME_MAX_LENGTH}
-        placeholder="review-diff"
-        disabled={saving}
-      />
-      <p class="text-ui text-muted-foreground">
-        Use lowercase letters, numbers, and single hyphens.
-      </p>
-    </div>
-
-    <div class="grid gap-1.5">
-      <Label for="prompt-suggestion-label">Label</Label>
-      <Input
-        id="prompt-suggestion-label"
-        bind:value={label}
-        maxlength={PROMPT_SUGGESTION_LABEL_MAX_LENGTH}
-        placeholder="Review diff"
-        disabled={saving}
-      />
-    </div>
-
-    <div class="grid gap-1.5">
-      <Label for="prompt-suggestion-description">Description (optional)</Label>
-      <Input
-        id="prompt-suggestion-description"
-        bind:value={description}
-        maxlength={PROMPT_SUGGESTION_DESCRIPTION_MAX_LENGTH}
-        placeholder="Review current changes before committing."
-        disabled={saving}
-      />
-    </div>
-
-    <div class="grid gap-1.5">
-      <Label for="prompt-suggestion-prompt">Prompt</Label>
-      <Textarea
-        id="prompt-suggestion-prompt"
-        bind:value={prompt}
-        maxlength={PROMPT_SUGGESTION_PROMPT_MAX_LENGTH}
-        class="min-h-36"
-        placeholder="Review the current diff for correctness risks and missing tests."
-        disabled={saving}
-      />
-    </div>
-
-    <div class="rounded-md bg-muted p-3 text-ui text-muted-foreground">
-      <p class="break-all font-mono">{destination}</p>
-      <p class="mt-2">
-        The generated Markdown works immediately. Edit it later to add advanced
-        conditions or a trusted JavaScript predicate.
-      </p>
-    </div>
-
-    {#if error}
-      <p class="text-ui text-destructive" role="alert">{error}</p>
-    {/if}
+  <div class="grid gap-1.5">
+    <Label>Scope</Label>
+    <SelectField items={scopeItems} bind:value={scope} disabled={saving} />
   </div>
 
-  {#snippet footer()}
-    <Button variant="ghost" onclick={() => (open = false)} disabled={saving}
-      >Cancel</Button
-    >
-    <Button onclick={() => void submit()} disabled={!canCreate}
-      >{saving ? "Creating…" : "Create suggestion"}</Button
-    >
-  {/snippet}
-</Dialog>
+  <div class="grid gap-1.5">
+    <Label for="prompt-suggestion-name">Name</Label>
+    <Input
+      id="prompt-suggestion-name"
+      bind:ref={nameInput}
+      bind:value={name}
+      maxlength={PROMPT_SUGGESTION_NAME_MAX_LENGTH}
+      placeholder="review-diff"
+      disabled={saving}
+    />
+    <p class="text-ui text-muted-foreground">
+      Use lowercase letters, numbers, and single hyphens.
+    </p>
+  </div>
+
+  <div class="grid gap-1.5">
+    <Label for="prompt-suggestion-label">Label</Label>
+    <Input
+      id="prompt-suggestion-label"
+      bind:value={label}
+      maxlength={PROMPT_SUGGESTION_LABEL_MAX_LENGTH}
+      placeholder="Review diff"
+      disabled={saving}
+    />
+  </div>
+
+  <div class="grid gap-1.5">
+    <Label for="prompt-suggestion-description">Description (optional)</Label>
+    <Input
+      id="prompt-suggestion-description"
+      bind:value={description}
+      maxlength={PROMPT_SUGGESTION_DESCRIPTION_MAX_LENGTH}
+      placeholder="Review current changes before committing."
+      disabled={saving}
+    />
+  </div>
+
+  <div class="grid gap-1.5">
+    <Label for="prompt-suggestion-prompt">Prompt</Label>
+    <Textarea
+      id="prompt-suggestion-prompt"
+      bind:value={prompt}
+      maxlength={PROMPT_SUGGESTION_PROMPT_MAX_LENGTH}
+      class="min-h-36"
+      placeholder="Review the current diff for correctness risks and missing tests."
+      disabled={saving}
+    />
+  </div>
+
+  <div class="rounded-md bg-muted p-3 text-ui text-muted-foreground">
+    <p class="break-all font-mono">{destination}</p>
+    <p class="mt-2">
+      The generated Markdown works immediately. Edit it later to add advanced
+      conditions or a trusted JavaScript predicate.
+    </p>
+  </div>
+</FormDialog>

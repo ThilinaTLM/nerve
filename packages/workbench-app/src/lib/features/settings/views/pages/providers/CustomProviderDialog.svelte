@@ -31,7 +31,7 @@ import {
   upsertCustomProvider,
 } from "$lib/api";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
-import Dialog from "@nervekit/ui-kit/components/composites/dialog-shell";
+import FormDialog from "@nervekit/ui-kit/components/composites/form-dialog";
 import { Input } from "@nervekit/ui-kit/components/ui/input";
 import { Label } from "@nervekit/ui-kit/components/ui/label";
 import ProviderIcon from "$lib/presentation/model-picker/ProviderIcon.svelte";
@@ -183,144 +183,138 @@ async function submit() {
 }
 </script>
 
-<Dialog
+<FormDialog
   bind:open
   title={editing ? `Edit ${provider?.displayName}` : "Add custom provider"}
   description="Connect an OpenAI-compatible or other pi-ai supported endpoint."
   size="sm"
+  submitLabel={editing ? "Save provider" : "Add provider"}
+  submitDisabled={!canSubmit}
+  {busy}
+  onSubmit={submit}
 >
-  <div class="grid gap-3">
-    <div class="grid gap-3 sm:grid-cols-2">
-      <div class="grid gap-1.5">
-        <Label for="custom-provider-name">Display name</Label>
-        <Input
-          id="custom-provider-name"
-          value={displayName}
-          oninput={(event) => onDisplayNameInput(event.currentTarget.value)}
-          placeholder="My local server"
-          disabled={busy}
-        />
-      </div>
-      <div class="grid gap-1.5">
-        <Label for="custom-provider-id">Provider id</Label>
-        <Input
-          id="custom-provider-id"
-          bind:value={id}
-          oninput={() => (idTouched = true)}
-          placeholder="ollama"
-          disabled={busy || editing}
-          aria-invalid={!idValid && id.length > 0}
-        />
-        {#if id.length > 0 && !idValid}
-          <p class="flex items-center gap-1.5 text-ui text-destructive">
-            Use lowercase letters, numbers, and dashes.
-          </p>
-        {/if}
-      </div>
-    </div>
-
+  <div class="grid gap-3 sm:grid-cols-2">
     <div class="grid gap-1.5">
-      <Label>API type</Label>
-      <PopoverPanel
-        bind:open={apiOpen}
-        variant="field"
-        size="lg"
-        ariaLabel="API type"
-      >
-        {#snippet triggerChild({ props })}
-          <Button {...props} variant="outline" disabled={busy}>
-            <ProviderIcon
-              provider={apiItems.find((item) => item.key === api)?.family ??
-                api}
-              class="size-4"
-            />
-            {apiItems.find((item) => item.key === api)?.label ?? api}
-          </Button>
-        {/snippet}
-        {#if apiOpen}
-          <PopoverCommandList
-            items={apiItems}
-            ariaLabel="API types"
-            placeholder="Search provider APIs…"
-            isSelected={(item) => item.key === api}
-            onChoose={(item) => {
-              api = item.key as PiApi;
-              apiOpen = false;
-            }}
-          >
-            {#snippet icon(item)}<ProviderIcon
-                provider={item.family}
-                class="size-4"
-              />{/snippet}
-          </PopoverCommandList>
-        {/if}
-      </PopoverPanel>
-    </div>
-
-    <div class="grid gap-1.5">
-      <Label for="custom-provider-base-url">Base URL</Label>
+      <Label for="custom-provider-name">Display name</Label>
       <Input
-        id="custom-provider-base-url"
-        bind:value={baseUrl}
-        placeholder="http://localhost:11434/v1"
+        id="custom-provider-name"
+        value={displayName}
+        oninput={(event) => onDisplayNameInput(event.currentTarget.value)}
+        placeholder="My local server"
         disabled={busy}
       />
     </div>
-
     <div class="grid gap-1.5">
-      <Label for="custom-provider-key">
-        API key {hasKey ? "(stored — leave blank to keep)" : "(optional)"}
-      </Label>
+      <Label for="custom-provider-id">Provider id</Label>
       <Input
-        id="custom-provider-key"
-        type="password"
-        autocomplete="off"
-        bind:value={apiKey}
-        placeholder={hasKey ? "Paste a replacement key" : "Paste an API key"}
-        disabled={busy}
+        id="custom-provider-id"
+        bind:value={id}
+        oninput={() => (idTouched = true)}
+        placeholder="ollama"
+        disabled={busy || editing}
+        aria-invalid={!idValid && id.length > 0}
       />
+      {#if id.length > 0 && !idValid}
+        <p class="flex items-center gap-1.5 text-ui text-destructive">
+          Use lowercase letters, numbers, and dashes.
+        </p>
+      {/if}
     </div>
-
-    <div class="grid gap-1.5">
-      <Label for="custom-provider-headers">Custom headers (optional)</Label>
-      <Textarea
-        id="custom-provider-headers"
-        bind:value={headersText}
-        rows={3}
-        placeholder="X-Header: value
-Another-Header: value"
-        disabled={busy}
-      />
-      <p class="text-ui text-muted-foreground">
-        One <code class="font-mono">Name: value</code> per line.
-      </p>
-    </div>
-
-    <div class="grid gap-1.5">
-      <Label for="custom-provider-compat"
-        >Compatibility overrides (optional JSON)</Label
-      >
-      <Textarea
-        id="custom-provider-compat"
-        bind:value={compatText}
-        rows={3}
-        placeholder={'{ "supportsDeveloperRole": false }'}
-        disabled={busy}
-      />
-    </div>
-
-    {#if error}
-      <p class="flex items-center gap-1.5 text-ui text-destructive">
-        <TriangleAlert size={14} strokeWidth={2} />
-        {error}
-      </p>
-    {/if}
   </div>
 
-  {#snippet footer()}
-    <Button variant="ghost" onclick={() => (open = false)}>Cancel</Button>
-    <Button onclick={() => void submit()} disabled={!canSubmit}>
-      {busy ? "Saving…" : editing ? "Save provider" : "Add provider"}
-    </Button>
-  {/snippet}
-</Dialog>
+  <div class="grid gap-1.5">
+    <Label>API type</Label>
+    <PopoverPanel
+      bind:open={apiOpen}
+      variant="field"
+      size="lg"
+      ariaLabel="API type"
+    >
+      {#snippet triggerChild({ props })}
+        <Button {...props} variant="outline" disabled={busy}>
+          <ProviderIcon
+            provider={apiItems.find((item) => item.key === api)?.family ?? api}
+            class="size-4"
+          />
+          {apiItems.find((item) => item.key === api)?.label ?? api}
+        </Button>
+      {/snippet}
+      {#if apiOpen}
+        <PopoverCommandList
+          items={apiItems}
+          ariaLabel="API types"
+          placeholder="Search provider APIs…"
+          isSelected={(item) => item.key === api}
+          onChoose={(item) => {
+            api = item.key as PiApi;
+            apiOpen = false;
+          }}
+        >
+          {#snippet icon(item)}<ProviderIcon
+              provider={item.family}
+              class="size-4"
+            />{/snippet}
+        </PopoverCommandList>
+      {/if}
+    </PopoverPanel>
+  </div>
+
+  <div class="grid gap-1.5">
+    <Label for="custom-provider-base-url">Base URL</Label>
+    <Input
+      id="custom-provider-base-url"
+      bind:value={baseUrl}
+      placeholder="http://localhost:11434/v1"
+      disabled={busy}
+    />
+  </div>
+
+  <div class="grid gap-1.5">
+    <Label for="custom-provider-key">
+      API key {hasKey ? "(stored — leave blank to keep)" : "(optional)"}
+    </Label>
+    <Input
+      id="custom-provider-key"
+      type="password"
+      autocomplete="off"
+      bind:value={apiKey}
+      placeholder={hasKey ? "Paste a replacement key" : "Paste an API key"}
+      disabled={busy}
+    />
+  </div>
+
+  <div class="grid gap-1.5">
+    <Label for="custom-provider-headers">Custom headers (optional)</Label>
+    <Textarea
+      id="custom-provider-headers"
+      bind:value={headersText}
+      rows={3}
+      placeholder="X-Header: value
+Another-Header: value"
+      disabled={busy}
+    />
+    <p class="text-ui text-muted-foreground">
+      One <code class="font-mono">Name: value</code> per line.
+    </p>
+  </div>
+
+  <div class="grid gap-1.5">
+    <Label for="custom-provider-compat"
+      >Compatibility overrides (optional JSON)</Label
+    >
+    <Textarea
+      id="custom-provider-compat"
+      bind:value={compatText}
+      rows={3}
+      placeholder={'{ "supportsDeveloperRole": false }'}
+      disabled={busy}
+    />
+  </div>
+
+  {#if error}
+    <p class="flex items-center gap-1.5 text-ui text-destructive">
+      <TriangleAlert size={14} strokeWidth={2} />
+      {error}
+    </p>
+  {/if}
+</FormDialog>

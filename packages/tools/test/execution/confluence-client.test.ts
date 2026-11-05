@@ -101,3 +101,29 @@ describe("Confluence attachment downloads", () => {
     }
   });
 });
+
+describe("Confluence client response validation", () => {
+  it("rejects a non-JSON body with status, content type and snippet", async () => {
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = async () =>
+      new Response("<html>Proxy error</html>", {
+        status: 200,
+        headers: { "content-type": "text/html" },
+      });
+    try {
+      await assert.rejects(
+        confluenceRequest(connection, { path: "/thing" }),
+        (error: unknown) => {
+          const details = (error as { details?: Record<string, unknown> })
+            .details;
+          assert.equal(details?.status, 200);
+          assert.equal(details?.contentType, "text/html");
+          assert.match(String(details?.snippet), /Proxy error/);
+          return true;
+        },
+      );
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+});

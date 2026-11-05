@@ -1,5 +1,28 @@
-import type { ActivityService } from "../../domains/activity/activity.service.js";
-import type { MaintenanceService } from "../../domains/maintenance/maintenance.service.js";
+import type {
+  CoreStorage,
+  ConversationCore,
+} from "@nervekit/conversation-core";
+import type { GitOperationService, GitService } from "@nervekit/tools/git";
+import type { UnreadableConversationActivity } from "../domains/activity/unreadable-conversation-activity.js";
+import type { UnifiedCompletionService } from "../domains/completions/unified-completion-service.js";
+import type { ConversationTitleService } from "../domains/conversation-titles/title.service.js";
+import type { PrSyncService } from "../domains/git/pr-sync/pr-sync-service.js";
+import type { IntegrationHealthService } from "../domains/auth/integration-health.service.js";
+import type { WorkspaceMonitor } from "../domains/monitoring/workspace-monitor.js";
+import type { LaunchService } from "../domains/launches/application/launch.service.js";
+import type { LaunchDefinitionOperations } from "../domains/launch-definitions/launch-definition-operations.js";
+import type { LaunchDefinitionService } from "../domains/launch-definitions/index.js";
+import type { PromptSuggestionService } from "../domains/prompt-suggestions/index.js";
+import type { ProjectEditorService } from "../domains/projects/project-editor.service.js";
+import type { ProjectTerminalService } from "../domains/projects/project-terminal.service.js";
+import type { ProjectIconService } from "../domains/projects/project-icon.service.js";
+import type { CoreScratchNoteService } from "../core-host/scratch-note.service.js";
+import type { ScopedPermissionPolicySource } from "../core-host/scoped-permission-source.js";
+import type { ProjectMigrationService } from "../infrastructure/configuration/project-migration/project-migration.js";
+import type { AgentConfigurationService } from "../infrastructure/configuration/agent-configuration/agent-configuration-service.js";
+import type { agentConfigurationOperations } from "../infrastructure/configuration/agent-configuration/scoped-configuration-operations.js";
+import type { ActivityService } from "../domains/activity/activity.service.js";
+import type { MaintenanceService } from "../domains/maintenance/maintenance.service.js";
 import type { ApplicationConfigurationSnapshot } from "@nervekit/contracts/settings";
 import type { NerveSkillCatalog } from "@nervekit/skills";
 import type { StatusResponse } from "@nervekit/contracts/status";
@@ -7,21 +30,20 @@ import type {
   AuthManager,
   CredentialKeyService,
   OAuthFlowManager,
-} from "../../domains/auth/index.js";
-import type { AgentBrowserSkillCatalog } from "../../core-host/agent-browser-skills.js";
-import type { ProviderCatalogStore } from "../../domains/providers/index.js";
-import type { StorageUsageService } from "../../domains/storage/index.js";
-import type { LatestReleaseService } from "../../domains/status/latest-release-service.js";
-import type { SubscriptionUsageService } from "../../domains/usage/subscription-usage-service.js";
-import type { PerformanceDiagnosticsPort } from "../../core/ports/diagnostics.js";
-import type { ApplicationLogger } from "../../infrastructure/diagnostics/index.js";
-import type { WorkbenchNoticePublisher } from "../../infrastructure/events/index.js";
-import type { SecretProvider } from "../../infrastructure/secrets/index.js";
-import type { InitializedStorage } from "../../infrastructure/storage-bootstrap/index.js";
-import { createPermissionConfigurationService } from "../../core-host/permission-configuration.js";
-import type { RuntimeServices } from "./create-runtime-services.js";
+} from "../domains/auth/index.js";
+import type { AgentBrowserSkillCatalog } from "../core-host/agent-browser-skills.js";
+import type { ProviderCatalogStore } from "../domains/providers/index.js";
+import type { StorageUsageService } from "../domains/storage/index.js";
+import type { LatestReleaseService } from "../domains/status/latest-release-service.js";
+import type { SubscriptionUsageService } from "../domains/usage/subscription-usage-service.js";
+import type { PerformanceDiagnosticsPort } from "../core/ports/diagnostics.js";
+import type { ApplicationLogger } from "../infrastructure/diagnostics/index.js";
+import type { WorkbenchNoticePublisher } from "../infrastructure/events/index.js";
+import type { SecretProvider } from "../infrastructure/secrets/index.js";
+import type { InitializedStorage } from "../infrastructure/storage-bootstrap/index.js";
+import { createPermissionConfigurationService } from "../core-host/permission-configuration.js";
 
-interface AdapterInfrastructure {
+export interface AdapterInfrastructure {
   daemonId: string;
   host: string;
   port: number;
@@ -46,9 +68,35 @@ interface AdapterInfrastructure {
   statusResponse(): StatusResponse;
 }
 
+/** The service capabilities adapters are projected from; the bootstrap graph satisfies this structurally. */
+export interface AdapterServices {
+  unreadableConversations: UnreadableConversationActivity;
+  completions: UnifiedCompletionService;
+  conversationTitles: ConversationTitleService;
+  conversationCore: ConversationCore;
+  agentConfiguration: AgentConfigurationService;
+  configurationOperations: ReturnType<typeof agentConfigurationOperations>;
+  admissionPolicy: ScopedPermissionPolicySource;
+  coreStorage: CoreStorage;
+  projectMigration: ProjectMigrationService;
+  launches: LaunchService;
+  launchDefinitions: LaunchDefinitionService;
+  launchDefinitionOperations: LaunchDefinitionOperations;
+  scratchNotes: CoreScratchNoteService;
+  integrationHealth: IntegrationHealthService;
+  workspaceMonitor: WorkspaceMonitor;
+  prSync: PrSyncService;
+  git: GitService;
+  gitOperations: GitOperationService;
+  promptSuggestions: PromptSuggestionService;
+  editors: ProjectEditorService;
+  terminal: ProjectTerminalService;
+  projectIcons: ProjectIconService;
+}
+
 /** Projects the private bootstrap service graph into adapter-owned capabilities. */
 export function createServerAdapterContexts(
-  services: RuntimeServices,
+  services: AdapterServices,
   infrastructure: AdapterInfrastructure,
 ) {
   const getProject = (id: string) => {

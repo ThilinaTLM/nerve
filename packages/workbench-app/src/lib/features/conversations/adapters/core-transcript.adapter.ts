@@ -202,7 +202,9 @@ function toolRecord(
         ...base,
         kind: "approval",
         request: {
-          risk: conversationCatalog.toolRisks[source.toolName],
+          risk:
+            p.supervision?.effectiveRisk ??
+            conversationCatalog.toolRisks[source.toolName],
           reason: i.request.reason,
           offeredScopes: [
             "single_call",
@@ -263,7 +265,8 @@ function toolRecord(
         : status === "running" || status === "waiting"
           ? "executing"
           : status,
-    risk: conversationCatalog.toolRisks[p.toolName],
+    risk:
+      p.supervision?.effectiveRisk ?? conversationCatalog.toolRisks[p.toolName],
     supervision: p.supervision
       ? {
           decision: p.supervision.decision,
@@ -536,7 +539,9 @@ export function conversationTranscript(input: {
     if (i.kind === "approval")
       approvals.push({
         ...base,
-        risk: conversationCatalog.toolRisks[call.toolName],
+        risk:
+          call.supervision?.effectiveRisk ??
+          conversationCatalog.toolRisks[call.toolName],
         reason: i.request.reason,
         status: "pending",
         offeredScopes: [

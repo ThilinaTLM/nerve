@@ -34,7 +34,7 @@ import {
   defineWorkbenchMethodHandlersFor,
   type WorkbenchMethodHandlerMapFor,
 } from "../method-handler-registry.js";
-import type { ServerAdapterContexts } from "../../../app/bootstrap/create-server-adapter-contexts.js";
+import type { ServerAdapterContexts } from "../../contexts.js";
 
 type PlatformMethodContext = ServerAdapterContexts["protocol"]["platform"];
 const definePlatformMethodHandlers =

@@ -1,7 +1,7 @@
 <script lang="ts">
 import Check from "@lucide/svelte/icons/check";
 import type { PermissionRule } from "@nervekit/contracts/permissions";
-import Dialog from "@nervekit/ui-kit/components/composites/dialog-shell";
+import FormDialog from "@nervekit/ui-kit/components/composites/form-dialog";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
 import { Label } from "@nervekit/ui-kit/components/ui/label";
 import { Textarea } from "@nervekit/ui-kit/components/ui/textarea";
@@ -75,109 +75,105 @@ async function run(action: () => Promise<string | undefined>): Promise<void> {
   if (!serverError) open = false;
 }
 
+function submitRule(): Promise<void> | void {
+  const parsed = validation.rule;
+  if (parsed) return run(() => onSave(parsed));
+}
+
 const errorText = $derived(validation.error ?? serverError);
 </script>
 
-<Dialog
+<FormDialog
   bind:open
   size="md"
   title={`${rule ? "Edit" : "Add"} ${scope} rule`}
   description={`${ruleSetName} · ${scopeLabel}`}
+  submitLabel={rule ? "Save rule" : "Add rule"}
+  submitDisabled={Boolean(validation.error)}
+  {busy}
+  onSubmit={submitRule}
 >
-  <div class="grid gap-3">
-    <div class="flex items-center justify-between gap-3">
-      <div class="flex flex-wrap items-center gap-2">
-        <Label for="permission-rule-json">Rule JSON</Label>
-        <span
-          class={validation.error
-            ? "flex items-center gap-1 text-ui text-destructive"
-            : "flex items-center gap-1 text-ui text-success"}
-          aria-live="polite"
-        >
-          {#if validation.error}Needs attention{:else}<Check
-              class="size-3.5"
-              aria-hidden="true"
-            /> Valid{/if}
-        </span>
-      </div>
-      <Button variant="outline" size="sm" onclick={format}>Format JSON</Button>
-    </div>
-    <Textarea
-      id="permission-rule-json"
-      bind:value={source}
-      rows={18}
-      spellcheck={false}
-      class="min-h-72 resize-y font-mono text-ui"
-      aria-invalid={Boolean(errorText)}
-      aria-describedby={errorText
-        ? "permission-rule-guidance permission-rule-error"
-        : "permission-rule-guidance"}
-    />
-    {#if errorText}
-      <p
-        id="permission-rule-error"
-        role="alert"
-        class="whitespace-pre-wrap rounded-md bg-destructive-subtle p-3 text-ui text-destructive"
-      >
-        {errorText}
-      </p>
-    {/if}
-    {#if validation.rule && Object.keys(validation.rule.when).length === 0}
-      <p class="rounded-md bg-warning-subtle p-3 text-ui text-warning">
-        An empty “when” matches every request. Add conditions if this is not
-        intentional.
-      </p>
-    {/if}
-    <details class="text-ui text-muted-foreground">
-      <summary
-        id="permission-rule-guidance"
-        class="cursor-pointer select-none hover:text-foreground"
-        >Rule requirements</summary
-      >
-      <ul class="mt-2 grid list-disc gap-1.5 pl-4">
-        {#if scope === "user"}
-          <li>
-            <span class="text-foreground">Enforcement:</span> overridable or guardrail.
-            Guardrails can only prompt or deny.
-          </li>
-        {:else}
-          <li>
-            <span class="text-foreground">Enforcement:</span> overridable only. No
-            allow rules targeting nerve_home or nerve_data roots.
-          </li>
-          <li>
-            <span class="text-foreground">Trust:</span> project rules apply only while
-            the permission file is trusted.
-          </li>
-        {/if}
-        <li>
-          <span class="text-foreground">ID:</span> unique within this overlay.
-        </li>
-        <li>
-          <span class="text-foreground">Priority:</span> −1000 to 1000; unique within
-          each enforcement class.
-        </li>
-      </ul>
-    </details>
-  </div>
-  {#snippet footer()}
+  {#snippet footerLeading()}
     {#if rule && onDelete}
       <Button
         variant="destructive"
-        class="mr-auto"
         disabled={busy}
         onclick={() => run(onDelete)}>Delete rule</Button
       >
     {/if}
-    <Button variant="outline" disabled={busy} onclick={() => (open = false)}
-      >Cancel</Button
-    >
-    <Button
-      disabled={busy || Boolean(validation.error)}
-      onclick={() => {
-        const parsed = validation.rule;
-        if (parsed) void run(() => onSave(parsed));
-      }}>{busy ? "Saving…" : rule ? "Save rule" : "Add rule"}</Button
-    >
   {/snippet}
-</Dialog>
+  <div class="flex items-center justify-between gap-3">
+    <div class="flex flex-wrap items-center gap-2">
+      <Label for="permission-rule-json">Rule JSON</Label>
+      <span
+        class={validation.error
+          ? "flex items-center gap-1 text-ui text-destructive"
+          : "flex items-center gap-1 text-ui text-success"}
+        aria-live="polite"
+      >
+        {#if validation.error}Needs attention{:else}<Check
+            class="size-3.5"
+            aria-hidden="true"
+          /> Valid{/if}
+      </span>
+    </div>
+    <Button variant="outline" size="sm" onclick={format}>Format JSON</Button>
+  </div>
+  <Textarea
+    id="permission-rule-json"
+    bind:value={source}
+    rows={18}
+    spellcheck={false}
+    class="min-h-72 resize-y font-mono text-ui"
+    aria-invalid={Boolean(errorText)}
+    aria-describedby={errorText
+      ? "permission-rule-guidance permission-rule-error"
+      : "permission-rule-guidance"}
+  />
+  {#if errorText}
+    <p
+      id="permission-rule-error"
+      role="alert"
+      class="whitespace-pre-wrap rounded-md bg-destructive-subtle p-3 text-ui text-destructive"
+    >
+      {errorText}
+    </p>
+  {/if}
+  {#if validation.rule && Object.keys(validation.rule.when).length === 0}
+    <p class="rounded-md bg-warning-subtle p-3 text-ui text-warning">
+      An empty “when” matches every request. Add conditions if this is not
+      intentional.
+    </p>
+  {/if}
+  <details class="text-ui text-muted-foreground">
+    <summary
+      id="permission-rule-guidance"
+      class="cursor-pointer select-none hover:text-foreground"
+      >Rule requirements</summary
+    >
+    <ul class="mt-2 grid list-disc gap-1.5 pl-4">
+      {#if scope === "user"}
+        <li>
+          <span class="text-foreground">Enforcement:</span> overridable or guardrail.
+          Guardrails can only prompt or deny.
+        </li>
+      {:else}
+        <li>
+          <span class="text-foreground">Enforcement:</span> overridable only. No allow
+          rules targeting nerve_home or nerve_data roots.
+        </li>
+        <li>
+          <span class="text-foreground">Trust:</span> project rules apply only while
+          the permission file is trusted.
+        </li>
+      {/if}
+      <li>
+        <span class="text-foreground">ID:</span> unique within this overlay.
+      </li>
+      <li>
+        <span class="text-foreground">Priority:</span> −1000 to 1000; unique within
+        each enforcement class.
+      </li>
+    </ul>
+  </details>
+</FormDialog>

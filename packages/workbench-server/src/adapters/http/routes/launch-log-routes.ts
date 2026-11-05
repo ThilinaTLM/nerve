@@ -1,6 +1,6 @@
 import { launchLogQuerySchema } from "@nervekit/contracts/launches";
 import { Hono } from "hono";
-import type { ServerAdapterContexts } from "../../../app/bootstrap/create-server-adapter-contexts.js";
+import type { ServerAdapterContexts } from "../../contexts.js";
 type LaunchLogRoutesContext = ServerAdapterContexts["http"]["launchLogs"];
 import { HttpError } from "../errors.js";
 import { numberQuery } from "../query.js";

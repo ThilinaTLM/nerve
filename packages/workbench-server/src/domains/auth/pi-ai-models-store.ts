@@ -2,7 +2,7 @@ import type { ModelsStore, ModelsStoreEntry } from "@earendil-works/pi-ai";
 import {
   atomicWriteJson,
   pathExists,
-  readJsonFile,
+  readJsonFileUnknown,
 } from "../../infrastructure/storage-bootstrap/json.js";
 
 type StoredCatalogs = Record<string, ModelsStoreEntry>;
@@ -37,7 +37,7 @@ export class PiAiModelsStore implements ModelsStore {
 
   private async readAll(): Promise<StoredCatalogs> {
     if (!(await pathExists(this.path))) return {};
-    const value = await readJsonFile<unknown>(this.path).catch(() => undefined);
+    const value = await readJsonFileUnknown(this.path).catch(() => undefined);
     if (!value || typeof value !== "object" || Array.isArray(value)) return {};
     return value as StoredCatalogs;
   }

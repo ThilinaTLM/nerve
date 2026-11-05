@@ -1,8 +1,7 @@
 <script lang="ts">
 import { untrack } from "svelte";
 import type { UpdateLaunchDefinitionRequest } from "@nervekit/contracts/launch-definitions";
-import { Button } from "@nervekit/ui-kit/components/ui/button";
-import Dialog from "@nervekit/ui-kit/components/composites/dialog-shell";
+import FormDialog from "@nervekit/ui-kit/components/composites/form-dialog";
 import { Input } from "@nervekit/ui-kit/components/ui/input";
 import { Label } from "@nervekit/ui-kit/components/ui/label";
 import SelectField from "@nervekit/ui-kit/components/composites/select-field";
@@ -94,116 +93,108 @@ function submit() {
 }
 </script>
 
-<Dialog
+<FormDialog
   bind:open
   title={dialogTitle}
   description={dialogDescription}
   size="sm"
+  submitLabel={dialogSubmitLabel}
+  submitDisabled={!canSave}
+  busy={saving}
+  onSubmit={submit}
   {onOpenChange}
 >
-  <div class="grid gap-3">
-    <div class="grid gap-1.5">
-      <Label for="launch-definition-label">Name</Label>
-      <Input
-        id="launch-definition-label"
-        bind:value={label}
-        placeholder="web-dev"
-        disabled={saving}
-      />
-    </div>
-
-    {#if !definition}
-      <div class="grid gap-1.5">
-        <Label for="launch-definition-folder">Folder</Label>
-        <SelectField
-          bind:value={destination}
-          ariaLabel="Launch folder"
-          items={[
-            { value: ROOT, label: "Top level" },
-            ...folders.map((folder) => ({
-              value: folder.id,
-              label: folder.label,
-            })),
-          ]}
-          disabled={saving}
-        />
-      </div>
-    {/if}
-
-    <div class="grid gap-1.5">
-      <Label for="launch-definition-command">Command</Label>
-      <Textarea
-        id="launch-definition-command"
-        bind:value={commandText}
-        rows={3}
-        placeholder="pnpm dev"
-        class="min-h-20 py-1.5 font-mono text-ui"
-        disabled={saving}
-      />
-      <p class="text-ui text-muted-foreground">
-        This is the shell command run by the play button.
-      </p>
-    </div>
-
-    <div class="grid gap-1.5">
-      <Label for="launch-definition-port">Port</Label>
-      <Input
-        id="launch-definition-port"
-        bind:value={port}
-        type="number"
-        min="1"
-        max="65535"
-        placeholder="3000"
-        disabled={saving}
-        aria-invalid={!portValid}
-      />
-      <p class="text-ui text-muted-foreground">
-        Optional TCP port to check before this launch starts.
-      </p>
-    </div>
-
-    <div class="grid gap-1.5">
-      <Label for="launch-run-policy">Run policy</Label>
-      <SelectField
-        bind:value={runPolicy}
-        ariaLabel="Launch run policy"
-        items={[
-          { value: "single", label: "Single run" },
-          { value: "concurrent", label: "Concurrent runs" },
-        ]}
-        disabled={saving}
-        triggerClass="h-7 px-2 text-ui"
-      />
-      <p class="text-ui text-muted-foreground">
-        Single run focuses an existing process. Concurrent runs may start
-        another process.
-      </p>
-    </div>
-
-    <div class="grid gap-1.5">
-      <Label for="launch-definition-cwd">Working directory</Label>
-      <Input
-        id="launch-definition-cwd"
-        bind:value={cwd}
-        placeholder={projectCwd
-          ? `Default: ${projectCwd}`
-          : "Default working directory"}
-        class="font-mono text-ui"
-        disabled={saving}
-      />
-      <p class="text-ui text-muted-foreground">
-        Leave blank to use the project directory. Relative paths resolve from
-        it.
-      </p>
-    </div>
+  <div class="grid gap-1.5">
+    <Label for="launch-definition-label">Name</Label>
+    <Input
+      id="launch-definition-label"
+      bind:value={label}
+      placeholder="web-dev"
+      disabled={saving}
+    />
   </div>
 
-  {#snippet footer()}
-    <Button variant="ghost" onclick={() => (open = false)} disabled={saving}
-      >Cancel</Button
-    >
-    <Button onclick={submit} disabled={!canSave}
-      >{saving ? "Saving…" : dialogSubmitLabel}</Button
-    >
-  {/snippet}
-</Dialog>
+  {#if !definition}
+    <div class="grid gap-1.5">
+      <Label for="launch-definition-folder">Folder</Label>
+      <SelectField
+        bind:value={destination}
+        ariaLabel="Launch folder"
+        items={[
+          { value: ROOT, label: "Top level" },
+          ...folders.map((folder) => ({
+            value: folder.id,
+            label: folder.label,
+          })),
+        ]}
+        disabled={saving}
+      />
+    </div>
+  {/if}
+
+  <div class="grid gap-1.5">
+    <Label for="launch-definition-command">Command</Label>
+    <Textarea
+      id="launch-definition-command"
+      bind:value={commandText}
+      rows={3}
+      placeholder="pnpm dev"
+      class="min-h-20 py-1.5 font-mono text-ui"
+      disabled={saving}
+    />
+    <p class="text-ui text-muted-foreground">
+      This is the shell command run by the play button.
+    </p>
+  </div>
+
+  <div class="grid gap-1.5">
+    <Label for="launch-definition-port">Port</Label>
+    <Input
+      id="launch-definition-port"
+      bind:value={port}
+      type="number"
+      min="1"
+      max="65535"
+      placeholder="3000"
+      disabled={saving}
+      aria-invalid={!portValid}
+    />
+    <p class="text-ui text-muted-foreground">
+      Optional TCP port to check before this launch starts.
+    </p>
+  </div>
+
+  <div class="grid gap-1.5">
+    <Label for="launch-run-policy">Run policy</Label>
+    <SelectField
+      bind:value={runPolicy}
+      ariaLabel="Launch run policy"
+      items={[
+        { value: "single", label: "Single run" },
+        { value: "concurrent", label: "Concurrent runs" },
+      ]}
+      disabled={saving}
+      triggerClass="h-7 px-2 text-ui"
+    />
+    <p class="text-ui text-muted-foreground">
+      Single run focuses an existing process. Concurrent runs may start another
+      process.
+    </p>
+  </div>
+
+  <div class="grid gap-1.5">
+    <Label for="launch-definition-cwd">Working directory</Label>
+    <Input
+      id="launch-definition-cwd"
+      bind:value={cwd}
+      placeholder={projectCwd
+        ? `Default: ${projectCwd}`
+        : "Default working directory"}
+      class="font-mono text-ui"
+      disabled={saving}
+    />
+    <p class="text-ui text-muted-foreground">
+      Leave blank to use the project directory. Relative paths resolve from it.
+    </p>
+  </div>
+</FormDialog>

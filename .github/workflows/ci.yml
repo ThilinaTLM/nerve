@@ -528,6 +528,56 @@ jobs:
       - name: Build website
         run: pnpm --filter @nervekit/website build
 
+  component-tests:
+    name: UI component tests
+    runs-on: ubuntu-latest
+    needs: paths
+    # Install only (no native or workbench build), off the critical path.
+    if: ${{ needs.paths.outputs.full == 'true' || contains(fromJSON(needs.paths.outputs.packages), '@nervekit/ui-kit') }}
+    timeout-minutes: 10
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Set up pnpm
+        uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+        with:
+          version: 11.20.0
+      - name: Set up Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24
+          cache: pnpm
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Run ui-kit component tests
+        run: pnpm --filter @nervekit/ui-kit test:components
+
+  knip:
+    name: Unused exports (advisory)
+    runs-on: ubuntu-latest
+    needs: paths
+    # Advisory until the baseline is triaged: not part of the CI gate.
+    continue-on-error: true
+    timeout-minutes: 10
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Set up pnpm
+        uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+        with:
+          version: 11.20.0
+      - name: Set up Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24
+          cache: pnpm
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Report unused code
+        run: pnpm knip --reporter compact
+
   native-tests:
     name: Native ${{ matrix.suite }}${{ matrix.shard && format(' {0}', matrix.shard) || '' }} tests (${{ matrix.os }})
     needs:
@@ -664,6 +714,7 @@ jobs:
       - package-tests
       - browser-tests
       - website
+      - component-tests
       - native-gate
 
     steps:
@@ -681,6 +732,7 @@ jobs:
             package-tests=${{ needs.package-tests.result }}
             browser=${{ needs.browser-tests.result }}
             website=${{ needs.website.result }}
+            component-tests=${{ needs.component-tests.result }}
         run: |
           set -euo pipefail
           if [ "${PATHS_RESULT}" != "success" ] || [ "${LINT_RESULT}" != "success" ] || [ "${NATIVE_RESULT}" != "success" ]; then

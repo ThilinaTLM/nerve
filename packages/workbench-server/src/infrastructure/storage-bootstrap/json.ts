@@ -11,6 +11,7 @@ import {
 } from "node:fs/promises";
 import { dirname } from "node:path";
 import { createInterface } from "node:readline";
+import type { z } from "zod";
 import {
   atomicReplaceFile,
   atomicWriteFile,
@@ -34,9 +35,25 @@ export async function pathExists(path: string): Promise<boolean> {
   }
 }
 
-export async function readJsonFile<T>(path: string): Promise<T> {
+export async function readJsonFile<S extends z.ZodType>(
+  path: string,
+  schema: S,
+): Promise<z.infer<S>> {
+  return schema.parse(await readJsonFileUnknown(path));
+}
+
+/** Explicit opt-out: parsed JSON with no shape validation. */
+export async function readJsonFileUnknown(path: string): Promise<unknown> {
   const raw = await readFile(path, "utf8");
-  return JSON.parse(raw) as T;
+  return JSON.parse(raw);
+}
+
+function parseJsonLine<S extends z.ZodType>(
+  line: string,
+  schema: S,
+): { value: z.infer<S>; raw: unknown } {
+  const raw: unknown = JSON.parse(line);
+  return { value: schema.parse(raw), raw };
 }
 
 /**
@@ -48,15 +65,18 @@ export function readTextFileConsistent(path: string): Promise<string> {
   );
 }
 
-export async function readJsonLines<T>(path: string): Promise<T[]> {
+export async function readJsonLines<S extends z.ZodType>(
+  path: string,
+  schema: S,
+): Promise<z.infer<S>[]> {
   if (!(await pathExists(path))) return [];
   const raw = await readFile(path, "utf8");
-  const values: T[] = [];
+  const values: z.infer<S>[] = [];
   for (const [index, line] of raw.split(/\r?\n/).entries()) {
     const trimmed = line.trim();
     if (!trimmed) continue;
     try {
-      values.push(JSON.parse(trimmed) as T);
+      values.push(parseJsonLine(trimmed, schema).value);
     } catch (error) {
       process.emitWarning(
         `Skipping invalid JSONL line ${path}:${index + 1}: ${
@@ -75,13 +95,14 @@ const JSONL_TAIL_CHUNK_BYTES = 64 * 1024;
  * backwards in bounded chunks, so startup work depends on the requested tail
  * rather than the total journal size. Returns entries in file order.
  */
-export async function readJsonLinesTail<T>(
+export async function readJsonLinesTail<S extends z.ZodType>(
   path: string,
+  schema: S,
   limit: number,
-): Promise<T[]> {
+): Promise<z.infer<S>[]> {
   if (limit <= 0) return [];
-  const reversed: T[] = [];
-  await forEachJsonLineReverse<T>(path, (value) => {
+  const reversed: z.infer<S>[] = [];
+  await forEachJsonLineReverse(path, schema, (value) => {
     reversed.push(value);
     return reversed.length < limit;
   });
@@ -92,9 +113,10 @@ export async function readJsonLinesTail<T>(
  * Visit valid JSONL entries newest-first using bounded backwards reads. Return
  * false from the visitor to stop without reading the rest of the file.
  */
-export async function forEachJsonLineReverse<T>(
+export async function forEachJsonLineReverse<S extends z.ZodType>(
   path: string,
-  onValue: (value: T) => boolean | void,
+  schema: S,
+  onValue: (value: z.infer<S>) => boolean | void,
 ): Promise<void> {
   const handle = await open(path, "r").catch((error: NodeJS.ErrnoException) => {
     if (error.code === "ENOENT") return undefined;
@@ -114,11 +136,11 @@ export async function forEachJsonLineReverse<T>(
       const lines = splitBufferLines(combined);
       leadingFragment = lines.shift() ?? Buffer.alloc(0);
       for (let index = lines.length - 1; index >= 0; index -= 1) {
-        const value = parseJsonTailLine<T>(path, lines[index]);
+        const value = parseJsonTailLine(path, schema, lines[index]);
         if (value !== undefined && onValue(value) === false) return;
       }
     }
-    const value = parseJsonTailLine<T>(path, leadingFragment);
+    const value = parseJsonTailLine(path, schema, leadingFragment);
     if (value !== undefined) onValue(value);
   } finally {
     await handle.close();
@@ -137,14 +159,15 @@ function splitBufferLines(value: Buffer): Buffer[] {
   return lines;
 }
 
-function parseJsonTailLine<T>(
+function parseJsonTailLine<S extends z.ZodType>(
   path: string,
+  schema: S,
   line: Buffer | undefined,
-): T | undefined {
+): z.infer<S> | undefined {
   const trimmed = line?.toString("utf8").trim();
   if (!trimmed) return undefined;
   try {
-    return JSON.parse(trimmed) as T;
+    return parseJsonLine(trimmed, schema).value;
   } catch (error) {
     process.emitWarning(
       `Skipping invalid JSONL line in tail of ${path}: ${
@@ -160,9 +183,10 @@ function parseJsonTailLine<T>(
  * parsed line. Memory stays O(1) regardless of file size. Invalid lines are
  * skipped with a warning.
  */
-export async function forEachJsonLine<T>(
+export async function forEachJsonLine<S extends z.ZodType>(
   path: string,
-  onValue: (value: T) => void,
+  schema: S,
+  onValue: (value: z.infer<S>) => void,
 ): Promise<void> {
   if (!(await pathExists(path))) return;
   const stream = createReadStream(path, { encoding: "utf8" });
@@ -172,15 +196,18 @@ export async function forEachJsonLine<T>(
     index += 1;
     const trimmed = line.trim();
     if (!trimmed) continue;
+    let value: z.infer<S>;
     try {
-      onValue(JSON.parse(trimmed) as T);
+      value = parseJsonLine(trimmed, schema).value;
     } catch (error) {
       process.emitWarning(
         `Skipping invalid JSONL line ${path}:${index}: ${
           error instanceof Error ? error.message : String(error)
         }`,
       );
+      continue;
     }
+    onValue(value);
   }
 }
 
@@ -190,9 +217,10 @@ export async function forEachJsonLine<T>(
  * one line at a time so the full file is never materialized in memory. Returns
  * the number of retained entries.
  */
-export async function filterJsonLinesToFile<T>(
+export async function filterJsonLinesToFile<S extends z.ZodType>(
   path: string,
-  predicate: (value: T) => boolean,
+  schema: S,
+  predicate: (value: z.infer<S>) => boolean,
   mode?: number,
 ): Promise<number> {
   if (!(await pathExists(path))) return 0;
@@ -207,9 +235,10 @@ export async function filterJsonLinesToFile<T>(
         index += 1;
         const trimmed = line.trim();
         if (!trimmed) continue;
-        let value: T;
+        let value: z.infer<S>;
+        let raw: unknown;
         try {
-          value = JSON.parse(trimmed) as T;
+          ({ value, raw } = parseJsonLine(trimmed, schema));
         } catch (error) {
           process.emitWarning(
             `Skipping invalid JSONL line ${path}:${index}: ${
@@ -219,7 +248,7 @@ export async function filterJsonLinesToFile<T>(
           continue;
         }
         if (!predicate(value)) continue;
-        await output.write(`${JSON.stringify(value)}\n`, undefined, "utf8");
+        await output.write(`${JSON.stringify(raw)}\n`, undefined, "utf8");
         kept += 1;
       }
     },

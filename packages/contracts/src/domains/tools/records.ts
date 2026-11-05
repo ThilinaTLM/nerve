@@ -4,7 +4,6 @@ export * from "./tool-name.js";
 import {
   durablePermissionSchema,
   permissionRuleKindSchema,
-  toolRiskSchema,
 } from "../permissions/permissions.js";
 import {
   toolKindSchema,
@@ -49,8 +48,6 @@ export const toolDescriptorSchema = z.object({
   baseRisk: staticToolRiskSchema,
   primaryArguments: z.array(z.string().trim().min(1).max(128)),
   targetKinds: z.array(permissionTargetKindSchema).min(1),
-  /** @deprecated Use baseRisk. */
-  risk: toolRiskSchema,
   argumentSensitive: z.boolean().default(false),
   description: z.string(),
   group: toolGroupNameSchema,

@@ -7,8 +7,8 @@ import {
 } from "$lib/api";
 import { encryptApiKey } from "$lib/platform/crypto/credential-crypto";
 import { settingsState } from "$lib/features/settings/state/settings-state.svelte";
+import FormDialog from "@nervekit/ui-kit/components/composites/form-dialog";
 import { Input } from "@nervekit/ui-kit/components/ui/input";
-import SettingsFormDialog from "../../shared/settings-form-dialog.svelte";
 import SettingsFormField from "../../shared/settings-form-field.svelte";
 import {
   atlassianCredentialId,
@@ -91,17 +91,17 @@ async function save(): Promise<void> {
 }
 </script>
 
-<SettingsFormDialog
+<FormDialog
   bind:open
   title={profile ? "Edit Atlassian account" : "Add Atlassian account"}
   description="Use one Atlassian connection for Jira, Confluence, or both."
-  saveLabel="Save account"
+  submitLabel="Save account"
   bodyClass="sm:grid-cols-2"
   bodyTourId="setup-atlassian-profile-form"
   errorClass="sm:col-span-2"
   {busy}
   {error}
-  onSave={() => void save()}
+  onSubmit={save}
 >
   <SettingsFormField
     id="atlassian-profile-name"
@@ -157,4 +157,4 @@ async function save(): Promise<void> {
       placeholder="DOCS"
     />
   </SettingsFormField>
-</SettingsFormDialog>
+</FormDialog>

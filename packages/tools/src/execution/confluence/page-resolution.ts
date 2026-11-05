@@ -1,3 +1,4 @@
+import { jsonObject } from "../atlassian/http.js";
 import {
   type ConfluenceConnection,
   confluenceRequest,
@@ -19,7 +20,8 @@ export async function fetchPageCurrent(
   pageId: string,
   signal?: AbortSignal,
 ): Promise<Record<string, unknown>> {
-  return confluenceRequest<Record<string, unknown>>(connection, {
+  return confluenceRequest(connection, {
+    parse: jsonObject,
     path: `/pages/${pathSegment(pageId)}`,
     query: { "body-format": "storage" },
     signal,

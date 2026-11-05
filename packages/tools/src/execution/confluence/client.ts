@@ -1,10 +1,15 @@
 import { guideErrorMessage } from "./guide-errors.js";
-import { Buffer } from "node:buffer";
 import { trimTrailingSlashes } from "../atlassian/site-url.js";
 import type { IntegrationExecutionContext } from "../execution-context.js";
 import { withTimeoutSignal } from "../process/abort.js";
 import { safeAtlassianError } from "../atlassian/atlassian-error.js";
 import { ToolExecutionError } from "../errors/tool-error.js";
+import {
+  anyJson,
+  basicAuthHeader,
+  readAtlassianJson,
+  type ResponseParser,
+} from "../atlassian/http.js";
 
 export type ConfluenceConnection = {
   siteUrl: string;
@@ -32,6 +37,8 @@ type ConfluenceRequestOptions = {
   body?: unknown;
   signal?: AbortSignal;
 };
+
+type Parsed<T> = { parse: ResponseParser<T> };
 
 type MultipartAttachmentOptions = {
   method: "POST" | "PUT";
@@ -80,10 +87,22 @@ export function normalizeSiteUrl(value: string): string {
   return trimTrailingSlashes(siteUrl);
 }
 
-export async function confluenceRequest<T = unknown>(
+/**
+ * Perform a Confluence request. Pass `parse` to validate the consumed
+ * response shape; without it the payload is returned as `unknown`.
+ */
+export function confluenceRequest<T>(
+  connection: ConfluenceConnection,
+  options: ConfluenceRequestOptions & Parsed<T>,
+): Promise<T>;
+export function confluenceRequest(
   connection: ConfluenceConnection,
   options: ConfluenceRequestOptions,
-): Promise<T> {
+): Promise<unknown>;
+export async function confluenceRequest(
+  connection: ConfluenceConnection,
+  options: ConfluenceRequestOptions & Partial<Parsed<unknown>>,
+): Promise<unknown> {
   const apiRoot = options.api === "v1" ? "/wiki/rest/api" : "/wiki/api/v2";
   const url = new URL(`${connection.siteUrl}${apiRoot}${options.path}`);
   appendQuery(url, options.query);
@@ -106,19 +125,16 @@ export async function confluenceRequest<T = unknown>(
   if (!response.ok) {
     await throwConfluenceError(response, init.method ?? "GET", options.path);
   }
-  if (response.status === 204) return undefined as T;
-  const text = await response.text();
-  if (!text.trim()) return undefined as T;
-  try {
-    return JSON.parse(text) as T;
-  } catch {
-    return text as T;
-  }
+  return readAtlassianJson(
+    response,
+    { service: "confluence", method: init.method ?? "GET", path: options.path },
+    options.parse ?? anyJson,
+  );
 }
 
-export async function confluenceAttachmentRequest<T = unknown>(
+export async function confluenceAttachmentRequest<T>(
   connection: ConfluenceConnection,
-  options: MultipartAttachmentOptions,
+  options: MultipartAttachmentOptions & Parsed<T>,
 ): Promise<T> {
   const url = new URL(
     `${connection.siteUrl}/wiki/rest/api/content/${pathSegment(options.pageId)}/child/attachment`,
@@ -141,14 +157,15 @@ export async function confluenceAttachmentRequest<T = unknown>(
       `/content/${pathSegment(options.pageId)}/child/attachment`,
     );
   }
-  if (response.status === 204) return undefined as T;
-  const text = await response.text();
-  if (!text.trim()) return undefined as T;
-  try {
-    return JSON.parse(text) as T;
-  } catch {
-    return text as T;
-  }
+  return readAtlassianJson(
+    response,
+    {
+      service: "confluence",
+      method: options.method,
+      path: `/content/${pathSegment(options.pageId)}/child/attachment`,
+    },
+    options.parse,
+  );
 }
 
 export async function confluenceDownload(
@@ -224,7 +241,7 @@ function appendQuery(url: URL, query: Record<string, QueryValue> | undefined) {
 }
 
 function basicAuth(connection: ConfluenceConnection): string {
-  return `Basic ${Buffer.from(`${connection.email}:${connection.token}`, "utf8").toString("base64")}`;
+  return basicAuthHeader(connection.email, connection.token);
 }
 
 async function throwConfluenceError(

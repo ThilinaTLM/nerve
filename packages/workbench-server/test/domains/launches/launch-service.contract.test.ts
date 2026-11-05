@@ -10,6 +10,7 @@ import {
   createService,
   servicePortsForRecords,
 } from "./launch-service-fixture.js";
+import { flushMicrotasks, waitFor } from "../../support/wait-for.js";
 
 function fixture(
   options: {
@@ -174,7 +175,7 @@ test("a pruned launch makes its delayed timeout watcher exit quietly", async () 
   assert.deepEqual(await service.prune(), ["launch_contract"]);
 
   releaseTimeout();
-  await new Promise((resolve) => setImmediate(resolve));
+  await flushMicrotasks();
   assert.deepEqual(diagnostics, []);
 });
 
@@ -266,7 +267,7 @@ test("readiness timeout records failure without pretending process exit", async 
     readyPattern: "ready",
     readyTimeoutMs: 10,
   });
-  await new Promise((resolve) => setTimeout(resolve, 0));
+  await flushMicrotasks();
   assert.equal(records.get("launch_contract")?.status, "running");
   assert.equal(records.get("launch_contract")?.readiness.outcome, "timeout");
   assert.equal(
@@ -417,6 +418,7 @@ test("rejected transitions do not break per-launch serialization", async () => {
     save: async (launch) => {
       activeSaves += 1;
       maxActiveSaves = Math.max(maxActiveSaves, activeSaves);
+      // Deliberate delay so overlapping saves would be observable.
       await new Promise((resolve) => setTimeout(resolve, 5));
       activeSaves -= 1;
       if (launch.status === "stopping" && rejectStoppingSave) {
@@ -429,7 +431,7 @@ test("rejected transitions do not break per-launch serialization", async () => {
   const service = createService(ports);
   await service.start({ cwd: "/workspace", command: "sleep 60" });
   const failedCancel = service.cancel("launch_contract");
-  await new Promise((resolve) => setTimeout(resolve, 0));
+  await flushMicrotasks();
   const exit = callbacks?.onExit?.({
     exitCode: 0,
     exitedAt: "2026-07-11T00:00:01.000Z",
@@ -459,7 +461,15 @@ test("watcher failures are observed and converted to durable state", async () =>
     command: "dev",
     readyPattern: "[",
   });
-  await new Promise((resolve) => setTimeout(resolve, 10));
+  await waitFor(
+    () =>
+      diagnostics.includes("readiness") &&
+      records.get("launch_contract")?.readiness.outcome === "unavailable" &&
+      events.some((event) => event.type === "launch.readiness_failed"),
+    {
+      message: "readiness watcher failure",
+    },
+  );
   assert.equal(
     records.get("launch_contract")?.readiness.outcome,
     "unavailable",
@@ -485,8 +495,12 @@ test("runtime-timeout watcher adapter failures are observed", async () => {
   });
   const service = createService(ports);
   await service.start({ cwd: "/workspace", command: "sleep 60", timeoutMs: 1 });
-  await new Promise((resolve) => setTimeout(resolve, 10));
-  assert.ok(diagnostics.includes("runtime_timeout"));
+  await waitFor(
+    () =>
+      diagnostics.includes("runtime_timeout") &&
+      records.get("launch_contract")?.error,
+    { message: "runtime timeout diagnostic and recorded error" },
+  );
   assert.match(
     records.get("launch_contract")?.error ?? "",
     /signal adapter failed/,

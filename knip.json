@@ -1,0 +1,22 @@
+{
+  "$schema": "https://unpkg.com/knip@6/schema.json",
+  "workspaces": {
+    ".": {
+      "entry": ["scripts/**/*.{mjs,ts}", "tests/**/*.ts"],
+      "project": ["scripts/**/*.{mjs,ts}", "tests/**/*.ts"]
+    },
+    "packages/*": {
+      "entry": ["{test,src}/**/*.test.ts"]
+    },
+    "packages/desktop-shell": {
+      "entry": ["src/preload.cjs", "{test,src}/**/*.test.ts"]
+    },
+    "packages/workbench-server": {
+      "entry": ["scripts/**/*.ts", "{test,src}/**/*.test.ts"]
+    },
+    "packages/website": {
+      "entry": ["scripts/**/*.mjs"]
+    }
+  },
+  "ignoreExportsUsedInFile": true
+}

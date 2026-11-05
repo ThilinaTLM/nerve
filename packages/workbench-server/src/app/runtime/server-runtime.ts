@@ -54,7 +54,7 @@ import type { RuntimeServices } from "../bootstrap/create-runtime-services.js";
 import {
   createServerAdapterContexts,
   type ServerAdapterContexts,
-} from "../bootstrap/create-server-adapter-contexts.js";
+} from "../../adapters/contexts.js";
 import { RuntimeLifecycle } from "./runtime-lifecycle.js";
 import { version } from "../version.js";
 

@@ -1,5 +1,5 @@
 import { resolve } from "node:path";
-import type { StaticToolRisk, ToolRisk } from "@nervekit/contracts/permissions";
+import { effectiveRiskForCategory } from "@nervekit/contracts/permissions";
 import type { ToolName } from "@nervekit/contracts/tools";
 import {
   builtInPermissionRuleSet,
@@ -37,7 +37,7 @@ export function evaluateRuntimeToolPermission(
     const baseRisk = permissionMetadataForTool(name).baseRisk;
     return {
       decision: "deny",
-      risk: toolRisk(baseRisk),
+      risk: effectiveRiskForCategory(baseRisk),
       reason: `Permission request validation failed: ${
         error instanceof Error ? error.message : String(error)
       }`,
@@ -49,16 +49,10 @@ export function evaluateRuntimeToolPermission(
     request,
     policy: composeEffectivePermissionPolicy({ selectedRuleSet: selected }),
   });
-  const risk = toolRisk(evaluated.baseRisk);
+  const risk = effectiveRiskForCategory(evaluated.baseRisk);
   const decision: ToolDecision["decision"] =
     evaluated.decision === "prompt" ? "approval" : evaluated.decision;
   const { reason } = evaluated;
 
   return { decision, risk, reason, normalizedArgs: request.args };
-}
-
-function toolRisk(risk: StaticToolRisk): ToolRisk {
-  if (risk === "write") return "workspace_write";
-  if (risk === "unknown") return "command";
-  return risk;
 }

@@ -19,7 +19,7 @@ import {
 import { AgentConfigurationService } from "../../../infrastructure/configuration/agent-configuration/agent-configuration-service.js";
 import { digestBytes } from "../../../infrastructure/configuration/scoped-store/scoped-document-store.js";
 import { scopedConfigurationMethodHandlers } from "./scoped-configuration-method-handlers.js";
-import type { ServerAdapterContexts } from "../../../app/bootstrap/create-server-adapter-contexts.js";
+import type { ServerAdapterContexts } from "../../contexts.js";
 
 type Context = ServerAdapterContexts["protocol"]["platform"];
 const user = { scope: "user" as const };

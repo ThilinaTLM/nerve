@@ -4,7 +4,7 @@ import { activityMethodHandlers } from "./handlers/activity-method-handlers.js";
 import { isWorkbenchOperation } from "@nervekit/contracts/events";
 import { allOperationDefinitions } from "@nervekit/contracts/operations";
 import type { OperationHandlerRegistry } from "@nervekit/protocol/server";
-import type { ServerAdapterContexts } from "../../app/bootstrap/create-server-adapter-contexts.js";
+import type { ServerAdapterContexts } from "../contexts.js";
 import {
   bindWorkbenchMethodHandlerGroup,
   combineWorkbenchMethodHandlerGroups,

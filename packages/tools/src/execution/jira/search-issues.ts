@@ -7,6 +7,12 @@ import {
   optionalStringArray,
   requiredString,
 } from "../atlassian/arguments.js";
+import {
+  isArray,
+  isNumber,
+  isString,
+  objectWithFields,
+} from "../atlassian/http.js";
 import { jiraRequest, requireJiraConnection } from "./client.js";
 import {
   buildJiraTextResult,
@@ -37,6 +43,12 @@ type JiraSearchResponse = Record<string, unknown> & {
   total?: number;
 };
 
+const parseSearchResponse = objectWithFields<JiraSearchResponse>({
+  issues: isArray,
+  nextPageToken: isString,
+  total: isNumber,
+});
+
 export async function executeJiraSearchIssues(
   args: Record<string, unknown>,
   context: IntegrationExecutionContext,
@@ -52,7 +64,8 @@ export async function executeJiraSearchIssues(
   };
   const nextPageToken = optionalString(args.next_page_token);
   if (nextPageToken) body.nextPageToken = nextPageToken;
-  const data = await jiraRequest<JiraSearchResponse>(connection, {
+  const data = await jiraRequest(connection, {
+    parse: parseSearchResponse,
     method: "POST",
     path: "/search/jql",
     body,

@@ -1,7 +1,6 @@
 <script lang="ts">
 import type { PruneProjectConversationsRequest } from "$lib/domain/projects/sidebar-view-models";
-import { Button } from "@nervekit/ui-kit/components/ui/button";
-import Dialog from "@nervekit/ui-kit/components/composites/dialog-shell";
+import FormDialog from "@nervekit/ui-kit/components/composites/form-dialog";
 import RadioGroupField, {
   type RadioItem,
 } from "@nervekit/ui-kit/components/composites/radio-group-field";
@@ -98,66 +97,51 @@ function handleConfirm() {
   open = false;
   onOpenChange?.(false);
 }
-
-function handleOpenChange(next: boolean) {
-  open = next;
-  onOpenChange?.(next);
-}
 </script>
 
-<Dialog
+<FormDialog
   bind:open
   title="Clean up conversations"
   description={projectLabel
     ? `Choose how to clean up conversations in “${projectLabel}”.`
     : "Choose how to clean up conversations."}
   size="sm"
-  onOpenChange={handleOpenChange}
+  submitLabel="Clean up"
+  submitVariant="destructive"
+  submitDisabled={disabled || removeCount === 0}
+  bodyClass="gap-4"
+  onSubmit={handleConfirm}
+  {onOpenChange}
 >
-  <div class="grid gap-4">
-    <RadioGroupField
-      items={strategyItems}
-      bind:value={strategy}
-      ariaLabel="Cleanup strategy"
-    />
+  <RadioGroupField
+    items={strategyItems}
+    bind:value={strategy}
+    ariaLabel="Cleanup strategy"
+  />
 
-    {#if strategy !== "completed"}
-      <div class="grid max-w-72">
-        {#if strategy === "olderThanDays"}
-          <SelectField
-            items={ageItems}
-            bind:value={olderThanDays}
-            ariaLabel="Age window"
-          />
-        {:else}
-          <SelectField
-            items={keepItems}
-            bind:value={keepLatest}
-            ariaLabel="Conversations to keep"
-          />
-        {/if}
-      </div>
-    {/if}
+  {#if strategy !== "completed"}
+    <div class="grid max-w-72">
+      {#if strategy === "olderThanDays"}
+        <SelectField
+          items={ageItems}
+          bind:value={olderThanDays}
+          ariaLabel="Age window"
+        />
+      {:else}
+        <SelectField
+          items={keepItems}
+          bind:value={keepLatest}
+          ariaLabel="Conversations to keep"
+        />
+      {/if}
+    </div>
+  {/if}
 
-    <p class="m-0 text-ui text-muted-foreground">
-      Removes up to <strong class="font-medium text-foreground"
-        >{removeCount}</strong
-      >
-      of {totalCount} conversation{totalCount === 1 ? "" : "s"}. Active
-      conversations and launches are skipped.
-    </p>
-  </div>
-
-  {#snippet footer()}
-    <Button variant="ghost" onclick={() => handleOpenChange(false)}
-      >Cancel</Button
+  <p class="m-0 text-ui text-muted-foreground">
+    Removes up to <strong class="font-medium text-foreground"
+      >{removeCount}</strong
     >
-    <Button
-      variant="destructive"
-      onclick={handleConfirm}
-      disabled={disabled || removeCount === 0}
-    >
-      Clean up
-    </Button>
-  {/snippet}
-</Dialog>
+    of {totalCount} conversation{totalCount === 1 ? "" : "s"}. Active
+    conversations and launches are skipped.
+  </p>
+</FormDialog>

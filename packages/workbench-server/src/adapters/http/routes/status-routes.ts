@@ -1,5 +1,5 @@
 import { Hono } from "hono";
-import type { ServerAdapterContexts } from "../../../app/bootstrap/create-server-adapter-contexts.js";
+import type { ServerAdapterContexts } from "../../contexts.js";
 
 type StatusRoutesContext = ServerAdapterContexts["http"]["status"];
 

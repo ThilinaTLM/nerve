@@ -1,4 +1,5 @@
 import { isActivityRunning, type Activity } from "@nervekit/contracts/activity";
+import { ControllerLifecycle } from "$lib/platform/lifecycle/controller-lifecycle";
 
 export type ActivityStartedInput = Pick<
   Activity,
@@ -34,7 +35,8 @@ export class ActivityController implements ActivityStartedObserver {
   // Completed client notices never participate in daemon reconciliation or RPC.
   #notices = new Map<string, Activity>();
   #tombstones = new Map<string, number>();
-  #unsubscribe?: () => void;
+  #life = new ControllerLifecycle();
+  /** Snapshot-read sequence for reconciliation (not lifecycle); also bumped on dispose. */
   #generation = 0;
   #baselined = false;
   #buffer?: Update[];
@@ -43,21 +45,24 @@ export class ActivityController implements ActivityStartedObserver {
   #localInterruptions = new Map<string, number>();
   constructor(private readonly deps: ActivityControllerDeps) {}
   start(): void {
-    if (this.#unsubscribe) return;
-    this.#unsubscribe = this.deps.subscribe((update) => {
-      if (this.#buffer) this.#buffer.push(update);
-      const previous = this.#entries.get(update.activity.id);
-      const accepted = this.apply(update);
-      this.changed();
-      if (
-        accepted &&
-        !update.removed &&
-        update.activity.status === "failed" &&
-        previous?.status !== "failed"
-      )
-        this.deps.failed?.(update.activity);
+    this.#life.start((scope) => {
+      scope.onDispose(
+        this.deps.subscribe((update) => {
+          if (this.#buffer) this.#buffer.push(update);
+          const previous = this.#entries.get(update.activity.id);
+          const accepted = this.apply(update);
+          this.changed();
+          if (
+            accepted &&
+            !update.removed &&
+            update.activity.status === "failed" &&
+            previous?.status !== "failed"
+          )
+            this.deps.failed?.(update.activity);
+        }),
+      );
+      void this.refresh();
     });
-    void this.refresh();
   }
   observeStarted(input: ActivityStartedInput): void {
     if (this.#entries.has(input.id) || this.#tombstones.has(input.id)) return;
@@ -108,7 +113,7 @@ export class ActivityController implements ActivityStartedObserver {
     this.changed();
   }
   private scheduleRefresh(): void {
-    if (!this.#unsubscribe) return;
+    if (!this.#life.started) return;
     if (this.#buffer) {
       this.#refreshAfterCurrent = true;
       return;
@@ -118,11 +123,11 @@ export class ActivityController implements ActivityStartedObserver {
     queueMicrotask(() => {
       if (this.#refreshQueued !== token) return;
       this.#refreshQueued = undefined;
-      if (this.#unsubscribe) void this.refresh();
+      if (this.#life.started) void this.refresh();
     });
   }
   async refresh(): Promise<void> {
-    if (!this.#unsubscribe) return;
+    if (!this.#life.started) return;
     this.#refreshQueued = undefined;
     // This read starts after all acknowledgments already observed, covering queued refresh demand.
     this.#refreshAfterCurrent = false;
@@ -211,8 +216,7 @@ export class ActivityController implements ActivityStartedObserver {
     this.changed();
   }
   dispose(): void {
-    this.#unsubscribe?.();
-    this.#unsubscribe = undefined;
+    this.#life.dispose();
     ++this.#generation;
     this.#buffer = undefined;
     this.#refreshQueued = undefined;
