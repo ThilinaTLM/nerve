@@ -1,10 +1,8 @@
 // @vitest-environment jsdom
-import { cleanup, render, screen } from "@testing-library/svelte";
+import { render, screen } from "@testing-library/svelte";
 import userEvent from "@testing-library/user-event";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import SwitchField from "./switch-field.svelte";
-
-afterEach(cleanup);
 
 describe("SwitchField", () => {
   it("toggles by click and by keyboard, reporting the next value", async () => {

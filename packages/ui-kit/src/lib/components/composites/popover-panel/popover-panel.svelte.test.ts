@@ -1,8 +1,8 @@
 // @vitest-environment jsdom
-import { cleanup, render, screen } from "@testing-library/svelte";
+import { render, screen } from "@testing-library/svelte";
 import userEvent from "@testing-library/user-event";
 import { createRawSnippet } from "svelte";
-import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
+import { beforeAll, describe, expect, it, vi } from "vitest";
 import PopoverPanel from "./popover-panel.svelte";
 
 beforeAll(() => {
@@ -16,7 +16,6 @@ beforeAll(() => {
     },
   );
 });
-afterEach(cleanup);
 
 const trigger = createRawSnippet(() => ({ render: () => `<span>Menu</span>` }));
 const children = createRawSnippet(() => ({

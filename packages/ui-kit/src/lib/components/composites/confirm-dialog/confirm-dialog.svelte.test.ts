@@ -1,10 +1,8 @@
 // @vitest-environment jsdom
 import { cleanup, render, screen } from "@testing-library/svelte";
 import userEvent from "@testing-library/user-event";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import ConfirmDialog from "./confirm-dialog.svelte";
-
-afterEach(cleanup);
 
 function setup(props: Record<string, unknown> = {}) {
   const handlers = {

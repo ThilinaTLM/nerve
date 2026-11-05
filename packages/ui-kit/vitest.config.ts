@@ -9,6 +9,7 @@ export default defineConfig({
   test: {
     include: ["src/**/*.svelte.test.ts"],
     environment: "jsdom",
+    setupFiles: ["./vitest.setup.ts"],
     // bits-ui teardown reads deriveds of closing dialogs; the warning is noise in jsdom.
     onConsoleLog: (log) => (log.includes("derived_inert") ? false : undefined),
   },

@@ -2,10 +2,8 @@
 import { cleanup, render, screen } from "@testing-library/svelte";
 import userEvent from "@testing-library/user-event";
 import { createRawSnippet } from "svelte";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import FormDialog from "./form-dialog.svelte";
-
-afterEach(cleanup);
 
 const children = createRawSnippet(() => ({
   render: () => `<input aria-label="Name" />`,
