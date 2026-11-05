@@ -1,6 +1,7 @@
 export type FileViewerPreferences = {
   highlightSelectionMatches: boolean;
   wrapLongLines: boolean;
+  diffLayout: "unified" | "split";
 };
 
 export type FileViewerPreferenceStorage = Pick<Storage, "getItem" | "setItem">;
@@ -9,6 +10,7 @@ const STORAGE_KEY = "nerve:file-viewer-preferences:v1";
 const defaultPreferences: FileViewerPreferences = {
   highlightSelectionMatches: false,
   wrapLongLines: false,
+  diffLayout: "unified",
 };
 
 export function browserFileViewerPreferenceStorage():
@@ -40,6 +42,10 @@ export function loadFileViewerPreferences(
         "wrapLongLines" in parsed && typeof parsed.wrapLongLines === "boolean"
           ? parsed.wrapLongLines
           : false,
+      diffLayout:
+        "diffLayout" in parsed && parsed.diffLayout === "split"
+          ? "split"
+          : "unified",
     };
   } catch {
     return { ...defaultPreferences };

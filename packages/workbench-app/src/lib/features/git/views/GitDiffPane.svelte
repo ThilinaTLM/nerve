@@ -4,13 +4,15 @@ import TriangleAlert from "@lucide/svelte/icons/triangle-alert";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
 import { ScrollArea } from "@nervekit/ui-kit/components/ui/scroll-area";
 import { Spinner } from "@nervekit/ui-kit/components/ui/spinner";
-import { CodeDiffView } from "$lib/presentation/code";
+import { CodeDiffView, type DiffLayout } from "$lib/presentation/code";
 import type { GitDiffPaneModel } from "./git-diff-types";
 
 type Props = {
   view?: GitDiffPaneModel;
   wrap?: boolean;
   highlightSelectionMatches?: boolean;
+  diffLayout?: DiffLayout;
+  onDiffLayoutChange?: (layout: DiffLayout) => void;
   onRefresh: () => void;
   onCopy?: (ok: boolean) => void;
   onToggleSelectionMatches?: () => void;
@@ -21,6 +23,8 @@ let {
   view,
   wrap = false,
   highlightSelectionMatches = false,
+  diffLayout,
+  onDiffLayoutChange,
   onRefresh,
   onCopy,
   onToggleSelectionMatches,
@@ -39,6 +43,8 @@ const hasChanges = $derived(
         original={textDiff.original}
         modified={textDiff.modified}
         path={textDiff.path}
+        layout={diffLayout}
+        onLayoutChange={onDiffLayoutChange}
         {wrap}
         {highlightSelectionMatches}
         {onCopy}

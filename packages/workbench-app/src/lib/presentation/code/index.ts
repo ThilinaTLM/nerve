@@ -9,3 +9,4 @@ export {
   loadedCodeLanguage,
   localLineNumber,
 } from "./code-mirror-config.js";
+export type { DiffLayout } from "./code-diff.js";

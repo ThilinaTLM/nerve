@@ -37,6 +37,11 @@ import {
   scrollPastEnd,
 } from "@codemirror/view";
 import { codeFoldMarker } from "./code-fold-marker";
+import {
+  overviewMarkSource,
+  overviewRuler,
+  searchOverviewMarks,
+} from "./code-overview-ruler";
 import { tags } from "@lezer/highlight";
 
 export type CodeLanguageId =
@@ -500,6 +505,10 @@ export type CodeSurfaceOptions = {
   editable?: boolean;
   lineStart?: number;
   highlightSelectionMatches?: boolean;
+  /** Off for views that don't scroll themselves (split diff sides). */
+  scrollPastEnd?: boolean;
+  /** Off for the original side of a split diff; the modified side owns it. */
+  overviewRuler?: boolean;
 };
 
 /** Base extensions shared by every code view. Editing adds history, bracket
@@ -548,9 +557,11 @@ export function codeSurfaceExtensions(input: CodeSurfaceOptions): Extension[] {
     drawSelection(),
     highlightActiveLine(),
     highlightActiveLineGutter(),
-    scrollPastEnd(),
+    input.scrollPastEnd === false ? [] : scrollPastEnd(),
     EditorView.cursorScrollMargin.of({ x: 32, y: 60 }),
     search(),
+    input.overviewRuler === false ? [] : overviewRuler,
+    overviewMarkSource.of(searchOverviewMarks),
     input.highlightSelectionMatches ? highlightSelectionMatches() : [],
     syntaxHighlighting(codeHighlightStyle),
     keymap.of(foldKeymap),

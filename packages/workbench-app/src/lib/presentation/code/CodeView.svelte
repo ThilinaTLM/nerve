@@ -1,5 +1,6 @@
 <script lang="ts">
 import { foldAll, foldCode, unfoldAll, unfoldCode } from "@codemirror/language";
+import { MergeView } from "@codemirror/merge";
 import {
   Compartment,
   EditorSelection,
@@ -10,7 +11,7 @@ import {
 import { Decoration, EditorView, keymap } from "@codemirror/view";
 import { writeClipboardText } from "@nervekit/ui-kit/browser/clipboard";
 import ContextMenuList from "@nervekit/ui-kit/components/composites/context-menu-list";
-import { onDestroy, onMount, type Snippet } from "svelte";
+import { onDestroy, onMount, type Snippet, untrack } from "svelte";
 import CodeGoToLinePanel from "./CodeGoToLinePanel.svelte";
 import CodeMirrorFindPanel from "./CodeMirrorFindPanel.svelte";
 import CodeStatusBar from "./CodeStatusBar.svelte";
@@ -28,6 +29,13 @@ import {
   loadedCodeLanguage,
   localLineNumber,
 } from "./code-mirror-config";
+import {
+  type DiffLayout,
+  diffMergeConfig,
+  splitDiffSideExtensions,
+  unifiedDiffExtensions,
+  updateUnifiedOriginal,
+} from "./code-diff";
 import { codeSurfaceMenuItems } from "./code-surface-menu";
 import {
   unsavedChangesExtension,
@@ -60,8 +68,12 @@ type Props = {
   highlightSelectionMatches?: boolean;
   statusBar?: boolean;
   statusMessage?: Snippet;
-  /** Extra extensions (for example a merge view). Reconfigured on change. */
+  /** Extra extensions for the (modified) document. Reconfigured on change. */
   extensions?: Extension;
+  /** Shows the document as a read-only diff against this original text. */
+  diffOriginal?: string;
+  /** Diff layout, fixed for the lifetime of the view (remount to change). */
+  diffLayout?: DiffLayout;
   onCopy?: (ok: boolean) => void;
   onToggleSelectionMatches?: () => void;
   onToggleWrap?: () => void;
@@ -85,6 +97,8 @@ let {
   statusBar = false,
   statusMessage,
   extensions,
+  diffOriginal,
+  diffLayout = "unified",
   onCopy,
   onToggleSelectionMatches,
   onToggleWrap,
@@ -95,6 +109,10 @@ let {
 
 let host: HTMLElement;
 let view = $state.raw<EditorView | undefined>();
+/** Split diffs: the merge view whose `b` side is `view`. */
+let merge: MergeView | undefined;
+/** The side a context menu was opened on (split diffs have two). */
+let contextView = $state.raw<EditorView | undefined>();
 let languageGeneration = 0;
 let contextPosition = $state(0);
 let contextVersion = $state(0);
@@ -119,11 +137,19 @@ const targetCompartment = new Compartment();
 const unsavedCompartment = new Compartment();
 const indentationCompartment = new Compartment();
 const extraCompartment = new Compartment();
+const diffCompartment = new Compartment();
+const originalBaseCompartment = new Compartment();
+const originalLineSeparatorCompartment = new Compartment();
+// The layout is fixed per mount; parents remount to switch it.
+const split = untrack(
+  () => diffOriginal !== undefined && diffLayout === "split",
+);
 
 // Values installed in CodeMirror, compared to skip redundant reconfigures.
 let installedLineSeparator: string | undefined;
 let installedBaseline: string | undefined;
 let installedExtensions: Extension | undefined;
+let installedOriginal: string | undefined;
 /** The last text this view reported through onChange; when the parent echoes
  * it back as `text`, the document already matches and no diff is needed. */
 let emittedText: string | undefined;
@@ -156,7 +182,30 @@ function baseExtensions(): Extension[] {
     editable: canEdit,
     lineStart,
     highlightSelectionMatches,
+    scrollPastEnd: !split,
   });
+}
+
+function originalBaseExtensions(): Extension[] {
+  return codeSurfaceExtensions({
+    ariaLabel: `Original: ${ariaLabel}`,
+    highlightSelectionMatches,
+    scrollPastEnd: false,
+    overviewRuler: false,
+  });
+}
+
+/** Every editor this component owns: one, or both sides of a split diff. */
+function allViews(): EditorView[] {
+  if (merge) return [merge.a, merge.b];
+  return view ? [view] : [];
+}
+
+function diffExtensions(): Extension {
+  if (diffOriginal === undefined) return [];
+  return split
+    ? splitDiffSideExtensions()
+    : diffCompartment.of(unifiedDiffExtensions(diffOriginal));
 }
 
 function unsavedExtension(baseline: string | undefined): Extension {
@@ -177,20 +226,23 @@ async function copyText(value: string): Promise<void> {
 }
 
 function copySelection(): boolean {
-  if (!view) return false;
-  return copySelectedText(view.state, (selected) => void copyText(selected));
+  const target = contextView ?? view;
+  if (!target) return false;
+  return copySelectedText(target.state, (selected) => void copyText(selected));
 }
 
 function selectAll(): void {
-  if (!view) return;
-  view.dispatch({ selection: { anchor: 0, head: view.state.doc.length } });
-  view.focus();
+  const target = contextView ?? view;
+  if (!target) return;
+  target.dispatch({ selection: { anchor: 0, head: target.state.doc.length } });
+  target.focus();
 }
 
 function runCommand(command: (target: EditorView) => boolean): void {
-  if (!view) return;
-  command(view);
-  view.focus();
+  const target = contextView ?? view;
+  if (!target) return;
+  command(target);
+  target.focus();
   contextVersion += 1;
 }
 
@@ -238,20 +290,26 @@ function stepMatch(previous: boolean): boolean {
 }
 
 function captureContext(event: MouseEvent): void {
-  if (!view) return;
-  const position = view.posAtCoords({ x: event.clientX, y: event.clientY });
+  const target =
+    merge && event.target instanceof Node && merge.a.dom.contains(event.target)
+      ? merge.a
+      : view;
+  if (!target) return;
+  const position = target.posAtCoords({ x: event.clientX, y: event.clientY });
   if (position === null) return;
+  contextView = target;
   contextPosition = position;
-  const selection = contextSelection(view.state, position);
-  if (selection) view.dispatch({ selection });
+  const selection = contextSelection(target.state, position);
+  if (selection) target.dispatch({ selection });
   contextVersion += 1;
 }
 
 const menuItems = $derived.by(() => {
   void contextVersion;
-  if (!view) return [];
+  const menuView = contextView ?? view;
+  if (!menuView) return [];
   return codeSurfaceMenuItems({
-    view,
+    view: menuView,
     position: contextPosition,
     editable: canEdit,
     wrap,
@@ -368,9 +426,10 @@ function syncIndentation(): void {
   if (next.unit === indentation.unit && next.tabSize === indentation.tabSize)
     return;
   indentation = next;
-  view.dispatch({
-    effects: indentationCompartment.reconfigure(indentationExtension(next)),
-  });
+  for (const target of allViews())
+    target.dispatch({
+      effects: indentationCompartment.reconfigure(indentationExtension(next)),
+    });
 }
 
 function syncConfiguration(): void {
@@ -382,7 +441,34 @@ function syncConfiguration(): void {
       targetCompartment.reconfigure(targetLineExtension(view.state)),
     ],
   });
+  merge?.a.dispatch({
+    effects: [
+      originalBaseCompartment.reconfigure(originalBaseExtensions()),
+      wrapCompartment.reconfigure(wrap ? EditorView.lineWrapping : []),
+    ],
+  });
   find.scheduleRefresh();
+}
+
+function syncDiffOriginal(): void {
+  if (!view || diffOriginal === undefined || diffOriginal === installedOriginal)
+    return;
+  installedOriginal = diffOriginal;
+  if (!merge) {
+    updateUnifiedOriginal(view, diffOriginal);
+    return;
+  }
+  const original = merge.a;
+  original.dispatch({
+    effects: originalLineSeparatorCompartment.reconfigure(
+      lineSeparatorExtension(codeDocumentLineSeparator(diffOriginal)),
+    ),
+  });
+  const change = minimalDocumentChange(
+    original.state.doc,
+    original.state.toText(diffOriginal),
+  );
+  if (change) original.dispatch({ changes: change });
 }
 
 function syncUnsavedChanges(): void {
@@ -414,7 +500,8 @@ async function syncLanguage(nextLanguage: string | undefined): Promise<void> {
   const extension = await loadCodeLanguage(nextLanguage);
   if (!view || generation !== languageGeneration || language !== nextLanguage)
     return;
-  view.dispatch({ effects: languageCompartment.reconfigure(extension) });
+  for (const target of allViews())
+    target.dispatch({ effects: languageCompartment.reconfigure(extension) });
 }
 
 onMount(() => {
@@ -424,33 +511,61 @@ onMount(() => {
   installedExtensions = extensions;
   indentation = detectIndentation(text);
 
-  const state = EditorState.create({
-    doc: text,
-    extensions: [
-      baseCompartment.of(baseExtensions()),
-      lineSeparatorCompartment.of(
-        lineSeparatorExtension(installedLineSeparator),
-      ),
-      languageCompartment.of(loadedCodeLanguage(language) ?? []),
-      wrapCompartment.of(wrap ? EditorView.lineWrapping : []),
-      targetCompartment.of([]),
-      unsavedCompartment.of(unsavedExtension(installedBaseline)),
-      indentationCompartment.of(indentationExtension(indentation)),
-      extraCompartment.of(installedExtensions ?? []),
-      surfaceKeymap(),
-      EditorView.updateListener.of((update) => {
-        if (update.docChanged && onChange) {
-          emittedText = update.state.sliceDoc();
-          onChange(emittedText);
-        }
-        if (update.docChanged || update.selectionSet) {
-          if (statusBar) cursor = cursorStatus(update.state, lineStart);
-          find.scheduleRefresh();
-        }
-      }),
-    ],
-  });
-  view = new EditorView({ state, parent: host });
+  installedOriginal = diffOriginal;
+  const modifiedExtensions: Extension[] = [
+    baseCompartment.of(baseExtensions()),
+    lineSeparatorCompartment.of(lineSeparatorExtension(installedLineSeparator)),
+    languageCompartment.of(loadedCodeLanguage(language) ?? []),
+    wrapCompartment.of(wrap ? EditorView.lineWrapping : []),
+    targetCompartment.of([]),
+    unsavedCompartment.of(unsavedExtension(installedBaseline)),
+    indentationCompartment.of(indentationExtension(indentation)),
+    extraCompartment.of(installedExtensions ?? []),
+    diffExtensions(),
+    surfaceKeymap(),
+    EditorView.updateListener.of((update) => {
+      if (update.docChanged && onChange) {
+        emittedText = update.state.sliceDoc();
+        onChange(emittedText);
+      }
+      if (update.docChanged || update.selectionSet) {
+        if (statusBar) cursor = cursorStatus(update.state, lineStart);
+        find.scheduleRefresh();
+      }
+    }),
+  ];
+  if (split && diffOriginal !== undefined) {
+    const originalSeparator = codeDocumentLineSeparator(diffOriginal);
+    merge = new MergeView({
+      ...diffMergeConfig,
+      parent: host,
+      a: {
+        doc: diffOriginal,
+        extensions: [
+          originalBaseCompartment.of(originalBaseExtensions()),
+          originalLineSeparatorCompartment.of(
+            lineSeparatorExtension(originalSeparator),
+          ),
+          languageCompartment.of(loadedCodeLanguage(language) ?? []),
+          wrapCompartment.of(wrap ? EditorView.lineWrapping : []),
+          indentationCompartment.of(indentationExtension(indentation)),
+          splitDiffSideExtensions(),
+          surfaceKeymap(),
+        ],
+      },
+      b: { doc: text, extensions: modifiedExtensions },
+    });
+    // Both sides scroll together inside the merge container.
+    merge.dom.style.height = "100%";
+    merge.dom.style.overflow = "auto";
+    view = merge.b;
+  } else {
+    view = new EditorView({
+      state: EditorState.create({ doc: text, extensions: modifiedExtensions }),
+      parent: host,
+    });
+  }
+  const state = view.state;
   onView?.(view);
   syncConfiguration();
   if (statusBar) cursor = cursorStatus(view.state, lineStart);
@@ -494,6 +609,11 @@ $effect(() => {
 });
 
 $effect(() => {
+  void diffOriginal;
+  syncDiffOriginal();
+});
+
+$effect(() => {
   void syncLanguage(language);
 });
 
@@ -501,7 +621,8 @@ onDestroy(() => {
   languageGeneration += 1;
   find.dispose();
   onView?.(undefined);
-  view?.destroy();
+  if (merge) merge.destroy();
+  else view?.destroy();
 });
 </script>
 
@@ -517,7 +638,7 @@ onDestroy(() => {
     >
       <div
         bind:this={host}
-        class="h-full min-h-0 min-w-0"
+        class="relative h-full min-h-0 min-w-0"
         role="presentation"
         oncontextmenu={captureContext}
       ></div>

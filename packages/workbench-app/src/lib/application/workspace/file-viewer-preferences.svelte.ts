@@ -10,6 +10,11 @@ export function setWrapLongLines(enabled: boolean): void {
   persistFileViewerPreferences(fileViewerPreferences);
 }
 
+export function setDiffLayout(layout: "unified" | "split"): void {
+  fileViewerPreferences.diffLayout = layout;
+  persistFileViewerPreferences(fileViewerPreferences);
+}
+
 export function setHighlightSelectionMatches(enabled: boolean): void {
   fileViewerPreferences.highlightSelectionMatches = enabled;
   persistFileViewerPreferences(fileViewerPreferences);

@@ -9,6 +9,7 @@ import {
   type Text,
 } from "@codemirror/state";
 import { EditorView, GutterMarker, gutter } from "@codemirror/view";
+import { type OverviewMark, overviewMarkSource } from "./code-overview-ruler";
 
 export type UnsavedLineKind =
   | "added"
@@ -176,6 +177,7 @@ export function unsavedChangesExtension(originalText: string): Extension {
         Chunk.build(baseline, state.doc, diffConfig),
       );
     }),
+    overviewMarkSource.of(unsavedOverviewMarks),
     gutter({
       class: "cm-unsavedGutter",
       markers: (view) =>
@@ -183,6 +185,20 @@ export function unsavedChangesExtension(originalText: string): Extension {
     }),
     unsavedTheme,
   ];
+}
+
+function unsavedOverviewMarks(state: EditorState): OverviewMark[] {
+  const value = state.field(unsavedField, false);
+  if (!value) return [];
+  const { doc } = state;
+  return unsavedLineMarkers(value.baseline, doc, value.chunks).map(
+    ({ line, kind }) => {
+      const { from, to } = doc.line(line);
+      return kind === "added" || kind === "modified"
+        ? { from, to, kind }
+        : { from, to: from, kind: "deleted" as const };
+    },
+  );
 }
 
 export function unsavedChangeChunks(state: EditorState): readonly Chunk[] {

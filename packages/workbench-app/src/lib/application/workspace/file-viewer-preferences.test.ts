@@ -14,10 +14,12 @@ describe("file viewer preferences", () => {
     assert.deepEqual(loadFileViewerPreferences(storage(null)), {
       highlightSelectionMatches: false,
       wrapLongLines: false,
+      diffLayout: "unified",
     });
     assert.deepEqual(loadFileViewerPreferences(storage("not-json")), {
       highlightSelectionMatches: false,
       wrapLongLines: false,
+      diffLayout: "unified",
     });
   });
 
@@ -28,10 +30,15 @@ describe("file viewer preferences", () => {
           JSON.stringify({
             highlightSelectionMatches: true,
             wrapLongLines: true,
+            diffLayout: "split",
           }),
         ),
       ),
-      { highlightSelectionMatches: true, wrapLongLines: true },
+      {
+        highlightSelectionMatches: true,
+        wrapLongLines: true,
+        diffLayout: "split",
+      },
     );
   });
 });
