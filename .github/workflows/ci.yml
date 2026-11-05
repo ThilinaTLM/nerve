@@ -75,8 +75,13 @@ jobs:
       - name: Check package boundaries
         if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: node scripts/checks/check-package-boundaries.mjs
-      - name: Run scripts tests
+      - name: Build contracts for scripts tests
+        id: contracts
         if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        # Storage script tests import workbench-server sources that resolve @nervekit/contracts from dist.
+        run: pnpm --filter @nervekit/contracts build
+      - name: Run scripts tests
+        if: ${{ !cancelled() && steps.contracts.outcome == 'success' }}
         run: pnpm test:scripts
 
   native-linux:
