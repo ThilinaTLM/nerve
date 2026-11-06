@@ -29,7 +29,9 @@ test("keeps unrelated fragment parameters", () => {
 
 test("consuming the fragment clears it from history and returns the code", () => {
   const calls: unknown[][] = [];
+  const state = { nerveMobileDepth: 0 };
   const history = {
+    state,
     replaceState: (...args: unknown[]) => void calls.push(args),
   };
   const code = consumePairFragment(
@@ -38,6 +40,7 @@ test("consuming the fragment clears it from history and returns the code", () =>
   );
   assert.equal(code, "ABCD-EFGH");
   assert.equal(calls.length, 1);
+  assert.equal(calls[0]![0], state);
   assert.equal(calls[0]![2], "/?x=1");
 });
 
@@ -45,7 +48,7 @@ test("leaves history alone without a pairing fragment", () => {
   let called = false;
   const code = consumePairFragment(
     { pathname: "/", search: "", hash: "#section" },
-    { replaceState: () => void (called = true) },
+    { state: null, replaceState: () => void (called = true) },
   );
   assert.equal(code, undefined);
   assert.equal(called, false);

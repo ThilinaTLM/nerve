@@ -2,7 +2,6 @@ import type { PairingCode, PairingPurpose } from "@nervekit/contracts/access";
 import type { DaemonCrashReportKind } from "@nervekit/contracts/logs";
 import type { ServerLifecycleState } from "@nervekit/contracts/status";
 import type { ChildExit, DaemonPaths, HealthyDaemon } from "./contracts.js";
-import type { NetworkInterfacesSnapshot } from "./urls.js";
 
 /**
  * Narrow runtime seams for the daemon connection service and supervisor. The
@@ -145,7 +144,6 @@ export interface DaemonRuntimePorts {
   logger: DaemonLoggerPort;
   access: DaemonAccessPort;
   credentials: RemoteCredentialStorePort;
-  networkInterfaces(): NetworkInterfacesSnapshot;
 }
 
 export interface DaemonConnectionPorts extends DaemonRuntimePorts {

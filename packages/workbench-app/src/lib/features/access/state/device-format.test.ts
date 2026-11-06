@@ -5,7 +5,7 @@ import {
   auditEventTone,
   formatLastSeen,
 } from "./device-format";
-import { pairingUrl } from "./pairing-url";
+import { defaultPairingLink, pairingLinks } from "./pairing-url";
 import { buildQrMatrix } from "./qr-matrix";
 
 test("formats last-seen ages", () => {
@@ -23,26 +23,34 @@ test("labels audit events and flags failures", () => {
   assert.equal(auditEventTone({ at: 1, type: "pair" }), "neutral");
 });
 
-test("pairing urls keep the code in the fragment", () => {
-  assert.equal(
-    pairingUrl(
-      { code: "ABCD-EFGH", expiresAt: 1, purpose: "mobile" },
+test("pairing links fall back to this page's origin", () => {
+  assert.deepEqual(
+    pairingLinks(
+      { code: "ABCD-EFGH", expiresAt: 1, purpose: "mobile", links: [] },
       "https://nerve.test",
-    ),
-    "https://nerve.test/#pair=ABCD-EFGH",
+    ).map((link) => link.url),
+    ["https://nerve.test/#pair=ABCD-EFGH"],
   );
-  assert.equal(
-    pairingUrl(
-      {
-        code: "ABCD-EFGH",
-        expiresAt: 1,
-        purpose: "mobile",
-        url: "https://pub/#pair=ABCD-EFGH",
-      },
-      "http://localhost",
-    ),
-    "https://pub/#pair=ABCD-EFGH",
-  );
+});
+
+test("picks the remembered network, then the current one, then the best", () => {
+  const links = [
+    {
+      kind: "lan",
+      label: "Local network",
+      url: "https://192.168.1.2:3748/#pair=X",
+    },
+    {
+      kind: "tailscale",
+      label: "Tailscale",
+      url: "https://100.64.0.2:3748/#pair=X",
+    },
+  ] as const;
+  const pick = (remembered: string | undefined, origin: string) =>
+    defaultPairingLink(links, { remembered, origin })?.label;
+  assert.equal(pick("Tailscale", "http://127.0.0.1:3747"), "Tailscale");
+  assert.equal(pick("Gone", "https://100.64.0.2:3748"), "Tailscale");
+  assert.equal(pick(undefined, "http://127.0.0.1:3747"), "Local network");
 });
 
 test("encodes a QR matrix", () => {

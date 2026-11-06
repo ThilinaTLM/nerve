@@ -1,5 +1,5 @@
 import { access } from "node:fs/promises";
-import { hostname, networkInterfaces } from "node:os";
+import { hostname } from "node:os";
 import { fileURLToPath } from "node:url";
 import { version as bundledDaemonVersion } from "@nervekit/workbench-server";
 import {
@@ -11,7 +11,6 @@ import type {
   DaemonConnectionPorts,
   RemoteCredentialStorePort,
 } from "../ports.js";
-import type { NetworkInterfacesSnapshot } from "../urls.js";
 import { createDaemonAccessClient } from "./daemon-access.js";
 import { findHealthyDaemon, readLocalToken } from "./daemon-discovery.js";
 import { checkHealth } from "./daemon-health.js";
@@ -71,7 +70,6 @@ export function createNodeDaemonPorts(
       log: (level, message, data) =>
         void desktopLog(level, "daemon", message, data),
     },
-    networkInterfaces: (): NetworkInterfacesSnapshot => networkInterfaces(),
     resolveServerMain: () =>
       fileURLToPath(import.meta.resolve("@nervekit/workbench-server/main")),
     fileExists: (path) =>

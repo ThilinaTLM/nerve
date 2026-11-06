@@ -38,6 +38,7 @@ interface FragmentLocation {
 }
 
 interface FragmentHistory {
+  readonly state: unknown;
   replaceState(data: unknown, unused: string, url?: string | null): void;
 }
 
@@ -52,8 +53,9 @@ export function consumePairFragment(
 ): string | undefined {
   const code = parsePairFragment(location.hash);
   if (!code) return undefined;
+  // Keep the entry's own state; it must stay structured-cloneable.
   history.replaceState(
-    history,
+    history.state,
     "",
     `${location.pathname}${location.search}${fragmentWithoutPair(location.hash)}`,
   );

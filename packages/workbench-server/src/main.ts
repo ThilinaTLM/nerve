@@ -51,6 +51,7 @@ import {
   isVirtualInterface,
   isWildcardHost,
 } from "./infrastructure/network/host.js";
+import { listShareOrigins } from "./infrastructure/network/share-origins.js";
 import {
   firstEnvValue,
   mergeNoProxy,
@@ -469,6 +470,16 @@ async function main() {
       : undefined;
     if (mobileTls) {
       updateMobileHttpsState(state, mobileTls, boundPort, httpsPort);
+      state.access.shareOrigins = () =>
+        state.mobileHttps
+          ? listShareOrigins({
+              boundHost: state.host,
+              httpPort: state.port,
+              httpsPort: state.mobileHttps.port,
+              certifiedHosts: state.mobileHttps.hosts,
+              interfaces: networkInterfaces(),
+            })
+          : [];
       await state.logger.info("Mobile HTTPS sharing enabled", {
         context: {
           httpsUrl: state.mobileHttps?.url,

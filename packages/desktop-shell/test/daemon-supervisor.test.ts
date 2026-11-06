@@ -289,50 +289,6 @@ describe("daemon supervisor", () => {
     await daemon.stop();
   });
 
-  it("mints a pairing code on demand and never embeds the daemon token", async () => {
-    const world = fakeDaemonWorld();
-    const supervisor = new DaemonSupervisor(
-      { mode: "local", owned: false, paths, readinessTimeoutMs: 1_000 },
-      world.ports,
-    );
-    const daemon = supervisor.initMonitorOnly(
-      healthyDaemon({ host: "0.0.0.0", mobileHttps: { port: 3748 } } as never),
-    );
-    assert.equal(daemon.mobileShareAvailable, true);
-    assert.equal(world.accessCalls.length, 0, "nothing is minted up front");
-    const urls = await daemon.createShareUrls();
-    assert.equal(
-      urls.secureShareUrl,
-      "https://192.168.1.20:3748/#pair=ABCD-EFGH",
-    );
-    assert.equal(
-      urls.mobileSetupUrl,
-      "http://192.168.1.20:3747/mobile-setup#pair=ABCD-EFGH",
-    );
-    assert.deepEqual(world.accessCalls, [
-      {
-        kind: "createPairingCode",
-        url: "http://127.0.0.1:3747",
-        bearer: "tok_local",
-        purpose: "mobile",
-      },
-    ]);
-    assert.doesNotMatch(JSON.stringify(urls), /tok_local/);
-    await daemon.stop();
-  });
-
-  it("refuses to build share links without mobile HTTPS", async () => {
-    const world = fakeDaemonWorld();
-    const supervisor = new DaemonSupervisor(
-      { mode: "local", owned: false, paths, readinessTimeoutMs: 1_000 },
-      world.ports,
-    );
-    const daemon = supervisor.initMonitorOnly(healthyDaemon());
-    assert.equal(daemon.mobileShareAvailable, false);
-    await assert.rejects(daemon.createShareUrls(), /mobile HTTPS/);
-    await daemon.stop();
-  });
-
   it("never diagnoses or restarts a monitor-only daemon", async () => {
     const world = fakeDaemonWorld();
     const supervisor = new DaemonSupervisor(

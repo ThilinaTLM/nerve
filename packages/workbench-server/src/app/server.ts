@@ -6,6 +6,7 @@ import { createAccessRoutes } from "../adapters/http/routes/access-routes.js";
 import type { AccessService } from "../domains/access/access-service.js";
 import {
   createHostAllowlist,
+  normalizeHostname,
   type HostAllowlist,
 } from "../adapters/http/host-allowlist.js";
 import {
@@ -95,12 +96,22 @@ function legacyLinkHtml(reason: "plaintext" | "blocked"): string {
   return `<!doctype html><html lang="en"><head><meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1.0" /><title>Nerve</title></head><body><h1>Switch to HTTPS pairing</h1><p>${message}</p></body></html>`;
 }
 
-function mobileSetupPage(state: ServerRuntime): Response | undefined {
+function mobileSetupPage(
+  state: ServerRuntime,
+  requestHost: string | undefined,
+): Response | undefined {
   if (!state.mobileHttps) return undefined;
   // Nothing on this page is secret: the pairing code lives in the URL fragment
   // (never sent to the server) and is copied onto the secure link by script.
   const secureAppUrl = new URL(state.mobileHttps.url);
   const caCertUrl = new URL(state.mobileHttps.caCertUrl);
+  // Stay on the network the visitor came through (LAN, Tailscale, VPN) when
+  // the certificate covers it.
+  const host = requestHost ? normalizeHostname(requestHost) : undefined;
+  if (host && state.mobileHttps.hosts.includes(host)) {
+    secureAppUrl.hostname = host;
+    caCertUrl.hostname = host;
+  }
   return new Response(
     mobileSetupHtml({
       secureAppUrl: secureAppUrl.toString(),
@@ -250,7 +261,8 @@ export function createApp(
 
   app.get(
     "/mobile-setup",
-    (c) => mobileSetupPage(state) ?? c.text("Not found", 404),
+    (c) =>
+      mobileSetupPage(state, c.req.header("host")) ?? c.text("Not found", 404),
   );
   app.get(
     "/nerve-local-ca.pem",

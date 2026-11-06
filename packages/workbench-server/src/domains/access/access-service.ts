@@ -6,6 +6,7 @@ import type {
   DeviceMethod,
   DeviceView,
   PairingCode,
+  PairingLink,
   Passkey,
   PairingPurpose,
 } from "@nervekit/contracts/access";
@@ -26,7 +27,12 @@ import { PeerMatcher } from "../../infrastructure/network/client-address.js";
 import { DeviceSockets } from "./device-sockets.js";
 import { DeviceStore } from "./device-store.js";
 import { FailureLimiter } from "./failure-limiter.js";
-import { normalizePairingCode, PairingCodes } from "./pairing-codes.js";
+import type { ShareOrigin } from "../../infrastructure/network/share-origins.js";
+import {
+  type IssuedPairingCode,
+  normalizePairingCode,
+  PairingCodes,
+} from "./pairing-codes.js";
 import { PasskeyService, toPasskey } from "./passkey-service.js";
 
 export interface AccessSettings {
@@ -96,6 +102,8 @@ export class AccessService {
   logger: { warn(message: string): void } | undefined;
   /** Called after `secrets/daemon-token` was replaced. */
   onLocalTokenRotated: ((token: string) => void) | undefined;
+  /** Late-bound: per-network HTTPS origins, known once mobile HTTPS is up. */
+  shareOrigins: () => readonly ShareOrigin[] = () => [];
 
   readonly #now: () => number;
   readonly #loginLimiter: FailureLimiter;
@@ -288,18 +296,35 @@ export class AccessService {
         "Enroll an owner passkey before pairing other devices.",
       );
     }
-    return this.#withUrl(this.pairing.create(purpose, ttlSeconds));
+    return this.#withLinks(this.pairing.create(purpose, ttlSeconds));
   }
 
   /** One-time passkey enrollment code (10 minutes). Local principals only. */
   createSetupCode(): PairingCode {
-    return this.#withUrl(this.pairing.create("setup", 600));
+    return this.#withLinks(this.pairing.create("setup", 600));
   }
 
-  #withUrl(code: PairingCode): PairingCode {
-    return this.#publicUrl
-      ? { ...code, url: `${this.#publicUrl.origin}/#pair=${code.code}` }
-      : code;
+  #withLinks(code: IssuedPairingCode): PairingCode {
+    const fragment = `/#pair=${code.code}`;
+    const links: PairingLink[] = this.#publicUrl
+      ? [
+          {
+            kind: "public",
+            label: "Public URL",
+            url: `${this.#publicUrl.origin}${fragment}`,
+          },
+        ]
+      : [];
+    for (const share of this.shareOrigins()) {
+      if (share.origin === this.#publicUrl?.origin) continue;
+      links.push({
+        kind: share.kind,
+        label: share.label,
+        url: `${share.origin}${fragment}`,
+        setupUrl: `${share.setupOrigin}/mobile-setup#pair=${code.code}`,
+      });
+    }
+    return { ...code, links };
   }
 
   async redeemPairing(
@@ -631,13 +656,13 @@ export class AccessService {
       code = this.createSetupCode();
     } else {
       if ((await this.store.activeCount()) > 0) return undefined;
-      code = this.pairing.create("browser", 600);
+      code = this.#withLinks(this.pairing.create("browser", 600));
     }
-    const where = code.url ?? "the Nerve web UI";
+    const link = code.links[0]?.url;
     const what =
       code.purpose === "setup" ? "Passkey setup code" : "Pairing code";
     process.stdout.write(
-      `[nerve] ${what}: ${code.code} (valid 10 minutes). Open ${where}${code.url ? "" : " and choose “Pair this device”"}. More: \`nerve pair\`.\n`,
+      `[nerve] ${what}: ${code.code} (valid 10 minutes). Open ${link ?? "the Nerve web UI and choose “Pair this device”"}. More: \`nerve pair\`.\n`,
     );
     return code;
   }

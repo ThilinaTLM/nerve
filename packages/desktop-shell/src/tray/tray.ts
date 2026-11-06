@@ -1,6 +1,5 @@
 import { desktopLog } from "../logging.js";
 import type { ManagedDaemon } from "../daemon/composition.js";
-import type { ShareUrls } from "../daemon/contracts.js";
 import { DESKTOP_APP_NAME, MACOS_TRAY_GUID } from "../desktop-identity.js";
 import type {
   BrowserWindowType,
@@ -9,8 +8,6 @@ import type {
 } from "../platform/electron/electron-api.js";
 import {
   app,
-  clipboard,
-  dialog,
   Menu,
   nativeImage,
   shell,
@@ -91,25 +88,6 @@ export function createTrayController(
             if (managedDaemon?.url) void shell.openExternal(managedDaemon.url);
           },
         },
-        {
-          label: managedDaemon?.mobileShareAvailable
-            ? "Copy Mobile Setup URL"
-            : "Copy Mobile Setup URL (unavailable)",
-          enabled: Boolean(managedDaemon?.mobileShareAvailable),
-          click: () => void copyShareUrl(managedDaemon, "mobileSetupUrl"),
-        },
-        {
-          label: "Copy HTTPS App URL",
-          enabled: Boolean(managedDaemon?.mobileShareAvailable),
-          click: () => void copyShareUrl(managedDaemon, "secureShareUrl"),
-        },
-        {
-          label: "Copy CA Certificate URL",
-          enabled: Boolean(managedDaemon?.caCertUrl),
-          click: () => {
-            if (managedDaemon?.caCertUrl) copyUrl(managedDaemon.caCertUrl);
-          },
-        },
         { type: "separator" },
         {
           label: "Restart UI",
@@ -149,36 +127,6 @@ export function createTrayController(
         error,
       });
     }
-  }
-
-  /**
-   * Mints a single-use pairing code at click time, so no menu entry or log
-   * ever holds a reusable credential, and copies the link that carries it.
-   */
-  async function copyShareUrl(
-    daemon: ManagedDaemon | undefined,
-    kind: keyof ShareUrls,
-  ): Promise<void> {
-    if (!daemon) return;
-    try {
-      copyUrl((await daemon.createShareUrls())[kind]);
-    } catch (error) {
-      void desktopLog("warn", "tray", "Could not create a pairing link", {
-        error,
-      });
-      dialog.showErrorBox(
-        "Could not create a pairing link",
-        error instanceof Error ? error.message : String(error),
-      );
-    }
-  }
-
-  function copyUrl(url: string): void {
-    void clipboard.writeText(url).catch((error: unknown) => {
-      void desktopLog("error", "tray", "Failed to copy URL to clipboard", {
-        error,
-      });
-    });
   }
 
   function updateTrayIcon(): void {

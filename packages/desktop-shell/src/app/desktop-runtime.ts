@@ -453,7 +453,6 @@ export class DesktopRuntime {
                 url: daemon.url,
                 mode: daemon.mode,
                 owned: daemon.owned,
-                mobileShareAvailable: daemon.mobileShareAvailable,
               },
             });
             await Promise.all([

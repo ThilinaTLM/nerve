@@ -26,13 +26,7 @@ import type {
   DaemonStatusListener,
   HealthyDaemon,
   ManagedDaemon,
-  ShareUrls,
 } from "./contracts.js";
-import {
-  buildShareEndpoints,
-  buildShareUrls,
-  type ShareEndpoints,
-} from "./urls.js";
 
 export interface DaemonSupervisorConfig {
   mode: DaemonMode;
@@ -89,7 +83,6 @@ export class DaemonSupervisor {
   /** Last lifecycle reported by a healthy check; undefined when unknown. */
   private lifecycle?: ServerLifecycleState;
   private url = "";
-  private shareEndpoints?: ShareEndpoints;
   private readonly credential: DaemonCredential;
 
   constructor(
@@ -124,37 +117,15 @@ export class DaemonSupervisor {
   }
 
   /** Attach monitoring to an already-running (existing/remote) daemon. */
-  initMonitorOnly(connection: {
-    url: string;
-    token: string;
-    daemon?: HealthyDaemon["daemon"];
-  }): ManagedDaemon {
+  initMonitorOnly(connection: { url: string; token: string }): ManagedDaemon {
     this.url = connection.url;
     this.credential.set(connection.token);
-    this.shareEndpoints = connection.daemon
-      ? buildShareEndpoints(connection.daemon, this.ports.networkInterfaces())
-      : undefined;
     this.startHealthMonitor();
     return this.toManagedDaemon();
   }
 
   getStatus(): DaemonStatus {
     return this.status;
-  }
-
-  // --- sharing ---
-
-  private async createShareUrls(): Promise<ShareUrls> {
-    const endpoints = this.shareEndpoints;
-    if (!endpoints) {
-      throw new Error(
-        "Mobile sharing needs a LAN-bound daemon with mobile HTTPS enabled (--allow-remote --mobile-https).",
-      );
-    }
-    const pairing = await this.credential.withRetry((token) =>
-      this.ports.access.createPairingCode(this.url, token, "mobile"),
-    );
-    return buildShareUrls(endpoints, pairing);
   }
 
   onStatusChange(listener: DaemonStatusListener): () => void {
@@ -180,10 +151,6 @@ export class DaemonSupervisor {
     this.url = healthy.url;
     this.credential.set(healthy.token);
     this.lifecycle = healthy.lifecycle;
-    this.shareEndpoints = buildShareEndpoints(
-      healthy.daemon,
-      this.ports.networkInterfaces(),
-    );
     this.lastHealthyAt = this.ports.scheduler.now();
     this.consecutiveFailures = 0;
     this.failedHealthChecks.length = 0;
@@ -199,13 +166,6 @@ export class DaemonSupervisor {
       get token() {
         return supervisor.credential.token;
       },
-      get caCertUrl() {
-        return supervisor.shareEndpoints?.caCertUrl;
-      },
-      get mobileShareAvailable() {
-        return supervisor.shareEndpoints !== undefined;
-      },
-      createShareUrls: () => supervisor.createShareUrls(),
       refreshCredential: () => supervisor.credential.refresh(),
       acceptRotatedCredential: (credential) =>
         supervisor.credential.accept(credential),
