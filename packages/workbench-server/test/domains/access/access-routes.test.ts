@@ -401,7 +401,13 @@ describe("passkey gate with publicUrl", () => {
     );
     assert.equal(wrong.status, 400);
     const setup = access.createSetupCode();
-    assert.equal(setup.url, `https://nerve.example.com/#pair=${setup.code}`);
+    assert.deepEqual(setup.links, [
+      {
+        kind: "public",
+        label: "Public URL",
+        url: `https://nerve.example.com/#pair=${setup.code}`,
+      },
+    ]);
     const options = await proxy.request(
       "https://nerve.example.com/api/access/passkeys/register/options",
       {

@@ -362,9 +362,6 @@ export function fakeDaemonWorld(
         logs.push({ level, message });
       },
     },
-    networkInterfaces: () => ({
-      eth0: [{ family: "IPv4", internal: false, address: "192.168.1.20" }],
-    }),
     resolveServerMain: () => "/opt/nerve/server/main.js",
     fileExists: async () => overrides.serverMainExists ?? true,
   };

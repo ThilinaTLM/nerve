@@ -80,8 +80,9 @@ function printCode(code: PairingCode, out: Output): void {
   out.log(
     `Valid for about ${minutes} minute${minutes === 1 ? "" : "s"}, single use.`,
   );
-  if (code.url) out.log(`Open: ${code.url}`);
-  else
+  if (code.links.length > 0) {
+    for (const link of code.links) out.log(`Open (${link.label}): ${link.url}`);
+  } else
     out.log(
       "Open the Nerve web UI on the new device and choose “Pair this device”, or scan the QR from Settings → Devices.",
     );

@@ -9,6 +9,9 @@ const WINDOW_MS = 10 * 60_000;
 
 export type PairingPurposeKind = PairingCode["purpose"];
 
+/** A fresh code before the access service attaches its links. */
+export type IssuedPairingCode = Omit<PairingCode, "links">;
+
 interface PendingCode {
   purpose: PairingPurposeKind;
   expiresAt: number;
@@ -55,7 +58,7 @@ export class PairingCodes {
     });
   }
 
-  create(purpose: PairingPurposeKind, ttlSeconds: number): PairingCode {
+  create(purpose: PairingPurposeKind, ttlSeconds: number): IssuedPairingCode {
     this.#expire();
     let code: string;
     do {

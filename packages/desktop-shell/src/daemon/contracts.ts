@@ -28,15 +28,6 @@ export interface ManagedDaemon {
    * request time instead of caching it.
    */
   token?: string;
-  /** Credential-free LAN URL of the local CA certificate (mobile HTTPS only). */
-  caCertUrl?: string;
-  /** Mobile pairing links can be minted (LAN-bound daemon with mobile HTTPS). */
-  mobileShareAvailable: boolean;
-  /**
-   * Mints a single-use pairing code and returns the links that carry it in the
-   * URL fragment. Called lazily on user action; never embeds a long-lived token.
-   */
-  createShareUrls: () => Promise<ShareUrls>;
   /** Re-reads the credential after the daemon rejected it; true when it changed. */
   refreshCredential: () => Promise<boolean>;
   /** Adopts a credential the daemon rotated (`x-nerve-credential`). */
@@ -83,14 +74,6 @@ export interface HealthyDaemon {
   url: string;
   token: string;
   lifecycle?: ServerLifecycleState;
-}
-
-/** Links that carry a single-use pairing code in the fragment. */
-export interface ShareUrls {
-  /** `http://<lan>:<port>/mobile-setup#pair=CODE` (CA install, then secure link). */
-  mobileSetupUrl: string;
-  /** `https://<host>/#pair=CODE`. */
-  secureShareUrl: string;
 }
 
 export interface ChildExit {

@@ -65,13 +65,41 @@ export type PairingCodeCreateRequest = z.input<
   typeof pairingCodeCreateRequestSchema
 >;
 
+/** Which network a pairing link reaches the daemon through. */
+export const pairingLinkKindSchema = z.enum([
+  "public",
+  "lan",
+  "tailscale",
+  "vpn",
+  "other",
+]);
+export type PairingLinkKind = z.infer<typeof pairingLinkKindSchema>;
+
+export const pairingLinkSchema = z.object({
+  kind: pairingLinkKindSchema,
+  /** Display name, e.g. `Local network` or `Tailscale`. */
+  label: z.string(),
+  /** `<origin>/#pair=<code>`. */
+  url: z.string(),
+  /**
+   * `http://<address>/mobile-setup#pair=<code>`: installs the local CA, then
+   * opens `url`. Only for the daemon's own self-signed HTTPS links.
+   */
+  setupUrl: z.string().optional(),
+});
+export type PairingLink = z.infer<typeof pairingLinkSchema>;
+
 export const pairingCodeSchema = z.object({
   /** 8 chars Crockford base32, displayed `XXXX-XXXX`. */
   code: z.string(),
   expiresAt: z.number(),
   purpose: z.union([pairingPurposeSchema, z.literal("setup")]),
-  /** `<publicUrl>/#pair=<code>`; only present when `network.publicUrl` is set. */
-  url: z.string().optional(),
+  /**
+   * Ways another device can reach this daemon, best first: `network.publicUrl`,
+   * then the mobile HTTPS origin on each network (local, Tailscale, VPN).
+   * Empty when the daemon is only reachable where the caller already is.
+   */
+  links: z.array(pairingLinkSchema),
 });
 export type PairingCode = z.infer<typeof pairingCodeSchema>;
 

@@ -17,7 +17,7 @@ For mobile browsers, add self-signed HTTPS:
 npx @nervekit/desktop@latest -- --host 0.0.0.0 --allow-remote --mobile-https
 ```
 
-HTTP defaults to 3747 and mobile HTTPS to 3748. When Nerve runs with **Close to system tray** turned on (**Settings → Workbench → Desktop**), the tray menu offers the setup and share URLs and the local certificate-authority download.
+HTTP defaults to 3747 and mobile HTTPS to 3748. To pair a phone, use **Settings → Devices** (see [Pairing](#pairing)).
 
 ## Trust the local CA
 
@@ -27,9 +27,9 @@ Install the CA only on devices you control and verify the source device. Leaf ce
 
 ## Pairing
 
-Every phone or browser gets its own revocable **device credential**; the daemon token is never put in a URL or QR code. To add a device, open **Settings → Devices** on a signed-in client (or run `nerve pair` on the host) to get a one-time code. It is shown as text and as a QR code whose URL carries the code in the fragment: `https://<lan-ip>:3748/#pair=ABCD-EFGH`. A code is single use, lasts about two minutes, is invalidated after five wrong guesses, and is redeemed only over HTTPS (or on the host itself). Redeeming fails over plain HTTP from the LAN; use the mobile HTTPS listener.
+Every phone or browser gets its own revocable **device credential**; the daemon token is never put in a URL or QR code. To add a device, open **Settings → Devices** on a signed-in client (or run `nerve pair` on the host) to get a one-time code. It is shown as text and as a QR code whose URL carries the code in the fragment: `https://<lan-ip>:3748/#pair=ABCD-EFGH`. If the host is on more than one network (home router, Tailscale, a VPN), the dialog lets you choose which address the QR code uses and remembers your choice; `nerve pair` prints all of them. Container and VM bridges are never offered. A network joined after the daemon started is offered once the daemon restarts, because its address must first be added to the certificate. A code is single use, lasts about two minutes, is invalidated after five wrong guesses, and is redeemed only over HTTPS (or on the host itself). Redeeming fails over plain HTTP from the LAN; use the mobile HTTPS listener.
 
-The phone first needs the local CA, so the QR points at the HTTP bootstrap page `http://<lan-ip>:3747/mobile-setup#pair=ABCD-EFGH`. The page holds no secret; it only copies the fragment onto its "Open secure Nerve" link. Devices expire 180 days after pairing, or after 30 days without use, and must then be paired again. Revoke a device from **Settings → Devices**; its open connections are closed immediately.
+The phone must trust the local CA before the HTTPS link works. For a phone that does not trust it yet, switch the dialog to **First time on this device**: the QR code then opens the HTTP bootstrap page `http://<lan-ip>:3747/mobile-setup#pair=ABCD-EFGH`, which installs the CA and then pairs. The page holds no secret, stays on the network you opened it through, and copies any `#pair=` fragment onto its "Open secure Nerve" link. Devices expire 180 days after pairing, or after 30 days without use, and must then be paired again. Revoke a device from **Settings → Devices**; its open connections are closed immediately.
 
 Old `?token=` share links still work once per link: opening one over HTTPS mints a "Legacy link" device you can see and revoke, then redirects to the clean URL. Over plain HTTP the link is refused. Direct `Authorization: Bearer <daemon-token>` calls from non-loopback clients are still accepted for one more release (with a warning in the daemon log) and then removed.
 
