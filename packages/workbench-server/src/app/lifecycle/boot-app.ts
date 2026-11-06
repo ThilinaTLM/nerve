@@ -1,6 +1,7 @@
 import type { ServerStartingError } from "@nervekit/contracts/status";
 import { Hono } from "hono";
 import { serveStatic } from "../../adapters/http/static-files.js";
+import { createAccessRoutes } from "../../adapters/http/routes/access-routes.js";
 import {
   createLifecycleAuthMiddleware,
   createLifecycleRoutes,
@@ -43,6 +44,10 @@ export function createBootApp(options: BootAppOptions): Hono {
     options.access?.gate ??
     (options.localToken ? createLocalOnlyGate(options.localToken) : undefined);
   app.use("/api/*", createLifecycleAuthMiddleware(gate));
+  // The web app resolves its session before it polls the lifecycle, so the
+  // access routes must answer during upgrade for progress/failures to show.
+  if (options.access)
+    app.route("/api/access", createAccessRoutes(options.access));
   app.route("/", createLifecycleRoutes(options));
   app.all("/api/*", () => startingResponse());
   app.all("/ws/*", () => startingResponse());

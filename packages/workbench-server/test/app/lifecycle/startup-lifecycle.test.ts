@@ -9,6 +9,9 @@ import { createLifecycleRoutes } from "../../../src/app/lifecycle/lifecycle-rout
 import { createServerLifecycleHolder } from "../../../src/app/lifecycle/server-lifecycle.js";
 import { createStartupSequence } from "../../../src/app/lifecycle/startup-sequence.js";
 import { ensureLocalToken } from "../../../src/infrastructure/storage-bootstrap/local-token.js";
+import { AccessService } from "../../../src/domains/access/access-service.js";
+import { storagePaths } from "../../../src/infrastructure/storage-bootstrap/index.js";
+import { withPeer } from "../../support/peer-address.js";
 import { Hono } from "hono";
 
 const TOKEN = "nt_test";
@@ -163,6 +166,41 @@ describe("server startup lifecycle", () => {
     assert.equal(holder.get().failure?.retryable, false);
     assert.equal((await post("/api/lifecycle/rollback")).status, 409);
     assert.equal((await post("/api/lifecycle/retry")).status, 409);
+  });
+
+  it("answers the access session during upgrade so the app can show progress", async () => {
+    const home = await mkdtemp(join(tmpdir(), "nerve-boot-access-"));
+    try {
+      const holder = createServerLifecycleHolder();
+      holder.upgrading({ step: "0001-x", label: "Importing" });
+      const access = new AccessService({
+        paths: storagePaths(home),
+        localToken: TOKEN,
+        settings: {},
+      });
+      const boot = withPeer(
+        createBootApp({
+          holder,
+          retry: () => undefined,
+          rollback: () => undefined,
+          host: "127.0.0.1",
+          port: () => 1,
+          localToken: TOKEN,
+          access,
+        }),
+      );
+      const session = await boot.request("/api/access/session", {
+        headers: auth,
+      });
+      assert.equal(session.status, 200);
+      const lifecycle = await boot.request("/api/lifecycle", { headers: auth });
+      assert.equal(
+        ((await lifecycle.json()) as { state: string }).state,
+        "upgrading",
+      );
+    } finally {
+      await rm(home, { recursive: true, force: true });
+    }
   });
 
   it("refuses retry for non-retryable failures", async () => {
