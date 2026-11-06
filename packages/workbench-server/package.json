@@ -44,7 +44,7 @@
     "@nervekit/protocol": "workspace:*",
     "@nervekit/skills": "workspace:*",
     "@nervekit/tools": "workspace:*",
-    "@peculiar/x509": "^2.0.0",
+    "@peculiar/x509": "^2.2.0",
     "@simplewebauthn/server": "^14.0.3",
     "fdir": "6.5.0",
     "hono": "4.13.16",
