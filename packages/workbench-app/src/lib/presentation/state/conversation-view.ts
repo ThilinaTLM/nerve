@@ -1,12 +1,7 @@
+import { asRecord } from "$lib/presentation/utils/as-record";
 import type { TodoItem } from "@nervekit/contracts/tools";
 import type { ToolCallTranscriptRecord } from "$lib/presentation/view-models/conversation";
 import { todoItemsField } from "../tools/views/tool-view-helpers.js";
-
-function asRecord(value: unknown): Record<string, unknown> {
-  return value && typeof value === "object"
-    ? (value as Record<string, unknown>)
-    : {};
-}
 
 export function currentTodosForAgent(
   toolCalls: ToolCallTranscriptRecord[],

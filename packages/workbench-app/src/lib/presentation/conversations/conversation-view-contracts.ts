@@ -227,7 +227,28 @@ export type ConversationPaneModel = {
   composer: ConversationComposerModel;
 };
 
-export type ConversationPaneActions = {
+export type ConversationApprovalPlanActions = {
+  onGrantApproval?: (
+    toolCallId: string,
+    scope?:
+      | "single_call"
+      | "always_conversation"
+      | "always_project"
+      | "always_user",
+  ) => void | Promise<void>;
+  onDenyApproval?: (toolCallId: string) => void | Promise<void>;
+  onAcceptPlanReview?: (
+    toolCallId: string,
+    options?: PlanReviewResolveOptions,
+  ) => void | Promise<void>;
+  onAcceptPlanReviewInNewChat?: (
+    toolCallId: string,
+    options?: PlanReviewResolveOptions,
+  ) => void | Promise<void>;
+  onRejectPlanReview?: (toolCallId: string) => void | Promise<void>;
+};
+
+export type ConversationPaneActions = ConversationApprovalPlanActions & {
   onComposerChange?: (text: string) => void;
   onSubmit?: () => void;
   onAbort?: () => void;
@@ -276,24 +297,6 @@ export type ConversationPaneActions = {
     answers: Record<string, UserInputAnswer>,
   ) => void | Promise<void>;
   onDismissUserQuestion?: (toolCallId: string) => void | Promise<void>;
-  onGrantApproval?: (
-    toolCallId: string,
-    scope?:
-      | "single_call"
-      | "always_conversation"
-      | "always_project"
-      | "always_user",
-  ) => void | Promise<void>;
-  onDenyApproval?: (toolCallId: string) => void | Promise<void>;
-  onAcceptPlanReview?: (
-    toolCallId: string,
-    options?: PlanReviewResolveOptions,
-  ) => void | Promise<void>;
-  onAcceptPlanReviewInNewChat?: (
-    toolCallId: string,
-    options?: PlanReviewResolveOptions,
-  ) => void | Promise<void>;
-  onRejectPlanReview?: (toolCallId: string) => void | Promise<void>;
   onContinueFromFailure?: (runId: string) => void;
   onCancelCompaction?: () => void;
   /** Cancels only the stalled provider request and retries it. */

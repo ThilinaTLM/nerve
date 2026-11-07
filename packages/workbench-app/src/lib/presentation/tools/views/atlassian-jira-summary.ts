@@ -1,3 +1,4 @@
+import { asPlainRecord } from "$lib/presentation/utils/as-record";
 import {
   type ArgSource,
   type AtlassianSummaryOptions,
@@ -14,7 +15,6 @@ import {
   appendPreviewHint,
   appendRecordKeys,
   appendResolvedAssignee,
-  asRecord,
   compactLines,
   countLabel,
   formatJiraBoard,
@@ -281,7 +281,7 @@ function appendJiraRequestLines(
         jiraBodyText(source, "body", "body_adf"),
         budget,
       );
-      const visibility = asRecord(source.args.visibility);
+      const visibility = asPlainRecord(source.args.visibility);
       if (Object.keys(visibility).length > 0) {
         addLine(
           lines,

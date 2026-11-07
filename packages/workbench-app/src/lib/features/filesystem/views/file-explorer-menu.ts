@@ -84,6 +84,34 @@ export function absoluteProjectPath(
     : `${base}${separator}${normalizedRelative}`;
 }
 
+function launchAndNativeItems(
+  actions: { openDefault: () => void; reveal: () => void },
+  nativeActions: boolean,
+  icons: FileExplorerMenuIcons,
+  launchItems: ContextMenuItem[],
+): ContextMenuItem[] {
+  const items: ContextMenuItem[] = [];
+  if (launchItems.length > 0) {
+    items.push({ type: "separator" }, ...launchItems);
+  }
+  if (nativeActions) {
+    items.push(
+      { type: "separator" },
+      {
+        label: "Open with default app",
+        icon: icons.openDefault,
+        onSelect: actions.openDefault,
+      },
+      {
+        label: "Show in file manager",
+        icon: icons.reveal,
+        onSelect: actions.reveal,
+      },
+    );
+  }
+  return items;
+}
+
 export function buildProjectRootMenu(
   actions: ProjectRootMenuActions,
   nativeActions: boolean,
@@ -112,24 +140,9 @@ export function buildProjectRootMenu(
       shortcut: shortcuts?.paste,
       onSelect: actions.paste,
     });
-  if (launchItems.length > 0) {
-    items.push({ type: "separator" }, ...launchItems);
-  }
-  if (nativeActions) {
-    items.push(
-      { type: "separator" },
-      {
-        label: "Open with default app",
-        icon: icons.openDefault,
-        onSelect: actions.openDefault,
-      },
-      {
-        label: "Show in file manager",
-        icon: icons.reveal,
-        onSelect: actions.reveal,
-      },
-    );
-  }
+  items.push(
+    ...launchAndNativeItems(actions, nativeActions, icons, launchItems),
+  );
   items.push(
     { type: "separator" },
     { label: "Copy path", icon: icons.copy, onSelect: actions.copyPath },
@@ -214,24 +227,9 @@ export function buildFileExplorerMenu(
       onSelect: actions.mention,
     },
   );
-  if (launchItems.length > 0) {
-    items.push({ type: "separator" }, ...launchItems);
-  }
-  if (nativeActions) {
-    items.push(
-      { type: "separator" },
-      {
-        label: "Open with default app",
-        icon: icons.openDefault,
-        onSelect: actions.openDefault,
-      },
-      {
-        label: "Show in file manager",
-        icon: icons.reveal,
-        onSelect: actions.reveal,
-      },
-    );
-  }
+  items.push(
+    ...launchAndNativeItems(actions, nativeActions, icons, launchItems),
+  );
   items.push(
     { type: "separator" },
     { label: "Copy path", icon: icons.copy, onSelect: actions.copyPath },

@@ -1,3 +1,4 @@
+import { errorMessageOr } from "$lib/presentation/utils/error-message";
 import { untrack } from "svelte";
 import type { UserInputAnswer } from "@nervekit/contracts/core";
 import type {
@@ -29,12 +30,6 @@ export type AskUserControllerInput = {
   ) => void | Promise<void>;
   onDismiss?: (toolCallId: string) => void | Promise<void>;
 };
-
-function errorMessage(error: unknown, fallback: string): string {
-  return error instanceof Error && error.message.trim()
-    ? error.message
-    : fallback;
-}
 
 /**
  * State of one ask_user card: typed answers, the in-flight resolution, and
@@ -215,7 +210,7 @@ export class AskUserController {
       draftStore.clear(toolCallId);
     } catch (error) {
       if (this.toolCallId === toolCallId)
-        this.error = errorMessage(error, "Could not send the answers.");
+        this.error = errorMessageOr(error, "Could not send the answers.");
     } finally {
       if (this.toolCallId === toolCallId) {
         this.transcribingForSend = false;
@@ -236,7 +231,7 @@ export class AskUserController {
       draftStore.clear(toolCallId);
     } catch (error) {
       if (this.toolCallId === toolCallId)
-        this.error = errorMessage(error, "Could not dismiss the question.");
+        this.error = errorMessageOr(error, "Could not dismiss the question.");
     } finally {
       if (this.toolCallId === toolCallId) this.submitting = undefined;
     }

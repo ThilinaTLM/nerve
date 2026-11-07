@@ -33,3 +33,7 @@ export function normalizeNativeError(
 ): NativeOperationError {
   return new NativeOperationError(detail);
 }
+
+export function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}

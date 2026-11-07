@@ -3,6 +3,7 @@ import { createRequire } from "node:module";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { NativeBinding } from "./contract.js";
+import { errorMessage } from "../core/error.js";
 
 export const binding = loadBinding();
 
@@ -36,8 +37,4 @@ function platformTriple(): string {
   if (process.platform === "darwin") return `darwin-${process.arch}`;
   if (process.platform === "linux") return `linux-${process.arch}-gnu`;
   return `${process.platform}-${process.arch}`;
-}
-
-function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
 }

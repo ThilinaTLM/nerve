@@ -1,3 +1,4 @@
+import { errorMessage } from "$lib/presentation/utils/error-message";
 import type {
   CreatePromptSuggestionRequest,
   PromptSuggestionStatus,
@@ -107,8 +108,4 @@ export async function setPromptSuggestionTrust(
       ? "Prompt suggestion trust reset"
       : `Prompt suggestion ${request.status}`,
   );
-}
-
-function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
 }

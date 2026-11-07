@@ -32,7 +32,10 @@ import {
   filesystemFileSaveRequestSchema,
   filesystemProjectEntryCreateRequestSchema,
 } from "@nervekit/contracts/filesystem";
-import { normalizeProjectRelativeDirectory } from "./project-listing.js";
+import {
+  mapBatched,
+  normalizeProjectRelativeDirectory,
+} from "./project-listing.js";
 import { ApplicationError } from "../../core/application-error.js";
 import { atomicWriteFile } from "../../infrastructure/storage-bootstrap/file-mutations.js";
 import { storagePaths } from "../../infrastructure/storage-bootstrap/paths.js";
@@ -80,22 +83,6 @@ async function detectDirectorySignals(
   if (checks[4]) signals.push("rust");
   if (checks[5]) signals.push("go");
   return signals;
-}
-
-async function mapBatched<T, U>(
-  values: T[],
-  batchSize: number,
-  mapper: (value: T) => Promise<U>,
-): Promise<U[]> {
-  const results: U[] = [];
-  for (let index = 0; index < values.length; index += batchSize) {
-    results.push(
-      ...(await Promise.all(
-        values.slice(index, index + batchSize).map(mapper),
-      )),
-    );
-  }
-  return results;
 }
 
 const imageExtensionByMime = new Map([

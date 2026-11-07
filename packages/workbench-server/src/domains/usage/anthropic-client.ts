@@ -1,25 +1,22 @@
-import { mkdir, readFile, stat, writeFile } from "node:fs/promises";
+import { readFile, stat } from "node:fs/promises";
 import { join } from "node:path";
 import type {
   SubscriptionUsage,
   SubscriptionWindow,
 } from "@nervekit/contracts/usage";
+import {
+  API_TIMEOUT_MS,
+  DEFAULT_RATE_LIMIT_BACKOFF_MS,
+  createCachedUsageFetcher,
+  numberValue,
+  parseRetryAfterMs,
+  writeUsageCacheFile,
+  type UsageApiResponse,
+} from "./cached-usage-fetch.js";
 
 const API_HOST = "api.anthropic.com";
 const API_PATH = "/api/oauth/usage";
 const API_URL = `https://${API_HOST}${API_PATH}`;
-const API_TIMEOUT_MS = 5000;
-const CACHE_MAX_AGE_MS = 30_000;
-const LOCK_MAX_AGE_MS = 10_000;
-const DEFAULT_RATE_LIMIT_BACKOFF_MS = 30_000;
-
-type CacheEntry = {
-  data: SubscriptionUsage | null;
-  time: number;
-  blockedUntil: number;
-};
-
-let cache: CacheEntry | null = null;
 
 function cacheFile(cacheDir: string): string {
   return join(cacheDir, "anthropic-usage.json");
@@ -46,77 +43,7 @@ async function writeCacheFile(
   cacheDir: string,
   data: SubscriptionUsage,
 ): Promise<void> {
-  try {
-    await mkdir(cacheDir, { recursive: true });
-    await writeFile(cacheFile(cacheDir), JSON.stringify(data), "utf8");
-  } catch {
-    // best-effort cache
-  }
-}
-
-function lockFile(cacheDir: string): string {
-  return join(cacheDir, "anthropic-usage.lock");
-}
-
-async function readLock(
-  cacheDir: string,
-  nowMs: number,
-): Promise<number | null> {
-  const path = lockFile(cacheDir);
-  try {
-    const parsed = JSON.parse(await readFile(path, "utf8")) as {
-      blockedUntil?: unknown;
-    };
-    const blockedUntil = Number(parsed.blockedUntil);
-    return Number.isFinite(blockedUntil) && blockedUntil > nowMs
-      ? blockedUntil
-      : null;
-  } catch {
-    try {
-      const blockedUntil = (await stat(path)).mtimeMs + LOCK_MAX_AGE_MS;
-      return blockedUntil > nowMs ? blockedUntil : null;
-    } catch {
-      return null;
-    }
-  }
-}
-
-async function writeLock(
-  cacheDir: string,
-  blockedUntil: number,
-): Promise<void> {
-  try {
-    await mkdir(cacheDir, { recursive: true });
-    await writeFile(
-      lockFile(cacheDir),
-      JSON.stringify({ blockedUntil }),
-      "utf8",
-    );
-  } catch {
-    // best-effort cross-process backoff
-  }
-}
-
-function parseRetryAfterMs(
-  header: string | null,
-  nowMs: number,
-): number | null {
-  const trimmed = header?.trim();
-  if (!trimmed) return null;
-  if (/^\d+$/.test(trimmed)) {
-    const s = Number.parseInt(trimmed, 10);
-    return s > 0 ? s * 1000 : null;
-  }
-  const ms = Date.parse(trimmed);
-  if (Number.isNaN(ms)) return null;
-  return ms > nowMs ? ms - nowMs : null;
-}
-
-function numberValue(value: unknown): number | null {
-  if (typeof value === "number" && Number.isFinite(value)) return value;
-  if (typeof value !== "string" || value.trim() === "") return null;
-  const parsed = Number(value);
-  return Number.isFinite(parsed) ? parsed : null;
+  await writeUsageCacheFile(cacheDir, cacheFile(cacheDir), data);
 }
 
 function normalizeIsoDateTime(value: unknown): string | null {
@@ -207,13 +134,7 @@ export function parseAnthropicUsageResponse(
   };
 }
 
-async function fetchApi(
-  token: string,
-): Promise<
-  | { kind: "success"; body: string }
-  | { kind: "rate-limited"; retryAfterMs: number }
-  | { kind: "error" }
-> {
+async function fetchApi(token: string): Promise<UsageApiResponse> {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), API_TIMEOUT_MS);
   try {
@@ -247,72 +168,10 @@ async function fetchApi(
  * bearer token. Memoized for {@link CACHE_MAX_AGE_MS} with rate-limit backoff;
  * the last good snapshot is served on transient failures.
  */
-export async function fetchAnthropicUsage(
-  token: string,
-  cacheDir: string,
-): Promise<SubscriptionUsage | null> {
-  const now = Date.now();
-
-  if (
-    cache &&
-    now - cache.time < CACHE_MAX_AGE_MS &&
-    cache.blockedUntil <= now
-  ) {
-    return cache.data;
-  }
-
-  const fileCache = await readCacheFile(cacheDir);
-  if (fileCache?.data && now - fileCache.time < CACHE_MAX_AGE_MS) {
-    cache = { data: fileCache.data, time: fileCache.time, blockedUntil: 0 };
-    return fileCache.data;
-  }
-
-  const lastKnown = cache?.data ?? fileCache?.data ?? null;
-
-  if (cache && cache.blockedUntil > now) {
-    return lastKnown;
-  }
-
-  const lockedUntil = await readLock(cacheDir, now);
-  if (lockedUntil) {
-    cache = { data: lastKnown, time: now, blockedUntil: lockedUntil };
-    return lastKnown;
-  }
-
-  await writeLock(cacheDir, now + LOCK_MAX_AGE_MS);
-
-  const resp = await fetchApi(token);
-  if (resp.kind === "rate-limited") {
-    await writeLock(cacheDir, now + resp.retryAfterMs);
-    cache = {
-      data: lastKnown,
-      time: now,
-      blockedUntil: now + resp.retryAfterMs,
-    };
-    return lastKnown;
-  }
-  if (resp.kind === "error") {
-    await writeLock(cacheDir, now + DEFAULT_RATE_LIMIT_BACKOFF_MS);
-    cache = {
-      data: lastKnown,
-      time: now,
-      blockedUntil: now + DEFAULT_RATE_LIMIT_BACKOFF_MS,
-    };
-    return lastKnown;
-  }
-
-  const data = parseAnthropicUsageResponse(resp.body);
-  if (!data) {
-    await writeLock(cacheDir, now + DEFAULT_RATE_LIMIT_BACKOFF_MS);
-    cache = {
-      data: lastKnown,
-      time: now,
-      blockedUntil: now + DEFAULT_RATE_LIMIT_BACKOFF_MS,
-    };
-    return lastKnown;
-  }
-
-  cache = { data, time: now, blockedUntil: 0 };
-  await writeCacheFile(cacheDir, data);
-  return data;
-}
+export const fetchAnthropicUsage = createCachedUsageFetcher({
+  lockFileName: "anthropic-usage.lock",
+  readCacheFile,
+  writeCacheFile,
+  fetchApi: fetchApi,
+  parseResponse: parseAnthropicUsageResponse,
+});

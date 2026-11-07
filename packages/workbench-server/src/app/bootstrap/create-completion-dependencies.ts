@@ -72,6 +72,45 @@ export function createCompletionDependencies(
           : undefined,
     };
   };
+  const mergeRepositorySnapshots = <
+    S extends {
+      status: string;
+      failureCode?: string | undefined;
+      refreshing: boolean;
+      updatedAt: string | null;
+    },
+    I extends object,
+  >(
+    paths: string[],
+    read: (repo: string) => S,
+    items: (snapshot: S) => I[],
+  ) =>
+    mergeCompletionRemoteSnapshots(
+      paths.map((repo) => {
+        try {
+          const snapshot = read(repo);
+          return {
+            items: items(snapshot).map((item) => ({
+              ...item,
+              repository: repo,
+            })),
+            stale: snapshot.status !== "fresh",
+            failed: snapshot.status === "unavailable" || !!snapshot.failureCode,
+            failureCode: snapshot.failureCode,
+            refreshing: snapshot.refreshing,
+            updatedAt: snapshot.updatedAt,
+          };
+        } catch {
+          return {
+            items: [],
+            stale: true,
+            failed: true,
+            refreshing: false,
+            updatedAt: null,
+          };
+        }
+      }),
+    );
   const providers = createCompletionProviders({
     ...sources,
     remoteChanged: (source, invalidate) =>
@@ -89,32 +128,10 @@ export function createCompletionDependencies(
           updatedAt: null,
           failureCode,
         };
-      const merged = mergeCompletionRemoteSnapshots(
-        paths.map((repo) => {
-          try {
-            const snapshot = git.cachedOpenPrs(projectId, repo);
-            return {
-              items: (snapshot.result?.prs ?? []).map((pr) => ({
-                ...pr,
-                repository: repo,
-              })),
-              stale: snapshot.status !== "fresh",
-              failed:
-                snapshot.status === "unavailable" || !!snapshot.failureCode,
-              failureCode: snapshot.failureCode,
-              refreshing: snapshot.refreshing,
-              updatedAt: snapshot.updatedAt,
-            };
-          } catch {
-            return {
-              items: [],
-              stale: true,
-              failed: true,
-              refreshing: false,
-              updatedAt: null,
-            };
-          }
-        }),
+      const merged = mergeRepositorySnapshots(
+        paths,
+        (repo) => git.cachedOpenPrs(projectId, repo),
+        (snapshot) => snapshot.result?.prs ?? [],
       );
       return { ...merged, stale: stale || merged.stale === true };
     },
@@ -128,32 +145,10 @@ export function createCompletionDependencies(
           updatedAt: null,
           failureCode,
         };
-      const merged = mergeCompletionRemoteSnapshots(
-        paths.map((repo) => {
-          try {
-            const snapshot = git.listIssues(projectId, repo);
-            return {
-              items: snapshot.issues.map((issue) => ({
-                ...issue,
-                repository: repo,
-              })),
-              stale: snapshot.status !== "fresh",
-              failed:
-                snapshot.status === "unavailable" || !!snapshot.failureCode,
-              failureCode: snapshot.failureCode,
-              refreshing: snapshot.refreshing,
-              updatedAt: snapshot.updatedAt,
-            };
-          } catch {
-            return {
-              items: [],
-              stale: true,
-              failed: true,
-              refreshing: false,
-              updatedAt: null,
-            };
-          }
-        }),
+      const merged = mergeRepositorySnapshots(
+        paths,
+        (repo) => git.listIssues(projectId, repo),
+        (snapshot) => snapshot.issues,
       );
       return { ...merged, stale: stale || merged.stale === true };
     },

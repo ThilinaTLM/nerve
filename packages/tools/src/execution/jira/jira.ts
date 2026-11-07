@@ -56,8 +56,8 @@ import {
   transitionSummary,
 } from "./transitions.js";
 import { maybeResolveAssignee } from "./users.js";
+import { appendRelatedPreview } from "../atlassian/related-preview.js";
 import {
-  appendRelatedPreview,
   formatJiraCommentPreview,
   summarizeRelated,
 } from "./related-previews.js";

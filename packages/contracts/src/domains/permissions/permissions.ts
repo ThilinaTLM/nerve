@@ -99,6 +99,23 @@ export const permissionExceptionSchema = z
   });
 export type PermissionException = z.infer<typeof permissionExceptionSchema>;
 
+export const permissionExceptionListSchema = z
+  .array(permissionExceptionSchema)
+  .max(256)
+  .superRefine((exceptions, context) => {
+    const ids = new Set<string>();
+    for (const [index, exception] of exceptions.entries()) {
+      if (ids.has(exception.id)) {
+        context.addIssue({
+          code: "custom",
+          message: `Duplicate permission exception id '${exception.id}'`,
+          path: [index, "id"],
+        });
+      }
+      ids.add(exception.id);
+    }
+  });
+
 /** The one mapping from a tool's static category to its default effective risk. */
 export function effectiveRiskForCategory(risk: StaticToolRisk): ToolRisk {
   if (risk === "write") return "workspace_write";
