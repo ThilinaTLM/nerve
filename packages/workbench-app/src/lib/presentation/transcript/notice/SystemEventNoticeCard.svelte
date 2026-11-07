@@ -1,5 +1,6 @@
 <script lang="ts">
 import type { SystemEventNotice } from "../../state/transcript-types";
+import { getConversationUiCapabilities } from "../../context.svelte";
 import ToolOutputBlock from "../../tools/tool-call/ToolOutputBlock.svelte";
 import NoticeCard from "./NoticeCard.svelte";
 import {
@@ -14,7 +15,13 @@ let {
   notice: SystemEventNotice;
   onOpenFile?: (path: string, line?: number) => void;
 } = $props();
-const model = $derived(systemEventNoticeModel(notice, { onOpenFile }));
+const { openConversation } = getConversationUiCapabilities();
+const model = $derived(
+  systemEventNoticeModel(notice, {
+    onOpenFile,
+    onOpenConversation: openConversation,
+  }),
+);
 const body = $derived(systemEventNoticeBody(notice));
 const details = $derived(
   body

@@ -49,21 +49,25 @@ Sub-agent conversation IDs (`subagent_prompt` result `assignments[].agentId`, `e
 
 ### Fork notice
 
-Nerve has no mid-conversation system-role message: the model receives only `user`, `assistant` and `toolResult` messages, and the system prompt is a separate field. A new role would mean changing every provider adapter. The existing `system_event` already does the job:
+Nerve has no mid-conversation system-role message: the model receives only `user`, `assistant` and `toolResult` messages, and the system prompt is a separate field. A new role would mean changing every provider adapter. The existing `system_event` already does the job, with a dedicated `fork` subtype next to `task_result`, `user_intervention`, `notification` and `execution_state`:
 
 ```ts
 {
   type: "system_event",
   llmRepresentation: "user",
   payload: {
-    subtype: "notification",
-    producer: "system:fork",
+    subtype: "fork",
+    sourceConversationId: "conv_…",
+    sourceTitle: "title",
+    subagents: ["explore-auth", "fix-tests"],
     text: "Forked from «title». Sub-agents from before this point (explore-auth, fix-tests) are not available in this conversation. Using one of those names starts a new agent without its earlier context.",
   },
 }
 ```
 
-It is appended after the copied path and becomes the fork's head. It reaches the model as a `<harness_event>` user message with the standard harness line (see [Harness event wording](#harness-event-wording)). "Not a user request" is what we want: it stops the model from treating the notice as a task. A fork-specific wrapper would need a new subtype or a producer special case in the harness for no behavioral gain, so the generic wrapper is kept (`context-projection.ts`, `harness/src/messages/messages.ts`), and the transcript shows it as a plain message row, which doubles as the visible provenance. No contract, schema, migration or projection change is needed. The producer must not start with `agent-profile:`, because the transcript hides those notifications.
+It is appended after the copied path and becomes the fork's head. It reaches the model as a `<harness_event>` user message with the standard harness line (see [Harness event wording](#harness-event-wording)). "Not a user request" is what we want: it stops the model from treating the notice as a task. The projection is generic over subtypes, so the model sees exactly `text` with no harness change (`context-projection.ts`, `harness/src/messages/messages.ts`).
+
+A subtype rather than a `notification` with a special `producer`, because `producer` identifies a sender while `subtype` is the field that selects presentation (as `task_result` does for sub-agent cards), and the structured fields spare the UI from parsing the model text. The transcript renders it as a `forked` notice card with the branch glyph, the source title beside the badge, the model text as body and an **Open source** action. The change is one entry in the contracts union of system event payloads; the database only checks `event_type`, so there is no schema change or migration.
 
 The notice matters because `subagent_prompt` resolves names against the conversation's current children: in the fork, a previously used name silently starts a fresh agent. The listed names are the source's children whose `parent_tool_call_id` is a `subagent_prompt` call on the copied path. Agents created after the fork point are not mentioned. Without such children, the sub-agent sentences are left out.
 

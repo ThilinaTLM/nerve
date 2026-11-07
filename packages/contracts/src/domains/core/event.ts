@@ -177,9 +177,19 @@ export const executionStatePayloadSchema = z.discriminatedUnion("transition", [
     ...executionDetails,
   }),
 ]);
+/** Heads a forked conversation; `text` is what the model reads. */
+export const forkNoticePayloadSchema = z.object({
+  subtype: z.literal("fork"),
+  sourceConversationId: z.string(),
+  sourceTitle: z.string(),
+  /** Sub-agents of the source spawned on the copied path; not carried over. */
+  subagents: z.array(z.string()),
+  text: z.string(),
+});
 export const systemEventPayloadSchema = z.discriminatedUnion("subtype", [
   ...systemNoticeSchema.options,
   executionStatePayloadSchema,
+  forkNoticePayloadSchema,
 ]);
 export const toolCallOutcomeSchema = z.enum([
   "completed",
@@ -322,6 +332,7 @@ export type AssistantMessagePayload = z.infer<
 export type ExecutionTransition = z.infer<typeof executionTransitionSchema>;
 export type ExecutionStatePayload = z.infer<typeof executionStatePayloadSchema>;
 export type SystemEventPayload = z.infer<typeof systemEventPayloadSchema>;
+export type ForkNoticePayload = z.infer<typeof forkNoticePayloadSchema>;
 export type ToolCallOutcome = z.infer<typeof toolCallOutcomeSchema>;
 export type ToolCallResponsePayload = z.infer<
   typeof toolCallResponsePayloadSchema

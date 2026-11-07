@@ -277,8 +277,10 @@ void test("fork copies only the path, remaps identities and files, and leaves th
     const notice = path.at(-1)!;
     assert.equal(notice.type, "system_event");
     assert.deepEqual(notice.payload, {
-      subtype: "notification",
-      producer: "system:fork",
+      subtype: "fork",
+      sourceConversationId: "src",
+      sourceTitle: "Plan",
+      subagents: ["explore-auth"],
       text: "Forked from «Plan». Sub-agents from before this point (explore-auth) are not available in this conversation. Using one of those names starts a new agent without its earlier context.",
     });
     assert.match(JSON.stringify(messages.at(-1)), /not a user request/);

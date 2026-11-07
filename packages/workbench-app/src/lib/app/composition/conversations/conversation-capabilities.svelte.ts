@@ -37,6 +37,7 @@ import { composerReferenceSource } from "./composer-reference-completions";
 import { handleComposerCompletionAction } from "./composer-completion-actions";
 import { selection } from "$lib/application/workspace/selection.svelte";
 import { workspaceState } from "$lib/application/workspace/workspace-state.svelte";
+import { openConversation } from "$lib/application/workspace/workspace-actions.svelte";
 
 // Promise cache only; mutations do not drive rendered state.
 // eslint-disable-next-line svelte/prefer-svelte-reactivity
@@ -95,6 +96,11 @@ export function workbenchConversationUiCapabilities(
     readToolCallResult: (toolCallId, byteOffset, byteLimit) =>
       readToolCallResult(toolCallId, byteOffset, byteLimit),
     subagents,
+    openConversation: (conversationId) => {
+      void openConversation(conversationId).catch((error) =>
+        notify.error(error instanceof Error ? error.message : String(error)),
+      );
+    },
     imageSource,
     atlassian: { jiraSiteUrl, confluenceSiteUrl },
     voice: {

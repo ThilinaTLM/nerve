@@ -122,6 +122,8 @@ export interface ConversationUiCapabilities {
   ) => Promise<ToolCallResultChunk>;
   /** Live sub-agent state and navigation for the sub-agent tool cards. */
   subagents?: SubagentsCapability;
+  /** Opens a top-level conversation in the workbench, e.g. a fork's source. */
+  openConversation?: (conversationId: string) => void;
   /** Voice input integration for the ask-user card. */
   voice?: VoiceInputCapability;
   /** Composer-grade reply input (paste image, completions, file drop) for the ask-user card. */

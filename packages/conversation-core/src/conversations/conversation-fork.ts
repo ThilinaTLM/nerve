@@ -191,8 +191,10 @@ export class ConversationForker {
         inputId: null,
         createdAt: now,
         payload: {
-          subtype: "notification",
-          producer: "system:fork",
+          subtype: "fork",
+          sourceConversationId: sourceId,
+          sourceTitle: source.title,
+          subagents: agents,
           text: noticeText(source.title, agents),
         },
       });
