@@ -9,6 +9,7 @@ import Undo2 from "@lucide/svelte/icons/undo-2";
 import X from "@lucide/svelte/icons/x";
 import { Callout } from "@nervekit/ui-kit/components/composites/callout";
 import { IconAction } from "@nervekit/ui-kit/components/composites/icon-action";
+import { scrollEdges } from "@nervekit/ui-kit/components/composites/scroll-region";
 import { SearchInput } from "@nervekit/ui-kit/components/composites/search-input";
 import { Badge } from "@nervekit/ui-kit/components/ui/badge";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
@@ -110,6 +111,27 @@ const messageCount = $derived(
 const empty = $derived(model.items.size <= 1);
 
 let listEl = $state<HTMLDivElement>();
+// Edge fades say there is more above or below, as in the transcript.
+let canScrollUp = $state(false);
+let canScrollDown = $state(false);
+$effect(() => {
+  const element = listEl;
+  if (!element) return;
+  const update = () => {
+    const edges = scrollEdges(element);
+    canScrollUp = edges.top;
+    canScrollDown = edges.bottom;
+  };
+  update();
+  element.addEventListener("scroll", update, { passive: true });
+  const observer = new ResizeObserver(update);
+  observer.observe(element);
+  if (element.firstElementChild) observer.observe(element.firstElementChild);
+  return () => {
+    element.removeEventListener("scroll", update);
+    observer.disconnect();
+  };
+});
 
 function rowElement(id: string): HTMLElement | null | undefined {
   return listEl?.querySelector<HTMLElement>(
@@ -558,42 +580,56 @@ const lineClass = (current: boolean) =>
       No messages yet.
     </div>
   {:else}
-    <div
-      bind:this={listEl}
-      class="min-h-0 flex-1 overflow-y-auto px-(--conversation-content-inset,1.5rem) py-2 outline-none [scrollbar-gutter:stable]"
-      role="listbox"
-      tabindex="0"
-      aria-label="Conversation history"
-      aria-activedescendant={`history-item-${selectedId}`}
-      onkeydown={onListKey}
-    >
-      {#each layout.rows as row (row.itemId)}
-        {@const item = model.items.get(row.itemId)!}
-        {@const selected = row.itemId === selectedId}
-        <div
-          id={`history-item-${row.itemId}`}
-          data-history-item={row.itemId}
-          class={[
-            "flex cursor-pointer gap-1.5 rounded-md pr-2",
-            selected ? "bg-selected" : "hover:bg-hover",
-            query.trim().length >= 2 &&
-              !matches.has(row.itemId) &&
-              "opacity-50",
-          ]}
-          role="option"
-          aria-selected={selected}
-          tabindex="-1"
-          onclick={() => {
-            if (row.folded) expanded.add(row.itemId);
-            void select(row.itemId, false);
-            listEl?.focus({ preventScroll: true });
-          }}
-          onkeydown={() => undefined}
-        >
-          {@render gutter(row, item)}
-          {@render content(row, item, selected)}
+    <div class="relative isolate flex min-h-0 flex-1 flex-col">
+      <div
+        bind:this={listEl}
+        class="min-h-0 flex-1 overflow-y-auto px-(--conversation-content-inset,1.5rem) py-2 outline-none [scrollbar-gutter:stable]"
+        role="listbox"
+        tabindex="0"
+        aria-label="Conversation history"
+        aria-activedescendant={`history-item-${selectedId}`}
+        onkeydown={onListKey}
+      >
+        <div role="none">
+          {#each layout.rows as row (row.itemId)}
+            {@const item = model.items.get(row.itemId)!}
+            {@const selected = row.itemId === selectedId}
+            <div
+              id={`history-item-${row.itemId}`}
+              data-history-item={row.itemId}
+              class={[
+                "flex cursor-pointer gap-1.5 rounded-md pr-2",
+                selected ? "bg-selected" : "hover:bg-hover",
+                query.trim().length >= 2 &&
+                  !matches.has(row.itemId) &&
+                  "opacity-50",
+              ]}
+              role="option"
+              aria-selected={selected}
+              tabindex="-1"
+              onclick={() => {
+                if (row.folded) expanded.add(row.itemId);
+                void select(row.itemId, false);
+                listEl?.focus({ preventScroll: true });
+              }}
+              onkeydown={() => undefined}
+            >
+              {@render gutter(row, item)}
+              {@render content(row, item, selected)}
+            </div>
+          {/each}
         </div>
-      {/each}
+      </div>
+      <div
+        class="pointer-events-none absolute top-0 right-3 left-0 z-2 h-6 bg-linear-to-b from-background to-transparent opacity-0 transition-opacity duration-150"
+        class:opacity-100={canScrollUp}
+        aria-hidden="true"
+      ></div>
+      <div
+        class="pointer-events-none absolute right-3 bottom-0 left-0 z-2 h-6 bg-linear-to-t from-background to-transparent opacity-0 transition-opacity duration-150"
+        class:opacity-100={canScrollDown}
+        aria-hidden="true"
+      ></div>
     </div>
   {/if}
 </div>
