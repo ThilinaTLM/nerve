@@ -7,7 +7,7 @@ import type {
 
 /**
  * Stable icon identifiers. The Svelte layer maps these to `@lucide/svelte`
- * components (see HistoryPoint.svelte). Keeping this module free of component
+ * components (see history-icons.ts). Keeping this module free of component
  * imports lets it stay pure and unit-testable under `node:test`.
  */
 export type HistoryIconName =

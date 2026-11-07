@@ -113,6 +113,8 @@ let {
   onRefreshPermissionRuleSets,
   onOpenPermissionSettings,
   onOpenCapabilitySettings,
+  onToggleHistory,
+  historyOpen = false,
 }: PromptComposerProps & {
   activity?: Snippet;
   composerView?: ComposerView;
@@ -258,6 +260,7 @@ const profileShortcutAria = getShortcutAriaLabel("composer.cycleProfile");
 const permissionShortcut = getShortcutLabel("composer.cyclePermission");
 const permissionShortcutAria = getShortcutAriaLabel("composer.cyclePermission");
 const stopShortcut = getShortcutLabel("composer.stopRun");
+const historyShortcut = getShortcutLabel("conversation.toggleHistory");
 const stopShortcutAria = getShortcutAriaLabel("composer.stopRun");
 
 const voiceTarget = $derived.by<VoiceInputTarget | undefined>(() => {
@@ -640,6 +643,8 @@ function handleMicContextMenu(event: MouseEvent) {
     permissionShortcutAria,
     profileShortcut,
     profileShortcutAria,
+    historyOpen,
+    historyShortcut,
     todos,
     slashCompletions,
     completionSource,
@@ -673,6 +678,7 @@ function handleMicContextMenu(event: MouseEvent) {
     onUsageOpenChange,
     onUsageRetry,
     onOpenSystemPrompt,
+    onToggleHistory,
     onModelSelectionChange,
     onResetPermission,
     onAgentProfileChange,

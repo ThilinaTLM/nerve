@@ -1,15 +1,4 @@
 <script lang="ts">
-import {
-  composerSignals,
-  focusComposer,
-  retainConversationStore,
-  type ConversationStore,
-} from "$lib/features/conversations";
-import { ConversationHistoryDialog } from "$lib/features/conversations";
-import { selection } from "$lib/application/workspace/selection.svelte";
-import { conversationView } from "$lib/features/conversations";
-import { conversationTranscript } from "$lib/features/conversations";
-import type { ConversationEntry } from "$lib/presentation/view-models/conversation";
 import ProjectDirectoryPicker from "$lib/app/composition/dialogs/ProjectDirectoryPicker.svelte";
 import { isLocalDesktopDaemon, isDesktopApp } from "$lib/platform/desktop";
 import {
@@ -46,48 +35,6 @@ $effect(() => {
     current = false;
   };
 });
-let store = $state<ConversationStore>();
-$effect(() => {
-  const id = selection.conversationId;
-  if (!id || !composerSignals.historyDialogOpen) {
-    store = undefined;
-    return;
-  }
-  const retained = retainConversationStore(id);
-  store = retained.store;
-  void retained.ready
-    .then(() => retained.store.loadHistoryTree())
-    .catch(() => undefined);
-  return retained.release;
-});
-const activeConversation = $derived(
-  store?.snapshot ? conversationView(store.snapshot) : undefined,
-);
-const projection = $derived(
-  store?.snapshot
-    ? conversationTranscript({
-        snapshot: store.snapshot,
-        events: store.historyEvents ?? store.events,
-        liveBlocks: store.liveBlocks,
-        toolOutput: store.toolOutput,
-      })
-    : undefined,
-);
-const treeNodes = $derived(projection?.treeNodes ?? []);
-const toolCalls = $derived(projection?.toolCalls ?? []);
-
-async function branchFromConversationEntry(entryId: string | undefined) {
-  if (!store) return;
-  await store.selectHead(entryId ?? null);
-  focusComposer();
-}
-
-async function editConversationEntry(entry: ConversationEntry) {
-  if (!store) return;
-  await store.selectHead(entry.parentEntryId ?? null);
-  composerSignals.editEntry = entry;
-  focusComposer();
-}
 </script>
 
 <ProjectDirectoryPicker
@@ -97,17 +44,4 @@ async function editConversationEntry(entry: ConversationEntry) {
   {hostLabel}
   onSelectProject={(projectId) => void selectProject(projectId)}
   onOpenDirectory={(path) => void openProjectDirectory(path)}
-/>
-
-<ConversationHistoryDialog
-  bind:open={composerSignals.historyDialogOpen}
-  {activeConversation}
-  {treeNodes}
-  {toolCalls}
-  onNavigateToEntry={(entryId) => {
-    void branchFromConversationEntry(entryId);
-  }}
-  onEditEntry={(entry) => {
-    void editConversationEntry(entry);
-  }}
 />

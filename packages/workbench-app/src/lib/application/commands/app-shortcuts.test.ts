@@ -71,6 +71,8 @@ function shortcutOptions(
     abortActiveRun: () => undefined,
     composerEscape: () => undefined,
     toggleMic: () => undefined,
+    toggleHistory: () => undefined,
+    stepMessage: () => undefined,
     selectedPermissionRuleSetId: () => "supervised",
     permissionRuleSetIds: () => ["read_only", "supervised", "autonomous"],
     setComposerPermissionRuleSet: () => undefined,

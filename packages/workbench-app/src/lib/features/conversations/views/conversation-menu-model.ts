@@ -12,6 +12,8 @@ export type ConversationMenuHandlers = {
   onNavigateToEntry?: (entryId: string | undefined) => void;
   onEditEntry?: (entry: ConversationEntry) => void;
   onOpenHistory?: () => void;
+  /** Work is running, so rewinding or editing earlier messages is blocked. */
+  rewindLocked?: boolean;
 };
 
 type ConversationMenuContext = ConversationMenuHandlers & {
@@ -199,6 +201,7 @@ export function transcriptMenuModel(
   ) {
     actionGroup.push({
       label: "Edit message",
+      disabled: context.rewindLocked,
       onSelect: () => context.onEditEntry?.(details.entry as ConversationEntry),
     });
   }
@@ -224,7 +227,8 @@ export function transcriptMenuModel(
   }
   if (details.entryId && context.onNavigateToEntry) {
     actionGroup.push({
-      label: "Continue from here",
+      label: "Rewind to here",
+      disabled: context.rewindLocked,
       onSelect: () => context.onNavigateToEntry?.(details.entryId),
     });
   }
@@ -239,7 +243,7 @@ export function transcriptMenuModel(
   }
   if (context.onOpenHistory) {
     metadataGroup.push({
-      label: "Branch history",
+      label: "History",
       onSelect: context.onOpenHistory,
     });
   }

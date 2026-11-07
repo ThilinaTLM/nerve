@@ -131,6 +131,11 @@ let {
   onNavigateToEntry,
   onEditEntry,
   onOpenHistory,
+  rewindLocked = false,
+  transcriptView = "conversation",
+  onToggleHistory,
+  messageStep,
+  history,
 }: WorkbenchConversationAdapterProps & {
   composerView?: ComposerView;
 } = $props();
@@ -294,6 +299,7 @@ function menuForTranscript(
     onNavigateToEntry,
     onEditEntry,
     onOpenHistory,
+    rewindLocked: rewindLocked || compacting || rendered.sending,
   });
 }
 </script>
@@ -332,6 +338,8 @@ function menuForTranscript(
         }
       : undefined,
     emptyTitle: "Open a conversation or start a new one.",
+    transcriptView,
+    messageStep,
     composer: {
       text: composerText,
       disabled: !active,
@@ -386,9 +394,11 @@ function menuForTranscript(
     onDiscardQueuedPrompt,
     onMoveQueuedPromptToComposer,
     onOpenPendingWork,
+    onToggleHistory,
   }}
   menus={{ transcriptMenu: menuForTranscript, selectionActions }}
   {activity}
+  {history}
 >
   {#snippet composer(activityContent)}
     <WorkbenchComposerAdapter
@@ -451,6 +461,8 @@ function menuForTranscript(
       {onRefreshPermissionRuleSets}
       {onOpenPermissionSettings}
       {onOpenCapabilitySettings}
+      {onToggleHistory}
+      historyOpen={transcriptView === "history"}
     />
   {/snippet}
 

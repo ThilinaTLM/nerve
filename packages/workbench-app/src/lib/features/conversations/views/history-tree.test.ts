@@ -1,14 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import type { ConversationTreeNode } from "$lib/presentation/view-models/conversation";
-import {
-  buildHistoryFlow,
-  buildHistoryTree,
-  findHistoryMatches,
-  historyKeyTarget,
-  historyLayout,
-  HISTORY_ROOT_ID,
-} from "./history-tree";
+import { buildHistoryTree, HISTORY_ROOT_ID } from "./history-tree";
 
 type Spec = {
   id: string;
@@ -133,38 +126,4 @@ test("extra root entries become branches of the start", () => {
   );
   assert.equal(model.nodes.get(HISTORY_ROOT_ID)!.childIds.length, 2);
   assert.equal(model.nodes.get(HISTORY_ROOT_ID)!.childIds.at(-1), "u1");
-});
-
-test("arrow keys walk parent, continuing child and sibling branches", () => {
-  const model = buildHistoryTree(tree(specs), "a2");
-  assert.equal(historyKeyTarget(model, "a1", "ArrowUp"), "u1");
-  assert.equal(historyKeyTarget(model, "a1", "ArrowDown"), "u2");
-  assert.equal(historyKeyTarget(model, "u2", "ArrowLeft"), "u3");
-  assert.equal(historyKeyTarget(model, "u3", "ArrowRight"), "u2");
-  assert.equal(historyKeyTarget(model, "u2", "ArrowRight"), undefined);
-  assert.equal(historyKeyTarget(model, "a3", "Home"), HISTORY_ROOT_ID);
-  assert.equal(historyKeyTarget(model, "a3", "End"), "a2");
-});
-
-test("search finds folded steps through their reply", () => {
-  const model = buildHistoryTree(tree(specs), "a2");
-  assert.deepEqual(findHistoryMatches(model, "question"), ["u1", "u2", "u3"]);
-  assert.deepEqual(findHistoryMatches(model, "tool call: read"), ["a1"]);
-  assert.deepEqual(findHistoryMatches(model, "q"), []);
-});
-
-test("flow nodes carry label width and edges mark the current path", () => {
-  const model = buildHistoryTree(tree(specs), "a2");
-  const flow = buildHistoryFlow(model, historyLayout(model));
-  assert.equal(flow.nodes.length, model.nodes.size);
-  assert.equal(flow.edges.length, model.nodes.size - 1);
-  const side = flow.edges.find((edge) => edge.target === "u3")!;
-  const main = flow.edges.find((edge) => edge.target === "u2")!;
-  assert.match(main.style, /--primary/);
-  assert.match(side.style, /--muted-foreground/);
-  const u3 = flow.nodes.find((node) => node.id === "u3")!;
-  const u2 = flow.nodes.find((node) => node.id === "u2")!;
-  assert.ok(u3.position.x < u2.position.x);
-  assert.ok(u3.data.labelWidth < 360);
-  assert.equal(flow.nodes.find((n) => n.id === "a1")!.data.toolCount, 2);
 });

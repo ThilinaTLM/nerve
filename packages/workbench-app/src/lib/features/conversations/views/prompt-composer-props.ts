@@ -83,6 +83,9 @@ export type PromptComposerProps = {
   onUsageOpenChange?: (open: boolean) => void;
   onUsageRetry?: () => void;
   onOpenSystemPrompt?: () => void | Promise<void>;
+  /** Switches the transcript area between the conversation and History. */
+  onToggleHistory?: () => void;
+  historyOpen?: boolean;
   onModelSelectionChange?: (next: ComposerModelChange) => void;
   onResetPermission?: () => void;
   onAgentProfileChange?: (name: string) => void;

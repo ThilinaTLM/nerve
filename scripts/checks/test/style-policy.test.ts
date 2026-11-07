@@ -48,7 +48,6 @@ test("a dead class has no consumers", () => {
 test("allowlisted dynamic classes are exempt", () => {
   assert.equal(isDynamicClass("dialog-header"), true);
   assert.equal(isDynamicClass("ansi-red"), true);
-  assert.equal(isDynamicClass("svelte-flow__node"), true);
   assert.equal(isDynamicClass("panel-row-hoverable"), true);
   assert.equal(isDynamicClass("footer-item"), false);
 });
@@ -83,7 +82,7 @@ test("a :global selector scoped under a local class passes", () => {
 }
 
 .wrap
-  :global(.svelte-flow__edge.active .svelte-flow__edge-path) {
+  :global(.cm-line.active .cm-content) {
   stroke: red;
 }
 </style>`;

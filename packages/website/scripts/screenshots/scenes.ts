@@ -223,7 +223,7 @@ export const DESKTOP_SCENES = [
   },
   {
     id: "history",
-    alt: "The Nerve conversation history graph zoomed into a cluster where several branches diverge from earlier entries",
+    alt: "The Nerve conversation History view listing the user's messages with side branches drawn beside the current path",
     async drive(page: Page) {
       await openConversation(page, DEPLOY_CONVERSATION);
       /* History is reached from the transcript context menu, which is also how
@@ -234,11 +234,11 @@ export const DESKTOP_SCENES = [
         })
         .first()
         .click({ button: "right" });
-      await page.getByRole("menuitem", { name: "Branch history" }).click();
+      await page
+        .getByRole("menuitem", { name: "History", exact: true })
+        .click();
       await page.waitForSelector('[data-tour-id="conversation-history"]');
-      await page.waitForTimeout(1200);
-      await page.getByRole("button", { name: "Fit tree" }).click();
-      await page.waitForTimeout(1200);
+      await page.waitForTimeout(800);
     },
   },
   {

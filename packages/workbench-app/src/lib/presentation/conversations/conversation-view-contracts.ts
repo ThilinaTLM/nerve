@@ -170,7 +170,13 @@ export type ConversationComposerModel = {
   subagentControlsEnabled?: boolean;
   /** Agent profiles the lead can delegate to, for the Capabilities popover. */
   capabilitySubagentProfiles?: CapabilitySubagentProfile[];
+  /** History is showing in place of the transcript. */
+  historyOpen?: boolean;
+  historyShortcut?: string;
 };
+
+/** What the transcript area shows: the conversation or its History. */
+export type TranscriptView = "conversation" | "history";
 
 export type ConversationTimelineSections = {
   prefix: TimelineItem[];
@@ -215,6 +221,9 @@ export type ConversationPaneModel = {
   emptyMessage?: string;
   transcriptHeightCacheKey?: string;
   transcriptLabel?: string;
+  transcriptView?: TranscriptView;
+  /** Bumped by the previous/next message shortcuts; sign is the direction. */
+  messageStep?: { token: number; direction: -1 | 1 };
   composer: ConversationComposerModel;
 };
 
@@ -298,6 +307,14 @@ export type ConversationPaneActions = {
   ) => void | Promise<void>;
   /** A "Waiting for" chip was chosen in the activity row. */
   onOpenPendingWork?: (item: PendingWorkItem) => void;
+  /** Switches the transcript area between the conversation and History. */
+  onToggleHistory?: () => void;
+};
+
+/** Handed to the History view so it can return to a message in the transcript. */
+export type TranscriptHistoryControls = {
+  /** Show the conversation scrolled to an entry, when it is on the current path. */
+  reveal: (entryId: string) => void;
 };
 
 export type TranscriptMenuTarget =

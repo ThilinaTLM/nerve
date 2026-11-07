@@ -1,4 +1,5 @@
 <script lang="ts">
+import { untrack } from "svelte";
 import ProfileUpdateNotice from "$lib/features/conversations/views/ProfileUpdateNotice.svelte";
 import { projectAgentDefaults } from "$lib/application/agent-configuration/project-agent-defaults.svelte";
 import { CreationPreferencesState } from "$lib/features/settings/state/creation-preferences.svelte";
@@ -32,8 +33,9 @@ import { conversationCatalog } from "$lib/features/conversations/state/conversat
 import {
   composerSignals,
   focusComposer,
-  openConversationHistory,
 } from "$lib/features/conversations/state/composer-signals.svelte";
+import ConversationHistoryHost from "$lib/app/composition/conversations/ConversationHistoryHost.svelte";
+import type { TranscriptView } from "$lib/presentation/conversations";
 import { conversationTranscript } from "$lib/features/conversations/adapters/core-transcript.adapter";
 
 import {
@@ -394,6 +396,36 @@ const {
   store: () => store,
   setComposerText: composerSession.setComposerText,
 });
+// The transcript area shows the conversation or its History, per pane.
+let transcriptView = $state<TranscriptView>("conversation");
+$effect(() => {
+  void conversationId;
+  transcriptView = "conversation";
+});
+let handledHistoryRequest = untrack(() => composerSignals.historyRequest.token);
+$effect(() => {
+  const request = composerSignals.historyRequest;
+  if (request.token === handledHistoryRequest) return;
+  handledHistoryRequest = request.token;
+  if (!active || !store?.snapshot) return;
+  transcriptView =
+    request.mode === "open"
+      ? "history"
+      : request.mode === "close"
+        ? "conversation"
+        : transcriptView === "history"
+          ? "conversation"
+          : "history";
+});
+function toggleHistory() {
+  transcriptView = transcriptView === "history" ? "conversation" : "history";
+}
+async function rewindFromHistory(entryId: string | undefined) {
+  await jumpToConversationEntry(entryId);
+  transcriptView = "conversation";
+  focusComposer();
+}
+
 const jumpToConversationEntry: (
   id: string | undefined,
   summarize?: boolean,
@@ -588,16 +620,43 @@ const stoppable = $derived(hasStoppableWork(store?.snapshot));
   onForcePushQueuedPrompts={forcePushQueuedPrompts}
   onDiscardQueuedPrompt={discardQueuedPrompt}
   onMoveQueuedPromptToComposer={moveQueuedPromptToComposer}
-  onNavigateToEntry={(entryId, summarize) => {
-    void jumpToConversationEntry(entryId, summarize);
-  }}
-  onEditEntry={(entry) => {
-    composerSession.editEntry(entry);
-  }}
+  onNavigateToEntry={agentView.viewedChildId
+    ? undefined
+    : (entryId, summarize) => {
+        void jumpToConversationEntry(entryId, summarize);
+      }}
+  onEditEntry={agentView.viewedChildId
+    ? undefined
+    : (entry) => {
+        composerSession.editEntry(entry);
+      }}
+  rewindLocked={stoppable}
   onOpenHistory={() => {
-    void runActivePaneAction(openConversationHistory);
+    transcriptView = "history";
   }}
+  {transcriptView}
+  onToggleHistory={store?.snapshot ? toggleHistory : undefined}
+  messageStep={composerSignals.messageStep}
 >
+  {#snippet history(controls)}
+    {#if store}
+      <ConversationHistoryHost
+        {store}
+        readOnly={Boolean(agentView.viewedChildId)}
+        rewindLocked={stoppable}
+        onRewind={(entryId) =>
+          void runActivePaneAction(() => rewindFromHistory(entryId))}
+        onEdit={(entry) => {
+          composerSession.editEntry(entry);
+          transcriptView = "conversation";
+        }}
+        onReveal={controls.reveal}
+        onClose={() => {
+          transcriptView = "conversation";
+        }}
+      />
+    {/if}
+  {/snippet}
   {#snippet contextActions(closePopover)}
     <ConversationContextActions
       compaction={compactionSettings.compaction}

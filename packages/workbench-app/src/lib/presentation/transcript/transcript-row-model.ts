@@ -187,3 +187,44 @@ export function measurementVersionForRow(
   }
   return node.key;
 }
+
+/** A user message in the transcript, for message navigation. */
+export type TranscriptMessageMark = {
+  index: number;
+  key: string;
+  text: string;
+};
+
+function isUserMessageRow(row: TranscriptRowItem): row is TimelineRowItem {
+  return (
+    row.kind === "timeline" &&
+    row.node.kind === "message" &&
+    row.node.item.role === "user"
+  );
+}
+
+export function transcriptMessageMarks(
+  rows: readonly TranscriptRowItem[],
+): TranscriptMessageMark[] {
+  const marks: TranscriptMessageMark[] = [];
+  rows.forEach((row, index) => {
+    if (isUserMessageRow(row) && row.node.kind === "message")
+      marks.push({ index, key: row.key, text: row.node.item.text });
+  });
+  return marks;
+}
+
+/** Row showing a stored entry's message, if it is in the transcript. */
+export function transcriptRowIndexOfEntry(
+  rows: readonly TranscriptRowItem[],
+  entryId: string,
+): number | undefined {
+  const index = rows.findIndex(
+    (row) =>
+      row.kind === "timeline" &&
+      row.node.kind === "message" &&
+      (row.node.item.id === entryId ||
+        row.node.item.id?.startsWith(`${entryId}:`)),
+  );
+  return index >= 0 ? index : undefined;
+}

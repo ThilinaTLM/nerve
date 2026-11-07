@@ -126,7 +126,7 @@ export const tourSteps: readonly TourStep[] = [
     introducedIn: 1,
     title: "Navigate and branch conversations",
     description:
-      "Conversation History is a graph of messages and branches. Jump to an earlier point or edit from the middle without losing the original path.",
+      "History lists your messages and the branches between them, and updates while the agent works. Rewind to an earlier point or edit a message without losing the original path. Open it from the History button in the composer.",
     targetId: "conversation-history",
   },
   {

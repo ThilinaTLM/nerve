@@ -7,6 +7,7 @@ import Markdown from "@nervekit/ui-kit/renderers/markdown/Markdown.svelte";
 import ConversationBanner from "$lib/presentation/conversations/ConversationBanner.svelte";
 import ConversationEmptyState from "$lib/presentation/conversations/ConversationEmptyState.svelte";
 import ConversationWelcome from "$lib/features/conversations/views/ConversationWelcome.svelte";
+import ConversationHistoryView from "$lib/features/conversations/views/ConversationHistoryView.svelte";
 import type { ProjectRecord } from "$lib/domain/projects/sidebar-view-models";
 import type { TimelineItem } from "$lib/presentation/state/timeline";
 import type {
@@ -25,7 +26,10 @@ import TaskNoticeCard from "$lib/presentation/transcript/notice/TaskNoticeCard.s
 import ThinkingGroup from "$lib/presentation/transcript/ThinkingGroup.svelte";
 import TranscriptList from "$lib/presentation/transcript/TranscriptList.svelte";
 import UserPromptRow from "$lib/presentation/transcript/UserPromptRow.svelte";
-import type { QueuedPromptRecord } from "$lib/presentation/view-models/conversation";
+import type {
+  ConversationTreeNode,
+  QueuedPromptRecord,
+} from "$lib/presentation/view-models/conversation";
 import GalleryGroup from "../GalleryGroup.svelte";
 import GallerySpecimen from "../GallerySpecimen.svelte";
 import { sampleCall, SAMPLE_CWD } from "./tool-card-fixtures";
@@ -74,6 +78,80 @@ const messageItem = (
   createdAt: stamp,
   ...overrides,
 });
+
+/* --------------------------------- History --------------------------------- */
+
+// [id, parent, role, text]: a current path with two side branches.
+const historySpecs: [
+  string,
+  string | undefined,
+  "user" | "assistant",
+  string,
+][] = [
+  [
+    "u1",
+    undefined,
+    "user",
+    "Find the firewall rules that block my IP on dev and prod.",
+  ],
+  [
+    "a1",
+    "u1",
+    "assistant",
+    "Both clusters have 14 ClientIPAddress rules; none matches your IP.",
+  ],
+  [
+    "u2",
+    "a1",
+    "user",
+    "Write a script that adds my current IP on both servers.",
+  ],
+  [
+    "a2",
+    "u2",
+    "assistant",
+    "Added scripts/allow-my-ip.sh with a --dry-run flag.",
+  ],
+  [
+    "s1",
+    "a2",
+    "user",
+    "Lock down AllowAllAzureServices and use a private endpoint.",
+  ],
+  [
+    "s2",
+    "s1",
+    "assistant",
+    "The private endpoint needs a VNet the API app is not on yet.",
+  ],
+  ["u3", "a2", "user", "Make the script idempotent and print what it changed."],
+  [
+    "a3",
+    "u3",
+    "assistant",
+    "Re-running is now a no-op that prints 'already allowed'.",
+  ],
+  ["t1", "a3", "user", "Try Terraform for the firewall rules instead."],
+  ["t2", "t1", "assistant", "Drafted a Terraform module for the rules."],
+  ["u4", "a3", "user", "Open a PR for this."],
+  ["a4", "u4", "assistant", "Opened PR #482."],
+];
+const historyNodes: ConversationTreeNode[] = historySpecs.map(
+  ([id, parent, role, text], index) => ({
+    entry: {
+      id,
+      conversationId: "conv_demo",
+      parentEntryId: parent,
+      role,
+      kind: "message",
+      text,
+      createdAt: new Date(Date.parse(stamp) + index * 95_000).toISOString(),
+    },
+    childEntryIds: historySpecs
+      .filter((spec) => spec[1] === id)
+      .map((spec) => spec[0]),
+  }),
+);
 
 /* ------------------------------ User messages ------------------------------ */
 
@@ -369,6 +447,32 @@ const contextTimeline: TimelineItem[] = [
       <p class="mt-2 text-ui text-muted-foreground">
         Working directory {SAMPLE_CWD}
       </p>
+    </GallerySpecimen>
+  </GalleryGroup>
+
+  <GalleryGroup
+    title="History"
+    description="Shown in place of the transcript: your messages with side branches beside the current path."
+  >
+    <GallerySpecimen
+      title="ConversationHistoryView"
+      description="Select a message to rewind, edit or return to it in the transcript."
+      source="features/conversations/views/ConversationHistoryView"
+      usage="1 file · conversation"
+      layout="bare"
+    >
+      <div
+        class="mx-auto h-[520px] w-[760px] max-w-full overflow-hidden rounded-md border bg-background"
+      >
+        <ConversationHistoryView
+          treeNodes={historyNodes}
+          activeEntryId="a4"
+          onRewind={noop}
+          onEdit={noop}
+          onReveal={noop}
+          onClose={noop}
+        />
+      </div>
     </GallerySpecimen>
   </GalleryGroup>
 

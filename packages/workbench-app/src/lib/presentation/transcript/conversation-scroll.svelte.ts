@@ -6,6 +6,7 @@ import { tick } from "svelte";
 import { shouldDisableFollowForScroll } from "./conversation-scroll-intent";
 
 const MAX_SETTLE_FRAMES = 30;
+const REVEAL_SETTLE_FRAMES = 6;
 // Above this distance from the bottom, a smooth animation would have to mount
 // and measure every row on the way down (O(n) for long conversations); snap
 // instantly instead. Below it, the in-between rows are already measured so a
@@ -227,6 +228,27 @@ export function createConversationScrollController(
     };
     // First anchor runs now (callers await the DOM commit), so the opened
     // transcript never paints a frame at its top before landing at the end.
+    step();
+  }
+
+  // Bring a row to the top of the viewport (message navigation). Rows near the
+  // target are measured as they render, so re-align for a few frames.
+  function revealIndex(index: number): void {
+    const ctrl = controller;
+    if (!ctrl) return;
+    cancelSettledScroll();
+    followBottom = false;
+    settling = true;
+    let frames = 0;
+    const step = () => {
+      settleFrame = undefined;
+      frames += 1;
+      markProgrammaticScroll();
+      ctrl.scrollToIndex(index, { align: "start" });
+      if (frames < REVEAL_SETTLE_FRAMES)
+        settleFrame = requestAnimationFrame(step);
+      else settling = false;
+    };
     step();
   }
 
@@ -479,5 +501,6 @@ export function createConversationScrollController(
     },
     scrollToEnd,
     jumpToBottom,
+    revealIndex,
   };
 }
