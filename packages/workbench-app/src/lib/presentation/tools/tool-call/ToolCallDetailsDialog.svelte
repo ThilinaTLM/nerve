@@ -20,7 +20,6 @@ import type {
   ToolCallDetails,
   ToolCallTranscriptRecord,
 } from "../../state/tool-types";
-import CardSheet from "../../cards/CardSheet.svelte";
 import MetaChip from "../../cards/MetaChip.svelte";
 import StatusGlyph from "../../cards/StatusGlyph.svelte";
 import { toolPresentationCached } from "../views/tool-presentation";
@@ -29,7 +28,6 @@ import {
   formatDuration,
 } from "../views/tool-presentation-helpers";
 import { parseToolViewCached } from "../views/tool-result-view";
-import { toolViewComponent } from "../views/registry";
 import { getConversationUiCapabilities } from "../../context.svelte";
 import AgentPreviewSection from "./AgentPreviewSection.svelte";
 import ArgumentsSection from "./ArgumentsSection.svelte";
@@ -37,8 +35,6 @@ import CompleteResultSection from "./CompleteResultSection.svelte";
 import {
   agentPreviewText,
   availableToolDetailSections,
-  hasFormattedToolView,
-  initialToolDetailSection,
   resolveToolDetailSection,
   serializeToolArguments,
   type ToolDetailSection,
@@ -67,7 +63,6 @@ let {
 }: Props = $props();
 
 const SECTION_LABELS: Record<ToolDetailSection, string> = {
-  formatted: "Output",
   "agent-preview": "Agent preview",
   arguments: "Arguments",
   "complete-result": "Raw result",
@@ -78,15 +73,9 @@ const capabilities = getConversationUiCapabilities();
 const displayToolCall = $derived(details?.toolCall ?? previewToolCall);
 const view = $derived(parseToolViewCached(displayToolCall));
 const presentation = $derived(toolPresentationCached(view, displayToolCall));
-const ToolView = $derived(toolViewComponent(view.kind));
-const hasStoredPreview = $derived(displayToolCall.resultPreview !== undefined);
-const formatted = $derived(
-  Boolean(details && hasFormattedToolView(view, hasStoredPreview)),
-);
 const completeResult = $derived(details?.completeResult);
 const sections = $derived(
   availableToolDetailSections({
-    formatted,
     agentPreview: details?.toolCall.agentPreview !== undefined,
     arguments: details?.toolCall.args !== undefined,
     completeResult: Boolean(completeResult?.hasResult),
@@ -95,11 +84,7 @@ const sections = $derived(
 
 let chosenSection = $state<ToolDetailSection | undefined>(undefined);
 const activeSection = $derived(
-  resolveToolDetailSection(
-    sections,
-    chosenSection,
-    initialToolDetailSection(view, hasStoredPreview),
-  ),
+  resolveToolDetailSection(sections, chosenSection),
 );
 // The raw result loads on first visit and then stays mounted.
 let rawVisited = $state(false);
@@ -156,18 +141,13 @@ const argumentsText = $derived(
   serializeToolArguments(details?.toolCall.args).text,
 );
 const paneText = $derived(
-  activeSection === "formatted"
-    ? resultText
-    : activeSection === "agent-preview"
-      ? agentText
-      : activeSection === "arguments"
-        ? argumentsText
-        : activeSection === "complete-result"
-          ? rawText
-          : "",
-);
-const wrappable = $derived(
-  activeSection !== undefined && activeSection !== "formatted",
+  activeSection === "agent-preview"
+    ? agentText
+    : activeSection === "arguments"
+      ? argumentsText
+      : activeSection === "complete-result"
+        ? rawText
+        : "",
 );
 
 const footerMeta = $derived.by(() => {
@@ -355,14 +335,12 @@ async function copy(key: string, text: string): Promise<void> {
             <div
               class="flex items-center gap-1 bg-chrome-track px-1.5 shadow-[inset_0_-1px_0_var(--color-border)]"
             >
-              {#if wrappable}
-                <IconAction
-                  icon={WrapText}
-                  label="Wrap lines"
-                  active={wrap}
-                  onclick={() => (wrap = !wrap)}
-                />
-              {/if}
+              <IconAction
+                icon={WrapText}
+                label="Wrap lines"
+                active={wrap}
+                onclick={() => (wrap = !wrap)}
+              />
               <IconAction
                 icon={copiedKey === "pane" ? Check : Copy}
                 label={copiedKey === "pane" ? "Copied" : "Copy"}
@@ -383,16 +361,6 @@ async function copy(key: string, text: string): Promise<void> {
               <Tabs.Content value={section}>
                 {#if section !== activeSection && !(section === "complete-result" && rawVisited)}
                   <!-- Inactive panes stay unmounted; the raw result keeps its loaded chunks. -->
-                {:else if section === "formatted"}
-                  <!-- The pane is the sheet; views join it without their own frame. -->
-                  <CardSheet class="rounded-none border-0">
-                    <ToolView
-                      toolCall={details.toolCall}
-                      {view}
-                      expanded={true}
-                      {onOpenFile}
-                    />
-                  </CardSheet>
                 {:else if section === "agent-preview"}
                   <AgentPreviewSection
                     preview={details.toolCall.agentPreview}
