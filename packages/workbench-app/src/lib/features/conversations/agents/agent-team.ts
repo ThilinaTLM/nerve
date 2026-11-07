@@ -83,19 +83,28 @@ export function hasStoppableWork(
 
 /**
  * What a conversation with no running turn is still waiting for: sub-agents
- * that have not finished and background commands that are still running.
+ * that have not finished (including ones idle on their own background work)
+ * and background commands that are still running.
  */
 export function pendingWork(input: {
   children: readonly Pick<
     ConversationSummary,
-    "id" | "title" | "status" | "createdAt" | "lastParentPromptAt"
+    | "id"
+    | "title"
+    | "status"
+    | "pendingWork"
+    | "createdAt"
+    | "lastParentPromptAt"
   >[];
   asyncBash: readonly AsyncBash[];
 }): PendingWorkItem[] {
   return [
     ...input.children
       .filter(
-        (child) => child.status === "running" || child.status === "waiting",
+        (child) =>
+          child.status === "running" ||
+          child.status === "waiting" ||
+          child.pendingWork,
       )
       .sort(compareSubagents)
       .map(

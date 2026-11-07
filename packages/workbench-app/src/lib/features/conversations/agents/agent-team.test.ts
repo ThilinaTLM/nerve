@@ -35,13 +35,14 @@ describe("agent activity state", () => {
 });
 
 describe("pending work", () => {
-  it("lists unfinished sub-agents and running commands", () => {
+  it("lists unfinished sub-agents, including idle ones with background work, and running commands", () => {
     const items = pendingWork({
       children: [
         {
           id: "c1",
           title: "auth-research",
           status: "running",
+          pendingWork: false,
           createdAt: "2026-10-01T00:00:00Z",
           lastParentPromptAt: "2026-10-02T00:00:00Z",
         },
@@ -49,14 +50,24 @@ describe("pending work", () => {
           id: "c2",
           title: "done",
           status: "idle",
+          pendingWork: false,
           createdAt: "2026-10-01T00:00:00Z",
         },
         {
           id: "c3",
           title: "new-prompt",
           status: "waiting",
+          pendingWork: false,
           createdAt: "2026-10-01T00:00:00Z",
           lastParentPromptAt: "2026-10-03T00:00:00Z",
+        },
+        {
+          id: "c4",
+          title: "capture",
+          status: "idle",
+          pendingWork: true,
+          createdAt: "2026-10-01T00:00:00Z",
+          lastParentPromptAt: "2026-10-01T12:00:00Z",
         },
       ],
       asyncBash: [
@@ -67,6 +78,7 @@ describe("pending work", () => {
     assert.deepEqual(items, [
       { kind: "agent", id: "c3", label: "new-prompt" },
       { kind: "agent", id: "c1", label: "auth-research" },
+      { kind: "agent", id: "c4", label: "capture" },
       { kind: "command", id: "b1", label: "pnpm test" },
     ]);
   });
