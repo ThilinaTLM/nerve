@@ -6,17 +6,16 @@ export type ToolDetailSection =
   | "arguments"
   | "complete-result";
 
-export function hasFormattedToolView(
-  view: ToolView,
-  hasStoredPreview = false,
-): boolean {
+type ViewWithSharedBody = Exclude<
+  ToolView,
+  { kind: "bash" | "python" | "jira" | "confluence" | "generic" }
+>;
+
+/** Body check shared by the formatted-view and durable-body predicates. */
+export function hasSharedToolViewBody(view: ViewWithSharedBody): boolean {
   switch (view.kind) {
     case "read":
       return Boolean(view.image || view.content?.length);
-    case "bash":
-      return Boolean(view.output.length || view.command);
-    case "python":
-      return Boolean(view.output.length || view.code);
     case "edit":
       return Boolean(view.diff);
     case "write":
@@ -49,14 +48,28 @@ export function hasFormattedToolView(
         view.thinking?.length ||
         view.liveExplanation?.length,
       );
-    case "jira":
-    case "confluence":
-      return hasStoredPreview;
     case "ask_user":
     case "plan_present":
       return true;
+  }
+}
+
+export function hasFormattedToolView(
+  view: ToolView,
+  hasStoredPreview = false,
+): boolean {
+  switch (view.kind) {
+    case "bash":
+      return Boolean(view.output.length || view.command);
+    case "python":
+      return Boolean(view.output.length || view.code);
+    case "jira":
+    case "confluence":
+      return hasStoredPreview;
     case "generic":
       return false;
+    default:
+      return hasSharedToolViewBody(view);
   }
 }
 

@@ -321,7 +321,7 @@ function sanitizePositiveInteger(value: number | undefined, fallback: number) {
   return Math.floor(value);
 }
 
-function splitLines(text: string): string[] {
+export function splitLines(text: string): string[] {
   if (text.length === 0) return [];
   const withoutFinalNewline = text.endsWith("\n") ? text.slice(0, -1) : text;
   return withoutFinalNewline.length === 0
@@ -329,7 +329,7 @@ function splitLines(text: string): string[] {
     : withoutFinalNewline.split("\n");
 }
 
-function countLines(text: string): number {
+export function countLines(text: string): number {
   return splitLines(text).length;
 }
 

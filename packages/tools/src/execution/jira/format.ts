@@ -1,5 +1,3 @@
-import { createHash } from "node:crypto";
-import { mkdir, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type {
@@ -23,6 +21,7 @@ import type {
   IntegrationExecutionContext,
   ToolExecutionResult,
 } from "../execution-context.js";
+import { writeAtlassianJsonArtifact } from "../atlassian/artifact.js";
 import { atlassianPlainTextPreview } from "../atlassian/rich-text.js";
 import { buildSemanticTextResult } from "../output/semantic-text-result.js";
 
@@ -35,19 +34,11 @@ export async function writeJiraArtifact(
   kind: string,
   payload: unknown,
 ): Promise<{ path: string; bytes: number; chars: number; lines: number }> {
-  const baseDir = context.artifactDir ?? join(tmpdir(), "nerve-jira");
-  await mkdir(baseDir, { recursive: true, mode: 0o700 });
-  const text = JSON.stringify(payload, null, 2);
-  const hash = createHash("sha256").update(text).digest("hex").slice(0, 10);
-  const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
-  const path = join(baseDir, `${kind}-${timestamp}-${hash}.json`);
-  await writeFile(path, text, { encoding: "utf8", mode: 0o600 });
-  return {
-    path,
-    bytes: Buffer.byteLength(text, "utf8"),
-    chars: text.length,
-    lines: text.length === 0 ? 0 : text.split("\n").length,
-  };
+  return writeAtlassianJsonArtifact(
+    context.artifactDir ?? join(tmpdir(), "nerve-jira"),
+    kind,
+    payload,
+  );
 }
 
 export async function buildJiraTextResult({

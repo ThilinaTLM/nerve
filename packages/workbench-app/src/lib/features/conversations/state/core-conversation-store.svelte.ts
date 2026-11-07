@@ -1,3 +1,4 @@
+import { errorMessage } from "$lib/presentation/utils/error-message";
 import type {
   EffectiveAgentView,
   GetAgentConfigurationResult,
@@ -661,8 +662,4 @@ export class ConversationStore {
     this.unobserve();
     void unsubscribeConversation(this.conversationId).catch(() => undefined);
   }
-}
-
-function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
 }

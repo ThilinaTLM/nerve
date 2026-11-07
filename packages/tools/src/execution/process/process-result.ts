@@ -11,7 +11,9 @@ import {
   appendBoundedTextNotice,
   type BoundedTextResult,
   boundText,
+  countLines,
   PROCESS_INLINE_MAX_LINE_CHARS,
+  splitLines,
   textBoundaryDetails,
   textLimitSnapshot,
 } from "../output/output-budget.js";
@@ -668,16 +670,4 @@ function formatOmissions(truncation: TruncationResult): string {
     parts.push(formatByteSize(truncation.omittedBytes));
   }
   return parts.length > 0 ? parts.join(", ") : "0 bytes";
-}
-
-function splitLines(text: string): string[] {
-  if (text.length === 0) return [];
-  const withoutFinalNewline = text.endsWith("\n") ? text.slice(0, -1) : text;
-  return withoutFinalNewline.length === 0
-    ? [""]
-    : withoutFinalNewline.split("\n");
-}
-
-function countLines(text: string): number {
-  return splitLines(text).length;
 }

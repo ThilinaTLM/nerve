@@ -11,7 +11,7 @@ import { loadNativeFiles } from "./native-files.js";
 
 const isInside = isPathInside;
 
-async function mapBatched<T, U>(
+export async function mapBatched<T, U>(
   values: T[],
   batchSize: number,
   mapper: (value: T) => Promise<U>,

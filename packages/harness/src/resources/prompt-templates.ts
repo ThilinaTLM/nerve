@@ -1,6 +1,7 @@
-import type { ExecutionEnv, FileInfo } from "../environment/contracts.js";
+import type { ExecutionEnv } from "../environment/contracts.js";
 import type { PromptTemplate } from "../harness/configuration/options.js";
 import { basenameEnvPath } from "../paths.js";
+import { resolveKind } from "./resolve-kind.js";
 import { parseFrontmatter } from "./skills/parser.js";
 
 export type PromptTemplateDiagnosticCode =
@@ -188,41 +189,6 @@ async function loadTemplateFromFile(
     },
     diagnostics,
   };
-}
-
-async function resolveKind(
-  env: ExecutionEnv,
-  info: FileInfo,
-  diagnostics: PromptTemplateDiagnostic[],
-): Promise<"file" | "directory" | undefined> {
-  if (info.kind === "file" || info.kind === "directory") return info.kind;
-  const canonicalPath = await env.canonicalPath(info.path);
-  if (!canonicalPath.ok) {
-    if (canonicalPath.error.code !== "not_found") {
-      diagnostics.push({
-        type: "warning",
-        code: "file_info_failed",
-        message: canonicalPath.error.message,
-        path: info.path,
-      });
-    }
-    return undefined;
-  }
-  const target = await env.fileInfo(canonicalPath.value);
-  if (!target.ok) {
-    if (target.error.code !== "not_found") {
-      diagnostics.push({
-        type: "warning",
-        code: "file_info_failed",
-        message: target.error.message,
-        path: info.path,
-      });
-    }
-    return undefined;
-  }
-  return target.value.kind === "file" || target.value.kind === "directory"
-    ? target.value.kind
-    : undefined;
 }
 
 /** Parse an argument string using simple shell-style single and double quotes. */

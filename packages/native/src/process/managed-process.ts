@@ -13,6 +13,7 @@ import type {
   TerminationResult,
   TcpListenerProcess,
 } from "./contracts.js";
+import { errorMessage } from "../core/error.js";
 
 const DETACH_QUIET_MS = 250;
 const DETACH_MAX_WAIT_MS = 2_000;
@@ -359,8 +360,4 @@ function emptyOutputStats(): ManagedProcessOutputStats {
     totalDeliveredBytes: 0,
     totalOmittedBytes: 0,
   };
-}
-
-function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
 }

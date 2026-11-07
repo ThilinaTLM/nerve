@@ -1,3 +1,4 @@
+import { errorMessage } from "$lib/presentation/utils/error-message";
 import type { Project } from "@nervekit/contracts/core";
 import { untrack } from "svelte";
 import type {
@@ -67,10 +68,6 @@ export type WorkbenchLaunchPanelHostActions = {
     name?: string;
   }) => void;
 };
-
-function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
-}
 
 export function createWorkbenchLaunchPanelAdapter(
   activeProject: () => Project | undefined,

@@ -1,3 +1,4 @@
+import { asPlainRecord } from "$lib/presentation/utils/as-record";
 const SECRET_KEY_PATTERN =
   /(?:api[_-]?key|access[_-]?token|authorization|auth[_-]?token|bearer|cookie|credential|password|private[_-]?key|secret|session|token)/i;
 const TOKEN_VALUE_PATTERN =
@@ -22,12 +23,6 @@ export type RedactedStructuredEntry = {
   redacted: boolean;
 };
 
-function asRecord(value: unknown): Record<string, unknown> {
-  return value && typeof value === "object" && !Array.isArray(value)
-    ? (value as Record<string, unknown>)
-    : {};
-}
-
 const PARSE_CACHE_LIMIT = 256;
 // Parsed records are read-only and keyed by string value, so every card that
 // re-derives from unchanged `argsText`/`argsPreview` reuses one parse. Streaming
@@ -35,7 +30,7 @@ const PARSE_CACHE_LIMIT = 256;
 const parseCache = new Map<string, Record<string, unknown>>();
 
 function parseRecord(value: unknown): Record<string, unknown> {
-  if (typeof value !== "string") return asRecord(value);
+  if (typeof value !== "string") return asPlainRecord(value);
   const cached = parseCache.get(value);
   if (cached) {
     parseCache.delete(value);
@@ -44,7 +39,7 @@ function parseRecord(value: unknown): Record<string, unknown> {
   }
   let record: Record<string, unknown>;
   try {
-    record = asRecord(JSON.parse(value));
+    record = asPlainRecord(JSON.parse(value));
   } catch {
     record = {};
   }
@@ -300,7 +295,7 @@ export class ToolArgumentSource {
 
   constructor(input: ToolArgumentSourceInput = {}) {
     this.argsText = input.argsText ?? "";
-    const finalArgs = asRecord(input.args);
+    const finalArgs = asPlainRecord(input.args);
     const streamedArgs = parseRecord(this.argsText);
     const previewArgs = parseRecord(input.argsPreview);
     this.records = [finalArgs, streamedArgs, previewArgs].filter(
@@ -405,7 +400,7 @@ export class ToolArgumentSource {
     const value = this.array(key);
     if (!value) return undefined;
     return value
-      .map(asRecord)
+      .map(asPlainRecord)
       .filter((record) => Object.keys(record).length > 0);
   }
 
@@ -421,7 +416,7 @@ export class ToolArgumentSource {
       return value.slice(0, limit).map(
         (entry) =>
           new ToolArgumentSource({
-            args: asRecord(entry),
+            args: asPlainRecord(entry),
           }),
       );
     }

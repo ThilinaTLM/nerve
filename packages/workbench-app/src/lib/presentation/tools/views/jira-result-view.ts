@@ -21,6 +21,8 @@ import {
   outputLimitsFromDetails,
   parseToolExecutionResult,
   resultOutputText,
+  parseWithSchema,
+  fileBasename,
   stringField,
 } from "./tool-view-helpers";
 import type { ToolView } from "./tool-view-types";
@@ -432,23 +434,6 @@ function parseJiraFieldSummary(value: unknown) {
     type: compactText(stringField(record.type)),
     custom: typeof record.custom === "boolean" ? record.custom : undefined,
   };
-}
-
-function parseWithSchema<T>(
-  schema: {
-    safeParse: (
-      value: unknown,
-    ) => { success: true; data: T } | { success: false };
-  },
-  value: unknown,
-): T | undefined {
-  const parsed = schema.safeParse(value);
-  return parsed.success ? parsed.data : undefined;
-}
-
-function fileBasename(path: string | undefined): string | undefined {
-  if (!path) return undefined;
-  return path.replaceAll("\\", "/").split("/").at(-1) || undefined;
 }
 
 function jiraDetailsRecord(details: unknown): Record<string, unknown> {

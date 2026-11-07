@@ -1,3 +1,4 @@
+import { asRecord } from "$lib/presentation/utils/as-record";
 import type { StatusTone } from "@nervekit/ui-kit/display/status";
 import { relativePathForDisplay } from "@nervekit/ui-kit/display/path-links";
 
@@ -54,12 +55,6 @@ export type ToolDraftSummary = {
   safetyNotes?: string[];
   done: boolean;
 };
-
-function asRecord(value: unknown): Record<string, unknown> {
-  return value && typeof value === "object"
-    ? (value as Record<string, unknown>)
-    : {};
-}
 
 function stringField(value: unknown): string | undefined {
   return typeof value === "string" ? value : undefined;

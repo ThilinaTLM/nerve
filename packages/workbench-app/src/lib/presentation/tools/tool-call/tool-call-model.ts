@@ -1,6 +1,7 @@
 import type { MetaItem } from "../../cards/card-presentation";
 import type { ToolCallTranscriptRecord } from "../../state/tool-types";
 import type { ToolLifecycleStage } from "../lifecycle/registry";
+import { hasSharedToolViewBody } from "./tool-details-state";
 import type { ToolView } from "../views/tool-result-view";
 
 /** Whether a parsed durable result has anything worth rendering as a body. */
@@ -10,51 +11,16 @@ export function hasMeaningfulDurableBody(
 ): boolean {
   if (!view) return false;
   switch (view.kind) {
-    case "read":
-      return Boolean(view.image || view.content?.length);
     case "bash":
     case "python":
       return view.output.length > 0;
-    case "edit":
-      return Boolean(view.diff);
-    case "write":
-      return Boolean(view.content?.length);
-    case "grep":
-      return view.matchCount > 0;
-    case "find":
-      return view.count > 0;
-    case "ls":
-      return view.total > 0;
-    case "todos":
-      return view.items.length > 0;
-    case "subagent":
-      return view.action === "prompt"
-        ? view.assignments.length > 0
-        : view.action === "status"
-          ? view.rows.length > 0 || Boolean(view.header)
-          : view.lines.length > 0;
-    case "web_search":
-      return Boolean(view.answer || view.results.length);
-    case "web_fetch":
-      return Boolean(view.content?.length);
-    case "generate_image":
-      return view.paths.length > 0;
-    case "kroki_export":
-      return Boolean(view.path);
-    case "explain_image":
-      return Boolean(
-        view.explanation?.length ||
-        view.thinking?.length ||
-        view.liveExplanation?.length,
-      );
     case "generic":
       return Boolean(view.resultText || view.result.length);
     case "jira":
     case "confluence":
       return toolCall?.resultPreview !== undefined;
-    case "ask_user":
-    case "plan_present":
-      return true;
+    default:
+      return hasSharedToolViewBody(view);
   }
 }
 

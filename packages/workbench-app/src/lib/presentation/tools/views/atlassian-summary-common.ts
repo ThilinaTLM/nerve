@@ -1,3 +1,5 @@
+import { formatByteSize } from "./tool-presentation-helpers";
+import { asPlainRecord } from "$lib/presentation/utils/as-record";
 import type { ToolCallDisplayRecord } from "./tool-result-parser";
 import type { ToolView } from "./tool-view-types";
 
@@ -64,7 +66,7 @@ export function toolArgSource(toolCall: ToolCallDisplayRecord): ArgSource {
     argsPreview?: unknown;
   };
   return {
-    args: asRecord(payloads.args ?? payloads.argsPreview),
+    args: asPlainRecord(payloads.args ?? payloads.argsPreview),
     status: toolCall.status,
   };
 }
@@ -76,8 +78,8 @@ export function toolResultDetails(
     result?: unknown;
     resultPreview?: unknown;
   };
-  const result = asRecord(payloads.result ?? payloads.resultPreview);
-  return asRecord(result.details);
+  const result = asPlainRecord(payloads.result ?? payloads.resultPreview);
+  return asPlainRecord(result.details);
 }
 
 export function appendJiraAssignee(
@@ -201,13 +203,18 @@ export function appendPayloadSummary(
   payload: unknown,
   budget: SummaryBudget,
 ): void {
-  const record = asRecord(payload);
+  const record = asPlainRecord(payload);
   if (Object.keys(record).length === 0) return;
-  appendRecordKeys(lines, "Payload fields", asRecord(record.fields), budget);
+  appendRecordKeys(
+    lines,
+    "Payload fields",
+    asPlainRecord(record.fields),
+    budget,
+  );
   appendRecordKeys(
     lines,
     "Payload update ops",
-    asRecord(record.update),
+    asPlainRecord(record.update),
     budget,
   );
   const otherKeys = Object.keys(record).filter(
@@ -223,7 +230,7 @@ export function appendRecordKeys(
   value: unknown,
   budget: SummaryBudget,
 ): void {
-  const keys = Object.keys(asRecord(value));
+  const keys = Object.keys(asPlainRecord(value));
   if (keys.length > 0)
     addLine(lines, label, formatList(keys, budget.itemLimit));
 }
@@ -423,7 +430,7 @@ export function formatConfluenceAttachment(
       attachment.fileId,
     attachment.mediaType,
     attachment.fileSize !== undefined
-      ? formatBytes(attachment.fileSize)
+      ? formatByteSize(attachment.fileSize)
       : undefined,
     attachment.versionNumber !== undefined
       ? `v${attachment.versionNumber}`
@@ -431,12 +438,6 @@ export function formatConfluenceAttachment(
   ]
     .filter(Boolean)
     .join(" · ");
-}
-
-export function formatBytes(value: number): string {
-  if (value < 1024) return `${value} B`;
-  if (value < 1024 * 1024) return `${(value / 1024).toFixed(1)} KB`;
-  return `${(value / (1024 * 1024)).toFixed(1)} MB`;
 }
 
 export function countLabel(
@@ -490,12 +491,6 @@ export function sourceNumber(
     : undefined;
 }
 
-export function asRecord(value: unknown): Record<string, unknown> {
-  return value && typeof value === "object" && !Array.isArray(value)
-    ? (value as Record<string, unknown>)
-    : {};
-}
-
 export function stringField(value: unknown): string | undefined {
   return typeof value === "string" && value.trim().length > 0
     ? value
@@ -524,7 +519,7 @@ export function adfPlainText(value: unknown): string | undefined {
       for (const child of node) visit(child);
       return;
     }
-    const record = asRecord(node);
+    const record = asPlainRecord(node);
     if (Object.keys(record).length === 0) return;
     const type = stringField(record.type);
     if (type === "text") {
