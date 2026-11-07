@@ -9,6 +9,7 @@ export {
   type DropPlan,
   type DroppedItem,
 } from "./state/drop-to-open";
+export { createFileDragTracker } from "./state/file-drag-tracker";
 export { default as ProjectSwitcher } from "./views/ProjectSwitcher.svelte";
 export { loadFilesystemLocations } from "./state/filesystem-locations";
 export { parentPath, resolveTypedPath } from "./state/folder-browser-path";

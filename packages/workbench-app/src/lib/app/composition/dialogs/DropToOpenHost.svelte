@@ -11,6 +11,7 @@ import {
   buildDropPlan,
   DropToOpenDialog,
   DropToOpenOverlay,
+  createFileDragTracker,
   dropParentPath,
   loadFilesystemLocations,
   type DroppedItem,
@@ -23,7 +24,10 @@ type DroppedPath = { path: string; hint: "folder" | "file" | "unknown" };
 let enabled = $state(false);
 let dragging = $state(false);
 let overZone = $state(false);
-let dragDepth = 0;
+const dragTracker = createFileDragTracker((active) => {
+  dragging = active;
+  if (!active) overZone = false;
+});
 
 let open = $state(false);
 let plan = $state<DropPlan>();
@@ -60,23 +64,37 @@ function hasFiles(event: DragEvent): boolean {
 }
 
 function resetDrag() {
-  dragDepth = 0;
-  dragging = false;
-  overZone = false;
+  dragTracker.reset();
 }
 
 // Enter/leave are tracked in the capture phase so drop targets that stop
 // propagation (the composer) cannot unbalance the depth count.
 function onDragEnterCapture(event: DragEvent) {
   if (!enabled || !hasFiles(event)) return;
-  dragDepth += 1;
-  dragging = true;
+  dragTracker.enter();
 }
 
-function onDragLeaveCapture() {
-  if (!dragging) return;
-  dragDepth = Math.max(0, dragDepth - 1);
-  if (dragDepth === 0) resetDrag();
+function onDragLeaveCapture(event: DragEvent) {
+  // A leave that exits the window (no related target) ends the drag outright.
+  if (event.relatedTarget === null && leftWindow(event)) resetDrag();
+  else dragTracker.leave();
+}
+
+function onDragOverCapture(event: DragEvent) {
+  if (hasFiles(event)) dragTracker.over();
+}
+
+function leftWindow(event: DragEvent): boolean {
+  return (
+    event.clientX <= 0 ||
+    event.clientY <= 0 ||
+    event.clientX >= window.innerWidth ||
+    event.clientY >= window.innerHeight
+  );
+}
+
+function onKeyDownCapture(event: KeyboardEvent) {
+  if (event.key === "Escape") resetDrag();
 }
 
 /** Outside the titlebar zone, refuse unhandled file drops instead of letting
@@ -246,6 +264,7 @@ onMount(() => {
   return () => {
     disposed = true;
     enabled = false;
+    dragTracker.dispose();
     unsubscribe?.();
   };
 });
@@ -254,6 +273,9 @@ onMount(() => {
 <svelte:window
   ondragentercapture={onDragEnterCapture}
   ondragleavecapture={onDragLeaveCapture}
+  ondragovercapture={onDragOverCapture}
+  onkeydowncapture={onKeyDownCapture}
+  onblur={resetDrag}
   ondragover={onWindowDragOver}
   ondropcapture={resetDrag}
   ondrop={onWindowDrop}
