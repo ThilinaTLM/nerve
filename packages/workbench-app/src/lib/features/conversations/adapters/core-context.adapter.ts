@@ -106,13 +106,21 @@ export function conversationContext(
     ...snapshot.children.map((child) => agentView(snapshot, child, events)),
   ];
   const agentActivities: Record<string, AgentActivitySnapshot> = {};
-  // Work the lead's turn ended with: running sub-agents and background commands.
+  // Work the lead's turn ended with: busy sub-agents (including ones idle
+  // on their own background work) and background commands.
   const pendingAsyncCount =
     snapshot.children.filter(
-      (child) => child.status === "running" || child.status === "waiting",
+      (child) =>
+        child.status === "running" ||
+        child.status === "waiting" ||
+        child.pendingWork,
     ).length + snapshot.asyncBash.filter((t) => t.status === "running").length;
   for (const c of [snapshot.conversation, ...snapshot.children]) {
     const lead = c.id === snapshot.conversation.id;
+    // The lead's own commands are in pendingAsyncCount; children report theirs.
+    const busy = lead
+      ? pendingAsyncCount > 0
+      : "pendingWork" in c && c.pendingWork;
     const state: AgentActivitySnapshot["state"] =
       c.status === "running"
         ? "running"
@@ -120,10 +128,10 @@ export function conversationContext(
           ? "awaiting_user"
           : c.status === "failed"
             ? "error"
-            : c.status === "interrupted"
-              ? "aborted"
-              : lead && pendingAsyncCount > 0
-                ? "awaiting_async"
+            : busy
+              ? "awaiting_async"
+              : c.status === "interrupted"
+                ? "aborted"
                 : "idle";
     agentActivities[c.id] = {
       agentId: c.id,

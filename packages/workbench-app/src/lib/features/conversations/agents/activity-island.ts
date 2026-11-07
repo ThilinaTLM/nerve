@@ -78,7 +78,10 @@ export function islandAgents(
   return {
     leadId: agents.find((agent) => !agent.parentAgentId)?.id,
     ...fold(all, (row) => row.viewed || !SETTLED_AGENT.has(row.state)),
-    running: all.filter((row) => row.state === "working").length,
+    // Agents idle on their own background work are still busy.
+    running: all.filter(
+      (row) => row.state === "working" || row.state === "waiting",
+    ).length,
     total: all.length,
   };
 }

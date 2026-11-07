@@ -89,7 +89,8 @@ describe("activity island retention and ordering", () => {
     const model = islandAgents([lead, ...children], activities, "old");
     assert.equal(model.leadId, "lead");
     assert.equal(model.total, children.length);
-    assert.equal(model.running, 1);
+    // Running turns and agents waiting on their own background work.
+    assert.equal(model.running, 2);
     assert.deepEqual(
       model.rows.map((r) => r.agent.id),
       ["attention", "error", "unknown", "wait", "working", "stop", "old"],
@@ -101,7 +102,7 @@ describe("activity island retention and ordering", () => {
     assert.equal(old.profile, "explore");
   });
 
-  it("works without a lead and does not count waits/errors as running", () => {
+  it("works without a lead and counts background waits, not errors, as running", () => {
     const model = islandAgents(
       [agent("wait"), agent("error")],
       {
@@ -111,8 +112,8 @@ describe("activity island retention and ordering", () => {
       "wait",
     );
     assert.equal(model.leadId, undefined);
-    assert.equal(model.running, 0);
-    assert.equal(islandCount(model.running, model.total), "2");
+    assert.equal(model.running, 1);
+    assert.equal(islandCount(model.running, model.total), "1/2");
     assert.equal(islandCount(1, 7), "1/7");
   });
 

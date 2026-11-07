@@ -233,8 +233,8 @@ const agentStatus: Record<AgentRowState, string> = {
   <span
     class="flex size-4 shrink-0 items-center justify-center"
     title={agentStatus[state]}
-    class:text-info={state === "working"}
-    class:text-warning={state === "needs_you" || state === "waiting"}
+    class:text-info={state === "working" || state === "waiting"}
+    class:text-warning={state === "needs_you"}
     class:text-destructive={state === "failed"}
     class:text-muted-foreground={state === "idle" || state === "stopped"}
   >
