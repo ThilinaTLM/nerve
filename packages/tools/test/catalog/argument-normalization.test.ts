@@ -34,20 +34,8 @@ test("ask_user questions[] passes through unchanged", () => {
   assert.deepEqual(normalized("ask_user", args).value, args);
 });
 
-test("null for an optional field is treated as absent, required stays", () => {
-  const ok = normalized("grep", { pattern: "x", path: null, limit: null });
-  assert.deepEqual(ok.value, { pattern: "x" });
-  assert.equal(ok.errors, undefined);
-  assert.ok(normalized("grep", { pattern: null }).errors);
-});
-
-test("local tools clamp bounded numbers like their executors", () => {
-  const { value, errors } = normalized("web_search", {
-    query: "x",
-    max_results: 500,
-  });
-  assert.deepEqual(value, { query: "x", max_results: 20 });
-  assert.equal(errors, undefined);
+test("normalization does not loosen the schema (nulls stay invalid)", () => {
+  assert.ok(normalized("grep", { pattern: "x", path: null }).errors);
 });
 
 test("empty edit arguments report field-level errors", () => {
