@@ -24,7 +24,8 @@ export interface OpenRun {
 }
 
 export async function selectProject(cdp: Cdp, project: string): Promise<void> {
-  const selector = `button[aria-label=${JSON.stringify(project)}]`;
+  // The label gains a status suffix when the project is degraded ("Random: Failed").
+  const selector = `button[aria-label^=${JSON.stringify(project)}]`;
   await waitFor(
     cdp,
     `document.querySelector(${JSON.stringify(selector)})`,
