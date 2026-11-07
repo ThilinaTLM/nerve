@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import type { ToolCallRecord } from "../../state/tool-types";
-import { parseToolView } from "./tool-result-parser";
+import { parseToolView, parseToolViewCached } from "./tool-result-parser";
 
 function call(
   toolName: string,
@@ -24,6 +24,26 @@ function call(
     updatedAt: "2026-10-12T00:00:00Z",
   };
 }
+
+describe("parseToolViewCached", () => {
+  it("keys by payload identity without serializing results", () => {
+    let serialized = 0;
+    const result = {
+      content: "output",
+      toJSON() {
+        serialized++;
+        return {};
+      },
+    };
+    const record = call("bash", { command: "true" }, result);
+    const first = parseToolViewCached(record);
+    assert.equal(parseToolViewCached({ ...record }), first);
+    assert.equal(serialized, 0);
+    assert.deepEqual(first, parseToolView(record));
+    const other = call("bash", { command: "true" }, { content: "output" });
+    assert.notEqual(parseToolViewCached(other), first);
+  });
+});
 
 describe("Bash exit codes", () => {
   for (const toolName of ["bash", "async_bash", "launch"]) {

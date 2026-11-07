@@ -22,6 +22,7 @@ import {
   shouldMeasureInlineSize,
   visualRowsFromScrollHeight,
 } from "./result-code-block-sizing";
+import { sharedMeasureBatch } from "./measure-batch";
 import { inCardSheet } from "../../cards/sheet-context";
 
 type Props = {
@@ -89,7 +90,9 @@ let viewportEl = $state<HTMLElement | undefined>(undefined);
 let contentEl = $state<HTMLElement | undefined>(undefined);
 // This lifecycle handle must stay non-reactive: making it a rune creates a
 // self-rescheduling effect cycle when the callback clears the pending frame.
-const measureState: { frame: number | undefined } = { frame: undefined };
+const measureState: { lineHeight: number | undefined } = {
+  lineHeight: undefined,
+};
 
 const preview = $derived(trim ? trimTextPreview(code) : { text: code });
 const signature = $derived(`${language ?? ""}\0${preview.text}`);
@@ -156,14 +159,14 @@ function updateVisibleRows(measuredRows?: number): void {
 }
 
 function cancelMeasureFrame(): void {
-  if (measureState.frame === undefined) return;
-  cancelAnimationFrame(measureState.frame);
-  measureState.frame = undefined;
+  sharedMeasureBatch.cancel(measureState);
 }
 
-function measureVisualRows(): void {
-  measureState.frame = undefined;
-  if (!hasFixedRows || !blockEl || !viewportEl || !contentEl) return;
+/** Reads layout only; the batch applies the result after all reads. */
+function readVisualRows(): number | undefined {
+  if (!hasFixedRows || !blockEl || !viewportEl || !contentEl) return undefined;
+  // Monotonic grow-then-lock: once at the cap there is nothing to learn.
+  if (fixedRows !== undefined && maxVisibleRows >= fixedRows) return undefined;
 
   let contentWidth = viewportEl.clientWidth;
   if (contentWidth <= 0) {
@@ -177,18 +180,18 @@ function measureVisualRows(): void {
       borderRightWidth: parseCssPixels(blockStyle.borderRightWidth),
     });
   }
+  if (contentWidth <= 0) return undefined;
 
-  if (contentWidth <= 0) return;
-
-  const contentStyle = getComputedStyle(contentEl);
-  const lineHeightPixels = computedLineHeightPixels(
-    contentStyle.lineHeight,
-    contentStyle.fontSize,
-  );
-  lineHeightPx = lineHeightPixels;
-  updateVisibleRows(
-    visualRowsFromScrollHeight(contentEl.scrollHeight, lineHeightPixels),
-  );
+  // Line height does not change with content or width: resolve it once.
+  if (measureState.lineHeight === undefined) {
+    const contentStyle = getComputedStyle(contentEl);
+    measureState.lineHeight = computedLineHeightPixels(
+      contentStyle.lineHeight,
+      contentStyle.fontSize,
+    );
+  }
+  lineHeightPx = measureState.lineHeight;
+  return visualRowsFromScrollHeight(contentEl.scrollHeight, lineHeightPx);
 }
 
 function handleActivationKey(event: KeyboardEvent): void {
@@ -199,12 +202,10 @@ function handleActivationKey(event: KeyboardEvent): void {
 
 function scheduleMeasure(): void {
   if (!hasFixedRows) return;
-  if (measureState.frame !== undefined) return;
-  if (typeof requestAnimationFrame === "undefined") {
-    measureVisualRows();
-    return;
-  }
-  measureState.frame = requestAnimationFrame(measureVisualRows);
+  sharedMeasureBatch.queue(measureState, {
+    read: readVisualRows,
+    apply: updateVisibleRows,
+  });
 }
 
 $effect(() => {

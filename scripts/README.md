@@ -25,12 +25,16 @@ Package-local script trees (`packages/*/scripts/`) are outside this layout.
 
 ## Transcript benchmark
 
-`development/transcript-bench.ts` (thin entry; modules in `development/transcript-bench/`: `cdp`, `network`, `measure`, `open`, `stream`) measures transcript performance in a running desktop dev instance (`pnpm run desktop:dev --slot N`, CDP on `127.0.0.1:9222`) over raw CDP (`ws`), driving the real UI with trusted input. It never changes app code or starts a daemon, and it writes raw results and CPU profiles to `--out` (default `/tmp/nerve-bench`), never the repo.
+`development/transcript-bench.ts` (thin entry; modules in `development/transcript-bench/`: `cdp`, `network`, `measure`, `open`, `heap`, `stream`) measures transcript performance in a running desktop dev instance (`pnpm run desktop:dev --slot N`, CDP on `127.0.0.1:9222`) over raw CDP (`ws`), driving the real UI with trusted input. It never changes app code or starts a daemon, and it writes raw results and CPU profiles to `--out` (default `/tmp/nerve-bench`), never the repo.
 
 ```sh
 # Large open: click → first transcript row, median of N, with network/scripting/layout split.
 pnpm exec tsx scripts/development/transcript-bench.ts --scenario open --runs 5 --no-network \
   --conversation conv_… --search "words from its title" --project nerve [--reload]
+# Heap: retained JS heap after GC (Runtime.getHeapUsage) at baseline and after each of N opens of the
+# large conversation; --snapshots also writes one .heapsnapshot to --out (slow, ~1 min, and it can wedge
+# the renderer, so use it once at the end). Linear growth per open = leak; flat after the first open = bounded.
+pnpm exec tsx scripts/development/transcript-bench.ts --scenario heap --runs 5 [--snapshots]
 # Streaming: fixed tool-heavy prompt in a new conversation (uses the real model, costs tokens).
 pnpm exec tsx scripts/development/transcript-bench.ts --scenario stream --project Random \
   --model "Haiku 5.5" --runs 1 [--profile] --no-network

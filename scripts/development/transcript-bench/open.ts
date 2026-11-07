@@ -102,7 +102,7 @@ export async function runOpenOnce(
   // Open any other conversation first so the target replaces a real transcript.
   const fromRow = await cdp.evaluate<string | null>(`(() => {
     const rows = [...document.querySelectorAll("[data-panel-row-id]")];
-    return rows.map((r) => r.getAttribute("data-panel-row-id")).find((id) => id !== ${JSON.stringify(options.conversation)}) ?? null;
+    return rows.map((r) => r.getAttribute("data-panel-row-id")).find((id) => id?.startsWith("conv_") && id !== ${JSON.stringify(options.conversation)}) ?? null;
   })()`);
   if (!fromRow) throw new CliError("No other conversation to open first");
   await click(cdp, `[data-panel-row-id="${fromRow}"]`);

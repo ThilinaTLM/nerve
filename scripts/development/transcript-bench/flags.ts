@@ -1,5 +1,5 @@
 export interface Flags {
-  scenario: "open" | "stream";
+  scenario: "open" | "stream" | "heap";
   cdp: string;
   runs: number;
   out: string;
@@ -12,4 +12,5 @@ export interface Flags {
   noNetwork: boolean;
   prompt: string | undefined;
   timeoutSec: number;
+  snapshots: boolean;
 }
