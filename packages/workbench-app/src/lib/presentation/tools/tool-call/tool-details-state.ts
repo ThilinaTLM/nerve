@@ -94,19 +94,29 @@ export function resolveToolDetailSection(
   return available.includes(preferred) ? preferred : available[0];
 }
 
-export function serializeToolArguments(value: unknown): {
-  text: string;
-  language?: string;
-} {
+type SerializedArguments = { text: string; language?: string };
+
+const serializedArguments = new WeakMap<object, SerializedArguments>();
+
+/** Pretty-prints arguments; memoized by object identity. */
+export function serializeToolArguments(value: unknown): SerializedArguments {
   if (typeof value === "string") return { text: value };
+  const isObject = typeof value === "object" && value !== null;
+  if (isObject) {
+    const cached = serializedArguments.get(value);
+    if (cached) return cached;
+  }
+  let result: SerializedArguments;
   try {
-    return {
+    result = {
       text: JSON.stringify(value, null, 2) ?? String(value),
       language: "json",
     };
   } catch {
-    return { text: String(value) };
+    result = { text: String(value) };
   }
+  if (isObject) serializedArguments.set(value, result);
+  return result;
 }
 
 /** Plain text of the text blocks the agent received. */

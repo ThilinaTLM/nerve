@@ -65,7 +65,7 @@
     "bits-ui": "^2.18.1",
     "material-icon-theme": "^5.37.0",
     "qrcode-generator": "^2.0.4",
-    "svelte": "5.56.3",
+    "svelte": "5.57.3",
     "svelte-sonner": "^1.1.1",
     "tailwindcss": "4.3.1"
   },

@@ -8,6 +8,8 @@
  *           first transcript row, with the time split into network, scripting,
  *           layout/style and the rest (CDP Performance metrics + longtask +
  *           Network events). Median over --runs.
+ *   heap    Retained JS heap after GC across repeated opens (--snapshots saves
+ *           .heapsnapshot files).
  *   stream  Send a fixed tool-heavy prompt in a new conversation and measure
  *           long tasks (>50 ms) and rAF frame gaps while it runs, plus an
  *           optional V8 CPU profile (--profile) summarised by self time.
@@ -26,6 +28,7 @@ import { parseCli } from "../cli/args.ts";
 import { CliError, defineCli } from "../cli/main.ts";
 import { Cdp } from "./transcript-bench/cdp.ts";
 import type { Flags } from "./transcript-bench/flags.ts";
+import { heapScenario } from "./transcript-bench/heap.ts";
 import { openScenario } from "./transcript-bench/open.ts";
 import { streamScenario } from "./transcript-bench/stream.ts";
 
@@ -86,6 +89,10 @@ async function main(argv: string[]): Promise<void> {
         type: "string",
         description: "stream: prompt (default: fixed todo-app prompt).",
       },
+      snapshots: {
+        type: "boolean",
+        description: "heap: also write .heapsnapshot files to --out.",
+      },
       "timeout-sec": {
         type: "string",
         description: "stream: max run time.",
@@ -95,8 +102,8 @@ async function main(argv: string[]): Promise<void> {
     argv,
   );
   const scenario = values.scenario;
-  if (scenario !== "open" && scenario !== "stream")
-    throw new CliError("--scenario must be `open` or `stream`.");
+  if (scenario !== "open" && scenario !== "stream" && scenario !== "heap")
+    throw new CliError("--scenario must be `open`, `stream` or `heap`.");
   const flags: Flags = {
     scenario,
     cdp: values.cdp as string,
@@ -111,6 +118,7 @@ async function main(argv: string[]): Promise<void> {
     noNetwork: values["no-network"],
     prompt: values.prompt,
     timeoutSec: Number(values["timeout-sec"]),
+    snapshots: values.snapshots,
   };
   mkdirSync(flags.out, { recursive: true });
   const cdp = await Cdp.connect(flags.cdp);
@@ -123,7 +131,9 @@ async function main(argv: string[]): Promise<void> {
     const result =
       scenario === "open"
         ? await openScenario(cdp, flags)
-        : await streamScenario(cdp, flags);
+        : scenario === "heap"
+          ? await heapScenario(cdp, flags)
+          : await streamScenario(cdp, flags);
     const file = join(flags.out, `${scenario}-${Date.now()}.json`);
     writeFileSync(file, JSON.stringify(result, null, 2));
     console.log(
