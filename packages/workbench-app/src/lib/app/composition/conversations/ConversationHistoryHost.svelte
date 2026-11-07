@@ -1,7 +1,7 @@
 <script lang="ts">
 import { untrack, type ComponentProps } from "svelte";
 import { conversationView } from "$lib/features/conversations/adapters/core-context.adapter";
-import { conversationTranscript } from "$lib/features/conversations/adapters/core-transcript.adapter";
+import { committedTranscript } from "$lib/features/conversations/adapters/core-transcript.adapter";
 import type { ConversationStore } from "$lib/features/conversations/state/core-conversation-store.svelte";
 import ConversationHistoryView from "$lib/features/conversations/views/ConversationHistoryView.svelte";
 
@@ -29,11 +29,9 @@ $effect(() => {
 // conversation.
 const projection = $derived(
   store.snapshot
-    ? conversationTranscript({
+    ? committedTranscript({
         snapshot: store.snapshot,
         events: store.historyEvents ?? store.events,
-        liveBlocks: store.liveBlocks,
-        toolOutput: store.toolOutput,
       })
     : undefined,
 );

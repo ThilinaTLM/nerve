@@ -356,14 +356,18 @@ function compactionTransient(
   return compaction ? { compaction } : undefined;
 }
 
-export function conversationTranscript(input: {
+/**
+ * Durable projection: depends on events and the snapshot fields it reads, never
+ * on live streaming state, so `entries` and `toolCalls` keep identity while
+ * deltas stream. Reads snapshot fields individually (no spreading/cloning) so
+ * the reactive dependencies stay field-level.
+ */
+export function committedTranscript(input: {
   snapshot: ConversationSnapshot;
   events: readonly TransferredConversationEvent[];
-  liveBlocks: readonly LiveAssistantBlock[];
-  toolOutput: Readonly<Record<string, string>>;
   tree?: readonly EventTreeNode[];
 }) {
-  const { snapshot, events, liveBlocks, toolOutput } = input;
+  const { snapshot, events } = input;
   const visibleEvents = events.filter(
     (event) =>
       !(
@@ -447,9 +451,10 @@ export function conversationTranscript(input: {
     execution.payload.subtype === "execution_state" &&
     execution.payload.transition !== "started"
       ? execution.payload.executionId
-      : (started?.id ?? liveBlocks[0]?.turnId ?? snapshot.conversation.id);
+      : started?.id;
+  const toolRunFallback = runId ?? snapshot.conversation.id;
   const toolRunId = (turnId: string | undefined) =>
-    turnId ? (runByTurn.get(turnId) ?? runId) : runId;
+    turnId ? (runByTurn.get(turnId) ?? toolRunFallback) : toolRunFallback;
   for (const e of events)
     if (e.type === "tool_call_response")
       tools.set(
@@ -464,71 +469,6 @@ export function conversationTranscript(input: {
   const running =
     snapshot.conversation.status === "running" ||
     snapshot.conversation.status === "waiting";
-  const activeRun: ConversationActiveRunSnapshot | undefined = running
-    ? {
-        runId,
-        conversationId: snapshot.conversation.id,
-        agentId: snapshot.conversation.id,
-        projectId: snapshot.conversation.projectId,
-        status:
-          snapshot.conversation.status === "waiting" ? "waiting" : "running",
-        startedAt: started?.createdAt ?? snapshot.conversation.updatedAt,
-        turns: [...new Set(liveBlocks.map((b) => b.turnId))].map(
-          (turnId, ordinal) => ({
-            turnId,
-            ordinal,
-            messages: [
-              {
-                liveMessageId: turnId,
-                messageOrdinal: 0,
-                startedAt:
-                  started?.createdAt ?? snapshot.conversation.updatedAt,
-                blocks: liveBlocks
-                  .filter((b) => b.turnId === turnId)
-                  .flatMap<ConversationLiveContentBlockSnapshot>((b) =>
-                    b.toolCall
-                      ? [
-                          {
-                            kind: "tool_call_draft" as const,
-                            contentBlockId: `${turnId}:${b.contentIndex}`,
-                            contentIndex: b.contentIndex,
-                            providerToolCallId: b.toolCall.providerCallId,
-                            toolName: b.toolCall.name,
-                            argsText: b.toolCall.partialArgsText,
-                            progressRevision: 0,
-                            done: false,
-                          },
-                        ]
-                      : [
-                          {
-                            kind: b.thinking
-                              ? ("thinking" as const)
-                              : ("text" as const),
-                            contentBlockId: `${turnId}:${b.contentIndex}`,
-                            contentIndex: b.contentIndex,
-                            text: b.thinking || b.text,
-                            done: false,
-                          },
-                        ],
-                  ),
-              },
-            ],
-          }),
-        ),
-        toolOutputsByToolCallId: Object.fromEntries(
-          Object.entries(toolOutput).map(([id, text]) => [
-            id,
-            {
-              toolCallId: id,
-              text,
-              chunks: [],
-              updatedAt: snapshot.conversation.updatedAt,
-            },
-          ]),
-        ),
-        queuedPrompts,
-      }
-    : undefined;
   const transition =
     execution?.type === "system_event" &&
     execution.payload.subtype === "execution_state"
@@ -541,7 +481,7 @@ export function conversationTranscript(input: {
     transition &&
     ["completed", "failed", "cancelled", "interrupted"].includes(transition)
       ? {
-          runId,
+          runId: toolRunFallback,
           startedAt: started.createdAt,
           endedAt: execution.createdAt,
           outcome:
@@ -642,7 +582,16 @@ export function conversationTranscript(input: {
     entries,
     toolCalls: [...tools.values()],
     treeNodes,
-    activeRun,
+    run: {
+      running,
+      status:
+        snapshot.conversation.status === "waiting" ? "waiting" : "running",
+      runId,
+      startedAt: started?.createdAt ?? snapshot.conversation.updatedAt,
+      conversationId: snapshot.conversation.id,
+      projectId: snapshot.conversation.projectId,
+      updatedAt: snapshot.conversation.updatedAt,
+    } as CommittedRunContext,
     lastRunOutcome,
     queuedPrompts,
     approvals,
@@ -669,5 +618,108 @@ export function conversationTranscript(input: {
           ]
         : [],
     ),
+  };
+}
+
+export interface CommittedRunContext {
+  running: boolean;
+  status: "running" | "waiting";
+  /** Run id derived from committed events; live blocks may supply a fallback. */
+  runId: string | undefined;
+  startedAt: string;
+  conversationId: string;
+  projectId: string;
+  updatedAt: string;
+}
+
+/**
+ * Live projection: depends only on live blocks, tool output and the small
+ * committed run context, so a streamed delta never touches `committedTranscript`.
+ */
+export function liveTranscript(input: {
+  run: CommittedRunContext;
+  queuedPrompts: QueuedPromptRecord[];
+  liveBlocks: readonly LiveAssistantBlock[];
+  toolOutput: Readonly<Record<string, string>>;
+}): ConversationActiveRunSnapshot | undefined {
+  const { run, queuedPrompts, liveBlocks, toolOutput } = input;
+  if (!run.running) return undefined;
+  const runId = run.runId ?? liveBlocks[0]?.turnId ?? run.conversationId;
+  const startedAt = run.startedAt;
+  return {
+    runId,
+    conversationId: run.conversationId,
+    agentId: run.conversationId,
+    projectId: run.projectId,
+    status: run.status,
+    startedAt,
+    turns: [...new Set(liveBlocks.map((b) => b.turnId))].map(
+      (turnId, ordinal) => ({
+        turnId,
+        ordinal,
+        messages: [
+          {
+            liveMessageId: turnId,
+            messageOrdinal: 0,
+            startedAt,
+            blocks: liveBlocks
+              .filter((b) => b.turnId === turnId)
+              .flatMap<ConversationLiveContentBlockSnapshot>((b) =>
+                b.toolCall
+                  ? [
+                      {
+                        kind: "tool_call_draft" as const,
+                        contentBlockId: `${turnId}:${b.contentIndex}`,
+                        contentIndex: b.contentIndex,
+                        providerToolCallId: b.toolCall.providerCallId,
+                        toolName: b.toolCall.name,
+                        argsText: b.toolCall.partialArgsText,
+                        progressRevision: 0,
+                        done: false,
+                      },
+                    ]
+                  : [
+                      {
+                        kind: b.thinking
+                          ? ("thinking" as const)
+                          : ("text" as const),
+                        contentBlockId: `${turnId}:${b.contentIndex}`,
+                        contentIndex: b.contentIndex,
+                        text: b.thinking || b.text,
+                        done: false,
+                      },
+                    ],
+              ),
+          },
+        ],
+      }),
+    ),
+    toolOutputsByToolCallId: Object.fromEntries(
+      Object.entries(toolOutput).map(([id, text]) => [
+        id,
+        { toolCallId: id, text, chunks: [], updatedAt: run.updatedAt },
+      ]),
+    ),
+    queuedPrompts,
+  };
+}
+
+/** Full projection for consumers that need both parts at once. */
+export function conversationTranscript(input: {
+  snapshot: ConversationSnapshot;
+  events: readonly TransferredConversationEvent[];
+  liveBlocks: readonly LiveAssistantBlock[];
+  toolOutput: Readonly<Record<string, string>>;
+  tree?: readonly EventTreeNode[];
+}) {
+  const committed = committedTranscript(input);
+  return {
+    ...committed,
+    activeRun: liveTranscript({
+      run: committed.run,
+      queuedPrompts: committed.queuedPrompts,
+      liveBlocks: input.liveBlocks,
+      toolOutput: input.toolOutput,
+    }),
   };
 }

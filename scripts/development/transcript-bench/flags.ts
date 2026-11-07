@@ -8,6 +8,7 @@ export interface Flags {
   project: string;
   reload: boolean;
   profile: boolean;
+  trace: boolean;
   model: string;
   noNetwork: boolean;
   prompt: string | undefined;

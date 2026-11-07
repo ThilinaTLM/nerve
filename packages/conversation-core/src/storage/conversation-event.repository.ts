@@ -29,14 +29,23 @@ export class ConversationEventRepository {
   ) {}
   private readonly mapEvent = (
     row: Record<string, SQLOutputValue>,
-  ): ConversationEvent => {
+  ): ConversationEvent => this.guarded(row, mapEvent);
+  // Rows are written by this repository after schema validation; client-bound
+  // reads skip re-validating them (zod costs ~30x the structural mapping).
+  private readonly mapTrustedEvent = (
+    row: Record<string, SQLOutputValue>,
+  ): ConversationEvent => this.guarded(row, mapTrustedEvent);
+  private guarded(
+    row: Record<string, SQLOutputValue>,
+    map: (row: Record<string, SQLOutputValue>) => ConversationEvent,
+  ): ConversationEvent {
     try {
-      return mapEvent(row);
+      return map(row);
     } catch (error) {
       this.onFailure?.(String(row.conversation_id), error);
       throw error;
     }
-  };
+  }
 
   getUsage(conversationId: string): ConversationAgentUsage {
     const rows = this.db.sqlite
@@ -210,6 +219,16 @@ export class ConversationEventRepository {
 
   // Newest first; beforeEventId is exclusive and must occur on the selected path.
   pathFromHead(conversationId: string, page: HistoryPage): ConversationEvent[] {
+    return Array.from(
+      this.pathRowsFromHead(conversationId, page),
+      this.mapEvent,
+    );
+  }
+
+  private pathRowsFromHead(
+    conversationId: string,
+    page: HistoryPage,
+  ): Iterable<Record<string, SQLOutputValue>> {
     if (!Number.isSafeInteger(page.limit) || page.limit <= 0)
       throw new Error("History limit must be a positive integer");
     const conversation = this.db.sqlite
@@ -235,7 +254,7 @@ export class ConversationEventRepository {
       SELECT id FROM path WHERE (? IS NULL OR sequence < (SELECT sequence FROM path WHERE id = ?))
       ORDER BY sequence DESC LIMIT ?
     ) SELECT e.* FROM conversation_event e JOIN page ON e.id = page.id ORDER BY e.sequence DESC`)
-        .all(
+        .iterate(
           conversationId,
           head.id,
           conversationId,
@@ -243,7 +262,6 @@ export class ConversationEventRepository {
           page.beforeEventId ?? null,
           page.limit,
         )
-        .map(this.mapEvent)
     );
   }
 
@@ -260,7 +278,10 @@ export class ConversationEventRepository {
     conversationId: string,
     page: HistoryPage,
   ): TransferredConversationEvent[] {
-    return byteLimitedEvents(this.pathFromHead(conversationId, page));
+    return byteLimitedRows(
+      this.pathRowsFromHead(conversationId, page),
+      this.mapTrustedEvent,
+    );
   }
 
   sincePage(
@@ -272,12 +293,7 @@ export class ConversationEventRepository {
         "SELECT * FROM conversation_event WHERE conversation_id = ? AND sequence > ? ORDER BY sequence LIMIT 100",
       )
       .iterate(conversationId, sequence);
-    const map = this.mapEvent;
-    return byteLimitedEvents(
-      (function* () {
-        for (const row of rows) yield map(row);
-      })(),
-    );
+    return byteLimitedRows(rows, this.mapTrustedEvent);
   }
 
   toolResponse(
@@ -313,7 +329,17 @@ export class ConversationEventRepository {
 }
 
 function mapEvent(row: Record<string, SQLOutputValue>): ConversationEvent {
-  return conversationEventSchema.parse({
+  return conversationEventSchema.parse(rawEvent(row));
+}
+
+function mapTrustedEvent(
+  row: Record<string, SQLOutputValue>,
+): ConversationEvent {
+  return rawEvent(row) as ConversationEvent;
+}
+
+function rawEvent(row: Record<string, SQLOutputValue>) {
+  return {
     id: row.id,
     conversationId: row.conversation_id,
     sequence: row.sequence,
@@ -324,7 +350,7 @@ function mapEvent(row: Record<string, SQLOutputValue>): ConversationEvent {
     inputId: row.input_id,
     payload: JSON.parse(String(row.payload)),
     createdAt: row.created_at,
-  });
+  };
 }
 
 function preview(event: ConversationEvent): string {
@@ -360,19 +386,29 @@ function preview(event: ConversationEvent): string {
   return text.replace(/\s+/g, " ").slice(0, 120);
 }
 
-export const EVENT_PAGE_BYTES = 512 * 1024;
-export function byteLimitedEvents(
-  events: Iterable<ConversationEvent>,
+/**
+ * Page cap measured on raw stored payload bytes, which upper-bound the transferred
+ * JSON (transfer only removes fields), so no event is re-serialized to size a page.
+ * Stays under the 4 MB protocol message cap even for unstripped payloads.
+ */
+export const EVENT_PAGE_BYTES = 2.5 * 1024 * 1024;
+// Fixed JSON envelope of an event excluding payload, with slack for long ids.
+const EVENT_OVERHEAD_BYTES = 512;
+/** Stops before the first row that would exceed maxBytes; the first row is always kept. */
+export function byteLimitedRows(
+  rows: Iterable<Record<string, SQLOutputValue>>,
+  map: (row: Record<string, SQLOutputValue>) => ConversationEvent,
   maxBytes = EVENT_PAGE_BYTES,
 ): TransferredConversationEvent[] {
   const page: TransferredConversationEvent[] = [];
   let bytes = 2;
-  for (const event of events) {
-    const transferred = transferConversationEvent(event);
+  for (const row of rows) {
     const size =
-      Buffer.byteLength(JSON.stringify(transferred)) + (page.length ? 1 : 0);
+      Buffer.byteLength(String(row.payload)) +
+      EVENT_OVERHEAD_BYTES +
+      (page.length ? 1 : 0);
     if (page.length && bytes + size > maxBytes) break;
-    page.push(transferred);
+    page.push(transferConversationEvent(map(row)));
     bytes += size;
   }
   return page;

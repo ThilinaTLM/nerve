@@ -25,6 +25,8 @@ export interface RpcDispatcherOptions {
   readonly idempotency?: IdempotencyStorePort;
   readonly acceptedCapabilities?: readonly string[] | (() => readonly string[]);
   readonly sessionContext?: boolean;
+  /** Validate results of `trustedResult` operations. Defaults to true. */
+  readonly validateTrustedResults?: boolean;
   readonly translateError?: (error: unknown) => ProtocolErrorData;
 }
 
@@ -141,7 +143,11 @@ export class RpcDispatcher {
         );
         return {
           status: "success",
-          result: operation.resultSchema.parse(rawResult),
+          result:
+            operation.trustedResult &&
+            this.options.validateTrustedResults === false
+              ? rawResult
+              : operation.resultSchema.parse(rawResult),
         };
       } catch (error) {
         return {

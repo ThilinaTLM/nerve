@@ -20,6 +20,10 @@
  *   pnpm exec tsx scripts/development/transcript-bench.ts --scenario stream \
  *     --project Random [--profile] [--out /tmp/nerve-bench]
  *
+ * Deterministic, token-free stream runs: start the dev instance with
+ * `NERVE_DEV_SCRIPTED_PROVIDER=1 pnpm desktop:dev --slot N` and pass `--scripted`
+ * (same as `--model "Scripted Bench"`).
+ *
  * Raw output (results.json, CPU profiles, traces) goes to --out, never the repo.
  */
 import { mkdirSync, writeFileSync } from "node:fs";
@@ -75,10 +79,20 @@ async function main(argv: string[]): Promise<void> {
         type: "boolean",
         description: "stream: record a V8 CPU profile.",
       },
+      trace: {
+        type: "boolean",
+        description:
+          "stream: record a Chrome trace (stream-N.trace.json) with frame and GC events.",
+      },
       model: {
         type: "string",
         description: "stream: model to pick in the composer.",
         default: "Haiku 5.5",
+      },
+      scripted: {
+        type: "boolean",
+        description:
+          'stream: use the dev-only scripted model ("Scripted Bench"); needs NERVE_DEV_SCRIPTED_PROVIDER=1 on the dev instance.',
       },
       "no-network": {
         type: "boolean",
@@ -114,7 +128,8 @@ async function main(argv: string[]): Promise<void> {
     project: values.project as string,
     reload: values.reload,
     profile: values.profile,
-    model: values.model as string,
+    trace: values.trace,
+    model: values.scripted ? "Scripted Bench" : (values.model as string),
     noNetwork: values["no-network"],
     prompt: values.prompt,
     timeoutSec: Number(values["timeout-sec"]),

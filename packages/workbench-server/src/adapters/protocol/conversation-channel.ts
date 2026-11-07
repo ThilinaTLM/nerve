@@ -73,11 +73,17 @@ function eventEnvelope(
     ts: event.createdAt,
     type: "conversation.event",
     data: transferredConversationEventSchema.parse(
-      event.type === "tool_call_response" && "agentProjection" in event.payload
-        ? transferConversationEvent(event as ConversationEvent)
-        : event,
+      transferConversationEvent(event),
     ),
   });
+}
+
+/** Trusted bulk results are validated in dev slots and under the test runner. */
+function validateTrustedResults(): boolean {
+  return (
+    process.env.NERVE_VALIDATE_TRUSTED_RESULTS === "1" ||
+    process.env.NODE_TEST_CONTEXT !== undefined
+  );
 }
 
 export function createConversationProtocolSession(
@@ -96,6 +102,8 @@ export function createConversationProtocolSession(
       projectId: project.id,
     }))
       owners.set(conversation.id, project.id);
+  // Last summary notified per conversation, to drop identical republishes.
+  const sentSummaries = new Map<string, string>();
   const peer = orchestratorSource(state.daemonId);
   const messages = createMessageFactory({
     source: peer,
@@ -398,6 +406,7 @@ export function createConversationProtocolSession(
         handlers,
         acceptedCapabilities,
         sessionContext: true,
+        validateTrustedResults: validateTrustedResults(),
         translateError: (error) => ({
           code:
             error instanceof MissingAssetError
@@ -539,19 +548,23 @@ export function createConversationProtocolSession(
       case "conversation_changed": {
         const projectId = change.summary.projectId;
         owners.set(change.summary.id, projectId);
-        if (projects.has(projectId))
-          void notify("conversation.changed", {
-            projectId,
-            summary: cachedConversationSummary(
-              state.agentConfiguration,
-              change.summary,
-            ),
-          });
+        if (!projects.has(projectId)) break;
+        const summary = cachedConversationSummary(
+          state.agentConfiguration,
+          change.summary,
+        );
+        // Core republishes unchanged summaries (e.g. on every tool call
+        // change); each one re-derives workspace-wide client state.
+        const serialized = JSON.stringify(summary);
+        if (sentSummaries.get(summary.id) === serialized) break;
+        sentSummaries.set(summary.id, serialized);
+        void notify("conversation.changed", { projectId, summary });
         break;
       }
       case "conversation_deleted": {
         const projectId = owners.get(change.conversationId);
         owners.delete(change.conversationId);
+        sentSummaries.delete(change.conversationId);
         session.removeStream(conversationStream(change.conversationId));
         delivery.invalidate(change.conversationId);
         if (projectId && projects.has(projectId))

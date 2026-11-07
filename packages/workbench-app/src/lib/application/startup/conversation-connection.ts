@@ -193,6 +193,7 @@ export async function connectConversationChannel(wsUrl: string): Promise<void> {
         createMessage: messages,
         capabilities,
         requiredCapabilities: ["encoding.json", "event.notify"],
+        validateTrustedResults: import.meta.env.DEV,
         cursors: currentCursors,
         send,
         onDisconnect,

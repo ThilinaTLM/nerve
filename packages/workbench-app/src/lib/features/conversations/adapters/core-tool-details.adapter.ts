@@ -10,7 +10,7 @@ import type {
 } from "$lib/presentation/view-models/conversation";
 import type { ConversationStore } from "../state/core-conversation-store.svelte";
 import { retainedConversationStores } from "../state/open-conversation-stores";
-import { conversationTranscript } from "./core-transcript.adapter";
+import { committedTranscript } from "./core-transcript.adapter";
 
 type LoadedDetails = { details: ToolCallDetails; bytes: Uint8Array };
 const cache = new WeakMap<
@@ -55,12 +55,9 @@ async function loadDetails(toolCallId: string): Promise<LoadedDetails> {
         ]),
       ),
     ).sort((a, b) => a.sequence - b.sequence);
-    const record = conversationTranscript({
-      snapshot,
-      events,
-      liveBlocks: store.liveBlocks,
-      toolOutput: store.toolOutput,
-    }).toolCalls.find((call) => call.id === toolCallId);
+    const record = committedTranscript({ snapshot, events }).toolCalls.find(
+      (call) => call.id === toolCallId,
+    );
     if (!record) continue;
     let entries = cache.get(store);
     if (!entries) {

@@ -1,5 +1,6 @@
 import { SvelteMap } from "svelte/reactivity";
 import type { ConversationSummary } from "@nervekit/contracts/core";
+import { sameValue } from "$lib/domain/conversations/summary-patch";
 import {
   isConversationChannelReady,
   observeConversationChannel,
@@ -122,6 +123,12 @@ export class ConversationListStore {
       delete this.expanded[id];
     } else if (notice.type === "conversation.changed") {
       const summary = notice.data.summary;
+      const parent = summary.parentConversationId;
+      const current = (
+        parent === null ? this.roots : this.children[parent]
+      )?.find((row) => row.id === summary.id);
+      // Republished unchanged summaries must not re-sort and re-render lists.
+      if (current && sameValue(current, summary)) return;
       this.roots = this.roots.filter((row) => row.id !== summary.id);
       for (const parent of Object.keys(this.children))
         this.children[parent] = this.children[parent].filter(

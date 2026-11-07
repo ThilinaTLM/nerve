@@ -282,6 +282,7 @@ export const conversationChannelOperations = [
     "none",
     host,
     "operation.conversation.getHistory",
+    { trustedResult: true },
   ),
   defineOperation(
     "conversation.getTree",
@@ -300,6 +301,7 @@ export const conversationChannelOperations = [
     "none",
     host,
     "operation.conversation.getEventsSince",
+    { trustedResult: true },
   ),
   defineOperation(
     "conversation.setAgentProfile",

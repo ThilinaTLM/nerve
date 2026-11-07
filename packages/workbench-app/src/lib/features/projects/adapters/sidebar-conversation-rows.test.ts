@@ -25,3 +25,12 @@ test("unchanged summaries keep row identity across list updates", () => {
   assert.equal(second[1].title, "changed");
   assert.equal(second[1].activeAgentId, "b");
 });
+
+test("a summary patched in place still produces a fresh row", () => {
+  const source = summary("c");
+  const first = sidebarConversations([source]);
+  (source as { title: string }).title = "patched";
+  const second = sidebarConversations([source]);
+  assert.notEqual(second[0], first[0]);
+  assert.equal(second[0].title, "patched");
+});

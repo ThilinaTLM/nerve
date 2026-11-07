@@ -10,7 +10,8 @@ Object.defineProperty(globalThis, "$state", {
   configurable: true,
   value: <T>(value: T): T => value,
 });
-const { conversationTranscript } = await import("./core-transcript.adapter");
+const { conversationTranscript, committedTranscript, liveTranscript } =
+  await import("./core-transcript.adapter");
 Reflect.deleteProperty(globalThis, "$state");
 
 const createdAt = "2026-10-24T10:00:00.000Z";
@@ -108,4 +109,33 @@ test("unchanged rows and tool calls keep identity across a delta", () => {
   const next = transcript([user, response, notice("later", "other:x")]);
   assert.equal(next.entries[0], first.entries[0]);
   assert.equal(next.toolCalls[0], first.toolCalls[0]);
+});
+
+test("live blocks never feed the committed projection", () => {
+  const user = notice("user", "background-task:completed");
+  const committed = committedTranscript({ snapshot, events: [user] });
+  const running = {
+    ...committed.run,
+    running: true,
+    status: "running" as const,
+  };
+  const live = (text: string) =>
+    liveTranscript({
+      run: running,
+      queuedPrompts: committed.queuedPrompts,
+      liveBlocks: [{ turnId: "turn", contentIndex: 0, text, thinking: "" }],
+      toolOutput: { tool: text },
+    });
+  assert.equal(live("a")?.turns[0].messages[0].blocks[0].kind, "text");
+  assert.equal(live("ab")?.toolOutputsByToolCallId.tool.text, "ab");
+  assert.equal(live("a")?.runId, "turn", "live turn supplies the run fallback");
+  assert.equal(
+    liveTranscript({
+      run: { ...running, running: false },
+      queuedPrompts: [],
+      liveBlocks: [],
+      toolOutput: {},
+    }),
+    undefined,
+  );
 });

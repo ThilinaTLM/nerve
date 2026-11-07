@@ -26,6 +26,11 @@ app.on("second-instance", (_event, argv, workingDirectory) => {
   );
 });
 
+if (app.isPackaged) {
+  // Dev-only scripted model: never reachable from a packaged build.
+  delete process.env.NERVE_DEV_SCRIPTED_PROVIDER;
+  delete process.env.NERVE_DESKTOP_DEV_SLOT;
+}
 const desktopOptions = parseDesktopOptions(process.argv.slice(1));
 const explicitElectronProfile = process.env.NERVE_ELECTRON_USER_DATA?.trim();
 if (explicitElectronProfile) {

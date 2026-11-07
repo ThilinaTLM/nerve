@@ -60,6 +60,30 @@ describe("agent projection contracts", () => {
     if (transferred.type === "tool_call_response")
       assert.equal(transferred.payload.userProjection.resultPreview, "Preview");
   });
+  it("drops provider signatures from transferred assistant messages", () => {
+    const event = assistantEvent();
+    if (event.type !== "assistant_message") throw new Error("fixture");
+    const signed = {
+      ...event,
+      payload: {
+        ...event.payload,
+        content: [
+          { type: "thinking" as const, thinking: "t", thinkingSignature: "s" },
+          { type: "text" as const, text: "a", textSignature: "s" },
+        ],
+      },
+    };
+    const transferred = transferConversationEvent(signed);
+    assert.deepEqual(
+      transferred.type === "assistant_message" && transferred.payload.content,
+      [
+        { type: "thinking", thinking: "t" },
+        { type: "text", text: "a" },
+      ],
+    );
+    assert.equal(signed.payload.content[0].thinkingSignature, "s");
+    assert.equal(transferConversationEvent(event), event);
+  });
   it("requires unavailable reasons and compatible inspection access", () => {
     assert.equal(validatedToolArtifactSchema.safeParse(artifact).success, true);
     assert.equal(

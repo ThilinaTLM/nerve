@@ -38,7 +38,14 @@ pnpm exec tsx scripts/development/transcript-bench.ts --scenario heap --runs 5 [
 # Streaming: fixed tool-heavy prompt in a new conversation (uses the real model, costs tokens).
 pnpm exec tsx scripts/development/transcript-bench.ts --scenario stream --project Random \
   --model "Haiku 5.5" --runs 1 [--profile] --no-network
+# Same, deterministic and token-free: dev-only scripted model (see below).
+pnpm exec tsx scripts/development/transcript-bench.ts --scenario stream --project Random \
+  --scripted --runs 1 --no-network
 ```
+
+**Scripted bench model.** Start the dev instance with `NERVE_DEV_SCRIPTED_PROVIDER=1 pnpm desktop:dev --slot N` (the variable is inherited by the daemon; a reused already-running daemon must be restarted by its owner to pick it up). The daemon then offers a keyless "Scripted Bench" model (`nerve-dev-scripted/scripted-bench`) that replays an identical ~35 s run: thinking and text streamed in 64-character deltas every ~30 ms, 16 real tool calls (todos, mkdir, write, edit, grep, read, unittest, a 5 s streaming shell loop) in the prompt's `qa-sandbox-bench-*` folder, and a final summary. It runs through the normal tool path, so the project must auto-approve those tools like the real-model bench. It requires both the variable and the `desktop:dev` slot marker, and packaged builds clear both, so it cannot be enabled in production.
+
+**Trusted read results.** Dev slots validate the results of `conversation.getHistory`/`getEventsSince` on the daemon (`NERVE_VALIDATE_TRUSTED_RESULTS=1`, the default there); production skips it. Start with `NERVE_VALIDATE_TRUSTED_RESULTS=0` to benchmark the production path.
 
 Notes: `--no-network` skips CDP Network capture (it copies every WebSocket frame and inflates the open time); `--profile` records a V8 CPU profile (sampling overhead inflates absolute times, so take long-task numbers from a run without it). The run counts as the app's production-minified bundle when `desktop:dev` serves `packages/workbench-server/dist/web`. Compare against `docs/proposals/transcript-streaming-performance.md`.
 

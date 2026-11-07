@@ -99,6 +99,9 @@ export function developmentEnvironment(
     NERVE_ALLOW_REMOTE: "0",
     NERVE_MOBILE_HTTPS: "1",
     NERVE_API_TARGET: `http://127.0.0.1:${slot.httpPort}`,
+    // Benchmarks set 0 to measure the production (unvalidated) read path.
+    NERVE_VALIDATE_TRUSTED_RESULTS:
+      inherited.NERVE_VALIDATE_TRUSTED_RESULTS ?? "1",
   };
   delete env.NERVE_DAEMON_TOKEN;
   delete env.NERVE_WEB_DIST;

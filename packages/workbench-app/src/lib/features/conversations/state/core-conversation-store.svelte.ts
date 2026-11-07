@@ -31,7 +31,13 @@ export interface LiveAssistantBlock {
   toolCall?: { providerCallId: string; name: string; partialArgsText: string };
 }
 
+import { patchChanged } from "$lib/domain/conversations/summary-patch";
 import { resetLiveTurnBlocks } from "./live-blocks";
+import {
+  LiveDeltaBuffer,
+  applyLiveBatch,
+  type LiveBatch,
+} from "./live-delta-buffer";
 import { LiveTurnGuard } from "./live-turn-guard";
 import { reconcileCompactionNotice } from "./compaction-reconciliation";
 import {
@@ -39,11 +45,10 @@ import {
   type FetchedHistory,
 } from "./conversation-history";
 
-// The server caps each history page at EVENT_PAGE_BYTES (512 KiB), about 130
-// events for typical tool-heavy transcripts, so the byte cap is the real bound;
+// The server byte-limits each history page, so the byte cap is the real bound;
 // the limit only needs to be above that without making the server map
 // thousands of rows it will discard.
-const HISTORY_PAGE_SIZE = 250;
+const HISTORY_PAGE_SIZE = 1000;
 
 /** One store serves a full pane or a read-only child peek. */
 export class ConversationStore {
@@ -52,8 +57,9 @@ export class ConversationStore {
   snapshot: ConversationSnapshot | undefined = $state();
   events: TransferredConversationEvent[] = $state([]);
   historyEvents: TransferredConversationEvent[] | undefined = $state();
-  liveBlocks = $state<LiveAssistantBlock[]>([]);
-  toolOutput = $state<Record<string, string>>({});
+  /** Replaced (never mutated) at most once per frame by the delta buffer. */
+  liveBlocks = $state.raw<LiveAssistantBlock[]>([]);
+  toolOutput = $state.raw<Record<string, string>>({});
   activity = $state<string>();
   /** Bumps on each provider-request restart so views can reset wait timing. */
   responseRevision = $state(0);
@@ -67,6 +73,10 @@ export class ConversationStore {
   private disposed = false;
   private configurationGeneration = 0;
   private readonly liveTurns = new LiveTurnGuard();
+  /** Plain accumulation of text/thinking/tool-arg/progress deltas. */
+  private readonly liveDeltas = new LiveDeltaBuffer((batch) =>
+    this.commitLive(batch),
+  );
   private refreshing: Promise<void> | undefined;
   private historyRefresh: Promise<void> | undefined;
   private historyDirty = false;
@@ -214,7 +224,11 @@ export class ConversationStore {
     }
     snapshot.lastSequence = Math.max(snapshot.lastSequence, event.sequence);
     if (event.type === "assistant_message") {
-      if (event.turnId) this.liveTurns.finalize(event.turnId);
+      if (event.turnId) {
+        this.liveTurns.finalize(event.turnId);
+        // The persisted message supersedes any not-yet-committed text.
+        this.liveDeltas.dropTurn(event.turnId);
+      }
       this.liveBlocks = this.liveBlocks.filter(
         (block) => block.turnId !== event.turnId,
       );
@@ -223,7 +237,7 @@ export class ConversationStore {
       snapshot.toolCalls = snapshot.toolCalls.filter(
         (call) => call.id !== event.payload.toolCallId,
       );
-      delete this.toolOutput[event.payload.toolCallId];
+      this.dropToolOutput(event.payload.toolCallId);
     }
     if (event.inputId)
       snapshot.queue = snapshot.queue.filter(
@@ -255,13 +269,23 @@ export class ConversationStore {
       case "conversation.changed":
         if (!snapshot) break;
         if (notice.data.summary.id === this.conversationId)
-          Object.assign(snapshot.conversation, notice.data.summary);
+          // Only changed fields: summaries are republished with nested
+          // objects that would otherwise always look new to readers.
+          patchChanged(snapshot.conversation, notice.data.summary, false);
         else {
-          snapshot.children = snapshot.children.filter(
-            (child) => child.id !== notice.data.summary.id,
+          const summary = notice.data.summary;
+          const child = snapshot.children.find(
+            (item) => item.id === summary.id,
           );
-          if (notice.data.summary.parentConversationId === this.conversationId)
-            snapshot.children.push(notice.data.summary);
+          if (child && summary.parentConversationId === this.conversationId)
+            patchChanged(child, summary, true);
+          else {
+            snapshot.children = snapshot.children.filter(
+              (item) => item.id !== summary.id,
+            );
+            if (summary.parentConversationId === this.conversationId)
+              snapshot.children.push(summary);
+          }
         }
         break;
       case "conversation.head":
@@ -303,7 +327,7 @@ export class ConversationStore {
           (item) => item.id !== call.id,
         );
         if (!("removed" in call)) snapshot.toolCalls.push(call);
-        else delete this.toolOutput[call.id];
+        else this.dropToolOutput(call.id);
         break;
       }
       case "conversation.live":
@@ -320,13 +344,13 @@ export class ConversationStore {
     if (delta.type === "assistant_reset") {
       // The provider request restarted: drop the turn's ephemeral drafts.
       // liveTurns is untouched: the same turn keeps accepting new deltas.
+      this.liveDeltas.dropTurn(delta.turnId);
       this.liveBlocks = resetLiveTurnBlocks(this.liveBlocks, delta.turnId);
       this.responseRevision += 1;
       return;
     }
     if (delta.type === "tool_progress") {
-      this.toolOutput[delta.toolCallId] =
-        (this.toolOutput[delta.toolCallId] ?? "") + delta.update.chunk;
+      this.liveDeltas.progress(delta.toolCallId, delta.update.chunk);
       return;
     }
     if (
@@ -337,33 +361,40 @@ export class ConversationStore {
       !this.liveTurns.accept(delta.turnId)
     )
       return;
-    let block = this.liveBlocks.find(
-      (item) =>
-        item.turnId === delta.turnId &&
-        item.contentIndex === delta.contentIndex,
-    );
-    if (!block) {
-      block = {
-        turnId: delta.turnId,
-        contentIndex: delta.contentIndex,
-        text: "",
-        thinking: "",
-      };
-      this.liveBlocks.push(block);
-      // Read back the reactive proxy before mutating it.
-      block = this.liveBlocks[this.liveBlocks.length - 1];
-    }
-    if (delta.type === "assistant_text") block.text += delta.delta;
-    else if (delta.type === "assistant_thinking") block.thinking += delta.delta;
+    if (delta.type === "assistant_text")
+      this.liveDeltas.text(delta.turnId, delta.contentIndex, delta.delta);
+    else if (delta.type === "assistant_thinking")
+      this.liveDeltas.thinking(delta.turnId, delta.contentIndex, delta.delta);
     else
-      block.toolCall = {
+      this.liveDeltas.toolCall(delta.turnId, delta.contentIndex, {
         providerCallId: delta.providerCallId,
         name: delta.name,
         partialArgsText: delta.partialArgsText,
-      };
+      });
+  }
+
+  private commitLive(batch: LiveBatch): void {
+    if (this.disposed) return;
+    if (batch.blocks.length)
+      this.liveBlocks = applyLiveBatch(this.liveBlocks, batch.blocks);
+    if (Object.keys(batch.toolOutput).length) {
+      const next = { ...this.toolOutput };
+      for (const [id, chunk] of Object.entries(batch.toolOutput))
+        next[id] = (next[id] ?? "") + chunk;
+      this.toolOutput = next;
+    }
+  }
+
+  private dropToolOutput(toolCallId: string): void {
+    this.liveDeltas.dropToolOutput(toolCallId);
+    if (!(toolCallId in this.toolOutput)) return;
+    const rest = { ...this.toolOutput };
+    delete rest[toolCallId];
+    this.toolOutput = rest;
   }
 
   private clearLive(): void {
+    this.liveDeltas.clear();
     this.liveBlocks = [];
     this.toolOutput = {};
     this.activity = undefined;
@@ -616,6 +647,7 @@ export class ConversationStore {
   }
   dispose(): void {
     this.disposed = true;
+    this.liveDeltas.dispose();
     this.unobserve();
     void unsubscribeConversation(this.conversationId).catch(() => undefined);
   }

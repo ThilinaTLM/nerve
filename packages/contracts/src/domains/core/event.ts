@@ -332,9 +332,19 @@ export type ConversationEventType = z.infer<typeof conversationEventTypeSchema>;
 export type ConversationEvent = z.infer<typeof conversationEventSchema>;
 export type EventTreeNode = z.infer<typeof eventTreeNodeSchema>;
 
+// Signatures are provider-replay state; the server replays from storage, clients never read them.
+const transferredAssistantContentSchema = z.discriminatedUnion("type", [
+  textContentSchema.omit({ textSignature: true }),
+  thinkingContentSchema.omit({ thinkingSignature: true }),
+  toolCallContentSchema,
+]);
 export const transferredConversationEventSchema = z.discriminatedUnion("type", [
   conversationEventSchema.options[0],
-  conversationEventSchema.options[1],
+  conversationEventSchema.options[1].extend({
+    payload: assistantMessagePayloadSchema.extend({
+      content: z.array(transferredAssistantContentSchema),
+    }),
+  }),
   conversationEventSchema.options[2],
   conversationEventSchema.options[4],
   conversationEventSchema.options[3].extend({
@@ -344,11 +354,40 @@ export const transferredConversationEventSchema = z.discriminatedUnion("type", [
 export type TransferredConversationEvent = z.infer<
   typeof transferredConversationEventSchema
 >;
+function hasSignature(block: AssistantContent): boolean {
+  return block.type === "text"
+    ? block.textSignature !== undefined
+    : block.type === "thinking" && block.thinkingSignature !== undefined;
+}
+/** Drops server-only fields; returns the input untouched when there is nothing to drop. */
 export function transferConversationEvent(
-  event: ConversationEvent,
+  event: ConversationEvent | TransferredConversationEvent,
 ): TransferredConversationEvent {
-  if (event.type !== "tool_call_response") return event;
-  const { agentProjection, ...payload } = event.payload;
-  void agentProjection;
-  return { ...event, payload };
+  if (event.type === "tool_call_response") {
+    if (!("agentProjection" in event.payload)) return event;
+    const { agentProjection, ...payload } = event.payload;
+    void agentProjection;
+    return { ...event, payload };
+  }
+  if (event.type === "assistant_message") {
+    if (!(event.payload.content as AssistantContent[]).some(hasSignature))
+      return event;
+    const content = (event.payload.content as AssistantContent[]).map(
+      (block) => {
+        if (block.type === "text") {
+          const { textSignature, ...rest } = block;
+          void textSignature;
+          return rest;
+        }
+        if (block.type === "thinking") {
+          const { thinkingSignature, ...rest } = block;
+          void thinkingSignature;
+          return rest;
+        }
+        return block;
+      },
+    );
+    return { ...event, payload: { ...event.payload, content } };
+  }
+  return event;
 }

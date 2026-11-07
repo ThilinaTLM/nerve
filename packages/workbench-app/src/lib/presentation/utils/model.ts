@@ -126,7 +126,10 @@ export function scopedUsableModelOptions(
   const usable = usableModelOptions(modelList, providers);
   if (!scopedModels?.length) return usable;
   const scopedKeys = new Set(scopedModels.map(modelKey));
-  return usable.filter((model) => scopedKeys.has(modelKey(model)));
+  // Keyless dev models are never part of a user's configured scope.
+  return usable.filter(
+    (model) => model.faux || scopedKeys.has(modelKey(model)),
+  );
 }
 
 export function authenticatedRealModelOptions(
