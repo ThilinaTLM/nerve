@@ -44,7 +44,6 @@ export interface ManagedDaemon {
 }
 
 export interface EnsureDaemonOptions {
-  webDistPath?: string;
   mode?: DaemonMode;
   remoteUrl?: string;
   /** One-time pairing code to redeem for a remote device credential. */

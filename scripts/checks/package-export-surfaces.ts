@@ -108,7 +108,7 @@ export const packageExportSurfaces: Readonly<Record<string, string[]>> =
     "@nervekit/skills": ["."],
     "@nervekit/website": [],
     "@nervekit/workbench-app": [],
-    "@nervekit/workbench-server": [".", "./main"],
+    "@nervekit/workbench-server": [".", "./network", "./main"],
   });
 
 export function validateBuiltPackageExportTargets(repoRoot: string): string[] {

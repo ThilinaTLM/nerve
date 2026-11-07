@@ -6,6 +6,7 @@ import { createDesktopConfigurationController } from "./app/desktop-configuratio
 import { createDesktopRuntime } from "./app/create-desktop-runtime.js";
 import { DESKTOP_APP_ID, DESKTOP_APP_NAME } from "./desktop-identity.js";
 import { app } from "./platform/electron/electron-api.js";
+import { isReleaseMode } from "./release-mode.js";
 
 import {
   directoryPathsFromArgv,
@@ -21,13 +22,13 @@ app.on("open-file", (event, path) => {
 app.on("second-instance", (_event, argv, workingDirectory) => {
   openPathRequests.enqueue(
     directoryPathsFromArgv(argv.slice(1), workingDirectory, {
-      skipAppPath: !app.isPackaged,
+      skipAppPath: true,
     }),
   );
 });
 
-if (app.isPackaged) {
-  // Dev-only scripted model: never reachable from a packaged build.
+if (isReleaseMode) {
+  // Dev-only scripted model: never reachable from a release run.
   delete process.env.NERVE_DEV_SCRIPTED_PROVIDER;
   delete process.env.NERVE_DESKTOP_DEV_SLOT;
 }
@@ -77,7 +78,7 @@ if (!app.requestSingleInstanceLock()) {
   if (process.platform !== "darwin") {
     openPathRequests.enqueue(
       directoryPathsFromArgv(process.argv.slice(1), process.cwd(), {
-        skipAppPath: !app.isPackaged,
+        skipAppPath: true,
       }),
     );
   }

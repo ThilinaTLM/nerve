@@ -6,7 +6,7 @@ import {
   parseElectronOzonePlatform,
   resolveElectronFontRenderHinting,
 } from "./cli-options.js";
-import { app } from "../platform/electron/electron-api.js";
+import { isReleaseMode } from "../release-mode.js";
 import { applyDevelopmentPerformanceDiagnostics } from "../performance/development-diagnostics.js";
 import { configureApplicationLogging } from "../logging.js";
 
@@ -25,8 +25,8 @@ export function createDesktopConfigurationController(options: {
       argv: process.argv.slice(1),
       dataDir: options.dataDir,
       platform: process.platform,
-      development: !app.isPackaged,
-      packaged: app.isPackaged,
+      development: !isReleaseMode,
+      packaged: isReleaseMode,
     });
   }
 
@@ -47,7 +47,7 @@ export function createDesktopConfigurationController(options: {
         : "0";
     } else {
       process.env.NERVE_DESKTOP_SYNTHETIC_PERFORMANCE = "1";
-      if (!app.isPackaged || configuration.values.performanceEnabled) {
+      if (!isReleaseMode || configuration.values.performanceEnabled) {
         process.env.NERVE_PERFORMANCE_DIAGNOSTICS = configuration.values
           .performanceEnabled
           ? "1"
@@ -64,7 +64,7 @@ export function createDesktopConfigurationController(options: {
         delete process.env.NERVE_DEVELOPMENT_PERFORMANCE_DEFAULT;
       }
     }
-    applyDevelopmentPerformanceDiagnostics(app.isPackaged, process.env, {
+    applyDevelopmentPerformanceDiagnostics(isReleaseMode, process.env, {
       enabled: configuration.values.performanceEnabled,
     });
     configureApplicationLogging(configuration.values.loggingEnabled);

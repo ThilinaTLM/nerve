@@ -7,6 +7,7 @@
 import { spawn } from "node:child_process";
 import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
+import { RELEASE_MODE_ENV } from "./release-mode.js";
 import { DESKTOP_APP_ID } from "./desktop-identity.js";
 import {
   formatElectronDownloadFailure,
@@ -100,6 +101,8 @@ const packageRoot = fileURLToPath(new URL("..", import.meta.url));
 
 const env = { ...process.env };
 delete env.ELECTRON_RUN_AS_NODE;
+// Marks the spawned Electron as a release (npm-distributed) run.
+env[RELEASE_MODE_ENV] = "1";
 
 const ozonePlatform = electronOzonePlatformSwitch(
   parseElectronOzonePlatform(process.env.NERVE_ELECTRON_OZONE_PLATFORM),

@@ -1,67 +1,91 @@
 import type { PackageManifest } from "../workspace/repo.ts";
-import { bundledPackages as internalPackages } from "./workspace-packages.ts";
-
-const internalNames = new Set(internalPackages.map(([name]) => name));
+import type { NativePlatformPackage } from "./native-prebuilds.ts";
 
 /**
- * Pure manifest assembly for the packed desktop distribution: external runtime
- * dependency ranges must agree across bundled packages, and bundled `@nervekit/*`
- * packages are pinned to the release version.
+ * Packages the esbuild bundle leaves external, so the published manifest keeps
+ * them as real `dependencies`: Electron is the runtime host and `sharp` is a
+ * native addon. `@nervekit/native-*` platform packages are external too but
+ * are declared as `optionalDependencies` instead. Everything else is bundled.
+ */
+export const externalRuntimeDependencies = ["electron", "sharp"];
+
+/**
+ * Pure manifest assembly for the packed desktop distribution. Only the external
+ * runtime packages stay dependencies; their ranges must agree across every
+ * workspace package that declares them.
  */
 export function collectDistributionDependencies(
   desktopManifest: PackageManifest,
-  internalManifests: Map<string, PackageManifest>,
-  version: string,
+  workspaceManifests: Iterable<PackageManifest>,
 ) {
-  const external = new Map();
-  const addDependencies = (manifest: PackageManifest) => {
-    for (const [name, range] of Object.entries(manifest.dependencies ?? {})) {
-      if (internalNames.has(name)) continue;
-      const existing = external.get(name);
-      if (existing && existing !== range)
-        throw new Error(
-          `Conflicting runtime dependency ranges for ${name}: ${existing} and ${range}.`,
-        );
-      external.set(name, range);
-    }
+  const ranges = new Map<string, string>();
+  const record = (name: string, range: string) => {
+    const existing = ranges.get(name);
+    if (existing && existing !== range)
+      throw new Error(
+        `Conflicting runtime dependency ranges for ${name}: ${existing} and ${range}.`,
+      );
+    ranges.set(name, range);
   };
-  addDependencies(desktopManifest);
-  for (const manifest of internalManifests.values()) addDependencies(manifest);
-
   const electronRange = desktopManifest.peerDependencies?.electron;
   if (!electronRange)
     throw new Error("desktop-shell must declare its Electron peer dependency.");
-  external.set("electron", electronRange);
+  record("electron", electronRange);
+  for (const manifest of [desktopManifest, ...workspaceManifests])
+    for (const [name, range] of Object.entries(manifest.dependencies ?? {}))
+      if (externalRuntimeDependencies.includes(name)) record(name, range);
 
+  const missing = externalRuntimeDependencies.filter(
+    (name) => !ranges.has(name),
+  );
+  if (missing.length)
+    throw new Error(
+      `No workspace package declares external dependency ${missing.join(", ")}.`,
+    );
   return Object.fromEntries(
-    [
-      ...internalPackages.map(([name]) => [name, version]),
-      ...[...external.entries()].sort(([left], [right]) =>
-        left.localeCompare(right),
-      ),
-    ].sort(([left], [right]) => left.localeCompare(right)),
+    [...ranges.entries()].sort(([left], [right]) => left.localeCompare(right)),
   );
 }
 
-export function embeddedManifest(manifest: PackageManifest, version: string) {
-  const dependencies = Object.fromEntries(
-    Object.entries(manifest.dependencies ?? {}).map(([name, range]) => [
-      name,
-      internalNames.has(name) ? version : range,
-    ]),
-  );
+/** Exact-version `optionalDependencies` pinning every per-platform native package. */
+export function nativeOptionalDependencies(
+  platformPackages: NativePlatformPackage[],
+  version: string,
+) {
   return Object.fromEntries(
-    Object.entries({
-      name: manifest.name,
-      version,
-      description: manifest.description,
-      author: manifest.author,
-      license: manifest.license,
-      type: manifest.type,
-      main: manifest.main,
-      exports: manifest.exports,
-      dependencies,
-      engines: manifest.engines,
-    }).filter(([, value]) => value !== undefined),
+    platformPackages
+      .map((platformPackage) => [platformPackage.name, version])
+      .sort(([left], [right]) => left.localeCompare(right)),
   );
+}
+
+/** Manifest for one `@nervekit/native-<triple>` package holding a single .node binary. */
+export function nativePlatformManifest(
+  platformPackage: NativePlatformPackage,
+  nativeManifest: PackageManifest,
+  version: string,
+) {
+  return {
+    name: platformPackage.name,
+    version,
+    description: `Nerve native runtime binary for ${platformPackage.triple}.`,
+    author: nativeManifest.author,
+    license: nativeManifest.license,
+    os: [platformPackage.os],
+    cpu: [platformPackage.cpu],
+    ...(platformPackage.libc ? { libc: platformPackage.libc } : {}),
+    main: platformPackage.filename,
+    files: [platformPackage.filename, "LICENSE", "NOTICE"],
+    engines: nativeManifest.engines,
+    publishConfig: {
+      access: "public",
+      registry: "https://registry.npmjs.org",
+    },
+    repository: {
+      type: "git",
+      url: "git+https://github.com/ThilinaTLM/nerve.git",
+      directory: "packages/native",
+    },
+    homepage: "https://github.com/ThilinaTLM/nerve#readme",
+  };
 }

@@ -41,7 +41,6 @@ Run the finite built-artifact smokes after `pnpm build`:
 node scripts/release/verify-npm-tarballs.ts       # inspect packed tarballs and isolated install
 node scripts/release/smoke-workbench-release.ts   # built workbench server HTTP/WS parity
 node scripts/release/smoke-desktop-release.ts     # desktop --version/--help and server resolution
-pnpm --filter @nervekit/desktop-shell package:dir
 node scripts/release/smoke-desktop-package.ts
 ```
 

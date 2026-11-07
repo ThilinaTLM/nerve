@@ -170,16 +170,13 @@ jobs:
       - name: Smoke desktop resolution and CLI
         run: node scripts/release/smoke-desktop-release.ts
 
-      - name: Package unpacked desktop bundle
-        run: pnpm --filter @nervekit/desktop-shell package:dir
-
-      - name: Smoke packaged desktop identity and assets
+      - name: Smoke generated desktop assets
         run: node scripts/release/smoke-desktop-package.ts
 
-      - name: Pack and verify npm tarball
+      - name: Pack and verify npm tarballs
         run: node scripts/release/pack-npm.ts
 
-      - name: Upload verified npm tarball
+      - name: Upload verified npm tarballs
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: npm-package
@@ -233,13 +230,10 @@ jobs:
       - name: Run native tool and desktop tests
         run: pnpm --filter @nervekit/tools --filter @nervekit/desktop-shell test
 
-      - name: Package unpacked desktop bundle
-        run: pnpm --filter @nervekit/desktop-shell package:dir
-
-      - name: Smoke packaged desktop identity and assets
+      - name: Smoke generated desktop assets
         run: node scripts/release/smoke-desktop-package.ts
 
-      - name: Pack and verify npm tarball
+      - name: Pack and verify npm tarballs
         run: node scripts/release/pack-npm.ts
 
       - name: Verify built desktop runtime
@@ -322,33 +316,41 @@ jobs:
             echo "npm: $(npm --version)"
           fi
 
-      - name: Download verified npm tarball
+      - name: Download verified npm tarballs
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           name: npm-package
           path: release/npm
 
-      - name: Publish npm tarball
+      - name: Publish npm tarballs
         shell: bash
         run: |
           set -euo pipefail
-          name="@nervekit/desktop"
           version="${RELEASE_TAG#v}"
-          tgz="release/npm/nervekit-desktop-${version}.tgz"
-          if [ ! -f "${tgz}" ]; then
-            echo "No verified tarball found at ${tgz}" >&2
-            exit 1
-          fi
-          if npm view "${name}@${version}" version >/dev/null 2>&1; then
-            echo "Skipping ${name}@${version} (already published)"
-            exit 0
-          fi
           dist_tag="latest"
           if [[ "${version}" == *-* ]]; then
             dist_tag="next"
           fi
-          echo "Publishing ${tgz} as ${name}@${version} with dist-tag ${dist_tag}"
-          npm publish "${tgz}" --provenance --access public --tag "${dist_tag}"
+          # Platform packages first: @nervekit/desktop pins them as optionalDependencies.
+          tarballs=()
+          for triple in linux-x64-gnu linux-arm64-gnu darwin-x64 darwin-arm64 win32-x64-msvc win32-arm64-msvc; do
+            tarballs+=("@nervekit/native-${triple}|release/npm/nervekit-native-${triple}-${version}.tgz")
+          done
+          tarballs+=("@nervekit/desktop|release/npm/nervekit-desktop-${version}.tgz")
+          for entry in "${tarballs[@]}"; do
+            name="${entry%%|*}"
+            tgz="${entry#*|}"
+            if [ ! -f "${tgz}" ]; then
+              echo "No verified tarball found at ${tgz}" >&2
+              exit 1
+            fi
+            if npm view "${name}@${version}" version >/dev/null 2>&1; then
+              echo "Skipping ${name}@${version} (already published)"
+              continue
+            fi
+            echo "Publishing ${tgz} as ${name}@${version} with dist-tag ${dist_tag}"
+            npm publish "${tgz}" --provenance --access public --tag "${dist_tag}"
+          done
 
   deploy-website:
     if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
@@ -384,13 +386,13 @@ jobs:
       contents: write
 
     steps:
-      - name: Download verified npm tarball
+      - name: Download verified npm tarballs
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           name: npm-package
           path: release/npm
 
-      - name: Create release and attach npm tarball
+      - name: Create release and attach npm tarballs
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
@@ -398,15 +400,15 @@ jobs:
         run: |
           set -euo pipefail
           version="${RELEASE_TAG#v}"
-          tgz="release/npm/nervekit-desktop-${version}.tgz"
-          if [ ! -f "${tgz}" ]; then
-            echo "No verified tarball found at ${tgz}" >&2
+          tgz=(release/npm/nervekit-desktop-"${version}".tgz release/npm/nervekit-native-*-"${version}".tgz)
+          if [ "${#tgz[@]}" -ne 7 ] || [ ! -f "${tgz[0]}" ]; then
+            echo "Expected 7 verified tarballs in release/npm, found: ${tgz[*]}" >&2
             exit 1
           fi
 
           if gh release view "${RELEASE_TAG}" >/dev/null 2>&1; then
-            echo "Release ${RELEASE_TAG} already exists; refreshing its npm tarball"
-            gh release upload "${RELEASE_TAG}" "${tgz}" --clobber
+            echo "Release ${RELEASE_TAG} already exists; refreshing its npm tarballs"
+            gh release upload "${RELEASE_TAG}" "${tgz[@]}" --clobber
             exit 0
           fi
 
@@ -414,4 +416,4 @@ jobs:
           if [[ "${version}" == *-* ]]; then
             release_args+=(--prerelease)
           fi
-          gh release create "${RELEASE_TAG}" "${tgz}" "${release_args[@]}"
+          gh release create "${RELEASE_TAG}" "${tgz[@]}" "${release_args[@]}"

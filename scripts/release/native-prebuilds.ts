@@ -57,3 +57,48 @@ export async function verifyNativePrebuilds(
   }
   return expected;
 }
+
+export interface NativePlatformPackage {
+  /** napi platform triple, e.g. `linux-x64-gnu`. */
+  triple: string;
+  /** Published npm name, e.g. `@nervekit/native-linux-x64-gnu`. */
+  name: string;
+  /** Binary filename inside the package, e.g. `nerve_native.linux-x64-gnu.node`. */
+  filename: string;
+  os: string;
+  cpu: string;
+  libc?: string[];
+}
+
+/** Parses `nerve_native.<triple>.node` into per-platform npm package metadata. */
+export function nativePlatformPackage(filename: string): NativePlatformPackage {
+  const match =
+    /^nerve_native\.((linux|win32|darwin)-(x64|arm64)(?:-(gnu|msvc))?)\.node$/.exec(
+      filename,
+    );
+  if (!match) throw new Error(`Unrecognized native prebuild ${filename}.`);
+  const [, triple, os, cpu] = match;
+  return {
+    triple,
+    name: `@nervekit/native-${triple}`,
+    filename,
+    os,
+    cpu,
+    ...(os === "linux" ? { libc: ["glibc"] } : {}),
+  };
+}
+
+export async function expectedNativePlatformPackages(
+  rootDirectory = repoRoot,
+): Promise<NativePlatformPackage[]> {
+  return (await expectedNativePrebuilds(rootDirectory))
+    .map(nativePlatformPackage)
+    .sort((left, right) => left.triple.localeCompare(right.triple));
+}
+
+export function nativeTarballFilename(
+  platformPackage: NativePlatformPackage,
+  version: string,
+) {
+  return `nervekit-native-${platformPackage.triple}-${version}.tgz`;
+}

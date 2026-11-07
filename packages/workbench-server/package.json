@@ -21,6 +21,10 @@
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
     },
+    "./network": {
+      "types": "./dist/infrastructure/network/index.d.ts",
+      "import": "./dist/infrastructure/network/index.js"
+    },
     "./main": {
       "types": "./dist/main.d.ts",
       "import": "./dist/main.js"

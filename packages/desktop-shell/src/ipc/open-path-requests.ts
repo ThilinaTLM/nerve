@@ -28,7 +28,7 @@ const VALUE_FLAGS = new Set([
 
 /**
  * Directory paths requested on the command line. `argv` excludes the
- * executable. Unpackaged Electron receives its app path as the first
+ * executable. Electron launched as `electron <app dir>` (always the case, including npx) receives its app path as the first
  * positional argument, possibly after Chromium switches; `skipAppPath` drops it.
  */
 export function directoryPathsFromArgv(

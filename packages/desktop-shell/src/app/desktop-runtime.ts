@@ -434,7 +434,6 @@ export class DesktopRuntime {
                 await ports.checkHomeAdmission(desktopDataDir);
               const startup = await startRunRuntime(() =>
                 ports.acquireDaemon({
-                  webDistPath: ports.packagedWebDistPath(),
                   startupTimeoutMs:
                     runtime.#desktopConfiguration.values.startupTimeoutMs,
                   maxOldSpaceMb:

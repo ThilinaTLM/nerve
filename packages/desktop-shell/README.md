@@ -1,6 +1,8 @@
 # `@nervekit/desktop-shell`
 
-Private implementation package used to assemble the published `@nervekit/desktop` artifact.
+Private implementation package behind the published `@nervekit/desktop` npm package. The only distribution is `npx @nervekit/desktop`: `bin.ts` is a Node launcher that spawns the `electron` npm binary on this package directory. There is no electron-builder/ASAR packaging.
+
+**Release mode.** `app.isPackaged` is always false under `electron .`, so `bin.ts` sets `NERVE_DESKTOP_RELEASE=1` for the spawned Electron; `src/release-mode.ts` reads it once at startup and removes it from `process.env` so it never reaches the daemon. Repo entrypoints (`pnpm desktop:dev`, `pnpm desktop:prod`, `scripts/start-electron.ts`) never set it and stay in development mode (`desktop:prod` only uses real `~/.nerve` data with a source build). The daemon serves the UI from `workbench-server/dist/web`.
 
 The desktop runtime uses Electron 45. macOS builds require macOS 13 (Ventura) or later; desktop native targets are x64 and arm64 only.
 
