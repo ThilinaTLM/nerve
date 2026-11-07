@@ -253,7 +253,8 @@ void test("fork copies only the path, remaps identities and files, and leaves th
     assert.ok(path.every((event) => event.id !== "evt_side"));
     assert.ok(path.every((event) => event.inputId === null));
     assert.equal(snapshot.conversation.headEventId, path.at(-1)!.id);
-    assert.equal(snapshot.conversation.lastUserMessageAt, at);
+    assert.equal(snapshot.conversation.lastUserMessageAt, null);
+    assert.ok(snapshot.conversation.createdAt > at);
 
     // Tool responses stay paired with their (new) assistant event.
     const sourceMessages = buildModelMessages(

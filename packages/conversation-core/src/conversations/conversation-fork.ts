@@ -198,9 +198,6 @@ export class ConversationForker {
           text: noticeText(sourceId, agents),
         },
       });
-      const lastUser = [...events]
-        .reverse()
-        .find((event) => event.type === "user_message");
       const conversation: Conversation = {
         id: forkId,
         projectId: source.projectId,
@@ -218,7 +215,9 @@ export class ConversationForker {
         nextInputSequence: 1,
         pinnedAt: null,
         completedAt: null,
-        lastUserMessageAt: lastUser?.createdAt ?? null,
+        // No message has been sent in the fork yet; recency falls back to
+        // creation, so the fork lists above its source.
+        lastUserMessageAt: null,
         createdAt: now,
         updatedAt: now,
       };
