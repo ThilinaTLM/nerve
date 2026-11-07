@@ -7,7 +7,10 @@ import {
   type ShellPresentationSnapshot,
 } from "$lib/app/shell/shell-layout.svelte";
 import { hasChatGptAudioAuth } from "$lib/features/audio";
-import { openConversationHistory } from "$lib/features/conversations/state/composer-signals.svelte";
+import {
+  closeConversationHistory,
+  openConversationHistory,
+} from "$lib/features/conversations/state/composer-signals.svelte";
 import { settingsState } from "$lib/features/settings/state/settings-state.svelte";
 import { atlassianProfileReady } from "$lib/features/settings/views/pages/providers/provider-profiles";
 import { openSettingsPane } from "$lib/application/settings/settings-actions.svelte";
@@ -157,14 +160,6 @@ function capturePresentation(): PresentationSnapshot {
       document.querySelector('[data-tour-id="conversation-history"]'),
     ),
   };
-}
-
-function closeConversationHistory(): void {
-  document
-    .querySelector<HTMLElement>('[data-tour-id="conversation-history"]')
-    ?.closest<HTMLElement>('[data-slot="dialog-content"]')
-    ?.querySelector<HTMLButtonElement>('[aria-label="Close dialog"]')
-    ?.click();
 }
 
 function restorePresentation(): void {

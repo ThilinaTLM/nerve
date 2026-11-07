@@ -530,9 +530,6 @@ importers:
       '@tanstack/svelte-query':
         specifier: 6.0.0
         version: 6.0.0(svelte@5.56.3(@typescript-eslint/types@8.63.0))
-      '@xyflow/svelte':
-        specifier: 1.6.2
-        version: 1.6.2(svelte@5.56.3(@typescript-eslint/types@8.63.0))
       bits-ui:
         specifier: ^2.18.1
         version: 2.18.1(@internationalized/date@3.12.2)(svelte@5.56.3(@typescript-eslint/types@8.63.0))
@@ -3785,11 +3782,6 @@ packages:
   '@stablelib/base64@1.0.1':
     resolution: {integrity: sha512-1bnPQqSxSuc3Ii6MhBysoWCg58j97aUjuCSZrGSmDxNqtytIi0k8utUenAwTZN4V5mXXYGsVUI9zeBqy+jBOSQ==}
 
-  '@svelte-put/shortcut@4.2.0':
-    resolution: {integrity: sha512-hqNLo4yEc++SLgAkZUvuwMxIAsii9qjQtTuzfcYVf3xRxa+0HFcfaWFK7LdU3l+15s9SYVNbPB0qQj9CHFqSuw==}
-    peerDependencies:
-      svelte: ^5.1.0
-
   '@sveltejs/acorn-typescript@1.0.10':
     resolution: {integrity: sha512-4WfKk68eTih+MiJD4fSbxN7E8kVBmTMPWHUPYjvl2N0rMs53YLTT8/YjKU5Dtnz5LqDjl7LEw4U7lXR2W3J5WA==}
     peerDependencies:
@@ -4270,14 +4262,6 @@ packages:
   '@xmldom/xmldom@0.8.15':
     resolution: {integrity: sha512-/5NV/vDALVFDXgLmfsy9TRCBlKwO2LNBFzpzvb9iIj+jR+eSc6DLYYvVOdivT/jm7MtU6TebYuRmzEOI7w40UA==}
     engines: {node: '>=10.0.0'}
-
-  '@xyflow/svelte@1.6.2':
-    resolution: {integrity: sha512-wImcz0c4mCa2SYxo5p1YSBqdTBqI4Ky2CYO6XZfNqMIxVr6mB2cdVaduJqHuqTETQuUKv4Gr0eh3Ev3iU8k8fg==}
-    peerDependencies:
-      svelte: ^5.25.0
-
-  '@xyflow/system@0.0.79':
-    resolution: {integrity: sha512-czLyOh91NF0hIzbNzwi8I6GlqG23BHh2435OddfI6uiaLH3xdrdygO93gqgH1Bv9mhy8XPFQJOBn1FTq4LvEWA==}
 
   abbrev@4.0.0:
     resolution: {integrity: sha512-a1wflyaL0tHtJSmLSOVybYhy22vRih4eduhhrkcjgrWGnRfrZtovJ2FRjxuTtkkj47O/baf0R86QU5OuYpz8fA==}
@@ -11762,10 +11746,6 @@ snapshots:
 
   '@stablelib/base64@1.0.1': {}
 
-  '@svelte-put/shortcut@4.2.0(svelte@5.56.3(@typescript-eslint/types@8.63.0))':
-    dependencies:
-      svelte: 5.56.3(@typescript-eslint/types@8.63.0)
-
   '@sveltejs/acorn-typescript@1.0.10(acorn@8.17.0)':
     dependencies:
       acorn: 8.17.0
@@ -12294,24 +12274,6 @@ snapshots:
   '@vscode/l10n@0.0.18': {}
 
   '@xmldom/xmldom@0.8.15': {}
-
-  '@xyflow/svelte@1.6.2(svelte@5.56.3(@typescript-eslint/types@8.63.0))':
-    dependencies:
-      '@svelte-put/shortcut': 4.2.0(svelte@5.56.3(@typescript-eslint/types@8.63.0))
-      '@xyflow/system': 0.0.79
-      svelte: 5.56.3(@typescript-eslint/types@8.63.0)
-
-  '@xyflow/system@0.0.79':
-    dependencies:
-      '@types/d3-drag': 3.0.7
-      '@types/d3-interpolate': 3.0.4
-      '@types/d3-selection': 3.0.11
-      '@types/d3-transition': 3.0.9
-      '@types/d3-zoom': 3.0.8
-      d3-drag: 3.0.0
-      d3-interpolate: 3.0.1
-      d3-selection: 3.0.0
-      d3-zoom: 3.0.0
 
   abbrev@4.0.0: {}
 

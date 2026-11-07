@@ -1,5 +1,5 @@
 <script lang="ts">
-import { onDestroy, type Snippet } from "svelte";
+import { onDestroy, tick, untrack, type Snippet } from "svelte";
 import ArrowDown from "@lucide/svelte/icons/arrow-down";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
 import ConversationPaneLayout from "./ConversationPaneLayout.svelte";
@@ -7,6 +7,8 @@ import MobileConversationPaneLayout from "./MobileConversationPaneLayout.svelte"
 import { isMobileSurface } from "../shell/mobile/mobile-surface.js";
 import TranscriptAnnouncer from "../transcript/TranscriptAnnouncer.svelte";
 import TranscriptList from "../transcript/TranscriptList.svelte";
+import TranscriptMessageRail from "../transcript/TranscriptMessageRail.svelte";
+import type { TranscriptMessageMark } from "../transcript/transcript-row-model.js";
 import TranscriptSelectionToolbar from "../transcript/TranscriptSelectionToolbar.svelte";
 import { createConversationScrollController } from "../transcript/conversation-scroll.svelte.js";
 import AgentComposer from "./AgentComposer.svelte";
@@ -17,6 +19,7 @@ import type {
   ConversationMenuBuilders,
   ConversationPaneActions,
   ConversationPaneModel,
+  TranscriptHistoryControls,
 } from "./conversation-view-contracts.js";
 
 let {
@@ -26,6 +29,7 @@ let {
   composer: composerExtension,
   emptyExtension,
   activity,
+  history,
 }: {
   model: ConversationPaneModel;
   actions: ConversationPaneActions;
@@ -34,11 +38,12 @@ let {
   emptyExtension?: Snippet;
   /** Activity/navigation controls beside suggestions, above the composer. */
   activity?: Snippet<[showLatest: boolean, onJumpToBottom: () => void]>;
+  /** History view, shown over the transcript while `model.transcriptView` is "history". */
+  history?: Snippet<[TranscriptHistoryControls]>;
 } = $props();
 
-const Layout = isMobileSurface()
-  ? MobileConversationPaneLayout
-  : ConversationPaneLayout;
+const mobile = isMobileSurface();
+const Layout = mobile ? MobileConversationPaneLayout : ConversationPaneLayout;
 const active = $derived(model.active ?? true);
 const lastTimelineKey = $derived(
   model.timeline.tail.at(-1)?.key ?? model.timeline.prefix.at(-1)?.key,
@@ -74,6 +79,34 @@ const scroll = createConversationScrollController({
 });
 
 let transcriptEl = $state<HTMLDivElement>();
+let transcriptList = $state<TranscriptList>();
+let messageRail = $state<TranscriptMessageRail>();
+let messageMarks = $state<TranscriptMessageMark[]>([]);
+let rowCount = $state(0);
+const historyShowing = $derived(
+  model.transcriptView === "history" && Boolean(history),
+);
+
+// Previous/next message shortcuts reach the visible pane through a token.
+let handledStep = untrack(() => model.messageStep?.token ?? 0);
+$effect(() => {
+  const request = model.messageStep;
+  if (!request || request.token === handledStep) return;
+  handledStep = request.token;
+  if (active && !historyShowing) messageRail?.step(request.direction);
+});
+
+const showLatest = $derived(active && scroll.showLatest && !historyShowing);
+
+const historyControls: TranscriptHistoryControls = {
+  reveal(entryId) {
+    actions.onToggleHistory?.();
+    void tick().then(() => {
+      const index = transcriptList?.rowIndexOfEntry(entryId);
+      if (index !== undefined) scroll.revealIndex(index);
+    });
+  },
+};
 
 let focusTimer: ReturnType<typeof setTimeout> | undefined;
 function cancelFocusRetry(): void {
@@ -115,8 +148,8 @@ function goToQuestion(): void {
 
 {#snippet activityContent()}
   {#if activity}
-    {@render activity(active && scroll.showLatest, () => scroll.jumpToBottom())}
-  {:else if active && scroll.showLatest}
+    {@render activity(showLatest, () => scroll.jumpToBottom())}
+  {:else if showLatest}
     <Button
       variant="outline"
       size="icon"
@@ -147,8 +180,11 @@ function goToQuestion(): void {
       {/if}
       <div class="min-h-0 flex-1">
         <TranscriptList
+          bind:this={transcriptList}
           bind:controller={scroll.controller}
           bind:atEnd={scroll.atEnd}
+          bind:messageMarks
+          bind:rowCount
           paddingStart={12}
           paddingEnd={18}
           heightCacheKey={model.transcriptHeightCacheKey ??
@@ -192,12 +228,27 @@ function goToQuestion(): void {
           transcriptMenu={menus.transcriptMenu}
         />
       </div>
+      {#if !mobile}
+        <TranscriptMessageRail
+          bind:this={messageRail}
+          marks={messageMarks}
+          {rowCount}
+          viewport={scroll.controller?.getViewportElement()}
+          onReveal={(index) => scroll.revealIndex(index)}
+        />
+      {/if}
       {#if menus.selectionActions}
         <TranscriptSelectionToolbar
           container={transcriptEl}
           actions={menus.selectionActions}
-          enabled={active}
+          enabled={active && !historyShowing}
         />
+      {/if}
+      {#if historyShowing && history}
+        <!-- Covers the transcript, which stays mounted to keep its scroll. -->
+        <div class="absolute inset-0 z-20 flex min-h-0 flex-col bg-background">
+          {@render history(historyControls)}
+        </div>
       {/if}
     </div>
   {/snippet}

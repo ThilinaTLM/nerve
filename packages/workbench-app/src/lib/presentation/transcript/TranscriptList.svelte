@@ -1,5 +1,6 @@
 <script lang="ts">
 import type { UserInputAnswer } from "@nervekit/contracts/core";
+import { untrack } from "svelte";
 import { SvelteMap } from "svelte/reactivity";
 import type {
   AgentRecord,
@@ -30,7 +31,10 @@ import {
   entranceEligible,
   measurementVersionForRow,
   type TimelineRowItem,
+  type TranscriptMessageMark,
   type TranscriptRowItem,
+  transcriptMessageMarks,
+  transcriptRowIndexOfEntry,
   uniqueRowKey,
 } from "./transcript-row-model";
 import {
@@ -44,6 +48,9 @@ import { hasTranscriptContent } from "./transcript-content";
 type Props = {
   controller?: VirtualScrollerController;
   atEnd?: boolean;
+  /** User messages in row order, for message navigation. */
+  messageMarks?: TranscriptMessageMark[];
+  rowCount?: number;
   paddingStart?: number;
   paddingEnd?: number;
   heightCacheKey?: string;
@@ -110,6 +117,8 @@ type Props = {
 let {
   controller = $bindable(),
   atEnd = $bindable(true),
+  messageMarks = $bindable([]),
+  rowCount = $bindable(),
   paddingStart = 12,
   paddingEnd = 0,
   heightCacheKey,
@@ -268,6 +277,27 @@ const rows = $derived.by<TranscriptRowItem[]>(() => {
   }
   return result;
 });
+// Rows change on every streamed frame; publish marks only when they move.
+$effect(() => {
+  if (rowCount !== rows.length) rowCount = rows.length;
+  const next = transcriptMessageMarks(rows);
+  const previous = untrack(() => messageMarks);
+  const same =
+    next.length === previous.length &&
+    next.every(
+      (mark, i) =>
+        mark.index === previous[i]!.index &&
+        mark.key === previous[i]!.key &&
+        mark.text === previous[i]!.text,
+    );
+  if (!same) messageMarks = next;
+});
+
+/** Row index of a stored entry's message, when it is in this transcript. */
+export function rowIndexOfEntry(entryId: string): number | undefined {
+  return transcriptRowIndexOfEntry(rows, entryId);
+}
+
 const approvalsByToolCallId = $derived(
   new Map(approvals.map((item) => [item.toolCallId, item])),
 );

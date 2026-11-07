@@ -36,8 +36,6 @@ export const DYNAMIC_CLASS_ALLOWLIST = [
   /^popover-/,
   // Generated from ANSI_COLOR_NAMES in packages/ui-kit/src/lib/core/terminal/ansi.ts.
   /^ansi-/,
-  // Rendered by @xyflow/svelte.
-  /^svelte-flow__/,
   // Rendered by the terminal HTML serializer in ui-kit's terminal core.
   /^terminal-output/,
   // Applied by paneforge / bits-ui through data attributes on the same element.

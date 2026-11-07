@@ -14,6 +14,9 @@ export type ShortcutCategory =
 export type ShortcutCommandId =
   | "conversation.new"
   | "conversation.newFromProject"
+  | "conversation.toggleHistory"
+  | "conversation.previousMessage"
+  | "conversation.nextMessage"
   | "project.openFolder"
   | "pane.close"
   | "pane.closeOthers"
@@ -72,6 +75,25 @@ export const DEFAULT_SHORTCUTS: ShortcutCommand[] = [
     label: "New chat from project",
     category: "Conversation",
     defaultBinding: { key: "n", mod: true, shift: true },
+  },
+  {
+    id: "conversation.toggleHistory",
+    label: "Toggle conversation History",
+    category: "Conversation",
+    defaultBinding: { key: "h", mod: true, shift: true },
+    allowInEditable: true,
+  },
+  {
+    id: "conversation.previousMessage",
+    label: "Previous message",
+    category: "Conversation",
+    defaultBinding: { key: "ArrowUp", alt: true },
+  },
+  {
+    id: "conversation.nextMessage",
+    label: "Next message",
+    category: "Conversation",
+    defaultBinding: { key: "ArrowDown", alt: true },
   },
   {
     id: "project.openFolder",

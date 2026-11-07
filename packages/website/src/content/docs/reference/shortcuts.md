@@ -9,16 +9,18 @@ sidebar:
 
 ## Conversations and panes
 
-| Action                | Shortcut          |
-| --------------------- | ----------------- |
-| New chat              | `Mod+N`           |
-| New chat from project | `Mod+Shift+N`     |
-| Search conversations  | `Mod+K`           |
-| Close pane            | `Mod+W`           |
-| Close other panes     | `Mod+Shift+W`     |
-| Refresh pane          | `Mod+R`           |
-| Previous / next pane  | `Mod+[` / `Mod+]` |
-| Focus pane 1–9        | `Mod+1` … `Mod+9` |
+| Action                      | Shortcut          |
+| --------------------------- | ----------------- |
+| New chat                    | `Mod+N`           |
+| New chat from project       | `Mod+Shift+N`     |
+| Search conversations        | `Mod+K`           |
+| Toggle conversation History | `Mod+Shift+H`     |
+| Previous / next message     | `Alt+↑` / `Alt+↓` |
+| Close pane                  | `Mod+W`           |
+| Close other panes           | `Mod+Shift+W`     |
+| Refresh pane                | `Mod+R`           |
+| Previous / next pane        | `Mod+[` / `Mod+]` |
+| Focus pane 1–9              | `Mod+1` … `Mod+9` |
 
 ## Composer
 

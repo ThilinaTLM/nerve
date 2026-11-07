@@ -1,6 +1,7 @@
 <script lang="ts">
 import { Badge } from "@nervekit/ui-kit/components/ui/badge";
 import type { Snippet } from "svelte";
+import History from "@lucide/svelte/icons/history";
 import Paperclip from "@lucide/svelte/icons/paperclip";
 import type { LeadSettingsOverrides } from "@nervekit/contracts/agent-configuration";
 import type { AgentEditorView } from "$lib/presentation/composer/agent-editor-view";
@@ -100,6 +101,10 @@ type Props = {
   onAttachFiles?: (files: File[]) => void;
   attachDisabled?: boolean;
   attachShortcut?: string;
+  /** Switches the transcript area to History and back; omit to hide. */
+  onToggleHistory?: () => void;
+  historyOpen?: boolean;
+  historyShortcut?: string;
 };
 
 let {
@@ -159,7 +164,14 @@ let {
   onAttachFiles,
   attachDisabled = false,
   attachShortcut,
+  onToggleHistory,
+  historyOpen = false,
+  historyShortcut,
 }: Props = $props();
+
+const historyTitle = $derived(
+  `${historyOpen ? "Back to conversation" : "History"}${historyShortcut ? ` (${historyShortcut})` : ""}`,
+);
 
 const activePermission = $derived(
   permissionRuleSets.find((option) => option.id === permissionRuleSetId) ?? {
@@ -330,6 +342,20 @@ non-default permission. -->
 </span>
 
 <span class="ml-auto"></span>
+{#if onToggleHistory}
+  <Button
+    variant="ghost"
+    size="icon"
+    type="button"
+    aria-pressed={historyOpen}
+    data-active={historyOpen ? "" : undefined}
+    ariaLabel="History"
+    title={historyTitle}
+    onclick={onToggleHistory}
+  >
+    <History />
+  </Button>
+{/if}
 <TodoProgressChip {todos} />
 
 <ContextProgressBadge

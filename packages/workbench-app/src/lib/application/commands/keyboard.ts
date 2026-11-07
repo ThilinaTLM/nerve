@@ -85,6 +85,8 @@ function displayKey(key: string): string {
   if (normalized === "escape") return "Esc";
   if (normalized === "enter") return "Enter";
   if (normalized === "space") return "Space";
+  if (normalized === "arrowup") return "↑";
+  if (normalized === "arrowdown") return "↓";
   if (normalized.length === 1) return normalized.toUpperCase();
   return key;
 }

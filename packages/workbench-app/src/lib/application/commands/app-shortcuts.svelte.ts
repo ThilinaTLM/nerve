@@ -40,6 +40,10 @@ type AppShortcutsOptions = {
   abortActiveRun: () => void | Promise<void>;
   composerEscape: () => void;
   toggleMic: () => void;
+  /** Switches the active conversation between its transcript and History. */
+  toggleHistory: () => void;
+  /** Moves the active transcript to your previous (-1) or next (1) message. */
+  stepMessage: (direction: -1 | 1) => void;
   selectedPermissionRuleSetId: () => PermissionRuleSetId;
   permissionRuleSetIds: () => PermissionRuleSetId[];
   setComposerPermissionRuleSet: (
@@ -236,6 +240,15 @@ export function createAppShortcuts(options: AppShortcutsOptions) {
       case "composer.toggleMic":
         if (!options.hasConversationComposer()) return false;
         options.toggleMic();
+        return true;
+      case "conversation.toggleHistory":
+        if (options.activeCenterTab()?.kind !== "conversation") return false;
+        options.toggleHistory();
+        return true;
+      case "conversation.previousMessage":
+      case "conversation.nextMessage":
+        if (options.activeCenterTab()?.kind !== "conversation") return false;
+        options.stepMessage(id === "conversation.previousMessage" ? -1 : 1);
         return true;
       case "composer.cycleProfile":
         return cycleAgentProfile();

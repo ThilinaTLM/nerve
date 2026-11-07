@@ -26,6 +26,8 @@ import {
   type ConversationStore,
   escapeComposer,
   toggleComposerMic,
+  toggleConversationHistory,
+  stepConversationMessage,
 } from "$lib/features/conversations";
 import { selection } from "$lib/application/workspace/selection.svelte";
 import { settingsState } from "$lib/features/settings/state/settings-state.svelte";
@@ -226,6 +228,8 @@ const appShortcuts = createAppShortcuts({
   },
   composerEscape: escapeComposer,
   toggleMic: toggleComposerMic,
+  toggleHistory: toggleConversationHistory,
+  stepMessage: stepConversationMessage,
   selectedPermissionRuleSetId: () =>
     activeComposer()?.resolution?.settings.permissionRuleSetId ?? "autonomous",
   permissionRuleSetIds: () => permissionRuleSetIds,

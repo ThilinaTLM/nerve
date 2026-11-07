@@ -154,6 +154,9 @@ function submit(): void {
     onRefreshCapabilities={actions.onRefreshCapabilities}
     onAttachFiles={mobile ? undefined : attachHandler}
     attachDisabled={editorDisabled}
+    onToggleHistory={actions.onToggleHistory}
+    historyOpen={model.historyOpen}
+    historyShortcut={model.historyShortcut}
   />
 {/snippet}
 

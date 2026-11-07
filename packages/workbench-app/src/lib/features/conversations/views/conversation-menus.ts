@@ -1,10 +1,10 @@
-import ArrowRight from "@lucide/svelte/icons/arrow-right";
 import Clipboard from "@lucide/svelte/icons/clipboard";
 import Copy from "@lucide/svelte/icons/copy";
-import GitBranch from "@lucide/svelte/icons/git-branch";
+import History from "@lucide/svelte/icons/history";
 import Pencil from "@lucide/svelte/icons/pencil";
 import TextQuote from "@lucide/svelte/icons/text-quote";
 import Trash2 from "@lucide/svelte/icons/trash-2";
+import Undo2 from "@lucide/svelte/icons/undo-2";
 import type { ContextMenuItem } from "@nervekit/ui-kit/components/composites/context-menu-list";
 import type {
   TranscriptMenuTarget,
@@ -27,9 +27,9 @@ const icons = {
   "Edit message": Pencil,
   "Edit prompt": Pencil,
   Discard: Trash2,
-  "Continue from here": ArrowRight,
+  "Rewind to here": Undo2,
   "Copy ID": Copy,
-  "Branch history": GitBranch,
+  History,
 } as const;
 
 function addIcons(items: ContextMenuItem[]): ContextMenuItem[] {

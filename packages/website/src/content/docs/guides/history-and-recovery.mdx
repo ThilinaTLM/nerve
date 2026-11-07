@@ -13,20 +13,24 @@ Every conversation keeps its full history. You can step back to an earlier point
 
 ## Go back and branch
 
-Open the history graph to see the conversation as a tree. Navigate to an earlier entry to continue from there. New work starts a branch, and the rest of the tree stays available.
+Open **History** with the History button in the composer, **Ctrl+Shift+H** (**⌘⇧H** on macOS), or **History** in the transcript's context menu. It replaces the transcript with a timeline of your messages and the agent's final replies, marked with a person and a sparkle icon. Each reply shows how many tools the agent used and how long it took. Side branches are drawn next to the current path, and long ones fold into one row. Switch to **All steps** to see every intermediate reply, or search to find a message. History updates while the agent works.
+
+Select a reply and choose **Rewind here** to continue from that point, or select one of your messages and choose **Edit & resend**. New work starts a branch, and the later messages stay available as a side branch. Rewinding changes only the conversation, not files in the workspace. You can't rewind or edit while the conversation is running, and sub-agent history is read-only.
+
+In the transcript, the ticks along the right edge mark your messages. Hover a tick to preview a message and click it to jump there, or press **Alt+↑** and **Alt+↓** to move between your messages.
 
 <DocsScreenshot
   light={historyLight}
   dark={historyDark}
-  alt="The Nerve conversation history graph zoomed into a cluster where several branches diverge, with the selected entry shown in the details pane"
-  caption="Each fork is a point where work continued from an earlier entry. The original lineage is still there."
+  alt="The Nerve conversation History view listing the user's messages with side branches drawn beside the current path"
+  caption="Each side branch is a point where work continued from an earlier message. The original path is still there."
   widths={[480, 768, 1024, 1440]}
   sizes="(min-width: 72rem) 48rem, calc(100vw - 3rem)"
 />
 
 ## Edit an earlier prompt
 
-Choose edit on one of your messages. Nerve goes back to just before it and puts the text in the composer. Change it and send it yourself, since Nerve never resends on its own.
+Choose **Edit message** on one of your messages, or **Edit & resend** in History. Nerve goes back to just before it and puts the text in the composer. Change it and send it yourself, since Nerve never resends on its own.
 
 ## Make room in the context
 

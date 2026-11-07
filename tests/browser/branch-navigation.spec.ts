@@ -55,8 +55,14 @@ test("editing an earlier prompt creates a branch while retaining durable history
     await expect(
       page.getByText("Original browser prompt", { exact: true }),
     ).toHaveCount(0);
-    await menu(page, "Edited browser prompt", "Branch history");
-    await expect(page.getByRole("dialog")).toBeVisible();
+    await menu(page, "Edited browser prompt", "History");
+    const history = page.getByRole("listbox", {
+      name: "Conversation history",
+    });
+    await expect(history).toBeVisible();
+    // Both the original and the edited prompt stay in History.
+    await expect(history.getByText("Original browser prompt")).toBeVisible();
+    await expect(history.getByText("Edited browser prompt")).toBeVisible();
   } finally {
     await f.close();
   }

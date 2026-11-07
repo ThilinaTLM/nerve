@@ -7,7 +7,7 @@ import type {
 
 /**
  * Stable icon identifiers. The Svelte layer maps these to `@lucide/svelte`
- * components (see HistoryPoint.svelte). Keeping this module free of component
+ * components (see history-icons.ts). Keeping this module free of component
  * imports lets it stay pure and unit-testable under `node:test`.
  */
 export type HistoryIconName =
@@ -167,10 +167,20 @@ export function parseToolCallNames(text: string): string[] {
     .filter((name) => /^[a-z_][a-z0-9_]*$/i.test(name));
 }
 
-function trimPreview(text: string): string {
-  const collapsed = text.replace(/\s+/g, " ").trim();
-  return collapsed.length > 160 ? `${collapsed.slice(0, 160)}…` : collapsed;
+/** One readable line from Markdown: syntax dropped, whitespace collapsed. */
+export function plainPreview(text: string, max = 240): string {
+  const plain = text
+    .replace(/```[^\n]*\n?/g, " ")
+    .replace(/!?\[([^\]]*)\]\([^)]*\)/g, "$1")
+    .replace(/(\*\*|__|`)/g, "")
+    .replace(/^\s{0,3}(?:#{1,6}\s+|>\s?|[-*+]\s+|\d+\.\s+)/gm, "")
+    .replace(/^\[[ xX]\]\s+/gm, "")
+    .replace(/\s+/g, " ")
+    .trim();
+  return plain.length > max ? `${plain.slice(0, max)}…` : plain;
 }
+
+const trimPreview = (text: string) => plainPreview(text);
 
 /** Classify a single conversation entry into a compact, icon-driven descriptor. */
 export function classifyHistoryEntry(

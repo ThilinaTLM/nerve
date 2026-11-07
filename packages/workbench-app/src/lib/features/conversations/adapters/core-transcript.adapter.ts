@@ -498,8 +498,17 @@ export function conversationTranscript(input: {
         preview: eventEntry(e).text,
         createdAt: e.createdAt,
       }));
+  // Indexed lookups: History projects every event of long conversations.
+  const entriesById = new Map(entries.map((entry) => [entry.id, entry]));
+  const childIdsOf = new Map<string, string[]>();
+  for (const node of sourceTree) {
+    if (!node.previousEventId) continue;
+    const siblings = childIdsOf.get(node.previousEventId);
+    if (siblings) siblings.push(node.id);
+    else childIdsOf.set(node.previousEventId, [node.id]);
+  }
   const treeNodes: ConversationTreeNode[] = sourceTree.map((n) => ({
-    entry: entries.find((e) => e.id === n.id) ?? {
+    entry: entriesById.get(n.id) ?? {
       id: n.id,
       conversationId: snapshot.conversation.id,
       parentEntryId: n.previousEventId ?? undefined,
@@ -513,9 +522,7 @@ export function conversationTranscript(input: {
       text: n.preview,
       createdAt: n.createdAt,
     },
-    childEntryIds: sourceTree
-      .filter((c) => c.previousEventId === n.id)
-      .map((c) => c.id),
+    childEntryIds: childIdsOf.get(n.id) ?? [],
   }));
   const approvals: (ApprovalRecord & { toolCall: ToolCallTranscriptRecord })[] =
     [];

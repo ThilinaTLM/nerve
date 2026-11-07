@@ -40,6 +40,8 @@ import type {
   ComposerEditorOverlay,
   ComposerLockedFields,
   ComposerSettingsDiffers,
+  TranscriptHistoryControls,
+  TranscriptView,
 } from "$lib/presentation/conversations/conversation-view-contracts";
 import type { SubagentsCapability } from "$lib/presentation/context.svelte";
 import type { PendingWorkItem } from "$lib/presentation/transcript/activity/run-activity";
@@ -172,4 +174,12 @@ export type WorkbenchConversationAdapterProps = {
   ) => void;
   onEditEntry?: (entry: ConversationEntry) => void;
   onOpenHistory?: () => void;
+  /** Disables rewind and edit while the conversation has running work. */
+  rewindLocked?: boolean;
+  /** What the transcript area shows; History renders the `history` snippet. */
+  transcriptView?: TranscriptView;
+  onToggleHistory?: () => void;
+  /** Previous/next message requests from the keyboard shortcuts. */
+  messageStep?: { token: number; direction: -1 | 1 };
+  history?: Snippet<[TranscriptHistoryControls]>;
 };
