@@ -235,7 +235,7 @@ void test("fork copies only the path, remaps identities and files, and leaves th
     const sourceAssets = f.opts.storage.assets.list("src");
     const snapshot = await f.core.fork("src", f.forkPoint);
     const id = snapshot.conversation.id;
-    assert.equal(snapshot.conversation.title, "Plan (2)");
+    assert.equal(snapshot.conversation.title, "F1: Plan");
     assert.equal(snapshot.conversation.status, "idle");
     assert.equal(snapshot.conversation.parentConversationId, null);
     assert.equal(snapshot.children.length, 0);
@@ -338,7 +338,7 @@ void test("fork copies only the path, remaps identities and files, and leaves th
 
     // Forking again numbers the title past the first fork.
     const again = await f.core.fork(id, path.at(-1)!.id);
-    assert.equal(again.conversation.title, "Plan (3)");
+    assert.equal(again.conversation.title, "F2: Plan");
   } finally {
     await f.core.close();
     await rm(f.directory, { recursive: true, force: true });
@@ -401,13 +401,13 @@ void test("a failed fork leaves no rows and no directory", async () => {
   }
 });
 
-void test("fork titles take the next free number after stripping a suffix", () => {
-  assert.equal(forkTitle("Plan", ["Plan"]), "Plan (2)");
-  assert.equal(forkTitle("Plan", ["Plan", "Plan (2)"]), "Plan (3)");
-  assert.equal(forkTitle("Plan (2)", ["Plan", "Plan (2)"]), "Plan (3)");
+void test("fork titles take the next free F-number after stripping a prefix", () => {
+  assert.equal(forkTitle("Plan", ["Plan"]), "F1: Plan");
+  assert.equal(forkTitle("Plan", ["Plan", "F1: Plan"]), "F2: Plan");
+  assert.equal(forkTitle("F1: Plan", ["Plan", "F1: Plan"]), "F2: Plan");
   assert.equal(
-    forkTitle("Plan", ["Plan", "Plan (3)", "Other (2)"]),
-    "Plan (2)",
+    forkTitle("Plan", ["Plan", "F2: Plan", "F1: Other", "F1: Plan B"]),
+    "F1: Plan",
   );
 });
 

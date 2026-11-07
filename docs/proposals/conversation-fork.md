@@ -98,7 +98,7 @@ Deleting the source later does not affect the fork, because every conversation-s
 - **Only when not running.** Same rule as rewind: reuse `assertQuiescent` on the source, and disable the action in the UI while it runs. Sub-agents are not copied, so their state does not matter.
 - **Top-level only.** Sub-agent transcripts are read-only for history actions.
 - **Same working directory.** The fork keeps the source's working directory. No worktree creation or directory choice at fork time; the user can change the directory afterwards like for any conversation.
-- **Title.** The source title with a numeric suffix: `Title` → `Title (2)`. Strip an existing trailing ` (n)` first and take the next free number among the project's conversations with that base, so forking `Title` again or forking `Title (2)` gives `Title (3)`.
+- **Title.** The source title with a fork-number prefix: `Title` → `F1: Title`. The prefix stays visible when the sidebar truncates long titles. Strip an existing leading `F<n>: ` first and take the next free number among the project's conversations with that base, so forking `Title` again or forking `F1: Title` gives `F2: Title`.
 - **No schema change.** The copy uses existing tables and files. Provenance is the title and the fork notice. A `forked_from_conversation_id` column is only worth adding if lineage queries become necessary, which would need separate approval.
 - **Cold prompt cache.** The harness passes the conversation ID as the provider `sessionId`, so the fork's first request does not reuse the source's cache. Acceptable.
 

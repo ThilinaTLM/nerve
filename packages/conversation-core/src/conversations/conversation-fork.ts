@@ -17,20 +17,23 @@ const COPY_CONCURRENCY = 16;
 const CHILD_REPORT =
   /conversations\/([A-Za-z0-9_-]+)\/reports\/([A-Za-z0-9_-]+\.md)/g;
 
-/** `Title` → `Title (2)`: the smallest free number among the project's titles. */
+const FORK_PREFIX = /^F(\d+): /;
+
+/**
+ * `Title` → `F1: Title`: the smallest free fork number among the project's
+ * titles. Forking a fork numbers from the same base, so `F1: Title` → `F2: Title`.
+ */
 export function forkTitle(title: string, existing: Iterable<string>): string {
-  const base = title.replace(/ \(\d+\)$/, "");
+  const base = title.replace(FORK_PREFIX, "");
   const taken = new Set<number>();
   for (const other of existing) {
-    if (other === base) taken.add(1);
-    else if (other.startsWith(`${base} (`)) {
-      const match = /^ \((\d+)\)$/.exec(other.slice(base.length));
-      if (match) taken.add(Number(match[1]));
-    }
+    const match = FORK_PREFIX.exec(other);
+    if (match && other.slice(match[0].length) === base)
+      taken.add(Number(match[1]));
   }
-  let next = 2;
+  let next = 1;
   while (taken.has(next)) next++;
-  return `${base} (${next})`;
+  return `F${next}: ${base}`;
 }
 
 function noticeText(title: string, agents: string[]): string {
