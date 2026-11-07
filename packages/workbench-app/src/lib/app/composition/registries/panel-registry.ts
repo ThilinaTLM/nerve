@@ -93,8 +93,8 @@ export const panelViewDescriptors = [
     propsKind: "none",
     title: "Scratch Notes",
     icon: NotebookPen,
-    defaultDock: "left",
-    defaultOrder: 4,
+    defaultDock: "right",
+    defaultOrder: 2,
     load: () => import("../panels/NotesWorkbenchPanel.svelte"),
   },
 ] as const satisfies WorkbenchPanelDescriptor[];
