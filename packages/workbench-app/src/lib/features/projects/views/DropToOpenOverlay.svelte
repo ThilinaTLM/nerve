@@ -14,9 +14,10 @@ let { over, ondragover, ondragleave, ondrop }: Props = $props();
 
 <!-- Covers only the titlebar row (3rem, see WorkbenchFrame) so drags elsewhere
      stay free for the composer. `no-drag` lets the frameless desktop titlebar
-     receive drop events. -->
+     receive drop events. Not animated: a stalled fade-in would leave an
+     invisible `no-drag` cover over the window drag region. -->
 <div
-  class="fixed inset-x-0 top-0 z-50 h-12 bg-panel p-1.5 [-webkit-app-region:no-drag] animate-in fade-in-0 duration-150"
+  class="fixed inset-x-0 top-0 z-50 h-12 bg-panel p-1.5 [-webkit-app-region:no-drag]"
   role="region"
   aria-label="Drop to open as a project"
   {ondragover}
