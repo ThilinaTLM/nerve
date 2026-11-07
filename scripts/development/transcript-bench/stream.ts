@@ -104,6 +104,7 @@ export async function streamOnce(
     await cdp.send("Profiler.setSamplingInterval", { interval: 200 });
     await cdp.send("Profiler.start");
   }
+  const trace = flags.trace ? await startTrace(cdp) : undefined;
   const before = await metrics(cdp);
   const startedAt = Date.now();
   await cdp.evaluate(`window.__bench.reset()`);
@@ -140,6 +141,7 @@ export async function streamOnce(
     longtasks: { start: number; duration: number }[];
     gaps: { at: number; gap: number }[];
     frames: number;
+    start: number;
   }>(`window.__bench`);
   let top: ReturnType<typeof selfTimes> = [];
   if (flags.profile) {
@@ -154,6 +156,11 @@ export async function streamOnce(
       .slice(0, 40)
       .map((e) => ({ ...e, selfMs: round(e.selfMs) }));
   }
+  if (trace)
+    writeFileSync(
+      join(flags.out, `stream-${index}.trace.json`),
+      JSON.stringify({ traceEvents: await trace() }),
+    );
   const network = capture.stop();
   const longs = summarize(bench.longtasks.map((t) => t.duration));
   const gaps = summarize(bench.gaps.map((g) => g.gap));
@@ -164,7 +171,16 @@ export async function streamOnce(
     longTasks: longs,
     longTaskShareOfWall: round((longs.totalMs / wallMs) * 100),
     longTasksOver100ms: bench.longtasks.filter((t) => t.duration > 100).length,
-    frameGaps: { count: gaps.count, maxMs: gaps.maxMs, p90Ms: gaps.p90Ms },
+    frameGaps: {
+      count: gaps.count,
+      maxMs: gaps.maxMs,
+      p90Ms: gaps.p90Ms,
+      // Relative to the prompt submit, so gaps can be lined up with traces.
+      at: bench.gaps.map((g) => ({
+        atMs: round(g.at - bench.start),
+        gapMs: round(g.gap),
+      })),
+    },
     frames: bench.frames,
     split: metricsDelta(before, after),
     network: {
@@ -174,6 +190,40 @@ export async function streamOnce(
     },
     scratchDir: dir,
     topSelfTime: top,
+  };
+}
+
+const TRACE_CATEGORIES = [
+  "devtools.timeline",
+  "disabled-by-default-devtools.timeline",
+  "disabled-by-default-devtools.timeline.frame",
+  "v8",
+  "v8.gc",
+  "blink.user_timing",
+  "toplevel",
+];
+
+/** Starts tracing; the returned function stops it and resolves the events. */
+async function startTrace(cdp: Cdp): Promise<() => Promise<unknown[]>> {
+  const events: unknown[] = [];
+  const off = cdp.on<{ value: unknown[] }>("Tracing.dataCollected", (data) =>
+    events.push(...data.value),
+  );
+  await cdp.send("Tracing.start", {
+    transferMode: "ReportEvents",
+    traceConfig: { includedCategories: TRACE_CATEGORIES },
+  });
+  return async () => {
+    const done = new Promise<void>((resolve) => {
+      const offDone = cdp.on("Tracing.tracingComplete", () => {
+        offDone();
+        resolve();
+      });
+    });
+    await cdp.send("Tracing.end");
+    await done;
+    off();
+    return events;
   };
 }
 

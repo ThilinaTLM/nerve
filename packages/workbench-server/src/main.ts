@@ -45,6 +45,7 @@ import {
   writeNodeDiagnosticReport,
 } from "./infrastructure/diagnostics/index.js";
 import { resolveApplicationConfiguration } from "./infrastructure/configuration/index.js";
+import { registerDevScriptedProviderIfEnabled } from "./infrastructure/configuration/dev-scripted-provider.js";
 import {
   isLoopbackHost,
   isPrivateIpv4,
@@ -159,6 +160,9 @@ async function main() {
   const processStartedAt = new Date().toISOString();
   const daemonId = createId("daemon");
   const holder = createServerLifecycleHolder({ startedAt: processStartedAt });
+  if (registerDevScriptedProviderIfEnabled()) {
+    console.warn("[nerve] dev scripted bench model enabled (Scripted Bench)");
+  }
 
   // Keep initialization and publication atomic with offline clone/migration
   // tooling. No writer may slip into the gap before daemon.json identifies us.

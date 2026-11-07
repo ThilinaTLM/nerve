@@ -14,6 +14,10 @@ import {
   isBuiltinProvider,
 } from "./model-registry.js";
 import { getScriptedProviderModel } from "./scripted-provider.js";
+import {
+  getDevScriptedBenchModel,
+  listDevScriptedBenchModels,
+} from "./dev-bench-provider.js";
 import type {
   AgentCustomModel,
   AgentModelInfo,
@@ -145,6 +149,8 @@ function resolveAgentModelInternal(
   if (customResolved) return customResolved;
   const scriptedModel = getScriptedProviderModel(selection);
   if (scriptedModel) return scriptedModel;
+  const devBenchModel = getDevScriptedBenchModel(selection);
+  if (devBenchModel) return devBenchModel;
   if (selection && isKnownProvider(selection.provider)) {
     const builtinModel = getRegisteredModel(
       selection.provider,
@@ -202,6 +208,11 @@ export function listAvailableModels(
   const faux = getNerveFauxProvider().models.map((model) =>
     getAgentModelInfo(model),
   );
+  // Dev-only scripted models are marked faux so the picker needs no credentials.
+  const devScripted = listDevScriptedBenchModels().map((model) => ({
+    ...getAgentModelInfo(model),
+    faux: true,
+  }));
   const configured = getBuiltinProviderIds().flatMap((provider) =>
     getRegisteredModels(provider).map((model) =>
       getAgentModelInfo(model as Model<string>),
@@ -212,7 +223,7 @@ export function listAvailableModels(
     .filter((model): model is AgentModelInfo => Boolean(model));
   return [
     ...new Map(
-      [...faux, ...configured, ...custom].map((model) => [
+      [...faux, ...devScripted, ...configured, ...custom].map((model) => [
         JSON.stringify([model.provider, model.modelId]),
         model,
       ]),

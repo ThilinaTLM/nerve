@@ -14,6 +14,7 @@ import {
   installAppearanceStorageSync,
 } from "$lib/platform/appearance/appearance.svelte";
 import { createPoll } from "$lib/platform/polling/poll";
+import { patchChanged } from "$lib/domain/conversations/summary-patch";
 import { installClientLogging } from "$lib/platform/logging/client-logger";
 import {
   loadCoreSettings,
@@ -81,13 +82,18 @@ export async function initializeWorkbench(): Promise<boolean> {
       notice: (notice) => {
         if (notice.type === "conversation.changed") {
           const summary = notice.data.summary;
+          const row = workspaceState.conversations.find(
+            (item) => item.id === summary.id,
+          );
+          // Patch in place: replacing the array re-derives every
+          // workspace-wide projection for an unchanged or timestamp-only update.
+          if (row && !patchChanged(row, summary, true)) return;
           conversationAttention.observe(summary);
-          workspaceState.conversations = [
-            ...workspaceState.conversations.filter(
-              (row) => row.id !== summary.id,
-            ),
-            summary,
-          ];
+          if (!row)
+            workspaceState.conversations = [
+              ...workspaceState.conversations,
+              summary,
+            ];
         } else if (notice.type === "conversation.deleted") {
           const id = notice.data.conversationId;
           conversationAttention.forget(id);

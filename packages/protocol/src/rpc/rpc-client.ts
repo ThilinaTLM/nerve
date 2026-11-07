@@ -1,4 +1,5 @@
 import {
+  operationDefinition,
   parseOperationResult,
   type OperationName,
   type OperationParams,
@@ -29,6 +30,8 @@ export interface RpcClientOptions {
   readonly createMessage: MessageFactory;
   readonly send: (message: NerveMessage) => void | Promise<void>;
   readonly defaultTimeoutMs?: number;
+  /** Validate results of `trustedResult` operations. Defaults to true. */
+  readonly validateTrustedResults?: boolean;
   readonly timers?: Pick<ProtocolTimers, "setTimeout" | "clearTimeout">;
 }
 
@@ -135,7 +138,12 @@ export class RpcClient {
         return true;
       }
       try {
-        pending.resolve(parseOperationResult(pending.method, response.result));
+        pending.resolve(
+          this.#options.validateTrustedResults === false &&
+            operationDefinition(pending.method).trustedResult
+            ? response.result
+            : parseOperationResult(pending.method, response.result),
+        );
       } catch {
         pending.reject(
           new RpcError({

@@ -13,6 +13,8 @@ export interface AgentModelInfo extends AgentModelSelection {
   input: ("text" | "image")[];
   contextWindow: number;
   maxOutputTokens: number;
+  /** Keyless built-in test model; always selectable. */
+  faux?: boolean;
 }
 
 /**

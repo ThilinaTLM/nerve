@@ -84,6 +84,7 @@ export interface ClientSessionOptions {
   readonly timers?: ProtocolTimers;
   readonly ids?: ProtocolIdSource;
   readonly rpcTimeoutMs?: number;
+  readonly validateTrustedResults?: boolean;
 }
 
 export class ProtocolClientSession {
@@ -126,6 +127,7 @@ export class ProtocolClientSession {
       createMessage: options.createMessage,
       send: options.send,
       defaultTimeoutMs: options.rpcTimeoutMs,
+      validateTrustedResults: options.validateTrustedResults,
       timers: this.#timers,
     });
   }

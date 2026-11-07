@@ -6,3 +6,4 @@ export * from "./scripted-provider.js";
 export * from "./model-contracts.js";
 export * from "./image/explanation.js";
 export { normalizeImagesForModel } from "./image/normalization.js";
+export * from "./dev-bench-provider.js";

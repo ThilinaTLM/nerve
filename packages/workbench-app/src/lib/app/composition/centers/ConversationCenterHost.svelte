@@ -36,7 +36,10 @@ import {
 } from "$lib/features/conversations/state/composer-signals.svelte";
 import ConversationHistoryHost from "$lib/app/composition/conversations/ConversationHistoryHost.svelte";
 import type { TranscriptView } from "$lib/presentation/conversations";
-import { conversationTranscript } from "$lib/features/conversations/adapters/core-transcript.adapter";
+import {
+  committedTranscript,
+  liveTranscript,
+} from "$lib/features/conversations/adapters/core-transcript.adapter";
 
 import {
   conversationContext,
@@ -127,14 +130,25 @@ const composerSession = new ComposerSession({
   drafts,
   focusComposer,
 });
+// Durable projection: recomputes on append/head/snapshot changes only, so its
+// `entries` and `toolCalls` keep identity while deltas stream.
 const transcript = $derived(
   store?.snapshot
-    ? conversationTranscript({
+    ? committedTranscript({
         snapshot: store.snapshot,
         events: store.events,
-        liveBlocks: store.liveBlocks,
-        toolOutput: store.toolOutput,
         tree,
+      })
+    : undefined,
+);
+// Live projection: depends on live blocks, tool output and the run context.
+const activeRun = $derived(
+  transcript
+    ? liveTranscript({
+        run: transcript.run,
+        queuedPrompts: transcript.queuedPrompts,
+        liveBlocks: store?.liveBlocks ?? [],
+        toolOutput: store?.toolOutput ?? {},
       })
     : undefined,
 );
@@ -142,6 +156,7 @@ const view = $derived(
   store?.snapshot && transcript
     ? {
         ...transcript,
+        activeRun,
         stopping:
           Boolean(store?.stopping) ||
           Boolean(transcript.transient?.compaction?.stopping),

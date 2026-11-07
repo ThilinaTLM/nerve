@@ -19,6 +19,11 @@ export interface OperationDefinition<
   readonly allowedTargetRoles: readonly PeerRole[];
   readonly requiredCapability: string;
   readonly invocationScope: OperationInvocationScope;
+  /**
+   * Bulk read results produced by trusted code on both ends. Peers may skip
+   * result schema validation unless they opt in to validating trusted results.
+   */
+  readonly trustedResult: boolean;
 }
 
 export function defineOperation<
@@ -34,7 +39,10 @@ export function defineOperation<
   idempotency: Idempotency,
   allowedTargetRoles: readonly PeerRole[],
   requiredCapability: string,
-  options: { readonly invocationScope?: OperationInvocationScope } = {},
+  options: {
+    readonly invocationScope?: OperationInvocationScope;
+    readonly trustedResult?: boolean;
+  } = {},
 ): OperationDefinition<Method, ParamsSchema, ResultSchema, Idempotency> {
   return {
     method,
@@ -45,5 +53,6 @@ export function defineOperation<
     allowedTargetRoles,
     requiredCapability,
     invocationScope: options.invocationScope ?? "stateless",
+    trustedResult: options.trustedResult ?? false,
   };
 }
