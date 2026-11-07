@@ -136,5 +136,9 @@ test("previews drop Markdown syntax", () => {
     ),
     "Plan Switch to SMTP via Mailpit code()",
   );
+  assert.equal(
+    plainPreview("Todos: 1/2 complete.\n1. [x] Write\n2. [ ] Test"),
+    "Todos: 1/2 complete. Write Test",
+  );
   assert.equal(plainPreview("a".repeat(10), 4), "aaaa…");
 });

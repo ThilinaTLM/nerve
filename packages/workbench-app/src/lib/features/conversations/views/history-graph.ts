@@ -174,6 +174,7 @@ export function plainPreview(text: string, max = 240): string {
     .replace(/!?\[([^\]]*)\]\([^)]*\)/g, "$1")
     .replace(/(\*\*|__|`)/g, "")
     .replace(/^\s{0,3}(?:#{1,6}\s+|>\s?|[-*+]\s+|\d+\.\s+)/gm, "")
+    .replace(/^\[[ xX]\]\s+/gm, "")
     .replace(/\s+/g, " ")
     .trim();
   return plain.length > max ? `${plain.slice(0, max)}…` : plain;

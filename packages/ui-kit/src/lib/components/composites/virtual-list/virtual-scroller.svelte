@@ -265,6 +265,9 @@ $effect(() => {
     anchorTo: anchor,
     followOnAppend: followOutput,
     paddingStart,
+    // Rows revealed by index keep the same inset as the first row, so they
+    // never land under an overlay or edge fade at the top.
+    scrollPaddingStart: paddingStart,
     paddingEnd,
     ...(structuralKeysChanged
       ? { getItemKey: createItemKeyAccessor(nextKeySnapshot) }
