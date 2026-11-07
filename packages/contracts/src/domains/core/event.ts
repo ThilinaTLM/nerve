@@ -30,6 +30,8 @@ export const toolCallContentSchema = z.object({
   id: z.string(),
   name: z.string(),
   arguments: z.record(z.string(), z.json()),
+  /** Set when the provider's argument text could not be parsed; includes the raw text. */
+  argumentsError: z.string().optional(),
   thoughtSignature: z.string().optional(),
   namespace: z.string().optional(),
 });

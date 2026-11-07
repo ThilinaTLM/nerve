@@ -126,60 +126,86 @@ export class ComposerCapabilities {
       this.overrideCounts.subagents,
   );
 
+  /** Cheap, row-free inputs: the trigger badges need counts while the panels
+   * are closed, so row objects (locks, resets, closures) stay lazy. */
+  readonly #toolGroups = $derived(
+    capabilityToolGroupsFor(
+      Object.keys(
+        this.props.configuration?.resolution.settings.tools ?? {},
+      ) as CapabilityToolName[],
+    ).filter((g) => g.key !== "bash"),
+  );
+
+  #toolGroupEnabled(group: CapabilityToolGroup): boolean {
+    const tools = this.props.configuration?.resolution.settings.tools;
+    return group.names.every(
+      (name) =>
+        name === "bash" ||
+        (tools?.[name] &&
+          "enabled" in tools[name]! &&
+          tools[name]!.enabled === true),
+    );
+  }
+
+  readonly #toolCount = $derived.by(() => {
+    const groups = this.#toolGroups.filter((g) => g.key !== "subagents");
+    return `${groups.filter((g) => this.#toolGroupEnabled(g)).length}/${groups.length}`;
+  });
+
+  readonly #skillCount = $derived.by(() => {
+    const { configuration, skills = [] } = this.props;
+    const settings = configuration?.resolution.settings.skills;
+    const enabled = skills.filter((skill) => {
+      const kind = skillOverrideKind(skill.source);
+      return (
+        (settings?.[kind]?.[skill.name] ??
+          settings?.defaults?.[kind] ??
+          false) === true
+      );
+    }).length;
+    return `${enabled}/${skills.length}`;
+  });
+
   readonly #toolRows = $derived.by<CapabilityRow[]>(() => {
     const { configuration, onPatch, onConfigureTool } = this.props;
-    const groups = capabilityToolGroupsFor(
-      Object.keys(
-        configuration?.resolution.settings.tools ?? {},
-      ) as CapabilityToolName[],
-    );
-    return groups
-      .filter((g) => g.key !== "bash")
-      .map((group) => {
-        const locks = capabilityToolLocks(
-          group.names,
-          configuration?.resolution.provenance,
+    return this.#toolGroups.map((group) => {
+      const locks = capabilityToolLocks(
+        group.names,
+        configuration?.resolution.provenance,
+      );
+      const resets = editableToolOverrideResets(
+        group.names,
+        configuration?.overrides,
+        configuration?.resolution.provenance,
+      );
+      const configurable =
+        !!onConfigureTool &&
+        group.names.some(
+          (name) => name !== "web_fetch" && name !== "subagents",
         );
-        const resets = editableToolOverrideResets(
-          group.names,
-          configuration?.overrides,
-          configuration?.resolution.provenance,
-        );
-        const configurable =
-          !!onConfigureTool &&
-          group.names.some(
-            (name) => name !== "web_fetch" && name !== "subagents",
-          );
-        return {
-          key: group.key,
-          label: group.label,
-          group: "Built-in",
-          keywords: group.searchText ? [group.searchText] : undefined,
-          enabled: group.names.every(
-            (name) =>
-              name === "bash" ||
-              (configuration?.resolution.settings.tools?.[name] &&
-                "enabled" in configuration.resolution.settings.tools[name]! &&
-                configuration.resolution.settings.tools[name]!.enabled ===
-                  true),
-          ),
-          overridden: resets.length > 0,
-          lockedBy: locks.enabledBy,
-          configure: configurable
-            ? () => {
-                this.#close();
-                this.props.onConfigureTool?.(group);
-              }
-            : undefined,
-          toggle: (enabled) =>
-            onPatch?.({
-              tools: Object.fromEntries(
-                group.names.map((name) => [name, { enabled }]),
-              ),
-            }),
-          reset: () => onPatch?.({}, resets),
-        };
-      });
+      return {
+        key: group.key,
+        label: group.label,
+        group: "Built-in",
+        keywords: group.searchText ? [group.searchText] : undefined,
+        enabled: this.#toolGroupEnabled(group),
+        overridden: resets.length > 0,
+        lockedBy: locks.enabledBy,
+        configure: configurable
+          ? () => {
+              this.#close();
+              this.props.onConfigureTool?.(group);
+            }
+          : undefined,
+        toggle: (enabled) =>
+          onPatch?.({
+            tools: Object.fromEntries(
+              group.names.map((name) => [name, { enabled }]),
+            ),
+          }),
+        reset: () => onPatch?.({}, resets),
+      };
+    });
   });
 
   readonly toolRows = $derived(
@@ -264,7 +290,7 @@ export class ComposerCapabilities {
   });
 
   readonly sections = $derived.by<CapabilitySection[]>(() => {
-    const { configuration, skills = [], subagentProfiles } = this.props;
+    const { configuration, subagentProfiles } = this.props;
     const counts = subagentProfiles
       ? capabilitySubagentCounts(
           subagentProfiles,
@@ -276,13 +302,13 @@ export class ComposerCapabilities {
         kind: "tools",
         title: "Tools",
         icon: Wrench,
-        count: `${this.toolRows.filter((r) => r.enabled).length}/${this.toolRows.length}`,
+        count: this.#toolCount,
       },
       {
         kind: "skills",
         title: "Skills",
         icon: BookOpen,
-        count: `${this.skillRows.filter((r) => r.enabled).length}/${skills.length}`,
+        count: this.#skillCount,
       },
       {
         kind: "subagents",

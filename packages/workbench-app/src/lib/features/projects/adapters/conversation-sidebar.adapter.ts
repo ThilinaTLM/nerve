@@ -1,4 +1,4 @@
-import type { ConversationSummary, Project } from "@nervekit/contracts/core";
+import type { Project } from "@nervekit/contracts/core";
 import type {
   AgentRecord,
   ConversationRecord,
@@ -10,20 +10,10 @@ import { requestConversation } from "$lib/application/startup/conversation-conne
 import { loadWorkspaceState } from "$lib/application/workspace/workspace-actions.svelte";
 import { notify } from "$lib/application/notifications/notify.svelte";
 
+export { sidebarConversations } from "./sidebar-conversation-rows";
+
 export function sidebarProjects(projects: Project[]): ProjectRecord[] {
   return projects.map((project) => ({ ...project, dir: project.directory }));
-}
-export function sidebarConversations(
-  rows: ConversationSummary[],
-): ConversationRecord[] {
-  return rows
-    .filter((row) => row.parentConversationId === null)
-    .map((row) => ({
-      ...row,
-      pinned: row.pinnedAt !== null,
-      activeAgentId: row.id,
-      permissionRuleSetId: row.permissionRuleSetId,
-    }));
 }
 export function sidebarAgents(rows: ConversationRecord[]): AgentRecord[] {
   return rows.map((row) => ({

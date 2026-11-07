@@ -189,3 +189,24 @@ describe("streaming string arrays", () => {
     assert.deepEqual(escaped.strings("names"), ['a"b', "cé"]);
   });
 });
+
+describe("argument parsing memoization", () => {
+  it("parses identical argument strings once", () => {
+    const text = '{"path":"memo-unique.ts"}';
+    const original = JSON.parse;
+    let calls = 0;
+    JSON.parse = ((...args: Parameters<typeof JSON.parse>) => {
+      calls += 1;
+      return original(...args);
+    }) as typeof JSON.parse;
+    try {
+      const a = new ToolArgumentSource({ argsText: text, argsPreview: text });
+      const b = new ToolArgumentSource({ argsText: text });
+      assert.equal(a.string("path"), "memo-unique.ts");
+      assert.equal(b.string("path"), "memo-unique.ts");
+      assert.equal(calls, 1);
+    } finally {
+      JSON.parse = original;
+    }
+  });
+});

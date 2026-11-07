@@ -1,6 +1,11 @@
 import { isSubagentTool } from "@nervekit/contracts/tools";
 import { createId } from "@nervekit/contracts";
 import {
+  describeToolArgumentErrors,
+  normalizeToolArguments,
+  toolDefinitionByName,
+} from "@nervekit/tools/catalog";
+import {
   toolApprovalBindingMatches,
   type ToolApprovalBinding,
 } from "@nervekit/contracts/core";
@@ -277,6 +282,54 @@ export class ToolCallService {
     return task;
   }
 
+  /**
+   * Model-facing reason when the provider's argument text for a model tool call did not
+   * parse. Checked before permission normalization so the `{}` placeholder the provider
+   * substitutes never reaches policy evaluation as if the model had sent it.
+   */
+  private unparsableArgumentsReason(call: ToolCall): string | undefined {
+    if (
+      call.origin !== "model" ||
+      !call.assistantEventId ||
+      call.contentIndex === null
+    )
+      return undefined;
+    const event = this.options.storage.events.get(call.assistantEventId);
+    const block =
+      event?.type === "assistant_message"
+        ? event.payload.content[call.contentIndex]
+        : undefined;
+    if (block?.type !== "toolCall" || !block.argumentsError) return undefined;
+    const marker = "\n\nReceived arguments:\n";
+    const at = block.argumentsError.indexOf(marker);
+    const message =
+      at < 0 ? block.argumentsError : block.argumentsError.slice(0, at);
+    const bytes =
+      at < 0
+        ? 0
+        : Buffer.byteLength(block.argumentsError.slice(at + marker.length));
+    return `The tool arguments could not be parsed (${bytes} bytes received): ${message}`;
+  }
+
+  /**
+   * Model-origin arguments are checked against the tool schema, after canonical
+   * normalization, before any host or permission step. Only the check uses the normalized
+   * form: stored arguments stay as the model sent them, and the host and permission steps
+   * re-normalize (idempotently) from them. `bash` is exempt because its effective schema
+   * depends on settings and the host validates it.
+   */
+  private schemaArgumentsReason(call: ToolCall): string | undefined {
+    if (call.origin !== "model" || call.toolName === "bash") return undefined;
+    const definition =
+      this.options.coreTools.get(call.toolName)?.definition ??
+      toolDefinitionByName(call.toolName);
+    if (!definition) return undefined;
+    return describeToolArgumentErrors(
+      definition,
+      normalizeToolArguments(definition, structuredClone(call.arguments)),
+    );
+  }
+
   private async process(id: string): Promise<void> {
     let call = this.options.storage.toolCalls.get(id);
     if (!call) return;
@@ -306,6 +359,13 @@ export class ToolCallService {
           },
         });
         await this.settlement.settle(call, "denied", { content: reason });
+        return;
+      }
+      const invalid =
+        this.unparsableArgumentsReason(call) ??
+        this.schemaArgumentsReason(call);
+      if (invalid) {
+        await this.settlement.settle(call, "failed", { content: invalid });
         return;
       }
       const ctx = this.toolContext(call, controller.signal);

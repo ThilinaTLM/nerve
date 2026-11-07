@@ -15,6 +15,10 @@ import {
 import { notify } from "$lib/application/notifications/notify.svelte";
 import { workbenchStartupState } from "$lib/application/startup/workbench-startup-state.svelte";
 import {
+  profileReviewAction,
+  registerProfileReviewHandler,
+} from "./profile-review-requests";
+import {
   profileChangeValue,
   profileChangeSummary,
 } from "./profile-transition-diff";
@@ -74,16 +78,16 @@ async function refresh(show = false) {
     noticed = `${id}:${result.preview.targetProfile.digest}`;
     notify.warning("Updated profile available", {
       description: `${captured.name} has changed. Your current snapshot is unchanged.`,
-      action: {
-        label: "Review",
-        onClick: () => {
-          open = true;
-        },
-      },
+      action: profileReviewAction(id),
     });
   }
   if (show) open = true;
 }
+$effect(() =>
+  registerProfileReviewHandler(conversationId, () => {
+    open = true;
+  }),
+);
 $effect(() => {
   if (!workbenchStartupState.progressiveActive) return;
   void conversationId;

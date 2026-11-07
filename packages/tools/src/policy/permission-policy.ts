@@ -8,7 +8,6 @@ import {
   resolve,
   sep,
 } from "node:path";
-import { Value } from "typebox/value";
 import type {
   ComparableValue,
   IgnoredPermissionSource,
@@ -33,6 +32,7 @@ import planningJson from "./rule-sets/planning.json" with { type: "json" };
 import readOnlyJson from "./rule-sets/read_only.json" with { type: "json" };
 import supervisedJson from "./rule-sets/supervised.json" with { type: "json" };
 import { normalizeToolArguments } from "../catalog/argument-normalization.js";
+import { describeToolArgumentErrors } from "../catalog/argument-validation.js";
 import { permissionMetadataForTool } from "../catalog/permission-metadata.js";
 import { requireToolDefinition } from "../catalog/manifest.js";
 import { escapeGlobLiteral, patternMatches } from "./path-glob.js";
@@ -243,9 +243,8 @@ export function normalizePermissionRequest(input: {
   const metadata = permissionMetadataForTool(input.toolName);
   const args =
     input.normalizedArgs ?? normalizeToolArguments(definition, input.args);
-  if (!Value.Check(definition.parameters, args)) {
-    throw new Error(`Invalid validated arguments for ${input.toolName}.`);
-  }
+  const argumentErrors = describeToolArgumentErrors(definition, args);
+  if (argumentErrors) throw new Error(argumentErrors);
   const primaryArgument = metadata.primaryArguments
     .map((name) => args[name])
     .find((value) => value !== undefined);

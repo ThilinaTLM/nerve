@@ -22,6 +22,7 @@ export * from "./definitions/core/web.tools.js";
 export * from "./descriptors.js";
 export * from "./manifest.js";
 export * from "./argument-normalization.js";
+export * from "./argument-validation.js";
 export * from "./definitions/orchestration/plan-present.tools.js";
 export * from "./definitions/orchestration/process.tools.js";
 export * from "./permission-metadata.js";

@@ -124,14 +124,23 @@ function actualTextLineCount(
 // cards reuse the parsed view instead of re-running schema parsing.
 const toolViewCache = new LruCache<string, ToolView>(300);
 
+// Payload objects are treated as immutable; identity (a stable per-object id)
+// keys the cache instead of serializing the whole value on every lookup.
+const payloadIds = new WeakMap<object, number>();
+let nextPayloadId = 1;
+
 function payloadSignature(value: unknown): string {
   if (value === undefined) return "";
   if (typeof value === "string") return `s:${value.length}`;
-  try {
-    return `j:${JSON.stringify(value)?.length ?? 0}`;
-  } catch {
-    return "u";
+  if (typeof value === "object" && value !== null) {
+    let id = payloadIds.get(value);
+    if (id === undefined) {
+      id = nextPayloadId++;
+      payloadIds.set(value, id);
+    }
+    return `o:${id}`;
   }
+  return `p:${String(value)}`;
 }
 
 function toolViewSignature(

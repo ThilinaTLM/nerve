@@ -4,7 +4,27 @@ import {
   agentPreviewText,
   availableToolDetailSections,
   resolveToolDetailSection,
+  serializeToolArguments,
 } from "./tool-details-state";
+
+test("serializeToolArguments memoizes by identity and keeps output", () => {
+  let calls = 0;
+  const value = {
+    a: 1,
+    toJSON() {
+      calls++;
+      return { a: 1 };
+    },
+  };
+  const first = serializeToolArguments(value);
+  assert.deepEqual(first, {
+    text: JSON.stringify({ a: 1 }, null, 2),
+    language: "json",
+  });
+  assert.equal(serializeToolArguments(value), first);
+  assert.equal(calls, 1);
+  assert.deepEqual(serializeToolArguments("raw"), { text: "raw" });
+});
 
 test("only sections with content are available, in display order", () => {
   assert.deepEqual(

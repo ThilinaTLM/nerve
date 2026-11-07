@@ -28,13 +28,30 @@ function asRecord(value: unknown): Record<string, unknown> {
     : {};
 }
 
+const PARSE_CACHE_LIMIT = 256;
+// Parsed records are read-only and keyed by string value, so every card that
+// re-derives from unchanged `argsText`/`argsPreview` reuses one parse. Streaming
+// text yields a new string per delta; the bounded LRU evicts superseded ones.
+const parseCache = new Map<string, Record<string, unknown>>();
+
 function parseRecord(value: unknown): Record<string, unknown> {
   if (typeof value !== "string") return asRecord(value);
-  try {
-    return asRecord(JSON.parse(value));
-  } catch {
-    return {};
+  const cached = parseCache.get(value);
+  if (cached) {
+    parseCache.delete(value);
+    parseCache.set(value, cached);
+    return cached;
   }
+  let record: Record<string, unknown>;
+  try {
+    record = asRecord(JSON.parse(value));
+  } catch {
+    record = {};
+  }
+  if (parseCache.size >= PARSE_CACHE_LIMIT)
+    parseCache.delete(parseCache.keys().next().value!);
+  parseCache.set(value, record);
+  return record;
 }
 
 type StringMetrics = { lines: number; bytes: number };
