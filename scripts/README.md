@@ -23,6 +23,21 @@ Package-local script trees (`packages/*/scripts/`) are outside this layout.
 - Entry points use `defineCli(import.meta.url, main)` so modules stay importable. Expected failures throw `CliError` (message only, no stack).
 - Modules launched by CI before `pnpm install` (`impact/ci.ts` and its imports) and by release workflows run under plain Node's type stripping: erasable TypeScript only (no enums, namespaces or parameter properties) and `.ts` import specifiers.
 
+## Transcript benchmark
+
+`development/transcript-bench.ts` (thin entry; modules in `development/transcript-bench/`: `cdp`, `network`, `measure`, `open`, `stream`) measures transcript performance in a running desktop dev instance (`pnpm run desktop:dev --slot N`, CDP on `127.0.0.1:9222`) over raw CDP (`ws`), driving the real UI with trusted input. It never changes app code or starts a daemon, and it writes raw results and CPU profiles to `--out` (default `/tmp/nerve-bench`), never the repo.
+
+```sh
+# Large open: click → first transcript row, median of N, with network/scripting/layout split.
+pnpm exec tsx scripts/development/transcript-bench.ts --scenario open --runs 5 --no-network \
+  --conversation conv_… --search "words from its title" --project nerve [--reload]
+# Streaming: fixed tool-heavy prompt in a new conversation (uses the real model, costs tokens).
+pnpm exec tsx scripts/development/transcript-bench.ts --scenario stream --project Random \
+  --model "Haiku 5.5" --runs 1 [--profile] --no-network
+```
+
+Notes: `--no-network` skips CDP Network capture (it copies every WebSocket frame and inflates the open time); `--profile` records a V8 CPU profile (sampling overhead inflates absolute times, so take long-task numbers from a run without it). The run counts as the app's production-minified bundle when `desktop:dev` serves `packages/workbench-server/dist/web`. Compare against `docs/proposals/transcript-streaming-performance.md`.
+
 ## Standard flags
 
 `fix:focused`, `check:focused` and `test:focused` accept the same flags; duplicate, unknown or valueless flags print the usage line and exit non-zero.
