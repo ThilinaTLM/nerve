@@ -265,6 +265,14 @@ export class ConversationEventRepository {
     );
   }
 
+  /** Events from the root to `eventId` (inclusive), oldest first. */
+  pathTo(conversationId: string, eventId: string): ConversationEvent[] {
+    return this.pathFromHead(conversationId, {
+      headEventId: eventId,
+      limit: Number.MAX_SAFE_INTEGER,
+    }).reverse();
+  }
+
   since(conversationId: string, sequence: number): ConversationEvent[] {
     return this.db.sqlite
       .prepare(

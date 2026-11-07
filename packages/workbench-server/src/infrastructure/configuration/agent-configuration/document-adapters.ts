@@ -49,6 +49,18 @@ export class AgentConfigurationPaths {
       projectOf: (id) => locations.conversationOwner(id).projectId,
     });
   }
+  /** Conversation-owned configuration directory; needs no database row, so a fork can be seeded before it exists. */
+  conversationConfigDirectory(conversationId: string): string {
+    if (!/^[a-zA-Z0-9_-]+$/.test(conversationId))
+      throw new Error("Invalid conversation id.");
+    return path.join(
+      this.locations.home,
+      "data",
+      "conversations",
+      conversationId,
+      "config",
+    );
+  }
   preferenceScope(scope: AgentScope): PreferenceScope {
     return scope.scope === "conversation"
       ? {

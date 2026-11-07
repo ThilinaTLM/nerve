@@ -79,4 +79,30 @@ export class ConversationReferenceRepository {
     }
     return result;
   }
+
+  /** Copies the references whose source event was copied; `eventIds` maps old to new event IDs. */
+  copy(
+    sourceId: string,
+    targetId: string,
+    eventIds: ReadonlyMap<string, string>,
+  ): void {
+    const insert = this.db.sqlite.prepare(`INSERT INTO conversation_reference
+      (conversation_id, provider, resource_key, kind, relationship, source_event_id, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?)`);
+    for (const row of this.db.sqlite
+      .prepare("SELECT * FROM conversation_reference WHERE conversation_id = ?")
+      .all(sourceId)) {
+      const sourceEventId = eventIds.get(String(row.source_event_id));
+      if (!sourceEventId) continue;
+      insert.run(
+        targetId,
+        row.provider,
+        row.resource_key,
+        row.kind,
+        row.relationship,
+        sourceEventId,
+        row.created_at,
+      );
+    }
+  }
 }

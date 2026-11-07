@@ -21,7 +21,11 @@ const target = {
 function menu(options: { rewindLocked?: boolean; readOnly?: boolean } = {}) {
   const handlers = options.readOnly
     ? {}
-    : { onNavigateToEntry: () => undefined, onEditEntry: () => undefined };
+    : {
+        onNavigateToEntry: () => undefined,
+        onEditEntry: () => undefined,
+        onForkFromEntry: () => undefined,
+      };
   return transcriptMenuModel(target, undefined, {
     treeEntriesById: new Map([["e1", entry]]),
     copyText: () => undefined,
@@ -43,6 +47,7 @@ function item(items: ContextMenuItem[], label: string) {
 test("offers rewind and edit when the conversation is idle", () => {
   const items = menu();
   assert.equal(item(items, "Rewind to here")?.disabled, undefined);
+  assert.equal(item(items, "Fork from here")?.disabled, undefined);
   assert.equal(item(items, "Edit message")?.disabled, undefined);
   assert.ok(item(items, "History"));
 });
@@ -50,12 +55,14 @@ test("offers rewind and edit when the conversation is idle", () => {
 test("disables rewind and edit while work is running", () => {
   const items = menu({ rewindLocked: true });
   assert.equal(item(items, "Rewind to here")?.disabled, true);
+  assert.equal(item(items, "Fork from here")?.disabled, true);
   assert.equal(item(items, "Edit message")?.disabled, true);
 });
 
 test("omits rewind and edit for read-only history but keeps History", () => {
   const items = menu({ readOnly: true });
   assert.equal(item(items, "Rewind to here"), undefined);
+  assert.equal(item(items, "Fork from here"), undefined);
   assert.equal(item(items, "Edit message"), undefined);
   assert.ok(item(items, "History"));
 });

@@ -1,5 +1,6 @@
 import Clipboard from "@lucide/svelte/icons/clipboard";
 import Copy from "@lucide/svelte/icons/copy";
+import GitFork from "@lucide/svelte/icons/git-fork";
 import History from "@lucide/svelte/icons/history";
 import Pencil from "@lucide/svelte/icons/pencil";
 import TextQuote from "@lucide/svelte/icons/text-quote";
@@ -28,6 +29,7 @@ const icons = {
   "Edit prompt": Pencil,
   Discard: Trash2,
   "Rewind to here": Undo2,
+  "Fork from here": GitFork,
   "Copy ID": Copy,
   History,
 } as const;

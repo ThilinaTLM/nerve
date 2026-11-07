@@ -92,10 +92,11 @@ export function isConversationChannelReady(): boolean {
 export function requestConversation<M extends ConversationOperation>(
   method: M,
   params: OperationParams<M>,
+  options?: { timeoutMs?: number },
 ): Promise<OperationResult<M>> {
   if (!connection || !isConversationChannelReady())
     return Promise.reject(new Error("Conversation connection is unavailable"));
-  return connection.request(method, params);
+  return connection.request(method, params, options);
 }
 
 function currentCursors(): StreamCursor[] {

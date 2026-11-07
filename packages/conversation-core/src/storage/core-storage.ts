@@ -1,3 +1,8 @@
+import type {
+  Asset,
+  Conversation,
+  ConversationEvent,
+} from "@nervekit/contracts/core";
 import { openCoreDatabase, type CoreDatabase } from "./database.js";
 import { migrate } from "./migrations.js";
 import { ProjectRepository } from "./project.repository.js";
@@ -46,6 +51,32 @@ export class CoreStorage {
 
   transaction<T>(fn: () => T): T {
     return this.db.transaction(fn);
+  }
+  /**
+   * Inserts a fork's conversation, events, assets and references atomically. The
+   * conversation row goes first because its head FK is deferred to commit.
+   */
+  insertFork(input: {
+    sourceId: string;
+    conversation: Conversation;
+    workingDirectory: string;
+    events: ConversationEvent[];
+    assets: Asset[];
+    eventIds: ReadonlyMap<string, string>;
+  }): void {
+    this.db.transaction(() => {
+      this.conversations.insert(input.conversation, {
+        conversationId: input.conversation.id,
+        workingDirectory: input.workingDirectory,
+      });
+      for (const event of input.events) this.events.insert(event);
+      for (const asset of input.assets) this.assets.insert(asset);
+      this.references.copy(
+        input.sourceId,
+        input.conversation.id,
+        input.eventIds,
+      );
+    });
   }
   descendantConversationIds(id: string): string[] {
     return this.conversations.descendantConversationIds(id);

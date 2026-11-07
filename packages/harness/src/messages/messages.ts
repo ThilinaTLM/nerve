@@ -199,14 +199,14 @@ function harnessMessageToText(message: HarnessMessage): string {
   if (message.eventType === "task_result") {
     return [
       "<background_task_update>",
-      "This is an asynchronous harness event, not a user request.",
+      "This is a harness event, not a user request.",
       message.content,
       "</background_task_update>",
     ].join("\n");
   }
   return [
     "<harness_event>",
-    "This is an asynchronous harness event, not a user request.",
+    "This is a harness event, not a user request.",
     message.content,
     "</harness_event>",
   ].join("\n");

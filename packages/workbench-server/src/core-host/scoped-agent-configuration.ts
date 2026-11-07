@@ -1,5 +1,8 @@
 import type { AgentDocument } from "../infrastructure/configuration/agent-configuration/document-adapters.js";
 import { randomUUID } from "node:crypto";
+import { constants } from "node:fs";
+import { copyFile, mkdir } from "node:fs/promises";
+import { join } from "node:path";
 import type {
   AgentConfigurationPort,
   RequestConfigurationCapture,
@@ -27,6 +30,26 @@ export function requireReady(
   if (!resolution.settings.model)
     throw new Error("Agent configuration requires a model");
   return resolution.settings.model;
+}
+
+/**
+ * Seeds a fork's configuration documents with the source's bytes (including `revision`).
+ * The fork's row does not exist yet and its documents are loaded lazily afterwards,
+ * so no cache can hold a stale view of them.
+ */
+export async function copyConversationDocuments(from: string, to: string) {
+  await mkdir(to, { recursive: true, mode: 0o700 });
+  for (const name of ["agent.json", "permissions.json", "capabilities.json"])
+    try {
+      await copyFile(join(from, name), join(to, name), constants.COPYFILE_EXCL);
+    } catch (error) {
+      // Only the agent document is mandatory; overlays exist when the user set them.
+      if (
+        (error as NodeJS.ErrnoException).code !== "ENOENT" ||
+        name === "agent.json"
+      )
+        throw error;
+    }
 }
 
 /** Captures are retained only in process memory; admission owns their association with calls. */
@@ -67,6 +90,11 @@ export function createScopedAgentConfiguration(options: {
     historyContext: (id) => options.service.getConversationContext(id) ?? {},
     configureContext: (id, patch) =>
       options.service.configureContext(id, patch),
+    copyConversationConfiguration: (sourceId, forkId) =>
+      copyConversationDocuments(
+        options.service.paths.conversationConfigDirectory(sourceId),
+        options.service.paths.conversationConfigDirectory(forkId),
+      ),
     summary(id) {
       const cached = options.service.getSummary(id);
       if (!cached) return {};

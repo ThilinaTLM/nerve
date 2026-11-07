@@ -212,6 +212,14 @@ export const coreOperationSchemas = {
     params: conversationId.extend({ eventId: z.string().nullable() }),
     result: done,
   },
+  /**
+   * Copies the active path from the root to `eventId` into a new idle
+   * top-level conversation. Sub-agents are not copied. The source must be idle.
+   */
+  "conversation.fork": {
+    params: conversationId.extend({ eventId: z.string() }),
+    result: conversationSnapshotSchema,
+  },
   /** Accepts a manual compaction request; completion is observed through compaction notifications. */
   "conversation.compact": { params: conversationId, result: done },
   /** Cancels a queued, not yet running, manual compaction request. */

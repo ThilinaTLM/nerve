@@ -71,6 +71,10 @@ export const notify = {
   error(title: string, options: NotifyOptions = {}): void {
     showToast("error", title, options);
   },
+  /** A spinner toast; replace it by showing another toast with the same id. */
+  loading(title: string, id: string): void {
+    sonnerToast.loading(title, { id });
+  },
   warning(title: string, options: NotifyOptions = {}): void {
     sonnerToast.warning(title, {
       description: options.description,

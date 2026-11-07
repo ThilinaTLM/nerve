@@ -11,6 +11,7 @@ export type ConversationMenuHandlers = {
   quoteInComposer: (text: string) => void;
   onNavigateToEntry?: (entryId: string | undefined) => void;
   onEditEntry?: (entry: ConversationEntry) => void;
+  onForkFromEntry?: (entryId: string) => void;
   onOpenHistory?: () => void;
   /** Work is running, so rewinding or editing earlier messages is blocked. */
   rewindLocked?: boolean;
@@ -230,6 +231,13 @@ export function transcriptMenuModel(
       label: "Rewind to here",
       disabled: context.rewindLocked,
       onSelect: () => context.onNavigateToEntry?.(details.entryId),
+    });
+  }
+  if (details.entryId && context.onForkFromEntry) {
+    actionGroup.push({
+      label: "Fork from here",
+      disabled: context.rewindLocked,
+      onSelect: () => context.onForkFromEntry?.(details.entryId as string),
     });
   }
 

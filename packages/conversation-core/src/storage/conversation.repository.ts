@@ -115,6 +115,14 @@ export class ConversationRepository {
     };
   }
 
+  /** Every title in the project, for numbering fork titles. */
+  titles(projectId: string): string[] {
+    return this.db.sqlite
+      .prepare("SELECT title FROM conversation WHERE project_id = ?")
+      .all(projectId)
+      .map((row) => String(row.title));
+  }
+
   parentId(id: string): string | null {
     const row = this.db.sqlite
       .prepare("SELECT parent_conversation_id FROM conversation WHERE id = ?")
@@ -153,7 +161,11 @@ export class ConversationRepository {
     }
   }
 
-  insert(input: Conversation, config: ConversationConfig): Conversation {
+  insert(
+    input: Conversation,
+    config: Pick<ConversationConfig, "conversationId" | "workingDirectory"> &
+      Partial<ConversationConfig>,
+  ): Conversation {
     return this.db.transaction(() => {
       const row = conversationSchema.parse(input);
       this.db.sqlite

@@ -1,5 +1,6 @@
 <script lang="ts">
 import ChevronRight from "@lucide/svelte/icons/chevron-right";
+import GitFork from "@lucide/svelte/icons/git-fork";
 import Eye from "@lucide/svelte/icons/eye";
 import LocateFixed from "@lucide/svelte/icons/locate-fixed";
 import MessagesSquare from "@lucide/svelte/icons/messages-square";
@@ -56,6 +57,8 @@ type Props = {
   /** Move the head; `undefined` rewinds to the start. */
   onRewind: (entryId: string | undefined) => void;
   onEdit: (entry: ConversationEntry) => void;
+  /** Start a new conversation from the path up to this entry. */
+  onFork?: (entryId: string) => void;
   /** Return to the transcript at an entry on the current path. */
   onReveal: (entryId: string) => void;
   onClose: () => void;
@@ -70,6 +73,7 @@ let {
   rewindLocked = false,
   onRewind,
   onEdit,
+  onFork,
   onReveal,
   onClose,
 }: Props = $props();
@@ -225,6 +229,15 @@ const canRewind = (item: HistoryItem) =>
 function rewindTo(item: HistoryItem) {
   if (!canTravel || !canRewind(item)) return;
   onRewind(item.id === HISTORY_ROOT_ID ? undefined : item.targetId);
+}
+
+/** Forks land on replies, including the current head; never the start. */
+const canFork = (item: HistoryItem) =>
+  Boolean(onFork) && item.id !== HISTORY_ROOT_ID && item.node.kind !== "user";
+
+function forkFrom(item: HistoryItem) {
+  if (!canTravel || !canFork(item)) return;
+  onFork?.(item.targetId);
 }
 
 function editItem(item: HistoryItem) {
@@ -392,6 +405,17 @@ const lineClass = (current: boolean) =>
         onclick={() => rewindTo(item)}
       >
         <Undo2 />{rewindLabel(item)}
+      </Button>
+    {/if}
+    {#if !readOnly && canFork(item)}
+      <Button
+        size="sm"
+        variant="outline"
+        disabled={!canTravel}
+        title="Start a new conversation from here. This one is not changed."
+        onclick={() => forkFrom(item)}
+      >
+        <GitFork />Fork here
       </Button>
     {/if}
     {#if !readOnly && item.node.kind === "user"}
