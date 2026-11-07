@@ -255,10 +255,15 @@ function scheduleFollowToEnd(settleFrames = FOLLOW_SETTLE_FRAMES) {
   });
 }
 
+// Plain mirror of `totalSize`: this runs inside effects, and reading the
+// `$state` there would make those effects depend on what they write.
+let syncedTotalSize = -1;
+
 function syncFromVirtualizer() {
   virtualItems = instance.getVirtualItems();
   const nextTotalSize = instance.getTotalSize();
-  if (nextTotalSize !== totalSize) {
+  if (nextTotalSize !== syncedTotalSize) {
+    syncedTotalSize = nextTotalSize;
     // The spacer height (and so the scroll extent) changes now and again once
     // Svelte commits it; drop any max-offset read taken before either.
     scrollMetrics.invalidate();
