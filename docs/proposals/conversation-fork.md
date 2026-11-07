@@ -60,12 +60,12 @@ Nerve has no mid-conversation system-role message: the model receives only `user
     sourceConversationId: "conv_…",
     sourceTitle: "title",
     subagents: ["explore-auth", "fix-tests"],
-    text: "Forked from «title». Sub-agents from before this point (explore-auth, fix-tests) are not available in this conversation. Using one of those names starts a new agent without its earlier context.",
+    text: "Forked from conversation conv_…. Sub-agents from before this point (explore-auth, fix-tests) are not available in this conversation. Using one of those names starts a new agent without its earlier context.",
   },
 }
 ```
 
-It is appended after the copied path and becomes the fork's head. It reaches the model as a `<harness_event>` user message with the standard harness line (see [Harness event wording](#harness-event-wording)). "Not a user request" is what we want: it stops the model from treating the notice as a task. The projection is generic over subtypes, so the model sees exactly `text` with no harness change (`context-projection.ts`, `harness/src/messages/messages.ts`).
+It is appended after the copied path and becomes the fork's head. It reaches the model as a `<harness_event>` user message with the standard harness line (see [Harness event wording](#harness-event-wording)). "Not a user request" is what we want: it stops the model from treating the notice as a task. The model text names the source by ID, not title: the model already has the copied history, so the title adds nothing for it, the ID stays correct after renames and keeps user-written text out of the notice, and the card header already shows the title to the user. The projection is generic over subtypes, so the model sees exactly `text` with no harness change (`context-projection.ts`, `harness/src/messages/messages.ts`).
 
 A subtype rather than a `notification` with a special `producer`, because `producer` identifies a sender while `subtype` is the field that selects presentation (as `task_result` does for sub-agent cards), and the structured fields spare the UI from parsing the model text. The transcript renders it as a `forked` notice card with the branch glyph, the source title beside the badge, the model text as body and an **Open source** action. The change is one entry in the contracts union of system event payloads; the database only checks `event_type`, so there is no schema change or migration.
 

@@ -36,8 +36,8 @@ export function forkTitle(title: string, existing: Iterable<string>): string {
   return `F${next}: ${base}`;
 }
 
-function noticeText(title: string, agents: string[]): string {
-  const forked = `Forked from «${title}».`;
+function noticeText(sourceId: string, agents: string[]): string {
+  const forked = `Forked from conversation ${sourceId}.`;
   if (!agents.length) return forked;
   return `${forked} Sub-agents from before this point (${agents.join(", ")}) are not available in this conversation. Using one of those names starts a new agent without its earlier context.`;
 }
@@ -195,7 +195,7 @@ export class ConversationForker {
           sourceConversationId: sourceId,
           sourceTitle: source.title,
           subagents: agents,
-          text: noticeText(source.title, agents),
+          text: noticeText(sourceId, agents),
         },
       });
       const lastUser = [...events]

@@ -281,7 +281,7 @@ void test("fork copies only the path, remaps identities and files, and leaves th
       sourceConversationId: "src",
       sourceTitle: "Plan",
       subagents: ["explore-auth"],
-      text: "Forked from «Plan». Sub-agents from before this point (explore-auth) are not available in this conversation. Using one of those names starts a new agent without its earlier context.",
+      text: "Forked from conversation src. Sub-agents from before this point (explore-auth) are not available in this conversation. Using one of those names starts a new agent without its earlier context.",
     });
     assert.match(JSON.stringify(messages.at(-1)), /not a user request/);
 

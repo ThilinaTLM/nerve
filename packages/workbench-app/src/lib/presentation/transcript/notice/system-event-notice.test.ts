@@ -82,13 +82,13 @@ describe("subagent transcript notices", () => {
 describe("fork transcript notice", () => {
   const fork = notice({
     kind: "message",
-    text: "Forked from «Plan».",
+    text: "Forked from conversation conv_source.",
     details: {
       subtype: "fork",
       sourceConversationId: "conv_source",
       sourceTitle: "Plan",
       subagents: [],
-      text: "Forked from «Plan».",
+      text: "Forked from conversation conv_source.",
     },
   });
 
@@ -102,7 +102,10 @@ describe("fork transcript notice", () => {
     assert.equal(model.arg, "Plan");
     model.action?.onClick();
     assert.equal(opened, "conv_source");
-    assert.equal(systemEventNoticeBody(fork), "Forked from «Plan».");
+    assert.equal(
+      systemEventNoticeBody(fork),
+      "Forked from conversation conv_source.",
+    );
   });
 
   it("has no action when conversations cannot be opened", () => {
