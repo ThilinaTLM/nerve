@@ -130,3 +130,12 @@ test("unparsable provider arguments fail with the parse message and byte count",
   );
   assert.ok(stored.includes("Received arguments"));
 });
+
+test("schema-invalid arguments fail with field-level errors before admission", async (t) => {
+  const f = await fixture(t);
+  const { response, reason } = await f.run({ arguments: {} });
+  assert.equal(response.payload.outcome, "failed");
+  assert.match(reason, /edit: missing required \\"path\\"/);
+  assert.match(reason, /missing required \\"edits\\"/);
+  assert.equal(f.admissions(), 0);
+});

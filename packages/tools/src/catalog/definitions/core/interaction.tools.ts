@@ -1,4 +1,4 @@
-import { Type } from "typebox";
+import { Type, type Static } from "typebox";
 import type { ToolDefinition } from "../../contracts.js";
 
 const askUserParameters = Type.Object(
@@ -51,6 +51,20 @@ const askUserParameters = Type.Object(
   { additionalProperties: false },
 );
 
+/** Legacy single-question form `{question, ...}` becomes `{questions: [{id: "answer", ...}]}`. */
+function normalizeAskUserArguments(
+  args: unknown,
+): Static<typeof askUserParameters> {
+  if (typeof args === "object" && args !== null && !Array.isArray(args)) {
+    const request = args as Record<string, unknown>;
+    if (!("questions" in request) && typeof request.question === "string")
+      return { questions: [{ ...request, id: "answer" }] } as Static<
+        typeof askUserParameters
+      >;
+  }
+  return args as Static<typeof askUserParameters>;
+}
+
 const todoItemParameters = Type.Object(
   {
     todo: Type.String(),
@@ -79,6 +93,7 @@ export const interactionToolDefinitions = [
     description:
       "Ask focused questions when progress depends on the user's decision. Batch related questions (max 5). Offer options for clear choices and mark at most one recommended. Users can also answer in free text and attach images (returned as readable paths).",
     parameters: askUserParameters,
+    normalizeArguments: normalizeAskUserArguments,
     executionMode: "sequential",
   },
   {

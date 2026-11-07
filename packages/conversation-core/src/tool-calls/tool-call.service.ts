@@ -1,6 +1,11 @@
 import { isSubagentTool } from "@nervekit/contracts/tools";
 import { createId } from "@nervekit/contracts";
 import {
+  describeToolArgumentErrors,
+  normalizeToolArguments,
+  toolDefinitionByName,
+} from "@nervekit/tools/catalog";
+import {
   toolApprovalBindingMatches,
   type ToolApprovalBinding,
 } from "@nervekit/contracts/core";
@@ -306,6 +311,25 @@ export class ToolCallService {
     return `The tool arguments could not be parsed (${bytes} bytes received): ${message}`;
   }
 
+  /**
+   * Model-origin arguments are checked against the tool schema, after canonical
+   * normalization, before any host or permission step. Only the check uses the normalized
+   * form: stored arguments stay as the model sent them, and the host and permission steps
+   * re-normalize (idempotently) from them. `bash` is exempt because its effective schema
+   * depends on settings and the host validates it.
+   */
+  private schemaArgumentsReason(call: ToolCall): string | undefined {
+    if (call.origin !== "model" || call.toolName === "bash") return undefined;
+    const definition =
+      this.options.coreTools.get(call.toolName)?.definition ??
+      toolDefinitionByName(call.toolName);
+    if (!definition) return undefined;
+    return describeToolArgumentErrors(
+      definition,
+      normalizeToolArguments(definition, structuredClone(call.arguments)),
+    );
+  }
+
   private async process(id: string): Promise<void> {
     let call = this.options.storage.toolCalls.get(id);
     if (!call) return;
@@ -337,7 +361,9 @@ export class ToolCallService {
         await this.settlement.settle(call, "denied", { content: reason });
         return;
       }
-      const invalid = this.unparsableArgumentsReason(call);
+      const invalid =
+        this.unparsableArgumentsReason(call) ??
+        this.schemaArgumentsReason(call);
       if (invalid) {
         await this.settlement.settle(call, "failed", { content: invalid });
         return;
