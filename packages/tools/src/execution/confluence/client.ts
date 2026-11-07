@@ -6,6 +6,7 @@ import { safeAtlassianError } from "../atlassian/atlassian-error.js";
 import { ToolExecutionError } from "../errors/tool-error.js";
 import {
   anyJson,
+  atlassianJsonRequestInit,
   basicAuthHeader,
   readAtlassianJson,
   type ResponseParser,
@@ -107,19 +108,7 @@ export async function confluenceRequest(
   const url = new URL(`${connection.siteUrl}${apiRoot}${options.path}`);
   appendQuery(url, options.query);
 
-  const headers: Record<string, string> = {
-    Accept: "application/json",
-    Authorization: basicAuth(connection),
-  };
-  const init: RequestInit = {
-    method: options.method ?? "GET",
-    headers,
-    signal: withTimeoutSignal(options.signal, 60_000),
-  };
-  if (options.body !== undefined) {
-    headers["Content-Type"] = "application/json";
-    init.body = JSON.stringify(options.body);
-  }
+  const init = atlassianJsonRequestInit(basicAuth(connection), options);
 
   const response = await fetch(url, init);
   if (!response.ok) {

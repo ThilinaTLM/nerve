@@ -1,4 +1,6 @@
 <script lang="ts">
+import { errorMessageOr } from "$lib/presentation/utils/error-message";
+import { asRecord } from "$lib/presentation/utils/as-record";
 import type { ProfileTransitionPreview } from "@nervekit/contracts/agent-configuration";
 import { getConversationUiCapabilities } from "../../context.svelte";
 import Check from "@lucide/svelte/icons/check";
@@ -93,12 +95,6 @@ let implementationDialog = $state<PlanAcceptTarget | undefined>();
 let accepting = $state<PlanAcceptTarget | undefined>();
 let rejecting = $state(false);
 let actionError = $state<string | undefined>();
-
-function asRecord(value: unknown): Record<string, unknown> {
-  return value && typeof value === "object"
-    ? (value as Record<string, unknown>)
-    : {};
-}
 
 function stringField(value: unknown): string | undefined {
   return typeof value === "string" ? value : undefined;
@@ -207,7 +203,7 @@ async function acceptSame(options?: PlanReviewResolveOptions) {
   try {
     await onAcceptPlanReview(planReview.toolCallId, options);
   } catch (error) {
-    actionError = errorMessage(error, "Could not accept the plan.");
+    actionError = errorMessageOr(error, "Could not accept the plan.");
   } finally {
     accepting = undefined;
   }
@@ -231,7 +227,10 @@ async function acceptCompact(options?: PlanReviewResolveOptions) {
       compactBeforeImplementation: true,
     });
   } catch (error) {
-    actionError = errorMessage(error, "Could not compact and accept the plan.");
+    actionError = errorMessageOr(
+      error,
+      "Could not compact and accept the plan.",
+    );
   } finally {
     accepting = undefined;
   }
@@ -252,7 +251,7 @@ async function acceptNewChat(options?: PlanReviewResolveOptions) {
   try {
     await onAcceptPlanReviewInNewChat(planReview.toolCallId, options);
   } catch (error) {
-    actionError = errorMessage(error, "Could not accept the plan.");
+    actionError = errorMessageOr(error, "Could not accept the plan.");
   } finally {
     accepting = undefined;
   }
@@ -273,12 +272,6 @@ function openNewChatModelDialog() {
   implementationDialog = "new-chat";
 }
 
-function errorMessage(error: unknown, fallback: string): string {
-  return error instanceof Error && error.message.trim()
-    ? error.message
-    : fallback;
-}
-
 async function rejectPlan() {
   if (
     !planReview ||
@@ -294,7 +287,7 @@ async function rejectPlan() {
   try {
     await onRejectPlanReview(planReview.toolCallId);
   } catch (error) {
-    actionError = errorMessage(error, "Could not reject the plan.");
+    actionError = errorMessageOr(error, "Could not reject the plan.");
   } finally {
     rejecting = false;
   }

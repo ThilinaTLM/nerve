@@ -38,6 +38,7 @@ import {
   valuesFromConfluenceList,
   writeConfluenceArtifact,
 } from "./format.js";
+import { appendRelatedPreview } from "../atlassian/related-preview.js";
 import { boundedNumber } from "../atlassian/arguments.js";
 import { readSinglePageRow } from "./page-file.js";
 import { enumString, fetchPageCurrent } from "./page-resolution.js";
@@ -342,7 +343,7 @@ export async function executeConfluenceGetPage(
   );
   if (include.has("children")) {
     includedCounts.directChildren = childPages.total;
-    appendConfluencePreview(
+    appendRelatedPreview(
       lines,
       "Direct children",
       childPages.items,
@@ -359,7 +360,7 @@ export async function executeConfluenceGetPage(
   );
   if (include.has("attachments")) {
     includedCounts.attachments = attachmentSummaries.total;
-    appendConfluencePreview(
+    appendRelatedPreview(
       lines,
       "Attachments",
       attachmentSummaries.items,
@@ -382,7 +383,7 @@ export async function executeConfluenceGetPage(
   );
   if (include.has("footer_comments")) {
     includedCounts.footerComments = footerComments.total;
-    appendConfluencePreview(
+    appendRelatedPreview(
       lines,
       "Footer comments",
       footerComments.items,
@@ -397,7 +398,7 @@ export async function executeConfluenceGetPage(
   );
   if (include.has("inline_comments")) {
     includedCounts.inlineComments = inlineComments.total;
-    appendConfluencePreview(
+    appendRelatedPreview(
       lines,
       "Inline comments",
       inlineComments.items,
@@ -413,7 +414,7 @@ export async function executeConfluenceGetPage(
   );
   if (include.has("properties")) {
     includedCounts.properties = properties.total;
-    appendConfluencePreview(
+    appendRelatedPreview(
       lines,
       "Properties",
       properties.items,
@@ -429,7 +430,7 @@ export async function executeConfluenceGetPage(
   );
   if (include.has("labels")) {
     includedCounts.labels = labels.total;
-    appendConfluencePreview(
+    appendRelatedPreview(
       lines,
       "Labels",
       labels.items,
@@ -498,24 +499,6 @@ function summarizeConfluenceRelated<TInput, TSummary>(
     items: summaries.slice(0, RELATED_PREVIEW_LIMIT),
     total: summaries.length,
   };
-}
-
-function appendConfluencePreview<T>(
-  lines: string[],
-  label: string,
-  items: T[],
-  total: number,
-  artifactPath: string | undefined,
-  format: (item: T) => string,
-): void {
-  lines.push(`${label}: ${total}`);
-  if (items.length > 0) lines.push(...items.map(format));
-  if (total <= items.length) return;
-  lines.push(
-    artifactPath
-      ? `Showing first ${items.length} of ${total}; full data is saved to ${artifactPath}.`
-      : `Showing first ${items.length} of ${total}; complete data is unavailable.`,
-  );
 }
 
 function formatConfluenceCommentPreview(item: {

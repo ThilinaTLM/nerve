@@ -12,7 +12,7 @@ import {
   defaultApplicationSettings,
 } from "./application-configuration.js";
 import { permissionRuleSetIdSchema } from "../permissions/permission-rule-sets.js";
-import { permissionExceptionSchema } from "../permissions/permissions.js";
+import { permissionExceptionListSchema } from "../permissions/permissions.js";
 
 /** The client's single theme choice, ordered by family for pickers. */
 export const colorThemeSchema = z.enum([
@@ -43,25 +43,8 @@ export const colorThemeKind: Record<ColorTheme, ColorThemeKind> = {
 export const headerTypeSchema = z.enum(["auto", "linux", "windows", "macos"]);
 export type HeaderType = z.infer<typeof headerTypeSchema>;
 
-const permissionExceptionsSchema = z
-  .array(permissionExceptionSchema)
-  .max(256)
-  .superRefine((exceptions, context) => {
-    const ids = new Set<string>();
-    for (const [index, exception] of exceptions.entries()) {
-      if (ids.has(exception.id)) {
-        context.addIssue({
-          code: "custom",
-          message: `Duplicate permission exception id '${exception.id}'`,
-          path: [index, "id"],
-        });
-      }
-      ids.add(exception.id);
-    }
-  });
-
 const permissionSettingsSchema = z.object({
-  exceptions: permissionExceptionsSchema,
+  exceptions: permissionExceptionListSchema,
 });
 
 export const atlassianProfileSchema = z.object({
@@ -541,7 +524,7 @@ export const updateSettingsRequestSchema = z.strictObject({
     .optional(),
   permissions: z
     .object({
-      exceptions: permissionExceptionsSchema.optional(),
+      exceptions: permissionExceptionListSchema.optional(),
     })
     .optional(),
   providers: z

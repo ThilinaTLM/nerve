@@ -130,41 +130,6 @@ export type ConversationEntry = {
 };
 
 export type ConversationTreeNode = {
-  entry: {
-    id: string;
-    conversationId: string;
-    role: "user" | "assistant" | "system";
-    kind:
-      | "message"
-      | "tool_result"
-      | "subagent_run_event"
-      | "compaction"
-      | "branch_summary"
-      | "run_status"
-      | "task_result";
-    text: string;
-    createdAt: string;
-    agentId?: string | undefined;
-    runId?: string | undefined;
-    turnId?: string | undefined;
-    liveMessageId?: string | undefined;
-    messageOrdinal?: number | undefined;
-    parentEntryId?: string | undefined;
-    summary?: string | undefined;
-    tokensBefore?: number | undefined;
-    usage?:
-      | {
-          input: number;
-          output: number;
-          cacheRead: number;
-          cacheWrite: number;
-          totalTokens: number;
-          cost: number;
-        }
-      | undefined;
-    firstKeptEntryId?: string | undefined;
-    fromEntryId?: string | undefined;
-    details?: unknown;
-  };
+  entry: Omit<ConversationEntry, "inputId">;
   childEntryIds: string[];
 };

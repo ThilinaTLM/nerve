@@ -24,6 +24,16 @@ export const applicationLogErrorSchema = z.object({
 });
 export type ApplicationLogError = z.infer<typeof applicationLogErrorSchema>;
 
+const applicationLogCorrelationShape = {
+  requestId: z.string().optional(),
+  projectId: z.string().startsWith("proj_").optional(),
+  conversationId: z.string().startsWith("conv_").optional(),
+  agentId: z.string().startsWith("agent_").optional(),
+  runId: z.string().startsWith("run_").optional(),
+  toolCallId: z.string().startsWith("tool_").optional(),
+  launchId: z.string().startsWith("launch_").optional(),
+};
+
 export const applicationLogRecordSchema = z.object({
   seq: z.number().int().positive(),
   id: z.string().startsWith("log_"),
@@ -32,13 +42,7 @@ export const applicationLogRecordSchema = z.object({
   source: applicationLogSourceSchema,
   component: z.string().min(1),
   message: z.string().min(1),
-  requestId: z.string().optional(),
-  projectId: z.string().startsWith("proj_").optional(),
-  conversationId: z.string().startsWith("conv_").optional(),
-  agentId: z.string().startsWith("agent_").optional(),
-  runId: z.string().startsWith("run_").optional(),
-  toolCallId: z.string().startsWith("tool_").optional(),
-  launchId: z.string().startsWith("launch_").optional(),
+  ...applicationLogCorrelationShape,
   durationMs: z.number().nonnegative().optional(),
   context: z.record(z.string(), z.unknown()).optional(),
   error: applicationLogErrorSchema.optional(),
@@ -91,13 +95,7 @@ const applicationLogQueryFieldsSchema = z.object({
   /** Return records older than this exclusive sequence cursor. */
   beforeSeq: z.number().int().positive().optional(),
   limit: z.number().int().positive().max(500).optional(),
-  requestId: z.string().optional(),
-  projectId: z.string().startsWith("proj_").optional(),
-  conversationId: z.string().startsWith("conv_").optional(),
-  agentId: z.string().startsWith("agent_").optional(),
-  runId: z.string().startsWith("run_").optional(),
-  toolCallId: z.string().startsWith("tool_").optional(),
-  launchId: z.string().startsWith("launch_").optional(),
+  ...applicationLogCorrelationShape,
 });
 
 export const applicationLogQuerySchema = applicationLogQueryFieldsSchema.refine(

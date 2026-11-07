@@ -315,10 +315,7 @@ export function createScopedRepair(service: AgentConfigurationService) {
     )
       throw new ScopeConflictError();
 
-    const project = projectTarget(input.target);
-    if (project) {
-      if ((await readConfigurationDigest(file)) !== input.sourceDigest)
-        throw new ScopeConflictError();
+    const persistBackupAndReceipt = async () => {
       await mkdir(directory, { recursive: true, mode: 0o700 });
       if (backupPath) {
         const bytes = await readFile(file);
@@ -348,6 +345,13 @@ export function createScopedRepair(service: AgentConfigurationService) {
         { mode: 0o600 },
       );
       await sync(receiptPath);
+    };
+
+    const project = projectTarget(input.target);
+    if (project) {
+      if ((await readConfigurationDigest(file)) !== input.sourceDigest)
+        throw new ScopeConflictError();
+      await persistBackupAndReceipt();
       if (targetGuard && !targetGuard.isCurrent())
         throw new ScopeConflictError();
       await service.projectMigration.reset(
@@ -367,35 +371,7 @@ export function createScopedRepair(service: AgentConfigurationService) {
           prepare: async () => {
             if ((await readConfigurationDigest(file)) !== input.sourceDigest)
               throw new ScopeConflictError();
-            await mkdir(directory, { recursive: true, mode: 0o700 });
-            if (backupPath) {
-              const bytes = await readFile(file);
-              if (digestBytes(bytes) !== input.sourceDigest)
-                throw new ScopeConflictError();
-              await atomicReplaceFile(
-                backupPath,
-                (handle) => handle.writeFile(bytes),
-                { mode: 0o600 },
-              );
-              await sync(backupPath);
-            }
-            await atomicReplaceFile(
-              receiptPath,
-              (handle) =>
-                handle.writeFile(
-                  bytesFor({
-                    schemaVersion: 1,
-                    target: input.target,
-                    path: file,
-                    sourceDigest: input.sourceDigest,
-                    candidateDigest: input.candidateDigest,
-                    candidateVersion: input.candidateVersion,
-                    backupPath,
-                  }),
-                ),
-              { mode: 0o600 },
-            );
-            await sync(receiptPath);
+            await persistBackupAndReceipt();
             if ((await readConfigurationDigest(file)) !== input.sourceDigest)
               throw new ScopeConflictError();
             if (targetGuard && !targetGuard.isCurrent())

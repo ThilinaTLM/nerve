@@ -17,6 +17,8 @@ import {
   outputLimitsFromDetails,
   parseToolExecutionResult,
   resultOutputText,
+  parseWithSchema,
+  fileBasename,
   stringField,
 } from "./tool-view-helpers";
 import type { ToolView } from "./tool-view-types";
@@ -147,7 +149,7 @@ export function parseConfluenceView(
       stringField(details.operation) ??
       (action.startsWith("manage_") ? stringField(details.action) : undefined),
     commentId: stringField(details.commentId) ?? stringField(args.comment_id),
-    comment: parseOptional(confluenceCommentSummarySchema, details.comment),
+    comment: parseWithSchema(confluenceCommentSummarySchema, details.comment),
     commentKind:
       details.kind === "footer" || details.kind === "inline"
         ? details.kind
@@ -227,23 +229,6 @@ function confluenceAction(toolName: string): ConfluenceToolAction | undefined {
     default:
       return undefined;
   }
-}
-
-function parseOptional<T>(
-  schema: {
-    safeParse: (
-      value: unknown,
-    ) => { success: true; data: T } | { success: false };
-  },
-  value: unknown,
-): T | undefined {
-  const parsed = schema.safeParse(value);
-  return parsed.success ? parsed.data : undefined;
-}
-
-function fileBasename(path: string | undefined): string | undefined {
-  if (!path) return undefined;
-  return path.replaceAll("\\", "/").split("/").at(-1) || undefined;
 }
 
 function confluenceArray<T>(value: unknown, parse: (item: unknown) => T): T[] {

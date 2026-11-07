@@ -147,32 +147,43 @@ export function scopedConversationCreation(
       return { name: profile, application };
     },
   };
+  const resolveCreationInput = async (
+    input:
+      | Parameters<AgentConfigurationPort["initializeConversation"]>[0]
+      | Omit<
+          Parameters<AgentConfigurationPort["initializeConversation"]>[0],
+          "id"
+        >,
+  ) => {
+    const child = Boolean(input.parentConversationId);
+    const selection = input.application && launches.get(input.application);
+    if (
+      child &&
+      (!selection || selection.parentId !== input.parentConversationId)
+    )
+      throw new Error("Child creation requires a trusted launch selection");
+    const creation = child
+      ? undefined
+      : await service.getCreationPreferences(input.projectId);
+    if (creation?.status === "unavailable")
+      throw new Error("Creation preferences unavailable");
+    const name = child
+      ? selection!.profile
+      : (input.agentProfile?.name ?? creation!.overrides.defaultAgentProfile);
+    const resolved = await resolve(
+      input.projectId,
+      name,
+      input.parentConversationId ?? undefined,
+      child
+        ? undefined
+        : leadSettingsOverridesSchema.parse(input.overrides ?? {}),
+      child ? undefined : input.agentProfile?.digest,
+    );
+    return { child, resolved };
+  };
   const initializeConversation: AgentConfigurationPort["initializeConversation"] =
     async (input) => {
-      const child = Boolean(input.parentConversationId);
-      const selection = input.application && launches.get(input.application);
-      if (
-        child &&
-        (!selection || selection.parentId !== input.parentConversationId)
-      )
-        throw new Error("Child creation requires a trusted launch selection");
-      const creation = child
-        ? undefined
-        : await service.getCreationPreferences(input.projectId);
-      if (creation?.status === "unavailable")
-        throw new Error("Creation preferences unavailable");
-      const name = child
-        ? selection!.profile
-        : (input.agentProfile?.name ?? creation!.overrides.defaultAgentProfile);
-      const resolved = await resolve(
-        input.projectId,
-        name,
-        input.parentConversationId ?? undefined,
-        !child
-          ? leadSettingsOverridesSchema.parse(input.overrides ?? {})
-          : undefined,
-        !child ? input.agentProfile?.digest : undefined,
-      );
+      const { child, resolved } = await resolveCreationInput(input);
       const context = {
         ...(input.config?.instructions != null
           ? { instructions: input.config.instructions }
@@ -207,30 +218,7 @@ export function scopedConversationCreation(
             "id"
           >,
     ) {
-      const child = Boolean(input.parentConversationId);
-      const selection = input.application && launches.get(input.application);
-      if (
-        child &&
-        (!selection || selection.parentId !== input.parentConversationId)
-      )
-        throw new Error("Child creation requires a trusted launch selection");
-      const creation = child
-        ? undefined
-        : await service.getCreationPreferences(input.projectId);
-      if (creation?.status === "unavailable")
-        throw new Error("Creation preferences unavailable");
-      const name = child
-        ? selection!.profile
-        : (input.agentProfile?.name ?? creation!.overrides.defaultAgentProfile);
-      const resolved = await resolve(
-        input.projectId,
-        name,
-        input.parentConversationId ?? undefined,
-        child
-          ? undefined
-          : leadSettingsOverridesSchema.parse(input.overrides ?? {}),
-        child ? undefined : input.agentProfile?.digest,
-      );
+      const { resolved } = await resolveCreationInput(input);
       return {
         model: resolved.resolution.settings.model!,
         reasoningLevel: resolved.resolution.settings.reasoningLevel!,

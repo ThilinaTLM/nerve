@@ -5,7 +5,6 @@ import {
   parseOperationParams,
   parseOperationResult,
   type OperationName,
-  type OperationParams,
   type OperationResult,
 } from "../operations/catalog.js";
 import { eventBatchDataSchema, streamCursorSchema } from "./event-stream.js";
@@ -23,13 +22,6 @@ export const protocolRequestDataSchema = z.object({
     .optional(),
 });
 export type ProtocolRequestData = z.infer<typeof protocolRequestDataSchema>;
-export type ProtocolRequestDataFor<M extends OperationName> = Omit<
-  ProtocolRequestData,
-  "method" | "params"
-> & {
-  readonly method: M;
-  readonly params: OperationParams<M>;
-};
 
 export function parseProtocolRequestData(input: unknown): ProtocolRequestData {
   const request = protocolRequestDataSchema.parse(input);

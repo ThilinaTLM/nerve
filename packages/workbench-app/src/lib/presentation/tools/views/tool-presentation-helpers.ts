@@ -11,12 +11,15 @@ export function basename(path: string): string {
   return path.split(/[\\/]/).pop() || path;
 }
 
-export function formatBytes(bytes: number | undefined): string | undefined {
-  if (bytes === undefined) return undefined;
+export function formatByteSize(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
   const kb = bytes / 1024;
   if (kb < 1024) return `${kb.toFixed(1)} KB`;
   return `${(kb / 1024).toFixed(1)} MB`;
+}
+
+export function formatBytes(bytes: number | undefined): string | undefined {
+  return bytes === undefined ? undefined : formatByteSize(bytes);
 }
 
 export function formatDuration(ms: number | undefined): string | undefined {

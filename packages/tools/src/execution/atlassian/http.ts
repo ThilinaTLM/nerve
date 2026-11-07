@@ -1,5 +1,6 @@
 import { Buffer } from "node:buffer";
 import { ToolExecutionError } from "../errors/tool-error.js";
+import { withTimeoutSignal } from "../process/abort.js";
 
 /**
  * Validates a decoded JSON response and returns it typed. Parsers throw
@@ -20,6 +21,26 @@ const SNIPPET_LIMIT = 200;
 
 export function basicAuthHeader(email: string, token: string): string {
   return `Basic ${Buffer.from(`${email}:${token}`, "utf8").toString("base64")}`;
+}
+
+export function atlassianJsonRequestInit(
+  authorization: string,
+  options: { method?: string; body?: unknown; signal?: AbortSignal },
+): RequestInit {
+  const headers: Record<string, string> = {
+    Accept: "application/json",
+    Authorization: authorization,
+  };
+  const init: RequestInit = {
+    method: options.method ?? "GET",
+    headers,
+    signal: withTimeoutSignal(options.signal, 60_000),
+  };
+  if (options.body !== undefined) {
+    headers["Content-Type"] = "application/json";
+    init.body = JSON.stringify(options.body);
+  }
+  return init;
 }
 
 /** Explicit opt-out: the payload is only forwarded, never inspected. */

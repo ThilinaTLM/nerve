@@ -1,26 +1,9 @@
 import { z } from "zod";
-import { permissionExceptionSchema } from "../permissions/permissions.js";
-
-const projectPermissionExceptionsSchema = z
-  .array(permissionExceptionSchema)
-  .max(256)
-  .superRefine((exceptions, context) => {
-    const ids = new Set<string>();
-    for (const [index, exception] of exceptions.entries()) {
-      if (ids.has(exception.id)) {
-        context.addIssue({
-          code: "custom",
-          message: `Duplicate permission exception id '${exception.id}'`,
-          path: [index, "id"],
-        });
-      }
-      ids.add(exception.id);
-    }
-  });
+import { permissionExceptionListSchema } from "../permissions/permissions.js";
 
 export const projectPermissionsSchema = z.object({
   version: z.literal(2),
-  exceptions: projectPermissionExceptionsSchema,
+  exceptions: permissionExceptionListSchema,
 });
 export type ProjectPermissions = z.infer<typeof projectPermissionsSchema>;
 
