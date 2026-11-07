@@ -715,7 +715,9 @@ export class AgentConfigurationService {
         issues: blocked.issues,
       });
     this.creationScopes.set(this.paths.creation(scope), structuredClone(scope));
-    return this.creation.reload(scope);
+    const result = await this.creation.reload(scope);
+    this.creationSignals.publish(scope);
+    return result;
   }
   async getCreationPreferences(projectId?: string) {
     return readCreationPreferences(
@@ -734,12 +736,14 @@ export class AgentConfigurationService {
     return { view, isCurrent: current };
   }
   async saveCreation(scope: PreferenceScope, mutation: CreationMutation) {
-    return saveCreationPreferences(
+    const result = await saveCreationPreferences(
       this.creation,
       (scope) => this.loadCreation(scope),
       scope,
       mutation,
     );
+    this.creationSignals.publish(scope);
+    return result;
   }
 
   private prepareScope(scope: PreferenceScope) {

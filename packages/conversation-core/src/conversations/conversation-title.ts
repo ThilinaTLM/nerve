@@ -4,6 +4,15 @@ import {
   normalizeTitleImages,
 } from "./conversation-title-images.js";
 import { CONVERSATION_TITLE_IMAGE_MARKER } from "@nervekit/contracts/core";
+import {
+  ACTION_PATTERN,
+  ANY_ACTION_RE,
+  COMMON_FILE_EXTENSIONS,
+  LEADING_ACTION_RE,
+  PROCESS_INSTRUCTION_RE,
+  SEQUENCING_START_RE,
+} from "./conversation-title-vocabulary.js";
+
 const DEFAULT_CONVERSATION_TITLE = "New Conversation";
 const IMAGE_REVIEW_TITLE = "Image Review";
 const FILE_REVIEW_TITLE = "File Review";
@@ -11,6 +20,7 @@ const LINK_REVIEW_TITLE = "Link Review";
 const GENERAL_CHAT_TITLE = "General Chat";
 const MAX_TITLE_CODE_POINTS = 100;
 const SOFT_TITLE_CODE_POINTS = 70;
+const MAX_COMPACT_WORDS = 9;
 const MAX_INPUT_LENGTH = 32_768;
 const PLACEHOLDER = /\uE000(\d+)\uE001/gu;
 
@@ -233,119 +243,12 @@ function protectPaths(
 }
 const MIN_READABLE_CHARS = 3;
 
-const COMMON_FILE_EXTENSIONS = [
-  "astro",
-  "bash",
-  "c",
-  "cc",
-  "conf",
-  "cpp",
-  "cs",
-  "css",
-  "csv",
-  "go",
-  "h",
-  "hpp",
-  "html",
-  "java",
-  "jpeg",
-  "jpg",
-  "js",
-  "json",
-  "jsx",
-  "kt",
-  "lock",
-  "log",
-  "lua",
-  "md",
-  "mdx",
-  "php",
-  "png",
-  "py",
-  "rb",
-  "rs",
-  "scss",
-  "sh",
-  "sql",
-  "svg",
-  "svelte",
-  "swift",
-  "toml",
-  "ts",
-  "tsx",
-  "txt",
-  "vue",
-  "webp",
-  "xml",
-  "yaml",
-  "yml",
-].join("|");
-
-const ACTION_WORDS = [
-  "add",
-  "analyze",
-  "audit",
-  "build",
-  "change",
-  "check",
-  "commit",
-  "compare",
-  "configure",
-  "create",
-  "debug",
-  "deploy",
-  "design",
-  "disable",
-  "document",
-  "edit",
-  "enable",
-  "evaluate",
-  "explain",
-  "find",
-  "fix",
-  "generate",
-  "implement",
-  "improve",
-  "inspect",
-  "install",
-  "investigate",
-  "learn",
-  "login",
-  "make",
-  "migrate",
-  "open",
-  "optimize",
-  "push",
-  "rebase",
-  "refactor",
-  "remove",
-  "rename",
-  "report",
-  "research",
-  "resolve",
-  "review",
-  "rewrite",
-  "run",
-  "set up",
-  "show",
-  "simplify",
-  "stage",
-  "test",
-  "understand",
-  "update",
-  "upgrade",
-  "use",
-  "write",
-];
-
-const ACTION_PATTERN = ACTION_WORDS.join("|").replace(" ", "\\s+");
-const LEADING_ACTION_RE = new RegExp(`^(?:${ACTION_PATTERN})(?:\\s|:|$)`, "iu");
-const ANY_ACTION_RE = new RegExp(`\\b(?:${ACTION_PATTERN})\\b`, "iu");
-
 interface TitleCandidate {
   text: string;
   sourceIndex: number;
   explicitEntity: boolean;
+  /** Starts with a sequencing word ("Then", "Finally") or is a generic process instruction. */
+  process: boolean;
 }
 
 function fileReferencePattern(extensions = COMMON_FILE_EXTENSIONS): RegExp {
@@ -553,11 +456,25 @@ function candidateFragments(
     if (hasFileReference(raw) && isOnlyFileReference(raw)) continue;
     const normalized = normalizeProse(raw);
     for (const fragment of sentenceFragments(normalized)) {
+      const process =
+        SEQUENCING_START_RE.test(fragment) ||
+        PROCESS_INSTRUCTION_RE.test(fragment);
       const variants = [removeRequestPrefix(fragment)];
       for (const clause of fragment.split(/[,;:]\s+/u).slice(1)) {
         const normalizedClause = normalizeProse(clause);
         if (LEADING_ACTION_RE.test(normalizedClause))
           variants.push(normalizedClause);
+      }
+      // The main task usually precedes a colon and may join two actions with "and".
+      const beforeColon = fragment.split(/:\s/u)[0] ?? "";
+      if (beforeColon !== fragment) variants.push(beforeColon);
+      if (wordCount(beforeColon || fragment) > MAX_COMPACT_WORDS) {
+        for (const clause of (beforeColon || fragment)
+          .split(/\s+and\s+/u)
+          .slice(1)) {
+          if (LEADING_ACTION_RE.test(clause))
+            variants.push(clause.replace(/\s+(?:there|here)$/iu, ""));
+        }
       }
       for (const variant of variants) {
         const transformed = safeEnglishTransformation(variant);
@@ -568,6 +485,7 @@ function candidateFragments(
           candidates.push({
             text: transformed,
             sourceIndex,
+            process,
             explicitEntity:
               /\uE000\d+\uE001/u.test(transformed) ||
               containsExplicitEntity(transformed, entities),
@@ -581,12 +499,15 @@ function candidateFragments(
 }
 
 function scoreCandidate(candidate: TitleCandidate): number {
-  const { text, sourceIndex, explicitEntity } = candidate;
+  const { text, sourceIndex, explicitEntity, process } = candidate;
   const words = wordCount(text.replace(PLACEHOLDER, "reference"));
   if (words === 0) return Number.NEGATIVE_INFINITY;
 
   let score = Math.min(words, 12) * 2;
-  if (words > 16) score -= (words - 16) * 1.5;
+  // Prefer compact titles (about 4-9 words).
+  if (words > MAX_COMPACT_WORDS) score -= (words - MAX_COMPACT_WORDS) * 3;
+  if (process) score -= 40;
+  if (sourceIndex === 0) score += 20;
   if (LEADING_ACTION_RE.test(text)) score += 36;
   else if (ANY_ACTION_RE.test(text)) score += 14;
   if (/^(?:how|what|why|when|where|who)\b/iu.test(text)) score += 12;

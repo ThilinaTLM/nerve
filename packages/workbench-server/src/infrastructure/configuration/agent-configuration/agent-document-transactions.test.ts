@@ -325,3 +325,20 @@ void test("equal reasoning becomes inherited before validating a changed model's
     );
   }
 });
+
+void test("creation saves broadcast the changed scope; initial loads and conflicts do not", async (t) => {
+  const f = await fixture(t);
+  const signals: unknown[] = [];
+  f.service.subscribeCreation((scope) => signals.push(scope));
+  await f.service.loadCreation(user);
+  assert.deepEqual(signals, []);
+  await f.service.saveCreation(
+    user,
+    mutation(0, "missing", { scopedModels: [A] }),
+  );
+  assert.deepEqual(signals, [user]);
+  await assert.rejects(
+    f.service.saveCreation(user, mutation(0, "missing", { scopedModels: [B] })),
+  );
+  assert.deepEqual(signals, [user]);
+});

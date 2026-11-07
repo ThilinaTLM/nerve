@@ -83,7 +83,9 @@ function normalizeSession(session: ProjectTabSession): ProjectTabSession {
 
 export function saveVisibleProjectSession(): void {
   const key = workspaceState.selectedProjectKey;
-  if (!key) return;
+  // During startup the persisted key is hydrated before the project is
+  // selected, so the in-memory tabs are not yet that project's tabs.
+  if (!key || !workspaceState.selectedProjectId) return;
   workspaceState.projectTabSessions[key] = normalizeSession({
     tabs: [...workspaceState.openCenterTabs],
     active: workspaceState.activeCenterTab,
@@ -133,7 +135,7 @@ export function recordTabActivation(tab: CenterTabIdentity): void {
   ) {
     workspaceState.globalCenterTabs = [...workspaceState.globalCenterTabs, tab];
   }
-  if (workspaceState.selectedProjectKey) saveVisibleProjectSession();
+  if (workspaceState.selectedProjectId) saveVisibleProjectSession();
   else persistWorkspaceTabSessions();
 }
 

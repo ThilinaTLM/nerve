@@ -434,6 +434,27 @@ describe("image markers", () => {
   });
 });
 
+describe("multi-sentence prompts", () => {
+  for (const [prompt, expected] of [
+    [
+      "Create a new folder qa-sandbox in the project root and build a small Python CLI todo app there: a todo.py module with add/list/done/remove commands storing JSON, a README.md, and unit tests in test_todo.py. Run the tests with python3 -m unittest and fix any failures. Then use grep and read to review your own code, and finish with a short summary. Work step by step with separate tool calls; keep the todo list updated as you go.",
+      "Build a small Python CLI todo app",
+    ],
+    [
+      "Refactor the billing invoice export to stream rows. Then run the tests. Finally, review your own changes and finish with a short summary.",
+      "Refactor the billing invoice export to stream rows",
+    ],
+    [
+      "Add dark mode to the settings page. Also update the README and work step by step.",
+      "Add dark mode to the settings page",
+    ],
+  ] as const) {
+    it(prompt.slice(0, 40), () =>
+      assert.equal(deriveConversationTitle(prompt), expected),
+    );
+  }
+});
+
 describe("duplicate words at protected reference boundaries", () => {
   for (const [prompt, expected] of [
     [

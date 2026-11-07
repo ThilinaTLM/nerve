@@ -759,3 +759,32 @@ test("built-in read-only and planning sets allow sub-agent delegation", () => {
     assert.equal(decision(set, "subagent_status", {}).decision, "allow", set);
   }
 });
+
+test("invalid tool arguments produce field-level errors", () => {
+  assert.throws(
+    () =>
+      normalizePermissionRequest({
+        toolName: "edit",
+        args: {},
+        roots,
+        conversationId: "conv_test",
+      }),
+    (error: Error) =>
+      /^edit: /.test(error.message) &&
+      /missing required "path"/.test(error.message) &&
+      /missing required "edits"/.test(error.message) &&
+      /arguments were empty/.test(error.message) &&
+      !/validated/.test(error.message),
+  );
+  assert.throws(
+    () =>
+      normalizePermissionRequest({
+        toolName: "edit",
+        args: { path: "a.ts", edits: [] },
+        roots,
+        conversationId: "conv_test",
+      }),
+    (error: Error) =>
+      /"edits"/.test(error.message) && !/were empty/.test(error.message),
+  );
+});

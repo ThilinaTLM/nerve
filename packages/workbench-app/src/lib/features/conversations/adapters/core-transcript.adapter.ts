@@ -23,6 +23,33 @@ import type {
 import type { ConversationRunOutcome } from "$lib/presentation/state/conversation-render-state";
 import type { LiveAssistantBlock } from "../state/core-conversation-store.svelte";
 
+type Memo<T> = { deps: readonly unknown[]; value: T };
+
+/**
+ * Returns the previously built value for `source` while `deps` are unchanged.
+ * Stable row/toolCall identity lets downstream deriveds short-circuit instead
+ * of re-presenting every card on each snapshot or delta.
+ */
+function memoized<S extends object, T>(
+  cache: WeakMap<S, Memo<T>>,
+  source: S,
+  deps: readonly unknown[],
+  build: () => T,
+): T {
+  const hit = cache.get(source);
+  if (hit && hit.deps.every((dep, i) => Object.is(dep, deps[i])))
+    return hit.value;
+  const value = build();
+  cache.set(source, { deps, value });
+  return value;
+}
+
+const entryCache = new WeakMap<
+  TransferredConversationEvent,
+  Memo<ConversationEntry>
+>();
+const toolRecordCache = new WeakMap<object, Memo<ToolCallTranscriptRecord>>();
+
 function toolPreviewText(value: unknown): string {
   if (typeof value === "string") return value;
   if (!value || typeof value !== "object" || Array.isArray(value)) return "";
@@ -165,6 +192,31 @@ function toolRecord(
   source:
     | ToolCall
     | Extract<TransferredConversationEvent, { type: "tool_call_response" }>,
+  runId: string,
+): ToolCallTranscriptRecord {
+  return memoized(
+    toolRecordCache,
+    source,
+    [
+      "state" in source ? `${source.state}:${source.updatedAt}` : undefined,
+      snapshot.conversation.projectId,
+      snapshot.conversation.id,
+      snapshot.config.workingDirectory,
+      runId,
+      conversationCatalog.toolRisks[
+        "payload" in source ? source.payload.toolName : source.toolName
+      ],
+    ],
+    () => buildToolRecord(snapshot, source, runId),
+  );
+}
+
+function buildToolRecord(
+  snapshot: ConversationSnapshot,
+  source:
+    | ToolCall
+    | Extract<TransferredConversationEvent, { type: "tool_call_response" }>,
+  runId: string,
 ): ToolCallTranscriptRecord {
   const open = "state" in source;
   const p = open ? source : source.payload;
@@ -284,7 +336,7 @@ function toolRecord(
     providerToolCallId: p.providerCallId ?? undefined,
     contentIndex: p.contentIndex ?? undefined,
     turnId: source.turnId ?? undefined,
-    runId: source.turnId ?? undefined,
+    runId,
     liveMessageId: p.assistantEventId ?? undefined,
     createdAt: time,
     updatedAt: time,
@@ -327,24 +379,6 @@ export function conversationTranscript(input: {
         )
       ),
   );
-  const entries = visibleEvents.map((event) => {
-    const entry = eventEntry(event);
-    if (
-      event.type === "system_event" &&
-      event.payload.subtype === "task_result" &&
-      event.payload.task.kind === "bash"
-    ) {
-      const bashId = event.payload.task.id;
-      const bash = snapshot.asyncBash.find((item) => item.id === bashId);
-      if (bash)
-        entry.details = {
-          ...(entry.details as Record<string, unknown>),
-          command: bash.command,
-          commandPreview: bash.command.split("\n")[0],
-        };
-    }
-    return entry;
-  });
   const runByTurn = new Map<string, string>();
   let executionId: string | undefined;
   for (const event of events) {
@@ -358,12 +392,32 @@ export function conversationTranscript(input: {
           : event.payload.executionId;
     if (event.turnId && executionId) runByTurn.set(event.turnId, executionId);
   }
+  const entries = visibleEvents.map((event) => {
+    const bashId =
+      event.type === "system_event" &&
+      event.payload.subtype === "task_result" &&
+      event.payload.task.kind === "bash"
+        ? event.payload.task.id
+        : undefined;
+    const command = bashId
+      ? snapshot.asyncBash.find((item) => item.id === bashId)?.command
+      : undefined;
+    const turnRunId = event.turnId
+      ? (runByTurn.get(event.turnId) ?? event.turnId)
+      : undefined;
+    return memoized(entryCache, event, [turnRunId, command], () => {
+      const entry = eventEntry(event);
+      if (command !== undefined)
+        entry.details = {
+          ...(entry.details as Record<string, unknown>),
+          command,
+          commandPreview: command.split("\n")[0],
+        };
+      if (turnRunId) entry.runId = turnRunId;
+      return entry;
+    });
+  });
   const tools = new Map<string, ToolCallTranscriptRecord>();
-  for (const e of events)
-    if (e.type === "tool_call_response")
-      tools.set(e.payload.toolCallId, toolRecord(snapshot, e));
-  for (const call of snapshot.toolCalls)
-    tools.set(call.id, toolRecord(snapshot, call));
   const presentations = promptPresentations(snapshot, events);
   const queuedPrompts: QueuedPromptRecord[] = snapshot.queue
     .filter((q) => q.source === "user")
@@ -394,10 +448,19 @@ export function conversationTranscript(input: {
     execution.payload.transition !== "started"
       ? execution.payload.executionId
       : (started?.id ?? liveBlocks[0]?.turnId ?? snapshot.conversation.id);
-  for (const entry of entries)
-    if (entry.turnId) entry.runId = runByTurn.get(entry.turnId) ?? entry.turnId;
-  for (const call of tools.values())
-    call.runId = call.turnId ? (runByTurn.get(call.turnId) ?? runId) : runId;
+  const toolRunId = (turnId: string | undefined) =>
+    turnId ? (runByTurn.get(turnId) ?? runId) : runId;
+  for (const e of events)
+    if (e.type === "tool_call_response")
+      tools.set(
+        e.payload.toolCallId,
+        toolRecord(snapshot, e, toolRunId(e.turnId ?? undefined)),
+      );
+  for (const call of snapshot.toolCalls)
+    tools.set(
+      call.id,
+      toolRecord(snapshot, call, toolRunId(call.turnId ?? undefined)),
+    );
   const running =
     snapshot.conversation.status === "running" ||
     snapshot.conversation.status === "waiting";

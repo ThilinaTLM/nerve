@@ -39,7 +39,11 @@ import {
   type FetchedHistory,
 } from "./conversation-history";
 
-const HISTORY_PAGE_SIZE = 100;
+// The server caps each history page at EVENT_PAGE_BYTES (512 KiB), about 130
+// events for typical tool-heavy transcripts, so the byte cap is the real bound;
+// the limit only needs to be above that without making the server map
+// thousands of rows it will discard.
+const HISTORY_PAGE_SIZE = 250;
 
 /** One store serves a full pane or a read-only child peek. */
 export class ConversationStore {
@@ -162,11 +166,16 @@ export class ConversationStore {
   }
 
   private async loadSnapshot(): Promise<void> {
+    // Configuration is independent of the event stream, so it overlaps the
+    // snapshot and history requests. History must still start after the
+    // snapshot: it has to include every event up to `snapshot.lastSequence`.
+    const configuration = this.refreshConfiguration();
+    configuration.catch(() => undefined);
     const snapshot = await requestConversation("conversation.getSnapshot", {
       conversationId: this.conversationId,
     });
-    await this.refreshConfiguration();
     const history = await this.fetchHistory();
+    await configuration;
     if (this.disposed) return;
     snapshot.conversation.headEventId = history.headEventId;
     this.clearLive();

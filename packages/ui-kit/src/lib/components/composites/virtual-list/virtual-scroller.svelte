@@ -25,6 +25,7 @@ import type {
 } from "./virtual-scroller-types";
 import { shouldCommitVirtualMeasurement } from "./virtual-measurement";
 import { planJumpToEnd } from "./virtual-scroll-jump";
+import { createScrollMetrics, distanceFromEnd } from "./scroll-metrics";
 
 /* eslint-disable no-useless-assignment -- $bindable defaults declare parent bindings before later reactive updates. */
 let {
@@ -57,6 +58,36 @@ let {
 let viewportEl = $state<HTMLDivElement | null>(null);
 
 const DEFAULT_ESTIMATE = 64;
+
+// virtual-core reads `scrollHeight - clientHeight` on every `isAtEnd`, which
+// forces layout after DOM writes. Our own at-end checks share one read per
+// frame (invalidated when row sizes or the spacer height change).
+const scrollMetrics = createScrollMetrics(() => {
+  const element = viewportEl;
+  return element ? element.scrollHeight - element.clientHeight : 0;
+});
+
+function isAtEndShared(threshold = scrollEndThreshold): boolean {
+  const element = viewportEl;
+  if (!element) return true;
+  return (
+    distanceFromEnd(scrollMetrics.maxScrollOffset(), element.scrollTop) <=
+    (threshold ?? instance.options.scrollEndThreshold)
+  );
+}
+
+// Set while a non-smooth follow scroll runs: it lands on the end by
+// construction, so `atEnd` is known without measuring.
+let followScrolling = false;
+
+function followScrollToEnd(behavior: VirtualScrollBehavior) {
+  followScrolling = behavior !== "smooth";
+  try {
+    instance.scrollToEnd({ behavior });
+  } finally {
+    followScrolling = false;
+  }
+}
 
 // Persisted per-scope height cache (seeded into `estimateSize` so remounts
 // paint at real height without a synchronous reflow). Resolved reactively in
@@ -116,7 +147,7 @@ const virtualizer = createVirtualizer<HTMLDivElement, HTMLElement>({
     if (options.behavior !== "smooth" && element) {
       reportScrollOffset?.(element.scrollTop, false);
       // The range may be unchanged (no notify), but the end state is not.
-      atEnd = instance.isAtEnd(scrollEndThreshold);
+      atEnd = followScrolling ? true : isAtEndShared();
     }
   },
 });
@@ -153,6 +184,8 @@ const FOLLOW_SETTLE_FRAMES = 8;
 let followFrame: number | undefined;
 let followSettleFrames = 0;
 let postMeasurementFollowPending = false;
+// True once this follow run issued its first `scrollToEnd`.
+let followScrollPending = false;
 
 function shouldFollowEnd(): boolean {
   return anchor === "end" && Boolean(followOutput);
@@ -182,16 +215,17 @@ function schedulePostMeasurementFollow() {
     postMeasurementFollowPending = false;
     if (!viewportEl?.isConnected || !shouldFollowEnd()) return;
 
-    instance.scrollToEnd({ behavior: "auto" });
+    followScrollToEnd("auto");
     syncFromVirtualizer();
-    if (!instance.isAtEnd(scrollEndThreshold)) {
-      scheduleFollowToEnd(3);
-    }
+    // virtual-core's own reconcile frame converges the target; only fall back
+    // to the settle loop (which checks at-end before scrolling) if needed.
+    if (!atEnd) scheduleFollowToEnd(3);
   });
 }
 
 function scheduleFollowToEnd(settleFrames = FOLLOW_SETTLE_FRAMES) {
   if (!shouldFollowEnd()) return;
+  if (followSettleFrames === 0) followScrollPending = false;
   followSettleFrames = Math.max(followSettleFrames, settleFrames);
   if (followFrame !== undefined) return;
 
@@ -202,10 +236,18 @@ function scheduleFollowToEnd(settleFrames = FOLLOW_SETTLE_FRAMES) {
       return;
     }
 
-    instance.scrollToEnd({ behavior: followBehavior() });
-    syncFromVirtualizer();
+    // `scrollToEnd` schedules virtual-core's reconcile for the next frame, so
+    // later settle frames re-issue it only while still short of the end. That
+    // check runs after the reconcile frame, never alongside it.
+    if (followScrollPending && isAtEndShared()) {
+      atEnd = true;
+    } else {
+      followScrollPending = true;
+      followScrollToEnd(followBehavior());
+      syncFromVirtualizer();
+    }
     followSettleFrames -= 1;
-    if (followSettleFrames > 0 && !instance.isAtEnd(scrollEndThreshold)) {
+    if (followSettleFrames > 0 && !atEnd) {
       scheduleFollowToEnd(followSettleFrames);
     } else {
       followSettleFrames = 0;
@@ -215,7 +257,14 @@ function scheduleFollowToEnd(settleFrames = FOLLOW_SETTLE_FRAMES) {
 
 function syncFromVirtualizer() {
   virtualItems = instance.getVirtualItems();
-  totalSize = instance.getTotalSize();
+  const nextTotalSize = instance.getTotalSize();
+  if (nextTotalSize !== totalSize) {
+    // The spacer height (and so the scroll extent) changes now and again once
+    // Svelte commits it; drop any max-offset read taken before either.
+    scrollMetrics.invalidate();
+    void tick().then(() => scrollMetrics.invalidate());
+  }
+  totalSize = nextTotalSize;
   const range = instance.range;
   if (
     range?.startIndex !== lastVisibleRange?.startIndex ||
@@ -224,7 +273,7 @@ function syncFromVirtualizer() {
     lastVisibleRange = range ? { ...range } : null;
     visibleRange = lastVisibleRange;
   }
-  atEnd = instance.isAtEnd(scrollEndThreshold);
+  atEnd = isAtEndShared();
 }
 
 // Mount the virtualizer and mirror every internal notification into reactive
@@ -287,7 +336,7 @@ $effect(() => {
 // Raw scroll events update `atEnd` with sub-range precision (the virtualizer
 // only notifies on range changes, not every scrolled pixel).
 function handleScroll() {
-  atEnd = instance.isAtEnd(scrollEndThreshold);
+  atEnd = isAtEndShared();
 }
 
 let jumpFrame: number | undefined;
@@ -359,6 +408,7 @@ function sharedResizeObserver(): ResizeObserver | undefined {
       const node = entry.target as HTMLElement;
       if (registeredMeasureNodes.has(node)) pendingMeasureNodes.add(node);
     }
+    scrollMetrics.invalidate();
     cancelMeasureFrame();
     flushMeasurements();
   });
@@ -468,6 +518,7 @@ $effect(() => {
     cancelFollowFrame();
     cancelJumpFrame();
     cancelMeasureFrame();
+    scrollMetrics.dispose();
     postMeasurementFollowPending = false;
     resizeObserver?.disconnect();
     resizeObserver = undefined;

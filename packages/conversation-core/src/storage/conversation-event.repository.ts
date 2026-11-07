@@ -225,21 +225,26 @@ export class ConversationEventRepository {
     const head = this.get(String(headEventId));
     if (!head || head.conversationId !== conversationId)
       throw new Error("History head must belong to the conversation");
-    return this.db.sqlite
-      .prepare(`WITH RECURSIVE path AS (
-      SELECT * FROM conversation_event WHERE conversation_id = ? AND id = ?
-      UNION ALL SELECT e.* FROM conversation_event e JOIN path p ON e.id = p.previous_event_id WHERE e.conversation_id = ?
-    ) SELECT * FROM path WHERE (? IS NULL OR sequence < (SELECT sequence FROM path WHERE id = ?))
-      ORDER BY sequence DESC LIMIT ?`)
-      .all(
-        conversationId,
-        head.id,
-        conversationId,
-        page.beforeEventId ?? null,
-        page.beforeEventId ?? null,
-        page.limit,
-      )
-      .map(this.mapEvent);
+    return (
+      this.db.sqlite
+        // Walk the path over narrow columns; payloads are read only for the page.
+        .prepare(`WITH RECURSIVE path(id, previous_event_id, sequence) AS (
+      SELECT id, previous_event_id, sequence FROM conversation_event WHERE conversation_id = ? AND id = ?
+      UNION ALL SELECT e.id, e.previous_event_id, e.sequence FROM conversation_event e JOIN path p ON e.id = p.previous_event_id WHERE e.conversation_id = ?
+    ), page AS (
+      SELECT id FROM path WHERE (? IS NULL OR sequence < (SELECT sequence FROM path WHERE id = ?))
+      ORDER BY sequence DESC LIMIT ?
+    ) SELECT e.* FROM conversation_event e JOIN page ON e.id = page.id ORDER BY e.sequence DESC`)
+        .all(
+          conversationId,
+          head.id,
+          conversationId,
+          page.beforeEventId ?? null,
+          page.beforeEventId ?? null,
+          page.limit,
+        )
+        .map(this.mapEvent)
+    );
   }
 
   since(conversationId: string, sequence: number): ConversationEvent[] {

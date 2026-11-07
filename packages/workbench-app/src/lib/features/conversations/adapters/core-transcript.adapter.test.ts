@@ -83,3 +83,29 @@ test("unrelated notifications and actual command results remain visible", () => 
     events.map(({ id }) => ({ id, kind: "message", text: id })),
   );
 });
+
+test("unchanged rows and tool calls keep identity across a delta", () => {
+  const user = notice("user", "background-task:completed");
+  const response = {
+    id: "resp",
+    conversationId: "conversation",
+    previousEventId: null,
+    turnId: "turn",
+    inputId: null,
+    sequence: 2,
+    createdAt,
+    type: "tool_call_response",
+    llmRepresentation: "none",
+    payload: {
+      toolCallId: "tool-1",
+      toolName: "bash",
+      outcome: "completed",
+      startedAt: createdAt,
+      userProjection: { argsPreview: { command: "ls" }, resultPreview: "ok" },
+    },
+  } as unknown as TransferredConversationEvent;
+  const first = transcript([user, response]);
+  const next = transcript([user, response, notice("later", "other:x")]);
+  assert.equal(next.entries[0], first.entries[0]);
+  assert.equal(next.toolCalls[0], first.toolCalls[0]);
+});
