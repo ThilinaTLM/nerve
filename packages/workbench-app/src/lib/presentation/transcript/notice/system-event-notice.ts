@@ -45,9 +45,15 @@ function bodyChips(notice: SystemEventNotice): NoticeChip[] {
   return lines > COLLAPSED_LINES ? [{ text: plural(lines, "line") }] : [];
 }
 
+type NoticeOptions = {
+  onOpenFile?: (path: string) => void;
+  /** Opens another conversation, e.g. a fork's source. */
+  onOpenConversation?: (conversationId: string) => void;
+};
+
 export function systemEventNoticeModel(
   notice: SystemEventNotice,
-  options: { onOpenFile?: (path: string) => void } = {},
+  options: NoticeOptions = {},
 ): TranscriptNoticeModel {
   const model = systemEventNoticeHeader(notice, options);
   const chips = [...(model.chips ?? []), ...bodyChips(notice)];
@@ -91,11 +97,37 @@ function subagentNoticeHeader(
   };
 }
 
+function forkNoticeHeader(
+  details: Record<string, unknown>,
+  onOpenConversation: NoticeOptions["onOpenConversation"],
+): TranscriptNoticeModel {
+  const title = textValue(details.sourceTitle);
+  const sourceId = textValue(details.sourceConversationId);
+  return {
+    kind: "fork",
+    tone: "info",
+    glyph: "branch",
+    badge: "forked",
+    arg: title,
+    statusLabel: `Forked from ${title ?? "another conversation"}; agent notified`,
+    action:
+      sourceId && onOpenConversation
+        ? {
+            label: "Open source",
+            ariaLabel: `Open source conversation ${title ?? ""}`.trim(),
+            onClick: () => onOpenConversation(sourceId),
+          }
+        : undefined,
+  };
+}
+
 function systemEventNoticeHeader(
   notice: SystemEventNotice,
-  options: { onOpenFile?: (path: string) => void },
+  options: NoticeOptions,
 ): TranscriptNoticeModel {
   const details = detailsOf(notice);
+  if (details.subtype === "fork")
+    return forkNoticeHeader(details, options.onOpenConversation);
   const type = textValue(details.type);
   if (notice.kind === "branch_summary") {
     return {

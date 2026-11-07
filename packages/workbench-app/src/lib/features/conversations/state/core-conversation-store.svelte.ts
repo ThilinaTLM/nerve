@@ -49,6 +49,8 @@ import {
 // the limit only needs to be above that without making the server map
 // thousands of rows it will discard.
 const HISTORY_PAGE_SIZE = 1000;
+// Forking copies the conversation's files, which can outlast the 30s default.
+const FORK_TIMEOUT_MS = 5 * 60_000;
 
 /** One store serves a full pane or a read-only child peek. */
 export class ConversationStore {
@@ -597,6 +599,14 @@ export class ConversationStore {
       conversationId: this.conversationId,
       eventId,
     });
+  }
+  /** Copies the path up to `eventId` into a new conversation; this one is unchanged. */
+  fork(eventId: string): Promise<ConversationSnapshot> {
+    return requestConversation(
+      "conversation.fork",
+      { conversationId: this.conversationId, eventId },
+      { timeoutMs: FORK_TIMEOUT_MS },
+    );
   }
   async loadHistoryTree(): Promise<void> {
     this.historyEvents ??= [...this.events];

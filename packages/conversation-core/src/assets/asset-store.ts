@@ -5,6 +5,7 @@ import {
   lstat,
   mkdir,
   open,
+  readdir,
   readFile,
   rename,
   rm,
@@ -277,6 +278,34 @@ export class AssetStore {
         this.storage.assets.delete(asset.id);
       }
     }
+  }
+
+  /**
+   * Removes `conversations/{id}` directories left by a crash between a fork's file copy
+   * and its database commit. Only well-formed conversation IDs without a row are touched.
+   */
+  async removeUnownedConversationDirectories(): Promise<string[]> {
+    const root = this.path("conversations");
+    let names: string[];
+    try {
+      names = await readdir(root);
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === "ENOENT") return [];
+      throw error;
+    }
+    const known = new Set(
+      this.storage.conversations.identities().map(({ id }) => id),
+    );
+    const removed: string[] = [];
+    for (const name of names) {
+      if (!/^conv_[0-9A-Za-z]{26}$/.test(name) || known.has(name)) continue;
+      const path = resolve(root, name);
+      const info = await lstat(path).catch(() => undefined);
+      if (!info?.isDirectory() || info.isSymbolicLink()) continue;
+      await rm(path, { recursive: true, force: true });
+      removed.push(name);
+    }
+    return removed;
   }
 
   private assertSegment(value: string): void {

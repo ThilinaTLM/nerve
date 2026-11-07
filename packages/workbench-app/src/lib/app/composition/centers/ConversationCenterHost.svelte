@@ -76,6 +76,10 @@ import {
 import { createInteractionActions } from "./conversation-center/interaction-actions.svelte";
 import { ComposerSession } from "./conversation-center/composer-session.svelte";
 import { runActivePaneAction } from "./conversation-center/prompt-submission.svelte";
+import {
+  forkConversation,
+  isForking,
+} from "./conversation-center/fork-conversation.svelte";
 import { createQueuedPromptActions } from "./conversation-center/queued-prompts.svelte";
 import { CenterPromptSuggestions } from "./conversation-center/prompt-suggestions.svelte";
 import { ConversationAgentView } from "./conversation-center/agent-view.svelte";
@@ -498,6 +502,8 @@ const session = $derived({
   },
 });
 const stoppable = $derived(hasStoppableWork(store?.snapshot));
+// A fork needs the source idle, so history actions wait for it to finish.
+const historyLocked = $derived(stoppable || isForking(conversationId));
 </script>
 
 <WorkbenchConversationAdapter
@@ -645,7 +651,12 @@ const stoppable = $derived(hasStoppableWork(store?.snapshot));
     : (entry) => {
         composerSession.editEntry(entry);
       }}
-  rewindLocked={stoppable}
+  onForkFromEntry={agentView.viewedChildId
+    ? undefined
+    : (entryId) => {
+        if (store) forkConversation(store, entryId);
+      }}
+  rewindLocked={historyLocked}
   onOpenHistory={() => {
     transcriptView = "history";
   }}
@@ -658,9 +669,12 @@ const stoppable = $derived(hasStoppableWork(store?.snapshot));
       <ConversationHistoryHost
         {store}
         readOnly={Boolean(agentView.viewedChildId)}
-        rewindLocked={stoppable}
+        rewindLocked={historyLocked}
         onRewind={(entryId) =>
           void runActivePaneAction(() => rewindFromHistory(entryId))}
+        onFork={(entryId) => {
+          if (store) forkConversation(store, entryId);
+        }}
         onEdit={(entry) => {
           composerSession.editEntry(entry);
           transcriptView = "conversation";

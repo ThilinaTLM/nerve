@@ -173,6 +173,8 @@ export type WorkbenchConversationAdapterProps = {
     summarize?: boolean,
   ) => void;
   onEditEntry?: (entry: ConversationEntry) => void;
+  /** Starts a new conversation from the active path up to this entry. */
+  onForkFromEntry?: (entryId: string) => void;
   onOpenHistory?: () => void;
   /** Disables rewind and edit while the conversation has running work. */
   rewindLocked?: boolean;

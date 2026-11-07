@@ -100,6 +100,15 @@ export interface AgentConfigurationPort {
   prepareCreation(
     input: CreateConversationInput,
   ): Promise<Omit<ConversationConfig, "conversationId">>;
+  /**
+   * Fork support: copies the source's conversation-scoped configuration documents
+   * byte for byte. Runs before the fork's rows exist, so it must not need the
+   * conversation to be known; the fork's documents are read lazily afterwards.
+   */
+  copyConversationConfiguration(
+    sourceId: string,
+    forkId: string,
+  ): Promise<void>;
   /** Release when preparation is discarded or all calls from the request have settled. */
   releaseRequest?(captureId: string): void;
   /** Identity exists, but no execution may start before durable configuration creation completes. */

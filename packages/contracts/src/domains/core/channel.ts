@@ -340,6 +340,15 @@ export const conversationChannelOperations = [
     "operation.conversation.selectHead",
   ),
   defineOperation(
+    "conversation.fork",
+    coreOperationSchemas["conversation.fork"].params,
+    coreOperationSchemas["conversation.fork"].result,
+    "mutation",
+    "none",
+    host,
+    "operation.conversation.fork",
+  ),
+  defineOperation(
     "conversation.compact",
     coreOperationSchemas["conversation.compact"].params,
     coreOperationSchemas["conversation.compact"].result,

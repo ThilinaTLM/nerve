@@ -130,6 +130,7 @@ let {
   onMoveQueuedPromptToComposer,
   onNavigateToEntry,
   onEditEntry,
+  onForkFromEntry,
   onOpenHistory,
   rewindLocked = false,
   transcriptView = "conversation",
@@ -298,6 +299,7 @@ function menuForTranscript(
     quoteInComposer,
     onNavigateToEntry,
     onEditEntry,
+    onForkFromEntry,
     onOpenHistory,
     rewindLocked: rewindLocked || compacting || rendered.sending,
   });

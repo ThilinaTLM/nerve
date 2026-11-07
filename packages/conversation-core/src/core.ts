@@ -26,6 +26,7 @@ import {
   type CreateConversationInput,
   type DefaultConversationConfig,
 } from "./conversations/conversation.service.js";
+import { ConversationForker } from "./conversations/conversation-fork.js";
 import { ProjectService } from "./conversations/project.service.js";
 import { TrustedResourceService } from "./conversations/trusted-resource.service.js";
 import { InputQueueService } from "./inputs/input-queue.service.js";
@@ -106,6 +107,7 @@ export class ConversationCore {
   private readonly runner: ConversationRunner;
   private readonly modelTurn: ModelTurn;
   private readonly status: StatusService;
+  private readonly forker: ConversationForker;
   private readonly creations = new Map<string, Promise<ConversationSnapshot>>();
   private readonly referenceTasks = new Set<Promise<void>>();
   private starting?: Promise<void>;
@@ -276,6 +278,15 @@ export class ConversationCore {
       isExecuting: (id) => this.scheduler.isExecuting(id),
       discard: (ids, remove) => this.scheduler.discard(ids, remove),
       status: this.status,
+    });
+    this.forker = new ConversationForker({
+      storage: options.storage,
+      dataDir: options.dataDir,
+      configuration: options.configuration,
+      emit,
+      now,
+      assertQuiescent: (id) => this.conversations.assertQuiescent(id),
+      snapshot: (id) => this.conversations.snapshot(id),
     });
     this.projects = new ProjectService(
       options.storage,
@@ -490,6 +501,10 @@ export class ConversationCore {
   selectHead(id: string, eventId: string | null) {
     this.conversations.selectHead(id, eventId);
   }
+  /** New idle top-level conversation holding the source's history up to `eventId`. */
+  fork(id: string, eventId: string): Promise<ConversationSnapshot> {
+    return this.forker.fork(id, eventId);
+  }
   compact(id: string): void {
     if (!this.options.storage.conversations.get(id))
       throw new Error("Conversation not found");
@@ -583,14 +598,19 @@ export class ConversationCore {
   }
   start(): Promise<void> {
     if (this.closing) throw new Error("Conversation core is closed");
-    return (this.starting ??= recoverCore({
-      storage: this.options.storage,
-      inputs: this.inputs,
-      asyncBash: this.asyncBash,
-      toolCalls: this.toolCalls,
-      status: this.status,
-      scheduler: this.scheduler,
-    }));
+    return (this.starting ??= this.assets
+      .removeUnownedConversationDirectories()
+      .catch(() => undefined)
+      .then(() =>
+        recoverCore({
+          storage: this.options.storage,
+          inputs: this.inputs,
+          asyncBash: this.asyncBash,
+          toolCalls: this.toolCalls,
+          status: this.status,
+          scheduler: this.scheduler,
+        }),
+      ));
   }
   close(): Promise<void> {
     return (this.closing ??= this.shutdown().catch((error) => {

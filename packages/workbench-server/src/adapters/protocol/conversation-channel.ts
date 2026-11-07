@@ -232,6 +232,18 @@ export function createConversationProtocolSession(
       owners.set(input.id, input.projectId);
       return cachedConversationSnapshot(state.agentConfiguration, snapshot);
     },
+    "conversation.fork": async ({ conversationId, eventId }) => {
+      const snapshot = await core.fork(conversationId, eventId);
+      const id = snapshot.conversation.id;
+      owners.set(id, snapshot.conversation.projectId);
+      // Load the copied documents and fill the display summary, as for any existing conversation.
+      await state.agentConfiguration.loadConversationContext(id);
+      await state.agentConfiguration.getEffective(id).catch(() => undefined);
+      return cachedConversationSnapshot(
+        state.agentConfiguration,
+        core.getSnapshot(id),
+      );
+    },
     "conversation.list": (input) => {
       projects.add(input.projectId);
       return core

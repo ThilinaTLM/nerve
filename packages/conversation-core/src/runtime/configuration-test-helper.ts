@@ -133,6 +133,9 @@ export function testConfiguration(
           value.agentProfile,
       };
     },
+    async copyConversationConfiguration(sourceId, forkId) {
+      agents.set(forkId, { ...snapshot(sourceId) });
+    },
     async initializeConversation(input) {
       const value = await port.prepareCreation(input);
       agents.set(input.id, {

@@ -78,3 +78,37 @@ describe("subagent transcript notices", () => {
     ]);
   });
 });
+
+describe("fork transcript notice", () => {
+  const fork = notice({
+    kind: "message",
+    text: "Forked from conversation conv_source.",
+    details: {
+      subtype: "fork",
+      sourceConversationId: "conv_source",
+      sourceTitle: "Plan",
+      subagents: [],
+      text: "Forked from conversation conv_source.",
+    },
+  });
+
+  it("shows the source title and opens the source conversation", () => {
+    let opened: string | undefined;
+    const model = systemEventNoticeModel(fork, {
+      onOpenConversation: (id) => (opened = id),
+    });
+    assert.equal(model.badge, "forked");
+    assert.equal(model.glyph, "branch");
+    assert.equal(model.arg, "Plan");
+    model.action?.onClick();
+    assert.equal(opened, "conv_source");
+    assert.equal(
+      systemEventNoticeBody(fork),
+      "Forked from conversation conv_source.",
+    );
+  });
+
+  it("has no action when conversations cannot be opened", () => {
+    assert.equal(systemEventNoticeModel(fork).action, undefined);
+  });
+});
