@@ -676,27 +676,30 @@ const stoppable = $derived(hasStoppableWork(store?.snapshot));
     />
   {/snippet}
   {#snippet activity(showLatest, onJumpToBottom)}
-    {#if effective?.appliedProfile && store && !agentView.viewedChildId}
-      <ProfileUpdateNotice
-        conversationId={store.conversationId}
-        applied={effective.appliedProfile}
-        onApplied={() => store!.refreshConfiguration()}
-      />
-    {/if}
-    {#if agentView.viewedConversationId}
-      <ConversationActivityIsland
-        bind:open={agentView.activityOpen}
-        {active}
-        agents={agentView.leadContext?.conversationAgents ?? []}
-        activities={agentView.leadContext?.agentActivities ?? {}}
-        viewedId={agentView.viewedConversationId}
-        commands={backgroundCommands}
-        {showLatest}
-        {onJumpToBottom}
-        onSelectAgent={(id) => agentView.viewAgent(id)}
-        onOpenCommand={openCommand}
-      />
-    {/if}
+    <!-- One row: the profile notice sits beside the activity island. -->
+    <div class="flex items-center justify-end gap-1">
+      {#if effective?.appliedProfile && store && !agentView.viewedChildId}
+        <ProfileUpdateNotice
+          conversationId={store.conversationId}
+          applied={effective.appliedProfile}
+          onApplied={() => store!.refreshConfiguration()}
+        />
+      {/if}
+      {#if agentView.viewedConversationId}
+        <ConversationActivityIsland
+          bind:open={agentView.activityOpen}
+          {active}
+          agents={agentView.leadContext?.conversationAgents ?? []}
+          activities={agentView.leadContext?.agentActivities ?? {}}
+          viewedId={agentView.viewedConversationId}
+          commands={backgroundCommands}
+          {showLatest}
+          {onJumpToBottom}
+          onSelectAgent={(id) => agentView.viewAgent(id)}
+          onOpenCommand={openCommand}
+        />
+      {/if}
+    </div>
   {/snippet}
 </WorkbenchConversationAdapter>
 

@@ -12,7 +12,6 @@ import { IconAction } from "@nervekit/ui-kit/components/composites/icon-action";
 import { SearchInput } from "@nervekit/ui-kit/components/composites/search-input";
 import { Badge } from "@nervekit/ui-kit/components/ui/badge";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
-import { Kbd } from "@nervekit/ui-kit/components/ui/kbd";
 import { Spinner } from "@nervekit/ui-kit/components/ui/spinner";
 import * as ToggleGroup from "@nervekit/ui-kit/components/ui/toggle-group";
 import {
@@ -26,7 +25,7 @@ import type {
   ConversationTreeNode,
   ToolCallTranscriptRecord,
 } from "$lib/presentation/view-models/conversation";
-import { isMobileSurface } from "$lib/presentation/shell/mobile/mobile-surface";
+import { plainPreview } from "./history-graph";
 import { HISTORY_ICONS } from "./history-icons";
 import {
   buildHistoryItems,
@@ -74,10 +73,10 @@ let {
   onClose,
 }: Props = $props();
 
-const mobile = isMobileSurface();
-const LANE = 14;
-const DOT_Y = 15;
-const laneX = (lane: number) => 9 + lane * LANE;
+const LANE = 22;
+/** Vertical centre of a row's first line, where its dot sits. */
+const DOT_Y = 16;
+const laneX = (lane: number) => 11 + lane * LANE;
 
 const toolCallsById = $derived(
   new Map(toolCalls.map((call) => [call.id, call])),
@@ -104,7 +103,7 @@ const folded = $derived.by(() => {
   return result;
 });
 const layout = $derived(layoutHistoryRows(model, folded));
-const gutterWidth = $derived(laneX(layout.laneCount - 1) + 9);
+const gutterWidth = $derived(laneX(layout.laneCount - 1) + 12);
 const messageCount = $derived(
   [...model.items.values()].filter((item) => item.node.kind === "user").length,
 );
@@ -118,11 +117,45 @@ function rowElement(id: string): HTMLElement | null | undefined {
   );
 }
 
+const reducedMotion =
+  typeof matchMedia === "function"
+    ? matchMedia("(prefers-reduced-motion: reduce)")
+    : undefined;
+
+/**
+ * Select a row, growing it and shrinking the previous one smoothly: heights
+ * are captured before the change and animated to the rendered result. An
+ * interrupted animation continues from the height on screen.
+ */
 async function select(id: string, reveal = true) {
+  const affected = [...new Set([selectedId, id])];
+  const before = new Map(
+    affected.map((rowId) => [
+      rowId,
+      rowElement(rowId)?.getBoundingClientRect().height,
+    ]),
+  );
   pickedId = id;
-  if (!reveal) return;
   await tick();
-  rowElement(id)?.scrollIntoView({ block: "nearest" });
+  const finished: Promise<unknown>[] = [];
+  for (const [rowId, from] of before) {
+    const element = rowElement(rowId);
+    if (!element || from === undefined || reducedMotion?.matches) continue;
+    for (const running of element.getAnimations()) running.cancel();
+    const to = element.getBoundingClientRect().height;
+    if (Math.abs(to - from) < 1) continue;
+    const animation = element.animate(
+      [
+        { height: `${from}px`, overflow: "hidden" },
+        { height: `${to}px`, overflow: "hidden" },
+      ],
+      { duration: 180, easing: "cubic-bezier(0.2, 0.8, 0.2, 1)" },
+    );
+    finished.push(animation.finished.catch(() => undefined));
+  }
+  if (!reveal) return;
+  await Promise.all(finished);
+  if (pickedId === id) rowElement(id)?.scrollIntoView({ block: "nearest" });
 }
 
 // Open on the current message, centred, with keyboard focus in the list.
@@ -163,8 +196,12 @@ function stepMatch(delta: number) {
 
 const canTravel = $derived(!readOnly && !rewindLocked);
 
+/** Rewinds land on replies (or the start); a message is edited instead. */
+const canRewind = (item: HistoryItem) =>
+  !item.head && (item.id === HISTORY_ROOT_ID || item.node.kind !== "user");
+
 function rewindTo(item: HistoryItem) {
-  if (!canTravel || item.head) return;
+  if (!canTravel || !canRewind(item)) return;
   onRewind(item.id === HISTORY_ROOT_ID ? undefined : item.targetId);
 }
 
@@ -250,6 +287,14 @@ const lineClass = (current: boolean) =>
 </script>
 
 {#snippet gutter(row: HistoryRow, item: HistoryItem)}
+  {@const Marker =
+    item.id === HISTORY_ROOT_ID
+      ? undefined
+      : item.node.kind === "user"
+        ? HISTORY_ICONS.user
+        : item.node.descriptor?.type === "assistant" || !item.node.descriptor
+          ? HISTORY_ICONS.sparkles
+          : HISTORY_ICONS[item.node.descriptor.icon]}
   <div class="relative shrink-0 self-stretch" style:width={`${gutterWidth}px`}>
     {#each row.pass as segment (segment.lane)}
       <span
@@ -286,28 +331,44 @@ const lineClass = (current: boolean) =>
     {/each}
     <span
       class={[
-        "absolute rounded-full border-2",
-        item.head
-          ? "size-2.5 border-primary bg-primary ring-3 ring-primary-strong"
-          : item.node.kind === "user" || item.id === HISTORY_ROOT_ID
-            ? "size-2.5 bg-background"
-            : "size-2 bg-background",
-        !item.head &&
-          (item.current ? "border-primary" : "border-muted-foreground"),
+        "absolute flex items-center justify-center rounded-full border",
+        Marker ? "size-5" : "size-2.5 border-2",
+        // Your messages are info-toned, the agent's replies brand-toned.
+        item.node.kind === "user"
+          ? item.head
+            ? "border-info bg-info text-info-foreground"
+            : item.current
+              ? "border-info bg-background text-info"
+              : "border-muted-foreground bg-background text-muted-foreground"
+          : item.head
+            ? "border-primary bg-primary text-primary-foreground"
+            : item.current
+              ? "border-primary bg-background text-primary"
+              : "border-muted-foreground bg-background text-muted-foreground",
         row.folded && "border-dashed",
       ]}
       style:left={`${laneX(row.lane) + 0.5}px`}
       style:top={`${DOT_Y}px`}
       style:transform="translate(-50%, -50%)"
-    ></span>
+      aria-hidden="true"
+    >
+      {#if Marker}<Marker class="size-3" />{/if}
+    </span>
   </div>
 {/snippet}
 
 {#snippet actions(item: HistoryItem)}
   {@const later = itemsAfterOnCurrentPath(model, item.id)}
-  <div class="mt-1.5 flex flex-wrap items-center gap-1.5">
-    {#if !readOnly && !item.head}
-      <Button size="sm" disabled={!canTravel} onclick={() => rewindTo(item)}>
+  <div class="flex flex-wrap items-center gap-1.5 pt-1">
+    {#if !readOnly && canRewind(item)}
+      <Button
+        size="sm"
+        disabled={!canTravel}
+        title={later > 0
+          ? `The ${later} later ${later === 1 ? "message stays" : "messages stay"} as a side branch. Workspace files are not changed.`
+          : "Workspace files are not changed."}
+        onclick={() => rewindTo(item)}
+      >
         <Undo2 />{rewindLabel(item)}
       </Button>
     {/if}
@@ -330,28 +391,44 @@ const lineClass = (current: boolean) =>
         <MessagesSquare />Show in conversation
       </Button>
     {/if}
-    {#if !readOnly && canTravel && later > 0}
-      <span class="text-caption text-muted-foreground">
-        Rewinding keeps the {later} later {later === 1 ? "message" : "messages"} as
-        a side branch. Files in the workspace are not changed.
-      </span>
-    {/if}
   </div>
 {/snippet}
 
-{#snippet content(row: HistoryRow, item: HistoryItem, selected: boolean)}
+{#snippet meta(text: string)}
+  {#if text}
+    <span class="shrink-0 text-caption text-muted-foreground tabular-nums"
+      >{text}</span
+    >
+  {/if}
+{/snippet}
+
+{#snippet when(item: HistoryItem)}
   {@const entry = item.node.entry}
-  {@const Icon = item.node.descriptor
-    ? HISTORY_ICONS[item.node.descriptor.icon]
-    : undefined}
-  <div class="grid min-w-0 flex-1 gap-0.5 py-1.5">
+  {#if item.head}
+    <Badge variant="brand">Current</Badge>
+  {:else if !item.current && item.childIds.length === 0}
+    <Badge>Branch tip</Badge>
+  {/if}
+  {#if entry}
+    <span
+      class="w-7 shrink-0 text-right text-caption text-muted-foreground tabular-nums"
+      title={dateTimeLabel(entry.createdAt)}
+      >{relativeTimeLabel(entry.createdAt)}</span
+    >
+  {/if}
+{/snippet}
+
+{#snippet content(row: HistoryRow, item: HistoryItem, selected: boolean)}
+  {@const user = item.node.kind === "user"}
+  {@const summary = user ? "" : turnSummary(item)}
+  <div class="grid min-w-0 flex-1 gap-1.5 py-1.5">
     {#if row.folded}
       <div
         class="flex min-h-5 min-w-0 items-center gap-1.5 text-ui text-muted-foreground"
       >
         <ChevronRight class="size-3.5 shrink-0" />
         <span class="shrink-0">Side branch · {row.folded.count}</span>
-        <span class="truncate">“{itemText(item)}”</span>
+        <span class="truncate">“{plainPreview(itemText(item))}”</span>
       </div>
     {:else if item.id === HISTORY_ROOT_ID}
       <div class="flex min-h-5 items-center text-ui text-muted-foreground">
@@ -362,55 +439,31 @@ const lineClass = (current: boolean) =>
       {/if}
     {:else}
       <div class="flex min-h-5 min-w-0 items-start gap-2">
-        {#if item.node.kind !== "user" && Icon}
-          <Icon class="mt-0.5 size-3.5 shrink-0 text-muted-foreground" />
-        {/if}
         <span
           class={[
-            "min-w-0 flex-1 text-ui",
+            "min-w-0 flex-1 text-ui break-words",
             selected
-              ? "line-clamp-6 whitespace-pre-wrap break-words"
+              ? user
+                ? "line-clamp-8 whitespace-pre-wrap"
+                : "line-clamp-6"
               : "truncate",
-            (!item.current || item.node.kind !== "user") &&
-              "text-muted-foreground",
-            selected && "text-foreground",
-          ]}>{itemText(item)}</span
+            (!user || !item.current) && !selected && "text-muted-foreground",
+          ]}
+          >{selected && user
+            ? itemText(item)
+            : plainPreview(itemText(item))}</span
         >
-        {#if item.head}
-          <Badge variant="brand">Current</Badge>
-        {:else if !item.current && item.childIds.length === 0}
-          <Badge>Branch tip</Badge>
-        {/if}
-        {#if entry}
-          <span
-            class="shrink-0 text-caption text-muted-foreground tabular-nums"
-            title={dateTimeLabel(entry.createdAt)}
-            >{relativeTimeLabel(entry.createdAt)}</span
-          >
-        {/if}
-      </div>
-      {#if mode === "messages" && item.node.kind === "user"}
-        {@const summary = turnSummary(item)}
-        {#if summary || item.reply}
-          <div
-            class="flex min-w-0 items-center gap-1.5 text-caption text-muted-foreground"
-          >
-            {#if summary}<span class="shrink-0">{summary}</span>{/if}
-            {#if summary && item.reply}<span class="shrink-0">—</span>{/if}
-            {#if item.reply}
-              <span class={selected ? "line-clamp-3" : "truncate"}
-                >{item.reply.label}</span
-              >
-            {/if}
-          </div>
-        {/if}
-      {:else if mode === "steps" && item.toolCount > 0}
-        <div class="truncate text-caption text-muted-foreground">
-          {item.toolCount}
-          {item.toolCount === 1 ? "tool" : "tools"} · {stepsLabel(item)}
+        <div class="flex shrink-0 items-center gap-2">
+          {@render meta(summary)}
+          {@render when(item)}
         </div>
-      {/if}
+      </div>
       {#if selected}
+        {#if mode === "steps" && !user && item.toolCount > 0}
+          <p class="truncate text-caption text-muted-foreground">
+            {stepsLabel(item)}
+          </p>
+        {/if}
         {@render actions(item)}
       {/if}
     {/if}
@@ -419,7 +472,7 @@ const lineClass = (current: boolean) =>
 
 <div data-tour-id="conversation-history" class="flex h-full min-h-0 flex-col">
   <div
-    class="flex flex-wrap items-center gap-2 border-b border-border-subtle px-3 py-1.5"
+    class="flex flex-wrap items-center gap-2 border-b border-border-subtle py-1.5 pr-[calc(var(--conversation-content-inset,1.5rem)+var(--conversation-scrollbar-lane,0px))] pl-(--conversation-content-inset,1.5rem)"
   >
     <SearchInput
       bind:value={query}
@@ -477,14 +530,14 @@ const lineClass = (current: boolean) =>
 
   {#if readOnly}
     <Callout
-      class="mx-3 mt-2"
+      class="mt-2 mr-[calc(var(--conversation-content-inset,1.5rem)+var(--conversation-scrollbar-lane,0px))] ml-(--conversation-content-inset,1.5rem)"
       layout="strip"
       icon={Eye}
       text="Sub-agent history is read-only. Rewind from the lead conversation."
     />
   {:else if rewindLocked}
     <Callout
-      class="mx-3 mt-2"
+      class="mt-2 mr-[calc(var(--conversation-content-inset,1.5rem)+var(--conversation-scrollbar-lane,0px))] ml-(--conversation-content-inset,1.5rem)"
       tone="warning"
       layout="strip"
       icon={Square}
@@ -507,7 +560,7 @@ const lineClass = (current: boolean) =>
   {:else}
     <div
       bind:this={listEl}
-      class="min-h-0 flex-1 overflow-y-auto px-2 py-2 outline-none"
+      class="min-h-0 flex-1 overflow-y-auto px-(--conversation-content-inset,1.5rem) py-2 outline-none [scrollbar-gutter:stable]"
       role="listbox"
       tabindex="0"
       aria-label="Conversation history"
@@ -541,16 +594,6 @@ const lineClass = (current: boolean) =>
           {@render content(row, item, selected)}
         </div>
       {/each}
-    </div>
-  {/if}
-
-  {#if !mobile}
-    <div
-      class="flex flex-wrap items-center gap-1 border-t border-border-subtle px-3 py-1.5 text-caption text-muted-foreground"
-    >
-      <Kbd>↑</Kbd><Kbd>↓</Kbd> move
-      {#if !readOnly}<Kbd>Enter</Kbd> rewind <Kbd>E</Kbd> edit{/if}
-      <Kbd>C</Kbd> current <Kbd>Esc</Kbd> back to conversation
     </div>
   {/if}
 </div>

@@ -76,19 +76,29 @@ const specs: Spec[] = [
   reply("a4", "u4"),
 ];
 
-test("messages mode groups each user message with its replies", () => {
+test("messages mode keeps messages and final replies as separate items", () => {
   const model = buildHistoryItems(
     buildHistoryTree(tree(specs), "a4"),
     "messages",
   );
-  assert.deepEqual(model.order, [HISTORY_ROOT_ID, "u1", "u3", "u2", "u4"]);
-  const first = model.items.get("u1")!;
-  assert.equal(first.targetId, "a1");
-  assert.equal(first.reply?.id, "a1");
-  assert.equal(first.toolCount, 1);
-  assert.deepEqual(first.childIds, ["u3", "u2"]);
-  assert.equal(model.headId, "u4");
-  assert.equal(model.items.get("u4")!.head, true);
+  assert.deepEqual(model.order, [
+    HISTORY_ROOT_ID,
+    "u1",
+    "a1",
+    "u3",
+    "a3",
+    "u2",
+    "a2",
+    "u4",
+    "a4",
+  ]);
+  const reply = model.items.get("a1")!;
+  assert.equal(reply.targetId, "a1");
+  assert.equal(reply.toolCount, 1);
+  assert.deepEqual(model.items.get("u1")!.childIds, ["a1"]);
+  assert.deepEqual(reply.childIds, ["u3", "u2"]);
+  assert.equal(model.headId, "a4");
+  assert.equal(model.items.get("a4")!.head, true);
 });
 
 test("current path stays in lane 0 and side branches fork beside it", () => {
@@ -103,25 +113,28 @@ test("current path stays in lane 0 and side branches fork beside it", () => {
     [
       [HISTORY_ROOT_ID, 0],
       ["u1", 0],
+      ["a1", 0],
       ["u3", 1],
+      ["a3", 1],
       ["u2", 0],
+      ["a2", 0],
       ["u4", 0],
+      ["a4", 0],
     ],
   );
-  const fork = rows[1]!;
+  const fork = rows[2]!;
   assert.deepEqual(fork.forks, [{ lane: 1, current: false }]);
   // The current path passes beside the side branch, then resumes.
-  assert.deepEqual(rows[2]!.pass, [{ lane: 0, current: true }]);
-  assert.equal(rows[2]!.up, false);
-  assert.equal(rows[2]!.down, undefined);
+  assert.deepEqual(rows[3]!.pass, [{ lane: 0, current: true }]);
+  assert.equal(rows[3]!.up, false);
   assert.equal(rows[4]!.down, undefined);
+  assert.equal(rows[8]!.down, undefined);
 });
 
 test("long side branches fold unless they hold something to keep", () => {
   const long: Spec[] = [
     ...specs,
-    reply("x1", "a3"),
-    user("u5", "x1"),
+    user("u5", "a3"),
     reply("a5", "u5"),
     user("u6", "a5"),
   ];
@@ -132,10 +145,10 @@ test("long side branches fold unless they hold something to keep", () => {
   const folded = defaultFoldedBranches(model, new Set());
   assert.deepEqual([...folded], ["u3"]);
   const { rows } = layoutHistoryRows(model, folded);
-  assert.deepEqual(rows[2], {
+  assert.deepEqual(rows[3], {
     itemId: "u3",
     lane: 1,
-    folded: { count: 3 },
+    folded: { count: 5 },
     pass: [{ lane: 0, current: true }],
     up: false,
     forks: [],
@@ -155,9 +168,9 @@ test("rewind preview counts the later items on the current path", () => {
     buildHistoryTree(tree(specs), "a4"),
     "messages",
   );
-  assert.equal(itemsAfterOnCurrentPath(model, "u1"), 2);
-  assert.equal(itemsAfterOnCurrentPath(model, "u4"), 0);
-  assert.equal(itemsAfterOnCurrentPath(model, "u3"), 0);
+  assert.equal(itemsAfterOnCurrentPath(model, "a1"), 4);
+  assert.equal(itemsAfterOnCurrentPath(model, "a4"), 0);
+  assert.equal(itemsAfterOnCurrentPath(model, "a3"), 0);
 });
 
 test("search matches messages and folded steps", () => {
@@ -176,4 +189,5 @@ test("span labels stay compact", () => {
   assert.equal(historySpanLabel(at(0), at(45)), "45s");
   assert.equal(historySpanLabel(at(0), at(192)), "3m 12s");
   assert.equal(historySpanLabel(at(0), at(7500)), "2h 5m");
+  assert.equal(historySpanLabel(at(0), at(90_000)), undefined);
 });

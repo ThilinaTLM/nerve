@@ -160,12 +160,34 @@ export function buildHistoryItems(
       (a, b) =>
         Number(tree.nodes.get(a)!.current) - Number(tree.nodes.get(b)!.current),
     );
-    const item = itemFor(anchor, members, regionHead, childIds, parentId);
-    items.set(id, item);
-    order.push(id);
-    if (regionHead) headId = id;
+    // The message and the reply that ends its turn are separate items; the
+    // reply summarizes the steps in between and is where a rewind lands.
+    const steps = members.slice(1);
+    const replyHead = regionHead && !anchor.head;
+    let ownerId = id;
+    if (steps.length) {
+      const reply = lastReply(members) ?? steps.at(-1)!;
+      const replyItem = {
+        ...itemFor(reply, steps, replyHead, childIds, id),
+        targetId: steps.at(-1)!.id,
+        startedAt: anchor.entry?.createdAt,
+      };
+      items.set(
+        id,
+        itemFor(anchor, [anchor], anchor.head, [reply.id], parentId),
+      );
+      order.push(id);
+      items.set(reply.id, replyItem);
+      order.push(reply.id);
+      ownerId = reply.id;
+    } else {
+      items.set(id, itemFor(anchor, members, regionHead, childIds, parentId));
+      order.push(id);
+    }
+    if (anchor.head) headId = id;
+    else if (regionHead) headId = ownerId;
     for (let i = childIds.length - 1; i >= 0; i--)
-      stack.push({ id: childIds[i]!, parentId: id });
+      stack.push({ id: childIds[i]!, parentId: ownerId });
   }
   return { items, order, rootId: HISTORY_ROOT_ID, headId };
 }
@@ -343,7 +365,10 @@ export function matchHistoryItems(
   return matches;
 }
 
-/** Compact span between two timestamps, e.g. "45s", "3m 12s", "2h 5m". */
+/**
+ * Compact span between two timestamps, e.g. "45s", "3m 12s", "2h 5m". Spans
+ * of a day or more mostly measure waiting, not work, so they are omitted.
+ */
 export function historySpanLabel(
   from: string | undefined,
   to: string | undefined,
@@ -355,5 +380,6 @@ export function historySpanLabel(
   if (seconds < 60) return `${seconds}s`;
   const minutes = Math.floor(seconds / 60);
   if (minutes < 60) return `${minutes}m ${seconds % 60}s`;
+  if (minutes >= 24 * 60) return undefined;
   return `${Math.floor(minutes / 60)}h ${minutes % 60}m`;
 }

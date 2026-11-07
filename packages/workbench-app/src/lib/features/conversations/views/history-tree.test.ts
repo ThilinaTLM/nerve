@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import type { ConversationTreeNode } from "$lib/presentation/view-models/conversation";
+import { plainPreview } from "./history-graph";
 import { buildHistoryTree, HISTORY_ROOT_ID } from "./history-tree";
 
 type Spec = {
@@ -126,4 +127,14 @@ test("extra root entries become branches of the start", () => {
   );
   assert.equal(model.nodes.get(HISTORY_ROOT_ID)!.childIds.length, 2);
   assert.equal(model.nodes.get(HISTORY_ROOT_ID)!.childIds.at(-1), "u1");
+});
+
+test("previews drop Markdown syntax", () => {
+  assert.equal(
+    plainPreview(
+      "## Plan\n- **Switch** to `SMTP` via [Mailpit](https://x.dev)\n```ts\ncode()\n```",
+    ),
+    "Plan Switch to SMTP via Mailpit code()",
+  );
+  assert.equal(plainPreview("a".repeat(10), 4), "aaaa…");
 });
