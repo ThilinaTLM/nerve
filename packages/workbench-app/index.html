@@ -242,8 +242,20 @@
       }
       /* Declaring a region makes Electron replace the drag regions left by the
          previous page (the desktop shell's all-drag loading page), so no state
-         without a titlebar inherits a window-wide drag handle. */
+         without a titlebar inherits a window-wide drag handle.
+         The region is inherited, so it is reset on body: otherwise every box
+         becomes a no-drag region, and Chromium does not clip those to their
+         scroll container, so rows scrolled out of a long transcript block
+         dragging the titlebar. Elements set their own region explicitly;
+         portaled layers (dialogs, sheets, popovers) stay clickable where they
+         overlap the titlebar. */
       html {
+        -webkit-app-region: no-drag;
+      }
+      body {
+        -webkit-app-region: initial;
+      }
+      body > :where(:not(#app)) {
         -webkit-app-region: no-drag;
       }
 
