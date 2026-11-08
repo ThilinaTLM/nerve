@@ -6,6 +6,13 @@ on:
     branches:
       - main
 
+# A new push to a pull request cancels its superseded run. Other events get a
+# unique group: a shared group would cancel pending main runs, and the release
+# workflow requires the main run of the release commit.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: true
+
 permissions:
   contents: read
 
@@ -80,6 +87,11 @@ jobs:
         run: |
           pnpm --filter "@nervekit/desktop-shell^..." build
           pnpm --filter @nervekit/desktop-shell exec tsc -b
+      # Sequential: it rebuilds workbench-server dependencies, which the
+      # parallel steps below read.
+      - name: Check storage migration lock
+        if: ${{ !cancelled() && steps.workspace.outcome == 'success' }}
+        run: pnpm migrations:check
       # Independent checks run as parallel steps (workflow syntax: jobs.<job_id>.steps[*].parallel);
       # every step finishes before the job reports, so one failure never hides another.
       - parallel:
