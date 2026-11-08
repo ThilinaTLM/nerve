@@ -34,3 +34,25 @@ export function gitPathKey(
   if (/^[a-z]:$/.test(key)) key += "/";
   return key;
 }
+
+/**
+ * `child` relative to `parent` as `/`-separated segments, or undefined when it
+ * is not strictly inside. Containment is decided on path keys, because Rust
+ * (`\\?\D:\...`) and Node (`D:\...`) spell the same Windows path differently;
+ * the segments keep the child's own spelling.
+ */
+export function relativePathInside(
+  parent: string,
+  child: string,
+  platform: NodeJS.Platform = process.platform,
+): string | undefined {
+  const rel = posix.relative(
+    gitPathKey(parent, platform),
+    gitPathKey(child, platform),
+  );
+  if (!rel || rel === ".." || rel.startsWith("../") || posix.isAbsolute(rel))
+    return undefined;
+  const count = rel.split("/").length;
+  const separators = platform === "win32" ? /[\\/]+/ : /\/+/;
+  return child.split(separators).filter(Boolean).slice(-count).join("/");
+}

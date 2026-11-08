@@ -1,6 +1,6 @@
 import { existsSync, realpathSync } from "node:fs";
 import { appendFile, mkdir, readFile } from "node:fs/promises";
-import { basename, dirname, isAbsolute, join, relative, sep } from "node:path";
+import { basename, dirname, join } from "node:path";
 import type { GitMutationResponse } from "@nervekit/contracts/git";
 import {
   WORKTREES_DIRECTORY,
@@ -12,7 +12,7 @@ import type { GitMutationContext } from "./git-mutation-context.js";
 import { inGitLane } from "./git-operation-context.js";
 import { canonicalGitIdentity } from "./git-operation-lanes.js";
 import { repositoryNameFromCommonDir } from "./git-overview.js";
-import { gitPathKey } from "./git-path-key.js";
+import { gitPathKey, relativePathInside } from "./git-path-key.js";
 
 interface WorktreeGroup {
   commonDir: string;
@@ -45,13 +45,13 @@ async function resolveGroup(
     (basename(commonDir) === ".git" ? dirname(commonDir) : null);
   let primaryRelativePath = primary?.relativePath;
   if (primaryRelativePath === undefined) {
-    const rel = primaryDir
-      ? relative(realpathSync(ctx.projectDir(projectId)), primaryDir)
-      : "";
     primaryRelativePath =
-      rel && !rel.startsWith("..") && !isAbsolute(rel)
-        ? rel.split(sep).join("/")
-        : ".";
+      (primaryDir &&
+        relativePathInside(
+          realpathSync(ctx.projectDir(projectId)),
+          primaryDir,
+        )) ||
+      ".";
   }
   return {
     commonDir,
@@ -70,9 +70,10 @@ async function ensureExcluded(
   worktreesDir: string,
 ): Promise<void> {
   if (!group.primaryDir) return;
-  const rel = relative(realpathSync(group.primaryDir), worktreesDir);
-  if (!rel || rel.startsWith("..") || isAbsolute(rel)) return;
-  const pattern = `/${rel.split(sep).join("/")}/`;
+  // The primary's directory may come from native discovery: compare by key.
+  const rel = relativePathInside(realpathSync(group.primaryDir), worktreesDir);
+  if (!rel) return;
+  const pattern = `/${rel}/`;
   const file = join(group.commonDir, "info", "exclude");
   let current = "";
   try {
