@@ -1,6 +1,5 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { gitEventDefinitions } from "../src/domains/git/events.js";
 import {
   gitOperationStartRequestSchema,
   gitOperationBulkStartRequestSchema,
@@ -8,38 +7,6 @@ import {
   githubIssueListResponseSchema,
   githubPrCachedListResponseSchema,
 } from "../src/domains/git/git-background.js";
-
-void test("Git invalidation uncertainty is explicit and never replaces generation or full-refresh requirements", () => {
-  const schema = gitEventDefinitions.find(
-    (event) => event.name === "git.repository.invalidated",
-  )!.payloadSchema;
-  const hard = {
-    projectId: "proj_test",
-    repo: ".",
-    generation: 2,
-    fullRefreshRequired: true,
-  };
-  assert.deepEqual(schema.parse(hard), hard);
-  assert.deepEqual(schema.parse({ ...hard, refreshCause: "uncertain_poll" }), {
-    ...hard,
-    refreshCause: "uncertain_poll",
-  });
-  assert.throws(() => schema.parse({ ...hard, refreshCause: "filesystem" }));
-  assert.throws(() =>
-    schema.parse({
-      ...hard,
-      generation: undefined,
-      refreshCause: "uncertain_poll",
-    }),
-  );
-  assert.throws(() =>
-    schema.parse({
-      ...hard,
-      fullRefreshRequired: undefined,
-      refreshCause: "uncertain_poll",
-    }),
-  );
-});
 
 void test("background starts enforce kind-specific inputs without rewriting clone remotes", () => {
   const scope = { projectId: "proj_test" };

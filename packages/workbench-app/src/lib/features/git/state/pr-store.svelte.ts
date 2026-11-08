@@ -151,6 +151,12 @@ export function repoPrStatus(projectId: string, repo: string) {
     error: entry?.error,
   };
 }
+export function repoPrSnapshot(
+  projectId: string,
+  repo: string,
+): GithubPrSnapshot | undefined {
+  return repositories[key(projectId, repo)]?.snapshot;
+}
 export function repoPrRepositoryUrl(
   projectId: string,
   repo: string,
@@ -174,41 +180,39 @@ export function repoPrs(
   projectId: string,
   repo: string,
   filters: PrFilters,
-  branch?: string | null,
 ): GithubPr[] {
   const snapshot = repositories[key(projectId, repo)]?.snapshot;
   if (!snapshot) return [];
   if (snapshot.truncated && (hasActiveGitPrFilters(filters) || filters.head)) {
-    const searchKey = JSON.stringify([projectId, repo, filters, branch]);
+    const searchKey = JSON.stringify([projectId, repo, filters]);
     const search = searches[searchKey];
     if (!search)
       untrack(() => {
         searches[searchKey] = { loading: true, numbers: [] };
-        void searchPrs(searchKey, projectId, repo, filters, branch);
+        void searchPrs(searchKey, projectId, repo, filters);
       });
     return (search?.numbers ?? []).flatMap((number) => {
       const entity = pr(projectId, repo, number);
       return entity ? [entity] : [];
     });
   }
-  return filterRepoPrs(snapshot.prs, filters, snapshot.viewer, branch);
+  return filterRepoPrs(snapshot.prs, filters);
 }
 async function searchPrs(
   searchKey: string,
   projectId: string,
   repo: string,
   filters: PrFilters,
-  branch?: string | null,
 ) {
   try {
     const result = await listGithubPrs(projectId, repo, {
-      ...filters,
-      author: filters.author,
-      username: filters.author === "username" ? filters.username : undefined,
+      author: "any",
+      reviewRequested: false,
+      title: "",
+      drafts: filters.drafts,
+      sort: filters.sort,
       labels: [...filters.labels],
-      head:
-        filters.head ??
-        (filters.currentBranchOnly ? (branch ?? undefined) : undefined),
+      head: filters.head,
     });
     const entry = state(projectId, repo);
     for (const entity of result.prs)
@@ -355,8 +359,7 @@ export function registerPrStoreEvents(): () => void {
           revision
       )
         await readPrSnapshot(projectId, repo);
-      const { reloadChangedPrViews } =
-        await import("./git-refresh-coordinator.svelte");
+      const { reloadChangedPrViews } = await import("./pr-view-loader.svelte");
       reloadChangedPrViews(
         projectId,
         repo,

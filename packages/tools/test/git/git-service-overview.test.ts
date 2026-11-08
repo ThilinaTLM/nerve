@@ -91,17 +91,7 @@ describe("GitService overview snapshots", () => {
     });
     service.runGit = async (_cwd, args) => {
       calls.push(args);
-      const command = args.join(" ");
-      if (command === "diff --shortstat") {
-        return {
-          stdout: " 1 file changed, 2 insertions(+), 1 deletion(-)",
-          stderr: "",
-        };
-      }
-      if (command === "diff --staged --shortstat") {
-        return { stdout: "", stderr: "" };
-      }
-      throw new Error(`Unexpected git command: ${command}`);
+      throw new Error(`Unexpected git command: ${args.join(" ")}`);
     };
 
     const first = service.overview("proj_test", ".");
@@ -109,7 +99,7 @@ describe("GitService overview snapshots", () => {
     assert.equal(
       first,
       joined,
-      "concurrent or retried client demand joins the whole detailed RPC, including CLI diffs",
+      "concurrent or retried client demand joins the whole detailed RPC",
     );
     service.invalidateProjectReads("proj_test", { uncertain: true });
     const overview = await first;
@@ -117,11 +107,10 @@ describe("GitService overview snapshots", () => {
     const fresh = await service.overview("proj_test", ".");
     assert.equal(fresh.stale, undefined);
     assert.equal(snapshotCalls, 2);
-    assert.equal(calls.filter((args) => args[0] === "diff").length, 4);
+    assert.deepEqual(calls, [], "overview reads never spawn git processes");
     assert.equal(overview.repo.currentBranch, "feature");
     assert.equal(overview.repo.baseBranch, "main");
     assert.equal(overview.untrackedCount, 1);
-    assert.equal(overview.insertions, 2);
     assert.equal(overview.recentCommits.length, 1);
     assert.deepEqual(overview.stashes, []);
 

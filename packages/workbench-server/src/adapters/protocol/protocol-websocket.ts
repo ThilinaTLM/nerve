@@ -170,6 +170,7 @@ export function createLocalProtocolSession(
     try {
       unsubscribeNotify();
       state.operationContexts.git.prSync.releaseOwner(monitorOwner);
+      state.operationContexts.git.workspaceSync.releaseOwner(monitorOwner);
       session.dispose();
       connection.dispose();
       void state.operationContexts.platform.workspaceMonitor
@@ -267,6 +268,7 @@ export function createLocalProtocolSession(
       if (disposed) return;
       unsubscribeNotify();
       state.operationContexts.git.prSync.releaseOwner(monitorOwner);
+      state.operationContexts.git.workspaceSync.releaseOwner(monitorOwner);
       let failure: unknown;
       try {
         await session.shutdown("server_shutdown", message);

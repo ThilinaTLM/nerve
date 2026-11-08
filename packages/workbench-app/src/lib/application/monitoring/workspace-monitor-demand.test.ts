@@ -14,7 +14,7 @@ function requestRecorder(calls: Call[]) {
   >[0]["request"];
 }
 
-test("retains disconnected demand and replays every resource when ready", async () => {
+test("retains disconnected demand and replays every project when ready", async () => {
   const calls: Call[] = [];
   let ready = false;
   const coordinator = new WorkspaceMonitorDemandCoordinator({
@@ -24,7 +24,6 @@ test("retains disconnected demand and replays every resource when ready", async 
 
   await coordinator.syncProject("proj_one", ["src"]);
   await coordinator.syncProject("proj_two", ["docs"]);
-  await coordinator.syncRepository("proj_one", ".", true);
   assert.equal(calls.length, 0);
 
   ready = true;
@@ -40,15 +39,11 @@ test("retains disconnected demand and replays every resource when ready", async 
         "filesystem.project.monitor.sync",
         { projectId: "proj_two", directories: ["docs"] },
       ],
-      [
-        "git.repository.monitor.sync",
-        { projectId: "proj_one", repo: ".", active: true },
-      ],
     ],
   );
 });
 
-test("clears only the addressed resource and does not replay removed demand", async () => {
+test("clears only the addressed project and does not replay removed demand", async () => {
   const calls: Call[] = [];
   const coordinator = new WorkspaceMonitorDemandCoordinator({
     request: requestRecorder(calls),
@@ -73,7 +68,7 @@ test("clears only the addressed resource and does not replay removed demand", as
   );
 });
 
-test("serializes updates so the latest resource demand is delivered last", async () => {
+test("serializes updates so the latest project demand is delivered last", async () => {
   const calls: Call[] = [];
   let releaseFirst!: () => void;
   const firstPending = new Promise<void>((resolve) => {
@@ -120,43 +115,7 @@ function scriptedRequest(
   }) as Request;
 }
 
-test("orders a repository refresh after this client's own slow monitor sync", async () => {
-  const calls: Call[] = [];
-  let releaseSync!: () => void;
-  const syncPending = new Promise<void>((resolve) => {
-    releaseSync = resolve;
-  });
-  const coordinator = new WorkspaceMonitorDemandCoordinator({
-    isReady: () => true,
-    request: scriptedRequest(calls, async () => {
-      await syncPending;
-      return {};
-    }),
-  });
-
-  const sync = coordinator.syncRepository("proj_one", ".", true);
-  const refresh = coordinator.refreshRepository("proj_one", ".");
-  await new Promise<void>((resolve) => setImmediate(resolve));
-  assert.deepEqual(
-    calls.map((call) => call.method),
-    ["git.repository.monitor.sync"],
-  );
-  releaseSync();
-  await sync;
-  assert.equal(await refresh, true);
-  assert.deepEqual(
-    calls.map((call) => [call.method, call.params]),
-    [
-      [
-        "git.repository.monitor.sync",
-        { projectId: "proj_one", repo: ".", active: true },
-      ],
-      ["git.repository.refresh", { projectId: "proj_one", repo: "." }],
-    ],
-  );
-});
-
-test("skips repository refresh without demand, while offline, or after reset", async () => {
+test("skips project refresh without demand, while offline, or after reset", async () => {
   const calls: Call[] = [];
   let ready = true;
   const coordinator = new WorkspaceMonitorDemandCoordinator({
@@ -164,36 +123,20 @@ test("skips repository refresh without demand, while offline, or after reset", a
     request: scriptedRequest(calls),
   });
 
-  assert.equal(await coordinator.refreshRepository("proj_one", "."), false);
+  assert.equal(await coordinator.refreshProject("proj_one"), false);
 
   ready = false;
-  await coordinator.syncRepository("proj_one", ".", true);
-  assert.equal(await coordinator.refreshRepository("proj_one", "."), false);
+  await coordinator.syncProject("proj_one", ["src"]);
+  assert.equal(await coordinator.refreshProject("proj_one"), false);
 
   ready = true;
-  await coordinator.syncRepository("proj_one", ".", true);
+  await coordinator.syncProject("proj_one", ["src"]);
   calls.length = 0;
-  const refresh = coordinator.refreshRepository("proj_one", ".");
+  const refresh = coordinator.refreshProject("proj_one");
   coordinator.reset();
   assert.equal(await refresh, false);
-  assert.equal(await coordinator.refreshRepository("proj_one", "."), false);
+  assert.equal(await coordinator.refreshProject("proj_one"), false);
   assert.deepEqual(calls, []);
-});
-
-test("a rejected monitor sync does not block the queued refresh", async () => {
-  const calls: Call[] = [];
-  const coordinator = new WorkspaceMonitorDemandCoordinator({
-    isReady: () => true,
-    request: scriptedRequest(calls, async () => {
-      throw new Error("sync failed");
-    }),
-  });
-
-  const sync = coordinator.syncRepository("proj_one", ".", true);
-  const refresh = coordinator.refreshRepository("proj_one", ".");
-  await assert.rejects(sync, /sync failed/);
-  assert.equal(await refresh, true);
-  assert.equal(calls.at(-1)?.method, "git.repository.refresh");
 });
 
 test("orders a project refresh after the project's monitor sync", async () => {

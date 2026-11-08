@@ -10,7 +10,7 @@ import {
 
 export interface WorkspaceMonitorPublisher {
   publishBestEffort(
-    type: "filesystem.project.changed" | "git.repository.invalidated",
+    type: "filesystem.project.changed",
     data: Record<string, unknown>,
     context: string,
   ): void;
@@ -41,6 +41,16 @@ export interface NativeChangeMonitorPort {
 
 export interface WorkspaceRefreshOptions {
   refreshCause?: "uncertain_poll";
+}
+
+export interface WorkspaceNoticeOptions extends WorkspaceRefreshOptions {
+  /** The notice touched the shared Git directory's `worktrees/` entries. */
+  worktreesChanged?: boolean;
+}
+
+/** `<commondir>/worktrees/...` changed: a linked worktree was added, moved or removed. */
+export function touchesWorktreeEntries(paths: readonly string[]): boolean {
+  return paths.some((path) => /(?:^|[\\/])worktrees(?:[\\/]|$)/.test(path));
 }
 
 /** A Git poll means a proven fingerprint change; directory polling does not. */
@@ -118,6 +128,12 @@ export class WorkspaceMonitor {
         repoDir: string,
         options?: WorkspaceRefreshOptions,
       ) => void;
+      /** A watched repository scope reported a notice (workspace sync marks it dirty). */
+      onRepositoryNotice?: (
+        projectId: string,
+        repo: string,
+        options?: WorkspaceNoticeOptions,
+      ) => void;
     } = {},
   ) {
     this.options = options;
@@ -142,6 +158,11 @@ export class WorkspaceMonitor {
     onRepositoryChanged?: (
       repoDir: string,
       options?: WorkspaceRefreshOptions,
+    ) => void;
+    onRepositoryNotice?: (
+      projectId: string,
+      repo: string,
+      options?: WorkspaceNoticeOptions,
     ) => void;
   };
 
@@ -200,63 +221,54 @@ export class WorkspaceMonitor {
     await this.#rebuildProjects();
   }
 
-  syncRepository(
+  /**
+   * Replace the owner's workspace repository watches for one project in a
+   * single rebuild. Reports per repository whether the scope is degraded.
+   */
+  setRepositories(
     owner: string,
     projectId: string,
-    repo: string,
-    repoDir: string,
-    active: boolean,
-  ): Promise<{ active: boolean; degraded: boolean }> {
-    return this.#enqueue(() =>
-      this.#syncRepository(owner, projectId, repo, repoDir, active),
-    );
-  }
-
-  async #syncRepository(
-    owner: string,
-    projectId: string,
-    repo: string,
-    repoDir: string,
-    active: boolean,
-  ): Promise<{ active: boolean; degraded: boolean }> {
-    this.#assertOpen();
-    if (!active) {
-      await this.#clearRepository(owner, projectId, repo);
-      return { active: false, degraded: false };
-    }
-    const canonical = await realpath(repoDir);
-    const demands = this.#repositoriesByOwner.get(owner) ?? new Map();
-    demands.set(repositoryKey(projectId, repo), {
-      projectId,
-      repo,
-      repoDir: canonical,
+    repos: ReadonlyArray<{ repo: string; repoDir: string }>,
+  ): Promise<Map<string, { degraded: boolean }>> {
+    return this.#enqueue(async () => {
+      this.#assertOpen();
+      const demands = this.#repositoriesByOwner.get(owner) ?? new Map();
+      for (const [key, demand] of demands)
+        if (demand.projectId === projectId) demands.delete(key);
+      const resolved: RepositoryDemand[] = [];
+      for (const { repo, repoDir } of repos) {
+        try {
+          resolved.push({ projectId, repo, repoDir: await realpath(repoDir) });
+        } catch {
+          /* A vanished repository is simply not watched. */
+        }
+      }
+      for (const demand of resolved)
+        demands.set(repositoryKey(projectId, demand.repo), demand);
+      if (demands.size) this.#repositoriesByOwner.set(owner, demands);
+      else this.#repositoriesByOwner.delete(owner);
+      const states = await this.#rebuildRepositories();
+      const result = new Map<string, { degraded: boolean }>();
+      for (const demand of resolved) {
+        const state = states.get(repositoryKey(projectId, demand.repo));
+        if (state) result.set(demand.repo, { degraded: state.degraded });
+      }
+      return result;
     });
-    this.#repositoriesByOwner.set(owner, demands);
-    const states = await this.#rebuildRepositories();
-    const resource = this.#repositories.get(repositoryKey(projectId, repo));
-    if (!resource) return { active: false, degraded: false };
-    const state = states.get(repositoryKey(projectId, repo));
-    if (!state) return { active: false, degraded: false };
-    return { active: true, degraded: state.degraded };
   }
 
-  clearRepository(
-    owner: string,
-    projectId: string,
-    repo: string,
-  ): Promise<void> {
-    return this.#enqueue(() => this.#clearRepository(owner, projectId, repo));
-  }
-
-  async #clearRepository(
-    owner: string,
-    projectId: string,
-    repo: string,
-  ): Promise<void> {
-    const demands = this.#repositoriesByOwner.get(owner);
-    if (!demands?.delete(repositoryKey(projectId, repo))) return;
-    if (demands.size === 0) this.#repositoriesByOwner.delete(owner);
-    await this.#rebuildRepositories();
+  /** Drop every repository watch the owner holds for the project. */
+  clearRepositories(owner: string, projectId: string): Promise<void> {
+    return this.#enqueue(async () => {
+      const demands = this.#repositoriesByOwner.get(owner);
+      if (!demands) return;
+      let removed = false;
+      for (const [key, demand] of demands)
+        if (demand.projectId === projectId)
+          removed = demands.delete(key) || removed;
+      if (demands.size === 0) this.#repositoriesByOwner.delete(owner);
+      if (removed) await this.#rebuildRepositories();
+    });
   }
 
   /** Re-scan a monitored project; reports inactive instead of failing when no client monitors it. */
@@ -268,24 +280,6 @@ export class WorkspaceMonitor {
         active: true,
         generation: await this.#native().requestRefresh(
           projectScopeId(projectId),
-        ),
-      };
-    });
-  }
-
-  /** Re-scan a monitored repository; reports inactive instead of failing when no client monitors it. */
-  requestRepositoryRefresh(
-    projectId: string,
-    repo: string,
-  ): Promise<MonitorRefreshOutcome> {
-    return this.#enqueue(async () => {
-      this.#assertOpen();
-      if (!this.#repositories.has(repositoryKey(projectId, repo)))
-        return inactiveRefresh();
-      return {
-        active: true,
-        generation: await this.#native().requestRefresh(
-          repositoryScopeId(projectId, repo),
         ),
       };
     });
@@ -493,17 +487,11 @@ export class WorkspaceMonitor {
         repository.repoDir,
         refreshCause ? { refreshCause } : undefined,
       );
-      this.publisher.publishBestEffort(
-        "git.repository.invalidated",
-        {
-          projectId: repository.projectId,
-          repo: repository.repo,
-          generation: notice.generation,
-          fullRefreshRequired: notice.fullRefreshRequired,
-          ...(refreshCause ? { refreshCause } : {}),
-        },
-        "workspace monitor",
-      );
+      const worktreesChanged = touchesWorktreeEntries(notice.paths);
+      this.options.onRepositoryNotice?.(repository.projectId, repository.repo, {
+        ...(refreshCause ? { refreshCause } : {}),
+        ...(worktreesChanged ? { worktreesChanged } : {}),
+      });
     } catch (error) {
       this.options.onWarning?.("Could not publish workspace change", error);
     }

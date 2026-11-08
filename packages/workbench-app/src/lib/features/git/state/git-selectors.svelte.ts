@@ -1,10 +1,6 @@
 import { SvelteURL } from "svelte/reactivity";
 import { repoPrRepositoryUrl } from "./pr-store.svelte";
-import {
-  gitProjectStateKey,
-  gitRepoStateKey,
-  prViewKey,
-} from "$lib/domain/navigation/view-keys";
+import { prViewKey } from "$lib/domain/navigation/view-keys";
 
 export interface GitSelectorWorkspaceReadModel {
   readonly activeCenterTab: { kind: string; id: string } | undefined;
@@ -27,7 +23,8 @@ export function registerGitSelectorWorkspaceReadModel(
       workspaceReadModel = unregisteredWorkspaceReadModel;
   };
 }
-import { gitPanelState } from "./git-panel.svelte";
+import { selectedGitRepo } from "./git-panel-state.svelte";
+import { gitWorkspaceSnapshot } from "./git-store.svelte";
 import { gitState } from "./git-state.svelte";
 
 export const gitSelectors = {
@@ -58,17 +55,14 @@ export const gitSelectors = {
       }
     | undefined {
     const projectId = workspaceReadModel.activeProjectId;
-    const state = projectId
-      ? gitPanelState.projects[gitProjectStateKey(projectId)]
+    const repos = projectId
+      ? gitWorkspaceSnapshot(projectId)?.summaries
       : undefined;
-    if (!state || state.repos.length === 0) return undefined;
-    const repoState = state.repoStates[gitRepoStateKey(state.selectedRepo)];
+    if (!projectId || !repos || repos.length === 0) return undefined;
+    const selected = selectedGitRepo(projectId);
     const repo =
-      repoState?.repoSummary ??
-      state.repos.find(
-        (candidate) => candidate.relativePath === state.selectedRepo,
-      ) ??
-      state.repos[0];
+      repos.find((candidate) => candidate.relativePath === selected) ??
+      repos[0];
     return {
       branch: repo.currentBranch ?? "detached",
       dirty: repo.dirty,
@@ -79,7 +73,7 @@ export const gitSelectors = {
       hasUpstream: repo.hasUpstream,
       relativePath: repo.relativePath,
       repoName: repo.name,
-      repoCount: state.repos.length,
+      repoCount: repos.length,
     };
   },
 };
@@ -89,10 +83,9 @@ export function gitCurrentBranch(
   projectId: string,
   relativePath: string,
 ): string | undefined {
-  const state = gitPanelState.projects[gitProjectStateKey(projectId)];
-  if (!state) return undefined;
-  const repo =
-    state.repoStates[gitRepoStateKey(relativePath)]?.repoSummary ??
-    state.repos.find((candidate) => candidate.relativePath === relativePath);
-  return repo?.currentBranch ?? undefined;
+  return (
+    gitWorkspaceSnapshot(projectId)?.summaries.find(
+      (candidate) => candidate.relativePath === relativePath,
+    )?.currentBranch ?? undefined
+  );
 }

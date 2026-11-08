@@ -614,6 +614,13 @@ pub struct NativeGitDiscovery {
     pub root: String,
     pub project_is_repo: bool,
     pub repositories: Vec<NativeGitProjectRepository>,
+    /// Checkouts outside the project root, per shared Git directory.
+    pub outside_worktrees: Vec<NativeGitOutsideWorktrees>,
+}
+#[napi(object)]
+pub struct NativeGitOutsideWorktrees {
+    pub common_dir: String,
+    pub count: u32,
 }
 #[napi(object)]
 pub struct NativeGitDiscoveryResult {
@@ -637,6 +644,14 @@ impl Task for DiscoveryTask {
                     root: d.root,
                     project_is_repo: d.project_is_repo,
                     repositories: d.repositories.into_iter().map(Into::into).collect(),
+                    outside_worktrees: d
+                        .outside_worktrees
+                        .into_iter()
+                        .map(|o| NativeGitOutsideWorktrees {
+                            common_dir: o.common_dir,
+                            count: o.count,
+                        })
+                        .collect(),
                 }),
                 error: None,
             },

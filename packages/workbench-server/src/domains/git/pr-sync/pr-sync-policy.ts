@@ -40,6 +40,55 @@ export function shownPrs(prs: GithubPr[], demands: PrDemand[]): GithubPr[] {
   );
 }
 
+/** Explicit demands of one path plus its workspace-reported branch (visible when the path is). */
+export function withBranchDemand(
+  real: PrDemand[],
+  branch: string | null | undefined,
+): PrDemand[] {
+  if (!branch || real.some((demand) => demand.branch === branch)) return real;
+  return [
+    ...real,
+    {
+      visible: real.some((demand) => demand.visible),
+      list: false,
+      prs: [],
+      branch,
+    },
+  ];
+}
+
+/**
+ * Heads whose checks need REST probes. Summaries already carry checks, so a
+ * visible list costs nothing extra; only pending checks, and focused PRs
+ * (branch card, open tabs) whose new head may not have reported checks yet,
+ * are probed.
+ */
+export function unsettledPrs(input: {
+  now: number;
+  prs: GithubPr[];
+  demands: PrDemand[];
+  checks: ReadonlyMap<string, { firstAt: number }>;
+}): GithubPr[] {
+  const focused = (number: number, head: string) =>
+    input.demands.some(
+      (demand) =>
+        demand.visible &&
+        (demand.prs.includes(number) ||
+          demand.activePr === number ||
+          demand.branch === head),
+    );
+  return shownPrs(input.prs, input.demands).filter((pr) => {
+    if (!pr.headSha) return false;
+    if (pr.checks.pending > 0) return true;
+    if (pr.state !== "OPEN" || !focused(pr.number, pr.headRefName))
+      return false;
+    const cached = input.checks.get(pr.headSha);
+    return (
+      !cached || (pr.checks.total === 0 && input.now - cached.firstAt < 60_000)
+    );
+  });
+}
+
 export function nextPrProbe(input: {
   now: number;
   lastProbe: number | null;
@@ -101,6 +150,80 @@ export function nextPrProbe(input: {
     repoAt,
     checksInterval: Math.max(10_000, input.pollIntervalMs ?? 0) * stretch,
   };
+}
+
+/** `host/owner/name`, lowercased: the key PR sync shares between worktrees and clones of one remote. */
+export const githubRepoKey = (hostname: string, owner: string, name: string) =>
+  `${hostname}/${owner}/${name}`.toLowerCase();
+
+/** Hosts have independent rate limits; the key's first segment names it. */
+export const githubKeyHost = (key: string) => key.split("/")[0] ?? key;
+
+/**
+ * Daemon-wide GitHub request budget for one host, shared by every repository
+ * so many repositories cannot exhaust the limit together. It tracks the last
+ * rate-limit headers, one shared backoff for primary and secondary limits
+ * (`retry-after`, reset time, exponential on repeats), and spaces out the
+ * start of probe cycles. Pure: callers pass the clock.
+ */
+export class GithubRateBudget {
+  remaining?: number;
+  limit?: number;
+  resetAt?: number;
+  #blockedUntil = 0;
+  #failures = 0;
+  #nextSlot = 0;
+  constructor(
+    /** Minimum spacing between the starts of two probe cycles. */
+    readonly minSpacingMs = 250,
+    /** Below this share of the limit, polling is stretched. */
+    readonly lowRatio = 0.2,
+  ) {}
+  observe(headers: Headers) {
+    const remaining = headers.get("x-ratelimit-remaining"),
+      limit = headers.get("x-ratelimit-limit"),
+      reset = headers.get("x-ratelimit-reset");
+    if (remaining !== null && Number.isFinite(Number(remaining)))
+      this.remaining = Number(remaining);
+    if (limit !== null && Number.isFinite(Number(limit)))
+      this.limit = Number(limit);
+    if (reset !== null && Number.isFinite(Number(reset)))
+      this.resetAt = Number(reset) * 1000;
+  }
+  /** Until when requests must not start; 0 when free. */
+  blockedUntil(now: number): number {
+    return this.#blockedUntil > now ? this.#blockedUntil : 0;
+  }
+  /** A limit was hit (primary or secondary); every repository waits. Returns the end of the block. */
+  limited(now: number, headers: Headers): number {
+    this.observe(headers);
+    this.#blockedUntil = Math.max(
+      this.#blockedUntil,
+      rateLimitBackoff(now, this.#failures++, headers),
+    );
+    return this.#blockedUntil;
+  }
+  succeeded() {
+    this.#failures = 0;
+  }
+  /** Budget is nearly spent (and not yet reset): poll less. */
+  low(now: number): boolean {
+    return (
+      !!this.limit &&
+      this.remaining !== undefined &&
+      this.remaining / this.limit < this.lowRatio &&
+      (this.resetAt === undefined || this.resetAt > now)
+    );
+  }
+  /**
+   * Claim the start time of the next probe cycle: not before a block ends and
+   * at least `minSpacingMs` after the previously claimed one.
+   */
+  reserve(now: number): number {
+    const at = Math.max(now, this.#blockedUntil, this.#nextSlot);
+    this.#nextSlot = at + this.minSpacingMs;
+    return at;
+  }
 }
 
 export function rateLimitBackoff(

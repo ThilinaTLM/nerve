@@ -24,8 +24,16 @@ export const gitRepoSummarySchema = z.object({
   relativePath: z.string(),
   /** Absolute path to the repository working tree. */
   absDir: z.string(),
-  /** Display name (basename of the repo dir, or project name for "."). */
+  /**
+   * Repository display name, shared by all worktrees of one repository: the
+   * primary checkout's folder name (project name for "."), or the folder that
+   * contains the shared Git directory when the primary is not the project root.
+   */
   name: z.string(),
+  /** Stable key of the shared Git directory (normalized `commonDir`); identical for all worktrees of a repository. */
+  worktreeGroup: z.string(),
+  /** True when this checkout is the repository's main working tree (not a linked worktree). */
+  primaryWorktree: z.boolean(),
   isRepo: z.literal(true),
   /** Current branch, or null when HEAD is detached. */
   currentBranch: z.string().nullable(),
@@ -41,8 +49,8 @@ export const gitRepoSummarySchema = z.object({
    * with a remote; null otherwise.
    */
   unpublishedCount: z.number().int().nonnegative().nullable(),
-  /** True when the repository has at least one stash entry. */
-  hasStashes: z.boolean(),
+  /** Number of stash entries; stashes are shared by all worktrees of a repository. */
+  stashCount: z.number().int().nonnegative(),
   /** True when at least one remote is configured (`git remote`). */
   hasRemote: z.boolean(),
   /**
@@ -61,32 +69,6 @@ export const gitRepoSummarySchema = z.object({
 });
 export type GitRepoSummary = z.infer<typeof gitRepoSummarySchema>;
 
-export const gitRepositoryMonitorSyncRequestSchema = z.object({
-  projectId: z.string().startsWith("proj_"),
-  repo: z.string().min(1).max(1_024),
-  active: z.boolean(),
-});
-export type GitRepositoryMonitorSyncRequest = z.infer<
-  typeof gitRepositoryMonitorSyncRequestSchema
->;
-
-export const gitRepositoryMonitorClearRequestSchema = z.object({
-  projectId: z.string().startsWith("proj_"),
-  repo: z.string().min(1).max(1_024),
-});
-
-export const gitRepositoryMonitorStateSchema = z.object({
-  active: z.boolean(),
-  degraded: z.boolean(),
-});
-
-export const gitRepositoryRefreshResponseSchema = z.object({
-  /** False when no live client is monitoring this scope; nothing was refreshed. */
-  active: z.boolean(),
-  /** Monitor generation after the refresh; 0 when inactive. */
-  generation: z.number().int().nonnegative(),
-});
-
 export const gitProjectReadErrorSchema = z.object({
   repo: z.string(),
   category: z.string(),
@@ -99,6 +81,18 @@ export const gitDiscoveryResponseSchema = z.object({
   stale: z.boolean().optional(),
   projectIsRepo: z.boolean(),
   repos: z.array(gitRepoSummarySchema),
+  /**
+   * Checkouts of discovered repositories that live outside the project and are
+   * therefore not in `repos`, per repository (`worktreeGroup`). Omitted groups have none.
+   */
+  outsideWorktrees: z
+    .array(
+      z.object({
+        worktreeGroup: z.string(),
+        count: z.number().int().positive(),
+      }),
+    )
+    .optional(),
   errors: z.array(gitProjectReadErrorSchema).optional(),
 });
 export type GitDiscoveryResponse = z.infer<typeof gitDiscoveryResponseSchema>;
@@ -157,8 +151,6 @@ export const gitOverviewResponseSchema = z.object({
   stagedCount: z.number().int().nonnegative(),
   unstagedCount: z.number().int().nonnegative(),
   untrackedCount: z.number().int().nonnegative(),
-  insertions: z.number().int().nonnegative(),
-  deletions: z.number().int().nonnegative(),
   recentCommits: z.array(gitRecentCommitSchema),
   stashes: z.array(gitStashEntrySchema),
 });

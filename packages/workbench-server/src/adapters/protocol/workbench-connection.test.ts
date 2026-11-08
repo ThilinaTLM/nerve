@@ -17,13 +17,33 @@ void test("PR events follow this connection's independent PR demand", () => {
       data: { projectId: "proj_test", repo },
     }) as NotifyEvent;
   assert.equal(connection.accepts(event()), false);
-  request("git.repository.monitor.sync");
-  assert.equal(connection.accepts(event()), false);
   request("github.pr.watch.sync");
   assert.equal(connection.accepts(event()), true);
   assert.equal(connection.accepts(event("other")), false);
-  request("git.repository.monitor.clear");
-  assert.equal(connection.accepts(event()), true);
   request("github.pr.watch.clear");
+  assert.equal(connection.accepts(event()), false);
+});
+
+void test("workspace changes follow this connection's Git workspace demand", () => {
+  const connection = new WorkbenchConnection();
+  const request = (method: string, params: Record<string, unknown>) =>
+    connection.receive({
+      kind: "request",
+      data: { method, params: { projectId: "proj_test", ...params } },
+    } as ProtocolV1Message);
+  const event = (projectId = "proj_test") =>
+    ({
+      type: "git.workspace.changed",
+      data: { projectId, revision: 1, repos: [], detail: [] },
+    }) as NotifyEvent;
+  assert.equal(connection.accepts(event()), false);
+  request("git.workspace.watch.sync", { visible: true });
+  assert.equal(connection.accepts(event()), true);
+  assert.equal(connection.accepts(event("proj_other")), false);
+  request("git.workspace.watch.sync", { visible: false });
+  assert.equal(connection.accepts(event()), false);
+  request("git.workspace.watch.sync", { visible: false, detail: ["api"] });
+  assert.equal(connection.accepts(event()), true);
+  request("git.workspace.watch.clear", {});
   assert.equal(connection.accepts(event()), false);
 });

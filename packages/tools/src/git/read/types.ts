@@ -43,6 +43,10 @@ export interface GitReadSnapshot {
   stashes: GitStashEntry[];
 }
 
+export type GitReadStatusSnapshot = Pick<
+  GitReadSnapshot,
+  "headOid" | "branch" | "files"
+>;
 export type GitReadMetadataSnapshot = Omit<GitReadSnapshot, "files">;
 export type GitReadMetadataOptions = NativeGitMetadataSnapshotOptions;
 
@@ -74,6 +78,14 @@ export interface GitReadBackend {
     options?: GitReadMetadataOptions,
   ): Promise<GitReadMetadataSnapshot>;
   snapshot(repoDir: string, includeIgnored?: boolean): Promise<GitReadSnapshot>;
+  /**
+   * Branch and working-tree status only: no refs, recent commits or stashes.
+   * Enough for a repository summary together with cached stable metadata.
+   */
+  statusSnapshot(
+    repoDir: string,
+    includeIgnored?: boolean,
+  ): Promise<GitReadStatusSnapshot>;
   isAncestor(
     repoDir: string,
     ancestor: string,

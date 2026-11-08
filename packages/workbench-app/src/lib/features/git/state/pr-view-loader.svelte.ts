@@ -410,34 +410,14 @@ export async function refreshCurrentPr(view: PrViewState): Promise<void> {
 }
 
 let activePrId = $state<string | undefined>();
-let started = false;
-let refreshContextOnFocus: (() => void) | undefined;
-
 export function setActivePrRefreshDemand(id: string | undefined): void {
   activePrId = id;
 }
 
-function refreshVisibleDemand(): void {
-  if (document.visibilityState === "visible") refreshContextOnFocus?.();
-}
-
-export function startGitRefreshCoordinator(onFocus?: () => void): () => void {
-  if (typeof window === "undefined" || started)
-    return stopGitRefreshCoordinator;
+/** Keeps the open pull request tabs watched; call from the provider's scope. */
+export function startPrTabWatch(): () => void {
   $effect(() => watchPrTabs());
-  refreshContextOnFocus = onFocus;
-  started = true;
-  window.addEventListener("focus", refreshVisibleDemand);
-  document.addEventListener("visibilitychange", refreshVisibleDemand);
-  return stopGitRefreshCoordinator;
-}
-
-export function stopGitRefreshCoordinator(): void {
-  if (typeof window === "undefined") return;
-  started = false;
-  refreshContextOnFocus = undefined;
-  window.removeEventListener("focus", refreshVisibleDemand);
-  document.removeEventListener("visibilitychange", refreshVisibleDemand);
+  return () => undefined;
 }
 
 export async function applyMergedPr(view: PrViewState): Promise<void> {

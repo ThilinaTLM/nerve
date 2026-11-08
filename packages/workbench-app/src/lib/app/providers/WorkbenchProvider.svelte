@@ -41,7 +41,8 @@ import { createAppShortcuts } from "$lib/application/commands/app-shortcuts.svel
 import {
   clearGitContext,
   refreshGitContext,
-  startGitRefreshCoordinator,
+  startPrTabWatch,
+  startDiffTabWatch,
   createGitStartupPolicy,
 } from "$lib/features/git";
 import { settingsSelectors } from "$lib/features/settings";
@@ -278,8 +279,7 @@ $effect(() => {
 });
 
 const gitStartupPolicy = createGitStartupPolicy((projectId) => {
-  if (projectId)
-    void refreshGitContext(projectId, { reason: "project", force: true });
+  if (projectId) void refreshGitContext(projectId);
   else clearGitContext();
 });
 
@@ -292,9 +292,12 @@ $effect(() => {
 
 $effect(() => {
   if (!workbenchStartupState.progressiveActive) return;
-  return startGitRefreshCoordinator(
-    () => void refreshGitContext(undefined, { reason: "focus" }),
-  );
+  const stopPrs = startPrTabWatch();
+  const stopDiffs = startDiffTabWatch();
+  return () => {
+    stopPrs();
+    stopDiffs();
+  };
 });
 
 let stopReconnectMonitor: (() => void) | undefined;

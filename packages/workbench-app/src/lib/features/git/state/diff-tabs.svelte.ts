@@ -18,6 +18,7 @@ import {
   setActiveCenterTab,
 } from "$lib/application/workspace/center-tabs.svelte";
 import { workspaceState } from "$lib/application/workspace/workspace-state.svelte";
+import { gitRepoDetail, watchGitWorkspace } from "./git-store.svelte";
 
 export function encodeDiffTabId(input: {
   projectId: string;
@@ -40,6 +41,7 @@ async function loadDiffView(
   if (initial) view.loading = true;
   else view.refreshing = true;
   view.error = undefined;
+  view.detailRevision = gitRepoDetail(view.projectId, view.repo)?.revision;
   try {
     view.data = await getGitFileDiff(
       view.projectId,
@@ -115,4 +117,38 @@ export function closeDiffTab(id: string): void {
   removeCenterTab(tab);
   delete gitState.diffViews[diffViewKey(id)];
   if (closingActive) void selectCenterTab(fallback);
+}
+
+/**
+ * The active diff tab keeps its repository's detail demanded and reloads when
+ * that detail changes on the server (edit, stage, commit from a terminal).
+ * Other diff tabs refresh when they are selected again.
+ */
+export function startDiffTabWatch(): () => void {
+  $effect(() => {
+    const active = workspaceState.activeCenterTab;
+    const view =
+      active?.kind === "diff"
+        ? gitState.diffViews[diffViewKey(active.id)]
+        : undefined;
+    if (!view) return;
+    const { projectId, repo } = view;
+    const unwatch = watchGitWorkspace(() => ({
+      projectId,
+      visible: false,
+      detail: [repo],
+    }));
+    const revision = gitRepoDetail(projectId, repo)?.revision;
+    if (revision !== undefined && revision >= 0) {
+      if (view.detailRevision === undefined) view.detailRevision = revision;
+      else if (
+        view.detailRevision !== revision &&
+        !view.loading &&
+        !view.refreshing
+      )
+        void loadDiffView(view);
+    }
+    return unwatch;
+  });
+  return () => undefined;
 }

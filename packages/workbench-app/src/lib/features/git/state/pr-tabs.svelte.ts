@@ -8,7 +8,7 @@ import {
   loadPrInitial,
   loadPrSection,
   refreshCurrentPr,
-} from "$lib/features/git/state/git-refresh-coordinator.svelte";
+} from "$lib/features/git/state/pr-view-loader.svelte";
 import { pr } from "./pr-store.svelte";
 import {
   gitState,

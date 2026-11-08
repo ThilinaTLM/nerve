@@ -1,4 +1,6 @@
 export interface RuntimeShutdownResources {
+  backgroundFetch?: { close(): Promise<void> };
+  workspaceSync?: { close(): Promise<void> };
   prSync: { close(): Promise<void> };
   gitOperations: { close(): Promise<void> };
   completions: { dispose(): Promise<void> };
@@ -12,6 +14,16 @@ export async function shutdownRuntimeResources(
   resources: RuntimeShutdownResources,
 ): Promise<void> {
   const failures: unknown[] = [];
+  try {
+    if (resources.backgroundFetch) await resources.backgroundFetch.close();
+  } catch (error) {
+    failures.push(error);
+  }
+  try {
+    if (resources.workspaceSync) await resources.workspaceSync.close();
+  } catch (error) {
+    failures.push(error);
+  }
   try {
     await resources.prSync.close();
   } catch (error) {

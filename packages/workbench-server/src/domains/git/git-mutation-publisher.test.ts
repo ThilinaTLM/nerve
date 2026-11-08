@@ -8,12 +8,12 @@ import {
 } from "@nervekit/tools/git";
 import {
   gitMutationFailureActivityId,
-  withGitMutationEvents,
+  withGitMutationReporting,
 } from "./git-mutation-publisher.js";
 
-void test("quick failures produce bounded sanitized activity errors and never repository success events", async () => {
+void test("quick failures produce bounded sanitized activity errors and never invalidate reads", async () => {
   const failures: string[] = [];
-  const events: unknown[] = [];
+  let invalidated = 0;
   const activities: GitActivityPort = {
     start: () => ({
       id: "failed",
@@ -30,41 +30,35 @@ void test("quick failures produce bounded sanitized activity errors and never re
     stageFile: async () => {
       throw new Error("token=secret https://user:password@remote.invalid");
     },
-  } as unknown as GitService;
-  const decorated = withGitMutationEvents(
-    git,
-    {
-      publish: (_type, data) => {
-        events.push(data);
-      },
-    },
-    activities,
-  );
-  await assert.rejects(decorated.stageFile("proj_test", ".", "file"));
-  assert.equal(events.length, 0);
-  assert.equal(failures.length, 1);
-  assert.doesNotMatch(failures[0], /secret|password|remote.invalid/);
-});
-void test("actual success invalidates shared reads once, and publication failure does not change outcome", async () => {
-  let invalidated = 0;
-  let published = 0;
-  const result = { repo: { relativePath: ".", currentBranch: "main" } };
-  const git = {
-    stageFile: async () => result,
-    invalidateProjectReads: (id: string) => {
-      assert.equal(id, "proj_test");
+    invalidateRepoReads: () => {
       invalidated++;
     },
   } as unknown as GitService;
-  const decorated = withGitMutationEvents(git, {
-    publish: () => {
-      published++;
-      throw new Error("event failed");
+  const decorated = withGitMutationReporting(git, activities);
+  await assert.rejects(decorated.stageFile("proj_test", ".", "file"));
+  assert.equal(invalidated, 0);
+  assert.equal(failures.length, 1);
+  assert.doesNotMatch(failures[0], /secret|password|remote.invalid/);
+});
+void test("actual success invalidates shared reads once and notifies the workspace store", async () => {
+  let invalidated = 0;
+  const mutations: string[] = [];
+  const result = { repo: { relativePath: ".", currentBranch: "main" } };
+  const git = {
+    stageFile: async () => result,
+    invalidateRepoReads: (id: string, repo: string) => {
+      assert.equal(id, "proj_test");
+      assert.equal(repo, ".");
+      invalidated++;
     },
+  } as unknown as GitService;
+  const decorated = withGitMutationReporting(git, undefined, (method) => {
+    mutations.push(method);
+    throw new Error("signal failed");
   });
   assert.equal(await decorated.stageFile("proj_test", ".", "file"), result);
   assert.equal(invalidated, 1);
-  assert.equal(published, 1);
+  assert.deepEqual(mutations, ["stageFile"]);
 });
 
 void test("switch failure reports a useful safe Activity in repository scope, preserving the original error", async () => {
@@ -84,7 +78,6 @@ void test("switch failure reports a useful safe Activity in repository scope, pr
   }
   const starts: Parameters<GitActivityPort["start"]>[0][] = [];
   const failures: unknown[] = [];
-  let published = 0;
   let invalidated = 0;
   const activities: GitActivityPort = {
     start: (input) => {
@@ -109,15 +102,7 @@ void test("switch failure reports a useful safe Activity in repository scope, pr
       invalidated++;
     },
   } as unknown as GitService;
-  const decorated = withGitMutationEvents(
-    git,
-    {
-      publish: () => {
-        published++;
-      },
-    },
-    activities,
-  );
+  const decorated = withGitMutationReporting(git, activities);
   await assert.rejects(
     decorated.switchBranch("proj_test", "repo", "target"),
     (error: unknown) => error === original,
@@ -140,7 +125,6 @@ void test("switch failure reports a useful safe Activity in repository scope, pr
     JSON.stringify({ starts, failures }),
     /secret|private|password|remote.invalid/,
   );
-  assert.equal(published, 0);
   assert.equal(invalidated, 0);
   assert.equal(gitMutationFailureActivityId(original), "failed");
 
@@ -159,7 +143,6 @@ void test("switch failure reports a useful safe Activity in repository scope, pr
   assert.equal(gitMutationFailureActivityId(original), undefined);
   assert.equal(starts.length, 1);
   assert.equal(failures.length, 1);
-  assert.equal(published, 0);
 });
 
 void test("Activity reporting failures do not replace the mutation error", async () => {
@@ -169,15 +152,11 @@ void test("Activity reporting failures do not replace the mutation error", async
       throw original;
     },
   } as unknown as GitService;
-  const decorated = withGitMutationEvents(
-    git,
-    { publish() {} },
-    {
-      start() {
-        throw new Error("reporting unavailable");
-      },
+  const decorated = withGitMutationReporting(git, {
+    start() {
+      throw new Error("reporting unavailable");
     },
-  );
+  });
   await assert.rejects(
     decorated.switchBranch("proj_test", ".", "main"),
     (error: unknown) => error === original,
@@ -207,7 +186,7 @@ void test("reused errors lose prior metadata when reporting fails or is unavaila
       };
     },
   };
-  const decorated = withGitMutationEvents(git, { publish() {} }, activities);
+  const decorated = withGitMutationReporting(git, activities);
   const reject = (service: GitService) =>
     assert.rejects(
       service.switchBranch("proj_test", ".", "main"),
@@ -219,9 +198,7 @@ void test("reused errors lose prior metadata when reporting fails or is unavaila
     assert.equal(gitMutationFailureActivityId(original), "reported");
     failure = next === "unavailable" ? undefined : next;
     await reject(
-      next === "unavailable"
-        ? withGitMutationEvents(git, { publish() {} })
-        : decorated,
+      next === "unavailable" ? withGitMutationReporting(git) : decorated,
     );
     assert.equal(gitMutationFailureActivityId(original), undefined);
   }
@@ -235,11 +212,7 @@ void test("primitive thrown values remain unchanged and have no metadata", async
       },
     } as unknown as GitService;
     await assert.rejects(
-      withGitMutationEvents(git, { publish() {} }).switchBranch(
-        "proj_test",
-        ".",
-        "main",
-      ),
+      withGitMutationReporting(git).switchBranch("proj_test", ".", "main"),
       (error: unknown) => error === original,
     );
     assert.equal(gitMutationFailureActivityId(original), undefined);

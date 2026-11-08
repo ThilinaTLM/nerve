@@ -25,6 +25,8 @@ pub(crate) fn watch_paths(
         common_dir.join("refs/remotes"),
         common_dir.join("refs/tags"),
         common_dir.join("logs"),
+        // Linked worktrees appear and disappear as entries here.
+        common_dir.join("worktrees"),
         git_dir.join("rebase-apply"),
         git_dir.join("rebase-merge"),
         git_dir.join("sequencer"),

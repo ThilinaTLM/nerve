@@ -1,5 +1,6 @@
 import {
   gitOperationStartRequestSchema,
+  type GitMutationResponse,
   type GithubPrListFilters,
 } from "@nervekit/contracts/git";
 import {
@@ -28,53 +29,39 @@ export const gitMethodHandlers: WorkbenchMethodHandlerMapFor<GitMethodContext> =
         repo(params),
         params.refresh,
       ),
-    "git.repos.discover": (state, params) =>
-      state.git.discoverRepos(params.projectId, params.refresh),
-    "git.overview.get": (state, params) =>
-      state.git.overview(params.projectId, repo(params)),
-    "git.repository.monitor.sync": async (state, params, invocation) => {
-      const owner = monitorOwner(invocation.monitorOwner);
-      if (!params.active) {
-        await state.workspaceMonitor.clearRepository(
-          owner,
-          params.projectId,
-          repo(params),
-        );
-        return { active: false, degraded: false };
-      }
-      return state.workspaceMonitor.syncRepository(
-        owner,
-        params.projectId,
-        params.repo,
-        state.git.resolveRepoDir(params.projectId, params.repo),
-        true,
-      );
-    },
-    "git.repository.monitor.clear": async (state, params, invocation) => {
-      await state.workspaceMonitor.clearRepository(
+    "git.workspace.watch.sync": (state, params, invocation) =>
+      state.workspaceSync.sync(monitorOwner(invocation.monitorOwner), params),
+    "git.workspace.watch.clear": (state, params, invocation) =>
+      state.workspaceSync.clear(
         monitorOwner(invocation.monitorOwner),
         params.projectId,
-        repo(params),
-      );
-      return { active: false, degraded: false };
-    },
-    "git.repository.refresh": (state, params) => {
-      state.git.invalidateProjectReads(params.projectId);
-      return state.workspaceMonitor.requestRepositoryRefresh(
+      ),
+    "git.workspace.snapshot.get": (state, params) =>
+      state.workspaceSync.snapshot(params.projectId),
+    "git.repo.detail.get": (state, params) =>
+      state.workspaceSync.detail(params.projectId, repo(params)),
+    "git.workspace.refresh": (state, params) =>
+      state.workspaceSync.refresh(
         params.projectId,
-        repo(params),
-      );
-    },
+        params.repo,
+        params.force ?? true,
+      ),
     "git.project.files.status.get": (state, params) =>
       state.git.projectFileStatus(params.projectId, params.refresh),
     "git.branches.list": (state, params) =>
       state.git.listBranches(params.projectId, repo(params)),
     "git.branch.create": (state, params) =>
-      state.git.createBranch(params.projectId, repo(params), params.name),
+      withRevision(state, params, () =>
+        state.git.createBranch(params.projectId, repo(params), params.name),
+      ),
     "git.branch.switch": (state, params) =>
-      state.git.switchBranch(params.projectId, repo(params), params.name),
+      withRevision(state, params, () =>
+        state.git.switchBranch(params.projectId, repo(params), params.name),
+      ),
     "git.branch.delete": (state, params) =>
-      state.git.deleteBranch(params.projectId, repo(params), params.name),
+      withRevision(state, params, () =>
+        state.git.deleteBranch(params.projectId, repo(params), params.name),
+      ),
     "git.file.diff.get": (state, params) =>
       state.git.fileDiff(
         params.projectId,
@@ -83,31 +70,43 @@ export const gitMethodHandlers: WorkbenchMethodHandlerMapFor<GitMethodContext> =
         params.area,
       ),
     "git.file.stage": (state, params) =>
-      state.git.stageFile(params.projectId, repo(params), params.path),
+      withRevision(state, params, () =>
+        state.git.stageFile(params.projectId, repo(params), params.path),
+      ),
     "git.file.unstage": (state, params) =>
-      state.git.unstageFile(params.projectId, repo(params), params.path),
+      withRevision(state, params, () =>
+        state.git.unstageFile(params.projectId, repo(params), params.path),
+      ),
     "git.file.discard": (state, params) =>
-      state.git.discardFile(params.projectId, repo(params), params.path),
+      withRevision(state, params, () =>
+        state.git.discardFile(params.projectId, repo(params), params.path),
+      ),
     "git.stash.create": (state, params) =>
-      state.git.createStash(
-        params.projectId,
-        repo(params),
-        params.area,
-        params.paths,
+      withRevision(state, params, () =>
+        state.git.createStash(
+          params.projectId,
+          repo(params),
+          params.area,
+          params.paths,
+        ),
       ),
     "git.stash.apply": (state, params) =>
-      state.git.applyStash(
-        params.projectId,
-        repo(params),
-        params.index,
-        params.expectedHash,
+      withRevision(state, params, () =>
+        state.git.applyStash(
+          params.projectId,
+          repo(params),
+          params.index,
+          params.expectedHash,
+        ),
       ),
     "git.stash.drop": (state, params) =>
-      state.git.dropStash(
-        params.projectId,
-        repo(params),
-        params.index,
-        params.expectedHash,
+      withRevision(state, params, () =>
+        state.git.dropStash(
+          params.projectId,
+          repo(params),
+          params.index,
+          params.expectedHash,
+        ),
       ),
     "github.status.get": (state, params) =>
       state.git.githubStatus(params.projectId, repo(params)),
@@ -178,4 +177,20 @@ function monitorOwner(owner: string | undefined): string {
 
 function repo(params: { repo?: string }): string {
   return params.repo || ".";
+}
+
+/** Awaits the workspace read that includes the mutation's effect (bounded). */
+async function withRevision(
+  state: GitMethodContext,
+  params: { projectId: string; repo?: string },
+  run: () => Promise<GitMutationResponse>,
+): Promise<GitMutationResponse & { workspaceRevision: number }> {
+  const result = await run();
+  return {
+    ...result,
+    workspaceRevision: await state.workspaceSync.mutated(
+      params.projectId,
+      repo(params),
+    ),
+  };
 }

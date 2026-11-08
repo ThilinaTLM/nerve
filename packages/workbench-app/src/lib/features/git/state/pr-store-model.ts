@@ -15,31 +15,15 @@ export type PrFilters = GitPrFilterConfig & { head?: string };
 export function filterRepoPrs(
   prs: readonly GithubPr[],
   filters: PrFilters,
-  viewer: string | null,
-  branch?: string | null,
 ): GithubPr[] {
   const f = normalizeGitPrFilterConfig(filters);
-  const author =
-    f.author === "me"
-      ? viewer
-      : f.author === "username"
-        ? f.username
-        : undefined;
   return prs
     .filter(
       (pr) =>
         pr.state === "OPEN" &&
-        (f.author === "any" ||
-          Boolean(
-            author && pr.author?.toLowerCase() === author.toLowerCase(),
-          )) &&
-        (!f.reviewRequested || pr.reviewRequested) &&
         (f.drafts === "include" ||
           (f.drafts === "only" ? pr.isDraft : !pr.isDraft)) &&
-        pr.title.toLowerCase().includes(f.title.toLowerCase()) &&
         (!filters.head || pr.headRefName === filters.head) &&
-        (!f.currentBranchOnly ||
-          Boolean(branch && pr.headRefName === branch)) &&
         f.labels.every((label) =>
           pr.labels.some(
             (candidate) => candidate.toLowerCase() === label.toLowerCase(),

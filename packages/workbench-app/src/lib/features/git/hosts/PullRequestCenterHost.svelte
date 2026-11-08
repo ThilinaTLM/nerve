@@ -9,7 +9,7 @@ import {
   loadPrSection,
   selectedPrFileDiffResource,
   setActivePrRefreshDemand,
-} from "$lib/features/git/state/git-refresh-coordinator.svelte";
+} from "$lib/features/git/state/pr-view-loader.svelte";
 
 import {
   gitCurrentBranch,

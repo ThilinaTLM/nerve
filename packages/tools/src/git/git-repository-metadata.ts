@@ -22,7 +22,7 @@ export type StableRepoMetadata = {
   readonly refSnapshot: GitRefSnapshot;
   readonly baseBranch: string;
   readonly comparisonBaseRef: string;
-  readonly hasStash: boolean;
+  readonly stashCount: number;
   readonly remoteState: {
     hasRemote: boolean;
     hasGithubRemote: boolean;
@@ -141,6 +141,8 @@ export class GitRepositoryMetadataCache {
   ): Promise<StableRepoMetadata> {
     const snapshot = await this.service.readMetadataSnapshot(repoDir, {
       signal,
+      // The summary reports how many stashes the repository has.
+      stashLimit: 1_000,
     });
     signal?.throwIfAborted();
     return stableMetadataFromRead(snapshot);
@@ -148,7 +150,10 @@ export class GitRepositoryMetadataCache {
 }
 
 export function stableMetadataFromRead(
-  snapshot: Pick<GitReadMetadataSnapshot, "refs" | "branch" | "remotes">,
+  snapshot: Pick<
+    GitReadMetadataSnapshot,
+    "refs" | "branch" | "remotes" | "stashes"
+  >,
 ): StableRepoMetadata {
   const refSnapshot = refSnapshotFromRead(snapshot);
   const remoteOutput = snapshot.remotes
@@ -171,7 +176,7 @@ export function stableMetadataFromRead(
     refSnapshot,
     baseBranch,
     comparisonBaseRef: comparisonBaseRefFromSnapshot(refSnapshot, baseBranch),
-    hasStash: snapshot.refs.some((ref) => ref.name === "refs/stash"),
+    stashCount: snapshot.stashes.length,
     remoteState,
   };
 }

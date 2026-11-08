@@ -134,17 +134,6 @@ function buildChange(xy: string, path: string): GitFileChange {
   };
 }
 
-/** Parse `git diff --shortstat` output into insertion/deletion counts. */
-export function parseShortstat(stdout: string): {
-  insertions: number;
-  deletions: number;
-} {
-  return {
-    insertions: parseCountBeforeLabel(stdout, " insertion"),
-    deletions: parseCountBeforeLabel(stdout, " deletion"),
-  };
-}
-
 function parseBranchAheadBehind(
   header: string,
 ): { ahead: number; behind: number } | null {
@@ -161,19 +150,6 @@ function parseBranchAheadBehind(
     "-",
   );
   return ahead === null || behind === null ? null : { ahead, behind };
-}
-
-function parseCountBeforeLabel(text: string, label: string): number {
-  const labelIndex = text.indexOf(label);
-  if (labelIndex < 0) return 0;
-
-  let end = labelIndex;
-  while (end > 0 && text[end - 1] === " ") end -= 1;
-
-  let start = end;
-  while (start > 0 && isAsciiDigit(text.charCodeAt(start - 1))) start -= 1;
-
-  return start === end ? 0 : Number(text.slice(start, end));
 }
 
 function parsePrefixedUnsignedInteger(

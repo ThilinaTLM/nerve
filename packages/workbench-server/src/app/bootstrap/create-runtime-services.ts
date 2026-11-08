@@ -3,6 +3,8 @@ import {
   referenceMatchesRepository,
 } from "../../domains/git/pr-sync/pr-reference-signal.js";
 import { PrSyncService } from "../../domains/git/pr-sync/pr-sync-service.js";
+import { GitBackgroundFetch } from "../../domains/git/workspace-sync/git-background-fetch-service.js";
+import { GitWorkspaceSync } from "../../domains/git/workspace-sync/git-workspace-sync-service.js";
 import { UnreadableConversationActivity } from "../../domains/activity/unreadable-conversation-activity.js";
 import { ProjectMigrationService } from "../../infrastructure/configuration/project-migration/project-migration.js";
 import {
@@ -46,7 +48,7 @@ import { ProjectEditorService } from "../../domains/projects/project-editor.serv
 import { ProjectTerminalService } from "../../domains/projects/project-terminal.service.js";
 import { ProjectIconService } from "../../domains/projects/project-icon.service.js";
 import { GitService, GitOperationService } from "@nervekit/tools/git";
-import { withGitMutationEvents } from "../../domains/git/git-mutation-publisher.js";
+import { withGitMutationReporting } from "../../domains/git/git-mutation-publisher.js";
 import { WorkspaceMonitor } from "../../domains/monitoring/workspace-monitor.js";
 import { projectPathIndexes } from "../../domains/filesystem/project-path-index.js";
 
@@ -183,11 +185,20 @@ export function createRuntimeServices(deps: RuntimeDeps) {
       }
     }),
   );
-  const git = withGitMutationEvents(
+  // Constructed after the monitor and the decorated service it reads through.
+  const workspaceSyncRef: { current?: GitWorkspaceSync } = {};
+  const git = withGitMutationReporting(
     gitService,
-    events,
     activities,
     (method, projectId, repo, branch, number) => {
+      if (method === "clone")
+        workspaceSyncRef.current?.markProjectDirty(projectId, {
+          priority: true,
+        });
+      else
+        workspaceSyncRef.current?.markDirty(projectId, repo, {
+          priority: true,
+        });
       if (method === "mergePr" && number)
         prSync.merged(projectId, repo, number);
       else if ((method === "push" || method === "syncBranch") && branch)
@@ -206,6 +217,17 @@ export function createRuntimeServices(deps: RuntimeDeps) {
           for (const branch of branches) prSync.expect(projectId, repo, branch);
         else prSync.signal(projectId, repo);
       },
+      onRepositoryNotice: (projectId, repo, options) => {
+        // A repository notice must not abort reads of the project's other repositories.
+        git.invalidateRepoReads(
+          projectId,
+          repo,
+          options?.refreshCause === "uncertain_poll"
+            ? { uncertain: true }
+            : undefined,
+        );
+        workspaceSyncRef.current?.onNotice(projectId, repo, options);
+      },
       onRepositoryChanged: (repoDir, options) => {
         if (options?.refreshCause !== "uncertain_poll")
           gitService.invalidateStableRepoMetadata(repoDir);
@@ -215,6 +237,22 @@ export function createRuntimeServices(deps: RuntimeDeps) {
       },
     },
   );
+  const workspaceSync = new GitWorkspaceSync(git, workspaceMonitor, events, {
+    onBranchChanged: (change) => prSync.branchChanged(change),
+  });
+  workspaceSyncRef.current = workspaceSync;
+  // Quiet `git fetch` for visible repositories; moved remote refs refresh summaries and PRs.
+  const backgroundFetch = new GitBackgroundFetch(
+    gitService,
+    { candidates: () => workspaceSync.backgroundFetchCandidates() },
+    (members) => {
+      for (const { projectId, repo } of members) {
+        workspaceSync.markDirty(projectId, repo);
+        prSync.signal(projectId, repo);
+      }
+    },
+  );
+  backgroundFetch.start();
   const promptSuggestionEnablement = new PromptSuggestionEnablementService(
     storage.paths.configPath,
   );
@@ -348,6 +386,8 @@ export function createRuntimeServices(deps: RuntimeDeps) {
     integrationHealth,
     workspaceMonitor,
     prSync,
+    workspaceSync,
+    backgroundFetch,
     git,
     gitOperations,
     editors: new ProjectEditorService(getProject),

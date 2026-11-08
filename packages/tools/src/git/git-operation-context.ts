@@ -159,6 +159,12 @@ export function inGitLane<T>(
   );
 }
 
+/** True while a network operation (fetch, pull, push, ...) runs or waits in the repository's lane. */
+export async function hasGitNetworkWork(cwd: string): Promise<boolean> {
+  const identity = await canonicalGitDirectory(resolve(cwd));
+  return gitOperationLanes.hasNetworkWork(gitPathKey(identity));
+}
+
 /** Validate a descriptor against the lane already held by a composed read. */
 export function assertGitReadLane(commonDir: string): void {
   const parent = context.getStore();

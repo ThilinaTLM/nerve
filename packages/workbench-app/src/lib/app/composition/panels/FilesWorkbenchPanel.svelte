@@ -1,4 +1,5 @@
 <script lang="ts">
+import { watchGitChanges } from "$lib/features/git";
 import FilesPanelHost from "$lib/features/filesystem/hosts/FilesPanelHost.svelte";
 import {
   openProjectInEditorAndNotify,
@@ -18,4 +19,5 @@ const activeProject = $derived(workspaceSelectors.activeProject);
     void openProjectInEditorAndNotify(projectId, editor, path)}
   onOpenInTerminal={(projectId, path) =>
     void openProjectInTerminalAndNotify(projectId, path)}
+  watchGit={watchGitChanges}
 />

@@ -1,3 +1,7 @@
+import {
+  backgroundFetch as backgroundFetchImpl,
+  type BackgroundFetchResult,
+} from "./git-background-fetch.js";
 import { readFileDiff, type GitFileDiffContext } from "./git-file-diff.js";
 import type { GitMutationContext } from "./git-mutation-context.js";
 import {
@@ -136,7 +140,8 @@ export class GitService {
   readonly #githubApi: GithubApiClient;
   readonly #readBackend: GitReadBackend;
   readonly #projectReader: GitProjectReader;
-  readonly #overviews: GitOverviewCoalescer;
+  readonly #overviews: GitOverviewCoalescer<GitOverviewResponse>;
+  readonly #summaries: GitOverviewCoalescer<GitRepoSummary>;
   readonly #mutations: GitMutationContext;
   readonly #fileDiffContext: GitFileDiffContext;
   readonly #issues = new GitRemoteCache<GithubIssueSummary[]>();
@@ -173,6 +178,15 @@ export class GitService {
       readOverview: (projectId, relativePath) =>
         this.readOverview(projectId, relativePath),
     });
+    this.#summaries = new GitOverviewCoalescer(
+      {
+        resolveRepoDir: (projectId, relativePath) =>
+          this.resolveRepoDir(projectId, relativePath),
+        readOverview: (projectId, relativePath) =>
+          this.readRepoSummary(projectId, relativePath),
+      },
+      false,
+    );
     this.#mutations = {
       resolveRepoDir: (projectId, relativePath) =>
         this.resolveRepoDir(projectId, relativePath),
@@ -361,6 +375,36 @@ export class GitService {
     }
   }
 
+  /**
+   * A change in one repository: only that repository's in-flight reads are
+   * superseded. Project-wide caches (discovery, file status) are marked stale
+   * without interrupting running reads of other repositories.
+   */
+  invalidateRepoReads(
+    projectId: string,
+    relativePath: string,
+    options: { uncertain?: boolean } = {},
+  ): void {
+    let repoDir: string;
+    try {
+      repoDir = this.resolveRepoDir(projectId, relativePath);
+    } catch {
+      this.invalidateProjectReads(projectId, options);
+      return;
+    }
+    this.#projectReader.invalidate(projectId, { uncertain: true });
+    this.#overviews.invalidate(projectId, options, repoDir);
+    this.#summaries.invalidate(projectId, options, repoDir);
+    if (!options.uncertain) this.#stableMetadataCache.invalidate(repoDir);
+  }
+
+  /** Repository paths (relative to the project) a discovery would report; no status reads. */
+  async listRepositoryPaths(projectId: string): Promise<string[]> {
+    const root = realpathSync(this.getProject(projectId).dir);
+    const discovery = await this.#readBackend.discoverProject(root);
+    return discovery.repositories.map((repo) => repo.relativePath).sort();
+  }
+
   discoverRepos(
     projectId: string,
     refresh = false,
@@ -402,6 +446,33 @@ export class GitService {
     relativePath: string,
   ): Promise<GitOverviewResponse> {
     return this.#overviews.overview(projectId, relativePath);
+  }
+
+  /**
+   * Summary without file list, recent commits or stashes: branch status from
+   * one status read, the rest from the cached stable metadata.
+   */
+  repoSummary(
+    projectId: string,
+    relativePath: string,
+  ): Promise<GitRepoSummary> {
+    return this.#summaries.overview(projectId, relativePath);
+  }
+
+  private async readRepoSummary(
+    projectId: string,
+    relativePath: string,
+  ): Promise<GitRepoSummary> {
+    const repoDir = this.resolveRepoDir(projectId, relativePath);
+    const status = await this.#readBackend.statusSnapshot(repoDir);
+    return getRepoSummary(
+      this,
+      repoDir,
+      relativePath,
+      this.repoName(projectId, relativePath),
+      undefined,
+      status,
+    );
   }
 
   private async readOverview(
@@ -497,7 +568,16 @@ export class GitService {
       return false;
     }
     try {
-      return await this.#readBackend.isAncestor(repoDir, "HEAD", baseRef);
+      if (!(await this.#readBackend.isAncestor(repoDir, "HEAD", baseRef))) {
+        return false;
+      }
+      // A branch still at the base tip has no work of its own yet (just created),
+      // so it is not "merged".
+      const [head, base] = await Promise.all([
+        this.#readBackend.resolveRevision(repoDir, "HEAD"),
+        this.#readBackend.resolveRevision(repoDir, baseRef),
+      ]);
+      return head !== base;
     } catch {
       return false;
     }
@@ -667,6 +747,25 @@ export class GitService {
     return fetchImpl(this.#mutations, projectId, relativePath);
   }
 
+  /** Non-interactive background `git fetch`; yields to user remote operations. */
+  backgroundFetch(
+    projectId: string,
+    relativePath: string,
+    signal?: AbortSignal,
+  ): Promise<BackgroundFetchResult> {
+    return backgroundFetchImpl(
+      {
+        resolveRepoDir: (id, path) => this.resolveRepoDir(id, path),
+        run: (cwd, args, options) => this.run("git", cwd, args, options),
+        invalidateStableRepoMetadata: (repoDir) =>
+          this.invalidateStableRepoMetadata(repoDir),
+      },
+      projectId,
+      relativePath,
+      signal,
+    );
+  }
+
   async clone(
     projectId: string,
     relativePath: string,
@@ -793,6 +892,7 @@ export class GitService {
     this.#remoteCacheListeners.clear();
     const results = await Promise.allSettled([
       this.#overviews.close(),
+      this.#summaries.close(),
       this.#projectReader.close(),
       this.#stableMetadataCache.close(),
       this.#issues.close(),

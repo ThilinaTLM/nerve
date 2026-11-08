@@ -12,12 +12,11 @@ export function createWorkspaceMonitorPublisher(
   return {
     publishBestEffort(type, data, context) {
       if (typeof data.projectId === "string") {
-        git.invalidateProjectReads(
-          data.projectId,
+        const options =
           data.refreshCause === "uncertain_poll"
             ? { uncertain: true }
-            : undefined,
-        );
+            : undefined;
+        git.invalidateProjectReads(data.projectId, options);
       }
       events.publishBestEffort(type, data, context);
     },

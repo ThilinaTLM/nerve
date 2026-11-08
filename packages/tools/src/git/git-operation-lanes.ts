@@ -117,6 +117,7 @@ interface Entry {
 export class GitOperationLanes {
   readonly #queue: Entry[] = [];
   readonly #active = new Set<string>();
+  readonly #activeNetwork = new Set<string>();
   #network = 0;
 
   constructor(
@@ -125,6 +126,14 @@ export class GitOperationLanes {
   ) {
     if (networkLimit < 1 || queueLimit < 1)
       throw new Error("Invalid Git lane limits");
+  }
+
+  /** True while a network operation (running or queued) holds the lane for `key`. */
+  hasNetworkWork(key: string): boolean {
+    return (
+      this.#activeNetwork.has(key) ||
+      this.#queue.some((entry) => entry.key === key && entry.network)
+    );
   }
 
   run<T>(
@@ -177,13 +186,19 @@ export class GitOperationLanes {
       this.#queue.splice(index, 1);
       entry.signal?.removeEventListener("abort", entry.abort);
       this.#active.add(entry.key);
-      if (entry.network) this.#network++;
+      if (entry.network) {
+        this.#network++;
+        this.#activeNetwork.add(entry.key);
+      }
       void Promise.resolve()
         .then(entry.run)
         .then(entry.resolve, entry.reject)
         .finally(() => {
           this.#active.delete(entry.key);
-          if (entry.network) this.#network--;
+          if (entry.network) {
+            this.#network--;
+            this.#activeNetwork.delete(entry.key);
+          }
           this.#drain();
         });
     }

@@ -23,6 +23,8 @@ export interface GitCommandOptions {
   deadlineAt?: number;
   signal?: AbortSignal;
   network?: boolean;
+  /** Extra environment for the child process (merged over `process.env`). */
+  env?: Record<string, string>;
   onProgress?: (progress: GitProgress) => void;
   timeoutMs?: number;
   inactivityMs?: number;
@@ -66,7 +68,7 @@ export async function runGitCommand(
   try {
     child = spawnManagedProcess(bin, args, {
       cwd,
-      env: process.env,
+      env: options.env ? { ...process.env, ...options.env } : process.env,
       policy: {
         ...gitProcessPolicy(),
         wallTimeMs: timeoutMs + GIT_TERMINATION_GRACE_MS + 3_000,

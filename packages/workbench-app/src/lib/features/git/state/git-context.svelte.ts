@@ -1,134 +1,72 @@
-import { SvelteSet } from "svelte/reactivity";
-import type { GitContext } from "$lib/features/git/state/git-state.svelte";
 import { gitState } from "$lib/features/git/state/git-state.svelte";
 import { selection } from "$lib/application/workspace/selection.svelte";
-import { workspaceState } from "$lib/application/workspace/workspace-state.svelte";
-import { gitContextFingerprint } from "./git-context-helpers";
+import { refreshGithub } from "./git-panel-refresh.svelte";
 import {
   applyGitContextFromProject,
-  refreshGitProject,
-  scheduleAutomaticProjectGitRefresh,
-} from "./git-panel.svelte";
+  selectedGitRepo,
+} from "./git-panel-state.svelte";
+import {
+  gitWorkspaceSnapshot,
+  holdGitWorkspace,
+  onGitWorkspaceChange,
+  readGitWorkspace,
+} from "./git-store.svelte";
 
 export { gitContextFingerprint } from "./git-context-helpers";
 
-const GIT_CONTEXT_MIN_REFRESH_MS = 2_000;
+let heldProjectId: string | undefined;
+let release: (() => void) | undefined;
 
-type GitContextRefreshReason = "project" | "focus";
-
-type GitContextRefreshOptions = {
-  force?: boolean;
-  reason?: GitContextRefreshReason;
-};
-
-const inFlight = new SvelteSet<string>();
-let pendingRefreshTimer: number | undefined;
-let lastRefreshStartedAt = 0;
-
-function clearPendingRefresh(): void {
-  if (pendingRefreshTimer === undefined || typeof window === "undefined")
-    return;
-  window.clearTimeout(pendingRefreshTimer);
-  pendingRefreshTimer = undefined;
+/**
+ * Keep the active project's summaries live for as long as it is the active
+ * project. Demand audit: the Git panel and the Files panel (decorations)
+ * declare their own `visible` demand while mounted; the composer's prompt
+ * suggestions read `gitState.gitContext` (dirty/ahead/behind/branch per
+ * repository) whether or not either panel is open, so this is the one
+ * always-on consumer. It costs summary reads of the active project only.
+ */
+function holdContextProject(projectId: string | undefined): void {
+  if (heldProjectId === projectId) return;
+  release?.();
+  release = undefined;
+  heldProjectId = projectId;
+  if (projectId) release = holdGitWorkspace({ projectId, visible: true });
 }
 
-function scheduleRefresh(
-  projectId: string,
-  options: GitContextRefreshOptions,
-  delayMs: number,
-): void {
-  if (pendingRefreshTimer !== undefined || typeof window === "undefined")
-    return;
-  pendingRefreshTimer = window.setTimeout(() => {
-    pendingRefreshTimer = undefined;
-    void refreshGitContext(projectId, { ...options, force: false });
-  }, delayMs);
-}
-
-function applyGitContext(next: GitContext): void {
-  const current = gitState.gitContext;
-  const changed =
-    !current ||
-    current.projectId !== next.projectId ||
-    gitContextFingerprint(current) !== gitContextFingerprint(next);
-
-  if (changed) {
-    gitState.gitContext = next;
-  } else {
-    gitState.gitContext = { ...current, loadedAt: next.loadedAt };
-  }
-}
-
-async function loadGitContext(
-  projectId: string,
-  options: GitContextRefreshOptions = {},
-): Promise<GitContext | undefined> {
-  const project = workspaceState.projects.find(
-    (candidate) => candidate.id === projectId,
-  );
-  if (!project) return undefined;
-  await refreshGitProject(project, {
-    force: options.force,
-    silent: true,
-    onlyIfChanged: !options.force,
-    loadDetails: false,
+/** Mirrors the active project's workspace snapshot into `gitState.gitContext`. */
+export function registerGitContextSync(): () => void {
+  const stop = onGitWorkspaceChange((projectId) => {
+    if (projectId === heldProjectId) applyGitContextFromProject(projectId);
   });
-  applyGitContextFromProject(projectId);
-  const context = gitState.gitContext;
-  return context?.projectId === projectId ? context : undefined;
+  return () => {
+    stop();
+    holdContextProject(undefined);
+  };
 }
 
-export async function refreshGitContext(
-  projectId?: string,
-  options: GitContextRefreshOptions = {},
-): Promise<void> {
+export async function refreshGitContext(projectId?: string): Promise<void> {
   const id = projectId ?? selection.projectId;
   if (!id) return;
-
-  if (options.force) clearPendingRefresh();
-
-  const now = Date.now();
-  const elapsed = now - lastRefreshStartedAt;
-  if (
-    !options.force &&
-    lastRefreshStartedAt > 0 &&
-    elapsed < GIT_CONTEXT_MIN_REFRESH_MS
-  ) {
-    scheduleRefresh(id, options, GIT_CONTEXT_MIN_REFRESH_MS - elapsed);
-    return;
-  }
-
-  if (inFlight.has(id)) {
-    if (options.force) scheduleRefresh(id, options, GIT_CONTEXT_MIN_REFRESH_MS);
-    return;
-  }
-  lastRefreshStartedAt = now;
-  inFlight.add(id);
+  holdContextProject(id);
   try {
-    const next = await loadGitContext(id, options);
-    if (next) applyGitContext(next);
+    await readGitWorkspace(id);
+    if (!gitWorkspaceSnapshot(id)?.loaded) return;
+    await refreshGithub(id, selectedGitRepo(id));
+    applyGitContextFromProject(id);
   } catch {
     // Discovery failed (not a repo, permissions, etc.) — drop context so no
     // suggestions are shown rather than surfacing an error.
-    if (gitState.gitContext?.projectId === id) {
-      gitState.gitContext = undefined;
-    }
-  } finally {
-    inFlight.delete(id);
+    if (gitState.gitContext?.projectId === id) gitState.gitContext = undefined;
   }
 }
 
 export function clearGitContext(): void {
-  clearPendingRefresh();
+  holdContextProject(undefined);
   gitState.gitContext = undefined;
 }
 
-/**
- * Coalesce local Git and pull-request refresh demand after a conversation or
- * Git mutation completes.
- */
+/** A Git or pull request mutation finished: pick up the server's latest state. */
 export function invalidateGit(projectId?: string): void {
-  scheduleAutomaticProjectGitRefresh(projectId, {
-    overview: true,
-  });
+  const id = projectId ?? selection.projectId;
+  if (id) void readGitWorkspace(id);
 }
