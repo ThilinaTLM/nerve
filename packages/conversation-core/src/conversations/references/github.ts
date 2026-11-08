@@ -183,24 +183,47 @@ export function extractPromptReferences(
     .sort((a, b) => a.index - b.index)
     .map((entry) => entry.reference);
 }
-export function extractCreatedReference(
-  command: string,
+/** Source of a tool call that may run `gh pr create` / `gh issue create`. */
+export interface CreatedReferenceSource {
+  kind: "shell" | "python";
+  text: string;
+}
+
+/** Reference kinds the source actually creates. */
+function createdKinds(source: CreatedReferenceSource): Set<string> {
+  const matches =
+    source.kind === "shell"
+      ? // A gh command at a command start, not quoted prose, echo, wrappers, or scripts.
+        maskShellQuotes(source.text).matchAll(
+          /(?:^|&&|[;|(\n{]|\$\(|\b(?:do|then|else)\b)\s*gh\s+(pr|issue)\s+create(?=[\s;&|)}]|$)/g,
+        )
+      : // Heuristic, not a Python parser: a string starting with the command, or the argv list form.
+        source.text.matchAll(
+          /["']gh\s+(pr|issue)\s+create\b|["']gh["']\s*,\s*["'](pr|issue)["']\s*,\s*["']create["']/g,
+        );
+  return new Set(
+    [...matches].map((match) =>
+      (match[1] ?? match[2]) === "pr" ? "pull_request" : "issue",
+    ),
+  );
+}
+
+export function extractCreatedReferences(
+  source: CreatedReferenceSource,
   exitCode: number | null,
   output: string,
   remotes: GitHubRepository[] = [],
-): ConversationReference | null {
-  if (exitCode !== 0) return null;
-  // Accept an actual simple gh command, not quoted prose, echo, wrappers, or scripts.
-  const unquoted = maskShellQuotes(command);
-  const commands = [
-    ...unquoted.matchAll(
-      /(?:^|&&|\|\||;|\n)\s*gh\s+(pr|issue)\s+create(?=\s|$)/g,
-    ),
-  ];
-  const kind = commands.at(-1)?.[1];
-  if (!kind) return null;
-  const found = urls(output, remotes)
-    .filter((r) => r.kind === (kind === "pr" ? "pull_request" : "issue"))
-    .at(-1);
-  return found ? { ...found, relationship: "created" } : null;
+): ConversationReference[] {
+  if (exitCode !== 0) return [];
+  const kinds = createdKinds(source);
+  if (!kinds.size) return [];
+  const result = new Map<string, ConversationReference>();
+  urls(output, remotes, (found, index) => {
+    // gh reports an existing PR as "... already exists:" followed by its URL.
+    const before = output.slice(Math.max(0, index - 200), index);
+    if (!kinds.has(found.kind) || /already exists:?\s*$/i.test(before)) return;
+    if (!result.has(found.resourceKey))
+      result.set(found.resourceKey, { ...found, relationship: "created" });
+  });
+  return [...result.values()];
 }

@@ -155,13 +155,12 @@ function bash(conversationId: string): ConversationEvent {
       assistantEventId: "assistant",
       contentIndex: 0,
       outcome: "completed",
-      agentProjection: [],
+      agentProjection: [
+        { type: "text", text: "https://github.com/a/b/pull/1" },
+      ],
       userProjection: {
         argsPreview: {},
-        resultPreview: {
-          content: "https://github.com/a/b/pull/1",
-          details: { exitCode: 0 },
-        },
+        resultPreview: { content: "", details: { exitCode: 0 } },
       },
       supervision: null,
       interactionResolution: null,
@@ -254,6 +253,44 @@ test("settled async bash extracts output only and records descendant creation on
       "created",
     );
     assert.equal(s.conversations.getSummary("sibling")?.references.length, 0);
+  } finally {
+    s.close();
+  }
+});
+
+test("python_exec creating several pull requests records each from the full output", async () => {
+  const s = fixture();
+  const extraction = new ReferenceExtraction({ storage: s, emit: () => {} });
+  try {
+    const event = bash("child");
+    if (event.type !== "tool_call_response") throw new Error("fixture type");
+    event.payload.toolName = "python_exec";
+    event.payload.arguments = {
+      code: 'for r in repos:\n    subprocess.run(["gh", "pr", "create"], cwd=r)',
+    };
+    event.payload.agentProjection = [
+      {
+        type: "text",
+        text: "db https://github.com/a/db/pull/6\napi https://github.com/a/api/pull/154\nweb https://github.com/a/web/pull/140\n\nProcess exit code 0.",
+      },
+    ];
+    // The preview hides the first line, and python_exec reports a top-level exit code.
+    event.payload.userProjection.resultPreview = {
+      exitCode: 0,
+      content: "api https://github.com/a/api/pull/154",
+    };
+    await extraction.committed(event);
+    for (const id of ["child", "root"])
+      assert.deepEqual(
+        s.conversations
+          .getSummary(id)
+          ?.references.map((r) => `${r.relationship}:${r.resourceKey}`),
+        [
+          "created:github.com/a/db#6",
+          "created:github.com/a/api#154",
+          "created:github.com/a/web#140",
+        ],
+      );
   } finally {
     s.close();
   }
