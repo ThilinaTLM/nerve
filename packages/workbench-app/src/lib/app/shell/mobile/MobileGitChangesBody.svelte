@@ -315,7 +315,7 @@ const hasUnstaged = $derived(unstagedCount > 0);
     <p class="px-6 py-10 text-center text-ui text-muted-foreground">
       {model.availability.message}
     </p>
-  {:else if model.initialLoading}
+  {:else if model.initialLoading || (model.repositories.length > 0 && !model.changes)}
     <p class="px-6 py-10 text-center text-ui text-muted-foreground">
       Loading changes…
     </p>

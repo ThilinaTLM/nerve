@@ -55,7 +55,6 @@ import {
 import { workbenchStartupState } from "$lib/application/startup/workbench-startup-state.svelte";
 import { shouldActivateGitPanel } from "./git-startup-policy";
 import { showCriticalError } from "$lib/application/notifications/critical-errors.svelte";
-import { gitPanelLayout } from "./git-panel-view-state.svelte";
 import {
   gitHintedRepo,
   gitRepoDetail,
@@ -534,8 +533,8 @@ export function createWorkbenchGitPanelAdapter(
 
   // Server-owned Git state: declare what this panel shows. Summaries of every
   // repository while the panel is on screen, the selected worktree's files and
-  // stashes while the Changes section is open, and the hovered or focused
-  // branch row as a hint (open diffs declare their own detail demand).
+  // stashes (regardless of layout: the mobile Changes body has no section to
+  // open), and the hovered or focused branch row as a hint (open diffs declare their own detail demand).
   $effect(() => {
     const project = activeProject();
     const active = workbenchStartupState.progressiveActive && enabled();
@@ -543,14 +542,11 @@ export function createWorkbenchGitPanelAdapter(
     const projectId = project.id;
     return watchGitWorkspace(() => {
       const selected = selectedGitRepo(projectId);
-      const detail = !gitPanelLayout().changes.collapsed
-        ? [selected]
-        : undefined;
       const hint = gitHintedRepo(projectId);
       return {
         projectId,
         visible: true,
-        ...(detail ? { detail } : {}),
+        detail: [selected],
         ...(hint ? { hint } : {}),
       };
     });
