@@ -95,10 +95,12 @@ describe("native managed process facade", () => {
         { cwd: process.cwd(), encoding: "utf8" },
       );
       assert.notEqual(result.status, 0);
+      const output = `${result.stderr}${result.stdout}`;
       assert.match(
-        `${result.stderr}${result.stdout}`,
-        /Native runtime failed to load: No native prebuild/,
+        output,
+        /Native runtime failed to load: @nervekit\/native-[\w-]+ is not installed/,
       );
+      assert.match(output, /--omit=optional/);
     } finally {
       await rm(root, { recursive: true, force: true });
     }
