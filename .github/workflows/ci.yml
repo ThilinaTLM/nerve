@@ -6,6 +6,13 @@ on:
     branches:
       - main
 
+# A new push to a pull request cancels its superseded run. Other events get a
+# unique group: a shared group would cancel pending main runs, and the release
+# workflow requires the main run of the release commit.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: true
+
 permissions:
   contents: read
 
@@ -311,6 +318,12 @@ jobs:
           NERVE_AFFECTED_PACKAGES: ${{ needs.paths.outputs.packages }}
         run: node scripts/testing/run-affected-packages.ts check
 
+      # The migration registry loads the native addon. Migration inputs always
+      # affect workbench-server, which selects the addon (`native`).
+      - name: Check storage migration lock
+        if: env.TASK == 'check' && needs.paths.outputs.native == 'true'
+        run: pnpm migrations:check
+
       # Tests of one affected package import another affected package's dist
       # (e.g. conversation-core tests import @nervekit/tools/dist), and only the
       # check entry builds them implicitly via tsc -b.
@@ -386,6 +399,10 @@ jobs:
 
       - name: Check all packages
         run: pnpm -r check
+
+      # Needs the native addon unpacked above.
+      - name: Check storage migration lock
+        run: pnpm migrations:check
 
   package-tests:
     name: Packages / All tests (Ubuntu)

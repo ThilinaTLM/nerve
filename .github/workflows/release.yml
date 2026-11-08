@@ -52,6 +52,57 @@ jobs:
       - name: Verify release tag
         run: node scripts/release/verify-release-tag.ts "${RELEASE_TAG}"
 
+  # The release commit is pushed to main together with its tag, so CI validates
+  # the same commit in full (checks, all package tests, browser, website and
+  # Windows/macOS native suites). Wait for that run instead of repeating it here;
+  # this workflow keeps only release-specific builds, smokes and packaging.
+  require-ci:
+    name: Require passing CI
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      actions: read
+      contents: read
+
+    steps:
+      - name: Wait for CI on the release commit
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          SHA: ${{ github.sha }}
+          # Tags need the full-coverage main push run; dry runs of a candidate
+          # branch also accept its pull request run.
+          EVENTS: ${{ github.event_name == 'push' && '["push"]' || '["push","pull_request"]' }}
+        run: |
+          set -euo pipefail
+          # CI starts within seconds of the push; allow a grace period before
+          # treating a missing run as "never ran".
+          grace=$((SECONDS + 300))
+          while :; do
+            runs="$(gh run list --workflow ci.yml --commit "${SHA}" --limit 50 \
+              --json databaseId,event,status,conclusion,url \
+              | jq --argjson events "${EVENTS}" '[.[] | select(.event as $e | $events | index($e))]')"
+            success="$(jq -r '[.[] | select(.conclusion == "success")][0].url // empty' <<<"${runs}")"
+            if [ -n "${success}" ]; then
+              echo "CI passed for ${SHA}: ${success}"
+              exit 0
+            fi
+            pending="$(jq '[.[] | select(.status != "completed")] | length' <<<"${runs}")"
+            total="$(jq 'length' <<<"${runs}")"
+            if [ "${pending}" -eq 0 ] && [ "${total}" -gt 0 ]; then
+              jq -r '.[] | "\(.event) \(.conclusion) \(.url)"' <<<"${runs}" >&2
+              echo "CI did not pass for ${SHA}; re-run CI, then re-run this workflow" >&2
+              exit 1
+            fi
+            if [ "${total}" -eq 0 ] && [ "${SECONDS}" -gt "${grace}" ]; then
+              echo "No CI run (${EVENTS}) found for ${SHA}; release commits must be on main (dry runs: open a pull request)" >&2
+              exit 1
+            fi
+            echo "Waiting for CI on ${SHA} (${pending} run(s) in progress)"
+            sleep 30
+          done
+
   native-prebuilds:
     name: Native prebuild (${{ matrix.target }})
     needs: verify-tag
@@ -110,8 +161,8 @@ jobs:
           path: packages/native/prebuilds/*.node
           if-no-files-found: error
 
-  quality-and-package:
-    name: Check, test, build, and package (Ubuntu)
+  build-and-package:
+    name: Build, smoke, and package (Ubuntu)
     runs-on: ubuntu-latest
     needs:
       - verify-tag
@@ -133,12 +184,6 @@ jobs:
         with:
           node-version: 24
 
-      - name: Set up Rust
-        uses: dtolnay/rust-toolchain@4360b52568e2003a75bf9bc1d59f33a8e3fc893c # stable 2026-08-05
-        with:
-          toolchain: 1.97.1
-          components: clippy,rustfmt
-
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
@@ -151,15 +196,6 @@ jobs:
 
       - name: Verify native prebuild inventory
         run: node scripts/release/verify-native-prebuilds.ts
-
-      - name: Check formatting, lint, and packages
-        run: pnpm check
-
-      - name: Run complete test suite
-        run: pnpm run test:full
-
-      - name: Remove developer native prebuild
-        run: rm -rf packages/native/prebuilds/local
 
       - name: Build all packages
         run: pnpm build
@@ -227,9 +263,6 @@ jobs:
       - name: Build all packages
         run: pnpm build
 
-      - name: Run native tool and desktop tests
-        run: pnpm --filter @nervekit/tools --filter @nervekit/desktop-shell test
-
       - name: Smoke generated desktop assets
         run: node scripts/release/smoke-desktop-package.ts
 
@@ -244,7 +277,8 @@ jobs:
     runs-on: ubuntu-latest
     needs:
       - verify-tag
-      - quality-and-package
+      - require-ci
+      - build-and-package
       - native-package-smoke
     permissions:
       contents: read
@@ -268,9 +302,6 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Check website
-        run: pnpm --filter @nervekit/website check
-
       - name: Build website
         run: pnpm --filter @nervekit/website build
 
@@ -285,7 +316,8 @@ jobs:
     runs-on: ubuntu-latest
     needs:
       - verify-tag
-      - quality-and-package
+      - require-ci
+      - build-and-package
       - native-package-smoke
     permissions:
       contents: read
