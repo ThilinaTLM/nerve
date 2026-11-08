@@ -11,7 +11,8 @@ sidebar:
 | ------------------------ | ------------------------------------------------------- |
 | `--local`                | Run/select an owned local daemon; default agent profile |
 | `--connect <url>`        | Connect to an existing HTTP(S) daemon origin            |
-| `--token <token>`        | Remote daemon token                                     |
+| `--pair-code <CODE>`     | One-time pairing code for `--connect`                   |
+| `--token <token>`        | Deprecated: remote daemon token                         |
 | `--host <host>`          | Owned-daemon bind host                                  |
 | `--port <1-65535>`       | Owned-daemon HTTP port                                  |
 | `--https-port <1-65535>` | Mobile HTTPS port                                       |
@@ -32,7 +33,10 @@ Pass app options after `--` when using `npx` or `pnpm dlx`.
 | `NERVE_HTTPS_PORT`                   | Mobile HTTPS port; source desktop default 3748, server fallback HTTP+1     |
 | `NERVE_ALLOW_REMOTE=1\|0`            | Enable/disable LAN access; enable implies wildcard host when none supplied |
 | `NERVE_MOBILE_HTTPS=1\|0`            | Enable/disable mobile HTTPS                                                |
-| `NERVE_DAEMON_TOKEN`                 | Token for `--connect`; secret                                              |
+| `NERVE_DAEMON_TOKEN`                 | Deprecated token for `--connect`; secret                                   |
+| `NERVE_PUBLIC_URL`                   | Public origin behind a reverse proxy; turns on passkey owner login         |
+| `NERVE_TRUST_PROXY_PEERS`            | Proxy addresses or CIDR ranges allowed to set `X-Forwarded-*` headers      |
+| `NERVE_ALLOWED_HOSTS`                | Extra DNS names accepted in the `Host` header (comma separated)            |
 | `NERVE_WEB_DIST`                     | Override built Workbench asset directory                                   |
 | `NERVE_DAEMON_STARTUP_TIMEOUT_MS`    | Owned readiness timeout; 60000                                             |
 | `NERVE_DAEMON_MAX_OLD_SPACE_MB`      | Owned Node heap cap; 4096 default, values below 512 are raised to 512      |

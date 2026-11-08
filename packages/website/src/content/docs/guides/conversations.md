@@ -35,7 +35,7 @@ The transcript shows your messages, the agent's replies and any thinking the pro
 
 ## Follow work in progress
 
-The island above the composer collects **Agents** and **Commands**. Agents open sub-agent conversations, and commands open their live output. Saved servers and watchers live in **Launches** instead. See [Sub-agents](/guides/agents-and-delegation/) and [Launches](/guides/background-tasks/).
+The island above the composer collects **Agents** and **Commands**. Agents open sub-agent conversations (a sub-agent waiting on a background command still counts as active), and commands open their live output. Saved servers and watchers live in **Launches** instead. See [Sub-agents](/guides/agents-and-delegation/) and [Launches](/guides/background-tasks/).
 
 ## Good to know
 

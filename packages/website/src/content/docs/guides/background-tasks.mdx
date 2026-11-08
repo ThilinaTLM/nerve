@@ -56,7 +56,9 @@ When the agent runs a command in the background, or a foreground command runs lo
   sizes="(min-width: 72rem) 48rem, calc(100vw - 3rem)"
 />
 
-When a background command, or a launch the agent started, exits on its own, the agent is told and can pick up from there, so there's no need to ask it to poll.
+When a background command, or a launch the agent started, exits on its own, the agent is told and can pick up from there, so there's no need to ask it to poll. Finished background commands and sub-agents appear in the transcript as a result card that says whether the task completed, failed, was cancelled, timed out, or was interrupted (for example by a restart).
+
+A conversation that looks idle can still wake up while a background command is running or a sub-agent has pending work. **Stop** (or `Mod+.`) stays available in that state and cancels the background work. A sub-agent that is waiting on a background command shows as active in the Agents list.
 
 ## Good to know
 

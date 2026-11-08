@@ -23,7 +23,7 @@ npx @nervekit/desktop@latest
 pnpm dlx @nervekit/desktop@latest
 ```
 
-The first launch may download Electron's platform binary. Later launches use the package manager cache. Nerve currently ships through npm; signed and notarized native installers are not part of the release path.
+The first launch downloads Electron's platform binary and the native package for your operating system and CPU only (about 25 MB for Nerve itself). Later launches use the package manager cache. Nerve currently ships through npm; signed and notarized native installers are not part of the release path.
 
 On launch, the desktop app starts a local background service (the daemon) on `127.0.0.1:3747`, or reuses one that is already running, and then opens the workbench.
 

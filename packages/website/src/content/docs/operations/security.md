@@ -35,7 +35,7 @@ Network-capable paths include model calls, OAuth, Git remotes, web tools, Jira/C
 
 ## Remote access
 
-Non-loopback binding requires explicit opt-in. Share URLs contain a password-like token. Self-signed mobile HTTPS protects transport on a trusted LAN but is not an Internet-exposure solution.
+Non-loopback binding requires explicit opt-in. Each phone, browser, or remote desktop gets its own revocable device credential, obtained with a short-lived, single-use pairing code that travels in the URL fragment; the daemon token never appears in a URL or QR code. Devices expire after 180 days or 30 idle days, and you can revoke them in **Settings → Devices**. Behind a reverse proxy with `publicUrl` set, the owner signs in with a passkey. A `Host` allowlist protects against DNS rebinding, and pairing is refused over plain HTTP from other machines. Access events are logged to `logs/access-audit.jsonl`. Self-signed mobile HTTPS protects transport on a trusted LAN but is not an Internet-exposure solution. See [LAN and mobile HTTPS](/operations/lan-mobile/) and [Hosted server](/operations/hosted-server/).
 
 ## Project trust
 

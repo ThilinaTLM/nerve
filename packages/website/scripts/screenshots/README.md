@@ -12,9 +12,9 @@ That runs, in order:
 
 1. **Seed** — `packages/workbench-server/scripts/seed-demo-home.ts` builds a
    throwaway home at `$TMPDIR/nerve-demo-home` and three synthetic projects
-   under `$TMPDIR/nerve-demo-workspace`, with realistic repositories,
-   conversations, file edits, branches, retained sub-agents, and asynchronous
-   Bash output.
+   under `$TMPDIR/nerve-demo-workspace`, with realistic repositories, a linked
+   worktree, conversations, file edits, branches,
+   retained sub-agents, and asynchronous Bash output.
 2. **Build** — `pnpm build:workbench-runtime`, so the daemon serves the current
    workbench rather than a stale bundle.
 3. **Daemon** — started on `127.0.0.1:3847` against the demo home.
@@ -25,7 +25,9 @@ That runs, in order:
    supplies synthetic Anthropic subscription quotas and GitHub read responses
    via `demo-usage.ts` and `demo-github.ts`. The browser advertises a fictional
    GitHub remote for aurora-api; no remote is added on disk. All other requests
-   reach the demo daemon unchanged. No account credentials or live GitHub data
+   reach the demo daemon unchanged. The browser context carries the demo
+   home's local token cookie (`secrets/daemon-token`), which the access gate
+   requires; without it the workbench shows the device pairing screen. No account credentials or live GitHub data
    are needed.
 5. **Privacy check** — `check-captures.ts` scans the text snapshots for
    credentials, emails, private IPs, real home paths, and unexpected absolute
@@ -74,7 +76,7 @@ Desktop scenes: `ask-user`, `notifications` (popover with a question, a failure,
 stopped agent plus Mute 1 h), `folder-browser` (Open project dialog on the demo
 workspace), `quote` (selection toolbar over a rich reply), `discover`, `themes`
 (Settings → Workbench → Appearance), `projects`, `conversation`, `async-bash`,
-`git`, `editor`, `history`, `launches`, `pull-request`. Mobile scenes:
+`git`, `editor`, `files`, `history`, `launches`, `pull-request`. Mobile scenes:
 `conversation`, `composer-sheet`, `right-sheet`. Re-run one with
 e.g. `tsx scripts/screenshots/run.ts --scenes=discover --kind=desktop`
 (single scenes need both themes, so omit `--theme`).
@@ -85,6 +87,13 @@ opens it explicitly. `ask-user` shows the pending decision's recommended choices
 answer field above the composer, and `notifications` lists it. They use a schema-valid retained `ask_user`
 interaction seeded through the current event/tool repositories, without a
 provider call. Voice input remains disconnected in this synthetic environment.
+
+`git` shows the Git changes tab: the repository tree (aurora-api with two
+linked worktrees, one on `feat/rate-limiting` whose synthetic PR has failing
+checks so the Attention filter has an entry, plus three more repositories),
+the All/Changed/Attention filters, and the Selected branch and Changes
+sections. The Changes section starts collapsed and is expanded by the scene.
+`files` runs a project content search from the Search tab and opens a match.
 
 The unused historical `tasks` assets have been removed; `launches` captures the
 current launch workflow.

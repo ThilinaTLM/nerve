@@ -40,7 +40,8 @@ The page distinguishes active and saved values. Network, diagnostics enablement,
 ```text
 --local
 --connect <http(s) URL>
---token <token>
+--pair-code <CODE>
+--token <token>   (deprecated)
 --host <host>
 --port <1-65535>
 --https-port <1-65535>
@@ -48,7 +49,7 @@ The page distinguishes active and saved values. Network, diagnostics enablement,
 --mobile-https
 ```
 
-Remote URL and token select monitor-only mode. Local bind flags configure an owned daemon and lock the corresponding Settings controls for that launch.
+Remote URL and pairing code select monitor-only mode (see [Remote daemon](/operations/remote-daemon/)). Local bind flags configure an owned daemon and lock the corresponding Settings controls for that launch.
 
 ## Environment
 
@@ -57,6 +58,7 @@ Common overrides include:
 - `NERVE_HOME`
 - `NERVE_HOST`, `NERVE_PORT`, `NERVE_HTTPS_PORT`
 - `NERVE_ALLOW_REMOTE`, `NERVE_MOBILE_HTTPS`
+- `NERVE_PUBLIC_URL`, `NERVE_TRUST_PROXY_PEERS`, `NERVE_ALLOWED_HOSTS` (see [Hosted server](/operations/hosted-server/))
 - `NERVE_LOGGING_ENABLED`, `NERVE_PERFORMANCE_DIAGNOSTICS`
 - `NERVE_DAEMON_STARTUP_TIMEOUT_MS`, `NERVE_DAEMON_MAX_OLD_SPACE_MB`
 - `NERVE_MAX_CONCURRENT_MODEL_RUNS`, `NERVE_MAX_PARALLEL_TOOLS_PER_RUN`

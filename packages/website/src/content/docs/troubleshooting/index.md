@@ -8,7 +8,7 @@ sidebar:
 Start with the narrowest symptom:
 
 - Desktop will not install or Electron is missing → [Install and proxy](/troubleshooting/install-and-proxy/)
-- Daemon will not connect, port is busy, token fails, or mobile certificate fails → [Connectivity](/troubleshooting/connectivity/)
+- Daemon will not connect, port is busy, pairing or sign-in fails, or mobile certificate fails → [Connectivity](/troubleshooting/connectivity/)
 - OAuth/API key fails, a model is absent, or voice is unavailable → [Providers](/troubleshooting/providers/)
 - Linux copy/drag freezes or platform process behavior differs → [Platform](/troubleshooting/platform/)
 - A server/watcher did not recover → [Launch and process recovery](/troubleshooting/tasks-and-recovery/)

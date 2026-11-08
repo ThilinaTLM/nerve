@@ -184,16 +184,24 @@ export const DESKTOP_SCENES = [
   },
   {
     id: "git",
-    alt: "The Nerve Git panel with four repositories in one project, showing staged and unstaged changes in the selected repository",
+    alt: "The Nerve Git changes tab with a repository tree of four repositories and a linked worktree, filters, and the staged and unstaged changes of the selected branch",
     async drive(page: Page) {
       await openConversation(page, RATE_LIMIT_CONVERSATION);
       await openRightPanel(page, "Git");
-      await page
-        .getByRole("button", {
-          name: "Select repository aurora-api",
-          exact: true,
-        })
+      /* Repositories group into a tree; the primary checkout and the linked
+       * worktree of aurora-api are branch rows beneath it. */
+      const tree = page.getByRole("tree", { name: "Repositories" });
+      await tree
+        .getByRole("treeitem", { name: /^feat\/rate-limiting in api/ })
         .click();
+      /* The Changes section starts collapsed; opening it loads the files. */
+      const changes = page.getByRole("button", { name: /^Changes \d/ });
+      if ((await changes.getAttribute("aria-expanded")) !== "true")
+        await changes.click();
+      await page.getByText("Loading…", { exact: true }).waitFor({
+        state: "detached",
+      });
+      await page.waitForTimeout(800);
     },
   },
   {
@@ -204,8 +212,11 @@ export const DESKTOP_SCENES = [
       await page.getByRole("tab", { name: "Files", exact: true }).click();
       const tree = page.getByRole("tree", { name: "Aurora files" });
       for (const name of ["aurora-api", "src", "middleware"]) {
-        const folder = tree.getByRole("treeitem", { name, exact: true });
-        await folder.click();
+        /* Rows may carry a status suffix such as "Contains modified files". */
+        const folder = tree.getByRole("treeitem", {
+          name: new RegExp(`^${name}(?=\\s|$)`),
+        });
+        await folder.first().click();
       }
       await tree.getByRole("treeitem", { name: /rate-limit\.ts/ }).click();
       const editor = page.getByRole("textbox", {
@@ -238,6 +249,30 @@ export const DESKTOP_SCENES = [
         .getByRole("menuitem", { name: "History", exact: true })
         .click();
       await page.waitForSelector('[data-tour-id="conversation-history"]');
+      await page.waitForTimeout(800);
+    },
+  },
+  {
+    id: "files",
+    alt: "The Nerve Files panel searching the project for rateLimit with matches grouped by file and the first match open in the editor",
+    async drive(page: Page) {
+      await openConversation(page, RATE_LIMIT_CONVERSATION);
+      await page
+        .locator('section[data-dock="left"]')
+        .getByRole("tab", { name: "Search", exact: true })
+        .click();
+      const box = page.getByPlaceholder("Search in files");
+      await box.fill("rateLimit");
+      await box.press("Enter");
+      await page.waitForTimeout(1500);
+      /* Open a match in the project's primary checkout, not the worktree. */
+      await page
+        .getByText("rt function rateLimit(op", { exact: false })
+        .nth(1)
+        .click();
+      await page
+        .getByRole("textbox", { name: /File contents: .*rate-limit\.ts/ })
+        .waitFor();
       await page.waitForTimeout(800);
     },
   },
@@ -280,12 +315,6 @@ export const DESKTOP_SCENES = [
     async drive(page: Page) {
       await selectProject(page);
       await openRightPanel(page, "Pull requests");
-      await page
-        .getByRole("button", {
-          name: "Select repository aurora-api",
-          exact: true,
-        })
-        .click();
       await page.waitForTimeout(6_000);
       /* The title button opens the detail tab; the sibling icon buttons copy
        * the link or open GitHub in a browser, so target the title by its
@@ -375,10 +404,24 @@ export const MOBILE_SCENES = [
     id: "right-sheet",
     alt: "The Nerve Git Changes screen opened from the phone project home",
     async drive(page: Page) {
+      /* The Git panel loads a worktree's files only while its Changes section
+       * is open, and that section starts collapsed. Open it as a user would
+       * on a wider screen, then reload so the phone layout reads it. */
+      await page.evaluate(() =>
+        localStorage.setItem(
+          "nerve:git-panel-layout:v1",
+          JSON.stringify({
+            branch: { collapsed: false, size: 30 },
+            changes: { collapsed: false, size: 30 },
+          }),
+        ),
+      );
+      await page.reload({ waitUntil: "domcontentloaded" });
+      await page.waitForTimeout(1500);
       await openMobileRoot(page);
       await page.getByRole("button", { name: "Projects", exact: true }).click();
       await page.getByRole("button", { name: /^Aurora / }).click();
-      await page.getByRole("button", { name: /^Git changes/ }).click();
+      await page.getByRole("button", { name: /^\d+ Changed/ }).click();
       await page.waitForTimeout(800);
     },
   },
