@@ -42,10 +42,7 @@ export type {
   GithubPrMergeMethod,
   GithubPrOverview,
   GithubStatusResponse,
-  GitOverviewResponse,
-  GitRecentCommit,
   GitRepoSummary,
-  GitStashEntry,
 } from "@nervekit/contracts/git";
 export type { ProjectEditor } from "@nervekit/contracts/projects";
 export type {

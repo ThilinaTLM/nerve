@@ -37,18 +37,6 @@ export function repoButtonLabels(
   );
 }
 
-/** For individual chips; lists should use repoButtonLabels instead. */
-export function repoButtonLabel(
-  repo: GitRepoSummary,
-  repos: readonly GitRepoSummary[],
-  options: RepositoryLabelOptions = {},
-): string {
-  return (
-    repoButtonLabels(repos, options).get(repo.relativePath) ??
-    repoButtonLabels([repo], options).get(repo.relativePath)!
-  );
-}
-
 /** Row tone matching the Files panel Git decorations. */
 export function fileStatusTone(file: GitFileChange): StatusTone {
   if (file.index === "D" || file.worktree === "D") return "destructive";

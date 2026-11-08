@@ -30,9 +30,6 @@ export type GitWorkspaceDemand = {
   hint?: string;
 };
 
-export const gitRepoKey = (projectId: string, repo: string) =>
-  JSON.stringify([projectId, repo]);
-
 /** Per-connection demand, released with the owner. Mirrors PrWatchRegistry. */
 export class GitWorkspaceDemandRegistry {
   readonly owners = new Map<string, Map<string, GitWorkspaceDemand>>();

@@ -1,7 +1,6 @@
 import type {
   GitBranchSummary,
   GitFileChange,
-  GithubPr,
   GithubPrHeadSummary,
   GithubPrHeadsResponse,
   GitStashArea,
@@ -205,12 +204,6 @@ export function shouldLoadRepoBranches(
 ): boolean {
   if (!requested.has(repository)) return true;
   return cachedBranchCount === 0;
-}
-
-export function limitPullRequests(
-  pullRequests: readonly GithubPr[],
-): GithubPr[] {
-  return pullRequests.slice(0, 10);
 }
 
 /**

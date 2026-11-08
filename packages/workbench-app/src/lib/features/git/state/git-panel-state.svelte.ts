@@ -147,26 +147,6 @@ export function errorMessage(error: unknown): string {
   return String(error);
 }
 
-export function repoMutationInProgress(
-  state: GitPanelRepoState | undefined,
-): boolean {
-  const operations = state?.operations;
-  return Boolean(
-    operations &&
-    (operations.fetching ||
-      operations.pulling ||
-      operations.pushing ||
-      operations.syncing ||
-      operations.switchingBaseAndPulling ||
-      operations.creatingBranch ||
-      operations.switchingBranch ||
-      operations.deletingBranch ||
-      operations.fileMutation ||
-      operations.bulkMutation ||
-      operations.stashMutation),
-  );
-}
-
 export function setBranchesIfChanged(
   state: GitPanelRepoState,
   branches: GitBranchSummary[],
