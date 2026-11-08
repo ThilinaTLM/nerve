@@ -19,7 +19,6 @@ import type { ConversationAgentUsage } from "@nervekit/contracts/core";
 import type { TodoItem } from "@nervekit/contracts/tools";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
 import ComposerModelPicker from "./ComposerModelPicker.svelte";
-import ComposerSettingStatus from "./ComposerSettingStatus.svelte";
 import ComposerProfilePicker from "./ComposerProfilePicker.svelte";
 import ContextProgressBadge from "./ContextProgressBadge.svelte";
 import type { ConversationSessionInfo } from "./session-info";
@@ -36,7 +35,6 @@ import type {
   ComposerAgentProfile,
   ComposerLockedFields,
   ComposerModelChange,
-  ComposerSettingsDiffers,
 } from "../conversations/conversation-view-contracts.js";
 
 type Props = {
@@ -59,7 +57,6 @@ type Props = {
   permissionShortcutAria?: string;
   profileShortcut?: string;
   profileShortcutAria?: string;
-  settingsDiffers?: ComposerSettingsDiffers;
   contextUsage?: ContextUsage;
   conversationUsage?: ConversationUsageSummary;
   agentUsage?: ConversationAgentUsage;
@@ -76,7 +73,6 @@ type Props = {
   thinkingLevel: ThinkingLevel;
   modelEmptyMessage?: string;
   onModelSelectionChange?: (next: ComposerModelChange) => void;
-  onResetPermission?: () => void;
   onCompact?: () => void;
   onOpenSystemPrompt?: () => void | Promise<void>;
   onPermissionRuleSetChange?: (value: PermissionRuleSetId) => void;
@@ -125,7 +121,6 @@ let {
   permissionShortcutAria,
   profileShortcut,
   profileShortcutAria,
-  settingsDiffers = {},
   contextUsage,
   conversationUsage,
   agentUsage,
@@ -142,7 +137,6 @@ let {
   thinkingLevel,
   modelEmptyMessage,
   onModelSelectionChange,
-  onResetPermission,
   onCompact,
   onOpenSystemPrompt,
   onPermissionRuleSetChange,
@@ -305,13 +299,6 @@ non-default permission. -->
       onOpenSettings={onOpenPermissionSettings}
     />
   {/key}
-
-  <ComposerSettingStatus
-    label="Permission"
-    differs={settingsDiffers.permission && !lockedFields.permission}
-    disabled={controlsDisabled}
-    onReset={onResetPermission}
-  />
 </span>
 
 <span class="contents @max-[480px]/composer-toolbar:hidden">

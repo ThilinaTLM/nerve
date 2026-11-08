@@ -134,8 +134,6 @@ function submit(): void {
     modelEmptyMessage={model.modelEmptyMessage ??
       "No models available. Configure a provider in this host."}
     onModelSelectionChange={actions.onModelSelectionChange}
-    onResetPermission={actions.onResetPermission}
-    settingsDiffers={model.settingsDiffers}
     onPermissionRuleSetChange={actions.onPermissionRuleSetChange}
     onRefreshPermissionRuleSets={actions.onRefreshPermissionRuleSets}
     onOpenPermissionSettings={actions.onOpenPermissionSettings}

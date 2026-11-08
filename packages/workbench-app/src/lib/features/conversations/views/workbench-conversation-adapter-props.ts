@@ -37,7 +37,6 @@ import type {
   ConversationApprovalPlanActions,
   ComposerEditorOverlay,
   ComposerLockedFields,
-  ComposerSettingsDiffers,
   TranscriptHistoryControls,
   TranscriptView,
 } from "$lib/presentation/conversations/conversation-view-contracts";
@@ -101,7 +100,6 @@ export type WorkbenchConversationAdapterProps =
     agentProfile?: string;
     agentProfiles?: ComposerAgentProfile[];
     lockedFields?: ComposerLockedFields;
-    settingsDiffers?: ComposerSettingsDiffers;
     profileDisabled?: boolean;
     permissionRuleSetId?: PermissionRuleSetId;
     permissionRuleSets?: PermissionRuleSetSummary[];
@@ -131,7 +129,6 @@ export type WorkbenchConversationAdapterProps =
     onOpenFile?: (path: string, line?: number) => void;
     onOpenTask?: (taskId: string) => void;
     onModelSelectionChange?: PromptComposerProps["onModelSelectionChange"];
-    onResetPermission?: () => void;
     onAgentProfileChange?: (name: string) => void;
     onPermissionRuleSetChange?: (value: PermissionRuleSetId) => void;
     onRefreshPermissionRuleSets?: () => void;
