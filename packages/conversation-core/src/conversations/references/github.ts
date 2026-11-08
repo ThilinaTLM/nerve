@@ -83,6 +83,29 @@ function trimUrlPunctuation(value: string): string {
   return value.slice(0, end);
 }
 
+/** Blank heredoc bodies: they are data, and stray apostrophes in them would break quote masking. */
+function withoutHeredocBodies(command: string): string {
+  const pending: { delimiter: string; tabs: boolean }[] = [];
+  return command
+    .split("\n")
+    .map((line) => {
+      const current = pending[0];
+      if (current) {
+        if (
+          (current.tabs ? line.replace(/^\t+/, "") : line) === current.delimiter
+        )
+          pending.shift();
+        return "";
+      }
+      for (const match of line.matchAll(
+        /(?<!<)<<(-?)\s*(["']?)([A-Za-z_][\w.-]*)\2/g,
+      ))
+        pending.push({ delimiter: match[3], tabs: match[1] === "-" });
+      return line;
+    })
+    .join("\n");
+}
+
 /** Mask shell quotes in one pass so quoted prose cannot look like a command. */
 function maskShellQuotes(command: string): string {
   const parts: string[] = [];
@@ -194,8 +217,9 @@ function createdKinds(source: CreatedReferenceSource): Set<string> {
   const matches =
     source.kind === "shell"
       ? // A gh command at a command start, not quoted prose, echo, wrappers, or scripts.
-        maskShellQuotes(source.text).matchAll(
-          /(?:^|&&|[;|(\n{]|\$\(|\b(?:do|then|else)\b)\s*gh\s+(pr|issue)\s+create(?=[\s;&|)}]|$)/g,
+        // Common wrappers and environment assignments may precede it.
+        maskShellQuotes(withoutHeredocBodies(source.text)).matchAll(
+          /(?:^|&&|[;|(\n{]|\$\(|\b(?:do|then|else)\b)\s*(?:(?:timeout(?:\s+-\S+)*\s+\S+|env(?:\s+-\S+)*|command|exec|time|nohup|[A-Za-z_]\w*=\S*)\s+)*gh\s+(pr|issue)\s+create(?=[\s;&|)}]|$)/g,
         )
       : // Heuristic, not a Python parser: a string starting with the command, or the argv list form.
         source.text.matchAll(

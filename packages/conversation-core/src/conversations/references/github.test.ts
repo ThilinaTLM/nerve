@@ -126,6 +126,24 @@ test("shell create commands are found inside loops, conditionals, subshells and 
   );
 });
 
+test("heredoc bodies and common wrappers do not hide shell create commands", () => {
+  const output = "https://github.com/a/b/pull/7";
+  const heredoc = "cat > /tmp/body.md <<'EOF'\nThe candidate's PR run.\nEOF\n";
+  for (const command of [
+    `${heredoc}timeout 60 gh pr create --body-file /tmp/body.md`,
+    "cat <<-EOF > b\n\tit's\n\tEOF\ngh pr create",
+    'GH_PROMPT_DISABLED=1 gh pr create --title "x"',
+    "env -i FOO=1 gh pr create",
+    "cat <<< 'x' && gh pr create",
+  ])
+    assert.equal(created(command, 0, output)?.identifier, "7", command);
+  for (const command of [
+    "cat <<EOF\ngh pr create\nEOF",
+    "echo timeout 60 gh pr create",
+  ])
+    assert.equal(created(command, 0, output), null, command);
+});
+
 test("existing pull requests reported by gh are not recorded as created", () => {
   assert.deepEqual(
     createdAll(
