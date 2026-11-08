@@ -50,6 +50,7 @@ export interface GitPanelCapabilities {
   readonly refresh: FeatureCapability;
   readonly selectRepository: FeatureCapability;
   readonly branches: FeatureCapability;
+  readonly worktrees: FeatureCapability;
   readonly mutateFiles: FeatureCapability;
   readonly bulkMutateFiles: FeatureCapability;
   readonly stashes: FeatureCapability;
@@ -73,6 +74,8 @@ export interface GitPanelOperationState {
   readonly switchingBranch?: string;
   readonly deletingBranch?: string;
   readonly creatingBranch: boolean;
+  readonly creatingWorktree?: boolean;
+  readonly removingWorktree?: boolean;
   readonly fileMutation?: FileMutation;
   readonly bulkMutation?: ScopedFileMutation;
   readonly stashMutation?: StashMutation;
@@ -180,6 +183,16 @@ export interface GitPanelActions {
     repository: string,
     branch: GitBranchSummary,
   ) => boolean | void | Promise<boolean | void>;
+  /** Creates a linked worktree for `branch`; resolves true once it exists. */
+  readonly createWorktree: (
+    repository: string,
+    branch: string,
+    id?: string,
+  ) => boolean | Promise<boolean>;
+  readonly removeWorktree: (
+    repository: string,
+    options: { force: boolean; deleteBranch: boolean },
+  ) => boolean | Promise<boolean>;
   readonly openDiff: (
     repository: string,
     file: GitFileChange,

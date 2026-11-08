@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { gitPathKey } from "../../src/git/git-path-key.js";
+import { gitPathKey, relativePathInside } from "../../src/git/git-path-key.js";
 
 void test("Windows drive and UNC extended-prefix/case/separator spellings share identity on any host", () => {
   const pairs = [
@@ -77,4 +77,32 @@ void test("separator-heavy adversarial paths retain complete keys with no path-l
     ),
     `//server/share/${component.toLowerCase()}/tail`,
   );
+});
+
+test("relativePathInside compares Rust and Node spellings of one Windows path", () => {
+  assert.equal(
+    relativePathInside(
+      "\\\\?\\D:\\a\\Repo",
+      "D:\\a\\repo\\.worktrees",
+      "win32",
+    ),
+    ".worktrees",
+  );
+  assert.equal(
+    relativePathInside("D:\\a\\repo", "D:\\a\\repo\\nested\\Dir", "win32"),
+    "nested/Dir",
+  );
+  assert.equal(
+    relativePathInside("D:\\a\\repo", "D:\\a\\other", "win32"),
+    undefined,
+  );
+  assert.equal(
+    relativePathInside("D:\\a\\repo", "D:\\a\\repo", "win32"),
+    undefined,
+  );
+  assert.equal(
+    relativePathInside("/a/repo", "/a/repo/.worktrees", "linux"),
+    ".worktrees",
+  );
+  assert.equal(relativePathInside("/a/repo", "/a/repo..x", "linux"), undefined);
 });

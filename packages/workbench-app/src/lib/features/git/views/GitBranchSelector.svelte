@@ -137,15 +137,13 @@ async function createBranch(target: string): Promise<void> {
     />
     {#if parts}
       <!-- Trimmed in the middle only: the start may shrink, the end stays. -->
-      <span class="flex min-w-0 flex-1 font-mono">
+      <span class="flex min-w-0 flex-1">
         <span class="min-w-[4ch] truncate">{parts.head}</span><span
           class="shrink-0">{parts.tail}</span
         >
       </span>
     {:else}
-      <span class="min-w-0 flex-1 truncate font-mono text-warning"
-        >detached</span
-      >
+      <span class="min-w-0 flex-1 truncate text-warning">detached</span>
     {/if}
     <ChevronDown
       class="size-3 shrink-0 text-muted-foreground"

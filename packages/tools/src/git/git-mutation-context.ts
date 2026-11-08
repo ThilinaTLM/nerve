@@ -28,4 +28,15 @@ export interface GitMutationContext {
   ): Promise<GitBranchListResponse>;
   detectBaseBranch(repoDir: string): Promise<string>;
   validateBranchName(name: string): Promise<boolean>;
+  /** Absolute project directory. */
+  projectDir(projectId: string): string;
+  /** Repositories a discovery would report (no status reads). */
+  discoverRepositories(projectId: string): Promise<
+    {
+      relativePath: string;
+      workDir: string;
+      gitDir: string;
+      commonDir: string;
+    }[]
+  >;
 }

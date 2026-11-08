@@ -236,6 +236,15 @@ export class GitWorkspaceSync {
     return project.revision;
   }
 
+  /** Worktrees were added or removed: rediscover first; resolve with the revision showing it. */
+  async rediscovered(projectId: string): Promise<number> {
+    const project = this.#projects.get(projectId);
+    if (!project || this.#closed) return project?.revision ?? 0;
+    this.markProjectDirty(projectId, { priority: true });
+    await this.#waitDiscovery(project).catch(() => {});
+    return project.revision;
+  }
+
   /** Manual refresh. `force` bypasses debounce and waits for the reads. */
   async refresh(
     projectId: string,

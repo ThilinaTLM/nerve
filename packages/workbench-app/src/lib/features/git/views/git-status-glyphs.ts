@@ -2,6 +2,7 @@ import ArrowDown from "@lucide/svelte/icons/arrow-down";
 import ArrowDownUp from "@lucide/svelte/icons/arrow-down-up";
 import ArrowUp from "@lucide/svelte/icons/arrow-up";
 import CircleAlert from "@lucide/svelte/icons/circle-alert";
+import CloudDownload from "@lucide/svelte/icons/cloud-download";
 import CloudUpload from "@lucide/svelte/icons/cloud-upload";
 import GitMerge from "@lucide/svelte/icons/git-merge";
 import GitPullRequest from "@lucide/svelte/icons/git-pull-request";
@@ -67,6 +68,31 @@ export function syncGlyph(
       return undefined;
   }
 }
+
+/**
+ * Nothing urgent to show: a quiet remote action keeps the sync slot useful.
+ * A worktree syncs; a collapsed repository with several worktrees fetches.
+ */
+export function idleRemoteGlyph(action: "sync" | "fetch"): StatusGlyph {
+  return action === "sync"
+    ? {
+        icon: ArrowDownUp,
+        tone: "text-muted-foreground/70 hover:text-foreground",
+        label: "Up to date. Click to sync.",
+      }
+    : {
+        icon: CloudDownload,
+        tone: "text-muted-foreground/70 hover:text-foreground",
+        label: "Up to date. Click to fetch.",
+      };
+}
+
+/** A worktree can sync when it tracks an upstream branch. */
+export const canSync = (repo: {
+  hasRemote: boolean;
+  hasUpstream: boolean;
+  detached: boolean;
+}): boolean => repo.hasRemote && repo.hasUpstream && !repo.detached;
 
 export function prGlyph(pr: GithubPr | undefined): StatusGlyph | undefined {
   if (!pr) return undefined;

@@ -12,9 +12,11 @@ import {
   applyGitStash,
   createGitBranch,
   createGitStash,
+  createGitWorktree,
   deleteGitBranch,
   discardGitFile,
   dropGitStash,
+  removeGitWorktree,
   stageGitFile,
   switchGitBranch,
   unstageGitFile,
@@ -28,9 +30,16 @@ import { gitFilesInScope, gitPathspecs } from "../views/git-panel-controller";
 import { refreshBranches } from "./git-panel-refresh.svelte";
 import {
   ensureGitRepoState,
+  selectGitRepo,
+  selectedGitRepo,
   setBranchesIfChanged,
 } from "./git-panel-state.svelte";
-import { awaitGitWorkspaceRevision, gitRepoDetail } from "./git-store.svelte";
+import {
+  awaitGitWorkspaceRevision,
+  gitRepoDetail,
+  gitWorkspaceSnapshot,
+} from "./git-store.svelte";
+import { worktreeFolder } from "../views/git-repo-tree";
 
 function notifyGitFailure(title: string, error: unknown): void {
   showCriticalError(title, errorDetails(error));
@@ -132,6 +141,61 @@ export async function createGitRepoBranch(
     return false;
   } finally {
     state.operations.creatingBranch = false;
+  }
+}
+
+export async function createGitRepoWorktree(
+  projectId: string,
+  repo: string,
+  branch: string,
+  id?: string,
+): Promise<boolean> {
+  if (branch.trim().length === 0) return false;
+  const state = ensureGitRepoState(projectId, repo);
+  state.operations.creatingWorktree = true;
+  try {
+    const result = await createGitWorktree(
+      projectId,
+      repo,
+      branch.trim(),
+      id?.trim() || undefined,
+    );
+    await awaitGitWorkspaceRevision(projectId, result.workspaceRevision, repo);
+    selectGitRepo(projectId, result.repo.relativePath);
+    notify.success(`Created worktree ${worktreeFolder(result.repo)}`);
+    return true;
+  } catch (error) {
+    notifyGitFailure("Create worktree failed", error);
+    return false;
+  } finally {
+    state.operations.creatingWorktree = false;
+  }
+}
+
+export async function removeGitRepoWorktree(
+  projectId: string,
+  repo: string,
+  options: { force: boolean; deleteBranch: boolean },
+): Promise<boolean> {
+  const state = ensureGitRepoState(projectId, repo);
+  const removed = gitWorkspaceSnapshot(projectId)?.summaries.find(
+    (summary) => summary.relativePath === repo,
+  );
+  state.operations.removingWorktree = true;
+  try {
+    const result = await removeGitWorktree(projectId, repo, options);
+    if (selectedGitRepo(projectId) === repo)
+      selectGitRepo(projectId, result.repo.relativePath);
+    await awaitGitWorkspaceRevision(projectId, result.workspaceRevision, repo);
+    notify.success(
+      `Removed worktree ${removed ? worktreeFolder(removed) : repo}`,
+    );
+    return true;
+  } catch (error) {
+    notifyGitFailure("Remove worktree failed", error);
+    return false;
+  } finally {
+    state.operations.removingWorktree = false;
   }
 }
 

@@ -11,10 +11,10 @@ import {
   setActivePrRefreshDemand,
 } from "$lib/features/git/state/pr-view-loader.svelte";
 
-import {
-  gitCurrentBranch,
-  gitSelectors,
-} from "$lib/features/git/state/git-selectors.svelte";
+import { gitSelectors } from "$lib/features/git/state/git-selectors.svelte";
+import { gitWorkspaceSnapshot } from "$lib/features/git/state/git-store.svelte";
+import { removeGitRepoWorktree } from "$lib/features/git/state/git-panel-mutations.svelte";
+import { prCheckout } from "$lib/features/git/views/git-repo-tree";
 import { writeClipboardText } from "$lib/platform/clipboard/write-text";
 import {
   refreshPrPane,
@@ -34,9 +34,14 @@ import { queueMergedPrFollowUp } from "$lib/features/git/state/pr-merge-follow-u
 
 const activeCenterPrView = $derived(gitSelectors.activeCenterPrView);
 const activeFileDiff = $derived(selectedPrFileDiffResource(activeCenterPrView));
-const currentBranch = $derived(
+/** The worktree of the PR's repository that has its head branch checked out. */
+const checkout = $derived(
   activeCenterPrView
-    ? gitCurrentBranch(activeCenterPrView.projectId, activeCenterPrView.repo)
+    ? prCheckout(
+        gitWorkspaceSnapshot(activeCenterPrView.projectId)?.summaries ?? [],
+        activeCenterPrView.repo,
+        activeCenterPrView.core.data?.headRefName,
+      )
     : undefined,
 );
 
@@ -154,13 +159,35 @@ async function mergeActivePr(
       );
     }
 
+    // Decided again after the merge: the worktrees may have changed meanwhile.
+    const target = prCheckout(
+      gitWorkspaceSnapshot(view.projectId)?.summaries ?? [],
+      view.repo,
+      core.headRefName,
+    );
     let localUpdateQueued = false;
-    if (followUp === "switch-base-and-pull") {
+    if (followUp === "remove-worktree" && target?.kind === "linked") {
+      activityInbox.notify({
+        key: mergeKey,
+        title: `Merged pull request #${view.number}`,
+        status: "succeeded",
+        scope,
+      });
+      localUpdateQueued = true;
+      // Reports its own success or failure; uncommitted changes keep the worktree.
+      await removeGitRepoWorktree(view.projectId, target.repo.relativePath, {
+        force: false,
+        deleteBranch: true,
+      });
+    } else if (
+      followUp === "switch-base-and-pull" &&
+      target?.kind === "primary"
+    ) {
       try {
         await queueMergedPrFollowUp(
           {
             projectId: view.projectId,
-            repo: view.repo,
+            repo: target.repo.relativePath,
             number: view.number,
             baseBranch: core.baseRefName,
           },
@@ -230,7 +257,7 @@ $effect(() => {
 
 <GitHubPrPane
   view={activeCenterPrView}
-  {currentBranch}
+  {checkout}
   onCopyLink={() => void copyActivePrLink()}
   onRefresh={() =>
     activeCenterPrView && void refreshPrPane(activeCenterPrView.id)}

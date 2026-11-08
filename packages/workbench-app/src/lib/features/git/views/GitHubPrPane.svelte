@@ -12,6 +12,7 @@ import ConfirmDialog from "@nervekit/ui-kit/components/composites/confirm-dialog
 import * as Empty from "@nervekit/ui-kit/components/ui/empty";
 import { Spinner } from "@nervekit/ui-kit/components/ui/spinner";
 import * as Tabs from "@nervekit/ui-kit/components/ui/tabs";
+import type { PrCheckout } from "./git-repo-tree";
 import { openConversation } from "$lib/application/workspace/workspace-actions.svelte";
 import { workspaceSelectors } from "$lib/application/workspace/workspace-selectors.svelte";
 import {
@@ -47,8 +48,8 @@ type PrSection =
 
 type Props = {
   view?: PrViewState;
-  /** Current branch of the repository the PR belongs to. */
-  currentBranch?: string;
+  /** Worktree of the PR's repository that has its head branch checked out. */
+  checkout?: PrCheckout;
   onRefresh?: () => void;
   onCheckout?: () => void;
   onCopyLink?: () => void;
@@ -66,7 +67,7 @@ type Props = {
 
 let {
   view,
-  currentBranch,
+  checkout,
   onRefresh,
   onCheckout,
   onCopyLink,
@@ -87,9 +88,7 @@ const overview = $derived(view?.overview.data);
 const commits = $derived(view?.commits.data);
 const checks = $derived(view?.checks.data?.checks);
 const files = $derived(view?.files.data);
-const checkedOut = $derived(
-  Boolean(currentBranch) && core?.headRefName === currentBranch,
-);
+const checkedOut = $derived(checkout !== undefined);
 const checkSummary = $derived(
   checks ? summarizeCheckRuns(checks.runs) : undefined,
 );
@@ -207,7 +206,7 @@ function changeTab(value: string) {
           {checks}
           selectedMethod={view.selectedMergeMethod}
           merging={view.merging}
-          {checkedOut}
+          checkout={checkout?.kind}
           onMethodChange={onMergeMethodChange}
           {onMerge}
           onCheckout={() => (checkoutOpen = true)}

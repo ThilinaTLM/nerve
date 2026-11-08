@@ -10,7 +10,7 @@
 - DB schema changes are sensitive; the schema must stay small. Before planning any table/column change, discuss alternatives (files, memory, existing columns) and justify the change with the user, and get explicit approval.
 - DB schema/migration changes only: test on a copied/fresh slot (`pnpm storage:copy --slot N`), not slot 1.
 - The root `package.json` version is the latest release. All unreleased data changes since then belong in a single migration step; extend it instead of adding another.
-- Use `gh` for GitHub operations.
+- Use .worktrees to create additional worktrees only when tasks need to be handled in parallel.
 
 **Architecture**
 

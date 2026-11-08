@@ -1,6 +1,8 @@
 import {
   createBranchRequestSchema,
   deleteBranchRequestSchema,
+  createWorktreeRequestSchema,
+  removeWorktreeRequestSchema,
   gitBranchListResponseSchema,
   gitFileActionRequestSchema,
   gitFileDiffRequestSchema,
@@ -75,6 +77,12 @@ const gitSwitchBranchParamsSchema = projectIdParamsSchema.merge(
 );
 const gitDeleteBranchParamsSchema = projectIdParamsSchema.merge(
   deleteBranchRequestSchema,
+);
+const gitCreateWorktreeParamsSchema = projectIdParamsSchema.merge(
+  createWorktreeRequestSchema,
+);
+const gitRemoveWorktreeParamsSchema = projectIdParamsSchema.merge(
+  removeWorktreeRequestSchema,
 );
 const gitFileActionParamsSchema = projectIdParamsSchema.merge(
   gitFileActionRequestSchema,
@@ -238,6 +246,24 @@ export const gitOperationDefinitions = [
     "recommended",
     ["workbench_server"] as const,
     "operation.git.branch.delete",
+  ),
+  defineOperation(
+    "git.worktree.create",
+    gitCreateWorktreeParamsSchema,
+    gitWorkspaceMutationResponseSchema,
+    "mutation",
+    "recommended",
+    ["workbench_server"] as const,
+    "operation.git.worktree.create",
+  ),
+  defineOperation(
+    "git.worktree.remove",
+    gitRemoveWorktreeParamsSchema,
+    gitWorkspaceMutationResponseSchema,
+    "mutation",
+    "recommended",
+    ["workbench_server"] as const,
+    "operation.git.worktree.remove",
   ),
   defineOperation(
     "git.file.diff.get",

@@ -32,7 +32,8 @@ type Props = {
   checks?: GithubChecksSummary;
   selectedMethod?: GithubPrMergeMethod;
   merging: boolean;
-  checkedOut: boolean;
+  /** Where the head branch is checked out: decides the merge follow-up. */
+  checkout?: "primary" | "linked";
   onMethodChange?: (method: GithubPrMergeMethod) => void;
   onMerge?: (method: GithubPrMergeMethod, followUp: PrMergeFollowUp) => void;
   onCheckout?: () => void;
@@ -46,7 +47,7 @@ let {
   checks,
   selectedMethod,
   merging,
-  checkedOut,
+  checkout,
   onMethodChange,
   onMerge,
   onCheckout,
@@ -76,7 +77,22 @@ const method = $derived(
 );
 const showMerge = $derived(core.state === "OPEN" && !core.isDraft);
 const showReady = $derived(core.state === "OPEN" && core.isDraft);
-const showCheckout = $derived(core.state === "OPEN" && !checkedOut);
+const showCheckout = $derived(core.state === "OPEN" && !checkout);
+/** Primary checkout: switch it to base. Linked worktree: it is done; remove it. */
+const followUp = $derived<PrMergeFollowUp>(
+  checkout === "primary"
+    ? "switch-base-and-pull"
+    : checkout === "linked"
+      ? "remove-worktree"
+      : "stay",
+);
+const followUpText = $derived(
+  checkout === "primary"
+    ? ` The primary action then switches the primary checkout to ${core.baseRefName} and pulls it.`
+    : checkout === "linked"
+      ? ` The primary action then removes the worktree that has ${core.headRefName} checked out, and deletes the local branch. A worktree with uncommitted changes is kept.`
+      : "",
+);
 
 /* Colour follows mergeability; the reason is never inline text. */
 const tone = $derived(
@@ -178,16 +194,20 @@ function confirmMerge(followUp: PrMergeFollowUp) {
   title={bypass
     ? `Bypass requirements and merge #${core.number}?`
     : `Merge pull request #${core.number}?`}
-  description={`${method ? mergeMethodLabel(method) : "Merge"} will merge ${core.headRefName} into ${core.baseRefName} at head ${core.headRefOid.slice(0, 7)}.${bypass && blockers ? ` This bypasses unmet requirements: ${blockers}.` : ""}${checkedOut ? ` The primary action then switches this checkout to ${core.baseRefName} and pulls it.` : ""}`}
-  confirmLabel={checkedOut
+  description={`${method ? mergeMethodLabel(method) : "Merge"} will merge ${core.headRefName} into ${core.baseRefName} at head ${core.headRefOid.slice(0, 7)}.${bypass && blockers ? ` This bypasses unmet requirements: ${blockers}.` : ""}${followUpText}`}
+  confirmLabel={checkout === "primary"
     ? bypass
       ? "Bypass, merge & update"
       : "Merge & update"
-    : bypass
-      ? "Bypass and merge"
-      : "Confirm merge"}
-  secondaryLabel={checkedOut ? "Merge only" : undefined}
+    : checkout === "linked"
+      ? bypass
+        ? "Bypass, merge & remove worktree"
+        : "Merge & remove worktree"
+      : bypass
+        ? "Bypass and merge"
+        : "Confirm merge"}
+  secondaryLabel={checkout ? "Merge only" : undefined}
   confirmVariant={bypass ? "destructive" : "success"}
-  onConfirm={() => confirmMerge(checkedOut ? "switch-base-and-pull" : "stay")}
+  onConfirm={() => confirmMerge(followUp)}
   onSecondary={() => confirmMerge("stay")}
 />

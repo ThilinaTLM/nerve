@@ -20,7 +20,7 @@ export const gitMethodHandlers: WorkbenchMethodHandlerMapFor<GitMethodContext> =
     "git.operation.start": (state, params) =>
       state.gitOperations.start(gitOperationStartRequestSchema.parse(params)),
     "git.operation.bulk.start": (state, params) =>
-      state.gitOperations.startBulk(params),
+      state.gitOperations.startBulkRequest(params),
     "github.issue.list": (state, params) =>
       state.git.listIssues(params.projectId, repo(params), params.refresh),
     "github.pr.cached.list": (state, params) =>
@@ -61,6 +61,22 @@ export const gitMethodHandlers: WorkbenchMethodHandlerMapFor<GitMethodContext> =
     "git.branch.delete": (state, params) =>
       withRevision(state, params, () =>
         state.git.deleteBranch(params.projectId, repo(params), params.name),
+      ),
+    "git.worktree.create": (state, params) =>
+      withRediscovery(state, params, () =>
+        state.git.createWorktree(
+          params.projectId,
+          repo(params),
+          params.branch,
+          params.id,
+        ),
+      ),
+    "git.worktree.remove": (state, params) =>
+      withRediscovery(state, params, () =>
+        state.git.removeWorktree(params.projectId, repo(params), {
+          force: params.force ?? false,
+          deleteBranch: params.deleteBranch ?? false,
+        }),
       ),
     "git.file.diff.get": (state, params) =>
       state.git.fileDiff(
@@ -177,6 +193,19 @@ function monitorOwner(owner: string | undefined): string {
 
 function repo(params: { repo?: string }): string {
   return params.repo || ".";
+}
+
+/** Like `withRevision`, for mutations that add or remove repositories. */
+async function withRediscovery(
+  state: GitMethodContext,
+  params: { projectId: string },
+  run: () => Promise<GitMutationResponse>,
+): Promise<GitMutationResponse & { workspaceRevision: number }> {
+  const result = await run();
+  return {
+    ...result,
+    workspaceRevision: await state.workspaceSync.rediscovered(params.projectId),
+  };
 }
 
 /** Awaits the workspace read that includes the mutation's effect (bounded). */

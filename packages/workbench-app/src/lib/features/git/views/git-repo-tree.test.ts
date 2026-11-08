@@ -8,6 +8,7 @@ import {
   filterCounts,
   filterRepoGroups,
   needsAttention,
+  prCheckout,
   splitBranchName,
   type BranchStatusContext,
 } from "./git-repo-tree.js";
@@ -218,4 +219,40 @@ test("branches checked out in sibling worktrees are reported by folder", () => {
   const map = checkedOutElsewhere(group, a);
   assert.equal(map.get("feat/x"), "api-oauth");
   assert.equal(map.has("main"), false);
+});
+
+test("without a reference worktree every checked-out branch is reported", () => {
+  const a = repo("api", { worktreeGroup: "g" });
+  const b = feature(".wt/api-oauth", {
+    worktreeGroup: "g",
+    primaryWorktree: false,
+  });
+  const [group] = buildRepoGroups([a, b]);
+  const map = checkedOutElsewhere(group);
+  assert.equal(map.get("main"), "api");
+  assert.equal(map.get("feat/x"), "api-oauth");
+  assert.equal(checkedOutElsewhere(undefined).size, 0);
+});
+
+test("prCheckout finds the pull request branch in any worktree of the repository", () => {
+  const primary = repo(".", { worktreeGroup: "g", currentBranch: "main" });
+  const linked = repo(".worktrees/feat", {
+    worktreeGroup: "g",
+    primaryWorktree: false,
+    currentBranch: "feat",
+  });
+  const other = repo("other", { worktreeGroup: "o", currentBranch: "feat" });
+  const all = [primary, linked, other];
+  // Opened from the primary; the branch lives in a linked worktree.
+  assert.deepEqual(prCheckout(all, ".", "feat"), {
+    kind: "linked",
+    repo: linked,
+  });
+  assert.deepEqual(prCheckout(all, ".worktrees/feat", "main"), {
+    kind: "primary",
+    repo: primary,
+  });
+  assert.equal(prCheckout(all, ".", "missing"), undefined);
+  assert.equal(prCheckout(all, "unknown", "feat"), undefined);
+  assert.equal(prCheckout(all, ".", undefined), undefined);
 });

@@ -71,6 +71,7 @@ import {
   applyGitRepoStash,
   createGitRepoBranch,
   createGitRepoStash,
+  createGitRepoWorktree,
   deleteGitRepoBranch,
   fetchGitRepo,
   dropGitRepoStash,
@@ -82,6 +83,7 @@ import {
   pushGitRepo,
   refreshBranches,
   refreshGithub,
+  removeGitRepoWorktree,
   selectedGitRepo,
   setGitChangeTreeFolderExpanded,
   selectGitRepo,
@@ -137,6 +139,7 @@ export function createWorkbenchGitPanelAdapter(
             refresh: enabledCapability,
             selectRepository: enabledCapability,
             branches: enabledCapability,
+            worktrees: enabledCapability,
             mutateFiles: enabledCapability,
             bulkMutateFiles: enabledCapability,
             stashes: enabledCapability,
@@ -153,6 +156,7 @@ export function createWorkbenchGitPanelAdapter(
             refresh: unsupported,
             selectRepository: unsupported,
             branches: unsupported,
+            worktrees: unsupported,
             mutateFiles: unsupported,
             bulkMutateFiles: unsupported,
             stashes: unsupported,
@@ -427,6 +431,18 @@ export function createWorkbenchGitPanelAdapter(
       const project = activeProject();
       return project
         ? deleteGitRepoBranch(project.id, repository, branch)
+        : false;
+    },
+    createWorktree: (repository, branch, id) => {
+      const project = activeProject();
+      return project
+        ? createGitRepoWorktree(project.id, repository, branch, id)
+        : false;
+    },
+    removeWorktree: (repository, options) => {
+      const project = activeProject();
+      return project
+        ? removeGitRepoWorktree(project.id, repository, options)
         : false;
     },
     openDiff: (repository, file, area) => {

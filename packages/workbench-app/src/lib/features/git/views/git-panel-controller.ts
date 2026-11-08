@@ -286,6 +286,16 @@ export function createGitPanelActions(
         return host.deleteBranch(repository, branch);
       return false;
     },
+    createWorktree: (repository, branch, id) => {
+      if (available() && model().capabilities.worktrees.enabled)
+        return host.createWorktree(repository, branch, id);
+      return false;
+    },
+    removeWorktree: (repository, options) => {
+      if (available() && model().capabilities.worktrees.enabled)
+        return host.removeWorktree(repository, options);
+      return false;
+    },
     openDiff: (repository, file, area) => {
       if (available()) return host.openDiff(repository, file, area);
     },

@@ -22,6 +22,8 @@ const mutationLabels = {
   createBranch: "Create branch",
   switchBranch: "Switch branch",
   deleteBranch: "Delete branch",
+  createWorktree: "Create worktree",
+  removeWorktree: "Remove worktree",
   stageFile: "Stage file",
   unstageFile: "Unstage file",
   discardFile: "Discard changes",
@@ -37,6 +39,14 @@ const mutationLabels = {
   clone: "Clone repository",
   mergePr: "Merge pull request",
 };
+
+export function isProjectWideMutation(method: string): boolean {
+  return (
+    method === "clone" ||
+    method === "createWorktree" ||
+    method === "removeWorktree"
+  );
+}
 
 /**
  * Decorates the shared Git service at the host boundary. Failed mutations are
@@ -102,8 +112,9 @@ export function withGitMutationReporting(
             ? args[1]
             : result.repo?.relativePath || ".";
         if (projectId) {
-          // The mutation touched one repository (clones add a new one).
-          if (property === "clone") target.invalidateProjectReads(projectId);
+          // The mutation touched one repository (clones and worktrees change the set).
+          if (isProjectWideMutation(property))
+            target.invalidateProjectReads(projectId);
           else target.invalidateRepoReads(projectId, repo);
         }
         if (projectId) {

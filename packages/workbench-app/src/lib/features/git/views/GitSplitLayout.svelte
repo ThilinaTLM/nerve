@@ -1,195 +1,224 @@
 <script lang="ts">
 import type { Snippet } from "svelte";
-import * as Resizable from "@nervekit/ui-kit/components/ui/resizable";
+import type { Attachment } from "svelte/attachments";
 import { cn } from "@nervekit/ui-kit/utils";
 import { gitPanelLayout } from "../state/git-panel-view-state.svelte";
+import {
+  draggable,
+  HEADER_PX,
+  sizeFor,
+  splitHeights,
+} from "./git-split-sizing";
 
 type Section = "branch" | "changes";
-type SectionSnippetProps = { open: boolean; toggle: () => void };
-type PaneHandle = { resize(size: number): void; getSize(): number };
+type Divider = "list" | "branch";
+type Measure = Attachment<HTMLElement>;
+type SectionProps = { open: boolean; toggle: () => void };
+/**
+ * `overflows`: the content is taller than the area's target height. Scroll
+ * only then, so no scrollbar flashes while the height animates to fit.
+ */
+type MeasuredProps = { measure: Measure; overflows: boolean };
 
 let {
   list,
   branch,
   changes,
 }: {
-  list: Snippet;
-  branch: Snippet<[SectionSnippetProps]>;
-  changes: Snippet<[SectionSnippetProps]>;
+  /** Without a list the two sections share the whole height. */
+  list?: Snippet<[MeasuredProps]>;
+  /** `measure` goes on the element holding the section body's natural content. */
+  branch: Snippet<[SectionProps & MeasuredProps]>;
+  changes: Snippet<[SectionProps]>;
 } = $props();
 
-/** One-line section header (`h-8`), the size of a collapsed section. */
-const HEADER_PX = 32;
-const MIN_LIST = 20;
-const ANIMATION_MS = 200;
+const DIVIDER_PX = 1;
+const KEY_STEP_PX = 16;
 
 const layout = gitPanelLayout();
-let groupHeight = $state(0);
-/** Panes are sized in percent, so the collapsed size follows the panel height. */
-const headerPct = $derived(groupHeight ? (HEADER_PX / groupHeight) * 100 : 5);
-let listPane = $state<PaneHandle>();
-let branchPane = $state<PaneHandle>();
-let changesPane = $state<PaneHandle>();
-let animating = $state(false);
-let animationTimer: ReturnType<typeof setTimeout> | undefined;
+const hasList = $derived(list !== undefined);
+let groupPx = $state(0);
+let listContentPx = $state(0);
+let branchBodyPx = $state(0);
 
-const handles = (section: Section) =>
-  section === "branch" ? branchPane : changesPane;
-
-/** Open sizes at mount: sections take space from the list, never below its minimum. */
-function initialSizes(): { branch: number; changes: number; list: number } {
-  let branchSize = layout.branch.collapsed ? headerPct : layout.branch.size;
-  let changesSize = layout.changes.collapsed ? headerPct : layout.changes.size;
-  const overflow = branchSize + changesSize + MIN_LIST - 100;
-  if (overflow > 0) {
-    const open = [
-      layout.branch.collapsed ? 0 : branchSize - headerPct,
-      layout.changes.collapsed ? 0 : changesSize - headerPct,
-    ];
-    const total = open[0]! + open[1]!;
-    if (total > 0) {
-      branchSize -= (overflow * open[0]!) / total;
-      changesSize -= (overflow * open[1]!) / total;
-    }
-  }
-  return {
-    branch: branchSize,
-    changes: changesSize,
-    list: 100 - branchSize - changesSize,
+/** Reports an element's natural height while it is mounted. */
+const measureInto =
+  (set: (px: number) => void): Measure =>
+  (element) => {
+    const observer = new ResizeObserver(() => set(element.offsetHeight));
+    observer.observe(element);
+    set(element.offsetHeight);
+    return () => observer.disconnect();
   };
-}
-let initial = $state<ReturnType<typeof initialSizes>>();
-$effect(() => {
-  if (groupHeight > 0 && !initial) initial = initialSizes();
-});
+const measureList = measureInto((px) => (listContentPx = px));
+const measureBranch = measureInto((px) => (branchBodyPx = px));
 
-function remember(section: Section, size: number): void {
-  const open = size > headerPct + 1;
+const flags = $derived({
+  hasList,
+  branchOpen: !layout.branch.collapsed,
+  changesOpen: !layout.changes.collapsed,
+});
+const totalPx = $derived(Math.max(0, groupPx - (hasList ? 2 : 1) * DIVIDER_PX));
+const heights = $derived(
+  splitHeights({
+    ...flags,
+    totalPx,
+    listContentPx,
+    branchContentPx: branchBodyPx ? HEADER_PX + branchBodyPx : 0,
+    listSize: layout.listSize,
+    branchSize: layout.branch.size,
+  }),
+);
+
+// ---- Motion: every change animates, except a drag and a panel resize. ----
+let dragging = $state<{
+  divider: Divider;
+  startY: number;
+  startPx: number;
+}>();
+let settled = $state(false);
+let settleFrame = 0;
+$effect(() => {
+  void groupPx;
+  void hasList;
+  settled = false;
+  cancelAnimationFrame(settleFrame);
+  settleFrame = requestAnimationFrame(() => (settled = true));
+  return () => cancelAnimationFrame(settleFrame);
+});
+const motion = $derived(
+  settled && !dragging
+    ? "transition-[height] duration-200 ease-out motion-reduce:transition-none"
+    : "",
+);
+
+function toggle(section: Section): void {
   const target = layout[section];
-  if (
-    open === !target.collapsed &&
-    (!open || Math.abs(target.size - size) < 0.1)
-  )
-    return;
-  target.collapsed = !open;
-  if (open) target.size = size;
+  target.collapsed = !target.collapsed;
   layout.save();
 }
 
-/** Moves a section to `target` percent; the list gives or takes the space. */
-function setSize(section: Section, target: number): void {
-  const pane = handles(section);
-  if (!listPane || !branchPane || !pane) return;
-  const size = pane.getSize();
-  const delta = target - size;
-  if (Math.abs(delta) < 0.01) return;
-  if (section === "branch") {
-    listPane.resize(listPane.getSize() - delta);
-  } else if (delta > 0) {
-    // Growing: the list shrinks first so the branch section keeps its size.
-    listPane.resize(listPane.getSize() - delta);
-    pane.resize(target);
-  } else {
-    pane.resize(target);
-    listPane.resize(listPane.getSize() - delta);
-  }
-}
-
-/** Header-driven open/close animates; dragging a divider never does. */
-function toggle(section: Section): void {
-  const pane = handles(section);
-  if (!pane) return;
-  animating = true;
-  clearTimeout(animationTimer);
-  animationTimer = setTimeout(() => (animating = false), ANIMATION_MS + 40);
-  const size = pane.getSize();
-  if (size > headerPct + 1) {
-    layout[section].size = size;
-    setSize(section, headerPct);
-  } else {
-    // Never take more than the list can give; the other section is untouched.
-    const room = (listPane?.getSize() ?? 0) - MIN_LIST + size;
-    setSize(section, Math.max(headerPct, Math.min(layout[section].size, room)));
-  }
-}
-
 export function openSection(section: Section): void {
-  const pane = handles(section);
-  if (pane && pane.getSize() <= headerPct + 1) toggle(section);
+  if (layout[section].collapsed) toggle(section);
 }
 
-// A new panel height changes the pixel header's share: refit collapsed sections.
-$effect(() => {
-  const pct = headerPct;
-  if (!initial) return;
-  for (const section of ["branch", "changes"] as const) {
-    const pane = handles(section);
-    if (
-      pane &&
-      layout[section].collapsed &&
-      Math.abs(pane.getSize() - pct) > 0.05
-    )
-      setSize(section, pct);
-  }
-});
+// ---- Dividers: a drag sets the height of the area above; double-click makes it automatic again. ----
+const heightAbove = (divider: Divider) =>
+  divider === "list" ? heights.list : heights.branch;
+function setSize(divider: Divider, size: number | null): void {
+  if (divider === "list") layout.listSize = size;
+  else layout.branch.size = size;
+}
+function resize(divider: Divider, px: number): void {
+  setSize(divider, sizeFor(px, totalPx));
+}
 
-$effect(() => () => clearTimeout(animationTimer));
+function onPointerDown(event: PointerEvent, divider: Divider): void {
+  if (event.button !== 0 || !draggable(divider, flags)) return;
+  event.preventDefault();
+  (event.currentTarget as HTMLElement).setPointerCapture(event.pointerId);
+  dragging = { divider, startY: event.clientY, startPx: heightAbove(divider) };
+}
+function onPointerMove(event: PointerEvent): void {
+  if (!dragging) return;
+  resize(dragging.divider, dragging.startPx + event.clientY - dragging.startY);
+}
+function endDrag(): void {
+  if (!dragging) return;
+  dragging = undefined;
+  layout.save();
+}
+function onKeydown(event: KeyboardEvent, divider: Divider): void {
+  if (!draggable(divider, flags)) return;
+  const step =
+    event.key === "ArrowUp"
+      ? -KEY_STEP_PX
+      : event.key === "ArrowDown"
+        ? KEY_STEP_PX
+        : 0;
+  if (step) resize(divider, heightAbove(divider) + step);
+  else if (event.key === "Enter") setSize(divider, null);
+  else return;
+  event.preventDefault();
+  layout.save();
+}
 </script>
 
-<div class="-mx-2 flex min-h-0 flex-1 flex-col" bind:clientHeight={groupHeight}>
-  {#if initial}
-    <Resizable.PaneGroup
-      direction="vertical"
-      class={cn(
-        "min-h-0 flex-1",
-        animating &&
-          "[&>[data-pane]]:transition-[flex-grow] [&>[data-pane]]:duration-200 [&>[data-pane]]:ease-out motion-reduce:[&>[data-pane]]:transition-none",
-      )}
+{#snippet divider(which: Divider, label: string)}
+  {@const active = draggable(which, flags)}
+  {@const share = totalPx
+    ? Math.round((heightAbove(which) / totalPx) * 100)
+    : 0}
+  <!-- svelte-ignore a11y_no_noninteractive_tabindex, a11y_no_noninteractive_element_interactions -->
+  <div
+    role="separator"
+    aria-orientation="horizontal"
+    aria-label={label}
+    aria-valuemin={0}
+    aria-valuemax={100}
+    aria-valuenow={share}
+    aria-disabled={!active}
+    tabindex={active ? 0 : -1}
+    title={active
+      ? "Drag to resize, double-click for automatic size"
+      : undefined}
+    class={cn(
+      "relative z-10 h-px w-full shrink-0 bg-border transition-colors outline-none",
+      active &&
+        "cursor-row-resize after:absolute after:inset-x-0 after:-top-1 after:h-2 hover:bg-ring focus-visible:bg-ring",
+      dragging?.divider === which && "bg-ring",
+    )}
+    onpointerdown={(event) => onPointerDown(event, which)}
+    onpointermove={onPointerMove}
+    onpointerup={endDrag}
+    onlostpointercapture={endDrag}
+    ondblclick={() => {
+      if (!active) return;
+      setSize(which, null);
+      layout.save();
+    }}
+    onkeydown={(event) => onKeydown(event, which)}
+  ></div>
+{/snippet}
+
+<div
+  class={cn(
+    "-mx-2 flex min-h-0 flex-1 flex-col overflow-hidden",
+    dragging && "cursor-row-resize select-none",
+  )}
+  bind:clientHeight={groupPx}
+>
+  {#if list}
+    <div
+      class={cn("min-h-0 shrink-0 overflow-hidden px-2", motion)}
+      style:height="{heights.list}px"
     >
-      <Resizable.Pane
-        bind:this={listPane}
-        defaultSize={initial.list}
-        minSize={MIN_LIST}
-        class="px-2"
-      >
-        {@render list()}
-      </Resizable.Pane>
-      <Resizable.Handle
-        aria-label="Resize repository list"
-        class="data-[direction=vertical]:after:h-2"
-      />
-      <Resizable.Pane
-        bind:this={branchPane}
-        defaultSize={initial.branch}
-        minSize={18}
-        collapsible
-        collapsedSize={headerPct}
-        onResize={(size) => remember("branch", size)}
-        class="px-2"
-      >
-        {@render branch({
-          open: !layout.branch.collapsed,
-          toggle: () => toggle("branch"),
-        })}
-      </Resizable.Pane>
-      <Resizable.Handle
-        aria-label="Resize selected branch"
-        class="data-[direction=vertical]:after:h-2"
-      />
-      <Resizable.Pane
-        bind:this={changesPane}
-        defaultSize={initial.changes}
-        minSize={18}
-        collapsible
-        collapsedSize={headerPct}
-        onResize={(size) => remember("changes", size)}
-        class="px-2"
-      >
-        {@render changes({
-          open: !layout.changes.collapsed,
-          toggle: () => toggle("changes"),
-        })}
-      </Resizable.Pane>
-    </Resizable.PaneGroup>
+      {@render list({
+        measure: measureList,
+        overflows: listContentPx > heights.list + 0.5,
+      })}
+    </div>
+    {@render divider("list", "Resize repository list")}
   {/if}
+  <div
+    class={cn("min-h-0 shrink-0 overflow-hidden px-2", motion)}
+    style:height="{heights.branch}px"
+  >
+    {@render branch({
+      open: flags.branchOpen,
+      toggle: () => toggle("branch"),
+      measure: measureBranch,
+      overflows: HEADER_PX + branchBodyPx > heights.branch + 0.5,
+    })}
+  </div>
+  {@render divider("branch", "Resize selected branch")}
+  <div
+    class={cn("min-h-0 shrink-0 overflow-hidden px-2", motion)}
+    style:height="{heights.changes}px"
+  >
+    {@render changes({
+      open: flags.changesOpen,
+      toggle: () => toggle("changes"),
+    })}
+  </div>
 </div>

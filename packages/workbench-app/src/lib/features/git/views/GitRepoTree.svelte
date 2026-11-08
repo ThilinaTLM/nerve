@@ -2,6 +2,7 @@
 import type { Snippet } from "svelte";
 import ChevronDown from "@lucide/svelte/icons/chevron-down";
 import ChevronRight from "@lucide/svelte/icons/chevron-right";
+import House from "@lucide/svelte/icons/house";
 import Cloud from "@lucide/svelte/icons/cloud";
 import CloudOff from "@lucide/svelte/icons/cloud-off";
 import type { GithubPr, GitRepoSummary } from "@nervekit/contracts/git";
@@ -13,6 +14,7 @@ import * as Tooltip from "@nervekit/ui-kit/components/ui/tooltip";
 import { cn } from "@nervekit/ui-kit/utils";
 import {
   collapsedSummary,
+  isPrimaryWorktree,
   splitBranchName,
   syncState,
   worktreeFolder,
@@ -21,7 +23,13 @@ import {
   type GitRepoGroup,
   type SyncState,
 } from "./git-repo-tree";
-import { prGlyph, syncGlyph, type StatusGlyph } from "./git-status-glyphs";
+import {
+  canSync,
+  idleRemoteGlyph,
+  prGlyph,
+  syncGlyph,
+  type StatusGlyph,
+} from "./git-status-glyphs";
 import { navigateTree, type TreeRow } from "./git-tree-navigation";
 
 type Props = {
@@ -43,6 +51,8 @@ type Props = {
   onOpenChanges: (repository: string) => void;
   onOpenBranchPicker: (repository: string) => void;
   onSyncAction: (repo: GitRepoSummary, state: SyncState) => void;
+  /** Fetch a repository (collapsed, several worktrees, nothing to sync). */
+  onFetch: (repo: GitRepoSummary) => void;
   onOpenPullRequest: (repo: GitRepoSummary, pr: GithubPr) => void;
   /** Hover or keyboard focus rests on a branch: it may be selected soon. */
   onHint?: (repository: string) => void;
@@ -63,6 +73,7 @@ let {
   onOpenChanges,
   onOpenBranchPicker,
   onSyncAction,
+  onFetch,
   onOpenPullRequest,
   onHint,
 }: Props = $props();
@@ -238,19 +249,21 @@ $effect(() => () => clearTimeout(hintTimer));
 
 {#snippet branchName(repo: GitRepoSummary, emphasised: boolean)}
   {#if repo.detached || !repo.currentBranch}
-    <span class="min-w-0 truncate font-mono text-warning">detached</span>
+    <span class="min-w-0 truncate text-warning" title={repo.absDir}
+      >detached</span
+    >
   {:else}
     {@const parts = splitBranchName(repo.currentBranch)}
     <span
       class={cn(
-        "flex min-w-0 overflow-hidden font-mono",
+        "flex min-w-0 overflow-hidden",
         emphasised && "text-foreground",
       )}
-      title={repo.currentBranch}
+      title={`${repo.currentBranch}\n${repo.absDir}`}
     >
-      <span class="min-w-[6ch] truncate">{parts.head}</span><span
-        class="shrink-0">{parts.tail}</span
-      >
+      <span class={cn("truncate", parts.tail && "min-w-[6ch]")}
+        >{parts.head}</span
+      ><span class="shrink-0">{parts.tail}</span>
     </span>
   {/if}
 {/snippet}
@@ -291,22 +304,18 @@ $effect(() => () => clearTimeout(hintTimer));
             class="flex h-[1lh] min-w-0 flex-1 flex-wrap items-baseline gap-x-1.5 overflow-hidden"
           >
             <span
-              class="max-w-full min-w-0 truncate"
+              class="max-w-full min-w-0 truncate text-foreground"
               title={group.primary.absDir}>{group.name}</span
             >
             <span
-              class="shrink-0 font-mono text-muted-foreground"
+              class="shrink-0 text-muted-foreground"
               title={only.currentBranch}>{only.currentBranch}</span
             >
           </span>
         {:else}
-          <span class="min-w-0 truncate" title={group.primary.absDir}
-            >{group.name}</span
-          >
-        {/if}
-        {#if group.repos.length > 1}
-          <span class="shrink-0 text-caption text-muted-foreground"
-            >{group.repos.length} worktrees</span
+          <span
+            class="min-w-0 truncate text-foreground"
+            title={group.primary.absDir}>{group.name}</span
           >
         {/if}
         <!-- Expanded, the branch rows carry the status; nothing is shown twice. -->
@@ -315,6 +324,18 @@ $effect(() => () => clearTimeout(hintTimer));
             {#if sync}
               {@render glyphButton(sync, groupRowId(group.key), () =>
                 onToggleGroup(group.key, true),
+              )}
+            {:else if only && canSync(only)}
+              {@render glyphButton(
+                idleRemoteGlyph("sync"),
+                groupRowId(group.key),
+                () => onSyncAction(only, summary.sync),
+              )}
+            {:else if !only && group.primary.hasRemote}
+              {@render glyphButton(
+                idleRemoteGlyph("fetch"),
+                groupRowId(group.key),
+                () => onFetch(group.primary),
               )}
             {/if}
             {#if pr}
@@ -333,7 +354,7 @@ $effect(() => () => clearTimeout(hintTimer));
   </ContextMenu.Root>
 {/snippet}
 
-{#snippet branchRow(group: GitRepoGroup, repo: GitRepoSummary, last: boolean)}
+{#snippet branchRow(group: GitRepoGroup, repo: GitRepoSummary)}
   {@const isSelected = repo.relativePath === selected}
   {@const styles = selectRowVariants({ selected: isSelected })}
   {@const state = syncState(repo, context)}
@@ -351,7 +372,8 @@ $effect(() => () => clearTimeout(hintTimer));
         tabindex={tabStop === branchRowId(repo.relativePath) ? 0 : -1}
         class={styles.base({
           class: cn(
-            "flex h-control-sm min-w-0 items-center gap-1.5 pr-1 pl-2 text-ui select-none",
+            "flex h-control-sm min-w-0 items-center gap-1.5 pr-1 pl-6 text-ui select-none",
+            !isSelected && "text-muted-foreground hover:text-foreground",
             selectable ? "cursor-pointer" : "hover:bg-transparent",
           ),
         })}
@@ -371,25 +393,34 @@ $effect(() => () => clearTimeout(hintTimer));
         onkeydown={(event) =>
           onRowKeydown(event, branchRowId(repo.relativePath))}
       >
-        <!-- Tree connector in the repository icon's column: ├ for inner rows,
-             a rounded └ for the last, continuing the guide line. -->
-        <span class="relative w-4 shrink-0 self-stretch" aria-hidden="true">
-          {#if last}
-            <span
-              class="absolute -top-0.5 right-0 bottom-1/2 left-1/2 rounded-bl-[5px] border-b border-l border-border"
-            ></span>
-          {:else}
-            <span class="absolute -top-0.5 -bottom-0.5 left-1/2 w-px bg-border"
-            ></span>
-            <span class="absolute top-1/2 right-0 left-1/2 h-px bg-border"
-            ></span>
-          {/if}
-        </span>
         {@render branchName(repo, isSelected)}
+        {#if isPrimaryWorktree(repo) && group.repos.length > 1}
+          <Tooltip.Root>
+            <Tooltip.Trigger>
+              {#snippet child({ props })}
+                <span {...props} class="flex shrink-0 text-muted-foreground">
+                  <House
+                    class="size-3"
+                    aria-label={`Primary worktree, ${group.primary.absDir}`}
+                  />
+                </span>
+              {/snippet}
+            </Tooltip.Trigger>
+            <Tooltip.Content
+              >Primary worktree · {group.primary.absDir}</Tooltip.Content
+            >
+          </Tooltip.Root>
+        {/if}
         <span class="ml-auto flex shrink-0 items-center gap-1.5">
           {#if sync}
             {@render glyphButton(sync, branchRowId(repo.relativePath), () =>
               onSyncAction(repo, state),
+            )}
+          {:else if canSync(repo)}
+            {@render glyphButton(
+              idleRemoteGlyph("sync"),
+              branchRowId(repo.relativePath),
+              () => onSyncAction(repo, state),
             )}
           {/if}
           {#if pr && pullRequest}
@@ -414,22 +445,19 @@ $effect(() => () => clearTimeout(hintTimer));
     bind:this={treeElement}
     role="tree"
     aria-label="Repositories"
-    class="flex flex-col gap-0.5"
+    class="flex flex-col gap-1"
   >
     {#each groups as entry (entry.group.key)}
-      {@render repositoryRow(entry)}
-      {#if isOpen(entry.group.key)}
-        <!-- Branch rows draw their own connectors from the repository icon. -->
-        <div role="group" class="flex flex-col gap-0.5">
-          {#each entry.repos as repo, index (repo.relativePath)}
-            {@render branchRow(
-              entry.group,
-              repo,
-              index === entry.repos.length - 1,
-            )}
-          {/each}
-        </div>
-      {/if}
+      <div class="flex flex-col">
+        {@render repositoryRow(entry)}
+        {#if isOpen(entry.group.key)}
+          <div role="group" class="flex flex-col">
+            {#each entry.repos as repo (repo.relativePath)}
+              {@render branchRow(entry.group, repo)}
+            {/each}
+          </div>
+        {/if}
+      </div>
     {:else}
       <p class="px-2 py-3 text-ui text-muted-foreground">
         No repository matches.

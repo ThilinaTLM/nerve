@@ -226,14 +226,14 @@ export function defaultSelectedWorktree(
   return buildRepoGroups(repositories)[0]?.repos[0]?.relativePath;
 }
 
-/** Branch checked out in another worktree of the same repository, by folder. */
+/** Branch checked out in another worktree of the same repository, by folder (every worktree without `repo`). */
 export function checkedOutElsewhere(
   group: GitRepoGroup | undefined,
-  repo: GitRepoSummary,
+  repo?: GitRepoSummary,
 ): ReadonlyMap<string, string> {
   const map = new Map<string, string>();
   for (const other of group?.repos ?? []) {
-    if (other.relativePath === repo.relativePath || !other.currentBranch)
+    if (other.relativePath === repo?.relativePath || !other.currentBranch)
       continue;
     map.set(other.currentBranch, worktreeFolder(other));
   }
@@ -299,4 +299,34 @@ export function filterCounts(
     attention: repositories.filter((repo) => needsAttention(repo, context))
       .length,
   };
+}
+
+/** Where a pull request's head branch is checked out in its repository. */
+export type PrCheckout =
+  | { readonly kind: "primary"; readonly repo: GitRepoSummary }
+  | { readonly kind: "linked"; readonly repo: GitRepoSummary };
+
+/**
+ * Looks across every worktree of the repository that `repo` belongs to, not
+ * only the checkout the pull request was opened from.
+ */
+export function prCheckout(
+  repositories: readonly GitRepoSummary[],
+  repo: string,
+  headRefName: string | undefined,
+): PrCheckout | undefined {
+  if (!headRefName) return undefined;
+  const anchor = repositories.find((entry) => entry.relativePath === repo);
+  if (!anchor) return undefined;
+  const group = worktreeGroupOf(anchor);
+  const match = repositories.find(
+    (entry) =>
+      worktreeGroupOf(entry) === group &&
+      !entry.detached &&
+      entry.currentBranch === headRefName,
+  );
+  if (!match) return undefined;
+  return isPrimaryWorktree(match)
+    ? { kind: "primary", repo: match }
+    : { kind: "linked", repo: match };
 }
