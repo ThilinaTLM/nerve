@@ -5,6 +5,7 @@ import {
   activeGitPrFilterCount,
   applyGitPrFilterDraft,
   availableGitPrLabels,
+  countGitPrsByQuickFilter,
   createGitPrFilterDraft,
   defaultGitPrFilterConfig,
   githubRepositoryKey,
@@ -140,6 +141,14 @@ test("groups by repository with filters, quick filters and checked-out first", (
   assert.deepEqual(names({ ...options, quick: "mine" }), ["api:2,5,3"]);
   assert.deepEqual(names({ ...options, quick: "review" }), ["api:3"]);
   assert.deepEqual(names({ ...options, query: "bob" }), ["web:1"]);
+  assert.deepEqual(
+    countGitPrsByQuickFilter(sources, defaultGitPrFilterConfig),
+    {
+      all: 4,
+      mine: 3,
+      review: 1,
+    },
+  );
   assert.deepEqual(
     names({
       ...options,

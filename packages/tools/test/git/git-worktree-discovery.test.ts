@@ -57,9 +57,6 @@ describe("Git worktree discovery summaries", () => {
         new Set(result.repos.map((repo) => repo.worktreeGroup)).size,
         1,
       );
-      assert.deepEqual(result.outsideWorktrees, [
-        { worktreeGroup: result.repos[0]?.worktreeGroup, count: 1 },
-      ]);
       assert.equal(basename(result.repos[1]?.absDir ?? ""), "feat");
     } finally {
       await rm(base, { recursive: true, force: true });

@@ -61,15 +61,6 @@ export const gitWorkspaceSnapshotSchema = z.object({
   /** One summary per repository or worktree, sorted by `relativePath`. */
   summaries: z.array(gitRepoSummarySchema),
   errors: z.array(gitProjectReadErrorSchema),
-  /** Checkouts outside the project per `worktreeGroup`; omitted groups have none. */
-  outsideWorktrees: z
-    .array(
-      z.object({
-        worktreeGroup: z.string(),
-        count: z.number().int().positive(),
-      }),
-    )
-    .optional(),
   /** Some content is known to be out of date (dirty, failed refresh or uncertain monitor). */
   stale: z.boolean(),
   /** Repositories whose summary is known to be out of date. */

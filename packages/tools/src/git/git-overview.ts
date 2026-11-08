@@ -18,7 +18,7 @@ export function repositoryNameFromCommonDir(commonDir: string): string {
   return leaf.endsWith(".git") && leaf.length > 4 ? leaf.slice(0, -4) : leaf;
 }
 
-export function worktreeGroupKey(commonDir: string): string {
+function worktreeGroupKey(commonDir: string): string {
   return gitPathKey(commonDir);
 }
 

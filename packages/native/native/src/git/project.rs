@@ -72,14 +72,6 @@ pub struct Discovery {
     pub root: String,
     pub project_is_repo: bool,
     pub repositories: Vec<Repository>,
-    /// Checkouts of discovered repositories that live outside the project root
-    /// (excluded from `repositories`), counted per shared Git directory.
-    pub outside_worktrees: Vec<OutsideWorktrees>,
-}
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct OutsideWorktrees {
-    pub common_dir: String,
-    pub count: u32,
 }
 #[cfg(test)]
 fn identity(root: &Path, path: &Path) -> Result<Repository, GitReadError> {
@@ -214,13 +206,12 @@ fn discover_with_path_limit(
             }
         }
     }
-    let outside_worktrees = add_linked_worktrees(&root, &mut repositories, token, path_limit)?;
+    add_linked_worktrees(&root, &mut repositories, token, path_limit)?;
     repositories.sort_by(|a, b| a.relative_path.cmp(&b.relative_path));
     Ok(Discovery {
         root: text(&root)?,
         project_is_repo,
         repositories,
-        outside_worktrees,
     })
 }
 /// Checkout directories registered with a repository: its main working tree
@@ -258,13 +249,13 @@ fn registered_checkouts(common_dir: &Path) -> Vec<PathBuf> {
 }
 /// Adds every linked (and main) checkout of each discovered repository that is
 /// inside the project, including dot-directories and any depth. Checkouts
-/// outside the project are only counted. Linked worktrees count toward the limit.
+/// outside the project are excluded. Linked worktrees count toward the limit.
 fn add_linked_worktrees(
     root: &Path,
     repositories: &mut Vec<Repository>,
     token: &CancellationToken,
     path_limit: usize,
-) -> Result<Vec<OutsideWorktrees>, GitReadError> {
+) -> Result<(), GitReadError> {
     let mut seen: std::collections::BTreeSet<String> =
         repositories.iter().map(|r| r.work_dir.clone()).collect();
     let mut groups: Vec<String> = Vec::new();
@@ -273,20 +264,14 @@ fn add_linked_worktrees(
             groups.push(repo.common_dir.clone());
         }
     }
-    let mut outside = Vec::new();
     for common_dir in groups {
         check(token)?;
-        let mut outside_count = 0;
         for checkout in registered_checkouts(Path::new(&common_dir)) {
             check(token)?;
             let Ok(canonical) = checkout.canonicalize() else {
                 continue;
             };
             if !canonical.starts_with(root) {
-                // Only count real checkouts of this repository.
-                if canonical.join(".git").exists() {
-                    outside_count += 1;
-                }
                 continue;
             }
             if seen.contains(&text(&canonical)?) {
@@ -305,15 +290,8 @@ fn add_linked_worktrees(
                 Err(error) => return Err(error),
             }
         }
-        if outside_count > 0 {
-            outside.push(OutsideWorktrees {
-                common_dir,
-                count: outside_count,
-            });
-        }
     }
-    outside.sort_by(|a, b| a.common_dir.cmp(&b.common_dir));
-    Ok(outside)
+    Ok(())
 }
 
 #[derive(Debug, Default)]
@@ -1038,7 +1016,7 @@ mod tests {
         assert!(Path::new(&found.repositories[0].common_dir).is_absolute());
     }
     #[test]
-    fn linked_worktrees_inside_project_are_found_outside_are_counted_without_duplicates() {
+    fn linked_worktrees_inside_project_are_found_outside_are_excluded_without_duplicates() {
         let fixture = Fixture::new();
         let outside = Fixture::new();
         let main = fixture.repo("api");
@@ -1065,12 +1043,6 @@ mod tests {
         assert_eq!(
             relative,
             vec!["api", "api-visible", "api/.worktrees/deep/er/feature"]
-        );
-        assert_eq!(found.outside_worktrees.len(), 1);
-        assert_eq!(found.outside_worktrees[0].count, 1);
-        assert_eq!(
-            found.outside_worktrees[0].common_dir,
-            found.repositories[0].common_dir
         );
         // Starting from a linked worktree only: the main checkout is found too.
         let from_linked = discover(inside.to_str().unwrap(), &token).unwrap();

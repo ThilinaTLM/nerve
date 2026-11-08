@@ -200,6 +200,22 @@ export function groupGitPrsByRepository(
   );
 }
 
+/**
+ * Matching PRs per quick filter with the filter menu applied, before search,
+ * mirroring the Git changes tab whose filter counts also ignore the search.
+ */
+export function countGitPrsByQuickFilter(
+  sources: readonly GitPrRepositorySource[],
+  filters: GitPrFilterConfig,
+): Record<GitPrQuickFilter, number> {
+  const count = (quick: GitPrQuickFilter) =>
+    groupGitPrsByRepository(sources, { query: "", quick, filters }).reduce(
+      (sum, group) => sum + group.prs.length,
+      0,
+    );
+  return { all: count("all"), mine: count("mine"), review: count("review") };
+}
+
 /** `owner/name` of a GitHub repository URL, or undefined when unparsable. */
 export function githubRepositoryKey(
   url: string | null | undefined,

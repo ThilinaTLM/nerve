@@ -7,7 +7,7 @@ import * as ToggleGroup from "@nervekit/ui-kit/components/ui/toggle-group";
 import { SearchInput } from "@nervekit/ui-kit/components/composites/search-input";
 import { GithubMark } from "@nervekit/ui-kit/components/composites/github-mark";
 import { SvelteSet } from "svelte/reactivity";
-import type { Component } from "svelte";
+import { tick, type Component } from "svelte";
 import Archive from "@lucide/svelte/icons/archive";
 import ArchiveRestore from "@lucide/svelte/icons/archive-restore";
 import ArrowDown from "@lucide/svelte/icons/arrow-down";
@@ -195,9 +195,7 @@ const totalChangeCount = $derived(
 let expandedPr = $state<number>();
 
 // ---- Repositories and branches -------------------------------------------------
-const groups = $derived(
-  buildRepoGroups(model.repositories, model.outsideWorktrees),
-);
+const groups = $derived(buildRepoGroups(model.repositories));
 const groupOf = (repo: GitRepoSummary): GitRepoGroup | undefined =>
   groups.find((group) => group.key === worktreeGroupOf(repo));
 const statusContext: BranchStatusContext = {
@@ -235,6 +233,15 @@ const selectedElsewhere = $derived(
 function selectBranch(repository: string): void {
   if (repository !== model.selectedRepository)
     void actions.selectRepository(repository);
+}
+/** Double-clicking a branch row opens the branch picker for that worktree. */
+async function openBranchPicker(repository: string): Promise<void> {
+  if (!model.capabilities.branches.enabled) return;
+  if (repository !== model.selectedRepository)
+    await actions.selectRepository(repository);
+  split?.openSection("branch");
+  await tick();
+  selector?.openBranchPicker();
 }
 function openChanges(repository: string): void {
   selectBranch(repository);
@@ -275,8 +282,7 @@ function actionLabel(
   repo: GitRepoSummary,
   operation: GitRemoteOperation,
 ): string {
-  if (operation === "switch-base-and-pull")
-    return `Switch to ${repo.baseBranch} and pull`;
+  if (operation === "switch-base-and-pull") return `Back to ${repo.baseBranch}`;
   if (operation === "pull")
     return `Pull${repo.behind ? ` (${repo.behind})` : ""}`;
   if (operation === "push") {
@@ -548,7 +554,7 @@ const stashesDisabled = (repo: GitRepoSummary) =>
           )}
           onclick={() => {
             if (!options.disabled) options.onclick();
-          }}><Icon class="size-4" /></Button
+          }}><Icon /></Button
         >
       {/snippet}
     </Tooltip.Trigger>
@@ -829,6 +835,7 @@ const stashesDisabled = (repo: GitRepoSummary) =>
       onToggleGroup={(key, open) => view.setExpanded(key, open)}
       onSelect={selectBranch}
       onOpenChanges={openChanges}
+      onOpenBranchPicker={(repository) => void openBranchPicker(repository)}
       onSyncAction={runSyncAction}
       onOpenPullRequest={(repo, pr) =>
         void actions.openPullRequest(repo.relativePath, pr.number)}
@@ -877,8 +884,8 @@ const stashesDisabled = (repo: GitRepoSummary) =>
                   disabled={!model.capabilities.remote["switch-base-and-pull"]
                     .enabled || bulkSwitchRepositories.length === 0}
                   onclick={() => (bulkMainOpen = true)}
-                  ><GitCompareArrows aria-hidden="true" />Switch all to base and
-                  pull</DropdownMenu.Item
+                  title="Switch each repository's primary checkout to its base branch and pull"
+                  ><GitCompareArrows aria-hidden="true" />Back to base</DropdownMenu.Item
                 >
               </DropdownMenu.Content>
             </DropdownMenu.Root>
@@ -912,11 +919,15 @@ const stashesDisabled = (repo: GitRepoSummary) =>
             }}
           >
             <ToggleGroup.Item value="all">All {counts.all}</ToggleGroup.Item>
-            <ToggleGroup.Item value="changed"
+            <ToggleGroup.Item
+              value="changed"
+              title="Branches with uncommitted changes"
               >Changed {counts.changed}</ToggleGroup.Item
             >
-            <ToggleGroup.Item value="attention"
-              >Needs attention {counts.attention}</ToggleGroup.Item
+            <ToggleGroup.Item
+              value="attention"
+              title="Failed operations, failing checks, merged branches, or behind with local work"
+              >Attention {counts.attention}</ToggleGroup.Item
             >
           </ToggleGroup.Root>
         </div>

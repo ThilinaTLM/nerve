@@ -81,18 +81,6 @@ export const gitDiscoveryResponseSchema = z.object({
   stale: z.boolean().optional(),
   projectIsRepo: z.boolean(),
   repos: z.array(gitRepoSummarySchema),
-  /**
-   * Checkouts of discovered repositories that live outside the project and are
-   * therefore not in `repos`, per repository (`worktreeGroup`). Omitted groups have none.
-   */
-  outsideWorktrees: z
-    .array(
-      z.object({
-        worktreeGroup: z.string(),
-        count: z.number().int().positive(),
-      }),
-    )
-    .optional(),
   errors: z.array(gitProjectReadErrorSchema).optional(),
 });
 export type GitDiscoveryResponse = z.infer<typeof gitDiscoveryResponseSchema>;

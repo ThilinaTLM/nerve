@@ -219,8 +219,3 @@ test("branches checked out in sibling worktrees are reported by folder", () => {
   assert.equal(map.get("feat/x"), "api-oauth");
   assert.equal(map.has("main"), false);
 });
-
-test("outside worktree counts attach to their group", () => {
-  const [group] = buildRepoGroups([repo("api")], { api: 2 });
-  assert.equal(group!.outside, 2);
-});

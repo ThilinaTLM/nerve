@@ -217,14 +217,6 @@ export function createWorkbenchGitPanelAdapter(
           Boolean(project) && !snapshot?.loaded && !workspace?.error,
         cachedError: snapshot?.loaded ? undefined : workspace?.error,
         readErrors: snapshot?.errors,
-        outsideWorktrees: snapshot?.outsideWorktrees
-          ? Object.fromEntries(
-              snapshot.outsideWorktrees.map((entry) => [
-                entry.worktreeGroup,
-                entry.count,
-              ]),
-            )
-          : undefined,
         stale: Boolean(
           snapshot?.staleRepos.includes(selectedRepository) || detail?.stale,
         ),

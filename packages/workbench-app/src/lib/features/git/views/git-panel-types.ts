@@ -120,8 +120,6 @@ export interface GitPanelModel {
   readonly initialLoading: boolean;
   readonly cachedError?: string;
   readonly readErrors?: readonly GitProjectReadError[];
-  /** Linked worktrees outside the project, per `worktreeGroup`. */
-  readonly outsideWorktrees?: Readonly<Record<string, number>>;
   readonly stale?: boolean;
   readonly refreshing: boolean;
   readonly loadingOverview: boolean;

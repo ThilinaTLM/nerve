@@ -11,8 +11,6 @@ export interface NativeGitDiscovery {
   root: string;
   projectIsRepo: boolean;
   repositories: NativeGitProjectRepository[];
-  /** Checkouts outside the project root, counted per shared Git directory. */
-  outsideWorktrees: { commonDir: string; count: number }[];
 }
 export interface NativeGitStatusCounts {
   staged: number;

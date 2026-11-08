@@ -83,6 +83,13 @@ function openManager(view: "switch" | "create"): void {
   refresh();
 }
 
+/** Opens the branch picker popover (double-click on a branch row). */
+export function openBranchPicker(): void {
+  if (!model.capabilities.branches.enabled) return;
+  popoverOpen = true;
+  loadBranches();
+}
+
 /** Opens the full branch dialog for the selected worktree (context menu). */
 export function openBranchDialog(): void {
   openManager("switch");

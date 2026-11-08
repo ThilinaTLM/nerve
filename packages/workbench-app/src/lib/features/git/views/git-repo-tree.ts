@@ -180,8 +180,6 @@ export interface GitRepoGroup {
   readonly primary: GitRepoSummary;
   /** Primary checkout first, then linked worktrees by folder name. */
   readonly repos: readonly GitRepoSummary[];
-  /** Linked worktrees outside the project that are not listed. */
-  readonly outside: number;
 }
 
 const byText = (a: string, b: string): number =>
@@ -191,8 +189,6 @@ const byText = (a: string, b: string): number =>
 /** Groups worktrees into repositories, ordered alphabetically by display name. */
 export function buildRepoGroups(
   repositories: readonly GitRepoSummary[],
-  /** Linked worktrees outside the project, per `worktreeGroup`. */
-  outsideWorktrees: Readonly<Record<string, number>> = {},
 ): GitRepoGroup[] {
   const members = new Map<string, GitRepoSummary[]>();
   for (const repo of repositories) {
@@ -219,7 +215,6 @@ export function buildRepoGroups(
       name: labels.get(primary.relativePath) ?? primary.name,
       primary,
       repos,
-      outside: outsideWorktrees[key] ?? 0,
     }))
     .sort((a, b) => byText(a.name, b.name));
 }

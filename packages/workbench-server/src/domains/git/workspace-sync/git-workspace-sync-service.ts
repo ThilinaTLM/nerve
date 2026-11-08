@@ -332,7 +332,6 @@ export class GitWorkspaceSync {
         loaded: false,
         projectIsRepo: false,
         discoveryErrors: [],
-        outsideWorktrees: [],
         repos: new Map(),
         visible: false,
         discoveredKeys: new Set(),
@@ -714,19 +713,10 @@ export class GitWorkspaceSync {
       const errorsChanged =
         fingerprint(errors) !== fingerprint(project.discoveryErrors);
       project.discoveryErrors = errors;
-      const outside = (result.outsideWorktrees ?? []).map((entry) => ({
-        ...entry,
-      }));
-      const outsideChanged =
-        fingerprint(outside) !== fingerprint(project.outsideWorktrees);
-      project.outsideWorktrees = outside;
       const wasLoaded = project.loaded;
       const projectIsRepo = result.projectIsRepo;
       const structural =
-        !wasLoaded ||
-        projectIsRepo !== project.projectIsRepo ||
-        errorsChanged ||
-        outsideChanged;
+        !wasLoaded || projectIsRepo !== project.projectIsRepo || errorsChanged;
       project.loaded = true;
       project.projectIsRepo = projectIsRepo;
       if (result.stale)

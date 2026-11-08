@@ -35,7 +35,6 @@ class FakeBackend {
   summaryReads: string[] = [];
   listings = 0;
   failing = new Set<string>();
-  outside: Array<{ worktreeGroup: string; count: number }> = [];
   gate?: Promise<void>;
   add(repo: string, branch = "main") {
     this.repos.set(repo, { branch, changes: 0, stash: "a" });
@@ -48,7 +47,6 @@ class FakeBackend {
         summary(repo, state.branch, state.changes),
       ),
       errors: [],
-      outsideWorktrees: this.outside,
     };
   }
   async overview(
@@ -160,17 +158,6 @@ void test("nothing is read without demand; monitor notices only mark dirty", asy
   await tick(5_000);
   assert.deepEqual(f.backend.summaryReads, []);
   assert.equal(f.backend.discoveries, 1);
-  await f.service.close();
-});
-
-void test("the snapshot exposes worktrees outside the project", async () => {
-  const f = fixture();
-  f.backend.add("api");
-  f.backend.outside = [{ worktreeGroup: "api-group", count: 2 }];
-  const snapshot = await f.service.snapshot(project);
-  assert.deepEqual(snapshot.outsideWorktrees, [
-    { worktreeGroup: "api-group", count: 2 },
-  ]);
   await f.service.close();
 });
 

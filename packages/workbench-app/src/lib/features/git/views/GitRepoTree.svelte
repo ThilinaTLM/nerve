@@ -4,7 +4,6 @@ import ChevronDown from "@lucide/svelte/icons/chevron-down";
 import ChevronRight from "@lucide/svelte/icons/chevron-right";
 import Cloud from "@lucide/svelte/icons/cloud";
 import CloudOff from "@lucide/svelte/icons/cloud-off";
-import GitBranch from "@lucide/svelte/icons/git-branch";
 import type { GithubPr, GitRepoSummary } from "@nervekit/contracts/git";
 import { GithubMark } from "@nervekit/ui-kit/components/composites/github-mark";
 import { selectRowVariants } from "@nervekit/ui-kit/components/composites/select-row";
@@ -42,6 +41,7 @@ type Props = {
   onToggleGroup: (key: string, expanded: boolean) => void;
   onSelect: (repository: string) => void;
   onOpenChanges: (repository: string) => void;
+  onOpenBranchPicker: (repository: string) => void;
   onSyncAction: (repo: GitRepoSummary, state: SyncState) => void;
   onOpenPullRequest: (repo: GitRepoSummary, pr: GithubPr) => void;
   /** Hover or keyboard focus rests on a branch: it may be selected soon. */
@@ -61,6 +61,7 @@ let {
   onToggleGroup,
   onSelect,
   onOpenChanges,
+  onOpenBranchPicker,
   onSyncAction,
   onOpenPullRequest,
   onHint,
@@ -147,26 +148,24 @@ function hint(repository: string, delay: number): void {
 $effect(() => () => clearTimeout(hintTimer));
 </script>
 
-{#snippet remoteIcon(repo: GitRepoSummary)}
+{#snippet remoteIcon(repo: GitRepoSummary, active: boolean)}
+  {@const tone = cn(
+    "size-3.5 shrink-0",
+    active ? "text-primary" : "text-muted-foreground",
+  )}
   {#if !repo.hasRemote}
-    <CloudOff
-      class="size-3.5 shrink-0 text-muted-foreground"
-      aria-label="No remote"
-    />
+    <CloudOff class={tone} aria-label="No remote" />
   {:else if repo.hasGithubRemote}
-    <GithubMark class="size-3.5 shrink-0 text-muted-foreground" />
+    <GithubMark class={tone} />
   {:else}
-    <Cloud
-      class="size-3.5 shrink-0 text-muted-foreground"
-      aria-label="Remote (not GitHub)"
-    />
+    <Cloud class={tone} aria-label="Remote (not GitHub)" />
   {/if}
 {/snippet}
 
 <!-- The repository icon carries the expand state as a corner chevron badge. -->
-{#snippet repositoryIcon(repo: GitRepoSummary, open: boolean)}
+{#snippet repositoryIcon(repo: GitRepoSummary, open: boolean, active: boolean)}
   <span class="relative flex size-4 shrink-0 items-center justify-center">
-    {@render remoteIcon(repo)}
+    {@render remoteIcon(repo, active)}
     <span
       class="absolute -right-1 -bottom-1 flex size-2.5 items-center justify-center rounded-full bg-panel text-muted-foreground"
       aria-hidden="true"
@@ -201,10 +200,10 @@ $effect(() => () => clearTimeout(hintTimer));
           }}
         >
           {#if glyph.spinner}
-            <Spinner class="size-3.5" />
+            <Spinner class="size-3" />
           {:else if glyph.icon}
             {@const Icon = glyph.icon}
-            <Icon class="size-3.5" />
+            <Icon class="size-3" />
           {/if}
         </button>
       {/snippet}
@@ -265,6 +264,7 @@ $effect(() => () => clearTimeout(hintTimer));
     failureDetail(summary.syncRepo ?? group.primary),
   )}
   {@const pr = prGlyph(summary.pullRequest)}
+  {@const only = group.repos.length === 1 ? group.repos[0] : undefined}
   <ContextMenu.Root>
     <ContextMenu.Trigger class="block min-w-0">
       <div
@@ -283,10 +283,27 @@ $effect(() => () => clearTimeout(hintTimer));
         onclick={() => onToggleGroup(group.key, !open)}
         onkeydown={(event) => onRowKeydown(event, groupRowId(group.key))}
       >
-        {@render repositoryIcon(group.primary, open)}
-        <span class="min-w-0 truncate" title={group.primary.absDir}
-          >{group.name}</span
-        >
+        {@render repositoryIcon(group.primary, open, holdsSelection)}
+        {#if !open && only?.currentBranch && !only.detached}
+          <!-- Collapsed single checkout: its branch follows the name when it
+               fits whole; otherwise it wraps onto a clipped second line. -->
+          <span
+            class="flex h-[1lh] min-w-0 flex-1 flex-wrap items-baseline gap-x-1.5 overflow-hidden"
+          >
+            <span
+              class="max-w-full min-w-0 truncate"
+              title={group.primary.absDir}>{group.name}</span
+            >
+            <span
+              class="shrink-0 font-mono text-muted-foreground"
+              title={only.currentBranch}>{only.currentBranch}</span
+            >
+          </span>
+        {:else}
+          <span class="min-w-0 truncate" title={group.primary.absDir}
+            >{group.name}</span
+          >
+        {/if}
         {#if group.repos.length > 1}
           <span class="shrink-0 text-caption text-muted-foreground"
             >{group.repos.length} worktrees</span
@@ -316,7 +333,7 @@ $effect(() => () => clearTimeout(hintTimer));
   </ContextMenu.Root>
 {/snippet}
 
-{#snippet branchRow(group: GitRepoGroup, repo: GitRepoSummary)}
+{#snippet branchRow(group: GitRepoGroup, repo: GitRepoSummary, last: boolean)}
   {@const isSelected = repo.relativePath === selected}
   {@const styles = selectRowVariants({ selected: isSelected })}
   {@const state = syncState(repo, context)}
@@ -334,7 +351,7 @@ $effect(() => () => clearTimeout(hintTimer));
         tabindex={tabStop === branchRowId(repo.relativePath) ? 0 : -1}
         class={styles.base({
           class: cn(
-            "flex h-control-sm min-w-0 items-center gap-1.5 pr-1 pl-[1.875rem] text-ui",
+            "flex h-control-sm min-w-0 items-center gap-1.5 pr-1 pl-2 text-ui select-none",
             selectable ? "cursor-pointer" : "hover:bg-transparent",
           ),
         })}
@@ -347,10 +364,27 @@ $effect(() => () => clearTimeout(hintTimer));
         onclick={() => {
           if (selectable) onSelect(repo.relativePath);
         }}
+        ondblclick={(event) => {
+          if ((event.target as HTMLElement).closest("button")) return;
+          if (selectable) onOpenBranchPicker(repo.relativePath);
+        }}
         onkeydown={(event) =>
           onRowKeydown(event, branchRowId(repo.relativePath))}
       >
-        <GitBranch class={styles.icon({ class: "size-3.5 shrink-0" })} />
+        <!-- Tree connector in the repository icon's column: ├ for inner rows,
+             a rounded └ for the last, continuing the guide line. -->
+        <span class="relative w-4 shrink-0 self-stretch" aria-hidden="true">
+          {#if last}
+            <span
+              class="absolute -top-0.5 right-0 bottom-1/2 left-1/2 rounded-bl-[5px] border-b border-l border-border"
+            ></span>
+          {:else}
+            <span class="absolute -top-0.5 -bottom-0.5 left-1/2 w-px bg-border"
+            ></span>
+            <span class="absolute top-1/2 right-0 left-1/2 h-px bg-border"
+            ></span>
+          {/if}
+        </span>
         {@render branchName(repo, isSelected)}
         <span class="ml-auto flex shrink-0 items-center gap-1.5">
           {#if sync}
@@ -385,24 +419,15 @@ $effect(() => () => clearTimeout(hintTimer));
     {#each groups as entry (entry.group.key)}
       {@render repositoryRow(entry)}
       {#if isOpen(entry.group.key)}
-        <!-- Guide line from the repository icon down its branches. -->
-        <div
-          role="group"
-          class="relative flex flex-col gap-0.5 before:absolute before:top-0 before:bottom-1.5 before:left-4 before:w-px before:bg-border"
-        >
-          {#each entry.repos as repo (repo.relativePath)}
-            {@render branchRow(entry.group, repo)}
+        <!-- Branch rows draw their own connectors from the repository icon. -->
+        <div role="group" class="flex flex-col gap-0.5">
+          {#each entry.repos as repo, index (repo.relativePath)}
+            {@render branchRow(
+              entry.group,
+              repo,
+              index === entry.repos.length - 1,
+            )}
           {/each}
-          {#if entry.group.outside > 0}
-            <p
-              class="pl-[1.875rem] text-caption text-muted-foreground"
-              title="Worktrees outside the project folder are not read"
-            >
-              {entry.group.outside}
-              {entry.group.outside === 1 ? "worktree" : "worktrees"} outside this
-              project
-            </p>
-          {/if}
         </div>
       {/if}
     {:else}

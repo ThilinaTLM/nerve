@@ -34,8 +34,8 @@ The Git changes tab separates navigation from selection: **repositories expand, 
 
 ```
 ┌ Git changes 30 ────────────────── ⋯ ⟳ ┐  ⋯ = All repositories: Fetch all, Pull all,
-│ [ Filter repos or branches          ]  │      Switch all to base and pull
-│ All 13   Changed 6   Needs attention 5 │
+│ [ Filter repos or branches          ]  │      Back to base
+│ All 13   Changed 6   Attention 5       │
 │ ◉▾ api  3 worktrees                    │  repo icon carries expand state
 │  │ ⑂ main                              │
 │  │ ⑂ feature/NRV…th-refresh     ↑ ⇡ 2 │  status packed right, one gap
@@ -63,8 +63,8 @@ The Git changes tab separates navigation from selection: **repositories expand, 
 
 Every repository is expandable, including single-checkout ones. Clicking a repository row only expands or collapses it; it never changes the selection. Worktrees that share a Git directory (`commonDir`, already returned by native discovery) are one repository with several branch rows.
 
-- **Icon as disclosure.** There is no separate chevron: the remote icon (GitHub, other, none) carries a small corner chevron for the expand state, so every repository icon sits in one column and nesting reads from indentation. Branch rows are indented under the name with a guide line down from the icon.
-- **Collapsed summary.** On the right: the most urgent sync state among its branches (failed > running > behind > unpublished > ahead), the worst checks state among its branches' open PRs, and the change total. A clean repository is just its name.
+- **Icon as disclosure.** There is no separate chevron: the remote icon (GitHub, other, none) carries a small corner chevron for the expand state, so every repository icon sits in one column and nesting reads from indentation. Branch rows are indented under the name with a guide line down from the icon. Branch rows hang off a guide line from the icon with tree connectors (`├`, a rounded `└` for the last), with no branch icon, so branch names align with the repository name. The icon turns primary when the selected branch belongs to the repository.
+- **Collapsed summary.** On the right: the most urgent sync state among its branches (failed > running > behind > unpublished > ahead), the worst checks state among its branches' open PRs, and the change total. A clean repository is just its name. A collapsed repository with a single checkout also shows its branch after the name when the whole name fits (it is hidden, never cut).
 - **Expanded.** The repository row shows no status; its branch rows carry it, so nothing is shown twice.
 - **Context menu:** Fetch, Open on GitHub, Copy repository URL, Expand.
 - Search and filters temporarily expand repositories with matches; this does not change the remembered expansion state.
@@ -73,19 +73,19 @@ Every repository is expandable, including single-checkout ones. Clicking a repos
 
 ### Branch rows: scan and select
 
-One line: branch icon, branch name, then status **packed to the right edge with one fixed gap**. Absent items take no space, so there are never holes between them, and the right edge is always aligned.
+One line: tree connector, branch name, then status **packed to the right edge with one fixed gap**. Absent items take no space, so there are never holes between them, and the right edge is always aligned.
 
 - _Branch name._ Never abbreviated. When too long it keeps at least ~6 leading and the last ~10 characters (`feature/NRV…le-clients`); the full name is in the tooltip. Detached HEAD shows `detached` in the warning tone.
 - _Sync._ One glyph: `↓` behind (warning), `↑` ahead, `⇅` both (warning), cloud-up not published, spinner while an operation runs, `ⓘ` when the last operation failed (destructive). Clicking runs the action (pull, push, sync, publish, stop, or opens retry).
 - _Pull request._ One glyph whose tone is the checks state: open PR in success (checks pass), destructive (failing), warning (running) or muted (no checks); draft icon for drafts; merge icon in the info tone for merged. Clicking opens the PR.
 - _Changes._ The number of changed files; clicking selects the branch and opens the Changes section. Empty when clean.
 
-No other numbers or text badges: tooltips give details, the selected branch area gives everything. Clicking the row selects the branch. The context menu has every branch action: Sync, Fetch, Pull, Push/Publish, Switch to base and pull, Switch branch…, Stashes, Open on GitHub, Copy repository URL, and the existing "Create pull request" item that opens GitHub's compare page.
+No other numbers or text badges: tooltips give details, the selected branch area gives everything. Clicking the row selects the branch; double-clicking it also opens the branch picker (expanding the Selected branch section if needed). The context menu has every branch action: Sync, Fetch, Pull, Push/Publish, Switch to base and pull, Switch branch…, Stashes, Open on GitHub, Copy repository URL, and the existing "Create pull request" item that opens GitHub's compare page.
 
-**Filters.** All · Changed · Needs attention, each with the number of matching branches.
+**Filters.** All · Changed · Attention, each with the number of matching branches.
 
 - _Changed:_ the worktree has uncommitted changes.
-- _Needs attention:_ the last remote operation failed; the branch's PR has failing checks; the branch is merged into its base; or the branch is behind its upstream **and** also has local commits or uncommitted changes (diverged or dirty). Being only behind (a clean `main` that is not pulled yet) does not count, so the filter is not flooded by base checkouts.
+- _Attention:_ the last remote operation failed; the branch's PR has failing checks; the branch is merged into its base; or the branch is behind its upstream **and** also has local commits or uncommitted changes (diverged or dirty). Being only behind (a clean `main` that is not pulled yet) does not count, so the filter is not flooded by base checkouts.
 
 **Keyboard and accessibility.** The list is a tree (`role="tree"`, repositories and branches as `treeitem`s with `aria-expanded` on repositories). Up/Down move between visible rows, Right expands a repository or moves to its first branch, Left collapses or moves to the parent, Enter or Space selects a branch, Home/End jump. Status buttons are reachable with Tab inside the focused row, and every glyph has an accessible label with its numbers. Section headers are buttons with `aria-expanded`; dividers are keyboard-resizable (paneforge handles), and the context menu opens with Shift+F10 or the Menu key.
 
@@ -136,9 +136,9 @@ Worktrees of one repository share the Git directory: refs, stashes, remotes and 
 - **A branch can be checked out in only one worktree** (Git refuses a second checkout). Therefore:
   - the branch selector marks branches checked out in another worktree (`in api-oauth`) and disables them;
   - "Switch to base and pull" and the merged action are disabled with an explanation when the base branch is checked out in another worktree;
-  - "Switch all to base and pull" targets each repository's primary checkout only.
+  - "Back to base" (All repositories menu; per branch "Back to main") targets each repository's primary checkout only.
 - **Display name** of a repository: the primary checkout's folder name; when the primary checkout is not inside the project, the folder that contains the shared Git directory. Duplicate names are disambiguated with the existing `repoButtonLabels` algorithm.
-- **Discovery.** Native discovery today skips dot-directories and `node_modules`, `dist`, `build`, stops at depth 2, rejects worktrees outside the project, and allows at most 128 repositories, so worktrees under `.worktrees/` are not found. Discovery is extended: for every repository it finds, it also reads that repository's linked worktrees (the `worktrees/` entries of its Git directory) and includes each one whose working tree is inside the project, including dot-directories and deeper paths. Worktrees outside the project stay excluded (the project directory remains the read boundary); the repository shows a muted note, `2 worktrees outside this project`, at the end of its branch rows. Linked worktrees count toward the 128-repository limit.
+- **Discovery.** Native discovery today skips dot-directories and `node_modules`, `dist`, `build`, stops at depth 2, rejects worktrees outside the project, and allows at most 128 repositories, so worktrees under `.worktrees/` are not found. Discovery is extended: for every repository it finds, it also reads that repository's linked worktrees (the `worktrees/` entries of its Git directory) and includes each one whose working tree is inside the project, including dot-directories and deeper paths. Worktrees outside the project stay excluded (the project directory remains the read boundary). Linked worktrees count toward the 128-repository limit.
 
 ### Pull requests tab
 
@@ -153,7 +153,7 @@ Pull requests belong to the remote repository, not to a checkout, so this tab ne
 
    Several words narrow the result (every word must match some field), so `api renovate` finds Renovate PRs in `api`.
 
-2. **Whose:** All · Mine · To review, combined with the search.
+2. **Whose:** All · Mine · Review, each with its count (filter menu applied, search not), combined with the search.
 3. **List:** the existing pull-request cards, unchanged, grouped by repository under one sticky header each (`api 2`); repositories without matches are hidden, and "No pull requests match." shows when nothing matches. Within a repository, PRs whose head branch is checked out in any local worktree sort first and carry the card's existing "checked out" mark, so no per-card captions are needed.
 
 Header (count of matching PRs, filter configuration, refresh) and empty states (no GitHub repositories, `gh` missing or not signed in, rate-limited) stay as today.
@@ -165,9 +165,9 @@ Header (count of matching PRs, filter configuration, refresh) and empty states (
   - _Sort:_ Recently updated · Least recently updated (radio items).
   - _Reset filters_ when anything differs from the defaults.
 
-  The button shows the active state when any option differs from the defaults, as today. Removed options and where they went: author and username (search, Mine), title (search), review requested (To review), current branch only (checked-out PRs sort first and the Git changes tab shows the branch's PR).
+  The button shows the active state when any option differs from the defaults, as today. Removed options and where they went: author and username (search, Mine), title (search), review requested (Review), current branch only (checked-out PRs sort first and the Git changes tab shows the branch's PR).
 
-- "Mine" means the PR author is the signed-in GitHub user (`viewer` in the snapshot); "To review" means a review is requested from that user.
+- "Mine" means the PR author is the signed-in GitHub user (`viewer` in the snapshot); "Review" means a review is requested from that user.
 
 The server already keeps a PR snapshot for every GitHub repository in the project (up to 100 open PRs each, with checks); search runs on the client over those snapshots. Showing every repository raises them from the cold tier to the 60 s warm tier while the tab is on screen: one ETag probe per repository per minute, with summary fetches only for changed PRs. The per-repository backoff should become a shared budget so many repositories cannot exhaust the rate limit together. Repositories with more open PRs than the snapshot holds (`truncated`) need a note and `github.pr.list` for the rest.
 
@@ -175,18 +175,18 @@ The server already keeps a PR snapshot for every GitHub repository in the projec
 
 Every choice the user makes in these panels is remembered on the client (`localStorage`), so the panels look the same after switching projects, tabs or restarting. Nothing is stored on the server and no schema changes are needed. Preferences are per device (the desktop app and a browser tab keep their own).
 
-| Preference                                         | Scope                                                                 | Default                                                               |
-| -------------------------------------------------- | --------------------------------------------------------------------- | --------------------------------------------------------------------- |
-| Git changes filter (All, Changed, Needs attention) | Project                                                               | All                                                                   |
-| Expanded and collapsed repositories                | Project, keyed by repository group                                    | Collapsed, except the repository of the selected branch on first load |
-| Selected branch (worktree)                         | Project                                                               | First branch of the first repository                                  |
-| Selected branch section: collapsed, height         | Panel (all projects)                                                  | Expanded, 30 %                                                        |
-| Changes section: collapsed, height                 | Panel (all projects)                                                  | Collapsed                                                             |
-| Folders collapsed in the change tree               | Project and worktree (exists today)                                   | Expanded                                                              |
-| Pull requests quick filter (All, Mine, To review)  | Project                                                               | All                                                                   |
-| Pull request filter menu (drafts, labels, sort)    | Project (today per repository)                                        | Include drafts, any label, recently updated                           |
-| Expanded check details on a PR card                | Not remembered                                                        | —                                                                     |
-| Search text (Git changes and Pull requests)        | Not remembered across reloads; kept while switching tabs in a session | Empty                                                                 |
+| Preference                                      | Scope                                                                 | Default                                                               |
+| ----------------------------------------------- | --------------------------------------------------------------------- | --------------------------------------------------------------------- |
+| Git changes filter (All, Changed, Attention)    | Project                                                               | All                                                                   |
+| Expanded and collapsed repositories             | Project, keyed by repository group                                    | Collapsed, except the repository of the selected branch on first load |
+| Selected branch (worktree)                      | Project                                                               | First branch of the first repository                                  |
+| Selected branch section: collapsed, height      | Panel (all projects)                                                  | Expanded, 30 %                                                        |
+| Changes section: collapsed, height              | Panel (all projects)                                                  | Collapsed                                                             |
+| Folders collapsed in the change tree            | Project and worktree (exists today)                                   | Expanded                                                              |
+| Pull requests quick filter (All, Mine, Review)  | Project                                                               | All                                                                   |
+| Pull request filter menu (drafts, labels, sort) | Project (today per repository)                                        | Include drafts, any label, recently updated                           |
+| Expanded check details on a PR card             | Not remembered                                                        | —                                                                     |
+| Search text (Git changes and Pull requests)     | Not remembered across reloads; kept while switching tabs in a session | Empty                                                                 |
 
 Implementation follows the existing preference modules (for example `files-panel-preferences.ts`): one versioned key per scope (`nerve:git-panel:v1:<projectId>`, `nerve:git-panel-layout:v1`), validation with defaults for missing or corrupt values, and writes debounced while dragging dividers. Repository and worktree keys that discovery no longer returns are pruned when a snapshot arrives, and per-project entries are capped (least recently used) so storage cannot grow without bound. Today's per-repository keys (selected repository, PR filters) are not migrated; the new keys start from defaults.
 
@@ -289,7 +289,7 @@ Quick fixes, independent of this proposal:
 
 1. **Server summaries.** Discovery extended to linked worktrees inside the project, with `worktreeGroup`, `primaryWorktree` and `stashCount`; `GitWorkspaceSync` with demand, queue, debounce and publishing for workspace summaries; contracts; client `git-store` for the list. Selection still uses `git.overview.get` for detail.
 2. **Detail tier.** Move files and stashes into detail snapshots; mutations return revisions; remove the client query cache and schedulers.
-3. **Repository-first UI.** Expandable repositories (icon disclosure, collapsed summary), selectable branch rows with right-packed status, filters, keyboard tree navigation, context menus, animated, resizable, collapsible Selected branch section (repository with icon-only actions, production branch selector with "checked out in" marks, PR card) and Changes section; Pull requests tab with search (repository, title, number, author, branch), All / Mine / To review, filter menu, and a list grouped by repository; remembered preferences.
+3. **Repository-first UI.** Expandable repositories (icon disclosure, collapsed summary), selectable branch rows with right-packed status, filters, keyboard tree navigation, context menus, animated, resizable, collapsible Selected branch section (repository with icon-only actions, production branch selector with "checked out in" marks, PR card) and Changes section; Pull requests tab with search (repository, title, number, author, branch), All / Mine / Review, filter menu, and a list grouped by repository; remembered preferences.
 4. **PR sync keyed by GitHub repository**, shared rate-limit budget, server-side branch signalling to PR sync, and background fetch.
 
 Phase 3 depends only on summary data (most of which exists today) and can run in parallel with phases 1–2.
@@ -300,8 +300,8 @@ Phase 3 depends only on summary data (most of which exists today) and can run in
 - Service tests with a fake read backend: revision bumps only on content change, demand release, uncertain-monitor fallback, mutation revisions.
 - Client store tests: revision ingest, reconnect, watch delivery.
 - Preference module tests: defaults, corrupt values, pruning of removed repositories, capped project entries.
-- Pure UI helper tests: collapsed-repository summary (most urgent sync, worst checks), Needs attention rule, PR search matching (fields, `#` prefix, several words).
-- Native discovery tests: linked worktrees inside the project (including dot-directories) are found, outside ones are reported but excluded.
+- Pure UI helper tests: collapsed-repository summary (most urgent sync, worst checks), Attention rule, PR search matching (fields, `#` prefix, several words).
+- Native discovery tests: linked worktrees inside the project (including dot-directories) are found, outside ones are excluded.
 - Manual check on Windows with many repositories and worktrees: time to first list, selection latency, idle CPU.
 
 ## Decisions
@@ -311,10 +311,10 @@ Settled during review, recorded so implementation does not reopen them:
 - **Server-owned Git state**, modelled on PR sync; memory only, no schema change.
 - **Background fetch** for visible repositories every 5–10 minutes, staggered, once per repository.
 - **PR checks staleness** for repositories not on screen is accepted (signals plus slow refresh for visible rows).
-- **Worktree discovery** includes linked worktrees inside the project (also under dot-directories); outside ones are excluded with a note.
+- **Worktree discovery** includes linked worktrees inside the project (also under dot-directories); outside ones are excluded.
 - **Linked worktrees and the base branch:** switch to base and the merged action are disabled with an explanation when the base is checked out in another worktree; no detach or worktree removal.
 - **PR filters:** one dropdown menu per project with drafts, labels and sort; the dialog is removed.
-- **Needs attention** excludes branches that are only behind.
+- **Attention** (filter) excludes branches that are only behind.
 - **No "Create pull request" button** in the Selected branch section; the existing context-menu item that opens GitHub's compare page stays.
 - **Phone layout** is out of scope.
 - **Preferences** live in `localStorage` only.

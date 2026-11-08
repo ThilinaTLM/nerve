@@ -5,7 +5,6 @@ import type {
   GitProjectFileStatusResponse,
   GitRepoSummary,
 } from "@nervekit/contracts/git";
-import { worktreeGroupKey } from "./git-overview.js";
 import type { GitWorkspaceRef } from "./git-observability.js";
 import { GitProjectReadCache } from "./read/project-read-cache.js";
 import type {
@@ -127,16 +126,9 @@ export class GitProjectReader {
     signal.throwIfAborted();
     repos.sort((a, b) => a.relativePath.localeCompare(b.relativePath));
     errors.sort((a, b) => a.repo.localeCompare(b.repo));
-    const outsideWorktrees = (discovery.outsideWorktrees ?? []).map(
-      ({ commonDir, count }) => ({
-        worktreeGroup: worktreeGroupKey(commonDir),
-        count,
-      }),
-    );
     return {
       projectIsRepo: discovery.projectIsRepo,
       repos,
-      ...(outsideWorktrees.length > 0 ? { outsideWorktrees } : {}),
       errors,
       ...(freshness.stale ? { stale: true } : {}),
     };

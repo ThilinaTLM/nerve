@@ -21,6 +21,7 @@ import type { GitPanelActions, GitPanelModel } from "./git-panel-types";
 import {
   activeGitPrFilterCount,
   availableGitPrLabels,
+  countGitPrsByQuickFilter,
   groupGitPrsByRepository,
   type GitPrFilterConfig,
   type GitPrQuickFilter,
@@ -56,6 +57,9 @@ const matchCount = $derived(
   groups.reduce((sum, group) => sum + group.prs.length, 0),
 );
 const labels = $derived(availableGitPrLabels(overview.sources));
+const quickCounts = $derived(
+  countGitPrsByQuickFilter(overview.sources, filters),
+);
 const truncated = $derived(
   new Set(
     overview.sources.filter((source) => source.truncated).map((s) => s.key),
@@ -236,7 +240,7 @@ function toggleChecks(number: number) {
   {:else if overview.status === "loading"}
     {@render skeletons()}
   {:else}
-    <div class="flex shrink-0 flex-col gap-1.5 pt-1">
+    <div class="flex shrink-0 flex-col gap-1.5 pt-1 pb-1.5">
       <SearchInput
         bind:value={prPanelSearch.query}
         placeholder="Search repo, title, #number, author"
@@ -246,21 +250,22 @@ function toggleChecks(number: number) {
         type="single"
         size="sm"
         variant="chip"
-        spacing={1}
         aria-label="Quick filter"
         value={quick}
         onValueChange={selectQuick}
       >
-        <ToggleGroup.Item value="all">All</ToggleGroup.Item>
-        <ToggleGroup.Item value="mine">Mine</ToggleGroup.Item>
+        <ToggleGroup.Item value="all">All {quickCounts.all}</ToggleGroup.Item>
+        <ToggleGroup.Item value="mine" title="Pull requests you opened"
+          >Mine {quickCounts.mine}</ToggleGroup.Item
+        >
         <ToggleGroup.Item
           value="review"
           title="Pull requests where your review is requested"
-          >To review</ToggleGroup.Item
+          >Review {quickCounts.review}</ToggleGroup.Item
         >
       </ToggleGroup.Root>
     </div>
-    <div class="mt-1.5 flex min-h-0 flex-1 flex-col border-t">
+    <div class="flex min-h-0 flex-1 flex-col">
       <ScrollRegion
         ariaLabel="Pull requests"
         surface="panel"

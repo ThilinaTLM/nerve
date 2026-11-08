@@ -42,7 +42,6 @@ export type ProjectEntry = {
   loaded: boolean;
   projectIsRepo: boolean;
   discoveryErrors: GitProjectReadError[];
-  outsideWorktrees: Array<{ worktreeGroup: string; count: number }>;
   repos: Map<string, RepoEntry>;
   visible: boolean;
   selected?: string;
@@ -94,9 +93,6 @@ export function projectView(
     projectIsRepo: project.projectIsRepo,
     summaries,
     errors: projectErrors(project),
-    ...(project.outsideWorktrees.length > 0
-      ? { outsideWorktrees: project.outsideWorktrees }
-      : {}),
     stale:
       !watched ||
       !!project.discovery.dirty ||
