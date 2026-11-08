@@ -14,6 +14,19 @@ import { canonicalGitIdentity } from "./git-operation-lanes.js";
 import { repositoryNameFromCommonDir } from "./git-overview.js";
 import { gitPathKey, relativePathInside } from "./git-path-key.js";
 
+/**
+ * The OS's own spelling of an existing path. Node's JS realpath keeps Windows
+ * 8.3 short names (`RUNNER~1`) that native discovery expands, so both sides of
+ * a comparison must come from here.
+ */
+function canonicalPath(path: string): string {
+  try {
+    return realpathSync.native(path);
+  } catch {
+    return realpathSync(path);
+  }
+}
+
 interface WorktreeGroup {
   commonDir: string;
   /** Working directory of the primary checkout (`null` for bare repositories). */
@@ -48,8 +61,8 @@ async function resolveGroup(
     primaryRelativePath =
       (primaryDir &&
         relativePathInside(
-          realpathSync(ctx.projectDir(projectId)),
-          primaryDir,
+          canonicalPath(ctx.projectDir(projectId)),
+          canonicalPath(primaryDir),
         )) ||
       ".";
   }
@@ -71,7 +84,10 @@ async function ensureExcluded(
 ): Promise<void> {
   if (!group.primaryDir) return;
   // The primary's directory may come from native discovery: compare by key.
-  const rel = relativePathInside(realpathSync(group.primaryDir), worktreesDir);
+  const rel = relativePathInside(
+    canonicalPath(group.primaryDir),
+    canonicalPath(worktreesDir),
+  );
   if (!rel) return;
   const pattern = `/${rel}/`;
   const file = join(group.commonDir, "info", "exclude");
