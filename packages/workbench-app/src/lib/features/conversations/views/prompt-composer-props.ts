@@ -26,7 +26,6 @@ import type {
   ComposerEditorOverlay,
   ComposerLockedFields,
   ComposerModelChange,
-  ComposerSettingsDiffers,
 } from "$lib/presentation/conversations/conversation-view-contracts";
 
 export type ThinkingLevel = NonNullable<AgentRecord["thinkingLevel"]>;
@@ -65,7 +64,6 @@ export type PromptComposerProps = {
   agentProfile?: string;
   agentProfiles?: ComposerAgentProfile[];
   lockedFields?: ComposerLockedFields;
-  settingsDiffers?: ComposerSettingsDiffers;
   profileDisabled?: boolean;
   permissionRuleSetId?: PermissionRuleSetId;
   permissionRuleSets?: PermissionRuleSetSummary[];
@@ -87,7 +85,6 @@ export type PromptComposerProps = {
   onToggleHistory?: () => void;
   historyOpen?: boolean;
   onModelSelectionChange?: (next: ComposerModelChange) => void;
-  onResetPermission?: () => void;
   onAgentProfileChange?: (name: string) => void;
   onPermissionRuleSetChange?: (value: PermissionRuleSetId) => void;
   onRefreshPermissionRuleSets?: () => void;

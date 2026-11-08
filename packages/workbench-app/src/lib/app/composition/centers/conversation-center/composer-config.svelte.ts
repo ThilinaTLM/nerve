@@ -20,9 +20,6 @@ export function createComposerConfigActions(composerView: ComposerView) {
       else if (next.thinkingLevel !== undefined)
         await composerView.setReasoning(next.thinkingLevel);
     },
-    resetComposerPermission() {
-      return composerView.setPermission("");
-    },
     setComposerAgentProfile(name: string) {
       return composerView.setProfile(name);
     },

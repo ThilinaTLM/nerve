@@ -98,11 +98,6 @@ export type ComposerModelChange = {
   thinkingLevel?: ThinkingLevel;
 };
 
-export type ComposerSettingsDiffers = {
-  model?: boolean;
-  permission?: boolean;
-};
-
 export type ConversationComposerModel = {
   text: string;
   editorOverlay?: ComposerEditorOverlay;
@@ -130,7 +125,6 @@ export type ConversationComposerModel = {
   agentProfiles: ComposerAgentProfile[];
   /** Fields the active profile locks; their pickers are disabled. */
   lockedFields?: ComposerLockedFields;
-  settingsDiffers?: ComposerSettingsDiffers;
   permissionRuleSetId: PermissionRuleSetId;
   permissionRuleSets: PermissionRuleSetSummary[];
   permissionRuleSetsLoading?: boolean;
@@ -257,7 +251,6 @@ export type ConversationPaneActions = ConversationApprovalPlanActions & {
   onUsageOpenChange?: (open: boolean) => void;
   onUsageRetry?: () => void;
   onModelSelectionChange?: (next: ComposerModelChange) => void;
-  onResetPermission?: () => void;
   onAgentProfileChange?: (name: string) => void;
   onPermissionRuleSetChange?: (value: PermissionRuleSetId) => void;
   onRefreshPermissionRuleSets?: () => void;

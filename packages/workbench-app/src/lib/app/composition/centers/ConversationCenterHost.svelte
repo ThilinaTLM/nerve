@@ -306,16 +306,6 @@ const lockedFields = $derived({
   by: composerView.appliedProfile,
 });
 const activeCompactionLocked = $derived(Boolean(lockedFields.compaction));
-const composerOverrides = $derived(composerView.overrides);
-const settingsDiffers = $derived({
-  model:
-    !agentView.viewedChildId &&
-    (composerOverrides.model !== undefined ||
-      composerOverrides.reasoningLevel !== undefined),
-  permission:
-    !agentView.viewedChildId &&
-    composerOverrides.permissionRuleSetId !== undefined,
-});
 $effect(() => {
   void agentProfileCatalog.ensure(profileCatalogProjectId);
 });
@@ -393,7 +383,6 @@ function openTaskFromNotice(id: string) {
 }
 const {
   setComposerModelSelection,
-  resetComposerPermission,
   setComposerAgentProfile,
   setComposerPermissionRuleSet,
 } = createComposerConfigActions(composerView);
@@ -563,7 +552,6 @@ const historyLocked = $derived(stoppable || isForking(conversationId));
   agentProfile={selectedAgentProfile}
   agentProfiles={composerProfiles}
   {lockedFields}
-  {settingsDiffers}
   profileDisabled={Boolean(agentView.viewedChildId)}
   permissionRuleSetId={selectedPermissionRuleSetId}
   {permissionRuleSets}
@@ -610,7 +598,6 @@ const historyLocked = $derived(stoppable || isForking(conversationId));
   onModelSelectionChange={(next) => {
     void runActivePaneAction(() => setComposerModelSelection(next));
   }}
-  onResetPermission={() => void runActivePaneAction(resetComposerPermission)}
   onAgentProfileChange={(value) => {
     void runActivePaneAction(() => setComposerAgentProfile(value));
   }}
