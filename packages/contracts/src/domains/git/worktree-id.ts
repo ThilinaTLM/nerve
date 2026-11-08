@@ -6,15 +6,29 @@ export const WORKTREES_DIRECTORY = ".worktrees";
 
 const MAX_WORKTREE_ID_LENGTH = 100;
 
+const isEdge = (char: string | undefined) => char === "-" || char === ".";
+
+/**
+ * Drops leading and trailing `-`/`.` with an index scan: an anchored
+ * `[-.]+$` regex backtracks quadratically on long inner runs (ReDoS).
+ */
+function trimEdges(text: string): string {
+  let start = 0;
+  let end = text.length;
+  while (start < end && isEdge(text[start])) start++;
+  while (end > start && isEdge(text[end - 1])) end--;
+  return text.slice(start, end);
+}
+
 /** Lowercase; runs outside `[a-z0-9._-]` become `-`; no leading/trailing `-` or `.`. */
 export function worktreeSlug(text: string): string {
-  return text
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9._-]+/g, "-")
-    .replace(/^[-.]+|[-.]+$/g, "")
-    .slice(0, MAX_WORKTREE_ID_LENGTH)
-    .replace(/[-.]+$/, "");
+  const slug = trimEdges(
+    text
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9._-]+/g, "-"),
+  );
+  return trimEdges(slug.slice(0, MAX_WORKTREE_ID_LENGTH));
 }
 
 /**

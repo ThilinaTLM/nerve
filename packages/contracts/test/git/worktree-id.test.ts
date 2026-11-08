@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   isValidWorktreeId,
+  worktreeSlug,
   uniqueWorktreeId,
   worktreeIdFromBranch,
 } from "../../src/domains/git/worktree-id.js";
@@ -36,4 +37,12 @@ void test("worktree id validation rejects traversal and unsafe names", () => {
 void test("unique worktree ids append a counter", () => {
   assert.equal(uniqueWorktreeId("x", new Set()), "x");
   assert.equal(uniqueWorktreeId("x", new Set(["x", "x-2"])), "x-3");
+});
+
+void test("worktree slugs stay linear on long separator runs", () => {
+  const input = `a${"-.".repeat(50_000)}a`;
+  const started = performance.now();
+  assert.equal(worktreeSlug(input), "a");
+  assert.ok(performance.now() - started < 200);
+  assert.equal(worktreeSlug("..--Feature//X--.."), "feature-x");
 });
