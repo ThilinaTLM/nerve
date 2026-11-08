@@ -77,15 +77,3 @@ export const gitSelectors = {
     };
   },
 };
-
-/** Checked-out branch of one repository, used to detect PR checkout state. */
-export function gitCurrentBranch(
-  projectId: string,
-  relativePath: string,
-): string | undefined {
-  return (
-    gitWorkspaceSnapshot(projectId)?.summaries.find(
-      (candidate) => candidate.relativePath === relativePath,
-    )?.currentBranch ?? undefined
-  );
-}
