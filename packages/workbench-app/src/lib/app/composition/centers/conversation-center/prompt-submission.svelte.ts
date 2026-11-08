@@ -16,6 +16,7 @@ import {
   pendingConversations,
   type PendingConversationState,
 } from "$lib/application/workspace/pending-conversations.svelte";
+import { withConversationRow } from "$lib/application/workspace/conversation-rows";
 import { workspaceState } from "$lib/application/workspace/workspace-state.svelte";
 import { submitPendingConversation } from "$lib/app/composition/conversations/submit-pending-conversation";
 import { switchAgentProfile } from "$lib/features/conversations/adapters/core-agent-configuration.adapter";
@@ -103,8 +104,9 @@ export async function submitPendingPrompt(input: {
     if (input.clearComposer) drafts.clearPromptIfUnchanged(pendingTarget, text);
     // Move any remaining draft to the created conversation before the tab is promoted.
     drafts.promotePendingPrompt(pending.id, snapshot.conversation.id);
-    workspaceState.conversations = [
-      ...workspaceState.conversations,
+    // A conversation.changed notice may already have added a fresher row.
+    workspaceState.conversations = withConversationRow(
+      workspaceState.conversations,
       {
         ...snapshot.conversation,
         references: [],
@@ -115,7 +117,7 @@ export async function submitPendingPrompt(input: {
         model: snapshot.config.model,
         permissionRuleSetId: snapshot.config.permissionRuleSetId,
       },
-    ];
+    );
     replaceOpenCenterTabs(
       workspaceState.openCenterTabs.map((t) =>
         t.kind === "pending-conversation" && t.id === pending.id
