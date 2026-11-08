@@ -3,9 +3,10 @@ import type { CoreStorage } from "../../storage/core-storage.js";
 import type { CoreEmitter } from "../../runtime/core-change.js";
 import { publishSummary } from "../../runtime/publish-summary.js";
 import {
-  extractCreatedReference,
+  extractCreatedReferences,
   extractPromptReferences,
   parseGitRemote,
+  type CreatedReferenceSource,
 } from "./github.js";
 
 export interface ReferenceExtractionOptions {
@@ -24,29 +25,44 @@ export class ReferenceExtraction {
       event.type === "user_message" &&
       event.payload.source === "user" &&
       !conversation.parentConversationId;
-    const bash =
+    const tool =
       event.type === "tool_call_response" &&
-      event.payload.outcome === "completed" &&
-      /^(?:functions\.)?bash$/.test(event.payload.toolName);
+      event.payload.outcome === "completed"
+        ? /^(?:functions\.)?(bash|python_exec)$/.exec(
+            event.payload.toolName,
+          )?.[1]
+        : undefined;
     const asyncBash =
       event.type === "system_event" &&
       event.payload.subtype === "task_result" &&
       event.payload.task.kind === "bash" &&
       event.payload.outcome === "completed";
-    if (!prompt && !bash && !asyncBash) return;
-    const command =
-      bash && event.type === "tool_call_response"
-        ? String(event.payload.arguments.command ?? "")
-        : asyncBash &&
-            event.type === "system_event" &&
-            event.payload.subtype === "task_result" &&
-            event.payload.task.kind === "bash"
-          ? (storage.asyncBash.get(event.payload.task.id)?.command ?? "")
-          : "";
+    if (!prompt && !tool && !asyncBash) return;
+    // python_exec scripts run from `path` have no inspectable code and are skipped.
+    const source: CreatedReferenceSource =
+      tool && event.type === "tool_call_response"
+        ? tool === "bash"
+          ? {
+              kind: "shell",
+              text: String(event.payload.arguments.command ?? ""),
+            }
+          : { kind: "python", text: String(event.payload.arguments.code ?? "") }
+        : {
+            kind: "shell",
+            text:
+              asyncBash &&
+              event.type === "system_event" &&
+              event.payload.subtype === "task_result" &&
+              event.payload.task.kind === "bash"
+                ? (storage.asyncBash.get(event.payload.task.id)?.command ?? "")
+                : "",
+          };
+    const command = source.text;
     // Cheap candidate checks only; the pure parser still decides what is a reference.
     if (prompt && event.type === "user_message") {
       if (!/#\d|\/(?:pull|issues)\//i.test(event.payload.originalText)) return;
-    } else if (!/\bgh\s+(?:pr|issue)\s+create\b/.test(command)) return;
+    } else if (!/\bgh\b[\s\S]*\b(?:pr|issue)\b[\s\S]*\bcreate\b/.test(command))
+      return;
     const remotes = (
       (await this.options.gitRemotes?.(conversation.projectId)) ?? []
     ).flatMap((url) => {
@@ -61,7 +77,7 @@ export class ReferenceExtraction {
     else {
       let output = "",
         exitCode: number | null = null;
-      if (bash && event.type === "tool_call_response") {
+      if (tool && event.type === "tool_call_response") {
         const preview = event.payload.userProjection.resultPreview;
         if (preview && typeof preview === "object" && !Array.isArray(preview)) {
           const details = preview.details;
@@ -72,11 +88,13 @@ export class ReferenceExtraction {
             typeof details.exitCode === "number"
           )
             exitCode = details.exitCode;
-          output =
-            typeof preview.content === "string"
-              ? preview.content
-              : JSON.stringify(preview.content ?? "");
+          else if (typeof preview.exitCode === "number")
+            exitCode = preview.exitCode;
         }
+        // The full agent-facing text; the user preview may hide lines.
+        output = event.payload.agentProjection
+          .flatMap((block) => (block.type === "text" ? [block.text] : []))
+          .join("\n");
       } else if (
         event.type === "system_event" &&
         event.payload.subtype === "task_result" &&
@@ -87,13 +105,7 @@ export class ReferenceExtraction {
           ? event.payload.text.slice(command.length + 1)
           : "";
       }
-      const created = extractCreatedReference(
-        command,
-        exitCode,
-        output,
-        remotes,
-      );
-      references = created ? [created] : [];
+      references = extractCreatedReferences(source, exitCode, output, remotes);
     }
     const changed = new Set<string>();
     storage.transaction(() => {

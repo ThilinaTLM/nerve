@@ -2,9 +2,17 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   extractPromptReferences as prompts,
-  extractCreatedReference as created,
+  extractCreatedReferences,
   parseGitRemote,
 } from "./github.js";
+const createdAll = (command: string, code: number, output: string) =>
+  extractCreatedReferences({ kind: "shell", text: command }, code, output);
+const created = (command: string, code: number, output: string) =>
+  createdAll(command, code, output).at(-1) ?? null;
+const python = (code: string, output: string) =>
+  extractCreatedReferences({ kind: "python", text: code }, 0, output).map(
+    (r) => `${r.kind}:${r.identifier}`,
+  );
 const remote = { host: "git.acme.test", owner: "Acme", repo: "API" };
 test("canonical URLs normalize identity and resolve comments/reviews to the parent", () => {
   const refs = prompts(
@@ -72,11 +80,14 @@ test("local git remotes parse HTTPS, SSH and scp forms", () => {
   ])
     assert.deepEqual(parseGitRemote(url), remote);
 });
-test("creation requires an actual successful gh create command and matching URL, taking the last", () => {
-  const output = "https://github.com/a/b/pull/1\nhttps://github.com/a/b/pull/2";
-  assert.equal(
-    created("gh pr create --title 'hello'", 0, output)?.identifier,
-    "2",
+test("creation requires an actual successful gh create command and matching URL, keeping all", () => {
+  const output =
+    "https://github.com/a/b/pull/1\nhttps://github.com/a/b/pull/2\nhttps://github.com/a/b/pull/1";
+  assert.deepEqual(
+    createdAll("gh pr create --title 'hello'", 0, output).map(
+      (r) => r.identifier,
+    ),
+    ["1", "2"],
   );
   assert.equal(
     created("gh issue create", 0, "https://github.com/a/b/issues/3")
@@ -93,6 +104,82 @@ test("creation requires an actual successful gh create command and matching URL,
     ["gh issue create", 0, output],
   ] as const)
     assert.equal(created(command, code, text), null);
+});
+
+test("shell create commands are found inside loops, conditionals, subshells and groups", () => {
+  const output = "https://github.com/a/b/pull/7";
+  for (const command of [
+    "for r in a b; do (cd $r && gh pr create --fill); done",
+    "if true; then gh pr create; fi",
+    "{ gh pr create; }",
+    "url=$(gh pr create --fill)",
+    "true || gh pr create",
+  ])
+    assert.equal(created(command, 0, output)?.identifier, "7", command);
+  assert.deepEqual(
+    createdAll(
+      "gh pr create && gh issue create",
+      0,
+      "https://github.com/a/b/pull/1\nhttps://github.com/a/b/issues/2",
+    ).map((r) => r.kind),
+    ["pull_request", "issue"],
+  );
+});
+
+test("heredoc bodies and common wrappers do not hide shell create commands", () => {
+  const output = "https://github.com/a/b/pull/7";
+  const heredoc = "cat > /tmp/body.md <<'EOF'\nThe candidate's PR run.\nEOF\n";
+  for (const command of [
+    `${heredoc}timeout 60 gh pr create --body-file /tmp/body.md`,
+    "cat <<-EOF > b\n\tit's\n\tEOF\ngh pr create",
+    'GH_PROMPT_DISABLED=1 gh pr create --title "x"',
+    "env -i FOO=1 gh pr create",
+    "cat <<< 'x' && gh pr create",
+  ])
+    assert.equal(created(command, 0, output)?.identifier, "7", command);
+  for (const command of [
+    "cat <<EOF\ngh pr create\nEOF",
+    "echo timeout 60 gh pr create",
+    // Ambiguous wrapper chains must stay linear (CodeQL js/redos).
+    `timeout${"\t-!\tA=\ttimeout".repeat(5_000)}`,
+  ])
+    assert.equal(created(command, 0, output), null, command.slice(0, 40));
+});
+
+test("existing pull requests reported by gh are not recorded as created", () => {
+  assert.deepEqual(
+    createdAll(
+      "gh pr create",
+      0,
+      'a pull request for branch "x" into branch "main" already exists:\nhttps://github.com/a/b/pull/5\nhttps://github.com/a/b/pull/6',
+    ).map((r) => r.identifier),
+    ["6"],
+  );
+});
+
+test("python create detection accepts argv and command strings only", () => {
+  const output = [1, 2, 3]
+    .map((n) => `https://github.com/a/b/pull/${n}`)
+    .join("\n");
+  assert.deepEqual(
+    python(
+      'for r in repos:\n    subprocess.run(["gh", "pr", "create", "--title", t], cwd=r)',
+      output,
+    ),
+    ["pull_request:1", "pull_request:2", "pull_request:3"],
+  );
+  assert.deepEqual(
+    python(
+      "os.system('gh issue create --title x')",
+      "https://github.com/a/b/issues/4",
+    ),
+    ["issue:4"],
+  );
+  for (const code of [
+    'subprocess.run(["gh", "pr", "view"])',
+    'print("https://github.com/a/b/pull/1")',
+  ])
+    assert.deepEqual(python(code, output), []);
 });
 
 test("URL punctuation trimming handles long suffixes without dropping references", () => {

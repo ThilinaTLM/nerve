@@ -83,6 +83,29 @@ function trimUrlPunctuation(value: string): string {
   return value.slice(0, end);
 }
 
+/** Blank heredoc bodies: they are data, and stray apostrophes in them would break quote masking. */
+function withoutHeredocBodies(command: string): string {
+  const pending: { delimiter: string; tabs: boolean }[] = [];
+  return command
+    .split("\n")
+    .map((line) => {
+      const current = pending[0];
+      if (current) {
+        if (
+          (current.tabs ? line.replace(/^\t+/, "") : line) === current.delimiter
+        )
+          pending.shift();
+        return "";
+      }
+      for (const match of line.matchAll(
+        /(?<!<)<<(-?)\s*(["']?)([A-Za-z_][\w.-]*)\2/g,
+      ))
+        pending.push({ delimiter: match[3], tabs: match[1] === "-" });
+      return line;
+    })
+    .join("\n");
+}
+
 /** Mask shell quotes in one pass so quoted prose cannot look like a command. */
 function maskShellQuotes(command: string): string {
   const parts: string[] = [];
@@ -183,24 +206,84 @@ export function extractPromptReferences(
     .sort((a, b) => a.index - b.index)
     .map((entry) => entry.reference);
 }
-export function extractCreatedReference(
-  command: string,
+/** Source of a tool call that may run `gh pr create` / `gh issue create`. */
+export interface CreatedReferenceSource {
+  kind: "shell" | "python";
+  text: string;
+}
+
+const SIMPLE_WRAPPERS = new Set(["command", "exec", "time", "nohup"]);
+
+/**
+ * The `gh pr|issue create` subcommand of the shell command starting at `start`, if any.
+ * Common wrappers (`timeout`, `env`, ...) and `VAR=value` assignments may precede it. A token
+ * scan rather than a regex keeps this linear on adversarial input.
+ */
+function shellCreateSubcommand(text: string, start: number): string | null {
+  const window = text.slice(start, start + 1000);
+  const newline = window.indexOf("\n");
+  const tokens = (newline < 0 ? window : window.slice(0, newline))
+    .trim()
+    .split(/\s+/);
+  let index = 0;
+  while (index < tokens.length) {
+    const token = tokens[index];
+    if (token === "timeout" || token === "env") {
+      index++;
+      while (tokens[index]?.startsWith("-")) index++;
+      if (token === "timeout") index++; // The duration.
+    } else if (SIMPLE_WRAPPERS.has(token) || /^[A-Za-z_]\w*=/.test(token))
+      index++;
+    else break;
+  }
+  const [gh, subcommand, action = ""] = tokens.slice(index, index + 3);
+  return gh === "gh" &&
+    (subcommand === "pr" || subcommand === "issue") &&
+    /^create(?:[;&|)}]|$)/.test(action)
+    ? subcommand
+    : null;
+}
+
+/** Reference kinds the source actually creates. */
+function createdKinds(source: CreatedReferenceSource): Set<string> {
+  const subcommands: (string | undefined)[] = [];
+  if (source.kind === "shell") {
+    // A gh command at a command start, not quoted prose, echo, or scripts.
+    const text = maskShellQuotes(withoutHeredocBodies(source.text));
+    const starts = [0];
+    for (const match of text.matchAll(/&&|[;|(\n{]|\$\(|\b(?:do|then|else)\b/g))
+      starts.push(match.index + match[0].length);
+    for (const start of starts)
+      subcommands.push(shellCreateSubcommand(text, start) ?? undefined);
+  } else
+    // Heuristic, not a Python parser: a string starting with the command, or the argv list form.
+    for (const match of source.text.matchAll(
+      /["']gh\s+(pr|issue)\s+create\b|["']gh["']\s*,\s*["'](pr|issue)["']\s*,\s*["']create["']/g,
+    ))
+      subcommands.push(match[1] ?? match[2]);
+  return new Set(
+    subcommands.flatMap((subcommand) =>
+      subcommand ? [subcommand === "pr" ? "pull_request" : "issue"] : [],
+    ),
+  );
+}
+
+export function extractCreatedReferences(
+  source: CreatedReferenceSource,
   exitCode: number | null,
   output: string,
   remotes: GitHubRepository[] = [],
-): ConversationReference | null {
-  if (exitCode !== 0) return null;
-  // Accept an actual simple gh command, not quoted prose, echo, wrappers, or scripts.
-  const unquoted = maskShellQuotes(command);
-  const commands = [
-    ...unquoted.matchAll(
-      /(?:^|&&|\|\||;|\n)\s*gh\s+(pr|issue)\s+create(?=\s|$)/g,
-    ),
-  ];
-  const kind = commands.at(-1)?.[1];
-  if (!kind) return null;
-  const found = urls(output, remotes)
-    .filter((r) => r.kind === (kind === "pr" ? "pull_request" : "issue"))
-    .at(-1);
-  return found ? { ...found, relationship: "created" } : null;
+): ConversationReference[] {
+  if (exitCode !== 0) return [];
+  const kinds = createdKinds(source);
+  if (!kinds.size) return [];
+  const result = new Map<string, ConversationReference>();
+  urls(output, remotes, (found, index) => {
+    // gh reports an existing PR as "... already exists:" followed by its URL.
+    const before = output.slice(Math.max(0, index - 200), index);
+    if (!kinds.has(found.kind) || /already exists:?\s*$/i.test(before)) return;
+    if (!result.has(found.resourceKey))
+      result.set(found.resourceKey, { ...found, relationship: "created" });
+  });
+  return [...result.values()];
 }
