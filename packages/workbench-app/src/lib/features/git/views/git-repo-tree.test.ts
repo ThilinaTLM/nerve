@@ -219,3 +219,16 @@ test("branches checked out in sibling worktrees are reported by folder", () => {
   assert.equal(map.get("feat/x"), "api-oauth");
   assert.equal(map.has("main"), false);
 });
+
+test("without a reference worktree every checked-out branch is reported", () => {
+  const a = repo("api", { worktreeGroup: "g" });
+  const b = feature(".wt/api-oauth", {
+    worktreeGroup: "g",
+    primaryWorktree: false,
+  });
+  const [group] = buildRepoGroups([a, b]);
+  const map = checkedOutElsewhere(group);
+  assert.equal(map.get("main"), "api");
+  assert.equal(map.get("feat/x"), "api-oauth");
+  assert.equal(checkedOutElsewhere(undefined).size, 0);
+});

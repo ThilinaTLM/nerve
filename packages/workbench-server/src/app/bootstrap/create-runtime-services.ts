@@ -48,7 +48,10 @@ import { ProjectEditorService } from "../../domains/projects/project-editor.serv
 import { ProjectTerminalService } from "../../domains/projects/project-terminal.service.js";
 import { ProjectIconService } from "../../domains/projects/project-icon.service.js";
 import { GitService, GitOperationService } from "@nervekit/tools/git";
-import { withGitMutationReporting } from "../../domains/git/git-mutation-publisher.js";
+import {
+  isProjectWideMutation,
+  withGitMutationReporting,
+} from "../../domains/git/git-mutation-publisher.js";
 import { WorkspaceMonitor } from "../../domains/monitoring/workspace-monitor.js";
 import { projectPathIndexes } from "../../domains/filesystem/project-path-index.js";
 
@@ -191,7 +194,7 @@ export function createRuntimeServices(deps: RuntimeDeps) {
     gitService,
     activities,
     (method, projectId, repo, branch, number) => {
-      if (method === "clone")
+      if (isProjectWideMutation(method))
         workspaceSyncRef.current?.markProjectDirty(projectId, {
           priority: true,
         });

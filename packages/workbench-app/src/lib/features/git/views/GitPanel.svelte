@@ -21,6 +21,9 @@ import CloudDownload from "@lucide/svelte/icons/cloud-download";
 import CloudOff from "@lucide/svelte/icons/cloud-off";
 import CloudUpload from "@lucide/svelte/icons/cloud-upload";
 import ExternalLink from "@lucide/svelte/icons/external-link";
+import Folder from "@lucide/svelte/icons/folder";
+import FolderMinus from "@lucide/svelte/icons/folder-minus";
+import FolderPlus from "@lucide/svelte/icons/folder-plus";
 import GitBranch from "@lucide/svelte/icons/git-branch";
 import GitCompareArrows from "@lucide/svelte/icons/git-compare-arrows";
 import GitMerge from "@lucide/svelte/icons/git-merge";
@@ -48,6 +51,8 @@ import GitPullRequestRow from "./GitPullRequestRow.svelte";
 import GitRepoTree from "./GitRepoTree.svelte";
 import GitSplitLayout from "./GitSplitLayout.svelte";
 import GitStashDialog from "./GitStashDialog.svelte";
+import GitWorktreeCreateDialog from "./GitWorktreeCreateDialog.svelte";
+import GitWorktreeRemoveDialog from "./GitWorktreeRemoveDialog.svelte";
 import { gitFileGroups, gitFilesInScope } from "./git-panel-controller.js";
 import type {
   GitPanelActions,
@@ -149,6 +154,23 @@ async function mutateStash(
   }
 }
 
+// ---- Worktrees ------------------------------------------------------------------
+let createOpen = $state(false);
+let createGroup = $state<GitRepoGroup>();
+let createInitialBranch = $state("");
+let removeOpen = $state(false);
+let removeTarget = $state<GitRepoSummary>();
+function requestCreateWorktree(repo: GitRepoSummary, branch = ""): void {
+  createGroup = groupOf(repo);
+  createInitialBranch = branch;
+  createOpen = true;
+}
+function requestRemoveWorktree(repo: GitRepoSummary): void {
+  if (isPrimaryWorktree(repo)) return;
+  removeTarget = repo;
+  removeOpen = true;
+}
+
 // ---- Operations -------------------------------------------------------------------
 let bulkMainOpen = $state(false);
 const cancellingIds = new SvelteSet<string>();
@@ -218,6 +240,8 @@ const filtered = $derived(
     context: statusContext,
   }),
 );
+/** A single worktree needs neither search, filters nor a list. */
+const showList = $derived(model.repositories.length > 1);
 const selectedRepo = $derived(
   model.repositories.find(
     (repo) => repo.relativePath === model.selectedRepository,
@@ -388,7 +412,7 @@ function runSyncAction(repo: GitRepoSummary, state: SyncState): void {
   const operation: GitRemoteOperation | undefined =
     state.kind === "behind"
       ? "pull"
-      : state.kind === "diverged"
+      : state.kind === "diverged" || state.kind === "none"
         ? "sync"
         : state.kind === "ahead" || state.kind === "unpublished"
           ? "push"
@@ -458,6 +482,21 @@ const stashesDisabled = (repo: GitRepoSummary) =>
   <Item disabled={stashesDisabled(repo)} onclick={() => void openStashes(repo)}
     ><ArchiveRestore aria-hidden="true" /><span>Stashes</span></Item
   >
+  <Separator />
+  <Item
+    disabled={!model.capabilities.worktrees.enabled}
+    onclick={() => requestCreateWorktree(repo)}
+    ><FolderPlus aria-hidden="true" /><span>New worktree</span></Item
+  >
+  <!-- The primary worktree is the repository itself: it is never removable. -->
+  {#if !isPrimaryWorktree(repo)}
+    <Item
+      variant="destructive"
+      disabled={!model.capabilities.worktrees.enabled}
+      onclick={() => requestRemoveWorktree(repo)}
+      ><FolderMinus aria-hidden="true" /><span>Remove worktree</span></Item
+    >
+  {/if}
   {#if repo.hasGithubRemote}
     <Separator />
     <Item disabled={!url} onclick={() => url && openExternal(url)}
@@ -488,6 +527,13 @@ const stashesDisabled = (repo: GitRepoSummary) =>
 {#snippet repositoryMenu(group: GitRepoGroup)}
   {@const url = repositoryUrl(group.primary)}
   {@const fetch = rowState(group.primary, "fetch")}
+  <ContextMenu.Item
+    disabled={!model.capabilities.worktrees.enabled}
+    onclick={() => requestCreateWorktree(group.primary)}
+    ><FolderPlus aria-hidden="true" /><span>New worktree</span
+    ></ContextMenu.Item
+  >
+  <ContextMenu.Separator />
   <ContextMenu.Item
     disabled={fetch.disabled}
     onclick={() => activate(group.primary, "fetch")}
@@ -562,8 +608,8 @@ const stashesDisabled = (repo: GitRepoSummary) =>
   </Tooltip.Root>
 {/snippet}
 
-<!-- The one remote action the branch state calls for, then merged and stash
-     shortcuts. Stop replaces the action while something runs. -->
+<!-- The one remote action the branch state calls for, then the merged
+     shortcut. Stop replaces the action while something runs. -->
 {#snippet branchActions(repo: GitRepoSummary)}
   {@const running = runningRemoteActivity(
     model.activeOperations ?? [],
@@ -629,16 +675,6 @@ const stashesDisabled = (repo: GitRepoSummary) =>
       )}
     {/if}
   {/if}
-  {#if stashCountOf(repo) > 0}
-    {@render actionIcon(
-      Archive,
-      `${stashCountOf(repo)} ${stashCountOf(repo) === 1 ? "stash" : "stashes"} in this repository. Open stashes`,
-      {
-        disabled: stashesDisabled(repo),
-        onclick: () => void openStashes(repo),
-      },
-    )}
-  {/if}
 {/snippet}
 
 <!-- Section header: a button that collapses the section; the line stays
@@ -650,20 +686,29 @@ const stashesDisabled = (repo: GitRepoSummary) =>
 )}
   <button
     type="button"
-    class="flex min-w-0 flex-1 cursor-pointer items-center gap-1.5 self-stretch rounded-sm text-left outline-none hover:bg-hover focus-visible:ring-3 focus-visible:ring-focus"
+    class="group/section flex min-w-0 flex-1 cursor-pointer items-center gap-1.5 self-stretch rounded-sm text-left outline-none focus-visible:ring-3 focus-visible:ring-focus"
     aria-expanded={open}
     onclick={toggle}
   >
     {#if open}
-      <ChevronDown class="size-3.5 shrink-0 text-muted-foreground" />
+      <ChevronDown
+        class="size-3.5 shrink-0 text-muted-foreground transition-colors group-hover/section:text-foreground"
+      />
     {:else}
-      <ChevronRight class="size-3.5 shrink-0 text-muted-foreground" />
+      <ChevronRight
+        class="size-3.5 shrink-0 text-muted-foreground transition-colors group-hover/section:text-foreground"
+      />
     {/if}
     {@render label()}
   </button>
 {/snippet}
 
-{#snippet branchSection(open: boolean, toggle: () => void)}
+{#snippet branchSection(
+  open: boolean,
+  toggle: () => void,
+  measure: import("svelte/attachments").Attachment<HTMLElement>,
+  overflows: boolean,
+)}
   {@const repo = selectedRepo}
   <div class="flex h-full min-h-0 flex-col text-ui">
     <div class="flex h-8 shrink-0 items-center gap-1">
@@ -673,10 +718,12 @@ const stashesDisabled = (repo: GitRepoSummary) =>
           <span class="min-w-0 truncate font-medium" title={repo.name}
             >{repo.name}</span
           >
-          {#if !isPrimaryWorktree(repo)}
+          <!-- Expanded, the selector below shows the branch. -->
+          {#if !open}
             <span
               class="min-w-0 shrink truncate text-muted-foreground"
-              title={repo.absDir}>{worktreeFolder(repo)}</span
+              title={repo.currentBranch ?? "detached"}
+              >{repo.currentBranch ?? "detached"}</span
             >
           {/if}
         {:else}
@@ -707,49 +754,68 @@ const stashesDisabled = (repo: GitRepoSummary) =>
       {/if}
     </div>
     <div
-      class="flex min-h-0 flex-1 flex-col gap-1.5 overflow-y-auto pb-2"
+      class={cn(
+        "min-h-0 flex-1",
+        overflows ? "overflow-y-auto" : "overflow-hidden",
+      )}
       inert={!open}
     >
-      {#if repo}
-        <GitBranchSelector
-          bind:this={selector}
-          {model}
-          {actions}
-          {repo}
-          checkedOutIn={selectedElsewhere}
-        />
-        {@const failure = model.lastRemoteFailure?.(repo.relativePath)}
-        {#if failure}
-          <p class="text-caption break-words text-destructive">
-            {failure.error?.message ?? failure.message ?? "Operation failed."}
-          </p>
-        {/if}
-        {#if model.currentBranchPr}
-          {@const pr = model.currentBranchPr}
-          <GitPullRequestRow
-            {pr}
-            expanded={expandedPr === pr.number}
-            checkedOut
-            disabled={!model.capabilities.openPullRequest.enabled}
-            disabledReason={model.capabilities.openPullRequest.enabled
-              ? undefined
-              : model.capabilities.openPullRequest.reason}
-            onOpen={() =>
-              void actions.openPullRequest(model.selectedRepository, pr.number)}
-            onToggleChecks={() =>
-              (expandedPr = expandedPr === pr.number ? undefined : pr.number)}
+      <!-- Natural content height: the layout fits the section to it. -->
+      <div class="flex flex-col gap-1.5 pb-2" {@attach measure}>
+        {#if repo}
+          <GitBranchSelector
+            bind:this={selector}
+            {model}
+            {actions}
+            {repo}
+            checkedOutIn={selectedElsewhere}
           />
-        {:else if model.awaitingPullRequest}
-          <p class="text-ui text-muted-foreground">
-            {#if model.expectedPullRequestUrl}<a
-                class="hover:text-foreground"
-                href={model.expectedPullRequestUrl}
-                target="_blank"
-                rel="noreferrer">Waiting for pull request…</a
-              >{:else}Waiting for pull request…{/if}
-          </p>
+          <!-- A linked worktree whose folder differs from its branch. -->
+          {#if !isPrimaryWorktree(repo) && worktreeFolder(repo) !== repo.currentBranch}
+            <div
+              class="flex min-w-0 items-center gap-1.5 px-0.5 text-ui text-muted-foreground"
+              title={repo.absDir}
+            >
+              <Folder class="size-3.5 shrink-0" aria-hidden="true" />
+              <span class="min-w-0 truncate">{worktreeFolder(repo)}</span>
+            </div>
+          {/if}
+          {@const failure = model.lastRemoteFailure?.(repo.relativePath)}
+          {#if failure}
+            <p class="text-caption break-words text-destructive">
+              {failure.error?.message ?? failure.message ?? "Operation failed."}
+            </p>
+          {/if}
+          {#if model.currentBranchPr}
+            {@const pr = model.currentBranchPr}
+            <GitPullRequestRow
+              {pr}
+              expanded={expandedPr === pr.number}
+              checkedOut
+              disabled={!model.capabilities.openPullRequest.enabled}
+              disabledReason={model.capabilities.openPullRequest.enabled
+                ? undefined
+                : model.capabilities.openPullRequest.reason}
+              onOpen={() =>
+                void actions.openPullRequest(
+                  model.selectedRepository,
+                  pr.number,
+                )}
+              onToggleChecks={() =>
+                (expandedPr = expandedPr === pr.number ? undefined : pr.number)}
+            />
+          {:else if model.awaitingPullRequest}
+            <p class="text-ui text-muted-foreground">
+              {#if model.expectedPullRequestUrl}<a
+                  class="hover:text-foreground"
+                  href={model.expectedPullRequestUrl}
+                  target="_blank"
+                  rel="noreferrer">Waiting for pull request…</a
+                >{:else}Waiting for pull request…{/if}
+            </p>
+          {/if}
         {/if}
-      {/if}
+      </div>
     </div>
   </div>
 {/snippet}
@@ -771,6 +837,33 @@ const stashesDisabled = (repo: GitRepoSummary) =>
         {/if}
       {/snippet}
       {@render sectionToggle(open, toggle, label)}
+      <!-- Stashes sit with the changes they came from and are shared by every
+           worktree of the repository. -->
+      {#if selectedRepo && stashCountOf(selectedRepo) > 0}
+        {@const repo = selectedRepo}
+        {@const stashCount = stashCountOf(repo)}
+        {@const noun = stashCount === 1 ? "stash" : "stashes"}
+        <Tooltip.Root>
+          <Tooltip.Trigger>
+            {#snippet child({ props })}
+              <Button
+                {...props}
+                variant="ghost"
+                size="sm"
+                class="gap-1 px-1.5 text-muted-foreground tabular-nums hover:text-foreground"
+                disabled={stashesDisabled(repo)}
+                aria-label={`${stashCount} ${noun} in ${repo.name} (shared by all worktrees). Open stashes`}
+                onclick={() => void openStashes(repo)}
+                ><Archive aria-hidden="true" />{stashCount}</Button
+              >
+            {/snippet}
+          </Tooltip.Trigger>
+          <Tooltip.Content
+            >{stashCount}
+            {noun} in {repo.name} (shared by all worktrees). Open stashes</Tooltip.Content
+          >
+        </Tooltip.Root>
+      {/if}
     </div>
     <div
       class="flex min-h-0 flex-1 flex-col overflow-y-auto pb-2"
@@ -820,27 +913,41 @@ const stashesDisabled = (repo: GitRepoSummary) =>
   </div>
 {/snippet}
 
-{#snippet repositoryList()}
-  <div class="-mx-2 h-full min-h-0 overflow-y-auto px-2 py-1.5">
-    <GitRepoTree
-      groups={filtered}
-      forceExpanded={view.search.trim() !== "" || view.filter !== "all"}
-      expanded={view.expanded}
-      selected={model.selectedRepository}
-      selectable={model.capabilities.selectRepository.enabled}
-      context={statusContext}
-      {failureDetail}
-      {repositoryMenu}
-      branchMenu={branchContextMenu}
-      onToggleGroup={(key, open) => view.setExpanded(key, open)}
-      onSelect={selectBranch}
-      onOpenChanges={openChanges}
-      onOpenBranchPicker={(repository) => void openBranchPicker(repository)}
-      onSyncAction={runSyncAction}
-      onOpenPullRequest={(repo, pr) =>
-        void actions.openPullRequest(repo.relativePath, pr.number)}
-      onHint={actions.hintRepository}
-    />
+{#snippet repositoryList({
+  measure,
+  overflows,
+}: {
+  measure: import("svelte/attachments").Attachment<HTMLElement>;
+  overflows: boolean;
+})}
+  <div
+    class={cn(
+      "-mx-2 h-full min-h-0 px-2",
+      overflows ? "overflow-y-auto" : "overflow-hidden",
+    )}
+  >
+    <div class="py-1.5" {@attach measure}>
+      <GitRepoTree
+        groups={filtered}
+        forceExpanded={view.search.trim() !== "" || view.filter !== "all"}
+        expanded={view.expanded}
+        selected={model.selectedRepository}
+        selectable={model.capabilities.selectRepository.enabled}
+        context={statusContext}
+        {failureDetail}
+        {repositoryMenu}
+        branchMenu={branchContextMenu}
+        onToggleGroup={(key, open) => view.setExpanded(key, open)}
+        onSelect={selectBranch}
+        onOpenChanges={openChanges}
+        onOpenBranchPicker={(repository) => void openBranchPicker(repository)}
+        onSyncAction={runSyncAction}
+        onFetch={(repo) => activate(repo, "fetch")}
+        onOpenPullRequest={(repo, pr) =>
+          void actions.openPullRequest(repo.relativePath, pr.number)}
+        onHint={actions.hintRepository}
+      />
+    </div>
   </div>
 {/snippet}
 
@@ -901,7 +1008,7 @@ const stashesDisabled = (repo: GitRepoSummary) =>
         {/snippet}
       </PanelHeader>
 
-      {#if model.availability.available && model.repositories.length > 0}
+      {#if model.availability.available && model.repositories.length > 0 && showList}
         <div class="flex flex-col gap-1.5 pt-1 pb-1.5">
           <SearchInput
             bind:value={view.search}
@@ -935,9 +1042,12 @@ const stashesDisabled = (repo: GitRepoSummary) =>
     {/snippet}
 
     {#if model.availability.available && model.repositories.length > 0}
-      <GitSplitLayout bind:this={split} list={repositoryList}>
-        {#snippet branch({ open, toggle })}
-          {@render branchSection(open, toggle)}
+      <GitSplitLayout
+        bind:this={split}
+        list={showList ? repositoryList : undefined}
+      >
+        {#snippet branch({ open, toggle, measure, overflows })}
+          {@render branchSection(open, toggle, measure, overflows)}
         {/snippet}
         {#snippet changes({ open, toggle })}
           {@render changesSection(open, toggle)}
@@ -1004,4 +1114,28 @@ const stashesDisabled = (repo: GitRepoSummary) =>
   confirmLabel="Switch and pull all"
   onConfirm={() =>
     void actions.runBulkRemoteOperation?.("switch-base-and-pull")}
+/>
+
+<GitWorktreeCreateDialog
+  bind:open={createOpen}
+  group={createGroup}
+  multiRepo={groups.length > 1}
+  initialBranch={createInitialBranch}
+  busy={model.operations.creatingWorktree}
+  onSubmit={(branch, id) =>
+    actions.createWorktree(
+      createGroup?.primary.relativePath ?? model.selectedRepository,
+      branch,
+      id,
+    )}
+/>
+
+<GitWorktreeRemoveDialog
+  bind:open={removeOpen}
+  target={removeTarget}
+  busy={model.operations.removingWorktree}
+  onSubmit={(options) =>
+    removeTarget
+      ? actions.removeWorktree(removeTarget.relativePath, options)
+      : false}
 />

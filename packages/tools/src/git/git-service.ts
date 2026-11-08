@@ -9,6 +9,12 @@ import {
   deleteBranch as deleteBranchImpl,
   switchBranch as switchBranchImpl,
 } from "./git-branch-mutations.js";
+import {
+  createWorktree as createWorktreeImpl,
+  removeWorktree as removeWorktreeImpl,
+} from "./git-worktree-mutations.js";
+import { canonicalGitIdentity } from "./git-operation-lanes.js";
+import { gitPathKey } from "./git-path-key.js";
 import { runObservedCommand } from "./git-observed-runner.js";
 import {
   clone as cloneImpl,
@@ -203,6 +209,13 @@ export class GitService {
         this.listBranches(projectId, relativePath),
       detectBaseBranch: (repoDir) => this.detectBaseBranch(repoDir),
       validateBranchName: (name) => this.#readBackend.validateBranchName(name),
+      projectDir: (projectId) => this.getProject(projectId).dir,
+      discoverRepositories: async (projectId) =>
+        (
+          await this.#readBackend.discoverProject(
+            realpathSync(this.getProject(projectId).dir),
+          )
+        ).repositories,
     };
     this.#fileDiffContext = {
       resolveRepoDir: (projectId, relativePath) =>
@@ -620,6 +633,54 @@ export class GitService {
     name: string,
   ): Promise<GitMutationResponse> {
     return deleteBranchImpl(this.#mutations, projectId, relativePath, name);
+  }
+
+  async createWorktree(
+    projectId: string,
+    relativePath: string,
+    branch: string,
+    id?: string,
+  ): Promise<GitMutationResponse> {
+    return createWorktreeImpl(
+      this.#mutations,
+      projectId,
+      relativePath,
+      branch,
+      id,
+    );
+  }
+
+  async removeWorktree(
+    projectId: string,
+    relativePath: string,
+    options: { force: boolean; deleteBranch: boolean },
+  ): Promise<GitMutationResponse> {
+    return removeWorktreeImpl(
+      this.#mutations,
+      projectId,
+      relativePath,
+      options,
+    );
+  }
+
+  /** Subset of `repos` that are primary checkouts (unreadable ones are kept to fail as before). */
+  async primaryWorktreeRepos(
+    projectId: string,
+    repos: string[],
+  ): Promise<string[]> {
+    const kept = await Promise.all(
+      repos.map(async (repo) => {
+        try {
+          const { gitDir, commonDir } = await canonicalGitIdentity(
+            this.resolveRepoDir(projectId, repo),
+          );
+          return gitPathKey(gitDir) === gitPathKey(commonDir);
+        } catch {
+          return true;
+        }
+      }),
+    );
+    return repos.filter((_, index) => kept[index]);
   }
 
   async fileDiff(

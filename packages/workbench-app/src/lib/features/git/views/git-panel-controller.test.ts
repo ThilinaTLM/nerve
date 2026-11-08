@@ -331,3 +331,42 @@ void test("stash reads require an available project and stash capability", async
   assert.equal(await actions.loadStashes("other"), undefined);
   assert.deepEqual(calls, ["other"]);
 });
+
+void test("worktree actions require an available project and the worktrees capability", async () => {
+  let enabled = false;
+  const calls: string[] = [];
+  const model = () =>
+    ({
+      availability: { available: true },
+      capabilities: { worktrees: { enabled } },
+    }) as unknown as GitPanelModel;
+  const host = {
+    createWorktree: (repository: string, branch: string, id?: string) => {
+      calls.push(`create ${repository} ${branch} ${id ?? ""}`);
+      return true;
+    },
+    removeWorktree: (
+      repository: string,
+      options: { force: boolean; deleteBranch: boolean },
+    ) => {
+      calls.push(
+        `remove ${repository} ${options.force} ${options.deleteBranch}`,
+      );
+      return true;
+    },
+  } as unknown as GitPanelActions;
+  const actions = createGitPanelActions(model, host);
+  assert.equal(await actions.createWorktree(".", "feat/x"), false);
+  assert.equal(
+    await actions.removeWorktree(".wt/x", { force: true, deleteBranch: false }),
+    false,
+  );
+  assert.deepEqual(calls, []);
+  enabled = true;
+  assert.equal(await actions.createWorktree(".", "feat/x", "x"), true);
+  assert.equal(
+    await actions.removeWorktree(".wt/x", { force: true, deleteBranch: false }),
+    true,
+  );
+  assert.deepEqual(calls, ["create . feat/x x", "remove .wt/x true false"]);
+});

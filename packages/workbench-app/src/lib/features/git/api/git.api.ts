@@ -152,6 +152,33 @@ export async function deleteGitBranch(
   });
 }
 
+export async function createGitWorktree(
+  projectId: string,
+  repo: string,
+  branch: string,
+  id?: string,
+): Promise<GitWorkspaceMutationResponse> {
+  return await requestWorkbench("git.worktree.create", {
+    projectId,
+    repo,
+    branch,
+    ...(id ? { id } : {}),
+  });
+}
+
+export async function removeGitWorktree(
+  projectId: string,
+  repo: string,
+  options: { force: boolean; deleteBranch: boolean },
+): Promise<GitWorkspaceMutationResponse> {
+  return await requestWorkbench("git.worktree.remove", {
+    projectId,
+    repo,
+    force: options.force,
+    deleteBranch: options.deleteBranch,
+  });
+}
+
 export async function createGitStash(
   projectId: string,
   repo: string,

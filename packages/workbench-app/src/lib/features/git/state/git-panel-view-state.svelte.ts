@@ -13,7 +13,6 @@ import {
   persistGitProjectPreferences,
   pruneGitProjectPreferences,
   type GitPanelLayoutPreferences,
-  type GitSectionLayout,
 } from "./git-panel-preferences";
 
 /** Remembered list choices of one project plus the in-session search text. */
@@ -118,18 +117,21 @@ export function gitProjectView(projectId: string): GitProjectView {
 
 /** Selected-branch and Changes sections: the same in every project. */
 class GitPanelLayout {
-  branch = $state<GitSectionLayout>(defaultGitPanelLayout().branch);
-  changes = $state<GitSectionLayout>(defaultGitPanelLayout().changes);
+  listCap = $state<number | null>(null);
+  branch = $state(defaultGitPanelLayout().branch);
+  changes = $state(defaultGitPanelLayout().changes);
   private timer: ReturnType<typeof setTimeout> | undefined;
 
   constructor() {
     const stored = loadGitPanelLayout();
+    this.listCap = stored.listCap;
     this.branch = stored.branch;
     this.changes = stored.changes;
   }
 
   snapshot(): GitPanelLayoutPreferences {
     return {
+      listCap: this.listCap,
       branch: { ...this.branch },
       changes: { ...this.changes },
     };

@@ -9,16 +9,14 @@ export interface GitProjectPreferences {
   selected: string | null;
 }
 
-export interface GitSectionLayout {
-  collapsed: boolean;
-  /** Share of the panel in percent while open (restored on expand). */
-  size: number;
-}
-
-/** Panel-wide: the same in every project. */
+/**
+ * Panel-wide: the same in every project. Areas fit their content; a cap is
+ * the most a user drag allows (share 0..1 of the panel), null = automatic.
+ */
 export interface GitPanelLayoutPreferences {
-  branch: GitSectionLayout;
-  changes: GitSectionLayout;
+  listCap: number | null;
+  branch: { collapsed: boolean; cap: number | null };
+  changes: { collapsed: boolean };
 }
 
 export type GitPanelPreferenceStorage = Pick<
@@ -27,11 +25,11 @@ export type GitPanelPreferenceStorage = Pick<
 >;
 
 const PROJECT_PREFIX = "nerve:git-panel:v1:";
-const LAYOUT_KEY = "nerve:git-panel-layout:v1";
+const LAYOUT_KEY = "nerve:git-panel-layout:v2";
 /** Project entries kept before the least recently written are dropped. */
 export const MAX_PROJECT_ENTRIES = 50;
-const MIN_SIZE = 5;
-const MAX_SIZE = 80;
+const MIN_CAP = 0.05;
+const MAX_CAP = 0.9;
 
 export const defaultGitProjectPreferences = (): GitProjectPreferences => ({
   filter: "all",
@@ -40,8 +38,9 @@ export const defaultGitProjectPreferences = (): GitProjectPreferences => ({
 });
 
 export const defaultGitPanelLayout = (): GitPanelLayoutPreferences => ({
-  branch: { collapsed: false, size: 30 },
-  changes: { collapsed: true, size: 30 },
+  listCap: null,
+  branch: { collapsed: false, cap: null },
+  changes: { collapsed: true },
 });
 
 export function browserGitPanelPreferenceStorage():
@@ -154,22 +153,15 @@ export function pruneGitProjectPreferences(
   };
 }
 
-function sectionLayout(
-  value: unknown,
-  fallback: GitSectionLayout,
-): GitSectionLayout {
-  if (!isRecord(value)) return { ...fallback };
-  const size = value.size;
-  return {
-    collapsed:
-      typeof value.collapsed === "boolean"
-        ? value.collapsed
-        : fallback.collapsed,
-    size:
-      typeof size === "number" && Number.isFinite(size)
-        ? Math.min(MAX_SIZE, Math.max(MIN_SIZE, size))
-        : fallback.size,
-  };
+const collapsedOf = (value: unknown, fallback: boolean): boolean =>
+  isRecord(value) && typeof value.collapsed === "boolean"
+    ? value.collapsed
+    : fallback;
+
+function capOf(value: unknown): number | null {
+  return typeof value === "number" && Number.isFinite(value)
+    ? Math.min(MAX_CAP, Math.max(MIN_CAP, value))
+    : null;
 }
 
 export function loadGitPanelLayout(
@@ -180,9 +172,16 @@ export function loadGitPanelLayout(
   const defaults = defaultGitPanelLayout();
   const stored = storage && readJson(storage, LAYOUT_KEY);
   if (!stored) return defaults;
+  const branch = stored.branch;
   return {
-    branch: sectionLayout(stored.branch, defaults.branch),
-    changes: sectionLayout(stored.changes, defaults.changes),
+    listCap: capOf(stored.listCap),
+    branch: {
+      collapsed: collapsedOf(branch, defaults.branch.collapsed),
+      cap: capOf(isRecord(branch) ? branch.cap : undefined),
+    },
+    changes: {
+      collapsed: collapsedOf(stored.changes, defaults.changes.collapsed),
+    },
   };
 }
 

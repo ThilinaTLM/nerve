@@ -218,3 +218,33 @@ void test("primitive thrown values remain unchanged and have no metadata", async
     assert.equal(gitMutationFailureActivityId(original), undefined);
   }
 });
+
+void test("worktree mutations invalidate project-wide reads and signal the workspace store", async () => {
+  const calls: string[] = [];
+  const git = {
+    createWorktree: async () => ({
+      repo: { relativePath: ".worktrees/x", currentBranch: "x" },
+    }),
+    removeWorktree: async () => ({
+      repo: { relativePath: ".", currentBranch: "main" },
+    }),
+    invalidateProjectReads: (id: string) => calls.push(`project:${id}`),
+    invalidateRepoReads: () => calls.push("repo"),
+  } as unknown as GitService;
+  const decorated = withGitMutationReporting(
+    git,
+    undefined,
+    (method, _project, repo) => calls.push(`${method}:${repo}`),
+  );
+  await decorated.createWorktree("proj_test", ".", "x");
+  await decorated.removeWorktree("proj_test", ".worktrees/x", {
+    force: false,
+    deleteBranch: false,
+  });
+  assert.deepEqual(calls, [
+    "project:proj_test",
+    "createWorktree:.",
+    "project:proj_test",
+    "removeWorktree:.worktrees/x",
+  ]);
+});

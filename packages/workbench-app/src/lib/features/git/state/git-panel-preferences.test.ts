@@ -98,11 +98,11 @@ test("project entries are capped, dropping the least recently written", () => {
       storage,
       1_000 + index,
     );
-  storage.setItem("nerve:git-panel-layout:v1", "{}");
+  storage.setItem("nerve:git-panel-layout:v2", "{}");
   capGitProjectEntries(storage, 3);
   const keys = [...storage.values.keys()].sort();
   assert.deepEqual(keys, [
-    "nerve:git-panel-layout:v1",
+    "nerve:git-panel-layout:v2",
     "nerve:git-panel:v1:proj_2",
     "nerve:git-panel:v1:proj_3",
     "nerve:git-panel:v1:proj_4",
@@ -113,19 +113,25 @@ test("layout is validated and clamped", () => {
   const storage = new MemoryStorage();
   assert.deepEqual(loadGitPanelLayout(storage), defaultGitPanelLayout());
   storage.setItem(
-    "nerve:git-panel-layout:v1",
-    JSON.stringify({ branch: { collapsed: true, size: 500 }, changes: "x" }),
+    "nerve:git-panel-layout:v2",
+    JSON.stringify({
+      listCap: 5,
+      branch: { collapsed: true, cap: "x" },
+      changes: "x",
+    }),
   );
   assert.deepEqual(loadGitPanelLayout(storage), {
-    branch: { collapsed: true, size: 80 },
+    listCap: 0.9,
+    branch: { collapsed: true, cap: null },
     changes: defaultGitPanelLayout().changes,
   });
   persistGitPanelLayout(
     {
-      branch: { collapsed: false, size: 42 },
-      changes: { collapsed: false, size: 20 },
+      listCap: null,
+      branch: { collapsed: false, cap: 0.3 },
+      changes: { collapsed: false },
     },
     storage,
   );
-  assert.equal(loadGitPanelLayout(storage).changes.size, 20);
+  assert.equal(loadGitPanelLayout(storage).branch.cap, 0.3);
 });

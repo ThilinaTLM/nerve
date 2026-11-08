@@ -52,6 +52,7 @@ export type GitOperationRepositoryPort = Pick<
   | "push"
   | "syncBranch"
   | "switchBaseAndPull"
+  | "primaryWorktreeRepos"
   | "checkoutPr"
   | "clone"
   | "closeRemoteCaches"
@@ -215,6 +216,24 @@ export class GitOperationService {
       },
     });
     return { operationId };
+  }
+
+  /**
+   * Entry point for client bulk requests. A bulk switch-to-base only ever
+   * touches primary checkouts: linked worktrees keep their branches even if a
+   * client sends them.
+   */
+  async startBulkRequest(input: GitOperationBulkStartRequest): Promise<{
+    operationId: string;
+    childOperationIds: string[];
+  }> {
+    if (input.kind !== "switchBaseAndPull") return this.startBulk(input);
+    const repos = [...new Set(input.repos)];
+    if (!repos.length || repos.length > 100) return this.startBulk(input);
+    const primary = await this.git.primaryWorktreeRepos(input.projectId, repos);
+    if (!primary.length)
+      throw new Error("Only primary worktrees can be switched to base");
+    return this.startBulk({ ...input, repos: primary });
   }
 
   startBulk(input: GitOperationBulkStartRequest): {

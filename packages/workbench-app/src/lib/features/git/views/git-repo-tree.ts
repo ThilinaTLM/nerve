@@ -226,14 +226,14 @@ export function defaultSelectedWorktree(
   return buildRepoGroups(repositories)[0]?.repos[0]?.relativePath;
 }
 
-/** Branch checked out in another worktree of the same repository, by folder. */
+/** Branch checked out in another worktree of the same repository, by folder (every worktree without `repo`). */
 export function checkedOutElsewhere(
   group: GitRepoGroup | undefined,
-  repo: GitRepoSummary,
+  repo?: GitRepoSummary,
 ): ReadonlyMap<string, string> {
   const map = new Map<string, string>();
   for (const other of group?.repos ?? []) {
-    if (other.relativePath === repo.relativePath || !other.currentBranch)
+    if (other.relativePath === repo?.relativePath || !other.currentBranch)
       continue;
     map.set(other.currentBranch, worktreeFolder(other));
   }

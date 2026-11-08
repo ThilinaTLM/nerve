@@ -180,6 +180,30 @@ export const deleteBranchRequestSchema = z.object({
 });
 export type DeleteBranchRequest = z.infer<typeof deleteBranchRequestSchema>;
 
+/**
+ * Adds a linked worktree at `<project dir>/.worktrees/<id>`. `repo` is any
+ * worktree of the repository; the primary checkout runs the command. The
+ * branch is checked out when it exists locally, tracked from `origin` when it
+ * exists only there, and otherwise created from the base branch.
+ */
+export const createWorktreeRequestSchema = z.object({
+  repo: z.string().default("."),
+  branch: z.string().min(1),
+  /** Folder name under `.worktrees/`; derived from the branch when omitted. */
+  id: z.string().min(1).optional(),
+});
+export type CreateWorktreeRequest = z.infer<typeof createWorktreeRequestSchema>;
+
+/** Removes a linked worktree; the primary checkout is never removable. */
+export const removeWorktreeRequestSchema = z.object({
+  repo: z.string().min(1),
+  /** Discard uncommitted changes in the worktree. */
+  force: z.boolean().default(false),
+  /** Also delete the branch the worktree had checked out. */
+  deleteBranch: z.boolean().default(false),
+});
+export type RemoveWorktreeRequest = z.infer<typeof removeWorktreeRequestSchema>;
+
 /** Repository scope reused by GitHub request schemas; not a synchronous mutation RPC. */
 export const gitRemoteOpRequestSchema = z.object({
   repo: z.string().default("."),

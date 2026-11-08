@@ -89,6 +89,7 @@ async function fixture(
     push: (_project, repo) => run(repo),
     syncBranch: (_project, repo) => run(repo),
     switchBaseAndPull: (_project, repo) => run(repo),
+    primaryWorktreeRepos: async (_project, repos) => repos,
     checkoutPr: (_project, repo) => run(repo),
     clone: (_project, repo) => run(repo),
     async closeRemoteCaches() {},
@@ -568,6 +569,41 @@ void test("bulk aggregation preserves actual child success during shutdown", asy
     assert.equal(f.entries.get(bulk.operationId)?.status, "succeeded");
     assert.equal(f.entries.get(bulk.operationId)?.terminals, 1);
     assert.equal(f.service.cancel(bulk.operationId).accepted, false);
+  } finally {
+    await f.cleanup();
+  }
+});
+
+test("bulk switchBaseAndPull never creates a child for a linked worktree", async () => {
+  const seen: string[] = [];
+  const f = await fixture(async (repo) => {
+    seen.push(repo);
+    return {} as never;
+  });
+  f.service.git.primaryWorktreeRepos = async (_project, repos) =>
+    repos.filter((repo) => repo !== "b");
+  try {
+    const bulk = await f.service.startBulkRequest({
+      projectId: "p",
+      repos: ["a", "b"],
+      kind: "switchBaseAndPull",
+    });
+    assert.equal(bulk.childOperationIds.length, 1);
+    await f.entries.get(bulk.operationId)!.finished;
+    assert.deepEqual(seen, ["a"]);
+    await assert.rejects(
+      f.service.startBulkRequest({
+        projectId: "p",
+        repos: ["b"],
+        kind: "switchBaseAndPull",
+      }),
+    );
+    const pull = await f.service.startBulkRequest({
+      projectId: "p",
+      repos: ["a", "b"],
+      kind: "pull",
+    });
+    assert.equal(pull.childOperationIds.length, 2);
   } finally {
     await f.cleanup();
   }
