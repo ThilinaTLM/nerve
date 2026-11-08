@@ -52,7 +52,7 @@ Contracts describe domain data and policy independently of transport. Protocol o
 
 The execution libraries build upward from native Git/process capabilities through model execution, skills and tools. Conversation core combines them into durable conversation behavior. A **port** is an interface through which the core asks its host for an environment service, such as model resolution or permission evaluation. Ports keep the core reusable because it can ask for those services without importing the workbench server or UI.
 
-For example, changing how the local host resolves a model belongs in its port implementation; changing how conversation history is stored belongs in the core. See [conversation core](conversation-core/README.md) for the engine's internal boundaries.
+See [conversation core](conversation-core/README.md) for the engine's internal boundaries.
 
 ## Product composition
 
@@ -72,17 +72,6 @@ The desktop shell owns Electron windows and daemon supervision. The server owns 
 | Access control                               | [access and authentication](access.md)                                                                                                                      |
 | Desktop lifetime                             | [`DesktopRuntime`](../../packages/desktop-shell/src/app/desktop-runtime.ts)                                                                                 |
 
-## Workbench app building blocks
+## Tooling and tests
 
-Shared mechanics live once instead of per feature: [`FormDialog`](../../packages/ui-kit/src/lib/components/composites/form-dialog/form-dialog.svelte) is the ui-kit composite for form dialogs, [`createPoll`](../../packages/workbench-app/src/lib/platform/polling/poll.ts) is the demand-aware polling primitive, and [`ControllerLifecycle`](../../packages/workbench-app/src/lib/platform/lifecycle/controller-lifecycle.ts) is the lifecycle-only shell (idempotent start, teardown registry, generation guard for in-flight async work) that controllers compose; reconciliation stays in each controller. File viewing and editing, diffs and find share the CodeMirror surface in [`presentation/code`](../../packages/workbench-app/src/lib/presentation/code/); filesystem workflows live in the [`filesystem` feature](../../packages/workbench-app/src/lib/features/filesystem/index.ts).
-
-## Repository tooling
-
-Repository scripts are TypeScript run by `tsx` and type-checked with `tsc -p scripts`. One path-impact engine drives CI areas and the focused fix, check and test commands. The layout, conventions and flags are in [`scripts/README.md`](../../scripts/README.md); validation commands are in the root `AGENTS.md`.
-
-## Test placement
-
-- **Unit tests colocate** with the module as `<name>.test.ts` (Svelte component tests as `<name>.svelte.test.ts`, run by Vitest only in `ui-kit`). New packages and new `workbench-server` unit tests follow this.
-- **`test/` is for cross-module scenarios, contract tests, `*.integration.test.ts`, fixtures and shared support (`test/support/`).** In `workbench-server`, `test/domains/**` holds service-level tests that need the shared fixtures.
-- Packages that already keep unit tests in `test/` (`native`, `harness`, `contracts`, `desktop-shell`, most of `tools`, `protocol`) stay as they are; mirror the source layout inside `test/` and do not move files wholesale.
-- Do not test exports, pass-through adapters (arguments forwarded to a stub, result returned unchanged) or behavior covered at its owning layer. Adapter tests must encode translation or policy decided in the adapter.
+Workbench app building blocks and conventions are in [`packages/workbench-app/AGENTS.md`](../../packages/workbench-app/AGENTS.md); repository scripts and the path-impact engine behind focused checks are in [`scripts/README.md`](../../scripts/README.md). Unit tests colocate with the module as `<name>.test.ts`, and `test/` directories hold cross-module scenarios, integration tests and fixtures; see [`AGENTS.md`](../../AGENTS.md) and [`CONTRIBUTING.md`](../../CONTRIBUTING.md).

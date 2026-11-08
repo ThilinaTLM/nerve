@@ -1,6 +1,6 @@
 # Pull request sync
 
-The workbench server owns pull request state. A sync service keeps an in-memory snapshot of each watched repository's PRs and checks, refreshes it from GitHub, and notifies clients when it changes. Every PR surface in the app renders from one shared store that mirrors those snapshots, so all surfaces agree and update together. GitHub traffic scales with what users are looking at, not with the number of windows or devices.
+The workbench server owns pull request state. A sync service keeps an in-memory snapshot of each watched GitHub repository's PRs and checks, refreshes it from GitHub, and notifies clients when it changes. It follows the snapshot, demand-watch and invalidate-then-reread model of [Git workspace sync](git-workspace-sync.md#design-decisions); this doc keeps only the PR-specific rules. Every PR surface renders from one shared store, so all surfaces agree.
 
 ```mermaid
 flowchart LR
@@ -20,11 +20,12 @@ flowchart LR
 ## Design decisions
 
 - **REST detects changes; GraphQL fetches details.** An authorized conditional REST request that returns `304 Not Modified` does not count against GitHub's primary rate limit, while every GraphQL query costs points. Repository and checks probes therefore use ETags, and GraphQL runs only for PRs that actually changed. Polling GraphQL directly would make fast updates unaffordable.
-- **Signals, not faster polling, make updates feel immediate.** Nerve Git mutations, remote-tracking ref changes from the workspace monitor, `created` PR [references](conversation-discovery.md) from agent output, and client hints (such as opening a compare URL) trigger an immediate probe. Remote-tracking refs cover agents, terminals and external tools alike, so shell output is never parsed for `git push`.
-- **Polling follows demand.** Each connection declares what it shows with `github.pr.watch.sync`, and disconnecting releases that demand. The scheduler polls faster while pending checks are visible or a PR is expected, slower while PR surfaces are merely visible, and not at all when nothing is visible. This is separate from `git.repository.monitor.sync` because a PR tab can be open while the Git panel is closed, and filesystem and GitHub demand have different costs.
-- **Events invalidate; clients read memory.** `github.pr.changed` carries a revision and changed PR numbers, not data. Clients re-read with `github.pr.snapshot.get`, which never waits on GitHub. Small events keep replay and reconnect simple: on a revision gap or reconnect, a client reads the full snapshot.
-- **One entity per PR in the client.** Lists, the current-branch card, badges and PR tabs read and write the same store entry, so they cannot disagree. Filtering happens locally against the snapshot's capped set of open PRs; only oversized repositories fall back to server-side search.
-- **Memory only.** No tables or columns hold PR data; snapshots rebuild from the next demand after a restart.
+- **Keyed by GitHub repository.** Snapshots are keyed by `owner/name`, not by checkout path, so worktrees and clones of one remote share one snapshot, ETag and polling schedule. Clients still address PRs by repository path; the server maps each path to its remote.
+- **Signals, not faster polling, make updates feel immediate.** Mutations, branch and remote-ref changes from [Git workspace sync](git-workspace-sync.md), PR [references](conversation-discovery.md) in agent output and client hints trigger an immediate probe. Remote-tracking refs cover agents, terminals and external tools alike, so shell output is never parsed for `git push`.
+- **Polling follows demand.** The scheduler polls faster only while pending checks are visible or a PR is expected, slower while PR surfaces are merely visible, and not at all otherwise. PR watches (`github.pr.watch.sync`) are separate from `git.workspace.watch.sync` because a PR tab can be open while the Git panel is closed, and filesystem and GitHub demand have different costs.
+- **One rate-limit budget per host.** Rate-limit headers feed a shared budget: a primary or secondary limit pauses every repository on that host, probe cycles are staggered, and polling stretches when little of the limit remains.
+- **Small events.** `github.pr.changed` carries a revision and changed PR numbers, not data. `github.pr.snapshot.get` reads memory and never waits on GitHub.
+- **One entity per PR in the client.** Lists, the current-branch card, badges and PR tabs read and write the same store entry, so they cannot disagree. Filtering happens locally against the snapshot's capped set of open PRs; when the snapshot reports `truncated`, the client uses `github.pr.list`.
 - **No webhooks.** A local daemon has no public endpoint. A relay or GitHub App could later feed in as one more signal.
 
 ## Where it lives

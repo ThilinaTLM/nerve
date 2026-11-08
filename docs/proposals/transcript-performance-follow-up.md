@@ -4,63 +4,50 @@
 
 ## Where we are
 
-| Metric                                                       | After #541                | After #544            |
-| ------------------------------------------------------------ | ------------------------- | --------------------- |
-| Open largest conversation (1,959 events), first row (median) | 379 ms                    | 231 ms                |
-| History payload / requests                                   | ~7.9 MB / 17              | 5.1 MB / 5            |
-| Streaming long tasks > 50 ms (Haiku 5.5)                     | 2–7 per run, max 62–79 ms | 0 in 11 runs          |
-| Streaming frame gaps > 50 ms (Haiku 5.5)                     | 23–65, max 138–176 ms     | 12–22, max 113–158 ms |
-| Streaming frame gaps > 50 ms (Scripted Bench, 3 runs)        | –                         | 14–17, max 76–98 ms   |
+After #544, opening the largest conversation (1,959 events) shows the first row in a median 231 ms (target 250 ms) from 5 history requests totaling 5.1 MB. The scripted streaming run has no long tasks, 14–17 frame gaps above 50 ms and a max gap of 76–98 ms.
 
-Use the scripted model for comparisons. Its runs are nearly identical (33.8–33.9 s, about 1,870 frames), while real-model runs vary a lot. Start the dev instance with `NERVE_DEV_SCRIPTED_PROVIDER=1 NERVE_VALIDATE_TRUSTED_RESULTS=0 pnpm desktop:dev --slot 1`, then run `transcript-bench.ts --scenario stream --project Random --scripted`. Add `--trace` to record a Chrome trace with frame-gap timestamps.
+Compare with the scripted model: its runs are nearly identical, while real-model runs vary a lot. Start the dev instance with `NERVE_DEV_SCRIPTED_PROVIDER=1 NERVE_VALIDATE_TRUSTED_RESULTS=0 pnpm desktop:dev --slot 1`, then run `transcript-bench.ts --scenario stream --project Random --scripted`. Add `--trace` for a Chrome trace with frame-gap timestamps.
 
-#544 deliberately left two things out:
-
-- **Progressive history loading:** opening already meets the 250 ms target.
-- **Removing virtual-core's `followOnAppend`:** it scrolls in the append frame, while the scroller's settle loop handles row growth afterwards. The two complement each other.
+#544 deliberately left out progressive history loading (opening already meets the target) and removal of virtual-core's `followOnAppend` (it scrolls in the append frame, while the scroller's settle loop handles later row growth; they complement each other).
 
 ## Proposed work
 
 ### 1. Stop republishing unchanged summaries in core
 
-`publishSummary` (`conversation-core/src/runtime/publish-summary.ts`) runs on every `tool_call_changed` and publishes the conversation and all its ancestors. In a measured run, 69% of the `conversation.changed` notices were identical to the previous one. #544 filters them per protocol session in `conversation-channel.ts`, and each session keeps a serialized copy of every summary it sends.
+`publishSummary` (`conversation-core/src/runtime/publish-summary.ts`) runs on every `tool_call_changed` and publishes the conversation and all its ancestors. In a measured run, 69% of the `conversation.changed` notices were identical to the previous one. Today only `conversation-channel.ts` filters them, per protocol session, and each session keeps a serialized copy of every summary it sends.
 
-Move the check to core: remember the last published summary per conversation and emit only when it differs. Every consumer benefits, including completion dependencies and runtime services. The per-session cache can then be removed. Add a unit test in conversation-core; the protocol session fixture is too heavy for one.
+Move the check to core: remember the last published summary per conversation and emit only when it differs. Every consumer benefits, including completion dependencies and runtime services. The per-session cache can then be removed. Test it in conversation-core; the protocol session fixture is too heavy.
 
 ### 2. Batch incoming notices
 
 The remaining frame gaps are bursts of 5–10 short WebSocket message tasks, each followed by its own Svelte flush (`conversation-connection.ts` → store `notice`/`append`). Apply messages that arrive within one task or microtask as a single batch, so that Svelte flushes once.
 
-Constraint: canonical state (approvals, queue, status, cursors) must not wait for an animation frame. A microtask batch keeps it immediate; a frame batch does not. Measure the max gap with the scripted model before and after.
+Canonical state (approvals, queue, status, cursors) must not wait for an animation frame, so batch per microtask, not per frame.
 
 ### 3. The long task before the first row
 
-One long task of about 130 ms still runs before the first row when opening the large conversation. Its likely parts are JSON parsing of 1–1.4 MB pages, the first `committedTranscript` pass, and timeline projection. Profile it and decide whether to split it (for example, project the visible tail first) or defer parts of it.
+One long task of about 130 ms still runs before the first row when opening the large conversation. Likely parts: JSON parsing of 1–1.4 MB pages, the first `committedTranscript` pass, and timeline projection. Profile it, then split it (for example, project the visible tail first) or defer parts.
 
 ### 4. More accurate page sizing
 
-`byteLimitedRows` sizes pages from the stored payload length, which still includes signatures and `agentProjection`, even though the client never receives them. Pages are therefore underfilled: 5 instead of 3–4 for the large conversation. Options:
+`byteLimitedRows` (`conversation-event.repository.ts`) sizes pages from the stored payload length, which still includes signatures and `agentProjection` that the client never receives. Pages are underfilled: 5 instead of 3–4 for the large conversation. Options:
 
 - subtract the known stripped fields cheaply, for example with `json_extract` lengths in SQL;
-- raise the cap toward 3.5 MB, accepting a worst case near the cap for payloads with nothing to strip.
-
-The protocol cap is 4 MB.
+- raise `EVENT_PAGE_BYTES` (2.5 MB; the protocol cap is 4 MB), accepting a worst case near the cap for payloads with nothing to strip.
 
 ### 5. Open time still grows with length
 
-Opening is fast at today's sizes but still O(conversation). If conversations grow well past about 2,000 events, take up progressive loading:
+Opening is O(conversation). If conversations grow well past about 2,000 events, take up progressive loading:
 
 - yield the newest page first;
 - add a `historyComplete` flag;
 - have whole-path consumers (`liveTurns.recover`, the `append` dedupe, compaction path ids, run derivation, tree merge) wait for it;
 - keep the scroll position when older rows are prepended.
 
-The committed/live transcript split from #544 is already in place.
-
 ## Smaller items
 
-- **Run id fallback:** in a conversation with no execution event yet, committed tool records now fall back to `started.id ?? conversation.id` instead of the first live turn id. Check visually that tool grouping in the first run is still correct.
-- **Picker label:** the model picker labels the scripted model's group with its raw provider id `nerve-dev-scripted`. Add a display name next to `"nerve-faux": "Nerve Faux"` in `presentation/utils/model.ts`.
+- **Run id fallback:** with no execution event yet, committed tool records fall back to `runId ?? snapshot.conversation.id` (`core-transcript.adapter.ts`) instead of the first live turn id. Check that tool grouping in the first run is still correct.
+- **Picker label:** the model picker shows the scripted model's group as the raw provider id `nerve-dev-scripted`. Add a display name next to `"nerve-faux": "Nerve Faux"` in `presentation/utils/model.ts`.
 
 ## Targets
 

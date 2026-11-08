@@ -28,7 +28,7 @@ sequenceDiagram
   end
 ```
 
-A browser starts at the web-app participant; it does not need a shell to manage the server.
+A browser starts at the web-app participant; it does not need a shell.
 
 ## Why HTTP starts early
 
@@ -40,15 +40,13 @@ The initial listener uses bootstrap settings. If migration changes the configure
 
 ## Failures and recovery
 
-Admission failures happen before any upgrade runs. The daemon reports a typed kind, and the desktop startup screen shows the home path with instructions instead of a retry that cannot succeed. An old home asks the user to run 0.34.1 first or to delete or move the folder; a damaged home offers the second choice plus diagnostics. See [admission](migrations.md#admission-and-unsupported-homes).
+Admission failures happen before any upgrade runs. The daemon reports a typed kind, and the desktop startup screen shows the home path and the choices that apply instead of a retry that cannot succeed. Failures attributable to one conversation or settings document are set aside during the upgrade and reported after startup, so they never reach the user as startup failures. Home-level storage failures leave the daemon reachable so the web app can offer retry or rollback when available. What each decision preserves is in [storage migrations](migrations.md).
 
-During an upgrade, a failure attributable to one conversation or settings document is set aside automatically and reported after startup, so it never reaches the user as a startup failure. Home-level storage failures leave the daemon reachable so the web app can offer retry or rollback when available. [Migration recovery](migrations.md#recovery-decisions) explains the preservation boundary.
-
-A successful rollback leaves the daemon alive in a terminal failure state. This prevents a process supervisor from immediately upgrading the restored home again. Runtime construction failures are fatal because the normal application could not be mounted. Invalid runtime-owned home settings instead use a separate, non-blocking [settings recovery](storage.md#settings-health) path, and a conversation whose stored data cannot be read is skipped rather than failing startup; see [unreadable conversations](storage.md#unreadable-conversations).
+A successful rollback leaves the daemon alive in a terminal failed state until the process is quit, so a supervisor does not immediately upgrade the restored home again. Runtime construction failures are fatal because the normal application could not be mounted. Invalid runtime-owned home settings use a separate, non-blocking [settings recovery](storage.md#settings-health) path, and an unreadable conversation is skipped rather than failing startup; see [unreadable conversations](storage.md#unreadable-conversations).
 
 ## Connecting and reconnecting
 
-The web app waits for readiness before normal startup. After a disconnect it checks lifecycle again: a changed server version reloads the page, while a same-version restart lets protocol reconnection resynchronize state. Polling works here because it survives server restarts without requiring a live session.
+The web app waits for readiness before normal startup, so application channels never connect to a daemon that has no runtime. After a disconnect it checks lifecycle again: a changed server version reloads the page, while a same-version restart lets protocol reconnection resynchronize state. Polling works here because it survives server restarts without requiring a live session.
 
 The shell hands off when HTTP is reachable, rather than waiting for full readiness, so migration progress remains visible. Its error page handles failure to reach a daemon; storage decisions stay in the web app. Normal conversation status and notifications are covered by [conversation state and attention](conversation-state-and-attention.md).
 

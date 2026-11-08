@@ -1,6 +1,6 @@
 # Conversation discovery
 
-The conversation list has to answer three questions at a glance: which conversation this is, whether it needs the user, and where its work went. Titles, list sections and PR/issue references answer them. Each one reuses existing state where it can, so discovery adds one table, one user setting and no new status machine.
+The conversation list answers at a glance which conversation this is, whether it needs the user, and where its work went, through titles, list sections and PR/issue references. Each reuses existing state where it can, so discovery adds one table, one user setting and no new status machine.
 
 ```mermaid
 flowchart LR
@@ -23,7 +23,7 @@ There are two independent paths. The **local title** is derived without network 
 - **Once, for new root conversations only.** No backfill, no regeneration on later turns, no retry after a restart. A title is an identifier the user learns, so it should not change without the user's action.
 - **A manual rename always wins.** Every title change advances a process-local token kept in the conversation service. The AI result is applied only if, in one serialized step, the conversation still exists, the token is unchanged and the setting still selects the same model. Renaming to the same text still advances the token, so the guard never compares strings. The token lives in memory because in-flight jobs are dropped on restart anyway.
 - **The prompt is untrusted input sent to a third party.** Only a shortened first prompt is sent: code blocks and scaffolding are stripped, likely secrets are masked, and the length is capped. Files, history, URLs and tools are never included. The output is validated rather than repaired. Invented identifiers or a script the source doesn't use (a model drifting into another language) cause it to be rejected.
-- **Bounded cost.** The server owns a small concurrency limit and bounded queue, a short deadline and a low output cap. Title requests never appear as agent runs or transcript messages. They never block agent work either.
+- **Bounded cost.** The server bounds concurrency, queue, deadline and output size. Title requests never appear as agent runs or transcript messages. They never block agent work either.
 - **Images are a marker, not text.** Generated titles replace image mentions with a reserved marker token that ordinary text can't produce, so manual titles are never transformed. The list renders it as an icon. Surfaces that need plain text (notifications, window title) use the shared fallback helper.
 
 Core owns the title policy, the token guard and input/output rules behind an injected capability. The server implements that capability with the model registry and provider authentication, so core imports neither.
@@ -45,20 +45,20 @@ Each visible root conversation appears in exactly one section, using the first r
 
 Order and relative time use `last_user_message_at`, which is only set when a `user_message` is appended. Titles, references, status and assistant output are metadata. They never reorder rows, change sections or create unseen state, so the list stays stable while agents work.
 
-Search is one input with no syntax, run client-side over the loaded summaries. `conversation.list` returns every root conversation, so the display cap doesn't limit search. Every term must match a reference, a status word, the image marker or the title (substring, then a lazy subsequence). Completed conversations are hidden from sections but are searchable (for example with "done").
+Search is one input with no syntax, run client-side over the loaded summaries. `conversation.list` returns every root conversation of the project, so the panel's display cap limits only how many results are shown, not what is searched. Every term must match a reference, a status word, the image marker or the title (substring, then a lazy subsequence). Completed conversations are hidden from sections but are searchable (for example with "done").
 
 ## Owners
 
-| Concern                                | Owner                                                                                                                                                                                                                                                                                                                                           |
-| -------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Local title and image marker           | [deriveConversationTitle](../../packages/conversation-core/src/conversations/conversation-title.ts), [conversation-title helpers](../../packages/contracts/src/domains/core/conversation-title.ts)                                                                                                                                              |
-| AI title policy, input and validation  | [ai-title](../../packages/conversation-core/src/conversations/ai-title.ts), token guard in [ConversationService](../../packages/conversation-core/src/conversations/conversation.service.ts)                                                                                                                                                    |
-| AI title provider call and queue       | [ConversationTitleService](../../packages/workbench-server/src/domains/conversation-titles/title.service.ts)                                                                                                                                                                                                                                    |
-| Title setting and page                 | [settings contracts](../../packages/contracts/src/domains/settings/settings.ts), [TitlesSettingsPage](../../packages/workbench-app/src/lib/features/settings/views/pages/titles/TitlesSettingsPage.svelte)                                                                                                                                      |
-| Reference parsing and extraction       | [github](../../packages/conversation-core/src/conversations/references/github.ts), [ReferenceExtraction](../../packages/conversation-core/src/conversations/references/reference-extraction.ts)                                                                                                                                                 |
-| Reference storage and summary delivery | [ConversationReferenceRepository](../../packages/conversation-core/src/storage/conversation-reference.repository.ts), [summary schema](../../packages/contracts/src/domains/core/conversation.ts)                                                                                                                                               |
-| Sections, ordering, search and tags    | [conversation-list](../../packages/workbench-app/src/lib/presentation/conversations/conversation-list.ts), [conversation-search](../../packages/workbench-app/src/lib/presentation/conversations/conversation-search.ts), [conversation-references](../../packages/workbench-app/src/lib/presentation/conversations/conversation-references.ts) |
-| List panel                             | [ProjectConversationNavigator](../../packages/workbench-app/src/lib/features/projects/views/ProjectConversationNavigator.svelte)                                                                                                                                                                                                                |
+| Concern                                | Owner                                                                                                                            |
+| -------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| Local title and image marker           | [deriveConversationTitle](../../packages/conversation-core/src/conversations/conversation-title.ts)                              |
+| AI title policy, input and validation  | [ai-title](../../packages/conversation-core/src/conversations/ai-title.ts)                                                       |
+| AI title provider call and queue       | [ConversationTitleService](../../packages/workbench-server/src/domains/conversation-titles/title.service.ts)                     |
+| Title setting and page                 | [settings contracts](../../packages/contracts/src/domains/settings/settings.ts)                                                  |
+| Reference parsing and extraction       | [github](../../packages/conversation-core/src/conversations/references/github.ts)                                                |
+| Reference storage and summary delivery | [ConversationReferenceRepository](../../packages/conversation-core/src/storage/conversation-reference.repository.ts)             |
+| Sections, ordering, search and tags    | [conversation-list](../../packages/workbench-app/src/lib/presentation/conversations/conversation-list.ts)                        |
+| List panel                             | [ProjectConversationNavigator](../../packages/workbench-app/src/lib/features/projects/views/ProjectConversationNavigator.svelte) |
 
 ## Deliberate limits
 

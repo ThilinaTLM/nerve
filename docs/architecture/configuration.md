@@ -30,7 +30,7 @@ flowchart LR
 | Permission rule sets and overlays | Built-in policy, user `config/rule-sets/`, and scoped `config/permissions.json` | Select one rule set, then compose applicable overlays; child policy differs                                | [`createPermissionConfigurationService`](../../packages/workbench-server/src/core-host/permission-configuration.ts)              |
 | Launch definitions                | Project `.nerve/launches/definitions.json`                                      | One project catalog, with no user/conversation inheritance                                                 | [`LaunchDefinitionRepository`](../../packages/workbench-server/src/domains/launch-definitions/launch-definition.repository.ts)   |
 
-Creation preferences choose a starting profile independently of execution settings, so opening a new conversation need not change an existing one. [Agent profiles and delegation](conversation-core/delegation.md) explains precedence, applied snapshots and frozen child preferences. [Permissions](permissions.md) explains overlays and authorization; [launch definitions](launch-definitions.md) explains catalog concurrency.
+Creation preferences (`config/conversation-defaults.json` at user and project scope) choose a starting profile independently of execution settings, so opening a new conversation need not change an existing one. [Agent profiles and delegation](conversation-core/delegation.md) explains precedence, applied snapshots and frozen child preferences. [Permissions](permissions.md) explains overlays and authorization; [launch definitions](launch-definitions.md) explains catalog concurrency.
 
 JSON owns agent preferences and prompt context. SQLite owns conversation identity, relationships, history, lifecycle and working directory. Credentials stay with provider and secret owners so configuration snapshots do not capture secret values. See [storage](storage.md) for the wider layout.
 
@@ -67,13 +67,13 @@ Upgrades happen at load time rather than at startup because projects may be unre
 
 Feature loaders contain no format conversion; they accept only the current schema and delegate everything else to the migration service. Feature writes are refused while a file is corrupted or incompatible, so a fallback can never overwrite the original. Only a confirmed reset replaces a corrupted file, and reset revokes rather than grants trust. An upgrade keeps an existing approval only when the exact original bytes were approved, because the output is a deterministic conversion of approved input.
 
-Fallbacks follow each resource's meaning: an invalid launch catalog shows no launches, an invalid override lets lower-precedence settings apply, a bad profile or suggestion hides only that entry, and an invalid permission overlay blocks tool execution in that project while plain model replies continue. Each type declares its fallback, reset effect and user-facing wording in its descriptor.
+Each type declares its fallback, reset effect and wording in its descriptor; see the [project-chains README](../../packages/workbench-server/src/infrastructure/configuration/agent-configuration/project-chains/README.md). An invalid permission overlay is the notable case: it blocks tool execution in that project while plain model replies continue.
 
 ## Health and recovery
 
-Invalid configuration degrades only what depends on it and raises a diagnostic. Project files report health through a header activity item, a toast when the set of failing files changes and, where a feature shows the resource, an inline notice. The actions are open the file, reload after a manual fix, and a confirmed reset that preserves the original in quarantine. Home settings use the equivalent [settings-health](storage.md#settings-health) path.
+Invalid configuration degrades only what depends on it and raises a diagnostic. Project files report health through a header activity item, a toast when the set of failing files changes and, where a feature shows the resource, an inline notice. The actions are open the file, reload after a manual fix, and a confirmed reset that preserves the original in quarantine.
 
-Required configuration, such as a conversation's own document, has no fallback. Its failure blocks only the affected execution; the user can reload corrected files or review and confirm a repair that backs up the damaged bytes.
+Home settings use [settings health](storage.md#settings-health). Required configuration, such as a conversation's own document, has no fallback. Its failure blocks only the affected execution; the user can reload corrected files or review and confirm a repair that backs up the damaged bytes.
 
 ```mermaid
 flowchart TD
@@ -93,18 +93,11 @@ flowchart TD
 
 Retry re-reads authority and repeats authorization because repairing configuration does not itself grant permission. Dismissing a diagnostic leaves the underlying problem unchanged. The system has no persisted last-known-good execution authority, so a stale backup cannot silently authorize work. Validation happens at load time; there are no filesystem watchers, so external edits are noticed on reload, on restart or when the feature next loads the file.
 
-The summary cache lets conversation-list rows show fields such as model and profile without opening every conversation document. Reading a summary never loads that conversation; missing or invalid cache entries display unknown fields so a disposable projection cannot block execution or trigger a startup scan. See [conversation state and attention](conversation-state-and-attention.md) for consumer ownership.
+The conversation-list summary cache is display-only: missing or invalid entries show unknown fields and never block execution (see `getSummary` in the service).
 
 ## Network and remote-access settings
 
-`application.network` lives in `config/daemon.json` and resolves like every other program-level setting (command line, then environment, then saved). Besides `host`, `port`, `allowRemote`, `mobileHttps` and `httpsPort`, it carries two optional remote-access fields, both daemon-restart settings:
-
-| Field              | Environment / flag                     | Meaning                                                                                                                                                                                                                                                      |
-| ------------------ | -------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `publicUrl`        | `NERVE_PUBLIC_URL`, `--public-url`     | External origin behind a reverse proxy (`https://nerve.example.com`). Adds its host to the Host allowlist, is the passkey RP ID/origin and enables the owner passkey gate. The snapshot reports `""` when unset; a patch value of `""` clears the saved URL. |
-| `trustProxy.peers` | `NERVE_TRUST_PROXY_PEERS` (comma list) | Proxy peer addresses or CIDR ranges allowed to supply `X-Forwarded-*`; default `127.0.0.1`, `::1`; honored only when `publicUrl` is set. Surfaced in the snapshot as `trustProxyPeers`. Invalid entries are rejected on save and at startup.                 |
-
-Device credentials, pairing state and owner passkeys are **not** settings: they live in the 0600 file `secrets/devices.json` (no database table), and the authentication audit trail in `logs/access-audit.jsonl`. `secrets/devices.json` may exist before the first migration; home admission treats it like `secrets/daemon-token`. See [access and authentication](access.md) and the [hosted-server guide](../../packages/website/src/content/docs/operations/hosted-server.md).
+`application.network` lives in `config/daemon.json` and resolves like every other program-level setting (command line, then environment, then saved). `publicUrl` and `trustProxy.peers` are daemon-restart settings owned by [access and authentication](access.md#network-settings). Device credentials, pairing state and owner passkeys are not settings; they live in `secrets/devices.json`.
 
 ## Where it lives
 

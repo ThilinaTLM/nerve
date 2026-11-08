@@ -8,7 +8,7 @@ Home migrations own the home only: the database, conversation history, assets, u
 flowchart TD
   detect[Locate home] --> lock[Acquire home startup lock]
   lock --> admit{Admission}
-  admit -->|Unsupported or damaged| stop[Typed failure with instructions]
+  admit -->|Unsupported or damaged| stop[Typed failure]
   admit -->|Current or fresh home| open[Open current storage]
   admit -->|Upgrade needed| check[Check owned inputs]
   check --> preserve[Preserve sources and journal replacements]
@@ -32,23 +32,29 @@ flowchart TD
   resume --> commit
 ```
 
-Preservation uses retained sources and a journal of original file state, rather than a full-home backup. That keeps rollback proportional to changed data. The verification checkpoint is the boundary after which cleanup may irreversibly remove legacy sources.
+Preservation uses retained sources and a journal of original file state, not a full-home backup, so rollback is proportional to changed data. The verification checkpoint is the boundary after which cleanup may irreversibly remove legacy sources.
 
 ## Admission and unsupported homes
 
-The supported baseline is 0.34.1. Admission checks the home manifest and, for legacy homes, the expected SQLite migration ledger before any step runs. Each rejection has a typed kind, such as too old, invalid manifest, unexpected ledger or unrecognized layout, so an old home is not reported the same way as a damaged one.
+Admission checks the home manifest and, for legacy homes, the expected SQLite migration ledger before any step runs. Each rejection has a typed kind (too old, invalid manifest, unexpected ledger, unrecognized layout), so an old home is not reported the same way as a damaged one. The supported baseline is 0.34.1 (see [`ledger.ts`](../../packages/workbench-server/src/infrastructure/migrations/framework/ledger.ts)).
 
-Nerve does not convert homes older than the baseline, because doing so would keep compatibility code for layouts it no longer understands. The desktop startup screen shows the home path and two choices instead. To keep conversation history, the user runs 0.34.1 once and then reopens the current release. To start clean, the user closes Nerve, deletes or moves the home folder and reopens Nerve. Damaged homes get the same delete-or-move instruction with diagnostics. Retry is offered only for transient failures, because retrying cannot change an incompatible format.
+Homes older than the baseline are not converted, because that would keep compatibility code for layouts Nerve no longer understands. Retry is offered only for transient failures, since retrying cannot change an incompatible format. [Startup](startup.md#failures-and-recovery) owns how these failures are presented.
 
 Fresh homes start at the current layout with registered steps recorded, because there is no legacy data to convert.
 
 ## Choosing the migration boundary
 
-A **home step** coordinates an on-disk conversion across stores or files in the home. Pure core SQL changes use the core's transactional migrations and separate SQL ledger. A **ledger** records which conversions have been applied; the home ledger lives outside SQLite so a step can replace the database itself. Schema changes still require prior approval under `AGENTS.md` because they affect the persistent data model.
+A **home step** coordinates an on-disk conversion across stores or files in the home. Pure core SQL changes use the core's transactional migrations and separate SQL ledger. The **home ledger** records which steps were applied and lives in the home manifest, outside SQLite, so a step can replace the database itself. Schema changes still require prior approval under `AGENTS.md`.
 
-All unreleased home changes since the root `package.json` release version belong in one draft step. Extend that step so the next release has one coherent conversion from its released predecessor. Releases without storage changes need no step.
+All unreleased home changes since the root `package.json` release version belong in one draft step, so the next release has one coherent conversion from its released predecessor. Releases without storage changes need no step.
 
-Steps use frozen local shapes and helpers so later application refactors cannot reinterpret an old conversion. Validate each source with the shape its released writer actually produced, at that source's scope; a stricter or differently scoped validator turns valid history into false set-asides. Released steps are immutable and fixes ship in a subsequent step, preserving the meaning of their recorded checksums. A released step's registry `checksum` must equal its folder hash (`migrations.lock.json` enforces this). Homes record the checksum that was current when they applied a step, so a step whose files or label changed between releases lists those earlier values in `previousChecksums`: a released step admits a ledger entry matching its checksum or any previous checksum and refuses anything else, and a draft `rerunOnChange` step does not rerun for a listed previous checksum. List only revisions whose applied homes are valid inputs for later steps. A **checksum** identifies the conversion's file contents so the framework can detect unexpected changes. Legacy core conversion details live in the [0001 step README](../../packages/workbench-server/src/infrastructure/migrations/steps/0001-conversation-core/README.md).
+Steps use frozen local shapes and helpers so later application refactors cannot reinterpret an old conversion. Validate each source with the shape its released writer actually produced, at that source's scope; a stricter or differently scoped validator turns valid history into false set-asides. Legacy core conversion details live in the [0001 step README](../../packages/workbench-server/src/infrastructure/migrations/steps/0001-conversation-core/README.md).
+
+## Registry integrity
+
+A step's **checksum** is the hash of its folder, which lets the framework detect unexpected changes. Released steps are immutable; fixes ship in a later step. A released step's registry checksum must equal its folder hash, enforced by `migrations.lock.json`. A home records the checksum current when it applied a step, so a released step whose files changed afterwards lists the earlier values in `previousChecksums`. It admits a ledger entry matching its checksum or any previous one and refuses anything else, and a draft `rerunOnChange` step does not rerun for a listed previous checksum. List only revisions whose applied homes are valid inputs for later steps.
+
+A draft step may be edited freely, but its registry checksum must still equal its current folder hash; `pnpm storage:checksums` rewrites the draft checksums. `pnpm release:tag X.Y.Z` releases draft steps (see the [release runbook](../runbooks/release.md)).
 
 ## Isolating damage
 
@@ -62,7 +68,7 @@ Only home-level problems stop the upgrade: an untrusted manifest or ledger, a fa
 
 Each completed step writes a report of set-aside units and recorded losses. Losses describe intentional or unavoidable changes, such as a dropped legacy field, and are aggregated by a path-independent reason so a large home produces a short list. Set-aside entries keep their individual quarantine receipts for recovery.
 
-After the workbench connects, one header activity notice summarizes the reports. Its details open the upgrade report dialog, and dismissal is stored in the home's report files so the notice does not return. No dialog appears before the application opens.
+After the workbench connects, one header activity notice (the [`storage-upgrade` feature](../../packages/workbench-app/src/lib/features/storage-upgrade/index.ts)) summarizes the reports. Its details open the upgrade report dialog, and dismissal is stored in the home's report files so the notice does not return. No dialog appears before the application opens.
 
 ## Commit and rollback
 
@@ -74,44 +80,29 @@ Migration and offline tools share the home startup lock. Startup retains ownersh
 
 ## Recovery decisions
 
-Home-level failures persist with the available recovery actions: retry, and rollback before the verified boundary. Rollback restores the pending step's sources and manifest.
-
-Startup owns recovery presentation and daemon behavior; see [startup](startup.md#failures-and-recovery). Runtime settings repair has a separate [settings-health](storage.md#settings-health) path because it does not require rerunning an upgrade.
+Home-level failures persist with the available recovery actions: retry, and rollback before the verified boundary. Rollback restores the pending step's sources and manifest. [Startup](startup.md#failures-and-recovery) owns recovery presentation and daemon behavior. Runtime settings repair has a separate [settings-health](storage.md#settings-health) path because it does not require rerunning an upgrade.
 
 The standalone `storage:migrate` command uses the same runner and lock as startup so offline conversion follows the same data-safety rules. Its dry run plans admission and pending steps; corruption validation requires executing the step's checks.
 
-## Adding or extending a step
-
-1. Check the root `package.json` version to identify the latest release. Extend the single unreleased draft step for changes since that release, or create a step when there is no draft, so the release has a coherent conversion path.
-2. Define owned inputs and isolated units using frozen local shapes and helpers. Keep legacy deletion in commit so earlier failures remain reversible. Do not read project files; project formats change through their own version chains.
-3. For a new step, add its implementation to the ordered registry and its metadata to `MIGRATION_METADATA`. Compute the folder checksum with `hashStepFolder`, then update both that metadata and `migrations.lock.json` so planning and execution agree. Run `pnpm exec tsx scripts/storage-migrations/check.ts` to check consistency. The helper and checker are linked below; the checker does not regenerate checksums.
-4. Write fixture tests for corruption, set-aside, rollback and resume so recovery is exercised alongside successful conversion. Include byte-preservation and quarantine assertions where the step changes sources.
-5. Rehearse on a stopped home copied into an unused slot with `pnpm storage:copy --from <stopped-home> --slot N` and `pnpm storage:migrate --home data/storage-N`. Choose a slot other than 1 so rehearsal cannot modify the normal development home.
-6. After rehearsal, run `pnpm exec tsx scripts/storage-migrations/validate-history.ts --home data/storage-N` and read every report's set-aside list. A clean exit only proves the history parses; an unexpected set-aside usually means a source was validated with the wrong shape.
-
-## Registry integrity
-
-Released steps are frozen: their folder hash is recorded in `migrations.lock.json`, and a step that changed after release lists its earlier hashes in `previousChecksums` so homes upgraded by older builds still verify. An unreleased (draft) step may be edited freely, but the lock check requires its registry checksum in `registry-metadata.ts` to equal its current folder hash. After editing a draft run `pnpm storage:checksums`; it rewrites the draft checksums in both `migrations.lock.json` and `registry-metadata.ts`. `pnpm release:tag X.Y.Z` releases draft steps (see the [release runbook](../runbooks/release.md)).
-
 ## Validation and ownership
 
-Exception-injected phase tests do not cover every process-kill or filesystem durability boundary, so a passing fixture suite alone does not establish crash safety. Rehearsal also has isolation limits: copied credentials can still reach real providers, and a daemon started on a copied home will open the registered projects' real directories. Point project paths at disposable locations before starting a daemon on a rehearsal slot.
+To add or extend a step, follow the [storage migration runbook](../runbooks/storage-migration.md).
+
+Exception-injected phase tests do not cover every process-kill or filesystem durability boundary, so a passing fixture suite alone does not establish crash safety. Rehearsal limits are in the runbook.
 
 The history validator parses every stored event and tool-call row against the current contracts. It runs offline, outside the frozen steps, so a later contract change that old history no longer satisfies is caught before release rather than surfacing as unreadable conversations.
 
-| Concern                                        | Owner                                                                                                                                                                                                                            |
-| ---------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Admission classification                       | [`admission.ts`](../../packages/workbench-server/src/infrastructure/storage-bootstrap/admission.ts); [`HomeAdmissionError`](../../packages/contracts/src/domains/settings/home-admission.ts)                                     |
-| Planning and home ledger                       | [`readMigrationHome`, `planMigrations` and `recordMigration`](../../packages/workbench-server/src/infrastructure/migrations/framework/ledger.ts)                                                                                 |
-| Registry and frozen checksums                  | [step registry](../../packages/workbench-server/src/infrastructure/migrations/steps/index.ts); [`migrations.lock.json`](../../packages/workbench-server/src/infrastructure/migrations/migrations.lock.json)                      |
-| Registration metadata and checksum calculation | [`MIGRATION_METADATA`](../../packages/workbench-server/src/infrastructure/migrations/framework/registry-metadata.ts); [`hashStepFolder`](../../packages/workbench-server/src/infrastructure/migrations/framework/lock.ts)        |
-| Lock consistency check                         | [migration checker](../../scripts/storage-migrations/check.ts)                                                                                                                                                                   |
-| Phase ordering, set-aside and commit boundary  | [`runMigrations`](../../packages/workbench-server/src/infrastructure/migrations/framework/runner.ts)                                                                                                                             |
-| Step and unit API                              | [`MigrationStep` and `StepContext`](../../packages/workbench-server/src/infrastructure/migrations/framework/step.ts); [`runUnit`](../../packages/workbench-server/src/infrastructure/migrations/framework/toolkit.ts)            |
-| Reports and loss aggregation                   | [`report.ts`](../../packages/workbench-server/src/infrastructure/migrations/framework/report.ts); [failure handling notes](../../packages/workbench-server/src/infrastructure/migrations/framework/README.md)                    |
-| File preservation                              | [`MigrationFilesystem`](../../packages/workbench-server/src/infrastructure/migrations/framework/filesystem.ts); [`RollbackJournal`](../../packages/workbench-server/src/infrastructure/migrations/framework/rollback-journal.ts) |
-| Shared startup exclusion                       | [`acquireStorageStartupLock`](../../packages/workbench-server/src/infrastructure/storage-bootstrap/startup-lock.ts)                                                                                                              |
-| Recovery decisions                             | [`discardFailedItems` and `rollbackFailedMigration`](../../packages/workbench-server/src/infrastructure/migrations/framework/recovery.ts)                                                                                        |
-| Upgrade notice and report dialog               | [`storage-upgrade` feature](../../packages/workbench-app/src/lib/features/storage-upgrade/index.ts)                                                                                                                              |
-| Core SQL migration boundary                    | [`coreMigrations` and `migrate`](../../packages/conversation-core/src/storage/migrations.ts)                                                                                                                                     |
-| History validation and rehearsal tooling       | [`validate-history.ts`](../../scripts/storage-migrations/validate-history.ts); [`storage-copy.ts`](../../scripts/storage-migrations/storage-copy.ts)                                                                             |
+| Concern                                        | Owner                                                                                                                                                                                                                                                                       |
+| ---------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Admission classification                       | [`admission.ts`](../../packages/workbench-server/src/infrastructure/storage-bootstrap/admission.ts); [`HomeAdmissionError`](../../packages/contracts/src/domains/settings/home-admission.ts)                                                                                |
+| Planning and home ledger                       | [`readMigrationHome`, `planMigrations` and `recordMigration`](../../packages/workbench-server/src/infrastructure/migrations/framework/ledger.ts)                                                                                                                            |
+| Registry and frozen checksums                  | [step registry](../../packages/workbench-server/src/infrastructure/migrations/steps/index.ts); [`migrations.lock.json`](../../packages/workbench-server/src/infrastructure/migrations/migrations.lock.json); [migration checker](../../scripts/storage-migrations/check.ts) |
+| Registration metadata and checksum calculation | [`MIGRATION_METADATA`](../../packages/workbench-server/src/infrastructure/migrations/framework/registry-metadata.ts); [`hashStepFolder`](../../packages/workbench-server/src/infrastructure/migrations/framework/lock.ts)                                                   |
+| Phase ordering, set-aside and commit boundary  | [`runMigrations`](../../packages/workbench-server/src/infrastructure/migrations/framework/runner.ts)                                                                                                                                                                        |
+| Step and unit API                              | [`MigrationStep` and `StepContext`](../../packages/workbench-server/src/infrastructure/migrations/framework/step.ts); [`runUnit`](../../packages/workbench-server/src/infrastructure/migrations/framework/toolkit.ts)                                                       |
+| Reports and loss aggregation                   | [`report.ts`](../../packages/workbench-server/src/infrastructure/migrations/framework/report.ts); [failure handling notes](../../packages/workbench-server/src/infrastructure/migrations/framework/README.md)                                                               |
+| File preservation                              | [`MigrationFilesystem`](../../packages/workbench-server/src/infrastructure/migrations/framework/filesystem.ts); [`RollbackJournal`](../../packages/workbench-server/src/infrastructure/migrations/framework/rollback-journal.ts)                                            |
+| Shared startup exclusion                       | [`acquireStorageStartupLock`](../../packages/workbench-server/src/infrastructure/storage-bootstrap/startup-lock.ts)                                                                                                                                                         |
+| Recovery decisions                             | [`discardFailedItems` and `rollbackFailedMigration`](../../packages/workbench-server/src/infrastructure/migrations/framework/recovery.ts)                                                                                                                                   |
+| Core SQL migration boundary                    | [`coreMigrations` and `migrate`](../../packages/conversation-core/src/storage/migrations.ts)                                                                                                                                                                                |
+| History validation and rehearsal tooling       | [`validate-history.ts`](../../scripts/storage-migrations/validate-history.ts); [`storage-copy.ts`](../../scripts/storage-migrations/storage-copy.ts)                                                                                                                        |

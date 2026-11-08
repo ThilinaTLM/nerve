@@ -11,7 +11,7 @@ Start with the codebase overview, then the conversation core.
 - [Codebase architecture](architecture/codebase.md) — packages, layers and allowed dependencies.
 - [Startup and reconnection](architecture/startup.md) — daemon early bind, shell supervision, storage failure handoff and client reconnect.
 - [Storage architecture](architecture/storage.md) — `NERVE_HOME` areas, SQLite versus files versus memory, restart behavior and settings health.
-- [Storage migrations](architecture/migrations.md) — home upgrades, damage isolation, rollback and how to add a step.
+- [Storage migrations](architecture/migrations.md) — home upgrades, damage isolation and rollback.
 - [Access and authentication](architecture/access.md) — principals, device credentials, pairing, owner passkeys, public URL and proxy trust, and the audit log.
 - [Scoped configuration](architecture/configuration.md) — user/project/conversation scopes, save guarantees and when changes take effect.
 
@@ -28,10 +28,12 @@ Start with the codebase overview, then the conversation core.
 **Workbench**
 
 - [Launch catalog](architecture/launch-definitions.md) — saved project commands, folders, safe shared editing and client cache.
+- [Git workspace sync](architecture/git-workspace-sync.md) — server-owned repository and worktree state, demand-driven reads and background fetch.
 - [Pull request sync](architecture/pull-request-sync.md) — server-owned PR snapshots, rate-limit-free change detection and the shared client store.
 
 ## Maintainer runbooks
 
+- [Storage migration](runbooks/storage-migration.md) — add or extend a home migration step.
 - [Performance diagnostics](runbooks/performance-diagnostics.md) — analyze source-desktop performance samples.
 - [Release](runbooks/release.md) — validate, tag, package, and publish a release.
 
