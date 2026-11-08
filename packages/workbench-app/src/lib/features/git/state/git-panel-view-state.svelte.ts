@@ -117,21 +117,21 @@ export function gitProjectView(projectId: string): GitProjectView {
 
 /** Selected-branch and Changes sections: the same in every project. */
 class GitPanelLayout {
-  listCap = $state<number | null>(null);
+  listSize = $state<number | null>(null);
   branch = $state(defaultGitPanelLayout().branch);
   changes = $state(defaultGitPanelLayout().changes);
   private timer: ReturnType<typeof setTimeout> | undefined;
 
   constructor() {
     const stored = loadGitPanelLayout();
-    this.listCap = stored.listCap;
+    this.listSize = stored.listSize;
     this.branch = stored.branch;
     this.changes = stored.changes;
   }
 
   snapshot(): GitPanelLayoutPreferences {
     return {
-      listCap: this.listCap,
+      listSize: this.listSize,
       branch: { ...this.branch },
       changes: { ...this.changes },
     };

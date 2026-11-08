@@ -3,11 +3,13 @@
  * calculation yields every height at once, so a change (toggle, content,
  * divider) moves all areas together in a single transition.
  *
- * - List: fits its rows, capped (user cap, else AUTO_LIST_MAX).
- * - Selected branch: fits its content, capped (user cap, else AUTO_BRANCH_MAX).
- * - Changes: takes the rest. Collapsed, the rest goes to the list (or to the
- *   branch section when there is no list).
- * - Collapsed sections are their one-line header.
+ * - Collapsed sections are exactly their header.
+ * - The lowest open area fills the panel: Changes, else the selected branch,
+ *   else the list. Collapsed headers therefore stack at the bottom.
+ * - Every other area is automatic (fits its content, up to AUTO_*_MAX) or has
+ *   the height the user dragged.
+ * - When height runs short, the filling area keeps its minimum: the list
+ *   gives first, then the branch section.
  */
 
 /** One-line section header (`h-8`): the height of a collapsed section. */
@@ -32,9 +34,9 @@ export interface SplitInput {
   readonly branchContentPx: number;
   readonly branchOpen: boolean;
   readonly changesOpen: boolean;
-  /** User caps as a share (0..1) of `totalPx`; null = automatic. */
-  readonly listCap: number | null;
-  readonly branchCap: number | null;
+  /** Manual heights as a share (0..1) of `totalPx`; null = automatic. */
+  readonly listSize: number | null;
+  readonly branchSize: number | null;
 }
 
 export interface SplitHeights {
@@ -43,86 +45,98 @@ export interface SplitHeights {
   readonly changes: number;
 }
 
+export type SplitArea = "list" | "branch" | "changes";
+
+/** The area that takes the remaining height; none when nothing is open. */
+export function fillingArea(
+  input: Pick<SplitInput, "hasList" | "branchOpen" | "changesOpen">,
+): SplitArea | undefined {
+  if (input.changesOpen) return "changes";
+  if (input.branchOpen) return "branch";
+  return input.hasList ? "list" : undefined;
+}
+
 const clamp = (value: number, min: number, max: number) =>
   Math.min(Math.max(value, min), Math.max(min, max));
 
 export function splitHeights(input: SplitInput): SplitHeights {
   const total = Math.max(0, input.totalPx);
-  const { hasList, branchOpen, changesOpen } = input;
+  const filler = fillingArea(input);
 
-  let branch = HEADER_PX;
-  if (branchOpen) {
-    const cap = (input.branchCap ?? AUTO_BRANCH_MAX) * total;
-    const content = input.branchContentPx || MIN_BRANCH_PX;
-    branch = clamp(content, MIN_BRANCH_PX, cap);
-  }
-  let list = 0;
-  if (hasList) {
-    const cap = (input.listCap ?? AUTO_LIST_MAX) * total;
-    const content = input.listContentPx || MIN_LIST_PX;
-    list = clamp(content, Math.min(MIN_LIST_PX, content), cap);
-  }
+  const sized = {
+    list: !input.hasList
+      ? 0
+      : input.listSize !== null
+        ? Math.max(MIN_LIST_PX, input.listSize * total)
+        : clamp(
+            input.listContentPx || MIN_LIST_PX,
+            Math.min(MIN_LIST_PX, input.listContentPx || MIN_LIST_PX),
+            AUTO_LIST_MAX * total,
+          ),
+    branch: !input.branchOpen
+      ? HEADER_PX
+      : input.branchSize !== null
+        ? Math.max(MIN_BRANCH_PX, input.branchSize * total)
+        : clamp(
+            input.branchContentPx || MIN_BRANCH_PX,
+            MIN_BRANCH_PX,
+            AUTO_BRANCH_MAX * total,
+          ),
+    changes: HEADER_PX,
+  };
+  if (!filler) return fit(sized, total);
 
-  if (!changesOpen) {
-    // The rest goes to the list, else to the branch section.
-    const rest = total - HEADER_PX - branch - list;
-    if (hasList) list = Math.max(0, list + rest);
-    else branch = Math.max(HEADER_PX, branch + rest);
-    return fit({ list, branch, changes: HEADER_PX }, total, hasList);
-  }
-
-  // Changes keeps its minimum: the list gives first, then the branch section.
-  let shortfall = MIN_CHANGES_PX - (total - list - branch);
-  if (shortfall > 0 && hasList) {
-    const give = Math.min(shortfall, list - Math.min(MIN_LIST_PX, list));
-    list -= give;
-    shortfall -= give;
-  }
-  if (shortfall > 0 && branchOpen) {
-    const give = Math.min(shortfall, branch - MIN_BRANCH_PX);
-    branch -= give;
-  }
-  return fit(
-    { list, branch, changes: Math.max(0, total - list - branch) },
-    total,
-    hasList,
+  const minimum = {
+    list: Math.min(MIN_LIST_PX, sized.list),
+    branch: input.branchOpen ? MIN_BRANCH_PX : HEADER_PX,
+    changes: MIN_CHANGES_PX,
+  };
+  // The filler keeps its minimum: the list gives first, then the branch.
+  const others = (["list", "branch", "changes"] as const).filter(
+    (area) => area !== filler,
   );
+  const used = () => others.reduce((sum, area) => sum + sized[area], 0);
+  let shortfall = minimum[filler] - (total - used());
+  for (const area of ["list", "branch"] as const) {
+    if (shortfall <= 0 || area === filler) continue;
+    const give = Math.min(shortfall, sized[area] - minimum[area]);
+    if (give > 0) {
+      sized[area] -= give;
+      shortfall -= give;
+    }
+  }
+  sized[filler] = Math.max(0, total - used());
+  return fit(sized, total);
 }
 
 /** Too little height for the minimums: shrink from the bottom up to fit exactly. */
-function fit(
-  heights: SplitHeights,
-  total: number,
-  hasList: boolean,
-): SplitHeights {
-  let { list, branch, changes } = heights;
-  let over = list + branch + changes - total;
-  if (over <= 0) return { list, branch, changes };
-  for (const take of ["changes", "list", "branch"] as const) {
-    if (take === "list" && !hasList) continue;
-    const value =
-      take === "changes" ? changes : take === "list" ? list : branch;
-    const give = Math.min(over, value);
-    if (take === "changes") changes -= give;
-    else if (take === "list") list -= give;
-    else branch -= give;
-    over -= give;
+function fit(heights: SplitHeights, total: number): SplitHeights {
+  const result = { ...heights };
+  let over = result.list + result.branch + result.changes - total;
+  for (const area of ["changes", "list", "branch"] as const) {
     if (over <= 0) break;
+    const give = Math.min(over, result[area]);
+    result[area] -= give;
+    over -= give;
   }
-  return { list, branch, changes };
+  return result;
 }
 
-/** A divider can be dragged only where the area above it is fit-sized. */
+/**
+ * A divider resizes the area above it, which must be open and not the one
+ * filling the panel (its height is whatever remains).
+ */
 export function draggable(
   divider: "list" | "branch",
   input: Pick<SplitInput, "hasList" | "branchOpen" | "changesOpen">,
 ): boolean {
-  if (divider === "list") return input.hasList && input.changesOpen;
-  return input.branchOpen && (input.changesOpen || input.hasList);
+  const filler = fillingArea(input);
+  if (divider === "list") return input.hasList && filler !== "list";
+  return input.branchOpen && filler === "changes";
 }
 
-/** The cap a drag to `heightPx` stands for, as a share of the total. */
-export function capFor(heightPx: number, totalPx: number): number | null {
+/** The manual size a drag to `heightPx` stands for, as a share of the total. */
+export function sizeFor(heightPx: number, totalPx: number): number | null {
   if (totalPx <= 0) return null;
   return clamp(heightPx / totalPx, 0.05, 0.9);
 }

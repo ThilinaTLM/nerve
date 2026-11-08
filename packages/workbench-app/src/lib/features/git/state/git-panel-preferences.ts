@@ -10,12 +10,12 @@ export interface GitProjectPreferences {
 }
 
 /**
- * Panel-wide: the same in every project. Areas fit their content; a cap is
- * the most a user drag allows (share 0..1 of the panel), null = automatic.
+ * Panel-wide: the same in every project. Areas fit their content unless the
+ * user dragged a height (share 0..1 of the panel); null = automatic.
  */
 export interface GitPanelLayoutPreferences {
-  listCap: number | null;
-  branch: { collapsed: boolean; cap: number | null };
+  listSize: number | null;
+  branch: { collapsed: boolean; size: number | null };
   changes: { collapsed: boolean };
 }
 
@@ -25,11 +25,11 @@ export type GitPanelPreferenceStorage = Pick<
 >;
 
 const PROJECT_PREFIX = "nerve:git-panel:v1:";
-const LAYOUT_KEY = "nerve:git-panel-layout:v2";
+const LAYOUT_KEY = "nerve:git-panel-layout:v3";
 /** Project entries kept before the least recently written are dropped. */
 export const MAX_PROJECT_ENTRIES = 50;
-const MIN_CAP = 0.05;
-const MAX_CAP = 0.9;
+const MIN_SHARE = 0.05;
+const MAX_SHARE = 0.9;
 
 export const defaultGitProjectPreferences = (): GitProjectPreferences => ({
   filter: "all",
@@ -38,8 +38,8 @@ export const defaultGitProjectPreferences = (): GitProjectPreferences => ({
 });
 
 export const defaultGitPanelLayout = (): GitPanelLayoutPreferences => ({
-  listCap: null,
-  branch: { collapsed: false, cap: null },
+  listSize: null,
+  branch: { collapsed: false, size: null },
   changes: { collapsed: true },
 });
 
@@ -158,9 +158,9 @@ const collapsedOf = (value: unknown, fallback: boolean): boolean =>
     ? value.collapsed
     : fallback;
 
-function capOf(value: unknown): number | null {
+function shareOf(value: unknown): number | null {
   return typeof value === "number" && Number.isFinite(value)
-    ? Math.min(MAX_CAP, Math.max(MIN_CAP, value))
+    ? Math.min(MAX_SHARE, Math.max(MIN_SHARE, value))
     : null;
 }
 
@@ -174,10 +174,10 @@ export function loadGitPanelLayout(
   if (!stored) return defaults;
   const branch = stored.branch;
   return {
-    listCap: capOf(stored.listCap),
+    listSize: shareOf(stored.listSize),
     branch: {
       collapsed: collapsedOf(branch, defaults.branch.collapsed),
-      cap: capOf(isRecord(branch) ? branch.cap : undefined),
+      size: shareOf(isRecord(branch) ? branch.size : undefined),
     },
     changes: {
       collapsed: collapsedOf(stored.changes, defaults.changes.collapsed),

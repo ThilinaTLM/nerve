@@ -1,10 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
-  capFor,
   draggable,
   HEADER_PX,
   MIN_CHANGES_PX,
+  sizeFor,
   splitHeights,
   type SplitInput,
 } from "./git-split-sizing.js";
@@ -16,8 +16,8 @@ const base: SplitInput = {
   branchContentPx: 120,
   branchOpen: true,
   changesOpen: true,
-  listCap: null,
-  branchCap: null,
+  listSize: null,
+  branchSize: null,
 };
 const sum = (h: { list: number; branch: number; changes: number }) =>
   h.list + h.branch + h.changes;
@@ -27,54 +27,71 @@ void test("list and branch fit their content; Changes takes the rest", () => {
   assert.deepEqual(heights, { list: 200, branch: 120, changes: 680 });
 });
 
-void test("content larger than the cap is capped (automatic or user)", () => {
+void test("automatic areas are capped; manual sizes are exact, larger than content too", () => {
   assert.equal(splitHeights({ ...base, listContentPx: 900 }).list, 500);
   assert.equal(
-    splitHeights({ ...base, listContentPx: 900, listCap: 0.3 }).list,
+    splitHeights({ ...base, listContentPx: 900, listSize: 0.3 }).list,
     300,
   );
+  assert.equal(splitHeights({ ...base, listSize: 0.4 }).list, 400);
+  assert.equal(splitHeights({ ...base, branchSize: 0.3 }).branch, 300);
   assert.equal(
-    splitHeights({ ...base, branchContentPx: 800, branchCap: 0.2 }).branch,
+    splitHeights({ ...base, branchContentPx: 800, branchSize: 0.2 }).branch,
     200,
   );
 });
 
-void test("collapsed sections are headers; collapsed Changes gives the rest to the list", () => {
-  const heights = splitHeights({
-    ...base,
-    branchOpen: false,
-    changesOpen: false,
-  });
-  assert.deepEqual(heights, {
-    list: 1000 - 2 * HEADER_PX,
-    branch: HEADER_PX,
+void test("collapsed sections are exactly their header; the lowest open area fills", () => {
+  // Changes collapsed: the branch section fills.
+  assert.deepEqual(splitHeights({ ...base, changesOpen: false }), {
+    list: 200,
+    branch: 1000 - 200 - HEADER_PX,
     changes: HEADER_PX,
   });
+  // Both collapsed: the list fills, headers stack at the bottom.
+  assert.deepEqual(
+    splitHeights({ ...base, branchOpen: false, changesOpen: false }),
+    { list: 1000 - 2 * HEADER_PX, branch: HEADER_PX, changes: HEADER_PX },
+  );
+  // No list, Changes collapsed: the branch section fills.
+  assert.deepEqual(
+    splitHeights({ ...base, hasList: false, changesOpen: false }),
+    { list: 0, branch: 1000 - HEADER_PX, changes: HEADER_PX },
+  );
+  // A manual size of the filling area does not leave a gap.
+  assert.equal(
+    sum(splitHeights({ ...base, changesOpen: false, branchSize: 0.2 })),
+    1000,
+  );
 });
 
-void test("without a list a collapsed Changes gives the rest to the branch section", () => {
-  const heights = splitHeights({ ...base, hasList: false, changesOpen: false });
-  assert.deepEqual(heights, {
-    list: 0,
-    branch: 1000 - HEADER_PX,
-    changes: HEADER_PX,
-  });
+void test("heights fill the panel whenever an area is open", () => {
+  for (const branchOpen of [true, false])
+    for (const changesOpen of [true, false])
+      for (const hasList of [true, false]) {
+        if (!hasList && !branchOpen && !changesOpen) continue;
+        const heights = splitHeights({
+          ...base,
+          hasList,
+          branchOpen,
+          changesOpen,
+        });
+        assert.equal(sum(heights), 1000);
+      }
 });
 
 void test("Changes keeps its minimum: the list gives first, then the branch", () => {
   const heights = splitHeights({
     ...base,
     totalPx: 400,
-    listContentPx: 300,
-    branchContentPx: 300,
-    listCap: 0.9,
-    branchCap: 0.9,
+    listSize: 0.9,
+    branchSize: 0.9,
   });
   assert.equal(heights.changes, MIN_CHANGES_PX);
   assert.equal(sum(heights), 400);
 });
 
-void test("heights always add up to the total, even when it is tiny", () => {
+void test("heights never exceed the total, even when it is tiny", () => {
   for (const totalPx of [0, 40, 90, 150]) {
     const heights = splitHeights({ ...base, totalPx });
     assert.equal(Math.round(sum(heights)), totalPx);
@@ -82,14 +99,16 @@ void test("heights always add up to the total, even when it is tiny", () => {
   }
 });
 
-void test("dividers drag only where the area above is fit-sized", () => {
+void test("dividers resize a fixed open area above them, never the filling one", () => {
   assert.equal(draggable("list", base), true);
-  assert.equal(draggable("list", { ...base, changesOpen: false }), false);
-  assert.equal(draggable("branch", { ...base, branchOpen: false }), false);
+  assert.equal(draggable("list", { ...base, hasList: false }), false);
   assert.equal(
-    draggable("branch", { ...base, hasList: false, changesOpen: false }),
+    draggable("list", { ...base, branchOpen: false, changesOpen: false }),
     false,
   );
-  assert.equal(capFor(250, 1000), 0.25);
-  assert.equal(capFor(10, 1000), 0.05);
+  assert.equal(draggable("branch", base), true);
+  assert.equal(draggable("branch", { ...base, branchOpen: false }), false);
+  assert.equal(draggable("branch", { ...base, changesOpen: false }), false);
+  assert.equal(sizeFor(250, 1000), 0.25);
+  assert.equal(sizeFor(10, 1000), 0.05);
 });

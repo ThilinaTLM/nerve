@@ -3,7 +3,12 @@ import type { Snippet } from "svelte";
 import type { Attachment } from "svelte/attachments";
 import { cn } from "@nervekit/ui-kit/utils";
 import { gitPanelLayout } from "../state/git-panel-view-state.svelte";
-import { capFor, draggable, HEADER_PX, splitHeights } from "./git-split-sizing";
+import {
+  draggable,
+  HEADER_PX,
+  sizeFor,
+  splitHeights,
+} from "./git-split-sizing";
 
 type Section = "branch" | "changes";
 type Divider = "list" | "branch";
@@ -60,18 +65,10 @@ const heights = $derived(
     totalPx,
     listContentPx,
     branchContentPx: branchBodyPx ? HEADER_PX + branchBodyPx : 0,
-    listCap: layout.listCap,
-    branchCap: layout.branch.cap,
+    listSize: layout.listSize,
+    branchSize: layout.branch.size,
   }),
 );
-
-// Without a list one section always stays open: two headers would leave a hole.
-$effect(() => {
-  if (!hasList && layout.branch.collapsed && layout.changes.collapsed) {
-    layout.changes.collapsed = false;
-    layout.save();
-  }
-});
 
 // ---- Motion: every change animates, except a drag and a panel resize. ----
 let dragging = $state<{
@@ -98,8 +95,6 @@ const motion = $derived(
 function toggle(section: Section): void {
   const target = layout[section];
   target.collapsed = !target.collapsed;
-  if (!hasList && layout.branch.collapsed && layout.changes.collapsed)
-    layout[section === "branch" ? "changes" : "branch"].collapsed = false;
   layout.save();
 }
 
@@ -107,15 +102,15 @@ export function openSection(section: Section): void {
   if (layout[section].collapsed) toggle(section);
 }
 
-// ---- Dividers: a drag sets the cap of the area above; double-click resets. ----
+// ---- Dividers: a drag sets the height of the area above; double-click makes it automatic again. ----
 const heightAbove = (divider: Divider) =>
   divider === "list" ? heights.list : heights.branch;
-function setCap(divider: Divider, cap: number | null): void {
-  if (divider === "list") layout.listCap = cap;
-  else layout.branch.cap = cap;
+function setSize(divider: Divider, size: number | null): void {
+  if (divider === "list") layout.listSize = size;
+  else layout.branch.size = size;
 }
 function resize(divider: Divider, px: number): void {
-  setCap(divider, capFor(px, totalPx));
+  setSize(divider, sizeFor(px, totalPx));
 }
 
 function onPointerDown(event: PointerEvent, divider: Divider): void {
@@ -142,7 +137,7 @@ function onKeydown(event: KeyboardEvent, divider: Divider): void {
         ? KEY_STEP_PX
         : 0;
   if (step) resize(divider, heightAbove(divider) + step);
-  else if (event.key === "Enter") setCap(divider, null);
+  else if (event.key === "Enter") setSize(divider, null);
   else return;
   event.preventDefault();
   layout.save();
@@ -179,7 +174,7 @@ function onKeydown(event: KeyboardEvent, divider: Divider): void {
     onlostpointercapture={endDrag}
     ondblclick={() => {
       if (!active) return;
-      setCap(which, null);
+      setSize(which, null);
       layout.save();
     }}
     onkeydown={(event) => onKeydown(event, which)}
