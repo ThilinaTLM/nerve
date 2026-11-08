@@ -9,7 +9,7 @@ export const discoverNewsCatalog: readonly DiscoverNewsEntry[] = [
   {
     id: "multi-repo-git",
     version: 1,
-    releasedIn: "next",
+    releasedIn: "0.40.0",
     featured: true,
     artwork: "git-actions",
     title: "Every repository and worktree, in one Git panel",
@@ -29,7 +29,7 @@ export const discoverNewsCatalog: readonly DiscoverNewsEntry[] = [
   {
     id: "fork-conversation",
     version: 1,
-    releasedIn: "next",
+    releasedIn: "0.40.0",
     title: "Fork a conversation from an earlier point",
     summary:
       "In History, choose Fork here to start a new conversation from any message. The original stays as is.",
@@ -37,7 +37,7 @@ export const discoverNewsCatalog: readonly DiscoverNewsEntry[] = [
   {
     id: "files-panel-overhaul",
     version: 1,
-    releasedIn: "next",
+    releasedIn: "0.40.0",
     title: "A faster, more capable Files panel",
     summary:
       "Edit files in place, jump to any file with Quick open, and search text across the project.",
@@ -45,7 +45,7 @@ export const discoverNewsCatalog: readonly DiscoverNewsEntry[] = [
   {
     id: "device-pairing",
     version: 1,
-    releasedIn: "next",
+    releasedIn: "0.40.0",
     title: "Pair your phone and sign in with a passkey",
     summary:
       "Pair a device with a QR code, then sign in with a passkey. Manage devices and sign-ins in Settings.",

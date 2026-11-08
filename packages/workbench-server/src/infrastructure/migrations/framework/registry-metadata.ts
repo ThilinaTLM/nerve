@@ -42,6 +42,7 @@ export const MIGRATION_METADATA: readonly MigrationRegistryEntry[] =
       step: { id: "0004-task-result-notices" },
       checksum:
         "6b19831f2bc19fc3494b2835a3bc41507623e2a913e4c5b5fc0b1b62a08a14bc",
-      stage: "draft",
+      stage: "released",
+      releasedIn: "0.40.0",
     },
   ]);
