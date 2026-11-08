@@ -21,7 +21,6 @@ import CloudDownload from "@lucide/svelte/icons/cloud-download";
 import CloudOff from "@lucide/svelte/icons/cloud-off";
 import CloudUpload from "@lucide/svelte/icons/cloud-upload";
 import ExternalLink from "@lucide/svelte/icons/external-link";
-import Folder from "@lucide/svelte/icons/folder";
 import FolderMinus from "@lucide/svelte/icons/folder-minus";
 import FolderPlus from "@lucide/svelte/icons/folder-plus";
 import GitBranch from "@lucide/svelte/icons/git-branch";
@@ -73,7 +72,6 @@ import {
   filterRepoGroups,
   isPrimaryWorktree,
   stashCountOf,
-  worktreeFolder,
   worktreeGroupOf,
   type BranchStatusContext,
   type GitPanelFilter,
@@ -715,8 +713,10 @@ const stashesDisabled = (repo: GitRepoSummary) =>
       {#snippet label()}
         {#if repo}
           {@render remoteIcon(repo)}
-          <span class="min-w-0 truncate font-medium" title={repo.name}
-            >{repo.name}</span
+          <!-- The name keeps priority (up to half the line) over the branch. -->
+          <span
+            class="max-w-1/2 shrink-0 truncate font-medium"
+            title={repo.absDir}>{repo.name}</span
           >
           <!-- Expanded, the selector below shows the branch. -->
           {#if !open}
@@ -770,16 +770,6 @@ const stashesDisabled = (repo: GitRepoSummary) =>
             {repo}
             checkedOutIn={selectedElsewhere}
           />
-          <!-- A linked worktree whose folder differs from its branch. -->
-          {#if !isPrimaryWorktree(repo) && worktreeFolder(repo) !== repo.currentBranch}
-            <div
-              class="flex min-w-0 items-center gap-1.5 px-0.5 text-ui text-muted-foreground"
-              title={repo.absDir}
-            >
-              <Folder class="size-3.5 shrink-0" aria-hidden="true" />
-              <span class="min-w-0 truncate">{worktreeFolder(repo)}</span>
-            </div>
-          {/if}
           {@const failure = model.lastRemoteFailure?.(repo.relativePath)}
           {#if failure}
             <p class="text-caption break-words text-destructive">

@@ -249,7 +249,9 @@ $effect(() => () => clearTimeout(hintTimer));
 
 {#snippet branchName(repo: GitRepoSummary, emphasised: boolean)}
   {#if repo.detached || !repo.currentBranch}
-    <span class="min-w-0 truncate text-warning">detached</span>
+    <span class="min-w-0 truncate text-warning" title={repo.absDir}
+      >detached</span
+    >
   {:else}
     {@const parts = splitBranchName(repo.currentBranch)}
     <span
@@ -257,7 +259,7 @@ $effect(() => () => clearTimeout(hintTimer));
         "flex min-w-0 overflow-hidden",
         emphasised && "text-foreground",
       )}
-      title={repo.currentBranch}
+      title={`${repo.currentBranch}\n${repo.absDir}`}
     >
       <span class={cn("truncate", parts.tail && "min-w-[6ch]")}
         >{parts.head}</span
