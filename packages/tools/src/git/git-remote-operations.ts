@@ -84,6 +84,15 @@ export async function switchBaseAndPull(
           "This repository does not have a remote configured.",
         );
       }
+      // A linked worktree holds one branch; switching it would move that work
+      // onto the base branch. Only the primary checkout goes back to base.
+      if (!repo.primaryWorktree) {
+        throw new GitWorkflowError(
+          409,
+          "GIT_LINKED_WORKTREE",
+          "Only the primary worktree can switch to the base branch. Remove this worktree instead.",
+        );
+      }
 
       if (
         requestedBaseBranch &&

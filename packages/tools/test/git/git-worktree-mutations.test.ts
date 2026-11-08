@@ -162,6 +162,21 @@ describe("GitService worktree management", () => {
     });
   });
 
+  it("only the primary checkout switches to base", async () => {
+    await withFixture(async (f) => {
+      const created = await f.service.createWorktree("p", ".", "feature/z");
+      await assert.rejects(
+        f.service.switchBaseAndPull("p", created.repo.relativePath),
+        rejectsWith("GIT_LINKED_WORKTREE", 409),
+      );
+      const linkedDir = join(f.work, ".worktrees", "feature-z");
+      assert.equal(
+        (await f.git(linkedDir, "branch", "--show-current")).trim(),
+        "feature/z",
+      );
+    });
+  });
+
   it("bulk guard keeps only primary checkouts", async () => {
     await withFixture(async (f) => {
       await f.service.createWorktree("p", ".", "linked");

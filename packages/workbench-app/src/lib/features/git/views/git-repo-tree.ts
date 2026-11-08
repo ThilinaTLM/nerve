@@ -300,3 +300,33 @@ export function filterCounts(
       .length,
   };
 }
+
+/** Where a pull request's head branch is checked out in its repository. */
+export type PrCheckout =
+  | { readonly kind: "primary"; readonly repo: GitRepoSummary }
+  | { readonly kind: "linked"; readonly repo: GitRepoSummary };
+
+/**
+ * Looks across every worktree of the repository that `repo` belongs to, not
+ * only the checkout the pull request was opened from.
+ */
+export function prCheckout(
+  repositories: readonly GitRepoSummary[],
+  repo: string,
+  headRefName: string | undefined,
+): PrCheckout | undefined {
+  if (!headRefName) return undefined;
+  const anchor = repositories.find((entry) => entry.relativePath === repo);
+  if (!anchor) return undefined;
+  const group = worktreeGroupOf(anchor);
+  const match = repositories.find(
+    (entry) =>
+      worktreeGroupOf(entry) === group &&
+      !entry.detached &&
+      entry.currentBranch === headRefName,
+  );
+  if (!match) return undefined;
+  return isPrimaryWorktree(match)
+    ? { kind: "primary", repo: match }
+    : { kind: "linked", repo: match };
+}

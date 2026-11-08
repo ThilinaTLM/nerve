@@ -19,7 +19,14 @@ export type PrLinkedConversation = {
 };
 
 export type GithubPrTab = "conversation" | "commits" | "checks" | "files";
-export type PrMergeFollowUp = "stay" | "switch-base-and-pull";
+/**
+ * After a merge: nothing, switch the primary checkout to the base branch and
+ * pull, or remove the linked worktree that held the merged branch.
+ */
+export type PrMergeFollowUp =
+  | "stay"
+  | "switch-base-and-pull"
+  | "remove-worktree";
 
 export type PrSectionState<T> = {
   data?: T;

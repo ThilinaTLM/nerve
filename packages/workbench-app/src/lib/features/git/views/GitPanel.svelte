@@ -466,7 +466,10 @@ const stashesDisabled = (repo: GitRepoSummary) =>
   {@render operationItem("pull")}
   {@render operationItem("push")}
   <Separator />
-  {@render operationItem("switch-base-and-pull")}
+  <!-- Linked worktrees hold one branch; only the primary goes back to base. -->
+  {#if isPrimaryWorktree(repo)}
+    {@render operationItem("switch-base-and-pull")}
+  {/if}
   <Item
     disabled={!model.capabilities.branches.enabled}
     onclick={() => {
@@ -660,7 +663,18 @@ const stashesDisabled = (repo: GitRepoSummary) =>
         },
       )}
     {/if}
-    {#if repo.mergedToBase && !repo.onBaseBranch}
+    {#if repo.mergedToBase && !repo.onBaseBranch && !isPrimaryWorktree(repo)}
+      <!-- A merged linked worktree is done: offer to remove it. -->
+      {@render actionIcon(
+        GitMerge,
+        `Merged into ${repo.baseBranch}. Remove this worktree`,
+        {
+          tone: "text-info",
+          disabled: !model.capabilities.worktrees.enabled,
+          onclick: () => requestRemoveWorktree(repo),
+        },
+      )}
+    {:else if repo.mergedToBase && !repo.onBaseBranch}
       {@const merged = rowState(repo, "switch-base-and-pull")}
       {@render actionIcon(
         GitMerge,
