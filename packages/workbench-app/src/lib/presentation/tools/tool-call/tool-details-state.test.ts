@@ -29,30 +29,26 @@ test("serializeToolArguments memoizes by identity and keeps output", () => {
 test("only sections with content are available, in display order", () => {
   assert.deepEqual(
     availableToolDetailSections({
-      formatted: true,
       agentPreview: false,
       arguments: true,
       completeResult: true,
     }),
-    ["formatted", "arguments", "complete-result"],
+    ["arguments", "complete-result"],
   );
 });
 
-test("a missing tab falls back to the preferred, then the first section", () => {
+test("a missing tab falls back to the first section", () => {
   const available = ["arguments", "complete-result"] as const;
   assert.equal(
-    resolveToolDetailSection(available, "complete-result", "formatted"),
+    resolveToolDetailSection(available, "complete-result"),
     "complete-result",
   );
   assert.equal(
-    resolveToolDetailSection(available, "agent-preview", "arguments"),
+    resolveToolDetailSection(available, "agent-preview"),
     "arguments",
   );
-  assert.equal(
-    resolveToolDetailSection(available, undefined, "formatted"),
-    "arguments",
-  );
-  assert.equal(resolveToolDetailSection([], undefined, "formatted"), undefined);
+  assert.equal(resolveToolDetailSection(available, undefined), "arguments");
+  assert.equal(resolveToolDetailSection([], undefined), undefined);
 });
 
 test("agent preview text joins text blocks and skips images", () => {

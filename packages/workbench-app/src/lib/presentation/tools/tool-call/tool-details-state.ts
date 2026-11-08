@@ -1,7 +1,6 @@
 import type { ToolView } from "../views/tool-result-view";
 
 export type ToolDetailSection =
-  | "formatted"
   | "agent-preview"
   | "arguments"
   | "complete-result";
@@ -11,7 +10,7 @@ type ViewWithSharedBody = Exclude<
   { kind: "bash" | "python" | "jira" | "confluence" | "generic" }
 >;
 
-/** Body check shared by the formatted-view and durable-body predicates. */
+/** Whether a view has a body worth rendering (durable-body predicate). */
 export function hasSharedToolViewBody(view: ViewWithSharedBody): boolean {
   switch (view.kind) {
     case "read":
@@ -54,57 +53,25 @@ export function hasSharedToolViewBody(view: ViewWithSharedBody): boolean {
   }
 }
 
-export function hasFormattedToolView(
-  view: ToolView,
-  hasStoredPreview = false,
-): boolean {
-  switch (view.kind) {
-    case "bash":
-      return Boolean(view.output.length || view.command);
-    case "python":
-      return Boolean(view.output.length || view.code);
-    case "jira":
-    case "confluence":
-      return hasStoredPreview;
-    case "generic":
-      return false;
-    default:
-      return hasSharedToolViewBody(view);
-  }
-}
-
-export function initialToolDetailSection(
-  view: ToolView,
-  hasStoredPreview = false,
-): ToolDetailSection {
-  return hasFormattedToolView(view, hasStoredPreview)
-    ? "formatted"
-    : "agent-preview";
-}
-
 /** Tabs with content, in display order. */
 export function availableToolDetailSections(has: {
-  formatted: boolean;
   agentPreview: boolean;
   arguments: boolean;
   completeResult: boolean;
 }): ToolDetailSection[] {
   const sections: ToolDetailSection[] = [];
-  if (has.formatted) sections.push("formatted");
   if (has.agentPreview) sections.push("agent-preview");
   if (has.arguments) sections.push("arguments");
   if (has.completeResult) sections.push("complete-result");
   return sections;
 }
 
-/** The chosen tab if it exists, else the preferred one, else the first. */
+/** The chosen tab if it exists, else the first. */
 export function resolveToolDetailSection(
   available: readonly ToolDetailSection[],
   chosen: ToolDetailSection | undefined,
-  preferred: ToolDetailSection,
 ): ToolDetailSection | undefined {
-  if (chosen && available.includes(chosen)) return chosen;
-  return available.includes(preferred) ? preferred : available[0];
+  return chosen && available.includes(chosen) ? chosen : available[0];
 }
 
 type SerializedArguments = { text: string; language?: string };
