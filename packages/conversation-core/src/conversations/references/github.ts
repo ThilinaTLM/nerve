@@ -212,22 +212,58 @@ export interface CreatedReferenceSource {
   text: string;
 }
 
+const SIMPLE_WRAPPERS = new Set(["command", "exec", "time", "nohup"]);
+
+/**
+ * The `gh pr|issue create` subcommand of the shell command starting at `start`, if any.
+ * Common wrappers (`timeout`, `env`, ...) and `VAR=value` assignments may precede it. A token
+ * scan rather than a regex keeps this linear on adversarial input.
+ */
+function shellCreateSubcommand(text: string, start: number): string | null {
+  const window = text.slice(start, start + 1000);
+  const newline = window.indexOf("\n");
+  const tokens = (newline < 0 ? window : window.slice(0, newline))
+    .trim()
+    .split(/\s+/);
+  let index = 0;
+  while (index < tokens.length) {
+    const token = tokens[index];
+    if (token === "timeout" || token === "env") {
+      index++;
+      while (tokens[index]?.startsWith("-")) index++;
+      if (token === "timeout") index++; // The duration.
+    } else if (SIMPLE_WRAPPERS.has(token) || /^[A-Za-z_]\w*=/.test(token))
+      index++;
+    else break;
+  }
+  const [gh, subcommand, action = ""] = tokens.slice(index, index + 3);
+  return gh === "gh" &&
+    (subcommand === "pr" || subcommand === "issue") &&
+    /^create(?:[;&|)}]|$)/.test(action)
+    ? subcommand
+    : null;
+}
+
 /** Reference kinds the source actually creates. */
 function createdKinds(source: CreatedReferenceSource): Set<string> {
-  const matches =
-    source.kind === "shell"
-      ? // A gh command at a command start, not quoted prose, echo, wrappers, or scripts.
-        // Common wrappers and environment assignments may precede it.
-        maskShellQuotes(withoutHeredocBodies(source.text)).matchAll(
-          /(?:^|&&|[;|(\n{]|\$\(|\b(?:do|then|else)\b)\s*(?:(?:timeout(?:\s+-\S+)*\s+\S+|env(?:\s+-\S+)*|command|exec|time|nohup|[A-Za-z_]\w*=\S*)\s+)*gh\s+(pr|issue)\s+create(?=[\s;&|)}]|$)/g,
-        )
-      : // Heuristic, not a Python parser: a string starting with the command, or the argv list form.
-        source.text.matchAll(
-          /["']gh\s+(pr|issue)\s+create\b|["']gh["']\s*,\s*["'](pr|issue)["']\s*,\s*["']create["']/g,
-        );
+  const subcommands: (string | undefined)[] = [];
+  if (source.kind === "shell") {
+    // A gh command at a command start, not quoted prose, echo, or scripts.
+    const text = maskShellQuotes(withoutHeredocBodies(source.text));
+    const starts = [0];
+    for (const match of text.matchAll(/&&|[;|(\n{]|\$\(|\b(?:do|then|else)\b/g))
+      starts.push(match.index + match[0].length);
+    for (const start of starts)
+      subcommands.push(shellCreateSubcommand(text, start) ?? undefined);
+  } else
+    // Heuristic, not a Python parser: a string starting with the command, or the argv list form.
+    for (const match of source.text.matchAll(
+      /["']gh\s+(pr|issue)\s+create\b|["']gh["']\s*,\s*["'](pr|issue)["']\s*,\s*["']create["']/g,
+    ))
+      subcommands.push(match[1] ?? match[2]);
   return new Set(
-    [...matches].map((match) =>
-      (match[1] ?? match[2]) === "pr" ? "pull_request" : "issue",
+    subcommands.flatMap((subcommand) =>
+      subcommand ? [subcommand === "pr" ? "pull_request" : "issue"] : [],
     ),
   );
 }

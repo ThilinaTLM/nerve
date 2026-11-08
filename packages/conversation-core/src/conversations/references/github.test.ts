@@ -140,8 +140,10 @@ test("heredoc bodies and common wrappers do not hide shell create commands", () 
   for (const command of [
     "cat <<EOF\ngh pr create\nEOF",
     "echo timeout 60 gh pr create",
+    // Ambiguous wrapper chains must stay linear (CodeQL js/redos).
+    `timeout${"\t-!\tA=\ttimeout".repeat(5_000)}`,
   ])
-    assert.equal(created(command, 0, output), null, command);
+    assert.equal(created(command, 0, output), null, command.slice(0, 40));
 });
 
 test("existing pull requests reported by gh are not recorded as created", () => {
