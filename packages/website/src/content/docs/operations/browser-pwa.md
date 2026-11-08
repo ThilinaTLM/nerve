@@ -27,7 +27,7 @@ Repository development defaults to disposable `data/storage-1`, daemon HTTP `439
 
 ## Mobile and responsive use
 
-The UI switches to drawer-based compact navigation below 1024px and phone density below 640px. To access it from another device, the daemon must bind beyond loopback with explicit permission and authentication. Follow [LAN and mobile HTTPS](/operations/lan-mobile/) rather than exposing a development server casually.
+The UI switches to drawer-based compact navigation below 1024px and phone density below 640px. To access it from another device, the daemon must bind beyond loopback with explicit permission, and the device must be paired. Follow [LAN and mobile HTTPS](/operations/lan-mobile/) rather than exposing a development server casually.
 
 ## Next steps
 

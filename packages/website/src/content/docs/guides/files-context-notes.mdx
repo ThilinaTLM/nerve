@@ -1,0 +1,68 @@
+---
+title: Files, context, and notes
+description: Browse, search, and edit project files, check what's in the model's context, and keep scratch notes.
+sidebar:
+  order: 9
+---
+
+import DocsScreenshot from "../../../components/docs/DocsScreenshot.astro";
+import filesDark from "../../../assets/screenshots/desktop/files-dark.webp";
+import filesLight from "../../../assets/screenshots/desktop/files-light.webp";
+
+Open files from the Files panel, a tool card, an `@` reference, Git changes, or a pull request. Use context and notes to keep a long task on track.
+
+## Browse files
+
+The **Files** panel shows the project tree. Changed files and folders that contain changes are colored and marked with a dot, and ignored files are dimmed. Use the panel's options to hide ignored files or dotfiles, collapse everything, or turn off automatic reveal of the active file. Type to jump to an entry, or use the filter box to narrow the tree. The panel says when live updates are off or the Git status could not be read.
+
+You can create and rename files inline, select several entries, cut, copy, and paste them, delete them, and undo a move. Drag entries to move them (hold **Alt** to copy), or drop files from your computer onto a folder to add them. If a name is already taken, Nerve asks before replacing anything. All of this stays inside the project folder.
+
+## Find files and text
+
+- **Go to file** (`Mod+P`) fuzzy-matches paths. With an empty query it lists recent files. Add `:line` to jump to a line, and press **Alt+Enter** to reveal the file in the Files panel instead of opening it.
+- **Search in files** (`Mod+Shift+F`) searches file contents. Toggle regex, case, whole word, and ignored files, narrow by include and exclude globs, and open a match from the results grouped by file.
+
+<DocsScreenshot
+  light={filesLight}
+  dark={filesDark}
+  alt="Nerve Search in files showing content results for rateLimit grouped by file, with rate-limit.ts open in the editor and the Git changes panel on the right"
+  caption="Search in files lists matches grouped by file. Open one to land on its line in the editor."
+  widths={[480, 768, 1024, 1440]}
+  sizes="(min-width: 72rem) 48rem, calc(100vw - 3rem)"
+/>
+
+## View and edit files
+
+Nerve shows text, images, SVG, and Markdown in one viewer. You can jump to a line (`Ctrl+G`), wrap long lines, find (`Mod+F`) and replace (`Ctrl+H`, or `⌥⌘F` on macOS), and switch Markdown, SVG, and Mermaid between rendered and source views. A status bar shows the cursor position, indentation, line endings, encoding, and language. Images and diagrams open in a viewer with zoom, fit, actual size, copy, download, and full screen. An empty Markdown, SVG, or Mermaid file opens as source so you can start writing.
+
+Small text files inside the project can be edited in place. Type your change and save with `Mod+S`. A marker shows unsaved edits, and closing a modified tab asks whether to save or discard. If another program changed the file after you opened it, Nerve keeps your draft and reports a conflict instead of overwriting the newer version.
+
+Diffs, in Git changes and on pull request files, fold unchanged regions and open on the first change. Use **Change N of M** with the previous and next buttons (`Alt+↑` and `Alt+↓`, or `Shift+F7` and `F7`) to step through them, and a marker strip beside the scrollbar to jump to any change. Switch between unified and side-by-side views; narrow panes stay unified.
+
+For larger changes or a full IDE, open the project in an [external editor](/integrations/external-editors/).
+
+## Check the context
+
+The context popover beside the composer shows how full the model's context is and the conversation's token totals. Select the context indicator to open it. From the popover you can:
+
+- compact the conversation;
+- choose the conversation's compaction preset (Aggressive, Balanced, or Conservative);
+- copy the session details, such as the project, folder, and conversation ID;
+- read or edit the conversation's custom instructions.
+
+The meter can show `?` before the provider has reported usage. See [History, branches, and recovery](/guides/history-and-recovery/) for how compaction works.
+
+## Keep scratch notes
+
+**Scratch Notes** is a panel of notes for the current project. Create and delete notes there for observations that shouldn't become repository files. Agents don't read notes automatically. For lasting guidance, use `AGENTS.md`, `SYSTEM.md`, or a [skill](/guides/skills-and-resources/).
+
+## Good to know
+
+- You can't edit files outside the project, symbolic links, binary files, or text files over 1 MiB.
+- Large files may be shortened in the viewer, with a note when they are.
+
+## Next steps
+
+- [Sub-agents](/guides/agents-and-delegation/)
+- [Skills and project resources](/guides/skills-and-resources/)
+- [Git changes](/guides/git/)

@@ -14,6 +14,9 @@ sidebar:
 | New chat                    | `Mod+N`           |
 | New chat from project       | `Mod+Shift+N`     |
 | Search conversations        | `Mod+K`           |
+| Open folder                 | `Mod+O`           |
+| Go to file                  | `Mod+P`           |
+| Search in files             | `Mod+Shift+F`     |
 | Toggle conversation History | `Mod+Shift+H`     |
 | Previous / next message     | `Alt+↑` / `Alt+↓` |
 | Close pane                  | `Mod+W`           |

@@ -23,6 +23,10 @@ The daemon writes structured reports for handled fatal errors, enables Node repo
 
 There is no dedicated in-app crash-report list/download route. Inspect the directory directly and redact before sharing. Automatic retention is age-based; cache and temporary tool artifacts remain explicit manual cleanup targets to avoid disrupting linked or active work.
 
+## Restart the UI from the tray
+
+If the window turns black, flickers, or stops repainting, use **Restart UI** in the tray menu. It restarts Electron's GPU process and reloads the window without restarting the daemon, so running conversations and commands continue. The tray icon is available on desktop launches even when **Close to system tray** is off. The menu also has **Restart Daemon** (only for a daemon the desktop started) and **Open in Browser**. Mobile and share links are no longer in the tray; pair devices from **Settings → Devices**.
+
 ## Developer performance diagnostics
 
 Unpackaged source desktop launches (`pnpm desktop:dev`) automatically write content-free 10-second process, event-loop, and subsystem activity samples to `<NERVE_HOME>/logs/performance-<session-id>.jsonl`. Each desktop launch gets a separate timestamped file shared with its owned daemon; daemon restarts during that launch remain in the same file. When CPU becomes high, note the time and ask the coding agent to inspect the recent samples. No alternate profile, ports, or launch flags are required.

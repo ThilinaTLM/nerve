@@ -112,6 +112,7 @@ try {
   const captureArgs = [
     "scripts/screenshots/capture.ts",
     `--base-url=${baseUrl}`,
+    `--home=${home}`,
     `--theme=${values.theme}`,
     `--kind=${values.kind}`,
     `--out=${output}`,

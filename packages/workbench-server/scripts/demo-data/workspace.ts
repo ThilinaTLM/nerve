@@ -37,6 +37,12 @@ export interface DemoRepo {
   readonly dirty?: Readonly<Record<string, string>>;
   /** Files modified and then staged, to show a mixed index. */
   readonly staged?: Readonly<Record<string, string>>;
+  /** Linked worktrees created beside the repository, inside the project. */
+  readonly worktrees?: readonly {
+    readonly branch: string;
+    readonly directory: string;
+    readonly dirty?: Readonly<Record<string, string>>;
+  }[];
 }
 
 const AURORA_REPOS: readonly DemoRepo[] = [
@@ -44,6 +50,28 @@ const AURORA_REPOS: readonly DemoRepo[] = [
     name: "aurora-api",
     description: "Booking API service",
     branches: ["main", "feat/rate-limiting", "fix/booking-timezones"],
+    worktrees: [
+      {
+        branch: "feat/rate-limiting",
+        directory: "aurora-api-rate-limiting",
+        dirty: {
+          "README.md":
+            "# aurora-api\n\nBooking API service.\n\nRate limits are documented in docs/rate-limiting.md.\n",
+          "docs/rate-limiting.md":
+            "# Rate limiting\n\nPOST /bookings allows a burst of 160 requests per client in each window.\n",
+        },
+      },
+      {
+        branch: "fix/booking-timezones",
+        directory: "aurora-api-timezones",
+        dirty: {
+          "src/timezones.ts": `export function toVenueTime(utc: Date, zone: string): string {
+  return utc.toLocaleString("en-GB", { timeZone: zone });
+}
+`,
+        },
+      },
+    ],
     files: {
       "package.json": `{
   "name": "aurora-api",
@@ -536,6 +564,12 @@ export async function createDemoWorkspace(
 
     for (const branch of repo.branches.slice(1)) {
       await git(repoRoot, ["branch", branch]);
+    }
+
+    for (const worktree of repo.worktrees ?? []) {
+      const worktreeRoot = join(root, worktree.directory);
+      await git(repoRoot, ["worktree", "add", worktreeRoot, worktree.branch]);
+      if (worktree.dirty) await writeTree(worktreeRoot, worktree.dirty);
     }
 
     if (repo.staged) {

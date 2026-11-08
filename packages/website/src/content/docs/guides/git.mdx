@@ -14,15 +14,21 @@ Use the **Git Changes** panel to review what the agent changed, stage it, and sy
 <DocsScreenshot
   light={gitLight}
   dark={gitDark}
-  alt="Nerve Git panel showing four repositories discovered in one project, the selected repository's branch, and its staged and unstaged changes"
-  caption="Every repository under the project folder gets its own branch and working-tree state beside the conversation. Discarding changes still asks first."
+  alt="Nerve Git panel showing several repositories discovered in one project, the selected branch, and its staged and unstaged changes"
+  caption="Every repository and worktree under the project folder appears in one tree beside the conversation. Discarding changes still asks first."
   widths={[480, 768, 1024, 1440]}
   sizes="(min-width: 72rem) 48rem, calc(100vw - 3rem)"
 />
 
 ## Review changes
 
-Nerve finds every Git repository in the project. Pick one from the repository chips to see its branch, change counts, and staged and unstaged files. Open a changed file to read its diff. If the current branch has a pull request, the panel links to it and its checks.
+Nerve finds every Git repository in the project, including linked worktrees inside it (worktrees outside the project are counted in a note). The panel lists them as a tree: expand a repository to see its branches, and select a branch to inspect it.
+
+- Use **All**, **Changed**, or **Attention** to narrow the tree. Attention shows branches with a failed operation or failing checks, merged branches, and branches that are behind while you have local work. The filter box matches repository and branch names.
+- The **Selected branch** section shows the branch, sync state, and its pull request and checks when there is one. The **Changes** section lists the staged and unstaged files. Open a changed file to read its diff; open diffs refresh on their own.
+- Drag the divider between the two sections to resize them, or collapse either one. Nerve remembers your layout and filter.
+
+Git state is read by the Nerve daemon, so the panel stays current without polling: edits, commits, and checkouts made in a terminal show up within about a second.
 
 ## Stage and unstage
 
@@ -34,17 +40,19 @@ Discarding changes asks for confirmation first.
 
 ## Switch branches
 
-Create or switch branches from the branch control. When you're on a base branch with work to do, a suggestion offers to move the work to a new branch.
+Create or switch branches from the branch control, or **Switch branch** in a repository's menu. A branch that another worktree has checked out is marked **checked out in** that folder, and Git only allows a branch in one worktree, so switching to it is blocked. When you're on a base branch with work to do, a suggestion offers to move the work to a new branch.
 
 ## Stash work
 
-Stash from the **Staged** heading to save staged changes, or from **Unstaged** to save unstaged and untracked ones. Right-click a file or folder to stash just that path. When a repository has stashes, **Stashes (N)** opens a manager where you can apply a stash (keeping it) or drop it after confirming.
+Stash from the **Staged** heading to save staged changes, or from **Unstaged** to save unstaged and untracked ones. Right-click a file or folder to stash just that path. **Stashes** in a repository's menu opens a manager where you can apply a stash (keeping it) or drop it after confirming.
 
 ## Fetch, pull, and push
 
 Fetch, pull, push, and sync run in the background, so you can keep working. The sync control shows progress and a **Stop** button when stopping is possible. Failures show up in [Notifications](/guides/notifications/) with **Retry** and **Dismiss**.
 
-With several repositories, the **All repositories** menu offers **Fetch all**, **Pull all**, and **Switch all to base and pull**. The last one asks first and only fast-forwards. Git stops if local files would be overwritten.
+With several repositories, the **All repositories** menu offers **Fetch all**, **Pull all**, and **Back to base**, which switches each primary checkout to its base branch and pulls. The last one asks first and only fast-forwards. Git stops if local files would be overwritten.
+
+Nerve also fetches each repository quietly in the background, one at a time, so remote state stays fairly fresh. It never merges or changes your files.
 
 ## Good to know
 

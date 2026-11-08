@@ -11,7 +11,7 @@
  * scene should differ only by colour mode.
  */
 
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { parseArgs } from "node:util";
 import { chromium, type Browser, type Page } from "playwright";
@@ -29,6 +29,7 @@ const { values } = parseArgs({
   options: {
     "base-url": { type: "string", default: "http://127.0.0.1:3847" },
     out: { type: "string", default: ".screenshots" },
+    home: { type: "string" },
     scenes: { type: "string" },
     kind: { type: "string", default: "both" },
     theme: { type: "string", default: "both" },
@@ -37,6 +38,17 @@ const { values } = parseArgs({
 
 const baseUrl = values["base-url"];
 const outDir = values.out;
+
+/** The daemon gates every request; loopback clients authenticate with the
+ * demo home's local token cookie, exactly as the desktop shell does. */
+async function localTokenCookie() {
+  if (!values.home) throw new Error("--home is required to authenticate");
+  const token = (
+    await readFile(join(values.home, "secrets", "daemon-token"), "utf8")
+  ).trim();
+  return { name: "nerve_token", value: token, url: baseUrl };
+}
+const tokenCookie = await localTokenCookie();
 const wanted = values.scenes
   ? new Set(values.scenes.split(",").map((value) => value.trim()))
   : undefined;
@@ -84,7 +96,16 @@ async function settle(page: Page) {
   await page.waitForTimeout(800);
 }
 
+/** Tabs from earlier scenes are restored on reload; start each scene clean so
+ * frames do not accumulate unrelated tabs and tab-strip scroll arrows. */
+const WORKSPACE_TABS_KEY = "nerve.workspaceTabs.v3";
+
 async function openWorkbench(page: Page) {
+  await page.goto(baseUrl, { waitUntil: "domcontentloaded" });
+  await page.evaluate(
+    (key) => localStorage.removeItem(key),
+    WORKSPACE_TABS_KEY,
+  );
   await page.goto(baseUrl, { waitUntil: "domcontentloaded" });
   await settle(page);
   /* Park the pointer outside the viewport so no hover state is captured. */
@@ -116,6 +137,7 @@ async function captureGroup({
       timezoneId: "Europe/London",
       locale: "en-GB",
     });
+    await context.addCookies([tokenCookie]);
     await installDemoUsage(context);
     await context.addInitScript(themeBootstrap(mode));
     const page = await context.newPage();

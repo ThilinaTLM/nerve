@@ -7,6 +7,71 @@ import type { DiscoverNewsEntry } from "./entries.js";
  */
 export const discoverNewsCatalog: readonly DiscoverNewsEntry[] = [
   {
+    id: "multi-repo-git",
+    version: 1,
+    releasedIn: "next",
+    featured: true,
+    artwork: "git-actions",
+    title: "Every repository and worktree, in one Git panel",
+    summary:
+      "Browse a project's repositories and worktrees, spot what changed, and act on the selected branch.",
+    details: [
+      "The Git panel lists the project's repositories and worktrees as a tree. Show All, Changed, or Attention, or filter by repository or branch name.",
+      "Pick a repository to see its Selected branch and Changes sections, with branch actions that know which worktree has the branch checked out.",
+      "The Pull requests tab now has search, so you can find a pull request without scrolling.",
+    ],
+    action: {
+      kind: "guide",
+      guideId: "workbench",
+      label: "Tour the Workbench",
+    },
+  },
+  {
+    id: "fork-conversation",
+    version: 1,
+    releasedIn: "next",
+    title: "Fork a conversation from an earlier point",
+    summary:
+      "In History, choose Fork here to start a new conversation from any message. The original stays as is.",
+  },
+  {
+    id: "files-panel-overhaul",
+    version: 1,
+    releasedIn: "next",
+    title: "A faster, more capable Files panel",
+    summary:
+      "Edit files in place, jump to any file with Quick open, and search text across the project.",
+  },
+  {
+    id: "device-pairing",
+    version: 1,
+    releasedIn: "next",
+    title: "Pair your phone and sign in with a passkey",
+    summary:
+      "Pair a device with a QR code, then sign in with a passkey. Manage devices and sign-ins in Settings.",
+    action: {
+      kind: "settings",
+      pageId: "devices",
+      sectionId: "devices",
+      label: "Manage devices",
+    },
+  },
+  {
+    id: "indigo-theme",
+    version: 1,
+    releasedIn: "0.39.1",
+    artwork: "themes",
+    title: "New dark theme: Indigo",
+    summary:
+      "A deep purple dark theme joins Nerve, Melange, and Graphite in the Theme picker.",
+    action: {
+      kind: "settings",
+      pageId: "workbench",
+      sectionId: "appearance",
+      label: "Choose a theme",
+    },
+  },
+  {
     id: "repo-aware-suggestions",
     version: 1,
     releasedIn: "0.39.0",
