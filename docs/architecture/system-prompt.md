@@ -4,19 +4,7 @@ The system prompt gives an agent its working instructions and the context availa
 
 ## Assembly
 
-The host first filters tools and loads the resources available to this conversation. The prompt builder then assembles those captured inputs in order:
-
-```mermaid
-flowchart TD
-    T[Enabled tools and discovered resources] --> C[Capture instructions and resolve guide references]
-    C --> Q{Conversation-local system prompt?}
-    Q -->|Yes| O[Local base plus captured instructions]
-    Q -->|No| N[Normal assembly]
-    O --> R[Prepared provider request]
-    N --> R
-```
-
-Normal assembly uses:
+The host first filters tools and loads the resources available to this conversation, capturing instructions and resolving guide references. The prompt builder then assembles those captured inputs. Normal assembly uses, in order:
 
 1. The default base, or a supplied replacement base.
 2. Appended project context.
@@ -32,13 +20,9 @@ Guide references such as `{{skill:<name>}}` resolve to bundled skill paths durin
 
 ## Tool-writing rules
 
-- Lead with what the tool does, adding non-obvious execution behavior so the agent can predict effects such as background work or external transfer.
-- Keep units, defaults, indexing and format examples where needed, while avoiding repeated parameter names and types because the schema already supplies them.
-- Leave out configuration details the agent cannot act on so descriptions remain useful at call time; errors should explain configuration failures.
-- Retain explicit user-request restrictions on mutating tools where required so shortening a description does not weaken its safety instructions.
-- Move lengthy workflows into guide skills while retaining enough detail to call the tool correctly and safely, so workflow guidance and call requirements can evolve at their owning layers.
-
-For example, a tool can point to a bundled integration guide rather than repeating its workflow in every description. The tool definition still retains any required restriction on mutations because loading a guide must not be a prerequisite for knowing that boundary.
+- Lead with what the tool does and any non-obvious behavior, such as background work or external transfer. Keep units, defaults and format examples; omit what the schema already states and configuration details the agent cannot act on.
+- Keep restrictions on mutating tools (for example, act only on explicit user request) in the tool description itself. A guide may not be loaded, so shortening a description must not weaken its safety boundary.
+- Move lengthy workflows into guide skills, keeping enough in the description to call the tool correctly and safely.
 
 ## Where it lives
 

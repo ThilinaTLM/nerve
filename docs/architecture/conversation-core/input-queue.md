@@ -22,17 +22,9 @@ Delivery appends prompt or notice events, advances the head, updates prompt acti
 
 ## Pause and waking
 
-Acceptance and waking are separate decisions because a producer may want to queue context without starting model work. Targeting controls when an input can be delivered; the wake setting controls whether acceptance requests idle processing. These rules apply to queued inputs:
+Acceptance and waking are separate decisions, so a producer can queue context without starting model work. A user submission clears pause; parent prompts and system notices respect it. Any of them wakes an idle conversation only if its wake flag is set and the conversation is unpaused. User and parent prompts wake by default; notice producers choose explicitly. Retrying an already delivered input neither clears pause nor wakes. Child conversations reject user submissions; see [delegation](delegation.md).
 
-| Source        | Respects pause?                             | Clears pause?                 | Can wake?                                                     |
-| ------------- | ------------------------------------------- | ----------------------------- | ------------------------------------------------------------- |
-| User          | Clears it before checking wake eligibility. | Yes, for pending submissions. | Yes, when waking is enabled.                                  |
-| Parent        | Yes.                                        | No.                           | Yes, when waking is enabled and the conversation is unpaused. |
-| System notice | Yes.                                        | No.                           | Yes, when waking is enabled and the conversation is unpaused. |
-
-User and parent prompts enable waking by default; notice producers choose it explicitly. Retrying an already delivered input neither clears pause nor wakes processing. Child conversations, created by a parent to delegate work, reject user submissions; see [delegation](delegation.md).
-
-Replacement through force push uses [scheduler cancellation](tool-call-lifecycle.md#cancellation-and-force-push) to reach a safe boundary; it does not give the queued input special priority.
+Force push reaches a safe boundary through [scheduler cancellation](tool-call-lifecycle.md#cancellation-and-force-push); the queued input gets no special priority.
 
 ## Retry identity
 

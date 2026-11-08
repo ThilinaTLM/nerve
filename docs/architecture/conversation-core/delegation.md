@@ -12,21 +12,11 @@ An **applied snapshot** is the copy of a profile's identity and contributions sa
 
 ## Preference contributions
 
-For each setting, the highest applicable contribution wins:
-
-```mermaid
-flowchart TD
-    A[Profile requirement] -->|outranks| B[Explicit conversation choice]
-    B -->|outranks| C[Profile recommendation]
-    C -->|outranks| D[Process default]
-    D -->|outranks| E[Project preference]
-    E -->|outranks| F[User preference]
-    F -->|outranks| G[Built-in default]
-```
+Per setting, a profile requirement outranks an explicit conversation choice, which outranks a profile recommendation; process, project, user and built-in defaults rank below those (order in [`resolveAgentConfiguration`](../../../packages/contracts/src/domains/agent-configuration/resolver.ts)).
 
 A profile may leave a setting alone, recommend a value or require it. Requirements control the effective value while preserving the underlying choice, so switching away restores that choice. Reset removes a local override so inheritance can resume.
 
-For example, a conversation can retain Supervised as its own permission choice while Planning requires planning policy. Returning to Coding reveals Supervised again; Coding does not itself grant write permission. Authorization still checks current policy because a profile preference is not permission to execute a tool.
+A conversation can keep Supervised as its own permission choice while Planning requires planning policy; returning to Coding reveals Supervised again. A profile preference is never permission to execute a tool: authorization still checks current policy.
 
 Conversation-local instructions and custom base prompts survive profile switches because they belong to the conversation rather than the reusable definition. Profile instructions also contribute with a custom base; see [prompt assembly](../system-prompt.md).
 
@@ -34,27 +24,7 @@ Conversation-local instructions and custom base prompts survive profile switches
 
 Creation preferences choose the initial lead profile, while later profile switches are user-controlled. Planning requires planning policy and plan presentation, so its behavior comes from the same profile mechanism as other agent configurations.
 
-In the planning flow, the agent presents a plan for the user to review. Accepting it selects an implementation profile and queues implementation input. Confirmation binds to both the target profile's digest and the conversation document's **revision**, a version counter used to reject stale saves. If the target or configuration changes, the user must refresh confirmation so acceptance cannot silently authorize a different setup.
-
-```mermaid
-sequenceDiagram
-    participant A as Agent
-    participant U as User
-    participant H as Configuration host
-    participant C as Conversation core
-    A->>U: Present plan for review
-    U->>U: Review plan and implementation profile
-    U->>C: Accept with target profile digest and config revision
-    C->>H: Validate confirmation and apply profile plus choices
-    alt Target or configuration changed
-        H-->>U: Refresh confirmation
-    else Confirmation current
-        H->>H: Commit profile and choices together
-        H-->>C: Configuration committed
-        C->>C: Settle review
-        C->>A: Queue implementation input
-    end
-```
+In the planning flow, the agent presents a plan for the user to review. Accepting it selects an implementation profile and queues implementation input. Confirmation binds to both the target profile's digest and the conversation document's **revision**, a version counter used to reject stale saves. A change to either requires refreshed confirmation, so acceptance cannot silently authorize a different setup.
 
 The implementation choices and profile snapshot commit together before core settles the review and queues the input. JSON configuration and conversation history have separate persistence boundaries, so an interrupted pending review requires explicit reconfirmation rather than inferring acceptance from the current profile.
 
@@ -68,10 +38,9 @@ Credentials, resource availability and authorization remain live because executi
 
 ### Rules enforced for every sub-agent
 
-- Children cannot delegate again or use human-in-the-loop tools, so delegated work cannot create an unmanaged interaction tree. Tool preparation filters these operations, and execution independently rejects them.
-- Children use only allowed rule sets without human approval prompts, so they can complete without a person answering on their behalf.
-- Children receive no Baseline or overlay grants, so interactive lead grants cannot widen delegated execution. These policy terms are defined in [permissions](../permissions.md).
-- Children reject direct user input, so the lead remains the source of assignments and follow-ups.
+- No further delegation or human-in-the-loop tools: tool preparation filters them and execution independently rejects them, so delegated work cannot create an unmanaged interaction tree.
+- Only rule sets that need no human approval, and no Baseline or overlay grants (terms in [permissions](../permissions.md)), so interactive lead grants cannot widen delegated execution.
+- No direct user input, so the lead remains the source of assignments and follow-ups.
 
 ## Delegation lifecycle
 
@@ -96,20 +65,17 @@ sequenceDiagram
     C->>L: Queue completion notice and wake lead
     L->>C: Follow-up with existing name
     C->>S: Queue input and resume if paused
-    Note over L,S: A later stop of the lead cascades
-    L->>C: Stop lead
-    C->>S: Stop child and background commands
 ```
 
-Names identify children within a lead, case-insensitively. Reusing a name queues a follow-up to the existing child, preserving its context and configuration. Stopping a child preserves it for later follow-ups; stopping the lead cascades to descendants and background commands so delegated work does not continue behind a paused lead. Deleting the lead deletes its children.
+Names identify children within a lead, case-insensitively. Reusing a name queues a follow-up to the existing child, preserving its context and configuration. Stopping a child preserves it for follow-ups; stopping the lead [cascades to descendants](tool-call-lifecycle.md#cancellation-and-force-push). Deleting the lead deletes its children.
 
 ## Completion notices
 
-A finished child execution queues a notice that wakes an idle lead, avoiding polling. Background commands can outlive an execution; their completion wakes the child for another execution and report. Explicit tool stops and stops cascading from a paused lead suppress redundant cancellation notices because the stop is already accounted for.
+A finished child execution queues a notice that wakes an idle lead, avoiding polling; the shared settle path is in [async bash](async-bash-and-launches.md#background-tasks). Cancellation notices are suppressed when a stop already accounts for them.
 
 ### Report cap
 
-Final responses have a bounded inline representation, with the full report saved in conversation-owned assets, so long child output does not overwhelm the lead's context. This is separate from [tool-result projection](../tool-result-projection.md), which can also project the delegation tool's own result.
+Final responses have a bounded inline form, with the full report saved as a conversation-owned asset, so long output does not overwhelm the lead's context. This is separate from [tool-result projection](../tool-result-projection.md).
 
 ## Where it lives
 
@@ -120,10 +86,6 @@ Final responses have a bounded inline representation, with the full report saved
 | Profile preview and application           | [`createProfileTransitions`](../../../packages/workbench-server/src/infrastructure/configuration/agent-configuration/profile-transitions.ts) and [transition tests](../../../packages/workbench-server/src/infrastructure/configuration/agent-configuration/profile-transitions.test.ts)          |
 | Initial selection and child configuration | [`scopedConversationCreation`](../../../packages/workbench-server/src/core-host/scoped-conversation-creation.ts)                                                                                                                                                                                  |
 | Built-in profile contributions            | [Built-in definitions](../../../packages/workbench-server/src/infrastructure/configuration/agent-configuration/builtins/)                                                                                                                                                                         |
-| Plan acceptance and interrupted reviews   | [Plan-review lifecycle tests](../../../packages/conversation-core/src/runtime/plan-review-lifecycle.test.ts)                                                                                                                                                                                      |
 | Delegation and host boundary              | [`createDelegationTools`](../../../packages/conversation-core/src/delegation/delegation-tools.ts), [`SubagentHost`](../../../packages/conversation-core/src/delegation/subagent-host.ts) and [lifecycle tests](../../../packages/conversation-core/src/delegation/delegation-tools.test.ts)       |
 | Child tool and input restrictions         | [`scopedTurnResources`](../../../packages/workbench-server/src/core-host/scoped-turn-resources.ts), [`ToolCallService`](../../../packages/conversation-core/src/tool-calls/tool-call.service.ts) and [`InputQueueService`](../../../packages/conversation-core/src/inputs/input-queue.service.ts) |
-| Child policy composition                  | [`composeEffectivePermissionPolicy`](../../../packages/tools/src/policy/permission-policy.ts)                                                                                                                                                                                                     |
 | Limits and report storage                 | [Sub-agent constants](../../../packages/contracts/src/domains/subagents/constants.ts) and [`inlineReport`](../../../packages/conversation-core/src/delegation/child-report.ts)                                                                                                                    |
-
-Conversation presentation and attention belong to [conversation state and attention](../conversation-state-and-attention.md).

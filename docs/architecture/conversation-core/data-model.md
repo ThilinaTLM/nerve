@@ -8,7 +8,7 @@ Part of [conversation core](README.md).
 
 SQLite owns relational identity, branchable facts and unfinished work. Scoped JSON owns agent configuration and permission files; managed files hold large outputs and images. Live progress and launch instances remain in memory. Each authority has its own lifecycle, keeping mutable settings and large payloads out of the event log; see [storage](../storage.md) and [configuration](../configuration.md).
 
-Working directory belongs to the conversation, while agent settings live in files, so history selection and configuration changes remain independent. The schema and migration runner define the physical constraints; contracts validate application shapes.
+Working directory belongs to the conversation, while agent settings live in files, so history selection and configuration changes remain independent. The physical schema is owned by conversation core's own storage migrations (`coreMigrations`); the server's migration steps only import legacy homes into it. Contracts validate application shapes.
 
 ## Relationships
 
@@ -50,29 +50,21 @@ erDiagram
 
 Event predecessors, selected heads, tool-call assistant references and asset references are constrained to the owning conversation. Parent relationships stay within the project, keeping recursive ownership inside one project. Event sequence replay includes every branch independently of the selected head, so clients can observe durable changes even outside the active transcript.
 
-## What the tables own
+## Non-obvious tables
 
-| Table                    | Purpose                                                                                                             |
-| ------------------------ | ------------------------------------------------------------------------------------------------------------------- |
-| `project`                | Groups conversations and project-scoped resources.                                                                  |
-| `trusted_resource`       | Records approval of file content using a digest, a hash identifying those exact bytes.                              |
-| `schema_migrations`      | Records applied core schema steps so database opening can verify them.                                              |
-| `conversation`           | Owns identity, parent relationship, selected history head and current runtime controls.                             |
-| `conversation_event`     | Stores durable facts, with predecessor links for branches and sequence order for replay.                            |
-| `tool_call`              | Checkpoints unfinished tool work across execution and interaction waits.                                            |
-| `input_queue`            | Holds accepted inputs until safe delivery.                                                                          |
-| `async_bash`             | Tracks conversation-owned background commands beyond foreground tool completion.                                    |
-| `asset`                  | Tracks managed files and their producers so results can be referenced and cleaned up.                               |
-| `conversation_reference` | Links a conversation to external resources it referenced or created; see [discovery](../conversation-discovery.md). |
-| `scratch_note`           | Stores project-owned workbench notes independently of agent history.                                                |
+The schema lists every table; these need a note:
+
+- `trusted_resource` records approval of file content by digest (a hash of those exact bytes), scoped to user or project.
+- `async_bash` tracks conversation-owned background commands beyond foreground tool completion.
+- `asset` tracks managed files and their producers so results can be referenced and cleaned up.
+- `conversation_reference` links a conversation to external resources; see [discovery](../conversation-discovery.md).
+- `scratch_note` holds project-owned workbench notes independent of agent history.
 
 ## Durability and identity
 
-A storage transaction is the atomic boundary for [tool settlement](tool-call-lifecycle.md) and [input delivery](input-queue.md). Pending rows become events without a window in which both durable representations disagree. Execution claims identify the worker allowed to settle a call, fencing late writes from stale workers. External effects remain outside SQLite, so a claim cannot prove whether an interrupted command ran.
+A storage transaction is the atomic boundary for [tool settlement](tool-call-lifecycle.md) and [input delivery](input-queue.md): pending rows become events with no window in which both representations exist. Execution claims fence late writes from stale workers. External effects stay outside SQLite, so a claim cannot prove an interrupted command did not run; see [recovery](tool-call-lifecycle.md#recovery).
 
-Trust decisions identify approved content by digest, so changing a file requires renewed approval. Decisions also record scope, allowing user and project resources to have independent identities. The final schema defines profile trust as `agent_profile`.
-
-Derived conversation status and presentation state are covered by [conversation state and attention](../conversation-state-and-attention.md).
+Trust decisions identify approved content by digest, so changing a file requires renewed approval; scope keeps user and project resources independent.
 
 ## Deletion
 
@@ -84,14 +76,13 @@ Project deletion deletes conversations before the project row; project-owned scr
 
 ## Where it lives
 
-| Concern                          | Owner                                                                                                                                                                                                                                       |
-| -------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Physical schema                  | [`coreSchemaV1`](../../../packages/conversation-core/src/storage/schema.ts), [`coreSchemaV2`](../../../packages/conversation-core/src/storage/schema-v2.ts), [`coreSchemaV3`](../../../packages/conversation-core/src/storage/schema-v3.ts) |
-| Schema verification and upgrades | [`migrate`](../../../packages/conversation-core/src/storage/migrations.ts)                                                                                                                                                                  |
-| Event reads and writes           | [`ConversationEventRepository`](../../../packages/conversation-core/src/storage/conversation-event.repository.ts)                                                                                                                           |
-| Trust decisions                  | [`TrustedResourceRepository`](../../../packages/conversation-core/src/storage/trusted-resource.repository.ts)                                                                                                                               |
-| Application shapes               | [Core contracts](../../../packages/contracts/src/domains/core/)                                                                                                                                                                             |
-| Atomic updates                   | [`CoreStorage.transaction`](../../../packages/conversation-core/src/storage/core-storage.ts)                                                                                                                                                |
-| Conversation deletion            | [`ConversationService.delete`](../../../packages/conversation-core/src/conversations/conversation.service.ts)                                                                                                                               |
-| File cleanup                     | [`AssetStore.cleanupOrphans`](../../../packages/conversation-core/src/assets/asset-store.ts)                                                                                                                                                |
-| Project deletion                 | [`ProjectService.delete`](../../../packages/conversation-core/src/conversations/project.service.ts)                                                                                                                                         |
+| Concern                      | Owner                                                                                                             |
+| ---------------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| Physical schema and versions | [`coreMigrations`](../../../packages/conversation-core/src/storage/migrations.ts) (SQL in `schema*.ts` beside it) |
+| Event reads and writes       | [`ConversationEventRepository`](../../../packages/conversation-core/src/storage/conversation-event.repository.ts) |
+| Trust decisions              | [`TrustedResourceRepository`](../../../packages/conversation-core/src/storage/trusted-resource.repository.ts)     |
+| Application shapes           | [Core contracts](../../../packages/contracts/src/domains/core/)                                                   |
+| Atomic updates               | [`CoreStorage.transaction`](../../../packages/conversation-core/src/storage/core-storage.ts)                      |
+| Conversation deletion        | [`ConversationService.delete`](../../../packages/conversation-core/src/conversations/conversation.service.ts)     |
+| File cleanup                 | [`AssetStore.cleanupOrphans`](../../../packages/conversation-core/src/assets/asset-store.ts)                      |
+| Project deletion             | [`ProjectService.delete`](../../../packages/conversation-core/src/conversations/project.service.ts)               |

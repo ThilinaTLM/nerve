@@ -26,7 +26,7 @@ stateDiagram-v2
 
 Cancellation can settle any unfinished durable state. The unfinished-call table stores durable checkpoints between drafting and settlement. Settlement appends a response and deletes the pending row in one transaction, so history records one outcome regardless of how many waits preceded it. Drafting stays in memory because incomplete streamed arguments are not executable work. Result storage is covered by [tool-result projection](../tool-result-projection.md).
 
-Configuration-blocked admission reuses `awaiting_input`, so it appears as an interaction the user can resolve by retrying after configuration repair. A retry repeats admission after configuration repair, because resolving the wait does not itself grant permission.
+Configuration-blocked admission reuses `awaiting_input`, so the user resolves it by retrying after repair. The retry repeats admission, because resolving the wait does not itself grant permission.
 
 ## Admission and the turn barrier
 
@@ -38,17 +38,17 @@ A turn is one model invocation and its tool processing. Sibling calls can progre
 
 Recovery re-admits work that has not started so current authorization governs execution. Ordinary unanswered input interactions remain suspended; approval and configuration-blocked waits are re-evaluated, not blindly restored as authorization. Persisted resolutions are replayed through the interaction resolver using their resolution request identity.
 
-A running call is retried only if the host declares the tool safe to repeat after interruption; otherwise it settles as indeterminate. This is deliberate: a committed claim cannot prove whether an external effect happened before a crash. Core recovery repairs lifecycle state without invoking a provider merely to finish an old execution; newly deliverable queued work can still wake processing. This avoids turning a status repair into fresh model work.
+A running call is retried only if the host declares the tool safe to repeat after interruption; otherwise it settles as indeterminate. This is deliberate: a committed claim cannot prove whether an external effect happened before a crash. Core recovery repairs lifecycle state without invoking a provider merely to finish an old execution; newly deliverable queued work can still wake processing.
 
 ## Interaction handlers
 
-Each interaction kind (`approval`, `user_input`, `plan_review`, `configuration_blocked`) is declared once in contracts and has one `InteractionHandler` that validates a resolution and returns a closed outcome: settle the call, retry it, reopen the interaction with refreshed content, or report a profile transition. `ToolCallInteractions` owns only the shared skeleton (idempotency on the resolution request id, stopping and state checks, recording the resolution, controller cleanup) and is the single place that acts on an outcome, so a new kind adds a handler rather than branches. A handler may also reconcile an already-recorded resolution after a restart.
+Each interaction kind is declared once in contracts and has one `InteractionHandler` that validates a resolution and returns a closed outcome (settle, retry, reopen with refreshed content, or profile transition). `ToolCallInteractions` owns the shared skeleton (idempotency on the resolution request id, state checks, recording the resolution, controller cleanup) and is the only place that acts on an outcome, so a new kind adds a handler rather than branches. A handler may also reconcile a recorded resolution after a restart.
 
 ## Cancellation and force push
 
 Stopping cancels work, pauses the conversation and cascades through descendants and their async bash (conversation-owned background commands), so delegated work cannot continue after a deliberate user stop. Cancellation settles unfinished calls but cannot undo external effects; uncertain running outcomes may be indeterminate.
 
-Force push cancels only the receiving conversation's current work, clears pause and starts eligible [queued input](input-queue.md), so a replacement prompt can take over at a safe boundary. It does not perform stop's descendant/async-bash cascade, and stores no force-push state. Pause semantics are covered by the [input queue](input-queue.md#pause-and-waking); presentation behavior belongs to [conversation state and attention](../conversation-state-and-attention.md).
+Force push cancels only the receiving conversation's current work, clears pause and starts eligible [queued input](input-queue.md), so a replacement prompt can take over at a safe boundary. It does not perform stop's descendant/async-bash cascade, and stores no force-push state. Pause semantics: [input queue](input-queue.md#pause-and-waking).
 
 ## Other entry and exit paths
 

@@ -14,17 +14,6 @@ flowchart TD
     D --> K[Compaction K: selected head]
 ```
 
-Request preparation follows the selected branch and then projects it into provider context:
-
-```mermaid
-flowchart LR
-    H[Selected head] --> P[Walk predecessor path]
-    P --> K[Apply latest compaction]
-    K --> M[Project messages]
-    M --> R[Provider request]
-    SP[Current system prompt] --> R
-```
-
 ## Canonical facts, projected context
 
 Events describe application meaning independently of provider message packaging. Tool requests are blocks in an assistant event; [unfinished calls](tool-call-lifecycle.md) checkpoint their execution, and settlement appends responses. Complete results live in managed files, with separate [agent and user projections](../tool-result-projection.md), so large outputs need not travel through every history read.
@@ -41,22 +30,21 @@ Tool results follow the originating assistant's blocks in content order, even wh
 
 ## Compaction
 
-Compaction appends a summary and a retained-history boundary. Original events remain available for browsing and branching because summarization changes context selection rather than storage history.
+Compaction appends a summary and a retained-history boundary. Original events stay available for browsing and branching, because it changes context selection, not stored history.
 
-For example, if `A → B → C → D` is compacted with `C` retained, the next request contains:
-
-1. The current system prompt.
-2. A summary of `A` and `B`.
-3. Retained events `C` and `D`.
-4. Events appended after compaction.
-
-The latest compaction on the selected path controls this selection. Planning keeps assistant tool calls and their responses together, moving the cut backward when completion order crosses it, so a retained response never loses its request. Manual and automatic compaction derive their policies from effective settings rather than thresholds documented here.
+The next request holds the current system prompt, a summary of the events before the boundary, the retained events and anything appended since. The latest compaction on the selected path controls this. Planning keeps assistant tool calls and their responses together, moving the cut backward when completion order crosses it, so a retained response never loses its request.
 
 ## Branching
 
 Each append links to the selected head, the event currently ending the active branch. Walking predecessor links defines the transcript; event sequence order defines replay across all branches. Selecting a head changes future context while leaving configuration and performed effects intact, because browsing old facts must not execute them again.
 
 A branch can append a compaction to summarize context it leaves behind. Head selection requires a quiescent runner, no unfinished calls and no unfinished prompt-command preparation, so in-flight work cannot land on an unexpectedly changed branch. Parent and child histories branch independently; selecting a parent head does not rewind child effects.
+
+## Forking
+
+Forking runs a variant in parallel, which a single head cannot. It copies the active path up to a chosen event of an idle top-level conversation into a new idle conversation, leaving the source unchanged. IDs and file paths are remapped so the fork owns copies of its files and survives deletion of the source. Sub-agents are not copied: the parent's history already holds what the model saw from them. An appended `fork` system event tells the model which earlier sub-agent names no longer resolve to their old context.
+
+Files are copied before the rows commit in one transaction; a crash in between leaves an orphan directory that startup removes.
 
 ## Where it lives
 
@@ -68,4 +56,5 @@ A branch can append a compaction to summarize context it leaves behind. Head sel
 | Compaction planning and settings       | [`prepareCompaction`, `runCompaction`](../../../packages/conversation-core/src/context/compaction.ts)                  |
 | Append order and branch reads          | [`ConversationEventRepository`](../../../packages/conversation-core/src/storage/conversation-event.repository.ts)      |
 | Head-selection safety                  | [`ConversationService.selectHead`](../../../packages/conversation-core/src/conversations/conversation.service.ts)      |
+| Forking                                | [`ConversationForker`](../../../packages/conversation-core/src/conversations/conversation-fork.ts)                     |
 | Execution transitions                  | [`StatusService`](../../../packages/conversation-core/src/runtime/status.ts)                                           |

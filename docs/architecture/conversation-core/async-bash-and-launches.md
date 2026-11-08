@@ -46,7 +46,7 @@ The [launch catalog](../launch-definitions.md) covers saved definitions and orga
 
 ## Background tasks
 
-Async bash and background sub-agents share one settle path, [`BackgroundTaskService`](../../../packages/conversation-core/src/background-tasks/background-task.service.ts). A `TaskRunner` per kind ([bash](../../../packages/conversation-core/src/background-tasks/bash-runner.ts), [sub-agent](../../../packages/conversation-core/src/background-tasks/subagent-runner.ts)) supplies recovery, a terminal description for outcomes it did not observe, and persistence; the service owns waiting, cancellation, startup recovery and settling in one transaction. Settling announces exactly one parent-facing `task_result` input ([`buildTaskNotice`](../../../packages/conversation-core/src/background-tasks/task-notice.ts)) carrying the task kind, outcome and asset ids, deduplicated by a stable input id and waking an idle parent. Launches are not background tasks; the host queues their notice itself.
+Async bash and background sub-agents share one settle path, [`BackgroundTaskService`](../../../packages/conversation-core/src/background-tasks/background-task.service.ts). A `TaskRunner` per kind ([bash](../../../packages/conversation-core/src/background-tasks/bash-runner.ts), [sub-agent](../../../packages/conversation-core/src/background-tasks/subagent-runner.ts)) supplies recovery, a terminal description for outcomes it did not observe, and persistence; the service owns waiting, cancellation, startup recovery and transactional settling. Settling announces one parent-facing `task_result` input ([`buildTaskNotice`](../../../packages/conversation-core/src/background-tasks/task-notice.ts)) carrying the task kind, outcome and asset ids, deduplicated by a stable input id and waking an idle parent. Launches are not background tasks; the host queues their notice itself.
 
 ## Async-bash lifecycle
 
@@ -66,12 +66,9 @@ stateDiagram-v2
   Cancelled --> NoticeQueued: committed with terminal state
   Lost --> NoticeQueued: committed with terminal state
   Settled --> [*]
-  note right of NoticeQueued
-    The queued notice wakes the conversation when eligible.
-  end note
 ```
 
-Terminal state and its queued completion notice commit in one storage transaction, so a recorded completion cannot lose its notice between separate commits. The queue can wake the conversation when eligible; the agent does not need to poll. Pause and delivery behavior are covered in [input queue](input-queue.md).
+Terminal state and its completion notice commit in one transaction (see [data model](data-model.md#durability-and-identity)); the agent does not poll. Pause and delivery rules are in the [input queue](input-queue.md).
 
 Conversation stop/delete and host shutdown participate in cancellation. A foreground return caused by promotion leaves the background command running because that return transfers tracking rather than ending execution. Readiness checks observe the background command; failure to become ready does not itself terminate it.
 
@@ -87,23 +84,21 @@ Descriptions, arguments and settings stay in the tool definitions so agent-facin
 
 ## Launch execution capability
 
-The launch tool resolves definitions and executions within the conversation's project. Saved definitions use project-local name selection, while an optional run selector chooses one execution. Duplicate names fail visibly because arbitrary catalog ordering cannot establish the agent's intended command.
+The launch tool resolves definitions and executions within the conversation's project. Saved definitions use project-local name selection, while an optional run selector chooses one execution. Duplicate names fail visibly rather than guessing.
 
 User catalog management and agent process control are separate capabilities. Agents can operate existing launches through the tool, but cannot edit the catalog through it, preserving the user's ownership of reusable configuration. Execution permissions still apply independently of folder organization.
 
-A restart uses the current saved definition; an existing run retains the command it actually executed. This distinction lets status and logs explain a historical run even after the user edits its configuration.
+A restart uses the current saved definition; an existing run keeps the command it executed.
 
-The host remembers which conversation initiated an agent launch and can notify it on spontaneous exit. This association is memory-only, so it provides notification during host lifetime rather than a durable subscription across restart. Explicit stops are handled separately from spontaneous exits.
+The host remembers which conversation initiated an agent launch and can notify it on spontaneous exit. This association is memory-only, so it lasts only for the host's lifetime. Explicit stops are handled separately from spontaneous exits.
 
 Selection, execution preparation and notification ownership live in [`LaunchTool`](../../../packages/workbench-server/src/core-host/launch-tool.ts). Run policy, restart and cancellation live in the launch service linked above.
 
 ## Shared output projection
 
-Process output uses the common tool-result projection machinery so foreground results and background notices share budget and recovery policy. Output below the size budget stays inline; larger output is reduced to a tail-biased head/tail excerpt that names the capture file. Log pages provide bounded inspection and continuation. See [agent projection](../tool-result-projection.md#agent-projection).
+Process output uses the common tool-result projection so foreground results and background notices share budget and recovery policy; see [agent projection](../tool-result-projection.md#agent-projection). Bash, background bash and `python_exec` capture raw output in arrival order into one `output.txt`, so line ranges in notices and log pages match the file.
 
-Bash, background bash and `python_exec` capture into one file, `output.txt`, with raw output in arrival order, so line ranges in notices and log pages match the file. For example, a long build log shows its final summary and errors with the path to `output.txt`, allowing the agent to investigate with file tools instead of receiving the whole log on completion. Capture limits, pagination and budgets remain implementation policy rather than duplicated architectural constants.
-
-Async-bash output assets belong to the conversation. Launch logs belong to the execution domain independently of catalog placement, so reorganizing definitions cannot relocate or reinterpret a run's output.
+Async-bash output belongs to the conversation; launch logs belong to the execution domain, so reorganizing definitions cannot relocate a run's output.
 
 | Concern                                  | Owner                                                                                                                                                                                  |
 | ---------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -114,10 +109,6 @@ Async-bash output assets belong to the conversation. Launch logs belong to the e
 
 ## Recovery without process resurrection
 
-Durable async-bash metadata records what was running, but controlling it still requires verifiable process ownership. Recovery asks the host to reattach; if ownership cannot be established, core settles the record as lost and queues the corresponding notice. This avoids adopting an unrelated process based on stale metadata.
-
-The current host can find handles retained in its own instance but cannot reconstruct native handles after restart. Thus the core recovery hook does not promise cross-restart process recovery. Launch run records and initiating-conversation ownership are likewise memory-only, although definitions and logs persist.
-
-Saved configuration and surviving output are evidence of past work, not proof of a controllable live process. Commands are not automatically replayed after process loss because replay could duplicate external side effects.
+Durable async-bash metadata records what was running, but controlling it needs verifiable process ownership. Recovery asks the host to reattach; if ownership cannot be established, core settles the record as lost and queues the notice, rather than adopting an unrelated process from stale metadata. The current host cannot rebuild native handles after restart, so cross-restart recovery is not promised; launch run records and initiating-conversation ownership are likewise memory-only. Commands are never replayed after process loss, because replay could duplicate external effects (see [recovery](tool-call-lifecycle.md#recovery)).
 
 Recovery policy lives in `AsyncBashService.recover`; host reattachment is implemented by [`CoreProcessHost`](../../../packages/workbench-server/src/core-host/process.adapter.ts).

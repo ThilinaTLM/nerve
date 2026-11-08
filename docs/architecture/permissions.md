@@ -4,14 +4,13 @@ The permission subsystem decides whether a tool call can run automatically, need
 
 ## Terms
 
-| Term               | Meaning                                                                                                                                                            |
-| ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Rule set           | A named collection of rules selected for a conversation.                                                                                                           |
-| Baseline           | Built-in policy composed into lead conversations to provide common protections and defaults.                                                                       |
-| Overlay            | Additional rules for a selected rule set, stored at user, project or conversation scope.                                                                           |
-| Guardrail          | A prompt-or-deny rule that outranks ordinary rules, including later overlay grants.                                                                                |
-| Allow / ask / deny | Run automatically, request user approval, or refuse execution. The evaluator calls the ask outcome `prompt`.                                                       |
-| Approval grant     | “Always allow” persists a rule in a chosen overlay so matching future calls can be authorized by policy. One-time approval applies only to the reviewed execution. |
+| Term           | Meaning                                                                                                                                                            |
+| -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Baseline       | Built-in policy composed into lead conversations to provide common protections and defaults.                                                                       |
+| Overlay        | Additional rules for a selected rule set, stored at user, project or conversation scope.                                                                           |
+| Guardrail      | A prompt-or-deny rule that outranks ordinary rules, including later overlay grants.                                                                                |
+| Ask            | Request user approval; the evaluator calls this outcome `prompt`.                                                                                                  |
+| Approval grant | “Always allow” persists a rule in a chosen overlay so matching future calls can be authorized by policy. One-time approval applies only to the reviewed execution. |
 
 ## Authorization flow
 
@@ -38,29 +37,21 @@ flowchart TD
     S --> X[Execute]
 ```
 
-For leads, policy composition brings together:
-
-1. Baseline.
-2. The selected rule set.
-3. User, project and conversation overlays bound to that rule set.
-
-Guardrails take precedence over ordinary rules. Within an enforcement class, scope rank and rule priority determine precedence, so an overlay grant cannot defeat a guardrail. Each overlay binds to a particular rule set because a grant made under one policy must not leak into another: allowing a command under Supervised should not automatically grant it under Planning.
+For leads, composition layers Baseline, the selected rule set, then the user, project and conversation overlays bound to that rule set. Guardrails outrank ordinary rules, so an overlay grant cannot defeat one; scope rank and priority order the rest. Each overlay binds to one rule set because a grant made under one policy must not leak into another: allowing a command under Supervised should not grant it under Planning.
 
 An allowing rule must cover the complete request because a tool can affect several resources. Allowing a source file alone must not authorize a call that also writes to an unrelated destination. Invalid arguments, unnormalizable targets and incomplete policy fail closed rather than becoming automatic permission.
-
-For example, a user reviewing a bash call for `pnpm test` can choose “Always allow” and store a matching rule in the project overlay. That rule applies to the selected rule set and remains subject to guardrails and the rest of the request's targets.
 
 ## Trust and child policy
 
 Project overlay trust binds to a **digest**, a hash of the file's exact bytes, so edits require renewed trust before they can grant permission. Untrusted project overlays are excluded with diagnostics. Unknown, disabled or malformed selected policy and malformed required overlays block affected execution because approval must not substitute for missing security configuration. A malformed project overlay blocks tool execution in that project until it is fixed or reset; reset removes the overlay so the user-level policy applies. Model replies without tools continue, because they need no authorization.
 
-Children use an allowed rule set without Baseline or overlays. Their rule sets do not ask for human approval, and excluding overlays prevents grants made for interactive lead work from widening delegated execution. Child authorization is independent of the lead's policy; see [agent profiles and delegation](conversation-core/delegation.md#rules-enforced-for-every-sub-agent).
+Children use an allowed rule set without Baseline or overlays, and selection rejects rule sets that contain an enabled `prompt` rule. Child authorization is independent of the lead's policy; the restrictions are owned by [agent profiles and delegation](conversation-core/delegation.md#rules-enforced-for-every-sub-agent).
 
 Rule-set definitions and overlays are separate resources so reusable policy can remain distinct from local grants. Persistent approval writes go into overlays; rules contain no secrets. Policy controls tool admission rather than operating-system isolation, so it should not be treated as a sandbox or a proof that shell or Python source is safe.
 
 ## Risk and shell classification
 
-Two risk vocabularies exist on purpose. A tool's static **category** (`StaticToolRisk`: `read`, `write`, `unknown`, …) is what rule sets match on; a call's **effective risk** (`ToolRisk`, persisted as `supervision.effectiveRisk`) is what the approval UI and evidence show. `effectiveRiskForCategory` is the single mapping between them (`write` → `workspace_write`, `unknown` → `command`). Shell commands are assessed per invocation: wrappers are unwrapped, then `git` is classified as `read` only when its subcommand, sub-form and every flag match an explicit allowlist (`git-rules.ts`); anything else, including flags that run programs or write files, stays a command. Plan mode uses the same classifier.
+Two risk vocabularies exist on purpose. A tool's static **category** (`StaticToolRisk`) is what rule sets match on; a call's **effective risk** (`ToolRisk`, persisted as `supervision.effectiveRisk`) is what the approval UI and evidence show. `effectiveRiskForCategory` is the single mapping between them. Shell commands are assessed per invocation: wrappers are unwrapped, then `git` is classified as `read` only when its subcommand, sub-form and every flag match an explicit allowlist (`git-rules.ts`); anything else, including flags that run programs or write files, stays a command. Plan mode's bash filter (`plan-mode.ts`) is a separate blocklist that shares the shell parsing helpers.
 
 ## Admission and evidence
 

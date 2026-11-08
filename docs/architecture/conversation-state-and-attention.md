@@ -27,7 +27,7 @@ Each conversation pane has one composer view, shared by its toolbar, capability 
 
 The view reads configuration rather than defining its policy. Untouched drafts use shared project defaults; explicit draft profiles or overrides request a server preview, ignoring obsolete responses. Saved panes read the conversation store's effective configuration. Scoped notices, profile changes and reconnect invalidate these projections. Editing actions enforce requirement-derived locks and make sub-agent views read-only, including keyboard paths. Saved capability edits use revision-checked writes.
 
-A draft holds in-memory creation intent and submission bookkeeping, not another copy of resolved settings. Opening it neither creates a server conversation nor requires a usable model. Creation happens on first submission, and the created ID is recorded before sending input so a failed send can be retried without creating another conversation.
+A draft holds in-memory creation intent and submission bookkeeping, not another copy of resolved settings. Opening it neither creates a server conversation nor requires a usable model. The first submission creates the conversation and records its ID before sending input, so a failed send retries against the same conversation.
 
 ```mermaid
 sequenceDiagram
@@ -56,35 +56,19 @@ Creation failure leaves the draft available for another attempt. The server rema
 
 ### Owners
 
-| Concern                         | Owner                                                                                                                                                                                                                                                                                                                                         |
-| ------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Pane composition and promotion  | [ConversationCenterHost](../../packages/workbench-app/src/lib/app/composition/centers/ConversationCenterHost.svelte)                                                                                                                                                                                                                          |
-| Composer resolution and editing | [createComposerView](../../packages/workbench-app/src/lib/application/composer/composer-view.svelte.ts)                                                                                                                                                                                                                                       |
-| Active pane and consumers       | [activeComposer](../../packages/workbench-app/src/lib/application/composer/active-composer.svelte.ts), [WorkbenchProvider](../../packages/workbench-app/src/lib/app/providers/WorkbenchProvider.svelte), [workspace read models](../../packages/workbench-app/src/lib/app/composition/registrations/register-workspace-read-models.svelte.ts) |
-| Draft state and submission      | [PendingConversationState](../../packages/workbench-app/src/lib/application/workspace/pending-conversations.svelte.ts), [submitPendingConversation](../../packages/workbench-app/src/lib/app/composition/conversations/submit-pending-conversation.ts)                                                                                        |
-| Server configuration resolution | [AgentConfigurationService](../../packages/workbench-server/src/infrastructure/configuration/agent-configuration/agent-configuration-service.ts), [ProjectAgentDefaults](../../packages/workbench-server/src/infrastructure/configuration/agent-configuration/project-agent-defaults.ts)                                                      |
+| Concern                         | Owner                                                                                                                                            |
+| ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Pane composition and promotion  | [ConversationCenterHost](../../packages/workbench-app/src/lib/app/composition/centers/ConversationCenterHost.svelte)                             |
+| Composer resolution and editing | [createComposerView](../../packages/workbench-app/src/lib/application/composer/composer-view.svelte.ts)                                          |
+| Active pane and consumers       | [activeComposer](../../packages/workbench-app/src/lib/application/composer/active-composer.svelte.ts)                                            |
+| Draft state and submission      | [PendingConversationState](../../packages/workbench-app/src/lib/application/workspace/pending-conversations.svelte.ts)                           |
+| Server configuration resolution | [AgentConfigurationService](../../packages/workbench-server/src/infrastructure/configuration/agent-configuration/agent-configuration-service.ts) |
 
 ## Server execution status
 
-The server derives a stored status projection from execution events, live tool calls and input processing. Centralizing this decision keeps clients consistent instead of making each surface interpret transcript events. Unresolved human requests take priority as `waiting`; otherwise an open execution, live tool calls or active input processing produce `running`. With no live work, the latest uncleared failure/interruption determines the status, or it becomes `idle`.
+The server derives a stored status projection from execution events, live tool calls and input processing. Centralizing this decision keeps clients consistent instead of making each surface interpret transcript events. Unresolved human requests take priority as `waiting`; otherwise an open execution, live tool calls or active input processing produce `running`. With no live work, the latest uncleared failure/interruption determines the status, or it becomes `idle`. `StatusService.refresh` re-derives this from stored events, so callers request a refresh rather than setting a status.
 
-```mermaid
-stateDiagram-v2
-    [*] --> idle
-    idle --> running: execution / tool work / input processing
-    running --> waiting: unresolved approval or input
-    waiting --> running: request resolved, work remains
-    running --> idle: no live work, completed or cancelled
-    waiting --> idle: stopped and requests removed
-    running --> failed: failed, no live work
-    running --> interrupted: interrupted, no live work
-    failed --> running: new work
-    interrupted --> running: new work
-    failed --> idle: clear status
-    interrupted --> idle: clear status
-```
-
-This diagram summarizes the projection, not a separately enforced transition graph: the priority rules remain authoritative. An execution event labeled `waiting` or `retrying` still identifies an open execution and does not by itself mean human input is needed.
+An execution event labeled `waiting` or `retrying` still identifies an open execution and does not by itself mean human input is needed.
 
 Clearing status records `statusClearedAt`, so only newer terminal events remain visible. The update path refreshes status before publishing its summary, and clients trust that status rather than hiding every failure after a clear. User-marked completion (`completedAt`) is separate from execution completion.
 
@@ -104,27 +88,16 @@ Two summary fields expose work and human requests without requiring a client to 
 
 A child change can therefore change its ancestors' summaries. Publication includes the changed conversation and every ancestor so root rows show descendant requests even when no transcript is open. Status, queue and async-Bash changes use this path. Completion and follow-up wake inputs are handed off transactionally, avoiding a brief false impression that all work has finished. The conversation channel forwards summaries as `conversation.changed` for subscribed projects, adding cached configuration fields.
 
-The client derives row activity from each summary and its unseen-result marker. The first matching condition wins:
-
-1. Human input is needed, either locally or in a descendant.
-2. The conversation failed.
-3. The conversation is running.
-4. Background work is pending.
-5. The conversation was interrupted.
-6. A result is unseen.
-7. The user marked the conversation complete.
-8. Otherwise, the conversation is idle.
-
-This precedence makes a descendant's request visible ahead of other root activity. It is presentation logic, not another persisted status machine.
+The client derives row activity from each summary and its unseen-result marker; [summaryActivity](../../packages/workbench-app/src/lib/presentation/conversations/conversation-activity.ts) owns the precedence. Human input needed locally or in a descendant ranks first, so a descendant's request stays visible ahead of other root activity. It is presentation logic, not another persisted status machine.
 
 ### Owners
 
-| Concern                                    | Owner                                                                                                                                                                                    |
-| ------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Summary contract and query                 | [conversationSummarySchema](../../packages/contracts/src/domains/core/conversation.ts), [summaryQuery](../../packages/conversation-core/src/storage/conversation.repository.ts)          |
-| Ancestor publication and protocol delivery | [publishSummary](../../packages/conversation-core/src/runtime/publish-summary.ts), [conversation channel](../../packages/workbench-server/src/adapters/protocol/conversation-channel.ts) |
-| Transactional work handoffs                | [StatusService.transition](../../packages/conversation-core/src/runtime/status.ts), [AsyncBashService](../../packages/conversation-core/src/async-bash/async-bash.service.ts)            |
-| Client row activity                        | [summaryActivity](../../packages/workbench-app/src/lib/presentation/conversations/conversation-activity.ts)                                                                              |
+| Concern                                    | Owner                                                                                                       |
+| ------------------------------------------ | ----------------------------------------------------------------------------------------------------------- |
+| Summary contract and query                 | [conversationSummarySchema](../../packages/contracts/src/domains/core/conversation.ts)                      |
+| Ancestor publication and protocol delivery | [publishSummary](../../packages/conversation-core/src/runtime/publish-summary.ts)                           |
+| Transactional work handoffs                | [StatusService.transition](../../packages/conversation-core/src/runtime/status.ts)                          |
+| Client row activity                        | [summaryActivity](../../packages/workbench-app/src/lib/presentation/conversations/conversation-activity.ts) |
 
 ## Attention edges and unseen results
 
@@ -144,20 +117,16 @@ Viewing includes the active conversation, a pending tab's created conversation a
 
 ### Owners
 
-| Concern                                | Owner                                                                                                                                                                                                                                                                                                              |
-| -------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Attention edges and baseline lifecycle | [ConversationAttention](../../packages/workbench-app/src/lib/application/activity/conversation-attention.ts), [workbench-client](../../packages/workbench-app/src/lib/application/startup/workbench-client.svelte.ts)                                                                                              |
-| Viewing, unseen state and local Stop   | [startConversationAttention](../../packages/workbench-app/src/lib/application/activity/conversation-attention.svelte.ts), [unseenResults](../../packages/workbench-app/src/lib/application/activity/unseen-results.svelte.ts), [user-stop](../../packages/workbench-app/src/lib/application/activity/user-stop.ts) |
+| Concern                                | Owner                                                                                                                    |
+| -------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| Attention edges and baseline lifecycle | [ConversationAttention](../../packages/workbench-app/src/lib/application/activity/conversation-attention.ts)             |
+| Viewing, unseen state and local Stop   | [startConversationAttention](../../packages/workbench-app/src/lib/application/activity/conversation-attention.svelte.ts) |
 
 ## Presence, delivery and surfaces
 
 Presence decides how intrusive delivery should be: do not interrupt someone already watching, but reach someone working elsewhere or away from the app. A visible, focused window with recent input counts as active; viewing the target conversation or its descendant distinguishes watching from elsewhere.
 
-| Presence  | Meaning                                              | Intrusive delivery          |
-| --------- | ---------------------------------------------------- | --------------------------- |
-| Watching  | Active and viewing the target                        | None                        |
-| Elsewhere | Active but viewing something else                    | Sound + Open toast          |
-| Away      | Hidden/unfocused or idle past the presence threshold | Sound + system notification |
+Watching (active and viewing the target) gets no intrusive delivery. Elsewhere (active, viewing something else) gets a sound and an Open toast. Away (hidden, unfocused or idle past the presence threshold) gets a sound and a system notification. ([attention-policy](../../packages/workbench-app/src/lib/application/notifications/attention-policy.ts) owns the thresholds.)
 
 System notifications disabled or unavailable normally fall back to an Open toast. Sounds use existing event preferences, coalesce nearby events by urgency and are throttled per window. Session-local mute suppresses sounds, toasts and system notifications, not passive indicators. Notification settings and their test action use this delivery path.
 
@@ -167,12 +136,12 @@ The dock/taskbar badge is another passive projection, not a presence-triggered n
 
 ### Owners
 
-| Concern                              | Owner                                                                                                                                                                                                                                                                                                                    |
-| ------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Presence, urgency, mute and delivery | [attention-policy](../../packages/workbench-app/src/lib/application/notifications/attention-policy.ts), [deliverAttention](../../packages/workbench-app/src/lib/application/notifications/attention-delivery.svelte.ts), [notifyNative](../../packages/workbench-app/src/lib/application/notifications/notify.svelte.ts) |
-| Rows, tabs and projects              | [ConversationActivityIndicator](../../packages/workbench-app/src/lib/presentation/conversations/ConversationActivityIndicator.svelte), [ProjectSwitcher](../../packages/workbench-app/src/lib/features/projects/views/ProjectSwitcher.svelte)                                                                            |
-| Bell and inbox derivation            | [deriveNeedsYou](../../packages/workbench-app/src/lib/application/activity/needs-you.ts), [ActivityPopover](../../packages/workbench-app/src/lib/presentation/activity/ActivityPopover.svelte)                                                                                                                           |
-| Desktop notifications and badge      | [notifications IPC](../../packages/desktop-shell/src/ipc/notifications-ipc.ts)                                                                                                                                                                                                                                           |
+| Concern                              | Owner                                                                                                                                 |
+| ------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------- |
+| Presence, urgency, mute and delivery | [attention-policy](../../packages/workbench-app/src/lib/application/notifications/attention-policy.ts)                                |
+| Rows, tabs and projects              | [ConversationActivityIndicator](../../packages/workbench-app/src/lib/presentation/conversations/ConversationActivityIndicator.svelte) |
+| Bell and inbox derivation            | [deriveNeedsYou](../../packages/workbench-app/src/lib/application/activity/needs-you.ts)                                              |
+| Desktop notifications and badge      | [notifications IPC](../../packages/desktop-shell/src/ipc/notifications-ipc.ts)                                                        |
 
 ## Deliberate limits
 

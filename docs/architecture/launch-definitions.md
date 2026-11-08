@@ -16,18 +16,9 @@ flowchart LR
 
 A **definition** is saved execution configuration, a **folder** groups catalog entries, and a **run** is one execution. The project owns its catalog at `.nerve/launches/definitions.json`, making commands and organization portable together. Runtime project identity is supplied by the enclosing project so the file can travel between installations.
 
-```mermaid
-flowchart TB
-  Catalog[Project catalog] --> Folder[Folder]
-  Folder --> Definition[Saved definition]
-  Definition -->|start snapshots configuration| Run[Run]
-  Run --> Process[Managed process and output]
-  Folder -.->|reorganization changes placement only| Definition
-```
-
 Folder placement and manual order live in the same document as definitions, giving the server one source to validate. Folders supply organization only: inheriting execution settings from them would make a move change command behavior.
 
-For example, moving an active “API” definition into a “Development” folder changes its placement while its existing process continues with the command and working directory it started with. Editing that command affects a subsequent execution.
+Moving a definition changes placement only; a running process keeps the command it started with, and edits apply to the next run.
 
 | Concern                                    | Owner                                                                                                           |
 | ------------------------------------------ | --------------------------------------------------------------------------------------------------------------- |
@@ -40,12 +31,7 @@ A **revision** is an opaque equality token representing validated catalog conten
 
 Moves express a destination folder and an optional sibling anchor rather than client-assigned positions. This lets dragging and menu actions share the same command while the server validates and normalizes placement. Moving a folder preserves its descendants' attachment.
 
-**Guarantees and limits:**
-
-- The canonical catalog path is the write boundary so cooperating processes and project aliases coordinate on the same file.
-- Exclusive locking prevents lost read–modify–write updates, while atomic replacement prevents partial documents; revision checking alone cannot provide either guarantee.
-- Locks fail closed and are never automatically stolen because guessing that a writer is dead risks concurrent writes. Crash-leftover locks require operator recovery with quiescent writers.
-- External edits require quiescent catalog writes and reload/revalidation because external editors do not participate in this coordination.
+Writes are serialized on the canonical catalog path and replaced atomically, which revision checking alone cannot provide. Locks fail closed and are never stolen, because guessing that a writer is dead risks concurrent writes; crash-leftover locks need operator recovery. External editors do not take part in this coordination, so external edits require quiescent writers and a reload.
 
 A committed write remains committed even if notification publication fails. The service retries notification, and clients recover by revalidation, so a failed notification does not invite duplicate creation or another repeated mutation.
 
@@ -72,9 +58,7 @@ Activity is derived from catalog and run state, keeping transient execution out 
 
 ## Format versions and recovery
 
-The catalog file is versioned. An older catalog is upgraded when the project's catalog is loaded, through the shared [project configuration versions](configuration.md#project-configuration-versions) service rather than in the repository; the original bytes go to home quarantine. Home migrations never touch the catalog, so projects opened long after an upgrade receive the same handling.
-
-A corrupted catalog shows no launches, an inline notice in the Launches panel and a header activity item. Management actions are hidden and the server refuses catalog mutations, so a save cannot overwrite the invalid original. The user fixes the file and reloads, or confirms a reset to an empty catalog. A catalog written by a newer Nerve is read-only and never reset. A missing file means an empty catalog. An old `tasks/definitions.json` is reported as a leftover file and is not imported.
+The catalog is a versioned project file handled by the shared service described in [project configuration versions](configuration.md#project-configuration-versions) and the [project migration README](../../packages/workbench-server/src/infrastructure/configuration/project-migration/README.md). This type contributes its version chain, the empty-catalog fallback and reset. A corrupted catalog shows no launches and the server refuses mutations, so a save cannot overwrite the original.
 
 | Concern                            | Owner                                                                                                                                   |
 | ---------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |

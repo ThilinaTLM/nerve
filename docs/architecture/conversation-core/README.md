@@ -23,80 +23,27 @@ flowchart TD
 
 ## Architectural choices
 
-A small relational core owns history, relationships and pending work. Scoped files own configuration and permissions; managed files own large results. This keeps history independent of mutable preferences and avoids duplicating large content in SQLite. See [data model](data-model.md), [configuration](../configuration.md) and [permissions](../permissions.md).
-
-Canonical events describe application meaning, not a provider's wire format. Context is projected from the selected branch, so changing providers does not rewrite history. See [events and context](events-and-context.md).
-
-The [input queue](input-queue.md) serializes delivery at safe boundaries; the [tool-call lifecycle](tool-call-lifecycle.md) checkpoints work across waits and restarts. Neither requires a separate receipt or execution table. Caller identities prevent duplicate durable submissions, not duplicate external effects.
-
-Separate [channels](channels.md) isolate conversation streaming from workbench traffic. Durable history replays from SQLite; current state is recovered through snapshots.
+SQLite owns history, relationships and pending work; scoped files own configuration; managed files own large results ([data model](data-model.md)). Canonical events describe application meaning, not a provider's wire format, and context is projected from the selected branch ([events and context](events-and-context.md)). Caller identities prevent duplicate durable submissions, not duplicate external effects. Separate [channels](channels.md) isolate conversation streaming from workbench traffic.
 
 ## Life of a prompt
 
-A normal prompt travels from accepted input to durable history, then through model turns until the execution finishes. The diagram shows the successful path with tool calls; approvals are optional, and each new turn first checks for more eligible input.
-
-```mermaid
-sequenceDiagram
-    participant C as Client
-    participant R as Core runner
-    participant Q as Input queue
-    participant E as Core storage
-    participant M as Model provider
-    participant T as Tool lifecycle
-    Note over C,R: channels.md — submission and updates
-    C->>R: Submit prompt with input ID
-    Note over Q,E: input-queue.md — acceptance and safe delivery
-    R->>Q: Accept and deduplicate
-    R->>Q: Deliver at a safe boundary
-    Q->>E: Append user_message and remove queue row atomically
-    Q-->>R: Input delivered
-    loop While another turn is needed
-        R->>Q: Deliver any newly eligible inputs at the turn boundary
-        Note over R,M: events-and-context.md — selected history to provider context
-        R->>M: Request model turn
-        M-->>R: Assistant response, possibly with tool calls
-        R->>E: Persist assistant event and create unfinished calls atomically
-        Note over R,T: tool-call-lifecycle.md — admission, effects and settlement
-        opt Assistant requested tools
-            R->>T: Supervise calls
-            opt Approval required
-                T-->>C: Publish approval interaction via channel
-                C->>R: Resolve approval
-                R->>T: Apply resolution and recheck authorization
-            end
-            T->>T: Run admitted calls
-            T->>E: Append responses and remove unfinished rows atomically
-        end
-        R->>T: Wait at turn barrier
-        T-->>R: All calls settled, next turn may proceed
-    end
-    R->>E: Append execution-end fact
-    Note over R,C: conversation-state-and-attention.md — status and summaries
-    R-->>C: Publish refreshed summary and durable event via channel
-```
-
-[Conversation state and attention](../conversation-state-and-attention.md) explains how execution facts become client-visible status; the document map below covers the other handoffs.
+A prompt is accepted into the [input queue](input-queue.md) and delivered at a safe boundary, which appends it to history. Each model turn then projects [context](events-and-context.md), appends the assistant event and supervises its [tool calls](tool-call-lifecycle.md) until all settle. When no further turn is needed, the execution ends and [status](../conversation-state-and-attention.md) is published through the [channel](channels.md).
 
 ## Glossary
 
-| Term                 | Meaning                                                                               |
-| -------------------- | ------------------------------------------------------------------------------------- |
-| Conversation         | Persistent owner of history, queued inputs and unfinished calls.                      |
-| Lead                 | User-facing conversation that can delegate work to children.                          |
-| Sub-agent            | Child conversation configured through a profile; see [delegation](delegation.md).     |
-| Profile              | Reusable agent definition applied to a conversation; see [delegation](delegation.md). |
-| Turn                 | One model invocation and processing of its tool calls.                                |
-| Execution            | A span of turns identified by an execution-start event.                               |
-| Event                | Append-only fact; not necessarily model context.                                      |
-| Head (selected head) | Event ending the active branch; its predecessor path supplies history for context.    |
-| Compaction           | Appended summary and retained-history boundary used to shorten model context.         |
-| Notice               | Typed input from an internal producer, delivered as a system event.                   |
-| Async bash           | Conversation-owned background command tracked beyond foreground tool completion.      |
-| Port                 | Interface through which the host supplies an environmental capability to core.        |
+| Term                 | Meaning                                                                            |
+| -------------------- | ---------------------------------------------------------------------------------- |
+| Conversation         | Persistent owner of history, queued inputs and unfinished calls.                   |
+| Lead                 | User-facing conversation that can delegate work to children.                       |
+| Turn                 | One model invocation and processing of its tool calls.                             |
+| Execution            | A span of turns identified by an execution-start event.                            |
+| Event                | Append-only fact; not necessarily model context.                                   |
+| Head (selected head) | Event ending the active branch; its predecessor path supplies history for context. |
+| Compaction           | Appended summary and retained-history boundary used to shorten model context.      |
+| Notice               | Typed input from an internal producer, delivered as a system event.                |
+| Port                 | Interface through which the host supplies an environmental capability to core.     |
 
 ## Documents
-
-The data model defines storage ownership. Events explain how that history becomes model context; queue and tool-call documents explain how work enters and leaves it. Delegation and background work reuse those boundaries, while channels expose them to clients.
 
 | Document                                              | Covers                                                   |
 | ----------------------------------------------------- | -------------------------------------------------------- |
@@ -104,7 +51,7 @@ The data model defines storage ownership. Events explain how that history become
 | [Events and context](events-and-context.md)           | Canonical history, projection, branching and compaction. |
 | [Tool-call lifecycle](tool-call-lifecycle.md)         | Checkpoints, admission, settlement and recovery.         |
 | [Input queue](input-queue.md)                         | Ordering and retry identity.                             |
-| [Delegation](delegation.md)                           | Child conversations, profiles and completion notices.    |
+| [Agent profiles and delegation](delegation.md)        | Child conversations, profiles and completion notices.    |
 | [Async bash and launches](async-bash-and-launches.md) | Conversation-owned processes versus workbench launches.  |
 | [Channels](channels.md)                               | Connection boundaries, replay and reconnect.             |
 
