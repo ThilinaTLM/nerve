@@ -125,7 +125,6 @@ describe("DesktopRuntime", () => {
         throw new Error("unsupported home");
       },
       configureNetworkSession: async () => undefined,
-      packagedWebDistPath: () => undefined,
       acquireDaemon: async () => {
         events.push("acquire");
         throw new Error("daemon unavailable");
@@ -246,7 +245,6 @@ describe("DesktopRuntime", () => {
         startupReady.resolve();
         return { stop: () => undefined };
       },
-      packagedWebDistPath: () => undefined,
       now: Date.now,
     } as unknown as DesktopRuntimePorts;
     const configuration = {
@@ -381,7 +379,6 @@ describe("DesktopRuntime", () => {
         dispose: () => undefined,
       }),
       installPerformanceMonitor: () => ({ stop: () => undefined }),
-      packagedWebDistPath: () => undefined,
       now: Date.now,
     } as unknown as DesktopRuntimePorts;
     const configuration = {
@@ -471,7 +468,6 @@ describe("DesktopRuntime", () => {
         dispose: () => undefined,
       }),
       installPerformanceMonitor: () => ({ stop: () => undefined }),
-      packagedWebDistPath: () => undefined,
       now: Date.now,
     } as unknown as DesktopRuntimePorts;
     const configuration = {
@@ -584,7 +580,6 @@ describe("DesktopRuntime", () => {
           },
         };
       },
-      packagedWebDistPath: () => undefined,
       now: () => 1,
     } as unknown as DesktopRuntimePorts;
     const configuration = {

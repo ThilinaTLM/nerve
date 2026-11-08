@@ -84,7 +84,6 @@ describe("daemon profile policy", () => {
         httpsPort: 4443,
         allowRemote: true,
         mobileHttps: true,
-        webDistPath: "/opt/web",
       },
       {
         NODE_OPTIONS:
@@ -121,7 +120,6 @@ describe("daemon profile policy", () => {
         "--mobile-https",
       ],
     );
-    assert.equal(env.NERVE_WEB_DIST, "/opt/web");
     assert.equal(env.PATH, "/usr/bin");
 
     const defaults = buildOrchestratorEnv({}, {});

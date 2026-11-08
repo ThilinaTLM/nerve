@@ -9,7 +9,12 @@ import {
   writeFile,
 } from "node:fs/promises";
 import { join } from "node:path";
-import { verifyNativePrebuilds } from "./native-prebuilds.ts";
+import {
+  nativePlatformPackage,
+  nativeTarballFilename,
+  verifyNativePrebuilds,
+  type NativePlatformPackage,
+} from "./native-prebuilds.ts";
 import {
   assertWorkspaceVersionsMatch,
   bundledPackages as internalPackages,
@@ -18,37 +23,57 @@ import {
 import { repoRoot } from "../workspace/repo.ts";
 import {
   collectDistributionDependencies,
-  embeddedManifest,
+  nativeOptionalDependencies,
+  nativePlatformManifest,
 } from "./npm-manifests.ts";
+import {
+  bundleAssets,
+  bundleDesktop,
+  bundleEntryPoints,
+} from "./bundle-desktop.ts";
 import { verifyNpmTarballs } from "./verify-npm-tarballs.ts";
 
 const releaseRoot = join(repoRoot, "release");
 const packDir = join(releaseRoot, "npm");
 const stageRoot = join(releaseRoot, "npm-stage", "desktop");
-const desktopRoot = join(repoRoot, "packages", "desktop-shell");
 
 try {
   await verifyBuildOutputs();
   await rm(packDir, { recursive: true, force: true });
   await rm(join(releaseRoot, "npm-stage"), { recursive: true, force: true });
   await mkdir(packDir, { recursive: true });
-  await stageDesktopDistribution();
+  const platformPackages = await stageNativePlatformPackages();
+  await stageDesktopDistribution(platformPackages);
 
+  const rootVersion = (await readJson("package.json")).version;
+  for (const platformPackage of platformPackages) {
+    console.log(`Packing ${platformPackage.name}...`);
+    run(
+      "npm",
+      ["pack", "--pack-destination", packDir],
+      nativeStageRoot(platformPackage),
+    );
+  }
   console.log("Packing @nervekit/desktop...");
   run("npm", ["pack", "--pack-destination", packDir], stageRoot);
 
-  const rootVersion = (await readJson("package.json")).version;
   const expectedFilename = `nervekit-desktop-${rootVersion}.tgz`;
+  const expectedFilenames = [
+    expectedFilename,
+    ...platformPackages.map((platformPackage) =>
+      nativeTarballFilename(platformPackage, rootVersion),
+    ),
+  ].sort();
   const packed = (await readdir(packDir))
     .filter((name) => name.endsWith(".tgz"))
     .sort();
-  if (JSON.stringify(packed) !== JSON.stringify([expectedFilename])) {
+  if (JSON.stringify(packed) !== JSON.stringify(expectedFilenames)) {
     throw new Error(
-      `Expected only ${expectedFilename}, but found ${packed.join(", ") || "no tarballs"}.`,
+      `Expected exactly ${expectedFilenames.join(", ")}, but found ${packed.join(", ") || "no tarballs"}.`,
     );
   }
 
-  console.log(`Packed ${join(packDir, expectedFilename)}.`);
+  for (const name of packed) console.log(`Packed ${join(packDir, name)}.`);
   await verifyNpmTarballs(packDir);
 } finally {
   await rm(join(releaseRoot, "npm-stage"), {
@@ -59,50 +84,58 @@ try {
 
 async function verifyBuildOutputs() {
   const required = [
-    [
-      join("packages", "desktop-shell", "dist", "bin.js"),
-      "Run pnpm build before packing the desktop package.",
-    ],
-    [
-      join("packages", "desktop-shell", "dist", "main.js"),
-      "Run pnpm build before packing the desktop package.",
-    ],
-    [
-      join("packages", "desktop-shell", "dist", "preload.cjs"),
-      "Run pnpm build before packing the desktop package.",
-    ],
-    [
-      join("packages", "workbench-server", "dist", "main.js"),
-      "Run pnpm build before packing the desktop package.",
-    ],
-    [
-      join("packages", "workbench-server", "dist", "web", "index.html"),
-      "Run pnpm build so workbench-server contains the built web app.",
-    ],
-    [
-      join("packages", "workbench-app", "dist", "index.html"),
-      "Run pnpm build before packing the desktop package.",
-    ],
+    ...Object.values(bundleEntryPoints),
+    ...bundleAssets.map(([source]) => source),
+    "packages/workbench-app/dist/index.html",
   ];
-  for (const [relativePath, message] of required) {
+  for (const relativePath of required) {
     await access(join(repoRoot, relativePath)).catch(() => {
-      throw new Error(`Missing ${relativePath}. ${message}`);
-    });
-  }
-  for (const [, directory] of internalPackages) {
-    await access(join(repoRoot, "packages", directory, "dist")).catch(() => {
       throw new Error(
-        `Missing packages/${directory}/dist. Run pnpm build before packing the desktop package.`,
+        `Missing ${relativePath}. Run pnpm build before packing the desktop package.`,
       );
     });
   }
 }
 
-async function stageDesktopDistribution() {
+function nativeStageRoot(platformPackage: NativePlatformPackage) {
+  return join(releaseRoot, "npm-stage", `native-${platformPackage.triple}`);
+}
+
+/** Stages one `@nervekit/native-<triple>` package per prebuilt binary. */
+async function stageNativePlatformPackages() {
   await assertWorkspaceVersionsMatch();
-  const nativePrebuilds = await verifyNativePrebuilds(
-    join(repoRoot, "packages", "native", "prebuilds"),
+  const prebuilds = join(repoRoot, "packages", "native", "prebuilds");
+  const filenames = await verifyNativePrebuilds(prebuilds);
+  const platformPackages = filenames.map(nativePlatformPackage);
+  const rootManifest = await readJson("package.json");
+  const nativeManifest = await readJson(
+    join("packages", "native", "package.json"),
   );
+  for (const platformPackage of platformPackages) {
+    const root = nativeStageRoot(platformPackage);
+    await mkdir(root, { recursive: true });
+    await cp(
+      join(prebuilds, platformPackage.filename),
+      join(root, platformPackage.filename),
+    );
+    for (const filename of ["LICENSE", "NOTICE"]) {
+      await cp(join(repoRoot, filename), join(root, filename));
+    }
+    await writeJson(
+      join(root, "package.json"),
+      nativePlatformManifest(
+        platformPackage,
+        nativeManifest,
+        rootManifest.version,
+      ),
+    );
+  }
+  return platformPackages;
+}
+
+async function stageDesktopDistribution(
+  platformPackages: NativePlatformPackage[],
+) {
   const rootManifest = await readJson("package.json");
   const desktopManifest = await readJson(
     join("packages", "desktop-shell", "package.json"),
@@ -120,12 +153,7 @@ async function stageDesktopDistribution() {
   }
 
   await mkdir(stageRoot, { recursive: true });
-  await cp(join(desktopRoot, "dist"), join(stageRoot, "dist"), {
-    recursive: true,
-  });
-  await cp(join(desktopRoot, "build"), join(stageRoot, "build"), {
-    recursive: true,
-  });
+  await bundleDesktop({ repoRoot, stageRoot });
   for (const filename of ["LICENSE", "NOTICE", "README.md"]) {
     await cp(join(repoRoot, filename), join(stageRoot, filename));
   }
@@ -133,8 +161,7 @@ async function stageDesktopDistribution() {
 
   const dependencies = collectDistributionDependencies(
     desktopManifest,
-    internalManifests,
-    rootManifest.version,
+    internalManifests.values(),
   );
   const publicManifest = {
     name: "@nervekit/desktop",
@@ -155,47 +182,19 @@ async function stageDesktopDistribution() {
     files: [
       "dist/**",
       "build/**",
-      "node_modules/@nervekit/**",
       "README.md",
+      "THIRD-PARTY-LICENSES.txt",
       "LICENSE",
       "NOTICE",
     ],
     dependencies,
-    bundleDependencies: internalPackages.map(([name]) => name),
+    optionalDependencies: nativeOptionalDependencies(
+      platformPackages,
+      rootManifest.version,
+    ),
     engines: desktopManifest.engines,
   };
   await writeJson(join(stageRoot, "package.json"), publicManifest);
-
-  for (const [name, directory] of internalPackages) {
-    const sourceRoot = join(repoRoot, "packages", directory);
-    const destinationRoot = join(
-      stageRoot,
-      "node_modules",
-      "@nervekit",
-      name.slice("@nervekit/".length),
-    );
-    await mkdir(destinationRoot, { recursive: true });
-    await cp(join(sourceRoot, "dist"), join(destinationRoot, "dist"), {
-      recursive: true,
-    });
-    if (directory === "native") {
-      const destinationPrebuilds = join(destinationRoot, "prebuilds");
-      await mkdir(destinationPrebuilds, { recursive: true });
-      for (const filename of nativePrebuilds) {
-        await cp(
-          join(sourceRoot, "prebuilds", filename),
-          join(destinationPrebuilds, filename),
-        );
-      }
-    }
-    for (const filename of ["LICENSE", "NOTICE"]) {
-      await cp(join(repoRoot, filename), join(destinationRoot, filename));
-    }
-    await writeJson(
-      join(destinationRoot, "package.json"),
-      embeddedManifest(internalManifests.get(name), rootManifest.version),
-    );
-  }
 }
 
 async function writeJson(path: string, value: unknown) {

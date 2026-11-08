@@ -2,18 +2,34 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   collectDistributionDependencies,
-  embeddedManifest,
+  nativeOptionalDependencies,
+  nativePlatformManifest,
 } from "../npm-manifests.ts";
+import { nativePlatformPackage } from "../native-prebuilds.ts";
 import {
-  isNpmRegistryUrl,
+  bundleOutputFiles,
+  thirdPartyPackageRoots,
+} from "../bundle-desktop.ts";
+import {
+  findUnresolvableImports,
+  isAllowedBareImport,
+} from "../bundle-smoke.ts";
+import {
+  forbiddenTarballPath,
   requireEntry,
-  verifyBundledLockEntries,
+  verifyContents,
+  verifyNativePlatformTarball,
   verifyPublicManifest,
 } from "../verify-npm-tarballs.ts";
-import { bundledPackages } from "../workspace-packages.ts";
 
 const version = "1.2.3";
-const names = bundledPackages.map(([name]) => name);
+const nativeFiles = [
+  "nerve_native.linux-x64-gnu.node",
+  "nerve_native.win32-arm64-msvc.node",
+  "nerve_native.darwin-x64.node",
+];
+const nativePackages = nativeFiles.map(nativePlatformPackage);
+const nativeNames = nativePackages.map((entry) => entry.name);
 
 function publicManifest(overrides: Record<string, unknown> = {}) {
   return {
@@ -23,18 +39,14 @@ function publicManifest(overrides: Record<string, unknown> = {}) {
     bin: { "nerve-desktop": "./dist/bin.js" },
     engines: { node: ">=24.0.0" },
     repository: { directory: "packages/desktop-shell" },
-    bundleDependencies: names,
-    dependencies: {
-      ...Object.fromEntries(names.map((name) => [name, version])),
-      electron: "^1",
-      sharp: "^0.35.0",
-    },
+    optionalDependencies: nativeOptionalDependencies(nativePackages, version),
+    dependencies: { electron: "^1", sharp: "^0.35.0" },
     ...overrides,
   };
 }
 
 test("a well-formed public manifest passes", () => {
-  verifyPublicManifest(publicManifest(), version, "x.tgz");
+  verifyPublicManifest(publicManifest(), version, "x.tgz", nativeNames);
 });
 
 test("public manifest violations are reported with the tarball name", () => {
@@ -43,108 +55,214 @@ test("public manifest violations are reported with the tarball name", () => {
     [{ bin: {} }, /missing nerve-desktop bin/],
     [{ engines: { node: ">=20" } }, /Node engine/],
     [{ repository: { directory: "x" } }, /repository directory/],
-    [{ bundleDependencies: names.slice(1) }, /bundleDependencies must contain/],
+    [{ bundleDependencies: ["@nervekit/contracts"] }, /bundleDependencies/],
+    [
+      {
+        dependencies: {
+          electron: "^1",
+          sharp: "^0.35.0",
+          "@nervekit/contracts": version,
+        },
+      },
+      /exactly the external packages/,
+    ],
+    [{ dependencies: { electron: "^1" } }, /exactly the external packages/],
+    [
+      { optionalDependencies: { [nativeNames[0]!]: "0.0.1" } },
+      /optionalDependencies must pin/,
+    ],
     [
       {
         dependencies: {
           ...publicManifest().dependencies,
-          [names[0]!]: "0.0.1",
+          [nativeNames[0]!]: version,
         },
       },
-      /exact bundled dependency/,
-    ],
-    [
-      { bundleDependencies: [...names, "electron"] },
-      /bundleDependencies must contain/,
+      /exactly the external packages/,
     ],
   ];
   for (const [override, message] of cases)
     assert.throws(
-      () => verifyPublicManifest(publicManifest(override), version, "x.tgz"),
+      () =>
+        verifyPublicManifest(
+          publicManifest(override),
+          version,
+          "x.tgz",
+          nativeNames,
+        ),
       message,
     );
 });
 
-test("bundled lock entries must be local, unique and at the release version", () => {
-  const entry = (name: string, resolved?: string) => ({
-    [`node_modules/${name}`]: { version, ...(resolved ? { resolved } : {}) },
-  });
-  const lock = {
-    packages: Object.assign({}, ...names.map((name) => entry(name))),
-  };
-  verifyBundledLockEntries(lock, version);
+test("tarball contents must be the bundle layout without maps or declarations", () => {
+  const entries = [
+    "package",
+    "package/package.json",
+    "package/README.md",
+    "package/LICENSE",
+    "package/NOTICE",
+    "package/THIRD-PARTY-LICENSES.txt",
+    ...bundleOutputFiles.map((file) => `package/${file}`),
+    "package/dist/web/assets/app.js",
+    "package/dist/chunk-ABC.js",
+    "package/dist/chunk-ABC.js.LEGAL.txt",
+  ];
+  verifyContents(entries, "x.tgz");
+  const rejected: [string, RegExp][] = [
+    ["package/dist/main.js.map", /forbidden/],
+    ["package/dist/main.d.ts", /forbidden/],
+    ["package/dist/x.tsbuildinfo", /forbidden/],
+    ["package/node_modules/@nervekit/contracts/dist/index.js", /unexpected/],
+    ["package/src/main.ts", /unexpected/],
+  ];
+  for (const [extra, message] of rejected)
+    assert.throws(() => verifyContents([...entries, extra], "x.tgz"), message);
   assert.throws(
-    () => verifyBundledLockEntries({ packages: {} }, version),
-    /expected one bundled/,
+    () => verifyContents(entries.slice(0, -1), "x.tgz"),
+    /legal comments/,
   );
   assert.throws(
     () =>
-      verifyBundledLockEntries(
-        {
-          packages: {
-            ...lock.packages,
-            ...entry(names[0]!, "https://registry.npmjs.org/x/-/x-1.tgz"),
-          },
-        },
-        version,
+      verifyContents(
+        entries.filter((entry) => entry !== "package/dist/daemon.js"),
+        "x.tgz",
       ),
-    /npm registry/,
+    /missing package\/dist\/daemon\.js/,
   );
-  assert.equal(isNpmRegistryUrl("https://registry.npmjs.org/a"), true);
-  assert.equal(isNpmRegistryUrl("file:../a.tgz"), false);
+  assert.equal(forbiddenTarballPath.test("package/dist/chunk-A.js"), false);
   assert.throws(() => requireEntry(["a"], "b", "x.tgz"), /missing b/);
   requireEntry(["a"], "a", "x.tgz");
 });
 
-test("distribution dependencies pin bundled packages and reject conflicting external ranges", () => {
-  const internal = new Map(
-    names.map((name) => [
-      name,
-      { name, dependencies: { zod: "^4.0.0", [names[0]!]: "workspace:*" } },
-    ]),
+test("bundle imports may only reference siblings and declared externals", () => {
+  const source = [
+    'import { a } from "./chunk-A.js";',
+    'import "node:fs";',
+    'import { b } from "electron";',
+    'import sharp from "sharp";',
+    'const m = await import("./worker.js");',
+    'import "hono";',
+    'import "./missing.js";',
+  ].join("\n");
+  assert.deepEqual(
+    findUnresolvableImports(
+      source,
+      (specifier) => specifier !== "./missing.js",
+    ),
+    ["hono", "./missing.js"],
   );
+  assert.equal(isAllowedBareImport("@nervekit/native-linux-x64-gnu"), true);
+  assert.equal(isAllowedBareImport("@nervekit/contracts"), false);
+  assert.equal(isAllowedBareImport("fs"), true);
+});
+
+test("third-party license inventory covers scoped and pnpm-nested packages only", () => {
+  const input = (path: string) => [path, { bytes: 1, imports: [] }] as const;
+  const roots = thirdPartyPackageRoots({
+    inputs: Object.fromEntries([
+      input("packages/contracts/dist/index.js"),
+      input("node_modules/.pnpm/zod@4.6.7/node_modules/zod/v4/core.js"),
+      input("node_modules/.pnpm/zod@4.6.7/node_modules/zod/index.js"),
+      input(
+        "node_modules/.pnpm/@hono+node-server@2/node_modules/@hono/node-server/dist/index.js",
+      ),
+      input("node_modules/.pnpm/x/node_modules/@nervekit/native/dist/index.js"),
+    ]),
+    outputs: {},
+  });
+  assert.deepEqual(roots, [
+    "node_modules/.pnpm/@hono+node-server@2/node_modules/@hono/node-server",
+    "node_modules/.pnpm/zod@4.6.7/node_modules/zod",
+  ]);
+});
+
+test("distribution dependencies keep only external packages and reject conflicting ranges", () => {
   const desktop = {
-    dependencies: { zod: "^4.0.0", sharp: "^0.35.0" },
+    dependencies: { "@nervekit/contracts": "workspace:*" },
     peerDependencies: { electron: "^41.0.0" },
   };
-  const dependencies = collectDistributionDependencies(
-    desktop,
-    internal,
-    version,
-  );
-  assert.equal(dependencies[names[0]!], version);
-  assert.equal(dependencies.electron, "^41.0.0");
-  assert.equal(dependencies.zod, "^4.0.0");
-  assert.deepEqual(Object.keys(dependencies), Object.keys(dependencies).sort());
-
+  const harness = {
+    dependencies: { sharp: "^0.35.0", zod: "^4.0.0", yaml: "2.9.0" },
+  };
+  const dependencies = collectDistributionDependencies(desktop, [harness]);
+  assert.deepEqual(dependencies, { electron: "^41.0.0", sharp: "^0.35.0" });
   assert.throws(
     () =>
-      collectDistributionDependencies(
-        { ...desktop, dependencies: { zod: "^3.0.0" } },
-        internal,
-        version,
-      ),
-    /Conflicting runtime dependency ranges for zod/,
+      collectDistributionDependencies(desktop, [
+        harness,
+        { dependencies: { sharp: "^0.34.0" } },
+      ]),
+    /Conflicting runtime dependency ranges for sharp/,
   );
   assert.throws(
-    () =>
-      collectDistributionDependencies({ dependencies: {} }, internal, version),
+    () => collectDistributionDependencies(desktop, []),
+    /external dependency sharp/,
+  );
+  assert.throws(
+    () => collectDistributionDependencies({ dependencies: {} }, [harness]),
     /Electron peer dependency/,
   );
 });
 
-test("embedded manifests pin internal dependencies and drop undefined fields", () => {
-  const manifest = embeddedManifest(
-    {
-      name: names[1],
-      version: "0.0.0",
-      dependencies: { [names[0]!]: "workspace:*", zod: "^4.0.0" },
-    },
-    version,
+test("native platform packages carry exact os/cpu/libc and contents", () => {
+  const [linux, windows] = nativePackages;
+  assert.deepEqual(
+    [linux!.os, linux!.cpu, linux!.libc, windows!.libc],
+    ["linux", "x64", ["glibc"], undefined],
   );
-  assert.deepEqual(manifest, {
-    name: names[1],
+  const manifest = (platform = linux!) =>
+    nativePlatformManifest(
+      platform,
+      { engines: { node: ">=24.0.0" } },
+      version,
+    );
+  const entries = (platform = linux!) => [
+    "package",
+    "package/package.json",
+    "package/LICENSE",
+    "package/NOTICE",
+    `package/${platform.filename}`,
+  ];
+  verifyNativePlatformTarball(manifest(), entries(), linux!, version, "x.tgz");
+  verifyNativePlatformTarball(
+    manifest(windows),
+    entries(windows),
+    windows!,
     version,
-    dependencies: { [names[0]!]: version, zod: "^4.0.0" },
-  });
+    "x.tgz",
+  );
+  assert.deepEqual(manifest().os, ["linux"]);
+  assert.throws(
+    () =>
+      verifyNativePlatformTarball(
+        { ...manifest(), libc: undefined },
+        entries(),
+        linux!,
+        version,
+        "x.tgz",
+      ),
+    /libc/,
+  );
+  assert.throws(
+    () =>
+      verifyNativePlatformTarball(
+        manifest(),
+        [...entries(), "package/nerve_native.darwin-x64.node"],
+        linux!,
+        version,
+        "x.tgz",
+      ),
+    /expected exactly/,
+  );
+  assert.throws(
+    () =>
+      verifyNativePlatformTarball(
+        { ...manifest(), cpu: ["arm64"] },
+        entries(),
+        linux!,
+        version,
+        "x.tgz",
+      ),
+    /cpu/,
+  );
 });

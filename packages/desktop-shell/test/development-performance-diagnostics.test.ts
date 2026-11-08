@@ -11,7 +11,7 @@ const sessionOptions = {
 };
 
 describe("development performance diagnostics policy", () => {
-  it("enables diagnostics for an unpackaged source launch", () => {
+  it("enables diagnostics for an source (non-release) launch", () => {
     const env: NodeJS.ProcessEnv = {};
     applyDevelopmentPerformanceDiagnostics(false, env, sessionOptions);
     assert.equal(env.NERVE_PERFORMANCE_DIAGNOSTICS, "1");
@@ -21,7 +21,7 @@ describe("development performance diagnostics policy", () => {
     );
   });
 
-  it("does not affect packaged launches", () => {
+  it("does not affect release launches", () => {
     const env: NodeJS.ProcessEnv = {};
     applyDevelopmentPerformanceDiagnostics(true, env, sessionOptions);
     assert.equal(env.NERVE_PERFORMANCE_DIAGNOSTICS, undefined);
@@ -43,7 +43,7 @@ describe("development performance diagnostics policy", () => {
     assert.equal(enabled.NERVE_PERFORMANCE_SESSION_ID, "existing-session");
   });
 
-  it("creates safe IDs and supports explicit packaged diagnostics", () => {
+  it("creates safe IDs and supports explicit release diagnostics", () => {
     assert.equal(
       createPerformanceSessionId(new Date("2026-08-15T10:20:30.456Z"), 42),
       "20260815T102030456Z-desktop-42",

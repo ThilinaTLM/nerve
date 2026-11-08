@@ -3,7 +3,7 @@ import {
   loopbackNoProxyEntries,
   mergeNoProxy,
   mergeNoProxySources,
-} from "@nervekit/workbench-server";
+} from "@nervekit/workbench-server/network";
 
 // Node-safe helpers for Electron's platform-binary download path.
 // This module must not import Electron; it runs before `require("electron")`.

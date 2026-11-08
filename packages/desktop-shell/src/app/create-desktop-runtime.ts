@@ -29,7 +29,6 @@ import { parseDevelopmentSlot } from "./development-marker.js";
 import { installNavigationGuards } from "../window/navigation-guards.js";
 import {
   resolveAppIconPath,
-  resolvePackagedWebDistPath,
   resolvePreloadPath,
 } from "../window/preload-paths.js";
 import {
@@ -152,7 +151,6 @@ export function createDesktopRuntimePorts(): DesktopRuntimePorts {
     showDesktopNotification,
     createTray: createTrayController,
     installPerformanceMonitor: installDesktopPerformanceMonitor,
-    packagedWebDistPath: resolvePackagedWebDistPath,
     now: Date.now,
   };
 }

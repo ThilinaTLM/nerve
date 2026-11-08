@@ -100,6 +100,5 @@ export interface DesktopRuntimePorts {
   installPerformanceMonitor(
     options: DesktopPerformanceMonitorOptions,
   ): DesktopPerformanceMonitor;
-  packagedWebDistPath(): string | undefined;
   now(): number;
 }

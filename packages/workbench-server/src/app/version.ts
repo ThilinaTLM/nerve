@@ -1,14 +1,12 @@
 import { readFileSync } from "node:fs";
-import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
+import { join } from "node:path";
+import { findPackageRoot } from "../infrastructure/package-root.js";
 
 export const version = readPackageVersion();
 
 function readPackageVersion(): string {
   const packageJsonPath = join(
-    dirname(fileURLToPath(import.meta.url)),
-    "..",
-    "..",
+    findPackageRoot(import.meta.url),
     "package.json",
   );
 

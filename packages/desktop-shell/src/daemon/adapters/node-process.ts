@@ -7,6 +7,7 @@ import {
   writeCrashReportSync,
 } from "../../crash-reports.js";
 import { desktopLog } from "../../logging.js";
+import { isReleaseMode } from "../../release-mode.js";
 import type {
   DaemonConnectionPorts,
   RemoteCredentialStorePort,
@@ -70,12 +71,23 @@ export function createNodeDaemonPorts(
       log: (level, message, data) =>
         void desktopLog(level, "daemon", message, data),
     },
-    resolveServerMain: () =>
-      fileURLToPath(import.meta.resolve("@nervekit/workbench-server/main")),
+    resolveServerMain: resolveServerMain,
     fileExists: (path) =>
       access(path).then(
         () => true,
         () => false,
       ),
   };
+}
+
+/**
+ * The published package bundles the daemon next to this module as
+ * dist/daemon.js; workspace runs resolve the built workbench-server package.
+ */
+function resolveServerMain(): string {
+  return fileURLToPath(
+    isReleaseMode
+      ? new URL("./daemon.js", import.meta.url)
+      : import.meta.resolve("@nervekit/workbench-server/main"),
+  );
 }

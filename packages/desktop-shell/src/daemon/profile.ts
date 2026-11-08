@@ -103,7 +103,6 @@ export function buildOrchestratorEnv(
     ...childEnv,
     ELECTRON_RUN_AS_NODE: "1",
     NODE_OPTIONS: nodeOptions,
-    ...(options.webDistPath ? { NERVE_WEB_DIST: options.webDistPath } : {}),
   };
 }
 

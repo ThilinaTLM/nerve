@@ -2,7 +2,7 @@
   "name": "@nervekit/desktop-shell",
   "version": "0.39.1",
   "private": true,
-  "description": "Electron packaging and desktop bridge shell for Nerve.",
+  "description": "Electron launcher and desktop bridge shell for Nerve.",
   "author": "ThilinaTLM",
   "license": "Apache-2.0",
   "type": "module",
@@ -31,9 +31,6 @@
     "test": "tsx --test \"test/**/*.test.ts\"",
     "start": "node scripts/start-electron.ts",
     "dev": "tsx scripts/dev-desktop.ts",
-    "build:package": "pnpm -w build:workbench-runtime && pnpm --filter @nervekit/desktop-shell build && electron-builder --publish never",
-    "package:dir": "electron-builder --dir --publish never",
-    "package:linux": "pnpm -w build:workbench-runtime && pnpm --filter @nervekit/desktop-shell build && electron-builder --linux AppImage deb rpm --publish never",
     "dev:prod": "pnpm -w build:native && pnpm -w build:workbench-runtime && pnpm --filter @nervekit/desktop-shell build && node scripts/start-electron.ts"
   },
   "dependencies": {
@@ -46,7 +43,6 @@
   "devDependencies": {
     "@types/node": "24.10.1",
     "electron": "^45.2.1",
-    "electron-builder": "^26.15.0",
     "esbuild": "0.28.1",
     "tsx": "4.22.4",
     "typescript": "5.9.3"

@@ -53,6 +53,10 @@ await index.close();
 - **Limits:** 200k documents, 400k fields, 64Mi UTF-16 source units, up to 32 fields per document, 32 terms per query. One active plus 32 waiting operations per index; updates also share a process-wide build gate (two active, 16 waiting). Exceeding a limit rejects; nothing is silently truncated. Limits bound logical input, not RSS.
 - **Lifetime:** the creation signal owns the whole index. Aborting it or calling `close()` cancels active work, rejects queued work and frees memory on a native worker. Finalizers are only a fallback.
 
+## Distribution and loading
+
+Published installs get the addon from per-platform packages `@nervekit/native-<triple>` (optional dependencies of `@nervekit/desktop`; see [scripts/README.md](../../scripts/README.md)). The loader first `require`s that bare specifier, then falls back to `prebuilds/` and `prebuilds/local/` for development and CI. Skipped optional dependencies (`--no-optional`) or unsupported platforms produce an error naming the missing package.
+
 ## Development
 
 ```sh

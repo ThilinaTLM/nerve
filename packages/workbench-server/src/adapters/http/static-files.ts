@@ -1,14 +1,6 @@
 import { readFile, realpath } from "node:fs/promises";
-import {
-  dirname,
-  extname,
-  isAbsolute,
-  join,
-  relative,
-  resolve,
-  sep,
-} from "node:path";
-import { fileURLToPath } from "node:url";
+import { extname, isAbsolute, join, relative, resolve, sep } from "node:path";
+import { findPackageRoot } from "../../infrastructure/package-root.js";
 import { documentStyles } from "../../infrastructure/documents/index.js";
 
 interface StaticFileContext {
@@ -156,6 +148,5 @@ function resolveWebDistPath(): string {
 }
 
 export function resolveBundledWebDistPath(moduleUrl: string): string {
-  const moduleDir = dirname(fileURLToPath(moduleUrl));
-  return resolve(moduleDir, "..", "..", "..", "dist", "web");
+  return resolve(findPackageRoot(moduleUrl), "dist", "web");
 }

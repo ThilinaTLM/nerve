@@ -1,19 +1,30 @@
 import { existsSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { app, nativeTheme } from "../platform/electron/electron-api.js";
+import { nativeTheme } from "../platform/electron/electron-api.js";
 import {
   appIconAssetSegments,
   trayIconAssetSegments,
 } from "./desktop-asset-names.js";
 
-export function resolvePreloadPath(): string {
-  return join(dirname(fileURLToPath(import.meta.url)), "..", "preload.cjs");
+/**
+ * Nearest ancestor directory containing a package.json. Both the tsc layout
+ * (dist/window/*.js) and the release bundle (dist/*.js) sit under the package
+ * root, so assets resolve identically in either.
+ */
+function resolvePackageRoot(): string {
+  let directory = dirname(fileURLToPath(import.meta.url));
+  while (!existsSync(join(directory, "package.json"))) {
+    const parent = dirname(directory);
+    if (parent === directory)
+      throw new Error("Could not locate the desktop package root.");
+    directory = parent;
+  }
+  return directory;
 }
 
-export function resolvePackagedWebDistPath(): string | undefined {
-  if (!app.isPackaged) return undefined;
-  return join(process.resourcesPath, "web-dist");
+export function resolvePreloadPath(): string {
+  return join(resolvePackageRoot(), "dist", "preload.cjs");
 }
 
 export function resolveAppIconPath(): string {
@@ -27,9 +38,5 @@ export function resolveTrayIconPath(): string {
 }
 
 function resolveDesktopAssetPath(...segments: string[]): string {
-  const moduleDir = dirname(fileURLToPath(import.meta.url));
-  const packageRelativePath = join(moduleDir, "..", "..", ...segments);
-  if (existsSync(packageRelativePath)) return packageRelativePath;
-
-  return join(process.resourcesPath, "app.asar.unpacked", ...segments);
+  return join(resolvePackageRoot(), ...segments);
 }
