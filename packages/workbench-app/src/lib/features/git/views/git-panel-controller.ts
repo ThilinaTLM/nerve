@@ -1,7 +1,6 @@
 import type {
   GitBranchSummary,
   GitFileChange,
-  GithubPr,
   GithubPrHeadSummary,
   GithubPrHeadsResponse,
   GitStashArea,
@@ -207,12 +206,6 @@ export function shouldLoadRepoBranches(
   return cachedBranchCount === 0;
 }
 
-export function limitPullRequests(
-  pullRequests: readonly GithubPr[],
-): GithubPr[] {
-  return pullRequests.slice(0, 10);
-}
-
 /**
  * Wrap host effects with the normalized feature capabilities. Views can call
  * every action without optional callbacks; unsupported actions remain inert.
@@ -265,13 +258,14 @@ export function createGitPanelActions(
       if (available() && model().capabilities.refresh.enabled)
         return host.refreshPullRequests(repository);
     },
-    configurePullRequests: (repository, filters) => {
-      if (available() && model().capabilities.refresh.enabled)
-        return host.configurePullRequests(repository, filters);
+    configurePullRequests: (filters) => {
+      if (available()) return host.configurePullRequests(filters);
     },
-    resetPullRequestConfig: (repository) => {
-      if (available() && model().capabilities.refresh.enabled)
-        return host.resetPullRequestConfig(repository);
+    resetPullRequestConfig: () => {
+      if (available()) return host.resetPullRequestConfig();
+    },
+    setPullRequestQuickFilter: (quick) => {
+      if (available()) return host.setPullRequestQuickFilter(quick);
     },
     selectRepository: (repository) => {
       if (available() && model().capabilities.selectRepository.enabled)

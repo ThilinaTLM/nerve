@@ -10,7 +10,6 @@ import { Input } from "@nervekit/ui-kit/components/ui/input";
 import { Label } from "@nervekit/ui-kit/components/ui/label";
 import * as Sheet from "@nervekit/ui-kit/components/ui/sheet";
 import * as ToggleGroup from "@nervekit/ui-kit/components/ui/toggle-group";
-import SwitchField from "@nervekit/ui-kit/components/composites/switch-field";
 import * as Empty from "@nervekit/ui-kit/components/ui/empty";
 import type { StatusTone } from "@nervekit/ui-kit/display/status";
 import { relativeTimeLabel } from "@nervekit/ui-kit/display/time";
@@ -47,17 +46,13 @@ let {
 
 const repository = $derived(model.selectedRepository);
 const filterCount = $derived(activeGitPrFilterCount(model.pullRequestFilters));
-const hasCurrentBranch = $derived(
-  Boolean(model.repositorySummary?.currentBranch),
-);
 
 let draft = $state<GitPrFilterDraft>(
   createGitPrFilterDraft(defaultGitPrFilterConfig),
 );
-const draftFilters = $derived(applyGitPrFilterDraft(draft, hasCurrentBranch));
+const draftFilters = $derived(applyGitPrFilterDraft(draft));
 const canApply = $derived(
-  (draft.author !== "username" || draft.username.trim().length > 0) &&
-    !gitPrFilterConfigsEqual(draftFilters, model.pullRequestFilters),
+  !gitPrFilterConfigsEqual(draftFilters, model.pullRequestFilters),
 );
 const canReset = $derived(
   !gitPrFilterConfigsEqual(model.pullRequestFilters, defaultGitPrFilterConfig),
@@ -74,12 +69,12 @@ $effect(() => {
 function applyFilters(event: SubmitEvent) {
   event.preventDefault();
   if (!canApply) return;
-  void gitActions.configurePullRequests(repository, draftFilters);
+  void gitActions.configurePullRequests(draftFilters);
   filtersOpen = false;
 }
 
 function resetFilters() {
-  void gitActions.resetPullRequestConfig(repository);
+  void gitActions.resetPullRequestConfig();
   filtersOpen = false;
 }
 
@@ -208,36 +203,6 @@ function open(pr: GithubPr) {
       onsubmit={applyFilters}
     >
       <div class="grid gap-1.5">
-        <Label>Author</Label>
-        <ToggleGroup.Root
-          type="single"
-          variant="outline"
-          class="w-full"
-          value={draft.author}
-          aria-label="Pull request author"
-          onValueChange={(value) => {
-            if (value === "any" || value === "me" || value === "username")
-              draft = { ...draft, author: value };
-          }}
-        >
-          <ToggleGroup.Item value="any" class="flex-1">Any</ToggleGroup.Item>
-          <ToggleGroup.Item value="me" class="flex-1">Me</ToggleGroup.Item>
-          <ToggleGroup.Item value="username" class="flex-1"
-            >User</ToggleGroup.Item
-          >
-        </ToggleGroup.Root>
-        {#if draft.author === "username"}
-          <Input
-            bind:value={draft.username}
-            placeholder="GitHub username"
-            aria-label="GitHub username"
-            autocapitalize="off"
-            autocorrect="off"
-            spellcheck={false}
-          />
-        {/if}
-      </div>
-      <div class="grid gap-1.5">
         <Label>Drafts</Label>
         <ToggleGroup.Root
           type="single"
@@ -260,10 +225,6 @@ function open(pr: GithubPr) {
         </ToggleGroup.Root>
       </div>
       <div class="grid gap-1.5">
-        <Label for="mobile-pr-title">Title contains</Label>
-        <Input id="mobile-pr-title" bind:value={draft.title} />
-      </div>
-      <div class="grid gap-1.5">
         <Label for="mobile-pr-labels">Labels</Label>
         <Input
           id="mobile-pr-labels"
@@ -273,11 +234,6 @@ function open(pr: GithubPr) {
         />
         <p class="text-ui text-muted-foreground">Comma-separated.</p>
       </div>
-      <SwitchField
-        bind:checked={draft.currentBranchOnly}
-        label="Current branch only"
-        disabled={!hasCurrentBranch}
-      />
       <div class="grid gap-1.5">
         <Label>Sort</Label>
         <ToggleGroup.Root

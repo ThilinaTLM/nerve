@@ -49,6 +49,8 @@ export type DiffViewState = {
   loading: boolean;
   refreshing: boolean;
   error?: string;
+  /** Revision of the repository detail the shown diff was read at. */
+  detailRevision?: number;
 };
 
 export type GitContext = {

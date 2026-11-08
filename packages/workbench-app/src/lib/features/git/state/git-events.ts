@@ -1,55 +1,14 @@
 import { registerPrStoreEvents } from "./pr-store.svelte";
-import {
-  onEvent,
-  onWorkbenchReconnect,
-  type WorkbenchEvent,
-} from "$lib/application/events/workbench-event-bus";
-import type { GitAutoRefreshDemand } from "./git-auto-refresh-scheduler";
-import { gitEventRefreshRequest } from "./git-event-policy";
-import { refreshGitContext } from "./git-context.svelte";
-import { workbenchStartupState } from "$lib/application/startup/workbench-startup-state.svelte";
-import {
-  invalidateGitOverviewFromFilesystem,
-  scheduleAutomaticGitRefresh,
-  refreshWorkbenchGit,
-} from "./git-panel.svelte";
+import { registerGitContextSync } from "./git-context.svelte";
+import { registerGitStoreEvents } from "./git-store.svelte";
 
-type ScheduleRefresh = (
-  projectId: string,
-  repo: string,
-  demand: GitAutoRefreshDemand,
-) => void;
-
-export function registerGitEventHandlers(
-  schedule: ScheduleRefresh = scheduleAutomaticGitRefresh,
-): () => void {
+export function registerGitEventHandlers(): () => void {
   const unregisterPrs = registerPrStoreEvents();
-  const handle = (event: WorkbenchEvent): void => {
-    try {
-      const request = gitEventRefreshRequest(event);
-      if (!request) return;
-      if (event.type === "git.repository.invalidated") {
-        invalidateGitOverviewFromFilesystem(
-          request.projectId,
-          request.repo,
-          request.demand.uncertain,
-        );
-        return;
-      }
-      if (request.refreshDiscovery && workbenchStartupState.progressiveActive)
-        void refreshGitContext(request.projectId, { force: true });
-      schedule(request.projectId, request.repo, request.demand);
-    } catch {
-      // Event reducers must not prevent workspace cursor advancement.
-    }
-  };
-  const unregisterReconnect = onWorkbenchReconnect(refreshWorkbenchGit);
-  const unregisterInvalidated = onEvent("git.repository.invalidated", handle);
-  const unregisterChanged = onEvent("git.repository.changed", handle);
+  const unregisterStore = registerGitStoreEvents();
+  const unregisterContext = registerGitContextSync();
   return () => {
+    unregisterContext();
+    unregisterStore();
     unregisterPrs();
-    unregisterReconnect();
-    unregisterInvalidated();
-    unregisterChanged();
   };
 }

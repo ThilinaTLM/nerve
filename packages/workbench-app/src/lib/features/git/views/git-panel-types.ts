@@ -1,5 +1,6 @@
 import type { Activity } from "@nervekit/contracts/activity";
-import type { GitPrFilterConfig } from "../pr-filters";
+import type { GitPrFilterConfig, GitPrQuickFilter } from "../pr-filters";
+import type { GitPullRequestsOverview } from "../state/pr-panel-sources.svelte";
 import type {
   GitBranchSummary,
   GitDiffArea,
@@ -89,6 +90,8 @@ export interface GitRepoBranchState {
 }
 
 export interface GitPanelModel {
+  /** Scopes remembered list choices (filter, expansion, selection). */
+  readonly projectId?: string;
   readonly activeOperations?: readonly Activity[];
   readonly availability:
     | { readonly available: true }
@@ -107,7 +110,12 @@ export interface GitPanelModel {
   readonly currentBranchPr?: GithubPr;
   readonly awaitingPullRequest?: boolean;
   readonly expectedPullRequestUrl?: string;
+  /** Project-wide filter menu configuration (drafts, labels, sort). */
   readonly pullRequestFilters: GitPrFilterConfig;
+  /** Project-wide quick filter of the Pull requests tab. */
+  readonly pullRequestQuickFilter: GitPrQuickFilter;
+  /** Every GitHub repository of the project, one entry per `owner/name`. */
+  readonly pullRequestsOverview: GitPullRequestsOverview;
   readonly selectedPullRequestNumber?: number;
   readonly initialLoading: boolean;
   readonly cachedError?: string;
@@ -123,6 +131,8 @@ export interface GitPanelModel {
   readonly capabilities: GitPanelCapabilities;
   /** The failed remote operation to surface for a repository, if it is still the latest. */
   readonly lastRemoteFailure?: (repository: string) => Activity | undefined;
+  /** The pull request of a worktree's current branch, for any repository. */
+  readonly branchPullRequest?: (repository: string) => GithubPr | undefined;
   /** Per-repository branch state so every repo can show and switch branches. */
   readonly repoBranchState: (repository: string) => GitRepoBranchState;
 }
@@ -149,11 +159,15 @@ export interface GitPanelActions {
   readonly loadPullRequestBadges: (repository: string) => void | Promise<void>;
   readonly refreshPullRequests: (repository: string) => void | Promise<void>;
   readonly configurePullRequests: (
-    repository: string,
     filters: GitPrFilterConfig,
   ) => void | Promise<void>;
-  readonly resetPullRequestConfig: (repository: string) => void | Promise<void>;
+  readonly resetPullRequestConfig: () => void | Promise<void>;
+  readonly setPullRequestQuickFilter: (
+    quick: GitPrQuickFilter,
+  ) => void | Promise<void>;
   readonly selectRepository: (repository: string) => void | Promise<void>;
+  /** A branch row was hovered or focused: it may be selected soon (the server warms it). */
+  readonly hintRepository?: (repository: string) => void;
   readonly createBranch: (
     repository: string,
     name: string,

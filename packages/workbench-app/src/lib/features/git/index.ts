@@ -1,9 +1,9 @@
 export * from "./api/git.api";
 export { clearGitContext, refreshGitContext } from "./state/git-context.svelte";
 export { gitSelectors } from "./state/git-selectors.svelte";
-export { refreshDiffPane } from "./state/diff-tabs.svelte";
+export { refreshDiffPane, startDiffTabWatch } from "./state/diff-tabs.svelte";
 export { refreshPrPane } from "./state/pr-tabs.svelte";
-export { startGitRefreshCoordinator } from "./state/git-refresh-coordinator.svelte";
+export { startPrTabWatch } from "./state/pr-view-loader.svelte";
 export { registerGitEventHandlers } from "./state/git-events";
 export { createGitStartupPolicy } from "./state/git-startup-policy";
 export { createWorkbenchGitPanelAdapter } from "./state/workbench-git-panel-adapter.svelte";
@@ -12,3 +12,4 @@ export * from "./views/git-panel-controller";
 export * from "./views/git-panel-types";
 export * from "./pr-filters";
 export { checksRunning } from "./views/github-pr-checks";
+export { watchGitChanges } from "./state/git-store.svelte";

@@ -3,7 +3,7 @@ import { test } from "node:test";
 import { GitWorkflowError, type GitService } from "@nervekit/tools/git";
 import { z } from "zod";
 import { ApplicationError } from "../../core/application-error.js";
-import { withGitMutationEvents } from "../../domains/git/git-mutation-publisher.js";
+import { withGitMutationReporting } from "../../domains/git/git-mutation-publisher.js";
 import { translateError } from "./http-dispatcher.js";
 
 void test("translation adds reported Activity metadata without changing error semantics or redaction", async () => {
@@ -25,20 +25,16 @@ void test("translation adds reported Activity metadata without changing error se
         throw original;
       },
     } as unknown as GitService;
-    const decorated = withGitMutationEvents(
-      git,
-      { publish() {} },
-      {
-        start: () => ({
-          id: "activity_reported",
-          progress() {},
-          succeed() {},
-          cancelled() {},
-          interrupt() {},
-          fail() {},
-        }),
-      },
-    );
+    const decorated = withGitMutationReporting(git, {
+      start: () => ({
+        id: "activity_reported",
+        progress() {},
+        succeed() {},
+        cancelled() {},
+        interrupt() {},
+        fail() {},
+      }),
+    });
     await assert.rejects(
       decorated.switchBranch("proj_test", ".", "main"),
       (error: unknown) => error === original,
@@ -67,22 +63,18 @@ void test("unreported failures, including primitives, have no Activity metadata"
         throw original;
       },
     } as unknown as GitService;
-    const decorated = withGitMutationEvents(
-      git,
-      { publish() {} },
-      {
-        start: () => ({
-          id: "not_reported",
-          progress() {},
-          succeed() {},
-          cancelled() {},
-          interrupt() {},
-          fail() {
-            throw new Error("report failed");
-          },
-        }),
-      },
-    );
+    const decorated = withGitMutationReporting(git, {
+      start: () => ({
+        id: "not_reported",
+        progress() {},
+        succeed() {},
+        cancelled() {},
+        interrupt() {},
+        fail() {
+          throw new Error("report failed");
+        },
+      }),
+    });
     await assert.rejects(
       decorated.switchBranch("proj_test", ".", "main"),
       (error: unknown) => error === original,

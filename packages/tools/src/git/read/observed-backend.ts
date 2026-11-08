@@ -7,6 +7,7 @@ import type { GitReadObservation } from "../git-observability.js";
 import type {
   GitReadBackend,
   GitReadSnapshot,
+  GitReadStatusSnapshot,
   GitReadMetadataSnapshot,
   GitReadMetadataOptions,
   GitReadProjectRepository,
@@ -70,6 +71,16 @@ export class ObservedGitReadBackend implements GitReadBackend {
     return this.run(
       "snapshot",
       () => this.backend.snapshot(repoDir, includeIgnored),
+      repoDir,
+    );
+  }
+  statusSnapshot(
+    repoDir: string,
+    includeIgnored?: boolean,
+  ): Promise<GitReadStatusSnapshot> {
+    return this.run(
+      "status-snapshot",
+      () => this.backend.statusSnapshot(repoDir, includeIgnored),
       repoDir,
     );
   }

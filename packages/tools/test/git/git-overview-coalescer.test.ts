@@ -44,6 +44,25 @@ test("uncertain invalidation marks in-flight overviews stale", async () => {
   assert.equal((await pending).stale, true);
 });
 
+test("repository-scoped invalidation leaves other repositories' reads running", async () => {
+  let release!: () => void;
+  const gate = new Promise<void>((resolve) => (release = resolve));
+  const coalescer = new GitOverviewCoalescer({
+    resolveRepoDir: (_project, path) => join(root, path),
+    readOverview: async (_project, path) => {
+      await gate;
+      return { path } as unknown as GitOverviewResponse;
+    },
+  });
+  const a = coalescer.overview("p", "a");
+  const b = coalescer.overview("p", "b");
+  a.catch(() => {});
+  coalescer.invalidate("p", {}, join(root, "a"));
+  release();
+  await assert.rejects(a, /superseded/);
+  assert.deepEqual(await b, { path: "b" });
+});
+
 test("close rejects new reads", async () => {
   const { coalescer, release } = setup();
   release();

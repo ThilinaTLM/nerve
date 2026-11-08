@@ -12,14 +12,11 @@ import {
   expectedPrUrl,
 } from "./pr-store.svelte";
 import { untrack } from "svelte";
+import { gitProjectView } from "./git-panel-view-state.svelte";
+import { isPrimaryWorktree, worktreeGroupOf } from "../views/git-repo-tree";
 import { lastRemoteFailure } from "../views/git-remote-actions";
 import { createGitPanelActions } from "../views/git-panel-controller";
-import {
-  requestGitRepositoryRefresh,
-  getGitOverview,
-  startBulkGitOperation,
-  cancelGitOperation,
-} from "../api/git.api";
+import { startBulkGitOperation, cancelGitOperation } from "../api/git.api";
 import { activityInbox } from "$lib/application/activity/activity-state.svelte";
 import { notify } from "$lib/application/notifications/notify.svelte";
 import {
@@ -34,12 +31,21 @@ import {
   type GitPanelModel,
   type GitRemoteOperation,
 } from "../views/git-panel-types";
+import { defaultGitPrFilterConfig } from "../pr-filters";
 import {
-  defaultGitPrFilterConfig,
-  normalizeGitPrFilterConfig,
-} from "../pr-filters";
+  githubCheckoutGroups,
+  pullRequestsOverview,
+} from "./pr-panel-sources.svelte";
+import {
+  prPanelPreferences,
+  setPrPanelFilters,
+  setPrPanelQuickFilter,
+} from "./pr-panel-state.svelte";
 import type { Project } from "@nervekit/contracts/core";
-import type { GitOperationBulkStartRequest } from "@nervekit/contracts/git";
+import type {
+  GitOperationBulkStartRequest,
+  GitRepoSummary,
+} from "@nervekit/contracts/git";
 import { openDiffPane } from "$lib/features/git/state/diff-tabs.svelte";
 import { openPrPane } from "$lib/features/git/state/pr-tabs.svelte";
 import {
@@ -48,27 +54,37 @@ import {
 } from "$lib/domain/navigation/view-keys";
 import { workbenchStartupState } from "$lib/application/startup/workbench-startup-state.svelte";
 import { shouldActivateGitPanel } from "./git-startup-policy";
+import { showCriticalError } from "$lib/application/notifications/critical-errors.svelte";
+import { gitPanelLayout } from "./git-panel-view-state.svelte";
+import {
+  gitHintedRepo,
+  gitRepoDetail,
+  gitRepoDetailLoading,
+  gitWorkspaceSnapshot,
+  gitWorkspaceStatus,
+  hintGitRepo,
+  readGitRepoDetail,
+  readGitWorkspace,
+  refreshGitWorkspaceNow,
+  watchGitWorkspace,
+} from "./git-store.svelte";
 import {
   applyGitRepoStash,
-  autoRefreshGitOverview,
   createGitRepoBranch,
   createGitRepoStash,
   deleteGitRepoBranch,
   fetchGitRepo,
   dropGitRepoStash,
   gitPanelState,
+  errorMessage,
   mutateGitFile,
   mutateGitFileScope,
-  savePrFilters,
   pullGitRepo,
   pushGitRepo,
   refreshBranches,
   refreshGithub,
-  refreshGitOverview,
-  refreshGitProject,
-  selectGitProject,
+  selectedGitRepo,
   setGitChangeTreeFolderExpanded,
-  setGitOverviewRefreshVisible,
   selectGitRepo,
   switchBaseAndPullGitRepo,
   switchGitRepoBranch,
@@ -79,6 +95,15 @@ const unsupported = disabledCapability(
   "Select a project to use Git operations.",
 );
 const emptyCollapsedFolders: ReadonlySet<string> = new Set();
+const noRepositories: readonly GitRepoSummary[] = [];
+const emptyPullRequestsOverview: GitPanelModel["pullRequestsOverview"] = {
+  repositoryCount: 0,
+  sources: [],
+  status: "loading",
+  viewer: null,
+  loading: false,
+  refreshing: false,
+};
 
 export function createWorkbenchGitPanelAdapter(
   activeProject: () => Project | undefined,
@@ -91,10 +116,23 @@ export function createWorkbenchGitPanelAdapter(
       const projectState = project
         ? gitPanelState.projects[gitProjectStateKey(project.id)]
         : undefined;
-      const repositories = projectState?.repos ?? [];
-      const selectedRepository = projectState?.selectedRepo ?? ".";
+      const snapshot = project ? gitWorkspaceSnapshot(project.id) : undefined;
+      const workspace = project ? gitWorkspaceStatus(project.id) : undefined;
+      const repositories = snapshot?.summaries ?? noRepositories;
+      const selectedRepository = project ? selectedGitRepo(project.id) : ".";
       const current =
         projectState?.repoStates[gitRepoStateKey(selectedRepository)];
+      const detail = project
+        ? gitRepoDetail(project.id, selectedRepository)
+        : undefined;
+      // Summaries already describe every repository, so the branch line and
+      // branch-scoped PR state render at once while the detail loads.
+      const repositorySummary = repositories.find(
+        (repo) => repo.relativePath === selectedRepository,
+      );
+      const prefs = project
+        ? prPanelPreferences(project.id)
+        : { quick: "all" as const, filters: defaultGitPrFilterConfig };
       const capabilities = project
         ? {
             refresh: enabledCapability,
@@ -129,6 +167,7 @@ export function createWorkbenchGitPanelAdapter(
             openPullRequest: unsupported,
           };
       return {
+        projectId: project?.id,
         availability: project
           ? { available: true }
           : {
@@ -139,20 +178,15 @@ export function createWorkbenchGitPanelAdapter(
           "No Git repositories found in this directory (searched up to 2 levels deep).",
         repositories,
         selectedRepository,
-        repositorySummary: current?.repoSummary,
-        changes: current?.changes,
+        repositorySummary,
+        changes: detail,
         branches: current?.branches ?? [],
         collapsedChangeTreeFolders:
           current?.collapsedChangeTreeFolders ?? emptyCollapsedFolders,
-        stashes: current?.stashes ?? [],
+        stashes: detail?.stashes ?? [],
         github: current?.github,
         pullRequests: project
-          ? repoPrs(
-              project.id,
-              selectedRepository,
-              current?.prFilters ?? defaultGitPrFilterConfig,
-              current?.repoSummary?.currentBranch,
-            )
+          ? repoPrs(project.id, selectedRepository, prefs.filters)
           : [],
         prHeads: project
           ? repoPrHeads(project.id, selectedRepository)
@@ -161,42 +195,39 @@ export function createWorkbenchGitPanelAdapter(
           ? branchPr(
               project.id,
               selectedRepository,
-              current?.repoSummary?.currentBranch,
+              repositorySummary?.currentBranch,
             )
           : undefined,
         awaitingPullRequest: project
           ? awaitingPr(
               project.id,
               selectedRepository,
-              current?.repoSummary?.currentBranch,
+              repositorySummary?.currentBranch,
             )
           : false,
         expectedPullRequestUrl: project
           ? expectedPrUrl(project.id, selectedRepository)
           : undefined,
-        pullRequestFilters: current?.prFilters ?? defaultGitPrFilterConfig,
+        pullRequestFilters: prefs.filters,
+        pullRequestQuickFilter: prefs.quick,
+        pullRequestsOverview: project
+          ? pullRequestsOverview(project.id, repositories)
+          : emptyPullRequestsOverview,
         initialLoading:
-          Boolean(project && !projectState) ||
-          Boolean(projectState?.loadingRepos) ||
-          Boolean(
-            projectState?.discoveryRequest.inFlight &&
-            !projectState.loaded &&
-            repositories.length === 0,
-          ),
-        cachedError: projectState?.discoverError,
-        readErrors: projectState?.readErrors,
+          Boolean(project) && !snapshot?.loaded && !workspace?.error,
+        cachedError: snapshot?.loaded ? undefined : workspace?.error,
+        readErrors: snapshot?.errors,
         stale: Boolean(
-          projectState?.readsStale || current?.overviewInvalidated,
+          snapshot?.staleRepos.includes(selectedRepository) || detail?.stale,
         ),
         refreshing:
-          Boolean(projectState?.refreshingRepos) ||
+          Boolean(workspace?.refreshing) ||
           Boolean(
-            (current?.loadingOverview ||
-              (project &&
-                repoPrStatus(project.id, selectedRepository).refreshing)) &&
-            (current?.repoSummary || current?.changes),
+            project && repoPrStatus(project.id, selectedRepository).refreshing,
           ),
-        loadingOverview: current?.loadingOverview ?? false,
+        loadingOverview: project
+          ? gitRepoDetailLoading(project.id, selectedRepository)
+          : false,
         loadingBranches: current?.loadingBranches ?? false,
         loadingPullRequests: project
           ? repoPrStatus(project.id, selectedRepository).loading ||
@@ -220,6 +251,15 @@ export function createWorkbenchGitPanelAdapter(
           ),
         },
         capabilities,
+        branchPullRequest: (repository: string) =>
+          project
+            ? branchPr(
+                project.id,
+                repository,
+                repositories.find((repo) => repo.relativePath === repository)
+                  ?.currentBranch,
+              )
+            : undefined,
         lastRemoteFailure: (repository: string) =>
           lastRemoteFailure(
             activityInbox.activities.filter(
@@ -230,9 +270,9 @@ export function createWorkbenchGitPanelAdapter(
         repoBranchState: (repository: string) => {
           const state = projectState?.repoStates[gitRepoStateKey(repository)];
           return {
-            repoSummary:
-              state?.repoSummary ??
-              repositories.find((repo) => repo.relativePath === repository),
+            repoSummary: repositories.find(
+              (repo) => repo.relativePath === repository,
+            ),
             branches: state?.branches ?? [],
             repositoryUrl: project
               ? repoPrRepositoryUrl(project.id, repository)
@@ -254,8 +294,13 @@ export function createWorkbenchGitPanelAdapter(
     runBulkRemoteOperation: async (kind) => {
       const project = activeProject();
       if (!project) return;
+      // Fetch and "switch to base" act once per repository, on its primary
+      // checkout; pull runs in every worktree.
       const repos = adapter.model.repositories
-        .filter((repo) => repo.hasRemote)
+        .filter(
+          (repo) =>
+            repo.hasRemote && (kind === "pull" || isPrimaryWorktree(repo)),
+        )
         .map((repo) => repo.relativePath);
       if (!repos.length) return;
       try {
@@ -282,23 +327,28 @@ export function createWorkbenchGitPanelAdapter(
         notify.error("Could not cancel Git operation");
       }
     },
-    refreshAll: () => {
+    refreshAll: async () => {
       const project = activeProject();
-      if (project)
-        return refreshGitProject(project, {
-          force: true,
-          criticalErrorTitle: "Could not refresh Git repositories",
-        });
+      if (!project) return;
+      try {
+        await refreshGitWorkspaceNow(project.id);
+      } catch (error) {
+        showCriticalError(
+          "Could not refresh Git repositories",
+          errorMessage(error),
+        );
+      }
     },
     refreshRepository: async (repository) => {
       const project = activeProject();
       if (!project) return;
-      await requestGitRepositoryRefresh(project.id, repository);
       await Promise.all([
-        refreshGitOverview(project.id, repository, {
-          force: true,
-          criticalErrorTitle: "Could not refresh repository",
-        }),
+        refreshGitWorkspaceNow(project.id, repository).catch((error) =>
+          showCriticalError(
+            "Could not refresh repository",
+            errorMessage(error),
+          ),
+        ),
         refreshGithub(
           project.id,
           repository,
@@ -310,14 +360,11 @@ export function createWorkbenchGitPanelAdapter(
     loadStashes: async (repository) => {
       const project = activeProject();
       if (!project) return;
-      try {
-        const overview = await getGitOverview(project.id, repository);
-        if (activeProject()?.id !== project.id) return;
-        return overview.stashes;
-      } catch {
-        if (activeProject()?.id === project.id)
-          notify.error("Could not load stashes");
-      }
+      await readGitRepoDetail(project.id, repository);
+      if (activeProject()?.id !== project.id) return;
+      const detail = gitRepoDetail(project.id, repository);
+      if (!detail) notify.error("Could not load stashes");
+      return detail?.stashes;
     },
     refreshBranches: (repository) => {
       const project = activeProject();
@@ -344,31 +391,26 @@ export function createWorkbenchGitPanelAdapter(
       const project = activeProject();
       if (project) await refreshPrSnapshot(project.id, repository);
     },
-    configurePullRequests: (repository, filters) => {
+    configurePullRequests: (filters) => {
       const project = activeProject();
-      if (!project) return;
-      const state =
-        gitPanelState.projects[gitProjectStateKey(project.id)]?.repoStates[
-          gitRepoStateKey(repository)
-        ];
-      if (!state) return;
-      state.prFilters = normalizeGitPrFilterConfig(filters);
-      savePrFilters(project.id, repository, state.prFilters);
+      if (project) setPrPanelFilters(project.id, filters);
     },
-    resetPullRequestConfig: (repository) => {
+    resetPullRequestConfig: () => {
       const project = activeProject();
-      if (!project) return;
-      const state =
-        gitPanelState.projects[gitProjectStateKey(project.id)]?.repoStates[
-          gitRepoStateKey(repository)
-        ];
-      if (!state) return;
-      state.prFilters = defaultGitPrFilterConfig;
-      savePrFilters(project.id, repository, state.prFilters);
+      if (project) setPrPanelFilters(project.id, defaultGitPrFilterConfig);
+    },
+    setPullRequestQuickFilter: (quick) => {
+      const project = activeProject();
+      if (project) setPrPanelQuickFilter(project.id, quick);
     },
     selectRepository: (repository) => {
       const project = activeProject();
       if (project) selectGitRepo(project.id, repository);
+    },
+    // Hover or focus on a branch row is the server's `hint` demand.
+    hintRepository: (repository) => {
+      const project = activeProject();
+      if (project) hintGitRepo(project.id, repository);
     },
     createBranch: (repository, name) => {
       const project = activeProject();
@@ -452,10 +494,23 @@ export function createWorkbenchGitPanelAdapter(
     const project = activeProject();
     const active = workbenchStartupState.progressiveActive && enabled();
     const list = pullRequestsEnabled();
-    const projectState = project
-      ? gitPanelState.projects[gitProjectStateKey(project.id)]
+    const repos = project
+      ? (gitWorkspaceSnapshot(project.id)?.summaries ?? noRepositories)
+      : noRepositories;
+    const selected = project ? selectedGitRepo(project.id) : undefined;
+    // While the Pull requests tab is on screen every GitHub repository is
+    // shown once (deduplicated by owner/name, via its primary checkout).
+    const shown: string[] =
+      project && list
+        ? githubCheckoutGroups(project.id, repos).map(
+            (group) => group.repository,
+          )
+        : [];
+    // Branch rows of expanded repositories show their PR glyph.
+    const expandedGroups = project
+      ? gitProjectView(project.id).expanded
       : undefined;
-    const cleanups = (projectState?.repos ?? [])
+    const cleanups = repos
       .filter((repo) => repo.hasGithubRemote)
       .map((repo) =>
         watchPullRequests(() =>
@@ -463,13 +518,12 @@ export function createWorkbenchGitPanelAdapter(
             ? {
                 projectId: project.id,
                 repo: repo.relativePath,
-                visible: repo.relativePath === projectState?.selectedRepo,
-                list: list && repo.relativePath === projectState?.selectedRepo,
-                branch:
-                  projectState?.repoStates[gitRepoStateKey(repo.relativePath)]
-                    ?.repoSummary?.currentBranch ??
-                  repo.currentBranch ??
-                  undefined,
+                visible:
+                  repo.relativePath === selected ||
+                  shown.includes(repo.relativePath) ||
+                  Boolean(expandedGroups?.has(worktreeGroupOf(repo))),
+                list: list && shown.includes(repo.relativePath),
+                branch: repo.currentBranch ?? undefined,
                 prs: [],
               }
             : undefined,
@@ -478,64 +532,59 @@ export function createWorkbenchGitPanelAdapter(
     return () => cleanups.forEach((cleanup) => cleanup());
   });
 
+  // Server-owned Git state: declare what this panel shows. Summaries of every
+  // repository while the panel is on screen, the selected worktree's files and
+  // stashes while the Changes section is open, and the hovered or focused
+  // branch row as a hint (open diffs declare their own detail demand).
+  $effect(() => {
+    const project = activeProject();
+    const active = workbenchStartupState.progressiveActive && enabled();
+    if (!project || !active) return;
+    const projectId = project.id;
+    return watchGitWorkspace(() => {
+      const selected = selectedGitRepo(projectId);
+      const detail = !gitPanelLayout().changes.collapsed
+        ? [selected]
+        : undefined;
+      const hint = gitHintedRepo(projectId);
+      return {
+        projectId,
+        visible: true,
+        ...(detail ? { detail } : {}),
+        ...(hint ? { hint } : {}),
+      };
+    });
+  });
+
+  // Reconcile remembered choices with the repositories that exist, and keep the
+  // selected repository's GitHub status loaded.
+  $effect(() => {
+    const project = activeProject();
+    if (!project || !(workbenchStartupState.progressiveActive && enabled()))
+      return;
+    const snapshot = gitWorkspaceSnapshot(project.id);
+    if (!snapshot?.loaded) return;
+    const selected = selectedGitRepo(project.id);
+    untrack(() => {
+      gitProjectView(project.id).reconcile(snapshot.summaries, selected);
+      void refreshGithub(project.id, selected);
+    });
+  });
+
   let lastProjectId: string | undefined;
   $effect(() => {
     const project = activeProject();
-    const panelEnabled = enabled();
     if (
       !shouldActivateGitPanel({
         progressiveActive: workbenchStartupState.progressiveActive,
-        enabled: panelEnabled,
+        enabled: enabled(),
         projectId: project?.id,
         lastProjectId,
       })
     )
       return;
     lastProjectId = project?.id;
-    if (project)
-      queueMicrotask(() => {
-        if (workbenchStartupState.progressiveActive && enabled())
-          selectGitProject(project);
-      });
-  });
-
-  $effect(() => {
-    const active = workbenchStartupState.progressiveActive && enabled();
-    const project = activeProject();
-    const projectState = project
-      ? gitPanelState.projects[gitProjectStateKey(project.id)]
-      : undefined;
-    const repository = projectState?.selectedRepo;
-    if (!active || !project || !projectState?.repos.length || !repository)
-      return;
-    // Registration depends on scope/visibility, not on the freshness state read
-    // by these commands. Otherwise each completed read sends another hard scan.
-    return untrack(() => {
-      setGitOverviewRefreshVisible(project.id, repository, true);
-      const refreshIfStale = () => {
-        void requestGitRepositoryRefresh(project.id, repository).catch(
-          () => undefined,
-        );
-        autoRefreshGitOverview(project.id, repository);
-        if (projectState.readsStale)
-          void refreshGitProject(project, {
-            uncertain: true,
-            silent: true,
-            loadDetails: false,
-          });
-      };
-      const refreshWhenVisible = () => {
-        if (document.visibilityState === "visible") refreshIfStale();
-      };
-      refreshIfStale();
-      window.addEventListener("focus", refreshIfStale);
-      document.addEventListener("visibilitychange", refreshWhenVisible);
-      return () => {
-        setGitOverviewRefreshVisible(project.id, repository, false);
-        window.removeEventListener("focus", refreshIfStale);
-        document.removeEventListener("visibilitychange", refreshWhenVisible);
-      };
-    });
+    if (project) void readGitWorkspace(project.id);
   });
 
   return adapter;

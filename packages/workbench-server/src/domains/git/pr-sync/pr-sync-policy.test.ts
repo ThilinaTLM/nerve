@@ -123,3 +123,49 @@ void test("the canonical open set stays bounded while prioritizing watched PRs",
     true,
   );
 });
+
+void test("the shared budget blocks all callers on a limit, escalates on repeats and spaces cycles", async () => {
+  const { GithubRateBudget, githubRepoKey } =
+    await import("./pr-sync-policy.js");
+  assert.equal(
+    githubRepoKey("GitHub.com", "Acme", "Repo"),
+    "github.com/acme/repo",
+  );
+  const budget = new GithubRateBudget(250);
+  assert.equal(budget.reserve(1_000), 1_000);
+  assert.equal(budget.reserve(1_000), 1_250);
+  assert.equal(budget.reserve(1_000), 1_500);
+  const first = budget.limited(10_000, new Headers({ "retry-after": "30" }));
+  assert.equal(
+    first,
+    70_000,
+    "backoff floor of a minute beats retry-after 30 s",
+  );
+  assert.equal(budget.blockedUntil(20_000), 70_000);
+  assert.equal(budget.reserve(20_000), 70_000, "cycles start after the block");
+  const second = budget.limited(70_000, new Headers());
+  assert.equal(second, 70_000 + 120_000);
+  budget.succeeded();
+  const third = budget.limited(200_000, new Headers());
+  assert.equal(third, 260_000, "a success resets escalation");
+  assert.equal(budget.blockedUntil(300_000), 0);
+});
+
+void test("the shared budget turns low near the limit until reset and honors the reset time", async () => {
+  const { GithubRateBudget } = await import("./pr-sync-policy.js");
+  const budget = new GithubRateBudget();
+  budget.observe(
+    new Headers({
+      "x-ratelimit-remaining": "100",
+      "x-ratelimit-limit": "5000",
+      "x-ratelimit-reset": "2000",
+    }),
+  );
+  assert.equal(budget.low(1_000_000), true);
+  assert.equal(budget.low(2_000_001), false, "reset passed");
+  const exhausted = new Headers({
+    "x-ratelimit-remaining": "0",
+    "x-ratelimit-reset": "500",
+  });
+  assert.equal(budget.limited(100_000, exhausted), 500_000);
+});

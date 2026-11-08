@@ -20,6 +20,8 @@ type Props = {
   enabled: boolean;
   switching: boolean;
   deleting: boolean;
+  /** Folder of the other worktree that has this local branch checked out. */
+  checkedOutIn?: string;
   onSwitch: (branch: GitBranchSummary) => void;
   onDelete: (branch: GitBranchSummary) => void;
   onOpenPullRequest: (number: number) => void;
@@ -31,6 +33,7 @@ let {
   enabled,
   switching,
   deleting,
+  checkedOutIn,
   onSwitch,
   onDelete,
   onOpenPullRequest,
@@ -38,25 +41,30 @@ let {
 
 const branch = $derived(row.branch);
 const isBase = $derived(!branch.remote && branch.name === baseBranch);
-const canDelete = $derived(enabled && canDeleteBranch(branch, baseBranch));
+const elsewhere = $derived(!branch.remote ? checkedOutIn : undefined);
+const canDelete = $derived(
+  enabled && !elsewhere && canDeleteBranch(branch, baseBranch),
+);
 const busy = $derived(switching || deleting);
-const showActions = $derived(!branch.current && !busy);
+const showActions = $derived(!branch.current && !busy && !elsewhere);
 </script>
 
 <div
   role="listitem"
   class={cn(
-    "group/row relative flex h-8 min-w-0 items-center gap-2 rounded-md px-1.5 hover:bg-hover focus-within:bg-hover",
+    "relative flex h-8 min-w-0 items-center gap-2 rounded-md px-1.5 hover:bg-hover focus-within:bg-hover",
     branch.current && "bg-selected hover:bg-selected",
   )}
 >
   <button
     type="button"
     class="flex h-full min-w-0 flex-1 cursor-pointer items-center gap-2 rounded-md text-left outline-none focus-visible:ring-3 focus-visible:ring-focus disabled:cursor-default"
-    disabled={!enabled || branch.current || busy}
+    disabled={!enabled || branch.current || busy || Boolean(elsewhere)}
     aria-label={branch.current
       ? `${branch.name}, current branch`
-      : `Switch to ${branch.name}`}
+      : elsewhere
+        ? `${branch.name}, checked out in ${elsewhere}`
+        : `Switch to ${branch.name}`}
     onclick={() => onSwitch(branch)}
   >
     {#if switching}
@@ -97,32 +105,28 @@ const showActions = $derived(!branch.current && !busy);
       </span>
     {:else}
       <span
-        class={cn(
-          "text-ui text-muted-foreground",
-          showActions && "group-hover/row:hidden group-focus-within/row:hidden",
-        )}
-        title={branch.updatedAt ?? undefined}>{row.updatedLabel}</span
+        class="text-ui text-muted-foreground"
+        title={elsewhere
+          ? `Checked out in ${elsewhere}`
+          : (branch.updatedAt ?? undefined)}
+        >{elsewhere ? `in ${elsewhere}` : row.updatedLabel}</span
       >
       {#if showActions}
-        <div
-          class="hidden items-center gap-1 group-hover/row:flex group-focus-within/row:flex"
+        <Button
+          variant="outline"
+          size="sm"
+          disabled={!enabled}
+          ariaLabel={`Switch to ${branch.name}`}
+          onclick={() => onSwitch(branch)}>Switch</Button
         >
-          <Button
-            variant="outline"
-            size="sm"
-            disabled={!enabled}
-            ariaLabel={`Switch to ${branch.name}`}
-            onclick={() => onSwitch(branch)}>Switch</Button
-          >
-          {#if canDelete}
-            <IconAction
-              icon={Trash2}
-              tone="destructive"
-              label="Delete branch"
-              onclick={() => onDelete(branch)}
-            />
-          {/if}
-        </div>
+        {#if canDelete}
+          <IconAction
+            icon={Trash2}
+            tone="destructive"
+            label="Delete branch"
+            onclick={() => onDelete(branch)}
+          />
+        {/if}
       {/if}
     {/if}
   </div>

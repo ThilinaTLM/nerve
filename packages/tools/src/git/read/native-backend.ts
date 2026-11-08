@@ -22,6 +22,7 @@ import {
 import type {
   GitReadBackend,
   GitReadSnapshot,
+  GitReadStatusSnapshot,
   GitReadMetadataSnapshot,
   GitReadMetadataOptions,
   GitReadProjectRepository,
@@ -361,6 +362,55 @@ export class NativeGitReadBackend implements GitReadBackend {
           branch: status.snapshot.branch,
           files: status.snapshot.files,
         };
+      },
+      { signal },
+    );
+  }
+
+  statusSnapshot(
+    repoDir: string,
+    includeIgnored = false,
+  ): Promise<GitReadStatusSnapshot> {
+    return this.owned(
+      (signal) => this.readStatusOnly(repoDir, includeIgnored, signal),
+      currentGitCommandOptions().signal,
+    );
+  }
+
+  /** Status without the metadata read (refs, commits, stashes) a detailed snapshot starts with. */
+  private async readStatusOnly(
+    repoDir: string,
+    includeIgnored: boolean,
+    signal: AbortSignal,
+  ): Promise<GitReadStatusSnapshot> {
+    this.assertOpen();
+    return inGitLane(
+      repoDir,
+      false,
+      async () => {
+        const identity = await canonicalGitIdentity(repoDir);
+        signal.throwIfAborted();
+        const workDir = await realpath(repoDir);
+        signal.throwIfAborted();
+        assertGitReadLane(identity.commonDir);
+        const status = await this.readAdmittedProjectSnapshot(
+          {
+            relativePath: ".",
+            workDir: toNamespacedPath(workDir),
+            gitDir: toNamespacedPath(identity.gitDir),
+            commonDir: toNamespacedPath(identity.commonDir),
+          },
+          includeIgnored,
+          signal,
+        );
+        if (status.error) throw new NativeOperationError(status.error);
+        if (!status.snapshot)
+          throw new NativeOperationError({
+            category: "internal",
+            retryable: false,
+            message: "Repository status was empty.",
+          });
+        return status.snapshot;
       },
       { signal },
     );

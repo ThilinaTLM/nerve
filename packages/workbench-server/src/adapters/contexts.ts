@@ -7,6 +7,7 @@ import type { UnreadableConversationActivity } from "../domains/activity/unreada
 import type { UnifiedCompletionService } from "../domains/completions/unified-completion-service.js";
 import type { ConversationTitleService } from "../domains/conversation-titles/title.service.js";
 import type { PrSyncService } from "../domains/git/pr-sync/pr-sync-service.js";
+import type { GitWorkspaceSync } from "../domains/git/workspace-sync/git-workspace-sync-service.js";
 import type { IntegrationHealthService } from "../domains/auth/integration-health.service.js";
 import type { WorkspaceMonitor } from "../domains/monitoring/workspace-monitor.js";
 import type { LaunchService } from "../domains/launches/application/launch.service.js";
@@ -86,6 +87,7 @@ export interface AdapterServices {
   integrationHealth: IntegrationHealthService;
   workspaceMonitor: WorkspaceMonitor;
   prSync: PrSyncService;
+  workspaceSync: GitWorkspaceSync;
   git: GitService;
   gitOperations: GitOperationService;
   promptSuggestions: PromptSuggestionService;
@@ -143,6 +145,7 @@ export function createServerAdapterContexts(
     git: {
       git: services.git,
       prSync: services.prSync,
+      workspaceSync: services.workspaceSync,
       gitOperations: services.gitOperations,
       workspaceMonitor: services.workspaceMonitor,
     },

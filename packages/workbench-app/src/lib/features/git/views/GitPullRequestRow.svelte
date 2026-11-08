@@ -150,9 +150,7 @@ const menuItems = $derived<ContextMenuItem[]>([
     {/if}
     <!-- Metadata stays left-aligned; only the actions hug the right edge. -->
     <span class="min-w-0 flex-1"></span>
-    <span
-      class="flex shrink-0 items-center opacity-0 transition-opacity group-focus-within:opacity-100 group-hover:opacity-100"
-    >
+    <span class="flex shrink-0 items-center">
       <Button
         size="icon-sm"
         variant="ghost"

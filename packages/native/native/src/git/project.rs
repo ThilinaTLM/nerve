@@ -1,6 +1,6 @@
 //! Bounded, ephemeral project reads. No N-API and no Git writes.
 use std::collections::BTreeMap;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 
@@ -206,12 +206,92 @@ fn discover_with_path_limit(
             }
         }
     }
+    add_linked_worktrees(&root, &mut repositories, token, path_limit)?;
     repositories.sort_by(|a, b| a.relative_path.cmp(&b.relative_path));
     Ok(Discovery {
         root: text(&root)?,
         project_is_repo,
         repositories,
     })
+}
+/// Checkout directories registered with a repository: its main working tree
+/// (when not bare) and every linked worktree in `<common>/worktrees/*/gitdir`.
+/// Missing (prunable) checkouts are dropped.
+fn registered_checkouts(common_dir: &Path) -> Vec<PathBuf> {
+    let mut found = Vec::new();
+    if common_dir.file_name().is_some_and(|name| name == ".git")
+        && let Some(parent) = common_dir.parent()
+    {
+        found.push(parent.to_path_buf());
+    }
+    let Ok(entries) = std::fs::read_dir(common_dir.join("worktrees")) else {
+        return found;
+    };
+    let mut linked = Vec::new();
+    for entry in entries.flatten() {
+        let dir = entry.path();
+        let Ok(content) = std::fs::read_to_string(dir.join("gitdir")) else {
+            continue;
+        };
+        let marker = Path::new(content.trim_end());
+        let marker = if marker.is_absolute() {
+            marker.to_path_buf()
+        } else {
+            dir.join(marker)
+        };
+        if let Some(work_dir) = marker.parent() {
+            linked.push(work_dir.to_path_buf());
+        }
+    }
+    linked.sort();
+    found.extend(linked);
+    found
+}
+/// Adds every linked (and main) checkout of each discovered repository that is
+/// inside the project, including dot-directories and any depth. Checkouts
+/// outside the project are excluded. Linked worktrees count toward the limit.
+fn add_linked_worktrees(
+    root: &Path,
+    repositories: &mut Vec<Repository>,
+    token: &CancellationToken,
+    path_limit: usize,
+) -> Result<(), GitReadError> {
+    let mut seen: std::collections::BTreeSet<String> =
+        repositories.iter().map(|r| r.work_dir.clone()).collect();
+    let mut groups: Vec<String> = Vec::new();
+    for repo in repositories.iter() {
+        if !groups.contains(&repo.common_dir) {
+            groups.push(repo.common_dir.clone());
+        }
+    }
+    for common_dir in groups {
+        check(token)?;
+        for checkout in registered_checkouts(Path::new(&common_dir)) {
+            check(token)?;
+            let Ok(canonical) = checkout.canonicalize() else {
+                continue;
+            };
+            if !canonical.starts_with(root) {
+                continue;
+            }
+            if seen.contains(&text(&canonical)?) {
+                continue;
+            }
+            match identity_with_path_limit(root, &canonical, path_limit) {
+                Ok(repo) if repo.common_dir == common_dir => {
+                    seen.insert(repo.work_dir.clone());
+                    repositories.push(repo);
+                    if repositories.len() > MAX_REPOSITORIES {
+                        return Err(limit("repository count"));
+                    }
+                }
+                Ok(_) => {}
+                Err(error) if skippable_identity(&error) => {}
+                Err(error) => return Err(error),
+            }
+        }
+    }
+    Ok(())
 }
 
 #[derive(Debug, Default)]
@@ -768,7 +848,6 @@ mod tests {
     use std::process::Command;
     static SEQUENCE: AtomicUsize = AtomicUsize::new(0);
     struct Fixture(PathBuf);
-    use std::path::PathBuf;
     impl Fixture {
         fn new() -> Self {
             let path = std::env::temp_dir().join(format!(
@@ -935,6 +1014,61 @@ mod tests {
             found.repositories[1].common_dir
         );
         assert!(Path::new(&found.repositories[0].common_dir).is_absolute());
+    }
+    #[test]
+    fn linked_worktrees_inside_project_are_found_outside_are_excluded_without_duplicates() {
+        let fixture = Fixture::new();
+        let outside = Fixture::new();
+        let main = fixture.repo("api");
+        let inside = main.join(".worktrees/deep/er/feature");
+        let visible = fixture.0.join("api-visible");
+        let elsewhere = outside.0.join("elsewhere");
+        for (branch, path) in [
+            ("inside", &inside),
+            ("visible", &visible),
+            ("elsewhere", &elsewhere),
+        ] {
+            git(
+                &main,
+                &["worktree", "add", "-b", branch, path.to_str().unwrap()],
+            );
+        }
+        let token = CancellationToken::default();
+        let found = discover(fixture.0.to_str().unwrap(), &token).unwrap();
+        let relative: Vec<_> = found
+            .repositories
+            .iter()
+            .map(|r| r.relative_path.as_str())
+            .collect();
+        assert_eq!(
+            relative,
+            vec!["api", "api-visible", "api/.worktrees/deep/er/feature"]
+        );
+        // Starting from a linked worktree only: the main checkout is found too.
+        let from_linked = discover(inside.to_str().unwrap(), &token).unwrap();
+        assert!(from_linked.project_is_repo);
+        assert_eq!(from_linked.repositories[0].relative_path, ".");
+    }
+    #[test]
+    fn linked_worktrees_count_toward_the_repository_limit() {
+        let fixture = Fixture::new();
+        let main = fixture.repo("api");
+        for i in 0..MAX_REPOSITORIES {
+            let path = fixture.0.join(format!("api/.worktrees/w{i}"));
+            git(
+                &main,
+                &[
+                    "worktree",
+                    "add",
+                    "-b",
+                    &format!("b{i}"),
+                    path.to_str().unwrap(),
+                ],
+            );
+        }
+        let error =
+            discover(fixture.0.to_str().unwrap(), &CancellationToken::default()).unwrap_err();
+        assert_eq!(error.kind, ErrorKind::LimitExceeded);
     }
     #[test]
     fn lightweight_status_matches_existing_snapshot_and_reports_progress() {

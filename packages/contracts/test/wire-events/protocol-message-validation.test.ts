@@ -355,13 +355,13 @@ describe("Protocol v1 shared schemas", () => {
     );
     const invalidation = {
       projectId: "proj_test",
-      repo: ".",
-      generation: 1,
-      fullRefreshRequired: false,
+      revision: 1,
+      repos: ["."],
+      detail: [],
     };
     assert.deepEqual(
       validatePublicEvent(
-        "git.repository.invalidated",
+        "git.workspace.changed",
         invalidation,
         "workbench_server",
       ),
@@ -398,7 +398,7 @@ describe("Protocol v1 shared schemas", () => {
         parsePublicEventEnvelope(
           {
             ...publicEvent,
-            type: "git.repository.invalidated",
+            type: "git.workspace.changed",
             data: invalidation,
           },
           "workbench_server",
@@ -477,7 +477,7 @@ describe("Protocol v1 shared schemas", () => {
 
   it("routes workspace and conversation streams", () => {
     assert.throws(
-      () => streamForEvent("git.repository.changed", {}),
+      () => streamForEvent("git.workspace.changed", {}),
       /does not have a stream/,
     );
     assert.throws(

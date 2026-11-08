@@ -17,11 +17,8 @@ export const queryKeys = {
   slashCompletions: ["completions", "slash"] as const,
   git: {
     project: (projectId: string) => ["git", projectId] as const,
-    repos: (projectId: string) => ["git", projectId, "repos"] as const,
     repo: (projectId: string, repo: string) =>
       ["git", projectId, "repo", repo] as const,
-    overview: (projectId: string, repo: string) =>
-      ["git", projectId, "repo", repo, "overview"] as const,
     branches: (projectId: string, repo: string) =>
       ["git", projectId, "repo", repo, "branches"] as const,
     githubStatus: (projectId: string, repo: string) =>

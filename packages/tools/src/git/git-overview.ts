@@ -3,10 +3,33 @@ import type {
   GitRecentCommit,
   GitRepoSummary,
 } from "@nervekit/contracts/git";
+import { basename, dirname } from "node:path";
+import { canonicalGitIdentity } from "./git-operation-lanes.js";
+import { gitPathKey } from "./git-path-key.js";
 import type { GitService } from "./git-service.js";
 import type { GitReadSnapshot } from "./read/types.js";
-import { parsePorcelainV2, parseShortstat } from "./git-status.js";
+import { parsePorcelainV2 } from "./git-status.js";
 import { stableMetadataFromRead } from "./git-repository-metadata.js";
+
+/** Folder that contains the shared Git directory (`<repo>/.git` -> `<repo>`). */
+export function repositoryNameFromCommonDir(commonDir: string): string {
+  const leaf = basename(commonDir);
+  if (leaf === ".git") return basename(dirname(commonDir));
+  return leaf.endsWith(".git") && leaf.length > 4 ? leaf.slice(0, -4) : leaf;
+}
+
+function worktreeGroupKey(commonDir: string): string {
+  return gitPathKey(commonDir);
+}
+
+async function worktreeIdentity(repoDir: string) {
+  const { gitDir, commonDir } = await canonicalGitIdentity(repoDir);
+  return {
+    worktreeGroup: worktreeGroupKey(commonDir),
+    primaryWorktree: gitPathKey(gitDir) === gitPathKey(commonDir),
+    repositoryName: repositoryNameFromCommonDir(commonDir),
+  };
+}
 
 export async function summarizeRepo(
   service: GitService,
@@ -15,17 +38,18 @@ export async function summarizeRepo(
   name: string,
   statusOutput?: string,
   readSnapshot?: Pick<GitReadSnapshot, "branch" | "files"> &
-    Partial<Pick<GitReadSnapshot, "refs" | "remotes">>,
+    Partial<Pick<GitReadSnapshot, "refs" | "remotes" | "stashes">>,
 ): Promise<GitRepoSummary> {
   const read =
     readSnapshot ??
     (statusOutput === undefined ? await service.readSnapshot(repoDir) : null);
   const stable =
-    read?.refs && read.remotes
+    read?.refs && read.remotes && read.stashes
       ? stableMetadataFromRead({
           branch: read.branch,
           refs: read.refs,
           remotes: read.remotes,
+          stashes: read.stashes,
         })
       : await service.stableRepoMetadata(repoDir);
   const { branch, files } = read ?? parsePorcelainV2(statusOutput ?? "");
@@ -35,10 +59,14 @@ export async function summarizeRepo(
     hasRemote && !branch.detached && branch.head && branch.upstream === null
       ? await service.unpublishedCommitCount(repoDir)
       : null;
+  const { worktreeGroup, primaryWorktree, repositoryName } =
+    await worktreeIdentity(repoDir);
   return {
     relativePath,
     absDir: repoDir,
-    name,
+    name: primaryWorktree ? name : repositoryName,
+    worktreeGroup,
+    primaryWorktree,
     isRepo: true,
     currentBranch: branch.head,
     detached: branch.detached,
@@ -46,7 +74,7 @@ export async function summarizeRepo(
     behind: branch.upstream ? (branch.behind ?? 0) : null,
     hasUpstream: branch.upstream !== null,
     unpublishedCount,
-    hasStashes: stable.hasStash,
+    stashCount: stable.stashCount,
     hasRemote,
     hasGithubRemote: stable.remoteState.hasGithubRemote,
     baseBranch: stable.baseBranch,
@@ -73,6 +101,8 @@ export async function overview(
   const repoDir = service.resolveRepoDir(projectId, relativePath);
   // The overview owns one repository lane. Sequence its conservative reads so
   // failure/cancellation cannot release that lane before another read closes.
+  // Every read goes through the native backend: spawning `git` processes is
+  // the dominant cost of switching repositories on Windows.
   const snapshot = await service.readSnapshot(repoDir);
   const repo = await summarizeRepo(
     service,
@@ -82,20 +112,12 @@ export async function overview(
     undefined,
     snapshot,
   );
-  const unstagedResult = await service.runGit(repoDir, ["diff", "--shortstat"]);
-  const stagedResult = await service.runGit(repoDir, [
-    "diff",
-    "--staged",
-    "--shortstat",
-  ]);
   const { files } = snapshot;
   const stagedCount = files.filter((file) => file.staged).length;
   const untrackedCount = files.filter((file) => file.untracked).length;
   const unstagedCount = files.filter(
     (file) => !file.untracked && file.worktree !== " ",
   ).length;
-  const unstaged = parseShortstat(unstagedResult.stdout);
-  const staged = parseShortstat(stagedResult.stdout);
 
   return {
     repo,
@@ -105,8 +127,6 @@ export async function overview(
     stagedCount,
     unstagedCount,
     untrackedCount,
-    insertions: unstaged.insertions + staged.insertions,
-    deletions: unstaged.deletions + staged.deletions,
     recentCommits: snapshot.recentCommits,
     stashes: snapshot.stashes,
   };

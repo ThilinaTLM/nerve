@@ -189,10 +189,10 @@ describe("Git stash workflow", () => {
     try {
       const instance = service(root);
       const summary = () => instance.summarizeRepo(root, ".", "repo");
-      assert.equal((await summary()).hasStashes, false);
+      assert.equal((await summary()).stashCount, 0);
       await writeFile(join(root, "unstaged.txt"), "first\n");
       const created = await instance.createStash("proj_test", ".", "unstaged");
-      assert.equal(created.repo.hasStashes, true);
+      assert.equal(created.repo.stashCount, 1);
       const [entry] = await listStashes(instance, root);
       assert.ok(entry);
       const dropped = await instance.dropStash(
@@ -201,7 +201,7 @@ describe("Git stash workflow", () => {
         entry.index,
         entry.hash,
       );
-      assert.equal(dropped.repo.hasStashes, false);
+      assert.equal(dropped.repo.stashCount, 0);
 
       // No remote: nothing can be published.
       assert.equal((await summary()).unpublishedCount, null);

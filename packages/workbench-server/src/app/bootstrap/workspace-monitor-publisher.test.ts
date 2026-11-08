@@ -26,12 +26,9 @@ void test("monitor bridge forwards uncertain hints without upgrading them to har
     fullRefreshRequired: true,
     refreshCause: "uncertain_poll",
   };
-  publisher.publishBestEffort("git.repository.invalidated", data, "monitor");
+  publisher.publishBestEffort("filesystem.project.changed", data, "monitor");
   assert.deepEqual(invalidations, [
     { projectId: "proj_A", options: { uncertain: true } },
-  ]);
-  assert.deepEqual(forwarded, [
-    { type: "git.repository.invalidated", data, context: "monitor" },
   ]);
   publisher.publishBestEffort(
     "filesystem.project.changed",

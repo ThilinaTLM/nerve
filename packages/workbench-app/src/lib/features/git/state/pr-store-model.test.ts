@@ -38,39 +38,19 @@ const pr = (number: number, patch = {}) =>
     ...patch,
   });
 
-test("local filtering uses the canonical open set and viewer identity", () => {
+test("local filtering uses the canonical open set, drafts, labels and sort", () => {
   const prs = [
     pr(1),
-    pr(2, { isDraft: true, reviewRequested: true }),
-    pr(3, { author: "bob", headRefName: "other" }),
+    pr(2, { isDraft: true }),
+    pr(3, { labels: [], headRefName: "other" }),
     pr(4, { state: "MERGED" }),
   ];
-  const numbers = (
-    filters = defaults,
-    viewer: string | null = "ALICE",
-    branch = "feature",
-  ) => filterRepoPrs(prs, filters, viewer, branch).map((pr) => pr.number);
+  const numbers = (filters = defaults) =>
+    filterRepoPrs(prs, filters).map((pr) => pr.number);
   assert.deepEqual(numbers(), [3, 2, 1]);
-  assert.deepEqual(numbers({ ...defaults, author: "me" }), [2, 1]);
-  assert.deepEqual(numbers({ ...defaults, author: "me" }, null), []);
-  assert.deepEqual(
-    numbers({ ...defaults, author: "username", username: "BOB" }),
-    [3],
-  );
-  assert.deepEqual(
-    numbers({
-      ...defaults,
-      drafts: "exclude",
-      currentBranchOnly: true,
-      labels: ["bug"],
-      title: "LIVE",
-    }),
-    [1],
-  );
-  assert.deepEqual(
-    numbers({ ...defaults, drafts: "only", reviewRequested: true }),
-    [2],
-  );
+  assert.deepEqual(numbers({ ...defaults, drafts: "exclude" }), [3, 1]);
+  assert.deepEqual(numbers({ ...defaults, drafts: "only" }), [2]);
+  assert.deepEqual(numbers({ ...defaults, labels: ["bug"] }), [2, 1]);
   assert.deepEqual(numbers({ ...defaults, sort: "updated-asc" }), [1, 2, 3]);
 });
 

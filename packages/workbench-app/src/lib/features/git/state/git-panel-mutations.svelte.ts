@@ -25,22 +25,12 @@ import {
 } from "$lib/application/notifications/critical-errors.svelte";
 import { notify } from "$lib/application/notifications/notify.svelte";
 import { gitFilesInScope, gitPathspecs } from "../views/git-panel-controller";
-import {
-  refreshBranches,
-  refreshGitOverview,
-  scheduleAutomaticGitRefresh,
-} from "./git-panel-refresh.svelte";
+import { refreshBranches } from "./git-panel-refresh.svelte";
 import {
   ensureGitRepoState,
-  mergeRepoSummary,
   setBranchesIfChanged,
 } from "./git-panel-state.svelte";
-
-function refreshAfterRemoteMutation(projectId: string, repo: string): void {
-  scheduleAutomaticGitRefresh(projectId, repo, {
-    overview: true,
-  });
-}
+import { awaitGitWorkspaceRevision, gitRepoDetail } from "./git-store.svelte";
 
 function notifyGitFailure(title: string, error: unknown): void {
   showCriticalError(title, errorDetails(error));
@@ -86,10 +76,9 @@ export async function switchGitRepoBranch(
   state.operations.switchingBranch = branch.name;
   try {
     const result = await switchGitBranch(projectId, repo, branch.name);
-    mergeRepoSummary(projectId, result.repo);
+    await awaitGitWorkspaceRevision(projectId, result.workspaceRevision, repo);
     setBranchesIfChanged(state, []);
     notify.success(`Switched to ${result.repo.currentBranch ?? branch.name}`);
-    refreshAfterRemoteMutation(projectId, repo);
     return true;
   } catch (error) {
     notifyGitFailure("Switch branch failed", error);
@@ -109,12 +98,11 @@ export async function deleteGitRepoBranch(
   state.operations.deletingBranch = branch.name;
   try {
     const result = await deleteGitBranch(projectId, repo, branch.name);
-    mergeRepoSummary(projectId, result.repo);
     setBranchesIfChanged(state, []);
     notify.success(`Deleted branch ${branch.name}`);
     await Promise.all([
       refreshBranches(projectId, repo, undefined, true),
-      refreshGitOverview(projectId, repo, { force: true, silent: true }),
+      awaitGitWorkspaceRevision(projectId, result.workspaceRevision, repo),
     ]);
     return true;
   } catch (error) {
@@ -135,10 +123,9 @@ export async function createGitRepoBranch(
   state.operations.creatingBranch = true;
   try {
     const result = await createGitBranch(projectId, repo, name.trim());
-    mergeRepoSummary(projectId, result.repo);
+    await awaitGitWorkspaceRevision(projectId, result.workspaceRevision, repo);
     setBranchesIfChanged(state, []);
     notify.success(`Created branch ${name.trim()}`);
-    refreshAfterRemoteMutation(projectId, repo);
     return true;
   } catch (error) {
     notifyGitFailure("Create branch failed", error);
@@ -156,6 +143,7 @@ export async function mutateGitFile(
 ): Promise<void> {
   const state = ensureGitRepoState(projectId, repo);
   state.operations.fileMutation = { path: file.path, action };
+  let revision: number | undefined;
   try {
     const fn =
       action === "stage"
@@ -163,15 +151,14 @@ export async function mutateGitFile(
         : action === "unstage"
           ? unstageGitFile
           : discardGitFile;
-    const result = await fn(projectId, repo, file.path);
-    mergeRepoSummary(projectId, result.repo);
+    revision = (await fn(projectId, repo, file.path)).workspaceRevision;
   } catch (error) {
     notifyGitFailure(
       `${action[0].toUpperCase()}${action.slice(1)} failed`,
       error,
     );
   } finally {
-    await refreshGitOverview(projectId, repo, { force: true });
+    await awaitGitWorkspaceRevision(projectId, revision, repo);
     state.operations.fileMutation = undefined;
   }
 }
@@ -184,7 +171,11 @@ export async function mutateGitFileScope(
   path?: string,
 ): Promise<void> {
   const state = ensureGitRepoState(projectId, repo);
-  const targets = gitFilesInScope(state.changes?.files ?? [], area, path);
+  const targets = gitFilesInScope(
+    gitRepoDetail(projectId, repo)?.files ?? [],
+    area,
+    path,
+  );
   if (targets.length === 0) return;
   const fn =
     action === "stage"
@@ -197,15 +188,17 @@ export async function mutateGitFileScope(
     area,
     ...(path ? { path } : {}),
   };
+  let revision: number | undefined;
   try {
-    for (const file of targets) await fn(projectId, repo, file.path);
+    for (const file of targets)
+      revision = (await fn(projectId, repo, file.path)).workspaceRevision;
   } catch (error) {
     notifyGitFailure(
       `${action[0]?.toUpperCase()}${action.slice(1)} changes failed`,
       error,
     );
   } finally {
-    await refreshGitOverview(projectId, repo, { force: true });
+    await awaitGitWorkspaceRevision(projectId, revision, repo);
     state.operations.bulkMutation = undefined;
   }
 }
@@ -218,7 +211,7 @@ export async function createGitRepoStash(
 ): Promise<void> {
   const state = ensureGitRepoState(projectId, repo);
   const scopedFiles = path
-    ? gitFilesInScope(state.changes?.files ?? [], area, path)
+    ? gitFilesInScope(gitRepoDetail(projectId, repo)?.files ?? [], area, path)
     : undefined;
   if (path && scopedFiles?.length === 0) return;
   state.operations.stashMutation = {
@@ -226,6 +219,7 @@ export async function createGitRepoStash(
     area,
     ...(path ? { path } : {}),
   };
+  let revision: number | undefined;
   try {
     const result = await createGitStash(
       projectId,
@@ -233,12 +227,12 @@ export async function createGitRepoStash(
       area,
       scopedFiles ? gitPathspecs(scopedFiles) : undefined,
     );
-    mergeRepoSummary(projectId, result.repo);
+    revision = result.workspaceRevision;
     notify.success("Changes stashed");
   } catch (error) {
     notifyGitFailure("Stash failed", error);
   } finally {
-    await refreshGitOverview(projectId, repo, { force: true });
+    await awaitGitWorkspaceRevision(projectId, revision, repo);
     state.operations.stashMutation = undefined;
   }
 }
@@ -250,6 +244,7 @@ export async function applyGitRepoStash(
 ): Promise<void> {
   const state = ensureGitRepoState(projectId, repo);
   state.operations.stashMutation = { action: "apply", hash: stash.hash };
+  let revision: number | undefined;
   try {
     const result = await applyGitStash(
       projectId,
@@ -257,12 +252,12 @@ export async function applyGitRepoStash(
       stash.index,
       stash.hash,
     );
-    mergeRepoSummary(projectId, result.repo);
+    revision = result.workspaceRevision;
     notify.success("Stash applied");
   } catch (error) {
     notifyGitFailure("Apply stash failed", error);
   } finally {
-    await refreshGitOverview(projectId, repo, { force: true });
+    await awaitGitWorkspaceRevision(projectId, revision, repo);
     state.operations.stashMutation = undefined;
   }
 }
@@ -274,14 +269,15 @@ export async function dropGitRepoStash(
 ): Promise<void> {
   const state = ensureGitRepoState(projectId, repo);
   state.operations.stashMutation = { action: "drop", hash: stash.hash };
+  let revision: number | undefined;
   try {
     const result = await dropGitStash(projectId, repo, stash.index, stash.hash);
-    mergeRepoSummary(projectId, result.repo);
+    revision = result.workspaceRevision;
     notify.success("Stash dropped");
   } catch (error) {
     notifyGitFailure("Drop stash failed", error);
   } finally {
-    await refreshGitOverview(projectId, repo, { force: true });
+    await awaitGitWorkspaceRevision(projectId, revision, repo);
     state.operations.stashMutation = undefined;
   }
 }

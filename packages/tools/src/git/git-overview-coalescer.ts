@@ -1,34 +1,32 @@
-import type { GitOverviewResponse } from "@nervekit/contracts/git";
 import { hasGitRepositoryLane, inGitLane } from "./git-operation-context.js";
 
 const MAX_INFLIGHT_OVERVIEWS = 128;
 
-interface OverviewRead {
+interface OverviewRead<T> {
   projectId: string;
+  cwd: string;
   freshness: { stale: boolean };
   controller: AbortController;
-  value: Promise<GitOverviewResponse>;
+  value: Promise<T>;
 }
 
-export interface GitOverviewCoalescerContext {
+export interface GitOverviewCoalescerContext<T> {
   resolveRepoDir(projectId: string, relativePath: string): string;
-  readOverview(
-    projectId: string,
-    relativePath: string,
-  ): Promise<GitOverviewResponse>;
+  readOverview(projectId: string, relativePath: string): Promise<T>;
 }
 
-/** Coalesces concurrent overview reads per repository and marks them stale on invalidation. */
-export class GitOverviewCoalescer {
-  readonly #reads = new Map<string, OverviewRead>();
+/** Coalesces concurrent per-repository reads (overview or summary) and marks them stale on invalidation. */
+export class GitOverviewCoalescer<T> {
+  readonly #reads = new Map<string, OverviewRead<T>>();
   #closed = false;
 
-  constructor(readonly context: GitOverviewCoalescerContext) {}
+  constructor(
+    readonly context: GitOverviewCoalescerContext<T>,
+    /** Adds `stale: true` to results read across an invalidation (overview responses only). */
+    readonly annotateStale = true,
+  ) {}
 
-  overview(
-    projectId: string,
-    relativePath: string,
-  ): Promise<GitOverviewResponse> {
+  overview(projectId: string, relativePath: string): Promise<T> {
     if (this.#closed) return Promise.reject(new Error("Git reads are closed"));
     // Resolve/authorize on every caller; never join a read from a mutation scope.
     const cwd = this.context.resolveRepoDir(projectId, relativePath);
@@ -51,11 +49,12 @@ export class GitOverviewCoalescer {
       false,
       () => this.context.readOverview(projectId, relativePath),
       { signal: controller.signal },
-    ).then((result) => ({
-      ...result,
-      ...(freshness.stale ? { stale: true } : {}),
-    }));
-    this.#reads.set(key, { projectId, freshness, controller, value });
+    ).then((result) =>
+      this.annotateStale && freshness.stale
+        ? { ...result, stale: true }
+        : result,
+    );
+    this.#reads.set(key, { projectId, cwd, freshness, controller, value });
     void value
       .finally(() => {
         if (this.#reads.get(key)?.value === value) this.#reads.delete(key);
@@ -64,9 +63,15 @@ export class GitOverviewCoalescer {
     return value;
   }
 
-  invalidate(projectId: string, options: { uncertain?: boolean } = {}): void {
+  /** With `cwd` only that repository's reads are affected; others keep running. */
+  invalidate(
+    projectId: string,
+    options: { uncertain?: boolean } = {},
+    cwd?: string,
+  ): void {
     for (const read of this.#reads.values()) {
       if (read.projectId !== projectId) continue;
+      if (cwd !== undefined && read.cwd !== cwd) continue;
       read.freshness.stale = true;
       if (!options.uncertain)
         read.controller.abort(

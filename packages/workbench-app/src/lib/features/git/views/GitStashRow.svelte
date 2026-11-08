@@ -64,7 +64,7 @@ const dropping = $derived(
 {:else}
   <div
     role="listitem"
-    class="group/row flex items-center gap-2.5 rounded-md px-2 py-1.5 hover:bg-hover focus-within:bg-hover"
+    class="flex items-center gap-2.5 rounded-md px-2 py-1.5 hover:bg-hover focus-within:bg-hover"
   >
     <Archive
       class="size-3.5 shrink-0 text-muted-foreground"
@@ -90,10 +90,7 @@ const dropping = $derived(
         <span class="shrink-0">{stash.relativeDate}</span>
       </div>
     </div>
-    <div
-      class="flex shrink-0 items-center gap-1 opacity-0 group-focus-within/row:opacity-100 group-hover/row:opacity-100 data-[active=true]:opacity-100"
-      data-active={busy}
-    >
+    <div class="flex shrink-0 items-center gap-1">
       <Button
         variant="outline"
         size="sm"

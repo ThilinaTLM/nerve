@@ -1,15 +1,10 @@
 import { SvelteSet } from "svelte/reactivity";
 import { activityInbox } from "$lib/application/activity/activity-state.svelte";
 import { gitRemoteBusy } from "./git-operation-tracking";
-import type { Project } from "@nervekit/contracts/core";
+import { gitProjectView } from "./git-panel-view-state.svelte";
 import type {
   GitBranchSummary,
   GithubStatusResponse,
-  GitOverviewResponse,
-  GitProjectReadError,
-  GitRecentCommit,
-  GitRepoSummary,
-  GitStashEntry,
 } from "@nervekit/contracts/git";
 import {
   gitProjectStateKey,
@@ -17,12 +12,8 @@ import {
 } from "$lib/domain/navigation/view-keys";
 import type { GitContext } from "$lib/features/git/state/git-state.svelte";
 import type { GitPanelOperationState } from "../views/git-panel-types";
-import {
-  defaultGitPrFilterConfig,
-  normalizeGitPrFilterConfig,
-  type GitPrFilterConfig,
-} from "../pr-filters";
 import { gitState } from "$lib/features/git/state/git-state.svelte";
+import { defaultSelectedWorktree } from "../views/git-repo-tree";
 import { gitContextFingerprint } from "./git-context-helpers";
 import {
   loadCollapsedGitFolders,
@@ -30,86 +21,29 @@ import {
 } from "./git-change-tree-expansion";
 import {
   branchesFingerprint,
-  changesFingerprint,
-  changesFromOverview,
-  type GitChangesState,
   githubStatusFingerprint,
-  recentCommitsFingerprint,
-  repoSummaryFingerprint,
-  stashesFingerprint,
-  reposFingerprint,
 } from "./git-panel-slices";
+import { gitWorkspaceSnapshot } from "./git-store.svelte";
 
 export type GitPanelOperationsState = {
   -readonly [Key in keyof GitPanelOperationState]: GitPanelOperationState[Key];
 };
 
+/** Client-only state of one worktree; summaries, files and stashes live in the git store. */
 export type GitPanelRepoState = {
-  overviewRequest: {
-    inFlight: boolean;
-    refreshQueued: boolean;
-    queuedUncertain?: boolean;
-    invalidation?: number;
-    uncertainInvalidation?: boolean;
-    sequence: number;
-  };
-  repoSummary?: GitRepoSummary;
-  changes?: GitChangesState;
-  recentCommits: GitRecentCommit[];
-  stashes: GitStashEntry[];
   github?: GithubStatusResponse;
-  prFilters: GitPrFilterConfig;
   branches: GitBranchSummary[];
   collapsedChangeTreeFolders: SvelteSet<string>;
   operations: GitPanelOperationsState;
-  loadingOverview: boolean;
   loadingBranches: boolean;
-
-  overviewInvalidated: boolean;
-  lastRepoSummaryFingerprint?: string;
-  lastChangesFingerprint?: string;
-  lastRecentCommitsFingerprint?: string;
-  lastStashesFingerprint?: string;
   lastBranchesFingerprint?: string;
   lastGithubFingerprint?: string;
-  loaded: boolean;
-  loadedAt?: number;
 };
 
 export type GitPanelProjectState = {
-  discoveryRequest: {
-    inFlight: boolean;
-    loadsDetails: boolean;
-    refreshQueued: boolean;
-    queuedLoadsDetails: boolean;
-    queuedUncertain?: boolean;
-    sequence: number;
-  };
   projectId: string;
-  projectDir: string;
-  projectIsRepo: boolean;
-  repos: GitRepoSummary[];
-  selectedRepo: string;
   repoStates: Record<string, GitPanelRepoState>;
-  discoverError?: string;
-  readErrors?: GitProjectReadError[];
-  readsStale?: boolean;
-  loadingRepos: boolean;
-  refreshingRepos: boolean;
-
-  lastReposFingerprint?: string;
-  loaded: boolean;
-  loadedAt?: number;
-
   touchedAt: number;
-};
-
-export type GitOverviewPatchResult = {
-  changed: boolean;
-  repoChanged: boolean;
-  changesChanged: boolean;
-  recentCommitsChanged: boolean;
-  stashesChanged: boolean;
 };
 
 export const gitPanelState = $state({
@@ -150,113 +84,17 @@ function createOperationsState(
 
 function createRepoState(projectId?: string, repo?: string): GitPanelRepoState {
   return {
-    overviewRequest: { inFlight: false, refreshQueued: false, sequence: 0 },
-    recentCommits: [],
-    stashes: [],
-    prFilters:
-      projectId && repo
-        ? storedPrFilters(projectId, repo)
-        : defaultGitPrFilterConfig,
     branches: [],
     collapsedChangeTreeFolders: new SvelteSet(
       projectId && repo ? loadCollapsedGitFolders(projectId, repo) : [],
     ),
     operations: createOperationsState(projectId, repo),
-    loadingOverview: false,
     loadingBranches: false,
-    overviewInvalidated: false,
-    loaded: false,
   };
 }
 
-function createProjectState(project: Project): GitPanelProjectState {
-  return {
-    discoveryRequest: {
-      inFlight: false,
-      loadsDetails: false,
-      refreshQueued: false,
-      queuedLoadsDetails: false,
-      sequence: 0,
-    },
-    projectId: project.id,
-    projectDir: project.directory,
-    projectIsRepo: false,
-    repos: [],
-    selectedRepo: ".",
-    repoStates: {},
-    discoverError: undefined,
-    loadingRepos: false,
-    refreshingRepos: false,
-
-    lastReposFingerprint: undefined,
-    loaded: false,
-    loadedAt: undefined,
-
-    touchedAt: Date.now(),
-  };
-}
-
-function repoStorageKey(projectId: string): string {
-  return `nerve.git.repo.${projectId}`;
-}
-
-function prFiltersStorageKey(projectId: string, repo: string): string {
-  return `nerve.git.prFilters.${projectId}.${encodeURIComponent(repo)}`;
-}
-
-function isPrFilterConfig(value: unknown): value is GitPrFilterConfig {
-  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
-  const config = value as Record<string, unknown>;
-  return (
-    ["any", "me", "username"].includes(String(config.author)) &&
-    typeof config.username === "string" &&
-    ["include", "exclude", "only"].includes(String(config.drafts)) &&
-    typeof config.title === "string" &&
-    typeof config.currentBranchOnly === "boolean" &&
-    Array.isArray(config.labels) &&
-    config.labels.every((label) => typeof label === "string") &&
-    ["updated-desc", "updated-asc"].includes(String(config.sort))
-  );
-}
-
-export function storedPrFilters(
-  projectId: string,
-  repo: string,
-): GitPrFilterConfig {
-  if (typeof localStorage === "undefined") return defaultGitPrFilterConfig;
-  try {
-    const raw = localStorage.getItem(prFiltersStorageKey(projectId, repo));
-    if (!raw) return defaultGitPrFilterConfig;
-    const parsed: unknown = JSON.parse(raw);
-    return isPrFilterConfig(parsed)
-      ? normalizeGitPrFilterConfig(parsed)
-      : defaultGitPrFilterConfig;
-  } catch {
-    return defaultGitPrFilterConfig;
-  }
-}
-
-export function savePrFilters(
-  projectId: string,
-  repo: string,
-  filters: GitPrFilterConfig,
-): void {
-  if (typeof localStorage === "undefined") return;
-  try {
-    localStorage.setItem(
-      prFiltersStorageKey(projectId, repo),
-      JSON.stringify(normalizeGitPrFilterConfig(filters)),
-    );
-  } catch {
-    // Storage is best effort; active in-memory filters still apply.
-  }
-}
-
-function touchProject(projectId: string): void {
-  const state = gitPanelState.projects[gitProjectStateKey(projectId)];
-  if (!state) return;
-  state.touchedAt = Date.now();
-  pruneProjectCache();
+function createProjectState(projectId: string): GitPanelProjectState {
+  return { projectId, repoStates: {}, touchedAt: Date.now() };
 }
 
 function pruneProjectCache(): void {
@@ -268,25 +106,20 @@ function pruneProjectCache(): void {
   }
 }
 
-export function ensureGitProjectState(project: Project): GitPanelProjectState {
-  const key = gitProjectStateKey(project.id);
-  gitPanelState.projects[key] ??= createProjectState(project);
-  const state = gitPanelState.projects[key];
-  if (state.projectDir !== project.directory)
-    state.projectDir = project.directory;
-  touchProject(project.id);
-  return state;
-}
-
 export function ensureGitRepoState(
   projectId: string,
   repo: string,
 ): GitPanelRepoState {
-  const project = gitPanelState.projects[gitProjectStateKey(projectId)];
-  if (!project) return createRepoState();
-  const key = gitRepoStateKey(repo);
-  project.repoStates[key] ??= createRepoState(projectId, repo);
-  return project.repoStates[key];
+  const key = gitProjectStateKey(projectId);
+  const created = !gitPanelState.projects[key];
+  const project = (gitPanelState.projects[key] ??=
+    createProjectState(projectId));
+  project.touchedAt = Date.now();
+  if (created) pruneProjectCache();
+  return (project.repoStates[gitRepoStateKey(repo)] ??= createRepoState(
+    projectId,
+    repo,
+  ));
 }
 
 export function setGitChangeTreeFolderExpanded(
@@ -314,109 +147,6 @@ export function errorMessage(error: unknown): string {
   return String(error);
 }
 
-export function repoMutationInProgress(
-  state: GitPanelRepoState | undefined,
-): boolean {
-  const operations = state?.operations;
-  return Boolean(
-    operations &&
-    (operations.fetching ||
-      operations.pulling ||
-      operations.pushing ||
-      operations.syncing ||
-      operations.switchingBaseAndPulling ||
-      operations.creatingBranch ||
-      operations.switchingBranch ||
-      operations.deletingBranch ||
-      operations.fileMutation ||
-      operations.bulkMutation ||
-      operations.stashMutation),
-  );
-}
-
-export function patchRepoSummaryState(
-  state: GitPanelRepoState,
-  next: GitRepoSummary,
-): boolean {
-  const fingerprint = repoSummaryFingerprint(next);
-  if (state.lastRepoSummaryFingerprint === fingerprint && state.repoSummary) {
-    return false;
-  }
-  state.repoSummary = next;
-  state.lastRepoSummaryFingerprint = fingerprint;
-  return true;
-}
-
-export function patchChangesState(
-  state: GitPanelRepoState,
-  next: GitChangesState,
-): boolean {
-  const fingerprint = changesFingerprint(next);
-  if (state.lastChangesFingerprint === fingerprint && state.changes) {
-    return false;
-  }
-  state.changes = next;
-  state.lastChangesFingerprint = fingerprint;
-  return true;
-}
-
-export function patchRecentCommitsState(
-  state: GitPanelRepoState,
-  next: GitRecentCommit[],
-): boolean {
-  const fingerprint = recentCommitsFingerprint(next);
-  if (state.lastRecentCommitsFingerprint === fingerprint) return false;
-  state.recentCommits = next;
-  state.lastRecentCommitsFingerprint = fingerprint;
-  return true;
-}
-
-export function patchStashesState(
-  state: GitPanelRepoState,
-  next: GitStashEntry[],
-): boolean {
-  const fingerprint = stashesFingerprint(next);
-  if (state.lastStashesFingerprint === fingerprint) return false;
-  state.stashes = next;
-  state.lastStashesFingerprint = fingerprint;
-  return true;
-}
-
-export function patchGitOverviewState(
-  state: GitPanelRepoState,
-  next: GitOverviewResponse,
-): GitOverviewPatchResult {
-  const repoChanged = patchRepoSummaryState(state, next.repo);
-  const changesChanged = patchChangesState(state, changesFromOverview(next));
-  const recentCommitsChanged = patchRecentCommitsState(
-    state,
-    next.recentCommits,
-  );
-  const stashesChanged = patchStashesState(state, next.stashes);
-  const changed =
-    repoChanged || changesChanged || recentCommitsChanged || stashesChanged;
-  if (!state.loaded) state.loaded = true;
-  state.loadedAt = Date.now();
-  return {
-    changed,
-    repoChanged,
-    changesChanged,
-    recentCommitsChanged,
-    stashesChanged,
-  };
-}
-
-export function setProjectRepos(
-  project: GitPanelProjectState,
-  repos: GitRepoSummary[],
-): boolean {
-  const fingerprint = reposFingerprint(repos);
-  if (project.lastReposFingerprint === fingerprint) return false;
-  project.repos = repos;
-  project.lastReposFingerprint = fingerprint;
-  return true;
-}
-
 export function setBranchesIfChanged(
   state: GitPanelRepoState,
   branches: GitBranchSummary[],
@@ -439,50 +169,10 @@ export function setGithubStatusIfChanged(
   return true;
 }
 
-export function mergeRepoSummary(
-  projectId: string,
-  next: GitRepoSummary,
-): void {
-  const project = gitPanelState.projects[gitProjectStateKey(projectId)];
-  if (!project) return;
-  const existing = project.repos.find(
-    (repo) => repo.relativePath === next.relativePath,
-  );
-  if (!existing) {
-    setProjectRepos(project, [...project.repos, next]);
-  } else if (
-    repoSummaryFingerprint(existing) !== repoSummaryFingerprint(next)
-  ) {
-    setProjectRepos(
-      project,
-      project.repos.map((repo) =>
-        repo.relativePath === next.relativePath ? next : repo,
-      ),
-    );
-  }
-
-  const state = project.repoStates[gitRepoStateKey(next.relativePath)];
-  if (state) patchRepoSummaryState(state, next);
-  if (state && (!next.hasRemote || !next.hasGithubRemote)) {
-    clearGithubState(projectId, state);
-  }
-  applyGitContextFromProject(projectId);
-}
-
-function repoSummaryFor(
-  projectId: string,
-  repo: string,
-): GitRepoSummary | undefined {
-  const project = gitPanelState.projects[gitProjectStateKey(projectId)];
-  if (!project) return undefined;
-  return (
-    project.repoStates[gitRepoStateKey(repo)]?.repoSummary ??
-    project.repos.find((candidate) => candidate.relativePath === repo)
-  );
-}
-
 export function repoHasGithubRemote(projectId: string, repo: string): boolean {
-  const summary = repoSummaryFor(projectId, repo);
+  const summary = gitWorkspaceSnapshot(projectId)?.summaries.find(
+    (candidate) => candidate.relativePath === repo,
+  );
   return Boolean(summary?.hasRemote && summary.hasGithubRemote);
 }
 
@@ -490,49 +180,51 @@ export function clearGithubState(
   projectId: string,
   state: GitPanelRepoState,
 ): void {
-  let changed = false;
-  if (state.github !== undefined || state.lastGithubFingerprint !== undefined) {
-    state.github = undefined;
-    state.lastGithubFingerprint = undefined;
-    changed = true;
-  }
-  if (changed) applyGitContextFromProject(projectId);
+  if (state.github === undefined && state.lastGithubFingerprint === undefined)
+    return;
+  state.github = undefined;
+  state.lastGithubFingerprint = undefined;
+  applyGitContextFromProject(projectId);
 }
 
-export function storedRepo(projectId: string): string | undefined {
-  if (typeof localStorage === "undefined") return undefined;
-  return localStorage.getItem(repoStorageKey(projectId)) ?? undefined;
+/**
+ * The selected worktree of a project: the remembered choice while it still
+ * exists, else the default worktree of the snapshot.
+ */
+export function selectedGitRepo(projectId: string): string {
+  const repos = gitWorkspaceSnapshot(projectId)?.summaries ?? [];
+  const stored = gitProjectView(projectId).selected;
+  if (stored && repos.some((repo) => repo.relativePath === stored))
+    return stored;
+  return defaultSelectedWorktree(repos) ?? repos[0]?.relativePath ?? ".";
 }
 
-export function saveSelectedRepo(projectId: string, repo: string): void {
-  if (typeof localStorage === "undefined") return;
-  localStorage.setItem(repoStorageKey(projectId), repo);
+export function selectGitRepo(projectId: string, repo: string): void {
+  if (repo === selectedGitRepo(projectId)) return;
+  gitProjectView(projectId).select(repo);
+  applyGitContextFromProject(projectId);
 }
 
-function gitContextFromProject(
-  project: GitPanelProjectState,
-): GitContext | undefined {
-  if (!project.loaded && project.repos.length === 0) return undefined;
-  const selectedState =
-    project.repoStates[gitRepoStateKey(project.selectedRepo)];
+function gitContextFromWorkspace(projectId: string): GitContext | undefined {
+  const snapshot = gitWorkspaceSnapshot(projectId);
+  if (!snapshot?.loaded) return undefined;
+  const github =
+    gitPanelState.projects[gitProjectStateKey(projectId)]?.repoStates[
+      gitRepoStateKey(selectedGitRepo(projectId))
+    ]?.github;
   return {
-    projectId: project.projectId,
-    projectIsRepo: project.projectIsRepo,
-    repos: project.repos,
-    github: selectedState?.github
-      ? {
-          available: selectedState.github.available,
-          authenticated: selectedState.github.authenticated,
-        }
+    projectId,
+    projectIsRepo: snapshot.projectIsRepo,
+    repos: snapshot.summaries,
+    github: github
+      ? { available: github.available, authenticated: github.authenticated }
       : undefined,
-    loadedAt: project.loadedAt ?? Date.now(),
+    loadedAt: Date.now(),
   };
 }
 
 export function applyGitContextFromProject(projectId: string): void {
-  const project = gitPanelState.projects[gitProjectStateKey(projectId)];
-  if (!project) return;
-  const next = gitContextFromProject(project);
+  const next = gitContextFromWorkspace(projectId);
   if (!next) return;
   const current = gitState.gitContext;
   const changed =

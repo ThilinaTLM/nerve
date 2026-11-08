@@ -113,11 +113,15 @@ test("one owner can clear one resource without releasing its other resources", a
   try {
     await monitor.syncProject("owner", "proj_one", projectOne, []);
     await monitor.syncProject("owner", "proj_two", projectTwo, []);
-    await monitor.syncRepository("owner", "proj_one", ".", repoOne, true);
-    await monitor.syncRepository("owner", "proj_two", ".", repoTwo, true);
+    await monitor.setRepositories("owner", "proj_one", [
+      { repo: ".", repoDir: repoOne },
+    ]);
+    await monitor.setRepositories("owner", "proj_two", [
+      { repo: ".", repoDir: repoTwo },
+    ]);
 
     await monitor.clearProject("owner", "proj_one");
-    await monitor.clearRepository("owner", "proj_one", ".");
+    await monitor.clearRepositories("owner", "proj_one");
     assert.deepEqual(native.removed.sort(), [
       'git:["proj_one","."]',
       "project:proj_one",
@@ -138,7 +142,7 @@ test("one owner can clear one resource without releasing its other resources", a
   }
 });
 
-test("reference-counts repository demand and sequences manual refresh", async () => {
+test("reference-counts repository demand across owners", async () => {
   const root = await mkdtemp(join(tmpdir(), "nerve-repository-monitor-"));
   const native = new FakeMonitor();
   const monitor = new WorkspaceMonitor(
@@ -146,43 +150,14 @@ test("reference-counts repository demand and sequences manual refresh", async ()
     { monitor: native },
   );
   try {
-    await monitor.syncRepository("one", "proj_one", ".", root, true);
-    await monitor.syncRepository("two", "proj_one", ".", root, true);
+    const repos = [{ repo: ".", repoDir: root }];
+    await monitor.setRepositories("one", "proj_one", repos);
+    await monitor.setRepositories("two", "proj_one", repos);
     assert.equal(native.gitScopes.at(-1)?.repository, root);
-    assert.deepEqual(await monitor.requestRepositoryRefresh("proj_one", "."), {
-      active: true,
-      generation: 1,
-    });
     await monitor.releaseOwner("one");
     assert.equal(native.removed.length, 0);
     await monitor.releaseOwner("two");
     assert.deepEqual(native.removed, ['git:["proj_one","."]']);
-  } finally {
-    await monitor.close();
-    await rm(root, { recursive: true, force: true });
-  }
-});
-
-test("refreshing an unmonitored repository reports inactive without a native refresh", async () => {
-  const root = await mkdtemp(join(tmpdir(), "nerve-repository-refresh-"));
-  const native = new FakeMonitor();
-  const monitor = new WorkspaceMonitor(
-    { publishBestEffort() {} },
-    { monitor: native },
-  );
-  try {
-    const inactive = { active: false, generation: 0 };
-    assert.deepEqual(
-      await monitor.requestRepositoryRefresh("proj_one", "."),
-      inactive,
-    );
-    await monitor.syncRepository("one", "proj_one", ".", root, true);
-    await monitor.releaseOwner("one");
-    assert.deepEqual(
-      await monitor.requestRepositoryRefresh("proj_one", "."),
-      inactive,
-    );
-    assert.equal(native.refreshRequests, 0);
   } finally {
     await monitor.close();
     await rm(root, { recursive: true, force: true });
@@ -263,7 +238,9 @@ void test("native notices publish cause hints and callback options without chang
   );
   try {
     await monitor.syncProject("owner", "proj_one", root, []);
-    await monitor.syncRepository("owner", "proj_one", ".", root, true);
+    await monitor.setRepositories("owner", "proj_one", [
+      { repo: ".", repoDir: root },
+    ]);
     emit({
       scopeId: "project:proj_one",
       generation: 11,
@@ -288,9 +265,7 @@ void test("native notices publish cause hints and callback options without chang
       paths: [],
       fullRefreshRequired: true,
     });
-    assert.equal(published[1]?.data.refreshCause, "uncertain_poll");
-    assert.equal(published[1]?.data.generation, 12);
-    assert.equal(published[1]?.data.fullRefreshRequired, true);
+    assert.equal(published.length, 1, "repository notices are not events");
     assert.deepEqual(callbacks[0], {
       repo: root,
       options: { refreshCause: "uncertain_poll" },
@@ -302,7 +277,6 @@ void test("native notices publish cause hints and callback options without chang
       paths: [],
       fullRefreshRequired: true,
     });
-    assert.equal(published[2]?.data.refreshCause, undefined);
     assert.deepEqual(callbacks[1], { repo: root, options: undefined });
     emit({
       scopeId: "project:proj_one",
@@ -311,7 +285,7 @@ void test("native notices publish cause hints and callback options without chang
       paths: [],
       fullRefreshRequired: true,
     });
-    assert.equal(published[3]?.data.refreshCause, undefined);
+    assert.equal(published[1]?.data.refreshCause, undefined);
   } finally {
     await monitor.close();
     await rm(root, { recursive: true, force: true });

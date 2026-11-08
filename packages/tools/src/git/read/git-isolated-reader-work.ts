@@ -25,6 +25,14 @@ export interface GitIsolatedReadPort {
  * expected identity is checked BEFORE any detailed read can execute a filter.
  * App lanes exclude app mutations; external filesystem changes can still race
  * the pre/post checks. This is not a transactional filesystem snapshot. */
+function rootRepository<T extends { relativePath: string }>(discovery: {
+  repositories: T[];
+}): T | undefined {
+  return discovery.repositories.find(
+    (repository) => repository.relativePath === ".",
+  );
+}
+
 export async function readGitIsolatedFrame(
   input: GitIsolatedInput,
   port: GitIsolatedReadPort,
@@ -33,12 +41,10 @@ export async function readGitIsolatedFrame(
   try {
     const path = input.expected.workDir; // Never rewrite I/O paths to comparison keys.
     const discovery = await port.discover(path);
-    const identity = discovery.repositories[0];
-    if (
-      !discovery.projectIsRepo ||
-      discovery.repositories.length !== 1 ||
-      !identity
-    )
+    // Discovery also lists the repository's other worktrees inside this
+    // directory; the checkout being read is the project root entry ".".
+    const identity = rootRepository(discovery);
+    if (!discovery.projectIsRepo || !identity)
       return { version: 1, ok: false, error: isolatedError("not_repository") };
     if (!sameGitIsolatedIdentity(identity, input.expected, platform))
       return { version: 1, ok: false, error: isolatedError("invalid_input") };
@@ -48,7 +54,7 @@ export async function readGitIsolatedFrame(
       recentCommitLimit: 0,
       stashLimit: 0,
     });
-    const after = (await port.discover(path)).repositories[0];
+    const after = rootRepository(await port.discover(path));
     if (
       !after ||
       !sameGitIsolatedIdentity(after, input.expected, platform) ||

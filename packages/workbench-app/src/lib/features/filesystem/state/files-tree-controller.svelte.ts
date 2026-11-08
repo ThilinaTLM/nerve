@@ -111,6 +111,10 @@ export type FilesTreeControllerDependencies = {
   onOpenInTerminal: () =>
     | ((projectId: string, path?: string) => void)
     | undefined;
+  /** Git demand plus change callback for a project; composed by the app. */
+  watchGit: () =>
+    | ((projectId: string, onChange: () => void) => () => void)
+    | undefined;
 };
 
 /**
@@ -309,7 +313,12 @@ export class FilesTreeController {
       },
       refresh: (directories) => this.refreshAll(projectId, directories),
     });
+    // Decorations follow the server's Git workspace (stage, terminal commit).
+    const releaseGit = this.#deps.watchGit()?.(projectId, () => {
+      void this.refreshGitStatus(projectId);
+    });
     return () => {
+      releaseGit?.();
       this.#fileController?.stop();
       this.#fileController = undefined;
       this.drag.clear();

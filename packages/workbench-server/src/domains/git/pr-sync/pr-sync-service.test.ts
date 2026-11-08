@@ -22,6 +22,18 @@ const pr = githubPrSchema.parse({
     runs: [],
   },
 });
+/** Every path is a clone of github.com/a/b unless `map` says otherwise. */
+function remotes(map: Record<string, string> = {}) {
+  return {
+    resolveRepoDir: (_project: string, repo: string) => repo,
+    repoRemoteState: async (dir: string) => {
+      const [owner, name] = (map[dir] ?? "a/b").split("/");
+      return {
+        githubRepository: { hostname: "github.com", owner, repo: name },
+      } as never;
+    },
+  };
+}
 function fixture() {
   let now = 100_000,
     probes = 0,
@@ -31,6 +43,7 @@ function fixture() {
   let truncated = true;
   const service = new PrSyncService(
     {
+      ...remotes(),
       prSyncAvailability: async () => ({
         status: "ready",
         repositoryUrl: "https://github.com/a/b",
@@ -183,6 +196,7 @@ void test("signals inside the debounce window produce one probe", async (context
   });
   const service = new PrSyncService(
     {
+      ...remotes(),
       prSyncAvailability: async () => ({
         status: "ready",
         repositoryUrl: "https://github.com/a/b",
@@ -211,6 +225,7 @@ void test("signals inside the debounce window produce one probe", async (context
     service.signal(project, ".");
     service.signal(project, ".");
     service.signal(project, ".");
+    await new Promise((resolve) => setImmediate(resolve));
     context.mock.timers.tick(1_999);
     assert.equal(probes, 0);
     context.mock.timers.tick(1);
@@ -249,6 +264,7 @@ void test("a visible PR list reuses summary checks; only focused or pending head
   const other = { ...settled, number: 2, headSha: "bbb", headRefName: "other" };
   const service = new PrSyncService(
     {
+      ...remotes(),
       prSyncAvailability: async () => ({
         status: "ready",
         repositoryUrl: "https://github.com/a/b",
@@ -290,6 +306,110 @@ void test("a visible PR list reuses summary checks; only focused or pending head
     });
     await service.refresh(project, ".");
     assert.deepEqual(checked, ["bbb"]);
+  } finally {
+    await service.close();
+  }
+});
+
+void test("worktrees and clones of one remote share a snapshot, a probe and per-path events", async () => {
+  const f = fixture();
+  try {
+    const watch = (repo: string) => ({
+      projectId: project,
+      repo,
+      visible: true,
+      list: true,
+      prs: [] as number[],
+    });
+    f.service.sync("one", watch("main"));
+    f.service.sync("one", watch("wt"));
+    await f.service.refresh(project, "main");
+    assert.equal(f.probes(), 1);
+    const shared = f.service.snapshot(project, "wt");
+    assert.equal(shared.repo, "wt");
+    assert.equal(shared.prs.length, 1);
+    assert.equal(f.service.snapshot(project, "main").revision, shared.revision);
+    const repos = f.events.map((event) => (event as { repo: string }).repo);
+    assert.ok(repos.includes("main") && repos.includes("wt"));
+    // A path that joins later is told to read the shared snapshot.
+    f.events.length = 0;
+    f.service.snapshot(project, "late");
+    await f.service.refresh(project, "late");
+    assert.equal(f.probes(), 2, "refresh probes, but never once per path");
+    assert.equal(f.service.snapshot(project, "late").prs.length, 1);
+  } finally {
+    await f.service.close();
+  }
+});
+
+void test("the branch reported by workspace sync retains its PR without client relays", async () => {
+  const f = fixture();
+  try {
+    f.rows([{ ...pr, state: "MERGED" }]);
+    assert.equal((await f.service.refresh(project, ".")).prs.length, 0);
+    f.service.branchChanged({
+      projectId: project,
+      repo: ".",
+      branch: "branch",
+      detached: false,
+      previous: undefined,
+    });
+    assert.equal((await f.service.refresh(project, ".")).prs.length, 1);
+    f.service.branchChanged({
+      projectId: project,
+      repo: ".",
+      branch: null,
+      detached: true,
+      previous: "branch",
+    });
+    await f.service.refresh(project, ".");
+    assert.equal(f.service.snapshot(project, ".").prs.length, 0);
+  } finally {
+    await f.service.close();
+  }
+});
+
+void test("a rate limit blocks every repository of the host, not just the one that hit it", async () => {
+  let now = 100_000;
+  const probed: string[] = [];
+  const { GithubRateLimitError } = await import("@nervekit/tools/git");
+  let limited = true;
+  const service = new PrSyncService(
+    {
+      ...remotes({ one: "a/one", two: "a/two" }),
+      prSyncAvailability: async (_p, repo) => ({
+        status: "ready",
+        repositoryUrl: `https://github.com/a/${repo}`,
+      }),
+      probePullRequests: async (_p, repo) => {
+        probed.push(repo);
+        if (limited)
+          throw new GithubRateLimitError(new Headers({ "retry-after": "120" }));
+        return { status: 304 as const, headers: new Headers() };
+      },
+      fetchPrSummaries: async () => ({
+        prs: [],
+        viewer: "v",
+        truncated: false,
+      }),
+      probePrChecks: async () => {
+        throw new Error("No PR heads");
+      },
+    },
+    { publish: () => undefined },
+    () => now,
+  );
+  try {
+    assert.equal(
+      (await service.refresh(project, "one")).status,
+      "rate_limited",
+    );
+    await service.refresh(project, "two");
+    assert.deepEqual(probed, ["one"]);
+    limited = false;
+    now += 121_000;
+    assert.equal((await service.refresh(project, "two")).status, "fresh");
+    assert.deepEqual(probed, ["one", "two"]);
   } finally {
     await service.close();
   }

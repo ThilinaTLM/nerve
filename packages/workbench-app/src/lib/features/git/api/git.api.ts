@@ -1,7 +1,6 @@
 import type {
   GitBranchListResponse,
   GitDiffArea,
-  GitDiscoveryResponse,
   GitFileDiffResponse,
   GithubPrChecksResponse,
   GithubPrCommitsResponse,
@@ -18,15 +17,17 @@ import type {
   GithubPrMergeResponse,
   GithubPrOverview,
   GithubStatusResponse,
-  GitMutationResponse,
+  GitWorkspaceMutationResponse,
   GitOperationStartRequest,
   GitOperationBulkStartRequest,
-  GitOverviewResponse,
   GitProjectFileStatusResponse,
+  GitRepoDetailSnapshot,
   GitStashArea,
+  GitWorkspaceSnapshot,
+  GitWorkspaceWatchState,
+  GitWorkspaceWatchSyncRequest,
 } from "@nervekit/contracts/git";
 import { requestWorkbench } from "$lib/application/startup/workbench-connection";
-import { workspaceMonitorDemand } from "$lib/application/monitoring/workspace-monitor-demand";
 
 export async function startGitOperation(input: GitOperationStartRequest) {
   return requestWorkbench("git.operation.start", input);
@@ -44,46 +45,49 @@ export async function cancelGitOperation(operationId: string) {
 // timeout retries from accumulating duplicate native/status/diff workflows.
 const GIT_READ_REQUEST_TIMEOUT_MS = 120_000;
 
-export async function discoverGitRepos(
+/** Declare this connection's Git demand; replaces the previous demand for the project. */
+export async function syncGitWorkspaceWatch(
+  request: GitWorkspaceWatchSyncRequest,
+): Promise<GitWorkspaceWatchState> {
+  return await requestWorkbench("git.workspace.watch.sync", request);
+}
+
+export async function clearGitWorkspaceWatch(
   projectId: string,
-  refresh = false,
-): Promise<GitDiscoveryResponse> {
+): Promise<GitWorkspaceWatchState> {
+  return await requestWorkbench("git.workspace.watch.clear", { projectId });
+}
+
+export async function getGitWorkspaceSnapshot(
+  projectId: string,
+): Promise<GitWorkspaceSnapshot> {
   return await requestWorkbench(
-    "git.repos.discover",
-    {
-      projectId,
-      refresh,
-    },
+    "git.workspace.snapshot.get",
+    { projectId },
     { timeoutMs: GIT_READ_REQUEST_TIMEOUT_MS },
   );
 }
 
-export function syncGitRepositoryMonitor(
+export async function getGitRepoDetail(
   projectId: string,
   repo: string,
-  active: boolean,
-): Promise<void> {
-  return workspaceMonitorDemand.syncRepository(projectId, repo, active);
-}
-
-/** Re-scan the repository monitor after this client's own sync for it lands. */
-export function requestGitRepositoryRefresh(
-  projectId: string,
-  repo: string,
-): Promise<boolean> {
-  return workspaceMonitorDemand.refreshRepository(projectId, repo);
-}
-
-export async function getGitOverview(
-  projectId: string,
-  repo: string,
-): Promise<GitOverviewResponse> {
+): Promise<GitRepoDetailSnapshot> {
   return await requestWorkbench(
-    "git.overview.get",
-    {
-      projectId,
-      repo,
-    },
+    "git.repo.detail.get",
+    { projectId, repo },
+    { timeoutMs: GIT_READ_REQUEST_TIMEOUT_MS },
+  );
+}
+
+/** `force` (default) bypasses the server debounce and resolves once the read finished. */
+export async function refreshGitWorkspace(
+  projectId: string,
+  repo?: string,
+  force = true,
+): Promise<{ revision: number }> {
+  return await requestWorkbench(
+    "git.workspace.refresh",
+    { projectId, ...(repo ? { repo } : {}), force },
     { timeoutMs: GIT_READ_REQUEST_TIMEOUT_MS },
   );
 }
@@ -116,7 +120,7 @@ export async function createGitBranch(
   projectId: string,
   repo: string,
   name: string,
-): Promise<GitMutationResponse> {
+): Promise<GitWorkspaceMutationResponse> {
   return await requestWorkbench("git.branch.create", {
     projectId,
     repo,
@@ -128,7 +132,7 @@ export async function switchGitBranch(
   projectId: string,
   repo: string,
   name: string,
-): Promise<GitMutationResponse> {
+): Promise<GitWorkspaceMutationResponse> {
   return await requestWorkbench("git.branch.switch", {
     projectId,
     repo,
@@ -140,7 +144,7 @@ export async function deleteGitBranch(
   projectId: string,
   repo: string,
   name: string,
-): Promise<GitMutationResponse> {
+): Promise<GitWorkspaceMutationResponse> {
   return await requestWorkbench("git.branch.delete", {
     projectId,
     repo,
@@ -153,7 +157,7 @@ export async function createGitStash(
   repo: string,
   area: GitStashArea,
   paths?: readonly string[],
-): Promise<GitMutationResponse> {
+): Promise<GitWorkspaceMutationResponse> {
   return await requestWorkbench("git.stash.create", {
     projectId,
     repo,
@@ -167,7 +171,7 @@ export async function applyGitStash(
   repo: string,
   index: number,
   expectedHash: string,
-): Promise<GitMutationResponse> {
+): Promise<GitWorkspaceMutationResponse> {
   return await requestWorkbench("git.stash.apply", {
     projectId,
     repo,
@@ -181,7 +185,7 @@ export async function dropGitStash(
   repo: string,
   index: number,
   expectedHash: string,
-): Promise<GitMutationResponse> {
+): Promise<GitWorkspaceMutationResponse> {
   return await requestWorkbench("git.stash.drop", {
     projectId,
     repo,
@@ -208,7 +212,7 @@ export async function stageGitFile(
   projectId: string,
   repo: string,
   path: string,
-): Promise<GitMutationResponse> {
+): Promise<GitWorkspaceMutationResponse> {
   return await requestWorkbench("git.file.stage", {
     projectId,
     repo,
@@ -220,7 +224,7 @@ export async function unstageGitFile(
   projectId: string,
   repo: string,
   path: string,
-): Promise<GitMutationResponse> {
+): Promise<GitWorkspaceMutationResponse> {
   return await requestWorkbench("git.file.unstage", {
     projectId,
     repo,
@@ -232,7 +236,7 @@ export async function discardGitFile(
   projectId: string,
   repo: string,
   path: string,
-): Promise<GitMutationResponse> {
+): Promise<GitWorkspaceMutationResponse> {
   return await requestWorkbench("git.file.discard", {
     projectId,
     repo,

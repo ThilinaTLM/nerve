@@ -30,6 +30,8 @@ type Props = {
   deletingBranch?: string;
   creatingBranch: boolean;
   branchesEnabled: boolean;
+  /** Local branches checked out in another worktree: name to worktree folder. */
+  checkedOutIn?: ReadonlyMap<string, string>;
   branchFilter?: string;
   newBranchName?: string;
   /** Lets callers open the dialog straight into branch creation. */
@@ -55,6 +57,7 @@ let {
   deletingBranch,
   creatingBranch,
   branchesEnabled,
+  checkedOutIn,
   branchFilter = $bindable(""),
   newBranchName = $bindable(""),
   view = $bindable("switch"),
@@ -217,6 +220,7 @@ function openPullRequest(number: number): void {
                 enabled={branchesEnabled}
                 switching={switchingBranch === row.branch.name}
                 deleting={deletingBranch === row.branch.name}
+                checkedOutIn={checkedOutIn?.get(row.branch.name)}
                 onSwitch={(branch) => onSwitchBranch(selectedRepo, branch)}
                 onDelete={(branch) => (deleteCandidate = branch)}
                 onOpenPullRequest={openPullRequest}

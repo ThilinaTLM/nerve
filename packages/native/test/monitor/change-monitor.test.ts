@@ -37,7 +37,14 @@ test("manual and filesystem triggers share a bounded monitor scope", async () =>
     await waitFor(() => notices.length > 0, { message: "manual notice" });
     assert.equal(notices[0]?.scopeId, "project:test");
     assert.equal(notices[0]?.generation, 1);
-    assert.deepEqual(notices[0]?.causes, ["manual"]);
+    // macOS FSEvents can report the `mkdir` above late, coalesced into the
+    // same notice; the manual trigger must be present either way.
+    assert.ok(notices[0]?.causes.includes("manual"), "manual cause");
+    assert.ok(
+      notices[0]?.causes.every(
+        (cause) => cause === "manual" || cause === "filesystem",
+      ),
+    );
     assert.equal(monitor.diagnostics().registrations, 2);
   } finally {
     await monitor.close();

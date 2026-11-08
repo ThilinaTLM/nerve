@@ -16,6 +16,7 @@ let {
   terminalAvailability,
   onOpenInEditor,
   onOpenInTerminal,
+  watchGit,
 }: {
   activeProject?: Project;
   editorAvailability?: StatusResponse["runtime"]["editors"];
@@ -26,6 +27,7 @@ let {
     path?: string,
   ) => void;
   onOpenInTerminal?: (projectId: string, path?: string) => void;
+  watchGit?: (projectId: string, onChange: () => void) => () => void;
 } = $props();
 
 const tree = new FilesTreeController({
@@ -34,6 +36,7 @@ const tree = new FilesTreeController({
   terminalAvailability: () => terminalAvailability,
   onOpenInEditor: () => onOpenInEditor,
   onOpenInTerminal: () => onOpenInTerminal,
+  watchGit: () => watchGit,
 });
 const drag = tree.drag;
 

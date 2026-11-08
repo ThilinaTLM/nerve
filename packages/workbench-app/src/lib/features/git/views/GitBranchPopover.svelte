@@ -22,6 +22,8 @@ type Props = {
   loading: boolean;
   enabled: boolean;
   switchingBranch?: string;
+  /** Local branches checked out in another worktree: name to worktree folder. */
+  checkedOutIn?: ReadonlyMap<string, string>;
   onOpen: () => void;
   onSwitch: (branch: GitBranchSummary) => void;
   onManage: () => void;
@@ -38,6 +40,7 @@ let {
   loading,
   enabled,
   switchingBranch,
+  checkedOutIn,
   onOpen,
   onSwitch,
   onManage,
@@ -63,6 +66,10 @@ const commandItems = $derived(
     ],
   })),
 );
+
+function isCheckedOutElsewhere(branch: GitBranchSummary): boolean {
+  return !branch.remote && Boolean(checkedOutIn?.has(branch.name));
+}
 
 function handleOpenChange(next: boolean): void {
   query = "";
@@ -95,7 +102,10 @@ function choose(branch: GitBranchSummary): void {
     ariaLabel={`Branches in ${repoPathLabel(repo)}`}
     isSelected={(row) => row.branch.current}
     isDisabled={(row) =>
-      !enabled || row.branch.current || Boolean(switchingBranch)}
+      !enabled ||
+      row.branch.current ||
+      Boolean(switchingBranch) ||
+      isCheckedOutElsewhere(row.branch)}
     onChoose={(row) => choose(row.branch)}
     empty={loading
       ? "Loading branches…"
@@ -119,9 +129,18 @@ function choose(branch: GitBranchSummary): void {
         {#if !branch.remote && branch.name === repo.baseBranch && !branch.current}
           <Badge variant="info" class="shrink-0">base</Badge>
         {/if}
-        <span class="shrink-0 text-ui text-muted-foreground">
-          {row.updatedLabel.replace(/^Updated /, "")}
-        </span>
+        {#if isCheckedOutElsewhere(branch)}
+          <span
+            class="max-w-[40%] shrink-0 truncate text-ui text-muted-foreground"
+            title={`Checked out in ${checkedOutIn?.get(branch.name)}`}
+          >
+            in {checkedOutIn?.get(branch.name)}
+          </span>
+        {:else}
+          <span class="shrink-0 text-ui text-muted-foreground">
+            {row.updatedLabel.replace(/^Updated /, "")}
+          </span>
+        {/if}
       </span>
     {/snippet}
   </PopoverCommandList>

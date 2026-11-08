@@ -1,73 +1,48 @@
 import type {
   GithubPrSnapshot,
   GithubPrWatchSyncRequest,
-  GithubPrSyncStatus,
 } from "@nervekit/contracts/git";
 import {
   GithubRateLimitError,
   GitWorkflowError,
   summarizeRestChecks,
   type GitService,
-  type RestCheckRun,
-  type RestCommitStatus,
 } from "@nervekit/tools/git";
 import {
+  GithubRateBudget,
   PrWatchRegistry,
   diffPrs,
+  githubKeyHost,
+  githubRepoKey,
   nextPrProbe,
   prRepoKey,
-  rateLimitBackoff,
   retainPrs,
-  shownPrs,
+  unsettledPrs,
+  withBranchDemand,
+  type PrDemand,
 } from "./pr-sync-policy.js";
+import {
+  emptyPrSnapshot,
+  type PrEntry,
+  type PrPathRef,
+  type PrPublisher,
+} from "./pr-sync-types.js";
 
-type Entry = {
-  snapshot: GithubPrSnapshot;
-  etag?: string;
-  lastProbe: number | null;
-  branchRequests: Set<string>;
-  fingerprints: Map<number, string>;
-  signalAt?: number;
-  awaiting: Map<string, number>;
-  backoffUntil?: number;
-  failures: number;
-  pollIntervalMs?: number;
-  remaining?: number;
-  limit?: number;
-  timer?: ReturnType<typeof setTimeout>;
-  flight?: Promise<void>;
-  requested: Set<number>;
-  checks: Map<
-    string,
-    {
-      runs?: RestCheckRun[];
-      status?: RestCommitStatus;
-      runsTag?: string;
-      statusTag?: string;
-      firstAt: number;
-      at: number;
-    }
-  >;
-};
-type Publisher = {
-  publish(
-    type: "github.pr.changed",
-    data: {
-      projectId: string;
-      repo: string;
-      revision: number;
-      changed: number[];
-      removed: number[];
-      checksChanged: number[];
-      status: GithubPrSyncStatus;
-    },
-  ): unknown;
-};
+/** A path's remote is re-resolved at most this often (users add and change remotes). */
+const RESOLVE_TTL_MS = 300_000;
 
-/** Owns all GitHub PR polling and ephemeral snapshots; no transport or persistence dependencies. */
+/**
+ * Owns all GitHub PR polling and ephemeral snapshots; no transport or persistence dependencies.
+ * State is keyed by GitHub repository (`host/owner/name`): paths (worktrees,
+ * clones, other projects) of one remote share a snapshot and a polling
+ * schedule, and every repository of a host shares one rate-limit budget.
+ * The client-facing API still addresses `(projectId, repo path)`.
+ */
 export class PrSyncService {
   readonly watches = new PrWatchRegistry();
-  readonly #entries = new Map<string, Entry>();
+  readonly #entries = new Map<string, PrEntry>();
+  readonly #refs = new Map<string, PrPathRef>();
+  readonly #budgets = new Map<string, GithubRateBudget>();
   #closed = false;
   readonly #controller = new AbortController();
   readonly disposers: Array<() => void> = [];
@@ -78,31 +53,34 @@ export class PrSyncService {
       | "fetchPrSummaries"
       | "probePullRequests"
       | "probePrChecks"
+      | "repoRemoteState"
+      | "resolveRepoDir"
     >,
-    readonly events: Publisher,
+    readonly events: PrPublisher,
     readonly now = Date.now,
   ) {}
 
-  #entry(projectId: string, repo: string): Entry {
-    const key = prRepoKey(projectId, repo);
+  // ── Path binding ──────────────────────────────────────────────────────
+
+  budget(host: string): GithubRateBudget {
+    let budget = this.#budgets.get(host);
+    if (!budget) this.#budgets.set(host, (budget = new GithubRateBudget()));
+    return budget;
+  }
+  #budget(entry: PrEntry) {
+    return this.budget(entry.host);
+  }
+
+  #entryFor(key: string): PrEntry {
     let entry = this.#entries.get(key);
     if (!entry) {
       entry = {
-        snapshot: {
-          projectId,
-          repo,
-          revision: 0,
-          repositoryUrl: null,
-          status: "stale",
-          updatedAt: null,
-          retryAt: null,
-          truncated: false,
-          viewer: null,
-          prs: [],
-        },
+        key,
+        host: key.startsWith("path:") ? "" : githubKeyHost(key),
+        paths: new Map(),
+        snapshot: emptyPrSnapshot("", ""),
         lastProbe: null,
         awaiting: new Map(),
-        failures: 0,
         checks: new Map(),
         requested: new Set(),
         branchRequests: new Set(),
@@ -112,19 +90,115 @@ export class PrSyncService {
     }
     return entry;
   }
-  snapshot(projectId: string, repo: string): GithubPrSnapshot {
-    const entry = this.#entry(projectId, repo);
-    if (
+
+  /** The reference for a path; its GitHub key resolves asynchronously (`ready`). */
+  #bind(projectId: string, repo: string): PrPathRef {
+    const pathKey = prRepoKey(projectId, repo);
+    let ref = this.#refs.get(pathKey);
+    if (!ref) {
+      ref = {
+        projectId,
+        repo,
+        pathKey,
+        ready: Promise.resolve(),
+        resolvedAt: 0,
+        resolving: false,
+      };
+      this.#refs.set(pathKey, ref);
+      ref.ready = this.#attach(ref);
+    } else if (
+      ref.entry &&
+      !ref.resolving &&
+      this.now() - ref.resolvedAt > RESOLVE_TTL_MS
+    )
+      ref.ready = this.#attach(ref);
+    return ref;
+  }
+  async #resolveKey(ref: PrPathRef): Promise<string> {
+    try {
+      const state = await this.git.repoRemoteState(
+        this.git.resolveRepoDir(ref.projectId, ref.repo),
+      );
+      const github = state.githubRepository;
+      return github
+        ? githubRepoKey(github.hostname, github.owner, github.repo)
+        : `path:${ref.pathKey}`;
+    } catch {
+      return `path:${ref.pathKey}`;
+    }
+  }
+  async #attach(ref: PrPathRef) {
+    ref.resolving = true;
+    try {
+      const key = await this.#resolveKey(ref);
+      if (this.#closed) return;
+      ref.resolvedAt = this.now();
+      this.#move(ref, key);
+    } finally {
+      ref.resolving = false;
+    }
+  }
+  /** Bind `ref` to the entry for `key`, leaving the previous one. */
+  #move(ref: PrPathRef, key: string) {
+    const old = ref.entry;
+    if (old?.key === key) return;
+    if (old) {
+      old.paths.delete(ref.pathKey);
+      if (!old.paths.size) {
+        if (old.timer) clearTimeout(old.timer);
+        old.signalAt = undefined;
+        this.#entries.delete(old.key);
+      } else {
+        this.#retain(old);
+        this.#schedule(old);
+      }
+    }
+    const entry = this.#entryFor(key);
+    entry.paths.set(ref.pathKey, ref);
+    ref.entry = entry;
+    // The client holds a placeholder (or the old remote's PRs): have it read the shared snapshot.
+    if (entry.snapshot.revision > 0 || old)
+      this.#publishTo(ref, entry, {
+        changed: entry.snapshot.prs.map((pr) => pr.number),
+        removed: [],
+        checksChanged: [],
+      });
+  }
+  /** Run `act` once the path is bound; immediately when it already is. */
+  #whenBound(ref: PrPathRef, act: (entry: PrEntry) => void) {
+    if (ref.entry) return act(ref.entry);
+    void ref.ready.then(() => {
+      if (ref.entry && !this.#closed) act(ref.entry);
+    });
+  }
+  #view(ref: PrPathRef, entry: PrEntry | undefined): GithubPrSnapshot {
+    return structuredClone({
+      ...(entry?.snapshot ?? emptyPrSnapshot(ref.projectId, ref.repo)),
+      projectId: ref.projectId,
+      repo: ref.repo,
+    });
+  }
+  #stale(entry: PrEntry) {
+    return (
       !entry.flight &&
       (entry.lastProbe === null || this.now() - entry.lastProbe > 60_000)
-    )
-      // Revalidate quietly; `updatedAt` already tells clients how old it is.
-      this.signal(projectId, repo);
-    return structuredClone(entry.snapshot);
+    );
+  }
+
+  // ── Client API ────────────────────────────────────────────────────────
+
+  snapshot(projectId: string, repo: string): GithubPrSnapshot {
+    const ref = this.#bind(projectId, repo);
+    // Revalidate quietly; `updatedAt` already tells clients how old it is.
+    this.#whenBound(ref, (entry) => {
+      if (this.#stale(entry)) this.#signalEntry(entry);
+    });
+    return this.#view(ref, ref.entry);
   }
   cachedOpenPrs(projectId: string, repo: string, refresh = false) {
     const snapshot = this.snapshot(projectId, repo);
     if (refresh) this.signal(projectId, repo);
+    const entry = this.#bind(projectId, repo).entry;
     return {
       result: { prs: snapshot.prs.filter((pr) => pr.state === "OPEN") },
       status:
@@ -134,9 +208,7 @@ export class PrSyncService {
               snapshot.status === "unauthenticated"
             ? ("unavailable" as const)
             : ("stale" as const),
-      refreshing:
-        !!this.#entry(projectId, repo).flight ||
-        this.#entry(projectId, repo).signalAt !== undefined,
+      refreshing: !!entry && (!!entry.flight || entry.signalAt !== undefined),
       updatedAt: snapshot.updatedAt,
       failureCode:
         snapshot.status === "unauthenticated"
@@ -147,38 +219,40 @@ export class PrSyncService {
     };
   }
   sync(owner: string, request: GithubPrWatchSyncRequest) {
-    const key = prRepoKey(request.projectId, request.repo);
-    const previous = this.watches.owners.get(owner)?.get(key);
-    this.watches.sync(owner, key, request);
-    const entry = this.#entry(request.projectId, request.repo);
-    if (
-      !previous &&
-      ["unavailable", "unauthenticated"].includes(entry.snapshot.status) &&
-      entry.signalAt === undefined
-    )
-      this.#publish(entry, { ...entry.snapshot, status: "stale" });
-    if (request.branch && previous?.branch !== request.branch)
-      entry.branchRequests.add(request.branch);
-    for (const number of [
-      ...request.prs,
-      ...(request.activePr ? [request.activePr] : []),
-    ])
-      if (!entry.snapshot.prs.some((pr) => pr.number === number))
-        entry.requested.add(number);
-    this.#retain(entry);
-    if (
-      entry.branchRequests.size ||
-      entry.requested.size ||
-      entry.lastProbe === null ||
-      this.now() - entry.lastProbe > 60_000
-    )
-      this.signal(request.projectId, request.repo);
-    else this.#schedule(entry);
-    return { revision: entry.snapshot.revision };
+    const ref = this.#bind(request.projectId, request.repo);
+    const previous = this.watches.owners.get(owner)?.get(ref.pathKey);
+    this.watches.sync(owner, ref.pathKey, request);
+    this.#whenBound(ref, (entry) => {
+      if (
+        !previous &&
+        ["unavailable", "unauthenticated"].includes(entry.snapshot.status) &&
+        entry.signalAt === undefined
+      )
+        this.#publish(entry, { ...entry.snapshot, status: "stale" });
+      if (request.branch && previous?.branch !== request.branch)
+        entry.branchRequests.add(request.branch);
+      for (const number of [
+        ...request.prs,
+        ...(request.activePr ? [request.activePr] : []),
+      ])
+        if (!entry.snapshot.prs.some((pr) => pr.number === number))
+          entry.requested.add(number);
+      this.#retain(entry);
+      if (
+        entry.branchRequests.size ||
+        entry.requested.size ||
+        this.#stale(entry) ||
+        (entry.lastProbe !== null && this.now() - entry.lastProbe > 60_000)
+      )
+        this.#signalEntry(entry);
+      else this.#schedule(entry);
+    });
+    return { revision: ref.entry?.snapshot.revision ?? 0 };
   }
   clear(owner: string, projectId: string, repo: string) {
-    this.watches.clear(owner, prRepoKey(projectId, repo));
-    const entry = this.#entries.get(prRepoKey(projectId, repo));
+    const pathKey = prRepoKey(projectId, repo);
+    this.watches.clear(owner, pathKey);
+    const entry = this.#refs.get(pathKey)?.entry;
     if (entry) {
       this.#retain(entry);
       this.#schedule(entry);
@@ -192,55 +266,113 @@ export class PrSyncService {
       this.#schedule(entry);
     }
   }
+
+  // ── Server signals ────────────────────────────────────────────────────
+
+  /**
+   * A worktree's current branch (from `GitWorkspaceSync`), so the branch's PR
+   * is tracked without the client relaying branch names. `previous` is
+   * undefined on the first read of the worktree.
+   */
+  branchChanged(change: {
+    projectId: string;
+    repo: string;
+    branch: string | null;
+    detached: boolean;
+    previous?: string | null;
+  }) {
+    if (this.#closed) return;
+    const ref = this.#bind(change.projectId, change.repo);
+    const branch = change.detached ? null : change.branch;
+    ref.branch = branch;
+    this.#whenBound(ref, (entry) => {
+      if (
+        branch &&
+        change.previous !== undefined &&
+        change.previous !== branch
+      ) {
+        // A switch: its PR may not be known yet.
+        entry.branchRequests.add(branch);
+        this.#retain(entry);
+        this.#signalEntry(entry);
+      } else {
+        this.#retain(entry);
+        this.#schedule(entry);
+      }
+    });
+  }
   expect(projectId: string, repo: string, branch: string) {
-    const entry = this.#entry(projectId, repo);
-    if (
-      !entry.snapshot.prs.some(
-        (pr) => pr.headRefName === branch && pr.state === "OPEN",
+    this.#whenBound(this.#bind(projectId, repo), (entry) => {
+      if (
+        !entry.snapshot.prs.some(
+          (pr) => pr.headRefName === branch && pr.state === "OPEN",
+        )
       )
-    )
-      entry.awaiting.set(branch, this.now());
-    this.signal(projectId, repo);
+        entry.awaiting.set(branch, this.now());
+      this.#signalEntry(entry);
+    });
     return { accepted: true };
   }
   signal(projectId: string, repo: string, number?: number) {
     if (this.#closed) return;
-    const entry = this.#entry(projectId, repo);
+    this.#whenBound(this.#bind(projectId, repo), (entry) => {
+      if (number) entry.requested.add(number);
+      this.#signalEntry(entry);
+    });
+  }
+  #signalEntry(entry: PrEntry) {
+    if (this.#closed) return;
     entry.signalAt ??= this.now();
-    if (number) entry.requested.add(number);
     this.#schedule(entry);
   }
   merged(projectId: string, repo: string, number: number) {
-    const entry = this.#entry(projectId, repo);
-    this.#publish(entry, {
-      ...entry.snapshot,
-      prs: entry.snapshot.prs.map((pr) =>
-        pr.number === number
-          ? {
-              ...pr,
-              state: "MERGED",
-              updatedAt: new Date(this.now()).toISOString(),
-            }
-          : pr,
-      ),
+    this.#whenBound(this.#bind(projectId, repo), (entry) => {
+      this.#publish(entry, {
+        ...entry.snapshot,
+        prs: entry.snapshot.prs.map((pr) =>
+          pr.number === number
+            ? {
+                ...pr,
+                state: "MERGED",
+                updatedAt: new Date(this.now()).toISOString(),
+              }
+            : pr,
+        ),
+      });
+      entry.requested.add(number);
+      this.#signalEntry(entry);
     });
-    this.signal(projectId, repo, number);
   }
   async refresh(projectId: string, repo: string, number?: number) {
-    const entry = this.#entry(projectId, repo);
-    if (number) entry.requested.add(number);
-    entry.signalAt = this.now() - 2_000;
-    if (!entry.backoffUntil || entry.backoffUntil <= this.now())
-      await this.#run(entry, true);
-    this.#schedule(entry);
-    return structuredClone(entry.snapshot);
+    const ref = this.#bind(projectId, repo);
+    await ref.ready;
+    // A remote change found by the probe moves the path; probe its new entry too.
+    for (let round = 0; round < 2 && ref.entry && !this.#closed; round++) {
+      const entry = ref.entry;
+      if (number) entry.requested.add(number);
+      entry.signalAt = this.now() - 2_000;
+      if (this.#blockedUntil(entry) <= this.now()) await this.#run(entry, true);
+      this.#schedule(entry);
+      if (ref.entry === entry) break;
+    }
+    return this.#view(ref, ref.entry);
   }
-  #demands(entry: Entry) {
-    return this.watches.demands(
-      prRepoKey(entry.snapshot.projectId, entry.snapshot.repo),
+
+  // ── Policy inputs ─────────────────────────────────────────────────────
+
+  #blockedUntil(entry: PrEntry) {
+    return Math.max(
+      entry.backoffUntil ?? 0,
+      entry.host ? this.#budget(entry).blockedUntil(this.now()) : 0,
     );
   }
-  #policy(entry: Entry) {
+  /** Explicit watches of every path plus the workspace-reported branch of each. */
+  #demands(entry: PrEntry): PrDemand[] {
+    return [...entry.paths.values()].flatMap((ref) =>
+      withBranchDemand(this.watches.demands(ref.pathKey), ref.branch),
+    );
+  }
+  #policy(entry: PrEntry) {
     const now = this.now();
     for (const [branch, since] of entry.awaiting)
       if (
@@ -250,6 +382,7 @@ export class PrSyncService {
         )
       )
         entry.awaiting.delete(branch);
+    const budget = entry.host ? this.#budget(entry) : undefined;
     return nextPrProbe({
       now,
       lastProbe: entry.lastProbe,
@@ -259,10 +392,10 @@ export class PrSyncService {
         ? Math.min(...entry.awaiting.values())
         : undefined,
       signalAt: entry.signalAt,
-      backoffUntil: entry.backoffUntil,
+      backoffUntil: this.#blockedUntil(entry) || undefined,
       pollIntervalMs: entry.pollIntervalMs,
-      remaining: entry.remaining,
-      limit: entry.limit,
+      remaining: budget?.low(now) ? budget.remaining : undefined,
+      limit: budget?.low(now) ? budget.limit : undefined,
     });
   }
   /**
@@ -271,34 +404,21 @@ export class PrSyncService {
    * (branch card, open tabs) whose new head may not have reported checks yet,
    * are probed.
    */
-  #unsettled(entry: Entry) {
-    const demands = this.#demands(entry);
-    const focused = (number: number, head: string) =>
-      demands.some(
-        (demand) =>
-          demand.visible &&
-          (demand.prs.includes(number) ||
-            demand.activePr === number ||
-            demand.branch === head),
-      );
-    return shownPrs(entry.snapshot.prs, demands).filter((pr) => {
-      if (!pr.headSha) return false;
-      if (pr.checks.pending > 0) return true;
-      if (pr.state !== "OPEN" || !focused(pr.number, pr.headRefName))
-        return false;
-      const cached = entry.checks.get(pr.headSha);
-      return (
-        !cached ||
-        (pr.checks.total === 0 && this.now() - cached.firstAt < 60_000)
-      );
+  #unsettled(entry: PrEntry) {
+    return unsettledPrs({
+      now: this.now(),
+      prs: entry.snapshot.prs,
+      demands: this.#demands(entry),
+      checks: entry.checks,
     });
   }
-  #schedule(entry: Entry) {
+  #schedule(entry: PrEntry) {
     if (entry.timer) clearTimeout(entry.timer);
     entry.timer = undefined;
     if (
       this.#closed ||
       entry.flight ||
+      !entry.paths.size ||
       (["unavailable", "unauthenticated"].includes(entry.snapshot.status) &&
         entry.signalAt === undefined)
     )
@@ -315,9 +435,13 @@ export class PrSyncService {
       : Infinity;
     const at = Math.max(
       Math.min(policy.repoAt ?? Infinity, checksAt),
-      entry.backoffUntil ?? 0,
+      this.#blockedUntil(entry),
     );
     if (!Number.isFinite(at)) return;
+    this.#arm(entry, at);
+  }
+  #arm(entry: PrEntry, at: number) {
+    if (entry.timer) clearTimeout(entry.timer);
     entry.timer = setTimeout(
       () => {
         void this.#run(entry);
@@ -326,23 +450,20 @@ export class PrSyncService {
     );
     entry.timer.unref();
   }
-  #headers(entry: Entry, headers: Headers) {
-    const remaining = headers.get("x-ratelimit-remaining"),
-      limit = headers.get("x-ratelimit-limit");
-    if (remaining !== null) entry.remaining = Number(remaining);
-    if (limit !== null) entry.limit = Number(limit);
+  #headers(entry: PrEntry, headers: Headers) {
+    if (entry.host) this.#budget(entry).observe(headers);
     entry.pollIntervalMs = Math.max(
       entry.pollIntervalMs ?? 0,
       Number(headers.get("x-poll-interval") ?? 0) * 1000,
     );
   }
-  #retain(entry: Entry) {
+  #retain(entry: PrEntry) {
     this.#publish(entry, {
       ...entry.snapshot,
       prs: retainPrs(entry.snapshot.prs, this.#demands(entry)),
     });
   }
-  #publish(entry: Entry, snapshot: GithubPrSnapshot) {
+  #publish(entry: PrEntry, snapshot: GithubPrSnapshot) {
     snapshot = {
       ...snapshot,
       prs: retainPrs(snapshot.prs, this.#demands(entry)),
@@ -358,63 +479,85 @@ export class PrSyncService {
       return;
     }
     entry.snapshot = { ...snapshot, revision: entry.snapshot.revision + 1 };
+    // Paths with demand are told; without any demand, every path is.
+    const watched = [...entry.paths.values()].filter(
+      (ref) => this.watches.demands(ref.pathKey).length,
+    );
+    for (const ref of watched.length ? watched : entry.paths.values())
+      this.#publishTo(ref, entry, diff);
+  }
+  #publishTo(
+    ref: PrPathRef,
+    entry: PrEntry,
+    diff: { changed: number[]; removed: number[]; checksChanged: number[] },
+  ) {
     try {
       void Promise.resolve(
         this.events.publish("github.pr.changed", {
-          projectId: snapshot.projectId,
-          repo: snapshot.repo,
+          projectId: ref.projectId,
+          repo: ref.repo,
           revision: entry.snapshot.revision,
           ...diff,
-          status: snapshot.status,
+          status: entry.snapshot.status,
         }),
       ).catch(() => {});
     } catch {
       /* Publication cannot fail a probe. */
     }
   }
-  #run(entry: Entry, force = false): Promise<void> {
+  #run(entry: PrEntry, force = false): Promise<void> {
     if (entry.flight) return entry.flight;
-    if (this.#closed || (entry.backoffUntil ?? 0) > this.now())
+    const now = this.now();
+    if (this.#closed || this.#blockedUntil(entry) > now)
       return Promise.resolve();
+    if (!force && entry.host) {
+      // Stagger probe cycles of all repositories of the host.
+      if (entry.slot === undefined) {
+        const slot = this.#budget(entry).reserve(now);
+        if (slot > now) entry.slot = slot;
+      }
+      if (entry.slot !== undefined && entry.slot > now) {
+        this.#arm(entry, entry.slot);
+        return Promise.resolve();
+      }
+      entry.slot = undefined;
+    }
     entry.flight = this.#fetch(entry, force).finally(() => {
       entry.flight = undefined;
       this.#schedule(entry);
     });
     return entry.flight;
   }
-  async #fetch(entry: Entry, force: boolean) {
-    const { projectId, repo } = entry.snapshot;
+  async #fetch(entry: PrEntry, force: boolean) {
+    const rep = [...entry.paths.values()].sort(
+      (a, b) =>
+        Number(!this.watches.demands(a.pathKey).length) -
+        Number(!this.watches.demands(b.pathKey).length),
+    )[0];
+    if (!rep) return;
+    const { projectId, repo } = rep;
     try {
       const auth = await this.git.prSyncAvailability(
         projectId,
         repo,
         this.#controller.signal,
       );
-      if (
-        entry.snapshot.repositoryUrl &&
-        entry.snapshot.repositoryUrl !== auth.repositoryUrl
-      ) {
-        entry.etag = undefined;
-        entry.lastProbe = null;
-        entry.fingerprints.clear();
-        entry.checks.clear();
-        entry.awaiting.clear();
-        this.#publish(entry, {
-          ...entry.snapshot,
-          repositoryUrl: auth.repositoryUrl,
-          prs: [],
-          viewer: null,
-          truncated: false,
-          updatedAt: null,
-          status: "stale",
-          retryAt: null,
-        });
-      } else {
-        this.#publish(entry, {
-          ...entry.snapshot,
-          repositoryUrl: auth.repositoryUrl,
-        });
+      const authKey = auth.repositoryUrl
+        ? (({ hostname, pathname }) => `${hostname}${pathname}`.toLowerCase())(
+            new URL(auth.repositoryUrl),
+          )
+        : `path:${rep.pathKey}`;
+      if (authKey !== entry.key) {
+        // The remote changed since the path was bound: continue on the new remote's entry.
+        rep.resolvedAt = this.now();
+        this.#move(rep, authKey);
+        if (rep.entry) this.#signalEntry(rep.entry);
+        return;
       }
+      this.#publish(entry, {
+        ...entry.snapshot,
+        repositoryUrl: auth.repositoryUrl,
+      });
       if (auth.status !== "ready") {
         entry.signalAt = undefined;
         this.#publish(entry, {
@@ -590,12 +733,9 @@ export class PrSyncService {
           ),
         });
       }
-      entry.failures = 0;
       entry.backoffUntil = undefined;
-      const lowBudget =
-        entry.limit &&
-        entry.remaining !== undefined &&
-        entry.remaining / entry.limit < 0.2;
+      this.#budget(entry).succeeded();
+      const lowBudget = this.#budget(entry).low(this.now());
       this.#publish(entry, {
         ...entry.snapshot,
         status: lowBudget ? "rate_limited" : "fresh",
@@ -625,13 +765,14 @@ export class PrSyncService {
         return;
       }
       const rateLimited = error instanceof GithubRateLimitError;
-      entry.backoffUntil = rateLimited
-        ? rateLimitBackoff(this.now(), entry.failures++, error.headers)
-        : this.now() + 60_000;
+      // Rate limits (primary or secondary) block every repository of the host.
+      const retryAt = rateLimited
+        ? this.#budget(entry).limited(this.now(), error.headers)
+        : (entry.backoffUntil = this.now() + 60_000);
       this.#publish(entry, {
         ...entry.snapshot,
         status: rateLimited ? "rate_limited" : "error",
-        retryAt: new Date(entry.backoffUntil).toISOString(),
+        retryAt: new Date(retryAt).toISOString(),
       });
     }
   }
@@ -647,6 +788,7 @@ export class PrSyncService {
       ),
     );
     this.#entries.clear();
+    this.#refs.clear();
     this.watches.owners.clear();
   }
 }

@@ -1,23 +1,50 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
+import { githubPrSchema, type GithubPr } from "@nervekit/contracts/git";
 import {
   activeGitPrFilterCount,
   applyGitPrFilterDraft,
-  applyQuickGitPrFilter,
+  availableGitPrLabels,
+  countGitPrsByQuickFilter,
   createGitPrFilterDraft,
   defaultGitPrFilterConfig,
+  githubRepositoryKey,
   gitPrFilterConfigsEqual,
+  groupGitPrsByRepository,
+  groupGithubCheckouts,
   hasActiveGitPrFilters,
+  matchesGitPrSearch,
   normalizeGitPrFilterConfig,
-  pinCurrentBranchPr,
-  quickGitPrFilter,
+  type GitPrListOptions,
+  type GitPrRepositorySource,
 } from "./pr-filters.js";
 
-test("normalizes filter text and bounds unique nonempty labels", () => {
+const pr = (number: number, patch: Partial<GithubPr> = {}): GithubPr =>
+  githubPrSchema.parse({
+    number,
+    title: "Fix live sync",
+    url: `https://github.com/o/r/pull/${number}`,
+    state: "OPEN",
+    isDraft: false,
+    headRefName: `feature-${number}`,
+    baseRefName: "main",
+    updatedAt: `2026-10-${String(number).padStart(2, "0")}T00:00:00Z`,
+    author: "alice",
+    labels: [],
+    checks: {
+      status: "none",
+      total: 0,
+      passed: 0,
+      failed: 0,
+      pending: 0,
+      runs: [],
+    },
+    ...patch,
+  });
+
+test("normalizes and bounds unique nonempty labels", () => {
   const normalized = normalizeGitPrFilterConfig({
     ...defaultGitPrFilterConfig,
-    username: " octocat ",
-    title: " fix ",
     labels: [
       " bug ",
       "bug",
@@ -25,8 +52,6 @@ test("normalizes filter text and bounds unique nonempty labels", () => {
       ...Array.from({ length: 25 }, (_, i) => `label-${i}`),
     ],
   });
-  assert.equal(normalized.username, "octocat");
-  assert.equal(normalized.title, "fix");
   assert.equal(normalized.labels.length, 20);
   assert.deepEqual(normalized.labels.slice(0, 3), [
     "bug",
@@ -35,89 +60,139 @@ test("normalizes filter text and bounds unique nonempty labels", () => {
   ]);
 });
 
-test("draft round trips preserve policy and gate current branch filtering", () => {
+test("draft round trip, equality and active counts use normalized values", () => {
   const filters = {
-    ...defaultGitPrFilterConfig,
-    currentBranchOnly: true,
+    drafts: "only" as const,
     labels: ["bug", "review"],
     sort: "updated-asc" as const,
   };
   const draft = createGitPrFilterDraft(filters);
   assert.equal(draft.labels, "bug, review");
-  assert.deepEqual(applyGitPrFilterDraft(draft, true), filters);
-  assert.equal(applyGitPrFilterDraft(draft, false).currentBranchOnly, false);
-});
-
-test("equality and active filter counts use normalized values", () => {
+  assert.deepEqual(applyGitPrFilterDraft(draft), filters);
   assert.equal(hasActiveGitPrFilters(defaultGitPrFilterConfig), false);
-  assert.equal(activeGitPrFilterCount(defaultGitPrFilterConfig), 0);
   assert.equal(
     gitPrFilterConfigsEqual(defaultGitPrFilterConfig, {
       ...defaultGitPrFilterConfig,
-      title: " ",
       labels: [" "],
     }),
     true,
   );
-  const filters = {
-    ...defaultGitPrFilterConfig,
-    author: "me" as const,
-    drafts: "only" as const,
-    title: " fix ",
-    labels: ["bug", "bug"],
-    currentBranchOnly: true,
-    sort: "updated-asc" as const,
-  };
-  assert.equal(activeGitPrFilterCount(filters), 6);
-  assert.equal(
-    activeGitPrFilterCount({ ...filters, reviewRequested: true }),
-    7,
-  );
-  assert.equal(hasActiveGitPrFilters(filters), true);
+  assert.equal(activeGitPrFilterCount(filters), 4);
 });
 
-test("quick filter rewrites only author and review requested", () => {
-  const base = {
-    ...defaultGitPrFilterConfig,
-    title: "fix",
-    drafts: "only" as const,
-  };
-  const mine = applyQuickGitPrFilter(base, "mine");
-  assert.equal(mine.author, "me");
-  assert.equal(mine.reviewRequested, false);
-  assert.equal(mine.title, "fix");
-  assert.equal(mine.drafts, "only");
-  const review = applyQuickGitPrFilter(mine, "review");
-  assert.equal(review.author, "any");
-  assert.equal(review.reviewRequested, true);
-  assert.equal(applyQuickGitPrFilter(review, "all").reviewRequested, false);
+test("search matches repository, title, number, author and branch", () => {
+  const p = pr(412, {
+    title: "Add OAuth refresh",
+    author: "Renovate",
+    headRefName: "deps/lodash",
+  });
+  const match = (query: string) => matchesGitPrSearch(query, "api", p);
+  assert.equal(match(""), true);
+  assert.equal(match("API"), true);
+  assert.equal(match("oauth"), true);
+  assert.equal(match("412"), true);
+  assert.equal(match("#412"), true);
+  assert.equal(match("#41"), true);
+  assert.equal(match("41"), true);
+  assert.equal(match("#12"), false);
+  assert.equal(match("renovate"), true);
+  assert.equal(match("deps/lod"), true);
+  assert.equal(match("api renovate"), true);
+  assert.equal(match("api bob"), false);
+  assert.equal(match("zzz"), false);
 });
 
-test("quick filter is unselected for states outside its presets", () => {
-  const c = defaultGitPrFilterConfig;
-  assert.equal(quickGitPrFilter(c), "all");
-  assert.equal(quickGitPrFilter({ ...c, author: "me" }), "mine");
-  assert.equal(quickGitPrFilter({ ...c, reviewRequested: true }), "review");
-  assert.equal(
-    quickGitPrFilter({ ...c, author: "me", reviewRequested: true }),
-    undefined,
-  );
-  assert.equal(
-    quickGitPrFilter({ ...c, author: "username", username: "octocat" }),
-    undefined,
-  );
-});
-
-test("pins the current branch PR first without dropping others", () => {
-  const prs = [
-    { number: 1, headRefName: "a" },
-    { number: 2, headRefName: "b" },
-    { number: 3, headRefName: "c" },
+test("groups by repository with filters, quick filters and checked-out first", () => {
+  const source = (
+    key: string,
+    prs: GithubPr[],
+    checkedOutBranches: string[] = [],
+  ): GitPrRepositorySource => ({
+    key,
+    name: key.split("/")[1]!,
+    repository: key,
+    prs,
+    viewer: "Alice",
+    checkedOutBranches: new Set(checkedOutBranches),
+  });
+  const sources = [
+    source("o/web", [pr(1, { author: "bob" })]),
+    source(
+      "o/api",
+      [
+        pr(2),
+        pr(3, { isDraft: true, reviewRequested: true, labels: ["bug"] }),
+        pr(4, { state: "MERGED" }),
+        pr(5),
+      ],
+      ["feature-2"],
+    ),
   ];
+  const options: GitPrListOptions = {
+    query: "",
+    quick: "all",
+    filters: defaultGitPrFilterConfig,
+  };
+  const names = (o = options) =>
+    groupGitPrsByRepository(sources, o).map(
+      (group) => `${group.name}:${group.prs.map((p) => p.number).join(",")}`,
+    );
+  assert.deepEqual(names(), ["api:2,5,3", "web:1"]);
+  assert.deepEqual(names({ ...options, quick: "mine" }), ["api:2,5,3"]);
+  assert.deepEqual(names({ ...options, quick: "review" }), ["api:3"]);
+  assert.deepEqual(names({ ...options, query: "bob" }), ["web:1"]);
   assert.deepEqual(
-    pinCurrentBranchPr(prs, "c").ordered.map((pr) => pr.number),
-    [3, 1, 2],
+    countGitPrsByQuickFilter(sources, defaultGitPrFilterConfig),
+    {
+      all: 4,
+      mine: 3,
+      review: 1,
+    },
   );
-  assert.equal(pinCurrentBranchPr(prs, "x").pinned, undefined);
-  assert.deepEqual(pinCurrentBranchPr(prs, null).ordered, prs);
+  assert.deepEqual(
+    names({
+      ...options,
+      filters: { ...defaultGitPrFilterConfig, drafts: "exclude" },
+    }),
+    ["api:2,5", "web:1"],
+  );
+  assert.deepEqual(
+    names({
+      ...options,
+      filters: {
+        ...defaultGitPrFilterConfig,
+        labels: ["BUG"],
+        sort: "updated-asc",
+      },
+    }),
+    ["api:3"],
+  );
+  assert.deepEqual(availableGitPrLabels(sources), ["bug"]);
+});
+
+test("merges checkouts of one remote and keeps unresolved ones apart", () => {
+  assert.deepEqual(githubRepositoryKey("https://github.com/Acme/Api.git"), {
+    key: "acme/api",
+    name: "Api",
+  });
+  assert.equal(githubRepositoryKey(null), undefined);
+  const groups = groupGithubCheckouts([
+    {
+      relativePath: "clones/api2",
+      currentBranch: "a",
+      repositoryUrl: "https://github.com/acme/api",
+    },
+    {
+      relativePath: "api",
+      currentBranch: "b",
+      repositoryUrl: "https://github.com/acme/api",
+    },
+    { relativePath: "web", currentBranch: null },
+  ]);
+  assert.equal(groups.length, 2);
+  const api = groups.find((group) => group.key === "acme/api")!;
+  assert.equal(api.repository, "api");
+  assert.deepEqual(api.members, ["api", "clones/api2"]);
+  assert.deepEqual([...api.checkedOutBranches].sort(), ["a", "b"]);
+  assert.equal(groups.find((group) => !group.resolved)?.repository, "web");
 });
