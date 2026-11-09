@@ -20,6 +20,7 @@ import { openAICompletionsApi } from "@earendil-works/pi-ai/api/openai-completio
 import { openAIResponsesApi } from "@earendil-works/pi-ai/api/openai-responses.lazy";
 import { piMessagesApi } from "@earendil-works/pi-ai/api/pi-messages.lazy";
 import { builtinModels } from "@earendil-works/pi-ai/providers/all";
+import "./pi-ai-bundle-support.js";
 
 const models = builtinModels();
 const builtinProviderIds = new Set<string>(

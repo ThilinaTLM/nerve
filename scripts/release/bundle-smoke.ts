@@ -36,8 +36,16 @@ export function findUnresolvableImports(
   return unresolved;
 }
 
+/**
+ * Optional packages a bundled dependency imports inside try/catch (esbuild
+ * leaves those unresolved instead of failing the build). `kerberos`: Negotiate
+ * proxy auth in proxy-agent-negotiate, reached through pi-ai's Bedrock client.
+ */
+const optionalBareImports = new Set(["kerberos"]);
+
 export function isAllowedBareImport(specifier: string): boolean {
   if (specifier.startsWith("node:") || isBuiltin(specifier)) return true;
+  if (optionalBareImports.has(specifier)) return true;
   if (specifier.startsWith("@nervekit/native-")) return true;
   return externalRuntimeDependencies.some(
     (name) => specifier === name || specifier.startsWith(`${name}/`),
@@ -131,13 +139,79 @@ export async function smokeBundledDaemon(desktopRoot: string, version: string) {
     const asset = html.match(/(?:src|href)="(\/assets\/[^"]+)"/)?.[1];
     if (!asset || !(await fetch(`${origin}${asset}`)).ok)
       throw new Error(`bundled daemon did not serve static asset ${asset}.`);
+    const oauthProviders = await smokeOAuthFlowLoading(origin, token);
     console.log(
-      `Bundled daemon (pid ${child.pid}) healthy on ${origin}; served index.html and ${asset}.`,
+      `Bundled daemon (pid ${child.pid}) healthy on ${origin}; served index.html and ${asset}; loaded OAuth flows for ${oauthProviders.join(", ")}.`,
     );
   } finally {
     await stopChild(child);
     await rm(home, { recursive: true, force: true });
   }
+}
+
+/**
+ * Starts and cancels an OAuth login for every OAuth provider. pi-ai loads each
+ * flow module lazily, so a flow that cannot be resolved in the bundle only
+ * fails here (it once shipped as "Cannot find module dist/anthropic.js").
+ * Other failures (network, busy callback ports) are tolerated: they happen
+ * after the flow module loaded.
+ */
+async function smokeOAuthFlowLoading(origin: string, token: string) {
+  const api = async (path: string, init?: RequestInit) => {
+    const response = await fetch(`${origin}/api${path}`, {
+      ...init,
+      headers: {
+        authorization: `Bearer ${token}`,
+        "content-type": "application/json",
+      },
+    });
+    if (!response.ok)
+      throw new Error(
+        `${path} returned ${response.status}: ${await response.text()}`,
+      );
+    return response.json() as Promise<Record<string, unknown>>;
+  };
+  type Flow = {
+    flowId: string;
+    state: string;
+    interaction?: { type: string };
+  };
+  const { providers } = (await api("/auth/providers")) as {
+    providers: { provider: string; supportsOAuth: boolean }[];
+  };
+  const oauthProviders = providers
+    .filter((provider) => provider.supportsOAuth)
+    .map((provider) => provider.provider);
+  if (!oauthProviders.includes("anthropic"))
+    throw new Error(
+      `bundled daemon lists no anthropic OAuth provider: ${oauthProviders.join(", ")}.`,
+    );
+  for (const provider of oauthProviders) {
+    let flow = (
+      (await api("/auth/oauth/flows", {
+        method: "POST",
+        body: JSON.stringify({ provider }),
+      })) as { flow: Flow }
+    ).flow;
+    const started = Date.now();
+    while (
+      flow.state === "active" &&
+      flow.interaction?.type === "starting" &&
+      Date.now() - started < 5_000
+    ) {
+      await new Promise((done) => setTimeout(done, 100));
+      flow = ((await api(`/auth/oauth/flows/${flow.flowId}`)) as { flow: Flow })
+        .flow;
+    }
+    if (flow.state === "active")
+      await api(`/auth/oauth/flows/${flow.flowId}/cancel`, { method: "POST" });
+    const detail = JSON.stringify(flow);
+    if (/Cannot find module|ERR_MODULE_NOT_FOUND/.test(detail))
+      throw new Error(
+        `bundled OAuth flow for ${provider} failed to load: ${detail}`,
+      );
+  }
+  return oauthProviders;
 }
 
 /** Runs the worker/subprocess entrypoints that can execute without Electron. */
