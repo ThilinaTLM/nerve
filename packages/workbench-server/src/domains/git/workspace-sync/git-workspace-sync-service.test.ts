@@ -131,7 +131,12 @@ function fixture(concurrency?: number) {
     backend,
     monitor,
     { publish: (_type, data) => void events.push(data) },
-    { concurrency, onBranchChanged: (change) => void branches.push(change) },
+    {
+      concurrency,
+      onBranchChanged: (change) => void branches.push(change),
+      // The default stats real files, which `flush()` cannot reliably await.
+      fileSignature: async () => "",
+    },
   );
   return { backend, monitor, events, branches, service };
 }
