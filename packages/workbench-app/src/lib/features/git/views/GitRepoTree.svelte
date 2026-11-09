@@ -122,12 +122,29 @@ function focusRow(id: string): void {
     ?.focus();
 }
 
+/** The checkout a collapsed repository row selects directly: its only one. */
+function collapsedCheckout(key: string): GitRepoSummary | undefined {
+  if (isOpen(key)) return undefined;
+  const repos = groups.find((entry) => entry.group.key === key)?.group.repos;
+  return repos?.length === 1 ? repos[0] : undefined;
+}
+
 function onRowKeydown(event: KeyboardEvent, id: string): void {
   // Keys inside a status button belong to the button.
   if (event.target !== event.currentTarget) return;
   if (event.key === "ContextMenu" || (event.shiftKey && event.key === "F10"))
     return;
   const action = navigateTree(rows, id, event.key);
+  // Enter/Space on a collapsed single checkout selects it; ArrowRight expands.
+  const checkout =
+    action?.type === "toggle" && selectable
+      ? collapsedCheckout(unprefixed(action.id))
+      : undefined;
+  if (checkout) {
+    event.preventDefault();
+    onSelect(checkout.relativePath);
+    return;
+  }
   if (!action) return;
   event.preventDefault();
   switch (action.type) {
@@ -307,10 +324,29 @@ $effect(() => () => clearTimeout(hintTimer));
               class="max-w-full min-w-0 truncate text-foreground"
               title={group.primary.absDir}>{group.name}</span
             >
-            <span
-              class="shrink-0 text-muted-foreground"
-              title={only.currentBranch}>{only.currentBranch}</span
-            >
+            {#if selectable}
+              <button
+                type="button"
+                tabindex="-1"
+                class="-mx-1 shrink-0 cursor-pointer rounded-sm px-1 text-muted-foreground hover:bg-hover hover:text-foreground"
+                title={`Select ${only.currentBranch}\n${only.absDir}`}
+                onpointerenter={() => hint(only.relativePath, HINT_DELAY_MS)}
+                onpointerleave={() => clearTimeout(hintTimer)}
+                onclick={(event) => {
+                  event.stopPropagation();
+                  onSelect(only.relativePath);
+                }}
+                ondblclick={(event) => {
+                  event.stopPropagation();
+                  onOpenBranchPicker(only.relativePath);
+                }}>{only.currentBranch}</button
+              >
+            {:else}
+              <span
+                class="shrink-0 text-muted-foreground"
+                title={only.currentBranch}>{only.currentBranch}</span
+              >
+            {/if}
           </span>
         {:else}
           <span
