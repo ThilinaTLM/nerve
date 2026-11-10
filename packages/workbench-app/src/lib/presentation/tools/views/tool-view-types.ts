@@ -1,4 +1,5 @@
 import type {
+  CodeModeHostCall,
   ConfluenceAttachmentSummaryPayload,
   ConfluenceCommentSummaryPayload,
   ConfluenceIncludedCountsPayload,
@@ -141,6 +142,23 @@ export type ToolView =
       conversion: string;
       path?: string;
       bytes?: number;
+    }
+  | {
+      kind: "atlassian_code_mode";
+      code?: string;
+      output: string;
+      /** Script-level status; absent while running or when details are missing. */
+      status?:
+        | "completed"
+        | "failed"
+        | "timed_out"
+        | "cancelled"
+        | "memory_limit";
+      error?: string;
+      durationMs?: number;
+      outputTruncated?: boolean;
+      hostCalls: CodeModeHostCall[];
+      live?: boolean;
     }
   | {
       kind: "generate_image";

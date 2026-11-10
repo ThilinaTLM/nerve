@@ -229,6 +229,78 @@ export const pythonRunning = sampleCall({
   args: { code: PYTHON_SCRIPT, timeout: 60 },
 });
 
+const ATLASSIAN_SCRIPT = `const open = await jira.issues.search({
+  jql: "project = NERVE AND status = 'In Progress' ORDER BY updated DESC",
+  maxResults: 20,
+});
+for (const issue of open.issues.slice(0, 3)) {
+  const full = await jira.issues.get(issue.key);
+  console.log(issue.key, full.status, full.assignee ?? "unassigned");
+}
+await jira.issues.get("NERVE-9999");`;
+
+export const atlassianCodeCompleted = sampleCall({
+  id: "tool_atlassian_code_ok",
+  toolName: "atlassian_code_mode",
+  args: { code: ATLASSIAN_SCRIPT, timeout: 120 },
+  result: {
+    content:
+      "NERVE-412 In Progress Ada Lovelace\nNERVE-398 In Progress unassigned\nNERVE-377 In Progress Grace Hopper",
+    details: {
+      status: "completed",
+      durationMs: 1_840,
+      memoryUsedBytes: 2_400_000,
+      hostCalls: [
+        {
+          method: "jira.issues.search",
+          authorizedAs: "jira_search_issues",
+          summary: "project = NERVE AND status = 'In Progress' …",
+          outcome: "completed",
+          durationMs: 412,
+        },
+        {
+          method: "jira.issues.get",
+          authorizedAs: "jira_get_issue",
+          summary: "NERVE-412",
+          outcome: "completed",
+          durationMs: 233,
+        },
+        {
+          method: "jira.issues.get",
+          authorizedAs: "jira_get_issue",
+          summary: "NERVE-398",
+          outcome: "completed",
+          durationMs: 198,
+        },
+        {
+          method: "jira.issues.get",
+          authorizedAs: "jira_get_issue",
+          summary: "NERVE-377",
+          outcome: "completed",
+          durationMs: 221,
+        },
+        {
+          method: "jira.issues.get",
+          authorizedAs: "jira_get_issue",
+          summary: "NERVE-9999",
+          outcome: "failed",
+          error: "Issue does not exist or you do not have permission",
+          durationMs: 156,
+        },
+      ],
+    },
+  },
+  durationMs: 1_840,
+});
+
+export const atlassianCodeRunning = sampleCall({
+  id: "tool_atlassian_code_run",
+  toolName: "atlassian_code_mode",
+  status: "running",
+  ageMs: 2_000,
+  args: { code: ATLASSIAN_SCRIPT, timeout: 120 },
+});
+
 export const bashMultiline = sampleCall({
   id: "tool_bash_multi",
   toolName: "bash",

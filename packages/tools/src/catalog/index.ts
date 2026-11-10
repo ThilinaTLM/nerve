@@ -17,6 +17,7 @@ export * from "./definitions/core/filesystem.tools.js";
 export * from "./definitions/core/interaction.tools.js";
 export * from "./definitions/core/jira.tools.js";
 export * from "./definitions/core/python.tools.js";
+export * from "./definitions/core/atlassian-code-mode.tools.js";
 export * from "./definitions/core/shell.tools.js";
 export * from "./definitions/core/web.tools.js";
 export * from "./descriptors.js";

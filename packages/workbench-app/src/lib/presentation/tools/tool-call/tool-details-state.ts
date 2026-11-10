@@ -7,7 +7,15 @@ export type ToolDetailSection =
 
 type ViewWithSharedBody = Exclude<
   ToolView,
-  { kind: "bash" | "python" | "jira" | "confluence" | "generic" }
+  {
+    kind:
+      | "bash"
+      | "python"
+      | "atlassian_code_mode"
+      | "jira"
+      | "confluence"
+      | "generic";
+  }
 >;
 
 /** Whether a view has a body worth rendering (durable-body predicate). */

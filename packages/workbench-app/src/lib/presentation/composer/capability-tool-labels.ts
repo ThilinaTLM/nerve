@@ -32,6 +32,11 @@ const capabilityToolCatalog: CapabilityToolGroup[] = [
   { key: "plan_present", label: "Plan review", names: ["plan_present"] },
   { key: "jira", label: "Jira", names: ["jira"] },
   { key: "confluence", label: "Confluence", names: ["confluence"] },
+  {
+    key: "atlassian_code_mode",
+    label: "Atlassian code (experimental)",
+    names: ["atlassian_code_mode"],
+  },
 ];
 
 export function capabilityToolGroupsFor(

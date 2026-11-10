@@ -38,7 +38,7 @@ export type ToolArgumentBody =
   | {
       kind: "code";
       text: string;
-      language: "bash" | "python" | "text" | "json";
+      language: "bash" | "python" | "typescript" | "text" | "json";
       label?: string;
       tail?: boolean;
     }
@@ -126,7 +126,8 @@ export type CompletedViewFamily =
   | "web_fetch"
   | "explain_image"
   | "generate_image"
-  | "kroki_export";
+  | "kroki_export"
+  | "atlassian_code_mode";
 
 export type ToolLifecycleSpec<Name extends ToolName = ToolName> = {
   name: Name;

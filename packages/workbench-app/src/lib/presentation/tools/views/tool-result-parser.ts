@@ -1,5 +1,6 @@
 import {
   bashResultDetailsSchema,
+  codeModeResultDetailsSchema,
   writeResultDetailsSchema,
   grepResultDetailsSchema,
   findResultDetailsSchema,
@@ -263,6 +264,23 @@ export function parseToolView(
       return parseGenerateImageView(rawArgs, rawResult);
     case "kroki_export":
       return parseKrokiView(args, rawResult);
+
+    case "atlassian_code_mode": {
+      const details = codeModeResultDetailsSchema.safeParse(result?.details);
+      return {
+        kind: "atlassian_code_mode",
+        code: stringField(args.code),
+        output: resultOutputText(result, rawResult, liveOutput),
+        status: details.success ? details.data.status : undefined,
+        error: details.success ? details.data.error : undefined,
+        durationMs: details.success ? details.data.durationMs : undefined,
+        outputTruncated: details.success
+          ? details.data.outputTruncated
+          : undefined,
+        hostCalls: details.success ? details.data.hostCalls : [],
+        live: !result && Boolean(liveOutput?.text),
+      };
+    }
 
     case "async_bash":
     case "launch":

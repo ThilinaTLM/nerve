@@ -80,7 +80,7 @@ function save(): void {
     {resolvedPython}
   />
   {#snippet footerLeading()}
-    {#if onManageAccounts && (name === "web_search" || name === "jira" || name === "confluence")}
+    {#if onManageAccounts && (name === "web_search" || name === "jira" || name === "confluence" || name === "atlassian_code_mode")}
       <Button variant="outline" onclick={onManageAccounts}
         >Manage accounts</Button
       >

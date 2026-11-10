@@ -81,6 +81,16 @@ export interface IntegrationExecutionContext extends BaseExecutionContext {
   artifactDir?: string;
   getApiKey?: (provider: string) => Promise<string | undefined>;
   getProviderConfig?: (provider: string) => Promise<unknown>;
+  /**
+   * Code mode: checks one brokered SDK call against the conversation's
+   * permission policy as if it were a direct call to `toolName` with `args`.
+   * Resolves when allowed; rejects with the one-line reason otherwise
+   * (`ToolExecutionError` code `NESTED_DENIED` or `NESTED_APPROVAL_REQUIRED`).
+   */
+  authorizeNested?: (request: {
+    toolName: string;
+    args: Record<string, unknown>;
+  }) => Promise<void>;
 }
 
 /** Complete host context accepted by catalog dispatch. Executors use narrower contexts. */

@@ -105,6 +105,13 @@ export function statusDot(
   ) {
     return { tone: "destructive", pulse: false };
   }
+  if (
+    view.kind === "atlassian_code_mode" &&
+    view.status !== undefined &&
+    view.status !== "completed"
+  ) {
+    return { tone: "destructive", pulse: false };
+  }
   return { tone: "success", pulse: false };
 }
 

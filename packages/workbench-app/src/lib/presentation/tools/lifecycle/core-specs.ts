@@ -82,7 +82,7 @@ function urlArg(url: string | undefined): PrimaryArg | undefined {
 
 function codeBody(
   text: string | undefined,
-  language: "bash" | "python" | "text",
+  language: "bash" | "python" | "typescript" | "text",
   options: {
     force?: boolean;
     label?: string;
@@ -390,6 +390,34 @@ function krokiPresentation(
   });
 }
 
+function atlassianCodePresentation(
+  source: ToolArgumentSource,
+  stage: ToolLifecycleStage,
+) {
+  const code = source.string("code");
+  const codeLines = source.stringMetrics("code")?.lines ?? 0;
+  const timeout = source.number("timeout");
+  return argumentPresentation({
+    primaryArg: textArg(
+      codeLines <= 1 ? code : undefined,
+      code ? "inline script" : "Atlassian code",
+    ),
+    secondary:
+      timeout !== undefined
+        ? [{ key: "timeout", text: `timeout ${timeout}s` }]
+        : [],
+    // Stage-independent so the block never appears/disappears mid-lifecycle.
+    body: codeBody(code, "typescript", {
+      force: (code?.length ?? 0) > 500 || codeLines > 1,
+      draft: stage === "drafting",
+      label: "Script",
+    }),
+    safetyNotes: [
+      "Runs a sandboxed script that calls the Atlassian SDK; each SDK call is checked against the permission policy.",
+    ],
+  });
+}
+
 export const coreToolLifecycleSpecs = {
   read: defineToolLifecycleSpec({
     name: "read",
@@ -590,6 +618,14 @@ export const coreToolLifecycleSpecs = {
     emptyResult: "No diagram returned",
     present: krokiPresentation,
   }),
+  atlassian_code_mode: defineToolLifecycleSpec({
+    name: "atlassian_code_mode",
+    argumentRegion: "persistent",
+    completedView: "atlassian_code_mode",
+    resultPlaceholder: { variant: "text", rows: 2 },
+    emptyResult: "No output",
+    present: atlassianCodePresentation,
+  }),
   generate_image: defineToolLifecycleSpec({
     name: "generate_image",
     argumentRegion: "none",
@@ -676,6 +712,7 @@ export const coreToolLifecycleSpecs = {
     | "explain_image"
     | "generate_image"
     | "kroki_export"
+    | "atlassian_code_mode"
   >,
   ToolLifecycleSpec
 >;

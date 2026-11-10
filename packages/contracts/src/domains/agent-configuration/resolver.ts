@@ -51,6 +51,7 @@ const builtin: LeadSettingsOverrides = {
     web_fetch: { enabled: true },
     jira: { enabled: false },
     confluence: { enabled: false },
+    atlassian_code_mode: { enabled: false },
     explain_image: {
       enabled: false,
       settings: defaultSettings.tools.imageExplanation,

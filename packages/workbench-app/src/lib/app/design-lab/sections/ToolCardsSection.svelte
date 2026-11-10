@@ -155,6 +155,14 @@ const bashCases: LabeledCard[] = [
     props: { toolCall: vfx.pythonCompleted, cwd },
   },
   {
+    label: "atlassian_code_mode — running",
+    props: { toolCall: vfx.atlassianCodeRunning, cwd },
+  },
+  {
+    label: "atlassian_code_mode — completed (SDK calls)",
+    props: { toolCall: vfx.atlassianCodeCompleted, cwd },
+  },
+  {
     label: "launch — completed",
     props: { toolCall: vfx.launchCompleted, cwd },
   },

@@ -74,6 +74,7 @@ const childToolShape = {
   web_search: account,
   jira: account,
   confluence: account,
+  atlassian_code_mode: account,
   web_fetch: toggle,
   explain_image: payload(explanation.partial().refine(nonempty)),
   generate_image: payload(generation),
@@ -129,6 +130,10 @@ const completeTools = z.strictObject({
   confluence: capabilityToolPayloadSchemas.confluence.required({
     enabled: true,
   }),
+  atlassian_code_mode:
+    capabilityToolPayloadSchemas.atlassian_code_mode.required({
+      enabled: true,
+    }),
   web_fetch: toggle,
   explain_image: z.strictObject({
     enabled: z.boolean(),

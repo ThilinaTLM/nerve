@@ -170,7 +170,13 @@ The executors do no permission checks; policy runs before dispatch in `scoped-pe
 4. Cancelling the outer call kills the runtime and aborts in-flight host calls. Calls that already finished stay in the record, and none of them are undone.
 5. After a daemon restart the runtime is gone. The outer call settles as `indeterminate`, listing the nested calls that finished, and is never replayed.
 
-The current approval flow hangs off the tool-call row and supports one approval per call. Several sequential approvals within one running call, each with a nested-operation payload, is the largest design item. It must fit the existing interaction and event payloads (JSON) without new tables or columns. This needs to be confirmed in `tool-call.service.ts` and `interaction-handlers.ts` before implementation.
+**Finding (POC):** approval is a gate before dispatch, not something a running call can ask for. In `ToolCallService.process` (`conversation-core/src/tool-calls/tool-call.service.ts`), an `approval` decision sets the row to `awaiting_approval` with an `approval` interaction and returns. Resolving the interaction runs admission again from the start and only then dispatches. Once a call is `running`, nothing lets it raise an interaction and wait in memory. Nested approvals therefore need one of:
+
+1. **Interaction on a running call.** The row stays `running` (or gets a new waiting state) with a nested `approval` interaction in the existing JSON `interaction` field. An in-memory resolver settles the script's pending promise. After a restart the call settles as `indeterminate`. This needs a state machine change in conversation-core, but no table or column.
+2. **Up-front grant.** The outer call's approval shows the script, and approving it allows the nested calls that rule would prompt for, for that run only. This is simple, but the user approves code rather than concrete operations.
+3. **Two runs.** The first run records intended writes without performing them and returns them. The user approves the list, and a second run performs exactly those writes. This avoids pausing a script, but it doubles the reads and breaks scripts whose writes depend on earlier writes.
+
+The POC slice is read-only and uses neither: the broker (`workbench-server/src/core-host/code-mode-broker.ts`) evaluates every SDK call through `createExecutionAdmission` as the equivalent direct tool. `allow` proceeds, `deny` rejects with the reason, and `approval` is refused with its reason as "code mode cannot request approval yet".
 
 Rule granularity: policies today target Jira and Confluence with `whole_tool`. Matching on the operation name (`jira.issues.transition`) and its target is a natural extension of the same rule language. See [open questions](#open-questions).
 

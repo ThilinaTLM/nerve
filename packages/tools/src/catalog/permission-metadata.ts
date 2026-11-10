@@ -66,6 +66,14 @@ const metadata = {
     ["path", "whole_tool"],
     false,
   ),
+  atlassian_code_mode: m(
+    "integration",
+    "jira",
+    "network",
+    ["code"],
+    ["whole_tool"],
+    true,
+  ),
   jira_search_users: m(
     "integration",
     "jira",
