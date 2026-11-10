@@ -1,10 +1,14 @@
 import { isAbsolute, relative, resolve } from "node:path";
 import { defaultSettings } from "@nervekit/contracts/settings";
 import { resolveDataDir } from "@nervekit/workbench-server";
-import { parseDesktopOptions } from "./app/cli-options.js";
+import {
+  applyElectronRemoteDebuggingPort,
+  parseDesktopOptions,
+} from "./app/cli-options.js";
 import { createDesktopConfigurationController } from "./app/desktop-configuration.js";
 import { createDesktopRuntime } from "./app/create-desktop-runtime.js";
 import { DESKTOP_APP_ID, DESKTOP_APP_NAME } from "./desktop-identity.js";
+import { takeElectronRemoteDebuggingPort } from "./platform/chromium/remote-debugging.js";
 import { app } from "./platform/electron/electron-api.js";
 import { isReleaseMode } from "./release-mode.js";
 
@@ -32,6 +36,8 @@ if (isReleaseMode) {
   delete process.env.NERVE_DEV_SCRIPTED_PROVIDER;
   delete process.env.NERVE_DESKTOP_DEV_SLOT;
 }
+// Opt-in CDP endpoint for automation (for example `agent-browser connect`).
+applyElectronRemoteDebuggingPort(takeElectronRemoteDebuggingPort(process.env));
 const desktopOptions = parseDesktopOptions(process.argv.slice(1));
 const explicitElectronProfile = process.env.NERVE_ELECTRON_USER_DATA?.trim();
 if (explicitElectronProfile) {

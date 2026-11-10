@@ -140,6 +140,14 @@ export function applyElectronOzonePlatform(
   app.commandLine.appendSwitch("ozone-platform", platformSwitch);
 }
 
+/** Chromium binds the DevTools endpoint to 127.0.0.1 by default. */
+export function applyElectronRemoteDebuggingPort(
+  port: number | undefined,
+): void {
+  if (port === undefined) return;
+  app.commandLine.appendSwitch("remote-debugging-port", String(port));
+}
+
 export function applyElectronFontRenderHinting(
   hinting: ElectronFontRenderHinting | undefined,
 ): void {
