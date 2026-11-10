@@ -109,13 +109,22 @@ export function loadScratchNotes(
   }
 
   const token = ++project.loadToken;
-  project.loadStatus = "loading";
+  // Refreshes of an already-loaded project stay "loaded" so the panel keeps
+  // its editors mounted (and focused) while change events resync in the background.
+  const background = project.loadStatus === "loaded";
+  if (!background) project.loadStatus = "loading";
   const promise = listScratchNotes(projectId)
     .then((notes) => {
       if (token !== project.loadToken) return;
       project.notes = notes.map((note) => {
         const existing = project.notes.find((entry) => entry.id === note.id);
-        return existing && existing.draftContent !== existing.savedContent
+        if (!existing) return toEntry(note);
+        // A list fetched before a newer local save landed must not roll back
+        // what the user is editing.
+        if (Date.parse(existing.updatedAt) > Date.parse(note.updatedAt)) {
+          return existing;
+        }
+        return existing.draftContent !== existing.savedContent
           ? {
               ...existing,
               ...note,
@@ -128,7 +137,7 @@ export function loadScratchNotes(
     })
     .catch(() => {
       if (token !== project.loadToken) return;
-      project.loadStatus = "error";
+      if (!background) project.loadStatus = "error";
       notify.error("Could not load scratch notes");
     })
     .finally(() => {
