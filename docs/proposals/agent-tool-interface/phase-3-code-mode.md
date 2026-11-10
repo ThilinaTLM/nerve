@@ -1,40 +1,47 @@
-# Phase 3: code mode
+# Phase 3: code mode for integrations
 
-> **Status:** Proposal. Part of [agent tool interface](README.md). Replaces the earlier TypeScript execution environment proposal with a smaller first version.
+> **Status:** Proposal. Part of [agent tool interface](README.md). Replaces the earlier TypeScript execution environment proposal with a smaller first version. Start only if [benchmark](README.md#validation) tasks that join or filter across calls show a need the existing batch reads can't meet.
 
 ## Why
 
-86% of turns make one tool call, and much exploration is a chain of small lookups. Claude models already batch these into bash one-liners: of their roughly 14k bash calls that search or read files, a quarter run two or more searches and a fifth read two or more files ([review.md](review.md#shell-first-models)). Code mode offers the same batching through Nerve's own tools:
+Code mode is scoped to where bash can't reach: Jira, Confluence and the web. Even there, the cheap alternatives come first:
 
-- several lookups in one call, with loops and conditions between them;
-- structured results instead of re-parsing text;
-- intermediate data stays out of context; only what the script prints is returned;
-- every tool call keeps its normal permission checks and audit record.
+- **Batch reads with field selection already exist.** "Summarise the status and assignee of these 15 Jira issues" is one `jira_search_issues` call today, with `jql: "key in (A, B, …)"` and a `fields` list. Field selection is where the token saving comes from.
+- **Integrations are rarely used.** No Jira or Confluence tool is among the 25 most-used tools in the snapshot.
+
+Code mode is only needed for tasks that join or filter across calls, for example "for every open bug in this sprint, find the Confluence runbook for its component and list the bugs with none". The benchmark must include tasks of that shape; if it doesn't, the cheap alternatives win by default.
+
+Every tool call made from a script keeps its normal permission checks and audit record, which bash can't offer for these services.
 
 ## Tool
 
 ```ts
-run_script({ code: string, timeout?: integer }) // seconds, default 60, maximum 300
+run_script({ code: string, timeout?: integer }) // seconds, default 60, capped at 300
 ```
 
 Inline TypeScript (ESM, top-level await). No script files: writing a file and then running it would cost the round trip this tool exists to save.
 
 ```ts
-const hits = await tools.grep({ pattern: "classifyRisk", glob: "*.ts" });
-for (const file of new Set(hits.matches.map((m) => m.path))) {
-  const { content } = await tools.read({ path: file, limit: 40 });
-  console.log(
-    file,
-    content.split("\n").find((l) => l.includes("export")),
-  );
+const { issues } = await tools.jira_search_issues({
+  jql: "sprint in openSprints() AND type = Bug AND status != Done",
+  fields: ["components"],
+});
+for (const issue of issues) {
+  const found = await tools.confluence_search({
+    query: `runbook ${issue.components[0]}`,
+  });
+  if (found.results.length === 0) console.log(issue.key, issue.components[0]);
 }
 ```
 
+The tool and field names in this sketch are illustrative.
+
 ## SDK
 
-- `tools.<name>(args)` for an allow-listed set: `read`, `grep`, `find`, `ls`, `web_search`, `web_fetch`, and the Jira and Confluence read operations.
+- `tools.<name>(args)` for an allow-listed set: the Jira and Confluence read operations, `web_search` and `web_fetch`. `read` and `grep` are included only so scripts can combine integration data with local files.
 - Arguments are exactly the direct tools' arguments, which are already in the model's context, so inputs need no extra documentation.
 - Return values are the executors' structured results (the same records that become `details` today). Their TypeScript types are generated from the contracts and summarised in the tool description; keep that summary small.
+- Check first that those records hold complete data, not display-shaped or truncated copies. `web_search` already caps each result's content to 300 chars in `details`; a script computing on that would get partial data without knowing it. The Jira and Confluence executors haven't been checked. Where a record is truncated, the SDK must return the full data or mark the truncation.
 - A failed tool call throws an error with the same one-line message the direct call would return.
 - Nothing else: no artifact publication, logging API or execution-context API in this version.
 
@@ -43,7 +50,7 @@ for (const file of new Set(hits.matches.map((m) => m.path))) {
 An orchestration-only process: the script can compute, but every external effect goes through `tools.*`.
 
 - Fresh Node.js process per call. No direct filesystem, network, subprocess, worker or native addon access. Tool calls go to the host over a narrow broker channel.
-- Candidate: Node's permission model (`--permission` with no allow flags). On Node 24, which Nerve ships, it does not restrict network access. Node 25 added `--allow-net`, but it is experimental and has had a bypass through Unix domain sockets (CVE-2026-21636). The Node project also says the permission model is not a security boundary against malicious code. Use it as a second layer at most. The real isolation (filesystem, network, processes) needs an OS-level mechanism, chosen and verified per supported platform before shipping. That is still simpler than the earlier proposal's requirement, because the script needs no file or network access at all.
+- Node's permission model (`--permission` with no allow flags) is a second layer at most. On Node 24, which Nerve ships, it does not restrict network access. Node 25 added `--allow-net`, but it is experimental and has had a bypass through Unix domain sockets (CVE-2026-21636). The Node project also says the permission model is not a security boundary against malicious code. The real isolation (filesystem, network, processes) needs an OS-level mechanism, chosen and verified per supported platform before shipping. That is still simpler than the earlier proposal's requirement, because the script needs no file or network access at all.
 - Limits: wall-clock timeout, memory cap, maximum tool calls per script (for example 50), and the `script_output` projection budget for printed output.
 - Cancellation kills the process and cancels in-flight tool calls.
 - No preinstalled libraries. Node built-ins that don't touch the filesystem, network or processes are enough for filtering and joining.
@@ -59,7 +66,7 @@ An orchestration-only process: the script can compute, but every external effect
 
 ```text
 <printed output>
-3 tool calls (grep 1, read 2). exit 0 · 1.2s
+13 tool calls (jira_search_issues 1, confluence_search 12). exit 0 · 4.2s
 ```
 
 A thrown error ends with its message and the script line, using the same footer.
@@ -68,13 +75,13 @@ A thrown error ends with its message and the script line, using the same footer.
 
 Each of these needs its own proposal:
 
-- Write-capable tools (`edit`, `write`) in scripts, with approval waits and replay rules.
+- Write-capable tools in scripts, with approval waits and replay rules.
 - Saved scripts, a persistent artifacts directory, preinstalled libraries (`csv-parse`, `exceljs`, `pdf-lib` and similar), and published outputs. These were the main subject of the earlier TypeScript execution environment proposal.
 - Replacing or merging `python_exec`.
 
 ## Validation
 
-Build a fixed task set of exploration and integration tasks (for example "which tools call `classifyRisk`, and what do they return", or "summarise the status of these 15 Jira issues"). Run each with and without `run_script` on Claude and GPT models, and compare turns, total tokens and success. Keep code mode only if it wins clearly on at least one model family without making the other worse.
+Use the cross-call integration tasks in the shared [benchmark](README.md#validation). Run each with and without `run_script` on Claude and GPT models, and compare turns, total tokens and success against the existing tools used well (batch JQL with `fields`). Keep code mode only if it wins clearly on at least one model family without making the other worse.
 
 ## Open questions
 

@@ -29,7 +29,9 @@
 | subagent_status | 263    | 0.2%  | 0%            | 448 / 548          | 0.1M        |
 | web_search      | 202    | 0.2%  | 31.7%¹        | 2,428 / 3,490      | 0.4M        |
 
-¹ Mostly permission denials (bash 494, web_search 63, web_fetch 47). These come from policy, not from how the tool is designed.
+¹ Mostly permission denials (bash 494, web_search 63, web_fetch 47). All 630 denials in the snapshot came from one rule, `deny-everything-else` in the `read_only` rule set: read-only agents (such as explore sub-agents) offered bash and web tools, then refused. There were no user denials and no path-based denials. The rule's reason is stored in `supervision.reason`, but the agent sees `Reason: No further diagnostic was supplied.` 221 of the 494 bash denials were plain reads or searches.
+
+**Scale.** Failures are about 2,650 of 127,807 calls (2%). Fixing failure handling is cheap and worth doing, but it won't visibly change productivity. The volume is in round trips (86% of turns make one call) and in Claude's bash calls that bypass the dedicated tools.
 
 The tools in this table account for about 98% of calls, and read, bash and grep alone for 80%. Ergonomics work outside the top eight has little measurable effect.
 
@@ -80,14 +82,13 @@ Not-found errors are the top error class for `read`, `grep`, `ls` and `find`: mo
 
 ```text
 read: path not found: packages/contracts/src/domains/tool/results.ts
-Nearest existing: packages/contracts/src/domains/
-Similar: packages/contracts/src/domains/tools/tool-results.ts
+Nearest existing directory packages/contracts/src/domains/ contains: core/ settings/ tools/ index.ts
 ```
 
-- Find the nearest existing ancestor with `stat` calls up the path.
-- Find "similar" files by running a basename match below that ancestor, capped at three results, with a time budget, respecting `.gitignore`. Test the time budget on a large monorepo.
+- Find the nearest existing ancestor with `stat` calls up the path, then list it with one `readdir`, capped at about 30 entries. No fuzzy search, so no time budget to tune.
+- The listing respects the permission policy: show it only when the agent could `ls` that directory.
 - Apply this only to the read-only tools: `read`, `grep`, `ls`, `find`. For `edit` and `write`, a guessed path is the wrong thing to hint at.
-- This saves one round trip per miss, and the misses happen in every conversation.
+- This saves one round trip per miss. It is the largest failure class, so it ships in phase 1.
 
 ### 3. Continuation hints differ by tool and code path
 
@@ -103,19 +104,21 @@ Similar: packages/contracts/src/domains/tools/tool-results.ts
 | `list.ts:55`                   | `[...N more entries. Increase limit to see more.]`                 |
 | `process-output.ts:107`        | `Next offset: N`                                                   |
 
-**Proposal (decided):** use one structured hint everywhere. `Next:` is followed by a compact JSON object holding only the arguments that change. The model reuses the rest of its previous call as it is, so the path isn't repeated.
+**Proposal (decided):** use one structured hint for paging. `Next:` is followed by a compact JSON object holding only the arguments that change. The model reuses the rest of its previous call as it is, so the path isn't repeated.
+
+- Emit `Next:` only when the tool cut the output. 16.7k reads passed their own `offset` and `limit`; when the model chose the window, `Lines 65-94 of 388` is enough.
+- grep, find and ls have no skip argument, and the projection cap (80 match lines, 120 items) is below their default limits, so a `Next:` hint can't work there. They get a narrowing summary instead; see [grep](#grep).
 
 ```text
 Next: {"offset":95}
 Next: {"byteOffset":5027}
-Next: {"limit":400} (100 of 2,341 matches shown)
 Earlier: {"offset":0}
 ```
 
 - The JSON uses the tool's real argument names, so the model can copy it into the call exactly. The cost is a few characters more than `offset=95`.
 - `Earlier:` is only for paging backwards through process logs.
 - A short plain-text note after the JSON can give context. Nothing else goes on the line.
-- Never end a truncated result without a `Next:` hint. If no safe next call exists, say why in one line instead of giving a vague instruction.
+- Never end a tool-truncated read or process page without a `Next:` hint. If no safe next call exists, say why in one line instead of giving a vague instruction.
 
 ### 4. Defaults and caps exist only in code
 
@@ -131,7 +134,8 @@ The schema doesn't state any of these:
 
 **Proposal:**
 
-- Put `default` and `maximum` into the JSON schema as keywords rather than in prose. They cost about the same as a short description, and models read them reliably.
+- State defaults with the JSON Schema `default` keyword, after checking that each provider's strict function-calling mode accepts it.
+- State caps in a few words of description, not with `maximum`. Arguments are validated against the schema (`argument-validation.ts`), so `maximum` would turn today's silent clamp into a failed call. Keep clamping, and say so in the result (`byteLimit clamped to 4096`).
 - Remove the `read` 1,000 versus 2,000 inconsistency.
 
 ### 5. Exit and status lines vary
@@ -161,7 +165,7 @@ The schema doesn't state any of these:
 | plan_present    | `file_path` (snake_case)   |
 | web_search      | `max_results` (snake_case) |
 
-**Proposal:** only fix the casing outliers, `file_path` → `filePath` and `max_results` → `maxResults`, and only alongside other changes to those tools. Stored historical arguments are only displayed, so they need no migration; the UI argument readers need to accept both names. Unifying `id`/`runId`/`name`/`names` is dropped: the tools involved are under 2% of calls, and agents don't fail on it.
+**Proposal:** none. There is no failure evidence for any of these, so renames fail the admission rule (see [Considered and dropped](#considered-and-dropped)).
 
 ## Per-tool review
 
@@ -217,7 +221,7 @@ Range: lines 65-94 of 388.
 2. Make the default `limit` 2,000 whether or not `offset` is given.
 3. Schema text: `limit` "Lines; default 2000." `byteOffset` "0-indexed. Use instead of offset/limit." `byteLimit` "Default/max 4096." Add "Line and byte arguments can't be mixed." to the description.
 4. Replace the "Narrow this read range…" dead end (`read.ts:120`) and the "Use byteOffset/byteLimit…" hints (`read.ts:314,326`) with exact values: the next safe `offset`, or the `byteOffset` of the overlong line.
-5. Deferred: `paths: string[]` (up to about 10, each with a short header, sharing the 50 KiB budget, no paging). This would give the batching that agents currently get from bash (see [Shell-first models](#shell-first-models)). [Code mode](phase-3-code-mode.md) covers the same need more generally, so add this only if code mode is dropped.
+5. `paths: string[]` (up to about 10, each with a short header, sharing the 50 KiB budget, no paging). This gives the multi-file batching agents now get from bash (see [Shell-first models](#shell-first-models)), with no new security surface. Planned in [phase 2](phase-2-round-trips.md).
 
 ### edit
 
@@ -244,8 +248,9 @@ Range: lines 65-94 of 388.
 **Proposals**
 
 1. Make error messages specific enough to act on directly:
-   - **Ambiguous:** list the matching line numbers (`matched 3 times, at lines 41, 88, 130; add surrounding context`).
-   - **Not found:** show the nearest matching line, by normalised whitespace or longest common prefix, with its line number, so the agent can fix the edit without reading the file again. Cap it at about 3 lines. Show it only above a similarity threshold, and otherwise say nothing, because a wrong suggestion misleads more than none. Test the threshold on the real failure cases.
+   - **Ambiguous:** list each match with its line number and one neighbouring line, so the agent can see which context tells them apart. A `replaceAll` flag isn't justified: of 51 ambiguous failures followed by a retry on the same file, 44 retried with more context and only 7 split the edit into several items.
+   - **Not found:** only the deterministic case. When a whitespace-normalised match exists, show that line and its number. 87 misses in two months don't justify a tuned similarity threshold.
+   - **Would not change the file (33):** probably an edit that already landed. Say "file already contains this text".
    - **Missing file:** `edit: file not found: <path> (use write to create it)`. No similar-path suggestion: for a write-capable tool, a guessed path is the wrong thing to hint at.
 2. Success: `Edited <relative path>: 2 replacements (lines 41-47, 130).` Line ranges let the agent check its work with a targeted `read` instead of rereading the whole file.
 3. Description: "Exact, unique text replacements in an existing file. All edits match the original content and apply atomically." Drop "resolve against", which reads as jargon.
@@ -284,10 +289,10 @@ Range: lines 65-94 of 388.
 
 **Proposals**
 
-1. Limit notice: `Next: {"limit":400} (100 matches shown, more exist)`, or give a per-file count summary when the limit is hit, so the agent can narrow by `glob`.
+1. Truncation notice: a per-file match count summary, so the agent can narrow with `glob`, `path` or a tighter pattern. Not `Next: {"limit":…}`: the agent projection caps `search_matches` at 80 lines / 16 KB, below the tool's 100-match default. In the snapshot the tool's own limit was hit twice, while the projection cut 922 grep results, 279 find results and 58 ls results. A larger `limit` can't get past that cap and would resend the matches already shown. After a cut, agents mostly moved on to `read` or `find` (488), or narrowed the search (265); only 39 raised `limit`.
 2. In the long-line note, give `read {"path":"<p>","byteOffset":<n>}` for the first truncated line. A different tool is needed here, so include the full arguments.
 3. Change the `glob` description to "File-name filter, e.g. `*.ts` or `**/*.test.ts`."
-4. Deferred: a files-only mode (like `rg -l`). It costs far fewer tokens than full matches when planning reads, but it is not what drives bash use: `-l` appears in only about 10% of Claude's bash file searches. Batched searches belong to [code mode](phase-3-code-mode.md).
+4. Deferred: a files-only mode (like `rg -l`). It costs far fewer tokens than full matches when planning reads, but it is not what drives bash use: `-l` appears in only about 10% of Claude's bash file searches.
 
 ### find
 
@@ -302,7 +307,7 @@ Range: lines 65-94 of 388.
 
 - Make both backends use the same matching rule, and test it.
 - Include the path in the not-a-directory error. If the path is a file, say so and suggest `read`.
-- Use the common `Next:` limit hint.
+- When the projection cuts the list, give a per-directory count summary so the agent can narrow `path` or `pattern` (same reasoning as grep).
 
 ### ls
 
@@ -310,7 +315,7 @@ Range: lines 65-94 of 388.
 
 **Response:** sorted case-insensitively, directories end with `/`.
 
-**Proposals:** the same path-in-error and `Next:` hint changes as `find`. Nothing else.
+**Proposals:** the same path-in-error and narrowing-summary changes as `find`. Nothing else.
 
 ### bash
 
@@ -353,14 +358,13 @@ Status: completed; exit code: 0
 **Proposals**
 
 - Use the bash footer format.
-- Make `timeout` an integer with `default: 60`, `maximum: 600`.
+- Make `timeout` an integer with `default: 60`, and say "capped at 600" in the description. Keep clamping.
 - Describe `code`/`path` once at the description level ("Pass `code` or a script `path`.") instead of twice.
 
 ### web_search / web_fetch
 
 - **web_search:** the description is just "Search the web."
-  - Add the result shape and the default count: "Returns up to `maxResults` (default 5) titled snippets with URLs."
-  - Rename `max_results` → `maxResults`.
+  - Add the result shape and the default count: "Returns up to `max_results` (default 5) titled snippets with URLs."
   - Result `content` isn't capped per item in the text sent to the model; only `details` is capped. Cap each snippet (about 600 chars) so a single result can't take over the output.
 - **web_fetch:**
   - It returns several different response shapes, depending on whether the content was inlined, saved, binary, or large.
@@ -372,7 +376,7 @@ Status: completed; exit code: 0
 
 - `page.offset` is 0-based (`minimum: 0`), while `read.offset` is 1-based. Paging forward gives `Next offset: N`. Reading from the tail has no hint for earlier lines.
 - **Proposals:**
-  - Make both offsets 1-based (as lines are displayed), or rename this one to `fromLine`. Use the common `Next:` hint in both directions (`Earlier: {"offset":N}`).
+  - Use the common `Next:` hint in both directions (`Earlier: {"offset":N}`). With copyable hints, the 0-based offset no longer matters.
   - State in the launch description that `name` and `runId` are alternatives.
 
 ### subagent_prompt / subagent_status / subagent_stop
@@ -392,7 +396,7 @@ Status: completed; exit code: 0
 
 ### plan_present
 
-Rename `file_path` → `filePath`. The description and the param both say "absolute path"; say it once.
+The description and the param both say "absolute path"; say it once. The snake_case `file_path` stays (no failure evidence).
 
 ## Shell-first models
 
@@ -405,32 +409,49 @@ Claude Opus and Sonnet ignore the Bash description's redirect. The data points t
 | Read two or more files                              | 20%   |
 | Single search or read, replaceable by one tool call | ~14%  |
 
-The groups overlap. A Sonnet agent asked to review this proposal gave the same explanation from its side: shell one-liners are habitual, they compose (`rg -l X | xargs rg Y`, `| head`), and one call answers several questions. Claude could batch with parallel `grep`/`read` calls, which these tools allow, but it rarely does.
+The groups overlap. A Sonnet agent asked to review this proposal gave the same explanation from its side: shell one-liners are habitual, they compose (`rg -l X | xargs rg Y`, `| head`), and one call answers several questions.
 
-The pi-ai rename may also contribute. It gives Claude tools named `Read`/`Grep`/`Edit`/`Write`/`Bash` whose argument shapes differ from Claude Code's (`path` vs `file_path`, no `output_mode`/`-n`/`-A` on `Grep`, `edits[]` vs `old_string`/`new_string` on `Edit`). This only applies on OAuth connections; see [Open questions](#open-questions).
+Parallel tool calls would give the same batching, and the tools allow them, but nothing asks for them: neither the system prompt nor the tool descriptions mention parallel calls. Assistant messages since 2026-10-16 that call tools contain more than one call 12% of the time for Opus, 18% for Sonnet, 10% for gpt-6.1-sol and 30% for gpt-6-luna.
+
+The pi-ai rename may also contribute. On OAuth connections it gives Claude tools named `Read`/`Grep`/`Edit`/`Write`/`Bash` whose argument shapes differ from Claude Code's (`path` vs `file_path`, no `output_mode`/`-n`/`-A` on `Grep`, `edits[]` vs `old_string`/`new_string` on `Edit`). This can't be tested on the snapshot: stored assistant messages don't record the authentication method, and the analysed home appears to use a single Anthropic connection. Test it with the [benchmark](README.md#validation) by running the same Claude model over OAuth and over an API key. If OAuth shows a clearly higher bash share or failure rate, an adapter at the provider edge (where pi-ai already renames) that maps Claude Code argument names is much cheaper than any new tool.
 
 **Position:** batching through bash isn't a problem worth fighting. It saves round trips and costs about the same tokens, because bash output goes through the process projection. The losses are structural: no paging hints and coarser permission targeting.
 
-Options:
+Options, cheapest first:
 
-1. **Accept it and measure (default).** Track the bash search/read share by model as part of [Validation](README.md#validation).
-2. **Offer batching through [code mode](phase-3-code-mode.md).** One script calls read/grep/find several times and returns only what it prints. This replaces the earlier idea of adding multi-path `read` and multi-pattern grep to the tool schemas.
-3. **Add a hint in the bash result (experiment only).** When a command is a pure read or search, append one line naming the equivalent tool call. It costs tokens on every such call and only affects the agent's next call, so keep it only if a measured experiment shows a shift.
-4. **Rejected: a more concrete redirect in the Bash description.** Claude already ignores the explicit one.
-5. **Rejected: aligning argument names with Claude Code** (`file_path`, `old_string`/`new_string`). It adds a second naming scheme and doesn't address the batching behaviour.
+1. **Ask for parallel calls.** One line in the system prompt, always included, saying independent lookups should be made as parallel tool calls in one turn. Nothing asks for this today. Ships in phase 1; its effect shows in production data within days.
+2. **Multi-path `read`** (`paths[]`), only if Claude's multi-file `cat`/`sed -n` share hasn't moved after option 1. Parallel `read` calls save the same round trips with no schema change, and `paths` adds another either/or pair to `read`.
+3. **Provider-edge argument adapter,** only if an OAuth/API-key comparison shows the rename matters. The comparison is confounded: pi-ai's OAuth mode probably also changes the system prompt identity.
+4. **Code mode, scoped to integration tasks that join or filter across calls,** where bash can't reach. Not as a general replacement for bash batching: it needs OS-level isolation, and a model that ignores "use grep, not rg" is unlikely to adopt a new SDK for local search.
+5. **Rejected: a more concrete redirect in the Bash description.** Claude already ignores the explicit one.
+6. **Rejected: a hint appended to successful bash reads.** It costs tokens on every such call.
+7. **Rejected: translating denied commands into equivalent tool calls.** All denials come from read-only mode; stating that reason and the available tools is enough.
+8. **Rejected: switching to Claude Code argument names everywhere.** It adds a second naming scheme for all models; the edge adapter in option 3 would cover the case if it matters.
+
+Bash output is the second-largest volume (49.7M chars). Its inline budget is already tight (400 lines / 12 KB); the remaining lever is clearing old output later in the conversation, covered by [old tool output clearing](../old-tool-output-clearing.md).
 
 ## Considered and dropped
 
-| Idea                                                        | Why dropped                                                                                    |
-| ----------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
-| "Unchanged since your last read" stub                       | 737 identical rereads, 0.8M chars (0.5% of read volume); unsafe after compaction or bash edits |
-| Auto-create a missing bash `cwd`                            | `cwd` check is a safety boundary; typos would create directories                               |
-| `id` → `runId`, subagent `name`/`names` unification         | Under 2% of calls, no observed failures, churn in UI argument readers                          |
-| Merge `subagent_status` + `subagent_stop`; fold `todos_get` | Saves a few schema tokens; no behaviour change                                                 |
-| ask_user single recommendation form                         | Overlap is real but not a failure source                                                       |
-| Compact `todos_set` result                                  | About 330 chars median over 880 calls                                                          |
-| More concrete redirect in the Bash description              | Claude already ignores the explicit one                                                        |
-| Claude Code argument names                                  | Second naming scheme; doesn't address batching                                                 |
+| Idea                                                        | Why dropped                                                                                                          |
+| ----------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| "Unchanged since your last read" stub                       | 737 identical rereads, 0.8M chars (0.5% of read volume); unsafe after compaction or bash edits                       |
+| Auto-create a missing bash `cwd`                            | `cwd` check is a safety boundary; typos would create directories                                                     |
+| `id` → `runId`, subagent `name`/`names` unification         | Under 2% of calls, no observed failures, churn in UI argument readers                                                |
+| Merge `subagent_status` + `subagent_stop`; fold `todos_get` | Saves a few schema tokens; no behaviour change                                                                       |
+| ask_user single recommendation form                         | Overlap is real but not a failure source                                                                             |
+| Compact `todos_set` result                                  | About 330 chars median over 880 calls                                                                                |
+| More concrete redirect in the Bash description              | Claude already ignores the explicit one                                                                              |
+| Claude Code argument names everywhere                       | Second naming scheme for all models; an edge adapter covers it if the rename matters                                 |
+| `Next: {"limit":…}` for grep, find, ls                      | The agent projection cap is below the tool limits; raising `limit` resends shown items                               |
+| `replaceAll` flag for edit                                  | 7 of 51 ambiguous retries split the edit; the rest added context                                                     |
+| Tuned similarity threshold for edit misses                  | 87 misses in two months; the deterministic whitespace match is enough                                                |
+| 1-based process log offsets                                 | No failure evidence; copyable `Next:` hints make the base irrelevant                                                 |
+| Casing renames `filePath`, `maxResults`                     | No failure evidence; UI argument readers would need to accept both                                                   |
+| Schema `maximum` keywords                                   | Arguments are validated against the schema, so a too-large value would become a failed call instead of being clamped |
+| Code mode as a general bash replacement                     | Needs OS-level isolation on three platforms for what bash already gives; scoped to integrations instead              |
+| Translating denied bash commands into `read`/`grep` calls   | All denials come from read-only mode; the reason and available tools are enough                                      |
+| Permission check before the not-found directory listing     | The engine doesn't deny reads by path by default; a denied follow-up is handled like any other                       |
+| `keys[]` batch argument for Jira reads                      | `jira_search_issues` with `key in (…)` JQL and `fields` already does it                                              |
 
 ## Result-string dependencies
 
@@ -451,4 +472,7 @@ Checked at `6678f0d2c`. The UI renders from `details` and arguments, not from ag
 
 ## Open questions
 
-- `pi-ai` renames tools only on Anthropic OAuth (Claude subscription) connections; API-key traffic keeps Nerve's names. It's worth checking whether the Claude shell-first gap also shows up on API-key connections. If it does, the rename isn't the cause.
+- Does the pi-ai rename on OAuth connections change Claude's tool choice or failure rate? The snapshot doesn't record the authentication method, so this needs the benchmark, and the result is confounded by other OAuth-mode changes (see [Shell-first models](#shell-first-models)).
+- How do the providers' strict function-calling modes treat JSON Schema `default`? Some may drop or reject keywords; check before relying on them.
+- Out of scope here, for a separate permission-model issue: read-only agents are offered bash and web tools that the `read_only` rule set denies by default, and the explore profile promises web research under that rule set.
+- Are the Jira and Confluence executors' `details` complete data, or display-shaped? This matters for code mode.
