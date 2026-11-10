@@ -21,9 +21,7 @@ const readParameters = Type.Object(
         description: "0-indexed; not with offset/limit.",
       }),
     ),
-    byteLimit: Type.Optional(
-      Type.Number({ description: "Capped at 4096." }),
-    ),
+    byteLimit: Type.Optional(Type.Number({ description: "Capped at 4096." })),
   },
   { additionalProperties: false },
 );

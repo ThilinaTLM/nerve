@@ -4,8 +4,7 @@ import type { ToolDefinition } from "../../contracts.js";
 const planPresentParameters = Type.Object(
   {
     file_path: Type.String({
-      description:
-        "Absolute path in plan storage.",
+      description: "Absolute path in plan storage.",
     }),
   },
   { additionalProperties: false },

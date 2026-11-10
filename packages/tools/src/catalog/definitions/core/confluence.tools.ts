@@ -16,8 +16,20 @@ import type { ToolDefinition } from "../../contracts.js";
 
 const stringArray = () => Type.Array(Type.String());
 const bodyFormatRead = Type.Enum(["storage", "atlas_doc_format"]);
-const pageBodyFormat = Type.Enum(["storage", "atlas_doc_format", "view", "export_view", "anonymous_export_view", "styled_view", "editor"]);
-const writeBodyRepresentation = Type.Enum(["storage", "atlas_doc_format", "wiki"]);
+const pageBodyFormat = Type.Enum([
+  "storage",
+  "atlas_doc_format",
+  "view",
+  "export_view",
+  "anonymous_export_view",
+  "styled_view",
+  "editor",
+]);
+const writeBodyRepresentation = Type.Enum([
+  "storage",
+  "atlas_doc_format",
+  "wiki",
+]);
 const pageStatus = Type.Enum(["current", "draft"]);
 
 const searchSpacesParameters = Type.Object(
@@ -69,7 +81,18 @@ const getPageParameters = Type.Object(
     body_format: Type.Optional(pageBodyFormat),
     include: Type.Optional(
       Type.Array(
-        Type.Enum(["labels", "properties", "operations", "version", "versions", "children", "attachments", "footer_comments", "inline_comments", "restrictions"]),
+        Type.Enum([
+          "labels",
+          "properties",
+          "operations",
+          "version",
+          "versions",
+          "children",
+          "attachments",
+          "footer_comments",
+          "inline_comments",
+          "restrictions",
+        ]),
         { uniqueItems: true },
       ),
     ),
@@ -89,9 +112,7 @@ const downloadPageParameters = Type.Object(
     markdown: Type.Optional(
       Type.Boolean({ description: "Read-only sidecar." }),
     ),
-    attachments: Type.Optional(
-      Type.Enum(["none", "metadata", "download"]),
-    ),
+    attachments: Type.Optional(Type.Enum(["none", "metadata", "download"])),
   },
   { additionalProperties: false },
 );
@@ -105,9 +126,7 @@ const createPageParameters = Type.Object(
     title: Type.Optional(Type.String()),
     parent_id: Type.Optional(Type.String()),
     status: Type.Optional(pageStatus),
-    body: Type.Optional(
-      Type.String({ description: "Not with body_file." }),
-    ),
+    body: Type.Optional(Type.String({ description: "Not with body_file." })),
     body_file: Type.Optional(
       Type.String({
         description: "Path to storage XML/ADF/wiki content.",
@@ -132,9 +151,7 @@ const updatePageParameters = Type.Object(
     title: Type.Optional(Type.String()),
     parent_id: Type.Optional(Type.String()),
     status: Type.Optional(pageStatus),
-    body: Type.Optional(
-      Type.String({ description: "Not with body_file." }),
-    ),
+    body: Type.Optional(Type.String({ description: "Not with body_file." })),
     body_file: Type.Optional(
       Type.String({
         description: "Path to storage XML/ADF/wiki content.",
@@ -243,8 +260,7 @@ export const confluenceToolDefinitions = [
     executionKind: "local",
     executor: executeConfluenceSearchSpaces,
     label: "Confluence Search Spaces",
-    description:
-      "List or resolve visible Confluence Cloud spaces.",
+    description: "List or resolve visible Confluence Cloud spaces.",
     parameters: searchSpacesParameters,
     executionMode: "parallel",
   },
@@ -269,8 +285,7 @@ export const confluenceToolDefinitions = [
     executionKind: "local",
     executor: executeConfluenceGetPage,
     label: "Confluence Get Page",
-    description:
-      "Fetch a Confluence page and optional related data.",
+    description: "Fetch a Confluence page and optional related data.",
     parameters: getPageParameters,
     executionMode: "parallel",
   },
@@ -295,8 +310,7 @@ export const confluenceToolDefinitions = [
     executionKind: "local",
     executor: executeConfluenceCreatePage,
     label: "Confluence Create Page",
-    description:
-      "Create a Confluence page. Only on explicit user request.",
+    description: "Create a Confluence page. Only on explicit user request.",
     parameters: createPageParameters,
     executionMode: "sequential",
   },

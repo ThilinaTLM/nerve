@@ -82,7 +82,16 @@ const getIssueParameters = Type.Object(
     fields: Type.Optional(stringArray()),
     include: Type.Optional(
       Type.Array(
-        Type.Enum(["comments", "transitions", "editmeta", "worklogs", "changelog", "remote_links", "issue_links", "attachments"]),
+        Type.Enum([
+          "comments",
+          "transitions",
+          "editmeta",
+          "worklogs",
+          "changelog",
+          "remote_links",
+          "issue_links",
+          "attachments",
+        ]),
         { uniqueItems: true },
       ),
     ),
@@ -101,7 +110,17 @@ const getProjectParameters = Type.Object(
     ),
     include: Type.Optional(
       Type.Array(
-        Type.Enum(["statuses", "components", "versions", "issue_types", "create_meta", "fields", "priorities", "resolutions", "issue_link_types"]),
+        Type.Enum([
+          "statuses",
+          "components",
+          "versions",
+          "issue_types",
+          "create_meta",
+          "fields",
+          "priorities",
+          "resolutions",
+          "issue_link_types",
+        ]),
         { uniqueItems: true },
       ),
     ),
@@ -191,9 +210,7 @@ const searchBoardsParameters = Type.Object(
   {
     project_key: Type.Optional(Type.String()),
     name: Type.Optional(Type.String()),
-    board_type: Type.Optional(
-      Type.Enum(["scrum", "kanban", "simple"]),
-    ),
+    board_type: Type.Optional(Type.Enum(["scrum", "kanban", "simple"])),
     ...agilePageFields,
   },
   { additionalProperties: false },
@@ -202,10 +219,7 @@ const getBoardParameters = Type.Object(
   {
     board_id: Type.String(),
     include: Type.Optional(
-      Type.Array(
-        Type.Enum(["sprints", "backlog"]),
-        { uniqueItems: true },
-      ),
+      Type.Array(Type.Enum(["sprints", "backlog"]), { uniqueItems: true }),
     ),
     sprint_states: Type.Optional(stringArray()),
     sprint_start_at: Type.Optional(
@@ -234,9 +248,7 @@ const downloadAttachmentParameters = Type.Object(
   { additionalProperties: false },
 );
 const estimateFields = {
-  adjust_estimate: Type.Optional(
-    Type.Enum(["new", "leave", "manual", "auto"]),
-  ),
+  adjust_estimate: Type.Optional(Type.Enum(["new", "leave", "manual", "auto"])),
   new_estimate: Type.Optional(Type.String()),
   increase_by: Type.Optional(Type.String()),
 };
@@ -347,8 +359,7 @@ export const jiraToolDefinitions = [
     executionKind: "local",
     executor: executeJiraSearchUsers,
     label: "Jira Search Users",
-    description:
-      "Find directory or assignable Jira users.",
+    description: "Find directory or assignable Jira users.",
     parameters: searchUsersParameters,
     executionMode: "parallel",
   },
@@ -360,8 +371,7 @@ export const jiraToolDefinitions = [
     executionKind: "local",
     executor: executeJiraSearchIssues,
     label: "Jira Search Issues",
-    description:
-      "Search Jira issues with JQL and save raw JSON.",
+    description: "Search Jira issues with JQL and save raw JSON.",
     parameters: searchIssuesParameters,
     executionMode: "parallel",
   },
@@ -373,8 +383,7 @@ export const jiraToolDefinitions = [
     executionKind: "local",
     executor: executeJiraGetIssue,
     label: "Jira Get Issue",
-    description:
-      "Fetch a Jira issue and optional related data.",
+    description: "Fetch a Jira issue and optional related data.",
     parameters: getIssueParameters,
     executionMode: "parallel",
   },
@@ -386,8 +395,7 @@ export const jiraToolDefinitions = [
     executionKind: "local",
     executor: executeJiraGetProject,
     label: "Jira Get Project",
-    description:
-      "Fetch Jira project metadata.",
+    description: "Fetch Jira project metadata.",
     parameters: getProjectParameters,
     executionMode: "parallel",
   },
@@ -399,8 +407,7 @@ export const jiraToolDefinitions = [
     executionKind: "local",
     executor: executeJiraSearchBoards,
     label: "Jira Search Boards",
-    description:
-      "Search visible Jira Software boards.",
+    description: "Search visible Jira Software boards.",
     parameters: searchBoardsParameters,
     executionMode: "parallel",
   },
@@ -412,8 +419,7 @@ export const jiraToolDefinitions = [
     executionKind: "local",
     executor: executeJiraGetBoard,
     label: "Jira Get Board",
-    description:
-      "Fetch a Jira board and optional sprints/backlog.",
+    description: "Fetch a Jira board and optional sprints/backlog.",
     parameters: getBoardParameters,
     executionMode: "parallel",
   },
@@ -425,8 +431,7 @@ export const jiraToolDefinitions = [
     executionKind: "local",
     executor: executeJiraGetSprint,
     label: "Jira Get Sprint",
-    description:
-      "Fetch one Jira sprint with optional issues.",
+    description: "Fetch one Jira sprint with optional issues.",
     parameters: getSprintParameters,
     executionMode: "parallel",
   },
@@ -438,8 +443,7 @@ export const jiraToolDefinitions = [
     executionKind: "local",
     executor: executeJiraDownloadAttachment,
     label: "Jira Download Attachment",
-    description:
-      "Download one Jira attachment to a local artifact.",
+    description: "Download one Jira attachment to a local artifact.",
     parameters: downloadAttachmentParameters,
     executionMode: "parallel",
   },
