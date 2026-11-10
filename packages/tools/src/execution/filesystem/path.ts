@@ -98,7 +98,8 @@ async function nearestDirectoryListing(
 
 /** The ancestor spelled the way the model spelled the path (relative stays relative). */
 function displayAncestor(label: string, dir: string, climbed: number): string {
-  const path = label.replace(/^@/, "").replace(/[\\/]+$/, "");
+  let path = label.startsWith("@") ? label.slice(1) : label;
+  while (path.endsWith("/") || path.endsWith("\\")) path = path.slice(0, -1);
   // Cut the path as the model wrote it, so its separators (`/` or `\`) stay unchanged.
   const separators = [...path.matchAll(/[\\/]/g)].map((match) => match.index);
   if (separators.length >= climbed) {

@@ -244,9 +244,26 @@ export function itemAwareHead(
   };
 }
 
-/** The read executor's trailer lines, which a re-bounded view replaces with its own. */
-const READ_TRAILER =
-  /(?:\n\n(?:Lines \d+-\d+ of \d+|No lines at offset|Line \d+ cut at)[^\n]*)+$/;
+/** Removes the read executor's trailer lines, which a re-bounded view replaces with its own. */
+function withoutReadTrailer(text: string): string {
+  let end = text.length;
+  for (;;) {
+    const start = text.lastIndexOf("\n\n", end - 1);
+    if (start < 0) return text.slice(0, end);
+    const line = text.slice(start + 2, end);
+    if (line.includes("\n") || !isReadTrailerLine(line))
+      return text.slice(0, end);
+    end = start;
+  }
+}
+
+function isReadTrailerLine(line: string): boolean {
+  return (
+    line.startsWith("No lines at offset") ||
+    /^Lines \d+-\d+ of \d+/.test(line) ||
+    /^Line \d+ cut at/.test(line)
+  );
+}
 
 export function continuationAwareHead(
   candidate: ProjectionCandidate,
@@ -271,7 +288,7 @@ export function continuationAwareHead(
       (block): block is Extract<ProjectableBlock, { type: "text" }> =>
         block.type === "text",
     )
-    .map((block) => block.text.replace(READ_TRAILER, ""))
+    .map((block) => withoutReadTrailer(block.text))
     .join("\n");
   const reserve = `Lines ${lineContinuation.displayedStart}-000000 of ${lineContinuation.total}. ${continuationText({ ...lineContinuation, nextOffset: 1_000_000 })}`;
   const selected = textHead(
