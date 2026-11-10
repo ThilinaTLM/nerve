@@ -338,6 +338,50 @@ describe("adaptive agent tool-result projection", () => {
     assert.ok(measureBlocks(projected.blocks).lines <= 80);
   });
 
+  it("keeps grep context lines with their match, including when cut", () => {
+    const matches = Array.from({ length: 40 }, (_, index) => ({
+      path: "a.py",
+      line: index * 10 + 2,
+      text: `def f${index}():`,
+    }));
+    const content = matches
+      .map((m) =>
+        [
+          `a.py-${m.line - 1}- # before ${m.line}`,
+          `a.py:${m.line}: ${m.text}`,
+          `a.py-${m.line + 1}-     return ${m.line}`,
+        ].join("\n"),
+      )
+      .join("\n--\n");
+    const projected = projectAgentResult(
+      {
+        ...context("grep", {
+          path: ".",
+          matches,
+          content,
+          details: { totalMatches: 40 },
+        }),
+        args: { pattern: "def ", context: 1 },
+      },
+      agentResultPolicyForTool("grep"),
+    );
+    const output = text(projected.blocks);
+    assert.match(
+      output,
+      /a\.py-1- # before 2\na\.py:2: def f0\(\):\na\.py-3- {5}return 2\na\.py-11- # before 12\n/,
+    );
+    assert.doesNotMatch(output, /^--$/m);
+    const lastShown = Number(
+      /a\.py:(\d+): def f\d+\(\):\n(?![\s\S]*a\.py:\d+: def)/.exec(output)?.[1],
+    );
+    assert.match(
+      output,
+      new RegExp(`a\\.py-${lastShown + 1}-     return ${lastShown}`),
+    );
+    assert.match(output, /Showing \d+ of 40 matches/);
+    assert.ok(measureBlocks(projected.blocks).lines <= 80);
+  });
+
   it("pluralizes omitted grep matches correctly", () => {
     const matches = Array.from({ length: 80 }, (_, index) => ({
       path: "src/file.ts",

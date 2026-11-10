@@ -12,7 +12,7 @@ const projectEnvironmentParameter = Type.Optional(
 );
 
 const READY_DESCRIPTION =
-  "Background only: an http(s) URL to poll, otherwise a regex matched against output; waits up to 60 s.";
+  "Background only: an http(s) URL to poll (best for servers), otherwise a regex matched against output; waits up to 60 s.";
 
 export type BashToolSettings = {
   autoPromotion: { enabled: boolean; afterMs: number };

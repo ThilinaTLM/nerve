@@ -178,6 +178,43 @@ export function listingCandidate(
   };
 }
 
+/**
+ * Groups the executor's ripgrep-style output (`path:line: match`, `path-line- context`,
+ * `--` between blocks) into one entry per match, so context survives item-aware cuts.
+ * Leading context joins the next match; trailing context and separators join the previous one.
+ * Returns undefined when the output does not line up with the matches.
+ */
+function attachContextLines(
+  content: string,
+  matchTexts: string[],
+): string[] | undefined {
+  const groups: string[][] = [];
+  let pending: string[] = [];
+  let blockStart = true;
+  let next = 0;
+  for (const line of content.split("\n")) {
+    if (line === "") break; // the notes after the listing start with a blank line
+    if (next < matchTexts.length && line === matchTexts[next]) {
+      groups.push([...pending, line]);
+      pending = [];
+      blockStart = false;
+      next += 1;
+    } else if (line === "--") {
+      groups.at(-1)?.push(line);
+      blockStart = true;
+    } else if (blockStart || groups.length === 0) {
+      pending.push(line);
+    } else {
+      groups[groups.length - 1].push(line);
+    }
+  }
+  if (next !== matchTexts.length) return undefined;
+  return groups.map((group) => {
+    while (group.at(-1) === "--") group.pop();
+    return group.join("\n");
+  });
+}
+
 export function grepCandidate(
   context: CandidateContext,
 ): ProjectionCandidate | undefined {
@@ -185,22 +222,29 @@ export function grepCandidate(
   const details = record(result.details);
   if (!Array.isArray(result.matches)) return;
   const root = typeof result.path === "string" ? result.path : ".";
-  const items: SemanticItem[] = result.matches.map((match, index) => {
+  const matchLines = result.matches.map((match) => {
     const value = record(match);
     const path = string(value.path) || root;
     const line = number(value.line) ?? number(value.lineNumber);
     const text = string(value.text) || fallbackText(match);
     return {
-      id: `${path}:${line ?? index}`,
-      countsAs: "item",
-      blocks: [
-        {
-          type: "text",
-          text: `${path}${line !== undefined ? `:${line}` : ""}: ${text}`,
-        },
-      ],
+      path,
+      line,
+      text: `${path}${line !== undefined ? `:${line}` : ""}: ${text}`,
     };
   });
+  const withContext =
+    (number(record(context.args).context) ?? 0) > 0
+      ? attachContextLines(
+          string(result.content),
+          matchLines.map((m) => m.text),
+        )
+      : undefined;
+  const items: SemanticItem[] = matchLines.map((match, index) => ({
+    id: `${match.path}:${match.line ?? index}`,
+    countsAs: "item",
+    blocks: [{ type: "text", text: withContext?.[index] ?? match.text }],
+  }));
   const original =
     number(details.totalMatches) ??
     number(details.total) ??
