@@ -25,30 +25,31 @@ Pass app options after `--` when using `npx` or `pnpm dlx`.
 
 ## Nerve environment
 
-| Variable                             | Purpose / default                                                          |
-| ------------------------------------ | -------------------------------------------------------------------------- |
-| `NERVE_HOME`                         | Portable state root; `~/.nerve`                                            |
-| `NERVE_HOST`                         | Daemon bind host; `127.0.0.1`                                              |
-| `NERVE_PORT`                         | HTTP port; normal default 3747                                             |
-| `NERVE_HTTPS_PORT`                   | Mobile HTTPS port; source desktop default 3748, server fallback HTTP+1     |
-| `NERVE_ALLOW_REMOTE=1\|0`            | Enable/disable LAN access; enable implies wildcard host when none supplied |
-| `NERVE_MOBILE_HTTPS=1\|0`            | Enable/disable mobile HTTPS                                                |
-| `NERVE_DAEMON_TOKEN`                 | Deprecated token for `--connect`; secret                                   |
-| `NERVE_PUBLIC_URL`                   | Public origin behind a reverse proxy; turns on passkey owner login         |
-| `NERVE_TRUST_PROXY_PEERS`            | Proxy addresses or CIDR ranges allowed to set `X-Forwarded-*` headers      |
-| `NERVE_ALLOWED_HOSTS`                | Extra DNS names accepted in the `Host` header (comma separated)            |
-| `NERVE_WEB_DIST`                     | Override built Workbench asset directory                                   |
-| `NERVE_DAEMON_STARTUP_TIMEOUT_MS`    | Owned readiness timeout; 60000                                             |
-| `NERVE_DAEMON_MAX_OLD_SPACE_MB`      | Owned Node heap cap; 4096 default, values below 512 are raised to 512      |
-| `NERVE_MAX_CONCURRENT_MODEL_RUNS`    | Override automatic primary model-run concurrency; 1–32                     |
-| `NERVE_MAX_PARALLEL_TOOLS_PER_RUN`   | Override automatic parallel tools per conversation; 1–16                   |
-| `NERVE_MAX_ACTIVE_PROCESSES`         | Override automatic global managed-process capacity; 1–256                  |
-| `NERVE_API_TARGET`                   | Vite UI development daemon target                                          |
-| `NERVE_LOGGING_ENABLED=1\|0`         | Enable/disable persistent application logs                                 |
-| `NERVE_PERFORMANCE_DIAGNOSTICS=1\|0` | Enable/disable local performance sampling                                  |
-| `NERVE_ELECTRON_OZONE_PLATFORM`      | Linux: `x11`, `wayland`, `auto`                                            |
-| `NERVE_ELECTRON_FONT_RENDER_HINTING` | Linux: `system`, `none`, `slight`, `medium`, `full`; default slight        |
-| `NERVE_DEBUG_PROXY=1`                | Redacted startup proxy diagnostics                                         |
+| Variable                               | Purpose / default                                                          |
+| -------------------------------------- | -------------------------------------------------------------------------- |
+| `NERVE_HOME`                           | Portable state root; `~/.nerve`                                            |
+| `NERVE_HOST`                           | Daemon bind host; `127.0.0.1`                                              |
+| `NERVE_PORT`                           | HTTP port; normal default 3747                                             |
+| `NERVE_HTTPS_PORT`                     | Mobile HTTPS port; source desktop default 3748, server fallback HTTP+1     |
+| `NERVE_ALLOW_REMOTE=1\|0`              | Enable/disable LAN access; enable implies wildcard host when none supplied |
+| `NERVE_MOBILE_HTTPS=1\|0`              | Enable/disable mobile HTTPS                                                |
+| `NERVE_DAEMON_TOKEN`                   | Deprecated token for `--connect`; secret                                   |
+| `NERVE_PUBLIC_URL`                     | Public origin behind a reverse proxy; turns on passkey owner login         |
+| `NERVE_TRUST_PROXY_PEERS`              | Proxy addresses or CIDR ranges allowed to set `X-Forwarded-*` headers      |
+| `NERVE_ALLOWED_HOSTS`                  | Extra DNS names accepted in the `Host` header (comma separated)            |
+| `NERVE_WEB_DIST`                       | Override built Workbench asset directory                                   |
+| `NERVE_DAEMON_STARTUP_TIMEOUT_MS`      | Owned readiness timeout; 60000                                             |
+| `NERVE_DAEMON_MAX_OLD_SPACE_MB`        | Owned Node heap cap; 4096 default, values below 512 are raised to 512      |
+| `NERVE_MAX_CONCURRENT_MODEL_RUNS`      | Override automatic primary model-run concurrency; 1–32                     |
+| `NERVE_MAX_PARALLEL_TOOLS_PER_RUN`     | Override automatic parallel tools per conversation; 1–16                   |
+| `NERVE_MAX_ACTIVE_PROCESSES`           | Override automatic global managed-process capacity; 1–256                  |
+| `NERVE_API_TARGET`                     | Vite UI development daemon target                                          |
+| `NERVE_LOGGING_ENABLED=1\|0`           | Enable/disable persistent application logs                                 |
+| `NERVE_PERFORMANCE_DIAGNOSTICS=1\|0`   | Enable/disable local performance sampling                                  |
+| `NERVE_ELECTRON_OZONE_PLATFORM`        | Linux: `x11`, `wayland`, `auto`                                            |
+| `NERVE_ELECTRON_FONT_RENDER_HINTING`   | Linux: `system`, `none`, `slight`, `medium`, `full`; default slight        |
+| `NERVE_ELECTRON_REMOTE_DEBUGGING_PORT` | Desktop: expose Chrome DevTools Protocol on `127.0.0.1:<port>`             |
+| `NERVE_DEBUG_PROXY=1`                  | Redacted startup proxy diagnostics                                         |
 
 Standard `HTTPS_PROXY`, `HTTP_PROXY`, `NO_PROXY`, `NODE_EXTRA_CA_CERTS`, `ELECTRON_GET_USE_PROXY`, and `ELECTRON_MIRROR` apply to proxy/download scenarios.
 

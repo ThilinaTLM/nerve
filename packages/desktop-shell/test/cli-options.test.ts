@@ -5,6 +5,7 @@ import {
   electronOzonePlatformSwitch,
   parseElectronOzonePlatform,
 } from "../src/platform/chromium/ozone-platform.js";
+import { takeElectronRemoteDebuggingPort } from "../src/platform/chromium/remote-debugging.js";
 import { ShellPageUrlRegistry } from "../src/window/loading-pages.js";
 
 describe("desktop CLI options", () => {
@@ -58,6 +59,26 @@ describe("Electron Ozone platform", () => {
       electronOzonePlatformSwitch(parseElectronOzonePlatform("wayland")),
       "wayland",
     );
+  });
+});
+
+describe("Electron remote debugging port", () => {
+  it("consumes the variable so spawned processes never inherit it", () => {
+    const env: NodeJS.ProcessEnv = {
+      NERVE_ELECTRON_REMOTE_DEBUGGING_PORT: " 9222 ",
+    };
+    assert.equal(takeElectronRemoteDebuggingPort(env), 9222);
+    assert.equal("NERVE_ELECTRON_REMOTE_DEBUGGING_PORT" in env, false);
+  });
+
+  it("ignores invalid ports", () => {
+    for (const value of ["0", "65536", "92.2", "abc"]) {
+      const env: NodeJS.ProcessEnv = {
+        NERVE_ELECTRON_REMOTE_DEBUGGING_PORT: value,
+      };
+      assert.equal(takeElectronRemoteDebuggingPort(env), undefined);
+      assert.equal("NERVE_ELECTRON_REMOTE_DEBUGGING_PORT" in env, false);
+    }
   });
 });
 

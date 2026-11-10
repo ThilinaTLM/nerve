@@ -34,6 +34,7 @@ pnpm storage:copy --slot 3   # copy stopped ~/.nerve into unused slot 3
 - Dev launchers ignore ambient `NERVE_HOME`/profile/target overrides and never touch `~/.nerve`.
 - DB schema or migration changes: test against a copied or fresh slot, then delete and recopy it as needed. Stop the slot's daemon/desktop before deleting it. Copied homes keep real credentials and project paths, so a slot is not a sandbox.
 - `pnpm desktop:prod` runs source against your real `~/.nerve` and Electron profile, including pending migrations.
+- Desktop automation over CDP (for example `agent-browser connect 9231`): `NERVE_ELECTRON_REMOTE_DEBUGGING_PORT=9231 pnpm desktop:dev`. The endpoint binds to `127.0.0.1`. Use a different port per slot.
 - UI against another daemon: `NERVE_HOME="$HOME/.nerve" NERVE_API_TARGET=http://127.0.0.1:3747 pnpm dev:ui`.
 
 ## Guidelines

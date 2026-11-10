@@ -60,6 +60,7 @@ if (forwardedArgs.includes("--help") || forwardedArgs.includes("-h")) {
       "Environment:",
       "  NERVE_ELECTRON_OZONE_PLATFORM=x11|wayland|auto  (Linux only)",
       "  NERVE_ELECTRON_FONT_RENDER_HINTING=system|none|slight|medium|full  (Linux only; default: slight)",
+      "  NERVE_ELECTRON_REMOTE_DEBUGGING_PORT=<port>  Expose Chrome DevTools Protocol on 127.0.0.1",
       "  ELECTRON_GET_USE_PROXY=true with HTTPS_PROXY/HTTP_PROXY/NO_PROXY  (corporate proxy downloads)",
       "  NODE_USE_ENV_PROXY=1 and NODE_USE_SYSTEM_CA=1 are enabled automatically when needed",
       "  NODE_EXTRA_CA_CERTS=/path/to/corporate-ca.pem  (explicit TLS interception CA bundle)",
