@@ -12,4 +12,8 @@ if (!addon) throw new Error(`No native addon (*.node) in ${directory}`);
 const binding = createRequire(import.meta.url)(join(directory, addon));
 const exportCount = Object.keys(binding).length;
 if (exportCount === 0) throw new Error(`${addon} loaded with no exports`);
+// Model-image preparation has no fallback; a stale addon must fail here.
+if (typeof binding.prepareModelImage !== "function") {
+  throw new Error(`${addon} lacks prepareModelImage (stale build?)`);
+}
 console.log(`Native addon ${addon} loaded (${exportCount} exports)`);
