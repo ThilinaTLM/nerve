@@ -75,10 +75,14 @@ export async function executeEdit(
       }
 
       if (updated === content) {
-        throw editError("EDIT_NO_CHANGE", `${shown} already contains this text.`, {
-          path,
-          operationCount: edits.length,
-        });
+        throw editError(
+          "EDIT_NO_CHANGE",
+          `${shown} already contains this text.`,
+          {
+            path,
+            operationCount: edits.length,
+          },
+        );
       }
 
       // Derive details before writing so a failure here cannot misreport a
@@ -387,7 +391,10 @@ function changedRanges(resolved: ResolvedEdit[], updated: string): LineRange[] {
     shift += edit.newText.length - (edit.end - edit.start);
     const range = {
       start: lineAtOffset(updated, start),
-      end: lineAtOffset(updated, Math.max(start, start + edit.newText.length - 1)),
+      end: lineAtOffset(
+        updated,
+        Math.max(start, start + edit.newText.length - 1),
+      ),
     };
     const last = ranges[ranges.length - 1];
     if (last && range.start <= last.end) {
@@ -404,7 +411,10 @@ function describeLineRanges(ranges: LineRange[]): string {
     .slice(0, MAX_LISTED_MATCHES)
     .map(({ start, end }) => (start === end ? `${start}` : `${start}-${end}`));
   const rest = ranges.length - parts.length;
-  const noun = ranges.length === 1 && parts[0] && !parts[0].includes("-") ? "line" : "lines";
+  const noun =
+    ranges.length === 1 && parts[0] && !parts[0].includes("-")
+      ? "line"
+      : "lines";
   if (rest > 0) return `${noun} ${parts.join(", ")} and ${rest} more`;
   const last = parts.pop();
   return `${noun} ${parts.length > 0 ? `${parts.join(", ")} and ` : ""}${last}`;

@@ -171,7 +171,10 @@ describe("edit executor", () => {
       ),
       "EDIT_MATCH_NOT_FOUND",
     );
-    assert.match(error.message, /only whitespace differs from line 2: const x {2}= {2}1;/);
+    assert.match(
+      error.message,
+      /only whitespace differs from line 2: const x {2}= {2}1;/,
+    );
   });
 
   it("reports a missing file and already-present text plainly", async () => {
@@ -183,7 +186,10 @@ describe("edit executor", () => {
       ),
       "EDIT_FILE_NOT_FOUND",
     );
-    assert.equal(missing.message, "file not found: nope.txt. Use write to create it.");
+    assert.equal(
+      missing.message,
+      "file not found: nope.txt. Use write to create it.",
+    );
     await project.write("same.txt", "a\n");
     const same = await rejectsWithCode(
       executeEdit(

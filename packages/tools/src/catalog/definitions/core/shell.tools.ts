@@ -66,8 +66,8 @@ const bashParameters = Type.Object(
     ),
     projectEnvironment: projectEnvironmentParameter,
     background: Type.Optional(
-          Type.Boolean({ description: BACKGROUND_DESCRIPTION }),
-        ),
+      Type.Boolean({ description: BACKGROUND_DESCRIPTION }),
+    ),
     ready: Type.Optional(Type.String({ description: READY_DESCRIPTION })),
   },
   { additionalProperties: false },

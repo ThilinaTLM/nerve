@@ -122,10 +122,7 @@ void test("bash host validates turn settings, project cwd and untimed background
       // Full streams stay in the capture files rather than the result.
       assert.equal(result.result.stdout, undefined);
       assert.equal(result.result.exitCode, 0);
-      assert.equal(
-        result.result.content,
-        "hello\nexit 0",
-      );
+      assert.equal(result.result.content, "hello\nexit 0");
     }
     for (const code of [0, 7, null]) {
       exitCode = code;

@@ -81,7 +81,8 @@ export const editCompleted = sampleCall({
     ],
   },
   result: {
-    content: "Edited src/lib/presentation/cards/MetaChip.svelte: 1 replacement, lines 12-14.",
+    content:
+      "Edited src/lib/presentation/cards/MetaChip.svelte: 1 replacement, lines 12-14.",
     path: `${SAMPLE_CWD}/src/lib/presentation/cards/MetaChip.svelte`,
     details: {
       diff: DIFF,
@@ -236,7 +237,10 @@ export const bashMultiline = sampleCall({
       "set -e\ncd packages/workbench-app\npnpm exec tsx --test src/lib/presentation/tools/views/tool-activity-state.test.ts",
     timeout: 300,
   },
-  result: { content: "ℹ tests 4\nℹ pass 4\nℹ fail 0\nexit 0 · 3.9s", exitCode: 0 },
+  result: {
+    content: "ℹ tests 4\nℹ pass 4\nℹ fail 0\nexit 0 · 3.9s",
+    exitCode: 0,
+  },
   durationMs: 3_900,
 });
 
@@ -267,7 +271,8 @@ export const editMultiOp = sampleCall({
   toolName: "edit",
   args: { path: "src/lib/presentation/cards/MetaChip.svelte", edits: EDIT_OPS },
   result: {
-    content: "Edited src/lib/presentation/cards/MetaChip.svelte: 2 replacements, lines 12-14 and 30.",
+    content:
+      "Edited src/lib/presentation/cards/MetaChip.svelte: 2 replacements, lines 12-14 and 30.",
     path: `${SAMPLE_CWD}/src/lib/presentation/cards/MetaChip.svelte`,
     details: {
       diff: DIFF,

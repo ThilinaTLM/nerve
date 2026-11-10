@@ -79,9 +79,7 @@ async function readDiagramSource(
     const path = await resolveReadPath(cwd, args.source_path);
     const info = await stat(path).catch(async (error: unknown) => {
       if (isErrnoException(error) && error.code === "ENOENT")
-        throw new Error(
-          await pathNotFoundMessage(args.source_path, path),
-        );
+        throw new Error(await pathNotFoundMessage(args.source_path, path));
       throw error;
     });
     if (!info.isFile())

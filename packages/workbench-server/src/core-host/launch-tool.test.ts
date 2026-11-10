@@ -353,10 +353,7 @@ void test("an immediate exit during start delivers projected output to the start
     await f.tool.execute({ action: "start", name: "Dev" }, "conv_starter");
     assert.equal(recipient, "conv_starter");
     assert.equal(f.notices.length, 1);
-    assert.match(
-      f.notices[0],
-      /exit 1\nError: startup failed/,
-    );
+    assert.match(f.notices[0], /Error: startup failed\nexit 1/);
   } finally {
     await rm(dir, { recursive: true, force: true });
   }

@@ -365,10 +365,7 @@ describe("bash executor", () => {
       { cwd: project.root },
     );
 
-    assert.match(
-      result.content ?? "",
-      /^exit 0(?: · [\d.]+s)?\nline 0\n/,
-    );
+    assert.match(result.content ?? "", /^exit 0(?: · [\d.]+s)?\nline 0\n/);
     assert.match(
       result.content ?? "",
       /line 599\n\[Showing lines 1-\d+ and \d+-600 of 600; [\d.]+KB omitted\. Full output: .*nerve-bash-.*\]$/,

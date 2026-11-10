@@ -1,7 +1,11 @@
 import { constants } from "node:fs";
 import { access, lstat, readdir, stat } from "node:fs/promises";
 import { dirname, isAbsolute, join, relative } from "node:path";
-import { isErrnoException, pathNotFoundMessage, resolveToolPath } from "./path.js";
+import {
+  isErrnoException,
+  pathNotFoundMessage,
+  resolveToolPath,
+} from "./path.js";
 
 export type SearchScope = {
   roots: string[];

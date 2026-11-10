@@ -54,7 +54,8 @@ export async function executeFindWithBackend(
     }
     throw error;
   });
-  if (!info.isDirectory()) throw new Error(notDirectoryMessage(input, root, info.isFile()));
+  if (!info.isDirectory())
+    throw new Error(notDirectoryMessage(input, root, info.isFile()));
   const limit = Math.min(numberArg(args.limit, 1000), 5000);
   let found: FindRunResult;
   if (backendMode === "node") {

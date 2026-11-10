@@ -163,7 +163,9 @@ function plainReason(reason: string, resource?: string): string {
 
 /** Drops a leading tool name the reason repeats, so `read: read path not found` becomes `read: path not found`. */
 function withoutToolPrefix(reason: string, toolName: string): string {
-  const match = new RegExp(`^${toolName}(?::\\s*|\\s+)(?=\\S)`, "i").exec(reason);
+  const match = new RegExp(`^${toolName}(?::\\s*|\\s+)(?=\\S)`, "i").exec(
+    reason,
+  );
   return match ? reason.slice(match[0].length) : reason;
 }
 
@@ -192,7 +194,11 @@ function terminalCandidate(
   } else {
     text = reason || "failed.";
     // Show the resource only when the reason does not already name it.
-    if (resource && !text.includes(resource) && !argumentValues(context.args).has(resource))
+    if (
+      resource &&
+      !text.includes(resource) &&
+      !argumentValues(context.args).has(resource)
+    )
       text += ` (${resource})`;
   }
   return {

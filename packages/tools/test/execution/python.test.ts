@@ -165,10 +165,7 @@ describe("python executor", () => {
       { cwd: project.root, pythonRuntime: runtime },
     );
     const content = result.content ?? "";
-    assert.match(
-      content,
-      /^exit 0(?: · [\d.]+s)?\npy 0 y+\n/,
-    );
+    assert.match(content, /^exit 0(?: · [\d.]+s)?\npy 0 y+\n/);
     assert.match(
       content,
       /py 1499 y+\n\[Showing lines 1-\d+ and \d+-1500 of 1500; [\d.]+KB omitted\. Full output: [^\n]+\]$/,

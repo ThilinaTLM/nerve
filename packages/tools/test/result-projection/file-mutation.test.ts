@@ -30,7 +30,10 @@ describe("file mutation agent result", () => {
   it("gives the agent exactly the executor one-liner for edit and write", async () => {
     const project = await createTempProject();
     const cwd = { cwd: project.root };
-    const created = await executeWrite({ path: "a.txt", content: "x\ny\n" }, cwd);
+    const created = await executeWrite(
+      { path: "a.txt", content: "x\ny\n" },
+      cwd,
+    );
     assert.equal(agentText("write", created), "Created a.txt (4 B).");
     const overwrote = await executeWrite({ path: "a.txt", content: "x" }, cwd);
     assert.equal(agentText("write", overwrote), "Overwrote a.txt (1 B).");
@@ -38,7 +41,10 @@ describe("file mutation agent result", () => {
       { path: "a.txt", edits: [{ oldText: "x", newText: "z" }] },
       cwd,
     );
-    assert.equal(agentText("edit", edited), "Edited a.txt: 1 replacement, line 1.");
+    assert.equal(
+      agentText("edit", edited),
+      "Edited a.txt: 1 replacement, line 1.",
+    );
   });
 
   it("keeps warnings and non-success outcomes visible", () => {

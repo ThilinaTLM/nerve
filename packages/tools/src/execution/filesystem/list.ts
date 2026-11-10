@@ -32,7 +32,8 @@ export async function executeLs(
     }
     throw error;
   });
-  if (!info.isDirectory()) throw new Error(notDirectoryMessage(input, root, info.isFile()));
+  if (!info.isDirectory())
+    throw new Error(notDirectoryMessage(input, root, info.isFile()));
 
   const limit = Math.min(numberArg(args.limit, 500), 5000);
   const dirEntries = await readdir(root, { withFileTypes: true });

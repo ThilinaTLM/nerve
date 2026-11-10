@@ -33,9 +33,7 @@ describe("not-found directory listing", () => {
       expected,
     );
     assert.equal(
-      await message(
-        executeLs({ path: "src/domains/tool/results.ts" }, cwd),
-      ),
+      await message(executeLs({ path: "src/domains/tool/results.ts" }, cwd)),
       expected,
     );
     assert.equal(
@@ -47,7 +45,10 @@ describe("not-found directory listing", () => {
     assert.equal(
       await message(
         executeGrep(
-          { pattern: "x", paths: ["src/domains/index.ts", "src/domains/tool/r.ts"] },
+          {
+            pattern: "x",
+            paths: ["src/domains/index.ts", "src/domains/tool/r.ts"],
+          },
           cwd,
         ),
       ),
@@ -57,12 +58,17 @@ describe("not-found directory listing", () => {
 
   it("keeps absolute paths absolute and caps long listings", async () => {
     const project = await createTempProject();
-    for (let i = 0; i < 35; i++) await project.write(`f${String(i).padStart(2, "0")}`, "");
+    for (let i = 0; i < 35; i++)
+      await project.write(`f${String(i).padStart(2, "0")}`, "");
     const missing = join(project.root, "x", "y.ts");
     const text = await message(executeRead({ path: missing }, { cwd: "/" }));
     const [first, second] = text.split("\n");
     assert.equal(first, `path not found: ${missing}`);
-    assert.ok(second.startsWith(`Nearest existing directory ${project.root}/ contains: f00 `));
+    assert.ok(
+      second.startsWith(
+        `Nearest existing directory ${project.root}/ contains: f00 `,
+      ),
+    );
     assert.ok(second.endsWith(" … 5 more"));
     assert.equal(second.split(" f").length - 1, 30);
   });
@@ -86,7 +92,8 @@ describe("not-found directory listing", () => {
       status: "failed",
       phase: "completed",
       validatedArtifacts: [],
-      error: "path not found: a/b.ts\nNearest existing directory ./ contains: a/",
+      error:
+        "path not found: a/b.ts\nNearest existing directory ./ contains: a/",
     });
     assert.deepEqual(projected.blocks, [
       {

@@ -128,10 +128,7 @@ void test("completed history tails and appends byte pages of the combined output
     });
     assert.equal((await f.read({ offset: 999 })).page.nextOffset, 13);
     // Existing agent diagnostics remain a formatted string API.
-    assert.match(
-      await f.service.logs("conv_1", "bash_1"),
-      /\(exit 0\)/,
-    );
+    assert.match(await f.service.logs("conv_1", "bash_1"), /\(exit 0\)/);
   } finally {
     await f.close();
   }
@@ -226,9 +223,11 @@ void test("agent log headers distinguish actual, unknown and running exit codes"
       const expected =
         status === "running"
           ? "(running)"
-          : `(${status}; exit code: ${exitCode ?? "unknown"})`;
+          : exitCode === null
+            ? `(${status})`
+            : `(exit ${exitCode})`;
       assert.ok(logs.includes(expected), logs);
-      if (status === "running") assert.doesNotMatch(logs, /exit code:/);
+      if (status === "running") assert.doesNotMatch(logs, /exit \d/);
     }
   } finally {
     await f.close();
