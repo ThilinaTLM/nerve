@@ -23,6 +23,7 @@ describe("provider error classification", () => {
       "stream ended before message_stop",
       "request timed out",
       "provider overloaded",
+      "Claude Code's stream from Anthropic was cut short after the reply had begun",
     ];
 
     for (const message of messages) {
@@ -37,6 +38,7 @@ describe("provider error classification", () => {
       "rate limit: Monthly usage limit reached",
       "internal error: maximum context length exceeded",
       "network error: too many tokens",
+      '429 {"error":{"code":"1308","message":"Usage cap reached"}}',
     ];
 
     for (const message of messages) {

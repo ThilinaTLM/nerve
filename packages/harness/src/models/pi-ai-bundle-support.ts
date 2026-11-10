@@ -1,19 +1,12 @@
-import { lazyApi } from "@earendil-works/pi-ai";
-import { setBedrockProviderModule } from "@earendil-works/pi-ai/api/bedrock-converse-stream.lazy";
-import { registerBunOAuthFlows } from "@earendil-works/pi-ai/bun-oauth";
+import { registerLazyBedrockProvider } from "@earendil-works/pi-ai/lazy-bedrock-provider";
+import { registerLazyOAuthFlows } from "@earendil-works/pi-ai/lazy-oauth";
 
-// pi-ai loads its OAuth flows and the Bedrock implementation through variable
-// import specifiers relative to its own files, which bundlers cannot follow.
-// Those files do not exist in the flat bundled desktop dist/, so every OAuth
-// login/token use and Bedrock request would fail there. Registering the flows
-// statically and pointing Bedrock at a literal (bundler-visible) import keeps
-// both working bundled and unbundled. Registration is process-global, so it
-// also covers the server's own pi-ai model registry.
-registerBunOAuthFlows();
-setBedrockProviderModule(
-  lazyApi(
-    async () =>
-      (await import("@earendil-works/pi-ai/bedrock-provider"))
-        .bedrockProviderModule,
-  ),
-);
+// By default pi-ai imports its OAuth flows and the Bedrock implementation
+// through variable specifiers relative to its own files, which bundlers cannot
+// follow and which do not exist in the flat bundled desktop dist/. These
+// helpers register literal dynamic imports instead, so the code splitting desktop
+// bundle keeps each flow and Bedrock (with the AWS SDK) as lazy chunks. They
+// also work unbundled. Registration is process-global, so it also covers the
+// server's own pi-ai model registry. Node-only: never import from browser code.
+registerLazyOAuthFlows();
+registerLazyBedrockProvider();
