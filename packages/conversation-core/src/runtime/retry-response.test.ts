@@ -15,6 +15,7 @@ import {
   createConversation,
   options,
   waitUntil,
+  allTools,
 } from "./lifecycle-test-helpers.js";
 
 function deferred() {
@@ -65,9 +66,9 @@ for (const stop of [false, true]) {
           isReplaySafe: () => false,
         },
       );
-      opts.turnResources.prepare = async () => {
+      opts.turnResources.prepare = async (input) => {
         preparations++;
-        return { systemPrompt: "Captured", tools: [] };
+        return { systemPrompt: "Captured", tools: allTools(input) };
       };
       const core = new ConversationCore(opts);
       const changes: CoreChange[] = [];

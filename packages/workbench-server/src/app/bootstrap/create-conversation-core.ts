@@ -37,6 +37,7 @@ import {
 import {
   resolvePythonRuntime,
   resolveBashShellConfig,
+  ToolExecutionError,
   type ToolExecutionContext,
 } from "@nervekit/tools/execution";
 import { explainImageWithModel } from "@nervekit/harness/models";
@@ -46,6 +47,7 @@ import { createPermissionPort } from "../../core-host/permission.adapter.js";
 import { CoreProcessHost } from "../../core-host/process.adapter.js";
 import { createToolHostPort } from "../../core-host/tool-host.adapter.js";
 import { createCodeModeAuthorizer } from "../../core-host/code-mode-broker.js";
+import { isToolEnabled } from "../../core-host/tool-enablement.js";
 import { createExecutionAdmission } from "../../core-host/execution-admission/admission.js";
 import type { RuntimeDeps } from "./create-runtime-services.js";
 import { ImageGenerationService } from "../../domains/image-generation/image-generation.service.js";
@@ -205,6 +207,15 @@ export function createConversationCore(
             input.toolName === "python_exec",
           );
         }
+        // Advertising is not authorization: a model can name a tool it was not offered.
+        if (
+          input.origin === "model" &&
+          !isToolEnabled(input.toolName, settings)
+        )
+          throw new ToolExecutionError(
+            "TOOL_NOT_ENABLED",
+            `${input.toolName}: not enabled for this conversation`,
+          );
         const { providers, modelConfiguration, python, shell } = resources;
         const bash = structuredClone(
           settings.tools!.bash!.settings as BashToolSettings,

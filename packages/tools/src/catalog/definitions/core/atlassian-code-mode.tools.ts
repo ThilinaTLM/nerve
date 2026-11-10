@@ -22,15 +22,19 @@ const atlassianCodeModeParameters = Type.Object(
 export const atlassianCodeModeToolDefinitions = [
   {
     name: "atlassian_code_mode",
+    // No combined Atlassian group exists; the tool stays in `jira`.
     group: "jira",
     baseRisk: "network",
-    traits: ["credentialed", "long_running"],
+    traits: ["write_capable", "credentialed", "long_running"],
     executionKind: "local",
     executor: executeAtlassianCodeMode,
     label: "Atlassian code mode",
-    description: `Run a TypeScript script against Jira (read-only) in a sandbox with a global \`jira\` SDK. Batch many lookups in one script and filter in code. Results are plain objects; print what you need with console.log, only printed output is returned. Text fields are Markdown. \`fields\` take names ("Story Points") or ids. Errors throw HostError.
-Issue = { key, id, url, summary, status, statusCategory, type, priority, assignee: {name,email,accountId}|null, reporter, created, updated, resolution, labels, components, fixVersions, parent, description (default on get only), ...requested fields }
-${SDK_INDEX}`,
+    description: `Run a TypeScript script against Jira and Confluence in a sandbox with globals \`jira\`, \`confluence\`, \`storage\`. Batch calls and filter in code. The top level is an ES module with top-level await: print results with console.log (no \`return\`); only printed output is returned. Results are plain objects, text fields are Markdown, \`fields\` take names ("Story Points") or ids. Errors throw HostError.
+JQL must be bounded (e.g. \`project = X\`); a bare ORDER BY is rejected. Issue = { key, id, url, summary, status, statusCategory, type, priority, assignee/reporter: {name,email,accountId}|null, created, updated, resolution, labels, components, fixVersions, parent, description (get only), ...requested fields }; comment, attachment, issuelinks, subtasks, worklog come simplified.
+${SDK_INDEX.jira}
+${SDK_INDEX.confluence}
+Storage helpers (build rich pages; pure strings):
+${SDK_INDEX.storage}`,
     parameters: atlassianCodeModeParameters,
     executionMode: "parallel",
   },

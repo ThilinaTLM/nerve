@@ -25,6 +25,8 @@ export type { ToolCallServiceOptions } from "./tool-call-types.js";
 export class ToolCallService {
   private closed = false;
   private readonly requestCaptures = new Map<string, string>();
+  /** Model calls naming a tool their request did not offer; in memory like request captures. */
+  private readonly unadvertised = new Set<string>();
   private readonly presentedApprovals = new Map<string, ToolApprovalBinding>();
   private readonly workers = new Map<string, Promise<void>>();
   private readonly stopping = new Set<string>();
@@ -52,6 +54,8 @@ export class ToolCallService {
     turnId: string,
     assistantEvent: ConversationEvent,
     requestCaptureId?: string,
+    /** Tool names sent with the request that produced this message. */
+    advertisedTools?: ReadonlySet<string>,
   ): ToolCall[] {
     if (
       assistantEvent.type !== "assistant_message" ||
@@ -100,6 +104,9 @@ export class ToolCallService {
       if (requestCaptureId)
         for (const row of rows)
           this.requestCaptures.set(row.id, requestCaptureId);
+      if (advertisedTools)
+        for (const row of rows)
+          if (!advertisedTools.has(row.toolName)) this.unadvertised.add(row.id);
       return rows;
     });
   }
@@ -118,6 +125,7 @@ export class ToolCallService {
       for (const id of ids) {
         this.stopping.delete(id);
         this.requestCaptures.delete(id);
+        this.unadvertised.delete(id);
         this.presentedApprovals.delete(id);
       }
     }
@@ -275,6 +283,7 @@ export class ToolCallService {
         this.controllers.delete(id);
         if (this.closed || !this.options.storage.toolCalls.get(id)) {
           this.requestCaptures.delete(id);
+          this.unadvertised.delete(id);
           this.presentedApprovals.delete(id);
         }
       });
@@ -359,6 +368,13 @@ export class ToolCallService {
           },
         });
         await this.settlement.settle(call, "denied", { content: reason });
+        return;
+      }
+      // Advertising is not authorization: a model can name a tool it was not offered.
+      if (this.unadvertised.has(id)) {
+        await this.settlement.settle(call, "failed", {
+          content: `${call.toolName}: not available in this conversation`,
+        });
         return;
       }
       const invalid =

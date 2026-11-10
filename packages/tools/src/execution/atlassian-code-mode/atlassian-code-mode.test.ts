@@ -149,7 +149,7 @@ void test("fails closed without authorizeNested", async () => {
   );
   assert.equal(fetched, false);
   assert.equal(result.exitCode, 1);
-  assert.match(result.content ?? "", /failed: .*Nested authorization/);
+  assert.match(result.content ?? "", /Nested authorization is unavailable/);
 });
 void test("rejects unknown methods listing the valid ones", async () => {
   const result = await executeAtlassianCodeMode(
@@ -174,7 +174,7 @@ void test("reports script failures as a normal result with the error before the 
   const lines = (result.content ?? "").split("\n");
   assert.equal(lines[0], "before");
   assert.match(result.content ?? "", /boom/);
-  assert.match(lines.at(-1)!, /^failed: .*boom · exit 1/);
+  assert.match(lines.at(-1)!, /^failed · exit 1$/);
 });
 
 const call = (method: string) => ({
@@ -206,4 +206,35 @@ void test("groups calls and shows duration only above one second", () => {
     }),
     "timed out · exit 124",
   );
+});
+
+void test("footer groups calls by product", () => {
+  const call = (method: string) => ({
+    method,
+    outcome: "completed" as const,
+    durationMs: 1,
+  });
+  assert.equal(
+    codeModeFooter({
+      hostCalls: [
+        call("jira.issues.get"),
+        call("confluence.pages.get"),
+        call("confluence.pages.get"),
+      ],
+      status: "completed",
+      exitCode: 0,
+      durationMs: 10,
+    }),
+    "jira 1 call (issues.get 1) · confluence 2 calls (pages.get 2) · exit 0",
+  );
+});
+
+void test("failed scripts print the error once, above a message-free footer", async () => {
+  const result = await executeAtlassianCodeMode(
+    { code: `throw new Error("boom");` },
+    makeContext({ events: [] }),
+  );
+  const content = result.content ?? "";
+  assert.equal(content.split("boom").length - 1, 1);
+  assert.match(content.split("\n").at(-1)!, /^failed · exit 1$/);
 });

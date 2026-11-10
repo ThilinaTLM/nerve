@@ -19,7 +19,25 @@ const STANDARD_FIELD_IDS = [
 ] as const;
 type StandardFieldId = (typeof STANDARD_FIELD_IDS)[number];
 
-const STANDARD_ALIASES: Record<string, StandardFieldId> = {
+/** Structured system fields: simplified when explicitly requested, never in the defaults. */
+const STRUCTURED_FIELD_IDS = [
+  "comment",
+  "attachment",
+  "issuelinks",
+  "subtasks",
+  "worklog",
+  "timetracking",
+] as const;
+type StructuredFieldId = (typeof STRUCTURED_FIELD_IDS)[number];
+
+const STANDARD_ALIASES: Record<string, StandardFieldId | StructuredFieldId> = {
+  comments: "comment",
+  attachments: "attachment",
+  links: "issuelinks",
+  "linked issues": "issuelinks",
+  worklogs: "worklog",
+  "time tracking": "timetracking",
+  ...Object.fromEntries(STRUCTURED_FIELD_IDS.map((id) => [id, id] as const)),
   type: "issuetype",
   "issue type": "issuetype",
   issuetype: "issuetype",
@@ -55,7 +73,10 @@ export async function resolveFieldSelection(
   for (const token of requested) {
     const text = token.trim();
     if (!text) continue;
-    const standard = STANDARD_ALIASES[text.toLowerCase()];
+    const lowered = text.toLowerCase();
+    const standard = Object.hasOwn(STANDARD_ALIASES, lowered)
+      ? STANDARD_ALIASES[lowered]
+      : undefined;
     if (standard) {
       selection.set(standard, { id: standard, key: standard });
       continue;
@@ -144,6 +165,77 @@ export function flattenIssue(
       case "description":
         out.description = value ? adfToMarkdown(value) : null;
         break;
+      case "comment":
+        out.comment = commentsOf(value);
+        break;
+      case "attachment":
+        out.attachment = arrayOf(value).map((raw) => {
+          const item = asRecord(raw);
+          return {
+            id: stringOrNull(item.id),
+            filename: stringOrNull(item.filename),
+            size: typeof item.size === "number" ? item.size : null,
+            mimeType: stringOrNull(item.mimeType),
+          };
+        });
+        break;
+      case "issuelinks":
+        out.issuelinks = arrayOf(value).map((raw) => {
+          const link = asRecord(raw);
+          const outward = asRecord(link.outwardIssue).key !== undefined;
+          const other = asRecord(
+            outward ? link.outwardIssue : link.inwardIssue,
+          );
+          return {
+            type: stringOrNull(asRecord(link.type).name),
+            direction: outward ? "outward" : "inward",
+            key: stringOrNull(other.key),
+            summary: stringOrNull(asRecord(other.fields).summary),
+          };
+        });
+        break;
+      case "subtasks":
+        out.subtasks = arrayOf(value).map((raw) => {
+          const task = asRecord(raw);
+          const fields = asRecord(task.fields);
+          return {
+            key: stringOrNull(task.key),
+            summary: stringOrNull(fields.summary),
+            status: nameOf(fields.status),
+          };
+        });
+        break;
+      case "worklog":
+        out.worklog = arrayOf(asRecord(value).worklogs).map((raw) => {
+          const entry = asRecord(raw);
+          return {
+            author: userOf(entry.author)?.name ?? null,
+            started: stringOrNull(entry.started),
+            timeSpent: stringOrNull(entry.timeSpent),
+            timeSpentSeconds:
+              typeof entry.timeSpentSeconds === "number"
+                ? entry.timeSpentSeconds
+                : null,
+            comment: entry.comment ? adfToMarkdown(entry.comment) : null,
+          };
+        });
+        break;
+      case "timetracking": {
+        const tracking = asRecord(value);
+        out.timetracking = {
+          originalEstimate: stringOrNull(tracking.originalEstimate),
+          remainingEstimate: stringOrNull(tracking.remainingEstimate),
+          timeSpent: stringOrNull(tracking.timeSpent),
+          originalEstimateSeconds: numberOrNull(
+            tracking.originalEstimateSeconds,
+          ),
+          remainingEstimateSeconds: numberOrNull(
+            tracking.remainingEstimateSeconds,
+          ),
+          timeSpentSeconds: numberOrNull(tracking.timeSpentSeconds),
+        };
+        break;
+      }
       case "summary":
       case "created":
       case "updated":
@@ -182,6 +274,27 @@ export function simplifyValue(value: unknown): unknown {
   if (typeof record.displayName === "string") return record.displayName;
   if (typeof record.name === "string") return record.name;
   return value;
+}
+
+export function simplifyComment(raw: unknown) {
+  const comment = asRecord(raw);
+  return {
+    author: userOf(comment.author)?.name ?? null,
+    created: stringOrNull(comment.created),
+    body: adfToMarkdown(comment.body),
+  };
+}
+
+function commentsOf(value: unknown) {
+  return arrayOf(asRecord(value).comments).map(simplifyComment);
+}
+
+function arrayOf(value: unknown): unknown[] {
+  return Array.isArray(value) ? value : [];
+}
+
+function numberOrNull(value: unknown): number | null {
+  return typeof value === "number" ? value : null;
 }
 
 function nameOf(value: unknown): string | null {

@@ -130,10 +130,10 @@ const completeTools = z.strictObject({
   confluence: capabilityToolPayloadSchemas.confluence.required({
     enabled: true,
   }),
-  atlassian_code_mode:
-    capabilityToolPayloadSchemas.atlassian_code_mode.required({
-      enabled: true,
-    }),
+  // Optional: configurations frozen before this tool existed omit it (= off).
+  atlassian_code_mode: capabilityToolPayloadSchemas.atlassian_code_mode
+    .required({ enabled: true })
+    .optional(),
   web_fetch: toggle,
   explain_image: z.strictObject({
     enabled: z.boolean(),

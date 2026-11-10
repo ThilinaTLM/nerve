@@ -1,8 +1,6 @@
-import { isSubagentTool } from "@nervekit/contracts/tools";
 import { join } from "node:path";
 import type { BashToolSettings } from "@nervekit/contracts/settings";
 import { subagentBlockedToolNames } from "@nervekit/contracts/subagents";
-import { capabilityToolNameSchema } from "@nervekit/contracts/capabilities";
 import type { LeadSettingsOverrides } from "@nervekit/contracts/agent-configuration";
 import type { ConfigurationPreviewInput } from "@nervekit/conversation-core";
 import type { ToolDefinition } from "@nervekit/tools/catalog";
@@ -12,6 +10,7 @@ import { loadHarnessResources } from "./resource-loader.js";
 import { buildNerveSystemPrompt } from "./nerve-system-prompt.js";
 import { withAgentProfiles } from "./turn-resources.adapter.js";
 import { resolveSkillPlaceholders } from "@nervekit/skills";
+import { isToolEnabled } from "./tool-enablement.js";
 
 const blocked = new Set<string>(subagentBlockedToolNames);
 export function scopedTurnResources(options: {
@@ -40,26 +39,11 @@ export function scopedTurnResources(options: {
         settings.tools?.bash?.settings as BashToolSettings,
       )),
       ...input.coreTools,
-    ].filter((tool) => {
-      if (child && blocked.has(tool.name)) return false;
-      const name = isSubagentTool(tool.name)
-        ? "subagents"
-        : tool.name.startsWith("jira_")
-          ? "jira"
-          : tool.name.startsWith("confluence_")
-            ? "confluence"
-            : tool.name;
-      if (
-        missingReferences.some((pointer) =>
-          pointer.startsWith(`/tools/${name}/`),
-        )
-      )
-        return false;
-      const parsed = capabilityToolNameSchema.safeParse(name);
-      if (!parsed.success || parsed.data === "bash") return true;
-      const entry = settings.tools?.[parsed.data];
-      return Boolean(entry && "enabled" in entry && entry.enabled);
-    });
+    ].filter(
+      (tool) =>
+        !(child && blocked.has(tool.name)) &&
+        isToolEnabled(tool.name, settings, missingReferences),
+    );
     const profiles = [];
     if (!child && selected.some((tool) => tool.name === "subagent_prompt"))
       for (const [name, selection] of Object.entries(

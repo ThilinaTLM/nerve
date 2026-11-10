@@ -73,13 +73,14 @@ export async function executeAtlassianCodeMode(
         throw new Error(message);
       }
       const callArgs = Array.isArray(rawArgs) ? rawArgs : [];
-      let authorization;
+      let prepared;
       try {
-        authorization = sdkMethod.authorize(callArgs);
+        prepared = sdkMethod.prepare(callArgs);
       } catch (error) {
-        record({ outcome: "failed", error: messageOf(error) });
-        throw error;
+        record({ outcome: "failed", error: cleanMessage(error) });
+        throw hostFailure(error);
       }
+      const { authorization } = prepared;
       const base = {
         authorizedAs: authorization.toolName,
         summary: truncate(authorization.summary, 200),
@@ -95,16 +96,16 @@ export async function executeAtlassianCodeMode(
           args: authorization.args,
         });
       } catch (error) {
-        record({ ...base, outcome: "denied", error: messageOf(error) });
-        throw error;
+        record({ ...base, outcome: "denied", error: cleanMessage(error) });
+        throw hostFailure(error);
       }
       try {
-        const value = await sdkMethod.run(callArgs, env);
+        const value = await prepared.run(env);
         record({ ...base, outcome: "completed" });
         return value;
       } catch (error) {
-        record({ ...base, outcome: "failed", error: messageOf(error) });
-        throw error;
+        record({ ...base, outcome: "failed", error: cleanMessage(error) });
+        throw hostFailure(error);
       }
     },
   });
@@ -114,7 +115,6 @@ export async function executeAtlassianCodeMode(
   const footer = codeModeFooter({
     hostCalls,
     status: outcome.status,
-    error,
     exitCode,
     durationMs: outcome.durationMs,
   });
@@ -143,33 +143,34 @@ export async function executeAtlassianCodeMode(
   };
 }
 
-/** `jira 3 calls (issues.search 1, issues.get 2) · exit 0 · 1.2s`. */
+/** `jira 3 calls (issues.search 1, issues.get 2) · confluence 1 call (pages.get 1) · exit 0 · 1.2s`. */
 export function codeModeFooter(input: {
   hostCalls: readonly CodeModeHostCall[];
   status: string;
-  error?: string;
   exitCode: number;
   durationMs: number;
 }): string {
   const parts: string[] = [];
-  if (input.hostCalls.length > 0) {
-    const counts = new Map<string, number>();
-    for (const call of input.hostCalls) {
-      const name = call.method.replace(/^jira\./, "");
-      counts.set(name, (counts.get(name) ?? 0) + 1);
-    }
-    const total = input.hostCalls.length;
+  const byProduct = new Map<string, Map<string, number>>();
+  for (const call of input.hostCalls) {
+    const [product = "sdk", ...rest] = call.method.split(".");
+    const counts = byProduct.get(product) ?? new Map<string, number>();
+    const name = rest.join(".") || call.method;
+    counts.set(name, (counts.get(name) ?? 0) + 1);
+    byProduct.set(product, counts);
+  }
+  for (const [product, counts] of byProduct) {
+    const total = [...counts.values()].reduce((a, b) => a + b, 0);
     const breakdown = [...counts].map(([name, n]) => `${name} ${n}`).join(", ");
-    parts.push(`jira ${total} call${total === 1 ? "" : "s"} (${breakdown})`);
-    const denied = input.hostCalls.filter(
-      (call) => call.outcome === "denied",
-    ).length;
-    if (denied > 0) parts.push(`${denied} denied`);
+    parts.push(
+      `${product} ${total} call${total === 1 ? "" : "s"} (${breakdown})`,
+    );
   }
-  if (input.status === "failed") {
-    const first = (input.error ?? "error").split("\n")[0];
-    parts.push(`failed: ${truncate(first, 200)}`);
-  }
+  const denied = input.hostCalls.filter(
+    (call) => call.outcome === "denied",
+  ).length;
+  if (denied > 0) parts.push(`${denied} denied`);
+  if (input.status === "failed") parts.push("failed");
   parts.push(
     processFooter({
       exitCode: input.exitCode,
@@ -201,6 +202,20 @@ function clampTimeoutSeconds(value: unknown): number {
 
 function messageOf(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
+}
+
+/** Jira/Confluence errors end with a pointer to a skill guide; code mode has no such guide. */
+const GUIDE_POINTER = /\s+See \S*SKILL\.md\.?\s*$/;
+
+function cleanMessage(error: unknown): string {
+  return messageOf(error).replace(GUIDE_POINTER, "");
+}
+
+function hostFailure(error: unknown): Error {
+  const message = cleanMessage(error);
+  return message === messageOf(error) && error instanceof Error
+    ? error
+    : new Error(message);
 }
 
 function truncate(text: string, max: number): string {
