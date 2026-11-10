@@ -30,7 +30,7 @@ describe("explainImageWithModel", () => {
         model,
         image: {
           type: "image",
-          data: "iVBORw0KGgo=",
+          data: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR4nGNISEgAAAJEASHhGUI0AAAAAElFTkSuQmCC",
           mimeType: "image/png",
         },
         thinkingLevel: "high",
@@ -73,7 +73,7 @@ describe("explainImageWithModel", () => {
         },
         image: {
           type: "image",
-          data: "iVBORw0KGgo=",
+          data: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR4nGNISEgAAAJEASHhGUI0AAAAAElFTkSuQmCC",
           mimeType: "image/png",
         },
         onDelta: () => {
