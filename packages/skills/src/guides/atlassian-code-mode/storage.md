@@ -56,7 +56,7 @@ Jira issue-list macro for a JQL query. `columns` is a string[] (or a comma/semic
 
 ## `storage.table(rows, { columns?, layout? })`
 
-`rows` is an array of objects or a string[][]. `columns` is an array of keys or `{ key, title?, width? }` (header = `title` or `key`; for string[][] rows the columns give the header and all rows are body rows; without `columns` the first row is the header). `width` is in px; columns without a width share the rest of the content width. If no column has a width the linter computes widths from the content. `layout`: `"default"` (760 px content width, the default), `"wide"` (960), `"full-width"` (1800). Cells that are storage/helper strings (for example `storage.status(...)`, `storage.jiraIssue(...)`) are embedded as is; other values are escaped into `<p>`.
+`rows` is an array of objects or a string[][]. `columns` is an array of keys or `{ key, title?, width? }` (header = `title` or `key`; for string[][] rows the columns give the header and all rows are body rows; without `columns` the first row is the header). `width` is in px; columns without a width share the rest of the content width. If no column has a width the linter computes widths from the content. Key-like columns need room: about 100 px for `SCRUM-123`; the linter warns when an explicit width is too small. `layout`: `"default"` (760 px content width, the default), `"wide"` (960), `"full-width"` (1800). Cells that are storage/helper strings (for example `storage.status(...)`, `storage.jiraIssue(...)`) are embedded as is; other values are escaped into `<p>`.
 
 ## `storage.image(attachmentFilename, { width?, alt?, caption?, align? })`
 

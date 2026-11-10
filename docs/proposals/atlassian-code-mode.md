@@ -49,7 +49,8 @@ The SDK follows the Jira and Confluence REST APIs, so models can rely on what th
 
 - **Values filled in automatically.** These include the site URL, cloud ID, API version (Jira platform vs agile, Confluence v1 vs v2), authentication and `defaultProjectKey`. Pagination becomes async iterators with a `limit`. The page version is bumped on Confluence updates, and on Jira creates the `fields` wrapper is added.
 - **Names instead of IDs where the API is awkward.** Custom fields can be addressed by name, transitions by status name, users by email or display name, and spaces by key. These already exist in `jira/field-resolution.ts`, `jira/transitions.ts`, `maybeResolveAssignee` and `confluence/space-resolution.ts`.
-- **Markdown in and out by default.** Text fields accept Markdown and are converted to ADF or storage format on the way in. Bodies come back as Markdown. `format: "adf" | "storage"` opts out of conversion in either direction.
+- **Jira text is Markdown in and out.** Descriptions and comments come back as Markdown converted from ADF (`jira/adf-markdown.ts`).
+- **Confluence pages are written in storage format.** Builders produce the markup, a linter checks it before each write, and Markdown is used only for prose. See [Confluence pages](#confluence-pages). Page bodies can be read as Markdown or storage format.
 - **Compact, flattened results.** For example `{ key, summary, status, assignee: { name, email }, updated, … }`, not `fields.status.statusCategory.…`. `fields: [...]` selects what comes back, and `raw: true` returns the unmodified REST object when something is missing.
 - **Complete data.** Results are not truncated or shaped for display. Large text is the script's to filter, not the SDK's to cut.
 
@@ -83,11 +84,10 @@ This covers what the 28 tools do today. The `request()` escape hatch is an [open
 
 ### Documentation
 
-- One TypeScript source defines the SDK signatures and result types. From it the build generates:
-  - a compact index in the tool description: namespaces and method names only, aiming for under 2k characters;
-  - per-namespace reference files with request and response types, defaults, auto-filled values and one example each, shipped as references of a `atlassian-code-mode` guide skill that the agent reads on demand.
-- A test fails when the generated reference and the SDK disagree.
-- `nerve-system-prompt.ts` adds the guide line when `atlassian_code_mode` is active. `formatToolGuides` currently matches only `jira_` and `confluence_` prefixes.
+- The tool description is about 400 characters long. It covers what the tool is, the two rules that cause most failures (print with `console.log` instead of using `return`; JQL must include a restriction), and a pointer to the guide.
+- The built-in guide skill `atlassian-code-mode` (`packages/skills/src/guides/atlassian-code-mode/`) has a short `SKILL.md` and reference files the agent reads on demand: `jira.md`, `confluence.md` (including page style and linter rules) and `storage.md` (builders).
+- `formatToolGuides` in `nerve-system-prompt.ts` adds the guide line when `atlassian_code_mode` is active.
+- A drift test (`guide-coverage.test.ts`) fails when the method tables and the reference files disagree in either direction.
 
 ## Libraries and helpers
 
@@ -107,6 +107,52 @@ The engine runs only the script and small pure-JS helpers. Data-heavy work runs 
 Later, each only when a task needs it: DuckDB (host-side, `enable_external_access=false`; tens of MB per platform), Arquero for dataframe work, chart rendering (Vega-Lite through Kroki), SheetJS (after its licence and distribution have been checked).
 
 Kroki sends diagram source to the configured Kroki server, so `diagram.render` keeps the `kroki_export` risk and permission behaviour.
+
+## Confluence pages
+
+Confluence Cloud stores pages as ADF (JSON). The REST API also accepts storage format: XHTML with `ac:`/`ri:` macros, which Confluence converts to ADF on save. Markdown cannot express panels, status lozenges, layouts, image sizing or column widths, so it is only a convenience for prose.
+
+We write storage format, not ADF. Models write XHTML far more reliably than ADF's verbose JSON, it costs fewer tokens, and Confluence converts it losslessly for everything the builders produce.
+
+- **Builders** (`storage.*`, pure JS in the sandbox):
+  - Text and structure: headings, paragraphs, links, dates, mentions, task lists, layouts.
+  - Tables, with column widths.
+  - Panels. Their types use the Cloud UI names: info, note, success, warning (yellow) and error (red).
+  - Macros: status, table of contents, expand, code, single Jira issue, Jira issue list (with columns and width).
+  - Images: attachment images.
+  - Markdown for prose.
+- **Linter** (`confluence/page-lint.ts`). It runs on every create and update. Malformed XML is rejected before any request. It applies safe fixes and reports them as `fixes`; everything else comes back as `warnings` in the method result, for the script to print or act on.
+  - **Fixed automatically:**
+    - headings are promoted so sections start at H1, because the page title is a separate field;
+    - an opening H1 that repeats the title is removed;
+    - a table of contents is added when there are at least 3 sections or about 600 words (`toc: false` opts out);
+    - tables without widths get column widths sized to their content;
+    - images are sized to at most the content width;
+    - stray inline content at block level is wrapped in a paragraph;
+    - Jira list macros get the default layout width.
+  - **Warnings:**
+    - skipped heading levels;
+    - a panel whose title repeats the heading above it;
+    - a heading that only repeats an embedded issue key;
+    - empty sections;
+    - SVG or WebP images;
+    - explicit column widths too narrow for their longest word;
+    - images scaled below 80%.
+- **Attachments and diagrams:**
+  - `confluence.attachments.upload`, and `attachments` on create/update. A workspace file is authorized as `read` as well.
+  - GIF and WebP are converted to PNG with the native image module, and SVG is rejected.
+  - `diagram.render` renders through Kroki to PNG, authorized as `kroki_export`. Its bytes stay on the host behind a handle.
+  - Creating a page with attachments takes three requests: create, upload, then save again so `ri:attachment` references resolve.
+
+**Live findings** (Confluence Cloud test site, Haiku 5.5, same prompt each time):
+
+| Page     | Change                   | Result                                                                                                                                                                                                                           |
+| -------- | ------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| baseline | Markdown-first SDK       | All sections H2, no TOC on 8 sections, equal-width columns, heading repeated as panel title, neutral note in a warning panel, no images                                                                                          |
+| v2       | Storage-first and linter | H1/H2 structure, TOC added by the linter, column widths applied, diagram sized to 760 px. Jira list macros rendered at 1,761 px with wrong columns (`columns` separated by commas instead of semicolons); `warning` rendered red |
+| v3       | Macro and panel fixes    | Lists at 760 px with the requested columns (`data-layout="default"` honoured), panel colours correct, no empty lists, pluralised counts. Remaining: an explicit 90 px Key column wrapped; a 1,100 px diagram scaled to 69%       |
+
+Verified on the live site: the default content width is 760 px. The `wide` (960 px) and `full-width` (1,800 px) values are unverified.
 
 ## Runtime
 
@@ -159,8 +205,19 @@ Branch `poc/atlassian-code-mode`: a `sandbox` domain in `packages/native` (`nati
   - QuickJS reports some out-of-memory failures as a bare `null` exception, so the runtime classifies a failure as `memory_limit` from usage near the cap.
   - Parsing in QuickJS is about 8× slower than in Node, which is fine at this size. That supports keeping Excel and large data host-side.
 - **Cross-platform:** CI on PR #568 built the addon and ran the native tests, including the sandbox tests, on Linux, Windows and macOS. All passed.
-- **Tool slice:** `atlassian_code_mode` with a read-only Jira SDK (`issues.search/get`, `projects.get`, `users.search`, `fields.list`), the permission broker (see [Permissions and approvals](#permissions-and-approvals)), a tool-settings toggle and a tool card.
-- **Not yet verified:** a run against a real Jira site, helper bytecode precompilation, Confluence, writes and nested approvals, and the Excel host functions.
+- **Tool:**
+  - `atlassian_code_mode` with Jira reads (`issues.search/get`, `projects.get`, `users.search`, `fields.list`).
+  - Confluence reads and writes (spaces, page search/get/create/update, labels, comments, attachments).
+  - `diagram.render`, the storage builders and the page linter.
+  - The permission broker (see [Permissions and approvals](#permissions-and-approvals)), a tool-settings toggle and a tool card.
+- **Tested against a live Jira and Confluence Cloud site:** see [Confluence pages](#confluence-pages).
+- **Enablement enforced:** a model call to a tool its request did not offer now fails without running. Before this change, turning a tool off only removed it from the list sent to the model.
+- **Not yet verified:**
+  - Jira writes, which are not built yet.
+  - Approvals inside a script.
+  - Precompiling helper bytecode.
+  - Excel host functions.
+  - The `wide` and `full-width` content widths.
 
 ## Permissions and approvals
 
@@ -191,7 +248,8 @@ Rule granularity: policies today target Jira and Confluence with `whole_tool`. M
 ## Enablement
 
 - Add `atlassian_code_mode` to `capabilityToggleToolNameSchema`. `scoped-turn-resources.ts` treats unknown names as enabled, so without this the tool would always be on.
-- The tool is disabled by default: add it to `disabledTools` in the unreleased migration step instead of adding a new step.
+- The tool is off by default (`{ enabled: false }` in the built-in defaults). In complete settings the entry is optional, so child settings frozen by earlier releases still validate, and a missing entry means off. No data migration is needed.
+- It uses its own Atlassian account selection (`tools.atlassian_code_mode.profileId`) for both products.
 - It needs a configured Jira or Confluence connection. The SDK exposes only the namespaces whose connection exists, and a missing connection fails on first use with the existing `*_NOT_CONFIGURED` message.
 - It can be enabled alone or together with the 28 tools. Both together is allowed for manual comparison. The guide tells the agent to prefer code mode when both are present.
 

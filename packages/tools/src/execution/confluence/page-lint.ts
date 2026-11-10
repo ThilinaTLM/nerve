@@ -41,7 +41,19 @@ const LAYOUT_SHARES: Record<string, number[]> = {
 
 const TOC_MIN_SECTIONS = 3;
 const TOC_MIN_WORDS = 600;
+/** Absolute floor for any column. */
 const MIN_COLUMN_PX = 56;
+
+/**
+ * Heuristic widths (px) for a 15px body font, calibrated on a live Cloud case
+ * where "SCRUM-2" wrapped in a 90px column: capitals 12, other characters 8.5,
+ * punctuation 6, plus 20 for cell padding; status lozenge text is uppercase at
+ * ~7px per character plus 16px chrome. Estimates are deliberately rough.
+ */
+const CHAR_PX = { upper: 12, other: 8.5, punctuation: 6 } as const;
+const CELL_PADDING_PX = 20;
+const LOZENGE_CHAR_PX = 7;
+const LOZENGE_CHROME_PX = 16;
 const PANEL_MACROS = new Set(["info", "note", "warning", "tip", "panel"]);
 
 export type ImageSize = { width: number; height: number };
@@ -71,7 +83,7 @@ export function lintStoragePage(
   lintLooseInline(root, fixes);
   lintHeadings(root, options.title, fixes, warnings);
   lintToc(root, options.toc !== false, fixes);
-  lintTables(root, fixes);
+  lintTables(root, fixes, warnings);
   lintBlockMacros(root, fixes);
   lintImages(root, sizeLookup(options.images), fixes, warnings);
   lintRedundancy(root, warnings);
@@ -290,7 +302,95 @@ function cellLength(node: XmlNode): number {
   return node.children.reduce((sum, child) => sum + cellLength(child), 0);
 }
 
-function columnWidths(rows: XmlElement[], total: number): number[] | undefined {
+function textTokenPx(token: string): number {
+  let px = 0;
+  for (const ch of token) {
+    px += /[A-Z]/.test(ch)
+      ? CHAR_PX.upper
+      : /[\w]/.test(ch) || ch.charCodeAt(0) > 127
+        ? CHAR_PX.other
+        : CHAR_PX.punctuation;
+  }
+  return px;
+}
+
+type Unbreakable = { px: number; token: string };
+
+/** Widest piece of a cell that cannot wrap (whitespace-delimited word, lozenge, key, date, mention). */
+function longestUnbreakable(node: XmlNode): Unbreakable {
+  let best: Unbreakable = { px: 0, token: "" };
+  const consider = (px: number, token: string) => {
+    if (px > best.px) best = { px, token };
+  };
+  const visit = (current: XmlNode) => {
+    if (current.kind === "text") {
+      for (const token of decodeEntities(current.value).split(/\s+/)) {
+        if (token) consider(textTokenPx(token), token);
+      }
+      return;
+    }
+    if (current.kind === "raw") return;
+    const macro = macroName(current);
+    if (macro === "status") {
+      const title = macroParam(current, "title") ?? "";
+      consider(
+        title.length * LOZENGE_CHAR_PX + LOZENGE_CHROME_PX,
+        title.toUpperCase(),
+      );
+      return;
+    }
+    if (macro === "jira") {
+      const key = macroParam(current, "key");
+      if (key) consider(textTokenPx(key) + 24, key);
+      return;
+    }
+    if (current.name === "time") {
+      consider(90, getAttr(current, "datetime") ?? "date");
+      return;
+    }
+    if (current.name === "ri:user" || current.name === "ac:link") {
+      consider(110, "@mention");
+      return;
+    }
+    if (
+      current.name === "ac:parameter" ||
+      current.name === "ac:structured-macro"
+    )
+      return;
+    current.children.forEach(visit);
+  };
+  visit(node);
+  return best;
+}
+
+/** Per-column minimum width and the token that needs it, over header and body cells. */
+function columnMinimums(rows: XmlElement[]): Unbreakable[] {
+  const minimums: Unbreakable[] = [];
+  for (const row of rows) {
+    let position = 0;
+    for (const cell of childElements(row)) {
+      if (cell.name !== "th" && cell.name !== "td") continue;
+      const span = Number(getAttr(cell, "colspan") ?? 1) || 1;
+      if (span === 1) {
+        const found = longestUnbreakable(cell);
+        const need = {
+          px: Math.ceil(found.px + CELL_PADDING_PX),
+          token: found.token,
+        };
+        if (!minimums[position] || need.px > minimums[position].px)
+          minimums[position] = need;
+      }
+      position += span;
+    }
+  }
+  return minimums;
+}
+
+function columnWidths(
+  rows: XmlElement[],
+  total: number,
+  minimums: Unbreakable[],
+): number[] | undefined {
   const lengths: number[][] = [];
   let columns = 0;
   rows.forEach((row) => {
@@ -318,25 +418,59 @@ function columnWidths(rows: XmlElement[], total: number): number[] | undefined {
     );
     return Math.min(80, Math.max(6, score));
   });
-  const sum = scores.reduce((a, b) => a + b, 0);
-  let widths = scores.map((score) =>
-    Math.max(MIN_COLUMN_PX, (total * score) / sum),
+  const floors = scores.map((_, column) =>
+    Math.max(MIN_COLUMN_PX, minimums[column]?.px ?? 0),
   );
-  // Re-scale the columns above the minimum so the total stays the content width.
-  const fixed =
-    widths.filter((w) => w === MIN_COLUMN_PX).length * MIN_COLUMN_PX;
-  const flexible = widths.reduce((a, w) => (w > MIN_COLUMN_PX ? a + w : a), 0);
-  if (flexible > 0) {
-    const factor = Math.max(0, total - fixed) / flexible;
-    widths = widths.map((w) =>
-      w > MIN_COLUMN_PX ? Math.max(MIN_COLUMN_PX, w * factor) : w,
-    );
+  // Proportional shares, then pin columns at their floor and re-share the rest until stable.
+  const widths = scores.map(() => 0);
+  const pinned = new Set<number>();
+  for (let round = 0; round <= scores.length; round++) {
+    const free = scores.map((_, i) => i).filter((i) => !pinned.has(i));
+    const remaining =
+      total - [...pinned].reduce((sum, i) => sum + floors[i], 0);
+    const weight = free.reduce((sum, i) => sum + scores[i], 0);
+    let changed = false;
+    for (const i of free) {
+      widths[i] = (Math.max(0, remaining) * scores[i]) / weight;
+      if (widths[i] < floors[i]) {
+        pinned.add(i);
+        changed = true;
+      }
+    }
+    if (!changed) break;
   }
+  for (const i of pinned) widths[i] = floors[i]!;
   const rounded = widths.map((w) => Math.round(w));
   const drift = total - rounded.reduce((a, b) => a + b, 0);
   const widest = rounded.indexOf(Math.max(...rounded));
   rounded[widest] = rounded[widest] + drift;
   return rounded;
+}
+
+function warnExplicitWidths(
+  table: XmlElement,
+  colgroup: XmlElement,
+  warnings: string[],
+): void {
+  const rows = tableRows(table);
+  const minimums = columnMinimums(rows);
+  const headers = childElements(rows[0] ?? table).filter(
+    (c) => c.name === "th" || c.name === "td",
+  );
+  childElements(colgroup)
+    .filter((col) => col.name === "col")
+    .forEach((col, index) => {
+      const width = Number(
+        /width\s*:\s*([\d.]+)/.exec(getAttr(col, "style") ?? "")?.[1] ??
+          getAttr(col, "width"),
+      );
+      const need = minimums[index];
+      if (!Number.isFinite(width) || !need || need.px <= width) return;
+      const title = headers[index] ? textOf(headers[index]).trim() : "";
+      warnings.push(
+        `Column ${title ? `"${title}"` : index + 1} is ${Math.round(width)}px; "${need.token}" needs about ${Math.ceil(need.px / 5) * 5}px and will wrap.`,
+      );
+    });
 }
 
 function colHasWidth(col: XmlElement): boolean {
@@ -346,19 +480,27 @@ function colHasWidth(col: XmlElement): boolean {
   );
 }
 
-function lintTables(root: XmlElement, fixes: string[]): void {
+function lintTables(
+  root: XmlElement,
+  fixes: string[],
+  warnings: string[],
+): void {
   walk(root, (element, ancestors) => {
     if (element.name !== "table") return undefined;
     const existing = childElements(element).find(
       (child) => child.name === "colgroup",
     );
-    // Never override explicit widths.
-    if (existing && childElements(existing).some(colHasWidth)) return undefined;
+    // Never override explicit widths; only warn where a column is too narrow for its longest unbreakable token.
+    if (existing && childElements(existing).some(colHasWidth)) {
+      warnExplicitWidths(element, existing, warnings);
+      return undefined;
+    }
     const layout = (getAttr(element, "data-layout") ??
       "default") as keyof typeof CONTENT_WIDTH;
     const base = CONTENT_WIDTH[layout] ?? CONTENT_WIDTH.default;
     const total = availableWidth(ancestors, base);
-    const widths = columnWidths(tableRows(element), total);
+    const rows = tableRows(element);
+    const widths = columnWidths(rows, total, columnMinimums(rows));
     if (!widths) return undefined;
     const colgroup: XmlElement = {
       kind: "element",
@@ -388,6 +530,21 @@ function lintTables(root: XmlElement, fixes: string[]): void {
 }
 
 // ---- images ----------------------------------------------------------------
+
+/** Scaling below this share of the original width makes diagram text hard to read. */
+const MIN_READABLE_SCALE = 0.8;
+
+function warnIfDownscaled(
+  warnings: string[],
+  label: string,
+  original: number | undefined,
+  shown: number,
+): void {
+  if (!original || shown >= original * MIN_READABLE_SCALE) return;
+  warnings.push(
+    `Image "${label}" is scaled from ${original}px to ${shown}px (${Math.round((shown / original) * 100)}%); its text may be hard to read. Use a narrower image (for diagrams e.g. flowchart TB or fewer nodes per row) whose natural width is close to ${shown}px.`,
+  );
+}
 
 function lintImages(
   root: XmlElement,
@@ -420,6 +577,8 @@ function lintImages(
         fixes.push(
           `Clamped image "${label}" from ${given}px to the content width ${available}px.`,
         );
+        const original = filename ? sizeOf(filename)?.width : undefined;
+        warnIfDownscaled(warnings, label, original, available);
       }
       return undefined;
     }
@@ -430,6 +589,7 @@ function lintImages(
       fixes.push(
         `Set image "${label}" width to ${width}px (original ${size.width}px, content ${available}px).`,
       );
+      warnIfDownscaled(warnings, label, size.width, width);
     } else {
       warnings.push(
         `Image "${label}" has no width and its original size is unknown; set ac:width (max ${available}px).`,
@@ -600,7 +760,8 @@ function lintLooseInline(root: XmlElement, fixes: string[]): void {
 
 /**
  * Cloud renders the Jira issue list macro full-width (1761 px in a 760 px column)
- * unless the macro element carries data-layout; "default" keeps it in the column.
+ * unless the macro element carries data-layout; "default" keeps it in the column
+ * (verified live: Cloud honors data-layout on the macro element).
  */
 function lintBlockMacros(root: XmlElement, fixes: string[]): void {
   let count = 0;

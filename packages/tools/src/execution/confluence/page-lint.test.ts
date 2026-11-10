@@ -241,3 +241,58 @@ void test("sets data-layout=default on Jira list macros only when missing", () =
     '<p><ac:structured-macro ac:name="jira" ac:schema-version="1"><ac:parameter ac:name="key">A-1</ac:parameter></ac:structured-macro></p>';
   assert.equal(lint(single).storage, single);
 });
+
+void test("auto widths never go below the longest unbreakable token", () => {
+  const row = (cells: string[], tag = "td") =>
+    `<tr>${cells.map((c) => `<${tag}><p>${c}</p></${tag}>`).join("")}</tr>`;
+  const table = `<table><tbody>${row(["Key", "Summary"], "th")}${row(["SCRUM-2", "word ".repeat(40)])}</tbody></table>`;
+  const widths = [...lint(table).storage.matchAll(/width: (\d+)px/g)].map((m) =>
+    Number(m[1]),
+  );
+  assert.ok(widths[0] >= 90, `Key column must fit SCRUM-2: ${widths}`);
+  assert.equal(widths[0] + widths[1], 760);
+  // Tiny content still honors the absolute 56px floor.
+  const tiny = lint(
+    `<table><tbody>${row(["A", "B"], "th")}${row(["x", "y"])}</tbody></table>`,
+  ).storage;
+  assert.ok(
+    [...tiny.matchAll(/width: (\d+)px/g)].every((m) => Number(m[1]) >= 56),
+  );
+});
+
+void test("warns, without changing widths, when an explicit width is too narrow", () => {
+  const table =
+    '<table data-layout="default"><colgroup><col style="width: 90px;"/><col style="width: 670px;"/></colgroup><tbody>' +
+    "<tr><th><p>Key</p></th><th><p>Summary</p></th></tr><tr><td><p>SCRUM-4</p></td><td><p>Fine</p></td></tr></tbody></table>";
+  const result = lint(table);
+  assert.equal(result.storage, table);
+  assert.equal(result.warnings.length, 1);
+  assert.match(
+    result.warnings[0],
+    /Column "Key" is 90px; "SCRUM-4" needs about \d+px and will wrap/,
+  );
+  const wide = lint(table.replace("90px", "140px").replace("670px", "620px"));
+  assert.deepEqual(wide.warnings, []);
+});
+
+void test("warns when an image is scaled below 80% of its original width", () => {
+  const image = '<ac:image><ri:attachment ri:filename="flow.png"/></ac:image>';
+  const scaled = lint(image, {
+    images: { "flow.png": { width: 1100, height: 600 } },
+  });
+  assert.match(
+    scaled.warnings.join("\n"),
+    /scaled from 1100px to 760px \(69%\).*narrower.*flowchart TB/,
+  );
+  const mild = lint(image, {
+    images: { "flow.png": { width: 900, height: 600 } },
+  });
+  assert.deepEqual(mild.warnings, []);
+  const clamped = lint(
+    '<ac:image ac:width="1000"><ri:attachment ri:filename="flow.png"/></ac:image>',
+    {
+      images: { "flow.png": { width: 1100, height: 600 } },
+    },
+  );
+  assert.match(clamped.warnings.join("\n"), /scaled from 1100px to 760px/);
+});
