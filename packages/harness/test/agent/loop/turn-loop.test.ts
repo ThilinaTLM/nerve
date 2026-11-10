@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { Buffer } from "node:buffer";
-import { describe, it } from "node:test";
+import { describe, it, mock } from "node:test";
 import {
   type AssistantMessage,
   type Context,
@@ -119,7 +119,7 @@ describe("agent loop failures", () => {
 });
 
 describe("agent loop image normalization", () => {
-  it("does not invoke the provider when an oversized image cannot be normalized", async () => {
+  it("sends a text placeholder when an oversized image cannot be normalized", async () => {
     const malformed = Buffer.alloc(24);
     Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]).copy(
       malformed,
@@ -137,23 +137,30 @@ describe("agent loop image normalization", () => {
       return streamMessage(assistant([{ type: "text", text: "unexpected" }]));
     };
 
-    await assert.rejects(
-      runAgentLoop(
-        [{ role: "user", content: [image], timestamp: Date.now() }],
-        { systemPrompt: "", messages: [] },
-        {
-          model,
-          convertToLlm,
-          getSteeringMessages: async () => [],
-          getFollowUpMessages: async () => [],
-        },
-        async () => undefined,
-        undefined,
-        streamFn,
-      ),
-      /Could not prepare image.*8101.*8000px/,
+    const contexts: Context[] = [];
+    const capturing: StreamFn = (_model, context) => {
+      contexts.push(context);
+      return streamFn(_model, context);
+    };
+    mock.method(console, "error", () => undefined);
+    await runAgentLoop(
+      [{ role: "user", content: [image], timestamp: Date.now() }],
+      { systemPrompt: "", messages: [] },
+      {
+        model,
+        convertToLlm,
+        getSteeringMessages: async () => [],
+        getFollowUpMessages: async () => [],
+      },
+      async () => undefined,
+      undefined,
+      capturing,
     );
-    assert.equal(providerCalls, 0);
+    mock.restoreAll();
+    assert.equal(providerCalls, 1);
+    const sent = JSON.stringify(contexts[0].messages);
+    assert.match(sent, /Image omitted: could not be prepared/);
+    assert.doesNotMatch(sent, /"type":"image"/);
   });
 });
 

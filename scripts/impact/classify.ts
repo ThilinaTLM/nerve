@@ -115,7 +115,6 @@ export interface CiImpact {
   dependencyPackages: string[];
   website: boolean;
   workbench: boolean;
-  electronSmoke: boolean;
   native: boolean;
   nativeHost: boolean;
   nativeDesktop: boolean;
@@ -144,7 +143,6 @@ export function classifyChanges(
   const testOnly = new Set<string>();
   let migrations = false;
   let website = false;
-  let electronSmoke = false;
 
   for (const path of paths) {
     if (isGlobalPath(path)) {
@@ -171,7 +169,6 @@ export function classifyChanges(
     const special = SPECIAL_OWNERS.get(path);
     if (special) {
       for (const owner of special.owners) direct.add(owner);
-      if (special.electronSmoke) electronSmoke = true;
       continue;
     }
     if (path.startsWith(BRAND_ASSET_PREFIX)) {
@@ -186,7 +183,6 @@ export function classifyChanges(
   if (full) {
     for (const packageName of workspace.keys()) direct.add(packageName);
     website = true;
-    electronSmoke = true;
     migrations = true;
   }
 
@@ -204,7 +200,6 @@ export function classifyChanges(
   const workbench = intersects(affected, WORKBENCH_PACKAGES);
   const nativeHost = intersects(affected, HOST_PACKAGES);
   const nativeDesktop = affected.has("@nervekit/desktop-shell");
-  electronSmoke ||= affected.has("@nervekit/harness");
   const native =
     full ||
     workbench ||
@@ -230,7 +225,6 @@ export function classifyChanges(
     dependencyPackages,
     website,
     workbench,
-    electronSmoke,
     native,
     nativeHost,
     nativeDesktop,

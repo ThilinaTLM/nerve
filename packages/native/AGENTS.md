@@ -7,7 +7,8 @@ Inherits the root `AGENTS.md`. Layout and APIs: `README.md`.
 - Only for measured CPU-heavy kernels or OS primitives. First fix the algorithm in TS (single pass, top-k, no repeated materialization); move to Rust only if a whole-API benchmark, including N-API conversion, still shows a benefit.
 - Native must replace the TS implementation, not run alongside it. The old TS version may survive only as a test oracle.
 - Rust owns computation; TS keeps policy: permissions, approvals, lifecycle/recovery state machines, protocol, cache invalidation and freshness.
-- Do not port: Git mutations (hooks/credentials/filters), SQLite access, ripgrep search, image processing (Sharp), HTML→Markdown (workers give hard termination), HTTP/auth.
+- Do not port: Git mutations (hooks/credentials/filters), SQLite access, ripgrep search, HTML→Markdown (workers give hard termination), HTTP/auth.
+- Image preparation for model requests (decode, fit, re-encode) lives in the `image` domain; provider limits stay in TS policy.
 - Text-edit diffing is deferred until the user reviews `packages/tools/test/benchmarks/text-diff.benchmark.md`.
 
 **Rules**

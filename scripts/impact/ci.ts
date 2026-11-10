@@ -22,7 +22,6 @@ export function githubOutputs(impact: CiImpact): Record<string, string> {
     has_packages: String(impact.packages.length > 0),
     website: String(impact.website),
     workbench: String(impact.workbench),
-    electron_smoke: String(impact.electronSmoke),
     native: String(impact.native),
     native_windows_suites: JSON.stringify(nativeSuites(impact, "Windows")),
     native_macos_suites: JSON.stringify(nativeSuites(impact, "macOS")),

@@ -118,7 +118,7 @@ for (const mode of ["prompt", "continue"] as const) {
       const image = {
         type: "image" as const,
         mimeType: "image/png",
-        data: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAAB",
+        data: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR4nGNISEgAAAJEASHhGUI0AAAAAElFTkSuQmCC",
       };
       if (mode === "prompt") {
         await harness.nextTurn("queued input", { images: [image] });

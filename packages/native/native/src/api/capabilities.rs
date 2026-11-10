@@ -54,6 +54,7 @@ pub fn runtime_capabilities() -> NativeRuntimeCapabilities {
             capabilities.push("files-list-directory".to_string());
             capabilities.push("files-path-index".to_string());
             capabilities.push("files-content-search".to_string());
+            capabilities.push("image-prepare".to_string());
             capabilities.push("recursive-change-monitor".to_string());
             capabilities
         },

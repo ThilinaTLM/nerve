@@ -19,7 +19,7 @@ const importSpecifier =
 /**
  * Import specifiers in a bundled ESM file that the install cannot satisfy:
  * relative targets missing on disk, or bare packages outside the declared
- * externals (node builtins, electron, sharp, @nervekit/native-*).
+ * externals (node builtins, electron, @nervekit/native-*).
  */
 export function findUnresolvableImports(
   source: string,

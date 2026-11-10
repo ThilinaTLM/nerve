@@ -108,8 +108,6 @@ export const DOCS_ONLY_ROOT_FILES: ReadonlySet<string> = new Set([
 /** A repository file owned by specific packages although it lives outside `packages/`. */
 export interface SpecialOwner {
   owners: readonly string[];
-  /** Whether a change also needs the Electron image smoke test. */
-  electronSmoke?: boolean;
 }
 
 export const SPECIAL_OWNERS: ReadonlyMap<string, SpecialOwner> = new Map([
@@ -121,10 +119,6 @@ export const SPECIAL_OWNERS: ReadonlyMap<string, SpecialOwner> = new Map([
   [
     "scripts/release/smoke-workbench-release.ts",
     { owners: ["@nervekit/workbench-app", "@nervekit/workbench-server"] },
-  ],
-  [
-    "scripts/release/smoke-electron-image-resize.ts",
-    { owners: ["@nervekit/harness"], electronSmoke: true },
   ],
   [
     "scripts/build/generate-brand-assets.ts",
