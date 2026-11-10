@@ -2,8 +2,10 @@ import type {
   AgentResultProfileId,
   ExactContinuation,
   ProjectionCount,
+  ValidatedToolArtifact,
 } from "@nervekit/contracts/tools";
 import { ProjectionBudgetLedger } from "./budget-ledger.js";
+import { savedFileNotice } from "./candidate-artifacts.js";
 import { continuationText } from "./candidate-continuation.js";
 import { formatByteSize } from "../execution/output/truncate.js";
 import {
@@ -435,10 +437,8 @@ function recoveryText(candidate: ProjectionCandidate): string | undefined {
       item.id.includes("combined") ||
       item.label.toLowerCase().includes("combined"),
   );
-  if (combined?.access.kind === "agent_file") {
-    const tool = combined.recommendedTools[0] ?? "read";
-    return `Complete result: ${combined.access.path} (use ${tool}; do not rerun merely to recover output).`;
-  }
+  if (combined?.access.kind === "agent_file")
+    return completeResultNotice(combined.access.path, combined);
   if (recoverable.length > 1) {
     const paths = recoverable.flatMap((item) =>
       item.access.kind === "agent_file"
@@ -450,8 +450,17 @@ function recoveryText(candidate: ProjectionCandidate): string | undefined {
   }
   const artifact = recoverable[0];
   if (!artifact || artifact.access.kind !== "agent_file") return;
-  const tool = artifact.recommendedTools[0] ?? "read";
-  return `Complete result: ${artifact.access.path} (use ${tool}; do not rerun merely to recover output).`;
+  return completeResultNotice(artifact.access.path, artifact);
+}
+
+function completeResultNotice(
+  path: string,
+  artifact: ValidatedToolArtifact,
+): string {
+  const tools = artifact.recommendedTools.length
+    ? artifact.recommendedTools
+    : (["read"] as const);
+  return `${savedFileNotice("Complete result", path, { ...artifact, recommendedTools: [...tools] })} No need to rerun.`;
 }
 
 function continuationNotice(

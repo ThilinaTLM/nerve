@@ -39,6 +39,17 @@ export function stripArtifactLocations(
   return record(visit(value));
 }
 
+/** `Fetched content (3120 lines) saved to /p/a.md; read or grep it.` */
+export function savedFileNotice(
+  label: string,
+  path: string,
+  artifact: Pick<ValidatedToolArtifact, "recommendedTools" | "size">,
+): string {
+  const lines = artifact.size?.lines;
+  const tools = artifact.recommendedTools;
+  return `${label}${lines !== undefined ? ` (${lines} lines)` : ""} saved to ${path}${tools.length > 0 ? `; ${tools.join(" or ")} it` : ""}.`;
+}
+
 export function artifactNoticeLines(
   values: readonly ValidatedToolArtifact[],
   role?: ValidatedToolArtifact["role"],
@@ -50,10 +61,8 @@ export function artifactNoticeLines(
         (!role || artifact.role === role),
     )
     .map((artifact) => {
-      if (artifact.access.kind === "agent_file") {
-        const tool = artifact.recommendedTools[0];
-        return `${artifact.label}: ${artifact.access.path}${tool ? ` (use ${tool})` : ""}`;
-      }
+      if (artifact.access.kind === "agent_file")
+        return savedFileNotice(artifact.label, artifact.access.path, artifact);
       if (
         role === "primary_result" &&
         artifact.access.kind === "metadata_only" &&

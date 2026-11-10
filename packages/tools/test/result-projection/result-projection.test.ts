@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import type { ValidatedToolArtifact } from "@nervekit/contracts/tools";
 import type { CandidateContext } from "../../src/result-projection/index.js";
+import { artifactNoticeLines } from "../../src/result-projection/candidate-artifacts.js";
 import { formatWebFetchCandidateText } from "../../src/result-projection/candidates/web.js";
 import { buildUserProjection } from "../../src/result-projection/user-projection/tool-user-projection.js";
 import {
@@ -688,6 +689,19 @@ describe("adaptive agent tool-result projection", () => {
       ),
       "bash: interrupted, no rollback implied.",
     );
+  });
+});
+
+describe("saved file notices", () => {
+  it("say the content is in a file and how to open it", () => {
+    const saved = {
+      ...artifact("/data/page.md", "fetched_content", "primary_result"),
+      label: "Fetched content",
+      size: { bytes: 210_533, lines: 3120 },
+    };
+    assert.deepEqual(artifactNoticeLines([saved], "primary_result"), [
+      "Fetched content (3120 lines) saved to /data/page.md; read or grep it.",
+    ]);
   });
 });
 
