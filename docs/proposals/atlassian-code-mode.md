@@ -158,7 +158,9 @@ Branch `poc/atlassian-code-mode`: a `sandbox` domain in `packages/native` (`nati
 - **Findings:**
   - QuickJS reports some out-of-memory failures as a bare `null` exception, so the runtime classifies a failure as `memory_limit` from usage near the cap.
   - Parsing in QuickJS is about 8× slower than in Node, which is fine at this size. That supports keeping Excel and large data host-side.
-- **Not yet verified:** the macOS and Windows prebuilds (`rquickjs-sys` compiles the C sources with `cc`; the CI prebuild matrix should confirm this), helper bytecode precompilation, the Excel host functions, and everything from the broker onward.
+- **Cross-platform:** CI on PR #568 built the addon and ran the native tests, including the sandbox tests, on Linux, Windows and macOS. All passed.
+- **Tool slice:** `atlassian_code_mode` with a read-only Jira SDK (`issues.search/get`, `projects.get`, `users.search`, `fields.list`), the broker above, a tool-settings toggle and a tool card.
+- **Not yet verified:** a run against a real Jira site, helper bytecode precompilation, Confluence, writes and nested approvals, and the Excel host functions.
 
 ## Permissions and approvals
 
@@ -209,7 +211,7 @@ Rule granularity: policies today target Jira and Confluence with `whole_tool`. M
 
 ## Delivery
 
-1. Spike: done on Linux (see [Proof of concept](#proof-of-concept)). Remaining: macOS and Windows prebuilds through CI.
+1. Spike: done on Linux, Windows and macOS (see [Proof of concept](#proof-of-concept)).
 2. Broker and nested approvals on the existing tool-call lifecycle, with read-only SDK methods first.
 3. Jira and Confluence SDK (read, then write), with generated documentation and the guide skill.
 4. Helpers: storage builder, Markdown → ADF/storage, CSV, Excel, `files.*`, `diagram.render`.
