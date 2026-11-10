@@ -36,6 +36,7 @@ export async function cancelSelectedLaunch(
   }
   notify.success(
     request.signal === "SIGKILL" ? "Launch force killed" : "Launch cancelled",
+    { activity: true },
   );
 }
 
@@ -77,7 +78,7 @@ export async function removeLaunch(launchId: string) {
   await deleteLaunch(launchId);
   forgetLaunch(launchId);
   await refreshWorkbenchLaunches();
-  notify.success("Launch removed");
+  notify.success("Launch removed", { activity: true });
 }
 
 export async function cleanupLaunchRuns(launchIds: readonly string[]) {
@@ -97,6 +98,7 @@ export async function cleanupLaunchRuns(launchIds: readonly string[]) {
       removed.length === 1
         ? "Removed 1 old launch run"
         : `Removed ${removed.length} old launch runs`,
+      { activity: true },
     );
   }
   if (failed > 0) {
@@ -116,6 +118,7 @@ export async function pruneFinishedLaunches() {
     removed.length === 1
       ? "Removed 1 finished launch"
       : `Removed ${removed.length} finished launches`,
+    { activity: true },
   );
 }
 

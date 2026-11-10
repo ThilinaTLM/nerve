@@ -58,6 +58,8 @@ $effect(() => {
   if (!signature) return;
   notify.warning(failingToastTitle(health.byProject), {
     duration: 8000,
+    // The daemon already records this health state in Activity.
+    activity: false,
     action: { label: "View", onClick: () => activityInbox.setOpen(true) },
   });
 });

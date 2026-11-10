@@ -6,6 +6,7 @@ import {
   showDesktopNotification,
 } from "$lib/platform/desktop/desktop-bridge.svelte";
 import { initializeNotificationSoundPlayback } from "$lib/application/notifications/state/notification-sounds";
+import { recordActivityNotice } from "$lib/application/notifications/activity-notices";
 
 type BrowserPermission = NotificationPermission | "unsupported";
 type NotifyKind = "success" | "error" | "message";
@@ -23,6 +24,11 @@ export type NotifyOptions = {
   action?: { label: string; onClick: () => void };
   /** Toast lifetime in milliseconds. */
   duration?: number;
+  /**
+   * Also record the feedback in the Activity inbox (the only surface on
+   * desktop). Defaults to true for errors/warnings, false otherwise.
+   */
+  activity?: boolean;
 };
 
 export type NotificationPreferences = {
@@ -66,9 +72,11 @@ let listenersInstalled = false;
 // runtime notification policy.
 export const notify = {
   success(title: string, options: NotifyOptions = {}): void {
+    recordActivityNotice("success", title, options);
     showToast("success", title, options);
   },
   error(title: string, options: NotifyOptions = {}): void {
+    recordActivityNotice("error", title, options);
     showToast("error", title, options);
   },
   /** A spinner toast; replace it by showing another toast with the same id. */
@@ -76,6 +84,7 @@ export const notify = {
     sonnerToast.loading(title, { id });
   },
   warning(title: string, options: NotifyOptions = {}): void {
+    recordActivityNotice("warning", title, options);
     sonnerToast.warning(title, {
       description: options.description,
       action: options.action,
@@ -83,6 +92,7 @@ export const notify = {
     });
   },
   message(title: string, options: NotifyOptions = {}): void {
+    recordActivityNotice("message", title, options);
     showToast("message", title, options);
   },
 };

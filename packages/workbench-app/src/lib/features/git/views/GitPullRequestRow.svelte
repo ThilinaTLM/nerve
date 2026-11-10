@@ -73,15 +73,14 @@ const stateClass = $derived(
 );
 const age = $derived(formatCompactAge(pr.updatedAt));
 
-async function copy(text: string, success: string) {
+async function copy(text: string) {
   try {
     await writeClipboardText(text);
-    notify.success(success);
   } catch {
     notify.error("Could not copy to clipboard");
   }
 }
-const copyLink = () => copy(pr.url, `Copied link to PR #${pr.number}`);
+const copyLink = () => copy(pr.url);
 
 const menuItems = $derived<ContextMenuItem[]>([
   {
@@ -100,13 +99,12 @@ const menuItems = $derived<ContextMenuItem[]>([
   {
     label: "Copy branch name",
     icon: GitBranch,
-    onSelect: () =>
-      void copy(pr.headRefName, `Copied branch ${pr.headRefName}`),
+    onSelect: () => void copy(pr.headRefName),
   },
   {
     label: "Copy title",
     icon: Copy,
-    onSelect: () => void copy(pr.title, `Copied title of PR #${pr.number}`),
+    onSelect: () => void copy(pr.title),
   },
   ...(hasCheckDetails
     ? ([

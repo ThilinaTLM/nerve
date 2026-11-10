@@ -3,6 +3,9 @@ import { cleanup, render, screen } from "@testing-library/svelte";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import ConfirmDialog from "./confirm-dialog.svelte";
+import Harness from "./confirm-dialog-test-harness.svelte";
+
+const settle = () => new Promise((resolve) => setTimeout(resolve, 300));
 
 function setup(props: Record<string, unknown> = {}) {
   const handlers = {
@@ -55,5 +58,45 @@ describe("ConfirmDialog", () => {
     await userEvent.keyboard("{Escape}");
     expect(h.onOpenChange).toHaveBeenLastCalledWith(false);
     expect(h.onConfirm).not.toHaveBeenCalled();
+  });
+
+  it("reopens for an unbound caller after confirm, cancel and Escape", async () => {
+    const onDone = vi.fn();
+    render(Harness, { onDone });
+    await userEvent.click(screen.getByText("delete-a"));
+    await userEvent.click(
+      await screen.findByRole("button", { name: "Delete" }),
+    );
+    await settle();
+    await userEvent.click(screen.getByText("delete-b"));
+    await userEvent.click(
+      await screen.findByRole("button", { name: "Cancel" }),
+    );
+    await settle();
+    await userEvent.click(screen.getByText("delete-b"));
+    await screen.findByRole("alertdialog");
+    await userEvent.keyboard("{Escape}");
+    await settle();
+    expect(screen.queryByRole("alertdialog")).toBeNull();
+    await userEvent.click(screen.getByText("delete-c"));
+    await userEvent.click(
+      await screen.findByRole("button", { name: "Delete" }),
+    );
+    expect(onDone.mock.calls.map(([id]) => id)).toEqual(["a", "c"]);
+  });
+
+  it("closes and reopens a bound caller", async () => {
+    const onDone = vi.fn();
+    render(Harness, { bound: true, onDone });
+    for (let round = 0; round < 2; round++) {
+      await userEvent.click(screen.getByText("open-bound"));
+      await userEvent.click(
+        await screen.findByRole("button", { name: "Delete" }),
+      );
+      await settle();
+      expect(screen.getByTestId("bound-state").textContent).toBe("false");
+      expect(screen.queryByRole("alertdialog")).toBeNull();
+    }
+    expect(onDone).toHaveBeenCalledTimes(2);
   });
 });

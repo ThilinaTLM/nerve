@@ -105,7 +105,7 @@ export async function selectCenterFileTab(id: string) {
 export async function refreshFilePane(id: string) {
   const view = fileState.fileViews[fileViewKey(id)];
   if (view?.dirty) {
-    notify.message("File has unsaved changes", {
+    notify.warning("File has unsaved changes", {
       description: "Save or discard your changes before refreshing.",
     });
     return;

@@ -95,7 +95,8 @@ $effect(() => {
     onCopySelection: (text) => writeClipboardText(text),
     onPrune: async () => {
       const pruned = await controller.prune();
-      if (pruned && controller.notice) notify.success(controller.notice);
+      if (pruned && controller.notice)
+        notify.success(controller.notice, { activity: true });
       return pruned;
     },
   }}

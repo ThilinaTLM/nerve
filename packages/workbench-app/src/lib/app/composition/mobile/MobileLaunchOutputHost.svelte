@@ -128,7 +128,6 @@ async function copyCommand() {
   if (!launch) return;
   try {
     await writeClipboardText(launch.command);
-    notify.success("Copied to clipboard");
   } catch {
     notify.error("Could not copy to clipboard");
   }

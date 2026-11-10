@@ -531,10 +531,9 @@ export class FilesTreeController {
 
   // ----- Native actions ----------------------------------------------------
 
-  copyText = async (text: string, label: string): Promise<void> => {
+  copyText = async (text: string): Promise<void> => {
     try {
       await writeClipboardText(text);
-      notify.success(`Copied ${label}`);
     } catch {
       notify.error("Could not copy to clipboard");
     }
@@ -625,6 +624,7 @@ export class FilesTreeController {
         void this.focusRow(entry.path);
         notify.success(
           item.kind === "file" ? "File created" : "Folder created",
+          { description: entry.path, activity: true },
         );
       } catch (caught) {
         notify.error(
@@ -664,7 +664,7 @@ export class FilesTreeController {
     if (source.mode === "cut") {
       const plan = planDrop(source.entries, targetDirectory, "move");
       if (!plan.ok) {
-        notify.message(plan.reason);
+        notify.warning(plan.reason);
         return;
       }
       const moved = await moveFileExplorerEntries(context, plan.moves);
@@ -672,7 +672,7 @@ export class FilesTreeController {
     } else {
       const plan = planDrop(source.entries, targetDirectory, "copy");
       if (!plan.ok) {
-        notify.message(plan.reason);
+        notify.warning(plan.reason);
         return;
       }
       await copyFileExplorerEntries(
@@ -724,7 +724,7 @@ export class FilesTreeController {
       .flatMap(this.dragItem)
       .map(formatProjectEntryReference);
     if (!requestComposerMentions(references))
-      notify.message("Open a conversation to mention files");
+      notify.warning("Open a conversation to mention files");
   };
 
   // ----- Selection and keyboard -------------------------------------------

@@ -34,6 +34,8 @@ $effect(() => {
   if (!signature) return;
   notify.warning(settingsHealthToastTitle(health), {
     duration: 8000,
+    // The daemon already records this health state in Activity.
+    activity: false,
     action: { label: "View", onClick: () => activityInbox.setOpen(true) },
   });
 });

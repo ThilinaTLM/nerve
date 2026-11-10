@@ -87,7 +87,9 @@ export async function switchGitRepoBranch(
     const result = await switchGitBranch(projectId, repo, branch.name);
     await awaitGitWorkspaceRevision(projectId, result.workspaceRevision, repo);
     setBranchesIfChanged(state, []);
-    notify.success(`Switched to ${result.repo.currentBranch ?? branch.name}`);
+    notify.success(`Switched to ${result.repo.currentBranch ?? branch.name}`, {
+      activity: true,
+    });
     return true;
   } catch (error) {
     notifyGitFailure("Switch branch failed", error);
@@ -108,7 +110,7 @@ export async function deleteGitRepoBranch(
   try {
     const result = await deleteGitBranch(projectId, repo, branch.name);
     setBranchesIfChanged(state, []);
-    notify.success(`Deleted branch ${branch.name}`);
+    notify.success(`Deleted branch ${branch.name}`, { activity: true });
     await Promise.all([
       refreshBranches(projectId, repo, undefined, true),
       awaitGitWorkspaceRevision(projectId, result.workspaceRevision, repo),
@@ -134,7 +136,7 @@ export async function createGitRepoBranch(
     const result = await createGitBranch(projectId, repo, name.trim());
     await awaitGitWorkspaceRevision(projectId, result.workspaceRevision, repo);
     setBranchesIfChanged(state, []);
-    notify.success(`Created branch ${name.trim()}`);
+    notify.success(`Created branch ${name.trim()}`, { activity: true });
     return true;
   } catch (error) {
     notifyGitFailure("Create branch failed", error);
@@ -162,7 +164,9 @@ export async function createGitRepoWorktree(
     );
     await awaitGitWorkspaceRevision(projectId, result.workspaceRevision, repo);
     selectGitRepo(projectId, result.repo.relativePath);
-    notify.success(`Created worktree ${worktreeFolder(result.repo)}`);
+    notify.success(`Created worktree ${worktreeFolder(result.repo)}`, {
+      activity: true,
+    });
     return true;
   } catch (error) {
     notifyGitFailure("Create worktree failed", error);
@@ -189,6 +193,7 @@ export async function removeGitRepoWorktree(
     await awaitGitWorkspaceRevision(projectId, result.workspaceRevision, repo);
     notify.success(
       `Removed worktree ${removed ? worktreeFolder(removed) : repo}`,
+      { activity: true },
     );
     return true;
   } catch (error) {
@@ -292,7 +297,7 @@ export async function createGitRepoStash(
       scopedFiles ? gitPathspecs(scopedFiles) : undefined,
     );
     revision = result.workspaceRevision;
-    notify.success("Changes stashed");
+    notify.success("Changes stashed", { activity: true });
   } catch (error) {
     notifyGitFailure("Stash failed", error);
   } finally {
@@ -317,7 +322,7 @@ export async function applyGitRepoStash(
       stash.hash,
     );
     revision = result.workspaceRevision;
-    notify.success("Stash applied");
+    notify.success("Stash applied", { activity: true });
   } catch (error) {
     notifyGitFailure("Apply stash failed", error);
   } finally {
@@ -337,7 +342,7 @@ export async function dropGitRepoStash(
   try {
     const result = await dropGitStash(projectId, repo, stash.index, stash.hash);
     revision = result.workspaceRevision;
-    notify.success("Stash dropped");
+    notify.success("Stash dropped", { activity: true });
   } catch (error) {
     notifyGitFailure("Drop stash failed", error);
   } finally {

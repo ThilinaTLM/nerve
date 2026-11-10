@@ -166,11 +166,10 @@ function toWorkbenchTab(tab: CenterTabModel): WorkbenchTabModel {
   return model;
 }
 
-async function copyToClipboard(text: string | undefined, label: string) {
+async function copyToClipboard(text: string | undefined) {
   if (!text) return;
   try {
     await writeClipboardText(text);
-    notify.success(`Copied ${label}`);
   } catch {
     notify.error("Could not copy to clipboard");
   }
@@ -224,7 +223,7 @@ function tabMenu(tab: WorkbenchTabModel): ContextMenuItem[] {
     utilities.push({
       label: "Copy ID",
       icon: Copy,
-      onSelect: () => void copyToClipboard(conversation.id, "conversation id"),
+      onSelect: () => void copyToClipboard(conversation.id),
     });
   }
 
@@ -240,13 +239,13 @@ function tabMenu(tab: WorkbenchTabModel): ContextMenuItem[] {
         label: "Copy path",
         icon: Copy,
         disabled: !absolutePath,
-        onSelect: () => void copyToClipboard(absolutePath, "path"),
+        onSelect: () => void copyToClipboard(absolutePath),
       },
       {
         label: "Copy relative path",
         icon: Copy,
         disabled: !relativePath,
-        onSelect: () => void copyToClipboard(relativePath, "relative path"),
+        onSelect: () => void copyToClipboard(relativePath),
       },
     );
     if (source.kind === "file") {
