@@ -25,7 +25,6 @@ import { STORAGE_PRELUDE } from "./storage-helpers.js";
  */
 
 export type {
-  NestedAuthorization,
   SdkEnvironment,
   SdkMethod,
 } from "./sdk-types.js";
