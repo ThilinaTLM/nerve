@@ -25,7 +25,7 @@
     "check": "pnpm check:boundaries && tsc -b --pretty false && pnpm check:native",
     "check:boundaries": "tsx scripts/check-internal-dependencies.ts",
     "check:native": "cargo fmt --check --manifest-path native/Cargo.toml && cargo clippy --manifest-path native/Cargo.toml --all-targets -- -D warnings",
-    "test": "tsx --test \"test/**/*.test.ts\" && pnpm test:native",
+    "test": "tsx --test --test-timeout=120000 \"test/**/*.test.ts\" && pnpm test:native",
     "test:native": "cargo test --manifest-path native/Cargo.toml"
   },
   "devDependencies": {

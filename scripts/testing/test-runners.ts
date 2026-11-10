@@ -48,7 +48,9 @@ export const TEST_RUNNERS: ReadonlyMap<string, TestRunner> = new Map([
   [
     "@nervekit/native",
     tsxRunner(defaultGlobs, {
-      script: `${tsxScript(defaultGlobs)} && pnpm test:native`,
+      // Fail a hung test by name instead of stalling the release job.
+      options: ["--test-timeout=120000"],
+      script: `${tsxScript(defaultGlobs, ["--test-timeout=120000"])} && pnpm test:native`,
     }),
   ],
   ["@nervekit/tools", tsxRunner(["test/**/*.test.ts", "src/**/*.test.ts"])],
