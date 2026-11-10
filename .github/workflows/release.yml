@@ -154,6 +154,9 @@ jobs:
         working-directory: packages/native
         run: pnpm exec napi build --cwd native --package-json-path ../package.json --platform --release --target ${{ matrix.target }} --output-dir ../prebuilds
       - name: Test native prebuild
+        # A hung test must fail this step, not hit the job timeout: a
+        # job-timeout cancellation discards the log that names the test.
+        timeout-minutes: 12
         run: pnpm --filter @nervekit/native test
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
