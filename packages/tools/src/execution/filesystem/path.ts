@@ -1,6 +1,6 @@
 import { access, readdir, stat } from "node:fs/promises";
 import { homedir } from "node:os";
-import { basename, dirname, isAbsolute, resolve } from "node:path";
+import { basename, dirname, isAbsolute, resolve, sep } from "node:path";
 import { resolveNativePath } from "./native-path.js";
 
 const UNICODE_SPACES = /[\u00a0\u2007\u202f]/g;
@@ -98,15 +98,16 @@ async function nearestDirectoryListing(
 
 /** The ancestor spelled the way the model spelled the path (relative stays relative). */
 function displayAncestor(label: string, dir: string, climbed: number): string {
-  const path = label.replace(/^@/, "");
-  const parts = path.replace(/[\\/]+$/, "").split(/[\\/]/);
-  if (parts.length > climbed) {
-    const kept = parts.slice(0, parts.length - climbed).join("/");
-    if (kept) return `${kept}/`;
+  const path = label.replace(/^@/, "").replace(/[\\/]+$/, "");
+  // Cut the path as the model wrote it, so its separators (`/` or `\`) stay unchanged.
+  const separators = [...path.matchAll(/[\\/]/g)].map((match) => match.index);
+  if (separators.length >= climbed) {
+    const end = separators[separators.length - climbed];
+    if (end !== undefined && end > 0) return path.slice(0, end + 1);
   } else if (!isAbsolute(path) && !path.startsWith("~")) {
     return "./";
   }
-  return dir.endsWith("/") ? dir : `${dir}/`;
+  return /[\\/]$/.test(dir) ? dir : `${dir}${sep}`;
 }
 
 export async function resolveReadPath(

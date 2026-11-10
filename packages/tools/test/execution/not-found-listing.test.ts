@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { mkdir } from "node:fs/promises";
-import { join } from "node:path";
+import { join, sep } from "node:path";
 import { describe, it } from "node:test";
 import { executeEdit } from "../../src/execution/filesystem/edit.js";
 import { executeFind } from "../../src/execution/filesystem/find.js";
@@ -66,7 +66,7 @@ describe("not-found directory listing", () => {
     assert.equal(first, `path not found: ${missing}`);
     assert.ok(
       second.startsWith(
-        `Nearest existing directory ${project.root}/ contains: f00 `,
+        `Nearest existing directory ${project.root}${sep} contains: f00 `,
       ),
     );
     assert.ok(second.endsWith(" … 5 more"));

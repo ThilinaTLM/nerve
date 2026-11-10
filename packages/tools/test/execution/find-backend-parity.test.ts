@@ -1,12 +1,12 @@
 import assert from "node:assert/strict";
-import { execFileSync } from "node:child_process";
 import { describe, it } from "node:test";
 import { executeFindWithBackend } from "../../src/execution/filesystem/find.js";
 import { createTempProject } from "../support/project-fixtures.js";
 
-function fdAvailable(): boolean {
+/** Whether the fd backend can run here; probed through the backend itself. */
+async function fdAvailable(root: string): Promise<boolean> {
   try {
-    execFileSync("fd", ["--version"], { stdio: "ignore" });
+    await executeFindWithBackend({ pattern: "*" }, { cwd: root }, "fd");
     return true;
   } catch {
     return false;
@@ -80,11 +80,11 @@ describe("find backends", () => {
   });
 
   it("fd and the Node fallback return the same files", async (t) => {
-    if (!fdAvailable()) {
+    const project = await createTempProject();
+    if (!(await fdAvailable(project.root))) {
       t.skip("fd is not installed");
       return;
     }
-    const project = await createTempProject();
     for (const file of FILES) await project.write(file, "x");
     for (const pattern of PATTERNS) {
       assert.deepEqual(
