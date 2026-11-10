@@ -2,6 +2,7 @@ import {
   formatSkillsForSystemPrompt,
   type Skill,
 } from "@nervekit/harness/resources";
+import { resolveSkillPlaceholders } from "@nervekit/skills";
 
 export interface BuildNerveSystemPromptOptions {
   customPrompt?: string;
@@ -46,6 +47,7 @@ export function buildNerveSystemPrompt(
 
   return [
     basePrompt,
+    formatToolGuides(tools),
     options.appendSystemPrompt,
     options.instructions?.trim()
       ? ["<instructions>", options.instructions.trim(), "</instructions>"].join(
@@ -83,6 +85,17 @@ function defaultPrompt(hasAskUser: boolean): string {
         : []),
     ]),
   ].join("\n\n");
+}
+
+/** One guide reference per active tool family, instead of one per tool description. */
+function formatToolGuides(tools: string[]): string {
+  return ["jira", "confluence"]
+    .filter((family) => tools.some((name) => name.startsWith(`${family}_`)))
+    .map(
+      (family) =>
+        `Before first using ${family}_* tools, read ${resolveSkillPlaceholders(`{{skill:${family}}}`)}.`,
+    )
+    .join("\n");
 }
 
 function formatTaggedBulletSection(tag: string, items: string[]): string {

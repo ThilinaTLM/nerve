@@ -9,9 +9,7 @@ import type { ToolDefinition } from "../../contracts.js";
 
 const readParameters = Type.Object(
   {
-    path: Type.String({
-      description: "Relative or absolute.",
-    }),
+    path: Type.String(),
     offset: Type.Optional(
       Type.Number({
         description: "1-indexed line.",
@@ -24,7 +22,7 @@ const readParameters = Type.Object(
       }),
     ),
     byteLimit: Type.Optional(
-      Type.Number({ default: 4096, description: "Capped at 4096." }),
+      Type.Number({ description: "Capped at 4096." }),
     ),
   },
   { additionalProperties: false },
@@ -61,7 +59,7 @@ const writeParameters = Type.Object(
 const grepParameters = Type.Object(
   {
     pattern: Type.String(),
-    path: Type.Optional(Type.String({ description: "Or use paths." })),
+    path: Type.Optional(Type.String()),
     paths: Type.Optional(
       Type.Array(Type.String(), {
         description: "Several targets instead of path.",
@@ -69,7 +67,7 @@ const grepParameters = Type.Object(
     ),
     glob: Type.Optional(
       Type.String({
-        description: "File filter, e.g. `*.ts` or `**/*.test.ts`.",
+        description: "File glob filter, e.g. `*.ts`.",
       }),
     ),
     ignoreCase: Type.Optional(Type.Boolean()),
@@ -79,18 +77,16 @@ const grepParameters = Type.Object(
         description: "Lines around each match.",
       }),
     ),
-    limit: Type.Optional(Type.Number({ default: 100 })),
+    limit: Type.Optional(Type.Number()),
   },
   { additionalProperties: false },
 );
 
 const findParameters = Type.Object(
   {
-    pattern: Type.String({
-      description: "E.g. src/**/*.test.ts.",
-    }),
+    pattern: Type.String(),
     path: Type.Optional(Type.String()),
-    limit: Type.Optional(Type.Number({ default: 1000 })),
+    limit: Type.Optional(Type.Number()),
   },
   { additionalProperties: false },
 );
@@ -98,7 +94,7 @@ const findParameters = Type.Object(
 const lsParameters = Type.Object(
   {
     path: Type.Optional(Type.String()),
-    limit: Type.Optional(Type.Number({ default: 500 })),
+    limit: Type.Optional(Type.Number()),
   },
   { additionalProperties: false },
 );
@@ -147,7 +143,7 @@ export const filesystemToolDefinitions = [
     executor: executeEdit,
     label: "edit",
     description:
-      "Exact, unique text replacements in an existing file. Every oldText matches the original file; the batch applies atomically.",
+      "Exact, unique replacements in an existing file; all edits match the original text and apply atomically.",
     parameters: editParameters,
     executionMode: "sequential",
   },

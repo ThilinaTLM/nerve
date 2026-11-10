@@ -16,12 +16,12 @@ const askUserParameters = Type.Object(
           question: Type.String(),
           context: Type.Optional(
             Type.String({
-              description: "One short line of background needed to decide.",
+              description: "One line of background.",
             }),
           ),
           recommendation: Type.Optional(
             Type.String({
-              description: "One short line: your recommendation and why.",
+              description: "One line: your recommendation and why.",
             }),
           ),
           options: Type.Optional(
@@ -75,7 +75,7 @@ const todoItemParameters = Type.Object(
 
 const todosSetParameters = Type.Object(
   {
-    todos: Type.Array(todoItemParameters, {}),
+    todos: Type.Array(todoItemParameters),
   },
   { additionalProperties: false },
 );
@@ -91,7 +91,7 @@ export const interactionToolDefinitions = [
     executionKind: "host",
     label: "Ask User",
     description:
-      "Ask focused questions when progress depends on the user's decision. Batch related questions (max 5). Offer options for clear choices and mark at most one recommended. Users can also answer in free text and attach images (returned as readable paths).",
+      "Ask focused questions when progress depends on the user's decision. Batch related questions. Offer options for clear choices, marking at most one recommended. Users can also answer in free text and attach images (returned as paths).",
     parameters: askUserParameters,
     normalizeArguments: normalizeAskUserArguments,
     executionMode: "sequential",

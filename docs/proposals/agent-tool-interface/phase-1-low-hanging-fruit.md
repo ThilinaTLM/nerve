@@ -3,6 +3,8 @@
 > **Status:** Implemented. Part of [agent tool interface](README.md). Evidence and the strings it replaced are in [review.md](review.md).
 >
 > Differences from the text below: grep prints its exact match total instead of `100+`, because the tool already counts past its limit; the overflow branches in `process-result.ts` stay, because `web_search` and `explain_image` still reach them; `python_exec` `Unknown system error -122` was a full disk quota and is now reported as such.
+>
+> **Schema compaction.** An A/B run on Haiku 5.5 showed that §1 made the tool schemas about 300 characters longer, a cost paid on every request. A follow-up pass kept only the additions tied to observed failures, removed text repeated between descriptions and parameters, emitted enums as `enum` instead of `anyOf`/`const`, and moved the Jira and Confluence guide references from 28 tool descriptions to one system-prompt line per active family. Tool definitions went from 30,391 to 23,995 characters (−21%) against `main`; parameter names, defaults applied by executors, and validation are unchanged.
 
 ## Scope and expected effect
 

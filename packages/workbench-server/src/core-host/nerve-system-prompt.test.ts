@@ -132,3 +132,18 @@ void test("conversation custom base never drops separately captured profile/loca
     "",
   );
 });
+
+void test("adds one guide line per active Jira/Confluence tool family", () => {
+  const none = buildNerveSystemPrompt({ cwd: "/w", selectedTools: ["read"] });
+  assert.doesNotMatch(none, /Before first using/);
+  const prompt = buildNerveSystemPrompt({
+    cwd: "/w",
+    customPrompt: "Custom",
+    selectedTools: ["read", "jira_get_issue"],
+  });
+  assert.match(
+    prompt,
+    /^Custom\n\nBefore first using jira_\* tools, read .*jira.*\.\n\n/,
+  );
+  assert.doesNotMatch(prompt, /confluence_\*/);
+});
