@@ -1,3 +1,4 @@
+import { cleanupSessionResources } from "@earendil-works/pi-ai";
 import type {
   Api,
   AssistantMessage,
@@ -55,6 +56,20 @@ export function streamSimpleWithModel(
     );
   }
   return models.streamSimple(model, context, streamOptions);
+}
+
+/**
+ * Frees pi-ai's per-session provider state (Anthropic message threads, strict tool
+ * limits) for sessions that ended. Best effort: cleanup never fails the caller.
+ */
+export function cleanupProviderSessionResources(sessionIds: string[]): void {
+  for (const sessionId of sessionIds) {
+    try {
+      cleanupSessionResources(sessionId);
+    } catch {
+      // Leftover state is bounded by pi-ai and expires on the provider.
+    }
+  }
 }
 
 export async function completeSimpleWithModel(

@@ -1,11 +1,30 @@
+import {
+  isRetryableAssistantError,
+  type AssistantMessage,
+} from "@earendil-works/pi-ai";
+
+/**
+ * Nerve-only permanent failures checked before pi-ai: explicit markers, generic
+ * usage limits, and context overflow, which compaction handles instead of retry.
+ */
 const PERMANENT_PROVIDER_ERROR =
-  /NON_RETRYABLE|GoUsageLimitError|FreeUsageLimitError|Monthly usage limit reached|usage limit|available balance|insufficient_quota|out of budget|quota exceeded|billing|context.?length|context.?window|maximum context|too many tokens/i;
+  /NON_RETRYABLE|usage limit|context.?length|context.?window|maximum context|too many tokens/i;
 
+/** Nerve-only transient failures that pi-ai's classifier does not cover. */
 const TRANSIENT_PROVIDER_ERROR =
-  /RETRYABLE|overloaded|provider.?returned.?error|rate.?limit|too many requests|429|500|502|503|504|service.?unavailable|server.?error|internal.?error|error occurred while processing your request|network.?error|connection.?error|connection.?refused|connection.?lost|websocket.?closed|websocket.?error|other side closed|fetch failed|upstream.?connect|reset before headers|socket hang up|ended without|stream ended before message_stop|http2 request did not get a response|timed? out|timeout|terminated|retry delay/i;
+  /RETRYABLE|error occurred while processing your request/i;
 
-/** Classifies known provider failures that are safe to retry automatically. */
+/**
+ * Classifies known provider failures that are safe to retry automatically.
+ * pi-ai owns the shared provider list; Nerve only adds its own overrides.
+ */
 export function isRetryableProviderError(message?: string): boolean {
   if (!message || PERMANENT_PROVIDER_ERROR.test(message)) return false;
-  return TRANSIENT_PROVIDER_ERROR.test(message);
+  const failure = {
+    stopReason: "error",
+    errorMessage: message,
+  } as AssistantMessage;
+  return (
+    isRetryableAssistantError(failure) || TRANSIENT_PROVIDER_ERROR.test(message)
+  );
 }

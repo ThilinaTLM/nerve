@@ -23,6 +23,7 @@ import {
   type ConversationSnapshot,
   type UpdateConversationRequest,
 } from "@nervekit/contracts/core";
+import { cleanupProviderSessionResources } from "@nervekit/harness/models";
 import { deriveConversationTitle } from "./conversation-title.js";
 import type { AssetStore } from "../assets/asset-store.js";
 import type { InputQueueService } from "../inputs/input-queue.service.js";
@@ -307,6 +308,8 @@ export class ConversationService {
       await this.options.assets.deleteConversationFiles(ids);
       this.options.storage.conversations.delete(id);
     });
+    // Model requests use the conversation id as the provider session id.
+    cleanupProviderSessionResources(ids);
     for (const conversationId of ids) {
       this.advanceTitleToken(conversationId);
       this.newTitleCandidates.delete(conversationId);
