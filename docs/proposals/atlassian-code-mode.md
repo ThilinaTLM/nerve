@@ -159,7 +159,7 @@ Branch `poc/atlassian-code-mode`: a `sandbox` domain in `packages/native` (`nati
   - QuickJS reports some out-of-memory failures as a bare `null` exception, so the runtime classifies a failure as `memory_limit` from usage near the cap.
   - Parsing in QuickJS is about 8× slower than in Node, which is fine at this size. That supports keeping Excel and large data host-side.
 - **Cross-platform:** CI on PR #568 built the addon and ran the native tests, including the sandbox tests, on Linux, Windows and macOS. All passed.
-- **Tool slice:** `atlassian_code_mode` with a read-only Jira SDK (`issues.search/get`, `projects.get`, `users.search`, `fields.list`), the broker above, a tool-settings toggle and a tool card.
+- **Tool slice:** `atlassian_code_mode` with a read-only Jira SDK (`issues.search/get`, `projects.get`, `users.search`, `fields.list`), the permission broker (see [Permissions and approvals](#permissions-and-approvals)), a tool-settings toggle and a tool card.
 - **Not yet verified:** a run against a real Jira site, helper bytecode precompilation, Confluence, writes and nested approvals, and the Excel host functions.
 
 ## Permissions and approvals
