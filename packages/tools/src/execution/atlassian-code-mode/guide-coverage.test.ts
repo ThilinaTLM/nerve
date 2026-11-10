@@ -1,0 +1,69 @@
+import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import test from "node:test";
+import { fileURLToPath } from "node:url";
+import { sdkMethodNames } from "./sdk.js";
+import { STORAGE_PRELUDE } from "./storage-helpers.js";
+
+// Works from src/ (tsx) and dist/: walk up to the packages directory.
+function guideDir(): string {
+  let dir = dirname(fileURLToPath(import.meta.url));
+  for (;;) {
+    const candidate = join(
+      dir,
+      "skills",
+      "src",
+      "guides",
+      "atlassian-code-mode",
+    );
+    try {
+      readFileSync(join(candidate, "SKILL.md"));
+      return candidate;
+    } catch {
+      const parent = dirname(dir);
+      assert.notEqual(parent, dir, "atlassian-code-mode guide not found");
+      dir = parent;
+    }
+  }
+}
+
+function storageHelpers(): string[] {
+  const returned = STORAGE_PRELUDE.slice(
+    STORAGE_PRELUDE.lastIndexOf("return {"),
+  );
+  return [...returned.matchAll(/^\s{4}(\w+)(?::|,)/gm)].map(
+    (m) => `storage.${m[1]}`,
+  );
+}
+
+const dir = guideDir();
+const reference = (name: string) => readFileSync(join(dir, name), "utf8");
+
+for (const product of ["jira", "confluence", "storage"] as const) {
+  const known =
+    product === "storage"
+      ? storageHelpers()
+      : sdkMethodNames().filter((n) => n.startsWith(`${product}.`));
+
+  void test(`${product}.md documents every ${product} method and nothing else`, () => {
+    assert.ok(known.length > 0);
+    const text = reference(`${product}.md`);
+    for (const name of known) {
+      assert.ok(text.includes(`\`${name}(`), `${product}.md misses ${name}(`);
+    }
+    const mentioned = new Set(
+      [
+        ...text.matchAll(
+          new RegExp(`\\b${product}(?:\\.\\w+){1,2}(?=\\()`, "g"),
+        ),
+      ].map((m) => m[0]),
+    );
+    for (const name of mentioned) {
+      assert.ok(
+        known.includes(name),
+        `${product}.md mentions unknown ${name}(`,
+      );
+    }
+  });
+}

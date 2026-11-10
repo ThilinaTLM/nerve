@@ -1,6 +1,5 @@
 import { Type } from "typebox";
 import { executeAtlassianCodeMode } from "../../../execution/atlassian-code-mode/atlassian-code-mode.js";
-import { SDK_INDEX } from "../../../execution/atlassian-code-mode/sdk.js";
 import type { ToolDefinition } from "../../contracts.js";
 
 const atlassianCodeModeParameters = Type.Object(
@@ -29,12 +28,8 @@ export const atlassianCodeModeToolDefinitions = [
     executionKind: "local",
     executor: executeAtlassianCodeMode,
     label: "Atlassian code mode",
-    description: `Run a TypeScript script against Jira and Confluence in a sandbox with globals \`jira\`, \`confluence\`, \`storage\`. Batch calls and filter in code. The top level is an ES module with top-level await: print results with console.log (no \`return\`); only printed output is returned. Results are plain objects, text fields are Markdown, \`fields\` take names ("Story Points") or ids. Errors throw HostError.
-JQL must be bounded (e.g. \`project = X\`); a bare ORDER BY is rejected. Issue = { key, id, url, summary, status, statusCategory, type, priority, assignee/reporter: {name,email,accountId}|null, created, updated, resolution, labels, components, fixVersions, parent, description (get only), ...requested fields }; comment, attachment, issuelinks, subtasks, worklog come simplified.
-${SDK_INDEX.jira}
-${SDK_INDEX.confluence}
-Storage helpers (build rich pages; pure strings):
-${SDK_INDEX.storage}`,
+    description:
+      "Run a sandboxed TypeScript script against Jira and Confluence with globals `jira`, `confluence`, `storage`. Read {{skill:atlassian-code-mode}} before first use; method references are linked from it.\nThe script is an ES module with top-level await: print results with console.log (no `return`); only printed output is returned. JQL must be bounded (e.g. `project = X`); a bare ORDER BY is rejected.",
     parameters: atlassianCodeModeParameters,
     executionMode: "parallel",
   },

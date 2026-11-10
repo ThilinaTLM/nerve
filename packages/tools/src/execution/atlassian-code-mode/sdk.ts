@@ -10,14 +10,14 @@ import {
   jiraMethods,
 } from "./jira-methods.js";
 import type { SdkEnvironment, SdkMethod } from "./sdk-types.js";
-import { STORAGE_INDEX, STORAGE_PRELUDE } from "./storage-helpers.js";
+import { STORAGE_PRELUDE } from "./storage-helpers.js";
 
 /**
  * The SDK in one place. Every method (jira-methods.ts, confluence-methods.ts)
  * declares its signature, the direct tool it is authorized as, and its
- * implementation. The prelude injected into the sandbox and the tool
- * description's SDK index are both generated from these tables, so docs cannot
- * drift from the dispatcher.
+ * implementation. The prelude injected into the sandbox is generated from
+ * these tables; the guide skill's references are checked against them by
+ * guide-coverage.test.ts.
  */
 
 export type {
@@ -77,17 +77,3 @@ export const SDK_PRELUDE = [
   productPrelude("confluence"),
   STORAGE_PRELUDE,
 ].join("\n");
-
-function index(product: string): string {
-  return methods
-    .filter((method) => method.product === product)
-    .map((method) => `${product}.${method.signature}`)
-    .join("\n");
-}
-
-/** Compact SDK index for the tool description. */
-export const SDK_INDEX = {
-  jira: index("jira"),
-  confluence: index("confluence"),
-  storage: STORAGE_INDEX,
-};

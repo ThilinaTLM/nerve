@@ -36,12 +36,6 @@ export function hasMarkdownMarkers(text: string): boolean {
   return text.includes(MARKDOWN_MARKER_START);
 }
 
-export const STORAGE_INDEX = [
-  'storage.markdown(md), .escape(text), .toc(), .panel("info"|"note"|"warning"|"tip"|"success", body, { title? }), .expand(title, body),',
-  '.status(text, "Grey"|"Red"|"Yellow"|"Green"|"Blue"|"Purple"), .code(code, { language?, title? }), .jiraIssue(key), .jiraIssues(jql, { columns? }),',
-  '.table(rows: object[] | string[][], { columns? })  // strings: concatenate into a `format: "storage"` body; body args take Markdown or storage',
-].join("\n");
-
 export const STORAGE_PRELUDE = String.raw`globalThis.storage = (() => {
   const START = "\u0001md:";
   const esc = (s) => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
