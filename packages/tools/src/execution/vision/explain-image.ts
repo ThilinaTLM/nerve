@@ -32,9 +32,9 @@ export async function executeExplainImage(
   }
 
   const path = await resolveReadPath(context.cwd, args.path);
-  const fileStat = await stat(path).catch((error: unknown) => {
+  const fileStat = await stat(path).catch(async (error: unknown) => {
     if (isErrnoException(error) && error.code === "ENOENT") {
-      throw new Error(pathNotFoundMessage("explain_image", args.path, path));
+      throw new Error(await pathNotFoundMessage(args.path, path));
     }
     throw error;
   });

@@ -7,7 +7,7 @@ import { writeTextFileAtomically } from "./atomic-write.js";
 import { ToolExecutionError } from "../errors/tool-error.js";
 import { argumentError, editError } from "./edit-errors.js";
 import { withFileMutationQueue } from "./file-mutation-queue.js";
-import { resolveToolPath } from "./path.js";
+import { isErrnoException, resolveToolPath } from "./path.js";
 import {
   detectLineEnding,
   firstChangedLine,
@@ -35,15 +35,25 @@ export async function executeEdit(
   context: FilesystemExecutionContext,
 ): Promise<ToolExecutionResult> {
   const path = resolveToolPath(context.cwd, args.path);
+  const shown = String(args.path).trim();
   try {
     const edits = parseEdits(args);
 
     return await withFileMutationQueue(path, async () => {
-      const raw = await readFile(path, "utf8");
+      const raw = await readFile(path, "utf8").catch((error: unknown) => {
+        if (isErrnoException(error) && error.code === "ENOENT") {
+          throw editError(
+            "EDIT_FILE_NOT_FOUND",
+            `file not found: ${shown}. Use write to create it.`,
+            { path },
+          );
+        }
+        throw error;
+      });
       if (raw.includes("\0")) {
         throw editError(
           "EDIT_BINARY_FILE",
-          `edit cannot edit ${path} because it appears to be a binary file.`,
+          `${shown} appears to be a binary file.`,
           { path },
         );
       }
@@ -53,9 +63,9 @@ export async function executeEdit(
       const lineEnding = detectLineEnding(withoutBom);
       const content = normalizeLineEndings(withoutBom);
       const resolved = edits.map((edit, index) =>
-        resolveExactEdit(content, edit, index, path),
+        resolveExactEdit(content, edit, index, path, shown),
       );
-      rejectOverlappingEdits(resolved, path);
+      rejectOverlappingEdits(resolved, path, shown);
 
       let updated = content;
       for (const edit of [...resolved].sort(
@@ -65,7 +75,7 @@ export async function executeEdit(
       }
 
       if (updated === content) {
-        throw editError("EDIT_NO_CHANGE", `edit would not change ${path}.`, {
+        throw editError("EDIT_NO_CHANGE", `${shown} already contains this text.`, {
           path,
           operationCount: edits.length,
         });
@@ -80,7 +90,7 @@ export async function executeEdit(
         bom + restoreLineEndings(updated, lineEnding),
       );
 
-      const contentMessage = `Edited file with ${edits.length} replacement${edits.length === 1 ? "" : "s"}.`;
+      const contentMessage = `Edited ${shown}: ${edits.length} replacement${edits.length === 1 ? "" : "s"}, ${describeLineRanges(changedRanges(resolved, updated))}.`;
       return {
         path,
         content: contentMessage,
@@ -182,9 +192,11 @@ function parseEdits(args: Record<string, unknown>): ExactEdit[] {
     const oldText = normalizeLineEndings(record.oldText);
     const newText = normalizeLineEndings(record.newText);
     if (oldText === newText) {
-      throw editError("EDIT_NO_CHANGE", `${label} would not change the file.`, {
-        operationIndex: index,
-      });
+      throw editError(
+        "EDIT_NO_CHANGE",
+        `${label}: file already contains this text (oldText equals newText).`,
+        { operationIndex: index },
+      );
     }
     return { oldText, newText };
   });
@@ -195,12 +207,13 @@ function resolveExactEdit(
   edit: ExactEdit,
   index: number,
   path: string,
+  shown: string,
 ): ResolvedEdit {
   const matches = exactMatchOffsets(content, edit.oldText);
   if (matches.length === 0) {
     throw editError(
       "EDIT_MATCH_NOT_FOUND",
-      `edits[${index}].oldText was not found in ${path}. Reread the file and use exact current text.`,
+      notFoundMessage(content, edit.oldText, index, shown),
       { path, operationIndex: index, operationType: "replace_text" },
       true,
     );
@@ -208,7 +221,7 @@ function resolveExactEdit(
   if (matches.length > 1) {
     throw editError(
       "EDIT_MATCH_AMBIGUOUS",
-      `edits[${index}].oldText matched ${matches.length} times in ${path}. Include more surrounding context so it is unique.`,
+      ambiguousMessage(content, matches, index),
       {
         path,
         operationIndex: index,
@@ -248,7 +261,11 @@ function lineAtOffset(content: string, offset: number): number {
   return line;
 }
 
-function rejectOverlappingEdits(edits: ResolvedEdit[], path: string): void {
+function rejectOverlappingEdits(
+  edits: ResolvedEdit[],
+  path: string,
+  shown: string,
+): void {
   const ordered = [...edits].sort(
     (left, right) => left.start - right.start || left.end - right.end,
   );
@@ -258,7 +275,7 @@ function rejectOverlappingEdits(edits: ResolvedEdit[], path: string): void {
     if (!previous || !current || current.start >= previous.end) continue;
     throw editError(
       "EDIT_OVERLAP",
-      `edits[${current.index}] overlaps edits[${previous.index}] in ${path}. Merge overlapping changes into one edit.`,
+      `edits[${current.index}] overlaps edits[${previous.index}] in ${shown}. Merge overlapping changes into one edit.`,
       {
         path,
         previousIndex: previous.index,
@@ -267,4 +284,128 @@ function rejectOverlappingEdits(edits: ResolvedEdit[], path: string): void {
       true,
     );
   }
+}
+
+const MAX_LISTED_MATCHES = 5;
+const MAX_SNIPPET = 80;
+
+function snippet(line: string | undefined): string {
+  const text = (line ?? "").trim();
+  return text.length > MAX_SNIPPET ? `${text.slice(0, MAX_SNIPPET)}…` : text;
+}
+
+function ambiguousMessage(
+  content: string,
+  matches: number[],
+  index: number,
+): string {
+  const lines = content.split("\n");
+  const found = matches.map((offset) => {
+    const number = lineAtOffset(content, offset);
+    const neighbour = (step: number): string => {
+      for (let n = number - 1 + step; n >= 0 && n < lines.length; n += step) {
+        const text = snippet(lines[n]);
+        if (text) return text;
+      }
+      return "";
+    };
+    return {
+      number,
+      line: snippet(lines[number - 1]),
+      before: neighbour(-1),
+      after: neighbour(1),
+    };
+  });
+  // Prefer the neighbour that differs between matches.
+  const distinct = (key: "before" | "after") =>
+    new Set(found.map((match) => match[key])).size;
+  const useAfter = distinct("before") < 2 && distinct("after") > 1;
+  const listed = found.slice(0, MAX_LISTED_MATCHES).map((match) => {
+    const after = match.before && `(after: ${match.before})`;
+    const before = match.after && `(before: ${match.after})`;
+    const hint = useAfter ? before || after : after || before;
+    return `  ${match.number}: ${match.line}${hint ? `  ${hint}` : ""}`;
+  });
+  const rest = found.length - listed.length;
+  return [
+    `edits[${index}].oldText matched ${matches.length} times. Add context that tells them apart:`,
+    ...listed,
+    ...(rest > 0 ? [`  … and ${rest} more`] : []),
+  ].join("\n");
+}
+
+function notFoundMessage(
+  content: string,
+  oldText: string,
+  index: number,
+  shown: string,
+): string {
+  const base = `edits[${index}].oldText was not found in ${shown}. Reread the file and use exact current text.`;
+  const needle = collapseWhitespace(oldText);
+  if (needle.text.length === 0) return base;
+  const haystack = collapseWhitespace(content);
+  const at = haystack.text.indexOf(needle.text);
+  if (at < 0) return base;
+  const offset = haystack.origins[at] ?? 0;
+  const number = lineAtOffset(content, offset);
+  const line = snippet(content.split("\n")[number - 1]);
+  return `edits[${index}].oldText was not found in ${shown}; only whitespace differs from line ${number}: ${line}`;
+}
+
+/** Collapses whitespace runs to one space and trims, tracking original offsets. */
+function collapseWhitespace(input: string): {
+  text: string;
+  origins: number[];
+} {
+  let text = "";
+  const origins: number[] = [];
+  let pendingSpace = -1;
+  for (let i = 0; i < input.length; i += 1) {
+    if (/\s/.test(input[i] ?? "")) {
+      if (pendingSpace < 0) pendingSpace = i;
+      continue;
+    }
+    if (pendingSpace >= 0 && text.length > 0) {
+      text += " ";
+      origins.push(pendingSpace);
+    }
+    pendingSpace = -1;
+    text += input[i];
+    origins.push(i);
+  }
+  return { text, origins };
+}
+
+type LineRange = { start: number; end: number };
+
+/** Line ranges of the replaced regions in the updated content, merged. */
+function changedRanges(resolved: ResolvedEdit[], updated: string): LineRange[] {
+  const ranges: LineRange[] = [];
+  let shift = 0;
+  for (const edit of [...resolved].sort((a, b) => a.start - b.start)) {
+    const start = edit.start + shift;
+    shift += edit.newText.length - (edit.end - edit.start);
+    const range = {
+      start: lineAtOffset(updated, start),
+      end: lineAtOffset(updated, Math.max(start, start + edit.newText.length - 1)),
+    };
+    const last = ranges[ranges.length - 1];
+    if (last && range.start <= last.end) {
+      last.end = Math.max(last.end, range.end);
+    } else {
+      ranges.push(range);
+    }
+  }
+  return ranges;
+}
+
+function describeLineRanges(ranges: LineRange[]): string {
+  const parts = ranges
+    .slice(0, MAX_LISTED_MATCHES)
+    .map(({ start, end }) => (start === end ? `${start}` : `${start}-${end}`));
+  const rest = ranges.length - parts.length;
+  const noun = ranges.length === 1 && parts[0] && !parts[0].includes("-") ? "line" : "lines";
+  if (rest > 0) return `${noun} ${parts.join(", ")} and ${rest} more`;
+  const last = parts.pop();
+  return `${noun} ${parts.length > 0 ? `${parts.join(", ")} and ` : ""}${last}`;
 }

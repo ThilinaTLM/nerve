@@ -5,6 +5,7 @@ import { join } from "node:path";
 import type { ToolOutputLimitsPayload } from "@nervekit/contracts/tools";
 import { blocksFit } from "../../result-projection/measure.js";
 import { profileBudget } from "../../result-projection/profiles.js";
+import { processFooter } from "../../result-projection/process-footer.js";
 import { projectAgentContent } from "./process-agent-content.js";
 import type { ToolExecutionResult } from "../execution-context.js";
 import {
@@ -206,23 +207,19 @@ export async function buildProcessResult({
         `${exitMessagePrefix} timed out and ${timeoutKilled ? "was killed" : "was not killed"}.`,
     );
   }
-  // The agent projection's status already states the exit code.
-  const agentFooterLines = [...footerLines];
-  if (exitCode !== 0) {
-    footerLines.push(`${exitMessagePrefix} exited with code ${exitCode}.`);
-  }
+  const exitFooter = processFooter({
+    exitCode,
+    signal,
+    timedOut,
+    durationMs,
+  });
   const agentProjection =
     agentProfile && hasOutput
       ? projectAgentContent({
           profile: agentProfile,
           combined,
-          footerLines: agentFooterLines,
-          status: [
-            `Process exit code ${exitCode}.`,
-            signal ? `Signal: ${signal}` : undefined,
-            timedOut ? "Timed out: yes" : undefined,
-            durationMs !== undefined ? `Duration: ${durationMs} ms` : undefined,
-          ],
+          footerLines,
+          status: [exitFooter],
           recovery,
           fullOutputPath,
         })
@@ -263,7 +260,9 @@ export async function buildProcessResult({
     content = combined;
   }
 
-  if (!agentProjection && footerLines.length > 0) {
+  if (!agentProjection && agentProfile) {
+    content = [content, ...footerLines, exitFooter].join("\n");
+  } else if (footerLines.length > 0) {
     content += `${content.endsWith("\n") ? "" : "\n"}${footerLines.join("\n")}`;
   }
 
@@ -279,8 +278,7 @@ export async function buildProcessResult({
       durationMs,
       timedOut,
       timeoutKilled,
-      processStatusIncluded:
-        agentProjection !== undefined || timedOut || exitCode !== 0,
+      processStatusIncluded: agentProfile !== undefined,
       ...(agentProjection
         ? { agentProjectionSnapshot: agentProjection.snapshot }
         : {}),

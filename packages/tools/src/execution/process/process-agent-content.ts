@@ -27,7 +27,7 @@ export function projectAgentContent({
   const combinedPath = recovery?.combinedPath ?? fullOutputPath;
   return projectProcessText({
     header,
-    inline: `${body}\n\n${statusText}`,
+    inline: `${body}\n${statusText}`,
     output: combined,
     files: combinedPath
       ? { combined: { path: combinedPath, text: combined } }

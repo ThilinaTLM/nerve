@@ -10,6 +10,7 @@ const webSearchParameters = Type.Object(
       Type.Number({
         minimum: 1,
         maximum: 20,
+        default: 5,
       }),
     ),
   },
@@ -19,7 +20,9 @@ const webSearchParameters = Type.Object(
 const webFetchParameters = Type.Object(
   {
     url: Type.String(),
-    raw: Type.Optional(Type.Boolean()),
+    raw: Type.Optional(
+      Type.Boolean({ description: "Skip HTML to Markdown conversion." }),
+    ),
   },
   { additionalProperties: false },
 );
@@ -33,7 +36,7 @@ export const webToolDefinitions = [
     executionKind: "local",
     executor: executeWebSearch,
     label: "Web Search",
-    description: "Search the web.",
+    description: "Search the web. Returns titled snippets with URLs.",
     parameters: webSearchParameters,
     executionMode: "parallel",
   },

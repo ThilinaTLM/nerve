@@ -167,7 +167,7 @@ describe("python executor", () => {
     const content = result.content ?? "";
     assert.match(
       content,
-      /^Process exit code 0\.\nDuration: \d+ ms\npy 0 y+\n/,
+      /^exit 0(?: · [\d.]+s)?\npy 0 y+\n/,
     );
     assert.match(
       content,
@@ -192,7 +192,7 @@ describe("python executor", () => {
         { path: "missing.py" },
         { cwd: project.root, pythonRuntime: runtime },
       ),
-      /python_exec path not found/,
+      /path not found: missing\.py/,
     );
     await assert.rejects(
       executePython(

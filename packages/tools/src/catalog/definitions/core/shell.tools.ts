@@ -11,6 +11,10 @@ const projectEnvironmentParameter = Type.Optional(
   }),
 );
 
+const BACKGROUND_DESCRIPTION = "Return at once; a notice arrives on exit.";
+const READY_DESCRIPTION =
+  "With background: an http(s) URL to poll or a regex to wait for in output, up to 60 s.";
+
 export type BashToolSettings = {
   autoPromotion: { enabled: boolean; afterMs: number };
   maxTimeoutMs: number;
@@ -30,8 +34,10 @@ export function buildBashToolDefinition(
           }),
         ),
         projectEnvironment: projectEnvironmentParameter,
-        background: Type.Optional(Type.Boolean()),
-        ready: Type.Optional(Type.String()),
+        background: Type.Optional(
+          Type.Boolean({ description: BACKGROUND_DESCRIPTION }),
+        ),
+        ready: Type.Optional(Type.String({ description: READY_DESCRIPTION })),
         ...(!settings.autoPromotion.enabled
           ? { timeout: Type.Integer({ minimum: 1, maximum: maxS }) }
           : {}),
@@ -47,7 +53,7 @@ function bashDescription(settings: BashToolSettings): string {
   const background = settings.autoPromotion.enabled
     ? `Moves to the background after ${afterS}s (\`background: true\` returns at once)`
     : `Requires timeout (max ${maxS}s); the process is killed when it expires. \`background: true\` returns at once`;
-  return `Run a shell command in the project. Use read for file contents and grep/find/ls to search, not cat/sed/head/tail/rg; use launch for the user's servers. ${background}; background runs notify you on exit. Large output is shortened to its head and tail, with the full output saved to a file.`;
+  return `Run a shell command in the project. Use read for file contents and grep/find/ls to search, not cat/sed/head/tail/rg; use launch for the user's servers. ${background}; background runs notify you on exit.`;
 }
 
 const bashParameters = Type.Object(
@@ -59,8 +65,10 @@ const bashParameters = Type.Object(
       }),
     ),
     projectEnvironment: projectEnvironmentParameter,
-    background: Type.Optional(Type.Boolean()),
-    ready: Type.Optional(Type.String()),
+    background: Type.Optional(
+          Type.Boolean({ description: BACKGROUND_DESCRIPTION }),
+        ),
+    ready: Type.Optional(Type.String({ description: READY_DESCRIPTION })),
   },
   { additionalProperties: false },
 );

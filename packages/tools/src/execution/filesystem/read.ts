@@ -11,11 +11,7 @@ import {
   textBoundaryDetails,
   textLimitSnapshot,
 } from "../output/output-budget.js";
-import {
-  DEFAULT_MAX_BYTES,
-  DEFAULT_MAX_LINES,
-  formatByteSize,
-} from "../output/truncate.js";
+import { DEFAULT_MAX_BYTES, DEFAULT_MAX_LINES } from "../output/truncate.js";
 import {
   isErrnoException,
   pathNotFoundMessage,
@@ -25,6 +21,7 @@ import {
 const PNG_SIGNATURE = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
 const READ_BYTE_DEFAULT_LIMIT = FILE_OUTPUT_MAX_LINE_CHARS;
 const READ_BYTE_MAX_LIMIT = FILE_OUTPUT_MAX_LINE_CHARS;
+const READ_LINE_MAX_LIMIT = 5000;
 
 function startsWith(buffer: Uint8Array, bytes: number[]): boolean {
   if (buffer.length < bytes.length) return false;
@@ -63,9 +60,9 @@ export async function executeRead(
   context: FilesystemExecutionContext,
 ): Promise<ToolExecutionResult> {
   const path = await resolveReadPath(context.cwd, args.path);
-  const buffer = await readFile(path).catch((error: unknown) => {
+  const buffer = await readFile(path).catch(async (error: unknown) => {
     if (isErrnoException(error) && error.code === "ENOENT") {
-      throw new Error(pathNotFoundMessage("read", args.path, path));
+      throw new Error(await pathNotFoundMessage(args.path, path, true));
     }
     throw error;
   });
@@ -103,89 +100,59 @@ export async function executeRead(
   if (sourceEndsWithNewline) lines.pop();
   const sourceTotalLines = lines.length;
   const offset = numberArg(args.offset, 1);
-
-  if (hasExplicitLimit || hasExplicitOffset) {
-    const limit = Math.min(numberArg(args.limit, 1000), 5000);
-    const start = Math.max(0, offset - 1);
-    const selected = lines.slice(start, start + limit).join("\n");
-    const remaining = Math.max(0, lines.length - (start + limit));
-    const bounded = boundFileText(selected, { maxLines: limit });
-    const messages: string[] = [];
-    if (bounded.truncated) {
-      messages.push(formatSelectedRangeTruncation(bounded));
-    }
-    if (remaining > 0) {
-      messages.push(
-        bounded.truncated
-          ? `[...${remaining} more lines remain after the requested range. Narrow this read range before continuing past it.]`
-          : `[...${remaining} more lines. Continue with offset ${offset + limit}.]`,
-      );
-    }
-    const output = [bounded.text, ...messages]
-      .filter((part) => part.length > 0)
-      .join("\n\n");
-    const wasTruncated = bounded.truncated || remaining > 0;
-    const returnedContentLines = countLines(bounded.text);
-    const safeNextOffset =
-      !bounded.partialLine &&
-      bounded.truncatedLines === 0 &&
-      offset - 1 + returnedContentLines < sourceTotalLines
-        ? offset + returnedContentLines
-        : undefined;
-    return {
-      path,
-      content: output,
-      contentBlocks: [{ type: "text", text: output }],
-      details: {
-        range: {
-          mode: "lines",
-          requestedStartLine: offset,
-          requestedLimit: limit,
-          sourceTotalLines,
-          returnedStartLine: offset,
-          returnedEndLine:
-            returnedContentLines > 0
-              ? offset + returnedContentLines - 1
-              : offset - 1,
-          returnedContentLines,
-          sourceEndsWithNewline,
-          nextOffset: safeNextOffset,
-        },
-        ...(wasTruncated
-          ? {
-              truncation: {
-                ...textBoundaryDetails(bounded),
-                truncated: true,
-                omittedLines: bounded.omittedLines + remaining,
-                nextOffset: safeNextOffset,
-              },
-              outputLimits: {
-                execution: {
-                  ...textLimitSnapshot(bounded),
-                  truncated: true,
-                  omittedLines: bounded.omittedLines + remaining,
-                },
-                continuation:
-                  safeNextOffset !== undefined
-                    ? { nextOffset: safeNextOffset }
-                    : undefined,
-              },
-            }
-          : {}),
-      },
-    };
-  }
-
-  const bounded = boundFileText(content, { maxLines: DEFAULT_MAX_LINES });
-  let output = bounded.text;
-  if (bounded.truncated) {
-    output += `\n\n[...output truncated to ${DEFAULT_MAX_LINES} lines, ${formatByteSize(DEFAULT_MAX_BYTES)}, or ${FILE_OUTPUT_MAX_LINE_CHARS} characters per line.${formatContinuationGuidance(bounded)}]`;
-  }
-  const returnedContentLines = countLines(bounded.text);
-  const safeNextOffset =
-    bounded.truncated && !bounded.partialLine && bounded.truncatedLines === 0
-      ? returnedContentLines + 1
+  const requestedLimit = numberArg(args.limit, DEFAULT_MAX_LINES);
+  const limit = Math.min(requestedLimit, READ_LINE_MAX_LIMIT);
+  const start = Math.max(0, offset - 1);
+  const selectedLines = lines.slice(start, start + limit);
+  const remaining = Math.max(0, lines.length - (start + limit));
+  const bounded = boundFileText(selectedLines.join("\n"), { maxLines: limit });
+  const byteCut = bounded.omittedLines > 0 || bounded.partialLine === true;
+  const returnedContentLines = byteCut
+    ? countLines(bounded.text)
+    : selectedLines.length;
+  // The line after the last complete one; a cut line is read again from its start.
+  const nextLine = bounded.partialLine
+    ? offset + returnedContentLines - 1
+    : offset + returnedContentLines;
+  const hasMore = nextLine <= sourceTotalLines;
+  const limitClamped =
+    hasExplicitLimit && requestedLimit > READ_LINE_MAX_LIMIT && remaining > 0;
+  const toolCut =
+    byteCut || (remaining > 0 && (!hasExplicitLimit || limitClamped));
+  const longLine =
+    bounded.truncatedLines > 0
+      ? firstLongLine(
+          content,
+          selectedLines.slice(0, returnedContentLines),
+          start,
+        )
       : undefined;
+  const whole = offset === 1 && !hasMore;
+  const trailer = [
+    whole
+      ? undefined
+      : returnedContentLines === 0
+        ? `No lines at offset ${offset}; file has ${sourceTotalLines}.`
+        : [
+            `Lines ${offset}-${offset + returnedContentLines - 1} of ${sourceTotalLines}`,
+            limitClamped
+              ? `limit clamped to ${READ_LINE_MAX_LIMIT}`
+              : undefined,
+            toolCut && hasMore
+              ? `Next: ${JSON.stringify({ offset: nextLine })}`
+              : undefined,
+          ]
+            .filter((part) => part !== undefined)
+            .join(". "),
+    longLine
+      ? `Line ${longLine.line} cut at ${FILE_OUTPUT_MAX_LINE_CHARS} chars. Rest: ${JSON.stringify({ byteOffset: longLine.byteOffset })}`
+      : undefined,
+  ].filter((part) => part !== undefined);
+  const output = [bounded.text, ...trailer]
+    .filter((part) => part.length > 0)
+    .join("\n\n");
+  const wasTruncated = bounded.truncated || remaining > 0;
+  const safeNextOffset = hasMore ? nextLine : undefined;
   return {
     path,
     content: output,
@@ -193,23 +160,32 @@ export async function executeRead(
     details: {
       range: {
         mode: "lines",
-        requestedStartLine: 1,
-        requestedLimit: DEFAULT_MAX_LINES,
+        requestedStartLine: offset,
+        requestedLimit: limit,
         sourceTotalLines,
-        returnedStartLine: 1,
-        returnedEndLine: returnedContentLines,
+        returnedStartLine: offset,
+        returnedEndLine:
+          returnedContentLines > 0
+            ? offset + returnedContentLines - 1
+            : offset - 1,
         returnedContentLines,
         sourceEndsWithNewline,
         nextOffset: safeNextOffset,
       },
-      ...(bounded.truncated
+      ...(wasTruncated
         ? {
             truncation: {
               ...textBoundaryDetails(bounded),
+              truncated: true,
+              omittedLines: bounded.omittedLines + remaining,
               nextOffset: safeNextOffset,
             },
             outputLimits: {
-              execution: textLimitSnapshot(bounded),
+              execution: {
+                ...textLimitSnapshot(bounded),
+                truncated: true,
+                omittedLines: bounded.omittedLines + remaining,
+              },
               continuation:
                 safeNextOffset !== undefined
                   ? { nextOffset: safeNextOffset }
@@ -218,6 +194,28 @@ export async function executeRead(
           }
         : {}),
     },
+  };
+}
+
+/** The first shortened line in the window, with the byte offset where its cut-off remainder starts. */
+function firstLongLine(
+  content: string,
+  shown: readonly string[],
+  startIndex: number,
+): { line: number; byteOffset: number } | undefined {
+  const index = shown.findIndex(
+    (line) => line.length > FILE_OUTPUT_MAX_LINE_CHARS,
+  );
+  if (index < 0) return undefined;
+  let position = 0;
+  for (let skipped = 0; skipped < startIndex + index; skipped += 1) {
+    position = content.indexOf("\n", position) + 1;
+  }
+  const kept = shown[index].slice(0, FILE_OUTPUT_MAX_LINE_CHARS);
+  return {
+    line: startIndex + index + 1,
+    byteOffset:
+      Buffer.byteLength(content.slice(0, position)) + Buffer.byteLength(kept),
   };
 }
 
@@ -230,6 +228,7 @@ function readByteRange(
     numberArg(args.byteOffset, 0),
     buffer.length,
   );
+  const modelLimit = numberArg(args.byteLimit, 0);
   const requestedLimit = positiveIntegerArg(
     args.byteLimit,
     READ_BYTE_DEFAULT_LIMIT,
@@ -245,19 +244,31 @@ function readByteRange(
     maxLines: Number.MAX_SAFE_INTEGER,
     maxLineChars: requestedLimit,
   });
-  const nextByteOffset =
-    requestedEnd < buffer.length ? requestedEnd : undefined;
-  const messages: string[] = [];
-  if (bounded.truncated) {
-    messages.push(formatByteRangeTruncation(bounded));
-  }
-  if (nextByteOffset !== undefined) {
-    messages.push(
-      `[...${formatByteSize(buffer.length - requestedEnd)} remain after this byte range. Continue with byteOffset ${nextByteOffset}.]`,
-    );
-  }
-  const output = [bounded.text, ...messages]
-    .filter((part) => part.length > 0)
+  const nextByteOffset = slice.end < buffer.length ? slice.end : undefined;
+  const limitClamped =
+    modelLimit > READ_BYTE_MAX_LIMIT && nextByteOffset !== undefined;
+  // Only a cut the tool imposed (default or capped limit) gets a Next hint.
+  const toolCut = modelLimit <= 0 || limitClamped;
+  const trailer =
+    slice.end === slice.start
+      ? buffer.length > 0
+        ? `No bytes at byteOffset ${requestedOffset}; file has ${buffer.length}.`
+        : undefined
+      : slice.start === 0 && nextByteOffset === undefined
+        ? undefined
+        : [
+            `Bytes ${slice.start}-${slice.end - 1} of ${buffer.length}`,
+            limitClamped
+              ? `byteLimit clamped to ${READ_BYTE_MAX_LIMIT}`
+              : undefined,
+            toolCut && nextByteOffset !== undefined
+              ? `Next: ${JSON.stringify({ byteOffset: nextByteOffset })}`
+              : undefined,
+          ]
+            .filter((part) => part !== undefined)
+            .join(". ");
+  const output = [bounded.text, trailer]
+    .filter((part): part is string => part !== undefined && part.length > 0)
     .join("\n\n");
   return {
     path,
@@ -305,45 +316,6 @@ function boundFileText(
 function countLines(text: string): number {
   if (text.length === 0) return 0;
   return text.split("\n").length;
-}
-
-function formatSelectedRangeTruncation(truncation: BoundedTextResult): string {
-  const omissions = formatOmissions(truncation);
-  const guidance =
-    truncation.partialLine || truncation.truncatedLines > 0
-      ? " Use byteOffset/byteLimit to inspect overlong lines exactly."
-      : "";
-  return `[...selected output truncated to ${formatByteSize(DEFAULT_MAX_BYTES)} or ${FILE_OUTPUT_MAX_LINE_CHARS} characters per line${omissions}.${guidance}]`;
-}
-
-function formatByteRangeTruncation(truncation: BoundedTextResult): string {
-  const omissions = formatOmissions(truncation);
-  return `[...byte range output truncated${omissions}. Use a smaller byteLimit to inspect this range.]`;
-}
-
-function formatContinuationGuidance(truncation: BoundedTextResult): string {
-  if (truncation.partialLine || truncation.truncatedLines > 0) {
-    return " Use byteOffset/byteLimit to inspect overlong lines exactly.";
-  }
-  return ` Continue reading with offset ${countLines(truncation.text) + 1}.`;
-}
-
-function formatOmissions(truncation: BoundedTextResult): string {
-  const parts: string[] = [];
-  if (truncation.truncatedLines > 0) {
-    parts.push(
-      `${truncation.truncatedLines} overlong line${truncation.truncatedLines === 1 ? "" : "s"}`,
-    );
-  }
-  if (truncation.omittedLines > 0) {
-    parts.push(
-      `${truncation.omittedLines} omitted line${truncation.omittedLines === 1 ? "" : "s"}`,
-    );
-  }
-  if (truncation.omittedBytes > 0) {
-    parts.push(`${formatByteSize(truncation.omittedBytes)} omitted`);
-  }
-  return parts.length > 0 ? ` (${parts.join(", ")})` : "";
 }
 
 function positiveIntegerArg(

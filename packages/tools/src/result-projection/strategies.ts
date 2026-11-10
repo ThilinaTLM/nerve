@@ -4,6 +4,7 @@ import type {
   ProjectionCount,
 } from "@nervekit/contracts/tools";
 import { ProjectionBudgetLedger } from "./budget-ledger.js";
+import { continuationText } from "./candidate-continuation.js";
 import { formatByteSize } from "../execution/output/truncate.js";
 import {
   blocksFit,
@@ -243,6 +244,10 @@ export function itemAwareHead(
   };
 }
 
+/** The read executor's trailer lines, which a re-bounded view replaces with its own. */
+const READ_TRAILER =
+  /(?:\n\n(?:Lines \d+-\d+ of \d+|No lines at offset|Line \d+ cut at)[^\n]*)+$/;
+
 export function continuationAwareHead(
   candidate: ProjectionCandidate,
   profile: AgentResultProfileId,
@@ -266,9 +271,9 @@ export function continuationAwareHead(
       (block): block is Extract<ProjectableBlock, { type: "text" }> =>
         block.type === "text",
     )
-    .map((block) => block.text.replace(/\nRange: lines [^\n]+\.$/, ""))
+    .map((block) => block.text.replace(READ_TRAILER, ""))
     .join("\n");
-  const reserve = `Continue with offset=${lineContinuation.displayedStart}; displayed ${lineContinuation.displayedStart}-000000 of ${lineContinuation.total}.`;
+  const reserve = `Lines ${lineContinuation.displayedStart}-000000 of ${lineContinuation.total}. ${continuationText({ ...lineContinuation, nextOffset: 1_000_000 })}`;
   const selected = textHead(
     source,
     Math.max(0, budget.maxBytes - Buffer.byteLength(reserve, "utf8")),
@@ -287,7 +292,7 @@ export function continuationAwareHead(
     lineContinuation.displayedStart + displayedLines - 1,
   );
   const nextOffset = displayedEnd + 1;
-  const noticeText = `Range: lines ${lineContinuation.displayedStart}-${displayedEnd} of ${lineContinuation.total}. Continue with offset=${nextOffset}.`;
+  const noticeText = `Lines ${lineContinuation.displayedStart}-${displayedEnd} of ${lineContinuation.total}. ${continuationText({ ...lineContinuation, nextOffset })}`;
   const blocks: ProjectableBlock[] = [
     ...(selected ? [{ type: "text" as const, text: selected }] : []),
     ...media,
@@ -438,13 +443,11 @@ function continuationNotice(
   const lines = (candidate.continuation ?? []).map((continuation) => {
     switch (continuation.kind) {
       case "line":
-        return `Continue with offset=${continuation.nextOffset}; displayed ${continuation.displayedStart}-${continuation.displayedEnd} of ${continuation.total}.`;
+        return `Lines ${continuation.displayedStart}-${continuation.displayedEnd} of ${continuation.total}. ${continuationText(continuation)}`;
       case "byte":
-        return `Continue with byteOffset=${continuation.nextByteOffset}; displayed bytes ${continuation.displayedStart}-${continuation.displayedEnd} of ${continuation.total}.`;
-      case "cursor":
-        return `Continue with ${continuation.cursorName}=${String(continuation.value)} (${continuation.direction}).`;
-      case "page_token":
-        return `Continue with ${continuation.parameter}=${continuation.value}.`;
+        return `Bytes ${continuation.displayedStart}-${continuation.displayedEnd - 1} of ${continuation.total}. ${continuationText(continuation)}`;
+      default:
+        return continuationText(continuation);
     }
   });
   const recovery = recoveryText(candidate);
@@ -468,30 +471,14 @@ function itemSelectionNotice(
 ): ProjectableBlock[] {
   const omitted = Math.max(0, original - displayed);
   const label = displayed === 1 ? noun : pluralNoun(noun);
+  const guidance = candidate.overflow?.guidance;
+  // A guided listing states the cut on one line; others state what was omitted.
   const lines = [
-    `Showing ${displayed} of ${original} ${label}; ${omitted} omitted.`,
+    guidance
+      ? `Showing ${displayed} of ${original} ${label}. ${guidance}`
+      : `Showing ${displayed} of ${original} ${label}; ${omitted} omitted.`,
+    ...(candidate.continuation ?? []).map(continuationText),
   ];
-  if (candidate.overflow?.guidance) lines.push(candidate.overflow.guidance);
-  for (const continuation of candidate.continuation ?? []) {
-    switch (continuation.kind) {
-      case "line":
-        lines.push(`Continue with offset=${continuation.nextOffset}.`);
-        break;
-      case "byte":
-        lines.push(`Continue with byteOffset=${continuation.nextByteOffset}.`);
-        break;
-      case "cursor":
-        lines.push(
-          `Continue with ${continuation.cursorName}=${String(continuation.value)}.`,
-        );
-        break;
-      case "page_token":
-        lines.push(
-          `Continue with ${continuation.parameter}=${continuation.value}.`,
-        );
-        break;
-    }
-  }
   const recovery = recoveryText(candidate);
   if (recovery) lines.push(recovery);
   return [{ type: "text", text: lines.join("\n") }];

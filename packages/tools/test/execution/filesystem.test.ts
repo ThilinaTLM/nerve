@@ -17,11 +17,13 @@ describe("filesystem executors", () => {
     );
     assert.equal(created.details?.outcome, "created");
     assert.equal(created.details?.bytes, 2);
+    assert.equal(created.content, "Created one.txt (2 B).");
     const overwritten = await executeWrite(
       { path: "one.txt", content: "ok" },
       { cwd: project.root },
     );
     assert.equal(overwritten.details?.outcome, "overwritten");
+    assert.equal(overwritten.content, "Overwrote one.txt (2 B).");
     await project.write("two.txt", "two");
     const listing = await executeLs(
       { path: ".", limit: 1 },
@@ -45,16 +47,14 @@ describe("filesystem executors", () => {
       { path: "notes.txt", offset: 2, limit: 2 },
       { cwd: project.root },
     );
-    assert.equal(
-      window.content,
-      "two\nthree\n\n[...1 more lines. Continue with offset 4.]",
-    );
+    // The model's own limit ended the window: no Next.
+    assert.equal(window.content, "two\nthree\n\nLines 2-3 of 4");
 
     const eof = await executeRead(
       { path: "notes.txt", offset: 4, limit: 10 },
       { cwd: project.root },
     );
-    assert.equal(eof.content, "four");
+    assert.equal(eof.content, "four\n\nLines 4-4 of 4");
   });
 
   it("reads supported image files as model-visible image attachments", async () => {
@@ -98,7 +98,10 @@ describe("filesystem executors", () => {
     );
 
     assert.match(result.content ?? "", /^line 1\nline 2/);
-    assert.match(result.content ?? "", /output truncated/);
+    assert.match(
+      result.content ?? "",
+      /\n\nLines 1-2000 of 2002\. Next: \{"offset":2001\}$/,
+    );
     assert.equal(result.contentBlocks?.[0]?.type, "text");
   });
 
@@ -112,8 +115,10 @@ describe("filesystem executors", () => {
     );
 
     assert.match(result.content ?? "", /^aaaa/);
-    assert.match(result.content ?? "", /output truncated/);
-    assert.match(result.content ?? "", /overlong line/);
+    assert.match(
+      result.content ?? "",
+      /Line 1 cut at 4096 chars\. Rest: \{"byteOffset":4096\}$/,
+    );
     assert.ok(
       Buffer.byteLength(result.content ?? "", "utf8") <
         DEFAULT_MAX_BYTES + 1000,
@@ -131,9 +136,7 @@ describe("filesystem executors", () => {
     );
 
     assert.match(result.content ?? "", /^bbbb/);
-    assert.match(result.content ?? "", /selected output truncated/);
-    assert.match(result.content ?? "", /overlong line/);
-    assert.match(result.content ?? "", /byteOffset\/byteLimit/);
+    assert.match(result.content ?? "", /Rest: \{"byteOffset":4096\}$/);
     assert.ok(Buffer.byteLength(result.content ?? "", "utf8") < 6000);
     assert.equal(
       (result.details as { truncation?: { nextOffset?: number } } | undefined)
@@ -155,7 +158,8 @@ describe("filesystem executors", () => {
     );
 
     assert.match(result.content ?? "", /^aaaaaneedlezz/);
-    assert.match(result.content ?? "", /Continue with byteOffset 5027/);
+    // The model chose byteLimit 32: no Next.
+    assert.match(result.content ?? "", /\n\nBytes 4995-5026 of 10006$/);
     const details = result.details as {
       byteOffset?: number;
       byteLimit?: number;
@@ -168,6 +172,82 @@ describe("filesystem executors", () => {
     assert.equal(details.size, 10006);
   });
 
+  it("adds Next only when the tool imposed the cut", async () => {
+    const project = await createTempProject();
+    await project.write(
+      "big.txt",
+      Array.from({ length: 6000 }, (_, index) => `l${index + 1}`).join("\n"),
+    );
+    await project.write("bytes.txt", "x".repeat(10006));
+    const cwd = { cwd: project.root };
+
+    const tail = await executeRead({ path: "big.txt", offset: 5990 }, cwd);
+    assert.match(tail.content ?? "", /\n\nLines 5990-6000 of 6000$/);
+
+    const byDefaultLimit = await executeRead(
+      { path: "big.txt", offset: 10 },
+      cwd,
+    );
+    assert.match(
+      byDefaultLimit.content ?? "",
+      /\n\nLines 10-2009 of 6000\. Next: \{"offset":2010\}$/,
+    );
+
+    const clamped = await executeRead({ path: "big.txt", limit: 9000 }, cwd);
+    assert.match(
+      clamped.content ?? "",
+      /\n\nLines 1-5000 of 6000\. limit clamped to 5000\. Next: \{"offset":5001\}$/,
+    );
+
+    const ownWindow = await executeRead(
+      { path: "big.txt", offset: 5, limit: 3 },
+      cwd,
+    );
+    assert.match(ownWindow.content ?? "", /\n\nLines 5-7 of 6000$/);
+
+    const bytes = await executeRead({ path: "bytes.txt", byteOffset: 0 }, cwd);
+    assert.match(
+      bytes.content ?? "",
+      /\n\nBytes 0-4095 of 10006\. Next: \{"byteOffset":4096\}$/,
+    );
+
+    const bytesClamped = await executeRead(
+      { path: "bytes.txt", byteLimit: 99999 },
+      cwd,
+    );
+    assert.match(
+      bytesClamped.content ?? "",
+      /\n\nBytes 0-4095 of 10006\. byteLimit clamped to 4096\. Next: \{"byteOffset":4096\}$/,
+    );
+
+    const bytesOwn = await executeRead(
+      { path: "bytes.txt", byteLimit: 100 },
+      cwd,
+    );
+    assert.match(bytesOwn.content ?? "", /\n\nBytes 0-99 of 10006$/);
+  });
+
+  it("prints no trailer when the whole file is returned", async () => {
+    const project = await createTempProject();
+    await project.write("small.txt", "a\nb\n");
+    await project.write("tiny.bin.txt", "abc");
+    const cwd = { cwd: project.root };
+    assert.equal(
+      (await executeRead({ path: "small.txt" }, cwd)).content,
+      "a\nb",
+    );
+    assert.equal(
+      (await executeRead({ path: "small.txt", offset: 1, limit: 50 }, cwd))
+        .content,
+      "a\nb",
+    );
+    assert.equal(
+      (await executeRead({ path: "tiny.bin.txt", byteLimit: 100 }, cwd))
+        .content,
+      "abc",
+    );
+  });
+
   it("rejects invalid and missing read paths with actionable errors", async () => {
     const project = await createTempProject();
     await assert.rejects(
@@ -176,7 +256,7 @@ describe("filesystem executors", () => {
     );
     await assert.rejects(
       executeRead({ path: "missing.txt" }, { cwd: project.root }),
-      /read path not found: "missing\.txt"/,
+      /path not found: missing\.txt\nNearest existing directory \.\/ contains: /,
     );
   });
 
@@ -187,7 +267,7 @@ describe("filesystem executors", () => {
       { cwd: project.root },
     );
     assert.equal(first.path, join(project.root, "nested/out.txt"));
-    assert.equal(first.content, "Wrote 11 bytes.");
+    assert.equal(first.content, "Created nested/out.txt (11 B).");
     assert.equal(first.details?.bytesWritten, 11);
     assert.deepEqual(first.details?.mutationSummary, {
       operation: "write",
@@ -201,7 +281,7 @@ describe("filesystem executors", () => {
       { path: "nested/out.txt", content: "ok" },
       { cwd: project.root },
     );
-    assert.equal(second.content, "Wrote 2 bytes.");
+    assert.equal(second.content, "Overwrote nested/out.txt (2 B).");
     assert.equal(await readFile(first.path ?? "", "utf8"), "ok");
   });
 
@@ -209,7 +289,7 @@ describe("filesystem executors", () => {
     const project = await createTempProject();
     await assert.rejects(
       executeLs({ path: "missing" }, { cwd: project.root }),
-      /ls path not found: "missing"/,
+      /path not found: missing\nNearest existing directory \.\/ contains: /,
     );
   });
 
@@ -222,7 +302,7 @@ describe("filesystem executors", () => {
     assert.deepEqual(result.entries, [{ path: "file.txt", kind: "file" }]);
     await assert.rejects(
       executeLs({ path: "file.txt" }, { cwd: project.root }),
-      /ls path is not a directory/,
+      /not a directory: file\.txt is a file\. Use read\./,
     );
   });
 

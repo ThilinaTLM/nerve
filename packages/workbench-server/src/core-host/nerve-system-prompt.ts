@@ -76,6 +76,7 @@ function defaultPrompt(hasAskUser: boolean): string {
       "Continue until the task is complete or blocked by a user decision.",
       "Read skills when relevant or explicitly required; resolve their relative paths from the skill directory.",
       "While async work runs, do independent work or end your turn with a brief status. Completion notifications resume you; never sleep or poll just to wait.",
+      "Make independent lookups (reads, searches, listings) as parallel tool calls in one turn.",
       "Responses render as Markdown with Mermaid; use diagrams for complex relationships or flows, otherwise prose.",
       ...(hasAskUser
         ? ["Ask the user questions with `ask_user`, not in your reply."]

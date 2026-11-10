@@ -5,7 +5,7 @@ import {
   sourceCandidate,
 } from "../candidates/filesystem.js";
 
-import { mutationCandidate } from "../candidates/mutation.js";
+import { fileMutationCandidate } from "../candidates/mutation.js";
 
 export const readAgentResultPolicy = policy(
   "source_text",
@@ -25,5 +25,5 @@ export const findAgentResultPolicy = policy(
 export const editAgentResultPolicy = policy(
   "mutation_acknowledgement",
   "head",
-  mutationCandidate,
+  fileMutationCandidate,
 );

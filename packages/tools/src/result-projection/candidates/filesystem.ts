@@ -66,21 +66,58 @@ export function sourceCandidate(
   const canonicalBlocks = blocks ?? [
     { type: "text" as const, text: content ?? "" },
   ];
-  if (typeof range.mode === "string" && canonicalBlocks[0]?.type === "text") {
-    const rangeLine =
-      range.mode === "lines"
-        ? `Range: lines ${String(range.returnedStartLine ?? 1)}-${String(range.returnedEndLine ?? 0)} of ${String(range.sourceTotalLines ?? "unknown")}.`
-        : `Range: bytes ${String(range.utf8AdjustedStart ?? range.returnedByteStart ?? 0)}-${String(range.utf8AdjustedEnd ?? range.returnedByteEnd ?? 0)} of ${String(range.sourceBytes ?? "unknown")}.`;
-    canonicalBlocks[0] = {
-      type: "text",
-      text: `${canonicalBlocks[0].text}\n${rangeLine}`,
-    };
-  }
   return {
     blocks: canonicalBlocks,
     continuation,
     artifacts: artifacts(context),
   };
+}
+
+/** Top groups by count, then "N other <plural> M": `src/a.ts 120, src/b.ts 95, 3 other files 40`. */
+function groupCounts(
+  keys: readonly string[],
+  plural: string,
+  top = 3,
+): { text: string; groups: number } {
+  const counts = new Map<string, number>();
+  for (const key of keys) counts.set(key, (counts.get(key) ?? 0) + 1);
+  const sorted = [...counts].sort((a, b) => b[1] - a[1]);
+  const shown = sorted.slice(0, top).map(([key, n]) => `${key} ${n}`);
+  const rest = sorted.slice(top);
+  if (rest.length > 0) {
+    shown.push(
+      `${rest.length} other ${plural} ${rest.reduce((sum, [, n]) => sum + n, 0)}`,
+    );
+  }
+  return { text: shown.join(", "), groups: sorted.length };
+}
+
+/**
+ * Tells the agent how to narrow a cut listing. The counts cover the items the tool collected,
+ * so they are labelled with that number when the tool's own limit stopped collection.
+ */
+function narrowingGuidance(
+  keys: readonly string[],
+  total: number,
+  groupLabel: { title: string; plural: string },
+  advice: string,
+): string {
+  const { text, groups } = groupCounts(keys, groupLabel.plural);
+  const scope = total > keys.length ? ` (first ${keys.length})` : "";
+  return groups > 1
+    ? `${groupLabel.title}${scope}: ${text}. ${advice}`
+    : advice;
+}
+
+function cutFooter(
+  displayed: number,
+  total: number,
+  plural: string,
+  guidance: string,
+): string | undefined {
+  return total > displayed
+    ? `Showing ${displayed} of ${total} ${plural}. ${guidance}`
+    : undefined;
 }
 
 export function listingCandidate(
@@ -106,10 +143,19 @@ export function listingCandidate(
     number(details.total) ??
     number(result.total) ??
     items.length;
-  const footer =
-    original > items.length
-      ? `Showing ${items.length} of ${original} entries; ${original - items.length} omitted by the requested limit.`
-      : undefined;
+  const paths = result.entries.map((entry) => string(record(entry).path));
+  const guidance =
+    context.toolName === "ls"
+      ? "List a subdirectory or use find with a pattern."
+      : narrowingGuidance(
+          paths.map((path) =>
+            path.includes("/") ? `${path.split("/")[0]}/` : "./",
+          ),
+          original,
+          { title: "By dir", plural: "dirs" },
+          "Narrow with path or a tighter pattern.",
+        );
+  const footer = cutFooter(items.length, original, "entries", guidance);
   const blocks: ProjectableBlock[] = [
     {
       type: "text",
@@ -126,11 +172,7 @@ export function listingCandidate(
     blocks,
     status: [{ type: "text", text: `Root: ${root}` }],
     items,
-    overflow: {
-      noun: "entry",
-      guidance:
-        "Refine the requested path/pattern or inspect the complete result payload.",
-    },
+    overflow: { noun: "entry", guidance },
     counts: [count("item", original, items.length)],
     artifacts: artifacts(context),
   };
@@ -159,10 +201,22 @@ export function grepCandidate(
       ],
     };
   });
-  const producerNotice =
-    details.producerLimitReached === true
-      ? "Producer match limit reached; increase limit or refine the pattern for additional matches."
-      : undefined;
+  const original =
+    number(details.totalMatches) ??
+    number(details.total) ??
+    number(result.total) ??
+    items.length;
+  const guidance = narrowingGuidance(
+    result.matches.map((match) => string(record(match).path) || root),
+    original,
+    { title: "By file", plural: "files" },
+    "Narrow with path, glob or a tighter pattern.",
+  );
+  const footer = cutFooter(items.length, original, "matches", guidance);
+  // The executor's one-line note about cut lines carries a copyable `read` call.
+  const longLineNote = string(result.content)
+    .split("\n")
+    .find((line) => / cut to \d+ chars\. Next: read \{/.test(line));
   return {
     blocks: [
       {
@@ -170,29 +224,22 @@ export function grepCandidate(
         text: [
           `Root: ${root}`,
           ...items.map((item) => textOf(item.blocks)),
-          producerNotice,
+          footer,
+          longLineNote,
         ]
           .filter((value): value is string => Boolean(value))
           .join("\n"),
       },
     ],
-    status: [{ type: "text", text: `Root: ${root}` }],
-    items,
-    overflow: {
-      noun: "match",
-      guidance:
-        "Refine the pattern or inspect the complete result payload for omitted matches.",
-    },
-    counts: [
-      count(
-        "item",
-        number(details.totalMatches) ??
-          number(details.total) ??
-          number(result.total) ??
-          items.length,
-        items.length,
-      ),
+    status: [
+      {
+        type: "text",
+        text: [`Root: ${root}`, longLineNote].filter(Boolean).join("\n"),
+      },
     ],
+    items,
+    overflow: { noun: "match", guidance },
+    counts: [count("item", original, items.length)],
     artifacts: artifacts(context),
   };
 }

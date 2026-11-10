@@ -130,7 +130,7 @@ void test("completed history tails and appends byte pages of the combined output
     // Existing agent diagnostics remain a formatted string API.
     assert.match(
       await f.service.logs("conv_1", "bash_1"),
-      /\(completed; exit code: 0\)/,
+      /\(exit 0\)/,
     );
   } finally {
     await f.close();
@@ -302,7 +302,7 @@ for (const exitCode of [0, 7, null]) {
         throw new Error("Expected bash notice");
       assert.equal(
         notice.text,
-        `echo hello\nStatus: ${status}; exit code: ${exitCode ?? "unknown"}\nhello`,
+        `echo hello\nhello\n${exitCode === null ? (status === "completed" ? "exit unknown" : status) : `${status === "completed" || status === "failed" ? "" : `${status} · `}exit ${exitCode}`}`,
       );
       assert.equal(notice.task.exitCode, exitCode);
       assert.equal(notice.task.id, bash.id);

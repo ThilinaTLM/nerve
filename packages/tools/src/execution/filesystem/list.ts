@@ -12,6 +12,7 @@ import {
 } from "../output/output-budget.js";
 import {
   isErrnoException,
+  notDirectoryMessage,
   pathNotFoundMessage,
   resolveToolPath,
 } from "./path.js";
@@ -25,13 +26,13 @@ export async function executeLs(
       ? "."
       : (args.path ?? ".");
   const root = resolveToolPath(context.cwd, input);
-  const info = await stat(root).catch((error: unknown) => {
+  const info = await stat(root).catch(async (error: unknown) => {
     if (isErrnoException(error) && error.code === "ENOENT") {
-      throw new Error(pathNotFoundMessage("ls", input, root));
+      throw new Error(await pathNotFoundMessage(input, root, true));
     }
     throw error;
   });
-  if (!info.isDirectory()) throw new Error("ls path is not a directory.");
+  if (!info.isDirectory()) throw new Error(notDirectoryMessage(input, root, info.isFile()));
 
   const limit = Math.min(numberArg(args.limit, 500), 5000);
   const dirEntries = await readdir(root, { withFileTypes: true });
@@ -52,7 +53,7 @@ export async function executeLs(
 
   let content = entries.map((entry) => entry.path).join("\n");
   if (dirEntries.length > entries.length) {
-    content += `${content ? "\n\n" : ""}[...${dirEntries.length - entries.length} more entries. Increase limit to see more.]`;
+    content += `${content ? "\n\n" : ""}Showing ${entries.length} of ${dirEntries.length} entries. List a subdirectory or use find with a pattern.`;
   }
   const bounded = boundText(content, {
     maxLines: Number.MAX_SAFE_INTEGER,

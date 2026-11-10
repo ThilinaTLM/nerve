@@ -132,15 +132,20 @@ describe("adaptive agent tool-result projection", () => {
       agentResultPolicyForTool("read"),
     );
     assert.equal(fitting.snapshot.fastPath, true);
-    assert.match(text(fitting.blocks), /Range: lines 1-35 of 35\.$/);
+    assert.equal(text(fitting.blocks), small);
 
     const large = Array.from(
       { length: 2000 },
       (_, index) => `line ${index + 1} ${"x".repeat(15)}`,
     ).join("\n");
     const largeResult = {
-      content: `${large}\n\n[...output truncated to 2000 lines. Continue with offset 2001.]`,
-      contentBlocks: [{ type: "text", text: large }],
+      content: `${large}\n\nLines 1-2000 of 2600. Next: {"offset":2001}`,
+      contentBlocks: [
+        {
+          type: "text",
+          text: `${large}\n\nLines 1-2000 of 2600. Next: {"offset":2001}`,
+        },
+      ],
       details: {
         range: {
           mode: "lines",
@@ -163,7 +168,7 @@ describe("adaptive agent tool-result projection", () => {
     assert.equal(page.snapshot.fastPath, true);
     assert.match(
       text(page.blocks),
-      /line 2000 x+\nRange: lines 1-2000 of 2600\.$/,
+      /line 2000 x+\n\nLines 1-2000 of 2600\. Next: \{"offset":2001\}$/,
     );
   });
 
@@ -197,7 +202,7 @@ describe("adaptive agent tool-result projection", () => {
     const measured = measureBlocks(projected.blocks);
     assert.ok(measured.lines <= 200);
     assert.ok(measured.bytes <= 8_000);
-    assert.match(shown, /^Process exit code 0\.\nDuration: 10 ms\nroutine 0\n/);
+    assert.match(shown, /^exit 0\nroutine 0\n/);
     assert.match(
       shown,
       /routine 2999\n\[Showing lines 1-\d+ and \d+-3000 of 3000;/,
@@ -257,11 +262,11 @@ describe("adaptive agent tool-result projection", () => {
     );
     const output = text(projected.blocks);
     const notice = output.match(
-      /Showing (\d+) of 150 entries; (\d+) omitted\./,
+      /Showing (\d+) of 150 entries\. List a subdirectory/,
     );
     assert.ok(notice);
-    assert.equal(Number(notice[1]) + Number(notice[2]), 150);
-    assert.doesNotMatch(output, /bounded selection/);
+    assert.ok(Number(notice[1]) < 150);
+    assert.doesNotMatch(output, /"limit"/);
     assert.match(output, /\/tmp\/list-result\.json/);
     assert.ok(measureBlocks(projected.blocks).lines <= 120);
   });
@@ -307,6 +312,30 @@ describe("adaptive agent tool-result projection", () => {
     const output = text(projected.blocks);
     assert.equal(output.match(/alpha/g)?.length, 1);
     assert.equal(output.match(/beta/g)?.length, 1);
+  });
+
+  it("ends a cut grep with a narrowing summary, not a limit hint", () => {
+    const matches = Array.from({ length: 100 }, (_, index) => ({
+      path:
+        index < 70 ? "src/a.ts" : index < 90 ? "src/b.ts" : `src/c${index}.ts`,
+      line: index + 1,
+      text: `match ${index + 1}`,
+    }));
+    const projected = projectAgentResult(
+      context("grep", {
+        path: ".",
+        matches,
+        details: { totalMatches: 340, producerLimitReached: true },
+      }),
+      agentResultPolicyForTool("grep"),
+    );
+    const output = text(projected.blocks);
+    assert.match(
+      output,
+      /Showing \d+ of 340 matches\. By file \(first 100\): src\/a\.ts 70, src\/b\.ts 20, src\/c90\.ts 1, 9 other files 9\. Narrow with path, glob or a tighter pattern\.$/,
+    );
+    assert.doesNotMatch(output, /limit/i);
+    assert.ok(measureBlocks(projected.blocks).lines <= 80);
   });
 
   it("pluralizes omitted grep matches correctly", () => {
@@ -358,7 +387,7 @@ describe("adaptive agent tool-result projection", () => {
     );
     const output = text(projected.blocks);
     assert.match(output, /Showing 10 of 20 results; 10 omitted/);
-    assert.match(output, /nextPageToken=next-token/);
+    assert.match(output, /Next: \{"nextPageToken":"next-token"\}/);
     assert.match(output, /\/tmp\/issues\.json/);
     assert.doesNotMatch(output, /NER-11/);
   });
@@ -569,9 +598,64 @@ describe("adaptive agent tool-result projection", () => {
         }).blocks,
       );
 
-    assert.match(terminal("denied", "user"), /^User denied/);
-    assert.match(terminal("denied", "policy"), /^Permission policy denied/);
-    assert.match(terminal("denied"), /^The requested tool call was denied/);
-    assert.match(terminal("cancelled"), /^Tool execution was cancelled/);
+    assert.equal(terminal("denied", "user"), "bash: denied by user, not run.");
+    assert.equal(
+      terminal("denied", "policy"),
+      "bash: denied by policy, not run. Terminal reason.",
+    );
+    assert.equal(terminal("denied"), "bash: denied, not run. Terminal reason.");
+    assert.equal(
+      terminal("cancelled"),
+      "bash: cancelled, no rollback implied. Terminal reason.",
+    );
+  });
+
+  it("renders failures as one line with plain errno wording", () => {
+    const failed = (toolName: string, error: string) =>
+      text(
+        projectAgentResult({
+          ...context(toolName, undefined),
+          status: "failed",
+          error,
+        }).blocks,
+      );
+    assert.equal(
+      failed("read", "read path not found: a/b.ts"),
+      "read: path not found: a/b.ts",
+    );
+    assert.equal(
+      failed("edit", "ENOENT: no such file or directory, open '/x/y'"),
+      "edit: path not found: /x/y",
+    );
+    assert.equal(
+      failed(
+        "python_exec",
+        "Unknown system error -122: Unknown system error -122, write",
+      ),
+      "python_exec: disk quota exceeded; cannot write",
+    );
+    assert.equal(
+      text(
+        projectAgentResult({
+          ...context("bash", undefined),
+          status: "failed",
+          phase: "interrupted",
+        }).blocks,
+      ),
+      "bash: interrupted, no rollback implied.",
+    );
+  });
+});
+
+describe("process footer scope", () => {
+  it("adds no exit footer to web_search results", () => {
+    const projected = projectAgentResult({
+      ...context("web_search", {
+        content: "hello",
+        exitCode: 0,
+        details: { exitCode: 0 },
+      }),
+    });
+    assert.doesNotMatch(text(projected.blocks), /exit 0/);
   });
 });

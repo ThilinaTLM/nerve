@@ -19,7 +19,7 @@ void test("small process output stays inline without file locators", async () =>
       status: "completed",
       exitCode: 0,
     }),
-    "Status: completed; exit code: 0\nhello\n",
+    "hello\nexit 0",
   );
 });
 void test("output up to the inline budget stays whole regardless of line count", async () => {
@@ -31,7 +31,7 @@ void test("output up to the inline budget stays whole regardless of line count",
       status: "completed",
       exitCode: 0,
     }),
-    `Status: completed; exit code: 0\n${output}`,
+    `${output}\nexit 0`,
   );
 });
 
@@ -56,7 +56,7 @@ void test("large captures show a tail-biased head/tail view with one recovery pa
       captureTruncated: true,
     });
     const shown = text.split("\n");
-    assert.match(text, /^Status: failed; exit code: 1\nCapture truncated/);
+    assert.match(text, /^exit 1\nCapture truncated/);
     assert.ok(text.includes("line 0 "));
     assert.ok(text.includes("line 1999 "));
     assert.ok(!text.includes("ERROR middle-file match"));
@@ -135,7 +135,7 @@ void test("the tool result pass leaves producer-projected bash output unchanged"
   }
 });
 
-void test("pages use zero-based offsets, continuation, defaults and inline bounds", async () => {
+void test("pages keep zero-based offsets and hint only at cuts the tool made", async () => {
   const output = Array.from({ length: 200 }, (_, i) => `line ${i}`).join("\n");
   const page = await projectProcessOutputPage({
     output,
@@ -144,35 +144,49 @@ void test("pages use zero-based offsets, continuation, defaults and inline bound
     limit: 2,
     status: "running",
   });
+  // The caller chose limit 2: no Next.
   assert.equal(
     page,
-    "Lines 10-11 of 200 (running).\nline 10\nline 11\nNext offset: 12\nFile: /output.txt",
+    "line 10\nline 11\nLines 11-12 of 200 (running).\nFile: /output.txt",
+  );
+  const defaultLimit = await projectProcessOutputPage({
+    output,
+    outputFiles: { combined: "/output.txt" },
+    offset: 10,
+    status: "running",
+  });
+  assert.match(
+    defaultLimit,
+    /\nLines 11-110 of 200 \(running\)\. Next: \{"offset":110\}\nFile:/,
   );
   const tail = await projectProcessOutputPage({
     output,
     outputFiles: { combined: "/output.txt" },
     status: "completed",
   });
-  assert.match(tail, /^Lines 100-199/);
+  assert.match(
+    tail,
+    /\nLines 101-200 of 200 \(exit unknown\)\. Earlier: \{"offset":0\}\nFile:/,
+  );
   assert.ok(tail.split("\n").length <= 104);
   const small = await projectProcessOutputPage({
     output: "one\ntwo",
     outputFiles: { combined: "/output.txt" },
   });
-  assert.equal(small, "Lines 0-1 of 2 (running).\none\ntwo");
+  assert.equal(small, "one\ntwo\nLines 1-2 of 2 (running).");
   assert.equal(
     await projectProcessOutputPage({
       output: "one\n\ntwo",
       offset: 0,
       limit: 3,
     }),
-    "Lines 0-2 of 3 (running).\none\n\ntwo",
+    "one\n\ntwo\nLines 1-3 of 3 (running).",
   );
   const cut = await projectProcessOutputPage({
     output: "x".repeat(3000),
     outputFiles: { combined: "/output.txt" },
   });
-  assert.ok(cut.split("\n")[1].length <= 2000);
+  assert.ok(cut.split("\n")[0].length <= 2000);
   assert.match(cut, /File:/);
   await assert.rejects(projectProcessOutputPage({ output, offset: -1 }));
   await assert.rejects(projectProcessOutputPage({ output, limit: 501 }));
@@ -186,24 +200,21 @@ void test("inline and empty process results always retain terminal exit codes", 
         status: exitCode === 0 ? "completed" : "failed",
         exitCode,
       });
-      assert.match(
-        projected,
-        new RegExp(`^Status: .*; exit code: ${exitCode}`),
-      );
+      assert.match(projected, new RegExp(`exit ${exitCode}$`));
       assert.ok(projected.includes(output));
     }
   }
   assert.equal(
     await projectProcessOutput({ output: "", status: "lost", exitCode: null }),
-    "Status: lost; exit code: unknown",
+    "lost",
   );
   assert.equal(
     await projectProcessOutput({ output: "", status: "running" }),
-    "Status: running",
+    "running",
   );
   assert.equal(
     await projectProcessOutput({ output: "", exitCode: 0 }),
-    "Process exit code: 0.",
+    "exit 0",
   );
 });
 
@@ -211,7 +222,7 @@ void test("overflow success and terminal log pages retain exit codes", async () 
   const output = Array.from({ length: 200 }, (_, i) => `line ${i}`).join("\n");
   assert.match(
     await projectProcessOutput({ output, status: "completed", exitCode: 0 }),
-    /^Status: completed; exit code: 0/,
+    /\nexit 0$/,
   );
   for (const exitCode of [0, 7, null]) {
     assert.equal(
@@ -220,7 +231,7 @@ void test("overflow success and terminal log pages retain exit codes", async () 
         status: "completed",
         exitCode,
       }),
-      `Lines 0-0 of 1 (completed; exit code: ${exitCode ?? "unknown"}).\none`,
+      `one\nLines 1-1 of 1 (exit ${exitCode ?? "unknown"}).`,
     );
   }
 });

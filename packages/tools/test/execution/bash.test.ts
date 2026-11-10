@@ -367,7 +367,7 @@ describe("bash executor", () => {
 
     assert.match(
       result.content ?? "",
-      /^Process exit code 0\.\nDuration: \d+ ms\nline 0\n/,
+      /^exit 0(?: · [\d.]+s)?\nline 0\n/,
     );
     assert.match(
       result.content ?? "",
@@ -493,7 +493,7 @@ describe("bash executor", () => {
     // stdout and stderr are separate pipes, so their combined order is not fixed.
     assert.match(
       result.content ?? "",
-      /^(?:outerr|errout)\n\nProcess exit code 7\./,
+      /^(?:outerr|errout)\nexit 7(?: · [\d.]+s)?$/,
     );
   });
 });

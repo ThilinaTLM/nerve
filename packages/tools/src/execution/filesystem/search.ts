@@ -2,8 +2,8 @@ import type { ChildProcessByStdio } from "node:child_process";
 import { spawnManagedChildProcess } from "@nervekit/native";
 import { searchProcessPolicy } from "../process/managed-process-policy.js";
 import { createReadStream } from "node:fs";
-import { open } from "node:fs/promises";
-import { isAbsolute, relative } from "node:path";
+import { open, readFile, stat } from "node:fs/promises";
+import { isAbsolute, relative, resolve } from "node:path";
 import { createInterface } from "node:readline";
 import type { Readable } from "node:stream";
 import type {
@@ -86,10 +86,17 @@ export async function executeGrepWithBackend(
     }
   }
   const bounded = boundGrepResult(raw);
+  const longLine = bounded.firstTruncated
+    ? await longLineReadHint(
+        context.cwd,
+        scope.displayRoot,
+        bounded.firstTruncated,
+      )
+    : undefined;
   const formatted = formatMatches(
     bounded.result,
-    limit,
     bounded.truncatedLines,
+    longLine,
   );
   return {
     path: scope.displayRoot,
@@ -427,14 +434,21 @@ async function isBinaryFile(path: string): Promise<boolean> {
   }
 }
 
+type TruncatedGrepLine = { path: string; line: number; text: string };
+
 function boundGrepResult(result: GrepRunResult): {
   result: GrepRunResult;
   truncatedLines: number;
+  firstTruncated?: TruncatedGrepLine;
 } {
   let truncatedLines = 0;
+  let firstTruncated: TruncatedGrepLine | undefined;
   const boundedLines = result.lines.map((line) => {
     const bounded = boundGrepLine(line.text);
-    if (bounded.truncated) truncatedLines += 1;
+    if (bounded.truncated) {
+      truncatedLines += 1;
+      firstTruncated ??= { path: line.path, line: line.line, text: line.text };
+    }
     return { ...line, text: bounded.text };
   });
   const boundedTextByLine = new Map(
@@ -455,7 +469,39 @@ function boundGrepResult(result: GrepRunResult): {
       })),
     },
     truncatedLines,
+    firstTruncated,
   };
+}
+
+/**
+ * A copyable `read` call for the part of the first cut line that grep did not show,
+ * or undefined when the file cannot be read or is too large to scan.
+ */
+async function longLineReadHint(
+  cwd: string,
+  displayRoot: string,
+  cut: TruncatedGrepLine,
+): Promise<string | undefined> {
+  const absolute = resolve(displayRoot, cut.path);
+  try {
+    if ((await stat(absolute)).size > 64 * 1024 * 1024) return undefined;
+    const buffer = await readFile(absolute);
+    let start = 0;
+    for (let line = 1; line < cut.line; line += 1) {
+      const newline = buffer.indexOf(0x0a, start);
+      if (newline < 0) return undefined;
+      start = newline + 1;
+    }
+    const shown = Buffer.byteLength(cut.text.slice(0, GREP_MAX_LINE_LENGTH));
+    const fromCwd = relative(cwd, absolute).replaceAll("\\", "/");
+    const path =
+      fromCwd && !fromCwd.startsWith("..") && !isAbsolute(fromCwd)
+        ? fromCwd
+        : absolute;
+    return JSON.stringify({ path, byteOffset: start + shown });
+  } catch {
+    return undefined;
+  }
 }
 
 function boundGrepLine(text: string) {
@@ -468,8 +514,8 @@ function boundGrepLine(text: string) {
 
 function formatMatches(
   result: GrepRunResult,
-  limit: number,
   truncatedLines: number,
+  longLineHint: string | undefined,
 ): {
   content: string;
   details?: unknown;
@@ -491,16 +537,16 @@ function formatMatches(
     previous = line;
   }
   if (result.matches.length === 0) output.push("No matches found.");
-  if (result.matches.length >= limit) {
+  if (result.totalMatches > result.matches.length) {
     output.push(
       "",
-      `[Match limit ${limit} reached. Increase limit or refine the pattern for more results.]`,
+      `Showing ${result.matches.length} of ${result.totalMatches} matches. Narrow with path, glob or a tighter pattern.`,
     );
   }
   if (truncatedLines > 0) {
     output.push(
       "",
-      `[${truncatedLines} matching line(s) truncated to ${GREP_MAX_LINE_LENGTH} characters. Use read with offset/limit or byteOffset/byteLimit to inspect full lines.]`,
+      `${truncatedLines} line${truncatedLines === 1 ? "" : "s"} cut to ${GREP_MAX_LINE_LENGTH} chars.${longLineHint ? ` Next: read ${longLineHint}` : ""}`,
     );
   }
   const bounded = boundText(output.join("\n"), {

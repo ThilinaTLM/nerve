@@ -124,7 +124,7 @@ void test("bash host validates turn settings, project cwd and untimed background
       assert.equal(result.result.exitCode, 0);
       assert.equal(
         result.result.content,
-        "Status: completed; exit code: 0\nhello",
+        "hello\nexit 0",
       );
     }
     for (const code of [0, 7, null]) {
@@ -144,7 +144,7 @@ void test("bash host validates turn settings, project cwd and untimed background
       assert.equal(completed.result.details.exitCode, code);
       assert.equal(
         completed.result.content,
-        `Status: ${status}; exit code: ${code ?? "unknown"}\nhello`,
+        `hello\n${code === null ? status : `exit ${code}`}`,
       );
     }
     exitCode = 0;

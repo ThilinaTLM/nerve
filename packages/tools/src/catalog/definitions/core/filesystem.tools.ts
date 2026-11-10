@@ -17,13 +17,15 @@ const readParameters = Type.Object(
         description: "1-indexed line.",
       }),
     ),
-    limit: Type.Optional(Type.Number()),
+    limit: Type.Optional(Type.Number({ default: 2000 })),
     byteOffset: Type.Optional(
       Type.Number({
         description: "0-indexed; not with offset/limit.",
       }),
     ),
-    byteLimit: Type.Optional(Type.Number()),
+    byteLimit: Type.Optional(
+      Type.Number({ default: 4096, description: "Capped at 4096." }),
+    ),
   },
   { additionalProperties: false },
 );
@@ -59,7 +61,7 @@ const writeParameters = Type.Object(
 const grepParameters = Type.Object(
   {
     pattern: Type.String(),
-    path: Type.Optional(Type.String()),
+    path: Type.Optional(Type.String({ description: "Or use paths." })),
     paths: Type.Optional(
       Type.Array(Type.String(), {
         description: "Several targets instead of path.",
@@ -67,7 +69,7 @@ const grepParameters = Type.Object(
     ),
     glob: Type.Optional(
       Type.String({
-        description: "E.g. **/*.ts.",
+        description: "File filter, e.g. `*.ts` or `**/*.test.ts`.",
       }),
     ),
     ignoreCase: Type.Optional(Type.Boolean()),
@@ -77,7 +79,7 @@ const grepParameters = Type.Object(
         description: "Lines around each match.",
       }),
     ),
-    limit: Type.Optional(Type.Number()),
+    limit: Type.Optional(Type.Number({ default: 100 })),
   },
   { additionalProperties: false },
 );
@@ -88,7 +90,7 @@ const findParameters = Type.Object(
       description: "E.g. src/**/*.test.ts.",
     }),
     path: Type.Optional(Type.String()),
-    limit: Type.Optional(Type.Number()),
+    limit: Type.Optional(Type.Number({ default: 1000 })),
   },
   { additionalProperties: false },
 );
@@ -96,7 +98,7 @@ const findParameters = Type.Object(
 const lsParameters = Type.Object(
   {
     path: Type.Optional(Type.String()),
-    limit: Type.Optional(Type.Number()),
+    limit: Type.Optional(Type.Number({ default: 500 })),
   },
   { additionalProperties: false },
 );
@@ -121,7 +123,7 @@ export const filesystemToolDefinitions = [
     executor: executeRead,
     label: "read",
     description:
-      "Read a text file or image. Text output is bounded; page with offset/limit, or byteOffset/byteLimit for long lines.",
+      "Read a text file or image. Text output is bounded. Use offset/limit or byteOffset/byteLimit, not both.",
     parameters: readParameters,
     executionMode: "parallel",
   },
@@ -145,7 +147,7 @@ export const filesystemToolDefinitions = [
     executor: executeEdit,
     label: "edit",
     description:
-      "Replace exact, unique text in an existing file; all edits resolve against the original content.",
+      "Exact, unique text replacements in an existing file. Every oldText matches the original file; the batch applies atomically.",
     parameters: editParameters,
     executionMode: "sequential",
   },

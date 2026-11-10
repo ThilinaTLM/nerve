@@ -263,7 +263,8 @@ const FAILING_TEST_OUTPUT = `▶ registry
     - 'recorded tool'
 ℹ tests 2
 ℹ pass 1
-ℹ fail 1`;
+ℹ fail 1
+exit 1 · 2.3s`;
 
 const LONG_OUTPUT = Array.from(
   { length: 42 },

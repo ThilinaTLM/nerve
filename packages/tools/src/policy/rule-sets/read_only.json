@@ -32,6 +32,7 @@
     },
     {
       "id": "deny-everything-else",
+      "description": "Read-only mode allows only inspection tools such as read, grep, find and ls.",
       "enabled": true,
       "priority": 0,
       "enforcement": "overridable",

@@ -4,6 +4,7 @@ import type {
   ValidatedToolArtifact,
 } from "@nervekit/contracts/tools";
 import { profileBudget } from "./profiles.js";
+import { processFooter } from "./process-footer.js";
 import { projectAgentResult } from "./projector.js";
 import type { ProjectionCandidate } from "./types.js";
 
@@ -35,17 +36,13 @@ export async function projectProcessOutput(
 export async function projectProcessOutputResult(
   input: ProcessOutputInput,
 ): Promise<ProcessOutputProjection> {
-  const exitStatus =
-    input.exitCode != null
-      ? `; exit code: ${input.exitCode}`
-      : input.status && input.status !== "running"
-        ? "; exit code: unknown"
-        : "";
-  const pageStatus = `${input.status ?? "running"}${exitStatus}`;
-  const processStatus = input.status
-    ? `Status: ${pageStatus}`
-    : input.exitCode != null
-      ? `Process exit code: ${input.exitCode}.`
+  const pageStatus =
+    input.status || input.exitCode != null
+      ? processFooter({ exitCode: input.exitCode, status: input.status })
+      : "running";
+  const processStatus =
+    input.status || input.exitCode != null
+      ? processFooter({ exitCode: input.exitCode, status: input.status })
       : "Process output.";
   const files = input.outputFiles ?? {};
   const load = async (path: string | undefined) =>
@@ -81,7 +78,7 @@ export async function projectProcessOutputResult(
     const selected: string[] = [];
     // Reserve the header, continuation, locator and capture notice within the same budget.
     let bytes = Buffer.byteLength(
-      `Lines ${from}-${lines.length} of ${lines.length} (${pageStatus}).\nNext offset: ${lines.length}\nFile: ${files.combined ?? files.stdout ?? files.stderr ?? ""}\n${capture}\n`,
+      `Lines ${from + 1}-${lines.length} of ${lines.length} (${pageStatus}). Earlier: {"offset":${from}}\nFile: ${files.combined ?? files.stdout ?? files.stderr ?? ""}\n${capture}\n`,
     );
     const requested = lines.slice(from, from + limit);
     for (const line of offset === undefined
@@ -101,10 +98,18 @@ export async function projectProcessOutputResult(
       from !== 0 ||
       next < lines.length ||
       selected.some((line, i) => line !== lines[from + i]);
+    // Next/Earlier only for cuts the tool made: the default limit or the byte budget, not the caller's own window.
+    const toolCut =
+      input.page.limit === undefined || selected.length < requested.length;
+    const hint =
+      toolCut && offset === undefined && from > 0
+        ? ` Earlier: ${JSON.stringify({ offset: Math.max(0, from - limit) })}`
+        : toolCut && offset !== undefined && next < lines.length
+          ? ` Next: ${JSON.stringify({ offset: next })}`
+          : "";
     const text = [
-      `Lines ${from}-${selected.length ? next - 1 : from} of ${lines.length} (${pageStatus}).`,
       ...selected,
-      ...(next < lines.length ? [`Next offset: ${next}`] : []),
+      `${selected.length ? `Lines ${from + 1}-${next}` : "Lines 0"} of ${lines.length} (${pageStatus}).${hint}`,
       ...(reduced && (files.combined ?? files.stdout ?? files.stderr)
         ? [`File: ${files.combined ?? files.stdout ?? files.stderr}`]
         : []),
@@ -114,7 +119,9 @@ export async function projectProcessOutputResult(
   }
   return projectProcessText({
     header: [processStatus, capture].filter(Boolean).join("\n"),
-    inline: [processStatus, output, capture].filter(Boolean).join("\n"),
+    inline: [output.replace(/\r?\n$/, ""), capture, processStatus]
+      .filter(Boolean)
+      .join("\n"),
     output,
     files: {
       combined: files.combined
