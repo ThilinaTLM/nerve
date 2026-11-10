@@ -20,9 +20,9 @@ import {
  */
 
 /**
- * Content widths in px for the table/page layouts. These are Confluence Cloud
- * defaults (fixed-width page 760, wide 960, full-width 1800) and should be
- * verified against a live site.
+ * Content widths in px for the table/page layouts. `default` (760, the fixed-width
+ * page column) is verified live on Confluence Cloud; `wide` (960) and `full-width`
+ * (1800) are assumed Cloud defaults and not yet verified.
  */
 export const CONTENT_WIDTH = {
   default: 760,
@@ -68,9 +68,11 @@ export function lintStoragePage(
   const root = parseStorage(storage);
   const fixes: string[] = [];
   const warnings: string[] = [];
+  lintLooseInline(root, fixes);
   lintHeadings(root, options.title, fixes, warnings);
   lintToc(root, options.toc !== false, fixes);
   lintTables(root, fixes);
+  lintBlockMacros(root, fixes);
   lintImages(root, sizeLookup(options.images), fixes, warnings);
   lintRedundancy(root, warnings);
   return { storage: serializeNode(root), fixes, warnings };
@@ -477,7 +479,12 @@ function lintRedundancy(root: XmlElement, warnings: string[]): void {
       ) {
         warnings.push(`Section "${text}" is empty.`);
       }
-      const only = rest.length === 1 ? rest[0] : undefined;
+      let only = rest.length === 1 ? rest[0] : undefined;
+      // A lone inline macro is usually wrapped in its own paragraph.
+      if (only?.kind === "element" && only.name === "p") {
+        const inner = significantChildren(only);
+        only = inner.length === 1 ? inner[0] : undefined;
+      }
       if (only?.kind === "element" && macroName(only) === "jira") {
         const key = macroParam(only, "key");
         if (key && normalize(key) === normalize(text)) {
@@ -487,5 +494,133 @@ function lintRedundancy(root: XmlElement, warnings: string[]): void {
         }
       }
     });
+  }
+}
+
+// ---- loose inline content --------------------------------------------------
+
+/** Containers whose children must be blocks (td/th/li accept inline content directly). */
+const BLOCK_CONTAINERS = new Set([
+  "#root",
+  "ac:rich-text-body",
+  "ac:layout-cell",
+  "blockquote",
+]);
+const INLINE_ELEMENTS = new Set([
+  "a",
+  "strong",
+  "em",
+  "b",
+  "i",
+  "u",
+  "s",
+  "del",
+  "sub",
+  "sup",
+  "code",
+  "span",
+  "br",
+  "time",
+  "ac:link",
+  "ac:emoticon",
+  "ac:inline-comment-marker",
+]);
+const INLINE_MACROS = new Set(["status"]);
+
+function isInlineNode(node: XmlNode): boolean {
+  if (node.kind === "text") return node.value.trim() !== "";
+  if (node.kind === "raw") return false;
+  if (INLINE_ELEMENTS.has(node.name)) return true;
+  const name = macroName(node);
+  // A Jira macro with a key is inline; a JQL list is a block.
+  return (
+    name !== undefined &&
+    (INLINE_MACROS.has(name) ||
+      (name === "jira" && macroParam(node, "key") !== undefined))
+  );
+}
+
+function paragraph(children: XmlNode[]): XmlElement {
+  return {
+    kind: "element",
+    name: "p",
+    attrs: "",
+    selfClosing: false,
+    children,
+    line: 0,
+  };
+}
+
+function lintLooseInline(root: XmlElement, fixes: string[]): void {
+  let wrapped = 0;
+  const visit = (container: XmlElement) => {
+    if (BLOCK_CONTAINERS.has(container.name)) {
+      const result: XmlNode[] = [];
+      let run: XmlNode[] = [];
+      const flush = () => {
+        // Trailing whitespace stays outside the paragraph.
+        const trailing: XmlNode[] = [];
+        while (run.length > 0 && !isInlineNode(run.at(-1)!))
+          trailing.unshift(run.pop()!);
+        if (run.length > 0) {
+          result.push(paragraph(run));
+          wrapped++;
+        }
+        result.push(...trailing);
+        run = [];
+      };
+      for (const child of container.children) {
+        if (isInlineNode(child)) run.push(child);
+        else if (
+          run.length > 0 &&
+          child.kind === "text" &&
+          child.value.trim() === ""
+        )
+          run.push(child);
+        else {
+          flush();
+          result.push(child);
+        }
+      }
+      flush();
+      container.children = result;
+    }
+    for (const child of container.children)
+      if (child.kind === "element") visit(child);
+  };
+  visit(root);
+  if (wrapped > 0) {
+    fixes.push(
+      `Wrapped ${wrapped} run${wrapped === 1 ? "" : "s"} of loose inline content (text, dates, links, lozenges) in <p>; keep inline items inside storage.p(...) so they stay on one line.`,
+    );
+  }
+}
+
+// ---- block macros ----------------------------------------------------------
+
+/**
+ * Cloud renders the Jira issue list macro full-width (1761 px in a 760 px column)
+ * unless the macro element carries data-layout; "default" keeps it in the column.
+ */
+function lintBlockMacros(root: XmlElement, fixes: string[]): void {
+  let count = 0;
+  walk(root, (element) => {
+    if (
+      macroName(element) !== "jira" ||
+      getAttr(element, "data-layout") !== undefined
+    )
+      return undefined;
+    const isList = ["jqlQuery", "jql", "url"].some(
+      (name) => macroParam(element, name) !== undefined,
+    );
+    if (!isList) return undefined;
+    setAttr(element, "data-layout", "default");
+    count++;
+    return undefined;
+  });
+  if (count > 0) {
+    fixes.push(
+      `Set data-layout="default" on ${count} Jira issue list macro${count === 1 ? "" : "s"} so they stay within the content width.`,
+    );
   }
 }

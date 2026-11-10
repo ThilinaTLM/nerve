@@ -30,11 +30,13 @@ Table-of-contents macro.
 
 ## `storage.panel(type, body, { title? })`
 
-`type`: `"info" | "note" | "warning" | "tip" | "success"` (`success` renders as `tip`). Other types throw. Use `info` for neutral context or a summary, `note` for something to be aware of, `tip`/`success` for recommendations or good outcomes, and `warning` only for risks and problems.
+`type` uses the Confluence Cloud panel names, mapped to the storage macro that renders that colour: `"info"` (blue, `info` macro), `"success"` (green, `tip`), `"warning"` (yellow, `note`), `"error"` (red, `warning`), `"note"` (purple, a `panel` macro with purple border and fill). The legacy name `"tip"` is accepted as `"success"`. Other types throw. `body` is Markdown, storage XHTML, or an array of parts (each part Markdown or storage, joined in order).
+
+When to use which: `info` for context and the page overview; `success` for good news (done, on track); `warning` for risks and things to watch; `error` only for blocking problems or failures; `note` for a side remark or definition. Use them sparingly: one overview panel at the top, a few elsewhere.
 
 ## `storage.expand(title, body)`
 
-Expand (collapsible) macro.
+Expand (collapsible) macro; `body` as for `panel` (string or array of parts).
 
 ## `storage.status(text, colour?)`
 
@@ -48,9 +50,9 @@ Code block macro; code is wrapped in CDATA (safe for `]]>`).
 
 Jira issue macro for one key.
 
-## `storage.jiraIssues(jql, { columns? })`
+## `storage.jiraIssues(jql, { columns?, limit?, layout?, serverId? })`
 
-Jira issue-list macro for a JQL query; `columns` is a string or string[].
+Jira issue-list macro for a JQL query. `columns` is a string[] (or a comma/semicolon separated string); it is written to the macro as the semicolon-separated list Confluence expects (`key;summary;status`). Known column names: `type` (shown as a narrow icon column headed "T", not a text column), `key`, `summary`, `assignee`, `reporter`, `priority`, `status`, `resolution`, `created`, `updated`, `due`; custom fields by name. `limit` sets `maximumIssues`. `layout`: `"default"` (the default; keeps the list inside the 760 px column), `"wide"`, `"full-width"`; written as `data-layout` on the macro. Omit `serverId` unless the site has several Jira links. An empty result renders only a bare header row, so check the count in the script and write a sentence instead of the macro for sections that may be empty.
 
 ## `storage.table(rows, { columns?, layout? })`
 

@@ -43,10 +43,11 @@ export const STORAGE_PRELUDE = String.raw`globalThis.storage = (() => {
   const markdown = (md) => START + encodeURIComponent(String(md)) + "\u0002";
   const isStorage = (s) => /^\s*</.test(s) || s.includes(START);
   const hasTag = (s) => /<\/?[a-z][\w:-]*[\s\/>]/i.test(s) || s.includes(START);
-  const rich = (b) => { const s = String(b == null ? "" : b); return isStorage(s) ? s : markdown(s); };
+  const rich1 = (b) => { const s = String(b == null ? "" : b); return isStorage(s) ? s : markdown(s); };
+  const rich = (b) => Array.isArray(b) ? b.map(rich1).join("") : rich1(b);
   const param = (name, value) => value == null || value === "" ? "" : '<ac:parameter ac:name="' + name + '">' + esc(value) + "</ac:parameter>";
-  const macro = (name, params, body) =>
-    '<ac:structured-macro ac:name="' + name + '" ac:schema-version="1">' + params + (body || "") + "</ac:structured-macro>";
+  const macro = (name, params, body, attrs) =>
+    '<ac:structured-macro ac:name="' + name + '" ac:schema-version="1"' + (attrs || "") + ">" + params + (body || "") + "</ac:structured-macro>";
   const richBody = (b) => "<ac:rich-text-body>" + rich(b) + "</ac:rich-text-body>";
   const cell = (tag, v) => {
     const s = String(v == null ? "" : v);
@@ -54,7 +55,15 @@ export const STORAGE_PRELUDE = String.raw`globalThis.storage = (() => {
   };
   let taskId = 0;
   const LAYOUTS = { two_equal: 1, two_left_sidebar: 1, two_right_sidebar: 1, three_equal: 1 };
-  const PANELS = { info: "info", note: "note", warning: "warning", tip: "tip", success: "tip" };
+  const LAYOUT_NAMES = { default: 1, wide: 1, "full-width": 1 };
+  const layoutAttr = (layout) => {
+    const l = layout || "default";
+    if (!LAYOUT_NAMES[l]) throw new Error("layout must be one of: default, wide, full-width");
+    return ' data-layout="' + l + '"';
+  };
+  // Confluence Cloud panel names -> storage macros (legacy colours: info blue, tip green, note yellow, warning red).
+  const PANELS = { info: "info", success: "tip", tip: "tip", warning: "note", error: "warning", note: "panel" };
+  const NOTE_PANEL = param("borderStyle", "solid") + param("borderColor", "#998DD9") + param("bgColor", "#EAE6FF");
   const COLOURS = { grey: "Grey", gray: "Grey", red: "Red", yellow: "Yellow", green: "Green", blue: "Blue", purple: "Purple" };
   return {
     markdown,
@@ -92,8 +101,8 @@ export const STORAGE_PRELUDE = String.raw`globalThis.storage = (() => {
     toc: () => macro("toc", ""),
     panel: (type, body, opts) => {
       const name = PANELS[String(type)];
-      if (!name) throw new Error("panel type must be one of: info, note, warning, tip, success");
-      return macro(name, param("title", opts && opts.title), richBody(body));
+      if (!name) throw new Error("panel type must be one of: info, note, success, warning, error");
+      return macro(name, (String(type) === "note" ? NOTE_PANEL : "") + param("title", opts && opts.title), richBody(body));
     },
     expand: (title, body) => macro("expand", param("title", title), richBody(body)),
     status: (text, colour) =>
@@ -102,8 +111,12 @@ export const STORAGE_PRELUDE = String.raw`globalThis.storage = (() => {
       macro("code", param("language", opts && opts.language) + param("title", opts && opts.title), "<ac:plain-text-body>" + cdata(code) + "</ac:plain-text-body>"),
     jiraIssue: (key) => macro("jira", param("key", key)),
     jiraIssues: (jql, opts) => {
-      const columns = opts && opts.columns;
-      return macro("jira", param("jqlQuery", jql) + param("columns", Array.isArray(columns) ? columns.join(",") : columns));
+      const o = opts || {};
+      const columns = Array.isArray(o.columns) ? o.columns : typeof o.columns === "string" ? o.columns.split(/[,;]/) : [];
+      return macro("jira",
+        param("jqlQuery", jql) + param("columns", columns.map((c) => String(c).trim()).filter(Boolean).join(";")) +
+        param("maximumIssues", o.limit || o.maximumIssues) + param("serverId", o.serverId),
+        "", layoutAttr(o.layout));
     },
     table: (rows, opts) => {
       const list = Array.isArray(rows) ? rows : [];

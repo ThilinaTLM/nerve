@@ -201,3 +201,43 @@ void test("warns about redundant headings, panels and empty sections", () => {
     /empty/,
   );
 });
+
+void test("wraps loose inline content under block containers in paragraphs, once per run", () => {
+  const date = '<time datetime="2026-01-02"/>';
+  const result = lint(
+    `<ac:structured-macro ac:name="info"><ac:rich-text-body><p>Due</p>${date}</ac:rich-text-body></ac:structured-macro>` +
+      `<ul><li>${date} ok</li></ul><table><tbody><tr><td>${date}</td></tr></tbody></table>` +
+      `stray <strong>text</strong>`,
+  );
+  assert.ok(
+    result.storage.includes(`<p>Due</p><p>${date}</p></ac:rich-text-body>`),
+  );
+  assert.ok(
+    result.storage.includes(`<li>${date} ok</li>`),
+    "li keeps inline content",
+  );
+  assert.ok(
+    result.storage.includes(`<td>${date}</td>`),
+    "td keeps inline content",
+  );
+  assert.ok(result.storage.endsWith("<p>stray <strong>text</strong></p>"));
+  const fix = result.fixes.filter((f) => f.startsWith("Wrapped"));
+  assert.equal(fix.length, 1);
+  assert.match(fix[0], /Wrapped 2 runs/);
+  assertWellFormedStorage(result.storage);
+});
+
+void test("sets data-layout=default on Jira list macros only when missing", () => {
+  const list = (attrs = "") =>
+    `<ac:structured-macro ac:name="jira" ac:schema-version="1"${attrs}><ac:parameter ac:name="jqlQuery">project = A</ac:parameter></ac:structured-macro>`;
+  const fixed = lint(list());
+  assert.equal(fixed.storage, list(' data-layout="default"'));
+  assert.equal(fixed.fixes.length, 1);
+  assert.equal(
+    lint(list(' data-layout="wide"')).storage,
+    list(' data-layout="wide"'),
+  );
+  const single =
+    '<p><ac:structured-macro ac:name="jira" ac:schema-version="1"><ac:parameter ac:name="key">A-1</ac:parameter></ac:structured-macro></p>';
+  assert.equal(lint(single).storage, single);
+});

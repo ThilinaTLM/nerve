@@ -330,3 +330,63 @@ void test("storage builders produce well-formed XHTML", async () => {
     "3 sections get a TOC",
   );
 });
+
+void test("jiraIssues builds semicolon-separated columns and a layout; panels map Cloud names to storage macros", async () => {
+  const { requests, context } = await setup();
+  await executeAtlassianCodeMode(
+    {
+      code: `
+        const body = [
+          storage.h1("A"),
+          storage.jiraIssues("project = A", { columns: ["key", "summary", "type", "assignee"], limit: 20 }),
+          storage.jiraIssues("project = B", { columns: "key, status", layout: "wide" }),
+          storage.panel("info", ["Plain text", storage.date("2026-01-02")]),
+          storage.panel("warning", "yellow"), storage.panel("error", "red", { title: "Blocked" }),
+          storage.panel("success", "green"), storage.panel("note", "purple"),
+          storage.expand("More", [storage.p("a"), storage.p("b")]),
+        ].join("");
+        try { storage.panel("tip2", "x"); } catch (e) { console.log(e.message); }
+        await confluence.pages.create({ space: "DOC", title: "T", body });
+      `,
+    },
+    context,
+  );
+  const value = requests.find((r) => r.method === "POST")!.body!.body.value;
+  assertWellFormedStorage(value);
+  assert.ok(
+    value.includes(
+      '<ac:parameter ac:name="columns">key;summary;type;assignee</ac:parameter>',
+    ),
+  );
+  assert.ok(
+    value.includes('<ac:parameter ac:name="maximumIssues">20</ac:parameter>'),
+  );
+  assert.ok(
+    value.includes('<ac:parameter ac:name="columns">key;status</ac:parameter>'),
+  );
+  assert.ok(
+    value.includes('ac:schema-version="1" data-layout="default"'),
+    "linter adds default layout",
+  );
+  assert.ok(
+    value.includes('ac:schema-version="1" data-layout="wide"'),
+    "explicit layout kept",
+  );
+  // warning (yellow) -> note, error (red) -> warning, success -> tip, info -> info, note (purple) -> panel
+  assert.match(value, /ac:name="note"[^>]*><ac:rich-text-body><p>yellow<\/p>/);
+  assert.match(
+    value,
+    /ac:name="warning"[^>]*><ac:parameter ac:name="title">Blocked<\/ac:parameter><ac:rich-text-body><p>red<\/p>/,
+  );
+  assert.match(value, /ac:name="tip"[^>]*><ac:rich-text-body><p>green<\/p>/);
+  assert.match(
+    value,
+    /ac:name="panel"[^>]*><ac:parameter ac:name="borderStyle">solid.*#EAE6FF.*<p>purple<\/p>/,
+  );
+  // array bodies join their parts; the loose date is wrapped by the linter
+  assert.match(
+    value,
+    /<p>Plain text<\/p><p><time datetime="2026-01-02"\/><\/p>/,
+  );
+  assert.ok(value.includes("<p>a</p><p>b</p></ac:rich-text-body>"));
+});
