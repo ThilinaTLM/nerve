@@ -23,14 +23,10 @@ export const processToolDefinitions = [
     label: "async_bash",
     classifyRisk: classifyProcessRisk,
     description:
-      "Manage your background bash runs. list: running runs (`all: true` includes finished). logs: output from offset (default: tail). stop: kills the process tree.",
+      "Manage your background bash runs. list: running runs (`all: true` includes finished). logs: output from `offset` (default: tail). stop: kills the process tree.",
     parameters: Type.Object(
       {
-        action: Type.Union([
-          Type.Literal("list"),
-          Type.Literal("logs"),
-          Type.Literal("stop"),
-        ]),
+        action: Type.Enum(["list", "logs", "stop"]),
         all: Type.Optional(Type.Boolean()),
         id: Type.Optional(Type.String({ minLength: 1 })),
         ...page,
@@ -48,16 +44,10 @@ export const processToolDefinitions = [
     label: "launch",
     classifyRisk: classifyProcessRisk,
     description:
-      "Use the user's launch definitions (dev servers etc.). Check status before starting. Select by exact name; `runId` targets one run (default: latest). logs: output from offset (default: tail).",
+      "Run the user's launch definitions (dev servers etc.); check status before starting. `name` or `runId` selects the run (default: latest). logs: output from `offset` (default: tail).",
     parameters: Type.Object(
       {
-        action: Type.Union([
-          Type.Literal("status"),
-          Type.Literal("logs"),
-          Type.Literal("start"),
-          Type.Literal("restart"),
-          Type.Literal("stop"),
-        ]),
+        action: Type.Enum(["status", "logs", "start", "restart", "stop"]),
         name: Type.Optional(Type.String({ minLength: 1 })),
         runId: Type.Optional(
           Type.String({

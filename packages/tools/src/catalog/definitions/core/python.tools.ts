@@ -4,18 +4,13 @@ import type { ToolDefinition } from "../../contracts.js";
 
 const pythonParameters = Type.Object(
   {
-    code: Type.Optional(
-      Type.String({ description: "Exactly one of code or path." }),
-    ),
-    path: Type.Optional(
-      Type.String({
-        description: "Exactly one of code or path.",
-      }),
-    ),
+    code: Type.Optional(Type.String()),
+    path: Type.Optional(Type.String()),
     cwd: Type.Optional(Type.String()),
     timeout: Type.Optional(
-      Type.Number({
-        description: "Seconds, capped.",
+      Type.Integer({
+        default: 60,
+        description: "Seconds; capped at 600.",
       }),
     ),
     env: Type.Optional(
@@ -38,7 +33,7 @@ export const pythonToolDefinitions = [
     executor: executePython,
     label: "python_exec",
     description:
-      "Run inline Python or a script with bounded output. Save large outputs under `$NERVE_PYTHON_ARTIFACT_DIR`. Not for long-lived or interactive processes.",
+      "Run Python from `code` or a script `path`; output is bounded. Save large outputs under `$NERVE_PYTHON_ARTIFACT_DIR`. Not for long-lived or interactive processes.",
     parameters: pythonParameters,
     executionMode: "sequential",
   },

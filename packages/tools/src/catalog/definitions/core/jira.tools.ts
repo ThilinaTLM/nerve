@@ -82,15 +82,15 @@ const getIssueParameters = Type.Object(
     fields: Type.Optional(stringArray()),
     include: Type.Optional(
       Type.Array(
-        Type.Union([
-          Type.Literal("comments"),
-          Type.Literal("transitions"),
-          Type.Literal("editmeta"),
-          Type.Literal("worklogs"),
-          Type.Literal("changelog"),
-          Type.Literal("remote_links"),
-          Type.Literal("issue_links"),
-          Type.Literal("attachments"),
+        Type.Enum([
+          "comments",
+          "transitions",
+          "editmeta",
+          "worklogs",
+          "changelog",
+          "remote_links",
+          "issue_links",
+          "attachments",
         ]),
         { uniqueItems: true },
       ),
@@ -110,16 +110,16 @@ const getProjectParameters = Type.Object(
     ),
     include: Type.Optional(
       Type.Array(
-        Type.Union([
-          Type.Literal("statuses"),
-          Type.Literal("components"),
-          Type.Literal("versions"),
-          Type.Literal("issue_types"),
-          Type.Literal("create_meta"),
-          Type.Literal("fields"),
-          Type.Literal("priorities"),
-          Type.Literal("resolutions"),
-          Type.Literal("issue_link_types"),
+        Type.Enum([
+          "statuses",
+          "components",
+          "versions",
+          "issue_types",
+          "create_meta",
+          "fields",
+          "priorities",
+          "resolutions",
+          "issue_link_types",
         ]),
         { uniqueItems: true },
       ),
@@ -140,7 +140,7 @@ const createIssueParameters = Type.Object(
     summary: Type.String(),
     description: Type.Optional(
       Type.String({
-        description: "Text; mutually exclusive with description_adf.",
+        description: "Plain text; not with description_adf.",
       }),
     ),
     description_adf: Type.Optional(unknownRecord()),
@@ -163,7 +163,7 @@ const updateIssueParameters = Type.Object(
     summary: Type.Optional(Type.String()),
     description: Type.Optional(
       Type.String({
-        description: "Text; mutually exclusive with description_adf.",
+        description: "Plain text; not with description_adf.",
       }),
     ),
     description_adf: Type.Optional(unknownRecord()),
@@ -192,11 +192,7 @@ const commentBodyFields = {
 };
 const manageCommentParameters = Type.Object(
   {
-    action: Type.Union([
-      Type.Literal("create"),
-      Type.Literal("update"),
-      Type.Literal("delete"),
-    ]),
+    action: Type.Enum(["create", "update", "delete"]),
     issue_key: Type.String(),
     comment_id: Type.Optional(
       Type.String({ description: "Required for update and delete" }),
@@ -214,13 +210,7 @@ const searchBoardsParameters = Type.Object(
   {
     project_key: Type.Optional(Type.String()),
     name: Type.Optional(Type.String()),
-    board_type: Type.Optional(
-      Type.Union([
-        Type.Literal("scrum"),
-        Type.Literal("kanban"),
-        Type.Literal("simple"),
-      ]),
-    ),
+    board_type: Type.Optional(Type.Enum(["scrum", "kanban", "simple"])),
     ...agilePageFields,
   },
   { additionalProperties: false },
@@ -229,10 +219,7 @@ const getBoardParameters = Type.Object(
   {
     board_id: Type.String(),
     include: Type.Optional(
-      Type.Array(
-        Type.Union([Type.Literal("sprints"), Type.Literal("backlog")]),
-        { uniqueItems: true },
-      ),
+      Type.Array(Type.Enum(["sprints", "backlog"]), { uniqueItems: true }),
     ),
     sprint_states: Type.Optional(stringArray()),
     sprint_start_at: Type.Optional(
@@ -261,27 +248,15 @@ const downloadAttachmentParameters = Type.Object(
   { additionalProperties: false },
 );
 const estimateFields = {
-  adjust_estimate: Type.Optional(
-    Type.Union([
-      Type.Literal("new"),
-      Type.Literal("leave"),
-      Type.Literal("manual"),
-      Type.Literal("auto"),
-    ]),
-  ),
+  adjust_estimate: Type.Optional(Type.Enum(["new", "leave", "manual", "auto"])),
   new_estimate: Type.Optional(Type.String()),
   increase_by: Type.Optional(Type.String()),
 };
 const worklogFields = {
   time_spent: Type.Optional(
-    Type.String({ description: "One time value is required for create" }),
+    Type.String({ description: "Create needs this or time_spent_seconds." }),
   ),
-  time_spent_seconds: Type.Optional(
-    Type.Number({
-      minimum: 1,
-      description: "One time value is required for create",
-    }),
-  ),
+  time_spent_seconds: Type.Optional(Type.Number({ minimum: 1 })),
   started: Type.Optional(Type.String()),
   comment: Type.Optional(Type.String()),
   comment_adf: Type.Optional(unknownRecord()),
@@ -291,11 +266,7 @@ const worklogFields = {
 };
 const manageWorklogParameters = Type.Object(
   {
-    action: Type.Union([
-      Type.Literal("create"),
-      Type.Literal("update"),
-      Type.Literal("delete"),
-    ]),
+    action: Type.Enum(["create", "update", "delete"]),
     issue_key: Type.String(),
     worklog_id: Type.Optional(
       Type.String({ description: "Required for update and delete" }),
@@ -306,7 +277,7 @@ const manageWorklogParameters = Type.Object(
 );
 const manageIssueLinkParameters = Type.Object(
   {
-    action: Type.Union([Type.Literal("create"), Type.Literal("delete")]),
+    action: Type.Enum(["create", "delete"]),
     issue_key: Type.String(),
     other_issue_key: Type.Optional(
       Type.String({ description: "Required for create" }),
@@ -315,7 +286,7 @@ const manageIssueLinkParameters = Type.Object(
       Type.String({ description: "Required for create" }),
     ),
     direction: Type.Optional(
-      Type.Union([Type.Literal("outward"), Type.Literal("inward")], {
+      Type.Enum(["outward", "inward"], {
         description: "Required for create",
       }),
     ),
@@ -328,13 +299,7 @@ const manageIssueLinkParameters = Type.Object(
 );
 const manageSprintParameters = Type.Object(
   {
-    action: Type.Union([
-      Type.Literal("create"),
-      Type.Literal("update"),
-      Type.Literal("start"),
-      Type.Literal("close"),
-      Type.Literal("delete"),
-    ]),
+    action: Type.Enum(["create", "update", "start", "close", "delete"]),
     board_id: Type.Optional(
       Type.String({ description: "Required for create" }),
     ),
@@ -353,21 +318,15 @@ const manageSprintParameters = Type.Object(
 );
 const manageBacklogParameters = Type.Object(
   {
-    action: Type.Union([
-      Type.Literal("move_to_backlog"),
-      Type.Literal("move_to_sprint"),
-      Type.Literal("rank"),
-    ]),
+    action: Type.Enum(["move_to_backlog", "move_to_sprint", "rank"]),
     issue_key: Type.String(),
     sprint_id: Type.Optional(
       Type.String({ description: "Required for move_to_sprint" }),
     ),
     rank_before_issue_key: Type.Optional(
-      Type.String({ description: "One rank anchor is required for rank" }),
+      Type.String({ description: "Rank needs this or rank_after_issue_key." }),
     ),
-    rank_after_issue_key: Type.Optional(
-      Type.String({ description: "One rank anchor is required for rank" }),
-    ),
+    rank_after_issue_key: Type.Optional(Type.String()),
     dry_run: Type.Optional(Type.Boolean()),
   },
   { additionalProperties: false },
@@ -400,8 +359,7 @@ export const jiraToolDefinitions = [
     executionKind: "local",
     executor: executeJiraSearchUsers,
     label: "Jira Search Users",
-    description:
-      "Find directory or assignable Jira users. Read {{skill:jira}} before first use.",
+    description: "Find directory or assignable Jira users.",
     parameters: searchUsersParameters,
     executionMode: "parallel",
   },
@@ -413,8 +371,7 @@ export const jiraToolDefinitions = [
     executionKind: "local",
     executor: executeJiraSearchIssues,
     label: "Jira Search Issues",
-    description:
-      "Search Jira issues with JQL and save raw JSON. Read {{skill:jira}} before first use.",
+    description: "Search Jira issues with JQL and save raw JSON.",
     parameters: searchIssuesParameters,
     executionMode: "parallel",
   },
@@ -426,8 +383,7 @@ export const jiraToolDefinitions = [
     executionKind: "local",
     executor: executeJiraGetIssue,
     label: "Jira Get Issue",
-    description:
-      "Fetch a Jira issue and optional related data. Read {{skill:jira}} before first use.",
+    description: "Fetch a Jira issue and optional related data.",
     parameters: getIssueParameters,
     executionMode: "parallel",
   },
@@ -439,8 +395,7 @@ export const jiraToolDefinitions = [
     executionKind: "local",
     executor: executeJiraGetProject,
     label: "Jira Get Project",
-    description:
-      "Fetch Jira project metadata. Read {{skill:jira}} before first use.",
+    description: "Fetch Jira project metadata.",
     parameters: getProjectParameters,
     executionMode: "parallel",
   },
@@ -452,8 +407,7 @@ export const jiraToolDefinitions = [
     executionKind: "local",
     executor: executeJiraSearchBoards,
     label: "Jira Search Boards",
-    description:
-      "Search visible Jira Software boards. Read {{skill:jira}} before first use.",
+    description: "Search visible Jira Software boards.",
     parameters: searchBoardsParameters,
     executionMode: "parallel",
   },
@@ -465,8 +419,7 @@ export const jiraToolDefinitions = [
     executionKind: "local",
     executor: executeJiraGetBoard,
     label: "Jira Get Board",
-    description:
-      "Fetch a Jira board and optional sprints/backlog. Read {{skill:jira}} before first use.",
+    description: "Fetch a Jira board and optional sprints/backlog.",
     parameters: getBoardParameters,
     executionMode: "parallel",
   },
@@ -478,8 +431,7 @@ export const jiraToolDefinitions = [
     executionKind: "local",
     executor: executeJiraGetSprint,
     label: "Jira Get Sprint",
-    description:
-      "Fetch one Jira sprint with optional issues. Read {{skill:jira}} before first use.",
+    description: "Fetch one Jira sprint with optional issues.",
     parameters: getSprintParameters,
     executionMode: "parallel",
   },
@@ -491,8 +443,7 @@ export const jiraToolDefinitions = [
     executionKind: "local",
     executor: executeJiraDownloadAttachment,
     label: "Jira Download Attachment",
-    description:
-      "Download one Jira attachment to a local artifact. Read {{skill:jira}} before first use.",
+    description: "Download one Jira attachment to a local artifact.",
     parameters: downloadAttachmentParameters,
     executionMode: "parallel",
   },
@@ -505,7 +456,7 @@ export const jiraToolDefinitions = [
     executor: executeJiraCreateIssue,
     label: "Jira Create Issue",
     description:
-      "Create a Jira issue using typed common fields plus optional raw fields. Only when the user explicitly asks. Read {{skill:jira}} before first use.",
+      "Create a Jira issue using typed common fields plus optional raw fields. Only on explicit user request.",
     parameters: createIssueParameters,
     executionMode: "sequential",
   },
@@ -518,7 +469,7 @@ export const jiraToolDefinitions = [
     executor: executeJiraUpdateIssue,
     label: "Jira Update Issue",
     description:
-      "Update common Jira issue fields plus optional raw fields. Only when the user explicitly asks. Read {{skill:jira}} before first use.",
+      "Update common Jira issue fields plus optional raw fields. Only on explicit user request.",
     parameters: updateIssueParameters,
     executionMode: "sequential",
   },
@@ -531,7 +482,7 @@ export const jiraToolDefinitions = [
     executor: executeJiraManageComment,
     label: "Jira Manage Comment",
     description:
-      "Create, update, or delete one Jira issue comment. Only when the user explicitly asks. Read {{skill:jira}} before first use.",
+      "Create, update, or delete one Jira issue comment. Only on explicit user request.",
     parameters: manageCommentParameters,
     executionMode: "sequential",
   },
@@ -544,7 +495,7 @@ export const jiraToolDefinitions = [
     executor: executeJiraManageWorklog,
     label: "Jira Manage Worklog",
     description:
-      "Create, update, or delete one Jira worklog. Only when the user explicitly asks. Read {{skill:jira}} before first use.",
+      "Create, update, or delete one Jira worklog. Only on explicit user request.",
     parameters: manageWorklogParameters,
     executionMode: "sequential",
   },
@@ -557,7 +508,7 @@ export const jiraToolDefinitions = [
     executor: executeJiraManageIssueLink,
     label: "Jira Manage Issue Link",
     description:
-      "Create or delete one Jira issue link. Only when the user explicitly asks. Read {{skill:jira}} before first use.",
+      "Create or delete one Jira issue link. Only on explicit user request.",
     parameters: manageIssueLinkParameters,
     executionMode: "sequential",
   },
@@ -570,7 +521,7 @@ export const jiraToolDefinitions = [
     executor: executeJiraManageAttachment,
     label: "Jira Manage Attachment",
     description:
-      "Upload or delete one Jira attachment. Only when the user explicitly asks. Read {{skill:jira}} before first use.",
+      "Upload or delete one Jira attachment. Only on explicit user request.",
     parameters: jiraManageAttachmentParameters,
     executionMode: "sequential",
     classifyRisk: (args) =>
@@ -585,7 +536,7 @@ export const jiraToolDefinitions = [
     executor: executeJiraManageSprint,
     label: "Jira Manage Sprint",
     description:
-      "Create, update, start, close, or delete one Jira sprint. Only when the user explicitly asks. Read {{skill:jira}} before first use.",
+      "Create, update, start, close, or delete one Jira sprint. Only on explicit user request.",
     parameters: manageSprintParameters,
     executionMode: "sequential",
   },
@@ -598,7 +549,7 @@ export const jiraToolDefinitions = [
     executor: executeJiraManageBacklog,
     label: "Jira Manage Backlog",
     description:
-      "Move or rank one Jira issue in a backlog or sprint. Only when the user explicitly asks. Read {{skill:jira}} before first use.",
+      "Move or rank one Jira issue in a backlog or sprint. Only on explicit user request.",
     parameters: manageBacklogParameters,
     executionMode: "sequential",
   },
@@ -611,7 +562,7 @@ export const jiraToolDefinitions = [
     executor: executeJiraTransitionIssue,
     label: "Jira Transition Issue",
     description:
-      "List or execute Jira workflow transitions. Only when the user explicitly asks. Read {{skill:jira}} before first use.",
+      "List or execute Jira workflow transitions. Only on explicit user request.",
     parameters: transitionIssueParameters,
     executionMode: "sequential",
   },

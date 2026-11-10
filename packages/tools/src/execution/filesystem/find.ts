@@ -15,9 +15,10 @@ import {
   textBoundaryDetails,
   textLimitSnapshot,
 } from "../output/output-budget.js";
-import { globToRegExp, walkFiles } from "./search-utils.js";
+import { walkFiles } from "./search-utils.js";
 import {
   isErrnoException,
+  notDirectoryMessage,
   pathNotFoundMessage,
   resolveToolPath,
 } from "./path.js";
@@ -47,13 +48,14 @@ export async function executeFindWithBackend(
       ? "."
       : (args.path ?? ".");
   const root = resolveToolPath(context.cwd, input);
-  const info = await stat(root).catch((error: unknown) => {
+  const info = await stat(root).catch(async (error: unknown) => {
     if (isErrnoException(error) && error.code === "ENOENT") {
-      throw new Error(pathNotFoundMessage("find", input, root));
+      throw new Error(await pathNotFoundMessage(input, root, true));
     }
     throw error;
   });
-  if (!info.isDirectory()) throw new Error("find path is not a directory.");
+  if (!info.isDirectory())
+    throw new Error(notDirectoryMessage(input, root, info.isFile()));
   const limit = Math.min(numberArg(args.limit, 1000), 5000);
   let found: FindRunResult;
   if (backendMode === "node") {
@@ -192,6 +194,42 @@ async function runFd(
   });
 }
 
+// The glob fd is given: a relative pattern containing a slash gets a leading double-star segment, as runFd does.
+function fdPatternRegExp(pattern: string): {
+  regex: RegExp;
+  fullPath: boolean;
+} {
+  const fullPath = pattern.includes("/");
+  const effective =
+    fullPath && !pattern.startsWith("/") && !pattern.startsWith("**/")
+      ? `**/${pattern}`
+      : pattern;
+  let output = "";
+  for (let index = 0; index < effective.length; index += 1) {
+    const char = effective[index];
+    if (effective.startsWith("**/", index)) {
+      output += "(?:.*/)?";
+      index += 2;
+    } else if (
+      effective.startsWith("/**", index) &&
+      index + 3 === effective.length
+    ) {
+      output += "/.*";
+      index += 2;
+    } else if (effective.startsWith("**", index)) {
+      output += ".*";
+      index += 1;
+    } else if (char === "*") {
+      output += "[^/]*";
+    } else if (char === "?") {
+      output += "[^/]";
+    } else {
+      output += char.replace(/[.+^${}()|[\]\\]/g, "\\$&");
+    }
+  }
+  return { regex: new RegExp(`^${output}$`), fullPath };
+}
+
 async function fallbackFind(
   root: string,
   pattern: string,
@@ -207,14 +245,18 @@ async function fallbackFind(
   };
   let totalEntries = 0;
   const results: string[] = [];
-  const regex = globToRegExp(pattern);
+  const { regex, fullPath } = fdPatternRegExp(pattern);
   await walkFiles(
     root,
     root,
     limit,
-    async (_absolutePath, relativePath) => {
+    async (absolutePath, relativePath) => {
       const normalizedPath = relativePath.replaceAll("\\", "/");
-      if (regex.test(normalizedPath)) {
+      // Like fd: a pattern with "/" matches the full path, any other matches the file name.
+      const subject = fullPath
+        ? absolutePath.replaceAll("\\", "/")
+        : (normalizedPath.split("/").at(-1) ?? normalizedPath);
+      if (regex.test(subject)) {
         totalEntries += 1;
         if (results.length < limit) results.push(normalizedPath);
       }
@@ -234,10 +276,10 @@ function formatFind(
 } {
   const lines = paths.slice(0, limit);
   if (lines.length === 0) lines.push("No files found.");
-  if (totalEntries >= limit) {
+  if (totalEntries > lines.length && paths.length > 0) {
     lines.push(
       "",
-      `[Result limit ${limit} reached. Increase limit or refine the pattern for more results.]`,
+      `Showing ${lines.length} of ${totalEntries} files. Narrow with path or a tighter pattern.`,
     );
   }
   const bounded = boundText(lines.join("\n"), {

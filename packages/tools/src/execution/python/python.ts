@@ -552,9 +552,9 @@ async function pythonSourceArg(
     throw new Error("Tool argument 'path' must be a non-empty string.");
   }
   const path = resolveToolPath(cwd, args.path);
-  const info = await stat(path).catch((error: unknown) => {
+  const info = await stat(path).catch(async (error: unknown) => {
     throw new Error(
-      pathNotFoundMessage("python_exec", args.path, path),
+      await pathNotFoundMessage(args.path, path),
       error instanceof Error ? { cause: error } : undefined,
     );
   });

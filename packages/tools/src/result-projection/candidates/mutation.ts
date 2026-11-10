@@ -102,6 +102,34 @@ export function mutationCandidate(
   };
 }
 
+/**
+ * Local file edit/write: the executor's one-line text is the whole result.
+ * Warnings and non-success outcomes (not produced today) are appended.
+ */
+export function fileMutationCandidate(
+  context: CandidateContext,
+): ProjectionCandidate {
+  const result = record(context.result);
+  const summary = record(record(result.details).mutationSummary);
+  const content = validContentBlocks(result)
+    ?.filter((block) => block.type === "text")
+    .map((block) => block.text)
+    .join("\n");
+  if (!content) return mutationCandidate(context);
+  const outcome = string(summary.outcome);
+  const lines = [content];
+  if (outcome && outcome !== "succeeded")
+    lines.push(`Outcome: ${mutationOutcomeText(outcome)}`);
+  for (const warning of array(summary.warnings) ?? [])
+    lines.push(`Warning: ${String(warning)}`);
+  const text = lines.join("\n");
+  return {
+    blocks: [{ type: "text", text }],
+    status: [{ type: "text", text }],
+    artifacts: artifacts(context),
+  };
+}
+
 function mutationOutcomeText(outcome: string): string {
   if (outcome === "dry_run") return "dry run; operation not performed";
   if (outcome === "partial") return "partially succeeded";

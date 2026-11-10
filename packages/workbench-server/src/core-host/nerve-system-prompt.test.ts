@@ -41,6 +41,7 @@ void test("default guidelines contain only the agreed lines and conditionally as
         "- Continue until the task is complete or blocked by a user decision.",
         "- Read skills when relevant or explicitly required; resolve their relative paths from the skill directory.",
         "- While async work runs, do independent work or end your turn with a brief status. Completion notifications resume you; never sleep or poll just to wait.",
+        "- Make independent lookups (reads, searches, listings) as parallel tool calls in one turn.",
         "- Responses render as Markdown with Mermaid; use diagrams for complex relationships or flows, otherwise prose.",
         ...(selectedTools.includes("ask_user")
           ? ["- Ask the user questions with `ask_user`, not in your reply."]
@@ -130,4 +131,19 @@ void test("conversation custom base never drops separately captured profile/loca
     buildNerveSystemPrompt({ cwd: "/project", systemPrompt: "" }),
     "",
   );
+});
+
+void test("adds one guide line per active Jira/Confluence tool family", () => {
+  const none = buildNerveSystemPrompt({ cwd: "/w", selectedTools: ["read"] });
+  assert.doesNotMatch(none, /Before first using/);
+  const prompt = buildNerveSystemPrompt({
+    cwd: "/w",
+    customPrompt: "Custom",
+    selectedTools: ["read", "jira_get_issue"],
+  });
+  assert.match(
+    prompt,
+    /^Custom\n\nBefore first using jira_\* tools, read .*jira.*\.\n\n/,
+  );
+  assert.doesNotMatch(prompt, /confluence_\*/);
 });

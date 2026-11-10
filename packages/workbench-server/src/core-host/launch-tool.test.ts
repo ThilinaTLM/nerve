@@ -224,7 +224,7 @@ void test("logs resolve definition to latest launch and page combined output", a
           "conv_one",
         )
       ).content,
-      `"Dev" — command: "old command"; runId: launch_one\nLines 1-1 of 3 (running).\ntwo\nNext offset: 2\nFile: ${combinedPath}`,
+      `"Dev" — command: "old command"; runId: launch_one\ntwo\nLines 2-2 of 3 (running).\nFile: ${combinedPath}`,
     );
   } finally {
     await rm(dir, { recursive: true, force: true });
@@ -256,7 +256,7 @@ void test("only agent-started launches exiting on their own send one notice", as
     exitCode: 0,
   });
   assert.equal(f.notices.length, 1);
-  assert.match(f.notices[0], /Status: completed; exit code: 0/);
+  assert.match(f.notices[0], /exit 0/);
   await f.tool.execute({ action: "start", name: "Dev" }, "conv_one");
   await f.tool.execute(
     { action: "stop", name: "Dev", runId: "launch_new" },
@@ -353,10 +353,7 @@ void test("an immediate exit during start delivers projected output to the start
     await f.tool.execute({ action: "start", name: "Dev" }, "conv_starter");
     assert.equal(recipient, "conv_starter");
     assert.equal(f.notices.length, 1);
-    assert.match(
-      f.notices[0],
-      /Status: failed; exit code: 1\nError: startup failed/,
-    );
+    assert.match(f.notices[0], /Error: startup failed\nexit 1/);
   } finally {
     await rm(dir, { recursive: true, force: true });
   }

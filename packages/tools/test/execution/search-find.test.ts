@@ -42,6 +42,20 @@ describe("find and grep executors", () => {
     assert.equal(result.entries?.length, 1);
     assert.equal(result.details?.totalEntries, 2);
   });
+  it("points a cut grep line at a copyable read call", async () => {
+    const project = await createTempProject();
+    await project.write("a.min.js", `ok\n${"x".repeat(600)}needle\n`);
+    const result = await executeGrepWithBackend(
+      { pattern: "needle" },
+      { cwd: project.root },
+      "node",
+    );
+    // Line 2 starts at byte 3; the first 500 characters were shown.
+    assert.match(
+      result.content ?? "",
+      /1 line cut to 500 chars\. Next: read \{"path":"a\.min\.js","byteOffset":503\}$/,
+    );
+  });
   it("falls back to Node find implementation and skips dependency/control directories", async () => {
     const project = await createTempProject();
     const bin = join(project.root, "empty-bin");

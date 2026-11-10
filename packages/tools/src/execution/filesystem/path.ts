@@ -1,6 +1,6 @@
-import { access } from "node:fs/promises";
+import { access, readdir, stat } from "node:fs/promises";
 import { homedir } from "node:os";
-import { resolve } from "node:path";
+import { basename, dirname, isAbsolute, resolve, sep } from "node:path";
 import { resolveNativePath } from "./native-path.js";
 
 const UNICODE_SPACES = /[\u00a0\u2007\u202f]/g;
@@ -33,13 +33,82 @@ export function isErrnoException(
   return error instanceof Error && "code" in error;
 }
 
-export function pathNotFoundMessage(
-  toolName: string,
+export function notDirectoryMessage(
   input: unknown,
   resolvedPath: string,
+  isFile: boolean,
 ): string {
-  const label = typeof input === "string" ? JSON.stringify(input) : "path";
-  return `${toolName} path not found: ${label} (resolved to ${resolvedPath}).`;
+  const label = typeof input === "string" ? input.trim() : resolvedPath;
+  return isFile
+    ? `not a directory: ${label} is a file. Use read.`
+    : `not a directory: ${label}`;
+}
+
+const LISTING_CAP = 30;
+
+/**
+ * One-line "path not found" reason. With `withListing`, adds the entries of the nearest
+ * existing ancestor directory so the model can correct the path (read/grep/ls/find only).
+ */
+export async function pathNotFoundMessage(
+  input: unknown,
+  resolvedPath: string,
+  withListing = false,
+): Promise<string> {
+  const label = typeof input === "string" ? input.trim() : resolvedPath;
+  const head = `path not found: ${label}`;
+  if (!withListing) return head;
+  try {
+    const listing = await nearestDirectoryListing(label, resolvedPath);
+    return listing ? `${head}\n${listing}` : head;
+  } catch {
+    return head;
+  }
+}
+
+async function nearestDirectoryListing(
+  label: string,
+  resolvedPath: string,
+): Promise<string | undefined> {
+  let dir = resolvedPath;
+  let missing = basename(dir);
+  let climbed = 0;
+  for (;;) {
+    const parent = dirname(dir);
+    if (parent === dir) return undefined;
+    missing = basename(dir);
+    dir = parent;
+    climbed += 1;
+    const info = await stat(dir).catch(() => undefined);
+    if (info?.isDirectory()) break;
+  }
+  const entries = await readdir(dir, { withFileTypes: true });
+  const names = entries.map((e) => `${e.name}${e.isDirectory() ? "/" : ""}`);
+  const shared = (name: string) => {
+    let n = 0;
+    while (n < name.length && n < missing.length && name[n] === missing[n]) n++;
+    return n;
+  };
+  names.sort((a, b) => shared(b) - shared(a) || a.localeCompare(b));
+  const shown = names.slice(0, LISTING_CAP);
+  const more =
+    names.length > shown.length ? ` … ${names.length - shown.length} more` : "";
+  return `Nearest existing directory ${displayAncestor(label, dir, climbed)} contains: ${shown.join(" ") || "(empty)"}${more}`;
+}
+
+/** The ancestor spelled the way the model spelled the path (relative stays relative). */
+function displayAncestor(label: string, dir: string, climbed: number): string {
+  let path = label.startsWith("@") ? label.slice(1) : label;
+  while (path.endsWith("/") || path.endsWith("\\")) path = path.slice(0, -1);
+  // Cut the path as the model wrote it, so its separators (`/` or `\`) stay unchanged.
+  const separators = [...path.matchAll(/[\\/]/g)].map((match) => match.index);
+  if (separators.length >= climbed) {
+    const end = separators[separators.length - climbed];
+    if (end !== undefined && end > 0) return path.slice(0, end + 1);
+  } else if (!isAbsolute(path) && !path.startsWith("~")) {
+    return "./";
+  }
+  return /[\\/]$/.test(dir) ? dir : `${dir}${sep}`;
 }
 
 export async function resolveReadPath(

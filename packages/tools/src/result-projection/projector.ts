@@ -143,46 +143,79 @@ function applyStrategy(
   }
 }
 
+const ERRNO_WORDING: Record<string, string> = {
+  ENOENT: "path not found",
+  EACCES: "permission denied",
+  EISDIR: "is a directory",
+  ENOTDIR: "not a directory",
+};
+
+/** Plain wording for the common filesystem errno messages, e.g. `ENOENT: no such file or directory, open '/x'`. */
+function plainReason(reason: string, resource?: string): string {
+  // libuv has no name for EDQUOT, so Node reports a full disk quota as "Unknown system error -122".
+  if (/Unknown system error -122\b/.test(reason))
+    return "disk quota exceeded; cannot write";
+  const code = /\b(ENOENT|EACCES|EISDIR|ENOTDIR)\b/.exec(reason)?.[1];
+  if (!code) return reason;
+  const path = /'([^']+)'/.exec(reason)?.[1] ?? resource;
+  return `${ERRNO_WORDING[code]}${path ? `: ${path}` : ""}`;
+}
+
+/** Drops a leading tool name the reason repeats, so `read: read path not found` becomes `read: path not found`. */
+function withoutToolPrefix(reason: string, toolName: string): string {
+  const match = new RegExp(`^${toolName}(?::\\s*|\\s+)(?=\\S)`, "i").exec(
+    reason,
+  );
+  return match ? reason.slice(match[0].length) : reason;
+}
+
 function terminalCandidate(
   context: CandidateContext,
   policy?: AgentResultPolicy,
 ): ProjectionCandidate {
-  const reason =
-    context.errorDetails?.message ??
-    context.error ??
-    "No further diagnostic was supplied.";
-  const resource = policy?.terminalResource?.(context);
+  const resource = policy?.terminalResource?.(context)?.label;
+  const raw = String(context.errorDetails?.message ?? context.error ?? "");
+  const reason = withoutToolPrefix(
+    plainReason(raw.trim(), resource),
+    context.toolName,
+  );
   const interrupted =
     context.phase === "interrupted" ||
     context.errorDetails?.code === "interrupted";
-  const denialHeadline =
-    context.denialSource === "user"
-      ? "User denied the requested tool call. The operation was not performed."
-      : context.denialSource === "policy"
-        ? "Permission policy denied the requested tool call. The operation was not performed."
-        : "The requested tool call was denied. The operation was not performed.";
-  const headline =
-    context.status === "denied"
-      ? denialHeadline
-      : interrupted
-        ? "Tool execution was interrupted. No rollback is implied."
-        : context.status === "cancelled"
-          ? "Tool execution was cancelled. No rollback is implied."
-          : "Tool execution failed.";
-  const lines = [
-    headline,
-    `Tool: ${context.toolName}`,
-    `Reason: ${reason}`,
-    resource
-      ? `Resource: ${resource.label}${resource.state ? ` (${resource.state})` : ""}`
-      : undefined,
-    "Next action: inspect the reason, adjust the request if appropriate, and retry only when safe.",
-  ].filter((line): line is string => Boolean(line));
+  let text: string;
+  if (context.status === "denied") {
+    // The denial keeps who refused and that nothing ran; a user's refusal needs no further reason.
+    text =
+      context.denialSource === "user"
+        ? "denied by user, not run."
+        : `${context.denialSource === "policy" ? "denied by policy, not run." : "denied, not run."}${reason ? ` ${reason}` : ""}`;
+  } else if (interrupted || context.status === "cancelled") {
+    text = `${interrupted ? "interrupted" : "cancelled"}, no rollback implied.${reason ? ` ${reason}` : ""}`;
+  } else {
+    text = reason || "failed.";
+    // Show the resource only when the reason does not already name it.
+    if (
+      resource &&
+      !text.includes(resource) &&
+      !argumentValues(context.args).has(resource)
+    )
+      text += ` (${resource})`;
+  }
   return {
-    blocks: [{ type: "text", text: lines.join("\n") }],
+    blocks: [{ type: "text", text: `${context.toolName}: ${text}` }],
     artifacts: [
       ...context.validatedArtifacts,
       ...(context.completePayload ? [context.completePayload] : []),
     ],
   };
+}
+
+function argumentValues(args: unknown): Set<string> {
+  return new Set(
+    args && typeof args === "object"
+      ? Object.values(args).filter(
+          (value): value is string => typeof value === "string",
+        )
+      : [],
+  );
 }

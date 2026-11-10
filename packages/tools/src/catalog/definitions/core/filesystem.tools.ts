@@ -9,21 +9,19 @@ import type { ToolDefinition } from "../../contracts.js";
 
 const readParameters = Type.Object(
   {
-    path: Type.String({
-      description: "Relative or absolute.",
-    }),
+    path: Type.String(),
     offset: Type.Optional(
       Type.Number({
         description: "1-indexed line.",
       }),
     ),
-    limit: Type.Optional(Type.Number()),
+    limit: Type.Optional(Type.Number({ default: 2000 })),
     byteOffset: Type.Optional(
       Type.Number({
         description: "0-indexed; not with offset/limit.",
       }),
     ),
-    byteLimit: Type.Optional(Type.Number()),
+    byteLimit: Type.Optional(Type.Number({ description: "Capped at 4096." })),
   },
   { additionalProperties: false },
 );
@@ -67,7 +65,7 @@ const grepParameters = Type.Object(
     ),
     glob: Type.Optional(
       Type.String({
-        description: "E.g. **/*.ts.",
+        description: "File glob filter, e.g. `*.ts`.",
       }),
     ),
     ignoreCase: Type.Optional(Type.Boolean()),
@@ -84,9 +82,7 @@ const grepParameters = Type.Object(
 
 const findParameters = Type.Object(
   {
-    pattern: Type.String({
-      description: "E.g. src/**/*.test.ts.",
-    }),
+    pattern: Type.String(),
     path: Type.Optional(Type.String()),
     limit: Type.Optional(Type.Number()),
   },
@@ -121,7 +117,7 @@ export const filesystemToolDefinitions = [
     executor: executeRead,
     label: "read",
     description:
-      "Read a text file or image. Text output is bounded; page with offset/limit, or byteOffset/byteLimit for long lines.",
+      "Read a text file or image. Text output is bounded. Use offset/limit or byteOffset/byteLimit, not both.",
     parameters: readParameters,
     executionMode: "parallel",
   },
@@ -145,7 +141,7 @@ export const filesystemToolDefinitions = [
     executor: executeEdit,
     label: "edit",
     description:
-      "Replace exact, unique text in an existing file; all edits resolve against the original content.",
+      "Exact, unique replacements in an existing file; all edits match the original text and apply atomically.",
     parameters: editParameters,
     executionMode: "sequential",
   },

@@ -152,8 +152,11 @@ export async function prepareToolResult(
       status: outcome === "indeterminate" ? "failed" : outcome,
       validatedArtifacts,
       completePayload,
-      // Content-only failures and cancellations carry their terminal explanation here.
-      ...((outcome === "failed" || outcome === "cancelled") && result.content
+      // Content-only failures, denials and cancellations carry their terminal explanation here.
+      ...((outcome === "failed" ||
+        outcome === "denied" ||
+        outcome === "cancelled") &&
+      result.content
         ? { error: result.content }
         : {}),
       ...(outcome === "denied"

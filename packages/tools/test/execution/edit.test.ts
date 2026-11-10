@@ -137,7 +137,92 @@ describe("edit executor", () => {
       ),
       "EDIT_MATCH_AMBIGUOUS",
     );
-    assert.match(ambiguous.message, /surrounding context/);
+    assert.match(ambiguous.message, /matched 2 times/);
+    assert.match(ambiguous.message, /1: same {2}\(before: other\)/);
+    assert.match(ambiguous.message, /3: same {2}\(after: other\)/);
+  });
+
+  it("caps ambiguous match listings at five", async () => {
+    const project = await createTempProject();
+    const text = Array.from({ length: 8 }, (_, i) => `}\nend${i}`).join("\n");
+    await project.write("many.txt", text);
+    const error = await rejectsWithCode(
+      executeEdit(
+        { path: "many.txt", edits: [{ oldText: "}", newText: "x" }] },
+        { cwd: project.root },
+      ),
+      "EDIT_MATCH_AMBIGUOUS",
+    );
+    assert.match(error.message, /matched 8 times/);
+    assert.equal(error.message.split("\n").length, 1 + 5 + 1);
+    assert.match(error.message, /… and 3 more/);
+  });
+
+  it("points at whitespace-only differences", async () => {
+    const project = await createTempProject();
+    await project.write("ws.txt", "a\n  const x  =  1;\n");
+    const error = await rejectsWithCode(
+      executeEdit(
+        {
+          path: "ws.txt",
+          edits: [{ oldText: "const x = 1;", newText: "y" }],
+        },
+        { cwd: project.root },
+      ),
+      "EDIT_MATCH_NOT_FOUND",
+    );
+    assert.match(
+      error.message,
+      /only whitespace differs from line 2: const x {2}= {2}1;/,
+    );
+  });
+
+  it("reports a missing file and already-present text plainly", async () => {
+    const project = await createTempProject();
+    const missing = await rejectsWithCode(
+      executeEdit(
+        { path: "nope.txt", edits: [{ oldText: "a", newText: "b" }] },
+        { cwd: project.root },
+      ),
+      "EDIT_FILE_NOT_FOUND",
+    );
+    assert.equal(
+      missing.message,
+      "file not found: nope.txt. Use write to create it.",
+    );
+    await project.write("same.txt", "a\n");
+    const same = await rejectsWithCode(
+      executeEdit(
+        { path: "same.txt", edits: [{ oldText: "a", newText: "a" }] },
+        { cwd: project.root },
+      ),
+      "EDIT_NO_CHANGE",
+    );
+    assert.match(same.message, /already contains this text/);
+  });
+
+  it("states replacement count and new-file line ranges", async () => {
+    const project = await createTempProject();
+    await project.write("r.txt", "1\n2\n3\n4\n5\n6\n7\n8\n");
+    const result = await executeEdit(
+      {
+        path: "r.txt",
+        edits: [
+          { oldText: "2\n", newText: "two\nextra\nmore\n" },
+          { oldText: "7", newText: "seven" },
+        ],
+      },
+      { cwd: project.root },
+    );
+    assert.equal(
+      result.content,
+      "Edited r.txt: 2 replacements, lines 2-4 and 9.",
+    );
+    const single = await executeEdit(
+      { path: "r.txt", edits: [{ oldText: "1", newText: "one" }] },
+      { cwd: project.root },
+    );
+    assert.equal(single.content, "Edited r.txt: 1 replacement, line 1.");
   });
 
   it("rejects overlapping edits before writing", async () => {

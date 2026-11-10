@@ -152,13 +152,8 @@ for (const toolName of ["edit", "subagent_prompt"] as const) {
       assert.deepEqual(response.payload.agentProjection, [
         {
           type: "text",
-          text: [
-            "Tool execution failed.",
-            `Tool: ${toolName}`,
-            `Reason: ${thrownMessage}`,
-            ...(toolName === "edit" ? [`Resource: ${path}`] : []),
-            "Next action: inspect the reason, adjust the request if appropriate, and retry only when safe.",
-          ].join("\n"),
+          // The projector drops a tool name the reason repeats.
+          text: `${toolName}: ${thrownMessage.replace(`${toolName} `, "")}`,
         },
       ]);
       if (toolName === "edit") {

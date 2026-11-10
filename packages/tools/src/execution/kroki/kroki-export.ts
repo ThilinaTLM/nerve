@@ -77,11 +77,9 @@ async function readDiagramSource(
     if (typeof args.source_path !== "string" || !args.source_path.trim())
       throw new Error("source_path must be a non-empty string.");
     const path = await resolveReadPath(cwd, args.source_path);
-    const info = await stat(path).catch((error: unknown) => {
+    const info = await stat(path).catch(async (error: unknown) => {
       if (isErrnoException(error) && error.code === "ENOENT")
-        throw new Error(
-          pathNotFoundMessage("kroki_export", args.source_path, path),
-        );
+        throw new Error(await pathNotFoundMessage(args.source_path, path));
       throw error;
     });
     if (!info.isFile())

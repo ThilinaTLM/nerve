@@ -2,7 +2,7 @@ import { Type } from "typebox";
 
 export const jiraManageAttachmentParameters = Type.Object(
   {
-    action: Type.Union([Type.Literal("upload"), Type.Literal("delete")]),
+    action: Type.Enum(["upload", "delete"]),
     issue_key: Type.Optional(
       Type.String({ description: "Required for upload" }),
     ),

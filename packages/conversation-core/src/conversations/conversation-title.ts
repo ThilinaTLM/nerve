@@ -293,7 +293,7 @@ function isNoiseLine(line: string): boolean {
   const trimmed = line.trim();
   if (!trimmed) return true;
   if (
-    /^(?:>|\$|>>>|\.\.\.|at\s+|\+{3}|-{3}|@@|\[[\w:-]+\]|exit code:|status:)/iu.test(
+    /^(?:>|\$|>>>|\.\.\.|at\s+|\+{3}|-{3}|@@|\[[\w:-]+\]|exit code:|exit\s+(?:\d|unknown)|status:)/iu.test(
       trimmed,
     )
   ) {

@@ -2,6 +2,7 @@ import {
   formatSkillsForSystemPrompt,
   type Skill,
 } from "@nervekit/harness/resources";
+import { resolveSkillPlaceholders } from "@nervekit/skills";
 
 export interface BuildNerveSystemPromptOptions {
   customPrompt?: string;
@@ -46,6 +47,7 @@ export function buildNerveSystemPrompt(
 
   return [
     basePrompt,
+    formatToolGuides(tools),
     options.appendSystemPrompt,
     options.instructions?.trim()
       ? ["<instructions>", options.instructions.trim(), "</instructions>"].join(
@@ -76,12 +78,24 @@ function defaultPrompt(hasAskUser: boolean): string {
       "Continue until the task is complete or blocked by a user decision.",
       "Read skills when relevant or explicitly required; resolve their relative paths from the skill directory.",
       "While async work runs, do independent work or end your turn with a brief status. Completion notifications resume you; never sleep or poll just to wait.",
+      "Make independent lookups (reads, searches, listings) as parallel tool calls in one turn.",
       "Responses render as Markdown with Mermaid; use diagrams for complex relationships or flows, otherwise prose.",
       ...(hasAskUser
         ? ["Ask the user questions with `ask_user`, not in your reply."]
         : []),
     ]),
   ].join("\n\n");
+}
+
+/** One guide reference per active tool family, instead of one per tool description. */
+function formatToolGuides(tools: string[]): string {
+  return ["jira", "confluence"]
+    .filter((family) => tools.some((name) => name.startsWith(`${family}_`)))
+    .map(
+      (family) =>
+        `Before first using ${family}_* tools, read ${resolveSkillPlaceholders(`{{skill:${family}}}`)}.`,
+    )
+    .join("\n");
 }
 
 function formatTaggedBulletSection(tag: string, items: string[]): string {

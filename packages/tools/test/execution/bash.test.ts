@@ -365,10 +365,7 @@ describe("bash executor", () => {
       { cwd: project.root },
     );
 
-    assert.match(
-      result.content ?? "",
-      /^Process exit code 0\.\nDuration: \d+ ms\nline 0\n/,
-    );
+    assert.match(result.content ?? "", /^exit 0(?: · [\d.]+s)?\nline 0\n/);
     assert.match(
       result.content ?? "",
       /line 599\n\[Showing lines 1-\d+ and \d+-600 of 600; [\d.]+KB omitted\. Full output: .*nerve-bash-.*\]$/,
@@ -493,7 +490,7 @@ describe("bash executor", () => {
     // stdout and stderr are separate pipes, so their combined order is not fixed.
     assert.match(
       result.content ?? "",
-      /^(?:outerr|errout)\n\nProcess exit code 7\./,
+      /^(?:outerr|errout)\nexit 7(?: · [\d.]+s)?$/,
     );
   });
 });

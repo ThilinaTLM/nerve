@@ -13,6 +13,7 @@ export async function executeWrite(
   context: FilesystemExecutionContext,
 ): Promise<ToolExecutionResult> {
   const path = resolveToolPath(context.cwd, args.path);
+  const shown = String(args.path).trim();
   if (typeof args.content !== "string")
     throw new Error("Tool argument 'content' must be a string.");
   return withFileMutationQueue(path, async () => {
@@ -26,7 +27,7 @@ export async function executeWrite(
     await mkdir(dirname(path), { recursive: true });
     await writeTextFileAtomically(path, args.content as string);
     const bytesWritten = Buffer.byteLength(args.content as string, "utf8");
-    const content = `Wrote ${bytesWritten} bytes.`;
+    const content = `${outcome === "created" ? "Created" : "Overwrote"} ${shown} (${formatSize(bytesWritten)}).`;
     return {
       path,
       content,
@@ -44,4 +45,10 @@ export async function executeWrite(
       },
     };
   });
+}
+
+function formatSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }

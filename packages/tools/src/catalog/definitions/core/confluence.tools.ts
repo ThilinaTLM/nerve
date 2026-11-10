@@ -15,25 +15,22 @@ import {
 import type { ToolDefinition } from "../../contracts.js";
 
 const stringArray = () => Type.Array(Type.String());
-const bodyFormatRead = Type.Union([
-  Type.Literal("storage"),
-  Type.Literal("atlas_doc_format"),
+const bodyFormatRead = Type.Enum(["storage", "atlas_doc_format"]);
+const pageBodyFormat = Type.Enum([
+  "storage",
+  "atlas_doc_format",
+  "view",
+  "export_view",
+  "anonymous_export_view",
+  "styled_view",
+  "editor",
 ]);
-const pageBodyFormat = Type.Union([
-  Type.Literal("storage"),
-  Type.Literal("atlas_doc_format"),
-  Type.Literal("view"),
-  Type.Literal("export_view"),
-  Type.Literal("anonymous_export_view"),
-  Type.Literal("styled_view"),
-  Type.Literal("editor"),
+const writeBodyRepresentation = Type.Enum([
+  "storage",
+  "atlas_doc_format",
+  "wiki",
 ]);
-const writeBodyRepresentation = Type.Union([
-  Type.Literal("storage"),
-  Type.Literal("atlas_doc_format"),
-  Type.Literal("wiki"),
-]);
-const pageStatus = Type.Union([Type.Literal("current"), Type.Literal("draft")]);
+const pageStatus = Type.Enum(["current", "draft"]);
 
 const searchSpacesParameters = Type.Object(
   {
@@ -84,17 +81,17 @@ const getPageParameters = Type.Object(
     body_format: Type.Optional(pageBodyFormat),
     include: Type.Optional(
       Type.Array(
-        Type.Union([
-          Type.Literal("labels"),
-          Type.Literal("properties"),
-          Type.Literal("operations"),
-          Type.Literal("version"),
-          Type.Literal("versions"),
-          Type.Literal("children"),
-          Type.Literal("attachments"),
-          Type.Literal("footer_comments"),
-          Type.Literal("inline_comments"),
-          Type.Literal("restrictions"),
+        Type.Enum([
+          "labels",
+          "properties",
+          "operations",
+          "version",
+          "versions",
+          "children",
+          "attachments",
+          "footer_comments",
+          "inline_comments",
+          "restrictions",
         ]),
         { uniqueItems: true },
       ),
@@ -115,13 +112,7 @@ const downloadPageParameters = Type.Object(
     markdown: Type.Optional(
       Type.Boolean({ description: "Read-only sidecar." }),
     ),
-    attachments: Type.Optional(
-      Type.Union([
-        Type.Literal("none"),
-        Type.Literal("metadata"),
-        Type.Literal("download"),
-      ]),
-    ),
+    attachments: Type.Optional(Type.Enum(["none", "metadata", "download"])),
   },
   { additionalProperties: false },
 );
@@ -135,12 +126,10 @@ const createPageParameters = Type.Object(
     title: Type.Optional(Type.String()),
     parent_id: Type.Optional(Type.String()),
     status: Type.Optional(pageStatus),
-    body: Type.Optional(
-      Type.String({ description: "Mutually exclusive with body_file." }),
-    ),
+    body: Type.Optional(Type.String({ description: "Not with body_file." })),
     body_file: Type.Optional(
       Type.String({
-        description: "Storage XML/ADF/wiki; not with body.",
+        description: "Path to storage XML/ADF/wiki content.",
       }),
     ),
     page_file: Type.Optional(
@@ -162,12 +151,10 @@ const updatePageParameters = Type.Object(
     title: Type.Optional(Type.String()),
     parent_id: Type.Optional(Type.String()),
     status: Type.Optional(pageStatus),
-    body: Type.Optional(
-      Type.String({ description: "Mutually exclusive with body_file." }),
-    ),
+    body: Type.Optional(Type.String({ description: "Not with body_file." })),
     body_file: Type.Optional(
       Type.String({
-        description: "Storage XML/ADF/wiki; not with body.",
+        description: "Path to storage XML/ADF/wiki content.",
       }),
     ),
     body_representation: Type.Optional(writeBodyRepresentation),
@@ -184,23 +171,11 @@ const updatePageParameters = Type.Object(
 );
 
 const dryRun = Type.Optional(Type.Boolean());
-const commentKind = Type.Union([
-  Type.Literal("footer"),
-  Type.Literal("inline"),
-]);
-const commentRepresentation = Type.Union([
-  Type.Literal("storage"),
-  Type.Literal("atlas_doc_format"),
-]);
+const commentKind = Type.Enum(["footer", "inline"]);
+const commentRepresentation = Type.Enum(["storage", "atlas_doc_format"]);
 const manageCommentParameters = Type.Object(
   {
-    action: Type.Union([
-      Type.Literal("create"),
-      Type.Literal("update"),
-      Type.Literal("delete"),
-      Type.Literal("resolve"),
-      Type.Literal("reopen"),
-    ]),
+    action: Type.Enum(["create", "update", "delete", "resolve", "reopen"]),
     kind: commentKind,
     page_id: Type.Optional(Type.String({ description: "Required for create" })),
     comment_id: Type.Optional(
@@ -220,11 +195,7 @@ const manageCommentParameters = Type.Object(
 );
 const managePageParameters = Type.Object(
   {
-    action: Type.Union([
-      Type.Literal("trash"),
-      Type.Literal("restore"),
-      Type.Literal("purge"),
-    ]),
+    action: Type.Enum(["trash", "restore", "purge"]),
     page_id: Type.String(),
     dry_run: dryRun,
   },
@@ -232,7 +203,7 @@ const managePageParameters = Type.Object(
 );
 const manageLabelParameters = Type.Object(
   {
-    action: Type.Union([Type.Literal("add"), Type.Literal("remove")]),
+    action: Type.Enum(["add", "remove"]),
     page_id: Type.String(),
     label: Type.String(),
     prefix: Type.Optional(Type.String()),
@@ -240,21 +211,14 @@ const manageLabelParameters = Type.Object(
   },
   { additionalProperties: false },
 );
-const restrictionOperation = Type.Union([
-  Type.Literal("read"),
-  Type.Literal("update"),
-]);
+const restrictionOperation = Type.Enum(["read", "update"]);
 const manageRestrictionParameters = Type.Object(
   {
-    action: Type.Union([
-      Type.Literal("add"),
-      Type.Literal("remove"),
-      Type.Literal("clear_operation"),
-    ]),
+    action: Type.Enum(["add", "remove", "clear_operation"]),
     page_id: Type.String(),
     operation: restrictionOperation,
     subject_type: Type.Optional(
-      Type.Union([Type.Literal("user"), Type.Literal("group")], {
+      Type.Enum(["user", "group"], {
         description: "Required for add and remove",
       }),
     ),
@@ -267,11 +231,7 @@ const manageRestrictionParameters = Type.Object(
 );
 const manageAttachmentParameters = Type.Object(
   {
-    action: Type.Union([
-      Type.Literal("upload"),
-      Type.Literal("rename"),
-      Type.Literal("delete"),
-    ]),
+    action: Type.Enum(["upload", "rename", "delete"]),
     page_id: Type.String(),
     file_path: Type.Optional(
       Type.String({ description: "Required for upload" }),
@@ -300,8 +260,7 @@ export const confluenceToolDefinitions = [
     executionKind: "local",
     executor: executeConfluenceSearchSpaces,
     label: "Confluence Search Spaces",
-    description:
-      "List or resolve visible Confluence Cloud spaces. Read {{skill:confluence}} before first use.",
+    description: "List or resolve visible Confluence Cloud spaces.",
     parameters: searchSpacesParameters,
     executionMode: "parallel",
   },
@@ -314,7 +273,7 @@ export const confluenceToolDefinitions = [
     executor: executeConfluenceSearchPages,
     label: "Confluence Search Pages",
     description:
-      "Find Confluence pages by simple filters or CQL/free-text search. Read {{skill:confluence}} before first use.",
+      "Find Confluence pages by simple filters or CQL/free-text search.",
     parameters: searchPagesParameters,
     executionMode: "parallel",
   },
@@ -326,8 +285,7 @@ export const confluenceToolDefinitions = [
     executionKind: "local",
     executor: executeConfluenceGetPage,
     label: "Confluence Get Page",
-    description:
-      "Fetch a Confluence page and optional related data. Read {{skill:confluence}} before first use.",
+    description: "Fetch a Confluence page and optional related data.",
     parameters: getPageParameters,
     executionMode: "parallel",
   },
@@ -340,7 +298,7 @@ export const confluenceToolDefinitions = [
     executor: executeConfluenceDownloadPage,
     label: "Confluence Download Page",
     description:
-      "Download editable Confluence page artifacts and optional attachments. Read {{skill:confluence}} before first use.",
+      "Download editable Confluence page artifacts and optional attachments.",
     parameters: downloadPageParameters,
     executionMode: "parallel",
   },
@@ -352,8 +310,7 @@ export const confluenceToolDefinitions = [
     executionKind: "local",
     executor: executeConfluenceCreatePage,
     label: "Confluence Create Page",
-    description:
-      "Create a Confluence page. Only when the user explicitly asks. Read {{skill:confluence}} before first use.",
+    description: "Create a Confluence page. Only on explicit user request.",
     parameters: createPageParameters,
     executionMode: "sequential",
   },
@@ -366,7 +323,7 @@ export const confluenceToolDefinitions = [
     executor: executeConfluenceUpdatePage,
     label: "Confluence Update Page",
     description:
-      "Update a Confluence page with stale-version protection. Only when the user explicitly asks. Read {{skill:confluence}} before first use.",
+      "Update a Confluence page with stale-version protection. Only on explicit user request.",
     parameters: updatePageParameters,
     executionMode: "sequential",
   },
@@ -379,7 +336,7 @@ export const confluenceToolDefinitions = [
     executor: executeConfluenceManageComment,
     label: "Confluence Manage Comment",
     description:
-      "Create, update, delete, resolve, or reopen one Confluence comment. Only when the user explicitly asks. Read {{skill:confluence}} before first use.",
+      "Create, update, delete, resolve, or reopen one Confluence comment. Only on explicit user request.",
     parameters: manageCommentParameters,
     executionMode: "sequential",
   },
@@ -392,7 +349,7 @@ export const confluenceToolDefinitions = [
     executor: executeConfluenceManagePage,
     label: "Confluence Manage Page",
     description:
-      "Trash, restore, or permanently purge one Confluence page; archive is not supported by the API. Only when the user explicitly asks. Read {{skill:confluence}} before first use.",
+      "Trash, restore, or permanently purge one Confluence page; archive is not supported by the API. Only on explicit user request.",
     parameters: managePageParameters,
     executionMode: "sequential",
     classifyRisk: (args) =>
@@ -407,7 +364,7 @@ export const confluenceToolDefinitions = [
     executor: executeConfluenceManageLabel,
     label: "Confluence Manage Label",
     description:
-      "Add or remove one label on one Confluence page. Only when the user explicitly asks. Read {{skill:confluence}} before first use.",
+      "Add or remove one label on one Confluence page. Only on explicit user request.",
     parameters: manageLabelParameters,
     executionMode: "sequential",
   },
@@ -420,7 +377,7 @@ export const confluenceToolDefinitions = [
     executor: executeConfluenceManageRestriction,
     label: "Confluence Manage Restriction",
     description:
-      "Add or remove one page restriction subject, or explicitly clear one operation. Only when the user explicitly asks. Read {{skill:confluence}} before first use.",
+      "Add or remove one page restriction subject, or explicitly clear one operation. Only on explicit user request.",
     parameters: manageRestrictionParameters,
     executionMode: "sequential",
     classifyRisk: (args) =>
@@ -435,7 +392,7 @@ export const confluenceToolDefinitions = [
     executor: executeConfluenceManageAttachment,
     label: "Confluence Manage Attachment",
     description:
-      "Upload, rename, or delete one Confluence attachment. Only when the user explicitly asks. Read {{skill:confluence}} before first use.",
+      "Upload, rename, or delete one Confluence attachment. Only on explicit user request.",
     parameters: manageAttachmentParameters,
     executionMode: "sequential",
   },

@@ -21,14 +21,14 @@ export async function resolveCommandCwd(
   } catch {
     throw new ToolExecutionError(
       "INVALID_ARGUMENT",
-      `Tool argument 'cwd' does not exist: ${cwd}`,
+      `cwd not found: ${cwd}. Create it with mkdir -p in the command.`,
       { argument: "cwd", cwd },
     );
   }
   if (!info.isDirectory()) {
     throw new ToolExecutionError(
       "INVALID_ARGUMENT",
-      `Tool argument 'cwd' is not a directory: ${cwd}`,
+      `cwd is not a directory: ${cwd}`,
       { argument: "cwd", cwd },
     );
   }

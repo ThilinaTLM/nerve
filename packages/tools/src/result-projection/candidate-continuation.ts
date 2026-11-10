@@ -39,16 +39,23 @@ export function continuations(
   return output;
 }
 
+/** One copyable hint: `Next: {"offset":95}`; a backward cursor reads `Earlier:`. */
 export function continuationText(continuation: ExactContinuation): string {
+  const hint = (label: string, name: string, value: string | number) =>
+    `${label}: ${JSON.stringify({ [name]: value })}`;
   switch (continuation.kind) {
     case "line":
-      return `Continue with offset=${continuation.nextOffset}.`;
+      return hint("Next", "offset", continuation.nextOffset);
     case "byte":
-      return `Continue with byteOffset=${continuation.nextByteOffset}.`;
+      return hint("Next", "byteOffset", continuation.nextByteOffset);
     case "cursor":
-      return `Continue with ${continuation.cursorName}=${String(continuation.value)}.`;
+      return hint(
+        continuation.direction === "before" ? "Earlier" : "Next",
+        continuation.cursorName,
+        continuation.value,
+      );
     case "page_token":
-      return `Continue with ${continuation.parameter}=${continuation.value}.`;
+      return hint("Next", continuation.parameter, continuation.value);
   }
 }
 

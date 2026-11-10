@@ -2,8 +2,11 @@ import type {
   AgentResultProfileId,
   ExactContinuation,
   ProjectionCount,
+  ValidatedToolArtifact,
 } from "@nervekit/contracts/tools";
 import { ProjectionBudgetLedger } from "./budget-ledger.js";
+import { savedFileNotice } from "./candidate-artifacts.js";
+import { continuationText } from "./candidate-continuation.js";
 import { formatByteSize } from "../execution/output/truncate.js";
 import {
   blocksFit,
@@ -243,6 +246,27 @@ export function itemAwareHead(
   };
 }
 
+/** Removes the read executor's trailer lines, which a re-bounded view replaces with its own. */
+function withoutReadTrailer(text: string): string {
+  let end = text.length;
+  for (;;) {
+    const start = text.lastIndexOf("\n\n", end - 1);
+    if (start < 0) return text.slice(0, end);
+    const line = text.slice(start + 2, end);
+    if (line.includes("\n") || !isReadTrailerLine(line))
+      return text.slice(0, end);
+    end = start;
+  }
+}
+
+function isReadTrailerLine(line: string): boolean {
+  return (
+    line.startsWith("No lines at offset") ||
+    /^Lines \d+-\d+ of \d+/.test(line) ||
+    /^Line \d+ cut at/.test(line)
+  );
+}
+
 export function continuationAwareHead(
   candidate: ProjectionCandidate,
   profile: AgentResultProfileId,
@@ -266,9 +290,9 @@ export function continuationAwareHead(
       (block): block is Extract<ProjectableBlock, { type: "text" }> =>
         block.type === "text",
     )
-    .map((block) => block.text.replace(/\nRange: lines [^\n]+\.$/, ""))
+    .map((block) => withoutReadTrailer(block.text))
     .join("\n");
-  const reserve = `Continue with offset=${lineContinuation.displayedStart}; displayed ${lineContinuation.displayedStart}-000000 of ${lineContinuation.total}.`;
+  const reserve = `Lines ${lineContinuation.displayedStart}-000000 of ${lineContinuation.total}. ${continuationText({ ...lineContinuation, nextOffset: 1_000_000 })}`;
   const selected = textHead(
     source,
     Math.max(0, budget.maxBytes - Buffer.byteLength(reserve, "utf8")),
@@ -287,7 +311,7 @@ export function continuationAwareHead(
     lineContinuation.displayedStart + displayedLines - 1,
   );
   const nextOffset = displayedEnd + 1;
-  const noticeText = `Range: lines ${lineContinuation.displayedStart}-${displayedEnd} of ${lineContinuation.total}. Continue with offset=${nextOffset}.`;
+  const noticeText = `Lines ${lineContinuation.displayedStart}-${displayedEnd} of ${lineContinuation.total}. ${continuationText({ ...lineContinuation, nextOffset })}`;
   const blocks: ProjectableBlock[] = [
     ...(selected ? [{ type: "text" as const, text: selected }] : []),
     ...media,
@@ -413,10 +437,8 @@ function recoveryText(candidate: ProjectionCandidate): string | undefined {
       item.id.includes("combined") ||
       item.label.toLowerCase().includes("combined"),
   );
-  if (combined?.access.kind === "agent_file") {
-    const tool = combined.recommendedTools[0] ?? "read";
-    return `Complete result: ${combined.access.path} (use ${tool}; do not rerun merely to recover output).`;
-  }
+  if (combined?.access.kind === "agent_file")
+    return completeResultNotice(combined.access.path, combined);
   if (recoverable.length > 1) {
     const paths = recoverable.flatMap((item) =>
       item.access.kind === "agent_file"
@@ -428,8 +450,17 @@ function recoveryText(candidate: ProjectionCandidate): string | undefined {
   }
   const artifact = recoverable[0];
   if (!artifact || artifact.access.kind !== "agent_file") return;
-  const tool = artifact.recommendedTools[0] ?? "read";
-  return `Complete result: ${artifact.access.path} (use ${tool}; do not rerun merely to recover output).`;
+  return completeResultNotice(artifact.access.path, artifact);
+}
+
+function completeResultNotice(
+  path: string,
+  artifact: ValidatedToolArtifact,
+): string {
+  const tools = artifact.recommendedTools.length
+    ? artifact.recommendedTools
+    : (["read"] as const);
+  return `${savedFileNotice("Complete result", path, { ...artifact, recommendedTools: [...tools] })} No need to rerun.`;
 }
 
 function continuationNotice(
@@ -438,13 +469,11 @@ function continuationNotice(
   const lines = (candidate.continuation ?? []).map((continuation) => {
     switch (continuation.kind) {
       case "line":
-        return `Continue with offset=${continuation.nextOffset}; displayed ${continuation.displayedStart}-${continuation.displayedEnd} of ${continuation.total}.`;
+        return `Lines ${continuation.displayedStart}-${continuation.displayedEnd} of ${continuation.total}. ${continuationText(continuation)}`;
       case "byte":
-        return `Continue with byteOffset=${continuation.nextByteOffset}; displayed bytes ${continuation.displayedStart}-${continuation.displayedEnd} of ${continuation.total}.`;
-      case "cursor":
-        return `Continue with ${continuation.cursorName}=${String(continuation.value)} (${continuation.direction}).`;
-      case "page_token":
-        return `Continue with ${continuation.parameter}=${continuation.value}.`;
+        return `Bytes ${continuation.displayedStart}-${continuation.displayedEnd - 1} of ${continuation.total}. ${continuationText(continuation)}`;
+      default:
+        return continuationText(continuation);
     }
   });
   const recovery = recoveryText(candidate);
@@ -468,30 +497,14 @@ function itemSelectionNotice(
 ): ProjectableBlock[] {
   const omitted = Math.max(0, original - displayed);
   const label = displayed === 1 ? noun : pluralNoun(noun);
+  const guidance = candidate.overflow?.guidance;
+  // A guided listing states the cut on one line; others state what was omitted.
   const lines = [
-    `Showing ${displayed} of ${original} ${label}; ${omitted} omitted.`,
+    guidance
+      ? `Showing ${displayed} of ${original} ${label}. ${guidance}`
+      : `Showing ${displayed} of ${original} ${label}; ${omitted} omitted.`,
+    ...(candidate.continuation ?? []).map(continuationText),
   ];
-  if (candidate.overflow?.guidance) lines.push(candidate.overflow.guidance);
-  for (const continuation of candidate.continuation ?? []) {
-    switch (continuation.kind) {
-      case "line":
-        lines.push(`Continue with offset=${continuation.nextOffset}.`);
-        break;
-      case "byte":
-        lines.push(`Continue with byteOffset=${continuation.nextByteOffset}.`);
-        break;
-      case "cursor":
-        lines.push(
-          `Continue with ${continuation.cursorName}=${String(continuation.value)}.`,
-        );
-        break;
-      case "page_token":
-        lines.push(
-          `Continue with ${continuation.parameter}=${continuation.value}.`,
-        );
-        break;
-    }
-  }
   const recovery = recoveryText(candidate);
   if (recovery) lines.push(recovery);
   return [{ type: "text", text: lines.join("\n") }];

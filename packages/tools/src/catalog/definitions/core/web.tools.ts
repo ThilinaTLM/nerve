@@ -10,6 +10,7 @@ const webSearchParameters = Type.Object(
       Type.Number({
         minimum: 1,
         maximum: 20,
+        default: 5,
       }),
     ),
   },

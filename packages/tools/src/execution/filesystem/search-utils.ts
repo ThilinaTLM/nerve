@@ -1,7 +1,11 @@
 import { constants } from "node:fs";
 import { access, lstat, readdir, stat } from "node:fs/promises";
 import { dirname, isAbsolute, join, relative } from "node:path";
-import { isErrnoException, resolveToolPath } from "./path.js";
+import {
+  isErrnoException,
+  pathNotFoundMessage,
+  resolveToolPath,
+} from "./path.js";
 
 export type SearchScope = {
   roots: string[];
@@ -27,11 +31,9 @@ export async function resolveSearchScope(
   const roots: SearchScopeRoot[] = [];
   for (const input of inputs) {
     const path = resolveToolPath(cwd, input);
-    const info = await stat(path).catch((error: unknown) => {
+    const info = await stat(path).catch(async (error: unknown) => {
       if (isErrnoException(error) && error.code === "ENOENT") {
-        throw new Error(
-          `${toolName} path not found: ${JSON.stringify(input)} (resolved to ${path}). Pass one path in 'path' or multiple paths as 'paths': [...].`,
-        );
+        throw new Error(await pathNotFoundMessage(input, path, true));
       }
       throw error;
     });

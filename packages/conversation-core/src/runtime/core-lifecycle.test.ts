@@ -451,10 +451,7 @@ for (const action of ["stop", "forcePush"] as const) {
             .filter((block) => block.type === "text")
             .map((block) => block.text)
             .join("\n");
-          assert.match(
-            text,
-            /Tool execution was cancelled\. No rollback is implied\./,
-          );
+          assert.match(text, /: cancelled, no rollback implied\./);
           assert.match(text, /Effects already performed are not undone\./);
           assert.match(
             text,
