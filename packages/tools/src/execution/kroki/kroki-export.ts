@@ -123,25 +123,16 @@ function resolveOutput(
   return { path, format: extension };
 }
 
-export async function executeKrokiExport(
-  args: Record<string, unknown>,
-  context: KrokiExecutionContext,
-): Promise<ToolExecutionResult> {
-  if (!context.kroki) throw new Error("Kroki is not configured in Settings.");
-  const { url } = krokiToolSettingsSchema.parse(context.kroki);
-  const diagramType = krokiDiagramTypeSchema.parse(args.diagram_type);
-  const output = resolveOutput(args, context.cwd);
-  const outputFormat = output.format;
-  const managed = !output.path;
-  const path =
-    output.path ??
-    (context.artifactDir &&
-      join(context.artifactDir, `diagram.${outputFormat}`));
-  if (!path)
-    throw new Error("Kroki export requires an artifact output directory.");
-  const source = await readDiagramSource(args, context.cwd);
+/** POSTs a diagram to Kroki and returns validated output bytes (shared with code mode `diagram.render`). */
+export async function fetchKrokiDiagram(options: {
+  url: string;
+  diagramType: string;
+  source: string;
+  outputFormat: "svg" | "png";
+  signal: AbortSignal;
+}): Promise<Buffer> {
+  const { url, diagramType, source, outputFormat, signal } = options;
   const mediaType = outputFormat === "svg" ? "image/svg+xml" : "image/png";
-  const signal = withTimeoutSignal(context.signal, 60_000);
   signal.throwIfAborted();
   const response = await fetch(url, {
     method: "POST",
@@ -196,6 +187,35 @@ export async function executeKrokiExport(
     throw new Error(
       `Kroki returned invalid ${outputFormat.toUpperCase()} data.`,
     );
+  return data;
+}
+
+export async function executeKrokiExport(
+  args: Record<string, unknown>,
+  context: KrokiExecutionContext,
+): Promise<ToolExecutionResult> {
+  if (!context.kroki) throw new Error("Kroki is not configured in Settings.");
+  const { url } = krokiToolSettingsSchema.parse(context.kroki);
+  const diagramType = krokiDiagramTypeSchema.parse(args.diagram_type);
+  const output = resolveOutput(args, context.cwd);
+  const outputFormat = output.format;
+  const managed = !output.path;
+  const path =
+    output.path ??
+    (context.artifactDir &&
+      join(context.artifactDir, `diagram.${outputFormat}`));
+  if (!path)
+    throw new Error("Kroki export requires an artifact output directory.");
+  const source = await readDiagramSource(args, context.cwd);
+  const mediaType = outputFormat === "svg" ? "image/svg+xml" : "image/png";
+  const signal = withTimeoutSignal(context.signal, 60_000);
+  const data = await fetchKrokiDiagram({
+    url,
+    diagramType,
+    source,
+    outputFormat,
+    signal,
+  });
   signal.throwIfAborted();
   await mkdir(dirname(path), { recursive: true });
   signal.throwIfAborted();

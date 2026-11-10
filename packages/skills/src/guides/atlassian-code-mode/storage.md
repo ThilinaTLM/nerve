@@ -1,8 +1,20 @@
 # `storage.*`
 
-Pure string builders for Confluence storage XHTML. They run in the sandbox without host calls and return strings you concatenate into a page body. Pass the result to `pages.create`/`pages.update`/`comments.add` (the format is detected, or pass `format: "storage"`).
+Pure string builders for Confluence storage XHTML, the primary page format. They run in the sandbox without host calls and return strings you concatenate into a page body (`[storage.h1("Overview"), storage.p("..."), ...].join("")`). Pass the result to `pages.create`/`pages.update` (default `format: "storage"`) or `comments.add`. The page is linted on write; see "Page style" in [confluence.md](confluence.md).
 
 Body arguments (`body` of `panel`/`expand`) take Markdown or storage XHTML: a string starting with `<` or containing helper output is treated as storage, anything else as Markdown.
+
+## `storage.h1(text)`, `storage.h2(text)`, `storage.h3(text)`
+
+Headings from plain text (escaped). Sections start at `h1`; the page title is a separate field.
+
+## `storage.p(textOrStorage)`
+
+A paragraph. Plain text is escaped; a string containing tags (e.g. built with `storage.link`/`storage.status`) is embedded as storage, so use `storage.escape` for literal angle brackets; `storage.markdown()` output is returned as is (it already produces its own blocks).
+
+## `storage.link(url, text?)`
+
+Hyperlink; `text` defaults to the URL.
 
 ## `storage.markdown(md)`
 
@@ -18,7 +30,7 @@ Table-of-contents macro.
 
 ## `storage.panel(type, body, { title? })`
 
-`type`: `"info" | "note" | "warning" | "tip" | "success"` (`success` renders as `tip`). Other types throw.
+`type`: `"info" | "note" | "warning" | "tip" | "success"` (`success` renders as `tip`). Other types throw. Use `info` for neutral context or a summary, `note` for something to be aware of, `tip`/`success` for recommendations or good outcomes, and `warning` only for risks and problems.
 
 ## `storage.expand(title, body)`
 
@@ -40,6 +52,26 @@ Jira issue macro for one key.
 
 Jira issue-list macro for a JQL query; `columns` is a string or string[].
 
-## `storage.table(rows, { columns? })`
+## `storage.table(rows, { columns?, layout? })`
 
-`rows` is either an array of objects (header = `columns` or the first row's keys) or a string[][] (first row is the header unless `columns` is given). Cells that are storage/helper strings are embedded as is; other values are escaped into `<p>`.
+`rows` is an array of objects or a string[][]. `columns` is an array of keys or `{ key, title?, width? }` (header = `title` or `key`; for string[][] rows the columns give the header and all rows are body rows; without `columns` the first row is the header). `width` is in px; columns without a width share the rest of the content width. If no column has a width the linter computes widths from the content. `layout`: `"default"` (760 px content width, the default), `"wide"` (960), `"full-width"` (1800). Cells that are storage/helper strings (for example `storage.status(...)`, `storage.jiraIssue(...)`) are embedded as is; other values are escaped into `<p>`.
+
+## `storage.image(attachmentFilename, { width?, alt?, caption?, align? })`
+
+An image attached to the page (upload it with `confluence.attachments.upload` or `attachments` in `pages.create/update`; PNG/JPEG). Omit `width` to let the linter set it from the real size, capped to the content width (760 px). `align` defaults to `"center"`.
+
+## `storage.layout(cells, { type? })`
+
+Multi-column section. `cells` is 2 strings (3 for `three_equal`); each cell takes Markdown or storage. `type`: `"two_equal"` (default), `"two_left_sidebar"`, `"two_right_sidebar"`, `"three_equal"`. Do not nest layouts.
+
+## `storage.date(iso)`
+
+Date lozenge for an ISO date (`2026-01-31`).
+
+## `storage.mention(accountId)`
+
+User mention by Atlassian account id (find ids with `jira.users.search`).
+
+## `storage.tasks(items)`
+
+Task list from `{ text, done? }` objects or plain strings.

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { afterEach, test } from "node:test";
 import { executeAtlassianCodeMode } from "./atlassian-code-mode.js";
-import { assertWellFormedStorage } from "./storage-xml.test-helper.js";
+import { assertWellFormedStorage } from "../confluence/storage-xml.js";
 
 const originalFetch = globalThis.fetch;
 afterEach(() => {
@@ -123,6 +123,8 @@ void test("pages.create converts Markdown to storage after authorizing", async (
     title: "T",
     url: "https://example.atlassian.net/wiki/spaces/DOC/pages/100/T",
     version: 1,
+    fixes: [],
+    warnings: [],
   });
   assert.match(result.content ?? "", /confluence 1 call \(pages\.create 1\)/);
 });

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { markdownToStorage } from "./markdown-to-storage.js";
-import { assertWellFormedStorage } from "../atlassian-code-mode/storage-xml.test-helper.js";
+import { assertWellFormedStorage } from "./storage-xml.js";
 
 function convert(markdown: string): string {
   const xml = markdownToStorage(markdown);

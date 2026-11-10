@@ -1,0 +1,491 @@
+import {
+  childElements,
+  decodeEntities,
+  getAttr,
+  parseStorage,
+  removeAttr,
+  serializeNode,
+  setAttr,
+  textOf,
+  walk,
+  type XmlElement,
+  type XmlNode,
+} from "./storage-xml.js";
+
+/**
+ * Page linter for Confluence storage XHTML: pure (string in, string out plus
+ * messages). Safe issues are fixed; the rest are reported as warnings.
+ * Malformed XML throws `StorageXmlError` so the write can be rejected before
+ * any HTTP.
+ */
+
+/**
+ * Content widths in px for the table/page layouts. These are Confluence Cloud
+ * defaults (fixed-width page 760, wide 960, full-width 1800) and should be
+ * verified against a live site.
+ */
+export const CONTENT_WIDTH = {
+  default: 760,
+  wide: 960,
+  "full-width": 1800,
+} as const;
+
+/** Layout-cell shares by `ac:layout-section` type, left to right. */
+const LAYOUT_SHARES: Record<string, number[]> = {
+  two_equal: [0.5, 0.5],
+  two_left_sidebar: [0.3, 0.7],
+  two_right_sidebar: [0.7, 0.3],
+  three_equal: [1 / 3, 1 / 3, 1 / 3],
+  three_with_sidebars: [0.2, 0.6, 0.2],
+};
+
+const TOC_MIN_SECTIONS = 3;
+const TOC_MIN_WORDS = 600;
+const MIN_COLUMN_PX = 56;
+const PANEL_MACROS = new Set(["info", "note", "warning", "tip", "panel"]);
+
+export type ImageSize = { width: number; height: number };
+
+export type PageLintOptions = {
+  /** Page title (a leading H1 equal to it is removed). */
+  title: string;
+  /** Set to false to opt out of TOC insertion. */
+  toc?: boolean;
+  /** Original sizes of attachments by filename (from upload). */
+  images?: ReadonlyMap<string, ImageSize> | Record<string, ImageSize>;
+};
+
+export type PageLintResult = {
+  storage: string;
+  fixes: string[];
+  warnings: string[];
+};
+
+export function lintStoragePage(
+  storage: string,
+  options: PageLintOptions,
+): PageLintResult {
+  const root = parseStorage(storage);
+  const fixes: string[] = [];
+  const warnings: string[] = [];
+  lintHeadings(root, options.title, fixes, warnings);
+  lintToc(root, options.toc !== false, fixes);
+  lintTables(root, fixes);
+  lintImages(root, sizeLookup(options.images), fixes, warnings);
+  lintRedundancy(root, warnings);
+  return { storage: serializeNode(root), fixes, warnings };
+}
+
+// ---- helpers ---------------------------------------------------------------
+
+function sizeLookup(
+  images: PageLintOptions["images"],
+): (filename: string) => ImageSize | undefined {
+  if (!images) return () => undefined;
+  if (images instanceof Map) return (filename) => images.get(filename);
+  return (filename) => (images as Record<string, ImageSize>)[filename];
+}
+
+function normalize(text: string): string {
+  return text.replace(/\s+/g, " ").trim().toLowerCase();
+}
+
+function headingLevel(node: XmlNode): number | undefined {
+  if (node.kind !== "element") return undefined;
+  const match = /^h([1-6])$/.exec(node.name);
+  return match ? Number(match[1]) : undefined;
+}
+
+function macroName(element: XmlElement): string | undefined {
+  return element.name === "ac:structured-macro"
+    ? getAttr(element, "ac:name")
+    : undefined;
+}
+
+function macroParam(element: XmlElement, name: string): string | undefined {
+  for (const child of childElements(element)) {
+    if (child.name === "ac:parameter" && getAttr(child, "ac:name") === name) {
+      return textOf(child).trim();
+    }
+  }
+  return undefined;
+}
+
+function isBlank(node: XmlNode): boolean {
+  return node.kind === "text" && node.value.trim() === "";
+}
+
+function significantChildren(element: XmlElement): XmlNode[] {
+  return element.children.filter((child) => !isBlank(child));
+}
+
+/** Headings outside macros (panels, expands, ...), in document order. */
+function pageHeadings(root: XmlElement): XmlElement[] {
+  const headings: XmlElement[] = [];
+  walk(root, (element) => {
+    if (element.name === "ac:structured-macro") return false;
+    if (headingLevel(element) !== undefined) headings.push(element);
+    return undefined;
+  });
+  return headings;
+}
+
+function renameHeading(element: XmlElement, level: number): void {
+  element.name = `h${level}`;
+}
+
+// ---- headings --------------------------------------------------------------
+
+function promoteToH1(root: XmlElement, fixes: string[]): void {
+  const headings = pageHeadings(root);
+  if (headings.length === 0) return;
+  const top = Math.min(...headings.map((h) => headingLevel(h)!));
+  if (top <= 1) return;
+  const shift = top - 1;
+  for (const heading of headings)
+    renameHeading(heading, headingLevel(heading)! - shift);
+  fixes.push(
+    `Promoted all headings by ${shift} level${shift === 1 ? "" : "s"} so sections start at H1 (the page title is a separate field).`,
+  );
+}
+
+function lintHeadings(
+  root: XmlElement,
+  title: string,
+  fixes: string[],
+  warnings: string[],
+): void {
+  promoteToH1(root, fixes);
+  // A leading heading equal to the page title duplicates it.
+  const first = significantChildren(root)[0];
+  if (
+    first &&
+    first.kind === "element" &&
+    headingLevel(first) === 1 &&
+    normalize(textOf(first)) === normalize(title)
+  ) {
+    root.children.splice(root.children.indexOf(first), 1);
+    fixes.push(
+      `Removed the leading H1 "${textOf(first).trim()}" that repeats the page title.`,
+    );
+    promoteToH1(root, fixes);
+  }
+  let previous = 0;
+  for (const heading of pageHeadings(root)) {
+    const level = headingLevel(heading)!;
+    if (previous > 0 && level > previous + 1) {
+      warnings.push(
+        `Heading "${textOf(heading).trim()}" jumps from H${previous} to H${level}; do not skip levels.`,
+      );
+    }
+    previous = level;
+  }
+}
+
+// ---- toc -------------------------------------------------------------------
+
+function hasMacro(root: XmlElement, name: string): boolean {
+  let found = false;
+  walk(root, (element) => {
+    if (macroName(element) === name) found = true;
+    return undefined;
+  });
+  return found;
+}
+
+function wordCount(root: XmlElement): number {
+  return textOf(root).split(/\s+/).filter(Boolean).length;
+}
+
+function lintToc(root: XmlElement, enabled: boolean, fixes: string[]): void {
+  if (!enabled || hasMacro(root, "toc")) return;
+  const sections = pageHeadings(root).filter(
+    (h) => headingLevel(h) === 1,
+  ).length;
+  const words = wordCount(root);
+  if (sections < TOC_MIN_SECTIONS && words < TOC_MIN_WORDS) return;
+  const toc: XmlElement = {
+    kind: "element",
+    name: "ac:structured-macro",
+    attrs: ' ac:name="toc" ac:schema-version="1"',
+    selfClosing: false,
+    line: 0,
+    children: [
+      {
+        kind: "element",
+        name: "ac:parameter",
+        attrs: ' ac:name="maxLevel"',
+        selfClosing: false,
+        line: 0,
+        children: [{ kind: "text", value: "2" }],
+      },
+    ],
+  };
+  const first = significantChildren(root)[0];
+  const leadingPanel =
+    first &&
+    first.kind === "element" &&
+    PANEL_MACROS.has(macroName(first) ?? "")
+      ? first
+      : undefined;
+  const index = leadingPanel ? root.children.indexOf(leadingPanel) + 1 : 0;
+  root.children.splice(index, 0, toc);
+  fixes.push(
+    `Inserted a table of contents (${sections} sections, ~${words} words)${leadingPanel ? " after the leading panel" : " at the top"}; pass toc: false to opt out.`,
+  );
+}
+
+// ---- layout / widths -------------------------------------------------------
+
+/** Width in px available to the element given its ancestors (layout cells narrow it). */
+function availableWidth(ancestors: XmlElement[], base: number): number {
+  let width = base;
+  for (let i = ancestors.length - 1; i >= 0; i--) {
+    const cell = ancestors[i];
+    if (cell.name !== "ac:layout-cell") continue;
+    const section = ancestors[i - 1];
+    if (section?.name !== "ac:layout-section") break;
+    const shares = LAYOUT_SHARES[getAttr(section, "ac:type") ?? ""];
+    const index = childElements(section)
+      .filter((c) => c.name === "ac:layout-cell")
+      .indexOf(cell);
+    const share = shares?.[index];
+    if (share) width = Math.round(base * share);
+    break;
+  }
+  return width;
+}
+
+// ---- tables ----------------------------------------------------------------
+
+function tableRows(table: XmlElement): XmlElement[] {
+  const rows: XmlElement[] = [];
+  for (const child of childElements(table)) {
+    if (child.name === "tr") rows.push(child);
+    else if (child.name === "tbody" || child.name === "thead") {
+      rows.push(...childElements(child).filter((c) => c.name === "tr"));
+    }
+  }
+  return rows;
+}
+
+const SHORT_MACROS = new Set(["status", "jira"]);
+
+/** Approximate visible length of a cell; lozenges, dates, keys and mentions count as short. */
+function cellLength(node: XmlNode): number {
+  if (node.kind === "text")
+    return decodeEntities(node.value).replace(/\s+/g, " ").length;
+  if (node.kind === "raw") return 0;
+  if (
+    node.name === "ac:structured-macro" &&
+    SHORT_MACROS.has(macroName(node) ?? "")
+  )
+    return 10;
+  if (node.name === "time") return 10;
+  if (node.name === "ri:user" || node.name === "ac:link") return 14;
+  if (node.name === "ac:parameter" || node.name === "ac:structured-macro")
+    return 0;
+  return node.children.reduce((sum, child) => sum + cellLength(child), 0);
+}
+
+function columnWidths(rows: XmlElement[], total: number): number[] | undefined {
+  const lengths: number[][] = [];
+  let columns = 0;
+  rows.forEach((row) => {
+    let position = 0;
+    for (const cell of childElements(row)) {
+      if (cell.name !== "th" && cell.name !== "td") continue;
+      const span = Number(getAttr(cell, "colspan") ?? 1) || 1;
+      if (span === 1) (lengths[position] ??= []).push(cellLength(cell));
+      position += span;
+    }
+    columns = Math.max(columns, position);
+  });
+  if (columns === 0) return undefined;
+  const scores = Array.from({ length: columns }, (_, column) => {
+    const values = lengths[column] ?? [4];
+    const header = values[0];
+    const body = values.slice(1);
+    const average = body.length
+      ? body.reduce((a, b) => a + b, 0) / body.length
+      : header;
+    const longest = body.length ? Math.max(...body) : header;
+    const score = Math.max(
+      header,
+      0.6 * average + 0.4 * Math.min(longest, 3 * Math.max(average, 1)),
+    );
+    return Math.min(80, Math.max(6, score));
+  });
+  const sum = scores.reduce((a, b) => a + b, 0);
+  let widths = scores.map((score) =>
+    Math.max(MIN_COLUMN_PX, (total * score) / sum),
+  );
+  // Re-scale the columns above the minimum so the total stays the content width.
+  const fixed =
+    widths.filter((w) => w === MIN_COLUMN_PX).length * MIN_COLUMN_PX;
+  const flexible = widths.reduce((a, w) => (w > MIN_COLUMN_PX ? a + w : a), 0);
+  if (flexible > 0) {
+    const factor = Math.max(0, total - fixed) / flexible;
+    widths = widths.map((w) =>
+      w > MIN_COLUMN_PX ? Math.max(MIN_COLUMN_PX, w * factor) : w,
+    );
+  }
+  const rounded = widths.map((w) => Math.round(w));
+  const drift = total - rounded.reduce((a, b) => a + b, 0);
+  const widest = rounded.indexOf(Math.max(...rounded));
+  rounded[widest] = rounded[widest] + drift;
+  return rounded;
+}
+
+function colHasWidth(col: XmlElement): boolean {
+  return (
+    /width\s*:/.test(getAttr(col, "style") ?? "") ||
+    getAttr(col, "width") !== undefined
+  );
+}
+
+function lintTables(root: XmlElement, fixes: string[]): void {
+  walk(root, (element, ancestors) => {
+    if (element.name !== "table") return undefined;
+    const existing = childElements(element).find(
+      (child) => child.name === "colgroup",
+    );
+    // Never override explicit widths.
+    if (existing && childElements(existing).some(colHasWidth)) return undefined;
+    const layout = (getAttr(element, "data-layout") ??
+      "default") as keyof typeof CONTENT_WIDTH;
+    const base = CONTENT_WIDTH[layout] ?? CONTENT_WIDTH.default;
+    const total = availableWidth(ancestors, base);
+    const widths = columnWidths(tableRows(element), total);
+    if (!widths) return undefined;
+    const colgroup: XmlElement = {
+      kind: "element",
+      name: "colgroup",
+      attrs: "",
+      selfClosing: false,
+      line: 0,
+      children: widths.map((width) => ({
+        kind: "element" as const,
+        name: "col",
+        attrs: ` style="width: ${width}px;"`,
+        selfClosing: true,
+        children: [],
+        line: 0,
+      })),
+    };
+    if (existing)
+      element.children[element.children.indexOf(existing)] = colgroup;
+    else element.children.unshift(colgroup);
+    if (getAttr(element, "data-layout") === undefined)
+      setAttr(element, "data-layout", "default");
+    fixes.push(
+      `Set column widths on a ${widths.length}-column table (${widths.join(", ")} px).`,
+    );
+    return undefined;
+  });
+}
+
+// ---- images ----------------------------------------------------------------
+
+function lintImages(
+  root: XmlElement,
+  sizeOf: (filename: string) => ImageSize | undefined,
+  fixes: string[],
+  warnings: string[],
+): void {
+  walk(root, (element, ancestors) => {
+    if (element.name !== "ac:image") return undefined;
+    const attachment = childElements(element).find(
+      (child) => child.name === "ri:attachment",
+    );
+    const url = childElements(element).find((child) => child.name === "ri:url");
+    const filename = attachment
+      ? getAttr(attachment, "ri:filename")
+      : undefined;
+    const label =
+      filename ?? (url ? getAttr(url, "ri:value") : undefined) ?? "image";
+    if (filename && /\.(svg|webp)$/i.test(filename)) {
+      warnings.push(
+        `Image "${filename}" is ${filename.split(".").pop()!.toUpperCase()}; use PNG or JPEG so Confluence renders it reliably.`,
+      );
+    }
+    const available = availableWidth(ancestors, CONTENT_WIDTH.default);
+    const given = Number(getAttr(element, "ac:width"));
+    if (Number.isFinite(given) && given > 0) {
+      if (given > available) {
+        setAttr(element, "ac:width", String(available));
+        removeAttr(element, "ac:height");
+        fixes.push(
+          `Clamped image "${label}" from ${given}px to the content width ${available}px.`,
+        );
+      }
+      return undefined;
+    }
+    const size = filename ? sizeOf(filename) : undefined;
+    if (size) {
+      const width = Math.min(size.width, available);
+      setAttr(element, "ac:width", String(width));
+      fixes.push(
+        `Set image "${label}" width to ${width}px (original ${size.width}px, content ${available}px).`,
+      );
+    } else {
+      warnings.push(
+        `Image "${label}" has no width and its original size is unknown; set ac:width (max ${available}px).`,
+      );
+    }
+    return undefined;
+  });
+}
+
+// ---- redundancy ------------------------------------------------------------
+
+function lintRedundancy(root: XmlElement, warnings: string[]): void {
+  const containers: XmlElement[] = [root];
+  walk(root, (element) => {
+    containers.push(element);
+    return undefined;
+  });
+  for (const container of containers) {
+    const children = significantChildren(container);
+    children.forEach((node, index) => {
+      const level = headingLevel(node);
+      if (level === undefined || node.kind !== "element") return;
+      const text = textOf(node).trim();
+      const next = children[index + 1];
+      if (
+        next?.kind === "element" &&
+        PANEL_MACROS.has(macroName(next) ?? "") &&
+        normalize(macroParam(next, "title") ?? "") === normalize(text) &&
+        text
+      ) {
+        warnings.push(
+          `Heading "${text}" is immediately followed by a panel with the same title; drop one.`,
+        );
+      }
+      // Section content runs to the next heading in this container.
+      const rest: XmlNode[] = [];
+      for (const sibling of children.slice(index + 1)) {
+        if (headingLevel(sibling) !== undefined) break;
+        rest.push(sibling);
+      }
+      const nextHeading = children
+        .slice(index + 1)
+        .find((s) => headingLevel(s) !== undefined);
+      if (
+        rest.length === 0 &&
+        (!nextHeading || headingLevel(nextHeading)! <= level)
+      ) {
+        warnings.push(`Section "${text}" is empty.`);
+      }
+      const only = rest.length === 1 ? rest[0] : undefined;
+      if (only?.kind === "element" && macroName(only) === "jira") {
+        const key = macroParam(only, "key");
+        if (key && normalize(key) === normalize(text)) {
+          warnings.push(
+            `Heading "${text}" only repeats the key of the single Jira macro below it; drop the heading or add context.`,
+          );
+        }
+      }
+    });
+  }
+}

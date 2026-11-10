@@ -72,10 +72,17 @@ void test("deny and approval-required refuse the call with the policy reason", a
   );
 });
 
-void test("only Jira and Confluence tools can be brokered", async () => {
+void test("only Atlassian, read and diagram tools can be brokered", async () => {
   const { authorize, inputs } = authorizer([]);
-  await assert.rejects(authorize(call, { toolName: "bash", args: {} }), {
-    code: "NESTED_DENIED",
-  });
+  for (const toolName of ["bash", "write", "web_fetch"])
+    await assert.rejects(authorize(call, { toolName, args: {} }), {
+      code: "NESTED_DENIED",
+    });
   assert.equal(inputs.length, 0);
+  await authorize(call, { toolName: "read", args: { path: "chart.png" } });
+  await authorize(call, { toolName: "kroki_export", args: {} });
+  assert.deepEqual(
+    inputs.map((input) => input.toolName),
+    ["read", "kroki_export"],
+  );
 });

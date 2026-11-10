@@ -1,4 +1,3 @@
-import type { IntegrationExecutionContext } from "../execution-context.js";
 import {
   confluenceConnectionLoader,
   confluenceMethods,
@@ -9,7 +8,12 @@ import {
   jiraConnectionLoader,
   jiraMethods,
 } from "./jira-methods.js";
-import type { SdkEnvironment, SdkMethod } from "./sdk-types.js";
+import { diagramMethods } from "./diagram-methods.js";
+import type {
+  CodeModeContext,
+  SdkEnvironment,
+  SdkMethod,
+} from "./sdk-types.js";
 import { STORAGE_PRELUDE } from "./storage-helpers.js";
 
 /**
@@ -26,7 +30,11 @@ export type {
   SdkMethod,
 } from "./sdk-types.js";
 
-const methods: SdkMethod[] = [...jiraMethods, ...confluenceMethods];
+const methods: SdkMethod[] = [
+  ...jiraMethods,
+  ...confluenceMethods,
+  ...diagramMethods,
+];
 
 const methodByName = new Map<string, SdkMethod>(
   methods.map((method) => [`${method.product}.${method.path}`, method]),
@@ -40,13 +48,12 @@ export function sdkMethodNames(): string[] {
   return [...methodByName.keys()];
 }
 
-export function createSdkEnvironment(
-  context: IntegrationExecutionContext,
-): SdkEnvironment {
+export function createSdkEnvironment(context: CodeModeContext): SdkEnvironment {
   const jira = jiraConnectionLoader(context);
   const confluence = confluenceConnectionLoader(context);
   return {
     context,
+    files: new Map(),
     jira,
     confluence,
     jiraFields: createJiraFieldLoader(context, jira),
@@ -58,15 +65,21 @@ export function createSdkEnvironment(
 function productPrelude(product: string): string {
   const groups = new Map<string, string[]>();
   for (const method of methods.filter((m) => m.product === product)) {
-    const [group, name] = method.path.split(".") as [string, string];
+    const parts = method.path.split(".");
+    const name = parts.pop()!;
+    const group = parts.join(".");
     const entries = groups.get(group) ?? [];
     entries.push(
-      `    ${name}: (...args) => host.call("${product}.${method.path}", args),`,
+      `${name}: (...args) => host.call("${product}.${method.path}", args),`,
     );
     groups.set(group, entries);
   }
   const body = [...groups]
-    .map(([group, entries]) => `  ${group}: {\n${entries.join("\n")}\n  },`)
+    .map(([group, entries]) =>
+      group
+        ? `  ${group}: {\n    ${entries.join("\n    ")}\n  },`
+        : `  ${entries.join("\n  ")}`,
+    )
     .join("\n");
   return `globalThis.${product} = {\n${body}\n};`;
 }
@@ -75,5 +88,6 @@ function productPrelude(product: string): string {
 export const SDK_PRELUDE = [
   productPrelude("jira"),
   productPrelude("confluence"),
+  productPrelude("diagram"),
   STORAGE_PRELUDE,
 ].join("\n");

@@ -14,6 +14,19 @@ export type CodeModeCall = Omit<
 const MAX_STALE_RETRIES = 5;
 
 /**
+ * Direct tools a code-mode SDK call may be authorized as: the Atlassian tools,
+ * `read` for workspace files a script attaches, and `kroki_export` for diagrams.
+ */
+function brokerable(toolName: string): boolean {
+  return (
+    toolName.startsWith("jira_") ||
+    toolName.startsWith("confluence_") ||
+    toolName === "read" ||
+    toolName === "kroki_export"
+  );
+}
+
+/**
  * Checks one SDK call from a code-mode script against the conversation's
  * current policy, exactly as a direct call to `toolName` would be checked.
  * Approval prompts inside a running script are not supported yet: a call that
@@ -25,12 +38,7 @@ export function createCodeModeAuthorizer(prepareAdmission: PrepareAdmission) {
     request: { toolName: string; args: Record<string, unknown> },
   ): Promise<void> => {
     const parsed = toolNameSchema.safeParse(request.toolName);
-    if (
-      !parsed.success ||
-      !(
-        parsed.data.startsWith("jira_") || parsed.data.startsWith("confluence_")
-      )
-    )
+    if (!parsed.success || !brokerable(parsed.data))
       throw new ToolExecutionError(
         "NESTED_DENIED",
         `${request.toolName}: not available to code mode`,

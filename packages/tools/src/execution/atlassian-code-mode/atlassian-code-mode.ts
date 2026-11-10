@@ -1,9 +1,7 @@
 import { sandbox } from "@nervekit/native";
 import type { CodeModeHostCall } from "@nervekit/contracts/tools";
-import type {
-  IntegrationExecutionContext,
-  ToolExecutionResult,
-} from "../execution-context.js";
+import type { ToolExecutionResult } from "../execution-context.js";
+import type { CodeModeContext } from "./sdk-types.js";
 import { processFooter } from "../../result-projection/process-footer.js";
 import {
   createSdkEnvironment,
@@ -32,7 +30,7 @@ const EXIT_CODES: Record<string, number> = {
  */
 export async function executeAtlassianCodeMode(
   args: Record<string, unknown>,
-  context: IntegrationExecutionContext,
+  context: CodeModeContext,
 ): Promise<ToolExecutionResult> {
   const code = typeof args.code === "string" ? args.code : "";
   if (code.trim().length === 0) {
@@ -75,7 +73,7 @@ export async function executeAtlassianCodeMode(
       const callArgs = Array.isArray(rawArgs) ? rawArgs : [];
       let prepared;
       try {
-        prepared = sdkMethod.prepare(callArgs);
+        prepared = sdkMethod.prepare(callArgs, env);
       } catch (error) {
         record({ outcome: "failed", error: cleanMessage(error) });
         throw hostFailure(error);
@@ -91,10 +89,15 @@ export async function executeAtlassianCodeMode(
             "Nested authorization is unavailable; refusing to run SDK calls.",
           );
         }
-        await context.authorizeNested({
-          toolName: authorization.toolName,
-          args: authorization.args,
-        });
+        for (const request of [
+          authorization,
+          ...(prepared.additionalAuthorizations ?? []),
+        ]) {
+          await context.authorizeNested({
+            toolName: request.toolName,
+            args: request.args,
+          });
+        }
       } catch (error) {
         record({ ...base, outcome: "denied", error: cleanMessage(error) });
         throw hostFailure(error);

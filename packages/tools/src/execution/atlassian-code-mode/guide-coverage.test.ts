@@ -40,7 +40,9 @@ function storageHelpers(): string[] {
 const dir = guideDir();
 const reference = (name: string) => readFileSync(join(dir, name), "utf8");
 
-for (const product of ["jira", "confluence", "storage"] as const) {
+for (const product of ["jira", "confluence", "storage", "diagram"] as const) {
+  // `diagram.render` is documented next to the Confluence attachment methods.
+  const file = product === "diagram" ? "confluence.md" : `${product}.md`;
   const known =
     product === "storage"
       ? storageHelpers()
@@ -48,9 +50,9 @@ for (const product of ["jira", "confluence", "storage"] as const) {
 
   void test(`${product}.md documents every ${product} method and nothing else`, () => {
     assert.ok(known.length > 0);
-    const text = reference(`${product}.md`);
+    const text = reference(file);
     for (const name of known) {
-      assert.ok(text.includes(`\`${name}(`), `${product}.md misses ${name}(`);
+      assert.ok(text.includes(`\`${name}(`), `${file} misses ${name}(`);
     }
     const mentioned = new Set(
       [
@@ -60,10 +62,7 @@ for (const product of ["jira", "confluence", "storage"] as const) {
       ].map((m) => m[0]),
     );
     for (const name of mentioned) {
-      assert.ok(
-        known.includes(name),
-        `${product}.md mentions unknown ${name}(`,
-      );
+      assert.ok(known.includes(name), `${file} mentions unknown ${name}(`);
     }
   });
 }
