@@ -39,7 +39,7 @@
     "test:native": "tsx --test test/infrastructure/persistence/file-mutations.test.ts test/domains/launches/process-runtime-driver.test.ts src/infrastructure/process-host/port-inspector.test.ts test/domains/launches/launch-scope.test.ts test/domains/launches/launch-supervisor.test.ts"
   },
   "dependencies": {
-    "@earendil-works/pi-ai": "1.5.1",
+    "@earendil-works/pi-ai": "1.5.2",
     "@hono/node-server": "2.1.5",
     "@nervekit/contracts": "workspace:*",
     "@nervekit/conversation-core": "workspace:*",
