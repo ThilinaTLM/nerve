@@ -1,6 +1,8 @@
 # Phase 1: low-hanging fruit
 
-> **Status:** Proposal. Part of [agent tool interface](README.md). Evidence and current strings are in [review.md](review.md).
+> **Status:** Implemented. Part of [agent tool interface](README.md). Evidence and the strings it replaced are in [review.md](review.md).
+>
+> Differences from the text below: grep prints its exact match total instead of `100+`, because the tool already counts past its limit; the overflow branches in `process-result.ts` stay, because `web_search` and `explain_image` still reach them; `python_exec` `Unknown system error -122` was a full disk quota and is now reported as such.
 
 ## Scope and expected effect
 

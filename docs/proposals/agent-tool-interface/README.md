@@ -1,6 +1,6 @@
 # Agent tool interface
 
-> **Status:** Proposal, in phases. Nothing implemented yet.
+> **Status:** Phase 1 implemented. Phases 2 and 3 are proposals, each waiting on its condition.
 
 ## Goal
 
