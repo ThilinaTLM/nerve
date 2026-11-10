@@ -3,11 +3,11 @@ import type { NativePlatformPackage } from "./native-prebuilds.ts";
 
 /**
  * Packages the esbuild bundle leaves external, so the published manifest keeps
- * them as real `dependencies`: Electron is the runtime host and `sharp` is a
- * native addon. `@nervekit/native-*` platform packages are external too but
+ * them as real `dependencies`: Electron is the runtime host.
+ * `@nervekit/native-*` platform packages are external too but
  * are declared as `optionalDependencies` instead. Everything else is bundled.
  */
-export const externalRuntimeDependencies = ["electron", "sharp"];
+export const externalRuntimeDependencies = ["electron"];
 
 /**
  * Pure manifest assembly for the packed desktop distribution. Only the external

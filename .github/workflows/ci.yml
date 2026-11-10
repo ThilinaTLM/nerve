@@ -27,7 +27,6 @@ jobs:
       has_packages: ${{ steps.impact.outputs.has_packages || steps.impact_main.outputs.has_packages }}
       website: ${{ steps.impact.outputs.website || steps.impact_main.outputs.website }}
       workbench: ${{ steps.impact.outputs.workbench || steps.impact_main.outputs.workbench }}
-      electron_smoke: ${{ steps.impact.outputs.electron_smoke || steps.impact_main.outputs.electron_smoke }}
       native: ${{ steps.impact.outputs.native || steps.impact_main.outputs.native }}
       native_windows_suites: ${{ steps.impact.outputs.native_windows_suites || steps.impact_main.outputs.native_windows_suites }}
       native_macos_suites: ${{ steps.impact.outputs.native_macos_suites || steps.impact_main.outputs.native_macos_suites }}
@@ -517,9 +516,6 @@ jobs:
           node scripts/testing/smoke-native-addon.ts
       - name: Build workbench runtime
         run: pnpm build:workbench-runtime
-      - name: Smoke Electron image normalization
-        if: needs.paths.outputs.electron_smoke == 'true'
-        run: xvfb-run -a node scripts/release/smoke-electron-image-resize.ts
       - name: Smoke built workbench HTTP and WebSocket parity
         run: node scripts/release/smoke-workbench-release.ts
       - name: Run browser tests

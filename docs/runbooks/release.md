@@ -12,7 +12,7 @@ Nerve publishes one npm package, `@nervekit/desktop`. The source implementation 
 
 ## Public npm package
 
-Publish only `@nervekit/desktop`. Its generated tarball embeds the six private runtime workspaces `contracts`, `native`, `protocol`, `harness`, `tools`, and `workbench-server` as npm bundled dependencies. Third-party dependencies such as Electron and sharp remain normal dependencies so npm installs the correct platform artifacts.
+Publish only `@nervekit/desktop`. Its generated tarball embeds the six private runtime workspaces `contracts`, `native`, `protocol`, `harness`, `tools`, and `workbench-server` as npm bundled dependencies. Third-party dependencies such as Electron remains normal dependencies so npm installs the correct platform artifacts.
 
 All source workspaces are private. Workbench-server embeds the built workbench web assets.
 

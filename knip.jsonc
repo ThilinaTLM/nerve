@@ -47,8 +47,6 @@
     },
     "packages/harness": {
       "entry": ["{test,src}/**/*.test.ts"],
-      // resize-worker.ts runs inside Electron, which provides the module.
-      "ignoreDependencies": ["electron"],
     },
   },
   "ignoreExportsUsedInFile": true,

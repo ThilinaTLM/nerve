@@ -242,13 +242,6 @@ test("known operational scripts map to their owning runtime", () => {
     "@nervekit/tools",
     "@nervekit/workbench-server",
   ]);
-
-  const image = classifyChanges(
-    ["scripts/release/smoke-electron-image-resize.ts"],
-    workspace,
-  );
-  assert.equal(image.electronSmoke, true);
-  assert.equal(image.nativeMatrixNeeded, true);
 });
 
 test("GitHub outputs are stable scalar and JSON values", () => {

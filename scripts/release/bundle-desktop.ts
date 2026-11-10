@@ -33,7 +33,6 @@ export const bundleEntryPoints: Record<string, string> = {
   // Daemon spawned by the main process (`resolveServerMain` in release mode).
   daemon: "packages/workbench-server/dist/main.js",
   // Worker/subprocess entrypoints, named as their referencing code expects.
-  "resize-worker": "packages/harness/dist/models/image/resize-worker.js",
   "html-to-markdown.worker":
     "packages/tools/dist/execution/atlassian/html-to-markdown.worker.js",
   "git-isolated-reader-helper":

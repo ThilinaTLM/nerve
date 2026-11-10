@@ -40,7 +40,7 @@ function publicManifest(overrides: Record<string, unknown> = {}) {
     engines: { node: ">=24.0.0" },
     repository: { directory: "packages/desktop-shell" },
     optionalDependencies: nativeOptionalDependencies(nativePackages, version),
-    dependencies: { electron: "^1", sharp: "^0.35.0" },
+    dependencies: { electron: "^1" },
     ...overrides,
   };
 }
@@ -60,13 +60,12 @@ test("public manifest violations are reported with the tarball name", () => {
       {
         dependencies: {
           electron: "^1",
-          sharp: "^0.35.0",
           "@nervekit/contracts": version,
         },
       },
       /exactly the external packages/,
     ],
-    [{ dependencies: { electron: "^1" } }, /exactly the external packages/],
+    [{ dependencies: {} }, /exactly the external packages/],
     [
       { optionalDependencies: { [nativeNames[0]!]: "0.0.1" } },
       /optionalDependencies must pin/,
@@ -139,7 +138,6 @@ test("bundle imports may only reference siblings and declared externals", () => 
     'import { a } from "./chunk-A.js";',
     'import "node:fs";',
     'import { b } from "electron";',
-    'import sharp from "sharp";',
     'const m = await import("./worker.js");',
     'import "hono";',
     'import "./missing.js";',
@@ -182,21 +180,17 @@ test("distribution dependencies keep only external packages and reject conflicti
     peerDependencies: { electron: "^41.0.0" },
   };
   const harness = {
-    dependencies: { sharp: "^0.35.0", zod: "^4.0.0", yaml: "2.9.0" },
+    dependencies: { zod: "^4.0.0", yaml: "2.9.0" },
   };
   const dependencies = collectDistributionDependencies(desktop, [harness]);
-  assert.deepEqual(dependencies, { electron: "^41.0.0", sharp: "^0.35.0" });
+  assert.deepEqual(dependencies, { electron: "^41.0.0" });
   assert.throws(
     () =>
       collectDistributionDependencies(desktop, [
         harness,
-        { dependencies: { sharp: "^0.34.0" } },
+        { dependencies: { electron: "^40.0.0" } },
       ]),
-    /Conflicting runtime dependency ranges for sharp/,
-  );
-  assert.throws(
-    () => collectDistributionDependencies(desktop, []),
-    /external dependency sharp/,
+    /Conflicting runtime dependency ranges for electron/,
   );
   assert.throws(
     () => collectDistributionDependencies({ dependencies: {} }, [harness]),

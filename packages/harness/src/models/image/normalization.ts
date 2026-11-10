@@ -1,186 +1,168 @@
 import { Buffer } from "node:buffer";
+import { createHash } from "node:crypto";
 import type { ImageContent, Message, TextContent } from "@earendil-works/pi-ai";
-import { resizeImage } from "./resize.js";
+import { image as nativeImage } from "@nervekit/native";
+import {
+  imagePolicyForModel,
+  type ImageModelLike,
+  type ImagePolicy,
+} from "./policy.js";
 
-const ANTHROPIC_MAX_DIMENSION = 8000;
-const ANTHROPIC_MANY_IMAGE_MAX_DIMENSION = 2000;
-const ANTHROPIC_MANY_IMAGE_THRESHOLD = 20;
+type Block = TextContent | ImageContent;
 
-interface ModelLike {
-  api: string;
-}
-
-interface NormalizedContentBlocks {
-  blocks: Array<TextContent | ImageContent>;
-  changed: boolean;
-}
+type Outcome =
+  | { kind: "unchanged" }
+  | { kind: "prepared"; image: ImageContent }
+  | { kind: "failed"; reason: string };
 
 /**
- * Normalize model-visible images for provider request limits without mutating
- * stored transcript messages. Anthropic caps each image dimension at 8000 px,
- * or 2000 px when a request contains more than 20 images.
+ * Normalize model-visible images for the model's provider limits without
+ * mutating stored transcript messages. An image that cannot be prepared is
+ * replaced by a text placeholder so the run (and every later turn that still
+ * carries the image in history) keeps working.
  */
 export async function normalizeImagesForModel(
   messages: Message[],
-  model: ModelLike,
+  model: ImageModelLike,
 ): Promise<Message[]> {
-  const maxDimension = anthropicMaxDimension(messages, model);
-  if (maxDimension === undefined) return messages;
+  const imageCount = countImages(messages);
+  if (imageCount === 0) return messages;
+  const policy = imagePolicyForModel(model, imageCount);
 
   let changed = false;
-  const normalizedMessages: Message[] = [];
-  for (const [messageIndex, message] of messages.entries()) {
-    if (message.role === "user") {
-      if (typeof message.content === "string") {
-        normalizedMessages.push(message);
+  const result: Message[] = [];
+  for (const message of messages) {
+    if (
+      (message.role === "user" && typeof message.content !== "string") ||
+      message.role === "toolResult"
+    ) {
+      const blocks = await normalizeBlocks(
+        message.content as readonly Block[],
+        policy,
+      );
+      if (blocks) {
+        changed = true;
+        result.push({ ...message, content: blocks });
         continue;
       }
-      const normalized = await normalizeContentBlocks(
-        message.content,
-        maxDimension,
-        messageIndex,
-      );
-      if (normalized.changed) {
-        changed = true;
-        normalizedMessages.push({ ...message, content: normalized.blocks });
-      } else {
-        normalizedMessages.push(message);
-      }
-      continue;
     }
-
-    if (message.role === "toolResult") {
-      const normalized = await normalizeContentBlocks(
-        message.content,
-        maxDimension,
-        messageIndex,
-      );
-      if (normalized.changed) {
-        changed = true;
-        normalizedMessages.push({ ...message, content: normalized.blocks });
-      } else {
-        normalizedMessages.push(message);
-      }
-      continue;
-    }
-
-    normalizedMessages.push(message);
+    result.push(message);
   }
-
-  return changed ? normalizedMessages : messages;
+  return changed ? result : messages;
 }
 
-function anthropicMaxDimension(
-  messages: Message[],
-  model: ModelLike,
-): number | undefined {
-  if (model.api !== "anthropic-messages" && model.api !== "anthropic") {
-    return undefined;
+/** Returns new blocks, or undefined when nothing changed. */
+async function normalizeBlocks(
+  blocks: readonly Block[],
+  policy: ImagePolicy,
+): Promise<Block[] | undefined> {
+  let changed = false;
+  const out: Block[] = [];
+  for (const block of blocks) {
+    if (!isImageContent(block)) {
+      out.push(block);
+      continue;
+    }
+    const outcome = await prepareCached(block, policy);
+    if (outcome.kind === "unchanged") {
+      out.push(block);
+      continue;
+    }
+    changed = true;
+    out.push(
+      outcome.kind === "prepared"
+        ? outcome.image
+        : { type: "text", text: omittedText(block, outcome.reason) },
+    );
   }
-  return countImages(messages) > ANTHROPIC_MANY_IMAGE_THRESHOLD
-    ? ANTHROPIC_MANY_IMAGE_MAX_DIMENSION
-    : ANTHROPIC_MAX_DIMENSION;
+  return changed ? out : undefined;
+}
+
+function omittedText(image: ImageContent, reason: string): string {
+  const dimensions = readImageDimensions(Buffer.from(image.data, "base64"));
+  const size = dimensions ? `${dimensions.width}x${dimensions.height} ` : "";
+  return `[Image omitted: could not be prepared for this model (${size}${image.mimeType.slice(0, 100)}): ${reason}]`;
+}
+
+// Small bounded LRU so history images are not re-processed on every turn.
+const CACHE_MAX_ENTRIES = 64;
+const CACHE_MAX_CHARS = 96 * 1024 * 1024;
+const cache = new Map<string, { outcome: Outcome; size: number }>();
+let cacheChars = 0;
+
+async function prepareCached(
+  image: ImageContent,
+  policy: ImagePolicy,
+): Promise<Outcome> {
+  const key = `${createHash("sha256").update(image.data).digest("hex")}:${policy.key}`;
+  const hit = cache.get(key);
+  if (hit) {
+    cache.delete(key);
+    cache.set(key, hit);
+    return hit.outcome;
+  }
+  const outcome = await prepare(image, policy);
+  const size = outcome.kind === "prepared" ? outcome.image.data.length : 0;
+  cache.set(key, { outcome, size });
+  cacheChars += size;
+  for (const [oldest, entry] of cache) {
+    if (cache.size <= CACHE_MAX_ENTRIES && cacheChars <= CACHE_MAX_CHARS) break;
+    cache.delete(oldest);
+    cacheChars -= entry.size;
+  }
+  return outcome;
+}
+
+async function prepare(
+  image: ImageContent,
+  policy: ImagePolicy,
+): Promise<Outcome> {
+  try {
+    const prepared = await nativeImage.prepareImage(
+      Buffer.from(image.data, "base64"),
+      policy,
+    );
+    if (!prepared.changed) {
+      // Providers reject a declared media type that does not match the bytes.
+      return normalizeMimeType(image.mimeType) === prepared.mimeType
+        ? { kind: "unchanged" }
+        : {
+            kind: "prepared",
+            image: { ...image, mimeType: prepared.mimeType },
+          };
+    }
+    return {
+      kind: "prepared",
+      image: {
+        type: "image",
+        data: prepared.data.toString("base64"),
+        mimeType: prepared.mimeType,
+      },
+    };
+  } catch (error) {
+    console.error(
+      `Could not prepare image (${image.mimeType.slice(0, 100)}) for ${policy.key}`,
+      error,
+    );
+    const reason = error instanceof Error ? error.message : String(error);
+    return { kind: "failed", reason: reason.slice(0, 200) };
+  }
+}
+
+function normalizeMimeType(mimeType: string): string {
+  const normalized = mimeType.trim().toLowerCase();
+  return normalized === "image/jpg" ? "image/jpeg" : normalized;
 }
 
 function countImages(messages: Message[]): number {
   let count = 0;
   for (const message of messages) {
-    if (message.role === "user") {
-      if (typeof message.content === "string") continue;
-      count += message.content.filter(isImageContent).length;
+    if (message.role === "assistant" || typeof message.content === "string") {
       continue;
     }
-    if (message.role === "toolResult") {
-      count += message.content.filter(isImageContent).length;
-    }
+    count += message.content.filter(isImageContent).length;
   }
   return count;
-}
-
-async function normalizeContentBlocks(
-  blocks: readonly (TextContent | ImageContent)[],
-  maxDimension: number,
-  messageIndex: number,
-): Promise<NormalizedContentBlocks> {
-  let changed = false;
-  const normalizedBlocks: Array<TextContent | ImageContent> = [];
-
-  for (const [blockIndex, block] of blocks.entries()) {
-    if (!isImageContent(block)) {
-      normalizedBlocks.push(block);
-      continue;
-    }
-
-    const normalized = await normalizeImageBlock(
-      block,
-      maxDimension,
-      messageIndex,
-      blockIndex,
-    );
-    if (normalized !== block) changed = true;
-    normalizedBlocks.push(normalized);
-  }
-
-  return { blocks: normalizedBlocks, changed };
-}
-
-async function normalizeImageBlock(
-  image: ImageContent,
-  maxDimension: number,
-  messageIndex: number,
-  blockIndex: number,
-): Promise<ImageContent> {
-  const source = Buffer.from(image.data, "base64");
-  const dimensions = readImageDimensions(source);
-  if (
-    dimensions &&
-    dimensions.width <= maxDimension &&
-    dimensions.height <= maxDimension
-  ) {
-    return image;
-  }
-
-  try {
-    const resized = await resizeImage(source, image.mimeType, maxDimension);
-    validateResizedImage(resized, maxDimension);
-    if (!resized.changed) return image;
-    return {
-      type: "image",
-      data: resized.buffer.toString("base64"),
-      mimeType: resized.mimeType,
-    };
-  } catch (error) {
-    const size = dimensions
-      ? ` (${dimensions.width}x${dimensions.height})`
-      : "";
-    const mimeType = image.mimeType.slice(0, 100);
-    throw new Error(
-      `Could not prepare image at message ${messageIndex}, content ${blockIndex}${size} with MIME type ${mimeType} for the ${maxDimension}px model limit.`,
-      { cause: error },
-    );
-  }
-}
-
-function validateResizedImage(
-  image: Awaited<ReturnType<typeof resizeImage>>,
-  maxDimension: number,
-): void {
-  if (image.buffer.length === 0) {
-    throw new Error("Image resize returned no data.");
-  }
-  if (
-    !Number.isSafeInteger(image.width) ||
-    image.width < 1 ||
-    !Number.isSafeInteger(image.height) ||
-    image.height < 1
-  ) {
-    throw new Error("Image resize returned invalid dimensions.");
-  }
-  if (image.width > maxDimension || image.height > maxDimension) {
-    throw new Error(
-      `Image resize returned ${image.width}x${image.height}, exceeding the ${maxDimension}px limit.`,
-    );
-  }
 }
 
 function readImageDimensions(

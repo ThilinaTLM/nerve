@@ -1,13 +1,9 @@
 import assert from "node:assert/strict";
 import { Buffer } from "node:buffer";
-import { describe, it } from "node:test";
-import type { ImageContent } from "@earendil-works/pi-ai";
+import { describe, it, mock } from "node:test";
+import type { Context, ImageContent } from "@earendil-works/pi-ai";
 import { Agent } from "../../src/agent/agent.js";
-import type {
-  AgentEvent,
-  AnyModel,
-  StreamFn,
-} from "../../src/agent/contracts/index.js";
+import type { AnyModel, StreamFn } from "../../src/agent/contracts/index.js";
 
 const model = {
   id: "test-model",
@@ -35,38 +31,38 @@ function malformedOversizedImage(): ImageContent {
 }
 
 describe("Agent image normalization failures", () => {
-  it("emits a visible terminal error and settles without calling the provider", async () => {
-    let providerCalls = 0;
-    const streamFn = (() => {
-      providerCalls += 1;
-      throw new Error("provider should not be called");
-    }) as StreamFn;
-    const agent = new Agent({
-      initialState: { model },
-      streamFn,
-    });
-    const events: AgentEvent[] = [];
-    agent.subscribe((event) => {
-      events.push(event);
-    });
+  it("replaces an unpreparable image with a text placeholder and still calls the provider", async () => {
+    mock.method(console, "error", () => undefined);
+    const seen: Context[] = [];
+    const streamFn = ((_model: unknown, context: Context) => {
+      seen.push(context);
+      throw new Error("stop after capture");
+    }) as unknown as StreamFn;
+    const agent = new Agent({ initialState: { model }, streamFn });
 
     await agent.prompt("inspect", [malformedOversizedImage()]);
     await agent.waitForIdle();
+    mock.restoreAll();
 
-    assert.equal(providerCalls, 0);
-    assert.equal(agent.state.isStreaming, false);
-    assert.match(
-      agent.state.errorMessage ?? "",
-      /Could not prepare image.*8101.*8000px/,
+    assert.equal(seen.length, 1);
+    const user = seen[0].messages[0];
+    assert.equal(user.role, "user");
+    const content = user.content as Array<{ type: string; text?: string }>;
+    assert.equal(
+      content.some((block) => block.type === "image"),
+      false,
     );
-    assert.deepEqual(
-      events.slice(-4).map((event) => event.type),
-      ["message_start", "message_end", "turn_end", "agent_end"],
+    assert.ok(
+      content.some((block) =>
+        /\[Image omitted: could not be prepared/.test(block.text ?? ""),
+      ),
     );
-    const lastMessage = agent.state.messages.at(-1);
-    assert.equal(lastMessage?.role, "assistant");
-    if (lastMessage?.role === "assistant") {
-      assert.equal(lastMessage.stopReason, "error");
-    }
+    // The original stored message keeps its image.
+    const stored = agent.state.messages[0] as { content: unknown[] };
+    assert.ok(
+      stored.content.some(
+        (block) => (block as { type: string }).type === "image",
+      ),
+    );
   });
 });
