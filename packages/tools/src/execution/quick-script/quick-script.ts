@@ -230,7 +230,7 @@ export async function executeQuickScript(
     updated: env.report.updated,
     deleted: env.report.deleted,
     raw: env.report.raw,
-  });
+  }, env.report.pages.filter((page) => page.action === "created").map((page) => page.id));
   const pages = env.report.pages.map((page) => ({ ...page }));
   const artifacts = await withImageSizes([...env.report.artifacts.values()]);
   const calls = hostCalls.map((call) => ({ ...call }));
@@ -282,10 +282,18 @@ export type ChangeReport = {
 };
 
 /** An entity created and deleted in one run is shown as deleted (marked), not as created; one created and updated is just created. */
-export function reconcileReport(report: ChangeReport): ChangeReport {
-  // `attachment 10 on SCRUM-1` and `attachment 10` name one entity.
-  const entity = (item: string) => /^attachment \S+/.exec(item)?.[0] ?? item;
-  const created = new Set(report.created.map(entity));
+export function reconcileReport(
+  report: ChangeReport,
+  /** Ids of pages created in this run; they are listed as `Page … created` lines, not in `created`. */
+  createdPageIds: readonly string[] = [],
+): ChangeReport {
+  // `attachment 10 on SCRUM-1` and `attachment 10` name one entity; so do `page 5 "T" (trashed)` and `page 5`.
+  const entity = (item: string) =>
+    /^(?:attachment|page) \S+/.exec(item)?.[0] ?? item;
+  const created = new Set([
+    ...report.created.map(entity),
+    ...createdPageIds.map((id) => `page ${id}`),
+  ]);
   const deleted = new Set(report.deleted.map(entity));
   return {
     created: report.created.filter((item) => !deleted.has(entity(item))),

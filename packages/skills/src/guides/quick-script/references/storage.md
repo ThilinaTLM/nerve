@@ -38,7 +38,7 @@ Trust: only builder output, `storage.raw(xhtml)` and `pages.get({ body: "storage
 - `storage.link(target, text?)`: target is a URL (http(s), mailto, relative, `#anchor`; others throw), `{ page, space?, anchor? }` (page by title), `{ attachment }` or `{ anchor }`.
 - `storage.anchor(name)`: link target for `{ anchor }` links.
 - `storage.date(isoDate)`: `YYYY-MM-DD`. `storage.mention(accountId)` (ids from `jira.users.search`). Unicode emoji work in plain text.
-- `storage.tasks(items)`: strings or `{ text, done? }` (Markdown `- [ ]` lists work too). `storage.decisions(items)`: decision list, same items (`done: false` = undecided).
+- `storage.tasks(items)`: strings or `{ text, done? }` (Markdown `- [ ]` lists work too). `storage.decisions(items)`: decision list, same items (`done: false` = undecided; read as `- [decided]` / `- [undecided]`).
 
 ## Blocks
 

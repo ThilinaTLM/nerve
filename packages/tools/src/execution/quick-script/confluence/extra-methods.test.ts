@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { afterEach, test } from "node:test";
-import { executeQuickScript } from "../quick-script.js";
+import { executeQuickScript, reconcileReport } from "../quick-script.js";
 import type { QuickScriptContext } from "../sdk-types.js";
 import { normalizeLabels } from "./extra-methods.js";
 
@@ -237,4 +237,77 @@ await confluence.pages.move({ id: "5", parent: "9" });`,
   );
   assert.match(result.content ?? "", /Give exactly one of parent/);
   assert.equal(seen[0].path, "v1/content/5/move/append/9");
+});
+
+void test("comments.add inline counts matches in the page text and sends the selection", async () => {
+  const { seen, context } = setup(({ method, path }) => {
+    if (method === "GET" && path === "/pages/1")
+      return Response.json({
+        body: { storage: { value: "<p>foo bar</p><p>a <b>foo</b> &amp; foo</p>" } },
+      });
+    if (method === "POST" && path === "/inline-comments")
+      return Response.json({ id: "30" });
+    return undefined;
+  });
+  const run = async (inline: string) =>
+    (
+      await executeQuickScript(
+        {
+          code: `console.log(JSON.stringify(await confluence.comments.add({ id: "1", body: "Hi", inline: ${inline} })));`,
+        },
+        context,
+      )
+    ).content ?? "";
+  assert.match(await run('{ text: "nope" }'), /not found.*shorter exact phrase/);
+  assert.match(await run('{ text: "foo" }'), /appears 3 times.*occurrence/);
+  assert.match(await run('{ text: "foo", occurrence: 2 }'), /"id":"30"/);
+  assert.deepEqual(
+    (seen.at(-1)!.body as { inlineCommentProperties: unknown })
+      .inlineCommentProperties,
+    {
+      textSelection: "foo",
+      textSelectionMatchCount: 3,
+      textSelectionMatchIndex: 1,
+    },
+  );
+});
+
+void test("attachments.delete authorizes with the attachment's real page", async () => {
+  const authorized: Record<string, unknown>[] = [];
+  const { context } = setup(({ method, path }) => {
+    if (method === "GET" && path === "/attachments/9")
+      return Response.json({ id: "9", pageId: "77" });
+    if (method === "DELETE") return new Response(null, { status: 204 });
+    return undefined;
+  });
+  context.authorizeNested = async (request) => {
+    authorized.push(request.args);
+  };
+  await executeQuickScript(
+    { code: `await confluence.attachments.delete("9");` },
+    context,
+  );
+  assert.deepEqual(authorized, [
+    { action: "delete", page_id: "77", attachment_id: "9" },
+  ]);
+});
+
+void test("a page created and deleted in one run is marked in the Deleted list", () => {
+  const report = reconcileReport(
+    { created: [], updated: [], deleted: ['page 5 "T" (trashed)'], raw: [] },
+    ["5"],
+  );
+  assert.deepEqual(report.deleted, [
+    'page 5 "T" (trashed) (created in this run)',
+  ]);
+});
+
+void test("decision lists read with their state", async () => {
+  const { storageXmlToMarkdown } = await import("../../confluence/markdown.js");
+  const item = (state: string, text: string) =>
+    `<ac:adf-node type="decision-item"><ac:adf-attribute key="state">${state}</ac:adf-attribute><ac:adf-content>${text}</ac:adf-content></ac:adf-node>`;
+  const markdown = await storageXmlToMarkdown(
+    `<ac:adf-extension><ac:adf-node type="decision-list">${item("DECIDED", "Ship")}${item("UNDECIDED", "Wait")}</ac:adf-node></ac:adf-extension>`,
+  );
+  assert.match(markdown, /- \[decided\] Ship\n- \[undecided\] Wait/);
 });

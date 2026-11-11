@@ -286,41 +286,6 @@ export const confluenceMethods: SdkMethod[] = [
       );
     },
   }),
-  defineMethod({
-    product: "confluence",
-    path: "comments.add",
-    risk: "external_write",
-    options: ["id", "body"],
-    signature:
-      "/** Footer comment; body is RichText (Markdown, storage.* output, or an array of both). */ add(options: { id: string; body: RichText }): Promise<{ id: string; pageId: string }>",
-    parse: (options) => {
-      return {
-        id: nonEmptyString(options.id, "id"),
-        body: storageBodyOption(options),
-      };
-    },
-    authorize: ({ id, body }) => ({
-      toolName: "confluence_manage_comment",
-      args: { action: "create", kind: "footer", page_id: id, body },
-      summary: id,
-    }),
-    resource: ({ id }) => `page ${id}`,
-    async run({ id, body }, env) {
-      const created = await confluenceRequest(await env.confluence(), {
-        parse: jsonObject,
-        method: "POST",
-        path: "/footer-comments",
-        body: {
-          pageId: id,
-          body: { representation: "storage", value: body },
-        },
-        signal: env.context.signal,
-      });
-      const commentId = String(created.id ?? "");
-      env.report.created.push(`confluence comment ${commentId}`);
-      return { id: commentId, pageId: id };
-    },
-  }),
   ...confluenceAttachmentMethods,
   ...confluenceExtraMethods,
   definePositionalMethod({

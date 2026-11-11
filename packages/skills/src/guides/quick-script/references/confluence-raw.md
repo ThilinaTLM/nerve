@@ -9,7 +9,6 @@ Typed methods cover pages, comments (footer and inline), labels and attachments;
 | Page restrictions     | `GET /wiki/rest/api/content/{id}/restriction/byOperation`                                                                                                                                  |
 | Rename an attachment  | `PUT /wiki/rest/api/content/{attachmentId}` `{ id, type: "attachment", title: newName, version: { number: n + 1 } }`                                                                       |
 | Page versions         | `GET /wiki/api/v2/pages/{id}/versions`                                                                                                                                                     |
-| Create inline comment | `POST /wiki/api/v2/inline-comments` `{ pageId, body: { representation: "storage", value }, inlineCommentProperties: { textSelection, textSelectionMatchCount, textSelectionMatchIndex } }` |
 
 ## Restrictions recipe
 

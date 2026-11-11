@@ -246,8 +246,19 @@ function renderAdf(inner: string): string {
   const type = /<ac:adf-node\b[^>]*\btype="([^"]*)"/i.exec(body)?.[1] ?? "";
   if (type === "decision-list") {
     const items = [
-      ...body.matchAll(/<ac:adf-content\b[^>]*>([\s\S]*?)<\/ac:adf-content>/gi),
-    ].map((m) => `<li>${stash("Decision: ")}${m[1]}</li>`);
+      ...body.matchAll(
+        /<ac:adf-node\b[^>]*\btype="decision-item"[^>]*>([\s\S]*?)<\/ac:adf-node>/gi,
+      ),
+    ].map((m) => {
+      const state = /<ac:adf-attribute\b[^>]*\bkey="state"[^>]*>([^<]*)</i
+        .exec(m[1])?.[1]
+        .trim()
+        .toUpperCase();
+      const text =
+        /<ac:adf-content\b[^>]*>([\s\S]*?)<\/ac:adf-content>/i.exec(m[1])?.[1] ??
+        "";
+      return `<li>${stash(state === "UNDECIDED" ? "[undecided] " : "[decided] ")}${text}</li>`;
+    });
     return `<ul>${items.join("")}</ul>`;
   }
   if (type === "panel") {

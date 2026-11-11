@@ -102,18 +102,23 @@ declare const confluence: {
   attachments: {
     /** Same filename replaces. SVG rejected; max 25 MB. */
     upload(options: { id: string; file: FileHandle; filename?: string; comment?: string }): Promise<AttachmentInfo>;
-    /** By attachment id, or by page id and exact filename. Max 25 MB. */
+    /** By attachment id, or by page id and exact filename. Max 100 MB. */
     download(options: { id: string } | { page: string; filename: string }): Promise<FileHandle>;
     /** Attachments of a page (id = page id). Upload with the same filename = new version. */
     list(id: string | { id: string }): Promise<AttachmentInfo[]>;
     /** Destructive. Deletes an attachment (id from attachments.list). */
     delete(id: string | { id: string }): Promise<{ id: string }>;
   };
+  labels: {
+    /** Labels are lowercase without spaces: case is folded and spaces become "-"; other punctuation (including ".") throws. */
+    add(options: { id: string; labels: string | string[] }): Promise<{ id: string; labels: string[] }>;
+    remove(options: { id: string; labels: string | string[] }): Promise<{ id: string; labels: string[] }>;
+  };
   comments: {
-    /** Footer comment; body is RichText (Markdown, storage.* output, or an array of both). */
-    add(options: { id: string; body: RichText }): Promise<{ id: string; pageId: string }>;
     /** Footer and inline comments of a page, replies included (parentId). inline: true/false limits to one kind; resolved filters inline comments only. */
     list(options: string | { id: string; inline?: boolean; resolved?: boolean }): Promise<ConfluenceComment[]>;
+    /** Footer comment, or with inline: { text, occurrence? } a comment anchored to text of the page (exact rendered text; occurrence is 1-based and required when text appears more than once). body is RichText (Markdown, storage.* output, or an array of both). */
+    add(options: { id: string; body: RichText; inline?: { text: string; occurrence?: number } }): Promise<{ id: string; pageId: string }>;
     /** Replaces a footer or inline comment's text. body is RichText. */
     update(options: { id: string; body: RichText }): Promise<{ id: string }>;
     /** Destructive. Deletes a footer or inline comment and its replies. */
@@ -122,11 +127,6 @@ declare const confluence: {
     reply(options: { id: string; body: RichText }): Promise<{ id: string; parentId: string }>;
     /** Resolves (default) or reopens an inline comment. */
     resolve(options: { id: string; resolved?: boolean }): Promise<{ id: string; resolved: boolean }>;
-  };
-  labels: {
-    /** Labels are lowercase without spaces: case is folded and spaces become "-"; other punctuation (including ".") throws. */
-    add(options: { id: string; labels: string | string[] }): Promise<{ id: string; labels: string[] }>;
-    remove(options: { id: string; labels: string | string[] }): Promise<{ id: string; labels: string[] }>;
   };
   /** Destructive unless GET. Path under /wiki/api/v2/ or /wiki/rest/api/. Returns JSON or text, a FileHandle for binary (page bodies: use pages.create/update). */
   request(method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE", path: string, body?: unknown, query?: Record<string, string | number | boolean | string[]>): Promise<unknown>;
