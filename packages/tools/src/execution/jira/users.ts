@@ -80,21 +80,17 @@ export function jiraUsersFromResponse(response: JiraUsersResponse): unknown[] {
   return Array.isArray(response.values) ? response.values : [];
 }
 
-export async function maybeResolveAssignee(
+type JiraUserSummary = NonNullable<ReturnType<typeof summarizeJiraUser>>;
+
+/**
+ * Finds the one active assignable user a name, email or account id refers to:
+ * `user` when unique (an exact match wins), otherwise the candidates.
+ */
+export async function findAssignableUser(
   connection: JiraConnection,
-  args: Record<string, unknown>,
+  query: string,
   options: { projectKey?: string; issueKey?: string; signal?: AbortSignal },
-): Promise<ReturnType<typeof summarizeJiraUser> | undefined> {
-  const query = optionalString(args.assignee_query);
-  if (!query) return undefined;
-  if (optionalString(args.assignee_account_id)) {
-    throw new ToolExecutionError(
-      "JIRA_ASSIGNEE_CONFLICT",
-      guideErrorMessage(
-        "Provide either assignee_account_id or assignee_query, not both.",
-      ),
-    );
-  }
+): Promise<{ user?: JiraUserSummary; candidates: JiraUserSummary[] }> {
   const data = await searchJiraUsers(connection, {
     query,
     projectKey: options.projectKey,
@@ -114,7 +110,33 @@ export async function maybeResolveAssignee(
       user.accountId === query,
   );
   const candidates = exact.length > 0 ? exact : activeUsers;
-  if (candidates.length === 1) return candidates[0];
+  return {
+    user: candidates.length === 1 ? candidates[0] : undefined,
+    candidates,
+  };
+}
+
+export async function maybeResolveAssignee(
+  connection: JiraConnection,
+  args: Record<string, unknown>,
+  options: { projectKey?: string; issueKey?: string; signal?: AbortSignal },
+): Promise<JiraUserSummary | undefined> {
+  const query = optionalString(args.assignee_query);
+  if (!query) return undefined;
+  if (optionalString(args.assignee_account_id)) {
+    throw new ToolExecutionError(
+      "JIRA_ASSIGNEE_CONFLICT",
+      guideErrorMessage(
+        "Provide either assignee_account_id or assignee_query, not both.",
+      ),
+    );
+  }
+  const { user, candidates } = await findAssignableUser(
+    connection,
+    query,
+    options,
+  );
+  if (user) return user;
   if (candidates.length === 0) {
     throw new ToolExecutionError(
       "JIRA_USER_NOT_FOUND",

@@ -10,6 +10,7 @@ import type {
 import { ToolExecutionError } from "../errors/tool-error.js";
 import { processFooter } from "../../result-projection/process-footer.js";
 import { withImageSizes } from "./artifacts.js";
+import { assertDeclaredRisk } from "./script-risk.js";
 import {
   createSdkEnvironment,
   findSdkMethod,
@@ -101,6 +102,12 @@ export async function executeAtlassianCodeMode(
           ...(prepared.authorization ? [prepared.authorization] : []),
           ...(prepared.additionalAuthorizations ?? []),
         ];
+        try {
+          assertDeclaredRisk(method, sdkMethod.risk, checks);
+        } catch (error) {
+          record({ outcome: "failed", error: cleanMessage(error) });
+          throw hostFailure(error);
+        }
         const base = {
           authorizedAs: checks[0]?.toolName,
           summary: truncate(

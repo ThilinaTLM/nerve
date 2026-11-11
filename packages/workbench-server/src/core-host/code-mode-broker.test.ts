@@ -108,3 +108,30 @@ void test("only Atlassian, read and diagram tools can be brokered", async () => 
     ["read", "kroki_export"],
   );
 });
+
+void test("the ceiling uses the nested call's own risk: adding is a write, deleting is destructive", async () => {
+  const { authorize } = authorizer(["approval", "approval", "approval"]);
+  const write = { ...call, approvedRisk: "workspace_write" as const };
+  await authorize(write, {
+    toolName: "confluence_manage_comment",
+    args: { action: "create", kind: "footer", page_id: "1", body: "hi" },
+  });
+  await assert.rejects(
+    authorize(write, {
+      toolName: "confluence_manage_comment",
+      args: { action: "delete", comment_id: "9" },
+    }),
+    {
+      code: "NESTED_APPROVAL_REQUIRED",
+      message:
+        "confluence_manage_comment: script was approved for write operations; this call needs destructive approval (read-only mode)",
+    },
+  );
+  await authorize(
+    { ...call, approvedRisk: "destructive" },
+    {
+      toolName: "jira_manage_comment",
+      args: { action: "delete", issue_key: "A-1", comment_id: "9" },
+    },
+  );
+});

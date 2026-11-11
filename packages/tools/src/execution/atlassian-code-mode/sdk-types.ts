@@ -67,10 +67,20 @@ export type PreparedCall = {
   run: (env: SdkEnvironment) => Promise<unknown>;
 };
 
+/**
+ * What a method can do at most: `none` has no external effect, `write` creates
+ * or changes things, `destructive` deletes or is not analysable (`request`).
+ * It must not be lower than the risk of the direct tool call the method is
+ * authorized as; the executor refuses to run a method that violates this.
+ */
+export type MethodRisk = "none" | "read" | "write" | "destructive";
+
 export type SdkMethod = {
   product: SdkProduct;
   /** Dotted path under the product global, e.g. `issues.search`. */
   path: string;
+  /** Upper bound of the method's effect; the script scanner and the runtime ceiling start from it. */
+  risk: MethodRisk;
   /** TypeScript method declaration, optionally led by a one-line JSDoc comment; generates the guide's `references/*.d.ts` (sdk-dts.ts). */
   signature: string;
   /**
@@ -84,6 +94,7 @@ export type SdkMethod = {
 type MethodBody<P> = {
   product: SdkProduct;
   path: string;
+  risk: MethodRisk;
   signature: string;
   authorize?(parsed: P, env: SdkEnvironment): NestedAuthorization | undefined;
   authorizeAlso?(parsed: P, env: SdkEnvironment): NestedAuthorization[];
@@ -99,6 +110,7 @@ function build<P>(
   return {
     product: definition.product,
     path: definition.path,
+    risk: definition.risk,
     signature: definition.signature,
     prepare(args, env) {
       const parsed = parse(args);

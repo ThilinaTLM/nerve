@@ -148,6 +148,7 @@ export const confluenceMethods: SdkMethod[] = [
   defineMethod({
     product: "confluence",
     path: "spaces.search",
+    risk: "read",
     bare: "query",
     options: ["query"],
     signature:
@@ -171,6 +172,7 @@ export const confluenceMethods: SdkMethod[] = [
   defineMethod({
     product: "confluence",
     path: "pages.search",
+    risk: "read",
     bare: "cql",
     options: ["cql", "space", "title", "limit"],
     signature:
@@ -245,6 +247,7 @@ export const confluenceMethods: SdkMethod[] = [
   defineMethod({
     product: "confluence",
     path: "pages.get",
+    risk: "read",
     bare: "id",
     options: ["id", "space", "title", "body", "children"],
     signature:
@@ -350,6 +353,7 @@ export const confluenceMethods: SdkMethod[] = [
   defineMethod({
     product: "confluence",
     path: "pages.create",
+    risk: "write",
     options: [
       "space",
       "title",
@@ -476,6 +480,7 @@ export const confluenceMethods: SdkMethod[] = [
   defineMethod({
     product: "confluence",
     path: "pages.update",
+    risk: "write",
     options: ["id", "title", "body", "format", "message", "toc", "attachments"],
     signature:
       '/** Replaces the whole body (read body: "storage" first to edit); omitted title/body are kept. */ update(options: { id: string; title?: string; body?: string; format?: "storage" | "markdown"; message?: string; toc?: boolean; attachments?: AttachmentInput[] }): Promise<PageWrite>',
@@ -588,6 +593,7 @@ export const confluenceMethods: SdkMethod[] = [
   defineMethod({
     product: "confluence",
     path: "attachments.upload",
+    risk: "write",
     options: ["id", "file", "filename", "comment"],
     signature:
       "/** Same filename replaces. SVG rejected; max 20 MB. */ upload(options: { id: string; file: FileHandle; filename?: string; comment?: string }): Promise<AttachmentInfo>",
@@ -614,6 +620,7 @@ export const confluenceMethods: SdkMethod[] = [
   defineMethod({
     product: "confluence",
     path: "labels.add",
+    risk: "write",
     options: ["id", "labels"],
     signature:
       "add(options: { id: string; labels: string | string[] }): Promise<{ id: string; labels: string[] }>",
@@ -649,6 +656,7 @@ export const confluenceMethods: SdkMethod[] = [
   defineMethod({
     product: "confluence",
     path: "comments.add",
+    risk: "write",
     options: ["id", "body", "format"],
     signature:
       '/** Footer comment; Markdown unless format is "storage". */ add(options: { id: string; body: string; format?: "markdown" | "storage" }): Promise<{ id: string; pageId: string }>',
@@ -687,6 +695,7 @@ export const confluenceMethods: SdkMethod[] = [
   definePositionalMethod({
     product: "confluence",
     path: "request",
+    risk: "destructive",
     maxArgs: 3,
     signature:
       '/** Path under /wiki/api/v2/ or /wiki/rest/api/. Returns JSON or text; non-GET is a destructive write. */ request(method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE", path: string, body?: unknown): Promise<unknown>',
@@ -695,11 +704,13 @@ export const confluenceMethods: SdkMethod[] = [
       path,
       body,
     }),
-    // GET is a read; anything else is checked like the destructive `confluence_manage_page`.
+    // GET is a read; anything else cannot be analysed, so it is checked as the
+    // most destructive `confluence_manage_page` action (a purge).
     authorize: ({ method, path }) => ({
       toolName:
         method === "GET" ? "confluence_get_page" : "confluence_manage_page",
-      args: { method, path },
+      args:
+        method === "GET" ? { method, path } : { action: "purge", method, path },
       summary: `${method} ${String(path)}`,
     }),
     resource: ({ path }) => String(path),

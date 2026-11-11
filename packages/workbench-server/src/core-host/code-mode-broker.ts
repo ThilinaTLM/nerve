@@ -82,7 +82,7 @@ export function createCodeModeAuthorizer(prepareAdmission: PrepareAdmission) {
           "NESTED_DENIED",
           `${parsed.data}: denied${reason ? ` (${reason})` : ""}`,
         );
-      const risk = codeModeToolRisk(parsed.data);
+      const risk = codeModeToolRisk(parsed.data, request.args);
       if (codeModeRiskWithin(risk, approvedRisk)) return;
       throw new ToolExecutionError(
         "NESTED_APPROVAL_REQUIRED",

@@ -73,7 +73,7 @@ void test("every method takes one ID string or one options object, with one ID n
   assert.equal(lines[0], "SCRUM SCRUM-4 S");
   assert.equal(
     lines[1],
-    "HostError: jira.issues.get has no option 'issueKey'; valid options: key, fields, comments.",
+    "HostError: jira.issues.get has no option 'issueKey'; valid options: key, fields, comments, transitions.",
   );
   assert.equal(
     lines[2],

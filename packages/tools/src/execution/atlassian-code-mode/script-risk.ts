@@ -1,6 +1,8 @@
-import type { ToolName } from "@nervekit/contracts/tools";
-import { permissionMetadataForTool } from "../../catalog/permission-metadata.js";
+import type { ToolRisk } from "@nervekit/contracts/permissions";
+import { type ToolName, toolNameSchema } from "@nervekit/contracts/tools";
+import { classifyToolRisk } from "../../catalog/manifest.js";
 import { findSdkMethod } from "./sdk.js";
+import type { MethodRisk } from "./sdk-types.js";
 
 /**
  * Risk of a code-mode script, from its text, before it runs. Approval is for
@@ -33,40 +35,69 @@ export function describeCodeModeRisk(risk: CodeModeRisk): string {
   return risk === "workspace_write" ? "write" : risk;
 }
 
-/** Risk of a direct tool, on the code-mode scale: reads, writes, everything else. */
-export function codeModeToolRisk(toolName: ToolName): CodeModeRisk {
-  const category = permissionMetadataForTool(toolName).baseRisk;
-  if (category === "read" || category === "network") return "read";
-  return category === "write" ? "workspace_write" : "destructive";
+/** Maps the effective risk of one direct tool call onto the code-mode scale; anything beyond reads and writes is destructive. */
+export function codeModeRiskOfToolRisk(risk: ToolRisk): CodeModeRisk {
+  switch (risk) {
+    case "read":
+    case "network":
+    case "interaction":
+      return "read";
+    case "workspace_write":
+    case "command":
+      return "workspace_write";
+    default:
+      return "destructive";
+  }
+}
+
+/** Risk of one nested call: the direct tool's argument-aware risk, so `comments.add` is a write while a delete is destructive. */
+export function codeModeToolRisk(
+  toolName: ToolName,
+  args: Record<string, unknown> = {},
+): CodeModeRisk {
+  return codeModeRiskOfToolRisk(classifyToolRisk(toolName, args));
+}
+
+/** Risk a method's declaration stands for on the code-mode scale. */
+export function codeModeRiskOfMethod(risk: MethodRisk): CodeModeRisk {
+  switch (risk) {
+    case "none":
+    case "read":
+      return "read";
+    case "write":
+      return "workspace_write";
+    case "destructive":
+      return "destructive";
+  }
 }
 
 /**
- * The direct tool each method is authorized as; `null` for calls with no
- * external effect. `request` and `files.write` depend on their arguments and
- * are classified separately. A new method missing here is treated as
- * destructive, and a test fails until it is listed.
+ * Guards the declaration against the authorization: a method must not be
+ * declared as less risky than the direct tool call it is checked as, or the
+ * script scan would under-report what the call does.
  */
-export const CODE_MODE_METHOD_TOOLS: Readonly<Record<string, ToolName | null>> =
-  {
-    "jira.issues.search": "jira_search_issues",
-    "jira.issues.get": "jira_get_issue",
-    "jira.projects.get": "jira_get_project",
-    "jira.users.search": "jira_search_users",
-    "jira.fields.list": "jira_get_project",
-    "confluence.spaces.search": "confluence_search_spaces",
-    "confluence.pages.search": "confluence_search_pages",
-    "confluence.pages.get": "confluence_get_page",
-    "confluence.pages.create": "confluence_create_page",
-    "confluence.pages.update": "confluence_update_page",
-    "confluence.attachments.upload": "confluence_manage_attachment",
-    "confluence.labels.add": "confluence_manage_label",
-    "confluence.comments.add": "confluence_manage_comment",
-    "diagram.render": "kroki_export",
-    "files.list": null,
-    "files.read": "read",
-    "image.info": "read",
-    "image.save": "read",
-  };
+export function assertDeclaredRisk(
+  name: string,
+  declared: MethodRisk,
+  authorizations: readonly {
+    toolName: string;
+    args: Record<string, unknown>;
+  }[],
+): void {
+  const ceiling =
+    declared === "none" ? -1 : RANK[codeModeRiskOfMethod(declared)];
+  for (const { toolName, args } of authorizations) {
+    const parsed = toolNameSchema.safeParse(toolName);
+    const effective = parsed.success
+      ? codeModeToolRisk(parsed.data, args)
+      : "destructive";
+    if (RANK[effective] > ceiling) {
+      throw new Error(
+        `Internal error: ${name} declares risk "${declared}" but is authorized as ${toolName} with ${describeCodeModeRisk(effective)} risk; fix the method's risk declaration.`,
+      );
+    }
+  }
+}
 
 /** Methods whose risk depends on a literal argument. */
 const ARGUMENT_DEPENDENT = new Set([
@@ -320,7 +351,8 @@ export function classifyCodeModeScript(code: string): CodeModeClassification {
     }
     if (tokens[j]?.text === "." && tokens[j + 1]?.text === "(") j += 1;
     const name = [token.text, ...path].join(".");
-    if (path.length === 0 || tokens[j]?.text !== "(" || !findSdkMethod(name)) {
+    const method = findSdkMethod(name);
+    if (path.length === 0 || tokens[j]?.text !== "(" || !method) {
       record(`${name} (not a direct call)`, "destructive");
       continue;
     }
@@ -329,23 +361,18 @@ export function classifyCodeModeScript(code: string): CodeModeClassification {
     if (ARGUMENT_DEPENDENT.has(name)) {
       if (name === "files.write") {
         if (writesWorkspace(args))
-          record(`${name} (workspace)`, codeModeToolRisk("write"), targets);
+          record(`${name} (workspace)`, "workspace_write", targets);
       } else {
-        const method = literal(args[0])?.toUpperCase();
+        const verb = literal(args[0])?.toUpperCase();
         const path = literal(args[1]);
-        if (method === "GET") record(`${name} GET`, "read", path ? [path] : []);
-        else if (method)
-          record(`${name} ${method}`, "destructive", path ? [path] : []);
+        if (verb === "GET") record(`${name} GET`, "read", path ? [path] : []);
+        else if (verb)
+          record(`${name} ${verb}`, "destructive", path ? [path] : []);
         else record(`${name} (computed method)`, "destructive");
       }
       continue;
     }
-    const tool = CODE_MODE_METHOD_TOOLS[name];
-    record(
-      name,
-      tool ? codeModeToolRisk(tool) : tool === null ? "read" : "destructive",
-      targets,
-    );
+    record(name, codeModeRiskOfMethod(method.risk), targets);
   }
 
   let risk: CodeModeRisk = "read";

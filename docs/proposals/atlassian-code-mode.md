@@ -244,8 +244,8 @@ Branch `feat/atlassian-code-mode` (then `poc/atlassian-code-mode`): a `sandbox` 
 - **Tested against a live Jira and Confluence Cloud site:** see [Confluence pages](#confluence-pages).
 - **Enablement enforced:** a model call to a tool its request did not offer now fails without running. Before this change, turning a tool off only removed it from the list sent to the model.
 - **Not yet verified:**
-  - Jira writes, which are not built yet.
-  - Approvals inside a script.
+  - Jira writes against a live site.
+  - Script approval prompts in a live instance.
   - Precompiling helper bytecode.
   - Excel and CSV libraries in the sandbox.
   - The `wide` and `full-width` content widths.
@@ -298,10 +298,10 @@ Rule granularity: policies today target Jira and Confluence with `whole_tool`. M
 
 1. Spike: done on Linux, Windows and macOS (see [Proof of concept](#proof-of-concept)).
 2. Broker, read-only Jira SDK, Confluence SDK with builders, linter, attachments and diagrams: done (PR #569).
-3. **Simplify the SDK and runtime:** one calling convention, auth short-circuit, `return` printing, automatic lint and artifact report, bundled Markdown converter, `request()`, per-conversation artifacts and `files.*`, `image(...)`, lazily loaded SheetJS and Papa Parse.
-4. **Guide skill reorganisation:** generated `sdk.d.ts`, plus the reference files listed in [Documentation](#documentation).
-5. **Jira writes and discovery methods:** issues, comments, transitions, links, worklogs, attachments; issue types and create fields, workflows, boards, sprints, versions, components.
-6. **Approvals:** script classification, dynamic risk and the runtime ceiling.
+3. **Simplify the SDK and runtime (done):** one calling convention, auth short-circuit, `return` printing, automatic lint and artifact report, bundled Markdown converter, `request()`, per-conversation artifacts and `files.*`, `image(...)`, lazily loaded SheetJS and Papa Parse.
+4. **Guide skill reorganisation (done):** generated `sdk.d.ts`, plus the reference files listed in [Documentation](#documentation).
+5. **Jira writes and discovery methods (done; verified with mocked HTTP only):** issues, comments, transitions, links, worklogs, attachments; issue types and create fields, workflows, boards, sprints, versions, components.
+6. **Approvals (done):** script classification, dynamic risk and the runtime ceiling.
 7. Benchmark and decision.
 
 ## Open questions

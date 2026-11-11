@@ -55,6 +55,13 @@ interface IssueComment {
   body: string;
 }
 
+interface IssueTransition {
+  name: string;
+  /** Target status. */
+  to: string;
+  requiredFields: string[];
+}
+
 interface JiraProject {
   key: string;
   name: string | null;
@@ -62,6 +69,19 @@ interface JiraProject {
   issueTypes: string[];
   components: string[];
   versions: string[];
+  /** include "fields": what each issue type's create screen takes. */
+  createFields?: {
+    issueType: string;
+    subtask: boolean;
+    fields: { name: string; required: boolean; type: string; allowed?: string[] }[];
+  }[];
+  /** include "statuses": "Name (category)" per issue type. */
+  statuses?: { issueType: string; statuses: string[] }[];
+  /** include "releases": unarchived fix versions, unreleased first. */
+  releases?: { name: string; released: boolean; releaseDate: string | null; startDate: string | null }[];
+  boards?: { id: number; name: string; type: string | null }[];
+  sprints?: { id: number; name: string; state: string | null; startDate: string | null; endDate: string | null; goal: string | null; boardId: number }[];
+  epics?: { key: string; summary: string | null; status: string | null }[];
 }
 
 interface JiraField {

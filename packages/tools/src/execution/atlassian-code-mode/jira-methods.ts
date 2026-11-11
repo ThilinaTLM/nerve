@@ -25,7 +25,14 @@ import {
   simplifyComment,
   userOf,
 } from "./jira-issue.js";
-import { clampInt, nonEmptyString } from "./sdk-args.js";
+import {
+  type ProjectInclude,
+  PROJECT_INCLUDES,
+  projectExtras,
+} from "./jira-discovery.js";
+import { fieldMetaMap } from "./jira-field-values.js";
+import { jiraWriteMethods } from "./jira-write-methods.js";
+import { clampInt, nonEmptyString, optionalText } from "./sdk-args.js";
 import {
   defineMethod,
   definePositionalMethod,
@@ -62,10 +69,21 @@ function selectFields(
     : Promise.resolve(defaultSelection(defaults));
 }
 
-export const jiraMethods: SdkMethod[] = [
+/** The closest `jira_get_project` includes, so rules on the direct read apply. */
+function directInclude(include: readonly ProjectInclude[]): string[] {
+  const names: Partial<Record<ProjectInclude, string>> = {
+    fields: "create_meta",
+    statuses: "statuses",
+    releases: "versions",
+  };
+  return include.flatMap((item) => names[item] ?? []);
+}
+
+const readMethods: SdkMethod[] = [
   defineMethod({
     product: "jira",
     path: "issues.search",
+    risk: "read",
     bare: "jql",
     options: ["jql", "fields", "limit"],
     signature:
@@ -111,14 +129,16 @@ export const jiraMethods: SdkMethod[] = [
   defineMethod({
     product: "jira",
     path: "issues.get",
+    risk: "read",
     bare: "key",
-    options: ["key", "fields", "comments"],
+    options: ["key", "fields", "comments", "transitions"],
     signature:
-      "/** `comments: true` adds all comments. */ get(options: string | { key: string; fields?: string[]; comments?: boolean }): Promise<Issue & { comments?: IssueComment[] }>",
+      "/** `comments: true` adds all comments; `transitions: true` the statuses it can move to, with their required fields. */ get(options: string | { key: string; fields?: string[]; comments?: boolean; transitions?: boolean }): Promise<Issue & { comments?: IssueComment[]; transitions?: IssueTransition[] }>",
     parse: (options) => ({
       key: nonEmptyString(options.key, "key"),
       fields: fieldsOption(options),
       comments: options.comments === true,
+      transitions: options.transitions === true,
     }),
     authorize: ({ key }) => ({
       toolName: "jira_get_issue",
@@ -126,7 +146,7 @@ export const jiraMethods: SdkMethod[] = [
       summary: key,
     }),
     resource: ({ key }) => `issue ${key}`,
-    async run({ key, fields, comments }, env) {
+    async run({ key, fields, comments, transitions }, env) {
       const selection = await selectFields(fields, DEFAULT_GET_FIELDS, env);
       const connection = await env.jira();
       const raw = await jiraRequest(connection, {
@@ -137,28 +157,54 @@ export const jiraMethods: SdkMethod[] = [
       });
       const issue = flattenIssue(raw, connection.siteUrl, selection);
       if (comments) issue.comments = await fetchComments(connection, key, env);
+      if (transitions) issue.transitions = await fetchTransitions(key, env);
       return issue;
     },
   }),
   defineMethod({
     product: "jira",
     path: "projects.get",
+    risk: "read",
     bare: "key",
-    options: ["key"],
-    signature: "get(options: string | { key: string }): Promise<JiraProject>",
-    parse: (options) => nonEmptyString(options.key, "key"),
-    authorize: (key) => ({
+    options: ["key", "include", "issueType"],
+    signature:
+      '/** `include` adds, for learning a project\'s conventions: "fields" (create fields per issue type with required/allowed values; `issueType` limits it to one), "statuses" per issue type, "releases" (fix versions), "boards", "sprints" (active/future, scrum boards), "epics" (open). */ get(options: string | { key: string; include?: ("fields" | "statuses" | "releases" | "boards" | "sprints" | "epics")[]; issueType?: string }): Promise<JiraProject>',
+    parse: (options) => {
+      const include = options.include ?? [];
+      if (
+        !Array.isArray(include) ||
+        include.some(
+          (item) => !(PROJECT_INCLUDES as readonly unknown[]).includes(item),
+        )
+      ) {
+        throw new Error(
+          `include must be an array of: ${PROJECT_INCLUDES.join(", ")}.`,
+        );
+      }
+      return {
+        key: nonEmptyString(options.key, "key"),
+        include: include as ProjectInclude[],
+        issueType: optionalText(options.issueType),
+      };
+    },
+    authorize: ({ key, include }) => ({
       toolName: "jira_get_project",
-      args: { project_key: key },
+      args: {
+        project_key: key,
+        ...(include.length > 0 ? { include: directInclude(include) } : {}),
+      },
       summary: key,
     }),
-    resource: (key) => `project ${key}`,
-    async run(key, env) {
-      const project = await jiraRequest(await env.jira(), {
-        parse: jsonObject,
-        path: `/project/${pathSegment(key)}`,
-        signal: env.context.signal,
-      });
+    resource: ({ key }) => `project ${key}`,
+    async run({ key, include, issueType }, env) {
+      const [project, extras] = await Promise.all([
+        jiraRequest(await env.jira(), {
+          parse: jsonObject,
+          path: `/project/${pathSegment(key)}`,
+          signal: env.context.signal,
+        }),
+        projectExtras(env, key, include, issueType),
+      ]);
       return {
         key: project.key ?? key,
         name: project.name ?? null,
@@ -166,12 +212,14 @@ export const jiraMethods: SdkMethod[] = [
         issueTypes: namesOf(project.issueTypes),
         components: namesOf(project.components),
         versions: namesOf(project.versions),
+        ...extras,
       };
     },
   }),
   defineMethod({
     product: "jira",
     path: "users.search",
+    risk: "read",
     bare: "query",
     options: ["query"],
     signature:
@@ -203,6 +251,7 @@ export const jiraMethods: SdkMethod[] = [
   defineMethod({
     product: "jira",
     path: "fields.list",
+    risk: "read",
     options: [],
     signature: "/** Names usable in `fields`. */ list(): Promise<JiraField[]>",
     parse: () => undefined,
@@ -216,11 +265,18 @@ export const jiraMethods: SdkMethod[] = [
       summary: "all fields",
     }),
     resource: () => "Jira fields",
-    run: (_parsed, env) => env.jiraFields(),
+    run: async (_parsed, env) =>
+      (await env.jiraFields()).map(({ id, name, custom, type }) => ({
+        id,
+        name,
+        custom,
+        type,
+      })),
   }),
   definePositionalMethod({
     product: "jira",
     path: "request",
+    risk: "destructive",
     maxArgs: 3,
     signature:
       '/** Path under /rest/api/3/ or /rest/agile/1.0/. Returns JSON or text; non-GET is a destructive write. */ request(method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE", path: string, body?: unknown): Promise<unknown>',
@@ -229,10 +285,14 @@ export const jiraMethods: SdkMethod[] = [
       path,
       body,
     }),
-    // GET is a read; anything else is checked like the destructive `jira_manage_*` tools.
+    // GET is a read; anything else cannot be analysed, so it is checked as the
+    // most destructive action of a `jira_manage_*` tool (a delete).
     authorize: ({ method, path }) => ({
       toolName: method === "GET" ? "jira_get_project" : "jira_manage_comment",
-      args: { method, path },
+      args:
+        method === "GET"
+          ? { method, path }
+          : { action: "delete", method, path },
       summary: `${method} ${String(path)}`,
     }),
     resource: ({ path }) => String(path),
@@ -246,6 +306,30 @@ export const jiraMethods: SdkMethod[] = [
     },
   }),
 ];
+
+export const jiraMethods: SdkMethod[] = [...readMethods, ...jiraWriteMethods];
+
+async function fetchTransitions(key: string, env: SdkEnvironment) {
+  const response = await jiraRequest(await env.jira(), {
+    parse: jsonObject,
+    path: `/issue/${pathSegment(key)}/transitions`,
+    query: { expand: "transitions.fields" },
+    signal: env.context.signal,
+  });
+  return (Array.isArray(response.transitions) ? response.transitions : []).map(
+    (raw) => {
+      const transition = (raw ?? {}) as Record<string, unknown>;
+      const target = (transition.to ?? {}) as Record<string, unknown>;
+      return {
+        name: String(transition.name ?? ""),
+        to: String(target.name ?? ""),
+        requiredFields: [...fieldMetaMap(transition.fields).values()]
+          .filter((field) => field.required && !field.hasDefault)
+          .map((field) => field.name),
+      };
+    },
+  );
+}
 
 async function fetchComments(
   connection: JiraConnection,
@@ -285,11 +369,15 @@ export function createJiraFieldLoader(
       return raw.map((item) => {
         const field = (item ?? {}) as Record<string, unknown>;
         const schema = (field.schema ?? {}) as Record<string, unknown>;
+        const text = (value: unknown) =>
+          typeof value === "string" ? value : null;
         return {
           id: String(field.id ?? ""),
           name: String(field.name ?? ""),
           custom: field.custom === true,
-          type: typeof schema.type === "string" ? schema.type : null,
+          type: text(schema.type),
+          items: text(schema.items),
+          kind: text(schema.custom) ?? text(schema.system),
         };
       });
     }));

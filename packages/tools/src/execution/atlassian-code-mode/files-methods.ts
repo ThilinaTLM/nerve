@@ -17,6 +17,7 @@ export const filesMethods: SdkMethod[] = [
   definePositionalMethod({
     product: "files",
     path: "list",
+    risk: "none",
     maxArgs: 0,
     signature: "list(): Promise<ArtifactInfo[]>",
     parse: () => undefined,
@@ -26,6 +27,7 @@ export const filesMethods: SdkMethod[] = [
   definePositionalMethod({
     product: "files",
     path: "read",
+    risk: "read",
     maxArgs: 2,
     signature:
       '/** Default "text"; max 20 MB. */ read(handle: FileHandle, options: { as: "bytes" }): Promise<Uint8Array>; read(handle: FileHandle, options?: { as?: "text" }): Promise<string>',
@@ -51,6 +53,7 @@ export const filesMethods: SdkMethod[] = [
   definePositionalMethod({
     product: "files",
     path: "write",
+    risk: "write",
     maxArgs: 3,
     signature:
       "/** Artifact by default; with workspace: true `name` is a workspace path. Returns the handle or path. */ write(name: string, data: string | Uint8Array | ArrayBuffer, options?: { workspace?: boolean }): Promise<string>",

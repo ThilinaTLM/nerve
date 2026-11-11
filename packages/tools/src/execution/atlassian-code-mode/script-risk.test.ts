@@ -1,26 +1,29 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { sdkMethodNames } from "./sdk.js";
-import {
-  CODE_MODE_METHOD_TOOLS,
-  classifyCodeModeScript,
-} from "./script-risk.js";
+import { findSdkMethod, sdkMethodNames } from "./sdk.js";
+import { classifyCodeModeScript } from "./script-risk.js";
 
 const classify = (code: string) => classifyCodeModeScript(code);
 
-void test("every SDK method is classified or argument-dependent", () => {
-  const dependent = new Set([
-    "jira.request",
-    "confluence.request",
-    "files.write",
-  ]);
+void test("the scanner reads each method's declared risk", () => {
+  const risks = (code: string) => classify(code).risk;
+  assert.equal(risks(`await jira.issues.get("A-1")`), "read");
+  assert.equal(risks(`await files.list()`), "read");
+  assert.equal(
+    risks(`await confluence.comments.add({ id: "1", body: "x" })`),
+    "workspace_write",
+  );
+  assert.equal(
+    risks(`await confluence.attachments.upload({ id: "1", file: "a.png" })`),
+    "workspace_write",
+  );
   for (const name of sdkMethodNames())
     assert.ok(
-      name in CODE_MODE_METHOD_TOOLS || dependent.has(name),
-      `${name} needs an entry in CODE_MODE_METHOD_TOOLS`,
+      ["none", "read", "write", "destructive"].includes(
+        findSdkMethod(name)!.risk,
+      ),
+      name,
     );
-  for (const name of Object.keys(CODE_MODE_METHOD_TOOLS))
-    assert.ok(sdkMethodNames().includes(name), `${name} is not an SDK method`);
 });
 
 void test("read-only scripts are read and list their operations", () => {

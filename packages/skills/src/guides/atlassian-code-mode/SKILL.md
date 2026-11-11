@@ -10,10 +10,10 @@ A TypeScript sandbox script (no network, filesystem or imports) with globals `ji
 ## Rules
 
 1. ES module body with top-level `await`; no `import`/`export`. Output is `console.log` plus a top-level `return value`.
-2. JQL needs a field restriction (`project = APP AND ...`). Always set `limit` and `fields`; filter in JQL/CQL first, then in code (`Promise.all` over keys).
-3. Methods take one argument: a bare string (key, id, JQL, CQL) or one options object. Issues and projects use `key`, pages `id`. Exceptions: `files.*`, `image(...)`, `request(method, path, body?)`.
-4. Write only on explicit user request, then print `url`/`version`. The result lists page lint `fixes`/`warnings` and artifacts for you.
-5. Failures throw `HostError` with `e.code` (`FORBIDDEN`, `NOT_FOUND`, `BAD_REQUEST`, `DENIED`); finished calls are not undone. A rejected token (401) stops the script.
+2. JQL needs a field restriction (`project = APP AND ...`). Always set `limit` and `fields`; filter in JQL/CQL first, then in code.
+3. Methods take one argument: a bare string (key, id, JQL, CQL) or one options object. Issues and projects use `key`, pages `id`. Except `files.*`, `image(...)`, `request(method, path, body?)`.
+4. Write only on explicit user request; print `url`/`version`/`key`. Page lint `fixes`/`warnings` and artifacts are listed for you.
+5. Failures throw `HostError` with `e.code` (`FORBIDDEN`, `NOT_FOUND`, `BAD_REQUEST`, `DENIED`); finished calls are not undone. A rejected token (401) stops it.
 6. Jira/Confluence text is Markdown; pages are written as storage XHTML via `storage.*`.
 
 ## Read before use
@@ -21,6 +21,7 @@ A TypeScript sandbox script (no network, filesystem or imports) with globals `ji
 | Task                               | Read                                                                                                      |
 | ---------------------------------- | --------------------------------------------------------------------------------------------------------- |
 | Jira calls                         | [jira.d.ts](references/jira.d.ts)                                                                         |
+| Creating/updating tickets          | [jira-workflows.md](references/jira-workflows.md)                                                         |
 | Confluence calls                   | [confluence.d.ts](references/confluence.d.ts)                                                             |
 | Writing a page                     | [confluence-writing.md](references/confluence-writing.md), [storage.md](references/storage.md) (builders) |
 | Files, images, diagrams, Excel/CSV | [files.md](references/files.md), [files.d.ts](references/files.d.ts)                                      |

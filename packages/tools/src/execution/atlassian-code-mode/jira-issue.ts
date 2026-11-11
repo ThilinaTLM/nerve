@@ -60,6 +60,10 @@ export type JiraFieldInfo = {
   name: string;
   custom: boolean;
   type: string | null;
+  /** Element type of array fields, e.g. `option`, `user`, `version`. */
+  items?: string | null;
+  /** Custom field type, e.g. `...:textarea`; system field name otherwise. */
+  kind?: string | null;
 };
 
 export type FieldSelection = { id: string; key: string };

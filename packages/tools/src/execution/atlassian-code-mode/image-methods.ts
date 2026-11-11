@@ -34,6 +34,7 @@ export const imageMethods: SdkMethod[] = [
   defineMethod({
     product: "image",
     path: "info",
+    risk: "read",
     options: ["file", "ops"],
     signature: "info(): Promise<ImageInfo>",
     parse: parseImage,
@@ -58,6 +59,7 @@ export const imageMethods: SdkMethod[] = [
   defineMethod({
     product: "image",
     path: "save",
+    risk: "read",
     options: ["file", "ops", "name"],
     signature: "save(name: string): Promise<FileHandle>",
     parse: parseImage,
