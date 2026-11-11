@@ -13,6 +13,9 @@ export default tseslint.config(
       "**/.vite/**",
       // Gitignored runtime data and generated captures are not source code.
       "data/**",
+      // Local git worktrees are separate checkouts with their own tsconfigs;
+      // linting them from the root corrupts type-aware rule resolution.
+      ".worktrees/**",
       "packages/website/.screenshots/**",
       // Local mock-only prototypes are intentionally outside CI validation.
       "packages/workbench-app/src/lib/app/design-lab/wireframes/**",
