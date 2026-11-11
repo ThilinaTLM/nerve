@@ -125,7 +125,6 @@ void test("untrusted storage XHTML is rejected, never escaped silently", () => {
     `${status}<p>x</p>`,
     "<p>x</p>",
     '<ac:structured-macro ac:name="toc"/>',
-    "text</p>",
   ]) {
     assert.throws(() => storage.panel("info", body), /storage\.raw|array/);
   }
@@ -134,6 +133,11 @@ void test("untrusted storage XHTML is rejected, never escaped silently", () => {
     storage.panel("info", "use `<p>` or\n```\n<ac:x/>\n```"),
   );
   assert.doesNotThrow(() => storage.panel("info", "a < b and 2 > 1"));
+  // Stray tags in prose are escaped, not refused.
+  assert.match(
+    storage.panel("info", "Error says </div> mismatch"),
+    /Error says &lt;\/div&gt; mismatch/,
+  );
   assert.match(storage.panel("info", [status, "more"]), /<p>more<\/p>/);
 });
 
@@ -246,4 +250,17 @@ void test("element builders produce the Cloud storage forms", () => {
     storage.pageProperties({ Owner: "Ann" }),
     /ac:name="details".*<th><p>Owner<\/p><\/th><td><p>Ann<\/p><\/td>/,
   );
+});
+
+void test("decisions accept strings and { text, done? } like tasks", () => {
+  const storage = load();
+  const xml = storage.decisions([
+    "a",
+    { text: "b", done: true },
+    { text: "c", done: false },
+  ]);
+  assert.ok(!xml.includes("[object Object]"));
+  assert.equal((xml.match(/>DECIDED</g) ?? []).length, 2);
+  assert.equal((xml.match(/>UNDECIDED</g) ?? []).length, 1);
+  assert.match(xml, /<li>b<\/li>/);
 });

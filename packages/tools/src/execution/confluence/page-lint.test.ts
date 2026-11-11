@@ -329,3 +329,12 @@ void test("references to files that are not attached warn; known ones and duplic
     ["1", "2"],
   );
 });
+
+void test("an image of a missing attachment gets only the not-on-the-page warning", () => {
+  const result = lintStoragePage(
+    '<p><ac:image><ri:attachment ri:filename="gone.png"/></ac:image></p>',
+    { title: "T", attachments: new Set(["other.png"]) },
+  );
+  assert.equal(result.warnings.length, 1);
+  assert.match(result.warnings[0], /"gone\.png" that is not on the page/);
+});

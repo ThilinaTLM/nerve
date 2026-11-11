@@ -105,7 +105,7 @@ async function putSprint(
   );
 }
 
-/** Board for a new sprint: the given one, or the project's only scrum board. */
+/** Board for a new sprint: the given one, or the project's only scrum or team-managed board. */
 async function boardFor(
   env: SdkEnvironment,
   board: number | undefined,
@@ -122,18 +122,19 @@ async function boardFor(
     api: "agile",
     parse: jsonObject,
     path: "/board",
-    query: { projectKeyOrId: key, type: "scrum", maxResults: PAGE },
+    query: { projectKeyOrId: key, maxResults: PAGE },
     signal: env.context.signal,
   });
-  const boards = list(page.values).map((raw) => {
-    const item = (raw ?? {}) as Record<string, unknown>;
-    return { id: Number(item.id), name: String(item.name ?? "") };
-  });
+  // Scrum and team-managed (`simple`) boards support sprints; kanban boards do not.
+  const boards = list(page.values)
+    .map((raw) => (raw ?? {}) as Record<string, unknown>)
+    .filter((item) => item.type !== "kanban")
+    .map((item) => ({ id: Number(item.id), name: String(item.name ?? "") }));
   if (boards.length === 1) return boards[0].id;
   throw new Error(
     boards.length === 0
-      ? `Project ${key} has no scrum board, which sprints need. Pass board (id) if one exists.`
-      : `Project ${key} has several scrum boards: ${boards.map((item) => `${item.name} (${item.id})`).join(", ")}. Pass board.`,
+      ? `Project ${key} has no scrum or team-managed board, which sprints need. Pass board (id) if one exists.`
+      : `Project ${key} has several boards: ${boards.map((item) => `${item.name} (${item.id})`).join(", ")}. Pass board.`,
   );
 }
 

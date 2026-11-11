@@ -60,6 +60,32 @@ void test("labels are folded to lowercase with hyphens; other punctuation names 
   );
 });
 
+void test("labels reject '.' and name the allowed set", () => {
+  assert.throws(
+    () => normalizeLabels("v1.0"),
+    /Invalid label "v1\.0" \(remove "\."\).*no "\."/,
+  );
+});
+
+void test("labels.remove checks every label first and lists the current ones", async () => {
+  const { context, seen } = setup(({ method, path }) =>
+    method === "GET" && path === "v1/content/1/label"
+      ? Response.json({ results: [{ name: "a" }, { name: "b" }] })
+      : undefined,
+  );
+  const result = await executeQuickScript(
+    {
+      code: `try { await confluence.labels.remove({ id: "1", labels: ["a", "zz"] }); } catch (e) { console.log(e.code, e.message); }`,
+    },
+    context,
+  );
+  assert.match(
+    result.content ?? "",
+    /NOT_FOUND Page 1 has no label "zz"; nothing was removed\. Current labels: a, b\./,
+  );
+  assert.ok(!seen.some((s) => s.method === "DELETE"));
+});
+
 void test("comments.list merges footer and inline comments with replies and selection", async () => {
   const { context } = setup(({ path }) =>
     path === "v1/content/1/child/comment"

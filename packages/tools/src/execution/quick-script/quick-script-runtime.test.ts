@@ -433,3 +433,17 @@ void test("a host call still running when the script times out is aborted and do
     calls.every((call) => (call as { outcome: string }).outcome === "failed"),
   );
 });
+
+void test("Raw footer lines come only from request(), not from typed destructive methods", async () => {
+  globalThis.fetch = async () => new Response(null, { status: 204 });
+  const result = await run(
+    `await jira.issues.delete("A-1"); await jira.request("DELETE", "/rest/api/3/issue/A-2");`,
+  );
+  assert.equal(result.exitCode, 0, result.content);
+  assert.match(result.content ?? "", /^Deleted: A-1$/m);
+  assert.match(
+    result.content ?? "",
+    /^Raw: DELETE \/rest\/api\/3\/issue\/A-2$/m,
+  );
+  assert.doesNotMatch(result.content ?? "", /Raw: .*A-1/);
+});

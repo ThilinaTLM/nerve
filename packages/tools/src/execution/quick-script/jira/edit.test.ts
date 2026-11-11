@@ -289,3 +289,24 @@ void test("sprints: create picks the only scrum board, start needs an end, close
     ],
   );
 });
+
+void test("sprints.create accepts a team-managed (simple) board and skips kanban", async () => {
+  const { sent, run } = setup((s) => {
+    if (s.path === `${AGILE}/board`)
+      return Response.json({
+        values: [
+          { id: 1, name: "SCRUM board", type: "simple" },
+          { id: 2, name: "Flow", type: "kanban" },
+        ],
+      });
+    if (s.method === "POST" && s.path === `${AGILE}/sprint`)
+      return Response.json({
+        id: 9,
+        name: "S",
+        state: "future",
+        originBoardId: 1,
+      });
+  });
+  await run(`await jira.sprints.create({ name: "S", project: "SCRUM" });`);
+  assert.equal(lastOf(sent, "POST", `${AGILE}/sprint`)!.body.originBoardId, 1);
+});

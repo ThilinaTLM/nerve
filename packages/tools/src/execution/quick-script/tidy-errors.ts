@@ -11,7 +11,7 @@ const BAD_TIME_HINT =
 
 /** The name an error is about: `issue SCRUM-9` is `SCRUM-9`; generic resources get no prefix. */
 function subject(resource: string): string | undefined {
-  if (!resource || /^(this )?(Jira|Confluence)\b/.test(resource))
+  if (!resource || /^(this )?(Jira|Confluence)\b|^space /.test(resource))
     return undefined;
   return resource.replace(/^issue /, "");
 }

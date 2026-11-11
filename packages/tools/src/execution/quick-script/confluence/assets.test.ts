@@ -250,7 +250,11 @@ void test("pages.create with attachments: create, upload, then save again so ima
   const page = JSON.parse(result.content!.split("\n")[0]);
   assert.equal(page.version, 2);
   assert.equal(page.attachments[0].width, 1400);
-  assert.match(page.warnings.join("\n"), /"missing\.png" has no width/);
+  assert.match(
+    page.warnings.join("\n"),
+    /"missing\.png" that is not on the page/,
+  );
+  assert.doesNotMatch(page.warnings.join("\n"), /"missing\.png" has no width/);
   assert.match(
     page.warnings.join("\n"),
     /attachment "missing\.png" that is not on the page/,
@@ -323,7 +327,7 @@ void test("page attachments accept artifact handles and report the lint result a
   const lines = (result.content ?? "").split("\n");
   assert.match(lines[0], /^Page 100 "Flow" created \(v2\) · fixes: /);
   assert.match(lines[0], /Promoted all headings/);
-  assert.match(lines[0], /"other\.png" has no width/);
+  assert.match(lines[0], /"other\.png" that is not on the page/);
   assert.match(lines[1], /^Artifacts: artifact:flow\.png/);
   const details = quickScriptResultDetailsSchema.parse(result.details);
   assert.equal(details.pages?.[0]?.id, "100");

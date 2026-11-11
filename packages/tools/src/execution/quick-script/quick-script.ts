@@ -170,7 +170,11 @@ export async function executeQuickScript(
     try {
       const value = await prepared.run(env);
       // A raw non-GET request cannot be analysed; the footer names what was sent.
-      if (prepared.authorization?.approvalRequired && !sealed)
+      if (
+        sdkMethod.path === "request" &&
+        prepared.authorization?.approvalRequired &&
+        !sealed
+      )
         env.report.raw.push(prepared.authorization.summary);
       record({ ...base, outcome: "completed" });
       return value;
@@ -279,15 +283,17 @@ export type ChangeReport = {
 
 /** An entity created and deleted in one run is shown as deleted (marked), not as created; one created and updated is just created. */
 export function reconcileReport(report: ChangeReport): ChangeReport {
-  const created = new Set(report.created);
-  const deleted = new Set(report.deleted);
+  // `attachment 10 on SCRUM-1` and `attachment 10` name one entity.
+  const entity = (item: string) => /^attachment \S+/.exec(item)?.[0] ?? item;
+  const created = new Set(report.created.map(entity));
+  const deleted = new Set(report.deleted.map(entity));
   return {
-    created: report.created.filter((item) => !deleted.has(item)),
+    created: report.created.filter((item) => !deleted.has(entity(item))),
     updated: report.updated.filter(
-      (item) => !created.has(item) && !deleted.has(item),
+      (item) => !created.has(entity(item)) && !deleted.has(entity(item)),
     ),
-    deleted: [...deleted].map((item) =>
-      created.has(item) ? `${item} (created in this run)` : item,
+    deleted: [...new Set(report.deleted)].map((item) =>
+      created.has(entity(item)) ? `${item} (created in this run)` : item,
     ),
     raw: [...report.raw],
   };

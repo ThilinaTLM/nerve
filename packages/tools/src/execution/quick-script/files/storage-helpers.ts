@@ -27,8 +27,7 @@ const STORAGE_BUILDERS = String.raw`globalThis.storage = (() => {
   // A string that is storage XHTML but not trusted: markup in it would be escaped, so refuse instead.
   const looksLikeStorage = (s) => {
     const t = s.replace(/\x60\x60\x60[\s\S]*?\x60\x60\x60/g, "").replace(/\x60[^\x60\n]*\x60/g, "");
-    return /<\/?(ac|ri):[a-z-]+/i.test(t) || /<\/(p|h[1-6]|ul|ol|li|table|tbody|tr|td|th|div|blockquote|strong|em|a|span)>/i.test(t) ||
-      /^\s*<(p|h[1-6]|ul|ol|table|div|blockquote)[\s>\/]/i.test(t);
+    return /<\/?(ac|ri):[a-z-]+/i.test(t) || /^\s*<(p|h[1-6]|ul|ol|table|div|blockquote)[\s>\/]/i.test(t);
   };
   const markdown = (md) => {
     if (looksLikeStorage(md)) {
@@ -214,11 +213,12 @@ const STORAGE_BUILDERS = String.raw`globalThis.storage = (() => {
           "</ac:task-status><ac:task-body>" + inline(t.text) + "</ac:task-body></ac:task>";
       }).join("") + "</ac:task-list>"),
     decisions: (items) => {
-      const li = (v) => "<li>" + inline(v) + "</li>";
+      const norm = items.map((item) => typeof item === "object" && item !== null && !Array.isArray(item) && !trusted.has(item) ? item : { text: item });
+      const li = (v) => "<li>" + inline(v.text) + "</li>";
       return T('<ac:adf-extension><ac:adf-node type="decision-list"><ac:adf-attribute key="local-id">' + uuid() + "</ac:adf-attribute>" +
-        items.map((v) => '<ac:adf-node type="decision-item"><ac:adf-attribute key="local-id">' + uuid() +
-          '</ac:adf-attribute><ac:adf-attribute key="state">DECIDED</ac:adf-attribute><ac:adf-content>' + inline(v) + "</ac:adf-content></ac:adf-node>").join("") +
-        '</ac:adf-node><ac:adf-fallback><ul class="decision-list">' + items.map(li).join("") + "</ul></ac:adf-fallback></ac:adf-extension>");
+        norm.map((v) => '<ac:adf-node type="decision-item"><ac:adf-attribute key="local-id">' + uuid() +
+          '</ac:adf-attribute><ac:adf-attribute key="state">' + (v.done === false ? "UNDECIDED" : "DECIDED") + '</ac:adf-attribute><ac:adf-content>' + inline(v.text) + "</ac:adf-content></ac:adf-node>").join("") +
+        '</ac:adf-node><ac:adf-fallback><ul class="decision-list">' + norm.map(li).join("") + "</ul></ac:adf-fallback></ac:adf-extension>");
     },
     image: (source, opts) => {
       const o = opts || {};

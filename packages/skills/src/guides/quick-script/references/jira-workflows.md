@@ -71,7 +71,9 @@ await jira.issues.move({ keys: [t.key], sprint: 42 });
 - `issues.transition({ key, to: "Done", fields: { Resolution: "Done" } })` takes the status name. A missing required field or unreachable status throws with the choices.
 - Related: `issues.link` / `unlink` (by issue key), `issues.rank`, `comments.*`, `worklogs.*` (`time` like `"1h 30m"`), `attachments.*`.
 - Images: `![](shot.png)` on its own line in a description or comment embeds the issue's attachment of that name (the newest if names repeat; Jira keeps duplicates, so check `attachments.list`). In `create`, pass the files too: `attachments: ["artifact:shot.png"]`. Reading returns `![](shot.png)` again.
-- Sprints: `sprints.create({ name })` (project's only scrum board, else `board`), `start({ id, duration: "2w" })`, `close({ id, moveOpenTo: "backlog" })` (open issues otherwise stay in the closed sprint), `issues(id)`, `delete(id)`. Ids come from `projects.get` with `include: ["sprints"]`.
+- Sprints: `sprints.create({ name })` (project's only scrum or team-managed board, else `board`), `start({ id, duration: "2w" })`, `close({ id, moveOpenTo: "backlog" })` (open issues otherwise stay in the closed sprint), `issues(id)`, `delete(id)`. Ids come from `projects.get` with `include: ["sprints"]`.
+- `sprints.issues` and `issues.search` can lag a few seconds behind `issues.move` (Jira indexing); retry before concluding a move failed.
+- The issue's Sprint field keeps closed sprints as history; the current sprint is the one with state `active` (or `future`).
 - Anything else (epic changes, bulk edits, remote links): [jira-raw.md](jira-raw.md).
 
 Create a few tickets per script, print the keys and URLs, and check with `issues.get` when the fields matter.

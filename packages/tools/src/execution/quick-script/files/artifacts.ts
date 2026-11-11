@@ -8,6 +8,7 @@ import {
 } from "node:fs/promises";
 import { dirname, extname, join } from "node:path";
 import { image } from "@nervekit/native";
+import { codedError } from "../errors.js";
 import { resolveToolPath } from "../../filesystem/path.js";
 import type {
   ArtifactReport,
@@ -161,14 +162,13 @@ export async function readFileRef(
 /** A missing file by its handle, never its host path; for artifacts it lists what exists. */
 export async function notFound(ref: FileRef): Promise<Error> {
   if (ref.kind === "workspace") {
-    return Object.assign(new Error(`file not found: ${ref.handle}`), {
-      code: "ENOENT",
-    });
+    return codedError("NOT_FOUND", `file not found: ${ref.handle}`);
   }
   const names = await readdir(dirname(ref.path)).catch(() => []);
   const shown = names.filter(isArtifactName).sort().slice(0, MAX_LISTED_NAMES);
   const more = names.length - shown.length;
-  return new Error(
+  return codedError(
+    "NOT_FOUND",
     `artifact "${ref.name}" not found; files.list() shows: ${shown.length > 0 ? shown.join(", ") + (more > 0 ? `, +${more} more` : "") : "(no artifacts yet)"}`,
   );
 }

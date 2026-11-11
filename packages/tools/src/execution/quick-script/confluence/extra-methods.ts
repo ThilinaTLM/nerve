@@ -20,7 +20,9 @@ import { pageUrl } from "./page-writes.js";
 import { partialWriteFailure } from "./partial-write.js";
 
 const MAX_LIST_PAGES = 5;
-const LABEL_PATTERN = /^[\p{L}\p{N}_.-]+$/u;
+const LABEL_PATTERN = /^[\p{L}\p{N}_-]+$/u;
+const LABEL_RULE =
+  'labels are lowercase letters, digits, "-" and "_" (no ".", ":", "/" or other punctuation); spaces become "-"';
 
 type Json = Record<string, unknown>;
 
@@ -48,7 +50,7 @@ export function normalizeLabels(value: unknown): string[] {
     if (label.length > 255 || !LABEL_PATTERN.test(label)) {
       const bad = [...label].filter((c) => !LABEL_PATTERN.test(c));
       throw new Error(
-        `Invalid label "${label}"${bad.length ? ` (remove ${[...new Set(bad)].map((c) => `"${c}"`).join(" ")})` : ""}: labels are lowercase letters, digits, "-", "_" and "."; spaces become "-".`,
+        `Invalid label "${label}"${bad.length ? ` (remove ${[...new Set(bad)].map((c) => `"${c}"`).join(" ")})` : ""}: ${LABEL_RULE}.`,
       );
     }
   }
@@ -278,7 +280,7 @@ export const confluenceExtraMethods: SdkMethod[] = [
     risk: "external_write",
     options: ["id", "labels"],
     signature:
-      '/** Labels are lowercase without spaces: case is folded and spaces become "-"; other punctuation throws. */ add(options: { id: string; labels: string | string[] }): Promise<{ id: string; labels: string[] }>',
+      '/** Labels are lowercase without spaces: case is folded and spaces become "-"; other punctuation (including ".") throws. */ add(options: { id: string; labels: string | string[] }): Promise<{ id: string; labels: string[] }>',
     parse: (options) => ({
       id: nonEmptyString(options.id, "id"),
       labels: normalizeLabels(options.labels),
@@ -287,13 +289,26 @@ export const confluenceExtraMethods: SdkMethod[] = [
     authorizeAlso: ({ id, labels }) => labelChecks("add", id, labels).slice(1),
     resource: ({ id }) => `page ${id}`,
     async run({ id, labels }, env) {
-      await confluenceRequest(await env.confluence(), {
-        api: "v1",
-        method: "POST",
-        path: `/content/${pathSegment(id)}/label`,
-        body: labels.map((name) => ({ prefix: "global", name })),
-        signal: env.context.signal,
-      });
+      try {
+        await confluenceRequest(await env.confluence(), {
+          api: "v1",
+          method: "POST",
+          path: `/content/${pathSegment(id)}/label`,
+          body: labels.map((name) => ({ prefix: "global", name })),
+          signal: env.context.signal,
+        });
+      } catch (error) {
+        if (
+          error instanceof Error &&
+          error.message.includes("label.contains.invalid.chars")
+        ) {
+          throw new Error(
+            `Invalid label in ${labels.map((l) => `"${l}"`).join(", ")}: ${LABEL_RULE}.`,
+            { cause: error },
+          );
+        }
+        throw error;
+      }
       return { id, labels };
     },
   }),
@@ -314,6 +329,22 @@ export const confluenceExtraMethods: SdkMethod[] = [
     resource: ({ id }) => `page ${id}`,
     async run({ id, labels }, env) {
       const connection = await env.confluence();
+      const current = await confluenceRequest(connection, {
+        api: "v1",
+        parse: jsonObject,
+        path: `/content/${pathSegment(id)}/label`,
+        signal: env.context.signal,
+      });
+      const have = (Array.isArray(current.results) ? current.results : [])
+        .map((item) => String((item as { name?: unknown }).name ?? ""))
+        .filter(Boolean);
+      const absent = labels.filter((label) => !have.includes(label));
+      if (absent.length > 0) {
+        throw codedError(
+          "NOT_FOUND",
+          `Page ${id} has no label ${absent.map((l) => `"${l}"`).join(", ")}; nothing was removed. Current labels: ${have.join(", ") || "(none)"}.`,
+        );
+      }
       const done: string[] = [];
       for (const label of labels) {
         try {
@@ -330,10 +361,7 @@ export const confluenceExtraMethods: SdkMethod[] = [
             error instanceof ToolExecutionError &&
             error.code === "CONFLUENCE_NOT_FOUND";
           const reason = missing
-            ? codedError(
-                "NOT_FOUND",
-                `Page ${id} has no label "${label}". Current labels: confluence.pages.get({ id, body: false }).labels.`,
-              )
+            ? codedError("NOT_FOUND", `Page ${id} has no label "${label}".`)
             : error;
           throw done.length
             ? partialWriteFailure(reason, `already removed: ${done.join(", ")}`)

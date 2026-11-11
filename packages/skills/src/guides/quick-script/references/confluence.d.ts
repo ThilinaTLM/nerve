@@ -124,7 +124,7 @@ declare const confluence: {
     resolve(options: { id: string; resolved?: boolean }): Promise<{ id: string; resolved: boolean }>;
   };
   labels: {
-    /** Labels are lowercase without spaces: case is folded and spaces become "-"; other punctuation throws. */
+    /** Labels are lowercase without spaces: case is folded and spaces become "-"; other punctuation (including ".") throws. */
     add(options: { id: string; labels: string | string[] }): Promise<{ id: string; labels: string[] }>;
     remove(options: { id: string; labels: string | string[] }): Promise<{ id: string; labels: string[] }>;
   };

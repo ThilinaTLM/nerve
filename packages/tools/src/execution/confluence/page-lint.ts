@@ -88,7 +88,13 @@ export function lintStoragePage(
   lintToc(root, options.toc !== false, fixes);
   lintTables(root, fixes, warnings);
   lintBlockMacros(root, fixes);
-  lintImages(root, sizeLookup(options.images), fixes, warnings);
+  lintImages(
+    root,
+    sizeLookup(options.images),
+    options.attachments,
+    fixes,
+    warnings,
+  );
   lintAttachmentRefs(root, options.attachments, warnings);
   lintTaskIds(root, fixes);
   lintRedundancy(root, warnings);
@@ -554,6 +560,7 @@ function warnIfDownscaled(
 function lintImages(
   root: XmlElement,
   sizeOf: (filename: string) => ImageSize | undefined,
+  attached: ReadonlySet<string> | undefined,
   fixes: string[],
   warnings: string[],
 ): void {
@@ -595,7 +602,8 @@ function lintImages(
         `Set image "${label}" width to ${width}px (original ${size.width}px, content ${available}px).`,
       );
       warnIfDownscaled(warnings, label, size.width, width);
-    } else {
+    } else if (!(filename && attached && !attached.has(filename))) {
+      // A file missing from the page already gets the "not on the page" warning.
       warnings.push(
         `Image "${label}" has no width and its original size is unknown; set ac:width (max ${available}px).`,
       );

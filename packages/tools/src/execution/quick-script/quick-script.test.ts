@@ -271,14 +271,14 @@ void test("an entity created and then deleted in one run is only shown as delete
     changes({
       created: ["SCRUM-6", "SCRUM-7", "attachment 5 on page 1"],
       updated: ["SCRUM-7", "SCRUM-1"],
-      deleted: ["SCRUM-6", "SCRUM-2"],
+      deleted: ["SCRUM-6", "SCRUM-2", "attachment 5"],
       raw: ["POST /rest/api/3/x"],
     }),
   );
   assert.deepEqual(reportLines([], [], report), [
-    "Created: SCRUM-7, attachment 5 on page 1",
+    "Created: SCRUM-7",
     "Updated: SCRUM-1",
-    "Deleted: SCRUM-6 (created in this run), SCRUM-2",
+    "Deleted: SCRUM-6 (created in this run), SCRUM-2, attachment 5 (created in this run)",
     "Raw: POST /rest/api/3/x",
   ]);
 });

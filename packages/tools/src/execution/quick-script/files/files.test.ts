@@ -246,6 +246,7 @@ void test("files.write accepts a name or an artifact handle and keeps Unicode na
     console.log(a, b, await files.read(b));
     try { await files.write("artifact:x.txt", "y", { workspace: true }); } catch (e) { console.log(e.message); }
     try { await files.read("artifact:nope.txt"); } catch (e) { console.log(e.message); }
+    try { await files.read("artifact:nope.txt"); } catch (e) { console.log(e.code); }
   `);
   const lines = (result.content ?? "").split("\n");
   assert.equal(lines[0], "artifact:a.txt artifact:résumé 日本.md two");
