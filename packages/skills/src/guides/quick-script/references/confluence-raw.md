@@ -1,6 +1,6 @@
 # Confluence requests for what has no method
 
-`confluence.request(method, path, body?, query?)`: the path is the full REST path (`/wiki/api/v2/…` or `/wiki/rest/api/…`); `query` is `{ name: value | value[] }`, the 4th argument. Returns JSON or text; a binary GET returns a `FileHandle`. Non-GET is destructive (approval). Bodies: `{ representation: "storage", value: storageXhtml }`.
+`confluence.request(method, path, body?, query?)`: the path is the full REST path (`/wiki/api/v2/…` or `/wiki/rest/api/…`); `query` is `{ name: value | value[] }`, the 4th argument. Bodies: `{ representation: "storage", value: storageXhtml }`.
 
 Typed methods cover pages, comments (footer and inline), labels and attachments; use raw only for the rest:
 

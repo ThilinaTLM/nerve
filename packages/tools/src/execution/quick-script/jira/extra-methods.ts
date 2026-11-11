@@ -64,7 +64,7 @@ export const jiraExtraMethods: SdkMethod[] = [
     bare: "id",
     options: ["id", "name"],
     signature:
-      "/** Saves the attachment as `artifact:<its filename>` (or `name`); max 100 MB. */ download(options: string | { id: string; name?: string }): Promise<FileHandle>",
+      "/** Saves as `artifact:<filename>` (or `name`); max 100 MB. */ download(options: string | { id: string; name?: string }): Promise<FileHandle>",
     parse: (options) => ({
       id: nonEmptyString(options.id, "id"),
       name:
@@ -130,7 +130,7 @@ export const jiraExtraMethods: SdkMethod[] = [
     bare: "key",
     options: ["key", "subtasks"],
     signature:
-      "/** Permanently deletes the issue; `subtasks: true` also deletes its subtasks (required if it has any). */ delete(options: string | { key: string; subtasks?: boolean }): Promise<{ key: string }>",
+      "/** `subtasks: true` also deletes subtasks (required if any). */ delete(options: string | { key: string; subtasks?: boolean }): Promise<{ key: string }>",
     parse: (options) => ({
       key: nonEmptyString(options.key, "key"),
       subtasks: options.subtasks === true,
@@ -174,8 +174,7 @@ export const jiraExtraMethods: SdkMethod[] = [
     path: "projects.list",
     risk: "network",
     options: [],
-    signature:
-      "/** Every project you can see. */ list(): Promise<{ key: string; name: string; type: string }[]>",
+    signature: "list(): Promise<{ key: string; name: string; type: string }[]>",
     parse: () => undefined,
     authorize: () => ({
       toolName: "jira_get_project",
@@ -218,7 +217,7 @@ export const jiraExtraMethods: SdkMethod[] = [
     risk: "network",
     options: [],
     signature:
-      "/** The authenticated user. */ me(): Promise<{ accountId: string; name: string; email: string | null; timeZone: string | null }>",
+      "me(): Promise<{ accountId: string; name: string; email: string | null; timeZone: string | null }>",
     parse: () => undefined,
     authorize: () => ({
       toolName: "jira_search_users",
@@ -233,8 +232,7 @@ export const jiraExtraMethods: SdkMethod[] = [
     path: "adf.fromMarkdown",
     risk: "none",
     maxArgs: 1,
-    signature:
-      "/** For raw jira.request bodies; never for Confluence pages. */ fromMarkdown(markdown: string): object",
+    signature: "fromMarkdown(markdown: string): object",
     parse: ([markdown]) => nonEmptyString(markdown, "markdown"),
     run: async (markdown) => markdownToAdf(markdown),
   }),
@@ -243,8 +241,7 @@ export const jiraExtraMethods: SdkMethod[] = [
     path: "adf.toMarkdown",
     risk: "none",
     maxArgs: 1,
-    signature:
-      "/** For raw jira.request responses (ADF documents); never for Confluence pages. */ toMarkdown(doc: object): string",
+    signature: "toMarkdown(doc: object): string",
     parse: ([doc]) => {
       if (!doc || typeof doc !== "object" || Array.isArray(doc)) {
         throw new Error(

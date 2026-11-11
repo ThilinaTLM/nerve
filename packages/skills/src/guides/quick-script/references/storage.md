@@ -1,6 +1,6 @@
 # `storage.*` builders and RichText
 
-Pure functions (no host calls) returning Confluence storage markup. Bodies of `pages.create/update` and `comments.add/reply/update`, and every body argument below, are **RichText**: a Markdown string (HTML in it is escaped, so Jira/user text is safe), builder output, or an array of those joined in order. Markdown covers headings, lists, `- [ ]` tasks, tables, fenced code, quotes, `---`, bold/italic/code, links, `![alt](https://url)`. Builders cover what Markdown cannot. Style and linting: [confluence-writing.md](confluence-writing.md).
+Pure functions (no host calls) returning Confluence storage markup. Page and comment bodies and every body argument below are **RichText**: a Markdown string (HTML in it is escaped, so Jira/user text is safe), builder output, or an array of those joined in order. Markdown covers headings, lists, `- [ ]` tasks, tables, fenced code, quotes, `---`, emphasis, links, `![alt](https://url)`; builders cover the rest. Style and linting: [confluence-writing.md](confluence-writing.md).
 
 ```ts
 const page = await confluence.pages.get({ id, body: "storage" }); // page.body is trusted markup
@@ -23,13 +23,12 @@ await confluence.pages.update({
 });
 ```
 
-Trust: only builder output, `storage.raw(xhtml)` and `pages.get({ body: "storage" })` bodies are markup, matched by exact string (per run). `page.body + "<p>x</p>"` or `.replace(...)` loses trust; a plain string that is really storage XHTML is **rejected** with this advice, never escaped silently. Combine with an array, `storage.replaceSection`, or `storage.raw`.
+Trust: only builder output, `storage.raw(xhtml)` and `pages.get({ body: "storage" })` bodies are markup, matched by exact string (per run). `page.body + "<p>x</p>"` or `.replace(...)` loses trust, and a plain string that is really storage XHTML is **rejected**, never escaped silently. Combine with an array, `storage.replaceSection` or `storage.raw`.
 
 ## Edit
 
 - `storage.replaceSection(body, heading, content)`: `body` is `page.body`; replaces what follows the first heading whose text equals `heading` up to the next heading of the same or higher level (the heading stays). Throws listing the headings if absent.
 - `storage.raw(xhtml)`: hand-written storage (add-on macros, anything else), embedded as is. Never pass untrusted text; `storage.escape(text)` escapes it inside raw markup.
-- Large edits: `confluence.pages.download({ id })` then edit the file, then `pages.update({ id, version, bodyFile })` ([confluence-writing.md](confluence-writing.md)).
 
 ## Text
 
@@ -38,7 +37,7 @@ Trust: only builder output, `storage.raw(xhtml)` and `pages.get({ body: "storage
 - `storage.link(target, text?)`: target is a URL (http(s), mailto, relative, `#anchor`; others throw), `{ page, space?, anchor? }` (page by title), `{ attachment }` or `{ anchor }`.
 - `storage.anchor(name)`: link target for `{ anchor }` links.
 - `storage.date(isoDate)`: `YYYY-MM-DD`. `storage.mention(accountId)` (ids from `jira.users.search`). Unicode emoji work in plain text.
-- `storage.tasks(items)`: strings or `{ text, done? }` (Markdown `- [ ]` lists work too). `storage.decisions(items)`: decision list, same items (`done: false` = undecided; read as `- [decided]` / `- [undecided]`).
+- `storage.tasks(items)`: strings or `{ text, done? }` (Markdown `- [ ]` lists work too). `storage.decisions(items)`: decision list, same items (`done: false` = undecided; read back as `- [decided]` / `- [undecided]`).
 
 ## Blocks
 

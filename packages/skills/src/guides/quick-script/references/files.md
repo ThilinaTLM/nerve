@@ -4,15 +4,15 @@ Types: [files.d.ts](files.d.ts), [web.d.ts](web.d.ts).
 
 A **handle** is `artifact:<name>` or a workspace path. Artifacts live in `$NERVE_HOME/data/conversations/<id>/quick-script/`, shared by all scripts of the conversation and kept across runs; each result prints `Artifacts: … in <folder>`, so the Read/Edit tools can open `<folder>/<name>` directly. Names: 1-128 letters (any language), digits, spaces, `.`, `_`, `-`; no folders, no leading dot. `files.write` takes `name` or `artifact:name`; a missing artifact lists the existing ones.
 
-Permissions: workspace reads need `read`, `files.write(path, data, { workspace: true })` needs `write`, `files.edit(path, …)` needs `edit`; artifacts need none. One handle works everywhere: `files.read`, `files.edit`, `image`, attachments upload/download, page `attachments`. Render in one run, attach in the next. `web.fetch` files arrive as `artifact:web-N.ext`; downloads keep the original file name when valid. Read bytes with `files.read(h, { as: "bytes" })` (a `Uint8Array`).
+Permissions: workspace reads need `read`, `files.write(path, data, { workspace: true })` needs `write`, `files.edit(path, …)` needs `edit`; artifacts need none. One handle works everywhere (`files.*`, `image`, attachments, page `attachments`), also across runs. `web.fetch` files arrive as `artifact:web-N.ext`. Bytes: `files.read(h, { as: "bytes" })` (`Uint8Array`).
 
 Limits: `files.read`/`files.write` 20 MB; attachment upload/download and binary `request()` responses 100 MB (streamed between disk and the network, never held in memory or the sandbox).
 
-`files.edit(handle, [{ oldText, newText }])` works like the edit tool: each `oldText` must match exactly once in the original, all edits apply or none. Libraries load when the script mentions them; QuickJS has no JIT, so keep data to tens of thousands of rows.
+`files.edit(handle, [{ oldText, newText }])` works like the edit tool: each `oldText` matches exactly once, all edits apply or none. Libraries load when the script mentions them; QuickJS has no JIT, so keep data to tens of thousands of rows.
 
 ## Excel and CSV
 
-`XLSX` (SheetJS CE 0.20) and `Papa` (Papa Parse 5) are the standard libraries. Sandbox specifics: pass the bytes with `{ type: "array" }`; write with `XLSX.write(wb, { type: "array", bookType: "xlsx" })` straight into `files.write`.
+`XLSX` (SheetJS CE 0.20) and `Papa` (Papa Parse 5). Read bytes with `{ type: "array" }`; write with `XLSX.write(wb, { type: "array", bookType: "xlsx" })` straight into `files.write`.
 
 ```ts
 const wb = XLSX.read(await files.read("./budget.xlsx", { as: "bytes" }), {
@@ -49,8 +49,6 @@ const bytes = await files.read("artifact:hello.docx", { as: "bytes" });
 const text = (await mammoth.extractRawText(bytes)).value; // or convertToMarkdown(bytes)
 ```
 
-`mammoth` accepts a `Uint8Array`, an `ArrayBuffer` or `{ arrayBuffer }`.
-
 ## PowerPoint
 
 Write with `PptxGenJS`, read slide text and notes with `pptxText`. `JSZip` is available for anything else.
@@ -68,7 +66,7 @@ const { slides } = await pptxText(
 
 ## Images
 
-`image(handle)` is a chain; bytes stay on the host. Steps build operations (crop runs before resize), `info()` and `save(name)` execute. Confluence takes PNG/JPEG as is, converts GIF/WebP to PNG, rejects SVG; aim for about 760 px wide.
+`image(handle)` is a chain; bytes stay on the host. Steps build operations (crop runs before resize); `info()` and `save(name)` execute. Confluence takes PNG/JPEG, converts GIF/WebP to PNG, rejects SVG; aim for about 760 px wide.
 
 ```ts
 const small = await image("./shot.png")

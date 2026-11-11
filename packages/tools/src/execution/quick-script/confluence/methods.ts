@@ -159,7 +159,7 @@ export const confluenceMethods: SdkMethod[] = [
     bare: "id",
     options: ["id", "space", "title", "body", "children"],
     signature:
-      '/** By id, or by exact title (space defaults to the configured one). body "markdown" (default) is for reading only (mentions as @Name, tasks as - [ ], add-on macros as [drawio macro: name]); to edit use body: "storage", which can be spliced into a RichText array or storage.replaceSection. */ get(options: string | { id: string; body?: "markdown" | "storage" | false; children?: boolean } | { space?: string; title: string; body?: "markdown" | "storage" | false; children?: boolean }): Promise<Page>',
+      '/** By id or exact title (space defaults to the configured one). body "markdown" (default) is read-only (@Name, - [ ], [drawio macro: name] placeholders); to edit use "storage". */ get(options: string | ({ id: string } | { space?: string; title: string }) & { body?: "markdown" | "storage" | false; children?: boolean }): Promise<Page>',
     parse: (options) => {
       const id =
         options.id === undefined ? undefined : nonEmptyString(options.id, "id");
@@ -296,7 +296,7 @@ export const confluenceMethods: SdkMethod[] = [
     risk: "destructive",
     maxArgs: 4,
     signature:
-      '/** Path under /wiki/api/v2/ or /wiki/rest/api/. Returns JSON or text, a FileHandle for binary (page bodies: use pages.create/update). */ request(method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE", path: string, body?: unknown, query?: Record<string, string | number | boolean | string[]>): Promise<unknown>',
+      '/** Path under /wiki/api/v2/ or /wiki/rest/api/; binary returns a FileHandle. Page bodies: use pages.create/update. */ request(method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE", path: string, body?: unknown, query?: Record<string, string | number | boolean | string[]>): Promise<unknown>',
     parse: ([method, path, body, query]) => {
       const verb = rawMethod(method);
       if (verb !== "GET" && usesAtlasDocFormat(body)) {

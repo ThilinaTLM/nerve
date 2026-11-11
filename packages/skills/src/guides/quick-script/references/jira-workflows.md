@@ -4,7 +4,7 @@ Projects differ in issue types, workflows, required fields and naming. Learn the
 
 ## 1. Discover
 
-Structure, in one call (`issueType` limits `fields` to one type):
+One call (`issueType` limits `fields` to one type):
 
 ```ts
 const p = await jira.projects.get({
@@ -22,7 +22,7 @@ return {
 };
 ```
 
-`createFields` lists each type's fields with `required` and `allowed` values. `boards` lists the boards. Custom fields appear by name; `jira.fields.list()` shows the rest.
+`createFields` lists each type's fields with `required` and `allowed` values; `jira.fields.list()` shows all fields.
 
 Practice, from recent tickets per issue type:
 
@@ -66,12 +66,10 @@ const t = await jira.issues.create({
 await jira.issues.move({ keys: [t.key], sprint: 42 });
 ```
 
-- `fields` use field names and plain values: users by email or name, options, priority, components and versions by name, Markdown for rich text. A wrong name or value throws and lists the valid ones.
-- `issues.update({ key, fields })` replaces the given fields. For adding a single label or similar, use `jira.request` ([jira-raw.md](jira-raw.md)).
-- `issues.transition({ key, to: "Done", fields: { Resolution: "Done" } })` takes the status name. A missing required field or unreachable status throws with the choices.
-- Related: `issues.link` / `unlink` (by issue key), `issues.rank`, `comments.*`, `worklogs.*` (`time` like `"1h 30m"`), `attachments.*`.
+- `fields` take field names and plain values; wrong ones throw and list the valid values. `issues.update` replaces the given fields; to add one label or similar use `jira.request` ([jira-raw.md](jira-raw.md)).
+- `issues.transition({ key, to: "Done", fields: { Resolution: "Done" } })`; the error lists reachable statuses and required fields.
 - Images: `![](shot.png)` on its own line in a description or comment embeds the issue's attachment of that name (the newest if names repeat; Jira keeps duplicates, so check `attachments.list`). In `create`, pass the files too: `attachments: ["artifact:shot.png"]`. Reading returns `![](shot.png)` again.
-- Sprints: `sprints.create({ name })` (project's only scrum or team-managed board, else `board`), `start({ id, duration: "2w" })`, `close({ id, moveOpenTo: "backlog" })` (open issues otherwise stay in the closed sprint), `issues(id)`, `delete(id)`. Ids come from `projects.get` with `include: ["sprints"]`.
+- Sprints: `sprints.create/start/close/issues/delete`, ids from `projects.get` with `include: ["sprints"]`; close with `moveOpenTo: "backlog"` or open issues stay in the closed sprint.
 - `sprints.issues` and `issues.search` can lag a few seconds behind `issues.move` (Jira indexing); retry before concluding a move failed.
 - The issue's Sprint field keeps closed sprints as history; the current sprint is the one with state `active` (or `future`).
 - Anything else (epic changes, bulk edits, remote links): [jira-raw.md](jira-raw.md).

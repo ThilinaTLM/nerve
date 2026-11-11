@@ -1,6 +1,6 @@
 # Jira requests for what has no method
 
-`jira.request(method, path, body?, query?)`: the path is the full REST path (`/rest/api/3/…` or `/rest/agile/1.0/…`); `query` is `{ name: value | value[] }`, the 4th argument, not part of the path (GET: `jira.request("GET", "/rest/api/3/issue/APP-1/changelog", undefined, { maxResults: 20 })`). Returns JSON or text; a binary GET returns a `FileHandle`. Non-GET is destructive (approval). Rich-text bodies are ADF: build them with `jira.adf.fromMarkdown(md)`.
+`jira.request(method, path, body?, query?)`: the path is the full REST path (`/rest/api/3/…` or `/rest/agile/1.0/…`); `query` is `{ name: value | value[] }`, the 4th argument, not part of the path (GET: `jira.request("GET", "/rest/api/3/issue/APP-1/changelog", undefined, { maxResults: 20 })`). Rich-text bodies are ADF: build them with `jira.adf.fromMarkdown(md)`.
 
 Typed methods cover issues, comments, worklogs, links, attachments, sprints and ranking; use raw requests only for the rest:
 

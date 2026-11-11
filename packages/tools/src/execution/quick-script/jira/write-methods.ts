@@ -143,7 +143,7 @@ export const jiraWriteMethods: SdkMethod[] = [
       "attachments",
     ],
     signature:
-      "/** Markdown description; `![](name.png)` embeds an image from `attachments`. `fields` take names (jira.fields.list) and plain values: users by email/name, options/priority/components by name, Markdown for rich text. Missing required fields or invalid values throw with the valid ones listed. */ create(options: { project?: string; type: string; summary: string; description?: string; fields?: Record<string, unknown>; attachments?: AttachmentInput[] }): Promise<{ key: string; id: string; url: string; attachments?: { id: string; filename: string }[] }>",
+      "/** Markdown description; `![](name.png)` embeds an `attachments` image. `fields`: names (jira.fields.list), plain values (users by email/name, options by name, Markdown for rich text). Missing or invalid values throw listing the valid ones. */ create(options: { project?: string; type: string; summary: string; description?: string; fields?: Fields; attachments?: AttachmentInput[] }): Promise<{ key: string; id: string; url: string; attachments?: { id: string; filename: string }[] }>",
     parse: (options) => ({
       project: optionalText(options.project)?.trim(),
       type: nonEmptyString(options.type, "type"),
@@ -264,7 +264,7 @@ export const jiraWriteMethods: SdkMethod[] = [
     risk: "external_write",
     options: ["key", "fields"],
     signature:
-      '/** Sets the given fields (replacing their values), same value rules as create; assign with { Assignee: "ann@example.com" } or null to unassign. */ update(options: { key: string; fields: Record<string, unknown> }): Promise<{ key: string; url: string; updated: string[] }>',
+      "/** Replaces the given fields; values as in create; null unassigns. */ update(options: { key: string; fields: Fields }): Promise<{ key: string; url: string; updated: string[] }>",
     parse: (options) => ({
       key: nonEmptyString(options.key, "key"),
       fields: fieldsOption(options.fields, true),
@@ -308,7 +308,7 @@ export const jiraWriteMethods: SdkMethod[] = [
     risk: "external_write",
     options: ["key", "to", "fields", "comment"],
     signature:
-      "/** `to` is the target status name. Required transition fields (e.g. Resolution) go in `fields`; missing ones or an unreachable status throw with the valid choices. */ transition(options: { key: string; to: string; fields?: Record<string, unknown>; comment?: string }): Promise<{ key: string; status: string; url: string }>",
+      "/** `to` is a status name. Required transition fields (e.g. Resolution) go in `fields`; errors list the valid choices. */ transition(options: { key: string; to: string; fields?: Fields; comment?: string }): Promise<{ key: string; status: string; url: string }>",
     parse: (options) => ({
       key: nonEmptyString(options.key, "key"),
       to: nonEmptyString(options.to, "to"),
@@ -400,7 +400,7 @@ export const jiraWriteMethods: SdkMethod[] = [
     risk: "external_write",
     options: ["key", "body"],
     signature:
-      "/** Markdown body. */ add(options: { key: string; body: string }): Promise<{ id: string; url: string }>",
+      "add(options: { key: string; body: string }): Promise<{ id: string; url: string }>",
     parse: (options) => ({
       key: nonEmptyString(options.key, "key"),
       body: markdownOption(options.body, "body"),
@@ -434,7 +434,7 @@ export const jiraWriteMethods: SdkMethod[] = [
     risk: "external_write",
     options: ["key", "id", "body"],
     signature:
-      "/** Replaces the comment text (Markdown). */ update(options: { key: string; id: string; body: string }): Promise<{ id: string }>",
+      "update(options: { key: string; id: string; body: string }): Promise<{ id: string }>",
     parse: (options) => ({
       key: nonEmptyString(options.key, "key"),
       id: nonEmptyString(options.id, "id"),
@@ -490,7 +490,7 @@ export const jiraWriteMethods: SdkMethod[] = [
     risk: "external_write",
     options: ["key", "to", "type"],
     signature:
-      '/** `type` is a link type name or phrase: "Blocks", "blocks" (key blocks to), "is blocked by". Unknown types throw with the valid ones. */ link(options: { key: string; to: string; type: string }): Promise<{ key: string; to: string; type: string }>',
+      '/** `type`: link type name or phrase ("Blocks", "is blocked by"); unknown throws the valid ones. */ link(options: { key: string; to: string; type: string }): Promise<{ key: string; to: string; type: string }>',
     parse: (options) => ({
       key: nonEmptyString(options.key, "key"),
       to: nonEmptyString(options.to, "to"),
@@ -562,7 +562,7 @@ export const jiraWriteMethods: SdkMethod[] = [
     risk: "external_write",
     options: ["key", "time", "started", "comment"],
     signature:
-      '/** `time` like "1h 30m"; `started` any ISO date-time (default now). */ add(options: { key: string; time: string; started?: string; comment?: string }): Promise<{ id: string; timeSpent: string }>',
+      '/** `time` like "1h 30m"; `started` any ISO date-time (default now). */ add(options: { key: string; time: string; started?: string; comment?: string }): Promise<WorklogRef>',
     parse: (options) => ({
       key: nonEmptyString(options.key, "key"),
       time: nonEmptyString(options.time, "time"),
@@ -604,7 +604,7 @@ export const jiraWriteMethods: SdkMethod[] = [
     risk: "external_write",
     options: ["key", "file", "filename"],
     signature:
-      "/** Any file handle; max 100 MB. Jira keeps duplicates with the same filename (unlike Confluence): check attachments.list first. */ upload(options: { key: string; file: FileHandle; filename?: string }): Promise<{ id: string; filename: string; mediaType: string; size: number }>",
+      "/** Max 100 MB. A repeated filename adds a duplicate (unlike Confluence). */ upload(options: { key: string; file: FileHandle; filename?: string }): Promise<JiraAttachment>",
     parse: (options) => ({
       key: nonEmptyString(options.key, "key"),
       spec: parseAttachmentSpec({
@@ -634,7 +634,7 @@ export const jiraWriteMethods: SdkMethod[] = [
     risk: "external_write",
     options: ["keys", "sprint"],
     signature:
-      '/** Moves up to 50 issues into a sprint (id from projects.get include "sprints") or back to the backlog. */ move(options: { keys: string[]; sprint: number | "backlog" }): Promise<{ moved: number }>',
+      '/** Max 50 issues into a sprint (id: projects.get include "sprints") or "backlog". */ move(options: { keys: string[]; sprint: number | "backlog" }): Promise<{ moved: number }>',
     parse: (options) => {
       const keys = options.keys;
       if (

@@ -4,7 +4,7 @@ A page body is RichText ([storage.md](storage.md)): Markdown for prose, `storage
 
 ## Editing an existing page
 
-`const page = await confluence.pages.get({ id, body: "storage" })` (`page.body` is trusted markup; the default Markdown body is a read-only view: `@Name`, `- [ ]`, `[drawio macro: name]` placeholders), then pass `version: page.version` to `pages.update`.
+`const page = await confluence.pages.get({ id, body: "storage" })` (the default Markdown body is a read-only view), then pass `version: page.version` to `pages.update`.
 
 | Change                   | How                                                                                                                                                                      |
 | ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
@@ -12,23 +12,23 @@ A page body is RichText ([storage.md](storage.md)): Markdown for prose, `storage
 | Rewrite one section      | `body: storage.replaceSection(page.body, "Risks", "- new risk")`                                                                                                         |
 | Larger or surgical edits | `const d = await confluence.pages.download({ id })`, edit `d.file` with the Edit tool or `files.edit`, then `pages.update({ id, version: d.version, bodyFile: d.file })` |
 
-`body` and `bodyFile` are exclusive. Rewrites that drop existing macros, layouts, images or mentions throw unless `allowRemoving: true`; add-on macros (drawio, gliffy, ...) survive only if their storage stays in the body. Never rebuild a page from the Markdown view. Concatenating (`page.body + "..."`) loses trust and is rejected: use an array.
+`body` and `bodyFile` are exclusive. Rewrites that drop macros, layouts, images or mentions throw unless `allowRemoving: true`; add-on macros (drawio, gliffy, ...) survive only if their storage stays in the body. Never rebuild a page from the Markdown view; use an array, not `page.body + "..."`.
 
 ## Plan first
 
-Decide the outline first: one-line purpose, 3-7 sections, what goes in tables, Jira macros, diagrams. Gather data (and count empty lists) before assembling the `[...parts]` array.
+Outline first: one-line purpose, 3-7 sections, what goes in tables, Jira macros, diagrams. Gather data (and count empty lists) before assembling the parts array.
 
 ## Structure
 
 - The page title is a separate field. Sections start at `#` (H1), subsections at `##`/`###`; never skip a level and do not repeat the title as a first heading.
-- Open with a short overview (2-4 lines, or one `info` panel) saying what the page is and its status. Do not add an "Overview" heading that repeats it.
+- Open with a 2-4 line overview (or one `info` panel) on what the page is and its status, without an "Overview" heading.
 - Only long pages (about 600+ words or 6+ sections) get `storage.toc()` right after the overview; short pages get none.
 - Short paragraphs (1-3 sentences). Put raw output, reference material and long tails in `storage.expand`; code in `storage.code` with a language.
 - Pluralise in code ("1 issue", "3 issues"), never "issue(s)". Keep inline items (dates, lozenges, links) in one `storage.p([...])` array: `storage.p(["Due ", storage.date(d), " ", storage.status("Open")])`.
 
 ## Tables
 
-Use a table (Markdown for plain text cells, `storage.table` for lozenges, links, widths or merged cells) for lists with several attributes. Size columns to their content: narrow for key, type, status and date, wide for text. Give widths yourself with `columns: [{ key, title, width }]` (px; the content width is 760, `layout: "wide"` 960), or give none and the linter computes them. A `SCRUM-123` key needs about 100 px. Show statuses with `storage.status`.
+Use a table (Markdown for plain text cells, `storage.table` for lozenges, links, widths or merged cells) for lists with several attributes. Narrow columns for key, type, status and date, wide for text. Set `columns: [{ key, title, width }]` yourself (px; content width 760, `layout: "wide"` 960) or let the linter compute them; a `SCRUM-123` key needs about 100 px. Show statuses with `storage.status`.
 
 ## Panels
 
@@ -40,7 +40,7 @@ Use a table (Markdown for plain text cells, `storage.table` for lozenges, links,
 | `error`                 | red    | blocking problems and failures only |
 | `note`                  | purple | side remarks, definitions           |
 
-Not for neutral information in `warning`/`error`; not directly under a heading with the same title; not stacked; not for long content. One overview panel plus a few others is plenty.
+No neutral information in `warning`/`error`; none directly under a same-titled heading, stacked, or holding long content. An overview panel plus a few others is plenty.
 
 ## Jira content
 
@@ -48,14 +48,14 @@ For a list of issues use one `storage.jiraIssues(jql, { columns })` macro (`["ke
 
 ## Images and diagrams
 
-Attach PNG or JPEG files (never SVG/WebP) via `attachments` in `pages.create/update`, then reference them with `storage.image(filename)` (an `https://` URL also works; `storage.viewFile(filename)` previews a PDF/Office attachment); the linter sets the width from the real size, capped at 760 px. Add `alt`/`caption` when the image carries information. Render diagrams with `diagram.render` ([files.md](files.md)) aiming for about 760 px natural width; an image scaled below 80% (a 1100 px diagram shown at 760) gets a warning because its text turns small, so simplify the diagram instead (`flowchart TB`, fewer nodes per row, shorter labels). Use `storage.layout` sparingly (two columns, never nested).
+Attach PNG or JPEG files (never SVG/WebP) via `attachments`, then reference them with `storage.image(filename)`; the linter sets the width from the real size, capped at 760 px. Add `alt`/`caption` when the image carries information. Render diagrams with `diagram.render` ([files.md](files.md)) aiming for about 760 px natural width; an image scaled below 80% (a 1100 px diagram shown at 760) gets a warning because its text turns small, so simplify the diagram instead (`flowchart TB`, fewer nodes per row, shorter labels). Use `storage.layout` sparingly (two columns, never nested).
 
 ## The linter
 
-`pages.create/update` return `fixes` (applied automatically) and `warnings` (not applied); the tool result prints both for you. Act on warnings: fix the cause and call `pages.update` again.
+`pages.create/update` return `fixes` (applied) and `warnings` (not applied); the result footer prints both. Fix the cause of warnings with `pages.update`.
 
 - **Rejected before any request:** malformed XML, with line and element (`Closing tag </div> at line 2 does not match <p>`). Plain strings are Markdown or literal text; use `storage.escape` only inside `storage.raw`.
-- **Fixed automatically:** headings promoted so the top level is H1; a leading H1 equal to the title removed; a TOC inserted for long pages (~600 words or 6+ sections) (`toc: false` opts out); column widths computed for tables without them; image width set from the real size; loose inline content under a panel, expand, layout cell or the page root wrapped in `<p>`; Jira list macros given `data-layout="default"` (760 px).
+- **Fixed automatically:** headings promoted so the top level is H1; a leading H1 equal to the title removed; a TOC for long pages (`toc: false` opts out); computed column widths and image widths; loose inline content under a panel, expand, layout cell or the page root wrapped in `<p>`; Jira list macros given `data-layout="default"` (760 px).
 - **Warnings:** an explicit column width too narrow for its longest word (`Column "Key" is 90px; "SCRUM-4" needs about 100px`: widen it or drop the width); images scaled below 80%; skipped heading levels; SVG/WebP images; images of unknown size; a panel repeating the heading above it; a heading that only repeats an embedded issue key; empty sections; a body referencing an attachment that is neither passed in `attachments` nor already on the page (existing attachments keep their real size).
 
 ## Worked example
@@ -64,7 +64,6 @@ Attach PNG or JPEG files (never SVG/WebP) via `attachments` in `pages.create/upd
 const issues = await jira.issues.search({
   jql: 'project = APP AND fixVersion = "2.1" ORDER BY status',
   fields: ["summary", "status", "assignee"],
-  limit: 200,
 });
 const open = issues.filter((i) => i.statusCategory !== "Done");
 const flow = await diagram.render({

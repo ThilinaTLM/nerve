@@ -196,7 +196,7 @@ export const jiraSprintMethods: SdkMethod[] = [
     path: "sprints.create",
     risk: "external_write",
     options: ["board", "project", "name", "goal", "startDate", "endDate"],
-    signature: `/** Creates a future sprint. Without \`board\`, uses the \`project\`'s (default project's) only scrum board. */ create(options: { board?: number; project?: string; name: string; goal?: string; startDate?: string; endDate?: string }): Promise<${SPRINT}>`,
+    signature: `/** Creates a future sprint; \`board\` defaults to the project's only scrum board. */ create(options: { board?: number; project?: string; name: string; goal?: string; startDate?: string; endDate?: string }): Promise<${SPRINT}>`,
     parse: (options) => ({
       board:
         options.board === undefined
@@ -246,7 +246,7 @@ export const jiraSprintMethods: SdkMethod[] = [
     path: "sprints.update",
     risk: "external_write",
     options: ["id", "name", "goal", "startDate", "endDate"],
-    signature: `/** Changes the given fields of a sprint; the rest is kept. */ update(options: { id: number; name?: string; goal?: string; startDate?: string; endDate?: string }): Promise<${SPRINT}>`,
+    signature: `update(options: { id: number; name?: string; goal?: string; startDate?: string; endDate?: string }): Promise<${SPRINT}>`,
     parse: (options) => {
       const changes = {
         name: optionalText(options.name),
@@ -387,7 +387,7 @@ export const jiraSprintMethods: SdkMethod[] = [
     bare: "id",
     options: ["id", "fields", "jql", "limit"],
     signature:
-      "/** Issues of a sprint, like issues.search (`jql` narrows them). limit default 50, max 1000. */ issues(options: number | { id: number; fields?: string[]; jql?: string; limit?: number }): Promise<Issue[]>",
+      "/** Like issues.search within the sprint; limit default 50, max 1000. */ issues(options: number | { id: number; fields?: string[]; jql?: string; limit?: number }): Promise<Issue[]>",
     parse: (options) => {
       const fields = options.fields;
       if (

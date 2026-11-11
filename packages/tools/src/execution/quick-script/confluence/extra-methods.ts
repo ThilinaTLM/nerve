@@ -99,7 +99,7 @@ export const confluenceExtraMethods: SdkMethod[] = [
     bare: "id",
     options: ["id"],
     signature:
-      "/** Attachments of a page (id = page id). Upload with the same filename = new version. */ list(id: string | { id: string }): Promise<AttachmentInfo[]>",
+      "/** Of a page (id = page id). */ list(id: string | { id: string }): Promise<AttachmentInfo[]>",
     parse: (options) => ({ id: nonEmptyString(options.id, "id") }),
     authorize: ({ id }) => ({
       toolName: "confluence_get_page",
@@ -141,7 +141,7 @@ export const confluenceExtraMethods: SdkMethod[] = [
     bare: "id",
     options: ["id"],
     signature:
-      "/** Deletes an attachment (id from attachments.list). */ delete(id: string | { id: string }): Promise<{ id: string }>",
+      "/** id from attachments.list. */ delete(id: string | { id: string }): Promise<{ id: string }>",
     parse: (options) => ({ id: nonEmptyString(options.id, "id") }),
     // The direct tool wants a page id: look the attachment's page up, then authorize.
     resource: ({ id }) => `attachment ${id}`,
@@ -276,7 +276,7 @@ export const confluenceExtraMethods: SdkMethod[] = [
     risk: "external_write",
     options: ["id", "parent", "before", "after"],
     signature:
-      '/** Give exactly one target: parent (becomes its last child), before or after (a sibling page id). A target in another space moves the page there, with its children. */ move(options: { id: string; parent: string } | { id: string; before: string } | { id: string; after: string }): Promise<{ id: string; position: "append" | "before" | "after"; target: string }>',
+      '/** One target: parent (last child), before or after (sibling id). Another space moves the page and children there. */ move(options: { id: string } & ({ parent: string } | { before: string } | { after: string })): Promise<{ id: string; position: "append" | "before" | "after"; target: string }>',
     parse: (options) => {
       const given = (["parent", "before", "after"] as const).filter(
         (key) => options[key] !== undefined,
@@ -317,7 +317,7 @@ export const confluenceExtraMethods: SdkMethod[] = [
     bare: "id",
     options: ["id", "purge"],
     signature:
-      '/** Moves the page to the trash (restorable with pages.restore); purge: true deletes it for good. */ delete(options: string | { id: string; purge?: boolean }): Promise<{ id: string; title: string | null; status: "trashed" | "purged" }>',
+      '/** Trashes the page (pages.restore undoes); purge: true deletes for good. */ delete(options: string | { id: string; purge?: boolean }): Promise<{ id: string; title: string | null; status: "trashed" | "purged" }>',
     parse: (options) => {
       if (options.purge !== undefined && typeof options.purge !== "boolean") {
         throw new Error("purge must be true or false.");
@@ -387,7 +387,7 @@ export const confluenceExtraMethods: SdkMethod[] = [
     bare: "id",
     options: ["id"],
     signature:
-      "/** Restores a trashed page (its content is kept). */ restore(id: string | { id: string }): Promise<{ id: string; title: string | null; url: string; version: number | null }>",
+      "restore(id: string | { id: string }): Promise<{ id: string; title: string | null; url: string; version: number | null }>",
     parse: (options) => ({ id: nonEmptyString(options.id, "id") }),
     authorize: ({ id }) => ({
       toolName: "confluence_manage_page",

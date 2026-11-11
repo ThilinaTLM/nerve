@@ -41,7 +41,7 @@ export const jiraEditMethods: SdkMethod[] = [
     path: "issues.rank",
     risk: "external_write",
     options: ["keys", "before", "after"],
-    signature: `/** Reorders up to ${MAX_RANK_KEYS} issues (backlog/board order) to sit just before or after another issue; pass exactly one of before/after. */ rank(options: { keys: string[]; before?: string; after?: string }): Promise<{ ranked: number }>`,
+    signature: `/** Reorders up to ${MAX_RANK_KEYS} issues before or after another; pass exactly one of before/after. */ rank(options: { keys: string[]; before?: string; after?: string }): Promise<{ ranked: number }>`,
     parse: (options) => {
       const { keys } = options;
       if (
@@ -93,7 +93,7 @@ export const jiraEditMethods: SdkMethod[] = [
     risk: "destructive",
     options: ["key", "to", "type"],
     signature:
-      "/** Removes the link(s) between two issues, in either direction. `type` (name or phrase, as in link) is needed only when they are linked in several ways. */ unlink(options: { key: string; to: string; type?: string }): Promise<{ key: string; to: string; removed: number }>",
+      "/** Removes links between two issues (either direction); `type` only if linked several ways. */ unlink(options: { key: string; to: string; type?: string }): Promise<{ key: string; to: string; removed: number }>",
     parse: (options) => ({
       key: nonEmptyString(options.key, "key"),
       to: nonEmptyString(options.to, "to"),
@@ -204,7 +204,7 @@ export const jiraEditMethods: SdkMethod[] = [
     risk: "external_write",
     options: ["key", "id", "time", "started", "comment"],
     signature:
-      '/** Changes the given parts of a worklog (ids from worklogs.list); `time` like "1h 30m". */ update(options: { key: string; id: string; time?: string; started?: string; comment?: string }): Promise<{ id: string; timeSpent: string }>',
+      "/** Ids from worklogs.list; only given parts change. */ update(options: { key: string; id: string; time?: string; started?: string; comment?: string }): Promise<WorklogRef>",
     parse: (options) => {
       const parsed = {
         key: nonEmptyString(options.key, "key"),
@@ -274,7 +274,7 @@ export const jiraEditMethods: SdkMethod[] = [
     bare: "key",
     options: ["key"],
     signature:
-      "/** Attachments of an issue, oldest first. Jira keeps duplicates with the same filename (unlike Confluence); `![](filename)` embeds the newest. */ list(options: string | { key: string }): Promise<{ id: string; filename: string; size: number; mediaType: string; created: string | null; author: string | null }[]>",
+      "/** Oldest first; `![](filename)` embeds the newest duplicate. */ list(options: string | { key: string }): Promise<JiraAttachment[]>",
     parse: (options) => nonEmptyString(options.key, "key"),
     authorize: (key) => ({
       toolName: "jira_get_issue",

@@ -239,8 +239,6 @@ function resolveInlineSelection(storage: string, inline: InlineTarget) {
   };
 }
 
-const BODY_DOC = "body is RichText.";
-
 export const confluenceCommentMethods: SdkMethod[] = [
   defineMethod({
     product: "confluence",
@@ -249,7 +247,7 @@ export const confluenceCommentMethods: SdkMethod[] = [
     bare: "id",
     options: ["id", "inline", "resolved"],
     signature:
-      "/** Footer and inline comments of a page, replies included (parentId). inline: true/false limits to one kind; resolved filters inline comments only. */ list(options: string | { id: string; inline?: boolean; resolved?: boolean }): Promise<ConfluenceComment[]>",
+      "/** Footer and inline comments incl. replies (parentId). inline: true/false limits to one kind; resolved filters inline. */ list(options: string | { id: string; inline?: boolean; resolved?: boolean }): Promise<ConfluenceComment[]>",
     parse: (options) => {
       for (const key of ["inline", "resolved"]) {
         const value = options[key];
@@ -287,7 +285,7 @@ export const confluenceCommentMethods: SdkMethod[] = [
     risk: "external_write",
     options: ["id", "body", "inline"],
     signature:
-      "/** Footer comment, or with inline: { text, occurrence? } a comment anchored to text of the page (exact rendered text; occurrence is 1-based and required when text appears more than once). body is RichText (Markdown, storage.* output, or an array of both). */ add(options: { id: string; body: RichText; inline?: { text: string; occurrence?: number } }): Promise<{ id: string; pageId: string }>",
+      "/** Footer comment, or with inline: { text, occurrence? } anchored to exact rendered page text (1-based occurrence, required if text repeats). */ add(options: { id: string; body: RichText; inline?: { text: string; occurrence?: number } }): Promise<{ id: string; pageId: string }>",
     parse: (options) => ({
       id: nonEmptyString(options.id, "id"),
       body: storageBodyOption(options),
@@ -354,7 +352,7 @@ export const confluenceCommentMethods: SdkMethod[] = [
     path: "comments.update",
     risk: "external_write",
     options: ["id", "body"],
-    signature: `/** Replaces a footer or inline comment's text. ${BODY_DOC} */ update(options: { id: string; body: RichText }): Promise<{ id: string }>`,
+    signature: `update(options: { id: string; body: RichText }): Promise<{ id: string }>`,
     parse: (options) => ({
       id: nonEmptyString(options.id, "id"),
       body: storageBodyOption(options),
@@ -391,7 +389,7 @@ export const confluenceCommentMethods: SdkMethod[] = [
     bare: "id",
     options: ["id"],
     signature:
-      "/** Deletes a footer or inline comment and its replies. */ delete(id: string | { id: string }): Promise<{ id: string }>",
+      "/** Also deletes replies. */ delete(id: string | { id: string }): Promise<{ id: string }>",
     parse: (options) => ({ id: nonEmptyString(options.id, "id") }),
     resource: ({ id }) => `comment ${id}`,
     async run({ id }, env) {
@@ -418,7 +416,7 @@ export const confluenceCommentMethods: SdkMethod[] = [
     path: "comments.reply",
     risk: "external_write",
     options: ["id", "body"],
-    signature: `/** Replies to a footer or inline comment (id = parent comment id). ${BODY_DOC} */ reply(options: { id: string; body: RichText }): Promise<{ id: string; parentId: string }>`,
+    signature: `/** id is the parent comment. */ reply(options: { id: string; body: RichText }): Promise<{ id: string; parentId: string }>`,
     parse: (options) => ({
       id: nonEmptyString(options.id, "id (parent comment id)"),
       body: storageBodyOption(options),

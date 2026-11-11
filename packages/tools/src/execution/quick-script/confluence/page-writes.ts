@@ -286,7 +286,7 @@ export const confluencePageWriteMethods: SdkMethod[] = [
     risk: "external_write",
     options: ["space", "title", "parent", "body", "toc", "attachments"],
     signature:
-      "/** body is RichText (Markdown, storage.* output, or an array of both), linted on write. Pass attachments for files the body references. */ create(options: { space?: string; title: string; parent?: string; body: RichText; toc?: boolean; attachments?: AttachmentInput[] }): Promise<PageWrite>",
+      "/** Linted on write. Pass `attachments` for files the body references. */ create(options: { space?: string; title: string; parent?: string; body: RichText; toc?: boolean; attachments?: AttachmentInput[] }): Promise<PageWrite>",
     parse: (options) => {
       const body = pageBodyOption(options) ?? "";
       if (!body.trim()) throw new Error("body must not be empty.");
@@ -418,7 +418,7 @@ export const confluencePageWriteMethods: SdkMethod[] = [
       "attachments",
     ],
     signature:
-      '/** Replaces the whole body (omitted title/body keep the page\'s). To edit: [page.body, "## New", ...] appends, storage.replaceSection(page.body, heading, content) swaps one section, or pages.download + edit the file + bodyFile. body (RichText) and bodyFile (storage file) are exclusive. Dropping existing macros/layouts/images/mentions throws unless allowRemoving. Pass the version you read; a newer page throws CONFLICT. */ update(options: { id: string; version?: number; title?: string; body?: RichText; bodyFile?: FileHandle; allowRemoving?: boolean; message?: string; toc?: boolean; attachments?: AttachmentInput[] }): Promise<PageWrite>',
+      '/** Replaces the whole body. Edit: [page.body, "## New"], storage.replaceSection(page.body, heading, content), or pages.download + bodyFile (exclusive with body). Dropping macros/layouts/images/mentions throws unless allowRemoving. Pass the version you read (CONFLICT if newer). */ update(options: { id: string; version?: number; title?: string; body?: RichText; bodyFile?: FileHandle; allowRemoving?: boolean; message?: string; toc?: boolean; attachments?: AttachmentInput[] }): Promise<PageWrite>',
     parse: (options) => {
       const { body, bodyFile } = bodySource(options);
       const title = optionalText(options.title);
@@ -583,7 +583,7 @@ export const confluencePageWriteMethods: SdkMethod[] = [
     risk: "network",
     options: ["id", "attachments"],
     signature:
-      "/** Saves the storage body as artifact:page-<id>.xhtml. Edit it (Edit tool or files.edit), then pages.update({ id, version, bodyFile: file }). attachments: true also saves the page's attachments. */ download(options: { id: string; attachments?: boolean }): Promise<{ file: FileHandle; version: number; title: string; attachments?: { filename: string; file: FileHandle }[]; skipped?: string[] }>",
+      "/** Saves storage XHTML as artifact:page-<id>.xhtml; edit it, then pages.update({ id, version, bodyFile: file }). attachments: true also saves attachments. */ download(options: { id: string; attachments?: boolean }): Promise<{ file: FileHandle; version: number; title: string; attachments?: { filename: string; file: FileHandle }[]; skipped?: string[] }>",
     parse: (options) => ({
       id: nonEmptyString(options.id, "id"),
       attachments: options.attachments === true,
