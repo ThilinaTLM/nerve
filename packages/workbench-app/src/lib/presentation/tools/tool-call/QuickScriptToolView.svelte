@@ -30,6 +30,7 @@ const hasSummary = $derived(
   view.hostCalls.length > 0 ||
     view.pages.length > 0 ||
     view.artifacts.length > 0 ||
+    view.created.length > 0 ||
     scriptFailed,
 );
 
@@ -125,6 +126,15 @@ function pageLintLabel(fixes: number, warnings: number): string {
           </li>
         {/if}
       </ul>
+    {/if}
+
+    {#if view.created.length > 0}
+      <p
+        class="m-0 flex min-w-0 flex-wrap items-baseline gap-x-2 px-2.5 py-1 text-ui text-muted-foreground"
+      >
+        <span>Created</span>
+        <span class="min-w-0 text-foreground">{view.created.join(", ")}</span>
+      </p>
     {/if}
 
     {#if unnamedArtifacts.length > 0}

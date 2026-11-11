@@ -280,6 +280,7 @@ export function parseToolView(
         hostCalls: details.success ? details.data.hostCalls : [],
         pages: details.success ? (details.data.pages ?? []) : [],
         artifacts: details.success ? (details.data.artifacts ?? []) : [],
+        created: details.success ? (details.data.created ?? []) : [],
         live: !result && Boolean(liveOutput?.text),
       };
     }

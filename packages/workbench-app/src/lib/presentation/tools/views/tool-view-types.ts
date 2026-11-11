@@ -164,6 +164,8 @@ export type ToolView =
       pages: QuickScriptPageReport[];
       /** Files the run wrote to the conversation artifact folder. */
       artifacts: QuickScriptArtifact[];
+      /** Entities the run created (`SCRUM-6`, `comment 77 on SCRUM-6`). */
+      created: string[];
       live?: boolean;
     }
   | {
