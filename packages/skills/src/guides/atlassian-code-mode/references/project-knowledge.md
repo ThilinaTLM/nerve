@@ -2,11 +2,13 @@
 
 After you have explored a Jira project or Confluence space (issue types, workflows, required fields, conventions), later conversations would otherwise repeat the exploration. Offer to save what you learned as a skill.
 
+**First step, before writing anything: read the built-in `skill-creator` skill.** Every skill you save must follow it.
+
 ## When and how to offer
 
 1. Only after a discovery pass that produced durable conventions, and only once per project per conversation.
 2. Ask the user, in one message: whether to save it, and where. Recommend the project-level `./.nerve/skills/<name>/SKILL.md` (shared with the repository); the alternative is a user skill under `${NERVE_HOME:-$HOME/.nerve}/agent/skills/<name>/`. Write nothing until the user agrees.
-3. Create it by following the built-in `skill-creator` skill: the directory name equals the frontmatter `name` (lowercase letters, digits, single hyphens, e.g. `jira-app-conventions`), a task-focused `description` saying when to use it ("Use when creating or updating APP Jira tickets or Confluence pages"), and a short `SKILL.md`. Put longer lists in files beside it and link them with relative paths. Do not overwrite an existing skill without confirmation.
+3. Create it following `skill-creator` (read first, see above): the directory name equals the frontmatter `name` (lowercase letters, digits, single hyphens, e.g. `jira-app-conventions`), a task-focused `description` saying when to use it ("Use when creating or updating APP Jira tickets or Confluence pages"), and a short `SKILL.md`. Put longer lists in files beside it and link them with relative paths. Do not overwrite an existing skill without confirmation.
 
 ## What to record
 

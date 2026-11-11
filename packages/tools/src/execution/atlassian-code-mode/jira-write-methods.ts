@@ -195,6 +195,16 @@ export const jiraWriteMethods: SdkMethod[] = [
       args: { issue_key: key, transition: to },
       summary: `${key} → ${to}`,
     }),
+    authorizeAlso: ({ key, comment }) =>
+      comment
+        ? [
+            {
+              toolName: "jira_manage_comment",
+              args: { action: "create", issue_key: key, body: comment },
+              summary: key,
+            },
+          ]
+        : [],
     resource: ({ key }) => `issue ${key}`,
     async run({ key, to, fields, comment }, env) {
       const connection = await env.jira();
@@ -239,16 +249,19 @@ export const jiraWriteMethods: SdkMethod[] = [
         body: {
           transition: { id: String(id) },
           ...(Object.keys(payload).length > 0 ? { fields: payload } : {}),
-          ...(comment
-            ? {
-                update: {
-                  comment: [{ add: { body: markdownToAdf(comment) } }],
-                },
-              }
-            : {}),
         },
         signal: env.context.signal,
       });
+      // `update.comment` is ignored by transitions without a screen, so the
+      // comment is posted explicitly once the transition has succeeded.
+      if (comment) {
+        await jiraRequest(connection, {
+          method: "POST",
+          path: `/issue/${pathSegment(key)}/comment`,
+          body: { body: markdownToAdf(comment) },
+          signal: env.context.signal,
+        });
+      }
       return { key, status, url: `${connection.siteUrl}/browse/${key}` };
     },
   }),

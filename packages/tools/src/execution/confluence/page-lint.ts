@@ -39,7 +39,7 @@ const LAYOUT_SHARES: Record<string, number[]> = {
   three_with_sidebars: [0.2, 0.6, 0.2],
 };
 
-const TOC_MIN_SECTIONS = 3;
+const TOC_MIN_SECTIONS = 6;
 const TOC_MIN_WORDS = 600;
 /** Absolute floor for any column. */
 const MIN_COLUMN_PX = 56;

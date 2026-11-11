@@ -709,8 +709,12 @@ export const confluenceMethods: SdkMethod[] = [
     authorize: ({ method, path }) => ({
       toolName:
         method === "GET" ? "confluence_get_page" : "confluence_manage_page",
+      // Placeholder page id only satisfies the direct tool's parameter schema;
+      // the real target is the method and path in `summary`.
       args:
-        method === "GET" ? { method, path } : { action: "purge", method, path },
+        method === "GET"
+          ? { page_id: "raw-request" }
+          : { action: "purge", page_id: "raw-request" },
       summary: `${method} ${String(path)}`,
     }),
     resource: ({ path }) => String(path),

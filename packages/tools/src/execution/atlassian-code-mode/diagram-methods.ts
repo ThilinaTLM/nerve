@@ -12,6 +12,33 @@ import { defineMethod, type SdkMethod } from "./sdk-types.js";
 
 const MAX_SOURCE_BYTES = 128 * 1024;
 
+const PIE_COLORS = [
+  "#2563eb",
+  "#ea580c",
+  "#16a34a",
+  "#9333ea",
+  "#dc2626",
+  "#0891b2",
+  "#ca8a04",
+  "#db2777",
+];
+const PIE_INIT = `%%{init: {"themeVariables": {${PIE_COLORS.map(
+  (color, index) => `"pie${index + 1}": "${color}"`,
+).join(", ")}, "pieOuterStrokeWidth": "1px"}}}%%\n`;
+
+/**
+ * Mermaid's default pie slices are near-white pastels. Pie charts without their
+ * own `%%{init` directive or frontmatter get a saturated palette instead.
+ */
+export function withMermaidDefaults(type: string, source: string): string {
+  if (type !== "mermaid" || source.includes("%%{init")) return source;
+  const first = source
+    .split("\n")
+    .map((line) => line.trim())
+    .find((line) => line && !line.startsWith("%%"));
+  return first && /^pie\b/.test(first) ? PIE_INIT + source : source;
+}
+
 export const diagramMethods: SdkMethod[] = [
   defineMethod({
     product: "diagram",
@@ -50,7 +77,7 @@ export const diagramMethods: SdkMethod[] = [
       const bytes = await fetchKrokiDiagram({
         url,
         diagramType: krokiDiagramTypeSchema.parse(type),
-        source,
+        source: withMermaidDefaults(type, source),
         outputFormat: "png",
         signal: withTimeoutSignal(env.context.signal, 60_000),
       });

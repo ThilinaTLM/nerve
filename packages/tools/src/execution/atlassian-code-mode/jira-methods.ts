@@ -289,10 +289,12 @@ const readMethods: SdkMethod[] = [
     // most destructive action of a `jira_manage_*` tool (a delete).
     authorize: ({ method, path }) => ({
       toolName: method === "GET" ? "jira_get_project" : "jira_manage_comment",
+      // Placeholder identifiers only satisfy the direct tool's parameter
+      // schema; the real target is the method and path in `summary`.
       args:
         method === "GET"
-          ? { method, path }
-          : { action: "delete", method, path },
+          ? {}
+          : { action: "delete", issue_key: "raw-request", comment_id: "-" },
       summary: `${method} ${String(path)}`,
     }),
     resource: ({ path }) => String(path),

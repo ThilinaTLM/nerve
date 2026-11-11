@@ -16,16 +16,15 @@ A TypeScript sandbox script (no network, filesystem or imports) with globals `ji
 5. Failures throw `HostError` with `e.code` (`FORBIDDEN`, `NOT_FOUND`, `BAD_REQUEST`, `DENIED`); finished calls are not undone. A rejected token (401) stops it.
 6. Jira/Confluence text is Markdown; pages are written as storage XHTML via `storage.*`.
 
-## Read before use
+## Read first (before any other tool or code)
 
-| Task                               | Read                                                                                                      |
-| ---------------------------------- | --------------------------------------------------------------------------------------------------------- |
-| Jira calls                         | [jira.d.ts](references/jira.d.ts)                                                                         |
-| Creating/updating tickets          | [jira-workflows.md](references/jira-workflows.md)                                                         |
-| Confluence calls                   | [confluence.d.ts](references/confluence.d.ts)                                                             |
-| Writing a page                     | [confluence-writing.md](references/confluence-writing.md), [storage.md](references/storage.md) (builders) |
-| Files, images, diagrams, Excel/CSV | [files.md](references/files.md), [files.d.ts](references/files.d.ts)                                      |
-| Saving learned project conventions | [project-knowledge.md](references/project-knowledge.md)                                                   |
+| If the task involves                                     | Read                                                                                                                                 |
+| -------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| Excel/CSV/images/diagrams/local files                    | [files.md](references/files.md), [files.d.ts](references/files.d.ts). Use `XLSX`/`Papa`/`image`/`diagram` here, never python or bash |
+| Learning how a project is run; creating/updating tickets | [jira-workflows.md](references/jira-workflows.md)                                                                                    |
+| Jira calls / Confluence calls                            | [jira.d.ts](references/jira.d.ts) / [confluence.d.ts](references/confluence.d.ts)                                                    |
+| Writing a page                                           | [confluence-writing.md](references/confluence-writing.md), [storage.md](references/storage.md)                                       |
+| Saving what you learned about a project                  | [project-knowledge.md](references/project-knowledge.md) (needs the `skill-creator` skill)                                            |
 
 ```ts
 const issues = await jira.issues.search({

@@ -31,7 +31,7 @@ export const atlassianCodeModeToolDefinitions = [
     classifyRisk: (args) => classifyCodeModeArguments(args).risk,
     label: "Atlassian code mode",
     description:
-      "Run a sandboxed TypeScript script against Jira and Confluence with globals `jira`, `confluence`, `diagram`, `files`, `image`, `storage`, `XLSX`, `Papa`. Read {{skill:atlassian-code-mode}} before first use; method references are linked from it.\nThe script is an ES module with top-level await: print results with console.log or a top-level `return value` (flat objects print as a table); only that output is returned. JQL must be bounded (e.g. `project = X`); a bare ORDER BY is rejected.",
+      "Run a sandboxed TypeScript script against Jira and Confluence with globals `jira`, `confluence`, `diagram`, `files`, `image`, `storage`, `XLSX`, `Papa` (built-in Excel/CSV/image/diagram support; no python or bash). Read {{skill:atlassian-code-mode}} before first use.\nES module with top-level await: print with console.log or a top-level `return value`; only that output is returned. JQL must be bounded (e.g. `project = X`); a bare ORDER BY is rejected.",
     parameters: atlassianCodeModeParameters,
     executionMode: "parallel",
   },

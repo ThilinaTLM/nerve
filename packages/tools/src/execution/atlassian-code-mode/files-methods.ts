@@ -82,7 +82,12 @@ export const filesMethods: SdkMethod[] = [
     authorize: ({ name, workspace }, env) => {
       if (!workspace) return undefined;
       const path = resolveToolPath(env.context.cwd, name);
-      return { toolName: "write", args: { path }, summary: path };
+      // Content is irrelevant to path policy and can be large; the schema only needs it present.
+      return {
+        toolName: "write",
+        args: { path, content: "" },
+        summary: path,
+      };
     },
     resource: ({ name }) => name,
     async run({ name, bytes, workspace }, env) {

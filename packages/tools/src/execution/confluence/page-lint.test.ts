@@ -67,13 +67,20 @@ void test("warns about skipped heading levels and headings inside macros are lef
 });
 
 void test("inserts a TOC after a leading panel (or at the top) for long pages and honors toc: false", () => {
-  const sections = "<h1>A</h1><p>a</p><h1>B</h1><p>b</p><h1>C</h1><p>c</p>";
+  const sections = ["A", "B", "C", "D", "E", "F"]
+    .map((h) => `<h1>${h}</h1><p>${h.toLowerCase()}</p>`)
+    .join("");
   const top = lint(sections);
   assert.equal(top.storage, TOC + sections);
   const afterPanel = lint(panel("info") + sections);
   assert.equal(afterPanel.storage, panel("info") + TOC + sections);
   assert.equal(lint(sections, { toc: false }).storage, sections);
   assert.equal(lint(TOC + sections).fixes.length, 0);
+  assert.equal(
+    lint("<h1>A</h1><p>a</p><h1>B</h1><p>b</p><h1>C</h1><p>c</p>").fixes.length,
+    0,
+    "a few short sections get no TOC",
+  );
   const longText = `<h1>A</h1><p>${"word ".repeat(650)}</p>`;
   assert.ok(
     lint(longText).storage.startsWith('<ac:structured-macro ac:name="toc"'),

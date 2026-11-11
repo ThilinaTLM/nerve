@@ -1,6 +1,11 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { classifyToolRisk } from "../../catalog/manifest.js";
+import {
+  describeToolArgumentErrors,
+  normalizeToolArguments,
+  requireToolDefinition,
+} from "../../catalog/index.js";
 import { markdownToAdf } from "../jira/markdown-adf.js";
 import { adfToMarkdown } from "../jira/adf-markdown.js";
 import { createSdkEnvironment, findSdkMethod, sdkMethodNames } from "./sdk.js";
@@ -20,7 +25,10 @@ const SAMPLES: Record<string, unknown[][]> = {
   "jira.fields.list": [[]],
   "jira.issues.create": [[{ type: "Bug", summary: "s" }]],
   "jira.issues.update": [[{ key: "A-1", fields: { Summary: "s" } }]],
-  "jira.issues.transition": [[{ key: "A-1", to: "Done" }]],
+  "jira.issues.transition": [
+    [{ key: "A-1", to: "Done" }],
+    [{ key: "A-1", to: "Done", comment: "x" }],
+  ],
   "jira.issues.link": [[{ key: "A-1", to: "A-2", type: "Blocks" }]],
   "jira.issues.move": [
     [{ keys: ["A-1"], sprint: 3 }],
@@ -93,6 +101,19 @@ void test("every method has samples, and its declared risk covers every authoriz
         () => assertDeclaredRisk(name, method.risk, checks),
         `${name} ${JSON.stringify(args)}`,
       );
+      // Admission validates nested calls against the direct tool's schema.
+      for (const check of checks) {
+        const definition = requireToolDefinition(check.toolName);
+        const errors = describeToolArgumentErrors(
+          definition,
+          normalizeToolArguments(definition, check.args),
+        );
+        assert.equal(
+          errors,
+          undefined,
+          `${name} ${JSON.stringify(args)} -> ${check.toolName}: ${String(errors)}`,
+        );
+      }
     }
   }
 });

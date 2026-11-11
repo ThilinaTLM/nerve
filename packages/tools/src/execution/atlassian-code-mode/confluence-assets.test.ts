@@ -359,10 +359,7 @@ void test("storage builders produce well-formed XHTML", async () => {
   assert.ok(value.includes('<time datetime="2026-01-02"/>'));
   assert.ok(value.includes('ac:width="300"'));
   assert.ok(value.includes("<ac:caption><p>Cap</p></ac:caption>"));
-  assert.ok(
-    value.startsWith('<ac:structured-macro ac:name="toc"'),
-    "3 sections get a TOC",
-  );
+  assert.ok(!value.includes('ac:name="toc"'), "a short page gets no TOC");
 });
 
 void test("jiraIssues builds semicolon-separated columns and a layout; panels map Cloud names to storage macros", async () => {

@@ -129,7 +129,10 @@ void test("workspace files are authorized as read/write; escaping names cannot r
   assert.equal(await readFile(join(cwd, "out/report.txt"), "utf8"), "done");
   assert.deepEqual(authorized, [
     { toolName: "read", args: { path: join(cwd, "in.txt") } },
-    { toolName: "write", args: { path: join(cwd, "out/report.txt") } },
+    {
+      toolName: "write",
+      args: { path: join(cwd, "out/report.txt"), content: "" },
+    },
   ]);
   assert.doesNotMatch(result.content ?? "", /Artifacts:/);
 });

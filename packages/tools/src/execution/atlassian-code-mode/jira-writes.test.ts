@@ -324,11 +324,23 @@ void test("issues.transition moves by status name, with required fields and a co
   assert.deepEqual(posts[0].body, { transition: { id: "11" } });
   assert.deepEqual(posts[1].body.fields, { resolution: { name: "Done" } });
   assert.equal(posts[1].body.transition.id, "31");
-  assert.equal(posts[1].body.update.comment[0].add.body.type, "doc");
+  assert.equal(posts[1].body.update, undefined);
+  const comments = sent.filter(
+    (s) => s.method === "POST" && s.path === "/issue/APP-1/comment",
+  );
+  assert.equal(comments.length, 1);
+  assert.equal(comments[0].body.body.type, "doc");
   assert.deepEqual(authorized[0], {
     toolName: "jira_transition_issue",
     args: { issue_key: "APP-1", transition: "in progress" },
   });
+  assert.ok(
+    authorized.some(
+      (call) =>
+        call.toolName === "jira_manage_comment" &&
+        call.args.action === "create",
+    ),
+  );
 });
 
 void test("issues.transition errors list the missing fields and the reachable statuses", async () => {
