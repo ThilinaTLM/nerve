@@ -1,7 +1,7 @@
 import type { AvailableSkill } from "@nervekit/contracts/skills";
 import type { ModelInfo } from "$lib/api";
 import type {
-  AccountOption,
+  AccountOptions,
   ToolId,
   ToolPayload,
 } from "../tools/tool-settings";
@@ -18,7 +18,7 @@ export type ProfileEditContext = {
     name: string,
   ) => boolean;
   defaultPermission?: string;
-  accountsFor: (tool: ToolId) => AccountOption[];
+  accounts: AccountOptions;
   /** The user's current value of a tool, used as the starting point for a new change. */
   seedTool: (tool: ToolId) => ToolPayload;
   leadProfiles: { name: string; label: string }[];

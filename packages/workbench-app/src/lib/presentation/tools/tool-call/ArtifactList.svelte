@@ -1,9 +1,9 @@
 <script lang="ts">
-import type { CodeModeArtifact } from "@nervekit/contracts/tools";
+import type { QuickScriptArtifact } from "@nervekit/contracts/tools";
 import ImageFrame from "./ImageFrame.svelte";
 
 type Props = {
-  artifacts: readonly CodeModeArtifact[];
+  artifacts: readonly QuickScriptArtifact[];
   onOpenFile?: (path: string, line?: number) => void;
 };
 let { artifacts, onOpenFile }: Props = $props();

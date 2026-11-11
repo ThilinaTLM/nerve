@@ -54,7 +54,7 @@ const map: Record<ToolName, AgentResultPolicy> = {
   ls: findAgentResultPolicy,
   bash: processAgentResultPolicy,
   python_exec: scriptAgentResultPolicy,
-  atlassian_code_mode: scriptAgentResultPolicy,
+  quick_script: scriptAgentResultPolicy,
   web_search: webSearchAgentResultPolicy,
   web_fetch: webFetchAgentResultPolicy,
   explain_image: explainImageAgentResultPolicy,

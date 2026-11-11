@@ -10,6 +10,7 @@ import {
 import {
   capabilitySkillsSchema,
   capabilityToolPayloadSchemas,
+  quickScriptIntegrationSchema,
 } from "../capabilities/capabilities.js";
 import {
   bashToolSettingsSchema,
@@ -69,12 +70,23 @@ const account = capabilityToolPayloadSchemas.jira.refine(
   nonempty,
   "Empty tool entry",
 );
+const quickScriptIntegration = quickScriptIntegrationSchema
+  .partial()
+  .refine(nonempty);
+const quickScriptOverrides = z
+  .strictObject({
+    jira: quickScriptIntegration.optional(),
+    confluence: quickScriptIntegration.optional(),
+    web: quickScriptIntegration.optional(),
+    diagram: krokiToolSettingsSchema.partial().refine(nonempty).optional(),
+  })
+  .refine(nonempty);
 const childToolShape = {
   python_exec: payload(pythonExecToolSettingsSchema.partial()),
   web_search: account,
   jira: account,
   confluence: account,
-  atlassian_code_mode: account,
+  quick_script: payload(quickScriptOverrides),
   web_fetch: toggle,
   explain_image: payload(explanation.partial().refine(nonempty)),
   generate_image: payload(generation),
@@ -131,7 +143,7 @@ const completeTools = z.strictObject({
     enabled: true,
   }),
   // Optional: configurations frozen before this tool existed omit it (= off).
-  atlassian_code_mode: capabilityToolPayloadSchemas.atlassian_code_mode
+  quick_script: capabilityToolPayloadSchemas.quick_script
     .required({ enabled: true })
     .optional(),
   web_fetch: toggle,

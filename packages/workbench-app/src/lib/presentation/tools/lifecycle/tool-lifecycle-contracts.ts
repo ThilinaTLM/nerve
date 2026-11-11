@@ -127,7 +127,7 @@ export type CompletedViewFamily =
   | "explain_image"
   | "generate_image"
   | "kroki_export"
-  | "atlassian_code_mode";
+  | "quick_script";
 
 export type ToolLifecycleSpec<Name extends ToolName = ToolName> = {
   name: Name;

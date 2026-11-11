@@ -153,7 +153,7 @@ A fixed task set against the test Atlassian site, each with a written success ch
 
 ## Delivery
 
-1. **Rename and decouple:** `atlassian_code_mode` → `quick_script`, own permission group, the [settings](#settings) above, works without integrations, [description](#tool-description) built from active namespaces. Code moves from `execution/atlassian-code-mode/` to a neutral folder with one subfolder per namespace.
+1. **Rename and decouple (implemented):** `atlassian_code_mode` → `quick_script`, own permission group, the [settings](#settings) above, works without integrations, [description](#tool-description) built from active namespaces. Code moves from `execution/atlassian-code-mode/` to a neutral folder with one subfolder per namespace.
 2. **Guide reorganisation** into `quick-script` as above.
 3. **`web` namespace.**
 4. **Document libraries:** `docx`, `mammoth`, `pptxgenjs` after QuickJS checks.

@@ -47,7 +47,7 @@ Project overlay trust binds to a **digest**, a hash of the file's exact bytes, s
 
 Children use an allowed rule set without Baseline or overlays, and selection rejects rule sets that contain an enabled `prompt` rule. Child authorization is independent of the lead's policy; the restrictions are owned by [agent profiles and delegation](conversation-core/delegation.md#rules-enforced-for-every-sub-agent).
 
-Rule-set definitions and overlays are separate resources so reusable policy can remain distinct from local grants. Persistent approval writes go into overlays; rules contain no secrets. Policy controls tool admission rather than operating-system isolation, so it should not be treated as a sandbox or a proof that shell or Python source is safe. A code-mode script is admitted as one call, and each SDK call it makes is then authorized as its direct tool; see [code mode](code-mode.md#permissions).
+Rule-set definitions and overlays are separate resources so reusable policy can remain distinct from local grants. Persistent approval writes go into overlays; rules contain no secrets. Policy controls tool admission rather than operating-system isolation, so it should not be treated as a sandbox or a proof that shell or Python source is safe. A quick-script script is admitted as one call, and each SDK call it makes is then authorized as its direct tool; see [quick_script](code-mode.md#permissions).
 
 ## Risk and shell classification
 
@@ -72,4 +72,4 @@ Current policy is rechecked after approval waits and during restart recovery bec
 | Risk vocabulary mapping                   | [`effectiveRiskForCategory`](../../packages/contracts/src/domains/permissions/permissions.ts)                                                                                                                                           |
 | Shell and git read-only classification    | [`assessment.ts`](../../packages/tools/src/policy/shell/assessment.ts) and [`git-rules.ts`](../../packages/tools/src/policy/shell/git-rules.ts)                                                                                         |
 | Admission and durable evidence            | [`ToolCallService`](../../packages/conversation-core/src/tool-calls/tool-call.service.ts) and [admission tests](../../packages/conversation-core/src/tool-calls/execution-admission.test.ts)                                            |
-| Nested authorization for code mode        | [`createCodeModeAuthorizer`](../../packages/workbench-server/src/core-host/code-mode-broker.ts)                                                                                                                                         |
+| Nested authorization for quick_script     | [`createQuickScriptAuthorizer`](../../packages/workbench-server/src/core-host/quick-script-broker.ts)                                                                                                                                   |

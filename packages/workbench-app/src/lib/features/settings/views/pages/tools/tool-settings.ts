@@ -1,4 +1,7 @@
-import type { CapabilityToolName } from "@nervekit/contracts/capabilities";
+import type {
+  CapabilityToolName,
+  quickScriptIntegrationNames,
+} from "@nervekit/contracts/capabilities";
 export type ToolId = CapabilityToolName;
 
 /** The editable shape shared by every tool: all fields optional. */
@@ -75,10 +78,10 @@ export const toolRows: readonly ToolRowDef[] = [
     configurable: true,
   },
   {
-    id: "atlassian_code_mode",
-    label: "Atlassian code mode (experimental)",
+    id: "quick_script",
+    label: "Quick script (experimental)",
     description:
-      "Experimental: one script tool with Jira and Confluence SDKs instead of separate Jira and Confluence tools.",
+      "Experimental: run short TypeScript scripts with Jira, Confluence and document utilities, instead of separate tools.",
     configurable: true,
   },
   {
@@ -107,9 +110,55 @@ export type AccountOption = { id: string; name: string; detail?: string };
 export type AccountKind = "tavily" | "atlassian";
 export function accountKind(id: ToolId): AccountKind | undefined {
   if (id === "web_search") return "tavily";
-  return id === "jira" || id === "confluence" || id === "atlassian_code_mode"
-    ? "atlassian"
-    : undefined;
+  return id === "jira" || id === "confluence" ? "atlassian" : undefined;
+}
+
+/** Every account the user can pick from, by kind. */
+export type AccountOptions = Record<AccountKind, AccountOption[]>;
+export function accountOptions(
+  providers:
+    | {
+        tavilyProfiles: AccountOption[];
+        atlassianProfiles: { id: string; name: string; siteUrl?: string }[];
+      }
+    | undefined,
+): AccountOptions {
+  return {
+    tavily: providers?.tavilyProfiles ?? [],
+    atlassian: (providers?.atlassianProfiles ?? []).map((p) => ({
+      id: p.id,
+      name: p.name,
+      detail: p.siteUrl,
+    })),
+  };
+}
+
+/** quick_script integrations in settings order, each with the account kind it uses. */
+export const quickScriptIntegrations = [
+  { id: "jira", label: "Jira", kind: "atlassian" },
+  { id: "confluence", label: "Confluence", kind: "atlassian" },
+  { id: "web", label: "Web", kind: "tavily" },
+] as const satisfies readonly {
+  id: (typeof quickScriptIntegrationNames)[number];
+  label: string;
+  kind: AccountKind;
+}[];
+
+type IntegrationSelection = { enabled?: boolean; profileId?: string };
+function enabledIntegrations(payload: ToolPayload) {
+  const s = (payload.settings ?? {}) as Record<string, IntegrationSelection>;
+  return quickScriptIntegrations.filter((i) => s[i.id]?.enabled);
+}
+
+/** Labels of quick_script integrations that are enabled but have no existing account. */
+export function integrationsMissingAccount(
+  payload: ToolPayload,
+  hasAccount: (kind: AccountKind, id: string | undefined) => boolean,
+): string[] {
+  const s = (payload.settings ?? {}) as Record<string, IntegrationSelection>;
+  return enabledIntegrations(payload)
+    .filter((i) => !hasAccount(i.kind, s[i.id]?.profileId))
+    .map((i) => i.label);
 }
 
 export type ToolDisplayContext = {
@@ -147,10 +196,13 @@ export function toolSummary(
     }
     case "python_exec":
       return `${onOff(payload)} · ${(s.interpreterPath as string | undefined) ?? "auto-detect"}`;
+    case "quick_script": {
+      const active = enabledIntegrations(payload).map((i) => i.label);
+      return `${onOff(payload)} · ${active.length ? active.join(", ") : "no integrations"}`;
+    }
     case "web_search":
     case "jira":
-    case "confluence":
-    case "atlassian_code_mode": {
+    case "confluence": {
       const name = context.accountName(accountKind(id)!, payload.profileId);
       return `${onOff(payload)} · ${name ? `account: ${name}` : "no account"}`;
     }

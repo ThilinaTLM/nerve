@@ -259,7 +259,7 @@ export class ConversationForker {
     const root = join(this.options.dataDir, "conversations");
     const from = join(root, sourceId);
     const to = join(root, forkId);
-    const entries = new Set<string>(["reports", "code-mode"]);
+    const entries = new Set<string>(["reports", "quick-script"]);
     for (const event of path)
       if (event.type === "tool_call_response")
         entries.add(`tool-calls/${event.payload.toolCallId}`);

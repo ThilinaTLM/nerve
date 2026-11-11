@@ -22,6 +22,7 @@ export const toolGroupNameSchema = z.enum([
   "diagramExport",
   "jira",
   "confluence",
+  "quickScript",
   "input",
   "todos",
   "process",

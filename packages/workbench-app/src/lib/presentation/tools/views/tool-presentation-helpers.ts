@@ -86,7 +86,7 @@ export function outcomeLabel(
 ): string {
   if (
     toolCall.status === "completed" &&
-    view.kind === "atlassian_code_mode" &&
+    view.kind === "quick_script" &&
     view.status !== undefined &&
     view.status !== "completed"
   ) {
@@ -126,7 +126,7 @@ export function statusDot(
     return { tone: "destructive", pulse: false };
   }
   if (
-    view.kind === "atlassian_code_mode" &&
+    view.kind === "quick_script" &&
     view.status !== undefined &&
     view.status !== "completed"
   ) {

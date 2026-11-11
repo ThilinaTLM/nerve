@@ -14,7 +14,7 @@ export function hasMeaningfulDurableBody(
     case "bash":
     case "python":
       return view.output.length > 0;
-    case "atlassian_code_mode":
+    case "quick_script":
       return (
         view.hostCalls.length > 0 ||
         view.pages.length > 0 ||

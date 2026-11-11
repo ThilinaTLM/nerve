@@ -11,8 +11,28 @@ import { buildNerveSystemPrompt } from "./nerve-system-prompt.js";
 import { withAgentProfiles } from "./turn-resources.adapter.js";
 import { resolveSkillPlaceholders } from "@nervekit/skills";
 import { isToolEnabled } from "./tool-enablement.js";
+import { quickScriptDescription } from "@nervekit/tools/execution";
+import { quickScriptIntegrationNames } from "@nervekit/contracts/capabilities";
 
 const blocked = new Set<string>(subagentBlockedToolNames);
+
+/** An integration is active when enabled with an existing account selected. */
+function activeQuickScriptIntegrations(
+  settings: LeadSettingsOverrides,
+  missingReferences: readonly string[],
+): string[] {
+  const configured = settings.tools?.quick_script?.settings;
+  return quickScriptIntegrationNames.filter((name) => {
+    const entry = configured?.[name];
+    return (
+      entry?.enabled &&
+      entry.profileId &&
+      !missingReferences.includes(
+        `/tools/quick_script/settings/${name}/profileId`,
+      )
+    );
+  });
+}
 export function scopedTurnResources(options: {
   home: string;
   service: AgentConfigurationService;
@@ -71,7 +91,16 @@ export function scopedTurnResources(options: {
     ).map((tool) => ({
       ...tool,
       description:
-        resolveSkillPlaceholders(tool.description) +
+        resolveSkillPlaceholders(
+          tool.name === "quick_script"
+            ? quickScriptDescription({
+                integrations: activeQuickScriptIntegrations(
+                  settings,
+                  missingReferences,
+                ),
+              })
+            : tool.description,
+        ) +
         (tool.name === "plan_present"
           ? `\n\nWrite the plan under: ${join(options.home, "data", "plans")}`
           : ""),

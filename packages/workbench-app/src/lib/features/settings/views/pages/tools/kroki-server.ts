@@ -1,4 +1,7 @@
-import { defaultKrokiToolSettings } from "@nervekit/contracts/settings";
+import {
+  defaultKrokiToolSettings,
+  krokiToolSettingsSchema,
+} from "@nervekit/contracts/settings";
 
 const publicKrokiHost = new URL(defaultKrokiToolSettings.url).hostname;
 
@@ -9,4 +12,9 @@ export function isPublicKrokiUrl(url: string): boolean {
   } catch {
     return false;
   }
+}
+
+/** Whether the URL is a valid Kroki server setting. */
+export function isValidKrokiUrl(url: string): boolean {
+  return krokiToolSettingsSchema.safeParse({ url }).success;
 }

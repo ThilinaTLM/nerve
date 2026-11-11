@@ -22,7 +22,7 @@ import {
   builtInPermissionRuleSets,
 } from "@nervekit/tools/policy";
 import { classifyToolRisk } from "@nervekit/tools/catalog";
-import { classifyCodeModeArguments } from "@nervekit/tools/execution";
+import { classifyQuickScriptArguments } from "@nervekit/tools/execution";
 import type { AgentConfigurationService } from "../infrastructure/configuration/agent-configuration/agent-configuration-service.js";
 import {
   canonicalDigest,
@@ -357,7 +357,7 @@ export function createScopedPermissionSource(options: {
                     request.args,
                   ),
                   reason:
-                    actual.toolName === "atlassian_code_mode" &&
+                    actual.toolName === "quick_script" &&
                     evaluated.decision !== "allow"
                       ? withScriptOperations(evaluated.reason, request.args)
                       : evaluated.reason,
@@ -432,12 +432,12 @@ export function createScopedPermissionSource(options: {
   return source;
 }
 
-/** Names the SDK operations a code-mode script contains, so the approval shows what it does. */
+/** Names the SDK operations a quick-script script contains, so the approval shows what it does. */
 function withScriptOperations(
   reason: string,
   args: Record<string, unknown>,
 ): string {
-  const { operations } = classifyCodeModeArguments(args);
+  const { operations } = classifyQuickScriptArguments(args);
   return operations.length > 0
     ? `${reason} Script operations: ${operations.join(", ")}.`
     : reason;

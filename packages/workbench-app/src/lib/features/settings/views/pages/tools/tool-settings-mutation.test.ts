@@ -134,3 +134,39 @@ test("a fully Required effective payload produces no changes or resets", () => {
     { changes: {}, resets: [] },
   );
 });
+
+test("quick_script keeps per-integration accounts and resets a cleared one", () => {
+  const result = toolSettingsMutation(
+    "quick_script",
+    {
+      enabled: true,
+      settings: {
+        jira: { enabled: true, profileId: "a" },
+        confluence: { enabled: true, profileId: undefined },
+        diagram: { url: "https://kroki.example/" },
+      },
+    },
+    {
+      tools: {
+        quick_script: {
+          settings: { confluence: { enabled: true, profileId: "old" } },
+        },
+      },
+    },
+  );
+  assert.deepEqual(result.changes, {
+    tools: {
+      quick_script: {
+        enabled: true,
+        settings: {
+          jira: { enabled: true, profileId: "a" },
+          confluence: { enabled: true },
+          diagram: { url: "https://kroki.example/" },
+        },
+      },
+    },
+  });
+  assert.deepEqual(result.resets, [
+    "/overrides/tools/quick_script/settings/confluence/profileId",
+  ]);
+});

@@ -15,4 +15,5 @@ export * from "./shell/project-environment.js";
 export * from "./shell/launch-diagnostics.js";
 export * from "./shell/shell-config.js";
 export * from "./atlassian/connection-check.js";
-export * from "./atlassian-code-mode/script-risk.js";
+export * from "./quick-script/script-risk.js";
+export * from "./quick-script/description.js";

@@ -245,9 +245,9 @@ for (const issue of open.issues.slice(0, 3)) {
 }
 await jira.issues.get("NERVE-9999");`;
 
-export const atlassianCodeCompleted = sampleCall({
-  id: "tool_atlassian_code_ok",
-  toolName: "atlassian_code_mode",
+export const quickScriptCompleted = sampleCall({
+  id: "tool_quick_script_ok",
+  toolName: "quick_script",
   args: { code: ATLASSIAN_SCRIPT, timeout: 120 },
   result: {
     content:
@@ -299,9 +299,9 @@ export const atlassianCodeCompleted = sampleCall({
   durationMs: 1_840,
 });
 
-export const atlassianCodeFailed = sampleCall({
-  id: "tool_atlassian_code_fail",
-  toolName: "atlassian_code_mode",
+export const quickScriptFailed = sampleCall({
+  id: "tool_quick_script_fail",
+  toolName: "quick_script",
   args: { code: ATLASSIAN_SCRIPT, timeout: 120 },
   result: {
     content: "Error: Issue does not exist or you do not have permission",
@@ -334,9 +334,9 @@ export const atlassianCodeFailed = sampleCall({
   durationMs: 1_400,
 });
 
-export const atlassianCodeWaiting = sampleCall({
-  id: "tool_atlassian_code_wait",
-  toolName: "atlassian_code_mode",
+export const quickScriptWaiting = sampleCall({
+  id: "tool_quick_script_wait",
+  toolName: "quick_script",
   status: "waiting",
   args: { code: ATLASSIAN_SCRIPT, timeout: 120 },
   interaction: {
@@ -353,18 +353,18 @@ export const atlassianCodeWaiting = sampleCall({
     },
   },
 });
-export const atlassianCodeWaitingApproval = sampleApproval(
-  "tool_atlassian_code_wait",
+export const quickScriptWaitingApproval = sampleApproval(
+  "tool_quick_script_wait",
   {
     risk: "command",
     reason: "Script operations: jira.issues.search, jira.issues.get",
-    toolName: "atlassian_code_mode",
+    toolName: "quick_script",
   },
 );
 
-export const atlassianCodeRunning = sampleCall({
-  id: "tool_atlassian_code_run",
-  toolName: "atlassian_code_mode",
+export const quickScriptRunning = sampleCall({
+  id: "tool_quick_script_run",
+  toolName: "quick_script",
   status: "running",
   ageMs: 2_000,
   args: { code: ATLASSIAN_SCRIPT, timeout: 120 },

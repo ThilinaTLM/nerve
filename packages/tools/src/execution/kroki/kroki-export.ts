@@ -123,7 +123,7 @@ function resolveOutput(
   return { path, format: extension };
 }
 
-/** POSTs a diagram to Kroki and returns validated output bytes (shared with code mode `diagram.render`). */
+/** POSTs a diagram to Kroki and returns validated output bytes (shared with quick_script `diagram.render`). */
 export async function fetchKrokiDiagram(options: {
   url: string;
   diagramType: string;

@@ -1,7 +1,7 @@
 import type {
-  CodeModeArtifact,
-  CodeModeHostCall,
-  CodeModePageReport,
+  QuickScriptArtifact,
+  QuickScriptHostCall,
+  QuickScriptPageReport,
   ConfluenceAttachmentSummaryPayload,
   ConfluenceCommentSummaryPayload,
   ConfluenceIncludedCountsPayload,
@@ -146,7 +146,7 @@ export type ToolView =
       bytes?: number;
     }
   | {
-      kind: "atlassian_code_mode";
+      kind: "quick_script";
       code?: string;
       output: string;
       /** Script-level status; absent while running or when details are missing. */
@@ -159,11 +159,11 @@ export type ToolView =
       error?: string;
       durationMs?: number;
       outputTruncated?: boolean;
-      hostCalls: CodeModeHostCall[];
+      hostCalls: QuickScriptHostCall[];
       /** Confluence pages the run wrote, with the linter's report. */
-      pages: CodeModePageReport[];
+      pages: QuickScriptPageReport[];
       /** Files the run wrote to the conversation artifact folder. */
-      artifacts: CodeModeArtifact[];
+      artifacts: QuickScriptArtifact[];
       live?: boolean;
     }
   | {

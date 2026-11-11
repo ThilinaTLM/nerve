@@ -447,14 +447,14 @@ test("non-core tools receive the conversation folder path, path only", async (t)
   const f = await fixture(t);
   f.setPolicy("allow");
   await f.runCommand("conv_admission", "echo hello");
-  await f.runCommand("conv_admission", "{}", "atlassian_code_mode");
+  await f.runCommand("conv_admission", "{}", "quick_script");
   for (const input of f.prepareInputs) {
     assert.equal(
       input.conversationDir,
       join(f.directory, "conversations/conv_admission"),
     );
     await assert.rejects(
-      stat(join(input.conversationDir, "code-mode")),
+      stat(join(input.conversationDir, "quick-script")),
       /ENOENT/,
     );
   }

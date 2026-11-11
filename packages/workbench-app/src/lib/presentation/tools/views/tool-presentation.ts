@@ -361,7 +361,7 @@ function projectToolPresentation(
     case "kroki_export":
       return krokiPresentation(view, base);
 
-    case "atlassian_code_mode": {
+    case "quick_script": {
       const meta: MetaItem[] = [];
       if (view.status && view.status !== "completed")
         meta.push({

@@ -1,6 +1,6 @@
 # Code mode
 
-`atlassian_code_mode` lets the agent do multi-step Jira and Confluence work, plus file, image and diagram handling, in one tool call: it writes a TypeScript script instead of spending a model turn per request. The script runs in a sandbox with no ambient authority, and every external effect is a **host call** authorized as the equivalent direct tool, so batching does not widen what policy allows.
+`quick_script` lets the agent do multi-step integration work (Jira and Confluence today) and file, image and diagram handling in one tool call: it writes a TypeScript script instead of spending a model turn per request. The script runs in a sandbox with no ambient authority, and every external effect is a **host call** authorized as the equivalent direct tool, so batching does not widen what policy allows.
 
 ```mermaid
 flowchart TD
@@ -22,9 +22,13 @@ flowchart TD
 
 The engine is QuickJS in the `native` addon: a fresh runtime per script on its own thread, with caps on memory, time, output and host calls. The script has no filesystem, network or timers, only `console` and the host-call channel. Everything else, including methods, credentials and policy, belongs to the tool.
 
+## Configuration
+
+`tools.quick_script = { enabled, settings?: { jira?, confluence?, web?, diagram? } }`, off by default. Jira, Confluence and web are each `{ enabled, profileId? }` with their own account (web: Tavily, not wired yet); `diagram` is the Kroki server (default `https://kroki.io/`). The tool works with no integration: utilities are always present. A disabled integration, or one without an account or saved token, is absent for that run, and a call into it fails with an error naming Settings → Tools → quick_script. The tool description is built per conversation from the active integrations (`quickScriptDescription`, applied in `scoped-turn-resources.ts`) and carries the guide pointer.
+
 ## Permissions
 
-Two levels apply; see [permissions](permissions.md) for the general model.
+Two levels apply; see [permissions](permissions.md) for the general model. The tool has its own `quickScript` permission group; its rule risk is the classified risk of the script, so Planning and Read-only allow read scripts through their ordinary read rule.
 
 **Script level.** Admission scans the script text for SDK calls and the highest risk wins. Anything the scanner cannot follow (aliasing, bracket access, `eval`, a computed request method) counts as destructive, and ambiguous syntax takes the riskier reading. The approval shows the risk and the operations found.
 
@@ -42,7 +46,7 @@ A host failure crosses into the script as `[CODE] message`, which the prelude tu
 
 ## Artifacts
 
-Scripts write files into the conversation's `code-mode/` folder and refer to them by handle `artifact:<name>` (flat names). Workspace paths are separate handles: reads are authorized as the direct `read` tool. The folder is copied when the conversation is forked and removed with the conversation's files.
+Scripts write files into the conversation's `quick-script/` folder and refer to them by handle `artifact:<name>` (flat names). Workspace paths are separate handles: reads are authorized as the direct `read` tool. The folder is copied when the conversation is forked and removed with the conversation's files.
 
 ## Results
 
@@ -54,12 +58,14 @@ Cancelling the tool call aborts the sandbox and in-flight host calls; finished c
 
 ## Where it lives
 
-| Concern                             | Owner                                                                                                                                                                                                                    |
-| ----------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Executor, host-call loop and result | [`atlassian-code-mode.ts`](../../packages/tools/src/execution/atlassian-code-mode/atlassian-code-mode.ts)                                                                                                                |
-| Method model and prelude            | [`sdk-types.ts`](../../packages/tools/src/execution/atlassian-code-mode/sdk-types.ts) and [`sdk.ts`](../../packages/tools/src/execution/atlassian-code-mode/sdk.ts)                                                      |
-| Script scan and declared-risk guard | [`script-risk.ts`](../../packages/tools/src/execution/atlassian-code-mode/script-risk.ts) and [`method-risk.test.ts`](../../packages/tools/src/execution/atlassian-code-mode/method-risk.test.ts)                        |
-| Generated reference types           | [`sdk-dts.ts`](../../packages/tools/src/execution/atlassian-code-mode/sdk-dts.ts) and [guide](../../packages/skills/src/guides/atlassian-code-mode/)                                                                     |
-| Nested authorization                | [`createCodeModeAuthorizer`](../../packages/workbench-server/src/core-host/code-mode-broker.ts), wired in [`create-conversation-core.ts`](../../packages/workbench-server/src/app/bootstrap/create-conversation-core.ts) |
-| Sandbox engine                      | [`sandbox/`](../../packages/native/src/sandbox/) bindings and [Rust engine](../../packages/native/native/src/sandbox/mod.rs)                                                                                             |
-| Result details contract             | [`code-mode.ts`](../../packages/contracts/src/domains/tools/code-mode.ts)                                                                                                                                                |
+| Concern                             | Owner                                                                                                                                                                                                                                     |
+| ----------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Executor, host-call loop and result | [`quick-script.ts`](../../packages/tools/src/execution/quick-script/quick-script.ts)                                                                                                                                                      |
+| Layout                              | One folder per namespace under `execution/quick-script/`: `jira/`, `confluence/`, `atlassian/` (shared defaults, attachments), `files/` (files, image, diagram, storage helpers); runtime, SDK model, scanner and description at the root |
+| Tool description                    | [`description.ts`](../../packages/tools/src/execution/quick-script/description.ts): fragment registry, `landed` flag per namespace or library                                                                                             |
+| Method model and prelude            | [`sdk-types.ts`](../../packages/tools/src/execution/quick-script/sdk-types.ts) and [`sdk.ts`](../../packages/tools/src/execution/quick-script/sdk.ts)                                                                                     |
+| Script scan and declared-risk guard | [`script-risk.ts`](../../packages/tools/src/execution/quick-script/script-risk.ts) and [`method-risk.test.ts`](../../packages/tools/src/execution/quick-script/method-risk.test.ts)                                                       |
+| Generated reference types           | [`sdk-dts.ts`](../../packages/tools/src/execution/quick-script/sdk-dts.ts) and [guide](../../packages/skills/src/guides/quick-script/)                                                                                                    |
+| Nested authorization                | [`createQuickScriptAuthorizer`](../../packages/workbench-server/src/core-host/quick-script-broker.ts), wired in [`create-conversation-core.ts`](../../packages/workbench-server/src/app/bootstrap/create-conversation-core.ts)            |
+| Sandbox engine                      | [`sandbox/`](../../packages/native/src/sandbox/) bindings and [Rust engine](../../packages/native/native/src/sandbox/mod.rs)                                                                                                              |
+| Result details contract             | [`quick-script.ts`](../../packages/contracts/src/domains/tools/quick-script.ts)                                                                                                                                                           |

@@ -170,7 +170,7 @@ function previewContentBlocks(result: Record<string, unknown>): {
  * explicitly stops the generic six-key cut from dropping `artifacts`, which
  * trails the details record.
  */
-function atlassianCodeModeDetailsPreview(value: unknown): unknown {
+function quickScriptDetailsPreview(value: unknown): unknown {
   const details = record(value);
   const kept: Record<string, unknown> = {};
   for (const key of [
@@ -577,7 +577,7 @@ export function buildUserProjection(
       break;
     }
 
-    case "atlassian_code_mode":
+    case "quick_script":
     case "python":
     case "python_exec": {
       const code = firstLines(stringField(argsRecord.code));
@@ -587,10 +587,10 @@ export function buildUserProjection(
           : { ...argsRecord, code: code.value };
       const output = lastLines(outputText(resultRecord));
       resultPreview = withTextContent(resultRecord, output.value);
-      if (toolName === "atlassian_code_mode") {
+      if (toolName === "quick_script") {
         resultPreview = {
           ...withTextContent(resultRecord, output.value),
-          details: atlassianCodeModeDetailsPreview(resultRecord.details),
+          details: quickScriptDetailsPreview(resultRecord.details),
         };
       }
       ({ hidden, noun } = textOverflowStats([code, output]));

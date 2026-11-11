@@ -72,10 +72,25 @@ const cases: Record<string, readonly [unknown, unknown]> = {
   "/tools/jira/profileId": ["lower-jira", "upper-jira"],
   "/tools/confluence/enabled": booleanPair,
   "/tools/confluence/profileId": ["lower-confluence", "upper-confluence"],
-  "/tools/atlassian_code_mode/enabled": booleanPair,
-  "/tools/atlassian_code_mode/profileId": [
-    "lower-code-mode",
-    "upper-code-mode",
+  "/tools/quick_script/enabled": booleanPair,
+  "/tools/quick_script/settings/jira/enabled": booleanPair,
+  "/tools/quick_script/settings/jira/profileId": [
+    "lower-qs-jira",
+    "upper-qs-jira",
+  ],
+  "/tools/quick_script/settings/confluence/enabled": booleanPair,
+  "/tools/quick_script/settings/confluence/profileId": [
+    "lower-qs-confluence",
+    "upper-qs-confluence",
+  ],
+  "/tools/quick_script/settings/web/enabled": booleanPair,
+  "/tools/quick_script/settings/web/profileId": [
+    "lower-qs-web",
+    "upper-qs-web",
+  ],
+  "/tools/quick_script/settings/diagram/url": [
+    "https://lower-diagram.example/",
+    "https://upper-diagram.example/",
   ],
   "/tools/web_fetch/enabled": booleanPair,
   "/tools/plan_present/enabled": booleanPair,
