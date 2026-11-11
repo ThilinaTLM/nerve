@@ -99,3 +99,14 @@ void test("renders tables as GFM and unknown nodes as their text", () => {
   );
   assert.equal(adfToMarkdown(null), "");
 });
+void test("table cells keep backslashes before pipes and still escape the pipe", () => {
+  const row = (value: string) => ({
+    type: "tableRow",
+    content: [{ type: "tableCell", content: [p(text(value))] }],
+  });
+  const doc = {
+    type: "doc",
+    content: [{ type: "table", content: [row("h"), row("a|b"), row("c\\|d")] }],
+  };
+  assert.equal(adfToMarkdown(doc), "| h |\n| --- |\n| a\\|b |\n| c\\\\\\|d |");
+});

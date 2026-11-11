@@ -128,14 +128,24 @@ function list(node: Node): string {
     .join("\n");
 }
 
+/**
+ * Escapes `|` for a GFM table cell. Backslashes directly before a pipe are
+ * doubled first, so text like `a\|b` keeps its backslash and the pipe still
+ * cannot end the cell.
+ */
+function escapeTableCell(text: string): string {
+  return text.replace(
+    /(\\*)\|/g,
+    (_match, slashes: string) => `${slashes}${slashes}\\|`,
+  );
+}
+
 function table(rows: Node[]): string {
   const cells = rows
     .filter((row) => row.type === "tableRow")
     .map((row) =>
       children(row).map((cell) =>
-        blocks(children(cell), "")
-          .replace(/\|/g, "\\|")
-          .replace(/\n+/g, "<br>"),
+        escapeTableCell(blocks(children(cell), "")).replace(/\n+/g, "<br>"),
       ),
     );
   if (cells.length === 0) return "";
