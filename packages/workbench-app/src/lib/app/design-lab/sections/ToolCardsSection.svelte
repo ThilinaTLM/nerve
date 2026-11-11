@@ -56,6 +56,7 @@ import ResultCodeBlock from "$lib/presentation/tools/tool-call/ResultCodeBlock.s
 import TodoChecklist from "$lib/presentation/tools/tool-call/TodoChecklist.svelte";
 import ToolCallDetailsDialog from "$lib/presentation/tools/tool-call/ToolCallDetailsDialog.svelte";
 import ToolOutputBlock from "$lib/presentation/tools/tool-call/ToolOutputBlock.svelte";
+import ArtifactList from "$lib/presentation/tools/tool-call/ArtifactList.svelte";
 import GalleryGroup from "../GalleryGroup.svelte";
 import GallerySpecimen from "../GallerySpecimen.svelte";
 import * as fx from "./tool-card-fixtures";
@@ -417,6 +418,36 @@ let failedDetailsOpen = $state(false);
       <div class="flex items-center gap-2">
         <StatusGlyph tone="warning" waitingForUser size={14} label="waiting" />
         <span class="text-ui text-muted-foreground">waiting for user</span>
+      </div>
+    </GallerySpecimen>
+
+    <GallerySpecimen
+      title="ArtifactList"
+      description="Files a code-mode script wrote: PNG/JPEG as previews on a light backdrop, other files as open-in-tab rows."
+      source="presentation/tools/tool-call/ArtifactList"
+      usage="2 files · tools"
+    >
+      <div class="w-[480px] max-w-full rounded-md border bg-well">
+        <ArtifactList
+          artifacts={[
+            {
+              handle: "artifact:points-by-status.png",
+              path: "/home/dev/.nerve/data/conversations/conv_1/code-mode/points-by-status.png",
+              bytes: 30_912,
+              mediaType: "image/png",
+              width: 584,
+              height: 440,
+            },
+            {
+              handle: "artifact:sprint.xlsx",
+              path: "/home/dev/.nerve/data/conversations/conv_1/code-mode/sprint.xlsx",
+              bytes: 8_204,
+              mediaType:
+                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            },
+          ]}
+          onOpenFile={noop}
+        />
       </div>
     </GallerySpecimen>
 
