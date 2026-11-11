@@ -375,8 +375,7 @@ function projectToolPresentation(
       const denied = view.hostCalls.filter((c) => c.outcome === "denied");
       if (denied.length > 0)
         meta.push({ text: `${denied.length} denied`, tone: "warning" });
-      const duration = formatDuration(view.durationMs);
-      if (duration) meta.push({ text: duration });
+      // The card footer already shows the elapsed time.
       if (view.outputTruncated)
         meta.push({ text: "truncated", tone: "warning" });
       return { ...base, meta };

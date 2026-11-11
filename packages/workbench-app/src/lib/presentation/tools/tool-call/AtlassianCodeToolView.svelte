@@ -6,8 +6,8 @@ import type { ToolCallDisplayRecord } from "../views/tool-result-view";
 import type { ToolView } from "../views/tool-result-view";
 import { COLLAPSED_LINES } from "../views/tool-result-view";
 import { formatDuration } from "../views/tool-presentation-helpers";
+import { cn } from "@nervekit/ui-kit/utils";
 import ArtifactList from "./ArtifactList.svelte";
-import ToolOutputBlock from "./ToolOutputBlock.svelte";
 import ToolSections from "./ToolSections.svelte";
 
 type Props = {
@@ -16,7 +16,7 @@ type Props = {
   expanded?: boolean;
   onOpenFile?: (path: string, line?: number) => void;
 };
-let { toolCall, view, expanded = false, onOpenFile }: Props = $props();
+let { view, expanded = false, onOpenFile }: Props = $props();
 
 // The script itself is the card's persistent argument section.
 const hostCalls = $derived(
@@ -26,9 +26,21 @@ const hiddenCalls = $derived(view.hostCalls.length - hostCalls.length);
 const scriptFailed = $derived(
   view.status !== undefined && view.status !== "completed",
 );
+const hasSummary = $derived(
+  view.hostCalls.length > 0 ||
+    view.pages.length > 0 ||
+    view.artifacts.length > 0 ||
+    scriptFailed,
+);
+
+function pageLintLabel(fixes: number, warnings: number): string {
+  if (warnings > 0)
+    return `${warnings} lint warning${warnings === 1 ? "" : "s"}`;
+  return fixes > 0 ? `lint fixed ${fixes}` : "lint clean";
+}
 </script>
 
-{#if view.output.length > 0 || view.hostCalls.length > 0 || view.artifacts.length > 0 || view.error || toolCall.status === "completed"}
+{#if hasSummary}
   <ToolSections>
     {#if view.hostCalls.length > 0}
       <ul class="m-0 list-none p-0 py-1" aria-label="SDK calls">
@@ -75,27 +87,39 @@ const scriptFailed = $derived(
       </ul>
     {/if}
 
-    {#if view.output.length > 0}
-      <div class="px-2.5 py-2" aria-label="Script output">
-        <ToolOutputBlock
-          text={view.output}
-          direction="tail"
-          {expanded}
-          live={toolCall.status === "running"}
-          terminal
-        />
-      </div>
-    {:else if toolCall.status === "completed" && !scriptFailed}
-      <div
-        class="px-2.5 py-2 text-ui text-muted-foreground"
-        aria-label="Script output"
-      >
-        No output.
-      </div>
-    {/if}
-
     {#if view.artifacts.length > 0}
       <ArtifactList artifacts={view.artifacts} {onOpenFile} />
+    {/if}
+
+    {#if view.pages.length > 0}
+      <ul class="m-0 list-none p-0 py-1" aria-label="Pages written">
+        {#each view.pages as page (page.id)}
+          <li class="px-2.5 py-0.5 text-ui">
+            <div class="flex min-w-0 items-baseline gap-2">
+              <span class="flex-none text-muted-foreground">{page.action}</span>
+              <span class="min-w-0 flex-1 truncate text-foreground"
+                >{page.title}</span
+              >
+              <span
+                class={cn(
+                  "flex-none text-caption",
+                  page.warnings.length > 0
+                    ? "text-warning"
+                    : "text-muted-foreground",
+                )}
+                >{pageLintLabel(page.fixes.length, page.warnings.length)}</span
+              >
+            </div>
+            {#each page.warnings as warning, index (index)}
+              <p
+                class="m-0 pl-4 text-caption text-warning [overflow-wrap:anywhere]"
+              >
+                {warning}
+              </p>
+            {/each}
+          </li>
+        {/each}
+      </ul>
     {/if}
 
     {#if scriptFailed}

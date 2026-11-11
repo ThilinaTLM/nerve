@@ -26,6 +26,7 @@ import { toolPresentationCached } from "../views/tool-presentation";
 import {
   formatBytes,
   formatDuration,
+  outcomeLabel,
 } from "../views/tool-presentation-helpers";
 import { parseToolViewCached } from "../views/tool-result-view";
 import ArtifactList from "./ArtifactList.svelte";
@@ -125,7 +126,10 @@ const statusBadge = $derived<{ text: string; tone: StatusTone }>(
         text: `exit ${exitCode}`,
         tone: exitCode === 0 ? "success" : "destructive",
       }
-    : { text: displayToolCall.status, tone: presentation.dotTone },
+    : {
+        text: outcomeLabel(displayToolCall, view),
+        tone: presentation.dotTone,
+      },
 );
 
 const description = $derived.by(() => {

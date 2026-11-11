@@ -164,6 +164,20 @@ const bashCases: LabeledCard[] = [
     props: { toolCall: vfx.atlassianCodeCompleted, cwd },
   },
   {
+    label: "atlassian_code_mode — failed (pages, error)",
+    props: { toolCall: vfx.atlassianCodeFailed, cwd },
+  },
+  {
+    label: "atlassian_code_mode — awaiting approval",
+    props: {
+      toolCall: vfx.atlassianCodeWaiting,
+      pendingApproval: vfx.atlassianCodeWaitingApproval,
+      cwd,
+      onGrantApproval: noop,
+      onDenyApproval: noop,
+    },
+  },
+  {
     label: "launch — completed",
     props: { toolCall: vfx.launchCompleted, cwd },
   },

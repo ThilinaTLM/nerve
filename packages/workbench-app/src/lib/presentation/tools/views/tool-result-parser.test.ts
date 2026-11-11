@@ -1,3 +1,4 @@
+import { outcomeLabel } from "./tool-presentation-helpers";
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import type { ToolCallRecord } from "../../state/tool-types";
@@ -373,5 +374,38 @@ describe("atlassian_code_mode result", () => {
       view.kind === "atlassian_code_mode" && view.artifacts.length,
       0,
     );
+  });
+
+  it("reads page lint reports and keeps a failed script outcome", () => {
+    const view = parseToolView(
+      call(
+        "atlassian_code_mode",
+        { code: "boom()" },
+        {
+          content: "boom",
+          details: {
+            status: "failed",
+            error: "boom",
+            durationMs: 5,
+            hostCalls: [],
+            pages: [
+              {
+                action: "created",
+                id: "1",
+                title: "Runbook",
+                version: 1,
+                fixes: ["a"],
+                warnings: [],
+              },
+            ],
+          },
+        },
+      ),
+    );
+    if (view.kind !== "atlassian_code_mode") assert.fail("wrong kind");
+    assert.equal(view.pages[0]?.title, "Runbook");
+    assert.equal(view.status, "failed");
+    assert.equal(outcomeLabel({ status: "completed" }, view), "failed");
+    assert.equal(outcomeLabel({ status: "denied" }, view), "denied");
   });
 });

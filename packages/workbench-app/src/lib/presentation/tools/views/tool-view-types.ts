@@ -1,6 +1,7 @@
 import type {
   CodeModeArtifact,
   CodeModeHostCall,
+  CodeModePageReport,
   ConfluenceAttachmentSummaryPayload,
   ConfluenceCommentSummaryPayload,
   ConfluenceIncludedCountsPayload,
@@ -159,6 +160,8 @@ export type ToolView =
       durationMs?: number;
       outputTruncated?: boolean;
       hostCalls: CodeModeHostCall[];
+      /** Confluence pages the run wrote, with the linter's report. */
+      pages: CodeModePageReport[];
       /** Files the run wrote to the conversation artifact folder. */
       artifacts: CodeModeArtifact[];
       live?: boolean;

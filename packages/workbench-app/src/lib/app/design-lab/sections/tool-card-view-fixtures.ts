@@ -2,7 +2,13 @@
  * Per-tool-view sample data (file, search, web and todo tools) for the ToolCards gallery section. Builders and
  * lifecycle fixtures live in `tool-card-fixtures.ts`.
  */
-import { SAMPLE_CWD, sampleCall, sampleDraft } from "./tool-card-fixtures";
+import {
+  SAMPLE_CWD,
+  sampleApproval,
+  isoAgo,
+  sampleCall,
+  sampleDraft,
+} from "./tool-card-fixtures";
 
 const DIFF = `--- a/src/lib/presentation/cards/MetaChip.svelte
 +++ b/src/lib/presentation/cards/MetaChip.svelte
@@ -292,6 +298,69 @@ export const atlassianCodeCompleted = sampleCall({
   },
   durationMs: 1_840,
 });
+
+export const atlassianCodeFailed = sampleCall({
+  id: "tool_atlassian_code_fail",
+  toolName: "atlassian_code_mode",
+  args: { code: ATLASSIAN_SCRIPT, timeout: 120 },
+  result: {
+    content: "Error: Issue does not exist or you do not have permission",
+    details: {
+      status: "failed",
+      error: "Issue does not exist or you do not have permission",
+      durationMs: 1_400,
+      hostCalls: [
+        {
+          method: "jira.issues.get",
+          authorizedAs: "jira_get_issue",
+          summary: "NERVE-9999",
+          outcome: "failed",
+          error: "Issue does not exist or you do not have permission",
+          durationMs: 156,
+        },
+      ],
+      pages: [
+        {
+          action: "created",
+          id: "10442",
+          title: "Sprint report",
+          version: 1,
+          fixes: ["normalized heading levels"],
+          warnings: ["Unsupported macro 'foo' was left as text"],
+        },
+      ],
+    },
+  },
+  durationMs: 1_400,
+});
+
+export const atlassianCodeWaiting = sampleCall({
+  id: "tool_atlassian_code_wait",
+  toolName: "atlassian_code_mode",
+  status: "waiting",
+  args: { code: ATLASSIAN_SCRIPT, timeout: 120 },
+  interaction: {
+    kind: "approval",
+    status: "pending",
+    requestedAt: isoAgo(2_000),
+    updatedAt: isoAgo(2_000),
+    request: {
+      risk: "command",
+      reason: "Script operations: jira.issues.search, jira.issues.get",
+      offeredScopes: ["single_call"],
+      suggestedExceptions: [],
+      suggestedRules: [],
+    },
+  },
+});
+export const atlassianCodeWaitingApproval = sampleApproval(
+  "tool_atlassian_code_wait",
+  {
+    risk: "command",
+    reason: "Script operations: jira.issues.search, jira.issues.get",
+    toolName: "atlassian_code_mode",
+  },
+);
 
 export const atlassianCodeRunning = sampleCall({
   id: "tool_atlassian_code_run",
