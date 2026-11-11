@@ -1,6 +1,6 @@
 # `jira.*`
 
-All methods are async. Identifier arguments accept the bare string or an object using an alias, optionally followed by an options object: `jira.issues.get("APP-1", { comments: true })` ≡ `jira.issues.get({ key: "APP-1", comments: true })`.
+All methods are async and take **one argument**: a bare string when only the id (or the main query) is needed — `jira.issues.get("APP-1")` — or one options object that holds the id under its single name — `jira.issues.get({ key: "APP-1", comments: true })`. Issues and projects use `key`. There are no aliases and no second argument: an unknown option or an extra argument throws and lists the valid options. The one exception is `jira.request(method, path, body?)`, which mirrors an HTTP call.
 
 ## Issue shape
 
@@ -22,20 +22,28 @@ Notes:
 
 ## `jira.issues.search({ jql, fields?, limit? })`
 
-Also `search("jql", { fields?, limit? })`. Returns `Issue[]`. `limit` defaults to 50, clamped to 1–1000; pages are followed for you. JQL must be bounded (field restriction); bare `ORDER BY` is rejected.
+A bare string is the JQL: `search("project = APP")`. Returns `Issue[]`. `limit` defaults to 50, clamped to 1–1000; pages are followed for you. JQL must be bounded (field restriction); bare `ORDER BY` is rejected.
 
-## `jira.issues.get(key, { fields?, comments? })`
+## `jira.issues.get({ key, fields?, comments? })`
 
-Key aliases: `key`, `issueKey`, `issueIdOrKey`, `issueId`, `id`. Returns `Issue` including `description`. `comments: true` adds `comments: { author, created, body }[]` (up to 1000, oldest first).
+Bare string = the key. Returns `Issue` including `description`. `comments: true` adds `comments: { author, created, body }[]` (up to 1000, oldest first).
 
-## `jira.projects.get(key)`
+## `jira.projects.get({ key })`
 
-Key aliases: `key`, `projectKey`, `projectIdOrKey`, `project`, `id`. Returns `{ key, name, lead, issueTypes, components, versions }`; `lead` is `{ name, email, accountId } | null`, the rest are name strings.
+Bare string = the key. Returns `{ key, name, lead, issueTypes, components, versions }`; `lead` is `{ name, email, accountId } | null`, the rest are name strings.
 
-## `jira.users.search(query)`
+## `jira.users.search({ query })`
 
-`query` is a string, or an object with `query`/`name`/`email`. Returns up to 50 `{ accountId, name, email, active }[]`.
+Bare string = the query. Returns up to 50 `{ accountId, name, email, active }[]`.
 
 ## `jira.fields.list()`
 
 Returns every field `{ id, name, custom, type }[]` (`type` is the schema type or null). Cached per script run.
+
+## `jira.request(method, path, body?)`
+
+Raw REST call for anything the methods above do not cover. `method` is `GET`, `POST`, `PUT`, `PATCH` or `DELETE`; `path` is relative to the site and must start with `/rest/api/3/` (platform) or `/rest/agile/1.0/` (boards, sprints); absolute URLs and other paths are rejected. `body` is sent as JSON. Returns the parsed JSON (or the text when it is not JSON; `null` when empty); responses over 5 MB throw, so narrow the request. `GET` is permission-checked like a read, any other method like a destructive Jira write.
+
+## Errors
+
+Failures throw `HostError` with a `code` for the cases worth handling: `FORBIDDEN` (HTTP 403, message names the resource, e.g. `no access to project APP`), `NOT_FOUND`, `BAD_REQUEST` (JQL errors pass Jira's message through), `DENIED` (permission policy). An invalid token (HTTP 401) is different: the whole script stops with one message naming the account, and no further calls run.

@@ -133,7 +133,7 @@ void test("pages.update fetches the current version and bumps it", async () => {
   const { requests, authorized, context } = setup();
   const result = await executeAtlassianCodeMode(
     {
-      code: `console.log(JSON.stringify(await confluence.pages.update("100", { body: "new", message: "m" })));`,
+      code: `console.log(JSON.stringify(await confluence.pages.update({ id: "100", body: "new", message: "m" })));`,
     },
     context,
   );
@@ -211,7 +211,7 @@ void test("write methods are denied before any HTTP", async () => {
   const { events, context } = setup();
   const result = await executeAtlassianCodeMode(
     {
-      code: `try { await confluence.labels.add("100", ["x"]); } catch (e) { console.log(e.message); }`,
+      code: `try { await confluence.labels.add({ id: "100", labels: ["x"] }); } catch (e) { console.log(e.message); }`,
     },
     {
       ...context,

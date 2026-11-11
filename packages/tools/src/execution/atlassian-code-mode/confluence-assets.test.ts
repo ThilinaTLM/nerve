@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtemp, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readdir, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, test } from "node:test";
@@ -13,14 +13,18 @@ afterEach(() => {
   globalThis.fetch = originalFetch;
 });
 
-function png(width: number, height: number): Buffer {
-  const bytes = Buffer.alloc(64);
-  Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]).copy(bytes);
-  bytes.writeUInt32BE(13, 8);
-  bytes.write("IHDR", 12);
-  bytes.writeUInt32BE(width, 16);
-  bytes.writeUInt32BE(height, 20);
-  return bytes;
+const PIXEL_PNG = Buffer.from(
+  "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==",
+  "base64",
+);
+
+/** A real PNG of the given size (the native module stretches a 1x1 pixel). */
+async function png(width: number, height: number): Promise<Buffer> {
+  return (
+    await image.transformImage(PIXEL_PNG, {
+      resize: { width, height, fit: "fill" },
+    })
+  ).data;
 }
 
 type PageBody = {
@@ -36,7 +40,11 @@ type Recorded = {
 };
 
 async function setup(options: { deny?: string } = {}) {
-  const cwd = await mkdtemp(join(tmpdir(), "code-mode-"));
+  const root = await mkdtemp(join(tmpdir(), "code-mode-"));
+  const cwd = join(root, "workspace");
+  const artifactDir = join(root, "artifacts");
+  await mkdir(cwd);
+  const kroki = await png(800, 400);
   const events: string[] = [];
   const requests: Recorded[] = [];
   const authorized: Array<{ toolName: string; args: Record<string, unknown> }> =
@@ -52,7 +60,7 @@ async function setup(options: { deny?: string } = {}) {
         : undefined;
     requests.push({ method, path: url.pathname, body, form });
     if (url.host === "kroki.test") {
-      return new Response(new Uint8Array(png(800, 400)), {
+      return new Response(new Uint8Array(kroki), {
         headers: { "content-type": "image/png" },
       });
     }
@@ -98,6 +106,7 @@ async function setup(options: { deny?: string } = {}) {
   };
   const context = {
     cwd,
+    conversationArtifactDir: artifactDir,
     kroki: { url: "http://kroki.test/" },
     getApiKey: async () => "token",
     getProviderConfig: async () => ({
@@ -115,15 +124,15 @@ async function setup(options: { deny?: string } = {}) {
         throw new Error(`denied ${request.toolName}`);
     },
   };
-  return { cwd, events, requests, authorized, context };
+  return { cwd, artifactDir, events, requests, authorized, context };
 }
 
 void test("attachments.upload authorizes manage_attachment and read before any I/O, then returns dimensions", async () => {
   const { cwd, events, requests, authorized, context } = await setup();
-  await writeFile(join(cwd, "chart.png"), png(1200, 600));
+  await writeFile(join(cwd, "chart.png"), await png(1200, 600));
   const result = await executeAtlassianCodeMode(
     {
-      code: `console.log(JSON.stringify(await confluence.attachments.upload("100", { path: "chart.png", comment: "c" })));`,
+      code: `console.log(JSON.stringify(await confluence.attachments.upload({ id: "100", file: "chart.png", comment: "c" })));`,
     },
     context,
   );
@@ -137,7 +146,7 @@ void test("attachments.upload authorizes manage_attachment and read before any I
     id: "att1",
     filename: "chart.png",
     mediaType: "image/png",
-    size: 64,
+    size: (await png(1200, 600)).byteLength,
     width: 1200,
     height: 600,
   });
@@ -146,10 +155,10 @@ void test("attachments.upload authorizes manage_attachment and read before any I
 
 void test("a denied read stops the upload before any HTTP", async () => {
   const { cwd, events, context } = await setup({ deny: "read" });
-  await writeFile(join(cwd, "a.png"), png(10, 10));
+  await writeFile(join(cwd, "a.png"), await png(10, 10));
   const result = await executeAtlassianCodeMode(
     {
-      code: `try { await confluence.attachments.upload("100", { path: "a.png" }); } catch (e) { console.log(e.message); }`,
+      code: `try { await confluence.attachments.upload({ id: "100", file: "a.png" }); } catch (e) { console.log(e.message); }`,
     },
     context,
   );
@@ -169,7 +178,7 @@ void test("SVG attachments are rejected with guidance", async () => {
   );
   const result = await executeAtlassianCodeMode(
     {
-      code: `try { await confluence.attachments.upload("100", { path: "d.svg" }); } catch (e) { console.log(e.message); }`,
+      code: `try { await confluence.attachments.upload({ id: "100", file: "d.svg" }); } catch (e) { console.log(e.message); }`,
     },
     context,
   );
@@ -191,7 +200,7 @@ void test(
     await writeFile(join(cwd, "anim.gif"), gif);
     const result = await executeAtlassianCodeMode(
       {
-        code: `console.log(JSON.stringify(await confluence.attachments.upload("100", { path: "anim.gif" })));`,
+        code: `console.log(JSON.stringify(await confluence.attachments.upload({ id: "100", file: "anim.gif" })));`,
       },
       context,
     );
@@ -204,14 +213,14 @@ void test(
 
 void test("pages.create with attachments: create, upload, then save again so images resolve", async () => {
   const { cwd, events, requests, context } = await setup();
-  await writeFile(join(cwd, "shot.png"), png(1400, 700));
+  await writeFile(join(cwd, "shot.png"), await png(1400, 700));
   const result = await executeAtlassianCodeMode(
     {
       code: `
         const page = await confluence.pages.create({
           space: "DOC", title: "T",
           body: storage.h1("Intro") + storage.image("shot.png", { alt: "Shot" }) + storage.image("missing.png"),
-          attachments: [{ path: "shot.png" }],
+          attachments: ["shot.png"],
         });
         console.log(JSON.stringify(page));
       `,
@@ -262,14 +271,14 @@ void test("malformed bodies are rejected before any HTTP", async () => {
   assert.equal(events.filter((e) => e.startsWith("fetch")).length, 0);
 });
 
-void test("diagram.render keeps bytes host-side and the handle uploads as an attachment", async () => {
-  const { events, requests, authorized, context } = await setup();
+void test("diagram.render saves an artifact and returns its handle; the handle uploads as an attachment", async () => {
+  const { artifactDir, events, requests, authorized, context } = await setup();
   const result = await executeAtlassianCodeMode(
     {
       code: `
         const d = await diagram.render({ type: "mermaid", source: "graph TD; A-->B" });
-        console.log(JSON.stringify(d));
-        const up = await confluence.attachments.upload("100", { file: d, filename: "flow.png" });
+        console.log(d);
+        const up = await confluence.attachments.upload({ id: "100", file: d, filename: "flow.png" });
         console.log(JSON.stringify(up));
       `,
     },
@@ -281,17 +290,42 @@ void test("diagram.render keeps bytes host-side and the handle uploads as an att
   });
   assert.equal(events[0], "authorize kroki_export");
   const [handleLine, uploadLine] = result.content!.split("\n");
-  const handle = JSON.parse(handleLine);
-  assert.deepEqual(Object.keys(handle).sort(), [
-    "file",
-    "filename",
-    "height",
-    "width",
-  ]);
-  assert.equal(handle.width, 800);
-  assert.ok(handleLine.length < 200, "the handle must not carry bytes");
-  assert.equal(JSON.parse(uploadLine).filename, "flow.png");
-  assert.equal((requests.at(-1)!.form!.get("file") as File).size, 64);
+  assert.equal(handleLine, "artifact:diagram-1.png");
+  assert.deepEqual(await readdir(artifactDir), ["diagram-1.png"]);
+  const uploaded = JSON.parse(uploadLine);
+  assert.equal(uploaded.filename, "flow.png");
+  assert.equal(uploaded.width, 800);
+  assert.equal((requests.at(-1)!.form!.get("file") as File).name, "flow.png");
+  // The artifact is listed after the script's output, and recorded in the details.
+  assert.match(result.content ?? "", /Artifacts: artifact:diagram-1\.png \(\d/);
+  const details = codeModeResultDetailsSchema.parse(result.details);
+  assert.equal(details.artifacts?.[0]?.handle, "artifact:diagram-1.png");
+  assert.equal(details.artifacts?.[0]?.mediaType, "image/png");
+});
+
+void test("page attachments accept artifact handles and report the lint result automatically", async () => {
+  const { context } = await setup();
+  const result = await executeAtlassianCodeMode(
+    {
+      code: `
+        const d = await diagram.render({ type: "mermaid", source: "graph TD; A-->B", name: "flow.png" });
+        await confluence.pages.create({
+          space: "DOC", title: "Flow",
+          body: storage.h2("Diagram") + storage.image("flow.png") + storage.image("other.png"),
+          attachments: [d],
+        });
+      `,
+    },
+    context,
+  );
+  // Nothing was printed, yet the report names the page, fixes and warnings.
+  const lines = (result.content ?? "").split("\n");
+  assert.match(lines[0], /^Page 100 "Flow" created \(v2\) · fixes: /);
+  assert.match(lines[0], /Promoted all headings/);
+  assert.match(lines[0], /"other\.png" has no width/);
+  assert.match(lines[1], /^Artifacts: artifact:flow\.png/);
+  const details = codeModeResultDetailsSchema.parse(result.details);
+  assert.equal(details.pages?.[0]?.id, "100");
 });
 
 void test("storage builders produce well-formed XHTML", async () => {

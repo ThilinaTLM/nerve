@@ -34,11 +34,9 @@ const adf = (text: string) => ({
   content: [{ type: "paragraph", content: [{ type: "text", text }] }],
 });
 
-void test("accepts positional or object arguments with key aliases", async () => {
-  const urls: string[] = [];
+void test("every method takes one ID string or one options object, with one ID name", async () => {
   globalThis.fetch = async (input) => {
     const url = new URL(String(input));
-    urls.push(url.pathname);
     if (url.pathname.includes("/project/")) {
       return Response.json({
         key: "SCRUM",
@@ -48,20 +46,40 @@ void test("accepts positional or object arguments with key aliases", async () =>
     }
     return Response.json({ id: "4", key: "SCRUM-4", fields: { summary: "S" } });
   };
-  const authorized: Array<{ toolName: string; args: Record<string, unknown> }> =
-    [];
+  const authorized: Array<{
+    toolName: string;
+    args: Record<string, unknown>;
+  }> = [];
   const result = await executeAtlassianCodeMode(
     {
       code: `
         const p = await jira.projects.get({ key: "SCRUM" });
-        const i = await jira.issues.get({ issueIdOrKey: "SCRUM-4", fields: ["summary"] });
-        const j = await jira.issues.get("SCRUM-4", { fields: ["summary"] });
+        const i = await jira.issues.get({ key: "SCRUM-4", fields: ["summary"] });
+        const j = await jira.issues.get("SCRUM-4");
         console.log(p.key, i.key, j.summary);
+        const attempts = [
+          () => jira.issues.get({ issueKey: "SCRUM-4" }),
+          () => jira.issues.get("SCRUM-4", { fields: ["summary"] }),
+          () => jira.projects.get({}),
+        ];
+        for (const attempt of attempts) {
+          try { await attempt(); } catch (e) { console.log(e.name + ": " + e.message); }
+        }
       `,
     },
     context(authorized),
   );
-  assert.match(result.content ?? "", /^SCRUM SCRUM-4 S/);
+  const lines = (result.content ?? "").split("\n");
+  assert.equal(lines[0], "SCRUM SCRUM-4 S");
+  assert.equal(
+    lines[1],
+    "HostError: jira.issues.get has no option 'issueKey'; valid options: key, fields, comments.",
+  );
+  assert.equal(
+    lines[2],
+    "HostError: jira.issues.get takes one argument (a key string or an options object), got 2.",
+  );
+  assert.equal(lines[3], "HostError: key must be a non-empty string.");
   assert.deepEqual(
     authorized.map((r) => r.args),
     [
@@ -125,7 +143,7 @@ void test("maps parent for subtasks and simplifies structured fields", async () 
     {
       code: `
         const d = await jira.issues.get("SCRUM-4");
-        const x = await jira.issues.get("SCRUM-4", { fields: ["summary", "comment", "attachment", "issuelinks", "subtasks"] });
+        const x = await jira.issues.get({ key: "SCRUM-4", fields: ["summary", "comment", "attachment", "issuelinks", "subtasks"] });
         console.log(JSON.stringify([d.parent, x]));
       `,
     },

@@ -1,13 +1,21 @@
 import { sandbox } from "@nervekit/native";
 import type { CodeModeHostCall } from "@nervekit/contracts/tools";
 import type { ToolExecutionResult } from "../execution-context.js";
-import type { CodeModeContext } from "./sdk-types.js";
+import type {
+  ArtifactReport,
+  CodeModeContext,
+  PageReport,
+  SdkEnvironment,
+} from "./sdk-types.js";
+import { ToolExecutionError } from "../errors/tool-error.js";
 import { processFooter } from "../../result-projection/process-footer.js";
+import { withImageSizes } from "./artifacts.js";
 import {
   createSdkEnvironment,
   findSdkMethod,
-  SDK_PRELUDE,
+  preludesFor,
   sdkMethodNames,
+  wrapScript,
 } from "./sdk.js";
 
 const DEFAULT_TIMEOUT_SECONDS = 120;
@@ -47,77 +55,107 @@ export async function executeAtlassianCodeMode(
 
   const env = createSdkEnvironment(context);
   const hostCalls: CodeModeHostCall[] = [];
+  // A 401 ends the whole script: abort the run and refuse further host calls.
+  const stop = new AbortController();
+  const abortStop = () => stop.abort();
+  context.signal?.addEventListener("abort", abortStop, { once: true });
+  if (context.signal?.aborted) stop.abort();
+  let authFailure: string | undefined;
 
-  const outcome = await sandbox.runSandboxScript({
-    code,
-    typescript: true,
-    preludes: [{ name: "nerve:atlassian-sdk", source: SDK_PRELUDE }],
-    timeoutMs: clampTimeoutSeconds(args.timeout) * 1000,
-    signal: context.signal,
-    onHostCall: async (method, rawArgs) => {
-      const started = performance.now();
-      const record = (
-        fields: Pick<CodeModeHostCall, "outcome"> & Partial<CodeModeHostCall>,
-      ) =>
-        hostCalls.push({
-          method,
-          ...fields,
-          durationMs: Math.round(performance.now() - started),
-        });
-      const sdkMethod = findSdkMethod(method);
-      if (!sdkMethod) {
-        const message = `Unknown method '${method}'. Valid methods: ${sdkMethodNames().join(", ")}.`;
-        record({ outcome: "failed", error: message });
-        throw new Error(message);
-      }
-      const callArgs = Array.isArray(rawArgs) ? rawArgs : [];
-      let prepared;
-      try {
-        prepared = sdkMethod.prepare(callArgs, env);
-      } catch (error) {
-        record({ outcome: "failed", error: cleanMessage(error) });
-        throw hostFailure(error);
-      }
-      const { authorization } = prepared;
-      const base = {
-        authorizedAs: authorization.toolName,
-        summary: truncate(authorization.summary, 200),
-      };
-      try {
-        if (!context.authorizeNested) {
-          throw new Error(
-            "Nested authorization is unavailable; refusing to run SDK calls.",
-          );
-        }
-        for (const request of [
-          authorization,
-          ...(prepared.additionalAuthorizations ?? []),
-        ]) {
-          await context.authorizeNested({
-            toolName: request.toolName,
-            args: request.args,
+  const outcome = await sandbox
+    .runSandboxScript({
+      code: wrapScript(code),
+      typescript: true,
+      preludes: preludesFor(code),
+      timeoutMs: clampTimeoutSeconds(args.timeout) * 1000,
+      signal: stop.signal,
+      onHostCall: async (method, rawArgs) => {
+        const started = performance.now();
+        const record = (
+          fields: Pick<CodeModeHostCall, "outcome"> & Partial<CodeModeHostCall>,
+        ) =>
+          hostCalls.push({
+            method,
+            ...fields,
+            durationMs: Math.round(performance.now() - started),
           });
+        if (authFailure) {
+          record({ outcome: "failed", error: authFailure });
+          throw new Error(authFailure);
         }
-      } catch (error) {
-        record({ ...base, outcome: "denied", error: cleanMessage(error) });
-        throw hostFailure(error);
-      }
-      try {
-        const value = await prepared.run(env);
-        record({ ...base, outcome: "completed" });
-        return value;
-      } catch (error) {
-        record({ ...base, outcome: "failed", error: cleanMessage(error) });
-        throw hostFailure(error);
-      }
-    },
-  });
+        const sdkMethod = findSdkMethod(method);
+        if (!sdkMethod) {
+          const message = `Unknown method '${method}'. Valid methods: ${sdkMethodNames().join(", ")}.`;
+          record({ outcome: "failed", error: message });
+          throw new Error(message);
+        }
+        const callArgs = Array.isArray(rawArgs) ? rawArgs : [];
+        let prepared;
+        try {
+          prepared = sdkMethod.prepare(callArgs, env);
+        } catch (error) {
+          record({ outcome: "failed", error: cleanMessage(error) });
+          throw hostFailure(error);
+        }
+        const checks = [
+          ...(prepared.authorization ? [prepared.authorization] : []),
+          ...(prepared.additionalAuthorizations ?? []),
+        ];
+        const base = {
+          authorizedAs: checks[0]?.toolName,
+          summary: truncate(
+            prepared.authorization?.summary ?? prepared.resource,
+            200,
+          ),
+        };
+        try {
+          if (checks.length > 0 && !context.authorizeNested) {
+            throw new Error(
+              "Nested authorization is unavailable; refusing to run SDK calls.",
+            );
+          }
+          for (const request of checks) {
+            await context.authorizeNested!({
+              toolName: request.toolName,
+              args: request.args,
+            });
+          }
+        } catch (error) {
+          record({ ...base, outcome: "denied", error: cleanMessage(error) });
+          throw hostFailure(error);
+        }
+        try {
+          const value = await prepared.run(env);
+          record({ ...base, outcome: "completed" });
+          return value;
+        } catch (error) {
+          const unauthorized = await unauthorizedMessage(error, env);
+          if (unauthorized) {
+            authFailure ??= unauthorized;
+            record({ ...base, outcome: "failed", error: unauthorized });
+            stop.abort();
+            throw new Error(unauthorized, { cause: error });
+          }
+          record({
+            ...base,
+            outcome: "failed",
+            error: failureMessage(error, prepared.resource),
+          });
+          throw hostFailure(error, prepared.resource);
+        }
+      },
+    })
+    .finally(() => context.signal?.removeEventListener("abort", abortStop));
 
-  const error = outcome.error ? scriptError(outcome.error) : undefined;
-  const exitCode = EXIT_CODES[outcome.status] ?? 1;
+  const status = authFailure ? "failed" : outcome.status;
+  const error =
+    authFailure ??
+    (outcome.error ? scriptError(outcome.error, code) : undefined);
+  const exitCode = EXIT_CODES[status] ?? 1;
+  const artifacts = await withImageSizes([...env.report.artifacts.values()]);
   const footer = codeModeFooter({
     hostCalls,
-    status: outcome.status,
+    status,
     exitCode,
     durationMs: outcome.durationMs,
   });
@@ -125,6 +163,7 @@ export async function executeAtlassianCodeMode(
     outcome.output.trimEnd(),
     outcome.outputTruncated ? "[output truncated]" : undefined,
     error,
+    ...reportLines(env.report.pages, artifacts),
     footer,
   ]
     .filter((part): part is string => Boolean(part))
@@ -134,16 +173,49 @@ export async function executeAtlassianCodeMode(
     content,
     exitCode,
     details: {
-      status: outcome.status,
+      status,
       ...(error ? { error } : {}),
       durationMs: Math.round(outcome.durationMs),
       memoryUsedBytes: outcome.memoryUsedBytes,
       outputTruncated: outcome.outputTruncated,
       hostCalls,
+      pages: env.report.pages,
+      artifacts,
       // Content already carries the footer; the script_output projection must not add another.
       processStatusIncluded: true,
     },
   };
+}
+
+/** Lint report for every page written and the artifacts created, appended after the script's output. */
+function reportLines(
+  pages: readonly PageReport[],
+  artifacts: readonly ArtifactReport[],
+): string[] {
+  const lines = pages.map((page) => {
+    const parts = [
+      `Page ${page.id} "${page.title}" ${page.action}${page.version ? ` (v${page.version})` : ""}`,
+    ];
+    if (page.fixes.length > 0) parts.push(`fixes: ${page.fixes.join("; ")}`);
+    if (page.warnings.length > 0) {
+      parts.push(`warnings: ${page.warnings.join("; ")}`);
+    }
+    if (page.fixes.length + page.warnings.length === 0)
+      parts.push("lint clean");
+    return parts.join(" · ");
+  });
+  if (artifacts.length > 0) {
+    lines.push(
+      `Artifacts: ${artifacts.map((file) => `${file.handle} (${formatBytes(file.bytes)})`).join(", ")}`,
+    );
+  }
+  return lines;
+}
+
+function formatBytes(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
 /** `jira 3 calls (issues.search 1, issues.get 2) · confluence 1 call (pages.get 1) · exit 0 · 1.2s`. */
@@ -187,11 +259,19 @@ export function codeModeFooter(input: {
   return parts.join(" · ");
 }
 
-/** Keeps the message and the stack frames that belong to the script (drops SDK/prelude frames). */
-function scriptError(raw: string): string {
+/**
+ * Keeps the message and the stack frames that belong to the script: SDK/prelude
+ * frames and the wrapper's closing line (the line after the script's last) are dropped.
+ */
+function scriptError(raw: string, code: string): string {
+  const lastLine = code.split("\n").length;
   return raw
     .split("\n")
-    .filter((line) => !/nerve:/.test(line))
+    .filter((line) => {
+      if (/nerve:/.test(line)) return false;
+      const frame = /script\.ts:(\d+):\d+/.exec(line);
+      return !frame || Number(frame[1]) <= lastLine;
+    })
     .join("\n")
     .trim();
 }
@@ -214,11 +294,43 @@ function cleanMessage(error: unknown): string {
   return messageOf(error).replace(GUIDE_POINTER, "");
 }
 
-function hostFailure(error: unknown): Error {
-  const message = cleanMessage(error);
-  return message === messageOf(error) && error instanceof Error
-    ? error
-    : new Error(message);
+/** `FORBIDDEN`, `NOT_FOUND`, `DENIED`, ... — what a script sees as `error.code`. */
+function errorCode(error: unknown): string | undefined {
+  if (!(error instanceof ToolExecutionError)) return undefined;
+  if (error.code.startsWith("NESTED_")) return "DENIED";
+  return /^(?:JIRA|CONFLUENCE)_([A-Z_]+)$/.exec(error.code)?.[1];
+}
+
+/** A 403 names the resource ("no access to project APP"); other messages pass through. */
+function failureMessage(error: unknown, resource?: string): string {
+  return errorCode(error) === "FORBIDDEN" && resource
+    ? `no access to ${resource}`
+    : cleanMessage(error);
+}
+
+/** Script-side errors carry their code as a "[CODE] " prefix that the prelude turns into `error.code`. */
+function hostFailure(error: unknown, resource?: string): Error {
+  const code = errorCode(error);
+  const message = failureMessage(error, resource);
+  if (!code && message === messageOf(error) && error instanceof Error) {
+    return error;
+  }
+  return new Error(code ? `[${code}] ${message}` : message);
+}
+
+/** For a 401, the message that ends the whole script; otherwise undefined. */
+async function unauthorizedMessage(
+  error: unknown,
+  env: SdkEnvironment,
+): Promise<string | undefined> {
+  if (!(error instanceof ToolExecutionError)) return undefined;
+  const product = /^(JIRA|CONFLUENCE)_UNAUTHORIZED$/.exec(error.code)?.[1];
+  if (!product) return undefined;
+  const connection = await (
+    product === "JIRA" ? env.jira() : env.confluence()
+  ).catch(() => undefined);
+  const name = product === "JIRA" ? "Jira" : "Confluence";
+  return `${name} rejected the API token${connection ? ` for ${connection.email}` : ""}; update it in Settings → Integrations.`;
 }
 
 function truncate(text: string, max: number): string {

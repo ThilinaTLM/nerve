@@ -1,48 +1,17 @@
-import { markdownToStorage } from "../confluence/markdown-to-storage.js";
+import { MARKDOWN_SANDBOX_SOURCE } from "../confluence/markdown-to-storage.js";
 
 /**
  * `storage.*`: string builders for Confluence storage XHTML, pure JS in the
- * sandbox (no host calls). The Markdown converter lives only host-side, so
- * `storage.markdown(md)` returns an opaque placeholder string that
- * `pages.create`/`pages.update`/`comments.add` expand with the converter before
- * sending. Scripts must therefore treat helper output as opaque and only
- * concatenate it (no regex/replace on it).
+ * sandbox (no host calls). `storage.markdown(md)` runs the same Markdown
+ * converter the host uses (its source is evaluated first), so it returns real
+ * storage markup synchronously and helper output can be treated as plain strings.
  */
-export const MARKDOWN_MARKER_START = "\u0001md:";
-export const MARKDOWN_MARKER_END = "\u0002";
-
-/** Expands `storage.markdown()` placeholders into storage XHTML. */
-export function expandMarkdownMarkers(text: string): string {
-  let out = "";
-  let from = 0;
-  for (;;) {
-    const start = text.indexOf(MARKDOWN_MARKER_START, from);
-    const end =
-      start < 0
-        ? -1
-        : text.indexOf(
-            MARKDOWN_MARKER_END,
-            start + MARKDOWN_MARKER_START.length,
-          );
-    if (start < 0 || end < 0) return out + text.slice(from);
-    const encoded = text.slice(start + MARKDOWN_MARKER_START.length, end);
-    out +=
-      text.slice(from, start) + markdownToStorage(decodeURIComponent(encoded));
-    from = end + MARKDOWN_MARKER_END.length;
-  }
-}
-
-export function hasMarkdownMarkers(text: string): boolean {
-  return text.includes(MARKDOWN_MARKER_START);
-}
-
-export const STORAGE_PRELUDE = String.raw`globalThis.storage = (() => {
-  const START = "\u0001md:";
+const STORAGE_BUILDERS = String.raw`globalThis.storage = (() => {
   const esc = (s) => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
   const cdata = (s) => "<![CDATA[" + String(s).split("]]>").join("]]]]><![CDATA[>") + "]]>";
-  const markdown = (md) => START + encodeURIComponent(String(md)) + "\u0002";
-  const isStorage = (s) => /^\s*</.test(s) || s.includes(START);
-  const hasTag = (s) => /<\/?[a-z][\w:-]*[\s\/>]/i.test(s) || s.includes(START);
+  const markdown = (md) => __markdownToStorage(String(md));
+  const isStorage = (s) => /^\s*</.test(s);
+  const hasTag = (s) => /<\/?[a-z][\w:-]*[\s\/>]/i.test(s);
   const rich1 = (b) => { const s = String(b == null ? "" : b); return isStorage(s) ? s : markdown(s); };
   const rich = (b) => Array.isArray(b) ? b.map(rich1).join("") : rich1(b);
   const param = (name, value) => value == null || value === "" ? "" : '<ac:parameter ac:name="' + name + '">' + esc(value) + "</ac:parameter>";
@@ -73,7 +42,7 @@ export const STORAGE_PRELUDE = String.raw`globalThis.storage = (() => {
     h3: (text) => "<h3>" + esc(text) + "</h3>",
     p: (body) => {
       const t = String(body == null ? "" : body);
-      return t.includes(START) ? t : "<p>" + (hasTag(t) ? t : esc(t)) + "</p>";
+      return "<p>" + (hasTag(t) ? t : esc(t)) + "</p>";
     },
     link: (url, text) => '<a href="' + esc(url) + '">' + esc(text == null ? url : text) + "</a>",
     date: (iso) => '<time datetime="' + esc(iso) + '"/>',
@@ -145,3 +114,5 @@ export const STORAGE_PRELUDE = String.raw`globalThis.storage = (() => {
     },
   };
 })();`;
+
+export const STORAGE_PRELUDE = `${MARKDOWN_SANDBOX_SOURCE}\n${STORAGE_BUILDERS}`;

@@ -79,6 +79,8 @@ export interface KrokiExecutionContext extends BaseExecutionContext {
 }
 export interface IntegrationExecutionContext extends BaseExecutionContext {
   artifactDir?: string;
+  /** Absolute per-conversation scratch folder; may not exist yet. Set for `atlassian_code_mode`. */
+  conversationArtifactDir?: string;
   getApiKey?: (provider: string) => Promise<string | undefined>;
   getProviderConfig?: (provider: string) => Promise<unknown>;
   /**

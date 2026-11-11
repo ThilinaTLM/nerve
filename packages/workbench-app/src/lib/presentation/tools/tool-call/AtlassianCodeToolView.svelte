@@ -6,6 +6,7 @@ import type { ToolCallDisplayRecord } from "../views/tool-result-view";
 import type { ToolView } from "../views/tool-result-view";
 import { COLLAPSED_LINES } from "../views/tool-result-view";
 import { formatDuration } from "../views/tool-presentation-helpers";
+import ImageFrame from "./ImageFrame.svelte";
 import ToolOutputBlock from "./ToolOutputBlock.svelte";
 import ToolSections from "./ToolSections.svelte";
 
@@ -13,20 +14,28 @@ type Props = {
   toolCall: ToolCallDisplayRecord;
   view: Extract<ToolView, { kind: "atlassian_code_mode" }>;
   expanded?: boolean;
+  onOpenFile?: (path: string, line?: number) => void;
 };
-let { toolCall, view, expanded = false }: Props = $props();
+let { toolCall, view, expanded = false, onOpenFile }: Props = $props();
 
 // The script itself is the card's persistent argument section.
 const hostCalls = $derived(
   expanded ? view.hostCalls : view.hostCalls.slice(0, COLLAPSED_LINES),
 );
 const hiddenCalls = $derived(view.hostCalls.length - hostCalls.length);
+const previewable = (mediaType: string) =>
+  mediaType === "image/png" || mediaType === "image/jpeg";
+function formatBytes(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
 const scriptFailed = $derived(
   view.status !== undefined && view.status !== "completed",
 );
 </script>
 
-{#if view.output.length > 0 || view.hostCalls.length > 0 || view.error || toolCall.status === "completed"}
+{#if view.output.length > 0 || view.hostCalls.length > 0 || view.artifacts.length > 0 || view.error || toolCall.status === "completed"}
   <ToolSections>
     {#if view.hostCalls.length > 0}
       <ul class="m-0 list-none p-0 py-1" aria-label="SDK calls">
@@ -90,6 +99,44 @@ const scriptFailed = $derived(
       >
         No output.
       </div>
+    {/if}
+
+    {#if view.artifacts.length > 0}
+      <ul class="m-0 list-none p-0" aria-label="Artifacts">
+        {#each view.artifacts as artifact (artifact.handle)}
+          <li>
+            {#if previewable(artifact.mediaType)}
+              <ImageFrame
+                ratio={artifact.width && artifact.height
+                  ? artifact.width / artifact.height
+                  : 4 / 3}
+                path={artifact.path}
+                alt={artifact.handle}
+                caption={`${artifact.handle} · ${formatBytes(artifact.bytes)}`}
+                captionLabel="Open artifact in a file tab"
+                onOpen={onOpenFile
+                  ? () => onOpenFile(artifact.path)
+                  : undefined}
+              />
+            {:else}
+              <button
+                type="button"
+                class="flex w-full min-w-0 cursor-pointer items-baseline gap-2 border-0 bg-transparent px-2.5 py-0.5 text-left text-ui text-muted-foreground hover:text-foreground"
+                aria-label="Open artifact in a file tab"
+                disabled={!onOpenFile}
+                onclick={() => onOpenFile?.(artifact.path)}
+              >
+                <span class="min-w-0 flex-1 truncate font-mono"
+                  >{artifact.handle}</span
+                >
+                <span class="flex-none text-caption tabular-nums"
+                  >{formatBytes(artifact.bytes)}</span
+                >
+              </button>
+            {/if}
+          </li>
+        {/each}
+      </ul>
     {/if}
 
     {#if scriptFailed}

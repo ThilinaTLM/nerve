@@ -48,6 +48,7 @@ export const bundleAssets: [source: string, destination: string][] = [
   ["packages/workbench-server/dist/web", "dist/web"],
   ["packages/skills/dist/builtin", "dist/builtin"],
   ["packages/skills/dist/guides", "dist/guides"],
+  ["packages/tools/dist/sandbox-libraries", "dist/sandbox-libraries"],
 ];
 
 /** Files every bundled desktop dist must contain (relative to the package root). */
@@ -56,6 +57,8 @@ export const bundleOutputFiles = [
   "dist/preload.cjs",
   "dist/web/index.html",
   "dist/builtin/skill-creator/SKILL.md",
+  "dist/sandbox-libraries/xlsx.full.min.js",
+  "dist/sandbox-libraries/papaparse.min.js",
   "build/README.md",
   "THIRD-PARTY-LICENSES.txt",
 ];
@@ -127,6 +130,12 @@ export function thirdPartyPackageRoots(metafile: Metafile): string[] {
   return [...roots].sort();
 }
 
+/** Packages shipped as copied assets (not esbuild inputs) that still need license text. */
+const assetShippedPackageRoots = [
+  "packages/tools/node_modules/papaparse",
+  "packages/tools/node_modules/xlsx",
+];
+
 async function collectThirdPartyLicenses(
   repoRoot: string,
   metafile: Metafile,
@@ -135,7 +144,11 @@ async function collectThirdPartyLicenses(
     "Third-party software bundled into @nervekit/desktop.\n",
   ];
   const seen = new Set<string>();
-  for (const root of thirdPartyPackageRoots(metafile)) {
+  const roots = [
+    ...thirdPartyPackageRoots(metafile),
+    ...assetShippedPackageRoots,
+  ];
+  for (const root of roots) {
     const directory = await realpath(join(repoRoot, root));
     const manifest = JSON.parse(
       await readFile(join(directory, "package.json"), "utf8"),

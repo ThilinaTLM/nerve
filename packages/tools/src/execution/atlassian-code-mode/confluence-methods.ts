@@ -1,6 +1,7 @@
 import { jsonObject } from "../atlassian/http.js";
 import {
   type ConfluenceConnection,
+  confluenceRawRequest,
   confluenceRequest,
   pathSegment,
   requireConfluenceConnection,
@@ -8,69 +9,56 @@ import {
 import { pageWebUrl, valuesFromConfluenceList } from "../confluence/format.js";
 import { storageXmlToMarkdown } from "../confluence/markdown.js";
 import { markdownToStorage } from "../confluence/markdown-to-storage.js";
+import { lintStoragePage } from "../confluence/page-lint.js";
 import { fetchPageCurrent } from "../confluence/page-resolution.js";
-import { resolveSpaceId } from "../confluence/space-resolution.js";
-import {
-  clampInt,
-  identifierArgs,
-  nonEmptyString,
-  objectArg,
-  optionalText,
-} from "./sdk-args.js";
-import {
-  type CodeModeContext,
-  defineMethod,
-  type HostFile,
-  type SdkEnvironment,
-  type SdkMethod,
-} from "./sdk-types.js";
+import { StorageXmlError } from "../confluence/storage-xml.js";
+import { listSpaces, resolveSpace } from "./confluence-spaces.js";
+import { rawMethod } from "../atlassian/raw-request.js";
 import {
   type AttachmentSpec,
   attachmentReadAuthorizations,
   attachmentUploadAuthorizations,
   loadAttachment,
+  type LoadedAttachment,
   parseAttachmentSpec,
   type UploadedAttachment,
   uploadAttachment,
 } from "./attachments.js";
-import { lintStoragePage } from "../confluence/page-lint.js";
-import { StorageXmlError } from "../confluence/storage-xml.js";
+import { clampInt, nonEmptyString, optionalText } from "./sdk-args.js";
 import {
-  expandMarkdownMarkers,
-  hasMarkdownMarkers,
-} from "./storage-helpers.js";
+  type CodeModeContext,
+  defineMethod,
+  definePositionalMethod,
+  type SdkEnvironment,
+  type SdkMethod,
+} from "./sdk-types.js";
 
-const PAGE_ID_ALIASES = ["id", "pageId", "page_id", "page"];
 const DEFAULT_PAGE_LIMIT = 25;
 const MAX_PAGE_LIMIT = 250;
-const MAX_SPACE_PAGES = 10;
 
 type BodyFormat = "markdown" | "storage";
 
+/** Pages default to storage; a body with no markup at all can only be Markdown prose. */
 function formatOption(
   value: unknown,
   body: string,
-  defaultFormat: "storage" | "auto" = "auto",
+  defaultFormat: "storage" | "markdown" = "storage",
 ): BodyFormat {
   if (value === "markdown" || value === "storage") return value;
-  if (value !== undefined)
+  if (value !== undefined) {
     throw new Error('format must be "markdown" or "storage".');
-  // Bodies built with storage.* helpers are storage even when format is omitted.
-  if (hasMarkdownMarkers(body)) return "storage";
-  // Pages default to storage; a body with no markup at all can only be Markdown prose.
-  if (defaultFormat === "storage") {
-    return body.trim() === "" || body.trimStart().startsWith("<")
-      ? "storage"
-      : "markdown";
   }
-  return "markdown";
+  if (defaultFormat === "markdown") return "markdown";
+  return body.trim() === "" || body.trimStart().startsWith("<")
+    ? "storage"
+    : "markdown";
 }
 
 function attachmentSpecs(value: unknown): AttachmentSpec[] {
   if (value === undefined) return [];
   if (!Array.isArray(value)) {
     throw new Error(
-      "attachments must be an array of { path | file, filename? }.",
+      "attachments must be an array of file handles or { file, filename? }.",
     );
   }
   return value.map(parseAttachmentSpec);
@@ -82,7 +70,7 @@ function finalizeBody(
   format: BodyFormat,
   title: string,
   toc: boolean,
-  attachments: HostFile[],
+  attachments: LoadedAttachment[],
 ) {
   const images = new Map<string, { width: number; height: number }>();
   for (const file of attachments) {
@@ -91,7 +79,10 @@ function finalizeBody(
     }
   }
   try {
-    return lintStoragePage(toStorage(body, format), { title, toc, images });
+    return lintStoragePage(
+      format === "storage" ? body : markdownToStorage(body),
+      { title, toc, images },
+    );
   } catch (error) {
     if (error instanceof StorageXmlError) {
       throw new Error(
@@ -107,12 +98,6 @@ function referencedAttachments(storage: string): string[] {
   return [
     ...storage.matchAll(/<ri:attachment\b[^>]*\bri:filename="([^"]*)"/g),
   ].map((m) => m[1]);
-}
-
-function toStorage(body: string, format: BodyFormat): string {
-  return format === "storage"
-    ? expandMarkdownMarkers(body)
-    : markdownToStorage(body);
 }
 
 function pageUrl(
@@ -154,72 +139,44 @@ function labelNames(value: unknown): string[] {
   });
 }
 
+function pageBodyOption(options: Record<string, unknown>) {
+  const body = typeof options.body === "string" ? options.body : undefined;
+  return body;
+}
+
 export const confluenceMethods: SdkMethod[] = [
   defineMethod({
     product: "confluence",
     path: "spaces.search",
+    bare: "query",
+    options: ["query"],
     signature:
-      "spaces.search(query?): Promise<{ id, key, name, type, url }[]>  // key or name contains",
-    parse: ([first]) =>
-      typeof first === "string"
-        ? first.trim()
-        : (optionalText(objectArg(first).query)?.trim() ?? ""),
+      "spaces.search({ query? }): Promise<{ id, key, name, type, url }[]>  // key or name contains",
+    parse: (options) => optionalText(options.query)?.trim() ?? "",
     authorize: (query) => ({
       toolName: "confluence_search_spaces",
       args: query ? { keys: [query] } : {},
       summary: query || "all spaces",
     }),
+    resource: () => "Confluence spaces",
     async run(query, env) {
       const connection = await env.confluence();
-      const needle = query.toLowerCase();
-      const spaces: Array<Record<string, unknown>> = [];
-      let cursor: string | undefined;
-      for (let page = 0; page < MAX_SPACE_PAGES; page++) {
-        const response = await confluenceRequest(connection, {
-          parse: jsonObject,
-          path: "/spaces",
-          query: { limit: 250, cursor },
-          signal: env.context.signal,
-        });
-        for (const raw of valuesFromConfluenceList(response)) {
-          const space = raw as Record<string, unknown>;
-          const key = String(space.key ?? "");
-          const name = String(space.name ?? "");
-          if (
-            needle &&
-            !key.toLowerCase().includes(needle) &&
-            !name.toLowerCase().includes(needle)
-          )
-            continue;
-          spaces.push({
-            id: String(space.id ?? ""),
-            key,
-            name,
-            type: space.type ?? null,
-            url: `${connection.siteUrl}/wiki/spaces/${key}`,
-          });
-        }
-        const next = (response._links as { next?: unknown } | undefined)?.next;
-        cursor =
-          typeof next === "string"
-            ? (new URL(next, "https://example.invalid").searchParams.get(
-                "cursor",
-              ) ?? undefined)
-            : undefined;
-        if (!cursor) break;
-      }
-      return spaces;
+      return (await listSpaces(env, query)).map((space) => ({
+        ...space,
+        type: space.type ?? null,
+        url: `${connection.siteUrl}/wiki/spaces/${space.key}`,
+      }));
     },
   }),
   defineMethod({
     product: "confluence",
     path: "pages.search",
+    bare: "cql",
+    options: ["cql", "space", "title", "limit"],
     signature:
       "pages.search({ cql?, space?, title?, limit? }): Promise<{ id, title, space, url, updated, parentId }[]>  // limit 25, max 250; title contains",
-    parse: ([first]) => {
-      const options =
-        typeof first === "string" ? { cql: first } : objectArg(first);
-      const space = optionalText(options.space ?? options.spaceKey);
+    parse: (options) => {
+      const space = optionalText(options.space);
       const title = optionalText(options.title);
       const explicitCql = optionalText(options.cql);
       const parts = explicitCql ? [`(${explicitCql})`] : ["type = page"];
@@ -244,6 +201,7 @@ export const confluenceMethods: SdkMethod[] = [
       },
       summary: cql,
     }),
+    resource: () => "this Confluence search",
     async run({ cql, limit }, env) {
       const connection = await env.confluence();
       const pages: Array<Record<string, unknown>> = [];
@@ -287,52 +245,45 @@ export const confluenceMethods: SdkMethod[] = [
   defineMethod({
     product: "confluence",
     path: "pages.get",
+    bare: "id",
+    options: ["id", "space", "title", "body", "children"],
     signature:
-      'pages.get(id | { space, title }, { body?: "markdown"|"storage"|false, children? }): Promise<{ id, title, space, url, version, parentId, labels, body, children? }>',
-    parse: (args) => {
-      const first = args[0];
-      const record =
-        first && typeof first === "object"
-          ? (first as Record<string, unknown>)
-          : undefined;
-      const lookup =
-        record && !PAGE_ID_ALIASES.some((alias) => record[alias] !== undefined)
-          ? {
-              space: optionalText(record.space ?? record.spaceKey),
-              title: nonEmptyString(record.title, "title"),
-            }
-          : undefined;
-      const { value, options } = lookup
-        ? { value: undefined, options: { ...record, ...objectArg(args[1]) } }
-        : identifierArgs(args, PAGE_ID_ALIASES, "id");
+      'pages.get({ id } | { space?, title }, { body?: "markdown"|"storage"|false, children? }): Promise<{ id, title, space, url, version, parentId, labels, body, children? }>  // options go in the same object',
+    parse: (options) => {
+      const id =
+        options.id === undefined ? undefined : nonEmptyString(options.id, "id");
+      const title = id
+        ? undefined
+        : nonEmptyString(options.title, "title (or id)");
       const body = options.body === undefined ? "markdown" : options.body;
       if (body !== false && body !== "markdown" && body !== "storage") {
         throw new Error('body must be "markdown", "storage" or false.');
       }
-      return { id: value, lookup, body, children: options.children === true };
+      return {
+        id,
+        space: optionalText(options.space),
+        title,
+        body,
+        children: options.children === true,
+      };
     },
-    authorize: ({ id, lookup }) => ({
+    authorize: ({ id, space, title }) => ({
       toolName: "confluence_get_page",
       args: id
         ? { page_id: id }
-        : {
-            ...(lookup?.space ? { space_key: lookup.space } : {}),
-            title: lookup?.title,
-          },
-      summary: id ?? `${lookup?.space ?? "default space"}/${lookup?.title}`,
+        : { ...(space ? { space_key: space } : {}), title },
+      summary: id ?? `${space ?? "default space"}/${title}`,
     }),
-    async run({ id, lookup, body, children }, env) {
+    resource: ({ id, title }) => (id ? `page ${id}` : `page "${title}"`),
+    async run({ id, space, title, body, children }, env) {
       const connection = await env.confluence();
       let pageId = id;
       if (!pageId) {
-        const { spaceId } = await resolveSpaceId(connection, {
-          spaceKey: lookup?.space,
-          signal: env.context.signal,
-        });
+        const { spaceId, spaceKey } = await resolveSpace(env, space);
         const found = await confluenceRequest(connection, {
           parse: jsonObject,
           path: "/pages",
-          query: { "space-id": spaceId, title: lookup?.title, limit: 1 },
+          query: { "space-id": spaceId, title, limit: 1 },
           signal: env.context.signal,
         });
         const first = valuesFromConfluenceList(found)[0] as
@@ -340,7 +291,7 @@ export const confluenceMethods: SdkMethod[] = [
           | undefined;
         if (!first?.id) {
           throw new Error(
-            `No Confluence page titled "${lookup?.title}" found.`,
+            `No Confluence page titled "${title}" in space ${spaceKey ?? space ?? "(default)"}. Use confluence.pages.search({ title }) to find similar titles.`,
           );
         }
         pageId = String(first.id);
@@ -399,21 +350,29 @@ export const confluenceMethods: SdkMethod[] = [
   defineMethod({
     product: "confluence",
     path: "pages.create",
+    options: [
+      "space",
+      "title",
+      "parent",
+      "body",
+      "format",
+      "toc",
+      "attachments",
+    ],
     signature:
-      'pages.create({ space, title, parent?, body, format?: "storage"|"markdown", toc?, attachments? }): Promise<{ id, title, url, version, fixes, warnings, attachments? }>  // body is storage XHTML (build with storage.*); linted on write',
-    parse: ([first]) => {
-      const options = objectArg(first);
-      const body = typeof options.body === "string" ? options.body : "";
+      'pages.create({ space?, title, parent?, body, format?: "storage"|"markdown", toc?, attachments? }): Promise<{ id, title, url, version, fixes, warnings, attachments? }>  // body is storage XHTML (build with storage.*); linted on write',
+    parse: (options) => {
+      const body = pageBodyOption(options) ?? "";
       if (!body.trim()) throw new Error("body must be a non-empty string.");
       return {
-        space: optionalText(options.space ?? options.spaceKey),
+        space: optionalText(options.space),
         title: nonEmptyString(options.title, "title"),
         parent:
           options.parent === undefined
             ? undefined
             : nonEmptyString(options.parent, "parent"),
         body,
-        format: formatOption(options.format, body, "storage"),
+        format: formatOption(options.format, body),
         toc: options.toc !== false,
         attachments: attachmentSpecs(options.attachments),
       };
@@ -432,6 +391,7 @@ export const confluenceMethods: SdkMethod[] = [
       ...attachmentUploadAuthorizations("(new page)", attachments),
       ...attachmentReadAuthorizations(attachments, env),
     ],
+    resource: ({ space }) => `space ${space ?? "(default)"}`,
     async run({ space, title, parent, body, format, toc, attachments }, env) {
       const connection = await env.confluence();
       // Read, validate and size attachments first so bad input fails before the page exists.
@@ -439,10 +399,7 @@ export const confluenceMethods: SdkMethod[] = [
         attachments.map((spec) => loadAttachment(spec, env)),
       );
       const page = finalizeBody(body, format, title, toc, loaded);
-      const { spaceId } = await resolveSpaceId(connection, {
-        spaceKey: space,
-        signal: env.context.signal,
-      });
+      const { spaceId } = await resolveSpace(env, space);
       const created = await confluenceRequest(connection, {
         parse: jsonObject,
         method: "POST",
@@ -489,21 +446,29 @@ export const confluenceMethods: SdkMethod[] = [
           (updated.version as { number?: number } | undefined)?.number ??
           (version ?? 1) + 1;
       }
-      const referenced = referencedAttachments(page.storage);
-      const missing = referenced.filter(
+      const missing = referencedAttachments(page.storage).filter(
         (name) => !uploaded.some((u) => u.filename === name),
       );
+      const warnings = [
+        ...page.warnings,
+        ...missing.map(
+          (name) =>
+            `Body references attachment "${name}" that was not attached; pass it in attachments.`,
+        ),
+      ];
+      env.report.pages.push({
+        action: "created",
+        id: result.id,
+        title: result.title ?? title,
+        version,
+        fixes: page.fixes,
+        warnings,
+      });
       return {
         ...result,
         version,
         fixes: page.fixes,
-        warnings: [
-          ...page.warnings,
-          ...missing.map(
-            (name) =>
-              `Body references attachment "${name}" that was not attached; pass it in attachments.`,
-          ),
-        ],
+        warnings,
         ...(uploaded.length ? { attachments: uploaded } : {}),
       };
     },
@@ -511,19 +476,20 @@ export const confluenceMethods: SdkMethod[] = [
   defineMethod({
     product: "confluence",
     path: "pages.update",
+    options: ["id", "title", "body", "format", "message", "toc", "attachments"],
     signature:
-      "pages.update(id, { title?, body?, format?, message?, toc?, attachments? }): Promise<{ id, title, url, version, fixes, warnings, attachments? }>  // replaces body; version bumped for you; linted on write",
-    parse: (args) => {
-      const { value, options } = identifierArgs(args, PAGE_ID_ALIASES, "id");
-      const body = typeof options.body === "string" ? options.body : undefined;
+      "pages.update({ id, title?, body?, format?, message?, toc?, attachments? }): Promise<{ id, title, url, version, fixes, warnings, attachments? }>  // replaces body; version bumped for you; linted on write",
+    parse: (options) => {
+      const body = pageBodyOption(options);
       const title = optionalText(options.title);
-      if (body === undefined && !title)
+      if (body === undefined && !title) {
         throw new Error("Provide a title and/or body to update.");
+      }
       return {
-        id: value,
+        id: nonEmptyString(options.id, "id"),
         title,
         body,
-        format: formatOption(options.format, body ?? "", "storage"),
+        format: formatOption(options.format, body ?? ""),
         message: optionalText(options.message),
         toc: options.toc !== false,
         attachments: attachmentSpecs(options.attachments),
@@ -543,6 +509,7 @@ export const confluenceMethods: SdkMethod[] = [
       ...attachmentUploadAuthorizations(id, attachments),
       ...attachmentReadAuthorizations(attachments, env),
     ],
+    resource: ({ id }) => `page ${id}`,
     async run({ id, title, body, format, message, toc, attachments }, env) {
       const connection = await env.confluence();
       const loaded = await Promise.all(
@@ -597,12 +564,21 @@ export const confluenceMethods: SdkMethod[] = [
         },
         signal: env.context.signal,
       });
+      const result = compactPage(
+        connection,
+        { ...updated, id },
+        { title: nextTitle, version: currentVersion + 1 },
+      );
+      env.report.pages.push({
+        action: "updated",
+        id,
+        title: result.title ?? nextTitle,
+        version: result.version,
+        fixes: page.fixes,
+        warnings: page.warnings,
+      });
       return {
-        ...compactPage(
-          connection,
-          { ...updated, id },
-          { title: nextTitle, version: currentVersion + 1 },
-        ),
+        ...result,
         fixes: page.fixes,
         warnings: page.warnings,
         ...(uploaded.length ? { attachments: uploaded } : {}),
@@ -612,21 +588,20 @@ export const confluenceMethods: SdkMethod[] = [
   defineMethod({
     product: "confluence",
     path: "attachments.upload",
+    options: ["id", "file", "filename", "comment"],
     signature:
-      "attachments.upload(pageId, { path | file, filename?, comment? }): Promise<{ id, filename, mediaType, size, width?, height? }>  // path = workspace file, file = diagram.render handle; PNG/JPEG only for images (GIF/WebP converted, SVG rejected)",
-    parse: (args) => {
-      const { value, options } = identifierArgs(
-        args.slice(0, 1),
-        PAGE_ID_ALIASES,
-        "pageId",
-      );
-      return {
-        id: value,
-        spec: parseAttachmentSpec({ ...options, ...objectArg(args[1]) }),
-      };
-    },
+      "attachments.upload({ id, file, filename?, comment? }): Promise<{ id, filename, mediaType, size, width?, height? }>  // id = page id; file = any handle; PNG/JPEG for images (GIF/WebP converted, SVG rejected)",
+    parse: (options) => ({
+      id: nonEmptyString(options.id, "id"),
+      spec: parseAttachmentSpec({
+        file: options.file,
+        filename: options.filename,
+        comment: options.comment,
+      }),
+    }),
     authorize: ({ id, spec }) => attachmentUploadAuthorizations(id, [spec])[0],
     authorizeAlso: ({ spec }, env) => attachmentReadAuthorizations([spec], env),
+    resource: ({ id }) => `page ${id}`,
     async run({ id, spec }, env) {
       return await uploadAttachment(
         env,
@@ -639,15 +614,11 @@ export const confluenceMethods: SdkMethod[] = [
   defineMethod({
     product: "confluence",
     path: "labels.add",
+    options: ["id", "labels"],
     signature:
-      "labels.add(pageId, labels: string | string[]): Promise<{ id, labels }>",
-    parse: (args) => {
-      const { value, options } = identifierArgs(
-        args.slice(0, 1),
-        PAGE_ID_ALIASES,
-        "pageId",
-      );
-      const raw = args[1] ?? options.labels ?? options.label;
+      "labels.add({ id, labels: string | string[] }): Promise<{ id, labels }>  // id = page id",
+    parse: (options) => {
+      const raw = options.labels;
       const labels = (Array.isArray(raw) ? raw : [raw])
         .map((label) => (typeof label === "string" ? label.trim() : ""))
         .filter(Boolean);
@@ -656,13 +627,14 @@ export const confluenceMethods: SdkMethod[] = [
           "labels must be a non-empty string or array of strings.",
         );
       }
-      return { id: value, labels };
+      return { id: nonEmptyString(options.id, "id"), labels };
     },
     authorize: ({ id, labels }) => ({
       toolName: "confluence_manage_label",
       args: { action: "add", page_id: id, label: labels[0], prefix: "global" },
       summary: `${id} +${labels.join(",")}`,
     }),
+    resource: ({ id }) => `page ${id}`,
     async run({ id, labels }, env) {
       await confluenceRequest(await env.confluence(), {
         api: "v1",
@@ -677,27 +649,24 @@ export const confluenceMethods: SdkMethod[] = [
   defineMethod({
     product: "confluence",
     path: "comments.add",
+    options: ["id", "body", "format"],
     signature:
-      'comments.add(pageId, body, { format?: "markdown"|"storage" }): Promise<{ id, pageId }>  // footer comment',
-    parse: (args) => {
-      const { value, options } = identifierArgs(
-        args.slice(0, 1),
-        PAGE_ID_ALIASES,
-        "pageId",
-      );
-      const body = typeof args[1] === "string" ? args[1] : options.body;
-      if (typeof body !== "string" || !body.trim()) {
-        throw new Error("body must be a non-empty string.");
-      }
-      const extra = typeof args[1] === "string" ? args[2] : args[1];
-      const opts = { ...options, ...objectArg(extra) };
-      return { id: value, body, format: formatOption(opts.format, body) };
+      'comments.add({ id, body, format?: "markdown"|"storage" }): Promise<{ id, pageId }>  // id = page id; footer comment; body is Markdown unless format is "storage"',
+    parse: (options) => {
+      const body = pageBodyOption(options);
+      if (!body?.trim()) throw new Error("body must be a non-empty string.");
+      return {
+        id: nonEmptyString(options.id, "id"),
+        body,
+        format: formatOption(options.format, body, "markdown"),
+      };
     },
     authorize: ({ id, body }) => ({
       toolName: "confluence_manage_comment",
       args: { action: "create", kind: "footer", page_id: id, body },
       summary: id,
     }),
+    resource: ({ id }) => `page ${id}`,
     async run({ id, body, format }, env) {
       const created = await confluenceRequest(await env.confluence(), {
         parse: jsonObject,
@@ -705,11 +674,42 @@ export const confluenceMethods: SdkMethod[] = [
         path: "/footer-comments",
         body: {
           pageId: id,
-          body: { representation: "storage", value: toStorage(body, format) },
+          body: {
+            representation: "storage",
+            value: format === "storage" ? body : markdownToStorage(body),
+          },
         },
         signal: env.context.signal,
       });
       return { id: String(created.id ?? ""), pageId: id };
+    },
+  }),
+  definePositionalMethod({
+    product: "confluence",
+    path: "request",
+    maxArgs: 3,
+    signature:
+      "request(method, path, body?): Promise<unknown>  // path under /wiki/api/v2/ or /wiki/rest/api/; JSON (or text), max 5 MB",
+    parse: ([method, path, body]) => ({
+      method: rawMethod(method),
+      path,
+      body,
+    }),
+    // GET is a read; anything else is checked like the destructive `confluence_manage_page`.
+    authorize: ({ method, path }) => ({
+      toolName:
+        method === "GET" ? "confluence_get_page" : "confluence_manage_page",
+      args: { method, path },
+      summary: `${method} ${String(path)}`,
+    }),
+    resource: ({ path }) => String(path),
+    async run({ method, path, body }, env) {
+      return await confluenceRawRequest(await env.confluence(), {
+        method,
+        path,
+        body,
+        signal: env.context.signal,
+      });
     },
   }),
 ];

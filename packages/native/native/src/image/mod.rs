@@ -2,12 +2,15 @@
 //! limit, and re-encode under a base64 size limit. Plain Rust; the N-API
 //! adapter is `napi.rs`.
 pub(crate) mod napi;
+mod transform;
 
 use image::codecs::jpeg::JpegEncoder;
 use image::codecs::png::PngEncoder;
 use image::imageops::FilterType;
 use image::{DynamicImage, ImageDecoder, ImageEncoder, ImageFormat, ImageReader, Limits};
 use std::io::Cursor;
+
+pub(crate) use transform::{image_info, transform_image};
 
 /// Largest accepted encoded input.
 pub(crate) const MAX_INPUT_BYTES: usize = 64 * 1024 * 1024;
@@ -37,6 +40,15 @@ impl Format {
         }
     }
 
+    pub(crate) fn name(self) -> &'static str {
+        match self {
+            Self::Png => "png",
+            Self::Jpeg => "jpeg",
+            Self::Gif => "gif",
+            Self::Webp => "webp",
+        }
+    }
+
     pub(crate) fn mime(self) -> &'static str {
         match self {
             Self::Png => "image/png",
@@ -46,7 +58,7 @@ impl Format {
         }
     }
 
-    fn from_image(format: ImageFormat) -> Option<Self> {
+    pub(super) fn from_image(format: ImageFormat) -> Option<Self> {
         match format {
             ImageFormat::Png => Some(Self::Png),
             ImageFormat::Jpeg => Some(Self::Jpeg),
@@ -163,7 +175,7 @@ pub(crate) fn prepare(data: &[u8], options: &Options) -> Result<Prepared, String
 
     let mut format = first;
     for attempt in 0..MAX_ATTEMPTS {
-        let encoded = encode(&current, format, has_alpha)?;
+        let encoded = encode(&current, format, has_alpha, JPEG_QUALITY)?;
         if base64_len(encoded.len()) <= options.max_base64_bytes {
             return Ok(Prepared {
                 data: encoded,
@@ -202,12 +214,17 @@ fn fit(width: u32, height: u32, max: u32) -> (u32, u32) {
     (w, h)
 }
 
-fn encode(image: &DynamicImage, format: Format, has_alpha: bool) -> Result<Vec<u8>, String> {
+fn encode(
+    image: &DynamicImage,
+    format: Format,
+    has_alpha: bool,
+    quality: u8,
+) -> Result<Vec<u8>, String> {
     let mut out = Vec::new();
     match format {
         Format::Jpeg => {
             let rgb = flatten_on_white(image);
-            JpegEncoder::new_with_quality(&mut out, JPEG_QUALITY)
+            JpegEncoder::new_with_quality(&mut out, quality)
                 .write_image(
                     rgb.as_raw(),
                     rgb.width(),
@@ -278,7 +295,13 @@ mod tests {
     }
 
     fn png(image: &RgbaImage) -> Vec<u8> {
-        encode(&DynamicImage::ImageRgba8(image.clone()), Format::Png, true).unwrap()
+        encode(
+            &DynamicImage::ImageRgba8(image.clone()),
+            Format::Png,
+            true,
+            JPEG_QUALITY,
+        )
+        .unwrap()
     }
 
     #[test]

@@ -1,25 +1,30 @@
-import { readFile, stat } from "node:fs/promises";
-import { basename, extname } from "node:path";
+import { extname } from "node:path";
 import { image } from "@nervekit/native";
 import { anyJson } from "../atlassian/http.js";
 import { confluenceAttachmentRequest } from "../confluence/client.js";
 import { valuesFromConfluenceList } from "../confluence/format.js";
-import { detectImageKind, readImageSize } from "../confluence/image-size.js";
-import { resolveToolPath } from "../filesystem/path.js";
-import { objectArg, optionalText } from "./sdk-args.js";
-import type {
-  HostFile,
-  NestedAuthorization,
-  SdkEnvironment,
-} from "./sdk-types.js";
+import {
+  mediaTypeFor,
+  parseHandle,
+  readAuthorizations,
+  readFileRef,
+} from "./artifacts.js";
+import type { NestedAuthorization, SdkEnvironment } from "./sdk-types.js";
 
-const MAX_ATTACHMENT_BYTES = 25 * 1024 * 1024;
-
+/** One file to attach: any handle (`artifact:<name>` or a workspace path). */
 export type AttachmentSpec = {
-  path?: string;
-  file?: string;
+  file: string;
   filename?: string;
   comment?: string;
+};
+
+/** A file ready to upload, with image dimensions when it is an image. */
+export type LoadedAttachment = {
+  bytes: Buffer;
+  filename: string;
+  mediaType: string;
+  width?: number;
+  height?: number;
 };
 
 export type UploadedAttachment = {
@@ -31,42 +36,41 @@ export type UploadedAttachment = {
   height?: number;
 };
 
-/** Accepts `{ path | file, filename?, comment? }`; `file` is a `diagram.render` handle (or its id). */
+/** A handle string, or `{ file, filename?, comment? }`. */
 export function parseAttachmentSpec(raw: unknown): AttachmentSpec {
-  const options = objectArg(raw);
-  const path = optionalText(options.path);
-  const handle = options.file;
-  const file =
-    typeof handle === "string"
-      ? handle
-      : handle && typeof handle === "object"
-        ? optionalText((handle as { file?: unknown }).file)
-        : undefined;
-  if (handle !== undefined && !file)
-    throw new Error("file must be a handle returned by diagram.render().");
-  if (Boolean(path) === Boolean(file)) {
+  if (typeof raw === "string") return { file: raw };
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
     throw new Error(
-      "Provide exactly one of path (workspace file) or file (diagram.render handle).",
+      "an attachment is a file handle or { file, filename?, comment? }.",
+    );
+  }
+  const { file, filename, comment, ...rest } = raw as Record<string, unknown>;
+  const unknown = Object.keys(rest)[0];
+  if (unknown) {
+    throw new Error(
+      `attachment has no option '${unknown}'; valid options: file, filename, comment.`,
+    );
+  }
+  if (typeof file !== "string" || !file.trim()) {
+    throw new Error(
+      "attachment.file must be a file handle (`artifact:<name>` or a workspace path).",
     );
   }
   return {
-    path,
     file,
-    filename: optionalText(options.filename),
-    comment: optionalText(options.comment),
+    filename:
+      typeof filename === "string" && filename.trim() ? filename : undefined,
+    comment:
+      typeof comment === "string" && comment.trim() ? comment : undefined,
   };
 }
 
-/** Direct-tool checks for reading the source file (the upload itself is authorized separately). */
+/** Workspace sources are checked as the direct `read` tool before anything is read. */
 export function attachmentReadAuthorizations(
   specs: AttachmentSpec[],
   env: SdkEnvironment,
 ): NestedAuthorization[] {
-  return specs.flatMap((spec) => {
-    if (!spec.path) return [];
-    const path = resolveToolPath(env.context.cwd, spec.path);
-    return [{ toolName: "read", args: { path }, summary: path }];
-  });
+  return readAuthorizations(specs.map((spec) => parseHandle(spec.file, env)));
 }
 
 export function attachmentUploadAuthorizations(
@@ -78,52 +82,27 @@ export function attachmentUploadAuthorizations(
     args: {
       action: "upload",
       page_id: pageId,
-      ...(spec.path ? { file_path: spec.path } : {}),
+      file_path: spec.file,
       ...(spec.filename ? { filename: spec.filename } : {}),
     },
-    summary: `${pageId} ← ${spec.filename ?? spec.path ?? spec.file}`,
+    summary: `${pageId} ← ${spec.filename ?? spec.file}`,
   }));
 }
 
-const MEDIA_TYPES: Record<string, string> = {
-  ".pdf": "application/pdf",
-  ".txt": "text/plain",
-  ".md": "text/markdown",
-  ".csv": "text/csv",
-  ".json": "application/json",
-  ".zip": "application/zip",
-  ".docx":
-    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-  ".xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-  ".pptx":
-    "application/vnd.openxmlformats-officedocument.presentationml.presentation",
-};
+type ImageKind = "png" | "jpeg" | "gif" | "webp" | "svg";
 
-async function readSource(
-  spec: AttachmentSpec,
-  env: SdkEnvironment,
-): Promise<HostFile> {
-  if (spec.file) {
-    const file = env.files.get(spec.file);
-    if (!file)
-      throw new Error(
-        `Unknown file handle "${spec.file}"; it must come from diagram.render() in this script.`,
-      );
-    return file;
-  }
-  const path = resolveToolPath(env.context.cwd, spec.path);
-  const info = await stat(path);
-  if (!info.isFile()) throw new Error(`Not a regular file: ${path}`);
-  if (info.size > MAX_ATTACHMENT_BYTES) {
-    throw new Error(
-      `Attachment exceeds the 25 MiB upload limit (${info.size} bytes).`,
-    );
-  }
-  return {
-    bytes: await readFile(path),
-    filename: basename(path),
-    mediaType: "application/octet-stream",
-  };
+function sniffImage(bytes: Uint8Array): ImageKind | undefined {
+  const ascii = (start: number, end: number) =>
+    String.fromCharCode(...bytes.subarray(start, end));
+  if (bytes[0] === 0x89 && ascii(1, 4) === "PNG") return "png";
+  if (bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff)
+    return "jpeg";
+  if (ascii(0, 3) === "GIF") return "gif";
+  if (ascii(0, 4) === "RIFF" && ascii(8, 12) === "WEBP") return "webp";
+  const head = Buffer.from(bytes.subarray(0, 1024))
+    .toString("utf8")
+    .trimStart();
+  return /^(<\?xml[\s\S]*?)?<svg[\s>]/i.test(head) ? "svg" : undefined;
 }
 
 function withExtension(filename: string, extension: string): string {
@@ -133,55 +112,40 @@ function withExtension(filename: string, extension: string): string {
 
 /**
  * Reads, validates and normalizes an attachment: SVG is rejected, GIF/WebP are
- * converted to PNG, and PNG/JPEG/GIF/WebP dimensions are read from headers.
+ * converted to PNG, and image dimensions come from the native image module.
  */
 export async function loadAttachment(
   spec: AttachmentSpec,
   env: SdkEnvironment,
-): Promise<HostFile> {
-  const source = await readSource(spec, env);
-  let filename = spec.filename ?? source.filename;
-  const kind = detectImageKind(source.bytes);
+): Promise<LoadedAttachment> {
+  const ref = parseHandle(spec.file, env);
+  let bytes = await readFileRef(ref);
+  let filename =
+    spec.filename ??
+    (ref.kind === "artifact" ? ref.name : ref.path.split(/[\\/]/).pop()!);
+  const kind = sniffImage(bytes);
   if (kind === "svg" || /\.svg$/i.test(filename)) {
     throw new Error(
       `SVG attachments are not supported (Confluence does not render them reliably): "${filename}". Render diagrams as PNG with diagram.render() or provide a PNG/JPEG.`,
     );
   }
-  if (!kind) {
-    return {
-      bytes: source.bytes,
-      filename,
-      mediaType:
-        MEDIA_TYPES[extname(filename).toLowerCase()] ?? source.mediaType,
-    };
-  }
-  let bytes = source.bytes;
-  let size = readImageSize(bytes, kind);
-  if (!size) throw new Error(`Could not read the image size of "${filename}".`);
+  if (!kind) return { bytes, filename, mediaType: mediaTypeFor(filename) };
+  let info = await image.imageInfo(bytes);
   let mediaType = kind === "jpeg" ? "image/jpeg" : "image/png";
   if (kind === "gif" || kind === "webp") {
-    if (!image.isAvailable())
-      throw new Error(
-        `Converting ${kind.toUpperCase()} to PNG needs native image support, which is unavailable.`,
-      );
-    const prepared = await image.prepareImage(bytes, {
-      maxDimension: Math.max(size.width, size.height),
-      maxBase64Bytes: Math.ceil((MAX_ATTACHMENT_BYTES * 4) / 3),
-      acceptedFormats: ["png", "jpeg"],
-      outputFormats: ["png"],
-    });
-    bytes = prepared.data;
-    size = { width: prepared.width, height: prepared.height };
+    const converted = await image.transformImage(bytes, { format: "png" });
+    bytes = converted.data;
+    info = { format: "png", width: converted.width, height: converted.height };
     mediaType = "image/png";
     filename = withExtension(filename, ".png");
   }
-  return { bytes, filename, mediaType, ...size };
+  return { bytes, filename, mediaType, width: info.width, height: info.height };
 }
 
 export async function uploadAttachment(
   env: SdkEnvironment,
   pageId: string,
-  file: HostFile,
+  file: LoadedAttachment,
   comment?: string,
 ): Promise<UploadedAttachment> {
   const form = new FormData();

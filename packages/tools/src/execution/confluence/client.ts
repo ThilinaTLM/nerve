@@ -4,6 +4,7 @@ import type { IntegrationExecutionContext } from "../execution-context.js";
 import { withTimeoutSignal } from "../process/abort.js";
 import { safeAtlassianError } from "../atlassian/atlassian-error.js";
 import { ToolExecutionError } from "../errors/tool-error.js";
+import { rawRequestUrl, readRawBody } from "../atlassian/raw-request.js";
 import {
   anyJson,
   atlassianJsonRequestInit,
@@ -119,6 +120,34 @@ export async function confluenceRequest(
     { service: "confluence", method: init.method ?? "GET", path: options.path },
     options.parse ?? anyJson,
   );
+}
+
+/** REST bases `confluence.request()` may call (v2 and v1). */
+export const CONFLUENCE_RAW_BASES = [
+  "/wiki/api/v2/",
+  "/wiki/rest/api/",
+] as const;
+
+/** Raw request for `confluence.request()`: any path under the allowed bases, JSON or text back. */
+export async function confluenceRawRequest(
+  connection: ConfluenceConnection,
+  options: {
+    method: string;
+    path: unknown;
+    body?: unknown;
+    signal?: AbortSignal;
+  },
+): Promise<unknown> {
+  const url = rawRequestUrl(
+    connection.siteUrl,
+    options.path,
+    CONFLUENCE_RAW_BASES,
+  );
+  const init = atlassianJsonRequestInit(basicAuth(connection), options);
+  const response = await fetch(url, init);
+  if (!response.ok)
+    await throwConfluenceError(response, options.method, url.pathname);
+  return await readRawBody(response);
 }
 
 export async function confluenceAttachmentRequest<T>(

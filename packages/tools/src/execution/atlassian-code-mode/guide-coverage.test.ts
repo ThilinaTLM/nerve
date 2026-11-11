@@ -40,19 +40,39 @@ function storageHelpers(): string[] {
 const dir = guideDir();
 const reference = (name: string) => readFileSync(join(dir, name), "utf8");
 
-for (const product of ["jira", "confluence", "storage", "diagram"] as const) {
-  // `diagram.render` is documented next to the Confluence attachment methods.
-  const file = product === "diagram" ? "confluence.md" : `${product}.md`;
+const PRODUCTS = [
+  "jira",
+  "confluence",
+  "storage",
+  "diagram",
+  "files",
+  "image",
+] as const;
+
+for (const product of PRODUCTS) {
+  // `diagram.render` is documented next to the Confluence attachment methods;
+  // `files.*` and the `image(handle)` chain share files.md.
+  const file =
+    product === "diagram"
+      ? "confluence.md"
+      : product === "image"
+        ? "files.md"
+        : `${product}.md`;
   const known =
     product === "storage"
       ? storageHelpers()
       : sdkMethodNames().filter((n) => n.startsWith(`${product}.`));
 
-  void test(`${product}.md documents every ${product} method and nothing else`, () => {
+  void test(`${file} documents every ${product} method and nothing else`, () => {
     assert.ok(known.length > 0);
     const text = reference(file);
     for (const name of known) {
-      assert.ok(text.includes(`\`${name}(`), `${file} misses ${name}(`);
+      // The image chain is documented as `.info()` / `.save(name)`.
+      const marker =
+        product === "image"
+          ? `\`.${name.slice("image.".length)}(`
+          : `\`${name}(`;
+      assert.ok(text.includes(marker), `${file} misses ${marker}`);
     }
     const mentioned = new Set(
       [

@@ -1,4 +1,5 @@
 import type {
+  CodeModeArtifact,
   CodeModeHostCall,
   ConfluenceAttachmentSummaryPayload,
   ConfluenceCommentSummaryPayload,
@@ -158,6 +159,8 @@ export type ToolView =
       durationMs?: number;
       outputTruncated?: boolean;
       hostCalls: CodeModeHostCall[];
+      /** Files the run wrote to the conversation artifact folder. */
+      artifacts: CodeModeArtifact[];
       live?: boolean;
     }
   | {

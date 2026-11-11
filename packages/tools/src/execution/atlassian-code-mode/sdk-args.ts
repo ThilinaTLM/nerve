@@ -1,12 +1,4 @@
-/** Forgiving argument parsing shared by SDK methods. */
-
-export function objectArg(value: unknown): Record<string, unknown> {
-  if (value === undefined || value === null) return {};
-  if (typeof value !== "object" || Array.isArray(value)) {
-    throw new Error("options must be an object.");
-  }
-  return value as Record<string, unknown>;
-}
+/** Small validators shared by SDK methods. */
 
 export function nonEmptyString(value: unknown, name: string): string {
   const text =
@@ -19,33 +11,8 @@ export function nonEmptyString(value: unknown, name: string): string {
   return text;
 }
 
-/**
- * Accepts `("KEY", { ...options })` or `({ key | alias, ...options }, { ...options })`.
- * Returns the identifier and the merged options.
- */
-export function identifierArgs(
-  args: unknown[],
-  aliases: readonly string[],
-  name: string,
-): { value: string; options: Record<string, unknown> } {
-  const [first, second] = args;
-  if (typeof first === "string" || typeof first === "number") {
-    return { value: nonEmptyString(first, name), options: objectArg(second) };
-  }
-  if (first && typeof first === "object" && !Array.isArray(first)) {
-    const record = first as Record<string, unknown>;
-    const alias = aliases.find((candidate) => record[candidate] !== undefined);
-    if (alias) {
-      const { [alias]: value, ...rest } = record;
-      return {
-        value: nonEmptyString(value, name),
-        options: { ...rest, ...objectArg(second) },
-      };
-    }
-  }
-  throw new Error(
-    `${name} must be a non-empty string (pass it directly or as { ${aliases[0]} }).`,
-  );
+export function optionalText(value: unknown): string | undefined {
+  return typeof value === "string" && value.trim() ? value : undefined;
 }
 
 export function clampInt(
@@ -58,6 +25,52 @@ export function clampInt(
   return Math.min(max, Math.max(min, Math.floor(value)));
 }
 
-export function optionalText(value: unknown): string | undefined {
-  return typeof value === "string" && value.trim() ? value : undefined;
+/** Up to five candidates close to `input` (substring or small edit distance), best first. */
+export function closeMatches(
+  input: string,
+  candidates: readonly string[],
+  limit = 5,
+): string[] {
+  const needle = input.trim().toLowerCase();
+  if (!needle) return [];
+  const scored: Array<{ candidate: string; score: number }> = [];
+  for (const candidate of new Set(candidates)) {
+    const hay = candidate.toLowerCase();
+    let score: number;
+    if (hay === needle) score = 0;
+    else if (hay.includes(needle) || needle.includes(hay)) score = 1;
+    else {
+      const distance = editDistance(needle, hay);
+      if (distance > Math.max(2, Math.floor(needle.length / 3))) continue;
+      score = 1 + distance;
+    }
+    scored.push({ candidate, score });
+  }
+  return scored
+    .sort(
+      (a, b) =>
+        a.score - b.score ||
+        a.candidate.length - b.candidate.length ||
+        a.candidate.localeCompare(b.candidate),
+    )
+    .slice(0, limit)
+    .map((entry) => entry.candidate);
+}
+
+function editDistance(a: string, b: string): number {
+  const row = Array.from({ length: b.length + 1 }, (_, i) => i);
+  for (let i = 1; i <= a.length; i++) {
+    let previous = row[0];
+    row[0] = i;
+    for (let j = 1; j <= b.length; j++) {
+      const current = row[j];
+      row[j] = Math.min(
+        row[j] + 1,
+        row[j - 1] + 1,
+        previous + (a[i - 1] === b[j - 1] ? 0 : 1),
+      );
+      previous = current;
+    }
+  }
+  return row[b.length];
 }

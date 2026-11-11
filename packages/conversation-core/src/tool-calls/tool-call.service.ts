@@ -420,6 +420,13 @@ export class ToolCallService {
             signal: ctx.signal,
             onProgress: ctx.onProgress,
             artifactDir,
+            ...(call.toolName === "atlassian_code_mode"
+              ? {
+                  conversationArtifactDir: this.options.assets.path(
+                    `conversations/${call.conversationId}/code-mode`,
+                  ),
+                }
+              : {}),
             requestCaptureId: this.requestCaptures.get(call.id),
           });
       if ("kind" in prepared) {

@@ -1,4 +1,5 @@
 import { adfToMarkdown } from "../jira/adf-markdown.js";
+import { closeMatches } from "./sdk-args.js";
 
 /** Standard Jira fields the SDK flattens. Everything else is a custom field keyed by name. */
 const STANDARD_FIELD_IDS = [
@@ -91,8 +92,12 @@ export async function resolveFieldSelection(
       (field) => field.name.toLowerCase() === lower || field.id === text,
     );
     if (matches.length === 0) {
+      const close = closeMatches(
+        text,
+        catalog.map((field) => field.name),
+      );
       throw new Error(
-        `Unknown Jira field "${text}". Use jira.fields.list() to see field names and ids.`,
+        `Unknown Jira field "${text}".${close.length ? ` Did you mean: ${close.map((name) => `"${name}"`).join(", ")}?` : ""} Use jira.fields.list() to see all field names and ids.`,
       );
     }
     if (matches.length > 1) {

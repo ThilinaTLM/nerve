@@ -278,6 +278,7 @@ export function parseToolView(
           ? details.data.outputTruncated
           : undefined,
         hostCalls: details.success ? details.data.hostCalls : [],
+        artifacts: details.success ? (details.data.artifacts ?? []) : [],
         live: !result && Boolean(liveOutput?.text),
       };
     }

@@ -86,6 +86,13 @@ async function fixture(): Promise<Fixture> {
     recursive: true,
   });
   await writeFile(reportPath, "full report");
+  await mkdir(join(directory, "conversations/src/code-mode"), {
+    recursive: true,
+  });
+  await writeFile(
+    join(directory, "conversations/src/code-mode/notes.txt"),
+    "scratch",
+  );
   events.append(message("evt_user", "user_message", "hello", null));
   events.append({
     id: "evt_assistant",
@@ -313,6 +320,14 @@ void test("fork copies only the path, remaps identities and files, and leaves th
         "utf8",
       ),
       "artifact",
+    );
+    // Code-mode scratch files travel with the fork.
+    assert.equal(
+      await readFile(
+        join(f.directory, "conversations", id, "code-mode/notes.txt"),
+        "utf8",
+      ),
+      "scratch",
     );
     // The sub-agent report is copied and the text points at the copy.
     assert.equal(

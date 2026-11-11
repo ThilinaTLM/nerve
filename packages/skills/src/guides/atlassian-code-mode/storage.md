@@ -1,6 +1,6 @@
 # `storage.*`
 
-Pure string builders for Confluence storage XHTML, the primary page format. They run in the sandbox without host calls and return strings you concatenate into a page body (`[storage.h1("Overview"), storage.p("..."), ...].join("")`). Pass the result to `pages.create`/`pages.update` (default `format: "storage"`) or `comments.add`. The page is linted on write; see "Page style" in [confluence.md](confluence.md).
+Pure string builders for Confluence storage XHTML, the primary page format. They run in the sandbox without host calls and return strings you concatenate into a page body (`[storage.h1("Overview"), storage.p("..."), ...].join("")`). Pass the result to `pages.create`/`pages.update` (default `format: "storage"`) or `comments.add` (with `format: "storage"`). The page is linted on write; see "Page style" in [confluence.md](confluence.md).
 
 Body arguments (`body` of `panel`/`expand`) take Markdown or storage XHTML: a string starting with `<` or containing helper output is treated as storage, anything else as Markdown.
 
@@ -18,7 +18,7 @@ Hyperlink; `text` defaults to the URL.
 
 ## `storage.markdown(md)`
 
-Returns an opaque placeholder string; the Markdown is converted to storage XHTML host-side when the page is written. **Treat helper output as opaque**: only concatenate it. Do not `replace`, `match`, slice or log it expecting readable XHTML, and do not try to convert it yourself. Placeholders are not expanded in values you print, only in bodies sent through `pages.create`/`pages.update`/`comments.add` (with `format: "storage"` or auto-detected).
+Converts Markdown to real storage XHTML, synchronously, with the same converter the host uses for `format: "markdown"` (headings, lists, task lists, tables, fenced code, blockquotes, images by URL; raw HTML is escaped). The result is an ordinary string.
 
 ## `storage.escape(text)`
 

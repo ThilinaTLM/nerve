@@ -3,12 +3,16 @@ import {
   confluenceMethods,
   confluenceSpaceKeyLoader,
 } from "./confluence-methods.js";
+import { diagramMethods } from "./diagram-methods.js";
+import { filesMethods } from "./files-methods.js";
+import { imageMethods } from "./image-methods.js";
 import {
   createJiraFieldLoader,
   jiraConnectionLoader,
   jiraMethods,
 } from "./jira-methods.js";
-import { diagramMethods } from "./diagram-methods.js";
+import { librariesPrelude } from "./libraries.js";
+import { RUNTIME_HEAD, RUNTIME_TAIL } from "./runtime-prelude.js";
 import type {
   CodeModeContext,
   SdkEnvironment,
@@ -17,11 +21,10 @@ import type {
 import { STORAGE_PRELUDE } from "./storage-helpers.js";
 
 /**
- * The SDK in one place. Every method (jira-methods.ts, confluence-methods.ts)
- * declares its signature, the direct tool it is authorized as, and its
- * implementation. The prelude injected into the sandbox is generated from
- * these tables; the guide skill's references are checked against them by
- * guide-coverage.test.ts.
+ * The SDK in one place. Every method declares its signature, the direct tool
+ * it is authorized as, and its implementation. The prelude injected into the
+ * sandbox is generated from these tables; the guide skill's references are
+ * checked against them by guide-coverage.test.ts.
  */
 
 export type { SdkEnvironment, SdkMethod } from "./sdk-types.js";
@@ -30,6 +33,8 @@ const methods: SdkMethod[] = [
   ...jiraMethods,
   ...confluenceMethods,
   ...diagramMethods,
+  ...filesMethods,
+  ...imageMethods,
 ];
 
 const methodByName = new Map<string, SdkMethod>(
@@ -49,15 +54,15 @@ export function createSdkEnvironment(context: CodeModeContext): SdkEnvironment {
   const confluence = confluenceConnectionLoader(context);
   return {
     context,
-    files: new Map(),
     jira,
     confluence,
     jiraFields: createJiraFieldLoader(context, jira),
     confluenceSpaceKeys: confluenceSpaceKeyLoader(context, confluence),
+    report: { pages: [], artifacts: new Map() },
   };
 }
 
-/** `jira.issues.get = (...args) => host.call("jira.issues.get", args)`, nested by group. */
+/** `jira.issues.get = (...args) => call("jira.issues.get", args)`, nested by group. */
 function productPrelude(product: string): string {
   const groups = new Map<string, string[]>();
   for (const method of methods.filter((m) => m.product === product)) {
@@ -66,24 +71,44 @@ function productPrelude(product: string): string {
     const group = parts.join(".");
     const entries = groups.get(group) ?? [];
     entries.push(
-      `${name}: (...args) => host.call("${product}.${method.path}", args),`,
+      `${name}: (...args) => call("${product}.${method.path}", args),`,
     );
     groups.set(group, entries);
   }
   const body = [...groups]
     .map(([group, entries]) =>
       group
-        ? `  ${group}: {\n    ${entries.join("\n    ")}\n  },`
-        : `  ${entries.join("\n  ")}`,
+        ? `    ${group}: {\n      ${entries.join("\n      ")}\n    },`
+        : `    ${entries.join("\n    ")}`,
     )
     .join("\n");
-  return `globalThis.${product} = {\n${body}\n};`;
+  return `  globalThis.${product} = {\n${body}\n  };`;
 }
 
-/** Trusted prelude: `jira.*`/`confluence.*` forward positional args to `host.call`; `storage.*` is pure JS. */
+/** Trusted prelude: SDK objects forwarding to `host.call`, plus the pure-JS `storage.*` builders. */
 export const SDK_PRELUDE = [
-  productPrelude("jira"),
-  productPrelude("confluence"),
-  productPrelude("diagram"),
+  `(() => {\n${RUNTIME_HEAD}`,
+  ...["jira", "confluence", "diagram", "files", "image"].map(productPrelude),
+  `${RUNTIME_TAIL}})();`,
   STORAGE_PRELUDE,
 ].join("\n");
+
+/** Everything evaluated before the module: the SDK, plus lazy libraries the script mentions. */
+export function preludesFor(
+  code: string,
+): Array<{ name: string; source: string }> {
+  const libraries = librariesPrelude(code);
+  return [
+    { name: "nerve:atlassian-sdk", source: SDK_PRELUDE },
+    ...(libraries ? [{ name: "nerve:libraries", source: libraries }] : []),
+  ];
+}
+
+/**
+ * Wraps the script so a top-level `return value` works while top-level `await`
+ * keeps working: the body becomes an async function whose result is printed.
+ * The wrapper opens on the script's first line, so reported line numbers match.
+ */
+export function wrapScript(code: string): string {
+  return `__nerveReturn(await (async () => {${code}\n})());`;
+}

@@ -15,7 +15,11 @@ export function hasMeaningfulDurableBody(
     case "python":
       return view.output.length > 0;
     case "atlassian_code_mode":
-      return view.output.length > 0 || view.hostCalls.length > 0;
+      return (
+        view.output.length > 0 ||
+        view.hostCalls.length > 0 ||
+        view.artifacts.length > 0
+      );
     case "generic":
       return Boolean(view.resultText || view.result.length);
     case "jira":

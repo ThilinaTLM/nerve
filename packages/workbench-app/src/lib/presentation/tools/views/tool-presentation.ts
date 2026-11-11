@@ -370,6 +370,8 @@ function projectToolPresentation(
         });
       if (view.hostCalls.length > 0)
         meta.push({ text: plural(view.hostCalls.length, "SDK call") });
+      if (view.artifacts.length > 0)
+        meta.push({ text: plural(view.artifacts.length, "artifact") });
       const denied = view.hostCalls.filter((c) => c.outcome === "denied");
       if (denied.length > 0)
         meta.push({ text: `${denied.length} denied`, tone: "warning" });

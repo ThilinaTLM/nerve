@@ -20,3 +20,35 @@ export interface PreparedImage {
   /** False when the source bytes were returned as they were. */
   changed: boolean;
 }
+
+export interface ImageInfo {
+  format: ImageFormat;
+  width: number;
+  height: number;
+}
+
+export interface TransformImageOps {
+  /** Applied first. Must lie inside the image. */
+  crop?: { left: number; top: number; width: number; height: number };
+  /**
+   * Applied after crop. With one dimension the aspect ratio is kept. `fit`
+   * (default "inside") fits within the box without enlarging; "cover" fills
+   * the box and trims the overflow; "fill" stretches to the exact box.
+   */
+  resize?: {
+    width?: number;
+    height?: number;
+    fit?: "inside" | "cover" | "fill";
+  };
+  /** Defaults to the input format when png/jpeg, else png. */
+  format?: ImageOutputFormat;
+  /** 1-100, JPEG only. Defaults to 85. */
+  quality?: number;
+}
+
+export interface TransformedImage {
+  data: Buffer;
+  format: ImageOutputFormat;
+  width: number;
+  height: number;
+}
