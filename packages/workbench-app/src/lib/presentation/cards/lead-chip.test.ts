@@ -78,5 +78,9 @@ describe("risk chip", () => {
         ?.tone,
       "warning",
     );
+    assert.deepEqual(
+      riskChip({ decision: "approval", effectiveRisk: "external_write" }),
+      { key: "risk", text: "external write", tone: "warning" },
+    );
   });
 });

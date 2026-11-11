@@ -147,7 +147,7 @@ export const confluencePageWriteMethods: SdkMethod[] = [
   defineMethod({
     product: "confluence",
     path: "pages.create",
-    risk: "write",
+    risk: "external_write",
     options: ["space", "title", "parent", "body", "toc", "attachments"],
     signature:
       "/** body is storage XHTML from storage.*, linted on write. Pass attachments for images the body references. */ create(options: { space?: string; title: string; parent?: string; body: string; toc?: boolean; attachments?: AttachmentInput[] }): Promise<PageWrite>",
@@ -279,7 +279,7 @@ export const confluencePageWriteMethods: SdkMethod[] = [
   defineMethod({
     product: "confluence",
     path: "pages.update",
-    risk: "write",
+    risk: "external_write",
     options: [
       "id",
       "version",

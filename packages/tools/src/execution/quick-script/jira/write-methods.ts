@@ -67,7 +67,7 @@ export const jiraWriteMethods: SdkMethod[] = [
   defineMethod({
     product: "jira",
     path: "issues.create",
-    risk: "write",
+    risk: "external_write",
     options: ["project", "type", "summary", "description", "fields"],
     signature:
       "/** Markdown description. `fields` take field names (jira.fields.list) and plain values: users by email/name, options/priority/components by name, Markdown for rich text. Missing required fields or invalid values throw with the valid ones listed. */ create(options: { project?: string; type: string; summary: string; description?: string; fields?: Record<string, unknown> }): Promise<{ key: string; id: string; url: string }>",
@@ -139,7 +139,7 @@ export const jiraWriteMethods: SdkMethod[] = [
   defineMethod({
     product: "jira",
     path: "issues.update",
-    risk: "write",
+    risk: "external_write",
     options: ["key", "fields"],
     signature:
       '/** Sets the given fields (replacing their values), same value rules as create; assign with { Assignee: "ann@example.com" } or null to unassign. */ update(options: { key: string; fields: Record<string, unknown> }): Promise<{ key: string; url: string; updated: string[] }>',
@@ -182,7 +182,7 @@ export const jiraWriteMethods: SdkMethod[] = [
   defineMethod({
     product: "jira",
     path: "issues.transition",
-    risk: "write",
+    risk: "external_write",
     options: ["key", "to", "fields", "comment"],
     signature:
       "/** `to` is the target status name. Required transition fields (e.g. Resolution) go in `fields`; missing ones or an unreachable status throw with the valid choices. */ transition(options: { key: string; to: string; fields?: Record<string, unknown>; comment?: string }): Promise<{ key: string; status: string; url: string }>",
@@ -273,7 +273,7 @@ export const jiraWriteMethods: SdkMethod[] = [
   defineMethod({
     product: "jira",
     path: "comments.add",
-    risk: "write",
+    risk: "external_write",
     options: ["key", "body"],
     signature:
       "/** Markdown body. */ add(options: { key: string; body: string }): Promise<{ id: string; url: string }>",
@@ -307,7 +307,7 @@ export const jiraWriteMethods: SdkMethod[] = [
   defineMethod({
     product: "jira",
     path: "comments.update",
-    risk: "write",
+    risk: "external_write",
     options: ["key", "id", "body"],
     signature:
       "/** Replaces the comment text (Markdown). */ update(options: { key: string; id: string; body: string }): Promise<{ id: string }>",
@@ -361,7 +361,7 @@ export const jiraWriteMethods: SdkMethod[] = [
   defineMethod({
     product: "jira",
     path: "issues.link",
-    risk: "write",
+    risk: "external_write",
     options: ["key", "to", "type"],
     signature:
       '/** `type` is a link type name or phrase: "Blocks", "blocks" (key blocks to), "is blocked by". Unknown types throw with the valid ones. */ link(options: { key: string; to: string; type: string }): Promise<{ key: string; to: string; type: string }>',
@@ -433,7 +433,7 @@ export const jiraWriteMethods: SdkMethod[] = [
   defineMethod({
     product: "jira",
     path: "worklogs.add",
-    risk: "write",
+    risk: "external_write",
     options: ["key", "time", "started", "comment"],
     signature:
       '/** `time` like "1h 30m"; `started` any ISO date-time (default now). */ add(options: { key: string; time: string; started?: string; comment?: string }): Promise<{ id: string; timeSpent: string }>',
@@ -486,7 +486,7 @@ export const jiraWriteMethods: SdkMethod[] = [
   defineMethod({
     product: "jira",
     path: "attachments.upload",
-    risk: "write",
+    risk: "external_write",
     options: ["key", "file", "filename"],
     signature:
       "/** Any file handle; max 25 MB. */ upload(options: { key: string; file: FileHandle; filename?: string }): Promise<{ id: string; filename: string; mediaType: string; size: number }>",
@@ -539,7 +539,7 @@ export const jiraWriteMethods: SdkMethod[] = [
   defineMethod({
     product: "jira",
     path: "issues.move",
-    risk: "write",
+    risk: "external_write",
     options: ["keys", "sprint"],
     signature:
       '/** Moves up to 50 issues into a sprint (id from projects.get include "sprints") or back to the backlog. */ move(options: { keys: string[]; sprint: number | "backlog" }): Promise<{ moved: number }>',

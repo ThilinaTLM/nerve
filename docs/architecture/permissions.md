@@ -51,7 +51,7 @@ Rule-set definitions and overlays are separate resources so reusable policy can 
 
 ## Risk and shell classification
 
-Two risk vocabularies exist on purpose. A tool's static **category** (`StaticToolRisk`) is what rule sets match on; a call's **effective risk** (`ToolRisk`, persisted as `supervision.effectiveRisk`) is what the approval UI and evidence show. `effectiveRiskForCategory` is the single mapping between them. Shell commands are assessed per invocation: wrappers are unwrapped, then `git` is classified as `read` only when its subcommand, sub-form and every flag match an explicit allowlist (`git-rules.ts`); anything else, including flags that run programs or write files, stays a command. Plan mode's bash filter (`plan-mode.ts`) is a separate blocklist that shares the shell parsing helpers.
+Two risk vocabularies exist on purpose. A tool's static **category** (`StaticToolRisk`) is what rule sets match on; a call's **effective risk** (`ToolRisk`, persisted as `supervision.effectiveRisk`) is what the approval UI and evidence show. `effectiveRiskForCategory` is the single mapping between them. `external_write` is effective-only (a `quick_script` that writes to Jira/Confluence); rule matching treats it as `write`. Shell commands are assessed per invocation: wrappers are unwrapped, then `git` is classified as `read` only when its subcommand, sub-form and every flag match an explicit allowlist (`git-rules.ts`); anything else, including flags that run programs or write files, stays a command. Plan mode's bash filter (`plan-mode.ts`) is a separate blocklist that shares the shell parsing helpers.
 
 ## Admission and evidence
 

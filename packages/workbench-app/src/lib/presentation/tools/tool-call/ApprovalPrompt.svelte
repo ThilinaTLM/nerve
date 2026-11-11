@@ -84,7 +84,12 @@ async function decide(
 function riskTone(risk: string | undefined): StatusTone {
   if (risk === "destructive" || risk === "secret" || risk === "deployment")
     return "destructive";
-  if (risk === "command" || risk === "network" || risk === "workspace_write")
+  if (
+    risk === "command" ||
+    risk === "network" ||
+    risk === "workspace_write" ||
+    risk === "external_write"
+  )
     return "warning";
   if (risk === "agent_spawn") return "info";
   return "neutral";
@@ -105,7 +110,10 @@ function reviewedRuleLabel(): string {
 
 const meta = $derived<MetaItem[]>([
   ...presentation.secondary,
-  { text: approval.risk ?? "", tone: riskTone(approval.risk) },
+  {
+    text: approval.risk?.replaceAll("_", " ") ?? "",
+    tone: riskTone(approval.risk),
+  },
 ]);
 const hasSuggestion = $derived(
   approval.suggestedRules.length > 0 || approval.suggestedExceptions.length > 0,

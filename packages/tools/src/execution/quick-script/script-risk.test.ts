@@ -1,7 +1,11 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { findSdkMethod, sdkMethodNames } from "./sdk.js";
-import { classifyQuickScriptScript } from "./script-risk.js";
+import {
+  classifyQuickScriptScript,
+  describeQuickScriptRisk,
+  quickScriptRiskWithin,
+} from "./script-risk.js";
 
 const classify = (code: string) => classifyQuickScriptScript(code);
 
@@ -20,17 +24,22 @@ void test("the scanner reads each method's declared risk", () => {
   );
   assert.equal(
     risks(`await confluence.comments.add({ id: "1", body: "x" })`),
-    "workspace_write",
+    "external_write",
   );
   assert.equal(
     risks(`await confluence.attachments.upload({ id: "1", file: "a.png" })`),
-    "workspace_write",
+    "external_write",
   );
   for (const name of sdkMethodNames())
     assert.ok(
-      ["none", "read", "network", "write", "destructive"].includes(
-        findSdkMethod(name)!.risk,
-      ),
+      [
+        "none",
+        "read",
+        "network",
+        "write",
+        "external_write",
+        "destructive",
+      ].includes(findSdkMethod(name)!.risk),
       name,
     );
 });
@@ -56,11 +65,11 @@ void test("writes and destructive calls raise the risk", () => {
   const write = classify(
     `await confluence.pages.update({ id: "98506", title: "t" });`,
   );
-  assert.equal(write.risk, "workspace_write");
+  assert.equal(write.risk, "external_write");
   assert.deepEqual(write.operations, ["confluence.pages.update (98506)"]);
   assert.equal(
     classify(`await confluence.labels.add({ id: "1", labels: ["a"] })`).risk,
-    "workspace_write",
+    "external_write",
   );
   assert.equal(
     classify(`await files.write("out/a.txt", "x", { workspace: true })`).risk,
@@ -116,7 +125,7 @@ void test("comments, strings and property names do not count", () => {
 
 void test("a slash after ) or } cannot hide calls behind a bogus string or regex", () => {
   const regexAfterParen = `if (x) /'/.test(s);\njira.issues.create({ project: "A", summary: "s" });`;
-  assert.equal(classify(regexAfterParen).risk, "workspace_write");
+  assert.equal(classify(regexAfterParen).risk, "external_write");
   assert.equal(
     classify(`{}\n/'/.test(s);\nawait jira.issues.delete("A-1");`).risk,
     "destructive",
@@ -127,4 +136,18 @@ void test("a slash after ) or } cannot hide calls behind a bogus string or regex
   );
   assert.equal(division.risk, "network");
   assert.deepEqual(division.operations, ["jira.issues.get (A-1)"]);
+});
+
+void test("a tie between workspace and external writes reports the external write, in any order", () => {
+  const file = `await files.write("out/a.txt", "x", { workspace: true });`;
+  const jira = `await jira.comments.add({ key: "A-1", body: "x" });`;
+  assert.equal(classify(file + jira).risk, "external_write");
+  assert.equal(classify(jira + file).risk, "external_write");
+  assert.equal(describeQuickScriptRisk("external_write"), "external write");
+});
+
+void test("workspace and external writes share a rank: either ceiling admits the other", () => {
+  assert.ok(quickScriptRiskWithin("external_write", "workspace_write"));
+  assert.ok(quickScriptRiskWithin("workspace_write", "external_write"));
+  assert.ok(!quickScriptRiskWithin("destructive", "external_write"));
 });

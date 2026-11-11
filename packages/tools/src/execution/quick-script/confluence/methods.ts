@@ -275,7 +275,7 @@ export const confluenceMethods: SdkMethod[] = [
   defineMethod({
     product: "confluence",
     path: "attachments.upload",
-    risk: "write",
+    risk: "external_write",
     options: ["id", "file", "filename", "comment"],
     signature:
       "/** Same filename replaces. SVG rejected; max 20 MB. */ upload(options: { id: string; file: FileHandle; filename?: string; comment?: string }): Promise<AttachmentInfo>",
@@ -302,7 +302,7 @@ export const confluenceMethods: SdkMethod[] = [
   defineMethod({
     product: "confluence",
     path: "labels.add",
-    risk: "write",
+    risk: "external_write",
     options: ["id", "labels"],
     signature:
       "add(options: { id: string; labels: string | string[] }): Promise<{ id: string; labels: string[] }>",
@@ -335,7 +335,7 @@ export const confluenceMethods: SdkMethod[] = [
   defineMethod({
     product: "confluence",
     path: "comments.add",
-    risk: "write",
+    risk: "external_write",
     options: ["id", "body", "format"],
     signature:
       '/** Footer comment; Markdown unless format is "storage". */ add(options: { id: string; body: string; format?: "markdown" | "storage" }): Promise<{ id: string; pageId: string }>',

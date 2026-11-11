@@ -94,6 +94,17 @@ void test("approval inside the approved risk runs; above it is refused", async (
   );
 });
 
+void test("a workspace_write ceiling admits Atlassian (external) writes: equal rank", async () => {
+  const { authorize } = authorizer(["approval"]);
+  await authorize(
+    {
+      ...call,
+      admission: { by: "user" as const, scriptRisk: "workspace_write" },
+    },
+    { toolName: "jira_create_issue", args: {} },
+  );
+});
+
 void test("deny wins over the approved risk", async () => {
   const { authorize } = authorizer(["deny"]);
   await assert.rejects(

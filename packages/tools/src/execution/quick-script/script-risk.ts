@@ -14,12 +14,15 @@ export type QuickScriptRisk =
   | "read"
   | "network"
   | "workspace_write"
+  | "external_write"
   | "destructive";
 
+/** Workspace and external writes share a rank: either ceiling admits the other. */
 const RANK: Record<QuickScriptRisk, number> = {
   read: 0,
   network: 1,
   workspace_write: 2,
+  external_write: 2,
   destructive: 3,
 };
 
@@ -36,8 +39,16 @@ export function quickScriptRiskWithin(
   return RANK[risk] <= RANK[ceiling];
 }
 
+/** The riskier of two; on a rank tie `external_write` wins, so the result does not depend on order. */
+function higherRisk(a: QuickScriptRisk, b: QuickScriptRisk): QuickScriptRisk {
+  if (RANK[a] !== RANK[b]) return RANK[a] > RANK[b] ? a : b;
+  return a === "external_write" || b === "external_write"
+    ? "external_write"
+    : a;
+}
+
 export function describeQuickScriptRisk(risk: QuickScriptRisk): string {
-  return risk === "workspace_write" ? "write" : risk;
+  return risk.replaceAll("_", " ");
 }
 
 /** Maps the effective risk of one direct tool call onto the quick-script scale; anything beyond reads and writes is destructive. */
@@ -49,8 +60,9 @@ export function quickScriptRiskOfToolRisk(risk: ToolRisk): QuickScriptRisk {
     case "network":
       return "network";
     case "workspace_write":
-    case "command":
       return "workspace_write";
+    case "command":
+      return "external_write";
     default:
       return "destructive";
   }
@@ -74,6 +86,8 @@ export function quickScriptRiskOfMethod(risk: MethodRisk): QuickScriptRisk {
       return "network";
     case "write":
       return "workspace_write";
+    case "external_write":
+      return "external_write";
     case "destructive":
       return "destructive";
   }
@@ -360,7 +374,7 @@ export function classifyQuickScriptScript(
   // The readings disagree: report the riskier, and every operation either found.
   const second = classifyTokens(regex);
   return {
-    risk: RANK[second.risk] > RANK[first.risk] ? second.risk : first.risk,
+    risk: higherRisk(first.risk, second.risk),
     operations: [...new Set([...first.operations, ...second.operations])],
   };
 }
@@ -426,8 +440,7 @@ function classifyTokens(tokens: Token[]): QuickScriptClassification {
   let risk: QuickScriptRisk = "read";
   const operations: string[] = [];
   for (const [name, calls] of found) {
-    for (const call of calls)
-      if (RANK[call.risk] > RANK[risk]) risk = call.risk;
+    for (const call of calls) risk = higherRisk(risk, call.risk);
     const targets = [...new Set(calls.flatMap((call) => call.targets))];
     operations.push(
       `${name}${calls.length > 1 ? ` ×${calls.length}` : ""}${targets.length > 0 ? ` (${targets.join(", ")})` : ""}`,

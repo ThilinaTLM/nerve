@@ -6,6 +6,7 @@ import {
   evaluatePermissionRequest,
   normalizePermissionRequest,
 } from "../../src/policy/index.js";
+import { requireToolDefinition } from "../../src/catalog/manifest.js";
 
 const roots = {
   project: "/workspace",
@@ -64,6 +65,16 @@ test("planning and read-only allow read scripts and never auto-allow writes", ()
   }
   assert.equal(decision("supervised", write), "prompt");
   assert.equal(decision("autonomous", write), "allow");
+});
+
+test("a Jira write script is classified external_write", () => {
+  const args = {
+    code: `await jira.issues.update({ key: "A-1", fields: { summary: "x" } })`,
+  };
+  assert.equal(
+    requireToolDefinition("quick_script").classifyRisk?.(args),
+    "external_write",
+  );
 });
 
 test("quick_script has its own permission group", () => {

@@ -477,7 +477,7 @@ function requestMetadata(request: NormalizedPermissionRequest) {
           ? ("read" as const)
           : risk === "network"
             ? ("network" as const)
-            : risk === "workspace_write"
+            : risk === "workspace_write" || risk === "external_write"
               ? ("write" as const)
               : risk === "destructive"
                 ? ("destructive" as const)

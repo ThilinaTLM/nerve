@@ -102,12 +102,17 @@ export type PreparedCall = {
 };
 
 /**
- * What a method can do at most: `none` has no external effect, `read` reads local data, `network` reads through an integration, `write` creates
- * or changes things, `destructive` deletes or is not analysable (`request`).
+ * What a method can do at most: `none` has no external effect, `read` reads local data, `network` reads through an integration, `write` changes workspace files, `external_write` changes things in an integration, `destructive` deletes or is not analysable (`request`).
  * It must not be lower than the risk of the direct tool call the method is
  * authorized as; the executor refuses to run a method that violates this.
  */
-export type MethodRisk = "none" | "read" | "network" | "write" | "destructive";
+export type MethodRisk =
+  | "none"
+  | "read"
+  | "network"
+  | "write"
+  | "external_write"
+  | "destructive";
 
 export type SdkMethod = {
   product: SdkProduct;

@@ -174,7 +174,7 @@ void test("direct manage tools are write, and destructive only for deletes", () 
     ["confluence_manage_attachment", { action: "upload" }],
     ["confluence_manage_label", { action: "add" }],
   ] as const)
-    assert.equal(risk(tool, args), "workspace_write", tool);
+    assert.equal(risk(tool, args), "external_write", tool);
   for (const [tool, args] of [
     ["jira_manage_comment", { action: "delete" }],
     ["jira_manage_issue_link", { action: "delete" }],
@@ -194,7 +194,8 @@ void test("effective tool risks map conservatively onto the quick-script scale",
     ["network", "network"],
     ["interaction", "read"],
     ["workspace_write", "workspace_write"],
-    ["command", "workspace_write"],
+    ["command", "external_write"],
+    ["external_write", "destructive"],
     ["destructive", "destructive"],
     ["secret", "destructive"],
     ["deployment", "destructive"],
@@ -207,11 +208,11 @@ void test("scripts are classified from the method table: adding is a write, dele
   const risk = (code: string) => classifyQuickScriptScript(code).risk;
   assert.equal(
     risk(`await jira.comments.add({ key: "A-1", body: "x" })`),
-    "workspace_write",
+    "external_write",
   );
   assert.equal(
     risk(`await jira.issues.transition({ key: "A-1", to: "Done" })`),
-    "workspace_write",
+    "external_write",
   );
   assert.equal(
     risk(`await jira.comments.delete({ key: "A-1", id: "1" })`),
