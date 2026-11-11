@@ -71,7 +71,7 @@ export type SdkMethod = {
   product: SdkProduct;
   /** Dotted path under the product global, e.g. `issues.search`. */
   path: string;
-  /** One-line signature for the guide. */
+  /** TypeScript method declaration, optionally led by a one-line JSDoc comment; generates the guide's `references/*.d.ts` (sdk-dts.ts). */
   signature: string;
   /**
    * Validates the script's arguments (throws on bad input) and returns what

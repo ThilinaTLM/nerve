@@ -35,8 +35,7 @@ export const imageMethods: SdkMethod[] = [
     product: "image",
     path: "info",
     options: ["file", "ops"],
-    signature:
-      "image(handle).info(): Promise<{ format, width, height, bytes }>  // after any pending resize/crop/format",
+    signature: "info(): Promise<ImageInfo>",
     parse: parseImage,
     authorizeAlso: ({ file }, env) =>
       readAuthorizations([parseHandle(file, env)]),
@@ -60,8 +59,7 @@ export const imageMethods: SdkMethod[] = [
     product: "image",
     path: "save",
     options: ["file", "ops", "name"],
-    signature:
-      "image(handle).resize({ width?, height?, fit?: 'inside'|'cover'|'fill' }).crop({ left, top, width, height }).png() | .jpeg({ quality? }).save(name): Promise<string>  // new artifact handle; crop runs before resize; 'inside' never enlarges",
+    signature: "save(name: string): Promise<FileHandle>",
     parse: parseImage,
     authorizeAlso: ({ file }, env) =>
       readAuthorizations([parseHandle(file, env)]),

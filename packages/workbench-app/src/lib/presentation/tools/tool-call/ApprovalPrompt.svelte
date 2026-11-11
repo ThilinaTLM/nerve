@@ -34,6 +34,7 @@ type Props = {
 };
 let {
   approval,
+  toolName,
   presentation,
   detailsAction,
   embedded = false,
@@ -204,8 +205,18 @@ const permissionRuleSetLabel = $derived(
   </Button>
 {/snippet}
 
+{#snippet scriptOperations()}
+  <!-- The policy reason lists the SDK operations found in the script. -->
+  {#if toolName === "atlassian_code_mode" && approval.reason}
+    <p class="m-0 basis-full text-ui text-muted-foreground">
+      {approval.reason}
+    </p>
+  {/if}
+{/snippet}
+
 {#if embedded}
   <div class="flex flex-wrap items-center gap-2" aria-label="Tool approval">
+    {@render scriptOperations()}
     {@render buttons()}
     {#if actionError}
       <p class="m-0 text-ui text-destructive" role="alert">{actionError}</p>
@@ -213,6 +224,7 @@ const permissionRuleSetLabel = $derived(
   </div>
 {:else}
   <div class="grid gap-2" aria-label="Tool approval">
+    {@render scriptOperations()}
     {#if permissionRuleSetLabel && hasPersistentChoice}
       <p class="text-ui text-muted-foreground">
         Durable grants apply only to the {permissionRuleSetLabel} permission rule

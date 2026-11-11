@@ -18,8 +18,7 @@ export const filesMethods: SdkMethod[] = [
     product: "files",
     path: "list",
     maxArgs: 0,
-    signature:
-      "list(): Promise<{ handle, name, bytes, mediaType, modified }[]>  // this conversation's artifacts",
+    signature: "list(): Promise<ArtifactInfo[]>",
     parse: () => undefined,
     resource: () => "artifacts",
     run: (_parsed, env) => listArtifacts(env),
@@ -29,7 +28,7 @@ export const filesMethods: SdkMethod[] = [
     path: "read",
     maxArgs: 2,
     signature:
-      'read(handle, { as?: "text"|"bytes" }): Promise<string | Uint8Array>  // handle = "artifact:name" or a workspace path; max 20 MB',
+      '/** Default "text"; max 20 MB. */ read(handle: FileHandle, options: { as: "bytes" }): Promise<Uint8Array>; read(handle: FileHandle, options?: { as?: "text" }): Promise<string>',
     parse: ([handle, options]) => {
       const as = (options as { as?: unknown } | undefined)?.as ?? "text";
       if (as !== "text" && as !== "bytes") {
@@ -54,7 +53,7 @@ export const filesMethods: SdkMethod[] = [
     path: "write",
     maxArgs: 3,
     signature:
-      "write(name, data: string | Uint8Array | ArrayBuffer, { workspace?: boolean }): Promise<string>  // artifact by default (returns its handle); workspace: true writes the path as given",
+      "/** Artifact by default; with workspace: true `name` is a workspace path. Returns the handle or path. */ write(name: string, data: string | Uint8Array | ArrayBuffer, options?: { workspace?: boolean }): Promise<string>",
     parse: ([name, data, options]) => {
       const workspace =
         (options as { workspace?: unknown } | undefined)?.workspace === true;

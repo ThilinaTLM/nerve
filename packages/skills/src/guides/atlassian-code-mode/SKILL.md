@@ -5,37 +5,32 @@ description: Usage guide for Nerve's `atlassian_code_mode` tool (scripted Jira +
 
 # Atlassian code mode
 
-`atlassian_code_mode` runs a TypeScript script in a sandbox with these globals: `jira`, `confluence`, `diagram`, `files` and `image(handle)` (async host clients), `storage` (pure string builders for Confluence storage XHTML), and the libraries `XLSX` (SheetJS) and `Papa` (Papa Parse), which load only when the script mentions them. The sandbox has no network, filesystem or imports beyond these globals.
-
-Method references (read the one you need before using it):
-
-- [jira.md](jira.md): `jira.*` methods, issue shape, field names
-- [confluence.md](confluence.md): page style and linter, `confluence.*` methods (pages, attachments, labels, comments), `diagram.render`, body formats
-- [files.md](files.md): artifacts and file handles, `files.*`, `image(...)`, `XLSX`/`Papa`
-- [storage.md](storage.md): `storage.*` builders; pages are written as storage XHTML (headings, tables, panels, images, layouts)
+A TypeScript sandbox script (no network, filesystem or imports) with globals `jira`, `confluence`, `files`, `image`, `diagram`, `storage`, and `XLSX`/`Papa` (loaded when mentioned).
 
 ## Rules
 
-- The script is an ES module body; use top-level `await`. Output is what you `console.log` plus a top-level `return value`, which prints compactly (an array of flat objects as a text table, a string as is, anything else as JSON). Do not `import` or `export`.
-- Every SDK method takes one argument: a bare id/query string or one options object (`jira.issues.get({ key, fields })`, `confluence.pages.update({ id, body })`); a page id is always `id`, an issue or project id is `key`. Unknown options throw and list the valid ones.
-- Errors (bad args, HTTP failures, policy denials) throw `HostError` with `e.code` (`FORBIDDEN`, `NOT_FOUND`, `BAD_REQUEST`, `DENIED`). Let it fail the script, or `try/catch` to continue. An invalid API token (401) stops the whole script with one message.
-- Raw escape hatches: `jira.request(method, path, body?)` and `confluence.request(method, path, body?)` for endpoints the methods do not cover.
-- JQL must be bounded by a field restriction (e.g. `project = APP AND ...`); a bare `ORDER BY` is rejected. Set `limit` and request only needed `fields`.
-- Batch in code: loop or `Promise.all` over keys/pages, filter and aggregate in the script, and print only the compact result instead of dumping raw data.
-- Confluence pages are written as storage XHTML built with `storage.*`. Read "Page style" in confluence.md before creating or updating a page. The result automatically lists the linter's `fixes` and `warnings` for every page written and the artifacts created, so you do not need to print them; react to the warnings.
-- Write methods (`confluence.pages.create`, `pages.update`, `attachments.upload`, `labels.add`, `comments.add`, and `request()` with a non-GET method) only on explicit user request. Read back or print the returned `url`/`version` so the user can verify.
-- Results are plain objects. Text fields (issue descriptions, comments, page bodies) are Markdown.
+1. ES module body with top-level `await`; no `import`/`export`. Output is `console.log` plus a top-level `return value`.
+2. JQL needs a field restriction (`project = APP AND ...`). Always set `limit` and `fields`; filter in JQL/CQL first, then in code (`Promise.all` over keys).
+3. Methods take one argument: a bare string (key, id, JQL, CQL) or one options object. Issues and projects use `key`, pages `id`. Exceptions: `files.*`, `image(...)`, `request(method, path, body?)`.
+4. Write only on explicit user request, then print `url`/`version`. The result lists page lint `fixes`/`warnings` and artifacts for you.
+5. Failures throw `HostError` with `e.code` (`FORBIDDEN`, `NOT_FOUND`, `BAD_REQUEST`, `DENIED`); finished calls are not undone. A rejected token (401) stops the script.
+6. Jira/Confluence text is Markdown; pages are written as storage XHTML via `storage.*`.
 
-## Example
+## Read before use
+
+| Task                               | Read                                                                                                      |
+| ---------------------------------- | --------------------------------------------------------------------------------------------------------- |
+| Jira calls                         | [jira.d.ts](references/jira.d.ts)                                                                         |
+| Confluence calls                   | [confluence.d.ts](references/confluence.d.ts)                                                             |
+| Writing a page                     | [confluence-writing.md](references/confluence-writing.md), [storage.md](references/storage.md) (builders) |
+| Files, images, diagrams, Excel/CSV | [files.md](references/files.md), [files.d.ts](references/files.d.ts)                                      |
+| Saving learned project conventions | [project-knowledge.md](references/project-knowledge.md)                                                   |
 
 ```ts
 const issues = await jira.issues.search({
-  jql: "project = APP AND statusCategory != Done ORDER BY updated DESC",
-  fields: ["summary", "status", "Story Points"],
-  limit: 100,
+  jql: "project = APP AND statusCategory != Done",
+  fields: ["summary", "status"],
+  limit: 50,
 });
-const byStatus = Object.groupBy(issues, (i) => i.status ?? "none");
-for (const [status, list] of Object.entries(byStatus)) {
-  console.log(status, list?.length);
-}
+return issues.map((i) => ({ key: i.key, status: i.status }));
 ```

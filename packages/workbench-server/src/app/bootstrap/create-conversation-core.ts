@@ -37,6 +37,7 @@ import {
 import {
   resolvePythonRuntime,
   resolveBashShellConfig,
+  classifyCodeModeArguments,
   ToolExecutionError,
   type ToolExecutionContext,
 } from "@nervekit/tools/execution";
@@ -320,6 +321,9 @@ export function createConversationCore(
                       cwd: input.cwd,
                       requestCaptureId: input.requestCaptureId,
                       signal: input.signal,
+                      approvedRisk: classifyCodeModeArguments(
+                        input.args as Record<string, unknown>,
+                      ).risk,
                     },
                     request,
                   ),

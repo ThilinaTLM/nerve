@@ -461,15 +461,29 @@ function compareEffectiveRules(
   );
 }
 
+/** Tools whose rules match on the risk of this call's arguments, not a fixed category. */
+const ARGUMENT_RISK_TOOLS = new Set([
+  "async_bash",
+  "launch",
+  "atlassian_code_mode",
+]);
+
 function requestMetadata(request: NormalizedPermissionRequest) {
   const metadata = permissionMetadataForTool(request.toolName);
-  if (request.toolName === "async_bash" || request.toolName === "launch") {
+  if (ARGUMENT_RISK_TOOLS.has(request.toolName)) {
     const risk = requireToolDefinition(request.toolName).classifyRisk?.(
       request.args,
     );
     return {
       ...metadata,
-      baseRisk: risk === "read" ? ("read" as const) : ("unknown" as const),
+      baseRisk:
+        risk === "read"
+          ? ("read" as const)
+          : risk === "workspace_write"
+            ? ("write" as const)
+            : risk === "destructive"
+              ? ("destructive" as const)
+              : ("unknown" as const),
     };
   }
   return metadata;

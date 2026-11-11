@@ -22,6 +22,7 @@ import {
   builtInPermissionRuleSets,
 } from "@nervekit/tools/policy";
 import { classifyToolRisk } from "@nervekit/tools/catalog";
+import { classifyCodeModeArguments } from "@nervekit/tools/execution";
 import type { AgentConfigurationService } from "../infrastructure/configuration/agent-configuration/agent-configuration-service.js";
 import {
   canonicalDigest,
@@ -355,7 +356,11 @@ export function createScopedPermissionSource(options: {
                     actual.toolName,
                     request.args,
                   ),
-                  reason: evaluated.reason,
+                  reason:
+                    actual.toolName === "atlassian_code_mode" &&
+                    evaluated.decision !== "allow"
+                      ? withScriptOperations(evaluated.reason, request.args)
+                      : evaluated.reason,
                   matchedRule: evaluated.winningRule,
                   suggestedRules: evaluated.suggestedRules,
                   authority: {
@@ -425,4 +430,15 @@ export function createScopedPermissionSource(options: {
       await source.reload([join(context.directory, ".nerve", type.path)]);
   });
   return source;
+}
+
+/** Names the SDK operations a code-mode script contains, so the approval shows what it does. */
+function withScriptOperations(
+  reason: string,
+  args: Record<string, unknown>,
+): string {
+  const { operations } = classifyCodeModeArguments(args);
+  return operations.length > 0
+    ? `${reason} Script operations: ${operations.join(", ")}.`
+    : reason;
 }

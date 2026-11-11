@@ -18,7 +18,7 @@ export const diagramMethods: SdkMethod[] = [
     path: "render",
     options: ["type", "source", "name"],
     signature:
-      "render({ type, source, name? }): Promise<string>  // PNG saved as an artifact; returns its handle ('artifact:diagram-1.png' unless name is given)",
+      "/** Kroki engine such as mermaid, d2 or plantuml; returns a PNG artifact handle. */ render(options: { type: string; source: string; name?: string }): Promise<FileHandle>",
     parse: (options) => {
       const source = nonEmptyString(options.source, "source");
       if (Buffer.byteLength(source, "utf8") > MAX_SOURCE_BYTES) {

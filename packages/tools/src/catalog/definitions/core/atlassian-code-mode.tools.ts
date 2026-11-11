@@ -1,5 +1,6 @@
 import { Type } from "typebox";
 import { executeAtlassianCodeMode } from "../../../execution/atlassian-code-mode/atlassian-code-mode.js";
+import { classifyCodeModeArguments } from "../../../execution/atlassian-code-mode/script-risk.js";
 import type { ToolDefinition } from "../../contracts.js";
 
 const atlassianCodeModeParameters = Type.Object(
@@ -27,6 +28,7 @@ export const atlassianCodeModeToolDefinitions = [
     traits: ["write_capable", "credentialed", "long_running"],
     executionKind: "local",
     executor: executeAtlassianCodeMode,
+    classifyRisk: (args) => classifyCodeModeArguments(args).risk,
     label: "Atlassian code mode",
     description:
       "Run a sandboxed TypeScript script against Jira and Confluence with globals `jira`, `confluence`, `diagram`, `files`, `image`, `storage`, `XLSX`, `Papa`. Read {{skill:atlassian-code-mode}} before first use; method references are linked from it.\nThe script is an ES module with top-level await: print results with console.log or a top-level `return value` (flat objects print as a table); only that output is returned. JQL must be bounded (e.g. `project = X`); a bare ORDER BY is rejected.",

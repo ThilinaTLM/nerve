@@ -69,7 +69,7 @@ export const jiraMethods: SdkMethod[] = [
     bare: "jql",
     options: ["jql", "fields", "limit"],
     signature:
-      "issues.search({ jql, fields?, limit? }): Promise<Issue[]>  // limit default 50, max 1000",
+      "/** JQL needs a field restriction; a bare ORDER BY is rejected. `fields` replaces the default set. limit default 50, max 1000. */ search(options: string | { jql: string; fields?: string[]; limit?: number }): Promise<Issue[]>",
     parse: (options) => ({
       jql: nonEmptyString(options.jql, "jql"),
       limit: clampInt(options.limit, DEFAULT_SEARCH_LIMIT, 1, MAX_SEARCH_LIMIT),
@@ -114,7 +114,7 @@ export const jiraMethods: SdkMethod[] = [
     bare: "key",
     options: ["key", "fields", "comments"],
     signature:
-      "issues.get({ key, fields?, comments? }): Promise<Issue & { comments? }>",
+      "/** `comments: true` adds all comments. */ get(options: string | { key: string; fields?: string[]; comments?: boolean }): Promise<Issue & { comments?: IssueComment[] }>",
     parse: (options) => ({
       key: nonEmptyString(options.key, "key"),
       fields: fieldsOption(options),
@@ -145,8 +145,7 @@ export const jiraMethods: SdkMethod[] = [
     path: "projects.get",
     bare: "key",
     options: ["key"],
-    signature:
-      "projects.get({ key }): Promise<{ key, name, lead, issueTypes, components, versions }>",
+    signature: "get(options: string | { key: string }): Promise<JiraProject>",
     parse: (options) => nonEmptyString(options.key, "key"),
     authorize: (key) => ({
       toolName: "jira_get_project",
@@ -176,7 +175,7 @@ export const jiraMethods: SdkMethod[] = [
     bare: "query",
     options: ["query"],
     signature:
-      "users.search({ query }): Promise<{ accountId, name, email, active }[]>",
+      "search(options: string | { query: string }): Promise<JiraUser[]>",
     parse: (options) => nonEmptyString(options.query, "query"),
     authorize: (query) => ({
       toolName: "jira_search_users",
@@ -205,8 +204,7 @@ export const jiraMethods: SdkMethod[] = [
     product: "jira",
     path: "fields.list",
     options: [],
-    signature:
-      "fields.list(): Promise<{ id, name, custom, type }[]>  // names usable in `fields`",
+    signature: "/** Names usable in `fields`. */ list(): Promise<JiraField[]>",
     parse: () => undefined,
     // There is no dedicated field-listing tool. `jira_get_project` with
     // `include: ["fields"]` is the closest direct read of field metadata, so a
@@ -225,7 +223,7 @@ export const jiraMethods: SdkMethod[] = [
     path: "request",
     maxArgs: 3,
     signature:
-      "request(method, path, body?): Promise<unknown>  // path under /rest/api/3/ or /rest/agile/1.0/; JSON (or text), max 5 MB",
+      '/** Path under /rest/api/3/ or /rest/agile/1.0/. Returns JSON or text; non-GET is a destructive write. */ request(method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE", path: string, body?: unknown): Promise<unknown>',
     parse: ([method, path, body]) => ({
       method: rawMethod(method),
       path,

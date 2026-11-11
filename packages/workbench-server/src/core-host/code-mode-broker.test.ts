@@ -41,6 +41,7 @@ const call: CodeModeCall = {
   origin: "model",
   cwd: "/p",
   signal: new AbortController().signal,
+  approvedRisk: "read",
 };
 
 void test("nested calls are evaluated as the equivalent direct tool call", async () => {
@@ -54,8 +55,8 @@ void test("nested calls are evaluated as the equivalent direct tool call", async
   assert.deepEqual(inputs[1]?.args, { jql: "project = X" });
 });
 
-void test("deny and approval-required refuse the call with the policy reason", async () => {
-  const { authorize } = authorizer(["deny", "approval"]);
+void test("deny refuses the call with the policy reason", async () => {
+  const { authorize } = authorizer(["deny"]);
   await assert.rejects(
     authorize(call, { toolName: "jira_get_issue", args: {} }),
     {
@@ -63,12 +64,33 @@ void test("deny and approval-required refuse the call with the policy reason", a
       message: "jira_get_issue: denied (read-only mode)",
     },
   );
+});
+
+void test("approval inside the approved risk runs; above it is refused", async () => {
+  const { authorize } = authorizer(["approval", "approval", "approval"]);
+  await authorize(call, { toolName: "jira_get_issue", args: {} });
   await assert.rejects(
-    authorize(call, { toolName: "jira_get_issue", args: {} }),
+    authorize(call, { toolName: "jira_create_issue", args: {} }),
     {
       code: "NESTED_APPROVAL_REQUIRED",
-      message: /needs approval \(read-only mode\)/,
+      message:
+        "jira_create_issue: script was approved for read operations; this call needs write approval (read-only mode)",
     },
+  );
+  await authorize(
+    { ...call, approvedRisk: "workspace_write" },
+    { toolName: "jira_create_issue", args: {} },
+  );
+});
+
+void test("deny wins over the approved risk", async () => {
+  const { authorize } = authorizer(["deny"]);
+  await assert.rejects(
+    authorize(
+      { ...call, approvedRisk: "destructive" },
+      { toolName: "jira_get_issue", args: {} },
+    ),
+    { code: "NESTED_DENIED" },
   );
 });
 

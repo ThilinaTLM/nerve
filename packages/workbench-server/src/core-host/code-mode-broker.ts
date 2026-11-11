@@ -1,6 +1,12 @@
 import type { PermissionPort } from "@nervekit/conversation-core";
 import { toolNameSchema } from "@nervekit/contracts/tools";
-import { ToolExecutionError } from "@nervekit/tools/execution";
+import {
+  codeModeRiskWithin,
+  codeModeToolRisk,
+  describeCodeModeRisk,
+  ToolExecutionError,
+  type CodeModeRisk,
+} from "@nervekit/tools/execution";
 
 type PrepareAdmission = NonNullable<PermissionPort["prepareAdmission"]>;
 type AdmissionInput = Parameters<PrepareAdmission>[0];
@@ -9,7 +15,11 @@ type AdmissionInput = Parameters<PrepareAdmission>[0];
 export type CodeModeCall = Omit<
   AdmissionInput,
   "toolName" | "args" | "target"
-> & { signal: AbortSignal };
+> & {
+  signal: AbortSignal;
+  /** Risk the outer call was admitted with: the classification of its script. */
+  approvedRisk: CodeModeRisk;
+};
 
 const MAX_STALE_RETRIES = 5;
 
@@ -29,8 +39,9 @@ function brokerable(toolName: string): boolean {
 /**
  * Checks one SDK call from a code-mode script against the conversation's
  * current policy, exactly as a direct call to `toolName` would be checked.
- * Approval prompts inside a running script are not supported yet: a call that
- * needs approval is refused with its reason.
+ * The script itself was admitted (allowed or approved) as a whole with
+ * `approvedRisk`, so a call whose policy decision is "approval" runs when its
+ * own risk is within that ceiling and is refused above it. Denials always hold.
  */
 export function createCodeModeAuthorizer(prepareAdmission: PrepareAdmission) {
   return async (
@@ -43,7 +54,7 @@ export function createCodeModeAuthorizer(prepareAdmission: PrepareAdmission) {
         "NESTED_DENIED",
         `${request.toolName}: not available to code mode`,
       );
-    const { signal, ...identity } = call;
+    const { signal, approvedRisk, ...identity } = call;
     for (let attempt = 0; attempt <= MAX_STALE_RETRIES; attempt += 1) {
       signal.throwIfAborted();
       const admission = await prepareAdmission({
@@ -71,9 +82,11 @@ export function createCodeModeAuthorizer(prepareAdmission: PrepareAdmission) {
           "NESTED_DENIED",
           `${parsed.data}: denied${reason ? ` (${reason})` : ""}`,
         );
+      const risk = codeModeToolRisk(parsed.data);
+      if (codeModeRiskWithin(risk, approvedRisk)) return;
       throw new ToolExecutionError(
         "NESTED_APPROVAL_REQUIRED",
-        `${parsed.data}: needs approval${reason ? ` (${reason})` : ""}, which code mode cannot request yet`,
+        `${parsed.data}: script was approved for ${describeCodeModeRisk(approvedRisk)} operations; this call needs ${describeCodeModeRisk(risk)} approval${reason ? ` (${reason})` : ""}`,
       );
     }
     throw new ToolExecutionError(

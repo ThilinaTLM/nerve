@@ -151,7 +151,7 @@ export const confluenceMethods: SdkMethod[] = [
     bare: "query",
     options: ["query"],
     signature:
-      "spaces.search({ query? }): Promise<{ id, key, name, type, url }[]>  // key or name contains",
+      "/** Contains match on key or name. */ search(options?: string | { query?: string }): Promise<Space[]>",
     parse: (options) => optionalText(options.query)?.trim() ?? "",
     authorize: (query) => ({
       toolName: "confluence_search_spaces",
@@ -174,7 +174,7 @@ export const confluenceMethods: SdkMethod[] = [
     bare: "cql",
     options: ["cql", "space", "title", "limit"],
     signature:
-      "pages.search({ cql?, space?, title?, limit? }): Promise<{ id, title, space, url, updated, parentId }[]>  // limit 25, max 250; title contains",
+      "/** Needs cql, space or title (contains); ANDed. limit default 25, max 250. */ search(options: string | { cql?: string; space?: string; title?: string; limit?: number }): Promise<PageSummary[]>",
     parse: (options) => {
       const space = optionalText(options.space);
       const title = optionalText(options.title);
@@ -248,7 +248,7 @@ export const confluenceMethods: SdkMethod[] = [
     bare: "id",
     options: ["id", "space", "title", "body", "children"],
     signature:
-      'pages.get({ id } | { space?, title }, { body?: "markdown"|"storage"|false, children? }): Promise<{ id, title, space, url, version, parentId, labels, body, children? }>  // options go in the same object',
+      '/** By id, or by exact title (space defaults to the configured one). body defaults to "markdown". */ get(options: string | { id: string; body?: "markdown" | "storage" | false; children?: boolean } | { space?: string; title: string; body?: "markdown" | "storage" | false; children?: boolean }): Promise<Page>',
     parse: (options) => {
       const id =
         options.id === undefined ? undefined : nonEmptyString(options.id, "id");
@@ -360,7 +360,7 @@ export const confluenceMethods: SdkMethod[] = [
       "attachments",
     ],
     signature:
-      'pages.create({ space?, title, parent?, body, format?: "storage"|"markdown", toc?, attachments? }): Promise<{ id, title, url, version, fixes, warnings, attachments? }>  // body is storage XHTML (build with storage.*); linted on write',
+      '/** body is storage XHTML from storage.*, linted on write. Pass attachments for images the body references. */ create(options: { space?: string; title: string; parent?: string; body: string; format?: "storage" | "markdown"; toc?: boolean; attachments?: AttachmentInput[] }): Promise<PageWrite>',
     parse: (options) => {
       const body = pageBodyOption(options) ?? "";
       if (!body.trim()) throw new Error("body must be a non-empty string.");
@@ -478,7 +478,7 @@ export const confluenceMethods: SdkMethod[] = [
     path: "pages.update",
     options: ["id", "title", "body", "format", "message", "toc", "attachments"],
     signature:
-      "pages.update({ id, title?, body?, format?, message?, toc?, attachments? }): Promise<{ id, title, url, version, fixes, warnings, attachments? }>  // replaces body; version bumped for you; linted on write",
+      '/** Replaces the whole body (read body: "storage" first to edit); omitted title/body are kept. */ update(options: { id: string; title?: string; body?: string; format?: "storage" | "markdown"; message?: string; toc?: boolean; attachments?: AttachmentInput[] }): Promise<PageWrite>',
     parse: (options) => {
       const body = pageBodyOption(options);
       const title = optionalText(options.title);
@@ -590,7 +590,7 @@ export const confluenceMethods: SdkMethod[] = [
     path: "attachments.upload",
     options: ["id", "file", "filename", "comment"],
     signature:
-      "attachments.upload({ id, file, filename?, comment? }): Promise<{ id, filename, mediaType, size, width?, height? }>  // id = page id; file = any handle; PNG/JPEG for images (GIF/WebP converted, SVG rejected)",
+      "/** Same filename replaces. SVG rejected; max 20 MB. */ upload(options: { id: string; file: FileHandle; filename?: string; comment?: string }): Promise<AttachmentInfo>",
     parse: (options) => ({
       id: nonEmptyString(options.id, "id"),
       spec: parseAttachmentSpec({
@@ -616,7 +616,7 @@ export const confluenceMethods: SdkMethod[] = [
     path: "labels.add",
     options: ["id", "labels"],
     signature:
-      "labels.add({ id, labels: string | string[] }): Promise<{ id, labels }>  // id = page id",
+      "add(options: { id: string; labels: string | string[] }): Promise<{ id: string; labels: string[] }>",
     parse: (options) => {
       const raw = options.labels;
       const labels = (Array.isArray(raw) ? raw : [raw])
@@ -651,7 +651,7 @@ export const confluenceMethods: SdkMethod[] = [
     path: "comments.add",
     options: ["id", "body", "format"],
     signature:
-      'comments.add({ id, body, format?: "markdown"|"storage" }): Promise<{ id, pageId }>  // id = page id; footer comment; body is Markdown unless format is "storage"',
+      '/** Footer comment; Markdown unless format is "storage". */ add(options: { id: string; body: string; format?: "markdown" | "storage" }): Promise<{ id: string; pageId: string }>',
     parse: (options) => {
       const body = pageBodyOption(options);
       if (!body?.trim()) throw new Error("body must be a non-empty string.");
@@ -689,7 +689,7 @@ export const confluenceMethods: SdkMethod[] = [
     path: "request",
     maxArgs: 3,
     signature:
-      "request(method, path, body?): Promise<unknown>  // path under /wiki/api/v2/ or /wiki/rest/api/; JSON (or text), max 5 MB",
+      '/** Path under /wiki/api/v2/ or /wiki/rest/api/. Returns JSON or text; non-GET is a destructive write. */ request(method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE", path: string, body?: unknown): Promise<unknown>',
     parse: ([method, path, body]) => ({
       method: rawMethod(method),
       path,
