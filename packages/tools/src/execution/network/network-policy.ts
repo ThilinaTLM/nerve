@@ -164,7 +164,7 @@ export function createPinnedLookup(
 /** GET-style fetch whose socket connects only to the vetted, pinned address. */
 export function createPinnedFetch(resolveHost?: HostResolver): typeof fetch {
   const lookup = createPinnedLookup(resolveHost);
-  return (async (input: string | URL | Request, init?: RequestInit) => {
+  return async (input: string | URL | Request, init?: RequestInit) => {
     const url = new URL(input instanceof Request ? input.url : input);
     const request = url.protocol === "https:" ? httpsRequest : httpRequest;
     const headers: Record<string, string> = {};
@@ -193,7 +193,11 @@ export function createPinnedFetch(resolveHost?: HostResolver): typeof fetch {
           resolve(
             new Response(
               nullBody ? null : (Readable.toWeb(res) as ReadableStream),
-              { status, statusText: res.statusMessage, headers: responseHeaders },
+              {
+                status,
+                statusText: res.statusMessage,
+                headers: responseHeaders,
+              },
             ),
           );
         },
@@ -201,7 +205,7 @@ export function createPinnedFetch(resolveHost?: HostResolver): typeof fetch {
       req.on("error", reject);
       req.end();
     });
-  }) as typeof fetch;
+  };
 }
 
 function isNonPublicIpv4(address: string): boolean {

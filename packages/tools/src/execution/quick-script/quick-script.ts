@@ -225,12 +225,17 @@ export async function executeQuickScript(
         : undefined);
   const exitCode = EXIT_CODES[status] ?? 1;
   // Copies: a call that ignored the abort must not change a result already built.
-  const report = reconcileReport({
-    created: env.report.created,
-    updated: env.report.updated,
-    deleted: env.report.deleted,
-    raw: env.report.raw,
-  }, env.report.pages.filter((page) => page.action === "created").map((page) => page.id));
+  const report = reconcileReport(
+    {
+      created: env.report.created,
+      updated: env.report.updated,
+      deleted: env.report.deleted,
+      raw: env.report.raw,
+    },
+    env.report.pages
+      .filter((page) => page.action === "created")
+      .map((page) => page.id),
+  );
   const pages = env.report.pages.map((page) => ({ ...page }));
   const artifacts = await withImageSizes([...env.report.artifacts.values()]);
   const calls = hostCalls.map((call) => ({ ...call }));

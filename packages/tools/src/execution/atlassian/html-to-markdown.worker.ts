@@ -255,8 +255,9 @@ function renderAdf(inner: string): string {
         .trim()
         .toUpperCase();
       const text =
-        /<ac:adf-content\b[^>]*>([\s\S]*?)<\/ac:adf-content>/i.exec(m[1])?.[1] ??
-        "";
+        /<ac:adf-content\b[^>]*>([\s\S]*?)<\/ac:adf-content>/i.exec(
+          m[1],
+        )?.[1] ?? "";
       return `<li>${stash(state === "UNDECIDED" ? "[undecided] " : "[decided] ")}${text}</li>`;
     });
     return `<ul>${items.join("")}</ul>`;

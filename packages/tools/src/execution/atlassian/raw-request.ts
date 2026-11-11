@@ -80,7 +80,11 @@ const TEXTUAL_CONTENT_TYPE = /json|text|xml|javascript|x-www-form-urlencoded/i;
  */
 export type BinarySink = {
   prepare: (contentType: string) => Promise<string>;
-  commit: (path: string, bytes: number, contentType: string) => Promise<unknown>;
+  commit: (
+    path: string,
+    bytes: number,
+    contentType: string,
+  ) => Promise<unknown>;
 };
 
 /** A sink streams to disk; a function receives the whole body in memory (capped at 25 MB). */

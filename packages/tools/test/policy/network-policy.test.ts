@@ -128,12 +128,15 @@ describe("pinned fetch", () => {
   it("cannot be rebound to a private address after the first check", async () => {
     await withServer(async (port, hits) => {
       let calls = 0;
-      const resolveHost = async () => (calls++ === 0 ? ["93.184.216.34"] : ["127.0.0.1"]);
+      const resolveHost = async () =>
+        calls++ === 0 ? ["93.184.216.34"] : ["127.0.0.1"];
       const url = await assertSafeHttpUrl(`http://rebind.example:${port}/`, {
         resolveHost,
       });
       await assert.rejects(
-        createPinnedFetch(resolveHost)(url, { signal: AbortSignal.timeout(2000) }),
+        createPinnedFetch(resolveHost)(url, {
+          signal: AbortSignal.timeout(2000),
+        }),
         /Private, local, link-local/,
       );
       assert.equal(hits(), 0);
@@ -147,8 +150,12 @@ describe("pinned fetch", () => {
       cb: (err: unknown, address?: unknown, family?: number) => void,
     ) => void;
     const [single, all] = await Promise.all([
-      new Promise((resolve) => lookup("a.example", {}, (_e, a, f) => resolve([a, f]))),
-      new Promise((resolve) => lookup("a.example", { all: true }, (_e, a) => resolve(a))),
+      new Promise((resolve) =>
+        lookup("a.example", {}, (_e, a, f) => resolve([a, f])),
+      ),
+      new Promise((resolve) =>
+        lookup("a.example", { all: true }, (_e, a) => resolve(a)),
+      ),
     ]);
     assert.deepEqual(single, ["93.184.216.34", 4]);
     assert.deepEqual(all, [{ address: "93.184.216.34", family: 4 }]);

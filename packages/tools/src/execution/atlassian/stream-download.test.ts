@@ -96,7 +96,9 @@ void test("Confluence downloads follow the media redirect without credentials", 
       url.hostname === "acme.atlassian.net"
         ? new Response(null, {
             status: 302,
-            headers: { location: "https://api.media.atlassian.com/file/1?token=t" },
+            headers: {
+              location: "https://api.media.atlassian.com/file/1?token=t",
+            },
           })
         : new Response(chunked(3, 10)),
     async (calls) => {
@@ -165,7 +167,11 @@ void test("an upload sends the file from disk as a file-backed part", async () =
   await writeFile(path, content);
   const { openAsBlob } = await import("node:fs");
   const form = new FormData();
-  form.append("file", await openAsBlob(path, { type: "application/zip" }), "data.bin");
+  form.append(
+    "file",
+    await openAsBlob(path, { type: "application/zip" }),
+    "data.bin",
+  );
   await withFetch(
     () => Response.json({ results: [{ id: "1" }] }),
     async (calls) => {

@@ -18,14 +18,15 @@ import {
 } from "../atlassian/attachments.js";
 import { confluenceAttachmentMethods } from "./attachments.js";
 import { withTidyErrors } from "../tidy-errors.js";
-import { confluenceExtraMethods, storageBodyOption } from "./extra-methods.js";
+import { confluenceCommentMethods } from "./comment-methods.js";
+import { confluenceExtraMethods } from "./extra-methods.js";
 import {
   compactPage,
   confluencePageWriteMethods,
   pageUrl,
   uploadAttachment,
 } from "./page-writes.js";
-import { freshArtifactName, writeArtifact } from "../files/artifacts.js";
+import { artifactBinarySink } from "../files/artifacts.js";
 import { codedError, orNotAvailable } from "../errors.js";
 import { clampInt, nonEmptyString, optionalText } from "../sdk-args.js";
 import {
@@ -265,7 +266,7 @@ export const confluenceMethods: SdkMethod[] = [
     risk: "external_write",
     options: ["id", "file", "filename", "comment"],
     signature:
-      "/** Same filename replaces. SVG rejected; max 25 MB. */ upload(options: { id: string; file: FileHandle; filename?: string; comment?: string }): Promise<AttachmentInfo>",
+      "/** Same filename replaces. SVG rejected; max 100 MB. */ upload(options: { id: string; file: FileHandle; filename?: string; comment?: string }): Promise<AttachmentInfo>",
     parse: (options) => ({
       id: nonEmptyString(options.id, "id"),
       spec: parseAttachmentSpec({
@@ -287,6 +288,7 @@ export const confluenceMethods: SdkMethod[] = [
     },
   }),
   ...confluenceAttachmentMethods,
+  ...confluenceCommentMethods,
   ...confluenceExtraMethods,
   definePositionalMethod({
     product: "confluence",
@@ -326,7 +328,13 @@ export const confluenceMethods: SdkMethod[] = [
         path,
         body,
         query,
-        onBinary: (bytes, contentType) => saveBinary(env, bytes, contentType),
+        onBinary: artifactBinarySink(
+          env,
+          "confluence-response",
+          (type) =>
+            BINARY_EXTENSIONS[type.split(";")[0].trim().toLowerCase()] ??
+            ".bin",
+        ),
         signal: env.context.signal,
       });
     },
@@ -349,20 +357,6 @@ const BINARY_EXTENSIONS: Record<string, string> = {
   "application/pdf": ".pdf",
   "application/zip": ".zip",
 };
-
-async function saveBinary(
-  env: SdkEnvironment,
-  bytes: Buffer,
-  contentType: string,
-): Promise<string> {
-  const type = contentType.split(";")[0].trim().toLowerCase();
-  const name = await freshArtifactName(
-    env,
-    "confluence-response",
-    BINARY_EXTENSIONS[type] ?? ".bin",
-  );
-  return await writeArtifact(env, name, bytes);
-}
 
 export function confluenceConnectionLoader(context: QuickScriptContext) {
   let connection: Promise<ConfluenceConnection> | undefined;

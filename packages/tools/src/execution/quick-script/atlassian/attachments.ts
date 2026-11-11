@@ -122,8 +122,7 @@ function withExtension(filename: string, extension: string): string {
 }
 
 /** Advice for files beyond the transfer limit. */
-const ATTACHMENT_TOO_LARGE_HINT =
-  "Split or compress it.";
+const ATTACHMENT_TOO_LARGE_HINT = "Split or compress it.";
 
 /** Bytes read to recognize an image (the SVG check looks at the first 1 KiB). */
 const SNIFF_BYTES = 1100;
@@ -170,7 +169,12 @@ export async function loadAttachment(
       `SVG attachments are not supported (Confluence does not render them reliably): "${filename}". Render diagrams as PNG with diagram.render() or provide a PNG/JPEG.`,
     );
   }
-  const plain = { path: ref.path, size, filename, mediaType: mediaTypeFor(filename) };
+  const plain = {
+    path: ref.path,
+    size,
+    filename,
+    mediaType: mediaTypeFor(filename),
+  };
   if (!kind || size > MAX_FILE_BYTES) return plain;
   const original = await readFile(ref.path);
   let info = await image.imageInfo(original);

@@ -12,10 +12,6 @@ import { join } from "node:path";
 import { test } from "node:test";
 import { image } from "@nervekit/native";
 import { executeQuickScript } from "../quick-script.js";
-import {
-  loadAttachments,
-} from "../atlassian/attachments.js";
-import { createSdkEnvironment } from "../sdk.js";
 import { preludesFor } from "../sdk.js";
 
 type Nested = { toolName: string; args: Record<string, unknown> };

@@ -4,11 +4,11 @@
 
 Typed methods cover pages, comments (footer and inline), labels and attachments; use raw only for the rest:
 
-| Task                  | Request                                                                                                                                                                                    |
-| --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Page restrictions     | `GET /wiki/rest/api/content/{id}/restriction/byOperation`                                                                                                                                  |
-| Rename an attachment  | `PUT /wiki/rest/api/content/{attachmentId}` `{ id, type: "attachment", title: newName, version: { number: n + 1 } }`                                                                       |
-| Page versions         | `GET /wiki/api/v2/pages/{id}/versions`                                                                                                                                                     |
+| Task                 | Request                                                                                                              |
+| -------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| Page restrictions    | `GET /wiki/rest/api/content/{id}/restriction/byOperation`                                                            |
+| Rename an attachment | `PUT /wiki/rest/api/content/{attachmentId}` `{ id, type: "attachment", title: newName, version: { number: n + 1 } }` |
+| Page versions        | `GET /wiki/api/v2/pages/{id}/versions`                                                                               |
 
 ## Restrictions recipe
 

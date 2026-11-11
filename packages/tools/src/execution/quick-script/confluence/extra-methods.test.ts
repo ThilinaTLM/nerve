@@ -243,7 +243,9 @@ void test("comments.add inline counts matches in the page text and sends the sel
   const { seen, context } = setup(({ method, path }) => {
     if (method === "GET" && path === "/pages/1")
       return Response.json({
-        body: { storage: { value: "<p>foo bar</p><p>a <b>foo</b> &amp; foo</p>" } },
+        body: {
+          storage: { value: "<p>foo bar</p><p>a <b>foo</b> &amp; foo</p>" },
+        },
       });
     if (method === "POST" && path === "/inline-comments")
       return Response.json({ id: "30" });
@@ -258,7 +260,10 @@ void test("comments.add inline counts matches in the page text and sends the sel
         context,
       )
     ).content ?? "";
-  assert.match(await run('{ text: "nope" }'), /not found.*shorter exact phrase/);
+  assert.match(
+    await run('{ text: "nope" }'),
+    /not found.*shorter exact phrase/,
+  );
   assert.match(await run('{ text: "foo" }'), /appears 3 times.*occurrence/);
   assert.match(await run('{ text: "foo", occurrence: 2 }'), /"id":"30"/);
   assert.deepEqual(
