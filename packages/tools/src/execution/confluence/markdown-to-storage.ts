@@ -13,7 +13,7 @@
 /**
  * Everything lives inside one function so its source text (`Function.prototype.toString`)
  * is a self-contained program: the quick-script sandbox evaluates the same converter
- * that runs on the host, so `storage.markdown()` returns real markup synchronously.
+ * that runs on the host, so RichText strings become real markup synchronously.
  * Keep it dependency-free and use only syntax QuickJS supports.
  */
 function createMarkdownConverter() {

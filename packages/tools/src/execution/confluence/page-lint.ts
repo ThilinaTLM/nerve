@@ -11,6 +11,7 @@ import {
   type XmlElement,
   type XmlNode,
 } from "./storage-xml.js";
+import { lintAttachmentRefs, lintTaskIds } from "./page-lint-refs.js";
 
 /**
  * Page linter for Confluence storage XHTML: pure (string in, string out plus
@@ -65,6 +66,8 @@ export type PageLintOptions = {
   toc?: boolean;
   /** Original sizes of attachments by filename (from upload). */
   images?: ReadonlyMap<string, ImageSize> | Record<string, ImageSize>;
+  /** Filenames attached to the page (existing and uploaded); referencing any other file warns. */
+  attachments?: ReadonlySet<string>;
 };
 
 export type PageLintResult = {
@@ -86,6 +89,8 @@ export function lintStoragePage(
   lintTables(root, fixes, warnings);
   lintBlockMacros(root, fixes);
   lintImages(root, sizeLookup(options.images), fixes, warnings);
+  lintAttachmentRefs(root, options.attachments, warnings);
+  lintTaskIds(root, fixes);
   lintRedundancy(root, warnings);
   return { storage: serializeNode(root), fixes, warnings };
 }

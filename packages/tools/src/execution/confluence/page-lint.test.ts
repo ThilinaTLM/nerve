@@ -303,3 +303,29 @@ void test("warns when an image is scaled below 80% of its original width", () =>
   );
   assert.match(clamped.warnings.join("\n"), /scaled from 1100px to 760px/);
 });
+
+void test("references to files that are not attached warn; known ones and duplicate task ids are handled", () => {
+  const body =
+    '<ac:image><ri:attachment ri:filename="a.png"/></ac:image><ac:image><ri:attachment ri:filename="gone.png"/></ac:image>' +
+    "<ac:task-list><ac:task><ac:task-id>1</ac:task-id><ac:task-status>incomplete</ac:task-status><ac:task-body>x</ac:task-body></ac:task></ac:task-list>" +
+    "<ac:task-list><ac:task><ac:task-id>1</ac:task-id><ac:task-status>incomplete</ac:task-status><ac:task-body>y</ac:task-body></ac:task></ac:task-list>";
+  const result = lintStoragePage(body, {
+    title: "T",
+    attachments: new Set(["a.png"]),
+    images: { "a.png": { width: 300, height: 100 } },
+  });
+  assert.equal(
+    result.warnings.filter((w) =>
+      w.includes('"gone.png" that is not on the page'),
+    ).length,
+    1,
+  );
+  assert.ok(!result.warnings.some((w) => w.includes('"a.png" that is not')));
+  assert.ok(
+    result.fixes.some((f) => f.includes("Renumbered 1 duplicate task id")),
+  );
+  assert.deepEqual(
+    [...result.storage.matchAll(/<ac:task-id>(\d+)</g)].map((m) => m[1]),
+    ["1", "2"],
+  );
+});

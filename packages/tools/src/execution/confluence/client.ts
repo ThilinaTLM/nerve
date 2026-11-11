@@ -113,7 +113,12 @@ export async function confluenceRequest(
 
   const response = await send(url, init);
   if (!response.ok) {
-    await throwConfluenceError(response, init.method ?? "GET", options.path);
+    await throwConfluenceError(
+      response,
+      init.method ?? "GET",
+      options.path,
+      options.body,
+    );
   }
   return readAtlassianJson(
     response,
@@ -298,8 +303,12 @@ async function throwConfluenceError(
   response: Response,
   method: string,
   path: string,
+  requestBody?: unknown,
 ): Promise<never> {
-  const body = await response.text().catch(() => "");
+  const body = confluenceErrorReason(
+    await response.text().catch(() => ""),
+    requestBody,
+  );
   const code = confluenceErrorCode(response.status);
   const retryable = response.status === 429 || response.status >= 500;
   const error = safeAtlassianError({
@@ -314,6 +323,53 @@ async function throwConfluenceError(
   const message =
     response.status === 400 ? guideErrorMessage(error.message) : error.message;
   throw new ToolExecutionError(code, message, error.details, retryable);
+}
+
+/**
+ * Replaces Confluence's JSON error documents (v2 `{ errors: [{ title, detail }] }`,
+ * v1 `{ message, data.errors[].message.translation }`) with one readable sentence;
+ * other bodies pass through. A duplicate page title names the title.
+ */
+export function confluenceErrorReason(body: string, requestBody?: unknown) {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(body);
+  } catch {
+    return body;
+  }
+  if (!parsed || typeof parsed !== "object") return body;
+  const record = parsed as Record<string, unknown>;
+  const parts: string[] = [];
+  const text = (value: unknown) =>
+    typeof value === "string" && value.trim() ? [value.trim()] : [];
+  if (Array.isArray(record.errors)) {
+    for (const item of record.errors) {
+      const entry = (item ?? {}) as Record<string, unknown>;
+      parts.push(...text(entry.detail ?? entry.title));
+    }
+  }
+  const data = record.data as { errors?: unknown } | undefined;
+  if (Array.isArray(data?.errors)) {
+    for (const item of data.errors) {
+      const message = (item as { message?: unknown } | null)?.message;
+      parts.push(
+        ...text(
+          typeof message === "object" && message
+            ? ((message as Record<string, unknown>).translation ??
+                (message as Record<string, unknown>).key)
+            : message,
+        ),
+      );
+    }
+  }
+  if (parts.length === 0) parts.push(...text(record.message));
+  if (parts.length === 0) return body;
+  const reason = [...new Set(parts)].join("; ");
+  const title = (requestBody as { title?: unknown } | null | undefined)?.title;
+  if (typeof title === "string" && /already exists|same title/i.test(reason)) {
+    return `A page titled "${title}" already exists in this space (titles are unique per space); pick another title or update that page`;
+  }
+  return reason;
 }
 
 function confluenceErrorCode(status: number): string {

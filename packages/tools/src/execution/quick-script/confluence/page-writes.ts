@@ -1,10 +1,15 @@
+import { image } from "@nervekit/native";
 import { jsonObject } from "../../atlassian/http.js";
 import {
   type ConfluenceConnection,
+  confluenceDownload,
   confluenceRequest,
   pathSegment,
 } from "../../confluence/client.js";
-import { pageWebUrl } from "../../confluence/format.js";
+import {
+  pageWebUrl,
+  valuesFromConfluenceList,
+} from "../../confluence/format.js";
 import { lintStoragePage } from "../../confluence/page-lint.js";
 import { fetchPageCurrent } from "../../confluence/page-resolution.js";
 import { StorageXmlError } from "../../confluence/storage-xml.js";
@@ -21,6 +26,14 @@ import {
 } from "../atlassian/attachments.js";
 import { removedElements } from "./lossy.js";
 import { partialWriteFailure } from "./partial-write.js";
+import {
+  artifactNameFor,
+  MAX_ATTACHMENT_BYTES,
+  parseHandle,
+  readAuthorizations,
+  readFileRef,
+  writeArtifact,
+} from "../files/artifacts.js";
 import { codedError } from "../errors.js";
 import { nonEmptyString, optionalText } from "../sdk-args.js";
 import {
@@ -29,25 +42,7 @@ import {
   type SdkMethod,
 } from "../sdk-types.js";
 
-export type BodyFormat = "markdown" | "storage";
-
-export function commentFormat(value: unknown): BodyFormat {
-  if (value === undefined) return "markdown";
-  if (value === "markdown" || value === "storage") return value;
-  throw new Error('format must be "markdown" or "storage".');
-}
-
-/** Page bodies are storage XHTML; anything else is rejected with the way to compose it. */
-export function storageBodyOption(body: string): string {
-  if (!body.trimStart().startsWith("<")) {
-    throw new Error(
-      "Page bodies are storage XHTML. Compose with storage.*: storage.markdown(md) for prose, storage.panel/table/status/jiraIssues/layout for structure.",
-    );
-  }
-  return body;
-}
-
-/** Uploads one file and lists it in the run's created entities. */
+/** Uploads one file; a same-name upload is a new version (updated), otherwise a new attachment (created). */
 export async function uploadAttachment(
   env: SdkEnvironment,
   pageId: string,
@@ -55,7 +50,10 @@ export async function uploadAttachment(
   comment?: string,
 ): Promise<UploadedAttachment> {
   const uploaded = await uploadFile(env, pageId, file, comment);
-  env.report.created.push(`attachment ${uploaded.id} on page ${pageId}`);
+  const label = `attachment ${uploaded.id} on page ${pageId}`;
+  if ((uploaded.version ?? 1) > 1)
+    env.report.updated.push(`${label} (new version)`);
+  else env.report.created.push(label);
   return uploaded;
 }
 
@@ -69,21 +67,35 @@ export function attachmentSpecs(value: unknown): AttachmentSpec[] {
   return value.map(parseAttachmentSpec);
 }
 
-/** Converts to storage, lints, and turns malformed XML into a precise rejection (before any HTTP). */
+/** Lints the storage body and turns malformed XML into a precise rejection (before any HTTP). */
 export function finalizeBody(
   body: string,
   title: string,
   toc: boolean,
   attachments: LoadedAttachment[],
+  context: {
+    /** Attachments already on the page (update). */
+    existing?: ReadonlyMap<
+      string,
+      { width: number; height: number } | undefined
+    >;
+  } = {},
 ) {
   const images = new Map<string, { width: number; height: number }>();
+  for (const [name, size] of context.existing ?? []) {
+    if (size) images.set(name, size);
+  }
   for (const file of attachments) {
     if (file.width && file.height) {
       images.set(file.filename, { width: file.width, height: file.height });
     }
   }
+  const known = new Set([
+    ...(context.existing?.keys() ?? []),
+    ...attachments.map((file) => file.filename),
+  ]);
   try {
-    return lintStoragePage(body, { title, toc, images });
+    return lintStoragePage(body, { title, toc, images, attachments: known });
   } catch (error) {
     if (error instanceof StorageXmlError) {
       throw new Error(
@@ -95,10 +107,129 @@ export function finalizeBody(
   }
 }
 
-export function referencedAttachments(storage: string): string[] {
-  return [
-    ...storage.matchAll(/<ri:attachment\b[^>]*\bri:filename="([^"]*)"/g),
-  ].map((m) => m[1]);
+type PageAttachment = {
+  title: string;
+  downloadLink?: string;
+  mediaType: string;
+};
+
+async function listPageAttachments(
+  env: SdkEnvironment,
+  connection: ConfluenceConnection,
+  pageId: string,
+): Promise<PageAttachment[]> {
+  const response = await confluenceRequest(connection, {
+    parse: jsonObject,
+    path: `/pages/${pathSegment(pageId)}/attachments`,
+    query: { limit: 250 },
+    signal: env.context.signal,
+  });
+  return valuesFromConfluenceList(response).flatMap((raw) => {
+    const item = raw as Record<string, unknown>;
+    return typeof item.title === "string"
+      ? [
+          {
+            title: item.title,
+            downloadLink:
+              typeof item.downloadLink === "string"
+                ? item.downloadLink
+                : undefined,
+            mediaType: typeof item.mediaType === "string" ? item.mediaType : "",
+          },
+        ]
+      : [];
+  });
+}
+
+const attachmentRefs = (storage: string): Set<string> =>
+  new Set(
+    [...storage.matchAll(/<ri:attachment\b[^>]*\bri:filename="([^"]*)"/g)].map(
+      (m) => m[1],
+    ),
+  );
+
+/** Attachment names an image without ac:width points to. */
+function unsizedImageFiles(storage: string): Set<string> {
+  const names = new Set<string>();
+  for (const [, attrs, inner] of storage.matchAll(
+    /<ac:image\b([^>]*)>([\s\S]*?)<\/ac:image>/g,
+  )) {
+    if (/\bac:width=/.test(attrs)) continue;
+    const name = /<ri:attachment\b[^>]*\bri:filename="([^"]*)"/.exec(
+      inner,
+    )?.[1];
+    if (name) names.add(name);
+  }
+  return names;
+}
+
+const MAX_SIZED_DOWNLOADS = 8;
+
+/**
+ * Attachments already on the page that the body references and the new upload
+ * does not replace; PNG/JPEG ones that the body shows without a width are
+ * downloaded to learn their real size, so the linter can set it.
+ */
+async function existingReferenced(
+  env: SdkEnvironment,
+  connection: ConfluenceConnection,
+  pageId: string,
+  storage: string,
+  uploaded: readonly string[],
+): Promise<Map<string, { width: number; height: number } | undefined>> {
+  const wanted = [...attachmentRefs(storage)].filter(
+    (name) => !uploaded.includes(name),
+  );
+  const found = new Map<
+    string,
+    { width: number; height: number } | undefined
+  >();
+  if (wanted.length === 0) return found;
+  const onPage = await listPageAttachments(env, connection, pageId);
+  const unsized = unsizedImageFiles(storage);
+  let downloads = 0;
+  for (const name of wanted) {
+    const item = onPage.find((candidate) => candidate.title === name);
+    if (!item) continue;
+    let size: { width: number; height: number } | undefined;
+    if (
+      unsized.has(name) &&
+      item.downloadLink &&
+      /^image\/(png|jpeg)$/.test(item.mediaType) &&
+      downloads < MAX_SIZED_DOWNLOADS
+    ) {
+      downloads += 1;
+      const bytes = await confluenceDownload(
+        connection,
+        item.downloadLink,
+        env.context.signal,
+      ).catch(() => undefined);
+      if (bytes && bytes.byteLength <= MAX_ATTACHMENT_BYTES) {
+        const info = await image
+          .imageInfo(Buffer.from(bytes))
+          .catch(() => undefined);
+        if (info) size = { width: info.width, height: info.height };
+      }
+    }
+    found.set(name, size);
+  }
+  return found;
+}
+
+/** The storage body of `body`, or of the artifact/workspace file `bodyFile`; exactly one may be given. */
+function bodySource(options: Record<string, unknown>): {
+  body?: string;
+  bodyFile?: string;
+} {
+  const body = pageBodyOption(options);
+  const bodyFile =
+    options.bodyFile === undefined
+      ? undefined
+      : nonEmptyString(options.bodyFile, "bodyFile");
+  if (body !== undefined && bodyFile !== undefined) {
+    throw new Error("Pass body or bodyFile, not both.");
+  }
+  return { body, bodyFile };
 }
 
 export function pageUrl(
@@ -137,12 +268,17 @@ export function versionOption(value: unknown): number | undefined {
   return value;
 }
 
+/** The body is storage XHTML here: the sandbox converts RichText (Markdown, builders, arrays) before the call. */
 export function pageBodyOption(options: Record<string, unknown>) {
-  const body = typeof options.body === "string" ? options.body : undefined;
-  return body;
+  if (options.body !== undefined && typeof options.body !== "string") {
+    throw new Error(
+      "body must be RichText: a Markdown string, storage.* output or an array of those.",
+    );
+  }
+  return options.body;
 }
 
-/** `pages.create` and `pages.update`: storage bodies, linted, with attachments. */
+/** `pages.create`, `pages.update` and `pages.download`: storage bodies, linted, with attachments. */
 export const confluencePageWriteMethods: SdkMethod[] = [
   defineMethod({
     product: "confluence",
@@ -150,11 +286,10 @@ export const confluencePageWriteMethods: SdkMethod[] = [
     risk: "external_write",
     options: ["space", "title", "parent", "body", "toc", "attachments"],
     signature:
-      "/** body is storage XHTML from storage.*, linted on write. Pass attachments for images the body references. */ create(options: { space?: string; title: string; parent?: string; body: string; toc?: boolean; attachments?: AttachmentInput[] }): Promise<PageWrite>",
+      "/** body is RichText (Markdown, storage.* output, or an array of both), linted on write. Pass attachments for files the body references. */ create(options: { space?: string; title: string; parent?: string; body: RichText; toc?: boolean; attachments?: AttachmentInput[] }): Promise<PageWrite>",
     parse: (options) => {
       const body = pageBodyOption(options) ?? "";
-      if (!body.trim()) throw new Error("body must be a non-empty string.");
-      storageBodyOption(body);
+      if (!body.trim()) throw new Error("body must not be empty.");
       return {
         space: optionalText(options.space),
         title: nonEmptyString(options.title, "title"),
@@ -249,16 +384,7 @@ export const confluencePageWriteMethods: SdkMethod[] = [
           } and image references are missing. Fix that page with confluence.pages.update / attachments.upload; do not create it again`,
         );
       }
-      const missing = referencedAttachments(page.storage).filter(
-        (name) => !uploaded.some((u) => u.filename === name),
-      );
-      const warnings = [
-        ...page.warnings,
-        ...missing.map(
-          (name) =>
-            `Body references attachment "${name}" that was not attached; pass it in attachments.`,
-        ),
-      ];
+      const warnings = page.warnings;
       env.report.pages.push({
         action: "created",
         id: result.id,
@@ -285,25 +411,26 @@ export const confluencePageWriteMethods: SdkMethod[] = [
       "version",
       "title",
       "body",
+      "bodyFile",
       "allowRemoving",
       "message",
       "toc",
       "attachments",
     ],
     signature:
-      '/** Replaces the whole body (read body: "storage" first to edit); omitted title/body are kept. Dropping existing macros/layouts/images/mentions throws unless allowRemoving. Pass the version you read; a newer page throws CONFLICT. */ update(options: { id: string; version?: number; title?: string; body?: string; allowRemoving?: boolean; message?: string; toc?: boolean; attachments?: AttachmentInput[] }): Promise<PageWrite>',
+      '/** Replaces the whole body (omitted title/body keep the page\'s). To edit: [page.body, "## New", ...] appends, storage.replaceSection(page.body, heading, content) swaps one section, or pages.download + edit the file + bodyFile. body (RichText) and bodyFile (storage file) are exclusive. Dropping existing macros/layouts/images/mentions throws unless allowRemoving. Pass the version you read; a newer page throws CONFLICT. */ update(options: { id: string; version?: number; title?: string; body?: RichText; bodyFile?: FileHandle; allowRemoving?: boolean; message?: string; toc?: boolean; attachments?: AttachmentInput[] }): Promise<PageWrite>',
     parse: (options) => {
-      const body = pageBodyOption(options);
+      const { body, bodyFile } = bodySource(options);
       const title = optionalText(options.title);
-      if (body === undefined && !title) {
-        throw new Error("Provide a title and/or body to update.");
+      if (body === undefined && bodyFile === undefined && !title) {
+        throw new Error("Provide a title, a body or a bodyFile to update.");
       }
-      if (body !== undefined) storageBodyOption(body);
       return {
         id: nonEmptyString(options.id, "id"),
         version: versionOption(options.version),
         title,
         body,
+        bodyFile,
         allowRemoving: options.allowRemoving === true,
         message: optionalText(options.message),
         toc: options.toc !== false,
@@ -320,17 +447,32 @@ export const confluencePageWriteMethods: SdkMethod[] = [
       },
       summary: id,
     }),
-    authorizeAlso: ({ id, attachments }, env) => [
+    authorizeAlso: ({ id, bodyFile, attachments }, env) => [
       ...attachmentUploadAuthorizations(id, attachments),
       ...attachmentReadAuthorizations(attachments, env),
+      ...(bodyFile ? readAuthorizations([parseHandle(bodyFile, env)]) : []),
     ],
     resource: ({ id }) => `page ${id}`,
     async run(
-      { id, version, title, body, allowRemoving, message, toc, attachments },
+      {
+        id,
+        version,
+        title,
+        body: inlineBody,
+        bodyFile,
+        allowRemoving,
+        message,
+        toc,
+        attachments,
+      },
       env,
     ) {
       const connection = await env.confluence();
       const loaded = await loadAttachments(attachments, env);
+      const body =
+        bodyFile === undefined
+          ? inlineBody
+          : (await readFileRef(parseHandle(bodyFile, env))).toString("utf8");
       const current = await fetchPageCurrent(
         connection,
         id,
@@ -347,7 +489,7 @@ export const confluencePageWriteMethods: SdkMethod[] = [
       if (version !== undefined && version !== currentVersion) {
         throw codedError(
           "CONFLICT",
-          `page ${id} is at v${currentVersion}, you read v${version}; re-read with body: "storage" and reapply`,
+          `page ${id} is at v${currentVersion}, you read v${version}; re-read the page and reapply your change`,
         );
       }
       const currentBody = (
@@ -357,7 +499,15 @@ export const confluencePageWriteMethods: SdkMethod[] = [
         title ?? (typeof current.title === "string" ? current.title : id);
       const page =
         body !== undefined
-          ? finalizeBody(body, nextTitle, toc, loaded)
+          ? finalizeBody(body, nextTitle, toc, loaded, {
+              existing: await existingReferenced(
+                env,
+                connection,
+                id,
+                body,
+                loaded.map((file) => file.filename),
+              ),
+            })
           : {
               storage: typeof currentBody === "string" ? currentBody : "",
               fixes: [],
@@ -370,7 +520,7 @@ export const confluencePageWriteMethods: SdkMethod[] = [
         );
         if (removed) {
           throw new Error(
-            `update would remove ${removed}. Edit the storage body (pages.get({ id, body: "storage" })) or pass allowRemoving: true.`,
+            `update would remove ${removed}. Build the body from the current one ([page.body, ...] or storage.replaceSection(page.body, ...) after pages.get({ id, body: "storage" })), or pass allowRemoving: true.`,
           );
         }
       }
@@ -425,6 +575,71 @@ export const confluencePageWriteMethods: SdkMethod[] = [
         warnings: page.warnings,
         ...(uploaded.length ? { attachments: uploaded } : {}),
       };
+    },
+  }),
+  defineMethod({
+    product: "confluence",
+    path: "pages.download",
+    risk: "network",
+    options: ["id", "attachments"],
+    signature:
+      "/** Saves the storage body as artifact:page-<id>.xhtml. Edit it (Edit tool or files.edit), then pages.update({ id, version, bodyFile: file }). attachments: true also saves the page's attachments. */ download(options: { id: string; attachments?: boolean }): Promise<{ file: FileHandle; version: number; title: string; attachments?: { filename: string; file: FileHandle }[]; skipped?: string[] }>",
+    parse: (options) => ({
+      id: nonEmptyString(options.id, "id"),
+      attachments: options.attachments === true,
+    }),
+    authorize: ({ id }) => ({
+      toolName: "confluence_get_page",
+      args: { page_id: id },
+      summary: id,
+    }),
+    resource: ({ id }) => `page ${id}`,
+    async run({ id, attachments }, env) {
+      const connection = await env.confluence();
+      const page = await fetchPageCurrent(connection, id, env.context.signal);
+      const storage = (
+        page.body as { storage?: { value?: unknown } } | undefined
+      )?.storage?.value;
+      const file = await writeArtifact(
+        env,
+        `page-${id.replace(/[^A-Za-z0-9_-]/g, "_")}.xhtml`,
+        Buffer.from(typeof storage === "string" ? storage : "", "utf8"),
+      );
+      const versionNumber = (page.version as { number?: unknown } | undefined)
+        ?.number;
+      const result: Record<string, unknown> = {
+        file,
+        version: typeof versionNumber === "number" ? versionNumber : null,
+        title: typeof page.title === "string" ? page.title : id,
+      };
+      if (attachments) {
+        const saved: { filename: string; file: string }[] = [];
+        const skipped: string[] = [];
+        for (const item of await listPageAttachments(env, connection, id)) {
+          const bytes = item.downloadLink
+            ? await confluenceDownload(
+                connection,
+                item.downloadLink,
+                env.context.signal,
+              )
+            : undefined;
+          if (!bytes || bytes.byteLength > MAX_ATTACHMENT_BYTES) {
+            skipped.push(item.title);
+            continue;
+          }
+          saved.push({
+            filename: item.title,
+            file: await writeArtifact(
+              env,
+              `${id}-${artifactNameFor(item.title)}`.slice(0, 128),
+              bytes,
+            ),
+          });
+        }
+        result.attachments = saved;
+        if (skipped.length > 0) result.skipped = skipped;
+      }
+      return result;
     },
   }),
 ];

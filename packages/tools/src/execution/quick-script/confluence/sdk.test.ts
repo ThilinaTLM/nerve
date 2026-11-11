@@ -104,7 +104,7 @@ void test("pages.create converts Markdown to storage after authorizing", async (
   const { events, requests, authorized, context } = setup();
   const result = await executeQuickScript(
     {
-      code: `console.log(JSON.stringify(await confluence.pages.create({ space: "DOC", title: "T", parent: "7", body: storage.markdown("# Hi\\n\\n- a") })));`,
+      code: `console.log(JSON.stringify(await confluence.pages.create({ space: "DOC", title: "T", parent: "7", body: "# Hi\\n\\n- a" })));`,
     },
     context,
   );
@@ -136,7 +136,7 @@ void test("pages.update fetches the current version and bumps it", async () => {
   const { requests, authorized, context } = setup();
   const result = await executeQuickScript(
     {
-      code: `console.log(JSON.stringify(await confluence.pages.update({ id: "100", body: "<p>new</p>", message: "m" })));`,
+      code: `console.log(JSON.stringify(await confluence.pages.update({ id: "100", body: storage.raw("<p>new</p>"), message: "m" })));`,
     },
     context,
   );
@@ -153,14 +153,14 @@ void test("pages.update with a stale version throws CONFLICT naming the current 
   const { requests, context } = setup();
   const result = await executeQuickScript(
     {
-      code: `try { await confluence.pages.update({ id: "100", version: 2, body: "<p>new</p>" }); } catch (e) { console.log(e.code, e.message); }
-        const ok = await confluence.pages.update({ id: "100", version: 3, body: "<p>new</p>" }); console.log(ok.version);`,
+      code: `try { await confluence.pages.update({ id: "100", version: 2, body: storage.raw("<p>new</p>") }); } catch (e) { console.log(e.code, e.message); }
+        const ok = await confluence.pages.update({ id: "100", version: 3, body: storage.raw("<p>new</p>") }); console.log(ok.version);`,
     },
     context,
   );
   assert.match(
     result.content ?? "",
-    /^CONFLICT page 100 is at v3, you read v2; re-read with body: "storage" and reapply\n4/,
+    /^CONFLICT page 100 is at v3, you read v2; re-read the page and reapply your change\n4/,
   );
   assert.equal(requests.filter((r) => r.method === "PUT").length, 1);
 });
@@ -204,9 +204,9 @@ void test("mixed storage helpers and Markdown produce a well-formed storage body
       code: `
         const body = [
           storage.toc(),
-          storage.markdown("# Intro\\n\\nSome *text* & more"),
+          "# Intro\\n\\nSome *text* & more",
           storage.panel("info", "Heads **up**", { title: "Note" }),
-          storage.panel("warning", "<p>raw</p>"),
+          storage.panel("warning", storage.raw("<p>raw</p>")),
           storage.status("In progress", "blue"),
           storage.jiraIssue("SCRUM-1"),
           storage.jiraIssues("project = SCRUM", { columns: ["key", "summary"] }),
@@ -214,7 +214,7 @@ void test("mixed storage helpers and Markdown produce a well-formed storage body
           storage.code("a ]]> b", { language: "ts" }),
           storage.table([{ Name: "A & B", Qty: 2 }, { Name: "C", Qty: 3 }]),
           storage.table([["h1", "h2"], ["x", "y"]]),
-        ].join("");
+        ];
         await confluence.pages.create({ space: "DOC", title: "T", body });
       `,
     },
@@ -311,21 +311,63 @@ void test("a redirect on a credentialed Confluence request is an error", async (
   assert.match(result.content ?? "", /responded to .* with a redirect/);
 });
 
-void test("page bodies that are not storage XHTML are refused, including a format option", async () => {
+void test("a plain string that is storage XHTML is refused with the fix; body and bodyFile are exclusive", async () => {
   const { requests, context } = setup();
   const result = await executeQuickScript(
     {
-      code: `for (const o of [{ body: "# Hi" }, { body: "<p>x</p>", format: "markdown" }]) {
-        try { await confluence.pages.create({ space: "DOC", title: "T", ...o }); } catch (e) { console.log(e.code, e.message); } }`,
+      code: `for (const o of [{ body: "<p>x</p>" }, { body: (await confluence.pages.get({ id: "100", body: "storage" })).body + "<p>y</p>" }]) {
+          try { await confluence.pages.create({ space: "DOC", title: "T", ...o }); } catch (e) { console.log(e.message.slice(0, 40)); } }
+        try { await confluence.pages.update({ id: "100", body: "a", bodyFile: "artifact:p.xhtml" }); } catch (e) { console.log(e.message); }`,
     },
     context,
   );
   assert.match(
     result.content ?? "",
-    /^BAD_REQUEST Page bodies are storage XHTML\. Compose with storage\.\*/,
+    /^This string is storage XHTML but not tru\nThis string is storage XHTML but not tru\nPass body or bodyFile, not both\./,
   );
-  assert.match(result.content ?? "", /no option 'format'/);
   assert.equal(requests.filter((r) => r.method === "POST").length, 0);
+});
+
+void test("page.body from pages.get round-trips as trusted storage in an array", async () => {
+  const { requests, context } = setup();
+  const result = await executeQuickScript(
+    {
+      code: `const page = await confluence.pages.get({ id: "100", body: "storage" });
+        await confluence.pages.update({ id: "100", version: page.version, body: [page.body, "## New", storage.status("Done")] });`,
+    },
+    context,
+  );
+  assert.match(result.content ?? "", /exit 0/);
+  const put = requests.find((r) => r.method === "PUT")!;
+  assert.match(
+    put.body.body.value,
+    /^<h1>Head<\/h1><p>Hello <strong>world<\/strong><\/p><h1>New<\/h1><p><ac:structured-macro ac:name="status"/,
+  );
+});
+
+void test("pages.download saves the storage body; bodyFile writes it back", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "qs-page-"));
+  const { requests, context } = setup();
+  const withDir = { ...context, conversationDir: dir };
+  const result = await executeQuickScript(
+    {
+      code: `const d = await confluence.pages.download({ id: "100" });
+        console.log(JSON.stringify(d));
+        const text = await files.read(d.file);
+        await files.write("page-100.xhtml", text.replace("Head", "Heading"));
+        await confluence.pages.update({ id: "100", version: d.version, bodyFile: d.file });`,
+    },
+    withDir,
+  );
+  assert.match(
+    result.content ?? "",
+    /\{"file":"artifact:page-100\.xhtml","version":3,"title":"Old"\}/,
+  );
+  const put = requests.find((r) => r.method === "PUT")!;
+  assert.equal(
+    put.body.body.value,
+    "<h1>Heading</h1><p>Hello <strong>world</strong></p>",
+  );
 });
 
 const RICH =
@@ -351,16 +393,16 @@ void test("pages.update refuses to drop structured elements unless allowRemoving
   };
   const result = await executeQuickScript(
     {
-      code: `try { await confluence.pages.update({ id: "100", body: "<p>plain</p>" }); } catch (e) { console.log(e.code, e.message); }
-        console.log((await confluence.pages.update({ id: "100", body: "<p>plain</p>", allowRemoving: true })).version);
-        const more = ${JSON.stringify(RICH)} + '<ac:structured-macro ac:name="toc"/>';
+      code: `try { await confluence.pages.update({ id: "100", body: storage.raw("<p>plain</p>") }); } catch (e) { console.log(e.code, e.message); }
+        console.log((await confluence.pages.update({ id: "100", body: storage.raw("<p>plain</p>"), allowRemoving: true })).version);
+        const more = [storage.raw(${JSON.stringify(RICH)}), storage.toc()];
         console.log((await confluence.pages.update({ id: "100", body: more })).version);`,
     },
     context,
   );
   assert.match(
     result.content ?? "",
-    /^BAD_REQUEST update would remove 2 status, 1 info\. Edit the storage body \(pages\.get\(\{ id, body: "storage" \}\)\) or pass allowRemoving: true\.\n4\n4/,
+    /^BAD_REQUEST update would remove 2 status, 1 info\. Build the body from the current one .* or pass allowRemoving: true\.\n4\n4/,
   );
   assert.equal(requests.filter((r) => r.method === "PUT").length, 2);
 });
@@ -432,10 +474,10 @@ void test("attachments.download round-trips binary bytes and lists choices on a 
   );
   assert.match(
     result.content ?? "",
-    /^artifact:pic_one-1\.png artifact:pic_one-2\.png /,
+    /^artifact:pic one-1\.png artifact:pic one-2\.png /,
   );
   assert.deepEqual(
-    [...(await readFile(join(dir, "quick-script", "pic_one-1.png")))],
+    [...(await readFile(join(dir, "quick-script", "pic one-1.png")))],
     [...png],
   );
   assert.match(

@@ -79,11 +79,25 @@ describe("Confluence storage macros to Markdown", () => {
   it("handles unknown macros with and without a body", async () => {
     const withBody = await md(m("custom", "<p>kept</p>", { foo: "leak" }));
     assert.equal(withBody, "kept");
-    assert.match(await md(m("custom")), /\\?\[macro: custom\\?\]/);
+    assert.equal(await md(m("custom")), "[custom macro]");
+    assert.equal(await md(`<ac:structured-macro ac:name="x"/>`), "[x macro]");
     assert.equal(
-      await md(`<ac:structured-macro ac:name="x"/>`),
-      "\\[macro: x\\]",
+      await md(m("drawio", "", { diagramName: "arch.drawio" })),
+      "[drawio macro: arch.drawio]",
     );
+  });
+
+  it("reads mentions, dates, tasks, statuses, decisions and links compactly", async () => {
+    const out = await md(
+      `<p>Owner <ac:link><ri:user ri:account-id="557:abc"/></ac:link> due <time datetime="2026-05-01"/> ${m("status", "", { title: "In progress" })}</p>` +
+        `<ac:task-list><ac:task><ac:task-id>1</ac:task-id><ac:task-status>incomplete</ac:task-status><ac:task-body>todo</ac:task-body></ac:task><ac:task><ac:task-id>2</ac:task-id><ac:task-status>complete</ac:task-status><ac:task-body>done</ac:task-body></ac:task></ac:task-list>` +
+        `<ac:adf-extension><ac:adf-node type="decision-list"><ac:adf-node type="decision-item"><ac:adf-content>Use Postgres</ac:adf-content></ac:adf-node></ac:adf-node><ac:adf-fallback><ul><li>x</li></ul></ac:adf-fallback></ac:adf-extension>` +
+        `<p><ac:link><ri:page ri:content-title="Other page"/><ac:link-body>see</ac:link-body></ac:link></p>`,
+    );
+    assert.match(out, /^Owner @\{557:abc\} due 2026-05-01 \[In progress\]$/m);
+    assert.match(out, /^- \[ \] todo\n- \[x\] done$/m);
+    assert.match(out, /^- Decision: Use Postgres$/m);
+    assert.match(out, /\[see\]\(page:Other%20page\)/);
   });
 
   it("keeps code blocks and images working", async () => {
@@ -93,7 +107,7 @@ describe("Confluence storage macros to Markdown", () => {
     assert.match(code, /```ts\na < b && <ac:structured-macro>\n```/);
     assert.match(
       await md(`<ac:image><ri:attachment ri:filename="a.png"/></ac:image>`),
-      /!\\?\[a\.png\\?\]\(a\.png\)/,
+      /!\[a\.png\]\(a\.png\)/,
     );
   });
 });
