@@ -111,7 +111,7 @@ export async function confluenceRequest(
 
   const init = atlassianJsonRequestInit(basicAuth(connection), options);
 
-  const response = await fetch(url, init);
+  const response = await send(url, init);
   if (!response.ok) {
     await throwConfluenceError(response, init.method ?? "GET", options.path);
   }
@@ -144,7 +144,7 @@ export async function confluenceRawRequest(
     CONFLUENCE_RAW_BASES,
   );
   const init = atlassianJsonRequestInit(basicAuth(connection), options);
-  const response = await fetch(url, init);
+  const response = await send(url, init);
   if (!response.ok)
     await throwConfluenceError(response, options.method, url.pathname);
   return await readRawBody(response);
@@ -158,7 +158,7 @@ export async function confluenceAttachmentRequest<T>(
     `${connection.siteUrl}/wiki/rest/api/content/${pathSegment(options.pageId)}/child/attachment`,
   );
   appendQuery(url, options.query);
-  const response = await fetch(url, {
+  const response = await send(url, {
     method: options.method,
     headers: {
       Accept: "application/json",
@@ -192,10 +192,26 @@ export async function confluenceDownload(
   signal?: AbortSignal,
 ): Promise<Uint8Array> {
   const url = resolveConfluenceDownloadUrl(connection, downloadLink);
-  const response = await fetch(url, {
+  const timeout = withTimeoutSignal(signal, 60_000);
+  let response = await fetch(url, {
     headers: { Authorization: basicAuth(connection) },
-    signal: withTimeoutSignal(signal, 60_000),
+    redirect: "manual",
+    signal: timeout,
   });
+  // Cloud answers downloads with a redirect to a signed media URL. Follow it
+  // once, over https and without credentials, so the token never leaves the site.
+  if (response.status >= 300 && response.status < 400) {
+    const location = response.headers.get("location");
+    const target = location ? new URL(location, url) : undefined;
+    if (target?.protocol !== "https:") {
+      throw new ToolExecutionError(
+        "CONFLUENCE_UNTRUSTED_REDIRECT",
+        "Confluence attachment download redirected to a non-https location.",
+        { status: response.status, location },
+      );
+    }
+    response = await fetch(target, { redirect: "error", signal: timeout });
+  }
   if (!response.ok) {
     await throwConfluenceError(response, "GET", url.pathname);
   }
@@ -245,6 +261,19 @@ function resolveConfluenceDownloadUrl(
   const wikiPath =
     path === "/wiki" || path.startsWith("/wiki/") ? path : `/wiki${path}`;
   return new URL(`${connection.siteUrl}${wikiPath}`);
+}
+
+/** Fetches with credentials; a redirect is an error, so the token never follows one to another host. */
+async function send(url: URL, init: RequestInit): Promise<Response> {
+  const response = await fetch(url, { ...init, redirect: "manual" });
+  if (response.status >= 300 && response.status < 400) {
+    throw new ToolExecutionError(
+      "CONFLUENCE_UNTRUSTED_REDIRECT",
+      `Confluence responded to ${url.pathname} with a redirect; credentialed requests do not follow redirects.`,
+      { status: response.status, location: response.headers.get("location") },
+    );
+  }
+  return response;
 }
 
 function appendQuery(url: URL, query: Record<string, QueryValue> | undefined) {

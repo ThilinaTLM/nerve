@@ -4,25 +4,41 @@ import { MARKDOWN_SANDBOX_SOURCE } from "../confluence/markdown-to-storage.js";
  * `storage.*`: string builders for Confluence storage XHTML, pure JS in the
  * sandbox (no host calls). `storage.markdown(md)` runs the same Markdown
  * converter the host uses (its source is evaluated first), so it returns real
- * storage markup synchronously and helper output can be treated as plain strings.
+ * storage markup synchronously. Builder output is remembered as trusted markup;
+ * any other string passed to a builder is data and is escaped.
  */
 const STORAGE_BUILDERS = String.raw`globalThis.storage = (() => {
   const esc = (s) => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
   const cdata = (s) => "<![CDATA[" + String(s).split("]]>").join("]]]]><![CDATA[>") + "]]>";
-  const markdown = (md) => __markdownToStorage(String(md));
-  const isStorage = (s) => /^\s*</.test(s);
-  const hasTag = (s) => /<\/?[a-z][\w:-]*[\s\/>]/i.test(s);
-  const rich1 = (b) => { const s = String(b == null ? "" : b); return isStorage(s) ? s : markdown(s); };
+  // Builder outputs are trusted markup; every other string is data and gets escaped.
+  // Values are tracked by equality, per run (this prelude is evaluated once per run).
+  const trusted = new Set();
+  const T = (s) => { trusted.add(s); return s; };
+  const raw = (xhtml) => T(String(xhtml));
+  const ids = { taskId: 1 };
+  const markdown = (md) => T(__markdownToStorage(String(md), ids));
+  const text = (v) => (v == null ? "" : String(v));
+  // Inline content: trusted fragments as-is, anything else escaped; arrays are joined.
+  const inline = (b) => Array.isArray(b) ? b.map(inline).join("") : trusted.has(b) ? b : esc(text(b));
+  // Block content: trusted fragments as-is, plain strings are Markdown (HTML in them is escaped).
+  const rich1 = (b) => (trusted.has(b) ? b : markdown(text(b)));
   const rich = (b) => Array.isArray(b) ? b.map(rich1).join("") : rich1(b);
   const param = (name, value) => value == null || value === "" ? "" : '<ac:parameter ac:name="' + name + '">' + esc(value) + "</ac:parameter>";
   const macro = (name, params, body, attrs) =>
-    '<ac:structured-macro ac:name="' + name + '" ac:schema-version="1"' + (attrs || "") + ">" + params + (body || "") + "</ac:structured-macro>";
+    T('<ac:structured-macro ac:name="' + name + '" ac:schema-version="1"' + (attrs || "") + ">" + params + (body || "") + "</ac:structured-macro>");
   const richBody = (b) => "<ac:rich-text-body>" + rich(b) + "</ac:rich-text-body>";
-  const cell = (tag, v) => {
-    const s = String(v == null ? "" : v);
-    return "<" + tag + ">" + (isStorage(s) ? s : "<p>" + (hasTag(s) ? s : esc(s)) + "</p>") + "</" + tag + ">";
+  const cellBody = (v) => Array.isArray(v) ? v.map(cellBody).join("") : trusted.has(v) ? v : "<p>" + esc(text(v)) + "</p>";
+  const cell = (tag, v) => "<" + tag + ">" + cellBody(v) + "</" + tag + ">";
+  const width = (w) => {
+    const n = Number(w);
+    if (!Number.isFinite(n) || n <= 0) throw new Error("column width must be a positive number of pixels");
+    return Math.round(n);
   };
-  let taskId = 0;
+  const url = (u) => {
+    const s = text(u);
+    if (!__isSafeUrl(s)) throw new Error("unsupported URL: only http(s), mailto, relative and anchor links are allowed");
+    return s;
+  };
   const LAYOUTS = { two_equal: 1, two_left_sidebar: 1, two_right_sidebar: 1, three_equal: 1 };
   const LAYOUT_NAMES = { default: 1, wide: 1, "full-width": 1 };
   const layoutAttr = (layout) => {
@@ -36,36 +52,34 @@ const STORAGE_BUILDERS = String.raw`globalThis.storage = (() => {
   const COLOURS = { grey: "Grey", gray: "Grey", red: "Red", yellow: "Yellow", green: "Green", blue: "Blue", purple: "Purple" };
   return {
     markdown,
+    raw,
     escape: esc,
-    h1: (text) => "<h1>" + esc(text) + "</h1>",
-    h2: (text) => "<h2>" + esc(text) + "</h2>",
-    h3: (text) => "<h3>" + esc(text) + "</h3>",
-    p: (body) => {
-      const t = String(body == null ? "" : body);
-      return "<p>" + (hasTag(t) ? t : esc(t)) + "</p>";
-    },
-    link: (url, text) => '<a href="' + esc(url) + '">' + esc(text == null ? url : text) + "</a>",
-    date: (iso) => '<time datetime="' + esc(iso) + '"/>',
-    mention: (accountId) => '<ac:link><ri:user ri:account-id="' + esc(accountId) + '"/></ac:link>',
+    h1: (v) => T("<h1>" + esc(text(v)) + "</h1>"),
+    h2: (v) => T("<h2>" + esc(text(v)) + "</h2>"),
+    h3: (v) => T("<h3>" + esc(text(v)) + "</h3>"),
+    p: (body) => T("<p>" + inline(body == null ? "" : body) + "</p>"),
+    link: (href, label) => T('<a href="' + esc(url(href)) + '">' + esc(label == null ? href : label) + "</a>"),
+    date: (iso) => T('<time datetime="' + esc(iso) + '"/>'),
+    mention: (accountId) => T('<ac:link><ri:user ri:account-id="' + esc(accountId) + '"/></ac:link>'),
     tasks: (items) =>
-      "<ac:task-list>" + items.map((item) => {
-        const t = typeof item === "string" ? { text: item } : item;
-        return "<ac:task><ac:task-id>" + (++taskId) + "</ac:task-id><ac:task-status>" + (t.done ? "complete" : "incomplete") +
-          "</ac:task-status><ac:task-body>" + (hasTag(String(t.text)) ? t.text : esc(t.text)) + "</ac:task-body></ac:task>";
-      }).join("") + "</ac:task-list>",
+      T("<ac:task-list>" + items.map((item) => {
+        const t = typeof item === "object" && item !== null && !Array.isArray(item) ? item : { text: item };
+        return "<ac:task><ac:task-id>" + (ids.taskId++) + "</ac:task-id><ac:task-status>" + (t.done ? "complete" : "incomplete") +
+          "</ac:task-status><ac:task-body>" + inline(t.text) + "</ac:task-body></ac:task>";
+      }).join("") + "</ac:task-list>"),
     image: (filename, opts) => {
       const o = opts || {};
-      return '<ac:image ac:align="' + esc(o.align || "center") + '"' + (o.width ? ' ac:width="' + Math.round(o.width) + '"' : "") +
+      return T('<ac:image ac:align="' + esc(o.align || "center") + '"' + (o.width ? ' ac:width="' + Math.round(o.width) + '"' : "") +
         (o.alt ? ' ac:alt="' + esc(o.alt) + '"' : "") + '><ri:attachment ri:filename="' + esc(filename) + '"/>' +
-        (o.caption ? "<ac:caption><p>" + esc(o.caption) + "</p></ac:caption>" : "") + "</ac:image>";
+        (o.caption ? "<ac:caption><p>" + esc(o.caption) + "</p></ac:caption>" : "") + "</ac:image>");
     },
     layout: (cells, opts) => {
       const type = (opts && opts.type) || (cells.length === 3 ? "three_equal" : "two_equal");
       if (!LAYOUTS[type]) throw new Error("layout type must be one of: two_equal, two_left_sidebar, two_right_sidebar, three_equal");
       const want = type === "three_equal" ? 3 : 2;
       if (cells.length !== want) throw new Error("layout type " + type + " needs " + want + " cells");
-      return '<ac:layout><ac:layout-section ac:type="' + type + '">' +
-        cells.map((c) => "<ac:layout-cell>" + rich(c) + "</ac:layout-cell>").join("") + "</ac:layout-section></ac:layout>";
+      return T('<ac:layout><ac:layout-section ac:type="' + type + '">' +
+        cells.map((c) => "<ac:layout-cell>" + rich(c) + "</ac:layout-cell>").join("") + "</ac:layout-section></ac:layout>");
     },
     toc: () => macro("toc", ""),
     panel: (type, body, opts) => {
@@ -89,7 +103,7 @@ const STORAGE_BUILDERS = String.raw`globalThis.storage = (() => {
     },
     table: (rows, opts) => {
       const list = Array.isArray(rows) ? rows : [];
-      const given = ((opts && opts.columns) || []).map((c) => (typeof c === "string" ? { key: c } : c));
+      const given = ((opts && opts.columns) || []).map((c) => (typeof c === "string" ? { key: c } : { ...c, width: c.width == null ? 0 : width(c.width) }));
       let header;
       let body;
       if (list.length > 0 && Array.isArray(list[0])) {
@@ -109,8 +123,8 @@ const STORAGE_BUILDERS = String.raw`globalThis.storage = (() => {
         const rest = missing ? Math.max(56, Math.floor((total - known) / missing)) : 0;
         cols = "<colgroup>" + given.map((c) => '<col style="width: ' + (c.width || rest) + 'px;"/>').join("") + "</colgroup>";
       }
-      return '<table data-layout="' + esc(layout) + '">' + cols + "<tbody><tr>" + header.map((h) => cell("th", h)).join("") + "</tr>" +
-        body.map((r) => "<tr>" + header.map((_, i) => cell("td", r[i])).join("") + "</tr>").join("") + "</tbody></table>";
+      return T('<table data-layout="' + esc(layout) + '">' + cols + "<tbody><tr>" + header.map((h) => cell("th", h)).join("") + "</tr>" +
+        body.map((r) => "<tr>" + header.map((_, i) => cell("td", r[i])).join("") + "</tr>").join("") + "</tbody></table>");
     },
   };
 })();`;

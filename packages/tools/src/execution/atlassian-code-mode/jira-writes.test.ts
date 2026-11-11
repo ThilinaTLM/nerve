@@ -576,3 +576,26 @@ void test("issues.get transitions lists reachable statuses and their required fi
     { name: "Finish", to: "Done", requiredFields: ["Resolution"] },
   ]);
 });
+
+void test("an editmeta outage is not swallowed, but a missing edit screen is tolerated", async () => {
+  const outage = setup((req) =>
+    req.path.endsWith("/editmeta")
+      ? new Response("{}", { status: 503 })
+      : undefined,
+  );
+  const failed = await outage.run(
+    `try { await jira.issues.update({ key: "APP-1", fields: { Priority: "low" } }); } catch (e) { console.log("failed", e.code); }`,
+  );
+  assert.match(failed.content ?? "", /failed SERVER_ERROR/);
+  assert.equal(lastOf(outage.sent, "PUT", "/issue/APP-1"), undefined);
+
+  const missing = setup((req) =>
+    req.path.endsWith("/editmeta")
+      ? new Response("{}", { status: 404 })
+      : undefined,
+  );
+  await missing.run(
+    `await jira.issues.update({ key: "APP-1", fields: { summary: "S" } });`,
+  );
+  assert.ok(lastOf(missing.sent, "PUT", "/issue/APP-1"));
+});

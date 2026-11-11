@@ -17,7 +17,7 @@ import type {
 
 /**
  * Artifacts: files a script produces, kept in one folder per conversation
- * (`context.conversationArtifactDir`). Scripts name them with string handles:
+ * (`<conversationDir>/code-mode`). Scripts name them with string handles:
  * `artifact:<name>` for the folder, anything else is a workspace path.
  */
 
@@ -59,9 +59,9 @@ export type FileRef =
   | { kind: "workspace"; path: string; handle: string };
 
 export function artifactDir(env: SdkEnvironment): string {
-  const dir = env.context.conversationArtifactDir;
+  const dir = env.context.conversationDir;
   if (!dir) throw new Error("Artifacts are not available in this context.");
-  return dir;
+  return join(dir, "code-mode");
 }
 
 export function assertArtifactName(name: unknown): string {

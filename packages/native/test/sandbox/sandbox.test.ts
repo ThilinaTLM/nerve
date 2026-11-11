@@ -3,6 +3,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { sandbox } from "../../src/index.js";
+import { binding } from "../../src/binding/loader.js";
 
 test("TypeScript script awaits async host calls and prints results", async () => {
   const outcome = await sandbox.runSandboxScript({
@@ -64,4 +65,75 @@ test("unsupported TypeScript fails before the script starts", async () => {
   });
   assert.equal(outcome.status, "failed");
   assert.match(outcome.error ?? "", /enum|TypeScript/i);
+});
+
+async function withFakeBinding<T>(
+  start: NonNullable<typeof binding.startSandboxScript>,
+  run: () => Promise<T>,
+): Promise<T> {
+  const native = binding as { startSandboxScript?: typeof start };
+  const original = native.startSandboxScript;
+  native.startSandboxScript = start;
+  try {
+    return await run();
+  } finally {
+    native.startSandboxScript = original;
+  }
+}
+
+test("a failed host request fails the run with the real error", async () => {
+  let cancelled = 0;
+  let exit: Parameters<
+    NonNullable<typeof binding.startSandboxScript>
+  >[2] = () => {};
+  const outcome = await withFakeBinding(
+    (_options, hostCall, onExit) => {
+      exit = onExit;
+      queueMicrotask(() =>
+        hostCall(new Error("queue full"), undefined as never),
+      );
+      return {
+        reply: () => true,
+        cancel: () => {
+          cancelled += 1;
+          exit(null, {
+            status: "cancelled",
+            output: "",
+            outputTruncated: false,
+            hostCalls: 0,
+            durationMs: 1,
+            memoryUsedBytes: 0,
+          });
+        },
+      };
+    },
+    () => sandbox.runSandboxScript({ code: "", onHostCall: async () => null }),
+  );
+  assert.equal(cancelled, 1);
+  assert.equal(outcome.status, "failed");
+  assert.match(outcome.error ?? "", /queue full/);
+});
+
+test("the run settles when the engine thread never reports its exit", async (t) => {
+  t.mock.timers.enable({ apis: ["setTimeout"] });
+  let cancelled = false;
+  const pending = withFakeBinding(
+    () => ({
+      reply: () => true,
+      cancel: () => {
+        cancelled = true;
+      },
+    }),
+    () =>
+      sandbox.runSandboxScript({
+        code: "",
+        timeoutMs: 1000,
+        onHostCall: async () => null,
+      }),
+  );
+  t.mock.timers.tick(1000 + 5_000);
+  const outcome = await pending;
+  assert.ok(cancelled);
+  assert.equal(outcome.status, "failed");
+  assert.match(outcome.error ?? "", /did not exit/);
 });

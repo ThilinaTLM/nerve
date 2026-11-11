@@ -30,12 +30,28 @@ function createMarkdownConverter() {
     return `<![CDATA[${text.replaceAll("]]>", "]]]]><![CDATA[>")}]]>`;
   }
 
-  function markdownToStorage(markdown: string): string {
-    const state = { taskId: 1 };
+  /**
+   * `state.taskId` numbers `ac:task-id`s; pass one state to every conversion that
+   * ends up on the same page so the ids stay unique.
+   */
+  function markdownToStorage(
+    markdown: string,
+    state: State = { taskId: 1 },
+  ): string {
     return blocks(markdown.replaceAll("\r\n", "\n").split("\n"), state);
   }
 
   type State = { taskId: number };
+
+  /** http(s), mailto, relative and anchor URLs only (no `javascript:`, `data:`, ...). */
+  function isSafeUrl(url: string): boolean {
+    // Browsers ignore control characters and spaces inside a scheme.
+    const compact = [...url].filter((char) => char > " ").join("");
+    return (
+      /^(?:https?|mailto):/i.test(compact) ||
+      !/^[a-z][a-z0-9+.-]*:/i.test(compact)
+    );
+  }
 
   const FENCE = /^ {0,3}(`{3,}|~{3,})\s*([^\s`]*)[^`]*$/;
   const HEADING = /^ {0,3}(#{1,6})\s+(.*?)\s*#*\s*$/;
@@ -314,6 +330,11 @@ function createMarkdownConverter() {
       }
       if (ch === "!" && text[i + 1] === "[") {
         const link = parseLink(text, i + 1);
+        if (link && !isSafeUrl(link.url)) {
+          out += escapeXml(link.label);
+          i = link.end;
+          continue;
+        }
         if (link) {
           const alt = link.label ? ` ac:alt="${escapeXml(link.label)}"` : "";
           out += `<ac:image${alt}>${imageTarget(link.url)}</ac:image>`;
@@ -323,6 +344,11 @@ function createMarkdownConverter() {
       }
       if (ch === "[") {
         const link = parseLink(text, i);
+        if (link && !isSafeUrl(link.url)) {
+          out += inline(link.label);
+          i = link.end;
+          continue;
+        }
         if (link) {
           out += `<a href="${escapeXml(link.url)}">${inline(link.label)}</a>`;
           i = link.end;
@@ -424,11 +450,13 @@ function createMarkdownConverter() {
     return undefined;
   }
 
-  return { markdownToStorage };
+  return { markdownToStorage, isSafeUrl };
 }
 
 export const { markdownToStorage } = createMarkdownConverter();
 
-/** Classic-script source that defines `globalThis.__markdownToStorage` (esbuild's `__name` helper is stubbed). */
+/** Classic-script source that defines `globalThis.__markdownToStorage` and `__isSafeUrl` (esbuild's `__name` helper is stubbed). */
 export const MARKDOWN_SANDBOX_SOURCE = `var __name = (target) => target;
-globalThis.__markdownToStorage = (${createMarkdownConverter.toString()})().markdownToStorage;`;
+var __converter = (${createMarkdownConverter.toString()})();
+globalThis.__markdownToStorage = __converter.markdownToStorage;
+globalThis.__isSafeUrl = __converter.isSafeUrl;`;

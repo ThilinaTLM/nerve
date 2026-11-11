@@ -76,6 +76,7 @@ void test("bash host validates turn settings, project cwd and untimed background
       tools.port.execute({
         toolCallId: "tool",
         conversationId: "conversation",
+        conversationDir: "/tmp/conversation",
         origin: "model",
         toolName: "bash",
         args,
@@ -224,6 +225,7 @@ void test("launch is advertised only with a handler and receives conversation, o
   const result = await tools.port.execute({
     toolCallId: "tool",
     conversationId: "conv_one",
+    conversationDir: "/tmp/conv_one",
     origin: "user",
     toolName: "launch",
     args,
@@ -239,6 +241,7 @@ void test("launch is advertised only with a handler and receives conversation, o
     await tools.port.execute({
       toolCallId: "tool",
       conversationId: "conv_one",
+      conversationDir: "/tmp/conv_one",
       origin: "model",
       toolName: "launch",
       args: { action, name: "Dev" },
@@ -292,6 +295,7 @@ void test("prepared dispatch owns normalized arguments and the non-secret execut
   const input = {
     toolCallId: "call",
     conversationId: "c",
+    conversationDir: "/tmp/c",
     origin: "model" as const,
     toolName: "read",
     cwd,

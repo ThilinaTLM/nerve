@@ -365,7 +365,7 @@ function projectToolPresentation(
       const meta: MetaItem[] = [];
       if (view.status && view.status !== "completed")
         meta.push({
-          text: view.status.replace("_", " "),
+          text: view.status.replaceAll("_", " "),
           tone: "destructive",
         });
       if (view.hostCalls.length > 0)

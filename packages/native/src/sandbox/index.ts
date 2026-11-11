@@ -3,6 +3,9 @@ import { binding } from "../binding/loader.js";
 import type { NativeSandboxBinding, NativeSandboxOutcome } from "./binding.js";
 import { BASE_PRELUDE } from "./prelude.js";
 
+/** Time the engine thread gets past the script timeout to report its exit. */
+const EXIT_GRACE_MS = 5_000;
+
 const native = binding as typeof binding & NativeSandboxBinding;
 
 export type SandboxStatus = NativeSandboxOutcome["status"];
@@ -70,7 +73,28 @@ export async function runSandboxScript(
   const records: SandboxHostCallRecord[] = [];
   return await new Promise<SandboxOutcome>((resolve, reject) => {
     let script: ReturnType<NonNullable<typeof native.startSandboxScript>>;
+    let hostFailure: string | undefined;
+    let settled = false;
     const onAbort = () => script?.cancel();
+    const finish = (settle: () => void) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(watchdog);
+      options.signal?.removeEventListener("abort", onAbort);
+      settle();
+    };
+    // The engine thread enforces the timeout itself; this only fires when its
+    // exit never arrives (a crashed thread), so the caller cannot hang.
+    const watchdog = setTimeout(
+      () => {
+        script?.cancel();
+        finish(() =>
+          resolve(failed("The sandbox did not exit after its deadline")),
+        );
+      },
+      (options.timeoutMs ?? 120_000) + EXIT_GRACE_MS,
+    );
+    watchdog.unref();
     try {
       script = native.startSandboxScript!(
         {
@@ -86,7 +110,12 @@ export async function runSandboxScript(
           maxOutputBytes: options.maxOutputBytes ?? 256 * 1024,
         },
         (error, call) => {
-          if (error) return;
+          if (error) {
+            // A lost request would leave the script waiting for a reply until the timeout.
+            hostFailure ??= errorText(error);
+            script?.cancel();
+            return;
+          }
           const started = performance.now();
           void handle(call.method, call.args).then(
             (value) => {
@@ -108,21 +137,28 @@ export async function runSandboxScript(
           );
         },
         (error, outcome) => {
-          options.signal?.removeEventListener("abort", onAbort);
-          if (error) return reject(error);
-          resolve({
-            status: outcome.status,
-            ...(outcome.error ? { error: outcome.error } : {}),
-            output: outcome.output,
-            outputTruncated: outcome.outputTruncated,
-            hostCalls: records,
-            durationMs: outcome.durationMs,
-            memoryUsedBytes: outcome.memoryUsedBytes,
-          });
+          if (error) return finish(() => reject(error));
+          if (hostFailure) {
+            const message = `Host call transport failed: ${hostFailure}`;
+            return finish(() =>
+              resolve({ ...failed(message), hostCalls: records }),
+            );
+          }
+          finish(() =>
+            resolve({
+              status: outcome.status,
+              ...(outcome.error ? { error: outcome.error } : {}),
+              output: outcome.output,
+              outputTruncated: outcome.outputTruncated,
+              hostCalls: records,
+              durationMs: outcome.durationMs,
+              memoryUsedBytes: outcome.memoryUsedBytes,
+            }),
+          );
         },
       );
     } catch (error) {
-      reject(error);
+      finish(() => reject(error));
       return;
     }
     options.signal?.addEventListener("abort", onAbort, { once: true });
@@ -134,9 +170,13 @@ export async function runSandboxScript(
 }
 
 function failedBeforeStart(error: unknown): SandboxOutcome {
+  return failed(errorText(error));
+}
+
+function failed(error: string): SandboxOutcome {
   return {
     status: "failed",
-    error: errorText(error),
+    error,
     output: "",
     outputTruncated: false,
     hostCalls: [],

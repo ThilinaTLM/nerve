@@ -87,7 +87,7 @@ function supportedImageMime(mimeType: string): boolean {
         lines
       </Badge>
       {#if projection.recovery !== "none"}
-        <Badge>Recovery: {projection.recovery.replace("_", " ")}</Badge>
+        <Badge>Recovery: {projection.recovery.replaceAll("_", " ")}</Badge>
       {/if}
     </div>
   {/if}

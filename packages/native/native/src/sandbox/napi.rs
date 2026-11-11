@@ -1,4 +1,6 @@
-use super::{Limits, MAX_CODE_BYTES, MAX_PRELUDE_BYTES, Message, Outcome, Script, run};
+use super::{
+    Limits, MAX_CODE_BYTES, MAX_PRELUDE_BYTES, Message, Outcome, Script, contain_panic, run,
+};
 use crate::core::admission::ActivePermit;
 use napi::bindgen_prelude::Result;
 use napi::threadsafe_function::{ThreadsafeFunction, ThreadsafeFunctionCallMode};
@@ -140,7 +142,8 @@ pub fn start_sandbox_script(
                     ThreadsafeFunctionCallMode::NonBlocking,
                 );
             });
-            let outcome = run(script, limits, receiver, thread_cancelled, request);
+            let outcome =
+                contain_panic(|| run(script, limits, receiver, thread_cancelled, request));
             let _ = exit.call(Ok(outcome.into()), ThreadsafeFunctionCallMode::NonBlocking);
         })
         .map_err(|error| napi::Error::from_reason(format!("sandbox thread: {error}")))?;

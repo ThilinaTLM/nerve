@@ -44,7 +44,7 @@ function block(node: Node): string {
     case "doc":
       return blocks(kids, "");
     case "paragraph":
-      return inline(kids);
+      return escapeBlockStarts(inline(kids));
     case "heading": {
       const level = Math.min(6, Math.max(1, Number(node.attrs?.level) || 1));
       return `${"#".repeat(level)} ${inline(kids)}`;
@@ -56,7 +56,7 @@ function block(node: Node): string {
       const language =
         typeof node.attrs?.language === "string" ? node.attrs.language : "";
       const text = kids.map(plainText).join("");
-      const fence = text.includes("```") ? "````" : "```";
+      const fence = "`".repeat(Math.max(3, longestBacktickRun(text) + 1));
       return `${fence}${language}\n${text}\n${fence}`;
     }
     case "blockquote":
@@ -166,11 +166,11 @@ function inline(nodes: Node[]): string {
 
 function inlineNode(node: Node): string {
   switch (node.type) {
-    case "text":
-      return applyMarks(
-        typeof node.text === "string" ? node.text : "",
-        node.marks,
-      );
+    case "text": {
+      const text = typeof node.text === "string" ? node.text : "";
+      const code = node.marks?.some((mark) => mark.type === "code");
+      return applyMarks(code ? text : escapeText(text), node.marks);
+    }
     case "hardBreak":
       return "  \n";
     case "mention": {
@@ -196,13 +196,37 @@ function inlineNode(node: Node): string {
   }
 }
 
+/** Backslash-escapes characters that would otherwise start inline Markdown. */
+function escapeText(text: string): string {
+  return text.replace(/[\\`*_[\]~<]/g, "\\$&");
+}
+
+/** Escapes line starts that would turn a paragraph into a heading, quote, list or rule. */
+function escapeBlockStarts(text: string): string {
+  return text.replace(
+    /^(?:(#{1,6})(?=\s)|(>)|([-+])(?=\s|--)|(\d+)([.)])(?=\s))/gm,
+    (_match, hashes, quote, bullet, digits, delimiter) =>
+      hashes
+        ? `\\${hashes}`
+        : quote
+          ? "\\>"
+          : bullet
+            ? `\\${bullet}`
+            : `${digits}\\${delimiter}`,
+  );
+}
+
+function longestBacktickRun(text: string): number {
+  return Math.max(0, ...(text.match(/`+/g) ?? []).map((run) => run.length));
+}
+
 function applyMarks(text: string, marks: Node["marks"]): string {
   if (!marks || marks.length === 0 || text.length === 0) return text;
   let out = text;
   for (const mark of marks) {
     switch (mark.type) {
       case "code":
-        out = `\`${out}\``;
+        out = codeSpan(out);
         break;
       case "strong":
         out = wrap(out, "**");
@@ -223,6 +247,13 @@ function applyMarks(text: string, marks: Node["marks"]): string {
     }
   }
   return out;
+}
+
+/** Code span whose delimiter is longer than any backtick run inside; padded when the text touches it. */
+function codeSpan(text: string): string {
+  const delimiter = "`".repeat(longestBacktickRun(text) + 1);
+  const pad = /^[` ]|[` ]$/.test(text) && text.trim() ? " " : "";
+  return `${delimiter}${pad}${text}${pad}${delimiter}`;
 }
 
 /** Keeps surrounding whitespace outside the emphasis markers. */

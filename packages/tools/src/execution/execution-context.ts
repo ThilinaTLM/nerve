@@ -79,8 +79,8 @@ export interface KrokiExecutionContext extends BaseExecutionContext {
 }
 export interface IntegrationExecutionContext extends BaseExecutionContext {
   artifactDir?: string;
-  /** Absolute per-conversation scratch folder; may not exist yet. Set for `atlassian_code_mode`. */
-  conversationArtifactDir?: string;
+  /** Absolute managed folder of the conversation; may not exist yet. */
+  conversationDir?: string;
   getApiKey?: (provider: string) => Promise<string | undefined>;
   getProviderConfig?: (provider: string) => Promise<unknown>;
   /**
@@ -92,6 +92,8 @@ export interface IntegrationExecutionContext extends BaseExecutionContext {
   authorizeNested?: (request: {
     toolName: string;
     args: Record<string, unknown>;
+    /** Never allowed by a rule alone; needs a user-approved destructive script (raw non-GET requests). */
+    approvalRequired?: boolean;
   }) => Promise<void>;
 }
 

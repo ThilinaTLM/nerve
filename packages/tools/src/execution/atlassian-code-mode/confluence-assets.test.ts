@@ -42,7 +42,8 @@ type Recorded = {
 async function setup(options: { deny?: string } = {}) {
   const root = await mkdtemp(join(tmpdir(), "code-mode-"));
   const cwd = join(root, "workspace");
-  const artifactDir = join(root, "artifacts");
+  const conversationDir = join(root, "conversation");
+  const artifactDir = join(conversationDir, "code-mode");
   await mkdir(cwd);
   const kroki = await png(800, 400);
   const events: string[] = [];
@@ -106,7 +107,7 @@ async function setup(options: { deny?: string } = {}) {
   };
   const context = {
     cwd,
-    conversationArtifactDir: artifactDir,
+    conversationDir,
     kroki: { url: "http://kroki.test/" },
     getApiKey: async () => "token",
     getProviderConfig: async () => ({
@@ -339,7 +340,7 @@ void test("storage builders produce well-formed XHTML", async () => {
           storage.h1("Work"),
           storage.table([{ k: "APP-1", s: "Summary" }], { columns: [{ key: "k", title: "Key", width: 90 }, { key: "s", title: "Summary" }], layout: "wide" }),
           storage.tasks([{ text: "one", done: true }, "two"]),
-          storage.p("See " + storage.link("https://x.test/?a=1&b=2", "docs") + " by " + storage.mention("abc") + " on " + storage.date("2026-01-02")),
+          storage.p(["See ", storage.link("https://x.test/?a=1&b=2", "docs"), " by ", storage.mention("abc"), " on ", storage.date("2026-01-02")]),
           storage.image("a.png", { width: 300, caption: "Cap", alt: "A" }),
           storage.h1("Last"), storage.p("x"),
         ].join("");
@@ -420,4 +421,60 @@ void test("jiraIssues builds semicolon-separated columns and a layout; panels ma
     /<p>Plain text<\/p><p><time datetime="2026-01-02"\/><\/p>/,
   );
   assert.ok(value.includes("<p>a</p><p>b</p></ac:rich-text-body>"));
+});
+
+/** Makes uploads of `filename` fail with a server error. */
+function failUploadsOf(filename: string) {
+  const inner = globalThis.fetch;
+  globalThis.fetch = async (input, init) => {
+    const file = init?.body instanceof FormData ? init.body.get("file") : null;
+    if (file instanceof File && file.name === filename)
+      return new Response("{}", { status: 500 });
+    return inner(input, init);
+  };
+}
+
+void test("a failed upload after pages.create names the created page and the missing attachments", async () => {
+  const { cwd, context } = await setup();
+  await writeFile(join(cwd, "a.png"), await png(100, 50));
+  await writeFile(join(cwd, "b.png"), await png(100, 50));
+  failUploadsOf("b.png");
+  const result = await executeAtlassianCodeMode(
+    {
+      code: `try { await confluence.pages.create({ space: "DOC", title: "T", body: "<p>x</p>", attachments: ["a.png", "b.png"] }); } catch (e) { console.log(e.code, e.message); }`,
+    },
+    context,
+  );
+  const text = result.content ?? "";
+  assert.match(text, /^SERVER_ERROR /);
+  assert.match(
+    text,
+    /page 100 \(https:\/\/example\.atlassian\.net\/wiki\/spaces\/DOC\/pages\/100\/T\) was already created/,
+  );
+  assert.match(
+    text,
+    /uploaded: a\.png; the remaining attachments .* are missing/,
+  );
+});
+
+void test("a failed pages.update save names the attachments already uploaded", async () => {
+  const { cwd, requests, context } = await setup();
+  await writeFile(join(cwd, "a.png"), await png(100, 50));
+  const inner = globalThis.fetch;
+  globalThis.fetch = async (input, init) =>
+    init?.method === "PUT" &&
+    new URL(String(input)).pathname.endsWith("/pages/100")
+      ? new Response("{}", { status: 500 })
+      : inner(input, init);
+  const result = await executeAtlassianCodeMode(
+    {
+      code: `try { await confluence.pages.update({ id: "100", body: "<p>x</p>", attachments: ["a.png"] }); } catch (e) { console.log(e.message); }`,
+    },
+    context,
+  );
+  assert.match(
+    result.content ?? "",
+    /page 100 was not saved, but these attachments were already uploaded: a\.png/,
+  );
+  assert.ok(requests.some((r) => r.form));
 });

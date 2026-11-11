@@ -285,8 +285,9 @@ const readMethods: SdkMethod[] = [
       path,
       body,
     }),
-    // GET is a read; anything else cannot be analysed, so it is checked as the
-    // most destructive action of a `jira_manage_*` tool (a delete).
+    // GET is a read. Anything else cannot be analysed: `jira_manage_comment`
+    // (a delete) only supplies the deny rules, and the call always needs the
+    // script to be approved at destructive level, whatever allow rules say.
     authorize: ({ method, path }) => ({
       toolName: method === "GET" ? "jira_get_project" : "jira_manage_comment",
       // Placeholder identifiers only satisfy the direct tool's parameter
@@ -296,6 +297,7 @@ const readMethods: SdkMethod[] = [
           ? {}
           : { action: "delete", issue_key: "raw-request", comment_id: "-" },
       summary: `${method} ${String(path)}`,
+      ...(method === "GET" ? {} : { approvalRequired: true as const }),
     }),
     resource: ({ path }) => String(path),
     async run({ method, path, body }, env) {

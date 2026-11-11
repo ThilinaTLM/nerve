@@ -33,7 +33,7 @@ const EXIT_CODES: Record<string, number> = {
 
 /**
  * Runs an agent-written TypeScript script in the QuickJS sandbox with the
- * Jira SDK. Failure convention follows `python_exec`: a script that fails,
+ * Jira and Confluence SDKs. Failure convention follows `python_exec`: a script that fails,
  * times out or is cancelled still yields a normal result (error text + footer,
  * non-zero `exitCode`); only invalid arguments and a missing runtime throw.
  */
@@ -54,13 +54,15 @@ export async function executeAtlassianCodeMode(
     throw new Error("The code sandbox is not available in this build.");
   }
 
-  const env = createSdkEnvironment(context);
-  const hostCalls: CodeModeHostCall[] = [];
-  // A 401 ends the whole script: abort the run and refuse further host calls.
+  // Cancelling the tool call or a 401 ends the whole script: `stop` aborts the
+  // run and every in-flight host call, because the SDK methods read their
+  // signal from the environment's context.
   const stop = new AbortController();
   const abortStop = () => stop.abort();
   context.signal?.addEventListener("abort", abortStop, { once: true });
   if (context.signal?.aborted) stop.abort();
+  const env = createSdkEnvironment({ ...context, signal: stop.signal });
+  const hostCalls: CodeModeHostCall[] = [];
   let authFailure: string | undefined;
 
   const outcome = await sandbox
@@ -125,6 +127,7 @@ export async function executeAtlassianCodeMode(
             await context.authorizeNested!({
               toolName: request.toolName,
               args: request.args,
+              ...(request.approvalRequired ? { approvalRequired: true } : {}),
             });
           }
         } catch (error) {

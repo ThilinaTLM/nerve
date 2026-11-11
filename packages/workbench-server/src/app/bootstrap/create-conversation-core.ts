@@ -312,6 +312,9 @@ export function createConversationCore(
           ...(codeMode
             ? {
                 authorizeNested: (request) =>
+                  // Only a person's approval of the script sets the ceiling: the
+                  // admission stored on the tool call says whether a rule allowed
+                  // it or a user approved it (read when the nested call is made).
                   authorizeCodeModeCall(
                     {
                       toolCallId: input.toolCallId,
@@ -321,9 +324,11 @@ export function createConversationCore(
                       cwd: input.cwd,
                       requestCaptureId: input.requestCaptureId,
                       signal: input.signal,
-                      approvedRisk: classifyCodeModeArguments(
-                        input.args as Record<string, unknown>,
-                      ).risk,
+                      approvedRisk: userApproved(input.toolCallId)
+                        ? classifyCodeModeArguments(
+                            input.args as Record<string, unknown>,
+                          ).risk
+                        : null,
                     },
                     request,
                   ),
@@ -578,6 +583,12 @@ export function createConversationCore(
     trustGeneration: () => core.trust.generation + core.projects.generation,
     requestGenerations: (id) => scopedConfiguration.getCapture(id)?.generations,
   });
+  const userApproved = (toolCallId: string) => {
+    const supervision = storage.toolCalls.get(toolCallId)?.supervision;
+    return (
+      supervision?.decision === "approval" && Boolean(supervision.approval)
+    );
+  };
   const authorizeCodeModeCall = createCodeModeAuthorizer(
     createExecutionAdmission(admissionPolicy),
   );

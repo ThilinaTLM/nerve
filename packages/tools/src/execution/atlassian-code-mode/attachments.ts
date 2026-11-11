@@ -4,6 +4,7 @@ import { anyJson } from "../atlassian/http.js";
 import { confluenceAttachmentRequest } from "../confluence/client.js";
 import { valuesFromConfluenceList } from "../confluence/format.js";
 import {
+  MAX_FILE_BYTES,
   mediaTypeFor,
   parseHandle,
   readAuthorizations,
@@ -110,6 +111,32 @@ function withExtension(filename: string, extension: string): string {
   return (current ? filename.slice(0, -current.length) : filename) + extension;
 }
 
+/** Largest total size of the files one call loads into host memory. */
+export const MAX_ATTACHMENTS_TOTAL_BYTES = 50 * 1024 * 1024;
+
+/**
+ * Loads attachments one after another so memory never exceeds the total cap;
+ * each file is size-checked before it is read.
+ */
+export async function loadAttachments(
+  specs: readonly AttachmentSpec[],
+  env: SdkEnvironment,
+): Promise<LoadedAttachment[]> {
+  const loaded: LoadedAttachment[] = [];
+  let total = 0;
+  for (const spec of specs) {
+    const remaining = MAX_ATTACHMENTS_TOTAL_BYTES - total;
+    const file = await loadAttachment(
+      spec,
+      env,
+      Math.min(MAX_FILE_BYTES, remaining),
+    );
+    total += file.bytes.byteLength;
+    loaded.push(file);
+  }
+  return loaded;
+}
+
 /**
  * Reads, validates and normalizes an attachment: SVG is rejected, GIF/WebP are
  * converted to PNG, and image dimensions come from the native image module.
@@ -117,9 +144,10 @@ function withExtension(filename: string, extension: string): string {
 export async function loadAttachment(
   spec: AttachmentSpec,
   env: SdkEnvironment,
+  maxBytes = MAX_FILE_BYTES,
 ): Promise<LoadedAttachment> {
   const ref = parseHandle(spec.file, env);
-  let bytes = await readFileRef(ref);
+  let bytes = await readFileRef(ref, maxBytes);
   let filename =
     spec.filename ??
     (ref.kind === "artifact" ? ref.name : ref.path.split(/[\\/]/).pop()!);

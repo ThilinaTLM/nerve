@@ -84,7 +84,7 @@ const SAMPLES: Record<string, unknown[][]> = {
 
 const env = createSdkEnvironment({
   cwd: process.cwd(),
-  conversationArtifactDir: "/tmp/code-mode-artifacts",
+  conversationDir: "/tmp/code-mode",
 });
 
 void test("every method has samples, and its declared risk covers every authorization it produces", () => {
@@ -224,4 +224,17 @@ void test("Markdown converts to ADF and back", () => {
     ["heading", "paragraph", "bulletList", "orderedList", "codeBlock"],
   );
   assert.equal(adfToMarkdown(adf), markdown);
+});
+
+void test("raw non-GET requests are never admitted by another tool's allow rule; GET stays a read check", () => {
+  for (const product of ["jira", "confluence"]) {
+    const request = findSdkMethod(`${product}.request`)!;
+    const get = request.prepare(["get", "/x"], env).authorization!;
+    assert.equal(get.approvalRequired, undefined);
+    for (const verb of ["POST", "PUT", "PATCH", "DELETE"]) {
+      const write = request.prepare([verb, "/x/1"], env).authorization!;
+      assert.equal(write.approvalRequired, true, `${product} ${verb}`);
+      assert.equal(write.summary, `${verb} /x/1`);
+    }
+  }
 });

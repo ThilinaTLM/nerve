@@ -225,3 +225,54 @@ void test("write methods are denied before any HTTP", async () => {
   assert.match(result.content ?? "", /^approval required/);
   assert.match(result.content ?? "", /1 denied/);
 });
+
+void test("labels.add authorizes every label, not only the first", async () => {
+  const { authorized, context } = setup();
+  await executeAtlassianCodeMode(
+    {
+      code: `await confluence.labels.add({ id: "100", labels: ["a", "b", "c"] });`,
+    },
+    context,
+  );
+  assert.deepEqual(
+    authorized.map((request) => request.args.label),
+    ["a", "b", "c"],
+  );
+});
+
+void test("a server error on child lookup fails the call instead of listing no children", async () => {
+  const { events, context } = setup();
+  const inner = globalThis.fetch;
+  globalThis.fetch = async (input, init) =>
+    new URL(String(input)).pathname.endsWith("/direct-children")
+      ? new Response("{}", { status: 503 })
+      : inner(input, init);
+  const result = await executeAtlassianCodeMode(
+    {
+      code: `try { await confluence.pages.get({ id: "100", children: true }); } catch (e) { console.log("failed", e.code); }`,
+    },
+    context,
+  );
+  assert.match(result.content ?? "", /failed SERVER_ERROR/);
+  assert.equal(events.filter((e) => e.endsWith("/children")).length, 0);
+});
+
+void test("a redirect on a credentialed Confluence request is an error", async () => {
+  const { context } = setup();
+  const seen: Array<RequestRedirect | undefined> = [];
+  globalThis.fetch = async (_input, init) => {
+    seen.push(init?.redirect);
+    return new Response(null, {
+      status: 302,
+      headers: { location: "https://evil.example/steal" },
+    });
+  };
+  const result = await executeAtlassianCodeMode(
+    {
+      code: `try { await confluence.pages.get({ id: "100" }); } catch (e) { console.log(e.message); }`,
+    },
+    context,
+  );
+  assert.deepEqual(seen, ["manual"]);
+  assert.match(result.content ?? "", /responded to .* with a redirect/);
+});

@@ -6,8 +6,12 @@ use image::{DynamicImage, ImageDecoder};
 
 /// Largest accepted encoded input for these operations.
 const MAX_INPUT_BYTES: usize = 50 * 1024 * 1024;
-/// Largest accepted source or result area.
-const MAX_PIXELS: u64 = 100_000_000;
+/// Largest accepted source or result area. A decoded 40 MP RGBA frame is 160 MB,
+/// and crop and resize each hold another copy next to it, so peak use stays
+/// under ~0.5 GB (100 MP would be 1.2 GB).
+const MAX_PIXELS: u64 = 40_000_000;
+/// Decoder allocation cap: one RGBA8 frame at `MAX_PIXELS` plus headroom.
+const MAX_TRANSFORM_ALLOC: u64 = 256 * 1024 * 1024;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Fit {
@@ -78,14 +82,14 @@ fn check_input(data: &[u8]) -> Result<(), String> {
 
 fn check_area(width: u32, height: u32, what: &str) -> Result<(), String> {
     if u64::from(width) * u64::from(height) > MAX_PIXELS {
-        return Err(format!("{what} exceeds the 100 megapixel limit"));
+        return Err(format!("{what} exceeds the 40 megapixel limit"));
     }
     Ok(())
 }
 
 pub(crate) fn image_info(data: &[u8]) -> Result<Info, String> {
     check_input(data)?;
-    let probe = reader(data)?;
+    let probe = reader(data, MAX_TRANSFORM_ALLOC)?;
     let format = probe
         .format()
         .and_then(Format::from_image)
@@ -169,7 +173,7 @@ pub(crate) fn transform_image(data: &[u8], ops: &Transform) -> Result<Transforme
         check_area(w, h, "Resized image")?;
     }
 
-    let decoded = reader(data)?
+    let decoded = reader(data, MAX_TRANSFORM_ALLOC)?
         .decode()
         .map_err(|error| format!("Could not decode image: {error}"))?;
     let has_alpha = decoded.color().has_alpha();
@@ -400,5 +404,53 @@ mod tests {
         out.extend(&ihdr);
         out.extend([0, 0, 0, 0]); // CRC not validated while probing
         out
+    }
+
+    /// A tiny "bomb": a few dozen bytes declaring a 10000x10000 image.
+    fn declared_png(width: u32, height: u32) -> Vec<u8> {
+        fn crc(bytes: &[u8]) -> u32 {
+            let mut crc = 0xFFFF_FFFFu32;
+            for byte in bytes {
+                crc ^= u32::from(*byte);
+                for _ in 0..8 {
+                    crc = if crc & 1 == 1 {
+                        (crc >> 1) ^ 0xEDB8_8320
+                    } else {
+                        crc >> 1
+                    };
+                }
+            }
+            !crc
+        }
+        fn chunk(out: &mut Vec<u8>, kind: &[u8; 4], body: &[u8]) {
+            out.extend((body.len() as u32).to_be_bytes());
+            let mut checked = kind.to_vec();
+            checked.extend(body);
+            out.extend(&checked);
+            out.extend(crc(&checked).to_be_bytes());
+        }
+        let mut ihdr = Vec::new();
+        ihdr.extend(width.to_be_bytes());
+        ihdr.extend(height.to_be_bytes());
+        ihdr.extend([8, 0, 0, 0, 0]);
+        let mut out = b"\x89PNG\r\n\x1a\n".to_vec();
+        chunk(&mut out, b"IHDR", &ihdr);
+        chunk(&mut out, b"IDAT", &[0x78, 0x9c, 0x03, 0, 0, 0, 0, 1]);
+        chunk(&mut out, b"IEND", &[]);
+        out
+    }
+
+    #[test]
+    fn oversized_declared_dimensions_are_rejected_before_decoding() {
+        let bomb = declared_png(10_000, 10_000);
+        assert!(bomb.len() < 100);
+        let error = image_info(&bomb).map(|_| ()).unwrap_err();
+        assert!(error.contains("40 megapixel"), "{error}");
+        let error = transform_image(&bomb, &Transform::default())
+            .map(|_| ())
+            .unwrap_err();
+        assert!(error.contains("40 megapixel"), "{error}");
+        // Just inside the cap is accepted by the header check.
+        assert!(image_info(&declared_png(6_000, 6_000)).is_ok());
     }
 }

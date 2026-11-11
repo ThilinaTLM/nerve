@@ -39,7 +39,7 @@ export async function prepareImage(
 
 /**
  * Crops, then resizes, then encodes. Runs off the Node thread; rejects on
- * invalid operations, unsupported input, or inputs over 50 MB / 100 megapixels.
+ * invalid operations, unsupported input, or inputs over 50 MB / 40 megapixels.
  */
 export async function transformImage(
   data: Buffer,

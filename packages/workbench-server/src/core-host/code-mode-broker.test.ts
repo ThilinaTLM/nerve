@@ -135,3 +135,62 @@ void test("the ceiling uses the nested call's own risk: adding is a write, delet
     },
   );
 });
+
+void test("a script allowed by a rule has no ceiling: a nested approval is refused", async () => {
+  const { authorize } = authorizer(["approval"]);
+  await assert.rejects(
+    authorize(
+      { ...call, approvedRisk: null },
+      { toolName: "jira_get_issue", args: {} },
+    ),
+    {
+      code: "NESTED_APPROVAL_REQUIRED",
+      message:
+        "jira_get_issue: needs read approval, but the script was allowed by a rule rather than approved (read-only mode)",
+    },
+  );
+});
+
+void test("a rule-allowed script still runs nested calls that policy allows and refuses denied ones", async () => {
+  const { authorize } = authorizer(["allow", "deny"]);
+  const allowed = { ...call, approvedRisk: null };
+  await authorize(allowed, { toolName: "jira_get_issue", args: {} });
+  await assert.rejects(
+    authorize(allowed, { toolName: "jira_get_issue", args: {} }),
+    { code: "NESTED_DENIED" },
+  );
+});
+
+void test("an unanalysable call is never admitted by an allow rule", async () => {
+  const raw = {
+    toolName: "jira_manage_comment",
+    args: { action: "delete", issue_key: "raw-request", comment_id: "-" },
+    approvalRequired: true,
+  };
+  // Allowed by a rule for the borrowed tool, but the script was only allowed.
+  await assert.rejects(
+    authorizer(["allow"]).authorize({ ...call, approvedRisk: null }, raw),
+    { code: "NESTED_APPROVAL_REQUIRED" },
+  );
+  // A person approved the script below destructive level.
+  await assert.rejects(
+    authorizer(["allow"]).authorize(
+      { ...call, approvedRisk: "workspace_write" },
+      raw,
+    ),
+    { code: "NESTED_APPROVAL_REQUIRED" },
+  );
+  // Approved at destructive level.
+  await authorizer(["allow"]).authorize(
+    { ...call, approvedRisk: "destructive" },
+    raw,
+  );
+  // Deny rules still win.
+  await assert.rejects(
+    authorizer(["deny"]).authorize(
+      { ...call, approvedRisk: "destructive" },
+      raw,
+    ),
+    { code: "NESTED_DENIED" },
+  );
+});

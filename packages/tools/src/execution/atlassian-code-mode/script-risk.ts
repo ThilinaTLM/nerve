@@ -134,8 +134,16 @@ type Token = {
  * Splits TypeScript into tokens, dropping comments and keeping string
  * contents only as `str` tokens, so text inside strings and comments never
  * looks like code. Template substitutions are tokenized as code.
+ *
+ * A `/` after `)` or `}` is ambiguous without parsing (`(a) / b` divides,
+ * `if (a) /re/.test(b)` starts a regular expression), and misreading it can
+ * hide code inside a bogus string or regex. `slashAfterCloser` says how to
+ * read it; the classifier scans both.
  */
-function tokenize(source: string): Token[] {
+function tokenize(
+  source: string,
+  slashAfterCloser: "division" | "regex",
+): Token[] {
   const tokens: Token[] = [];
   const braces: Array<"{" | "${"> = [];
   let i = 0;
@@ -198,7 +206,10 @@ function tokenize(source: string): Token[] {
       const start = i;
       while (i < source.length && /[\w.]/.test(source[i])) i += 1;
       push("num", source.slice(start, i));
-    } else if (char === "/" && startsRegex(tokens[tokens.length - 1])) {
+    } else if (
+      char === "/" &&
+      startsRegex(tokens[tokens.length - 1], slashAfterCloser)
+    ) {
       let inClass = false;
       i += 1;
       while (i < source.length && (inClass || source[i] !== "/")) {
@@ -237,10 +248,17 @@ function tokenize(source: string): Token[] {
   return tokens;
 }
 
-function startsRegex(previous: Token | undefined): boolean {
+function startsRegex(
+  previous: Token | undefined,
+  slashAfterCloser: "division" | "regex",
+): boolean {
   if (!previous) return true;
   if (previous.kind === "id") return REGEX_AFTER.has(previous.text);
-  return previous.kind === "punct" && ![")", "]", "}"].includes(previous.text);
+  if (previous.kind !== "punct") return false;
+  if (previous.text === "]") return false;
+  if (previous.text === ")" || previous.text === "}")
+    return slashAfterCloser === "regex";
+  return true;
 }
 
 /** Top-level arguments of the call whose `(` is at `open`. */
@@ -321,7 +339,21 @@ type Found = { risk: CodeModeRisk; targets: string[] };
  * tell what it reaches.
  */
 export function classifyCodeModeScript(code: string): CodeModeClassification {
-  const tokens = tokenize(code);
+  const [division, regex] = [
+    tokenize(code, "division"),
+    tokenize(code, "regex"),
+  ];
+  const first = classifyTokens(division);
+  if (JSON.stringify(division) === JSON.stringify(regex)) return first;
+  // The readings disagree: report the riskier, and every operation either found.
+  const second = classifyTokens(regex);
+  return {
+    risk: RANK[second.risk] > RANK[first.risk] ? second.risk : first.risk,
+    operations: [...new Set([...first.operations, ...second.operations])],
+  };
+}
+
+function classifyTokens(tokens: Token[]): CodeModeClassification {
   const found = new Map<string, Found[]>();
   const record = (name: string, risk: CodeModeRisk, targets: string[] = []) =>
     found.set(name, [...(found.get(name) ?? []), { risk, targets }]);

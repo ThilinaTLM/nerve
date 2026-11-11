@@ -7,7 +7,7 @@ import {
   listValues,
 } from "./jira-field-values.js";
 import { closeMatches } from "./sdk-args.js";
-import type { SdkEnvironment } from "./sdk-types.js";
+import { orWhenUnsupported, type SdkEnvironment } from "./sdk-types.js";
 
 /** Extra project data `jira.projects.get` returns on request. */
 export const PROJECT_INCLUDES = [
@@ -65,7 +65,7 @@ export async function createFieldMeta(
     path: `/issue/createmeta/${pathSegment(projectKey)}/issuetypes/${pathSegment(issueTypeId)}`,
     query: { maxResults: 200 },
     signal: env.context.signal,
-  }).catch((): Record<string, unknown> => ({}));
+  }).catch(orWhenUnsupported((): Record<string, unknown> => ({})));
   return fieldMetaMap(page.fields ?? page.values);
 }
 
@@ -190,7 +190,7 @@ async function sprints(env: SdkEnvironment, key: string) {
         path: `/board/${board.id}/sprint`,
         query: { state: "active,future", maxResults: LIMIT },
         signal: env.context.signal,
-      }).catch((): Record<string, unknown> => ({}));
+      }).catch(orWhenUnsupported((): Record<string, unknown> => ({})));
       return list(page.values).map((item) => {
         const sprint = record(item);
         return {

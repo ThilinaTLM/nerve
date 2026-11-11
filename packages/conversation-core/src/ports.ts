@@ -99,8 +99,8 @@ export interface ToolHostPort {
     signal: AbortSignal;
     onProgress(update: ToolProgress): void;
     artifactDir: string;
-    /** Path only (not created): per-conversation scratch for `atlassian_code_mode`. */
-    conversationArtifactDir?: string;
+    /** Path only (not created): the conversation's managed folder; tools keep their own subfolder in it. */
+    conversationDir: string;
     requestCaptureId?: string;
   }): Promise<
     | { kind: "completed"; result: ToolExecutionResultPayload }

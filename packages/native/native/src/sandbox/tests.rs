@@ -189,3 +189,10 @@ fn no_ambient_io_globals_exist() {
         "undefined,undefined,undefined,undefined,undefined,undefined\n"
     );
 }
+
+#[test]
+fn panic_in_the_engine_thread_becomes_a_failed_outcome() {
+    let outcome = contain_panic(|| panic!("boom"));
+    assert_eq!(outcome.status, Status::Failed);
+    assert!(outcome.error.unwrap().contains("boom"));
+}

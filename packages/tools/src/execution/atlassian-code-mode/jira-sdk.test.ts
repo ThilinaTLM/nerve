@@ -155,7 +155,8 @@ void test("maps parent for subtasks and simplifies structured fields", async () 
   ];
   assert.deepEqual(parent, { key: "SCRUM-2", summary: "Parent" });
   assert.deepEqual(issue.comment, [
-    { author: "Ann", created: "2026-01-01", body: "hi **there**" },
+    // Literal asterisks in Jira text are escaped so they stay literal.
+    { author: "Ann", created: "2026-01-01", body: "hi \\*\\*there\\*\\*" },
   ]);
   assert.deepEqual(issue.attachment, [
     { id: "9", filename: "a.png", size: 12, mimeType: "image/png" },

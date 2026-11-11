@@ -25,7 +25,11 @@ import {
   projectIssueTypes,
 } from "./jira-discovery.js";
 import { nonEmptyString, optionalText } from "./sdk-args.js";
-import { defineMethod, type SdkMethod } from "./sdk-types.js";
+import {
+  defineMethod,
+  orWhenUnsupported,
+  type SdkMethod,
+} from "./sdk-types.js";
 
 const MAX_ATTACHMENT_BYTES = 25 * 1024 * 1024;
 const MAX_MOVE_KEYS = 50;
@@ -154,7 +158,7 @@ export const jiraWriteMethods: SdkMethod[] = [
         parse: jsonObject,
         path: `/issue/${pathSegment(key)}/editmeta`,
         signal: env.context.signal,
-      }).catch((): Record<string, unknown> => ({}));
+      }).catch(orWhenUnsupported((): Record<string, unknown> => ({})));
       const payload = await toApiFields(
         fields,
         env,

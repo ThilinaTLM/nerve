@@ -90,14 +90,15 @@ fn base64_len(bytes: usize) -> usize {
     bytes.div_ceil(3) * 4
 }
 
-fn reader(data: &[u8]) -> Result<ImageReader<Cursor<&[u8]>>, String> {
+/// A reader that refuses images wider/taller than `MAX_DECODE_SIDE` or needing more than `max_alloc` bytes.
+fn reader(data: &[u8], max_alloc: u64) -> Result<ImageReader<Cursor<&[u8]>>, String> {
     let mut reader = ImageReader::new(Cursor::new(data))
         .with_guessed_format()
         .map_err(|error| format!("Could not read image: {error}"))?;
     let mut limits = Limits::default();
     limits.max_image_width = Some(MAX_DECODE_SIDE);
     limits.max_image_height = Some(MAX_DECODE_SIDE);
-    limits.max_alloc = Some(MAX_DECODE_ALLOC);
+    limits.max_alloc = Some(max_alloc);
     reader.limits(limits);
     Ok(reader)
 }
@@ -123,7 +124,7 @@ pub(crate) fn prepare(data: &[u8], options: &Options) -> Result<Prepared, String
         ));
     }
 
-    let probe = reader(data)?;
+    let probe = reader(data, MAX_DECODE_ALLOC)?;
     let source_format = probe
         .format()
         .and_then(Format::from_image)
@@ -149,7 +150,7 @@ pub(crate) fn prepare(data: &[u8], options: &Options) -> Result<Prepared, String
         });
     }
 
-    let decoded = reader(data)?
+    let decoded = reader(data, MAX_DECODE_ALLOC)?
         .decode()
         .map_err(|error| format!("Could not decode image: {error}"))?;
     let has_alpha = decoded.color().has_alpha();

@@ -8,7 +8,11 @@ afterEach(() => {
   globalThis.fetch = originalFetch;
 });
 
-type Nested = { toolName: string; args: Record<string, unknown> };
+type Nested = {
+  toolName: string;
+  args: Record<string, unknown>;
+  approvalRequired?: boolean;
+};
 
 function context(authorized: Nested[] = []) {
   return {
@@ -214,6 +218,11 @@ void test("request() is authorized by method and rejects URLs outside the produc
       "confluence_manage_page",
     ],
   );
+  // Non-GET raw requests are never allowed by another tool's rule alone.
+  assert.deepEqual(
+    authorized.slice(0, 4).map((r) => r.approvalRequired === true),
+    [false, true, false, true],
+  );
 });
 
 void test("request() returns text for non-JSON and refuses oversized responses", async () => {
@@ -233,4 +242,43 @@ void test("request() returns text for non-JSON and refuses oversized responses",
     `try { await jira.request("GET", "/rest/api/3/x"); } catch (e) { console.log(e.message); }`,
   );
   assert.match(big.content ?? "", /Response is larger than 5242880 bytes/);
+});
+
+void test("cancelling aborts the in-flight host request and the run settles cancelled", async () => {
+  const controller = new AbortController();
+  let requestSignal: AbortSignal | undefined;
+  globalThis.fetch = (_input, init) => {
+    requestSignal = init?.signal ?? undefined;
+    setTimeout(() => controller.abort(), 20);
+    return new Promise<Response>((_resolve, reject) => {
+      init?.signal?.addEventListener("abort", () =>
+        reject(init.signal?.reason),
+      );
+    });
+  };
+  const result = await executeAtlassianCodeMode(
+    { code: `await jira.issues.get("A-1");` },
+    { ...context(), signal: controller.signal },
+  );
+  assert.equal(requestSignal?.aborted, true);
+  assert.equal(result.exitCode, 130);
+});
+
+void test("a 401 aborts the other in-flight host requests", async () => {
+  const signals: AbortSignal[] = [];
+  globalThis.fetch = (_input, init) => {
+    if (signals.push(init!.signal!) === 1) {
+      return new Promise<Response>((_resolve, reject) => {
+        init!.signal!.addEventListener("abort", () =>
+          reject(init!.signal!.reason),
+        );
+      });
+    }
+    return Promise.resolve(new Response("{}", { status: 401 }));
+  };
+  const result = await run(
+    `await Promise.allSettled([jira.issues.get("A-1"), jira.issues.get("A-2")]);`,
+  );
+  assert.equal(signals[0]?.aborted, true);
+  assert.equal(result.exitCode, 1);
 });

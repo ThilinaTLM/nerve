@@ -38,17 +38,25 @@ const hasSummary = $derived(
 const artifactsByHandle = $derived(
   new Map(view.artifacts.map((artifact) => [artifact.handle, artifact])),
 );
+const ARTIFACT_HANDLE = /(artifact:[A-Za-z0-9._-]+)/;
 function summaryParts(text: string) {
   return text
-    .split(/(artifact:[A-Za-z0-9._-]+)/)
+    .split(ARTIFACT_HANDLE)
     .filter(Boolean)
     .map((part) => ({ text: part, artifact: artifactsByHandle.get(part) }));
 }
-const unnamedArtifacts = $derived(
-  view.artifacts.filter(
-    (artifact) =>
-      !view.hostCalls.some((call) => call.summary?.includes(artifact.handle)),
+// Exact handle tokens only: `artifact:a1` must not match `artifact:a10`.
+const namedHandles = $derived(
+  new Set(
+    view.hostCalls.flatMap((call) =>
+      summaryParts(call.summary ?? "").flatMap((part) =>
+        part.artifact ? [part.artifact.handle] : [],
+      ),
+    ),
   ),
+);
+const unnamedArtifacts = $derived(
+  view.artifacts.filter((artifact) => !namedHandles.has(artifact.handle)),
 );
 
 function pageLintLabel(fixes: number, warnings: number): string {
@@ -165,7 +173,7 @@ function pageLintLabel(fixes: number, warnings: number): string {
       <p
         class="m-0 px-2.5 py-2 text-ui text-destructive [overflow-wrap:anywhere]"
       >
-        {view.error ?? view.status?.replace("_", " ")}
+        {view.error ?? view.status?.replaceAll("_", " ")}
       </p>
     {/if}
   </ToolSections>

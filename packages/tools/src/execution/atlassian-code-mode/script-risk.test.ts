@@ -104,3 +104,18 @@ void test("comments, strings and property names do not count", () => {
   assert.equal(result.risk, "read");
   assert.deepEqual(result.operations, ["jira.issues.get (A-1)"]);
 });
+
+void test("a slash after ) or } cannot hide calls behind a bogus string or regex", () => {
+  const regexAfterParen = `if (x) /'/.test(s);\njira.issues.create({ project: "A", summary: "s" });`;
+  assert.equal(classify(regexAfterParen).risk, "workspace_write");
+  assert.equal(
+    classify(`{}\n/'/.test(s);\nawait jira.issues.delete("A-1");`).risk,
+    "destructive",
+  );
+  // Division stays readable: the quote after it is a string, not a regex body.
+  const division = classify(
+    `const r = (a) / 2; const s = "x"; await jira.issues.get("A-1");`,
+  );
+  assert.equal(division.risk, "read");
+  assert.deepEqual(division.operations, ["jira.issues.get (A-1)"]);
+});

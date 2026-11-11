@@ -64,7 +64,7 @@ async function fixture(
   };
   const prepareInputs: {
     toolName: string;
-    conversationArtifactDir?: string;
+    conversationDir: string;
   }[] = [];
   config.toolHost.prepareExecution = async (input) => {
     prepareInputs.push(input);
@@ -443,16 +443,19 @@ test("approved running calls retain durable evidence through restart and readmis
   assert.equal(f.executions(), 2);
 });
 
-test("only atlassian_code_mode receives the conversation artifact path, uncreated", async (t) => {
+test("non-core tools receive the conversation folder path, path only", async (t) => {
   const f = await fixture(t);
   f.setPolicy("allow");
   await f.runCommand("conv_admission", "echo hello");
   await f.runCommand("conv_admission", "{}", "atlassian_code_mode");
-  const [bash, codeMode] = f.prepareInputs;
-  assert.equal(bash?.conversationArtifactDir, undefined);
-  assert.equal(
-    codeMode?.conversationArtifactDir,
-    join(f.directory, "conversations/conv_admission/code-mode"),
-  );
-  await assert.rejects(stat(codeMode!.conversationArtifactDir!), /ENOENT/);
+  for (const input of f.prepareInputs) {
+    assert.equal(
+      input.conversationDir,
+      join(f.directory, "conversations/conv_admission"),
+    );
+    await assert.rejects(
+      stat(join(input.conversationDir, "code-mode")),
+      /ENOENT/,
+    );
+  }
 });

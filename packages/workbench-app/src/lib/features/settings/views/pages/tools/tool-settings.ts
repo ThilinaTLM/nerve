@@ -78,7 +78,7 @@ export const toolRows: readonly ToolRowDef[] = [
     id: "atlassian_code_mode",
     label: "Atlassian code mode (experimental)",
     description:
-      "Experimental: one script tool with a Jira SDK instead of separate Jira tools.",
+      "Experimental: one script tool with Jira and Confluence SDKs instead of separate Jira and Confluence tools.",
     configurable: true,
   },
   {

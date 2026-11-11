@@ -237,17 +237,15 @@ Branch `feat/atlassian-code-mode` (then `poc/atlassian-code-mode`): a `sandbox` 
   - Parsing in QuickJS is about 8× slower than in Node, which is fine at this size. That supports keeping Excel and large data host-side.
 - **Cross-platform:** CI on PR #568 (now #569) built the addon and ran the native tests, including the sandbox tests, on Linux, Windows and macOS. All passed.
 - **Tool:**
-  - `atlassian_code_mode` with Jira reads (`issues.search/get`, `projects.get`, `users.search`, `fields.list`).
-  - Confluence reads and writes (spaces, page search/get/create/update, labels, comments, attachments).
-  - `diagram.render`, the storage builders and the page linter.
+  - Jira reads and writes: issue search/get/create/update/transition/link/move, comments, worklogs, attachments, and project discovery (`projects.get` with `include`).
+  - Confluence reads and writes: spaces, page search/get/create/update, labels, comments, attachments.
+  - `jira.request` / `confluence.request` for the rest of the REST APIs.
+  - `files.*`, `image(...)`, `diagram.render`, `XLSX`, `Papa`, the storage builders and the page linter.
   - The permission broker (see [Permissions and approvals](#permissions-and-approvals)), a tool-settings toggle and a tool card.
-- **Tested against a live Jira and Confluence Cloud site:** see [Confluence pages](#confluence-pages).
+- **Tested against a live Jira and Confluence Cloud site:** Jira writes and transitions, script approval prompts under the Supervise rule set, an Excel-to-Confluence page with a diagram, artifacts in the tool card. See also [Confluence pages](#confluence-pages).
 - **Enablement enforced:** a model call to a tool its request did not offer now fails without running. Before this change, turning a tool off only removed it from the list sent to the model.
 - **Not yet verified:**
-  - Jira writes against a live site.
-  - Script approval prompts in a live instance.
   - Precompiling helper bytecode.
-  - Excel and CSV libraries in the sandbox.
   - The `wide` and `full-width` content widths.
 
 ## Permissions and approvals
@@ -256,9 +254,14 @@ The script is approved as a whole, the way `bash` and `python_exec` commands are
 
 1. **Classify the script.** Before admission, Nerve scans the script for SDK calls (`jira.issues.create(`, `confluence.pages.update(`, `files.write(`, `jira.request("POST"`, …). The script's risk is the highest risk among them: reads only → `read`; any write → `workspace_write`-level write; deletes, a non-GET `request()` or a computed method name → `destructive`. Its targets (projects, spaces, page IDs, workspace paths) are collected where they are literals.
 2. **Use the risk for rule matching.** `atlassian_code_mode` gets a `classifyRisk` and joins `async_bash` and `launch` as tools whose per-call risk feeds rule matching (`permission-policy.ts` `requestMetadata`). Existing rules such as "allow read" or "prompt on destructive" then apply unchanged.
-3. **One approval.** When a rule prompts, the approval shows the script and the operations found ("creates Jira issues in APP; updates Confluence page 98506"). Approving runs the script.
-4. **Runtime ceiling.** Scanning text can be fooled (`const j = jira; j["issues"]["create"]`). The broker (`code-mode-broker.ts`) therefore still checks every SDK call: a call whose risk exceeds the approved classification is refused, and deny rules apply to every call as they do today.
-5. Cancelling the call kills the runtime and aborts in-flight host calls. Calls that already finished stay in the record and are not undone. After a daemon restart the call settles as `indeterminate` and is never replayed.
+3. **One approval.** When a rule prompts, the approval shows the script; the operations found are kept in the supervision reason and the call record. Approving runs the script.
+4. **Runtime ceiling, set only by a person.** Scanning text can be fooled, so the broker (`code-mode-broker.ts`) still checks every SDK call as its equivalent direct tool:
+   - `deny` always wins.
+   - If a person approved the script, a nested call whose own decision is `approval` runs when its argument-aware risk is within the script's classified risk, and is refused above it.
+   - If a rule allowed the script (nobody approved it), a nested call that needs approval is refused. An allow rule for `atlassian_code_mode` therefore never auto-approves a nested write that has its own prompt rule.
+   - Ambiguous `/` tokens are scanned both as division and as a regex, and the higher risk wins.
+5. **Raw requests.** A `GET` through `jira.request`/`confluence.request` is checked as a read. Any other method is checked against the product's destructive tool for deny rules only; an allow verdict is ignored, and the call runs only inside a script a person approved at `destructive`. The approval and record show the real method and path.
+6. Cancelling the call or a 401 aborts the runtime and every in-flight host request. Calls that already finished stay in the record and are not undone. After a daemon restart the call settles as `indeterminate` and is never replayed.
 
 This needs no conversation-core state change and no database change.
 
@@ -279,6 +282,7 @@ Rule granularity: policies today target Jira and Confluence with `whole_tool`. M
 - It uses its own Atlassian account selection (`tools.atlassian_code_mode.profileId`) for both products.
 - It needs a configured Jira or Confluence connection. The SDK exposes only the namespaces whose connection exists, and a missing connection fails on first use with the existing `*_NOT_CONFIGURED` message.
 - It can be enabled alone or together with the 28 tools. Both together is allowed for manual comparison. The guide tells the agent to prefer code mode when both are present.
+- The `jira` and `confluence` toggles control only the direct tools. SDK calls inside a script are governed by the code-mode toggle and its account, so code mode works with the direct tools off. Permission rules still apply to every SDK call.
 
 ## Experiment
 

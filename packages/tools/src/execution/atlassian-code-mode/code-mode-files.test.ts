@@ -13,6 +13,8 @@ import { test } from "node:test";
 import { image } from "@nervekit/native";
 import { markdownToStorage } from "../confluence/markdown-to-storage.js";
 import { executeAtlassianCodeMode } from "./atlassian-code-mode.js";
+import { loadAttachments, MAX_ATTACHMENTS_TOTAL_BYTES } from "./attachments.js";
+import { createSdkEnvironment } from "./sdk.js";
 import { preludesFor } from "./sdk.js";
 
 type Nested = { toolName: string; args: Record<string, unknown> };
@@ -33,12 +35,13 @@ async function png(width: number, height: number): Promise<Buffer> {
 async function setup() {
   const root = await mkdtemp(join(tmpdir(), "code-mode-files-"));
   const cwd = join(root, "workspace");
-  const artifactDir = join(root, "artifacts");
+  const conversationDir = join(root, "conversation");
+  const artifactDir = join(conversationDir, "code-mode");
   await mkdir(cwd);
   const authorized: Nested[] = [];
   const context = {
     cwd,
-    conversationArtifactDir: artifactDir,
+    conversationDir,
     authorizeNested: async (request: Nested) => {
       authorized.push(request);
     },
@@ -87,7 +90,7 @@ void test("files.write/read/list round-trip text and bytes through artifacts wit
 
 void test("artifact names are safe and sizes are capped", async () => {
   const { artifactDir, run } = await setup();
-  await mkdir(artifactDir);
+  await mkdir(artifactDir, { recursive: true });
   await writeFile(join(artifactDir, "big.bin"), Buffer.alloc(21 * 1024 * 1024));
   const result = await run(`
     for (const name of ["../escape.txt", "a/b.txt", ".hidden", "", "a b.txt", "x".repeat(200)]) {
@@ -228,4 +231,19 @@ void test("storage.markdown returns real storage markup synchronously, identical
     panel,
     /<ac:rich-text-body><p>Some <em>emphasis<\/em><\/p><\/ac:rich-text-body>/,
   );
+});
+
+void test("loading attachments is capped in total before the files are read", async () => {
+  const { cwd } = await setup();
+  const size = 20 * 1024 * 1024;
+  const count = Math.floor(MAX_ATTACHMENTS_TOTAL_BYTES / size) + 1;
+  const specs = [];
+  for (let i = 0; i < count; i++) {
+    await writeFile(join(cwd, `big-${i}.bin`), Buffer.alloc(size));
+    specs.push({ file: `big-${i}.bin` });
+  }
+  const env = createSdkEnvironment({ cwd });
+  await assert.rejects(loadAttachments(specs, env), /the limit is/);
+  const loaded = await loadAttachments(specs.slice(0, count - 1), env);
+  assert.equal(loaded.length, count - 1);
 });

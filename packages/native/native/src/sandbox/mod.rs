@@ -99,6 +99,27 @@ struct State {
     output: Output,
 }
 
+/// Runs `f` and maps a panic to a failed outcome, so the caller always gets an exit.
+pub(crate) fn contain_panic(f: impl FnOnce() -> Outcome) -> Outcome {
+    let started = Instant::now();
+    std::panic::catch_unwind(std::panic::AssertUnwindSafe(f)).unwrap_or_else(|payload| {
+        let detail = payload
+            .downcast_ref::<&str>()
+            .map(|text| (*text).to_string())
+            .or_else(|| payload.downcast_ref::<String>().cloned())
+            .unwrap_or_else(|| "unknown panic".into());
+        Outcome {
+            status: Status::Failed,
+            error: Some(format!("sandbox thread panicked: {detail}")),
+            output: String::new(),
+            output_truncated: false,
+            host_calls: 0,
+            duration: started.elapsed(),
+            memory_used_bytes: 0,
+        }
+    })
+}
+
 pub(crate) fn run(
     script: Script,
     limits: Limits,

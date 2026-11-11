@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
@@ -95,4 +95,43 @@ void test("storage.md documents every storage helper and SKILL.md links existing
   for (const [, link] of skill.matchAll(/\]\((references\/[^)]+)\)/g)) {
     assert.ok(existsSync(join(guide, link)), `SKILL.md links missing ${link}`);
   }
+});
+
+void test("SDK calls and storage helpers named in the Markdown guide exist", () => {
+  const sdk = new Set(
+    [
+      ...jiraMethods,
+      ...confluenceMethods,
+      ...diagramMethods,
+      ...filesMethods,
+      ...imageMethods,
+    ].map((method) => `${method.product}.${method.path}`),
+  );
+  const returned = STORAGE_PRELUDE.slice(
+    STORAGE_PRELUDE.lastIndexOf("return {"),
+  );
+  const storage = new Set(
+    [...returned.matchAll(/^ {4}(\w+)(?::|,)/gm)].map((m) => m[1]),
+  );
+  const files = [
+    "SKILL.md",
+    ...readdirSync(references)
+      .filter((name) => name.endsWith(".md"))
+      .map((name) => join("references", name)),
+  ];
+  let checked = 0;
+  for (const file of files) {
+    const text = readFileSync(join(guide, file), "utf8");
+    for (const [, name] of text.matchAll(
+      /\b((?:jira|confluence|files|diagram|image)(?:\.\w+)+)\(/g,
+    )) {
+      assert.ok(sdk.has(name), `${file} uses unknown ${name}(`);
+      checked += 1;
+    }
+    for (const [, name] of text.matchAll(/\bstorage\.(\w+)\(/g)) {
+      assert.ok(storage.has(name), `${file} uses unknown storage.${name}(`);
+      checked += 1;
+    }
+  }
+  assert.ok(checked > 10);
 });

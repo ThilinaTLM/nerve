@@ -4,7 +4,8 @@ type Node = Record<string, unknown>;
 
 /**
  * Markdown → ADF for Jira descriptions and comments: headings, paragraphs,
- * (nested) bullet and numbered lists, fenced code, block quotes, rules and the
+ * (nested) bullet and numbered lists, fenced code, block quotes, rules, GFM
+ * tables and the
  * inline marks bold, italic, strike, code and links. Anything else stays text,
  * so the result is always valid ADF. The inverse of `adfToMarkdown`.
  */
@@ -21,6 +22,7 @@ const FENCE = /^\s*(`{3,}|~{3,})\s*([\w+-]*)\s*$/;
 const HEADING = /^(#{1,6})\s+(.+?)\s*#*\s*$/;
 const RULE = /^\s*([-*_])(\s*\1){2,}\s*$/;
 const LIST_ITEM = /^(\s*)([-*+]|\d+[.)])\s+(.*)$/;
+const TABLE_SEPARATOR = /^\s*\|?\s*:?-+:?\s*(\|\s*:?-+:?\s*)*\|?\s*$/;
 const QUOTE = /^\s*>\s?(.*)$/;
 
 function parseBlocks(lines: string[]): Node[] {
@@ -38,7 +40,10 @@ function parseBlocks(lines: string[]): Node[] {
       flush();
       const body: string[] = [];
       i += 1;
-      while (i < lines.length && !lines[i].trim().startsWith(fence[1])) {
+      const closing = new RegExp(
+        `^\\s*${fence[1][0]}{${fence[1].length},}\\s*$`,
+      );
+      while (i < lines.length && !closing.test(lines[i])) {
         body.push(lines[i]);
         i += 1;
       }
@@ -81,6 +86,23 @@ function parseBlocks(lines: string[]): Node[] {
       out.push({ type: "blockquote", content: parseBlocks(quoted) });
       continue;
     }
+    if (
+      line.includes("|") &&
+      i + 1 < lines.length &&
+      TABLE_SEPARATOR.test(lines[i + 1]) &&
+      lines[i + 1].includes("-")
+    ) {
+      flush();
+      const rows = [splitRow(line)];
+      i += 2;
+      while (i < lines.length && lines[i].trim() && lines[i].includes("|")) {
+        rows.push(splitRow(lines[i]));
+        i += 1;
+      }
+      i -= 1;
+      out.push(table(rows));
+      continue;
+    }
     if (LIST_ITEM.test(line)) {
       flush();
       const run: string[] = [];
@@ -100,6 +122,57 @@ function parseBlocks(lines: string[]): Node[] {
   }
   flush();
   return out;
+}
+
+/**
+ * Splits a table row at unescaped pipes. `adfToMarkdown` writes a literal pipe
+ * after n backslashes as 2n+1 backslashes plus the pipe, which is undone here.
+ */
+function splitRow(line: string): string[] {
+  const text = line.trim().replace(/^\|/, "");
+  const cells: string[] = [];
+  let current = "";
+  let last = 0;
+  for (const match of text.matchAll(/(\\*)\|/g)) {
+    current += text.slice(last, match.index);
+    last = match.index + match[0].length;
+    const slashes = match[1].length;
+    if (slashes % 2 === 1) {
+      current += `${"\\".repeat((slashes - 1) / 2)}|`;
+    } else {
+      cells.push(current + match[1]);
+      current = "";
+    }
+  }
+  current += text.slice(last);
+  if (current.trim() || last < text.length || cells.length === 0) {
+    cells.push(current);
+  }
+  return cells.map((cell) => cell.trim());
+}
+
+function table(rows: string[][]): Node {
+  const width = Math.max(...rows.map((row) => row.length));
+  const cell = (type: string, text: string): Node => ({
+    type,
+    content: text
+      .split(/<br\s*\/?>/i)
+      .map((part) => part.trim())
+      .map((part) =>
+        part
+          ? { type: "paragraph", content: inline(part) }
+          : { type: "paragraph" },
+      ),
+  });
+  return {
+    type: "table",
+    content: rows.map((row, index) => ({
+      type: "tableRow",
+      content: Array.from({ length: width }, (_, column) =>
+        cell(index === 0 ? "tableHeader" : "tableCell", row[column] ?? ""),
+      ),
+    })),
+  };
 }
 
 /** One list level: items at the shallowest indent; deeper lines nest. */
@@ -156,13 +229,27 @@ function inlineLines(lines: string[]): Node[] {
 }
 
 const INLINE =
-  /(`+)(.+?)\1|\[([^\]]+)\]\((\S+?)\)|\*\*(.+?)\*\*|__(.+?)__|~~(.+?)~~|\*(?!\s)(.+?)\*|\b_(?!\s)(.+?)_\b/;
+  /\\([\\`*_[\]~<>#+\-.)!|])|(`+)(.+?)\2|\[((?:\\.|[^\]\\])+)\]\((\S+?)\)|\*\*(.+?)\*\*|__(.+?)__|~~(.+?)~~|\*(?!\s)(.+?)\*|\b_(?!\s)(.+?)_\b/;
+
+/** CommonMark: one space of padding on both sides of a code span is dropped. */
+function codeText(text: string): string {
+  return /^ .*\S.* $/s.test(text) ? text.slice(1, -1) : text;
+}
 
 function inline(text: string, marks: Node[] = []): Node[] {
   const out: Node[] = [];
   const push = (value: string, extra: Node[] = []) => {
     if (!value) return;
     const all = [...marks, ...extra];
+    const previous = out.at(-1);
+    if (
+      previous &&
+      JSON.stringify(previous.marks) ===
+        JSON.stringify(all.length ? all : undefined)
+    ) {
+      previous.text = `${String(previous.text)}${value}`;
+      return;
+    }
     out.push({
       type: "text",
       text: value,
@@ -172,25 +259,27 @@ function inline(text: string, marks: Node[] = []): Node[] {
   let rest = text;
   for (let match = INLINE.exec(rest); match; match = INLINE.exec(rest)) {
     push(rest.slice(0, match.index));
-    if (match[2] !== undefined) push(match[2], [{ type: "code" }]);
+    if (match[1] !== undefined) push(match[1]);
     else if (match[3] !== undefined)
+      push(codeText(match[3]), [{ type: "code" }]);
+    else if (match[4] !== undefined)
       out.push(
-        ...inline(match[3], [
+        ...inline(match[4], [
           ...marks,
-          { type: "link", attrs: { href: match[4] } },
+          { type: "link", attrs: { href: match[5] } },
         ]),
       );
     else {
       const [body, mark] =
-        match[5] !== undefined
-          ? [match[5], "strong"]
-          : match[6] !== undefined
-            ? [match[6], "strong"]
-            : match[7] !== undefined
-              ? [match[7], "strike"]
-              : match[8] !== undefined
-                ? [match[8], "em"]
-                : [match[9], "em"];
+        match[6] !== undefined
+          ? [match[6], "strong"]
+          : match[7] !== undefined
+            ? [match[7], "strong"]
+            : match[8] !== undefined
+              ? [match[8], "strike"]
+              : match[9] !== undefined
+                ? [match[9], "em"]
+                : [match[10], "em"];
       out.push(...inline(body, [...marks, { type: mark }]));
     }
     rest = rest.slice(match.index + match[0].length);

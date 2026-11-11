@@ -19,17 +19,21 @@ import {
   attachmentReadAuthorizations,
   attachmentUploadAuthorizations,
   loadAttachment,
+  loadAttachments,
   type LoadedAttachment,
   parseAttachmentSpec,
   type UploadedAttachment,
   uploadAttachment,
 } from "./attachments.js";
+import { partialWriteFailure } from "./confluence-partial-write.js";
 import { clampInt, nonEmptyString, optionalText } from "./sdk-args.js";
 import {
   type CodeModeContext,
   defineMethod,
   definePositionalMethod,
   type SdkEnvironment,
+  orWhenUnsupported,
+  type NestedAuthorization,
   type SdkMethod,
 } from "./sdk-types.js";
 
@@ -127,6 +131,14 @@ function compactPage(
         : (fallback.version ?? null),
   };
 }
+
+/** One `confluence_manage_label` check per label, so a rule on one label cannot admit the others. */
+const labelChecks = (id: string, labels: string[]): NestedAuthorization[] =>
+  labels.map((label) => ({
+    toolName: "confluence_manage_label",
+    args: { action: "add", page_id: id, label, prefix: "global" },
+    summary: `${id} +${labels.join(",")}`,
+  }));
 
 function escapeCql(value: string): string {
   return value.replaceAll("\\", "\\\\").replaceAll('"', '\\"');
@@ -335,12 +347,14 @@ export const confluenceMethods: SdkMethod[] = [
           path: `/pages/${pathSegment(pageId)}/direct-children`,
           query: { limit: 100 },
           signal: env.context.signal,
-        }).catch(() =>
-          confluenceRequest(connection, {
-            path: `/pages/${pathSegment(pageId)}/children`,
-            query: { limit: 100 },
-            signal: env.context.signal,
-          }),
+        }).catch(
+          orWhenUnsupported(() =>
+            confluenceRequest(connection, {
+              path: `/pages/${pathSegment(pageId)}/children`,
+              query: { limit: 100 },
+              signal: env.context.signal,
+            }),
+          ),
         );
         result.children = valuesFromConfluenceList(response).map((child) => ({
           id: String((child as { id?: unknown }).id ?? ""),
@@ -399,9 +413,7 @@ export const confluenceMethods: SdkMethod[] = [
     async run({ space, title, parent, body, format, toc, attachments }, env) {
       const connection = await env.confluence();
       // Read, validate and size attachments first so bad input fails before the page exists.
-      const loaded = await Promise.all(
-        attachments.map((spec) => loadAttachment(spec, env)),
-      );
+      const loaded = await loadAttachments(attachments, env);
       const page = finalizeBody(body, format, title, toc, loaded);
       const { spaceId } = await resolveSpace(env, space);
       const created = await confluenceRequest(connection, {
@@ -419,36 +431,51 @@ export const confluenceMethods: SdkMethod[] = [
       });
       const result = compactPage(connection, created, { title, version: 1 });
       const uploaded: UploadedAttachment[] = [];
-      for (const [index, file] of loaded.entries()) {
-        uploaded.push(
-          await uploadAttachment(
-            env,
-            result.id,
-            file,
-            attachments[index].comment,
-          ),
-        );
-      }
       let version = result.version;
-      if (uploaded.length > 0 && page.storage.includes("ri:attachment")) {
-        // Save once more now that the attachments exist so image references resolve (bumps the version).
-        const updated = await confluenceRequest(connection, {
-          parse: jsonObject,
-          method: "PUT",
-          path: `/pages/${pathSegment(result.id)}`,
-          body: {
-            id: result.id,
-            status: "current",
-            title,
-            ...(parent ? { parentId: parent } : {}),
-            body: { representation: "storage", value: page.storage },
-            version: { number: (version ?? 1) + 1, message: "Attach images" },
-          },
-          signal: env.context.signal,
-        });
-        version =
-          (updated.version as { number?: number } | undefined)?.number ??
-          (version ?? 1) + 1;
+      try {
+        for (const [index, file] of loaded.entries()) {
+          uploaded.push(
+            await uploadAttachment(
+              env,
+              result.id,
+              file,
+              attachments[index].comment,
+            ),
+          );
+        }
+        if (uploaded.length > 0 && page.storage.includes("ri:attachment")) {
+          // Save once more now that the attachments exist so image references resolve (bumps the version).
+          const updated = await confluenceRequest(connection, {
+            parse: jsonObject,
+            method: "PUT",
+            path: `/pages/${pathSegment(result.id)}`,
+            body: {
+              id: result.id,
+              status: "current",
+              title,
+              ...(parent ? { parentId: parent } : {}),
+              body: { representation: "storage", value: page.storage },
+              version: {
+                number: (version ?? 1) + 1,
+                message: "Attach images",
+              },
+            },
+            signal: env.context.signal,
+          });
+          version =
+            (updated.version as { number?: number } | undefined)?.number ??
+            (version ?? 1) + 1;
+        }
+      } catch (error) {
+        const stored = uploaded.map((file) => file.filename);
+        throw partialWriteFailure(
+          error,
+          `page ${result.id} (${result.url}) was already created with its body; ${
+            stored.length > 0
+              ? `uploaded: ${stored.join(", ")}; the remaining attachments`
+              : "its attachments"
+          } and image references are missing. Fix that page with confluence.pages.update / attachments.upload; do not create it again`,
+        );
       }
       const missing = referencedAttachments(page.storage).filter(
         (name) => !uploaded.some((u) => u.filename === name),
@@ -517,9 +544,7 @@ export const confluenceMethods: SdkMethod[] = [
     resource: ({ id }) => `page ${id}`,
     async run({ id, title, body, format, message, toc, attachments }, env) {
       const connection = await env.confluence();
-      const loaded = await Promise.all(
-        attachments.map((spec) => loadAttachment(spec, env)),
-      );
+      const loaded = await loadAttachments(attachments, env);
       const current = await fetchPageCurrent(
         connection,
         id,
@@ -547,28 +572,37 @@ export const confluenceMethods: SdkMethod[] = [
               warnings: [],
             };
       const uploaded: UploadedAttachment[] = [];
-      for (const [index, file] of loaded.entries()) {
-        uploaded.push(
-          await uploadAttachment(env, id, file, attachments[index].comment),
+      let updated;
+      try {
+        for (const [index, file] of loaded.entries()) {
+          uploaded.push(
+            await uploadAttachment(env, id, file, attachments[index].comment),
+          );
+        }
+        updated = await confluenceRequest(connection, {
+          parse: jsonObject,
+          method: "PUT",
+          path: `/pages/${pathSegment(id)}`,
+          body: {
+            id,
+            status: "current",
+            title: nextTitle,
+            ...(current.parentId ? { parentId: current.parentId } : {}),
+            body: { representation: "storage", value: page.storage },
+            version: {
+              number: currentVersion + 1,
+              ...(message ? { message } : {}),
+            },
+          },
+          signal: env.context.signal,
+        });
+      } catch (error) {
+        if (uploaded.length === 0) throw error;
+        throw partialWriteFailure(
+          error,
+          `page ${id} was not saved, but these attachments were already uploaded: ${uploaded.map((file) => file.filename).join(", ")}`,
         );
       }
-      const updated = await confluenceRequest(connection, {
-        parse: jsonObject,
-        method: "PUT",
-        path: `/pages/${pathSegment(id)}`,
-        body: {
-          id,
-          status: "current",
-          title: nextTitle,
-          ...(current.parentId ? { parentId: current.parentId } : {}),
-          body: { representation: "storage", value: page.storage },
-          version: {
-            number: currentVersion + 1,
-            ...(message ? { message } : {}),
-          },
-        },
-        signal: env.context.signal,
-      });
       const result = compactPage(
         connection,
         { ...updated, id },
@@ -636,11 +670,8 @@ export const confluenceMethods: SdkMethod[] = [
       }
       return { id: nonEmptyString(options.id, "id"), labels };
     },
-    authorize: ({ id, labels }) => ({
-      toolName: "confluence_manage_label",
-      args: { action: "add", page_id: id, label: labels[0], prefix: "global" },
-      summary: `${id} +${labels.join(",")}`,
-    }),
+    authorize: ({ id, labels }) => labelChecks(id, labels)[0],
+    authorizeAlso: ({ id, labels }) => labelChecks(id, labels).slice(1),
     resource: ({ id }) => `page ${id}`,
     async run({ id, labels }, env) {
       await confluenceRequest(await env.confluence(), {
@@ -704,8 +735,9 @@ export const confluenceMethods: SdkMethod[] = [
       path,
       body,
     }),
-    // GET is a read; anything else cannot be analysed, so it is checked as the
-    // most destructive `confluence_manage_page` action (a purge).
+    // GET is a read. Anything else cannot be analysed: `confluence_manage_page`
+    // (a purge) only supplies the deny rules, and the call always needs the
+    // script to be approved at destructive level, whatever allow rules say.
     authorize: ({ method, path }) => ({
       toolName:
         method === "GET" ? "confluence_get_page" : "confluence_manage_page",
@@ -716,6 +748,7 @@ export const confluenceMethods: SdkMethod[] = [
           ? { page_id: "raw-request" }
           : { action: "purge", page_id: "raw-request" },
       summary: `${method} ${String(path)}`,
+      ...(method === "GET" ? {} : { approvalRequired: true as const }),
     }),
     resource: ({ path }) => String(path),
     async run({ method, path, body }, env) {
@@ -747,7 +780,7 @@ export function confluenceSpaceKeyLoader(
         path: "/spaces",
         query: { ids: missing, limit: 250 },
         signal: context.signal,
-      }).catch(() => ({}));
+      }).catch(orWhenUnsupported((): Record<string, unknown> => ({})));
       for (const raw of valuesFromConfluenceList(response)) {
         const space = raw as { id?: unknown; key?: unknown };
         if (space.id !== undefined && typeof space.key === "string") {

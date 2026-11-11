@@ -90,7 +90,7 @@ export function outcomeLabel(
     view.status !== undefined &&
     view.status !== "completed"
   ) {
-    return view.status.replace("_", " ");
+    return view.status.replaceAll("_", " ");
   }
   return toolCall.status;
 }

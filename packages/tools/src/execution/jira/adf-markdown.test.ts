@@ -108,5 +108,9 @@ void test("table cells keep backslashes before pipes and still escape the pipe",
     type: "doc",
     content: [{ type: "table", content: [row("h"), row("a|b"), row("c\\|d")] }],
   };
-  assert.equal(adfToMarkdown(doc), "| h |\n| --- |\n| a\\|b |\n| c\\\\\\|d |");
+  // `c\|d` is escaped as text (`c\\|d`), then the pipe rule doubles that again.
+  assert.equal(
+    adfToMarkdown(doc),
+    "| h |\n| --- |\n| a\\|b |\n| c\\\\\\\\\\|d |",
+  );
 });

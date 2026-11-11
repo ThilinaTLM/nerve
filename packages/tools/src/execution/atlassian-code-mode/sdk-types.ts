@@ -1,3 +1,4 @@
+import { ToolExecutionError } from "../errors/tool-error.js";
 import type { ConfluenceConnection } from "../confluence/client.js";
 import type {
   IntegrationExecutionContext,
@@ -12,7 +13,29 @@ export type NestedAuthorization = {
   args: Record<string, unknown>;
   /** Short label for the record (JQL, issue key, ...). */
   summary: string;
+  /** Cannot be analysed (raw non-GET request): `toolName` supplies the deny rules only and an allow rule never admits it. */
+  approvalRequired?: true;
 };
+
+/** The optional lookup was refused as unknown or unsupported (404/400); anything else, such as 401/403/5xx, is a real failure. */
+const UNSUPPORTED_LOOKUP = [
+  "JIRA_NOT_FOUND",
+  "JIRA_BAD_REQUEST",
+  "CONFLUENCE_NOT_FOUND",
+  "CONFLUENCE_BAD_REQUEST",
+];
+
+/** `.catch` handler for an optional lookup: `fallback` when the API says it is not there or not supported, otherwise rethrows. */
+export function orWhenUnsupported<T>(fallback: () => T | Promise<T>) {
+  return (error: unknown): T | Promise<T> => {
+    if (
+      error instanceof ToolExecutionError &&
+      UNSUPPORTED_LOOKUP.includes(error.code)
+    )
+      return fallback();
+    throw error;
+  };
+}
 
 /** Context type of the code-mode executor: integrations plus Kroki settings. */
 export type CodeModeContext = IntegrationExecutionContext &

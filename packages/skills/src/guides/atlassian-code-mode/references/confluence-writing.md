@@ -12,7 +12,7 @@ Decide the outline first: one-line purpose, 3-7 sections, what goes in tables, J
 - Open with a short overview (2-4 lines, or one `info` panel) saying what the page is and its status. Do not add an "Overview" heading that repeats it.
 - Only long pages (about 600+ words or 6+ sections) get `storage.toc()` right after the overview; short pages get none.
 - Short paragraphs (1-3 sentences). Put raw output, reference material and long tails in `storage.expand`; code in `storage.code` with a language.
-- Pluralise in code ("1 issue", "3 issues"), never "issue(s)". Keep inline items (dates, lozenges, links) in one `storage.p(...)`.
+- Pluralise in code ("1 issue", "3 issues"), never "issue(s)". Keep inline items (dates, lozenges, links) in one `storage.p([...])` array: `storage.p(["Due ", storage.date(d), " ", storage.status("Open")])`.
 
 ## Tables
 
@@ -42,7 +42,7 @@ Attach PNG or JPEG files (never SVG/WebP) via `attachments` in `pages.create/upd
 
 `pages.create/update` return `fixes` (applied automatically) and `warnings` (not applied); the tool result prints both for you. Act on warnings: fix the cause and call `pages.update` again.
 
-- **Rejected before any request:** malformed XML, with line and element (`Closing tag </div> at line 2 does not match <p>`). Escape text with `storage.escape`.
+- **Rejected before any request:** malformed XML, with line and element (`Closing tag </div> at line 2 does not match <p>`). Builders escape plain strings; use `storage.escape` only inside `storage.raw`.
 - **Fixed automatically:** headings promoted so the top level is H1; a leading H1 equal to the title removed; a TOC inserted for long pages (~600 words or 6+ sections) (`toc: false` opts out); column widths computed for tables without them; image width set from the real size; loose inline content under a panel, expand, layout cell or the page root wrapped in `<p>`; Jira list macros given `data-layout="default"` (760 px).
 - **Warnings:** an explicit column width too narrow for its longest word (`Column "Key" is 90px; "SCRUM-4" needs about 100px`: widen it or drop the width); images scaled below 80%; skipped heading levels; SVG/WebP images; images of unknown size; a panel repeating the heading above it; a heading that only repeats an embedded issue key; empty sections; a body referencing an attachment you did not pass.
 
