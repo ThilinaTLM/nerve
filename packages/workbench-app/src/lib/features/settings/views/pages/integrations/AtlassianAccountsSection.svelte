@@ -35,7 +35,9 @@ import { SettingsListItem } from "$lib/presentation/settings";
 import SettingsEntityListSection from "../../shared/settings-entity-list-section.svelte";
 import type { ScopedAgentState } from "$lib/application/agent-configuration/scoped-agent-state.svelte";
 import { accountOptions } from "../tools/tool-settings";
-import IntegrationToolPicks from "./IntegrationToolPicks.svelte";
+import IntegrationAccountUsage from "./IntegrationAccountUsage.svelte";
+import { accountUsedEverywhere, useAccountEverywhere } from "./account-usage";
+import ListChecks from "@lucide/svelte/icons/list-checks";
 import type { SettingsChange } from "../settings-change";
 import AtlassianProfileDialog from "./AtlassianAccountDialog.svelte";
 import {
@@ -172,8 +174,8 @@ async function remove(): Promise<void> {
   itemKey={(profile) => profile.id}
   onAdd={openAdd}
 >
-  {#snippet below()}
-    <IntegrationToolPicks
+  {#snippet footer()}
+    <IntegrationAccountUsage
       kind="atlassian"
       accounts={accountOptions(settingsDraft.providers).atlassian}
       editor={tools}
@@ -225,6 +227,15 @@ async function remove(): Promise<void> {
               : "Test connection"}
             busy={checking[profile.id]}
             onclick={() => void testConnection(profile.id)}
+          />
+        {/if}
+        {#if tools.resolution && !accountUsedEverywhere("atlassian", tools.resolution.settings.tools ?? {}, profile.id)}
+          <IconAction
+            icon={ListChecks}
+            label="Use for all Jira and Confluence tools"
+            disabled={tools.saving}
+            onclick={() =>
+              void tools.save(useAccountEverywhere("atlassian", profile.id))}
           />
         {/if}
         <IconAction

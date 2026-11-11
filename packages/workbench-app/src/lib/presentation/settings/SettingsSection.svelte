@@ -29,6 +29,8 @@ type Props = {
   /** Classes for the body, e.g. its surface padding. */
   bodyClass?: string;
   actions?: Snippet;
+  /** Muted notes under the surface, outside its card (e.g. how the rows are used). */
+  footer?: Snippet;
   children: Snippet;
 };
 
@@ -42,6 +44,7 @@ let {
   class: className,
   bodyClass,
   actions,
+  footer,
   children,
 }: Props = $props();
 </script>
@@ -102,4 +105,9 @@ let {
   >
     {@render children()}
   </div>
+  {#if footer}
+    <div class="min-w-0 px-0.5 text-caption text-muted-foreground">
+      {@render footer()}
+    </div>
+  {/if}
 </section>

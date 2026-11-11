@@ -22,6 +22,8 @@ type Props<T> = {
   row: Snippet<[T]>;
   /** Extra content below the list/empty state (e.g. inline warnings). */
   below?: Snippet;
+  /** Notes under the card, outside the list surface. */
+  footer?: Snippet;
   onAdd: () => void;
 };
 
@@ -38,11 +40,12 @@ let {
   itemKey,
   row,
   below,
+  footer,
   onAdd,
 }: Props<T> = $props();
 </script>
 
-<SettingsSection id={sectionId} {title}>
+<SettingsSection id={sectionId} {title} {footer}>
   {#snippet actions()}
     <Button
       variant="outline"

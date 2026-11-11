@@ -11,7 +11,9 @@ import { SettingsListItem } from "$lib/presentation/settings";
 import SettingsEntityListSection from "../../shared/settings-entity-list-section.svelte";
 import type { ScopedAgentState } from "$lib/application/agent-configuration/scoped-agent-state.svelte";
 import { accountOptions } from "../tools/tool-settings";
-import IntegrationToolPicks from "./IntegrationToolPicks.svelte";
+import IntegrationAccountUsage from "./IntegrationAccountUsage.svelte";
+import { accountUsedEverywhere, useAccountEverywhere } from "./account-usage";
+import ListChecks from "@lucide/svelte/icons/list-checks";
 import type { SettingsChange } from "../settings-change";
 import {
   credentialConfigured,
@@ -79,8 +81,8 @@ async function remove(): Promise<void> {
   itemKey={(profile) => profile.id}
   onAdd={openAdd}
 >
-  {#snippet below()}
-    <IntegrationToolPicks
+  {#snippet footer()}
+    <IntegrationAccountUsage
       kind="tavily"
       accounts={accountOptions(settingsDraft.providers).tavily}
       editor={tools}
@@ -94,6 +96,15 @@ async function remove(): Promise<void> {
         {/if}
       {/snippet}
       {#snippet actions()}
+        {#if tools.resolution && !accountUsedEverywhere("tavily", tools.resolution.settings.tools ?? {}, profile.id)}
+          <IconAction
+            icon={ListChecks}
+            label="Use for all web search tools"
+            disabled={tools.saving}
+            onclick={() =>
+              void tools.save(useAccountEverywhere("tavily", profile.id))}
+          />
+        {/if}
         <IconAction
           icon={Pencil}
           label="Edit account"
