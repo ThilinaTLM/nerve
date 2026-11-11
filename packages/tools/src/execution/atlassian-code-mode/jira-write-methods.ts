@@ -128,6 +128,7 @@ export const jiraWriteMethods: SdkMethod[] = [
         signal: env.context.signal,
       });
       const key = String(created.key ?? "");
+      env.report.created.push(key);
       return {
         key,
         id: String(created.id ?? ""),
@@ -296,6 +297,7 @@ export const jiraWriteMethods: SdkMethod[] = [
         signal: env.context.signal,
       });
       const id = String(comment.id ?? "");
+      env.report.created.push(`comment ${id} on ${key}`);
       return {
         id,
         url: `${connection.siteUrl}/browse/${key}?focusedCommentId=${id}`,
@@ -424,6 +426,7 @@ export const jiraWriteMethods: SdkMethod[] = [
         },
         signal: env.context.signal,
       });
+      env.report.created.push(`link ${key}→${to}`);
       return { key, to, type: match.name };
     },
   }),
@@ -472,8 +475,10 @@ export const jiraWriteMethods: SdkMethod[] = [
         },
         signal: env.context.signal,
       });
+      const id = String(worklog.id ?? "");
+      env.report.created.push(`worklog ${id} on ${key}`);
       return {
-        id: String(worklog.id ?? ""),
+        id,
         timeSpent: String(worklog.timeSpent ?? time),
       };
     },
@@ -522,6 +527,7 @@ export const jiraWriteMethods: SdkMethod[] = [
         signal: env.context.signal,
       });
       const raw = record(Array.isArray(data) ? data[0] : data);
+      env.report.created.push(`attachment ${String(raw.id ?? "")} on ${key}`);
       return {
         id: String(raw.id ?? ""),
         filename: String(raw.filename ?? filename),

@@ -30,9 +30,9 @@ interface Issue {
   /** Present when named in `fields`. */
   comment?: IssueComment[];
   attachment?: { id: string | null; filename: string | null; size: number | null; mimeType: string | null }[];
-  issuelinks?: { type: string | null; direction: "outward" | "inward"; key: string | null; summary: string | null }[];
+  issuelinks?: { id: string | null; type: string | null; direction: "outward" | "inward"; key: string | null; summary: string | null }[];
   subtasks?: { key: string | null; summary: string | null; status: string | null }[];
-  worklog?: { author: string | null; started: string | null; timeSpent: string | null; timeSpentSeconds: number | null; comment: string | null }[];
+  worklog?: { id: string | null; author: string | null; started: string | null; timeSpent: string | null; timeSpentSeconds: number | null; comment: string | null }[];
   timetracking?: {
     originalEstimate: string | null;
     remainingEstimate: string | null;
@@ -46,6 +46,7 @@ interface Issue {
 }
 
 interface IssueComment {
+  id: string | null;
   author: string | null;
   created: string | null;
   /** Markdown. */
@@ -92,7 +93,7 @@ declare const jira: {
   issues: {
     /** JQL needs a field restriction; a bare ORDER BY is rejected. `fields` replaces the default set. limit default 50, max 1000. */
     search(options: string | { jql: string; fields?: string[]; limit?: number }): Promise<Issue[]>;
-    /** `comments: true` adds all comments; `transitions: true` the statuses it can move to, with their required fields. */
+    /** `comments: true` adds all comments as `comments` (replacing `comment`); `transitions: true` the statuses it can move to, with their required fields. */
     get(options: string | { key: string; fields?: string[]; comments?: boolean; transitions?: boolean }): Promise<Issue & { comments?: IssueComment[]; transitions?: IssueTransition[] }>;
     /** Markdown description. `fields` take field names (jira.fields.list) and plain values: users by email/name, options/priority/components by name, Markdown for rich text. Missing required fields or invalid values throw with the valid ones listed. */
     create(options: { project?: string; type: string; summary: string; description?: string; fields?: Record<string, unknown> }): Promise<{ key: string; id: string; url: string }>;
@@ -104,13 +105,19 @@ declare const jira: {
     link(options: { key: string; to: string; type: string }): Promise<{ key: string; to: string; type: string }>;
     /** Moves up to 50 issues into a sprint (id from projects.get include "sprints") or back to the backlog. */
     move(options: { keys: string[]; sprint: number | "backlog" }): Promise<{ moved: number }>;
+    /** Permanently deletes the issue; `subtasks: true` also deletes its subtasks (required if it has any). */
+    delete(options: string | { key: string; subtasks?: boolean }): Promise<{ key: string }>;
   };
   projects: {
-    /** `include` adds, for learning a project's conventions: "fields" (create fields per issue type with required/allowed values; `issueType` limits it to one), "statuses" per issue type, "releases" (fix versions), "boards", "sprints" (active/future, scrum boards), "epics" (open). */
-    get(options: string | { key: string; include?: ("fields" | "statuses" | "releases" | "boards" | "sprints" | "epics")[]; issueType?: string }): Promise<JiraProject>;
+    /** `include` adds, for learning a project's conventions: "fields" (create fields per issue type with required/allowed values; `issueType` limits it to one), "statuses" per issue type, "releases" (fix versions), "boards", "sprints" (active/future; "closedSprints" adds the 10 latest closed per board), "epics" (open). */
+    get(options: string | { key: string; include?: ("fields" | "statuses" | "releases" | "boards" | "sprints" | "closedSprints" | "epics")[]; issueType?: string }): Promise<JiraProject>;
+    /** Every project you can see. */
+    list(): Promise<{ key: string; name: string; type: string }[]>;
   };
   users: {
     search(options: string | { query: string }): Promise<JiraUser[]>;
+    /** The authenticated user. */
+    me(): Promise<{ accountId: string; name: string; email: string | null; timeZone: string | null }>;
   };
   fields: {
     /** Names usable in `fields`. */
@@ -130,7 +137,15 @@ declare const jira: {
   attachments: {
     /** Any file handle; max 25 MB. */
     upload(options: { key: string; file: FileHandle; filename?: string }): Promise<{ id: string; filename: string; mediaType: string; size: number }>;
+    /** Saves the attachment as `artifact:<its filename>` (or `name`); max 20 MB. */
+    download(options: string | { id: string; name?: string }): Promise<FileHandle>;
   };
-  /** Path under /rest/api/3/ or /rest/agile/1.0/. Returns JSON or text; non-GET is a destructive write. */
-  request(method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE", path: string, body?: unknown): Promise<unknown>;
+  adf: {
+    /** For raw jira.request bodies; never for Confluence pages. */
+    fromMarkdown(markdown: string): object;
+    /** For raw jira.request responses (ADF documents); never for Confluence pages. */
+    toMarkdown(doc: object): string;
+  };
+  /** Path under /rest/api/3/ or /rest/agile/1.0/. Returns JSON or text, or a FileHandle for binary responses; non-GET is a destructive write. `query` values may be arrays (repeated). */
+  request(method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE", path: string, body?: unknown, query?: Record<string, string | number | boolean | (string | number)[]>): Promise<unknown>;
 };

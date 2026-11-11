@@ -51,18 +51,21 @@ The SDK follows the Jira and Confluence REST APIs, so models can rely on what th
 - **Values filled in automatically.** These include the site URL, cloud ID, API version (Jira platform vs agile, Confluence v1 vs v2), authentication and `defaultProjectKey`. Pagination becomes async iterators with a `limit`. The page version is bumped on Confluence updates, and on Jira creates the `fields` wrapper is added.
 - **Names instead of IDs where the API is awkward.** Custom fields can be addressed by name, transitions by status name, users by email or display name, and spaces by key. These already exist in `jira/field-resolution.ts`, `jira/transitions.ts`, `maybeResolveAssignee` and `confluence/space-resolution.ts`.
 - **Jira text is Markdown in and out.** Descriptions and comments come back as Markdown converted from ADF (`jira/adf-markdown.ts`).
-- **Confluence pages are written in storage format.** Builders produce the markup, a linter checks it before each write, and Markdown is used only for prose. See [Confluence pages](#confluence-pages). Page bodies can be read as Markdown or storage format.
+- **Confluence pages are written in storage format.** Builders produce the markup, a linter checks it before each write, and Markdown is used only for prose. See [Confluence pages](#confluence-pages). Page bodies are read as Markdown or storage format; edits read `body: "storage"` and pass the `version` read (a newer page throws `CONFLICT`), and an update that would drop macros, layouts, images or mentions is refused unless `allowRemoving: true`.
 - **Compact, flattened results.** For example `{ key, summary, status, assignee: { name, email }, updated, … }`, not `fields.status.statusCategory.…`. `fields: [...]` selects what comes back, and `raw: true` returns the unmodified REST object when something is missing.
 - **Complete data.** Results are not truncated or shaped for display. Large text is the script's to filter, not the SDK's to cut.
 - **One calling convention.** Every method takes a single ID or one options object. Each resource has one ID name (`key` for issues, `id` for pages), without aliases, so the reference stays short.
 - **Consistent verbs.** Each resource uses `search`/`get`/`create`/`update`/`delete`; workflow actions (`issues.transition`, `issues.comment`) are the exceptions.
 - **Actionable errors.** An invalid value lists the valid ones, for example "No transition to 'Done' from 'Backlog'; available: In Progress, Selected for Development".
 - **Stop on the first auth failure.** A 401 or 403 ends the whole script with one message ("Jira token is invalid", "no access to project APP") instead of failing every call in a loop.
+- **Defaults.** `atlassian.defaults()` returns the configured sites, default project/space and current user, so scripts don't discover them. Entities a run creates are listed in a `Created:` footer line.
 - **Raw requests.** `jira.request(method, path, body?)` and `confluence.request(…)` cover everything the curated methods do not, so the SDK stays small without losing capabilities. `GET` is checked as a read and any other method as `destructive`.
 
 ### Shape
 
 ```ts
+atlassian.defaults()                                // { jira?, confluence? }: site, project/space, user
+
 // Jira
 jira.issues.search({ jql, fields?, limit? })        // AsyncIterable<Issue>
 jira.issues.get(key, { fields?, expand? })          // comments, changelog, worklogs, links
@@ -79,9 +82,10 @@ jira.backlog.move(issueKeys, { rank? })
 // Confluence
 confluence.search({ cql, limit? })
 confluence.spaces.search | get
-confluence.pages.get(id | { space, title }, { body?: "markdown" | "storage", children?, comments?, versions? })
-confluence.pages.create({ space, title, parent?, body, format? })
-confluence.pages.update(id, { title?, body?, format?, message? })
+confluence.pages.get(id | { id | space?, title, body?: "markdown" | "storage", children? })
+confluence.pages.create({ space, title, parent?, body })        // body: storage XHTML
+confluence.pages.update({ id, version?, title?, body?, allowRemoving?, message? })
+confluence.attachments.upload | download
 confluence.pages.move | delete
 confluence.comments.*, confluence.labels.*, confluence.restrictions.*, confluence.attachments.*
 ```
@@ -95,7 +99,8 @@ This covers what the 28 tools do today. Jira workflow discovery also needs issue
 
   | File                               | Covers                                                                                                                     |
   | ---------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
-  | `references/sdk.d.ts`              | Every SDK method with request and response types, generated from the method tables                                         |
+  | `references/*.d.ts`                | Every SDK method with request and response types, generated from the method tables                                         |
+  | `references/raw-recipes.md`        | Raw-request recipes for what has no method (changelog, sprints, rank, comment resolve, trash/restore)                      |
   | `references/files.md`              | Artifacts, workspace files, supported types (PNG/JPEG, CSV, XLSX, diagrams), the bundled libraries and limits              |
   | `references/confluence-writing.md` | Writing pages people can read: structure, headings, TOC, tables, panels, images, diagrams; the linter's fixes and warnings |
   | `references/storage.md`            | The `storage.*` builders                                                                                                   |
@@ -105,7 +110,7 @@ This covers what the 28 tools do today. Jira workflow discovery also needs issue
 - `jira-workflows.md` describes a discovery pass: sample recent tickets per issue type; read workflows and transitions, epics, sprints, fix versions and releases, components, labels and required custom fields; summarise the conventions; confirm them with the user; then create or update tickets that follow them.
 - `project-knowledge.md` tells the agent to offer to save those conventions with the built-in `skill-creator` skill, recommending the project-level `./.nerve/skills/<name>/`, and to write only after the user agrees. Later conversations read that skill instead of exploring again.
 - `formatToolGuides` in `nerve-system-prompt.ts` adds the guide line when `atlassian_code_mode` is active.
-- The type definitions are generated from the method tables, and a test fails when the committed `sdk.d.ts` is out of date, so the reference cannot drift.
+- The type definitions are generated from the method tables, and a test fails when the committed `references/*.d.ts` are out of date, so the reference cannot drift.
 
 ## Libraries and helpers
 
@@ -260,7 +265,7 @@ The script is approved as a whole, the way `bash` and `python_exec` commands are
    - If a person approved the script, a nested call whose own decision is `approval` runs when its argument-aware risk is within the script's classified risk, and is refused above it.
    - If a rule allowed the script (nobody approved it), a nested call that needs approval is refused. An allow rule for `atlassian_code_mode` therefore never auto-approves a nested write that has its own prompt rule.
    - Ambiguous `/` tokens are scanned both as division and as a regex, and the higher risk wins.
-5. **Raw requests.** A `GET` through `jira.request`/`confluence.request` is checked as a read. Any other method is checked against the product's destructive tool for deny rules only; an allow verdict is ignored, and the call runs only inside a script a person approved at `destructive`. The approval and record show the real method and path.
+5. **Raw requests.** A `GET` through `jira.request`/`confluence.request` is checked as a read. Any other method is checked against the product's destructive tool for deny rules only; its own allow verdict never admits it by itself. It runs inside a script a person approved at `destructive`, or inside a script a rule admitted whose classified risk is `destructive` when the borrowed tool's verdict is `allow`; a rule-admitted script with an `approval` verdict is refused with a pointer to approving the script or adjusting the rule. Deny always wins. The approval and record show the real method and path.
 6. Cancelling the call or a 401 aborts the runtime and every in-flight host request. Calls that already finished stay in the record and are not undone. After a daemon restart the call settles as `indeterminate` and is never replayed.
 
 This needs no conversation-core state change and no database change.

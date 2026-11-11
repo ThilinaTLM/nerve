@@ -107,6 +107,7 @@ const ARGUMENT_DEPENDENT = new Set([
 ]);
 
 const SDK_GLOBALS = new Set([
+  "atlassian",
   "jira",
   "confluence",
   "diagram",

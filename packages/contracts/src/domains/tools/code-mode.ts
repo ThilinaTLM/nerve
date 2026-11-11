@@ -57,6 +57,8 @@ export const codeModeResultDetailsSchema = z
     hostCalls: z.array(codeModeHostCallSchema),
     pages: z.array(codeModePageReportSchema).optional(),
     artifacts: z.array(codeModeArtifactSchema).optional(),
+    /** Entities the run created (`SCRUM-6`, `comment 77 on SCRUM-6`); pages are in `pages`. */
+    created: z.array(z.string()).optional(),
   })
   .passthrough();
 export type CodeModeResultDetails = z.infer<typeof codeModeResultDetailsSchema>;

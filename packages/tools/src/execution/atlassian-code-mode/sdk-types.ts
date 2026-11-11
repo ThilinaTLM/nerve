@@ -75,10 +75,18 @@ export type SdkEnvironment = {
   report: {
     pages: PageReport[];
     artifacts: Map<string, ArtifactReport>;
+    /** Entities the run created, listed in the footer for follow-up and cleanup: `SCRUM-6`, `comment 10023 on SCRUM-6`, `sprint 5`. Pages are reported in `pages`. */
+    created: string[];
   };
 };
 
-export type SdkProduct = "jira" | "confluence" | "diagram" | "files" | "image";
+export type SdkProduct =
+  | "atlassian"
+  | "jira"
+  | "confluence"
+  | "diagram"
+  | "files"
+  | "image";
 
 export type PreparedCall = {
   /** The direct tool the call is checked as; absent for calls with no external effect (own artifacts). */

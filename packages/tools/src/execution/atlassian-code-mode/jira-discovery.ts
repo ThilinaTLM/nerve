@@ -16,6 +16,7 @@ export const PROJECT_INCLUDES = [
   "releases",
   "boards",
   "sprints",
+  "closedSprints",
   "epics",
 ] as const;
 export type ProjectInclude = (typeof PROJECT_INCLUDES)[number];
@@ -177,21 +178,45 @@ async function boards(env: SdkEnvironment, key: string) {
   });
 }
 
-/** Active and future sprints of the project's scrum boards. */
-async function sprints(env: SdkEnvironment, key: string) {
-  const scrum = (await boards(env, key)).filter(
-    (board) => board.type === "scrum",
-  );
+/** Closed sprints kept per board: the most recent ones. */
+const CLOSED_SPRINTS = 10;
+/** Pages read per board when looking for the latest closed sprints. */
+const MAX_SPRINT_PAGES = 20;
+
+/** Sprints of one board in `state`, oldest first as Jira returns them; [] for boards without sprints. */
+async function boardSprints(
+  env: SdkEnvironment,
+  boardId: number,
+  state: string,
+  allPages: boolean,
+): Promise<unknown[]> {
+  const values: unknown[] = [];
+  for (let page = 0; page < (allPages ? MAX_SPRINT_PAGES : 1); page += 1) {
+    const response = await jiraRequest(await env.jira(), {
+      api: "agile",
+      parse: jsonObject,
+      path: `/board/${boardId}/sprint`,
+      query: { state, startAt: values.length, maxResults: LIMIT },
+      signal: env.context.signal,
+    }).catch(orWhenUnsupported((): Record<string, unknown> => ({})));
+    const batch = list(response.values);
+    values.push(...batch);
+    if (batch.length === 0 || response.isLast !== false) break;
+  }
+  return values;
+}
+
+/** Active and future sprints of every board that has them (kanban boards say no); `closed` adds the latest closed ones. */
+async function sprints(env: SdkEnvironment, key: string, closed: boolean) {
   const perBoard = await Promise.all(
-    scrum.map(async (board) => {
-      const page = await jiraRequest(await env.jira(), {
-        api: "agile",
-        parse: jsonObject,
-        path: `/board/${board.id}/sprint`,
-        query: { state: "active,future", maxResults: LIMIT },
-        signal: env.context.signal,
-      }).catch(orWhenUnsupported((): Record<string, unknown> => ({})));
-      return list(page.values).map((item) => {
+    (await boards(env, key)).map(async (board) => {
+      const [open, done] = await Promise.all([
+        boardSprints(env, board.id, "active,future", false),
+        closed
+          ? boardSprints(env, board.id, "closed", true)
+          : Promise.resolve([]),
+      ]);
+      return [...done.slice(-CLOSED_SPRINTS), ...open].map((item) => {
         const sprint = record(item);
         return {
           id: Number(sprint.id),
@@ -205,7 +230,12 @@ async function sprints(env: SdkEnvironment, key: string) {
       });
     }),
   );
-  return perBoard.flat();
+  const seen = new Set<number>();
+  return perBoard.flat().filter((sprint) => {
+    if (seen.has(sprint.id)) return false;
+    seen.add(sprint.id);
+    return true;
+  });
 }
 
 async function epics(env: SdkEnvironment, key: string) {
@@ -248,8 +278,10 @@ export async function projectExtras(
     wanted.has("releases") &&
       releases(env, key).then((v) => (extras.releases = v)),
     wanted.has("boards") && boards(env, key).then((v) => (extras.boards = v)),
-    wanted.has("sprints") &&
-      sprints(env, key).then((v) => (extras.sprints = v)),
+    (wanted.has("sprints") || wanted.has("closedSprints")) &&
+      sprints(env, key, wanted.has("closedSprints")).then(
+        (v) => (extras.sprints = v),
+      ),
     wanted.has("epics") && epics(env, key).then((v) => (extras.epics = v)),
   ]);
   return extras;

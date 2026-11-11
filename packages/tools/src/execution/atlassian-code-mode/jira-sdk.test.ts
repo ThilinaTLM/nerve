@@ -105,6 +105,7 @@ void test("maps parent for subtasks and simplifies structured fields", async () 
         comment: {
           comments: [
             {
+              id: "77",
               author: { displayName: "Ann", accountId: "a" },
               created: "2026-01-01",
               body: adf("hi **there**"),
@@ -122,10 +123,12 @@ void test("maps parent for subtasks and simplifies structured fields", async () 
         ],
         issuelinks: [
           {
+            id: "30",
             type: { name: "Blocks" },
             outwardIssue: { key: "SCRUM-9", fields: { summary: "Other" } },
           },
           {
+            id: "31",
             type: { name: "Blocks" },
             inwardIssue: { key: "SCRUM-1", fields: { summary: "First" } },
           },
@@ -156,18 +159,66 @@ void test("maps parent for subtasks and simplifies structured fields", async () 
   assert.deepEqual(parent, { key: "SCRUM-2", summary: "Parent" });
   assert.deepEqual(issue.comment, [
     // Literal asterisks in Jira text are escaped so they stay literal.
-    { author: "Ann", created: "2026-01-01", body: "hi \\*\\*there\\*\\*" },
+    {
+      id: "77",
+      author: "Ann",
+      created: "2026-01-01",
+      body: "hi \\*\\*there\\*\\*",
+    },
   ]);
   assert.deepEqual(issue.attachment, [
     { id: "9", filename: "a.png", size: 12, mimeType: "image/png" },
   ]);
   assert.deepEqual(issue.issuelinks, [
-    { type: "Blocks", direction: "outward", key: "SCRUM-9", summary: "Other" },
-    { type: "Blocks", direction: "inward", key: "SCRUM-1", summary: "First" },
+    {
+      id: "30",
+      type: "Blocks",
+      direction: "outward",
+      key: "SCRUM-9",
+      summary: "Other",
+    },
+    {
+      id: "31",
+      type: "Blocks",
+      direction: "inward",
+      key: "SCRUM-1",
+      summary: "First",
+    },
   ]);
   assert.deepEqual(issue.subtasks, [
     { key: "SCRUM-5", summary: "Kid", status: "Done" },
   ]);
+});
+
+void test("comments: true returns one canonical comments array, and worklog ids are kept", async () => {
+  globalThis.fetch = async (input) => {
+    const url = new URL(String(input));
+    if (url.pathname.endsWith("/comment"))
+      return Response.json({
+        comments: [{ id: "5", author: { displayName: "Ann" }, body: adf("x") }],
+      });
+    return Response.json({
+      id: "4",
+      key: "SCRUM-4",
+      fields: {
+        comment: { comments: [{ id: "5", body: adf("x") }] },
+        worklog: { worklogs: [{ id: "8", timeSpent: "1h" }] },
+      },
+    });
+  };
+  const result = await executeAtlassianCodeMode(
+    {
+      code: `console.log(JSON.stringify(await jira.issues.get({ key: "SCRUM-4", fields: ["comment", "worklog"], comments: true })));`,
+    },
+    context(),
+  );
+  const issue = JSON.parse((result.content ?? "").split("\n")[0]);
+  assert.equal("comment" in issue, false);
+  assert.deepEqual(
+    issue.comments.map((c: { id: string }) => c.id),
+    ["5"],
+  );
+  assert.equal(issue.worklog[0].id, "8");
 });
 
 void test("strips the skill guide pointer from Jira errors", async () => {

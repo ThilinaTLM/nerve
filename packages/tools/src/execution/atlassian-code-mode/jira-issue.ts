@@ -196,6 +196,7 @@ export function flattenIssue(
             outward ? link.outwardIssue : link.inwardIssue,
           );
           return {
+            id: stringOrNull(link.id),
             type: stringOrNull(asRecord(link.type).name),
             direction: outward ? "outward" : "inward",
             key: stringOrNull(other.key),
@@ -218,6 +219,7 @@ export function flattenIssue(
         out.worklog = arrayOf(asRecord(value).worklogs).map((raw) => {
           const entry = asRecord(raw);
           return {
+            id: stringOrNull(entry.id),
             author: userOf(entry.author)?.name ?? null,
             started: stringOrNull(entry.started),
             timeSpent: stringOrNull(entry.timeSpent),
@@ -288,6 +290,7 @@ export function simplifyValue(value: unknown): unknown {
 export function simplifyComment(raw: unknown) {
   const comment = asRecord(raw);
   return {
+    id: stringOrNull(comment.id),
     author: userOf(comment.author)?.name ?? null,
     created: stringOrNull(comment.created),
     body: adfToMarkdown(comment.body),

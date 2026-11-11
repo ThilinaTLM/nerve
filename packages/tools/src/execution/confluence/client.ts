@@ -135,6 +135,8 @@ export async function confluenceRawRequest(
     method: string;
     path: unknown;
     body?: unknown;
+    query?: unknown;
+    onBinary?: (bytes: Buffer, contentType: string) => Promise<unknown>;
     signal?: AbortSignal;
   },
 ): Promise<unknown> {
@@ -142,12 +144,13 @@ export async function confluenceRawRequest(
     connection.siteUrl,
     options.path,
     CONFLUENCE_RAW_BASES,
+    options.query,
   );
   const init = atlassianJsonRequestInit(basicAuth(connection), options);
   const response = await send(url, init);
   if (!response.ok)
     await throwConfluenceError(response, options.method, url.pathname);
-  return await readRawBody(response);
+  return await readRawBody(response, options.onBinary);
 }
 
 export async function confluenceAttachmentRequest<T>(

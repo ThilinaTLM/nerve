@@ -22,6 +22,7 @@ export function rawRequestUrl(
   siteUrl: string,
   path: unknown,
   allowedBases: readonly string[],
+  query?: unknown,
 ): URL {
   const allowed = allowedBases.map((base) => `${base}…`).join(" or ");
   if (
@@ -43,11 +44,38 @@ export function rawRequestUrl(
   ) {
     throw new Error(`path must be under ${allowed}.`);
   }
+  appendRawQuery(url, query);
   return url;
 }
 
-/** Reads a successful body (capped), returning parsed JSON when it is JSON and text otherwise. */
-export async function readRawBody(response: Response): Promise<unknown> {
+/** Adds a script-supplied `{ name: value | value[] }` object as properly encoded query parameters. */
+function appendRawQuery(url: URL, query: unknown): void {
+  if (query === undefined || query === null) return;
+  if (typeof query !== "object" || Array.isArray(query)) {
+    throw new Error("query must be an object of names to values.");
+  }
+  for (const [name, value] of Object.entries(query)) {
+    if (value === undefined || value === null) continue;
+    for (const item of Array.isArray(value) ? value : [value]) {
+      if (typeof item === "object" && item !== null) {
+        throw new Error(`query.${name} must be a string, number or boolean.`);
+      }
+      url.searchParams.append(name, String(item));
+    }
+  }
+}
+
+const TEXTUAL_CONTENT_TYPE = /json|text|xml|javascript|x-www-form-urlencoded/i;
+
+/**
+ * Reads a successful body (capped), returning parsed JSON when it is JSON and
+ * text otherwise. With `onBinary`, a response whose content type is not
+ * textual is handed to it as bytes instead of being decoded.
+ */
+export async function readRawBody(
+  response: Response,
+  onBinary?: (bytes: Buffer, contentType: string) => Promise<unknown>,
+): Promise<unknown> {
   const declared = Number(response.headers.get("content-length") ?? 0);
   const tooLarge = () =>
     new ToolExecutionError(
@@ -72,6 +100,10 @@ export async function readRawBody(response: Response): Promise<unknown> {
       }
       chunks.push(value);
     }
+  }
+  const contentType = response.headers.get("content-type") ?? "";
+  if (onBinary && contentType && !TEXTUAL_CONTENT_TYPE.test(contentType)) {
+    return await onBinary(Buffer.concat(chunks), contentType);
   }
   const text = Buffer.concat(chunks).toString("utf8");
   if (!text.trim()) return null;
