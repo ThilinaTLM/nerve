@@ -69,7 +69,7 @@ export const jiraExtraMethods: SdkMethod[] = [
   defineMethod({
     product: "jira",
     path: "attachments.download",
-    risk: "read",
+    risk: "network",
     bare: "id",
     options: ["id", "name"],
     signature:
@@ -181,7 +181,7 @@ export const jiraExtraMethods: SdkMethod[] = [
   defineMethod({
     product: "jira",
     path: "projects.list",
-    risk: "read",
+    risk: "network",
     options: [],
     signature:
       "/** Every project you can see. */ list(): Promise<{ key: string; name: string; type: string }[]>",
@@ -224,7 +224,7 @@ export const jiraExtraMethods: SdkMethod[] = [
   defineMethod({
     product: "jira",
     path: "users.me",
-    risk: "read",
+    risk: "network",
     options: [],
     signature:
       "/** The authenticated user. */ me(): Promise<{ accountId: string; name: string; email: string | null; timeZone: string | null }>",

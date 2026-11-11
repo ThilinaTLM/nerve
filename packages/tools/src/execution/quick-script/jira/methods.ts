@@ -85,7 +85,7 @@ const readMethods: SdkMethod[] = [
   defineMethod({
     product: "jira",
     path: "issues.search",
-    risk: "read",
+    risk: "network",
     bare: "jql",
     options: ["jql", "fields", "limit"],
     signature:
@@ -131,7 +131,7 @@ const readMethods: SdkMethod[] = [
   defineMethod({
     product: "jira",
     path: "issues.get",
-    risk: "read",
+    risk: "network",
     bare: "key",
     options: ["key", "fields", "comments", "transitions"],
     signature:
@@ -169,7 +169,7 @@ const readMethods: SdkMethod[] = [
   defineMethod({
     product: "jira",
     path: "projects.get",
-    risk: "read",
+    risk: "network",
     bare: "key",
     options: ["key", "include", "issueType"],
     signature:
@@ -224,7 +224,7 @@ const readMethods: SdkMethod[] = [
   defineMethod({
     product: "jira",
     path: "users.search",
-    risk: "read",
+    risk: "network",
     bare: "query",
     options: ["query"],
     signature:
@@ -256,7 +256,7 @@ const readMethods: SdkMethod[] = [
   defineMethod({
     product: "jira",
     path: "fields.list",
-    risk: "read",
+    risk: "network",
     options: [],
     signature: "/** Names usable in `fields`. */ list(): Promise<JiraField[]>",
     parse: () => undefined,

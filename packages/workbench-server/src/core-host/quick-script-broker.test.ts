@@ -68,13 +68,21 @@ void test("deny refuses the call with the policy reason", async () => {
 
 void test("approval inside the approved risk runs; above it is refused", async () => {
   const { authorize } = authorizer(["approval", "approval", "approval"]);
-  await authorize(call, { toolName: "jira_get_issue", args: {} });
+  const network = {
+    ...call,
+    admission: { by: "user" as const, scriptRisk: "network" as const },
+  };
   await assert.rejects(
-    authorize(call, { toolName: "jira_create_issue", args: {} }),
+    authorize(call, { toolName: "jira_get_issue", args: {} }),
+    { code: "NESTED_APPROVAL_REQUIRED", message: /approved for read/ },
+  );
+  await authorize(network, { toolName: "jira_get_issue", args: {} });
+  await assert.rejects(
+    authorize(network, { toolName: "jira_create_issue", args: {} }),
     {
       code: "NESTED_APPROVAL_REQUIRED",
       message:
-        "jira_create_issue: script was approved for read operations; this call needs write approval (read-only mode)",
+        "jira_create_issue: script was approved for network operations; this call needs write approval (read-only mode)",
     },
   );
   await authorize(
@@ -150,6 +158,23 @@ void test("the ceiling uses the nested call's own risk: adding is a write, delet
   );
 });
 
+void test("a script approved at network level runs nested network calls but not writes", async () => {
+  const approved = {
+    ...call,
+    admission: { by: "user" as const, scriptRisk: "network" as const },
+  };
+  const { authorize } = authorizer(["approval", "approval", "approval"]);
+  await authorize(approved, { toolName: "web_fetch", args: {} });
+  await authorize(approved, { toolName: "jira_get_issue", args: {} });
+  await assert.rejects(
+    authorize(approved, {
+      toolName: "jira_manage_comment",
+      args: { action: "add" },
+    }),
+    { code: "NESTED_APPROVAL_REQUIRED", message: /approved for network/ },
+  );
+});
+
 void test("a script allowed by a rule has no ceiling: a nested approval is refused", async () => {
   const { authorize } = authorizer(["approval"]);
   await assert.rejects(
@@ -160,7 +185,7 @@ void test("a script allowed by a rule has no ceiling: a nested approval is refus
     {
       code: "NESTED_APPROVAL_REQUIRED",
       message:
-        "jira_get_issue: needs read approval, but the script was allowed by a rule rather than approved (read-only mode)",
+        "jira_get_issue: needs network approval, but the script was allowed by a rule rather than approved (read-only mode)",
     },
   );
 });

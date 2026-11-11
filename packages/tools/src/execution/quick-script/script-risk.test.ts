@@ -7,9 +7,13 @@ const classify = (code: string) => classifyQuickScriptScript(code);
 
 void test("the scanner reads each method's declared risk", () => {
   const risks = (code: string) => classify(code).risk;
-  assert.equal(risks(`await jira.issues.get("A-1")`), "read");
+  assert.equal(risks(`await jira.issues.get("A-1")`), "network");
   assert.equal(risks(`await files.list()`), "read");
-  assert.equal(risks(`await web.fetch("https://x.test")`), "read");
+  assert.equal(risks(`await web.fetch("https://x.test")`), "network");
+  assert.equal(
+    risks(`await files.list(); await web.fetch("https://x.test")`),
+    "network",
+  );
   assert.match(
     classify(`await web.search("q")`).operations[0] ?? "",
     /^web\.search/,
@@ -24,20 +28,20 @@ void test("the scanner reads each method's declared risk", () => {
   );
   for (const name of sdkMethodNames())
     assert.ok(
-      ["none", "read", "write", "destructive"].includes(
+      ["none", "read", "network", "write", "destructive"].includes(
         findSdkMethod(name)!.risk,
       ),
       name,
     );
 });
 
-void test("read-only scripts are read and list their operations", () => {
+void test("integration-read scripts are network and list their operations", () => {
   const result = classify(`
     const a = await jira.issues.search({ jql: "project = X" });
     const b = await jira.issues.search({ jql: "project = Y" });
     return await confluence.pages.get({ id: "98506" });
   `);
-  assert.equal(result.risk, "read");
+  assert.equal(result.risk, "network");
   assert.deepEqual(result.operations, [
     "jira.issues.search ×2",
     "confluence.pages.get (98506)",
@@ -72,7 +76,7 @@ void test("writes and destructive calls raise the risk", () => {
 void test("request is judged by its literal method", () => {
   assert.equal(
     classify(`await jira.request("get", "/rest/api/3/myself")`).risk,
-    "read",
+    "network",
   );
   const post = classify(`await jira.request('POST', "/rest/api/3/issue", {})`);
   assert.equal(post.risk, "destructive");
@@ -106,7 +110,7 @@ void test("comments, strings and property names do not count", () => {
     const re = /jira\\.request\\("POST"/;
     console.log(label.files, \`\${await jira.issues.get("A-1")}\`);
   `);
-  assert.equal(result.risk, "read");
+  assert.equal(result.risk, "network");
   assert.deepEqual(result.operations, ["jira.issues.get (A-1)"]);
 });
 
@@ -121,6 +125,6 @@ void test("a slash after ) or } cannot hide calls behind a bogus string or regex
   const division = classify(
     `const r = (a) / 2; const s = "x"; await jira.issues.get("A-1");`,
   );
-  assert.equal(division.risk, "read");
+  assert.equal(division.risk, "network");
   assert.deepEqual(division.operations, ["jira.issues.get (A-1)"]);
 });

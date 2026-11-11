@@ -65,7 +65,7 @@ export const confluenceMethods: SdkMethod[] = [
   defineMethod({
     product: "confluence",
     path: "spaces.search",
-    risk: "read",
+    risk: "network",
     bare: "query",
     options: ["query"],
     signature:
@@ -89,7 +89,7 @@ export const confluenceMethods: SdkMethod[] = [
   defineMethod({
     product: "confluence",
     path: "pages.search",
-    risk: "read",
+    risk: "network",
     bare: "cql",
     options: ["cql", "space", "title", "limit"],
     signature:
@@ -164,7 +164,7 @@ export const confluenceMethods: SdkMethod[] = [
   defineMethod({
     product: "confluence",
     path: "pages.get",
-    risk: "read",
+    risk: "network",
     bare: "id",
     options: ["id", "space", "title", "body", "children"],
     signature:

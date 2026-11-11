@@ -74,7 +74,7 @@ export const webMethods: SdkMethod[] = [
   defineMethod({
     product: "web",
     path: "fetch",
-    risk: "read",
+    risk: "network",
     bare: "url",
     options: ["url", "as", "name"],
     signature:
@@ -169,7 +169,7 @@ export const webMethods: SdkMethod[] = [
   defineMethod({
     product: "web",
     path: "search",
-    risk: "read",
+    risk: "network",
     bare: "query",
     options: ["query", "limit"],
     signature:

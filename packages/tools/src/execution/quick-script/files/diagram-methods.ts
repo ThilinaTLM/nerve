@@ -43,7 +43,7 @@ export const diagramMethods: SdkMethod[] = [
   defineMethod({
     product: "diagram",
     path: "render",
-    risk: "read",
+    risk: "network",
     options: ["type", "source", "name"],
     signature:
       "/** Kroki engine such as mermaid, d2 or plantuml; returns a PNG artifact handle. */ render(options: { type: string; source: string; name?: string }): Promise<FileHandle>",

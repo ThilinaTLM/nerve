@@ -80,7 +80,7 @@ export const atlassianMethods: SdkMethod[] = [
   defineMethod({
     product: "atlassian",
     path: "defaults",
-    risk: "read",
+    risk: "network",
     options: [],
     signature:
       "/** Configured sites, default project/space and current user; only configured products appear. Cached per run. */ defaults(): Promise<AtlassianDefaults>",

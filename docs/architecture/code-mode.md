@@ -30,7 +30,7 @@ The engine is QuickJS in the `native` addon: a fresh runtime per script on its o
 
 Two levels apply; see [permissions](permissions.md) for the general model. The tool has its own `quickScript` permission group; its rule risk is the classified risk of the script, so Planning and Read-only allow read scripts through their ordinary read rule.
 
-**Script level.** Admission scans the script text for SDK calls and the highest risk wins. Anything the scanner cannot follow (aliasing, bracket access, `eval`, a computed request method) counts as destructive, and ambiguous syntax takes the riskier reading. The approval shows the risk and the operations found.
+**Script level.** Admission scans the script text for SDK calls and the highest risk wins on the scale read < network < write < destructive: local files, XLSX and docx work is read, any integration read (Jira, Confluence, web, diagrams, a GET `request`) is network, so rule sets treat a script like the equivalent direct network tool. Anything the scanner cannot follow (aliasing, bracket access, `eval`, a computed request method) counts as destructive, and ambiguous syntax takes the riskier reading. The approval shows the risk and the operations found.
 
 **Nested level.** Each host call is checked against current policy as a direct call to its tool would be, and a deny always holds. When the verdict needs approval, the script's admission decides. A script a **user approved** may make calls up to the risk they approved. A script a **rule allowed** has no ceiling to spend, so such calls are refused. The one exception is a raw non-GET request, which cannot be analysed: it runs only in a destructive, rule-admitted script when its verdict is allow.
 

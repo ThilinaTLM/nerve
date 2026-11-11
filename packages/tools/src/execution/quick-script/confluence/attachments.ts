@@ -23,7 +23,7 @@ export const confluenceAttachmentMethods: SdkMethod[] = [
   defineMethod({
     product: "confluence",
     path: "attachments.download",
-    risk: "read",
+    risk: "network",
     options: ["id", "page", "filename"],
     signature:
       "/** By attachment id, or by page id and exact filename. Max 20 MB. */ download(options: { id: string } | { page: string; filename: string }): Promise<FileHandle>",

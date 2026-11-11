@@ -10,12 +10,17 @@ import type { MethodRisk } from "./sdk-types.js";
  * against this ceiling, so a script that hides a call from the scanner is
  * refused when it makes it.
  */
-export type QuickScriptRisk = "read" | "workspace_write" | "destructive";
+export type QuickScriptRisk =
+  | "read"
+  | "network"
+  | "workspace_write"
+  | "destructive";
 
 const RANK: Record<QuickScriptRisk, number> = {
   read: 0,
-  workspace_write: 1,
-  destructive: 2,
+  network: 1,
+  workspace_write: 2,
+  destructive: 3,
 };
 
 export type QuickScriptClassification = {
@@ -39,9 +44,10 @@ export function describeQuickScriptRisk(risk: QuickScriptRisk): string {
 export function quickScriptRiskOfToolRisk(risk: ToolRisk): QuickScriptRisk {
   switch (risk) {
     case "read":
-    case "network":
     case "interaction":
       return "read";
+    case "network":
+      return "network";
     case "workspace_write":
     case "command":
       return "workspace_write";
@@ -64,6 +70,8 @@ export function quickScriptRiskOfMethod(risk: MethodRisk): QuickScriptRisk {
     case "none":
     case "read":
       return "read";
+    case "network":
+      return "network";
     case "write":
       return "workspace_write";
     case "destructive":
@@ -404,7 +412,8 @@ function classifyTokens(tokens: Token[]): QuickScriptClassification {
       } else {
         const verb = literal(args[0])?.toUpperCase();
         const path = literal(args[1]);
-        if (verb === "GET") record(`${name} GET`, "read", path ? [path] : []);
+        if (verb === "GET")
+          record(`${name} GET`, "network", path ? [path] : []);
         else if (verb)
           record(`${name} ${verb}`, "destructive", path ? [path] : []);
         else record(`${name} (computed method)`, "destructive");

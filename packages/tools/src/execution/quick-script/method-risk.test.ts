@@ -191,7 +191,7 @@ void test("direct manage tools are write, and destructive only for deletes", () 
 void test("effective tool risks map conservatively onto the quick-script scale", () => {
   for (const [risk, expected] of [
     ["read", "read"],
-    ["network", "read"],
+    ["network", "network"],
     ["interaction", "read"],
     ["workspace_write", "workspace_write"],
     ["command", "workspace_write"],
@@ -219,7 +219,7 @@ void test("scripts are classified from the method table: adding is a write, dele
   );
   assert.equal(
     risk(`await jira.projects.get({ key: "A", include: ["epics"] })`),
-    "read",
+    "network",
   );
 });
 
