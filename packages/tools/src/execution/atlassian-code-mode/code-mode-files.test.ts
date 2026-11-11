@@ -71,7 +71,9 @@ void test("files.write/read/list round-trip text and bytes through artifacts wit
     /^artifact:buf\.bin \| buf\.bin \| 300 \| application\/octet-stream \| /,
   );
   assert.deepEqual(authorized, []);
-  assert.equal((await stat(artifactDir)).mode & 0o777, 0o700);
+  // Windows has no POSIX permission bits.
+  if (process.platform !== "win32")
+    assert.equal((await stat(artifactDir)).mode & 0o777, 0o700);
   assert.deepEqual((await readdir(artifactDir)).sort(), [
     "buf.bin",
     "data.bin",
