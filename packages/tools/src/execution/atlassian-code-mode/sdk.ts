@@ -24,10 +24,7 @@ import { STORAGE_PRELUDE } from "./storage-helpers.js";
  * guide-coverage.test.ts.
  */
 
-export type {
-  SdkEnvironment,
-  SdkMethod,
-} from "./sdk-types.js";
+export type { SdkEnvironment, SdkMethod } from "./sdk-types.js";
 
 const methods: SdkMethod[] = [
   ...jiraMethods,
