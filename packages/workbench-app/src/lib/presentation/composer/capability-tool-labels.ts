@@ -34,7 +34,7 @@ const capabilityToolCatalog: CapabilityToolGroup[] = [
   { key: "confluence", label: "Confluence", names: ["confluence"] },
   {
     key: "quick_script",
-    label: "Quick script (experimental)",
+    label: "Quick script",
     names: ["quick_script"],
   },
 ];

@@ -79,7 +79,7 @@ export const toolRows: readonly ToolRowDef[] = [
   },
   {
     id: "quick_script",
-    label: "Quick script (experimental)",
+    label: "Quick script",
     description:
       "Experimental: run short TypeScript scripts with Jira, Confluence and document utilities, instead of separate tools.",
     configurable: true,
