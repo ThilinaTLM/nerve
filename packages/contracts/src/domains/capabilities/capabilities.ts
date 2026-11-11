@@ -16,6 +16,7 @@ export const capabilityToggleToolNameSchema = z.enum([
   "subagents",
   "jira",
   "confluence",
+  "atlassian_code_mode",
 ]);
 export const capabilityToolNameSchema = z.enum([
   ...capabilityToggleToolNameSchema.options,
@@ -62,5 +63,6 @@ export const capabilityToolPayloadSchemas = {
   subagents: basicPayload,
   jira: accountPayload,
   confluence: accountPayload,
+  atlassian_code_mode: accountPayload,
   bash: z.object({ settings: bashToolSettingsSchema }).strict(),
 };

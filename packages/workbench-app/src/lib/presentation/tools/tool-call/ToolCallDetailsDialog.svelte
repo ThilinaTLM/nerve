@@ -26,8 +26,10 @@ import { toolPresentationCached } from "../views/tool-presentation";
 import {
   formatBytes,
   formatDuration,
+  outcomeLabel,
 } from "../views/tool-presentation-helpers";
 import { parseToolViewCached } from "../views/tool-result-view";
+import ArtifactList from "./ArtifactList.svelte";
 import { getConversationUiCapabilities } from "../../context.svelte";
 import AgentPreviewSection from "./AgentPreviewSection.svelte";
 import ArgumentsSection from "./ArgumentsSection.svelte";
@@ -64,6 +66,7 @@ let {
 
 const SECTION_LABELS: Record<ToolDetailSection, string> = {
   "agent-preview": "Agent preview",
+  artifacts: "Artifacts",
   arguments: "Arguments",
   "complete-result": "Raw result",
 };
@@ -74,9 +77,13 @@ const displayToolCall = $derived(details?.toolCall ?? previewToolCall);
 const view = $derived(parseToolViewCached(displayToolCall));
 const presentation = $derived(toolPresentationCached(view, displayToolCall));
 const completeResult = $derived(details?.completeResult);
+const artifacts = $derived(
+  view.kind === "atlassian_code_mode" ? view.artifacts : [],
+);
 const sections = $derived(
   availableToolDetailSections({
     agentPreview: details?.toolCall.agentPreview !== undefined,
+    artifacts: artifacts.length > 0,
     arguments: details?.toolCall.args !== undefined,
     completeResult: Boolean(completeResult?.hasResult),
   }),
@@ -119,7 +126,10 @@ const statusBadge = $derived<{ text: string; tone: StatusTone }>(
         text: `exit ${exitCode}`,
         tone: exitCode === 0 ? "success" : "destructive",
       }
-    : { text: displayToolCall.status, tone: presentation.dotTone },
+    : {
+        text: outcomeLabel(displayToolCall, view),
+        tone: presentation.dotTone,
+      },
 );
 
 const description = $derived.by(() => {
@@ -368,6 +378,8 @@ async function copy(key: string, text: string): Promise<void> {
                     result={details.toolCall.result}
                     {wrap}
                   />
+                {:else if section === "artifacts"}
+                  <ArtifactList {artifacts} {onOpenFile} />
                 {:else if section === "arguments"}
                   <ArgumentsSection value={details.toolCall.args} {wrap} />
                 {:else if completeResult && rawVisited}

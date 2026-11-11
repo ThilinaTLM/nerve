@@ -4,6 +4,7 @@ import type { IntegrationExecutionContext } from "../execution-context.js";
 import { withTimeoutSignal } from "../process/abort.js";
 import { safeAtlassianError } from "../atlassian/atlassian-error.js";
 import { ToolExecutionError } from "../errors/tool-error.js";
+import { rawRequestUrl, readRawBody } from "../atlassian/raw-request.js";
 import {
   atlassianJsonRequestInit,
   basicAuthHeader,
@@ -119,6 +120,27 @@ export async function jiraRequest(
     { service: "jira", method: init.method ?? "GET", path: options.path },
     options.parse ?? anyJson,
   );
+}
+
+/** REST bases `jira.request()` may call (platform v3 and agile). */
+export const JIRA_RAW_BASES = ["/rest/api/3/", "/rest/agile/1.0/"] as const;
+
+/** Raw request for `jira.request()`: any path under the allowed bases, JSON or text back. */
+export async function jiraRawRequest(
+  connection: JiraConnection,
+  options: {
+    method: string;
+    path: unknown;
+    body?: unknown;
+    signal?: AbortSignal;
+  },
+): Promise<unknown> {
+  const url = rawRequestUrl(connection.siteUrl, options.path, JIRA_RAW_BASES);
+  const init = atlassianJsonRequestInit(basicAuth(connection), options);
+  const response = await fetch(url, init);
+  if (!response.ok)
+    await throwJiraError(response, options.method, url.pathname);
+  return await readRawBody(response);
 }
 
 export async function jiraMultipartRequest<T>(

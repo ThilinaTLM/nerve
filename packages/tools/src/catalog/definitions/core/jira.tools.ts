@@ -19,9 +19,16 @@ import {
   executeJiraManageAttachment,
 } from "../../../execution/jira/jira.js";
 import { jiraManageAttachmentParameters } from "./jira-attachment.schema.js";
-import type { ToolDefinition } from "../../contracts.js";
+import type {
+  ToolArgumentRiskClassifier,
+  ToolDefinition,
+} from "../../contracts.js";
 
 const stringArray = () => Type.Array(Type.String());
+/** Deleting is the destructive action of a manage tool; creating or changing is a plain write. */
+const deleteIsDestructive: ToolArgumentRiskClassifier = (args) =>
+  args.action === "delete" ? "destructive" : "command";
+
 const unknownRecord = () => Type.Record(Type.String(), Type.Any());
 const positiveInteger = (maximum = 100) => Type.Number({ minimum: 0, maximum });
 
@@ -485,6 +492,7 @@ export const jiraToolDefinitions = [
       "Create, update, or delete one Jira issue comment. Only on explicit user request.",
     parameters: manageCommentParameters,
     executionMode: "sequential",
+    classifyRisk: deleteIsDestructive,
   },
   {
     name: "jira_manage_worklog",
@@ -498,6 +506,7 @@ export const jiraToolDefinitions = [
       "Create, update, or delete one Jira worklog. Only on explicit user request.",
     parameters: manageWorklogParameters,
     executionMode: "sequential",
+    classifyRisk: deleteIsDestructive,
   },
   {
     name: "jira_manage_issue_link",
@@ -511,6 +520,7 @@ export const jiraToolDefinitions = [
       "Create or delete one Jira issue link. Only on explicit user request.",
     parameters: manageIssueLinkParameters,
     executionMode: "sequential",
+    classifyRisk: deleteIsDestructive,
   },
   {
     name: "jira_manage_attachment",
@@ -524,8 +534,7 @@ export const jiraToolDefinitions = [
       "Upload or delete one Jira attachment. Only on explicit user request.",
     parameters: jiraManageAttachmentParameters,
     executionMode: "sequential",
-    classifyRisk: (args) =>
-      args.action === "delete" ? "destructive" : "command",
+    classifyRisk: deleteIsDestructive,
   },
   {
     name: "jira_manage_sprint",
@@ -539,6 +548,7 @@ export const jiraToolDefinitions = [
       "Create, update, start, close, or delete one Jira sprint. Only on explicit user request.",
     parameters: manageSprintParameters,
     executionMode: "sequential",
+    classifyRisk: deleteIsDestructive,
   },
   {
     name: "jira_manage_backlog",

@@ -37,6 +37,8 @@ import {
 import {
   resolvePythonRuntime,
   resolveBashShellConfig,
+  classifyCodeModeArguments,
+  ToolExecutionError,
   type ToolExecutionContext,
 } from "@nervekit/tools/execution";
 import { explainImageWithModel } from "@nervekit/harness/models";
@@ -45,6 +47,9 @@ import { createModelPort } from "../../core-host/model.adapter.js";
 import { createPermissionPort } from "../../core-host/permission.adapter.js";
 import { CoreProcessHost } from "../../core-host/process.adapter.js";
 import { createToolHostPort } from "../../core-host/tool-host.adapter.js";
+import { createCodeModeAuthorizer } from "../../core-host/code-mode-broker.js";
+import { isToolEnabled } from "../../core-host/tool-enablement.js";
+import { createExecutionAdmission } from "../../core-host/execution-admission/admission.js";
 import type { RuntimeDeps } from "./create-runtime-services.js";
 import { ImageGenerationService } from "../../domains/image-generation/image-generation.service.js";
 import { OpenAiCodexImageGenerationProvider } from "../../domains/image-generation/providers/openai-codex-image-generation.provider.js";
@@ -203,6 +208,15 @@ export function createConversationCore(
             input.toolName === "python_exec",
           );
         }
+        // Advertising is not authorization: a model can name a tool it was not offered.
+        if (
+          input.origin === "model" &&
+          !isToolEnabled(input.toolName, settings)
+        )
+          throw new ToolExecutionError(
+            "TOOL_NOT_ENABLED",
+            `${input.toolName}: not enabled for this conversation`,
+          );
         const { providers, modelConfiguration, python, shell } = resources;
         const bash = structuredClone(
           settings.tools!.bash!.settings as BashToolSettings,
@@ -221,20 +235,29 @@ export function createConversationCore(
             );
           bash.shellPath = shell.path;
         }
+        // Code mode reaches both products through its own selected account.
+        const codeMode = input.toolName === "atlassian_code_mode";
         const atlassian = (provider: "jira" | "confluence") =>
           providers.atlassianProfiles.find(
-            (profile) => profile.id === settings.tools?.[provider]?.profileId,
+            (profile) =>
+              profile.id ===
+              settings.tools?.[codeMode ? "atlassian_code_mode" : provider]
+                ?.profileId,
           );
         const toolProvider = input.toolName.startsWith("jira_")
           ? "jira"
           : input.toolName.startsWith("confluence_")
             ? "confluence"
-            : input.toolName === "web_search"
-              ? "tavily"
-              : undefined;
+            : codeMode
+              ? "atlassian_code_mode"
+              : input.toolName === "web_search"
+                ? "tavily"
+                : undefined;
         const selectedAccount =
-          toolProvider === "jira" || toolProvider === "confluence"
-            ? atlassian(toolProvider)
+          toolProvider === "jira" ||
+          toolProvider === "confluence" ||
+          toolProvider === "atlassian_code_mode"
+            ? atlassian("jira")
             : toolProvider === "tavily"
               ? providers.tavilyProfiles.find(
                   (profile) =>
@@ -247,7 +270,9 @@ export function createConversationCore(
             `/tools/${toolProvider === "tavily" ? "web_search" : toolProvider}/profileId`,
           );
         const credentialKey =
-          toolProvider === "jira" || toolProvider === "confluence"
+          toolProvider === "jira" ||
+          toolProvider === "confluence" ||
+          toolProvider === "atlassian_code_mode"
             ? `atlassian:${selectedAccount!.id}`
             : toolProvider === "tavily"
               ? `tavily:${selectedAccount!.id}`
@@ -280,7 +305,35 @@ export function createConversationCore(
           kroki: settings.tools?.kroki_export
             ?.settings as Settings["tools"]["kroki"],
           getApiKey: async (provider) =>
-            provider === toolProvider ? apiKey : undefined,
+            provider === toolProvider ||
+            (codeMode && (provider === "jira" || provider === "confluence"))
+              ? apiKey
+              : undefined,
+          ...(codeMode
+            ? {
+                authorizeNested: (request) =>
+                  // Only a person's approval of the script sets the ceiling: the
+                  // admission stored on the tool call says whether a rule allowed
+                  // it or a user approved it (read when the nested call is made).
+                  authorizeCodeModeCall(
+                    {
+                      toolCallId: input.toolCallId,
+                      conversationId: input.conversationId,
+                      projectDir: input.projectDir ?? input.cwd,
+                      origin: input.origin,
+                      cwd: input.cwd,
+                      requestCaptureId: input.requestCaptureId,
+                      signal: input.signal,
+                      approvedRisk: userApproved(input.toolCallId)
+                        ? classifyCodeModeArguments(
+                            input.args as Record<string, unknown>,
+                          ).risk
+                        : null,
+                    },
+                    request,
+                  ),
+              }
+            : {}),
           getProviderConfig: async (provider) =>
             provider === "jira" || provider === "confluence"
               ? {
@@ -530,6 +583,15 @@ export function createConversationCore(
     trustGeneration: () => core.trust.generation + core.projects.generation,
     requestGenerations: (id) => scopedConfiguration.getCapture(id)?.generations,
   });
+  const userApproved = (toolCallId: string) => {
+    const supervision = storage.toolCalls.get(toolCallId)?.supervision;
+    return (
+      supervision?.decision === "approval" && Boolean(supervision.approval)
+    );
+  };
+  const authorizeCodeModeCall = createCodeModeAuthorizer(
+    createExecutionAdmission(admissionPolicy),
+  );
   const conversationTitles = new ConversationTitleService({
     settings: () => deps.storage.settings.conversationTitles,
     resolve: (selection) => models.resolve(selection),

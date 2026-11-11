@@ -2,12 +2,21 @@ import type { ToolView } from "../views/tool-result-view";
 
 export type ToolDetailSection =
   | "agent-preview"
+  | "artifacts"
   | "arguments"
   | "complete-result";
 
 type ViewWithSharedBody = Exclude<
   ToolView,
-  { kind: "bash" | "python" | "jira" | "confluence" | "generic" }
+  {
+    kind:
+      | "bash"
+      | "python"
+      | "atlassian_code_mode"
+      | "jira"
+      | "confluence"
+      | "generic";
+  }
 >;
 
 /** Whether a view has a body worth rendering (durable-body predicate). */
@@ -56,11 +65,13 @@ export function hasSharedToolViewBody(view: ViewWithSharedBody): boolean {
 /** Tabs with content, in display order. */
 export function availableToolDetailSections(has: {
   agentPreview: boolean;
+  artifacts?: boolean;
   arguments: boolean;
   completeResult: boolean;
 }): ToolDetailSection[] {
   const sections: ToolDetailSection[] = [];
   if (has.agentPreview) sections.push("agent-preview");
+  if (has.artifacts) sections.push("artifacts");
   if (has.arguments) sections.push("arguments");
   if (has.completeResult) sections.push("complete-result");
   return sections;

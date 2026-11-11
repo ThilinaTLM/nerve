@@ -1,3 +1,4 @@
+import { allTools } from "../runtime/lifecycle-test-helpers.js";
 import {
   withTestAdmission,
   withTestPreparation,
@@ -81,7 +82,12 @@ async function fixture() {
     },
   };
   const configuration = testConfiguration(
-    { prepare: async () => ({ systemPrompt: "Test", tools: [] }) },
+    {
+      prepare: async (input) => ({
+        systemPrompt: "Test",
+        tools: allTools(input),
+      }),
+    },
     (id) => storage.conversations.getContext(id)!,
   );
   const prepareCreation = configuration.prepareCreation;

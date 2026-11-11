@@ -361,6 +361,26 @@ function projectToolPresentation(
     case "kroki_export":
       return krokiPresentation(view, base);
 
+    case "atlassian_code_mode": {
+      const meta: MetaItem[] = [];
+      if (view.status && view.status !== "completed")
+        meta.push({
+          text: view.status.replaceAll("_", " "),
+          tone: "destructive",
+        });
+      if (view.hostCalls.length > 0)
+        meta.push({ text: plural(view.hostCalls.length, "SDK call") });
+      if (view.artifacts.length > 0)
+        meta.push({ text: plural(view.artifacts.length, "artifact") });
+      const denied = view.hostCalls.filter((c) => c.outcome === "denied");
+      if (denied.length > 0)
+        meta.push({ text: `${denied.length} denied`, tone: "warning" });
+      // The card footer already shows the elapsed time.
+      if (view.outputTruncated)
+        meta.push({ text: "truncated", tone: "warning" });
+      return { ...base, meta };
+    }
+
     case "generate_image":
       return generateImagePresentation(view, base);
 

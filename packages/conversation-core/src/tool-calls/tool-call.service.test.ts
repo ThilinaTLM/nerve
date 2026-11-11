@@ -9,6 +9,7 @@ import { executeEdit } from "@nervekit/tools/execution";
 import { ConversationCore } from "../core.js";
 import { createDelegationTools } from "../delegation/delegation-tools.js";
 import {
+  allTools,
   createConversation,
   options,
   waitUntil,
@@ -213,3 +214,79 @@ for (const toolName of ["edit", "subagent_prompt"] as const) {
     }
   });
 }
+
+test("a model call to a tool its request did not offer fails without executing", async (t) => {
+  const directory = await mkdtemp(join(tmpdir(), "nerve-unoffered-"));
+  t.after(() => rm(directory, { recursive: true, force: true }));
+  const provider = registerAgentScriptedProvider({
+    provider: `unoffered-${randomUUID()}`,
+    model: "test",
+    steps: [
+      {
+        type: "toolCalls",
+        calls: [
+          {
+            id: "provider_unoffered",
+            name: "web_fetch",
+            args: { url: "https://example.com" },
+          },
+        ],
+      },
+      { type: "waitForAbort" },
+    ],
+  });
+  t.after(() => provider.unregister());
+  let executed = false;
+  const config = options(
+    directory,
+    join(directory, "core.sqlite"),
+    {
+      resolve: async () => {
+        const model = provider.getModel("test");
+        assert.ok(model);
+        return { model };
+      },
+    },
+    {
+      execute: async () => {
+        executed = true;
+        return { kind: "completed", result: { content: "fetched" } };
+      },
+      isReplaySafe: () => false,
+    },
+  );
+  // web_fetch is disabled for this conversation, so the request does not offer it.
+  config.turnResources.prepare = async (input) => ({
+    systemPrompt: "Test",
+    tools: allTools(input).filter((tool) => tool.name !== "web_fetch"),
+  });
+  const core = new ConversationCore(config);
+  try {
+    await core.start();
+    await createConversation(core, "conv_unoffered");
+    core.submitInput({
+      conversationId: "conv_unoffered",
+      inputId: "input_unoffered",
+      text: "Fetch it",
+      source: "user",
+    });
+    await waitUntil(() =>
+      core
+        .getEventsSince("conv_unoffered", 0)
+        .some((event) => event.type === "tool_call_response"),
+    );
+    const response = config.storage.events
+      .since("conv_unoffered", 0)
+      .find((event) => event.type === "tool_call_response");
+    if (response?.type !== "tool_call_response")
+      assert.fail("Missing response");
+    assert.equal(response.payload.outcome, "failed");
+    assert.match(
+      JSON.stringify(response.payload.agentProjection),
+      /web_fetch: not available in this conversation/,
+    );
+    assert.equal(executed, false);
+  } finally {
+    await core.close();
+  }
+});

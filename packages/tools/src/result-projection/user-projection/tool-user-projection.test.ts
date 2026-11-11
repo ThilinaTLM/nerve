@@ -93,3 +93,37 @@ void test("durable previews retain lifecycle details and totals while bounding v
     { path: "/tmp/a.png", bytes: 123, width: 2, height: 3 },
   ]);
 });
+
+void test("atlassian_code_mode previews keep artifacts and SDK calls beyond the generic key cut", () => {
+  const artifact = {
+    handle: "artifact:chart.png",
+    path: "/data/conversations/c/code-mode/chart.png",
+    bytes: 100,
+    mediaType: "image/png",
+    width: 10,
+    height: 10,
+  };
+  const projection = buildUserProjection(
+    "atlassian_code_mode",
+    { code: "return 1" },
+    {
+      content: "ok",
+      exitCode: 0,
+      details: {
+        status: "completed",
+        durationMs: 5,
+        memoryUsedBytes: 1,
+        outputTruncated: false,
+        hostCalls: [{ method: "jira.issues.get", outcome: "completed" }],
+        pages: [],
+        artifacts: [artifact],
+      },
+    },
+  );
+  const details = (
+    projection.resultPreview as { details: Record<string, unknown> }
+  ).details;
+  assert.deepEqual(details.artifacts, [artifact]);
+  assert.equal((details.hostCalls as unknown[]).length, 1);
+  assert.equal(details.status, "completed");
+});

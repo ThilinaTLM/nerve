@@ -280,6 +280,7 @@ export class ConversationRunner {
         );
         const maxAttempts = retry.enabled ? retry.maxRetries + 1 : 1;
         let message: Awaited<ReturnType<ModelTurn["runPrepared"]>>;
+        let advertisedTools: ReadonlySet<string> | undefined;
         let requestCaptureId: string | undefined;
         try {
           while (true) {
@@ -314,6 +315,9 @@ export class ConversationRunner {
                 signal,
               );
               requestCaptureId = prepared.requestCaptureId;
+              advertisedTools = new Set(
+                prepared.tools.map((tool) => tool.name),
+              );
               const autoSettings = await abortable(
                 this.options.configuration
                   .captureCompaction(id)
@@ -400,6 +404,7 @@ export class ConversationRunner {
               turnId,
               event,
               requestCaptureId,
+              advertisedTools,
             );
             status.refresh(id);
             return { event, calls };

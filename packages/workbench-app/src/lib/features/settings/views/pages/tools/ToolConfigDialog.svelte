@@ -6,6 +6,7 @@ import { Button } from "@nervekit/ui-kit/components/ui/button";
 import FormDialog from "@nervekit/ui-kit/components/composites/form-dialog";
 import ToolConfigForm from "./ToolConfigForm.svelte";
 import {
+  accountKind,
   toolRow,
   type AccountOption,
   type ToolId,
@@ -80,7 +81,7 @@ function save(): void {
     {resolvedPython}
   />
   {#snippet footerLeading()}
-    {#if onManageAccounts && (name === "web_search" || name === "jira" || name === "confluence")}
+    {#if onManageAccounts && accountKind(name)}
       <Button variant="outline" onclick={onManageAccounts}
         >Manage accounts</Button
       >

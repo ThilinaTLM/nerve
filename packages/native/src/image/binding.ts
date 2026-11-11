@@ -1,4 +1,9 @@
-import type { PreparedImage } from "./contracts.js";
+import type {
+  ImageInfo,
+  PreparedImage,
+  TransformedImage,
+  TransformImageOps,
+} from "./contracts.js";
 
 export interface NativePrepareImageOptions {
   maxDimension: number;
@@ -13,4 +18,9 @@ export interface NativeImageBinding {
     data: Buffer,
     options: NativePrepareImageOptions,
   ): Promise<PreparedImage>;
+  transformImageNative?(
+    data: Buffer,
+    ops: TransformImageOps,
+  ): Promise<TransformedImage>;
+  imageInfoNative?(data: Buffer): Promise<ImageInfo>;
 }

@@ -72,6 +72,11 @@ const cases: Record<string, readonly [unknown, unknown]> = {
   "/tools/jira/profileId": ["lower-jira", "upper-jira"],
   "/tools/confluence/enabled": booleanPair,
   "/tools/confluence/profileId": ["lower-confluence", "upper-confluence"],
+  "/tools/atlassian_code_mode/enabled": booleanPair,
+  "/tools/atlassian_code_mode/profileId": [
+    "lower-code-mode",
+    "upper-code-mode",
+  ],
   "/tools/web_fetch/enabled": booleanPair,
   "/tools/plan_present/enabled": booleanPair,
   "/tools/plan_present/settings/approvalProfile": ["planning", "coding"],

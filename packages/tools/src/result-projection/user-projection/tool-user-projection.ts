@@ -165,6 +165,27 @@ function previewContentBlocks(result: Record<string, unknown>): {
   };
 }
 
+/**
+ * The card needs the run status, SDK calls and artifacts. Keeping those keys
+ * explicitly stops the generic six-key cut from dropping `artifacts`, which
+ * trails the details record.
+ */
+function atlassianCodeModeDetailsPreview(value: unknown): unknown {
+  const details = record(value);
+  const kept: Record<string, unknown> = {};
+  for (const key of [
+    "status",
+    "error",
+    "durationMs",
+    "outputTruncated",
+    "hostCalls",
+    "artifacts",
+  ]) {
+    if (details[key] !== undefined) kept[key] = details[key];
+  }
+  return sanitizePreviewValue(kept);
+}
+
 function sanitizePreviewValue(value: unknown, depth = 0): unknown {
   if (!value || typeof value !== "object") return value;
   if (depth >= MAX_PUBLIC_PREVIEW_DEPTH) {
@@ -556,6 +577,7 @@ export function buildUserProjection(
       break;
     }
 
+    case "atlassian_code_mode":
     case "python":
     case "python_exec": {
       const code = firstLines(stringField(argsRecord.code));
@@ -565,6 +587,12 @@ export function buildUserProjection(
           : { ...argsRecord, code: code.value };
       const output = lastLines(outputText(resultRecord));
       resultPreview = withTextContent(resultRecord, output.value);
+      if (toolName === "atlassian_code_mode") {
+        resultPreview = {
+          ...withTextContent(resultRecord, output.value),
+          details: atlassianCodeModeDetailsPreview(resultRecord.details),
+        };
+      }
       ({ hidden, noun } = textOverflowStats([code, output]));
       direction =
         code.hidden > 0 && output.hidden > 0

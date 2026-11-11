@@ -79,8 +79,22 @@ export interface KrokiExecutionContext extends BaseExecutionContext {
 }
 export interface IntegrationExecutionContext extends BaseExecutionContext {
   artifactDir?: string;
+  /** Absolute managed folder of the conversation; may not exist yet. */
+  conversationDir?: string;
   getApiKey?: (provider: string) => Promise<string | undefined>;
   getProviderConfig?: (provider: string) => Promise<unknown>;
+  /**
+   * Code mode: checks one brokered SDK call against the conversation's
+   * permission policy as if it were a direct call to `toolName` with `args`.
+   * Resolves when allowed; rejects with the one-line reason otherwise
+   * (`ToolExecutionError` code `NESTED_DENIED` or `NESTED_APPROVAL_REQUIRED`).
+   */
+  authorizeNested?: (request: {
+    toolName: string;
+    args: Record<string, unknown>;
+    /** Never allowed by a rule alone; needs a user-approved destructive script (raw non-GET requests). */
+    approvalRequired?: boolean;
+  }) => Promise<void>;
 }
 
 /** Complete host context accepted by catalog dispatch. Executors use narrower contexts. */

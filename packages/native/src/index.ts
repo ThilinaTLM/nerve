@@ -4,6 +4,7 @@ export type { NativeErrorCategory, NativeErrorDetail } from "./core/error.js";
 export * from "./search/index.js";
 export * as files from "./files/index.js";
 export * as image from "./image/index.js";
+export * as sandbox from "./sandbox/index.js";
 export * from "./git/index.js";
 export * from "./monitor/index.js";
 export * from "./process/index.js";

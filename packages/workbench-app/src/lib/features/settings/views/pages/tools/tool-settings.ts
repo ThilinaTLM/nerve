@@ -75,6 +75,13 @@ export const toolRows: readonly ToolRowDef[] = [
     configurable: true,
   },
   {
+    id: "atlassian_code_mode",
+    label: "Atlassian code mode (experimental)",
+    description:
+      "Experimental: one script tool with Jira and Confluence SDKs instead of separate Jira and Confluence tools.",
+    configurable: true,
+  },
+  {
     id: "plan_present",
     label: "Plan review",
     description: "Submit a plan for your review before changes.",
@@ -100,7 +107,9 @@ export type AccountOption = { id: string; name: string; detail?: string };
 export type AccountKind = "tavily" | "atlassian";
 export function accountKind(id: ToolId): AccountKind | undefined {
   if (id === "web_search") return "tavily";
-  return id === "jira" || id === "confluence" ? "atlassian" : undefined;
+  return id === "jira" || id === "confluence" || id === "atlassian_code_mode"
+    ? "atlassian"
+    : undefined;
 }
 
 export type ToolDisplayContext = {
@@ -140,7 +149,8 @@ export function toolSummary(
       return `${onOff(payload)} · ${(s.interpreterPath as string | undefined) ?? "auto-detect"}`;
     case "web_search":
     case "jira":
-    case "confluence": {
+    case "confluence":
+    case "atlassian_code_mode": {
       const name = context.accountName(accountKind(id)!, payload.profileId);
       return `${onOff(payload)} · ${name ? `account: ${name}` : "no account"}`;
     }

@@ -41,6 +41,7 @@ image = { version = "0.25", default-features = false, features = [
   "gif",
   "webp",
 ] }
+rquickjs = "0.14"
 
 [target.'cfg(unix)'.dependencies]
 libc = "0.2.180"

@@ -75,6 +75,26 @@ export function detailsActionFromHidden(
   };
 }
 
+/**
+ * The outcome word for a call, matching `statusDot`: a settled call whose
+ * script failed reads as its failure even though the tool call itself
+ * completed.
+ */
+export function outcomeLabel(
+  toolCall: Pick<ToolCallDisplayRecord, "status">,
+  view: ToolView,
+): string {
+  if (
+    toolCall.status === "completed" &&
+    view.kind === "atlassian_code_mode" &&
+    view.status !== undefined &&
+    view.status !== "completed"
+  ) {
+    return view.status.replaceAll("_", " ");
+  }
+  return toolCall.status;
+}
+
 export function statusDot(
   toolCall: ToolCallDisplayRecord,
   view: ToolView,
@@ -102,6 +122,13 @@ export function statusDot(
     (view.kind === "bash" || view.kind === "python") &&
     view.exitCode !== undefined &&
     view.exitCode !== 0
+  ) {
+    return { tone: "destructive", pulse: false };
+  }
+  if (
+    view.kind === "atlassian_code_mode" &&
+    view.status !== undefined &&
+    view.status !== "completed"
   ) {
     return { tone: "destructive", pulse: false };
   }

@@ -20,7 +20,7 @@ const CONVERSATION_ID = "conv_gallery";
 const AGENT_ID = "agent_gallery";
 const PROJECT_ID = "proj_gallery";
 
-function isoAgo(ms: number): string {
+export function isoAgo(ms: number): string {
   return new Date(Date.now() - ms).toISOString();
 }
 

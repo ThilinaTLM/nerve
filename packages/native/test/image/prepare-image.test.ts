@@ -89,3 +89,32 @@ test("rejects undecodable input", async () => {
     /image/i,
   );
 });
+
+test("transformImage crops, resizes and encodes through the addon", async () => {
+  const out = await image.transformImage(png(100, 100), {
+    crop: { left: 10, top: 20, width: 80, height: 40 },
+    resize: { width: 40 },
+    format: "jpeg",
+    quality: 60,
+  });
+  assert.equal(out.format, "jpeg");
+  assert.deepEqual(
+    { width: out.width, height: out.height },
+    { width: 40, height: 20 },
+  );
+  assert.equal(out.data[0], 0xff);
+  assert.deepEqual(await image.imageInfo(out.data), {
+    format: "jpeg",
+    width: 40,
+    height: 20,
+  });
+});
+
+test("transformImage rejects an out-of-bounds crop", async () => {
+  await assert.rejects(
+    image.transformImage(png(10, 10), {
+      crop: { left: 5, top: 0, width: 10, height: 5 },
+    }),
+    /bounds/,
+  );
+});

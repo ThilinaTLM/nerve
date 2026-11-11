@@ -1,3 +1,4 @@
+import { toolManifest, type ToolDefinition } from "@nervekit/tools/catalog";
 import { defaultSettings } from "@nervekit/contracts/settings";
 import {
   withTestAdmission,
@@ -54,7 +55,10 @@ export function options(
     models,
     toolHost: withTestPreparation(host),
     turnResources: {
-      prepare: async () => ({ systemPrompt: "Test", tools: [] }),
+      prepare: async (input) => ({
+        systemPrompt: "Test",
+        tools: allTools(input),
+      }),
     },
     permissions: withTestAdmission(
       {
@@ -117,4 +121,11 @@ export async function createConversation(core: ConversationCore, id: string) {
       directory: tmpdir(),
     });
   await core.createConversation({ id, projectId: "proj_test" });
+}
+
+/** Every catalog and core tool, as an all-enabled host would offer them. Calls to tools a request did not offer fail. */
+export function allTools(input: {
+  coreTools?: ToolDefinition[];
+}): ToolDefinition[] {
+  return [...toolManifest, ...(input.coreTools ?? [])];
 }

@@ -1,3 +1,4 @@
+import { outcomeLabel } from "./tool-presentation-helpers";
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import type { ToolCallRecord } from "../../state/tool-types";
@@ -324,4 +325,87 @@ it("derives created Jira issue links from the result self URL", () => {
     view.issueUrl,
     "https://example.atlassian.net/jira/browse/APP-42",
   );
+});
+
+describe("atlassian_code_mode result", () => {
+  it("lists the artifacts the run created", () => {
+    const view = parseToolView(
+      call(
+        "atlassian_code_mode",
+        { code: "return 1" },
+        {
+          content: "1\nexit 0",
+          details: {
+            status: "completed",
+            durationMs: 12,
+            hostCalls: [],
+            artifacts: [
+              {
+                handle: "artifact:flow.png",
+                path: "/data/conversations/c/code-mode/flow.png",
+                bytes: 2048,
+                mediaType: "image/png",
+                width: 760,
+                height: 400,
+              },
+            ],
+          },
+        },
+      ),
+    );
+    assert.equal(view.kind, "atlassian_code_mode");
+    if (view.kind !== "atlassian_code_mode") return;
+    assert.equal(view.artifacts[0]?.handle, "artifact:flow.png");
+    assert.equal(view.artifacts[0]?.width, 760);
+  });
+
+  it("has no artifacts for results without the field", () => {
+    const view = parseToolView(
+      call(
+        "atlassian_code_mode",
+        { code: "return 1" },
+        {
+          content: "1",
+          details: { status: "completed", durationMs: 1, hostCalls: [] },
+        },
+      ),
+    );
+    assert.equal(
+      view.kind === "atlassian_code_mode" && view.artifacts.length,
+      0,
+    );
+  });
+
+  it("reads page lint reports and keeps a failed script outcome", () => {
+    const view = parseToolView(
+      call(
+        "atlassian_code_mode",
+        { code: "boom()" },
+        {
+          content: "boom",
+          details: {
+            status: "failed",
+            error: "boom",
+            durationMs: 5,
+            hostCalls: [],
+            pages: [
+              {
+                action: "created",
+                id: "1",
+                title: "Runbook",
+                version: 1,
+                fixes: ["a"],
+                warnings: [],
+              },
+            ],
+          },
+        },
+      ),
+    );
+    if (view.kind !== "atlassian_code_mode") assert.fail("wrong kind");
+    assert.equal(view.pages[0]?.title, "Runbook");
+    assert.equal(view.status, "failed");
+    assert.equal(outcomeLabel({ status: "completed" }, view), "failed");
+    assert.equal(outcomeLabel({ status: "denied" }, view), "denied");
+  });
 });

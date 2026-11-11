@@ -45,6 +45,7 @@ export const coreToolNameSchema = z.enum([
   "confluence_manage_label",
   "confluence_manage_restriction",
   "confluence_manage_attachment",
+  "atlassian_code_mode",
 ]);
 export type CoreToolName = z.infer<typeof coreToolNameSchema>;
 

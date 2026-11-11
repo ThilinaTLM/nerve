@@ -89,11 +89,23 @@ function defaultPrompt(hasAskUser: boolean): string {
 
 /** One guide reference per active tool family, instead of one per tool description. */
 function formatToolGuides(tools: string[]): string {
-  return ["jira", "confluence"]
-    .filter((family) => tools.some((name) => name.startsWith(`${family}_`)))
+  const guides: Array<{ skill: string; label: string; active: boolean }> = [
+    ...["jira", "confluence"].map((family) => ({
+      skill: family,
+      label: `${family}_* tools`,
+      active: tools.some((name) => name.startsWith(`${family}_`)),
+    })),
+    {
+      skill: "atlassian-code-mode",
+      label: "atlassian_code_mode",
+      active: tools.includes("atlassian_code_mode"),
+    },
+  ];
+  return guides
+    .filter((guide) => guide.active)
     .map(
-      (family) =>
-        `Before first using ${family}_* tools, read ${resolveSkillPlaceholders(`{{skill:${family}}}`)}.`,
+      (guide) =>
+        `Before first using ${guide.label}, read ${resolveSkillPlaceholders(`{{skill:${guide.skill}}}`)}.`,
     )
     .join("\n");
 }

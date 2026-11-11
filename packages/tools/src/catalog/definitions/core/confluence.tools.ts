@@ -12,7 +12,14 @@ import {
   executeConfluenceSearchSpaces,
   executeConfluenceUpdatePage,
 } from "../../../execution/confluence/confluence.js";
-import type { ToolDefinition } from "../../contracts.js";
+import type {
+  ToolArgumentRiskClassifier,
+  ToolDefinition,
+} from "../../contracts.js";
+
+/** Deleting is the destructive action of a manage tool; creating or changing is a plain write. */
+const deleteIsDestructive: ToolArgumentRiskClassifier = (args) =>
+  args.action === "delete" ? "destructive" : "command";
 
 const stringArray = () => Type.Array(Type.String());
 const bodyFormatRead = Type.Enum(["storage", "atlas_doc_format"]);
@@ -339,6 +346,7 @@ export const confluenceToolDefinitions = [
       "Create, update, delete, resolve, or reopen one Confluence comment. Only on explicit user request.",
     parameters: manageCommentParameters,
     executionMode: "sequential",
+    classifyRisk: deleteIsDestructive,
   },
   {
     name: "confluence_manage_page",
@@ -395,5 +403,6 @@ export const confluenceToolDefinitions = [
       "Upload, rename, or delete one Confluence attachment. Only on explicit user request.",
     parameters: manageAttachmentParameters,
     executionMode: "sequential",
+    classifyRisk: deleteIsDestructive,
   },
 ] satisfies ToolDefinition[];

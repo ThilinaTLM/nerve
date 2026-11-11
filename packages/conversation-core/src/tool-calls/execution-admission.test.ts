@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, rm, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test, { type TestContext } from "node:test";
@@ -62,17 +62,24 @@ async function fixture(
       },
     ],
   };
-  config.toolHost.prepareExecution = async (input) => ({
-    args: input.args,
-    cwd: input.cwd,
-    target: { shell: target },
-    dispatch: async () => {
-      executions++;
-      if (executionOptions.holdExecutions)
-        await new Promise<void>((resolve) => pendingExecutions.push(resolve));
-      return { kind: "completed", result: { content: "done" } };
-    },
-  });
+  const prepareInputs: {
+    toolName: string;
+    conversationDir: string;
+  }[] = [];
+  config.toolHost.prepareExecution = async (input) => {
+    prepareInputs.push(input);
+    return {
+      args: input.args,
+      cwd: input.cwd,
+      target: { shell: target },
+      dispatch: async () => {
+        executions++;
+        if (executionOptions.holdExecutions)
+          await new Promise<void>((resolve) => pendingExecutions.push(resolve));
+        return { kind: "completed", result: { content: "done" } };
+      },
+    };
+  };
   config.permissions.prepareAdmission = async (input) => {
     const binding: ToolApprovalBinding = {
       toolCallId: input.toolCallId,
@@ -140,7 +147,13 @@ async function fixture(
     },
     storage: config.storage,
     /** Inserts and starts a bash call. The row shape is a plain open tool call. */
-    runCommand: async (conversationId: string, command: string) => {
+    directory,
+    prepareInputs,
+    runCommand: async (
+      conversationId: string,
+      command: string,
+      toolName = "bash",
+    ) => {
       const call = config.storage.toolCalls.insert({
         id: createId("tool"),
         conversationId,
@@ -149,7 +162,7 @@ async function fixture(
         assistantEventId: null,
         contentIndex: null,
         origin: "user",
-        toolName: "bash",
+        toolName,
         arguments: { command },
         state: "supervising",
         supervision: null,
@@ -428,4 +441,21 @@ test("approved running calls retain durable evidence through restart and readmis
     resolution,
   });
   assert.equal(f.executions(), 2);
+});
+
+test("non-core tools receive the conversation folder path, path only", async (t) => {
+  const f = await fixture(t);
+  f.setPolicy("allow");
+  await f.runCommand("conv_admission", "echo hello");
+  await f.runCommand("conv_admission", "{}", "atlassian_code_mode");
+  for (const input of f.prepareInputs) {
+    assert.equal(
+      input.conversationDir,
+      join(f.directory, "conversations/conv_admission"),
+    );
+    await assert.rejects(
+      stat(join(input.conversationDir, "code-mode")),
+      /ENOENT/,
+    );
+  }
 });

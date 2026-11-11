@@ -1,4 +1,7 @@
 import type {
+  CodeModeArtifact,
+  CodeModeHostCall,
+  CodeModePageReport,
   ConfluenceAttachmentSummaryPayload,
   ConfluenceCommentSummaryPayload,
   ConfluenceIncludedCountsPayload,
@@ -141,6 +144,27 @@ export type ToolView =
       conversion: string;
       path?: string;
       bytes?: number;
+    }
+  | {
+      kind: "atlassian_code_mode";
+      code?: string;
+      output: string;
+      /** Script-level status; absent while running or when details are missing. */
+      status?:
+        | "completed"
+        | "failed"
+        | "timed_out"
+        | "cancelled"
+        | "memory_limit";
+      error?: string;
+      durationMs?: number;
+      outputTruncated?: boolean;
+      hostCalls: CodeModeHostCall[];
+      /** Confluence pages the run wrote, with the linter's report. */
+      pages: CodeModePageReport[];
+      /** Files the run wrote to the conversation artifact folder. */
+      artifacts: CodeModeArtifact[];
+      live?: boolean;
     }
   | {
       kind: "generate_image";

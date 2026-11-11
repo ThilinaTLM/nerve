@@ -48,8 +48,9 @@
     }
   },
   "scripts": {
-    "build": "tsc -b",
+    "build": "tsc -b && tsx ../../scripts/build/copy-tools-assets.ts",
     "check": "tsc -b --pretty false",
+    "pretest": "tsx ../../scripts/build/copy-tools-assets.ts",
     "test": "tsx --test \"test/**/*.test.ts\" \"src/**/*.test.ts\"",
     "test:native": "tsx --test test/execution/bash.test.ts test/execution/process-tree.test.ts"
   },
@@ -67,7 +68,9 @@
     "@types/cross-spawn": "6.0.6",
     "@types/node": "24.10.1",
     "@types/shell-quote": "^1.7.5",
-    "typescript": "5.9.3"
+    "papaparse": "5.5.3",
+    "typescript": "5.9.3",
+    "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz"
   },
   "engines": {
     "node": ">=24.0.0"

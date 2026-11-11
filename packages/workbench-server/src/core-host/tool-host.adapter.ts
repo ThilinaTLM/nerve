@@ -128,6 +128,7 @@ export function createToolHostPort(
           ...captured.context,
           cwd,
           artifactDir: input.artifactDir,
+          conversationDir: input.conversationDir,
           signal: input.signal,
           onUpdate: (update: { chunk: string; stream?: string }) =>
             input.onProgress({

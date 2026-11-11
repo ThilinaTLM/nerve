@@ -11,6 +11,7 @@ import {
   waitUntil,
   options,
   createConversation,
+  allTools,
 } from "./lifecycle-test-helpers.js";
 
 for (const scenario of [
@@ -150,7 +151,7 @@ for (const scenario of [
               /# Implementation plan|A reviewed snapshot/,
             );
           }
-          return { systemPrompt: "Test", tools: [] };
+          return { systemPrompt: "Test", tools: allTools(input) };
         };
         config.planApprovalProfile = async () => approvalProfile;
         const defaults = config.defaultConfig;
