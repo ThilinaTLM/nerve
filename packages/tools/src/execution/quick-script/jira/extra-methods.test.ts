@@ -25,9 +25,9 @@ void test("attachments.download writes exact bytes to a fresh artifact and autho
     process.cwd(),
     dir,
   );
-  assert.match(result.content ?? "", /artifact:shot_one-1\.png/);
+  assert.match(result.content ?? "", /artifact:shot one-1\.png/);
   assert.match(result.content ?? "", /artifact:x\.png/);
-  for (const name of ["shot_one-1.png", "x.png"]) {
+  for (const name of ["shot one-1.png", "x.png"]) {
     assert.deepEqual(
       new Uint8Array(await readFile(join(dir, "quick-script", name))),
       PNG,
@@ -51,7 +51,7 @@ void test("attachments.download refuses files over the size limit", async () => 
   );
   assert.match(
     result.content ?? "",
-    /BAD_REQUEST Attachment 9 is 30000000 bytes/,
+    /BAD_REQUEST Attachment 9 is 28.6 MB.*jira_download_attachment/,
   );
 });
 
@@ -80,7 +80,8 @@ void test("issues.delete passes deleteSubtasks, needs approval, and explains the
       .query.get("deleteSubtasks"),
     "true",
   );
-  assert.equal(authorized[0].toolName, "jira_manage_comment");
+  assert.equal(authorized[0].toolName, "jira_update_issue");
+  assert.deepEqual(authorized[0].args, { issue_key: "APP-2" });
   assert.equal((authorized[0] as { summary?: string }).summary, undefined);
 });
 

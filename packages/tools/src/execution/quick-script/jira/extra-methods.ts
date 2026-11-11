@@ -10,12 +10,14 @@ import {
 import { adfToMarkdown } from "../../jira/adf-markdown.js";
 import { markdownToAdf } from "../../jira/markdown-adf.js";
 import {
-  assertArtifactName,
+  artifactNameOf,
+  artifactNameFor,
   freshArtifactName,
-  MAX_FILE_BYTES,
+  MAX_ATTACHMENT_BYTES,
   writeArtifact,
 } from "../files/artifacts.js";
 import { codedError } from "../errors.js";
+import { noteChange } from "./report.js";
 import { nonEmptyString } from "../sdk-args.js";
 import {
   defineMethod,
@@ -56,15 +58,6 @@ export function rawBinarySaver(env: SdkEnvironment, path: unknown) {
     );
 }
 
-/** A safe artifact name from an attachment's own file name. */
-function artifactNameFor(filename: string): string {
-  const clean = filename
-    .replace(/[^A-Za-z0-9._-]/g, "_")
-    .replace(/^[._-]+/, "")
-    .slice(-100);
-  return clean || "attachment";
-}
-
 export const jiraExtraMethods: SdkMethod[] = [
   defineMethod({
     product: "jira",
@@ -73,13 +66,11 @@ export const jiraExtraMethods: SdkMethod[] = [
     bare: "id",
     options: ["id", "name"],
     signature:
-      "/** Saves the attachment as `artifact:<its filename>` (or `name`); max 20 MB. */ download(options: string | { id: string; name?: string }): Promise<FileHandle>",
+      "/** Saves the attachment as `artifact:<its filename>` (or `name`); max 25 MB. */ download(options: string | { id: string; name?: string }): Promise<FileHandle>",
     parse: (options) => ({
       id: nonEmptyString(options.id, "id"),
       name:
-        options.name === undefined
-          ? undefined
-          : assertArtifactName(options.name),
+        options.name === undefined ? undefined : artifactNameOf(options.name),
     }),
     authorize: ({ id }) => ({
       toolName: "jira_download_attachment",
@@ -97,9 +88,9 @@ export const jiraExtraMethods: SdkMethod[] = [
       const tooBig = (size: number) =>
         codedError(
           "BAD_REQUEST",
-          `Attachment ${id} is ${size} bytes; downloads are limited to ${MAX_FILE_BYTES}. Fetch it outside quick_script.`,
+          `Attachment ${id} is ${(size / 1048576).toFixed(1)} MB; the limit is 25 MB. Use jira_download_attachment (direct tool).`,
         );
-      if (typeof meta.size === "number" && meta.size > MAX_FILE_BYTES) {
+      if (typeof meta.size === "number" && meta.size > MAX_ATTACHMENT_BYTES) {
         throw tooBig(meta.size);
       }
       const downloaded = await jiraDownload(
@@ -115,7 +106,7 @@ export const jiraExtraMethods: SdkMethod[] = [
         }
         throw error;
       });
-      if (downloaded.bytes.byteLength > MAX_FILE_BYTES) {
+      if (downloaded.bytes.byteLength > MAX_ATTACHMENT_BYTES) {
         throw tooBig(downloaded.bytes.byteLength);
       }
       const filename = artifactNameFor(
@@ -145,11 +136,11 @@ export const jiraExtraMethods: SdkMethod[] = [
       key: nonEmptyString(options.key, "key"),
       subtasks: options.subtasks === true,
     }),
-    // No direct tool deletes issues: like a raw non-GET request, the deny
-    // rules of a delete tool apply and the call always needs approval.
+    // No direct tool deletes issues: the issue-keyed write tool supplies the
+    // deny rules, and the call always needs approval.
     authorize: ({ key }) => ({
-      toolName: "jira_manage_comment",
-      args: { action: "delete", issue_key: "raw-request", comment_id: "-" },
+      toolName: "jira_update_issue",
+      args: { issue_key: key },
       summary: `DELETE issue ${key}`,
       approvalRequired: true as const,
     }),
@@ -175,6 +166,7 @@ export const jiraExtraMethods: SdkMethod[] = [
         }
         throw error;
       }
+      noteChange(env, "deleted", key);
       return { key };
     },
   }),

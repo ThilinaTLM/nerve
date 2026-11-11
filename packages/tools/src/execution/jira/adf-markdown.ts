@@ -68,12 +68,17 @@ function block(node: Node): string {
     case "table":
       return table(kids);
     case "mediaSingle":
+      return kids
+        .map((kid) => media(kid, true))
+        .filter(Boolean)
+        .join("\n");
     case "mediaGroup":
-      return kids.map(block).filter(Boolean).join("\n");
-    case "media": {
-      const name = node.attrs?.alt ?? node.attrs?.id;
-      return typeof name === "string" ? `[attachment: ${name}]` : "";
-    }
+      return kids
+        .map((kid) => media(kid, false))
+        .filter(Boolean)
+        .join("\n");
+    case "media":
+      return media(node, false);
     case "expand":
     case "nestedExpand": {
       const title = node.attrs?.title;
@@ -86,6 +91,18 @@ function block(node: Node): string {
       // Unknown containers: keep whatever text they hold.
       return isInlineType(node.type) ? inline([node]) : fallback(node);
   }
+}
+
+/** An embedded image is `![](filename)` (its alt is the attachment's filename); other files `[attachment: name]`. */
+function media(node: Node, image: boolean): string {
+  const alt = node.attrs?.alt;
+  if (typeof alt === "string" && alt) {
+    return image
+      ? `![](${alt.replaceAll(" ", "%20")})`
+      : `[attachment: ${alt}]`;
+  }
+  const id = node.attrs?.id;
+  return typeof id === "string" ? `[attachment: ${id}]` : "";
 }
 
 function fallback(node: Node): string {

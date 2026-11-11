@@ -9,13 +9,75 @@ type Node = Record<string, unknown>;
  * inline marks bold, italic, strike, code and links. Anything else stays text,
  * so the result is always valid ADF. The inverse of `adfToMarkdown`.
  */
-export function markdownToAdf(markdown: string): AdfDocument {
-  const content = parseBlocks(markdown.replaceAll("\r\n", "\n").split("\n"));
+export function markdownToAdf(
+  markdown: string,
+  media?: MediaResolver,
+): AdfDocument {
+  const outer = activeMedia;
+  activeMedia = media;
+  let content: Node[];
+  try {
+    content = parseBlocks(markdown.replaceAll("\r\n", "\n").split("\n"));
+  } finally {
+    activeMedia = outer;
+  }
   return {
     type: "doc",
     version: 1,
     content: content.length > 0 ? content : [{ type: "paragraph" }],
   };
+}
+
+/**
+ * Resolves the target of `![alt](name)` to the id of a Jira media file (an
+ * attachment of the issue), or undefined when it is not one. Only a line of
+ * its own becomes an image (`mediaSingle`); anywhere else, and when
+ * unresolved, an image degrades to plain text or a link, never a stray `!`.
+ */
+export type MediaResolver = (name: string) => string | undefined;
+let activeMedia: MediaResolver | undefined;
+
+/** A relative target such as `shot.png`, as opposed to a URL. */
+export function isLocalImageTarget(target: string): boolean {
+  return !/^[a-z][a-z0-9+.-]*:|^\/\//i.test(target);
+}
+
+/** The attachment name an image target stands for (`my%20shot.png` is `my shot.png`). */
+function targetName(target: string): string {
+  try {
+    return decodeURIComponent(target);
+  } catch {
+    return target;
+  }
+}
+
+const IMAGE = /!\[([^\]]*)\]\(([^)\s]+)\)/g;
+
+function mediaSingle(id: string, name: string): Node {
+  return {
+    type: "mediaSingle",
+    attrs: { layout: "center" },
+    content: [
+      { type: "media", attrs: { type: "file", id, collection: "", alt: name } },
+    ],
+  };
+}
+
+/** Splits a paragraph line around images that resolve to media; text parts stay strings. */
+function splitImages(line: string): Array<string | Node> {
+  if (!activeMedia) return [line];
+  const parts: Array<string | Node> = [];
+  let last = 0;
+  for (const match of line.matchAll(IMAGE)) {
+    if (!isLocalImageTarget(match[2])) continue;
+    const name = targetName(match[2]);
+    const id = activeMedia(name);
+    if (!id) continue;
+    parts.push(line.slice(last, match.index), mediaSingle(id, name));
+    last = match.index + match[0].length;
+  }
+  parts.push(line.slice(last));
+  return parts;
 }
 
 const FENCE = /^\s*(`{3,}|~{3,})\s*([\w+-]*)\s*$/;
@@ -118,7 +180,12 @@ function parseBlocks(lines: string[]): Node[] {
       out.push(...parseList(run));
       continue;
     }
-    paragraph.push(line.trim());
+    for (const part of splitImages(line.trim())) {
+      if (typeof part !== "string") {
+        flush();
+        out.push(part);
+      } else if (part.trim()) paragraph.push(part.trim());
+    }
   }
   flush();
   return out;
@@ -229,7 +296,7 @@ function inlineLines(lines: string[]): Node[] {
 }
 
 const INLINE =
-  /\\([\\`*_[\]~<>#+\-.)!|])|(`+)(.+?)\2|\[((?:\\.|[^\]\\])+)\]\((\S+?)\)|\*\*(.+?)\*\*|__(.+?)__|~~(.+?)~~|\*(?!\s)(.+?)\*|\b_(?!\s)(.+?)_\b/;
+  /\\([\\`*_[\]~<>#+\-.)!|])|(`+)(.+?)\2|!\[([^\]]*)\]\((\S+?)\)|\[((?:\\.|[^\]\\])+)\]\((\S+?)\)|\*\*(.+?)\*\*|__(.+?)__|~~(.+?)~~|\*(?!\s)(.+?)\*|\b_(?!\s)(.+?)_\b/;
 
 /** CommonMark: one space of padding on both sides of a code span is dropped. */
 function codeText(text: string): string {
@@ -262,24 +329,39 @@ function inline(text: string, marks: Node[] = []): Node[] {
     if (match[1] !== undefined) push(match[1]);
     else if (match[3] !== undefined)
       push(codeText(match[3]), [{ type: "code" }]);
-    else if (match[4] !== undefined)
+    else if (match[5] !== undefined) {
+      // Block-level images were split out earlier; this one is inline or unresolved.
+      const target = match[5];
+      const label = match[4] || target;
+      if (isLocalImageTarget(target)) {
+        activeMedia?.(targetName(target));
+        push(match[4] || targetName(target));
+      } else {
+        out.push(
+          ...inline(label, [
+            ...marks,
+            { type: "link", attrs: { href: target } },
+          ]),
+        );
+      }
+    } else if (match[6] !== undefined)
       out.push(
-        ...inline(match[4], [
+        ...inline(match[6], [
           ...marks,
-          { type: "link", attrs: { href: match[5] } },
+          { type: "link", attrs: { href: match[7] } },
         ]),
       );
     else {
       const [body, mark] =
-        match[6] !== undefined
-          ? [match[6], "strong"]
-          : match[7] !== undefined
-            ? [match[7], "strong"]
-            : match[8] !== undefined
-              ? [match[8], "strike"]
-              : match[9] !== undefined
-                ? [match[9], "em"]
-                : [match[10], "em"];
+        match[8] !== undefined
+          ? [match[8], "strong"]
+          : match[9] !== undefined
+            ? [match[9], "strong"]
+            : match[10] !== undefined
+              ? [match[10], "strike"]
+              : match[11] !== undefined
+                ? [match[11], "em"]
+                : [match[12], "em"];
       out.push(...inline(body, [...marks, { type: mark }]));
     }
     rest = rest.slice(match.index + match[0].length);

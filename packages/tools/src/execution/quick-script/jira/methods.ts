@@ -32,6 +32,9 @@ import {
 } from "./discovery.js";
 import { fieldMetaMap } from "./field-values.js";
 import { jiraExtraMethods, rawBinarySaver } from "./extra-methods.js";
+import { jiraEditMethods } from "./edit-methods.js";
+import { withTidyErrors } from "../tidy-errors.js";
+import { jiraSprintMethods } from "./sprints.js";
 import { jiraWriteMethods } from "./write-methods.js";
 import { orNotAvailable } from "../errors.js";
 import { clampInt, nonEmptyString, optionalText } from "../sdk-args.js";
@@ -322,8 +325,10 @@ const readMethods: SdkMethod[] = [
 export const jiraMethods: SdkMethod[] = [
   ...readMethods,
   ...jiraWriteMethods,
+  ...jiraEditMethods,
+  ...jiraSprintMethods,
   ...jiraExtraMethods,
-];
+].map(withTidyErrors);
 
 async function fetchTransitions(key: string, env: SdkEnvironment) {
   const response = await jiraRequest(await env.jira(), {

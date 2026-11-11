@@ -1,5 +1,5 @@
 import { findAssignableUser } from "../../jira/users.js";
-import { markdownToAdf } from "../../jira/markdown-adf.js";
+import { markdownDoc } from "./media.js";
 import { closeMatches } from "../sdk-args.js";
 import { resolveFieldSelection, type JiraFieldInfo } from "./issue.js";
 import type { SdkEnvironment } from "../sdk-types.js";
@@ -183,7 +183,9 @@ async function convert(
     RICH_TEXT.has(id) ||
     (type === "string" && field.kind?.endsWith(":textarea"))
   ) {
-    return typeof value === "string" ? markdownToAdf(value) : value;
+    return typeof value === "string"
+      ? await markdownDoc(env, scope.issueKey, value)
+      : value;
   }
   if (type === "user" || (type === "array" && items === "user")) {
     const resolve = async (item: unknown) =>
