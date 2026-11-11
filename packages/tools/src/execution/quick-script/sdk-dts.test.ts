@@ -54,6 +54,28 @@ void test("references/*.d.ts match the method tables (UPDATE_SDK_DTS=1 regenerat
   }
 });
 
+void test("destructive methods are tagged from their declared risk", () => {
+  const all = [
+    ...atlassianMethods,
+    ...jiraMethods,
+    ...confluenceMethods,
+    ...diagramMethods,
+    ...filesMethods,
+    ...imageMethods,
+    ...webMethods,
+  ];
+  const text = Object.values(generated).join("\n");
+  const tagged = [...text.matchAll(/\/\*\* Destructive/g)].length;
+  const destructive = all.filter((m) => m.risk === "destructive");
+  assert.ok(destructive.length >= 4);
+  assert.equal(tagged, destructive.length);
+  assert.match(
+    generated["jira.d.ts"],
+    /\/\*\* Destructive\. [^\n]*\*\/\n\s+delete\(/,
+  );
+  assert.match(generated["jira.d.ts"], /\/\*\* Destructive unless GET\./);
+});
+
 void test("generated .d.ts files compile together", () => {
   const options: ts.CompilerOptions = {
     noEmit: true,

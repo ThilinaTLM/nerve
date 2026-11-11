@@ -67,9 +67,9 @@ await jira.issues.move({ keys: [t.key], sprint: 42 });
 ```
 
 - `fields` use field names and plain values: users by email or name, options, priority, components and versions by name, Markdown for rich text. A wrong name or value throws and lists the valid ones.
-- `issues.update({ key, fields })` replaces the given fields. For adding a single label or similar, use `jira.request`.
+- `issues.update({ key, fields })` replaces the given fields. For adding a single label or similar, use `jira.request` ([jira-raw.md](jira-raw.md)).
 - `issues.transition({ key, to: "Done", fields: { Resolution: "Done" } })` takes the status name. A missing required field or unreachable status throws with the choices.
 - Links, comments, worklogs and attachments: `issues.link`, `comments.add`, `worklogs.add`, `attachments.upload`.
-- Anything else (epic changes, bulk edits, deleting links): `jira.request`.
+- Anything else (epic changes, bulk edits, deleting links): [jira-raw.md](jira-raw.md).
 
 Create a few tickets per script, print the keys and URLs, and check with `issues.get` when the fields matter.

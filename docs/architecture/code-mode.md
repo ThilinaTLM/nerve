@@ -24,7 +24,7 @@ The engine is QuickJS in the `native` addon: a fresh runtime per script on its o
 
 ## Configuration
 
-`tools.quick_script = { enabled, settings?: { jira?, confluence?, web?, diagram? } }`, off by default. Jira, Confluence and web are each `{ enabled, profileId? }` with their own account (web: Tavily, not wired yet); `diagram` is the Kroki server (default `https://kroki.io/`). The tool works with no integration: utilities are always present. A disabled integration, or one without an account or saved token, is absent for that run, and a call into it fails with an error naming Settings → Tools → quick_script. The tool description is built per conversation from the active integrations (`quickScriptDescription`, applied in `scoped-turn-resources.ts`) and carries the guide pointer.
+`tools.quick_script = { enabled, settings?: { jira?, confluence?, web?, diagram? } }`, off by default. Jira, Confluence and web are each `{ enabled, profileId? }` with their own account (web: Tavily for search; fetch needs none); `diagram` is the Kroki server (default `https://kroki.io/`). The tool works with no integration: utilities are always present. A disabled integration, or one without an account or saved token, is absent for that run, and a call into it fails with an error naming Settings → Tools → quick_script. The tool description is built per conversation from the active integrations (`quickScriptDescription`, applied in `scoped-turn-resources.ts`) and carries the guide pointer.
 
 ## Permissions
 

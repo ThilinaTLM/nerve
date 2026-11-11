@@ -1,10 +1,10 @@
 # Code mode: `quick_script`
 
-> **Status:** Proposal. Atlassian code mode is implemented as the experimental `atlassian_code_mode` tool (off by default; PRs #569, #571, not yet released). This proposal generalises it into `quick_script` an integration and utility runtime, and plans the removal of the 28 direct `jira_*` / `confluence_*` tools. How the implemented tool works: [architecture/code-mode.md](../architecture/code-mode.md).
+> **Status:** Steps 1–4 (`quick_script` runtime, guide, `web`, document libraries) are implemented on `feat/quick-script`, off by default and not yet released. Open: benchmark, operation-level rules and removal of the 28 direct `jira_*` / `confluence_*` tools (step 5). How the implemented tool works: [architecture/code-mode.md](../architecture/code-mode.md).
 
 ## Summary
 
-`quick_script` runs a short agent-written TypeScript script in the embedded QuickJS sandbox. The script gets typed SDK namespaces for integrations (Jira and Confluence today, the web next) and well-known libraries for document work (xlsx, csv, docx, pptx, images, diagrams). One script loops, filters and joins, and only its output reaches the model's context. Every external effect is a host call with the same permission check as a direct tool call.
+`quick_script` runs a short agent-written TypeScript script in the embedded QuickJS sandbox. The script gets typed SDK namespaces for integrations (Jira, Confluence and web) and well-known libraries for document work (xlsx, csv, docx, pptx, images, diagrams). One script loops, filters and joins, and only its output reaches the model's context. Every external effect is a host call with the same permission check as a direct tool call.
 
 ## Why
 
@@ -39,11 +39,11 @@ Each integration is a self-contained namespace module:
 
 A namespace is exposed only when it is enabled and its account is configured ([settings](#settings)); utilities are always present. A call into an unconfigured namespace fails with the existing `*_NOT_CONFIGURED` message.
 
-| Namespace                              | Status                                                                                                            |
-| -------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
-| `atlassian`, `jira`, `confluence`      | Implemented                                                                                                       |
-| `files`, `image`, `diagram`, `storage` | Implemented utilities                                                                                             |
-| `web` (`fetch`, `search`)              | Next: host calls authorized as `web_fetch` / `web_search`; existing web policy applies until operation rules land |
+| Namespace                              | Status                                                                                                                   |
+| -------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| `atlassian`, `jira`, `confluence`      | Implemented                                                                                                              |
+| `files`, `image`, `diagram`, `storage` | Implemented utilities                                                                                                    |
+| `web` (`fetch`, `search`)              | Implemented: host calls authorized as `web_fetch` / `web_search`; existing web policy applies until operation rules land |
 
 ### Namespace design rules
 
@@ -61,15 +61,15 @@ These held up in the Atlassian SDK and apply to every namespace:
 
 Rule: prefer a well-known JavaScript library that runs inside the sandbox over a custom API; agents already know `XLSX.read` and `Papa.parse`. Host functions only where nothing runs in QuickJS or the work needs the network or native code. Libraries load lazily on first mention.
 
-| Need              | Library                                  | Status                              |
-| ----------------- | ---------------------------------------- | ----------------------------------- |
-| Excel, CSV        | SheetJS CE (`XLSX`), Papa Parse (`Papa`) | Implemented                         |
-| Images, diagrams  | native `image(...)` chain, Kroki         | Implemented (host)                  |
-| Word write / read | `docx` / `mammoth`                       | Proposed; verify on QuickJS (JSZip) |
-| PowerPoint write  | `pptxgenjs`                              | Proposed; verify on QuickJS         |
-| PowerPoint read   | none well known; JSZip + slide XML text  | Open                                |
+| Need              | Library                                  | Status             |
+| ----------------- | ---------------------------------------- | ------------------ |
+| Excel, CSV        | SheetJS CE (`XLSX`), Papa Parse (`Papa`) | Implemented        |
+| Images, diagrams  | native `image(...)` chain, Kroki         | Implemented (host) |
+| Word write / read | `docx` / `mammoth`                       | Implemented        |
+| PowerPoint write  | `pptxgenjs`                              | Implemented        |
+| PowerPoint read   | `pptxText(bytes)` helper over JSZip      | Implemented        |
 
-Each new library needs: a QuickJS run test, its bundle size, and a short section in `files.md`.
+Each new library needs a QuickJS run test and a short section in `files.md`.
 
 ## Tool description
 
@@ -127,7 +127,7 @@ quick-script/
 
 - **Static, sectioned SKILL.md** (under about 3 KB, one example): a heading per integration, so an agent skips sections for integrations the description doesn't list.
 - **Signatures live only in the generated `.d.ts` files.** The `.md` files hold workflows and judgement and never repeat signatures.
-- **Destructive methods are marked by the generator** (`/** destructive */` from each method's declared risk), replacing the hand-kept list in SKILL.md.
+- **Destructive methods are marked by the generator** (a leading `Destructive.` doc tag from each method's declared risk; `Destructive unless GET.` on `request`), replacing the hand-kept list in SKILL.md.
 - **Raw recipes are split per integration** so a Jira task never loads Confluence recipes.
 
 ## Permissions: operation-level rules
@@ -154,9 +154,9 @@ A fixed task set against the test Atlassian site, each with a written success ch
 ## Delivery
 
 1. **Rename and decouple (implemented):** `atlassian_code_mode` → `quick_script`, own permission group, the [settings](#settings) above, works without integrations, [description](#tool-description) built from active namespaces. Code moves from `execution/atlassian-code-mode/` to a neutral folder with one subfolder per namespace.
-2. **Guide reorganisation** into `quick-script` as above.
-3. **`web` namespace.**
-4. **Document libraries:** `docx`, `mammoth`, `pptxgenjs` after QuickJS checks.
+2. **Guide reorganisation (implemented)** into `quick-script` as above; destructive methods are tagged `Destructive.` in the generated `.d.ts`.
+3. **`web` namespace (implemented).**
+4. **Document libraries (implemented):** `docx`, `mammoth`, `PptxGenJS`, `pptxText`, `JSZip`.
 5. **Benchmark**, then **operation-level rules**, then **direct-tool removal** with migration.
 
 Steps 1–4 ship together in one PR; step 5 follows separately.

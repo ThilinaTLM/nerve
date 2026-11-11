@@ -89,6 +89,6 @@ declare const confluence: {
     /** Footer comment; Markdown unless format is "storage". */
     add(options: { id: string; body: string; format?: "markdown" | "storage" }): Promise<{ id: string; pageId: string }>;
   };
-  /** Path under /wiki/api/v2/ or /wiki/rest/api/. Returns JSON or text, a FileHandle for binary; non-GET is a destructive write (page bodies: use pages.create/update). */
+  /** Destructive unless GET. Path under /wiki/api/v2/ or /wiki/rest/api/. Returns JSON or text, a FileHandle for binary (page bodies: use pages.create/update). */
   request(method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE", path: string, body?: unknown, query?: Record<string, string | number | boolean | string[]>): Promise<unknown>;
 };

@@ -105,7 +105,7 @@ declare const jira: {
     link(options: { key: string; to: string; type: string }): Promise<{ key: string; to: string; type: string }>;
     /** Moves up to 50 issues into a sprint (id from projects.get include "sprints") or back to the backlog. */
     move(options: { keys: string[]; sprint: number | "backlog" }): Promise<{ moved: number }>;
-    /** Permanently deletes the issue; `subtasks: true` also deletes its subtasks (required if it has any). */
+    /** Destructive. Permanently deletes the issue; `subtasks: true` also deletes its subtasks (required if it has any). */
     delete(options: string | { key: string; subtasks?: boolean }): Promise<{ key: string }>;
   };
   projects: {
@@ -128,6 +128,7 @@ declare const jira: {
     add(options: { key: string; body: string }): Promise<{ id: string; url: string }>;
     /** Replaces the comment text (Markdown). */
     update(options: { key: string; id: string; body: string }): Promise<{ id: string }>;
+    /** Destructive. */
     delete(options: { key: string; id: string }): Promise<{ id: string }>;
   };
   worklogs: {
@@ -146,6 +147,6 @@ declare const jira: {
     /** For raw jira.request responses (ADF documents); never for Confluence pages. */
     toMarkdown(doc: object): string;
   };
-  /** Path under /rest/api/3/ or /rest/agile/1.0/. Returns JSON or text, or a FileHandle for binary responses; non-GET is a destructive write. `query` values may be arrays (repeated). */
+  /** Destructive unless GET. Path under /rest/api/3/ or /rest/agile/1.0/. Returns JSON or text, or a FileHandle for binary responses. `query` values may be arrays (repeated). */
   request(method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE", path: string, body?: unknown, query?: Record<string, string | number | boolean | (string | number)[]>): Promise<unknown>;
 };

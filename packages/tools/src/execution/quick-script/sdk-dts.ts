@@ -11,7 +11,8 @@ import type { SdkMethod, SdkProduct } from "./sdk-types.js";
 /**
  * Generates the guide's `references/*.d.ts` from the method tables: each
  * method's `signature` is a TypeScript method declaration, optionally preceded
- * by a one-line JSDoc comment. Overloads are joined with `; ` in one signature.
+ * by a one-line JSDoc comment. Methods with declared risk `destructive` get a
+ * leading `Destructive.` (`Destructive unless GET.` for `request`). Overloads are joined with `; ` in one signature.
  */
 
 const header = (file: string) =>
@@ -29,8 +30,16 @@ function member(method: SdkMethod, indent: string): string[] {
       `${method.product}.${method.path}: signature must declare ${name}(...)`,
     );
   }
+  // `request` is destructive only for non-GET; every other destructive method always is.
+  const tag =
+    method.risk !== "destructive"
+      ? ""
+      : name === "request"
+        ? "Destructive unless GET."
+        : "Destructive.";
+  const text = [tag, doc].filter(Boolean).join(" ");
   return [
-    ...(doc ? [`${indent}/** ${doc} */`] : []),
+    ...(text ? [`${indent}/** ${text} */`] : []),
     ...declaration
       .split(new RegExp(`;\\s*(?=${name}\\()`))
       .map((overload) => `${indent}${overload.replace(/;$/, "")};`),

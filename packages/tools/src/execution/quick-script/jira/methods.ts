@@ -284,7 +284,7 @@ const readMethods: SdkMethod[] = [
     risk: "destructive",
     maxArgs: 4,
     signature:
-      '/** Path under /rest/api/3/ or /rest/agile/1.0/. Returns JSON or text, or a FileHandle for binary responses; non-GET is a destructive write. `query` values may be arrays (repeated). */ request(method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE", path: string, body?: unknown, query?: Record<string, string | number | boolean | (string | number)[]>): Promise<unknown>',
+      '/** Path under /rest/api/3/ or /rest/agile/1.0/. Returns JSON or text, or a FileHandle for binary responses. `query` values may be arrays (repeated). */ request(method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE", path: string, body?: unknown, query?: Record<string, string | number | boolean | (string | number)[]>): Promise<unknown>',
     parse: ([method, path, body, query]) => ({
       method: rawMethod(method),
       path,
