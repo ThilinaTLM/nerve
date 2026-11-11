@@ -9,7 +9,7 @@ const INTEGRATIONS = [
   { id: "jira", text: "jira (bounded JQL, e.g. `project = X`)" },
   {
     id: "confluence",
-    text: "confluence (page bodies are storage XHTML; `storage` builds it)",
+    text: "confluence (bodies are Markdown or `storage.*` builders)",
   },
   { id: "web", text: "web (fetch)" },
 ] as const;

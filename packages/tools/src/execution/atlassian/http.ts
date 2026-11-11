@@ -31,12 +31,19 @@ export function atlassianJsonRequestInit(
     Accept: "application/json",
     Authorization: authorization,
   };
+  const method = (options.method ?? "GET").toUpperCase();
   const init: RequestInit = {
-    method: options.method ?? "GET",
+    method,
     headers,
     signal: withTimeoutSignal(options.signal, 60_000),
   };
-  if (options.body !== undefined) {
+  // A positional `undefined` crosses the sandbox bridge as null; GET/HEAD never carry a body.
+  if (
+    options.body !== undefined &&
+    options.body !== null &&
+    method !== "GET" &&
+    method !== "HEAD"
+  ) {
     headers["Content-Type"] = "application/json";
     init.body = JSON.stringify(options.body);
   }

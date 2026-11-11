@@ -63,6 +63,16 @@ interface IssueTransition {
   requiredFields: string[];
 }
 
+interface Sprint {
+  id: number;
+  name: string;
+  state: string | null;
+  startDate: string | null;
+  endDate: string | null;
+  goal: string | null;
+  boardId: number;
+}
+
 interface JiraProject {
   key: string;
   name: string | null;
@@ -81,7 +91,7 @@ interface JiraProject {
   /** include "releases": unarchived fix versions, unreleased first. */
   releases?: { name: string; released: boolean; releaseDate: string | null; startDate: string | null }[];
   boards?: { id: number; name: string; type: string | null }[];
-  sprints?: { id: number; name: string; state: string | null; startDate: string | null; endDate: string | null; goal: string | null; boardId: number }[];
+  sprints?: Sprint[];
   epics?: { key: string; summary: string | null; status: string | null }[];
 }
 
@@ -121,7 +131,7 @@ interface Page {
   version: number | null;
   parentId: string | null;
   labels: string[];
-  /** Markdown, or storage XHTML with body: "storage"; absent with body: false. */
+  /** Markdown (read-only view), or storage XHTML with body: "storage" (trusted RichText: splice it into an array); absent with body: false. */
   body?: string;
   /** First 100 direct children; only with children: true. */
   children?: { id: string; title: string | null }[];
@@ -140,13 +150,28 @@ interface PageWrite {
   attachments?: AttachmentInfo[];
 }
 
+/** Markdown string (HTML in it is escaped) | storage.* output (trusted markup) | array of those, joined. A string that is really storage XHTML is rejected; use storage.raw or an array. */
+type RichText = string | RichText[];
+
 type AttachmentInput = FileHandle | { file: FileHandle; filename?: string; comment?: string };
+
+interface ConfluenceComment {
+  id: string;
+  author: string | null;
+  created: string | null;
+  body: string;
+  parentId: string | null;
+  inline?: { selection: string; resolved: boolean };
+}
 
 interface AttachmentInfo {
   id: string;
   filename: string;
   mediaType: string;
   size: number;
+  /** Attachment version (list); a re-upload of the same filename adds one. */
+  version?: number;
+  comment?: string;
   /** Pixel size of images. */
   width?: number;
   height?: number;

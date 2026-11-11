@@ -1,7 +1,9 @@
 import { ToolExecutionError } from "../errors/tool-error.js";
 
-/** Largest raw response body returned to a script. */
+/** Largest textual raw response body returned to a script. */
 export const RAW_RESPONSE_MAX_BYTES = 5 * 1024 * 1024;
+/** Largest binary raw response saved as an artifact; matches the direct attachment tools. */
+export const RAW_BINARY_MAX_BYTES = 25 * 1024 * 1024;
 
 const RAW_METHODS = ["GET", "POST", "PUT", "PATCH", "DELETE"] as const;
 
@@ -77,12 +79,19 @@ export async function readRawBody(
   onBinary?: (bytes: Buffer, contentType: string) => Promise<unknown>,
 ): Promise<unknown> {
   const declared = Number(response.headers.get("content-length") ?? 0);
+  const contentType = response.headers.get("content-type") ?? "";
+  const binary = Boolean(
+    onBinary && contentType && !TEXTUAL_CONTENT_TYPE.test(contentType),
+  );
+  const limit = binary ? RAW_BINARY_MAX_BYTES : RAW_RESPONSE_MAX_BYTES;
   const tooLarge = () =>
     new ToolExecutionError(
       "RESPONSE_TOO_LARGE",
-      `Response is larger than ${RAW_RESPONSE_MAX_BYTES} bytes; narrow the request (fields, limit, paging).`,
+      binary
+        ? "Binary response is larger than 25 MB; use jira_download_attachment / confluence_manage_attachment (direct tools) for big attachments."
+        : "Response is larger than 5 MB; narrow the request (fields, limit, paging).",
     );
-  if (declared > RAW_RESPONSE_MAX_BYTES) {
+  if (declared > limit) {
     await response.body?.cancel();
     throw tooLarge();
   }
@@ -94,15 +103,14 @@ export async function readRawBody(
       const { done, value } = await reader.read();
       if (done) break;
       bytes += value.byteLength;
-      if (bytes > RAW_RESPONSE_MAX_BYTES) {
+      if (bytes > limit) {
         await reader.cancel();
         throw tooLarge();
       }
       chunks.push(value);
     }
   }
-  const contentType = response.headers.get("content-type") ?? "";
-  if (onBinary && contentType && !TEXTUAL_CONTENT_TYPE.test(contentType)) {
+  if (binary && onBinary) {
     return await onBinary(Buffer.concat(chunks), contentType);
   }
   const text = Buffer.concat(chunks).toString("utf8");

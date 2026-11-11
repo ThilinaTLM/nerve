@@ -1,3 +1,4 @@
+import { dirname, join } from "node:path";
 import { sandbox } from "@nervekit/native";
 import type { QuickScriptHostCall } from "@nervekit/contracts/tools";
 import type { ToolExecutionResult } from "../execution-context.js";
@@ -8,7 +9,7 @@ import type {
   SdkEnvironment,
 } from "./sdk-types.js";
 import { ToolExecutionError } from "../errors/tool-error.js";
-import { hostErrorCode } from "./errors.js";
+import { type DisplayPaths, errnoMessage, hostErrorCode } from "./errors.js";
 import { processFooter } from "../../result-projection/process-footer.js";
 import { withImageSizes } from "./files/artifacts.js";
 import { assertDeclaredRisk } from "./script-risk.js";
@@ -21,6 +22,9 @@ import {
 } from "./sdk.js";
 
 const DEFAULT_TIMEOUT_SECONDS = 120;
+/** How long calls aborted at the end of a run get to settle before the result is built. */
+const SETTLE_GRACE_MS = 3000;
+const MEMORY_LIMIT_BYTES = 256 * 1024 * 1024;
 const MAX_TIMEOUT_SECONDS = 600;
 export const MAX_CODE_CHARS = 100_000;
 
@@ -64,7 +68,17 @@ export async function executeQuickScript(
   if (context.signal?.aborted) stop.abort();
   const env = createSdkEnvironment({ ...context, signal: stop.signal });
   const hostCalls: QuickScriptHostCall[] = [];
+  const paths: DisplayPaths = {
+    cwd: context.cwd,
+    artifactDir: context.conversationDir
+      ? join(context.conversationDir, "quick-script")
+      : undefined,
+  };
   let authFailure: string | undefined;
+  // Calls still running when the script ends are aborted and settled before the
+  // result is built, so nothing mutates the report afterwards.
+  const pending = new Set<Promise<void>>();
+  let sealed = false;
 
   const outcome = await sandbox
     .runSandboxScript({
@@ -73,100 +87,151 @@ export async function executeQuickScript(
       preludes: preludesFor(code),
       timeoutMs: clampTimeoutSeconds(args.timeout) * 1000,
       signal: stop.signal,
-      onHostCall: async (method, rawArgs) => {
-        const started = performance.now();
-        const record = (
-          fields: Pick<QuickScriptHostCall, "outcome"> &
-            Partial<QuickScriptHostCall>,
-        ) =>
-          hostCalls.push({
-            method,
-            ...fields,
-            durationMs: Math.round(performance.now() - started),
-          });
-        if (authFailure) {
-          record({ outcome: "failed", error: authFailure });
-          throw new Error(`[UNAUTHORIZED] ${authFailure}`);
-        }
-        const sdkMethod = findSdkMethod(method);
-        if (!sdkMethod) {
-          const message = `Unknown method '${method}'. Valid methods: ${sdkMethodNames().join(", ")}.`;
-          record({ outcome: "failed", error: message });
-          throw new Error(`[BAD_REQUEST] ${message}`);
-        }
-        const callArgs = Array.isArray(rawArgs) ? rawArgs : [];
-        let prepared;
-        try {
-          prepared = sdkMethod.prepare(callArgs, env);
-        } catch (error) {
-          record({ outcome: "failed", error: cleanMessage(error) });
-          throw hostFailure(error);
-        }
-        const checks = [
-          ...(prepared.authorization ? [prepared.authorization] : []),
-          ...(prepared.additionalAuthorizations ?? []),
-        ];
-        try {
-          assertDeclaredRisk(method, sdkMethod.risk, checks);
-        } catch (error) {
-          record({ outcome: "failed", error: cleanMessage(error) });
-          throw hostFailure(error);
-        }
-        const base = {
-          authorizedAs: checks[0]?.toolName,
-          summary: truncate(
-            prepared.authorization?.summary ?? prepared.resource,
-            200,
-          ),
-        };
-        try {
-          if (checks.length > 0 && !context.authorizeNested) {
-            throw new Error(
-              "Nested authorization is unavailable; refusing to run SDK calls.",
-            );
-          }
-          for (const request of checks) {
-            await context.authorizeNested!({
-              toolName: request.toolName,
-              args: request.args,
-              ...(request.approvalRequired ? { approvalRequired: true } : {}),
-            });
-          }
-        } catch (error) {
-          record({ ...base, outcome: "denied", error: cleanMessage(error) });
-          throw hostFailure(error);
-        }
-        try {
-          const value = await prepared.run(env);
-          record({ ...base, outcome: "completed" });
-          return value;
-        } catch (error) {
-          const unauthorized = await unauthorizedMessage(error, env);
-          if (unauthorized) {
-            authFailure ??= unauthorized;
-            record({ ...base, outcome: "failed", error: unauthorized });
-            stop.abort();
-            throw new Error(`[UNAUTHORIZED] ${unauthorized}`, { cause: error });
-          }
-          record({
-            ...base,
-            outcome: "failed",
-            error: failureMessage(error, prepared.resource),
-          });
-          throw hostFailure(error, prepared.resource);
-        }
+      onHostCall: (method, rawArgs) => {
+        const call = hostCall(method, rawArgs);
+        const settled: Promise<void> = call
+          .then(
+            () => undefined,
+            () => undefined,
+          )
+          .finally(() => pending.delete(settled));
+        pending.add(settled);
+        return call;
       },
     })
     .finally(() => context.signal?.removeEventListener("abort", abortStop));
 
-  const status = authFailure ? "failed" : outcome.status;
+  async function hostCall(method: string, rawArgs: unknown): Promise<unknown> {
+    const started = performance.now();
+    if (sealed) throw new Error("[BAD_REQUEST] the script has finished");
+    const record = (
+      fields: Pick<QuickScriptHostCall, "outcome"> &
+        Partial<QuickScriptHostCall>,
+    ) => {
+      if (!sealed)
+        hostCalls.push({
+          method,
+          ...fields,
+          durationMs: Math.round(performance.now() - started),
+        });
+    };
+    if (authFailure) {
+      record({ outcome: "failed", error: authFailure });
+      throw new Error(`[UNAUTHORIZED] ${authFailure}`);
+    }
+    const sdkMethod = findSdkMethod(method);
+    if (!sdkMethod) {
+      const message = `Unknown method '${method}'. Valid methods: ${sdkMethodNames().join(", ")}.`;
+      record({ outcome: "failed", error: message });
+      throw new Error(`[BAD_REQUEST] ${message}`);
+    }
+    const callArgs = Array.isArray(rawArgs) ? rawArgs : [];
+    let prepared;
+    try {
+      prepared = sdkMethod.prepare(callArgs, env);
+    } catch (error) {
+      record({ outcome: "failed", error: cleanMessage(error, paths) });
+      throw hostFailure(error, undefined, paths);
+    }
+    const checks = [
+      ...(prepared.authorization ? [prepared.authorization] : []),
+      ...(prepared.additionalAuthorizations ?? []),
+    ];
+    try {
+      assertDeclaredRisk(method, sdkMethod.risk, checks);
+    } catch (error) {
+      record({ outcome: "failed", error: cleanMessage(error, paths) });
+      throw hostFailure(error, undefined, paths);
+    }
+    const base = {
+      authorizedAs: checks[0]?.toolName,
+      summary: truncate(
+        prepared.authorization?.summary ?? prepared.resource,
+        200,
+      ),
+    };
+    try {
+      if (checks.length > 0 && !context.authorizeNested) {
+        throw new Error(
+          "Nested authorization is unavailable; refusing to run SDK calls.",
+        );
+      }
+      for (const request of checks) {
+        await context.authorizeNested!({
+          toolName: request.toolName,
+          args: request.args,
+          ...(request.approvalRequired ? { approvalRequired: true } : {}),
+        });
+      }
+    } catch (error) {
+      record({ ...base, outcome: "denied", error: cleanMessage(error, paths) });
+      throw hostFailure(error, undefined, paths);
+    }
+    try {
+      const value = await prepared.run(env);
+      // A raw non-GET request cannot be analysed; the footer names what was sent.
+      if (prepared.authorization?.approvalRequired && !sealed)
+        env.report.raw.push(prepared.authorization.summary);
+      record({ ...base, outcome: "completed" });
+      return value;
+    } catch (error) {
+      const unauthorized = await unauthorizedMessage(error, env);
+      if (unauthorized) {
+        authFailure ??= unauthorized;
+        record({ ...base, outcome: "failed", error: unauthorized });
+        stop.abort();
+        throw new Error(`[UNAUTHORIZED] ${unauthorized}`, { cause: error });
+      }
+      record({
+        ...base,
+        outcome: "failed",
+        error: failureMessage(error, prepared.resource, paths),
+      });
+      throw hostFailure(error, prepared.resource, paths);
+    }
+  }
+
+  // Stop whatever the script left running, and let it settle (bounded) before reading the report.
+  stop.abort();
+  let graceTimer: NodeJS.Timeout | undefined;
+  await Promise.race([
+    Promise.allSettled([...pending]),
+    new Promise((resolve) => {
+      graceTimer = setTimeout(resolve, SETTLE_GRACE_MS);
+    }),
+  ]);
+  clearTimeout(graceTimer);
+  sealed = true;
+
+  // QuickJS reports some out-of-memory failures as a bare `null` exception (the engine could not even allocate an Error).
+  const memoryExceeded =
+    outcome.status === "failed" &&
+    /^(?:null)?$/.test(outcome.error?.trim() ?? "");
+  const status = authFailure
+    ? "failed"
+    : memoryExceeded
+      ? "memory_limit"
+      : outcome.status;
   const error =
     authFailure ??
-    (outcome.error ? scriptError(outcome.error, code) : undefined);
+    (memoryExceeded
+      ? `script exceeded the ${MEMORY_LIMIT_BYTES / (1024 * 1024)} MiB memory limit`
+      : outcome.error
+        ? scriptError(outcome.error, code)
+        : undefined);
   const exitCode = EXIT_CODES[status] ?? 1;
+  // Copies: a call that ignored the abort must not change a result already built.
+  const report = reconcileReport({
+    created: env.report.created,
+    updated: env.report.updated,
+    deleted: env.report.deleted,
+    raw: env.report.raw,
+  });
+  const pages = env.report.pages.map((page) => ({ ...page }));
   const artifacts = await withImageSizes([...env.report.artifacts.values()]);
+  const calls = hostCalls.map((call) => ({ ...call }));
   const footer = quickScriptFooter({
-    hostCalls,
+    hostCalls: calls,
     status,
     exitCode,
     durationMs: outcome.durationMs,
@@ -175,7 +240,7 @@ export async function executeQuickScript(
     outcome.output.trimEnd(),
     outcome.outputTruncated ? "[output truncated]" : undefined,
     error,
-    ...reportLines(env.report.pages, artifacts, env.report.created),
+    ...reportLines(pages, artifacts, report),
     footer,
   ]
     .filter((part): part is string => Boolean(part))
@@ -190,9 +255,12 @@ export async function executeQuickScript(
       durationMs: Math.round(outcome.durationMs),
       memoryUsedBytes: outcome.memoryUsedBytes,
       outputTruncated: outcome.outputTruncated,
-      hostCalls,
-      pages: env.report.pages,
-      created: env.report.created,
+      hostCalls: calls,
+      pages,
+      created: report.created,
+      ...(report.updated.length > 0 ? { updated: report.updated } : {}),
+      ...(report.deleted.length > 0 ? { deleted: report.deleted } : {}),
+      ...(report.raw.length > 0 ? { raw: report.raw } : {}),
       artifacts,
       // Content already carries the footer; the script_output projection must not add another.
       processStatusIncluded: true,
@@ -200,11 +268,36 @@ export async function executeQuickScript(
   };
 }
 
-/** Lint report for every page written and the artifacts created, appended after the script's output. */
+/** What the run changed, as listed in the footer. */
+export type ChangeReport = {
+  created: string[];
+  updated: string[];
+  deleted: string[];
+  /** Raw non-GET requests: `POST /rest/api/3/issue`. */
+  raw: string[];
+};
+
+/** An entity created and deleted in one run is shown as deleted (marked), not as created; one created and updated is just created. */
+export function reconcileReport(report: ChangeReport): ChangeReport {
+  const created = new Set(report.created);
+  const deleted = new Set(report.deleted);
+  return {
+    created: report.created.filter((item) => !deleted.has(item)),
+    updated: report.updated.filter(
+      (item) => !created.has(item) && !deleted.has(item),
+    ),
+    deleted: [...deleted].map((item) =>
+      created.has(item) ? `${item} (created in this run)` : item,
+    ),
+    raw: [...report.raw],
+  };
+}
+
+/** Lint report for every page written, the artifacts, and what was created/updated/deleted, appended after the script's output. */
 export function reportLines(
   pages: readonly PageReport[],
   artifacts: readonly ArtifactReport[],
-  created: readonly string[],
+  changes: ChangeReport,
 ): string[] {
   const lines = pages.map((page) => {
     const parts = [
@@ -219,14 +312,22 @@ export function reportLines(
     return parts.join(" · ");
   });
   if (artifacts.length > 0) {
+    // One folder: print it once so Read/Edit can open any artifact as <folder>/<name>.
+    const folder = dirname(artifacts[0].path);
     lines.push(
-      `Artifacts: ${artifacts.map((file) => `${file.handle} (${formatBytes(file.bytes)})`).join(", ")}`,
+      `Artifacts: ${artifacts.map((file) => `${file.handle} (${formatBytes(file.bytes)})`).join(", ")} in ${folder}`,
     );
   }
-  if (created.length > 0) {
-    const shown = created.slice(0, MAX_CREATED_LISTED).join(", ");
-    const more = created.length - MAX_CREATED_LISTED;
-    lines.push(`Created: ${shown}${more > 0 ? `, +${more} more` : ""}`);
+  for (const [label, items] of [
+    ["Created", changes.created],
+    ["Updated", changes.updated],
+    ["Deleted", changes.deleted],
+    ["Raw", changes.raw],
+  ] as const) {
+    if (items.length === 0) continue;
+    const shown = items.slice(0, MAX_CREATED_LISTED).join(", ");
+    const more = items.length - MAX_CREATED_LISTED;
+    lines.push(`${label}: ${shown}${more > 0 ? `, +${more} more` : ""}`);
   }
   return lines;
 }
@@ -311,21 +412,31 @@ function messageOf(error: unknown): string {
 /** Jira/Confluence errors end with a pointer to a skill guide; quick_script has no such guide. */
 const GUIDE_POINTER = /\s+See \S*SKILL\.md\.?\s*$/;
 
-function cleanMessage(error: unknown): string {
-  return messageOf(error).replace(GUIDE_POINTER, "");
+function cleanMessage(error: unknown, paths?: DisplayPaths): string {
+  return (
+    errnoMessage(error, paths) ?? messageOf(error).replace(GUIDE_POINTER, "")
+  );
 }
 
 /** A 403 names the resource ("no access to project APP"); other messages pass through. */
-function failureMessage(error: unknown, resource?: string): string {
+function failureMessage(
+  error: unknown,
+  resource?: string,
+  paths?: DisplayPaths,
+): string {
   return hostErrorCode(error) === "FORBIDDEN" && resource
     ? `no access to ${resource}`
-    : cleanMessage(error);
+    : cleanMessage(error, paths);
 }
 
 /** Script-side errors carry their code as a "[CODE] " prefix that the prelude turns into `error.code`. */
-function hostFailure(error: unknown, resource?: string): Error {
+function hostFailure(
+  error: unknown,
+  resource?: string,
+  paths?: DisplayPaths,
+): Error {
   return new Error(
-    `[${hostErrorCode(error)}] ${failureMessage(error, resource)}`,
+    `[${hostErrorCode(error)}] ${failureMessage(error, resource, paths)}`,
   );
 }
 

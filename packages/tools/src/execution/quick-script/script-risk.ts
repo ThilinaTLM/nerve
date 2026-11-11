@@ -126,6 +126,7 @@ const ARGUMENT_DEPENDENT = new Set([
   "jira.request",
   "confluence.request",
   "files.write",
+  "files.edit",
 ]);
 
 const SDK_GLOBALS = new Set([
@@ -144,8 +145,57 @@ const ESCAPES = new Set([
   "globalThis",
   "self",
   "constructor",
+  "__proto__",
 ]);
+/** Escapes that are harmless as properties (`url.host`); the sandbox's `host.call(...)` is only an escape when called. */
+const GLOBAL_ONLY_ESCAPES = new Set(["host"]);
 const TARGET_KEYS = new Set(["id", "key", "space", "project"]);
+/** Identifier characters, including `\\uXXXX` / `\\u{X}` escapes, which name the same identifier as the plain letters. */
+const IDENTIFIER =
+  /(?:[\p{ID_Continue}$\u200c\u200d]|\\u[0-9a-fA-F]{4}|\\u\{[0-9a-fA-F]+\})+/uy;
+const IDENTIFIER_START = /[\p{ID_Start}$_]/u;
+const SIMPLE_ESCAPES: Record<string, string> = {
+  n: "\n",
+  t: "\t",
+  r: "\r",
+  b: "\b",
+  f: "\f",
+  v: "\v",
+  "0": "\0",
+};
+
+/** Decodes the escape at `source[at]` (a backslash): its text and the index after it. */
+function readEscape(source: string, at: number): [string, number] {
+  const next = source[at + 1] ?? "";
+  const code = (digits: string, end: number): [string, number] | undefined =>
+    /^[0-9a-fA-F]+$/.test(digits)
+      ? [String.fromCodePoint(Math.min(parseInt(digits, 16), 0x10ffff)), end]
+      : undefined;
+  if (next === "u" && source[at + 2] === "{") {
+    const close = source.indexOf("}", at + 3);
+    const decoded =
+      close === -1 ? undefined : code(source.slice(at + 3, close), close + 1);
+    if (decoded) return decoded;
+  } else if (next === "u") {
+    const decoded = code(source.slice(at + 2, at + 6), at + 6);
+    if (decoded) return decoded;
+  } else if (next === "x") {
+    const decoded = code(source.slice(at + 2, at + 4), at + 4);
+    if (decoded) return decoded;
+  }
+  if (next === "\r" && source[at + 2] === "\n") return ["", at + 3];
+  if (next === "\n" || next === "\r") return ["", at + 2];
+  return [SIMPLE_ESCAPES[next] ?? next, at + 2];
+}
+
+const decodeEscapes = (text: string): string =>
+  text.includes("\\")
+    ? text.replace(
+        /\\(?:u\{[0-9a-fA-F]+\}|u[0-9a-fA-F]{4})/g,
+        (escape) => readEscape(escape, 0)[0],
+      )
+    : text;
+
 /** Keywords after which `/` starts a regular expression. */
 const REGEX_AFTER = new Set(["return", "typeof", "case", "in", "of", "yield"]);
 
@@ -180,8 +230,9 @@ function tokenize(
     while (i < source.length) {
       const char = source[i];
       if (char === "\\") {
-        text += source[i + 1] ?? "";
-        i += 2;
+        const [decoded, end] = readEscape(source, i);
+        text += decoded;
+        i = end;
       } else if (char === "`") {
         i += 1;
         push(open ? "tmpl" : "str", text);
@@ -213,19 +264,33 @@ function tokenize(
       let text = "";
       i += 1;
       while (i < source.length && source[i] !== char && source[i] !== "\n") {
-        if (source[i] === "\\") i += 1;
-        text += source[i] ?? "";
-        i += 1;
+        if (source[i] === "\\") {
+          const [decoded, end] = readEscape(source, i);
+          text += decoded;
+          i = end;
+        } else {
+          text += source[i];
+          i += 1;
+        }
       }
       i += 1;
       push("str", text);
     } else if (char === "`") {
       i += 1;
       templateText(false);
-    } else if (/[A-Za-z_$]/.test(char)) {
-      const start = i;
-      while (i < source.length && /[\w$]/.test(source[i])) i += 1;
-      push("id", source.slice(start, i));
+    } else if (
+      IDENTIFIER_START.test(String.fromCodePoint(source.codePointAt(i)!)) ||
+      (char === "\\" && next === "u")
+    ) {
+      IDENTIFIER.lastIndex = i;
+      const match = IDENTIFIER.exec(source);
+      if (match) {
+        i += match[0].length;
+        push("id", decodeEscapes(match[0]));
+      } else {
+        i += 1;
+        push("punct", char);
+      }
     } else if (/\d/.test(char)) {
       const start = i;
       while (i < source.length && /[\w.]/.test(source[i])) i += 1;
@@ -341,17 +406,58 @@ function callTargets(args: Token[][]): string[] {
   return targets;
 }
 
-/** `files.write` writes outside the artifact folder only with `workspace: true`. */
+/** Top-level properties of an object literal: key text (undefined when computed, spread or otherwise not a plain key) and the value tokens. */
+function objectProperties(
+  options: Token[],
+): Array<{ key?: string; value: Token[] }> | undefined {
+  if (options[0]?.text !== "{" || options[options.length - 1]?.text !== "}")
+    return undefined;
+  const parts: Token[][] = [[]];
+  let depth = 0;
+  for (const token of options.slice(1, -1)) {
+    if (token.kind === "punct") {
+      if (["(", "[", "{", "${"].includes(token.text)) depth += 1;
+      else if ([")", "]", "}"].includes(token.text)) depth -= 1;
+      else if (token.text === "," && depth === 0) {
+        parts.push([]);
+        continue;
+      }
+    }
+    parts[parts.length - 1].push(token);
+  }
+  return parts
+    .filter((part) => part.length > 0)
+    .map((part) => {
+      const [key, colon] = part;
+      if ((key.kind === "id" || key.kind === "str") && colon?.text === ":")
+        return { key: key.text, value: part.slice(2) };
+      // Shorthand `{ workspace }`.
+      if (key.kind === "id" && part.length === 1)
+        return { key: key.text, value: part };
+      return { value: part };
+    });
+}
+
+/** `files.write` writes outside the artifact folder only with `workspace: true`; anything that might set it counts. */
 function writesWorkspace(args: Token[][]): boolean {
   const options = args[2];
   if (!options) return false;
-  if (options[0]?.text !== "{" || options.some((t) => t.text === "..."))
-    return true;
-  const at = options.findIndex(
-    (token) => token.kind === "id" && token.text === "workspace",
+  const properties = objectProperties(options);
+  if (!properties) return true;
+  // A computed key, spread or method could name `workspace`.
+  if (properties.some((property) => property.key === undefined)) return true;
+  const workspace = properties.filter(
+    (property) => property.key === "workspace",
   );
-  if (at === -1) return false;
-  return !(options[at + 1]?.text === ":" && options[at + 2]?.text === "false");
+  return workspace.some(
+    (property) =>
+      !(property.value.length === 1 && property.value[0].text === "false"),
+  );
+}
+
+/** `files.edit` changes the workspace unless its handle is a literal `artifact:` one. */
+function editsWorkspace(args: Token[][]): boolean {
+  return !literal(args[0])?.startsWith("artifact:");
 }
 
 type Found = { risk: QuickScriptRisk; targets: string[] };
@@ -389,13 +495,36 @@ function classifyTokens(tokens: Token[]): QuickScriptClassification {
 
   for (let i = 0; i < tokens.length; i += 1) {
     const token = tokens[i];
-    if (token.kind !== "id") continue;
-    if (tokens[i - 1]?.text === "." && tokens[i - 1]?.kind === "punct")
+    if (
+      token.kind === "str" &&
+      tokens[i - 1]?.text === "[" &&
+      tokens[i + 1]?.text === "]" &&
+      ESCAPES.has(token.text)
+    ) {
+      record(`["${token.text}"] (not analysable)`, "destructive");
       continue;
-    if (ESCAPES.has(token.text)) {
+    }
+    if (token.kind !== "id") continue;
+    // Escapes count wherever they appear, including as properties (`[].constructor.constructor`).
+    const isProperty =
+      tokens[i - 1]?.text === "." && tokens[i - 1]?.kind === "punct";
+    if (
+      ESCAPES.has(token.text) ||
+      (!isProperty &&
+        GLOBAL_ONLY_ESCAPES.has(token.text) &&
+        (tokens[i + 1]?.text === "[" ||
+          (tokens[i + 1]?.text === "." && tokens[i + 2]?.text === "call")))
+    ) {
       record(`${token.text} (not analysable)`, "destructive");
       continue;
     }
+    if (tokens[i - 1]?.text === "." && tokens[i - 1]?.kind === "punct") {
+      // `this.jira` reaches the global when `this` is the global object.
+      if (SDK_GLOBALS.has(token.text) && tokens[i - 2]?.text === "this")
+        record(`this.${token.text} (not analysable)`, "destructive");
+      continue;
+    }
+    // Bracket access by name: `x["constructor"]`.
     if (!SDK_GLOBALS.has(token.text)) continue;
     // `{ files: 1 }` names a property, not the global.
     if (
@@ -412,6 +541,11 @@ function classifyTokens(tokens: Token[]): QuickScriptClassification {
     }
     if (tokens[j]?.text === "." && tokens[j + 1]?.text === "(") j += 1;
     const name = [token.text, ...path].join(".");
+    // `image(handle)` returns a chain whose every operation is a host `image.*` call (read-only).
+    if (name === "image" && tokens[j]?.text === "(") {
+      record("image", "read", callTargets(callArguments(tokens, j)));
+      continue;
+    }
     const method = findSdkMethod(name);
     if (path.length === 0 || tokens[j]?.text !== "(" || !method) {
       record(`${name} (not a direct call)`, "destructive");
@@ -422,6 +556,9 @@ function classifyTokens(tokens: Token[]): QuickScriptClassification {
     if (ARGUMENT_DEPENDENT.has(name)) {
       if (name === "files.write") {
         if (writesWorkspace(args))
+          record(`${name} (workspace)`, "workspace_write", targets);
+      } else if (name === "files.edit") {
+        if (editsWorkspace(args))
           record(`${name} (workspace)`, "workspace_write", targets);
       } else {
         const verb = literal(args[0])?.toUpperCase();

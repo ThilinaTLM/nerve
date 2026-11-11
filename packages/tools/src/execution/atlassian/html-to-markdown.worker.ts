@@ -25,6 +25,29 @@ const PANEL_LABELS: Record<string, string> = {
 };
 const DECORATIVE_MACROS = new Set(["toc", "children", "anchor", "pagetree"]);
 
+/**
+ * Text the Markdown converter must not escape (`[ ]`, `[Status]`, `@{id}`) is
+ * parked here and swapped back after conversion, via private-use markers.
+ */
+let stashed: string[] = [];
+function stash(text: string): string {
+  stashed.push(text);
+  return `\uE000${stashed.length - 1}\uE001`;
+}
+function unstash(markdown: string): string {
+  return markdown.replaceAll(
+    /\uE000(\d+)\uE001/g,
+    (_m, index: string) => stashed[Number(index)] ?? "",
+  );
+}
+
+const attr = (source: string, name: string): string | undefined => {
+  const match = new RegExp(`${name}\\s*=\\s*(?:"([^"]*)"|'([^']*)')`, "i").exec(
+    source,
+  );
+  return match ? (match[1] ?? match[2]) : undefined;
+};
+
 /** Replaces `ac:structured-macro` elements (including nested ones) with plain HTML. */
 function convertMacros(value: string): string {
   let out = "";
@@ -77,7 +100,16 @@ function renderMacro(attrs: string, rawInner: string): string {
     /<ac:parameter\b[^>]*?ac:name\s*=\s*(?:"([^"]*)"|'([^']*)')[^>]*>([\s\S]*?)<\/ac:parameter>/gi,
   )) {
     const key = (match[1] ?? match[2] ?? "").toLowerCase();
-    if (!params.has(key)) params.set(key, textOf(match[3] ?? ""));
+    const inner = match[3] ?? "";
+    const reference = /<ri:(?:attachment|page)\b([^>]*)>/i.exec(inner)?.[1];
+    const value =
+      textOf(inner).trim() ||
+      (reference
+        ? (attr(reference, "ri:filename") ??
+          attr(reference, "ri:content-title") ??
+          "")
+        : "");
+    if (!params.has(key)) params.set(key, value);
   }
   const rich = /<ac:rich-text-body\b[^>]*>([\s\S]*)<\/ac:rich-text-body>/i.exec(
     inner,
@@ -100,12 +132,12 @@ function renderMacro(attrs: string, rawInner: string): string {
   if (macroName === "status") {
     const label =
       title || params.get("colour") || params.get("color") || "status";
-    return `<span>[${escapeHtml(label)}]</span>`;
+    return `<span>${stash(`[${label}]`)}</span>`;
   }
   if (macroName in PANEL_LABELS) {
     const label = PANEL_LABELS[macroName];
     const heading = title ? `${label}: ${title}` : `${label}:`;
-    return `<blockquote><p><strong>${escapeHtml(heading)}</strong></p>${rich ?? ""}</blockquote>`;
+    return panelHtml(heading, rich ?? "");
   }
   if (macroName === "expand") {
     return `<p><strong>${escapeHtml(title || "Details")}</strong></p>${rich ?? ""}`;
@@ -121,7 +153,20 @@ function renderMacro(attrs: string, rawInner: string): string {
   if (rich !== undefined && rich.trim()) return rich;
   if (plainText?.trim())
     return `<pre><code>${escapeHtml(plainText)}</code></pre>`;
-  return `<span>[macro: ${escapeHtml(macroName || "unknown")}]</span>`;
+  const detail = ["diagramname", "name", "title", "filename", "key"]
+    .map((key) => params.get(key)?.trim())
+    .find(Boolean);
+  const placeholder = `[${macroName || "unknown"} macro${detail ? `: ${detail}` : ""}]`;
+  return `<span>${stash(placeholder)}</span>`;
+}
+
+/** `> **Info:** text`: the label joins the first paragraph. */
+function panelHtml(heading: string, body: string): string {
+  const label = `<strong>${escapeHtml(heading)}</strong>`;
+  const merged = /^\s*<p>/i.test(body)
+    ? body.replace(/^\s*<p>/i, `<p>${label} `)
+    : `<p>${label}</p>${body}`;
+  return `<blockquote>${merged}</blockquote>`;
 }
 
 function unwrapCdata(value: string): string {
@@ -154,12 +199,109 @@ function textOf(value: string): string {
   );
 }
 
+const linkLabel = (inner: string): string | undefined =>
+  textOf(
+    /<ac:(?:plain-text-link-body|link-body)\b[^>]*>([\s\S]*?)<\/ac:(?:plain-text-link-body|link-body)>/i.exec(
+      inner,
+    )?.[1] ?? "",
+  ).trim() || undefined;
+
+/** `<ac:link>`: mentions become `@{accountId}` (named later by the host), other links Markdown links. */
+function renderLink(attrs: string, inner: string): string {
+  const user = /<ri:user\b([^>]*)>/i.exec(inner)?.[1];
+  if (user !== undefined) {
+    const who =
+      attr(user, "ri:account-id") ??
+      attr(user, "ri:userkey") ??
+      attr(user, "ri:username") ??
+      "user";
+    return stash(`@{${who}}`);
+  }
+  const label = linkLabel(inner);
+  const anchor = attr(attrs, "ac:anchor");
+  const page = /<ri:page\b([^>]*)>/i.exec(inner)?.[1];
+  if (page !== undefined) {
+    const title = attr(page, "ri:content-title") ?? "";
+    return stash(
+      `[${label ?? title}](page:${title.replaceAll(" ", "%20")}${anchor ? `#${anchor}` : ""})`,
+    );
+  }
+  const file = /<ri:attachment\b([^>]*)>/i.exec(inner)?.[1];
+  if (file !== undefined) {
+    const name = attr(file, "ri:filename") ?? "";
+    return stash(
+      `[${label ?? name}](attachment:${name.replaceAll(" ", "%20")})`,
+    );
+  }
+  if (anchor) return stash(`[${label ?? anchor}](#${anchor})`);
+  return escapeHtml(label ?? "");
+}
+
+/** Cloud-only `<ac:adf-extension>`: decision lists and custom panels; others are named. */
+function renderAdf(inner: string): string {
+  const body = inner.replace(
+    /<ac:adf-fallback\b[\s\S]*<\/ac:adf-fallback>/i,
+    "",
+  );
+  const type = /<ac:adf-node\b[^>]*\btype="([^"]*)"/i.exec(body)?.[1] ?? "";
+  if (type === "decision-list") {
+    const items = [
+      ...body.matchAll(/<ac:adf-content\b[^>]*>([\s\S]*?)<\/ac:adf-content>/gi),
+    ].map((m) => `<li>${stash("Decision: ")}${m[1]}</li>`);
+    return `<ul>${items.join("")}</ul>`;
+  }
+  if (type === "panel") {
+    const content =
+      /<ac:adf-content\b[^>]*>([\s\S]*)<\/ac:adf-content>/i.exec(body)?.[1] ??
+      "";
+    return panelHtml("Panel:", content);
+  }
+  return `<span>${stash(`[${type || "adf"} block]`)}</span>`;
+}
+
 function prepareConfluenceStorage(value: string): string {
+  const renderTask = (task: string): string => {
+    const done = /<ac:task-status>\s*complete\s*<\/ac:task-status>/i.test(task);
+    const text =
+      /<ac:task-body\b[^>]*>([\s\S]*?)<\/ac:task-body>/i.exec(task)?.[1] ?? "";
+    return `<li>${stash(done ? "[x] " : "[ ] ")}${text}</li>`;
+  };
   return convertMacros(value)
     .replaceAll(
-      /<ac:image\b[^>]*>[\s\S]*?<ri:attachment\b[^>]*ri:filename=["']([^"']+)["'][^>]*\/?>(?:[\s\S]*?<\/ri:attachment>)?[\s\S]*?<\/ac:image>/gi,
-      (_match, filename: string) =>
-        `<p>![${escapeAttribute(filename)}](${escapeAttribute(filename)})</p>`,
+      /<ac:adf-extension\b[^>]*>([\s\S]*?)<\/ac:adf-extension>/gi,
+      (_m, inner: string) => renderAdf(inner),
+    )
+    .replaceAll(
+      /<ac:task-list\b[^>]*>([\s\S]*?)<\/ac:task-list>/gi,
+      (_m, inner: string) =>
+        `<ul>${[...inner.matchAll(/<ac:task\b[^>]*>[\s\S]*?<\/ac:task>/gi)].map((t) => renderTask(t[0])).join("")}</ul>`,
+    )
+    .replaceAll(
+      /<ac:link\b([^>]*)>([\s\S]*?)<\/ac:link>/gi,
+      (_m, attrs: string, inner: string) => renderLink(attrs, inner),
+    )
+    .replaceAll(
+      /<time\b[^>]*?datetime\s*=\s*"([^"]*)"[^>]*?(?:\/>|>\s*<\/time>)/gi,
+      (_m, date: string) => escapeHtml(date),
+    )
+    .replaceAll(/<ac:emoticon\b([^>]*)\/?>/gi, (_m, attrs: string) =>
+      escapeHtml(
+        attr(attrs, "ac:emoji-fallback") ??
+          `:${attr(attrs, "ac:name") ?? "emoji"}:`,
+      ),
+    )
+    .replaceAll(
+      /<ac:image\b([^>]*)>([\s\S]*?)<\/ac:image>/gi,
+      (_m, attrs: string, inner: string) => {
+        const file = /<ri:attachment\b([^>]*)>/i.exec(inner)?.[1];
+        const link = /<ri:url\b([^>]*)>/i.exec(inner)?.[1];
+        const target =
+          (file && attr(file, "ri:filename")) ||
+          (link && attr(link, "ri:value")) ||
+          "";
+        const alt = attr(attrs, "ac:alt") ?? target;
+        return `<p>${stash(`![${alt.replaceAll("]", "\\]")}](${target.replaceAll(" ", "%20")})`)}</p>`;
+      },
     )
     .replaceAll(
       /<ri:attachment\b[^>]*ri:filename=["']([^"']+)["'][^>]*\/?>(?:<\/ri:attachment>)?/gi,
@@ -179,14 +321,8 @@ function escapeHtml(value: string): string {
     .replaceAll(">", "&gt;");
 }
 
-function escapeAttribute(value: string): string {
-  return value
-    .replaceAll("]", "\\]")
-    .replaceAll("(", "%28")
-    .replaceAll(")", "%29");
-}
-
 function execute(input: WorkerInput): WorkerResult {
+  stashed = [];
   try {
     const source =
       input.mode === "confluence-storage"
@@ -202,7 +338,7 @@ function execute(input: WorkerInput): WorkerResult {
           }
         : undefined,
     );
-    const markdown = converter.translate(source).trim();
+    const markdown = unstash(converter.translate(source)).trim();
     if (Buffer.byteLength(markdown, "utf8") > input.maxOutputBytes) {
       return {
         ok: false,

@@ -11,7 +11,6 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 import { image } from "@nervekit/native";
-import { markdownToStorage } from "../../confluence/markdown-to-storage.js";
 import { executeQuickScript } from "../quick-script.js";
 import {
   loadAttachments,
@@ -96,7 +95,7 @@ void test("artifact names are safe and sizes are capped", async () => {
   await mkdir(artifactDir, { recursive: true });
   await writeFile(join(artifactDir, "big.bin"), Buffer.alloc(21 * 1024 * 1024));
   const result = await run(`
-    for (const name of ["../escape.txt", "a/b.txt", ".hidden", "", "a b.txt", "x".repeat(200)]) {
+    for (const name of ["../escape.txt", "a/b.txt", ".hidden", "", " lead.txt", "x".repeat(200)]) {
       try { await files.write(name, "x"); console.log("written", name); }
       catch (e) { console.log("rejected", JSON.stringify(name).slice(0, 20)); }
     }
@@ -114,10 +113,7 @@ void test("artifact names are safe and sizes are capped", async () => {
     Array(6).fill("rejected"),
   );
   assert.match(lines[6], /Invalid artifact name/);
-  assert.match(
-    lines[7],
-    /artifact:big\.bin is 22020096 bytes; the limit is 20971520/,
-  );
+  assert.match(lines[7], /artifact:big\.bin is 21 MB; the limit is 20 MB/);
   assert.match(lines[8], /data is 22020096 bytes; the limit is 20971520/);
   assert.deepEqual(await readdir(artifactDir), ["big.bin"]);
 });
@@ -218,20 +214,11 @@ void test("XLSX and Papa work in the sandbox and load only for scripts that ment
   assert.equal(plain.content, "object\nexit 0");
 });
 
-void test("storage.markdown returns real storage markup synchronously, identical to the host converter", async () => {
+void test("RichText Markdown in storage.* builders becomes storage markup", async () => {
   const { run } = await setup();
-  const markdown =
-    "# Title\n\nText with **bold**, `code` & <tags>\n\n- one\n  - two\n\n| a | b |\n|---|---|\n| 1 | 2 |\n\n```ts\nlet x = ']]>';\n```";
-  const result = await run(
-    `return [storage.markdown(${JSON.stringify(markdown)}), storage.panel("info", "Some *emphasis*")].join("|");`,
-  );
-  const [converted, panel] = (result.content ?? "")
-    .split("\nexit")[0]
-    .split("|<ac:");
-  assert.equal(converted, markdownToStorage(markdown));
-  assert.ok(!converted.includes("\u0001"));
+  const result = await run(`return storage.panel("info", "Some *emphasis*");`);
   assert.match(
-    panel,
+    result.content ?? "",
     /<ac:rich-text-body><p>Some <em>emphasis<\/em><\/p><\/ac:rich-text-body>/,
   );
 });
@@ -249,4 +236,74 @@ void test("loading attachments is capped in total before the files are read", as
   await assert.rejects(loadAttachments(specs, env), /the limit is/);
   const loaded = await loadAttachments(specs.slice(0, count - 1), env);
   assert.equal(loaded.length, count - 1);
+});
+
+void test("files.write accepts a name or an artifact handle and keeps Unicode names", async () => {
+  const { artifactDir, run } = await setup();
+  const result = await run(`
+    const a = await files.write("artifact:a.txt", "one");
+    const b = await files.write("résumé 日本.md", "two");
+    console.log(a, b, await files.read(b));
+    try { await files.write("artifact:x.txt", "y", { workspace: true }); } catch (e) { console.log(e.message); }
+    try { await files.read("artifact:nope.txt"); } catch (e) { console.log(e.message); }
+  `);
+  const lines = (result.content ?? "").split("\n");
+  assert.equal(lines[0], "artifact:a.txt artifact:résumé 日本.md two");
+  assert.match(lines[1], /is an artifact handle/);
+  assert.equal(
+    lines[2],
+    'artifact "nope.txt" not found; files.list() shows: a.txt, résumé 日本.md',
+  );
+  assert.deepEqual((await readdir(artifactDir)).sort(), [
+    "a.txt",
+    "résumé 日本.md",
+  ]);
+});
+
+void test("files.edit applies exact unique edits atomically to artifacts and authorizes workspace paths as edit", async () => {
+  const { cwd, artifactDir, authorized, run } = await setup();
+  await writeFile(join(cwd, "src.txt"), "alpha beta");
+  const result = await run(`
+    await files.write("doc.md", "one two two\\nthree");
+    console.log(await files.edit("artifact:doc.md", [{ oldText: "one", newText: "1" }, { oldText: "three", newText: "3" }]));
+    for (const edits of [[{ oldText: "two", newText: "2" }], [{ oldText: "zzz", newText: "2" }, { oldText: "1", newText: "x" }]]) {
+      try { await files.edit("artifact:doc.md", edits); } catch (e) { console.log(e.message.split("\\n")[0]); }
+    }
+    try { await files.edit("artifact:missing.md", [{ oldText: "a", newText: "b" }]); } catch (e) { console.log(e.message); }
+    console.log(await files.read("artifact:doc.md"));
+    console.log(await files.edit("src.txt", [{ oldText: "beta", newText: "gamma" }]));
+  `);
+  const lines = (result.content ?? "").split("\n");
+  assert.equal(lines[0], "artifact:doc.md");
+  assert.match(lines[1], /matched 2 times/);
+  assert.match(lines[2], /edits\[0\]\.oldText was not found/);
+  assert.match(lines[3], /^artifact "missing.md" not found/);
+  assert.equal(lines[4], "1 two two");
+  assert.equal(lines[5], "3");
+  assert.equal(lines[6], join(cwd, "src.txt"));
+  assert.equal(
+    await readFile(join(artifactDir, "doc.md"), "utf8"),
+    "1 two two\n3",
+  );
+  assert.equal(await readFile(join(cwd, "src.txt"), "utf8"), "alpha gamma");
+  assert.deepEqual(
+    authorized.map((r) => r.toolName),
+    ["edit"],
+  );
+  assert.match(
+    result.content ?? "",
+    /Artifacts: artifact:doc\.md \(\d+ B\) in /,
+  );
+});
+
+void test("errors never show host paths", async () => {
+  const { cwd, run } = await setup();
+  const result = await run(`
+    try { await files.read("missing/in.txt"); } catch (e) { console.log(e.code, e.message); }
+  `);
+  assert.equal(
+    (result.content ?? "").split("\n")[0],
+    "NOT_FOUND file not found: missing/in.txt",
+  );
+  assert.ok(!(result.content ?? "").includes(cwd));
 });

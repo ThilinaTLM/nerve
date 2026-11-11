@@ -4,7 +4,7 @@ import { anyJson } from "../../atlassian/http.js";
 import { confluenceAttachmentRequest } from "../../confluence/client.js";
 import { valuesFromConfluenceList } from "../../confluence/format.js";
 import {
-  MAX_FILE_BYTES,
+  MAX_ATTACHMENT_BYTES,
   mediaTypeFor,
   parseHandle,
   readAuthorizations,
@@ -33,6 +33,8 @@ export type UploadedAttachment = {
   filename: string;
   mediaType: string;
   size: number;
+  /** Attachment version; above 1 means a same-name upload replaced an existing file. */
+  version?: number;
   width?: number;
   height?: number;
 };
@@ -111,6 +113,10 @@ function withExtension(filename: string, extension: string): string {
   return (current ? filename.slice(0, -current.length) : filename) + extension;
 }
 
+/** Names the direct tools for files beyond what a call can load. */
+const ATTACHMENT_TOO_LARGE_HINT =
+  "Upload files this large with jira_manage_attachment / confluence_manage_attachment (direct tools).";
+
 /** Largest total size of the files one call loads into host memory. */
 export const MAX_ATTACHMENTS_TOTAL_BYTES = 50 * 1024 * 1024;
 
@@ -129,7 +135,7 @@ export async function loadAttachments(
     const file = await loadAttachment(
       spec,
       env,
-      Math.min(MAX_FILE_BYTES, remaining),
+      Math.min(MAX_ATTACHMENT_BYTES, remaining),
     );
     total += file.bytes.byteLength;
     loaded.push(file);
@@ -144,10 +150,10 @@ export async function loadAttachments(
 export async function loadAttachment(
   spec: AttachmentSpec,
   env: SdkEnvironment,
-  maxBytes = MAX_FILE_BYTES,
+  maxBytes = MAX_ATTACHMENT_BYTES,
 ): Promise<LoadedAttachment> {
   const ref = parseHandle(spec.file, env);
-  let bytes = await readFileRef(ref, maxBytes);
+  let bytes = await readFileRef(ref, maxBytes, ATTACHMENT_TOO_LARGE_HINT);
   let filename =
     spec.filename ??
     (ref.kind === "artifact" ? ref.name : ref.path.split(/[\\/]/).pop()!);
@@ -195,6 +201,7 @@ export async function uploadAttachment(
     id?: unknown;
     title?: unknown;
     extensions?: { mediaType?: unknown; fileSize?: unknown };
+    version?: { number?: unknown };
   };
   return {
     id: String(raw.id ?? ""),
@@ -207,6 +214,9 @@ export async function uploadAttachment(
       typeof raw.extensions?.fileSize === "number"
         ? raw.extensions.fileSize
         : file.bytes.byteLength,
+    ...(typeof raw.version?.number === "number"
+      ? { version: raw.version.number }
+      : {}),
     ...(file.width ? { width: file.width, height: file.height } : {}),
   };
 }
