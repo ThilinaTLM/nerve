@@ -144,6 +144,7 @@ export class DesktopRuntime {
       getMainWindow: () => runtime.#mainWindow,
       getManagedDaemon: () => runtime.#managedDaemon,
       showMainWindow,
+      recreateMainWindow,
       hideWindow,
       requestQuit,
       restartDaemon: () => {
@@ -393,6 +394,33 @@ export class DesktopRuntime {
         showWindow(window);
         return;
       }
+      await startMainWindow(window);
+    }
+
+    /**
+     * Replaces the main window with a fresh native window and compositor
+     * surface, keeping the daemon running. Recovers a window that stopped
+     * presenting frames after OS sleep: reloading the page or restarting the
+     * GPU process reuses the broken surface and leaves it blank.
+     */
+    async function recreateMainWindow(): Promise<void> {
+      await runtime.#startupAttempt?.catch(() => undefined);
+      const previous = runtime.#mainWindow;
+      if (!previous || previous.isDestroyed()) {
+        await openMainWindow();
+        return;
+      }
+      const bounds = previous.getNormalBounds();
+      const maximized = previous.isMaximized();
+      runtime.#mainWindow = undefined;
+      previous.destroy();
+      const window = createMainWindow();
+      if (!window) return;
+      window.setBounds(bounds);
+      if (maximized) window.maximize();
+      void desktopLog("info", "window", "Recreated main window", {
+        context: { maximized },
+      });
       await startMainWindow(window);
     }
 

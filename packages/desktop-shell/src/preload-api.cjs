@@ -122,4 +122,49 @@ function createDesktopPreloadApi({
   };
 }
 
-module.exports = { createDesktopPreloadApi };
+// Mirrors RENDERER_HEALTH_CHANNEL and WINDOW_HEALTH_CHECK_INTERVAL_MS in
+// src/window/window-health.ts.
+const RENDERER_HEALTH_CHANNEL = "desktop.window.health";
+const RENDERER_HEALTH_INTERVAL_MS = 5000;
+
+/**
+ * Sends page visibility and frame production to the main process for freeze
+ * diagnostics. It uses a single animation-frame probe per heartbeat instead of
+ * a continuous loop, so an idle page stays idle.
+ */
+function installRendererHealthReporter({
+  ipcRenderer,
+  document,
+  requestAnimationFrame,
+  setInterval,
+  now,
+}) {
+  let probeStartedAt;
+  let lastLatencyMs;
+  const report = () => {
+    ipcRenderer.send(RENDERER_HEALTH_CHANNEL, {
+      visibility: document.visibilityState,
+      focused: document.hasFocus(),
+      framePendingMs:
+        probeStartedAt === undefined ? undefined : now() - probeStartedAt,
+      frameLatencyMs: lastLatencyMs,
+    });
+  };
+  const probe = () => {
+    if (probeStartedAt !== undefined) return;
+    const startedAt = now();
+    probeStartedAt = startedAt;
+    requestAnimationFrame(() => {
+      lastLatencyMs = now() - startedAt;
+      probeStartedAt = undefined;
+    });
+  };
+  document.addEventListener("visibilitychange", report);
+  setInterval(() => {
+    report();
+    probe();
+  }, RENDERER_HEALTH_INTERVAL_MS);
+  probe();
+}
+
+module.exports = { createDesktopPreloadApi, installRendererHealthReporter };

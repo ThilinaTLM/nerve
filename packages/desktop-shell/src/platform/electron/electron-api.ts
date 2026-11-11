@@ -12,6 +12,7 @@ export const {
   Notification,
   nativeImage,
   nativeTheme,
+  powerMonitor,
   safeStorage,
   session,
   shell,

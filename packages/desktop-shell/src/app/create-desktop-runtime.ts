@@ -12,6 +12,7 @@ import {
   BrowserWindow,
   ipcMain,
   nativeTheme,
+  powerMonitor,
   session,
 } from "../platform/electron/electron-api.js";
 import {
@@ -25,6 +26,7 @@ import {
 import { createTrayController } from "../tray/tray.js";
 import { createWindowAppearanceStore } from "../window/window-appearance.js";
 import { createDesktopMainWindow } from "../window/main-window.js";
+import { installWindowHealthMonitor } from "../window/window-health.js";
 import { parseDevelopmentSlot } from "./development-marker.js";
 import { installNavigationGuards } from "../window/navigation-guards.js";
 import {
@@ -113,8 +115,8 @@ export function createDesktopRuntimePorts(): DesktopRuntimePorts {
     windows: {
       getAllWindows: () => BrowserWindow.getAllWindows(),
       appearance: windowAppearance.current,
-      createMainWindow: (windowOptions) =>
-        createDesktopMainWindow(windowOptions, {
+      createMainWindow: (windowOptions) => {
+        const window = createDesktopMainWindow(windowOptions, {
           createWindow: (browserWindowOptions) =>
             new BrowserWindow(browserWindowOptions),
           windowAppearance: windowAppearance.current,
@@ -127,7 +129,15 @@ export function createDesktopRuntimePorts(): DesktopRuntimePorts {
           log: desktopLog,
           redactUrl: redactUrlForLog,
           installNavigationGuards,
-        }),
+        });
+        installWindowHealthMonitor({
+          window,
+          powerMonitor,
+          ipcMain,
+          log: desktopLog,
+        });
+        return window;
+      },
     },
     nativeTheme: {
       onUpdated: (listener) => {
