@@ -42,14 +42,17 @@ const MAX_STALE_RETRIES = 5;
 
 /**
  * Direct tools a quick-script SDK call may be authorized as: the Atlassian tools,
- * `read` for workspace files a script attaches, and `kroki_export` for diagrams.
+ * `read` for workspace files a script attaches, `kroki_export` for diagrams, and
+ * `web_fetch` / `web_search` for the web namespace.
  */
 function brokerable(toolName: string): boolean {
   return (
     toolName.startsWith("jira_") ||
     toolName.startsWith("confluence_") ||
     toolName === "read" ||
-    toolName === "kroki_export"
+    toolName === "kroki_export" ||
+    toolName === "web_fetch" ||
+    toolName === "web_search"
   );
 }
 

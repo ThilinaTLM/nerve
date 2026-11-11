@@ -109,7 +109,8 @@ function modelLabel(selection: unknown) {
 }
 function summary(id: ToolId, value: ToolPayload) {
   return toolSummary(id, value, {
-    accountName: (_kind, accountId) => accountName(id, accountId),
+    accountName: (kind, accountId) =>
+      accounts[kind].find((a) => a.id === accountId)?.name,
     profileLabel: profileLabelFor,
     modelLabel,
   });

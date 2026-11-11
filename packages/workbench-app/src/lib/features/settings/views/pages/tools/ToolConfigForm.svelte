@@ -335,6 +335,11 @@ function accountItems(kind: AccountKind) {
             <p class="text-ui text-muted-foreground">
               No accounts yet. Add one in Integrations to use {integration.label}.
             </p>
+          {:else if !chosen.profileId}
+            <p class="text-ui text-warning">
+              Choose an account; {integration.label} stays unavailable to scripts
+              until one is selected.
+            </p>
           {/if}
         {/if}
       {/each}
@@ -344,6 +349,7 @@ function accountItems(kind: AccountKind) {
       <KrokiServerField
         id="tool-quick-script-kroki-url"
         url={diagramUrl}
+        optional
         disabled={required("settings/diagram/url")}
         onChange={setDiagramUrl}
       />

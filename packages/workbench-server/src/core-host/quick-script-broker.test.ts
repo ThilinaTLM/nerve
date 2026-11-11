@@ -100,18 +100,23 @@ void test("deny wins over the approved risk", async () => {
   );
 });
 
-void test("only Atlassian, read and diagram tools can be brokered", async () => {
+void test("only Atlassian, read, diagram and web tools can be brokered", async () => {
   const { authorize, inputs } = authorizer([]);
-  for (const toolName of ["bash", "write", "web_fetch"])
+  for (const toolName of ["bash", "write", "python_exec"])
     await assert.rejects(authorize(call, { toolName, args: {} }), {
       code: "NESTED_DENIED",
     });
   assert.equal(inputs.length, 0);
   await authorize(call, { toolName: "read", args: { path: "chart.png" } });
   await authorize(call, { toolName: "kroki_export", args: {} });
+  await authorize(call, {
+    toolName: "web_fetch",
+    args: { url: "https://example.com" },
+  });
+  await authorize(call, { toolName: "web_search", args: { query: "x" } });
   assert.deepEqual(
     inputs.map((input) => input.toolName),
-    ["read", "kroki_export"],
+    ["read", "kroki_export", "web_fetch", "web_search"],
   );
 });
 

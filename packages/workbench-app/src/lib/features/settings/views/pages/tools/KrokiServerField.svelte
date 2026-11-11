@@ -10,13 +10,20 @@ let {
   id,
   url,
   disabled = false,
+  optional = false,
   onChange,
 }: {
   id: string;
   url: string;
   disabled?: boolean;
+  /** Empty is valid and means the default server. */
+  optional?: boolean;
   onChange: (url: string) => void;
 } = $props();
+const effectiveUrl = $derived(
+  optional && !url ? defaultKrokiToolSettings.url : url,
+);
+const valid = $derived(isValidKrokiUrl(effectiveUrl));
 </script>
 
 <div class="grid gap-1.5">
@@ -26,17 +33,17 @@ let {
     {id}
     class="font-mono"
     value={url}
-    aria-invalid={isValidKrokiUrl(url) ? undefined : "true"}
+    aria-invalid={valid ? undefined : "true"}
     placeholder={defaultKrokiToolSettings.url}
     oninput={(event) => onChange(event.currentTarget.value)}
   />
-  {#if !isValidKrokiUrl(url)}
+  {#if !valid}
     <p class="text-ui text-destructive">
       Enter an HTTP(S) URL without credentials, query parameters, or fragments.
     </p>
   {/if}
 </div>
-{#if isPublicKrokiUrl(url)}
+{#if isPublicKrokiUrl(effectiveUrl)}
   <Callout
     layout="block"
     tone="warning"

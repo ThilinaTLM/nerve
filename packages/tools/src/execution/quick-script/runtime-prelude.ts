@@ -90,4 +90,21 @@ export const RUNTIME_TAIL = String.raw`
     };
     return chain;
   };
+
+  // A misspelled method fails with the valid names instead of "not a function".
+  const guard = (path, target) => new Proxy(target, {
+    get(object, key) {
+      if (typeof key !== "string" || key in object) {
+        const value = object[key];
+        return value && typeof value === "object" ? guard(path + "." + key, value) : value;
+      }
+      if (key === "then" || key === "toJSON") return undefined;
+      const error = new TypeError(path + "." + key + " does not exist. Available: " + Object.keys(object).join(", ") + ".");
+      error.code = "BAD_REQUEST";
+      throw error;
+    },
+  });
+  for (const name of ["atlassian", "jira", "confluence", "web", "files", "diagram"]) {
+    globalThis[name] = guard(name, globalThis[name]);
+  }
 `;

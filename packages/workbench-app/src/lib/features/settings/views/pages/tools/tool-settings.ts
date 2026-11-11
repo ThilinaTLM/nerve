@@ -197,7 +197,14 @@ export function toolSummary(
     case "python_exec":
       return `${onOff(payload)} · ${(s.interpreterPath as string | undefined) ?? "auto-detect"}`;
     case "quick_script": {
-      const active = enabledIntegrations(payload).map((i) => i.label);
+      const chosen = (payload.settings ?? {}) as Record<
+        string,
+        IntegrationSelection
+      >;
+      const active = enabledIntegrations(payload).map((i) => {
+        const account = context.accountName(i.kind, chosen[i.id]?.profileId);
+        return account ? `${i.label} (${account})` : `${i.label} (no account)`;
+      });
       return `${onOff(payload)} · ${active.length ? active.join(", ") : "no integrations"}`;
     }
     case "web_search":

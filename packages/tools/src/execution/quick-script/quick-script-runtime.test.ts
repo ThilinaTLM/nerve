@@ -367,3 +367,25 @@ void test("a 401 aborts the other in-flight host requests", async () => {
   assert.equal(signals[0]?.aborted, true);
   assert.equal(result.exitCode, 1);
 });
+
+void test("a misspelled SDK method lists the valid names with a BAD_REQUEST code", async () => {
+  const result = await run(`
+    try { await confluence.pages.list({}); } catch (e) { return [e.code, e.message]; }
+  `);
+  const [code, message] = JSON.parse(result.content!.split("\n")[0]) as [
+    string,
+    string,
+  ];
+  assert.equal(code, "BAD_REQUEST");
+  assert.match(
+    message,
+    /^confluence\.pages\.list does not exist\. Available: .*search.*get.*/,
+  );
+  const ok = await run(
+    `return [typeof jira.issues.get, JSON.stringify({ a: 1 }), String(files)];`,
+  );
+  assert.match(
+    ok.content!,
+    /^\["function","\{\\"a\\":1\}","\[object Object\]"\]/,
+  );
+});
