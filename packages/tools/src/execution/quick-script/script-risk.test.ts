@@ -9,6 +9,11 @@ void test("the scanner reads each method's declared risk", () => {
   const risks = (code: string) => classify(code).risk;
   assert.equal(risks(`await jira.issues.get("A-1")`), "read");
   assert.equal(risks(`await files.list()`), "read");
+  assert.equal(risks(`await web.fetch("https://x.test")`), "read");
+  assert.match(
+    classify(`await web.search("q")`).operations[0] ?? "",
+    /^web\.search/,
+  );
   assert.equal(
     risks(`await confluence.comments.add({ id: "1", body: "x" })`),
     "workspace_write",

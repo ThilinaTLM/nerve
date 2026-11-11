@@ -83,6 +83,8 @@ export interface IntegrationExecutionContext extends BaseExecutionContext {
   conversationDir?: string;
   getApiKey?: (provider: string) => Promise<string | undefined>;
   getProviderConfig?: (provider: string) => Promise<unknown>;
+  /** quick_script `web.*`: `enabled` by Settings; `search` when a Tavily account with a token is selected (its key is `getApiKey("tavily")`). */
+  web?: { enabled: boolean; search: boolean };
   /**
    * quick_script: checks one brokered SDK call against the conversation's
    * permission policy as if it were a direct call to `toolName` with `args`.

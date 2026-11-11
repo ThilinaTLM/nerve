@@ -11,7 +11,7 @@ void test("without integrations the description lists only utilities", () => {
   assert.match(text, /^Run a sandboxed TypeScript script/);
   assert.match(
     text,
-    /\nUtilities: files, XLSX, Papa, image, diagram \(Kroki\)\.\n/,
+    /\nUtilities: files, XLSX, Papa, docx \+ mammoth \(Word\), PptxGenJS \+ pptxText \(PowerPoint\), image, diagram \(Kroki\)\.\n/,
   );
   assert.match(text, /Read \{\{skill:quick-script\}\} before first use\.$/);
 });
@@ -26,10 +26,16 @@ void test("integration fragments appear in fixed order, only when active", () =>
   assert.doesNotMatch(jiraOnly, /confluence/);
 });
 
-void test("namespaces and libraries that have not landed are ignored", () => {
-  const text = quickScriptDescription({
-    integrations: ["web"],
-    libraries: ["docx", "pptx"],
+void test("web lists search only with a Tavily account, and alone does not announce writes", () => {
+  const fetchOnly = quickScriptDescription({ integrations: ["web"] });
+  assert.match(fetchOnly, /Integrations: web \(fetch\)\./);
+  assert.doesNotMatch(fetchOnly, /Write to integrations/);
+  const withSearch = quickScriptDescription({
+    integrations: ["web", "web.search"],
   });
-  assert.doesNotMatch(text, /web|docx|pptx|Integrations:/);
+  assert.match(withSearch, /Integrations: web \(fetch, search\)\./);
+  assert.doesNotMatch(
+    quickScriptDescription({ integrations: ["web.search"] }),
+    /web/,
+  );
 });

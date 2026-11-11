@@ -96,11 +96,17 @@ const SAMPLES: Record<string, unknown[][]> = {
   ],
   "image.info": [[{ file: "a.png", ops: {} }]],
   "image.save": [[{ file: "a.png", ops: {}, name: "b.png" }]],
+  "web.fetch": [
+    ["https://example.com/a"],
+    [{ url: "https://example.com/a", as: "file", name: "a.bin" }],
+  ],
+  "web.search": [["nerve"], [{ query: "nerve", limit: 20 }]],
 };
 
 const env = createSdkEnvironment({
   cwd: process.cwd(),
   conversationDir: "/tmp/quick-script",
+  web: { enabled: true, search: true },
 });
 
 void test("every method has samples, and its declared risk covers every authorization it produces", () => {

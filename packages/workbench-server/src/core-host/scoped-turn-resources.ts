@@ -16,22 +16,30 @@ import { quickScriptIntegrationNames } from "@nervekit/contracts/capabilities";
 
 const blocked = new Set<string>(subagentBlockedToolNames);
 
-/** An integration is active when enabled with an existing account selected. */
+/** An account-backed integration is active when enabled with an existing account selected; `web` needs only to be enabled (`fetch`), and `web.search` also lists with a Tavily account. */
 function activeQuickScriptIntegrations(
   settings: LeadSettingsOverrides,
   missingReferences: readonly string[],
 ): string[] {
   const configured = settings.tools?.quick_script?.settings;
-  return quickScriptIntegrationNames.filter((name) => {
-    const entry = configured?.[name];
-    return (
-      entry?.enabled &&
-      entry.profileId &&
+  const hasAccount = (name: (typeof quickScriptIntegrationNames)[number]) =>
+    Boolean(
+      configured?.[name]?.profileId &&
       !missingReferences.includes(
         `/tools/quick_script/settings/${name}/profileId`,
-      )
+      ),
     );
-  });
+  return quickScriptIntegrationNames.flatMap((name) =>
+    !configured?.[name]?.enabled
+      ? []
+      : name !== "web"
+        ? hasAccount(name)
+          ? [name]
+          : []
+        : hasAccount(name)
+          ? [name, "web.search"]
+          : [name],
+  );
 }
 export function scopedTurnResources(options: {
   home: string;

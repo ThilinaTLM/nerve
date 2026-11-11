@@ -255,24 +255,28 @@ export function createConversationCore(
             : input.toolName === "web_search"
               ? "tavily"
               : undefined;
-        const tavilyAccount =
-          toolProvider === "tavily"
-            ? providers.tavilyProfiles.find(
-                (profile) =>
-                  profile.id === settings.tools?.web_search?.profileId,
-              )
-            : undefined;
+        const quickScriptWeb = quickScriptSettings?.web;
+        const tavilyAccount = providers.tavilyProfiles.find(
+          (profile) =>
+            profile.id ===
+            (toolProvider === "tavily"
+              ? settings.tools?.web_search?.profileId
+              : quickScriptWeb?.enabled
+                ? quickScriptWeb.profileId
+                : undefined),
+        );
         if (toolProvider === "tavily" && !tavilyAccount)
           throw new ToolExecutionError(
             "MISSING_ACCOUNT",
             `${input.toolName}: no Tavily account is selected for this tool. Ask the user to add or choose one in Settings → Integrations → Tavily.`,
           );
+        // quick_script's `web.search` is simply unavailable without a usable token.
         const tavilyKey = tavilyAccount
           ? await deps.auth
               .getApiKey(`tavily:${tavilyAccount.id}`)
               .catch(() => undefined)
           : undefined;
-        if (tavilyAccount && !tavilyKey)
+        if (toolProvider === "tavily" && tavilyAccount && !tavilyKey)
           throw new ToolExecutionError(
             "MISSING_CREDENTIALS",
             `${input.toolName}: the Tavily account "${tavilyAccount.name}" has no API token saved. Ask the user to add it in Settings → Integrations → Tavily.`,
@@ -355,6 +359,10 @@ export function createConversationCore(
                 : undefined,
           ...(quickScript
             ? {
+                web: {
+                  enabled: quickScriptWeb?.enabled === true,
+                  search: Boolean(tavilyKey),
+                },
                 authorizeNested: (request) =>
                   // Only a person's approval of the script sets the ceiling: the
                   // admission stored on the tool call says whether a rule allowed

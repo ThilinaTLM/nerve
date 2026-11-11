@@ -3,6 +3,7 @@ import type { ConfluenceConnection } from "../confluence/client.js";
 import type {
   IntegrationExecutionContext,
   KrokiExecutionContext,
+  WebExecutionContext,
 } from "../execution-context.js";
 import type { JiraConnection } from "../jira/client.js";
 import type { JiraFieldInfo } from "./jira/issue.js";
@@ -39,7 +40,8 @@ export function orWhenUnsupported<T>(fallback: () => T | Promise<T>) {
 
 /** Context type of the quick-script executor: integrations plus Kroki settings. */
 export type QuickScriptContext = IntegrationExecutionContext &
-  KrokiExecutionContext;
+  KrokiExecutionContext &
+  WebExecutionContext;
 
 /** A Confluence page written by the run, for the automatic lint report. */
 export type PageReport = {
@@ -86,7 +88,8 @@ export type SdkProduct =
   | "confluence"
   | "diagram"
   | "files"
-  | "image";
+  | "image"
+  | "web";
 
 export type PreparedCall = {
   /** The direct tool the call is checked as; absent for calls with no external effect (own artifacts). */

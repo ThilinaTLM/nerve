@@ -4,6 +4,7 @@ import {
   FILES_DTS_TYPES,
   IMAGE_CHAIN_OPS,
   JIRA_DTS_TYPES,
+  WEB_DTS_TYPES,
 } from "./sdk-dts-types.js";
 import type { SdkMethod, SdkProduct } from "./sdk-types.js";
 
@@ -82,6 +83,7 @@ export function generateSdkDts(methods: SdkMethod[]): Record<string, string> {
       "",
       ...globalObject("atlassian"),
     ]),
+    "web.d.ts": file("web.d.ts", [WEB_DTS_TYPES, "", ...globalObject("web")]),
     "files.d.ts": file("files.d.ts", [
       FILES_DTS_TYPES,
       "",

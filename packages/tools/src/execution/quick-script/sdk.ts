@@ -20,6 +20,7 @@ import type {
   SdkMethod,
 } from "./sdk-types.js";
 import { STORAGE_PRELUDE } from "./files/storage-helpers.js";
+import { webMethods } from "./web/web-methods.js";
 
 /**
  * The SDK in one place. Every method declares its signature, the direct tool
@@ -37,6 +38,7 @@ const methods: SdkMethod[] = [
   ...diagramMethods,
   ...filesMethods,
   ...imageMethods,
+  ...webMethods,
 ];
 
 const methodByName = new Map<string, SdkMethod>(
@@ -92,9 +94,15 @@ function productPrelude(product: string): string {
 /** Trusted prelude: SDK objects forwarding to `host.call`, plus the pure-JS `storage.*` builders. */
 export const SDK_PRELUDE = [
   `(() => {\n${RUNTIME_HEAD}`,
-  ...["atlassian", "jira", "confluence", "diagram", "files", "image"].map(
-    productPrelude,
-  ),
+  ...[
+    "atlassian",
+    "jira",
+    "confluence",
+    "diagram",
+    "files",
+    "image",
+    "web",
+  ].map(productPrelude),
   `${RUNTIME_TAIL}})();`,
   STORAGE_PRELUDE,
 ].join("\n");

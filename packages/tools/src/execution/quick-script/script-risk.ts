@@ -113,6 +113,7 @@ const SDK_GLOBALS = new Set([
   "diagram",
   "files",
   "image",
+  "web",
 ]);
 /** Ways to reach an SDK global or run code without naming it. */
 const ESCAPES = new Set([

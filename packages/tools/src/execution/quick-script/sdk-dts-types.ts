@@ -178,6 +178,22 @@ export const IMAGE_CHAIN_OPS = `  /** fit "inside" (default) never enlarges. */
   png(): ImageChain;
   jpeg(options?: { quality?: number }): ImageChain;`;
 
+export const WEB_DTS_TYPES = `// FileHandle is declared in files.d.ts.
+interface WebPage {
+  url: string;
+  status: number;
+  contentType: string;
+  title?: string;
+  /** Markdown or text; the parsed value for JSON. */
+  content: unknown;
+}
+interface WebHit {
+  title: string;
+  url: string;
+  snippet: string;
+  published?: string;
+}`;
+
 export const ATLASSIAN_DTS_TYPES = `interface AtlassianPerson {
   accountId: string;
   name: string;

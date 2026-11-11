@@ -10,6 +10,7 @@ import { diagramMethods } from "./files/diagram-methods.js";
 import { filesMethods } from "./files/files-methods.js";
 import { imageMethods } from "./files/image-methods.js";
 import { jiraMethods } from "./jira/methods.js";
+import { webMethods } from "./web/web-methods.js";
 import { generateSdkDts } from "./sdk-dts.js";
 import { STORAGE_PRELUDE } from "./files/storage-helpers.js";
 
@@ -34,6 +35,7 @@ const generated = generateSdkDts([
   ...diagramMethods,
   ...filesMethods,
   ...imageMethods,
+  ...webMethods,
 ]);
 
 void test("references/*.d.ts match the method tables (UPDATE_SDK_DTS=1 regenerates)", () => {
@@ -42,6 +44,7 @@ void test("references/*.d.ts match the method tables (UPDATE_SDK_DTS=1 regenerat
     "confluence.d.ts",
     "files.d.ts",
     "jira.d.ts",
+    "web.d.ts",
   ]);
   for (const [name, content] of Object.entries(generated)) {
     if (process.env.UPDATE_SDK_DTS === "1") {

@@ -68,7 +68,11 @@
     "@types/cross-spawn": "6.0.6",
     "@types/node": "24.10.1",
     "@types/shell-quote": "^1.7.5",
+    "docx": "9.15.3",
+    "jszip": "3.10.2",
+    "mammoth": "1.13.0",
     "papaparse": "5.5.3",
+    "pptxgenjs": "4.0.1",
     "typescript": "5.9.3",
     "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz"
   },
