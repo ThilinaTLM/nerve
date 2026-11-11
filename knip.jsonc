@@ -24,8 +24,16 @@
         "src/git/read/git-isolated-reader-helper.ts",
       ],
       // Types for shell-quote are consumed implicitly by tsc, not by an import.
-      // xlsx and papaparse are copied as sandbox assets by scripts/build/copy-tools-assets.ts.
-      "ignoreDependencies": ["@types/shell-quote", "papaparse", "xlsx"],
+      // Sandbox libraries are copied as assets by scripts/build/copy-tools-assets.ts, not imported.
+      "ignoreDependencies": [
+        "@types/shell-quote",
+        "docx",
+        "jszip",
+        "mammoth",
+        "papaparse",
+        "pptxgenjs",
+        "xlsx",
+      ],
     },
     "packages/ui-kit": {
       "entry": ["{test,src}/**/*.test.ts"],

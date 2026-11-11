@@ -57,14 +57,19 @@ function asHostError(error: unknown): unknown {
   return error;
 }
 
+const TITLE_ENTITIES: Record<string, string> = {
+  "&amp;": "&",
+  "&lt;": "<",
+  "&gt;": ">",
+  "&quot;": '"',
+  "&#39;": "'",
+};
+
 function htmlTitle(html: string): string | undefined {
   const raw = /<title[^>]*>([\s\S]*?)<\/title>/i.exec(html)?.[1];
+  // One pass, so `&amp;lt;` decodes to `&lt;`, not `<`.
   const title = raw
-    ?.replace(/&amp;/g, "&")
-    .replace(/&lt;/g, "<")
-    .replace(/&gt;/g, ">")
-    .replace(/&quot;/g, '"')
-    .replace(/&#39;/g, "'")
+    ?.replace(/&(?:amp|lt|gt|quot|#39);/g, (entity) => TITLE_ENTITIES[entity])
     .replace(/\s+/g, " ")
     .trim();
   return title || undefined;
