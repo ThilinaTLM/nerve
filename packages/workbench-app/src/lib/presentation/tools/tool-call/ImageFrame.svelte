@@ -20,6 +20,8 @@ type Props = {
   caption?: string;
   captionLabel?: string;
   onOpen?: () => void;
+  /** Paint a light backdrop so transparent diagrams and charts stay legible. */
+  lightBackdrop?: boolean;
   /** Render nothing unless the image resolves (no icon placeholder). */
   optional?: boolean;
 };
@@ -33,6 +35,7 @@ let {
   captionLabel,
   onOpen,
   optional = false,
+  lightBackdrop = false,
 }: Props = $props();
 
 const imageSource = getConversationUiCapabilities().imageSource;
@@ -64,7 +67,10 @@ $effect(() => {
 {#if !optional || waiting || src}
   <div class="grid gap-1.5 p-2">
     <div
-      class="grid w-full max-w-sm overflow-hidden rounded-sm"
+      class={[
+        "grid w-full max-w-sm overflow-hidden rounded-sm",
+        lightBackdrop && "bg-image-well",
+      ]}
       style:aspect-ratio={ratio}
     >
       {#if src}

@@ -87,6 +87,10 @@
   --destructive-solid-foreground: oklch(1 0 0);
   --on-solid: oklch(0.99 0.002 70);
 
+  /* Backdrop for images with transparency (diagrams, charts): their dark
+   * text is authored for white paper, so it stays white in every theme. */
+  --image-well: oklch(1 0 0);
+
   /* Focus follows the brand colour in every theme. */
   --ring: var(--primary);
 
@@ -480,6 +484,7 @@
   --color-destructive-subtle: var(--destructive-subtle);
   --color-destructive-strong: var(--destructive-strong);
   --color-well: var(--well);
+  --color-image-well: var(--image-well);
   --color-panel: var(--panel);
   --color-chrome-track: var(--chrome-track);
   --color-hover: var(--hover);

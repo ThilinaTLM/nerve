@@ -35,6 +35,15 @@ test("only sections with content are available, in display order", () => {
     }),
     ["arguments", "complete-result"],
   );
+  assert.deepEqual(
+    availableToolDetailSections({
+      agentPreview: true,
+      artifacts: true,
+      arguments: true,
+      completeResult: false,
+    }),
+    ["agent-preview", "artifacts", "arguments"],
+  );
 });
 
 test("a missing tab falls back to the first section", () => {
