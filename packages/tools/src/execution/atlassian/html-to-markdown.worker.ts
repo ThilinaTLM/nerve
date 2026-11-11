@@ -131,14 +131,27 @@ function unwrapCdata(value: string): string {
   );
 }
 
+const TEXT_ENTITIES: Record<string, string> = {
+  "&amp;": "&",
+  "&lt;": "<",
+  "&gt;": ">",
+  "&quot;": '"',
+  "&#39;": "'",
+};
+
+/** Plain text of a parameter value; callers escape it before re-embedding. */
 function textOf(value: string): string {
-  return unwrapCdata(value)
-    .replaceAll(/<[^>]+>/g, "")
-    .replaceAll("&lt;", "<")
-    .replaceAll("&gt;", ">")
-    .replaceAll("&quot;", '"')
-    .replaceAll("&#39;", "'")
-    .replaceAll("&amp;", "&");
+  let text = unwrapCdata(value);
+  // Repeat until stable so tags rebuilt by a removal (`<<b>i>`) go too.
+  for (let previous = ""; previous !== text;) {
+    previous = text;
+    text = text.replaceAll(/<[^>]*>/g, "");
+  }
+  // One pass, so `&amp;lt;` decodes to `&lt;`, not `<`.
+  return text.replaceAll(
+    /&(?:amp|lt|gt|quot|#39);/g,
+    (entity) => TEXT_ENTITIES[entity],
+  );
 }
 
 function prepareConfluenceStorage(value: string): string {

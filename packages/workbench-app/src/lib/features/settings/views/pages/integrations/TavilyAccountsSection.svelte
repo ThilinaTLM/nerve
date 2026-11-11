@@ -9,6 +9,9 @@ import { settingsState } from "$lib/features/settings/state/settings-state.svelt
 import ConfirmDialog from "@nervekit/ui-kit/components/composites/confirm-dialog";
 import { SettingsListItem } from "$lib/presentation/settings";
 import SettingsEntityListSection from "../../shared/settings-entity-list-section.svelte";
+import type { ScopedAgentState } from "$lib/application/agent-configuration/scoped-agent-state.svelte";
+import { accountOptions } from "../tools/tool-settings";
+import IntegrationToolPicks from "./IntegrationToolPicks.svelte";
 import type { SettingsChange } from "../settings-change";
 import {
   credentialConfigured,
@@ -22,8 +25,10 @@ type Props = {
   settingsDraft: Settings;
   authProviders: AuthProviderMetadata[];
   onSettingsChange?: SettingsChange;
+  /** User-scope tool settings; tools using these accounts are picked below the list. */
+  tools: ScopedAgentState;
 };
-let { settingsDraft, authProviders, onSettingsChange }: Props = $props();
+let { settingsDraft, authProviders, onSettingsChange, tools }: Props = $props();
 let dialogOpen = $state(false);
 let editing = $state<TavilyProfile | undefined>();
 let pendingDelete = $state<TavilyProfile | undefined>();
@@ -74,6 +79,13 @@ async function remove(): Promise<void> {
   itemKey={(profile) => profile.id}
   onAdd={openAdd}
 >
+  {#snippet below()}
+    <IntegrationToolPicks
+      kind="tavily"
+      accounts={accountOptions(settingsDraft.providers).tavily}
+      editor={tools}
+    />
+  {/snippet}
   {#snippet row(profile)}
     <SettingsListItem title={profile.name}>
       {#snippet status()}

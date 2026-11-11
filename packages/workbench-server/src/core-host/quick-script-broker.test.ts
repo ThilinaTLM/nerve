@@ -82,7 +82,7 @@ void test("approval inside the approved risk runs; above it is refused", async (
     {
       code: "NESTED_APPROVAL_REQUIRED",
       message:
-        "jira_create_issue: script was approved for network operations; this call needs write approval (read-only mode)",
+        "jira_create_issue: script was approved for network operations; this call needs external write approval (read-only mode)",
     },
   );
   await authorize(
@@ -157,7 +157,7 @@ void test("the ceiling uses the nested call's own risk: adding is a write, delet
     {
       code: "NESTED_APPROVAL_REQUIRED",
       message:
-        "confluence_manage_comment: script was approved for write operations; this call needs destructive approval (read-only mode)",
+        "confluence_manage_comment: script was approved for workspace write operations; this call needs destructive approval (read-only mode)",
     },
   );
   await authorize(
