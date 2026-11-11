@@ -174,7 +174,7 @@ QuickJS does not JIT, so plain JS loops over 100k rows are slow. The guide says 
 
 ## Proof of concept
 
-Branch `poc/atlassian-code-mode`: a `sandbox` domain in `packages/native` (`native/src/sandbox/`, `src/sandbox/`) with no tool wiring.
+Branch `feat/atlassian-code-mode` (then `poc/atlassian-code-mode`): a `sandbox` domain in `packages/native` (`native/src/sandbox/`, `src/sandbox/`) with no tool wiring.
 
 - **Engine:** `rquickjs` 0.14.0, which bundles quickjs-ng. Each script gets a fresh `Runtime` and `Context::full` on its own thread. A small host loop drives the job queue and blocks on a channel for host replies, so no async executor is needed.
 - **Bridge:** `__hostCall(method, json)` returns a promise. The request reaches TS through a threadsafe function, and `reply(id, ok, json)` settles it, however long TS takes. A base prelude provides `console.*` and `host.call()` and removes the raw globals.
@@ -204,7 +204,7 @@ Branch `poc/atlassian-code-mode`: a `sandbox` domain in `packages/native` (`nati
 - **Findings:**
   - QuickJS reports some out-of-memory failures as a bare `null` exception, so the runtime classifies a failure as `memory_limit` from usage near the cap.
   - Parsing in QuickJS is about 8× slower than in Node, which is fine at this size. That supports keeping Excel and large data host-side.
-- **Cross-platform:** CI on PR #568 built the addon and ran the native tests, including the sandbox tests, on Linux, Windows and macOS. All passed.
+- **Cross-platform:** CI on PR #568 (now #569) built the addon and ran the native tests, including the sandbox tests, on Linux, Windows and macOS. All passed.
 - **Tool:**
   - `atlassian_code_mode` with Jira reads (`issues.search/get`, `projects.get`, `users.search`, `fields.list`).
   - Confluence reads and writes (spaces, page search/get/create/update, labels, comments, attachments).
