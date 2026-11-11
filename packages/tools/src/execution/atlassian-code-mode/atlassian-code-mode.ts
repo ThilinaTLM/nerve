@@ -8,6 +8,7 @@ import type {
   SdkEnvironment,
 } from "./sdk-types.js";
 import { ToolExecutionError } from "../errors/tool-error.js";
+import { hostErrorCode } from "./errors.js";
 import { processFooter } from "../../result-projection/process-footer.js";
 import { withImageSizes } from "./artifacts.js";
 import { assertDeclaredRisk } from "./script-risk.js";
@@ -84,13 +85,13 @@ export async function executeAtlassianCodeMode(
           });
         if (authFailure) {
           record({ outcome: "failed", error: authFailure });
-          throw new Error(authFailure);
+          throw new Error(`[UNAUTHORIZED] ${authFailure}`);
         }
         const sdkMethod = findSdkMethod(method);
         if (!sdkMethod) {
           const message = `Unknown method '${method}'. Valid methods: ${sdkMethodNames().join(", ")}.`;
           record({ outcome: "failed", error: message });
-          throw new Error(message);
+          throw new Error(`[BAD_REQUEST] ${message}`);
         }
         const callArgs = Array.isArray(rawArgs) ? rawArgs : [];
         let prepared;
@@ -144,7 +145,7 @@ export async function executeAtlassianCodeMode(
             authFailure ??= unauthorized;
             record({ ...base, outcome: "failed", error: unauthorized });
             stop.abort();
-            throw new Error(unauthorized, { cause: error });
+            throw new Error(`[UNAUTHORIZED] ${unauthorized}`, { cause: error });
           }
           record({
             ...base,
@@ -173,7 +174,7 @@ export async function executeAtlassianCodeMode(
     outcome.output.trimEnd(),
     outcome.outputTruncated ? "[output truncated]" : undefined,
     error,
-    ...reportLines(env.report.pages, artifacts),
+    ...reportLines(env.report.pages, artifacts, env.report.created),
     footer,
   ]
     .filter((part): part is string => Boolean(part))
@@ -190,6 +191,7 @@ export async function executeAtlassianCodeMode(
       outputTruncated: outcome.outputTruncated,
       hostCalls,
       pages: env.report.pages,
+      created: env.report.created,
       artifacts,
       // Content already carries the footer; the script_output projection must not add another.
       processStatusIncluded: true,
@@ -198,9 +200,10 @@ export async function executeAtlassianCodeMode(
 }
 
 /** Lint report for every page written and the artifacts created, appended after the script's output. */
-function reportLines(
+export function reportLines(
   pages: readonly PageReport[],
   artifacts: readonly ArtifactReport[],
+  created: readonly string[],
 ): string[] {
   const lines = pages.map((page) => {
     const parts = [
@@ -219,8 +222,15 @@ function reportLines(
       `Artifacts: ${artifacts.map((file) => `${file.handle} (${formatBytes(file.bytes)})`).join(", ")}`,
     );
   }
+  if (created.length > 0) {
+    const shown = created.slice(0, MAX_CREATED_LISTED).join(", ");
+    const more = created.length - MAX_CREATED_LISTED;
+    lines.push(`Created: ${shown}${more > 0 ? `, +${more} more` : ""}`);
+  }
   return lines;
 }
+
+const MAX_CREATED_LISTED = 20;
 
 function formatBytes(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
@@ -304,28 +314,18 @@ function cleanMessage(error: unknown): string {
   return messageOf(error).replace(GUIDE_POINTER, "");
 }
 
-/** `FORBIDDEN`, `NOT_FOUND`, `DENIED`, ... — what a script sees as `error.code`. */
-function errorCode(error: unknown): string | undefined {
-  if (!(error instanceof ToolExecutionError)) return undefined;
-  if (error.code.startsWith("NESTED_")) return "DENIED";
-  return /^(?:JIRA|CONFLUENCE)_([A-Z_]+)$/.exec(error.code)?.[1];
-}
-
 /** A 403 names the resource ("no access to project APP"); other messages pass through. */
 function failureMessage(error: unknown, resource?: string): string {
-  return errorCode(error) === "FORBIDDEN" && resource
+  return hostErrorCode(error) === "FORBIDDEN" && resource
     ? `no access to ${resource}`
     : cleanMessage(error);
 }
 
 /** Script-side errors carry their code as a "[CODE] " prefix that the prelude turns into `error.code`. */
 function hostFailure(error: unknown, resource?: string): Error {
-  const code = errorCode(error);
-  const message = failureMessage(error, resource);
-  if (!code && message === messageOf(error) && error instanceof Error) {
-    return error;
-  }
-  return new Error(code ? `[${code}] ${message}` : message);
+  return new Error(
+    `[${hostErrorCode(error)}] ${failureMessage(error, resource)}`,
+  );
 }
 
 /** For a 401, the message that ends the whole script; otherwise undefined. */

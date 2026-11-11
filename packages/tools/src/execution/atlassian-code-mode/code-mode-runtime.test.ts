@@ -18,7 +18,7 @@ function context(authorized: Nested[] = []) {
   return {
     cwd: process.cwd(),
     getApiKey: async () => "token",
-    getProviderConfig: async () => ({
+    getProviderConfig: async (): Promise<Record<string, unknown>> => ({
       enabled: true,
       siteUrl: "https://example.atlassian.net",
       email: "dev@example.com",
@@ -67,6 +67,61 @@ void test("error line numbers match the script and only script frames are shown"
     /boom\n\s+at <anonymous> \(script\.ts:4:\d+\)\nfailed · exit 1$/,
   );
   assert.equal((result.content ?? "").match(/script\.ts/g)?.length, 1);
+});
+
+void test("atlassian.defaults() returns configured products once per run", async () => {
+  let requests = 0;
+  globalThis.fetch = async (input: RequestInfo | URL) => {
+    requests += 1;
+    const url = String(input);
+    const body = url.includes("/myself")
+      ? { accountId: "j1", displayName: "Ann", emailAddress: "a@x.com" }
+      : { accountId: "c1", publicName: "Ann C" };
+    return new Response(JSON.stringify(body), {
+      headers: { "content-type": "application/json" },
+    });
+  };
+  const authorized: Nested[] = [];
+  const result = await run(
+    `const a = await atlassian.defaults(); await atlassian.defaults(); return a;`,
+    {
+      ...context(authorized),
+      getProviderConfig: async (id?: string) => ({
+        enabled: true,
+        siteUrl: "https://example.atlassian.net",
+        email: "dev@example.com",
+        ...(id === "jira"
+          ? { defaultProjectKey: "SCRUM" }
+          : { defaultSpaceKey: "ENG" }),
+      }),
+    },
+  );
+  assert.equal(result.exitCode, 0, result.content);
+  assert.equal(requests, 2);
+  assert.match(result.content ?? "", /"project":"SCRUM"/);
+  assert.match(result.content ?? "", /"space":"ENG"/);
+  assert.match(result.content ?? "", /"name":"Ann C"/);
+});
+
+void test("atlassian.defaults() omits an unconfigured product", async () => {
+  globalThis.fetch = async () =>
+    new Response(JSON.stringify({ accountId: "j1", displayName: "Ann" }), {
+      headers: { "content-type": "application/json" },
+    });
+  const result = await run(`return await atlassian.defaults();`, {
+    ...context(),
+    getProviderConfig: async (id?: string) =>
+      id === "jira"
+        ? {
+            enabled: true,
+            siteUrl: "https://example.atlassian.net",
+            email: "dev@example.com",
+          }
+        : { enabled: false },
+  });
+  assert.equal(result.exitCode, 0, result.content);
+  assert.match(result.content ?? "", /jira/);
+  assert.doesNotMatch(result.content ?? "", /confluence/);
 });
 
 void test("a 401 stops the whole script with one message and no further requests", async () => {
@@ -120,6 +175,15 @@ void test("denials carry the DENIED code", async () => {
     ctx,
   );
   assert.match(result.content ?? "", /^DENIED policy says no/);
+});
+
+void test("prepare and validation failures carry the BAD_REQUEST code", async () => {
+  const result = await run(
+    `for (const attempt of [() => jira.issues.search({ jql: "project = A", fields: ["x"], bogus: 1 }), () => jira.issues.get()] ) {
+       try { await attempt(); console.log("ok"); } catch (e) { console.log(e.code); }
+     }`,
+  );
+  assert.match(result.content ?? "", /^BAD_REQUEST\nBAD_REQUEST\n/);
 });
 
 void test("an unknown Jira field lists close matches", async () => {

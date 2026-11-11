@@ -69,16 +69,18 @@ declare const confluence: {
   pages: {
     /** Needs cql, space or title (contains); ANDed. limit default 25, max 250. */
     search(options: string | { cql?: string; space?: string; title?: string; limit?: number }): Promise<PageSummary[]>;
-    /** By id, or by exact title (space defaults to the configured one). body defaults to "markdown". */
+    /** By id, or by exact title (space defaults to the configured one). body "markdown" (default) is for reading; edit with body: "storage". */
     get(options: string | { id: string; body?: "markdown" | "storage" | false; children?: boolean } | { space?: string; title: string; body?: "markdown" | "storage" | false; children?: boolean }): Promise<Page>;
     /** body is storage XHTML from storage.*, linted on write. Pass attachments for images the body references. */
-    create(options: { space?: string; title: string; parent?: string; body: string; format?: "storage" | "markdown"; toc?: boolean; attachments?: AttachmentInput[] }): Promise<PageWrite>;
-    /** Replaces the whole body (read body: "storage" first to edit); omitted title/body are kept. */
-    update(options: { id: string; title?: string; body?: string; format?: "storage" | "markdown"; message?: string; toc?: boolean; attachments?: AttachmentInput[] }): Promise<PageWrite>;
+    create(options: { space?: string; title: string; parent?: string; body: string; toc?: boolean; attachments?: AttachmentInput[] }): Promise<PageWrite>;
+    /** Replaces the whole body (read body: "storage" first to edit); omitted title/body are kept. Dropping existing macros/layouts/images/mentions throws unless allowRemoving. Pass the version you read; a newer page throws CONFLICT. */
+    update(options: { id: string; version?: number; title?: string; body?: string; allowRemoving?: boolean; message?: string; toc?: boolean; attachments?: AttachmentInput[] }): Promise<PageWrite>;
   };
   attachments: {
     /** Same filename replaces. SVG rejected; max 20 MB. */
     upload(options: { id: string; file: FileHandle; filename?: string; comment?: string }): Promise<AttachmentInfo>;
+    /** By attachment id, or by page id and exact filename. Max 20 MB. */
+    download(options: { id: string } | { page: string; filename: string }): Promise<FileHandle>;
   };
   labels: {
     add(options: { id: string; labels: string | string[] }): Promise<{ id: string; labels: string[] }>;
@@ -87,6 +89,6 @@ declare const confluence: {
     /** Footer comment; Markdown unless format is "storage". */
     add(options: { id: string; body: string; format?: "markdown" | "storage" }): Promise<{ id: string; pageId: string }>;
   };
-  /** Path under /wiki/api/v2/ or /wiki/rest/api/. Returns JSON or text; non-GET is a destructive write. */
-  request(method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE", path: string, body?: unknown): Promise<unknown>;
+  /** Path under /wiki/api/v2/ or /wiki/rest/api/. Returns JSON or text, a FileHandle for binary; non-GET is a destructive write (page bodies: use pages.create/update). */
+  request(method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE", path: string, body?: unknown, query?: Record<string, string | number | boolean | string[]>): Promise<unknown>;
 };

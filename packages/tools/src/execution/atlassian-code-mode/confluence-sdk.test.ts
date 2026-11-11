@@ -1,4 +1,7 @@
 import assert from "node:assert/strict";
+import { mkdtemp, readFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { afterEach, test } from "node:test";
 import { executeAtlassianCodeMode } from "./atlassian-code-mode.js";
 import { assertWellFormedStorage } from "../confluence/storage-xml.js";
@@ -101,7 +104,7 @@ void test("pages.create converts Markdown to storage after authorizing", async (
   const { events, requests, authorized, context } = setup();
   const result = await executeAtlassianCodeMode(
     {
-      code: `console.log(JSON.stringify(await confluence.pages.create({ space: "DOC", title: "T", parent: "7", body: "# Hi\\n\\n- a" })));`,
+      code: `console.log(JSON.stringify(await confluence.pages.create({ space: "DOC", title: "T", parent: "7", body: storage.markdown("# Hi\\n\\n- a") })));`,
     },
     context,
   );
@@ -133,7 +136,7 @@ void test("pages.update fetches the current version and bumps it", async () => {
   const { requests, authorized, context } = setup();
   const result = await executeAtlassianCodeMode(
     {
-      code: `console.log(JSON.stringify(await confluence.pages.update({ id: "100", body: "new", message: "m" })));`,
+      code: `console.log(JSON.stringify(await confluence.pages.update({ id: "100", body: "<p>new</p>", message: "m" })));`,
     },
     context,
   );
@@ -144,6 +147,37 @@ void test("pages.update fetches the current version and bumps it", async () => {
   assert.equal(put.body.parentId, "7");
   assert.equal(put.body.body.value, "<p>new</p>");
   assert.equal(JSON.parse((result.content ?? "").split("\n")[0]).version, 4);
+});
+
+void test("pages.update with a stale version throws CONFLICT naming the current one", async () => {
+  const { requests, context } = setup();
+  const result = await executeAtlassianCodeMode(
+    {
+      code: `try { await confluence.pages.update({ id: "100", version: 2, body: "<p>new</p>" }); } catch (e) { console.log(e.code, e.message); }
+        const ok = await confluence.pages.update({ id: "100", version: 3, body: "<p>new</p>" }); console.log(ok.version);`,
+    },
+    context,
+  );
+  assert.match(
+    result.content ?? "",
+    /^CONFLICT page 100 is at v3, you read v2; re-read with body: "storage" and reapply\n4/,
+  );
+  assert.equal(requests.filter((r) => r.method === "PUT").length, 1);
+});
+
+void test("pages.get by title authorizes as a page search and misses are NOT_FOUND", async () => {
+  const { authorized, context } = setup();
+  const result = await executeAtlassianCodeMode(
+    {
+      code: `try { await confluence.pages.get({ space: "DOC", title: "Nope" }); } catch (e) { console.log(e.code); }`,
+    },
+    context,
+  );
+  assert.deepEqual(authorized[0], {
+    toolName: "confluence_search_pages",
+    args: { space_key: "DOC", title: "Nope" },
+  });
+  assert.match(result.content ?? "", /^NOT_FOUND/);
 });
 
 void test("pages.get returns Markdown by default", async () => {
@@ -181,7 +215,7 @@ void test("mixed storage helpers and Markdown produce a well-formed storage body
           storage.table([{ Name: "A & B", Qty: 2 }, { Name: "C", Qty: 3 }]),
           storage.table([["h1", "h2"], ["x", "y"]]),
         ].join("");
-        await confluence.pages.create({ space: "DOC", title: "T", body, format: "storage" });
+        await confluence.pages.create({ space: "DOC", title: "T", body });
       `,
     },
     context,
@@ -275,4 +309,176 @@ void test("a redirect on a credentialed Confluence request is an error", async (
   );
   assert.deepEqual(seen, ["manual"]);
   assert.match(result.content ?? "", /responded to .* with a redirect/);
+});
+
+void test("page bodies that are not storage XHTML are refused, including a format option", async () => {
+  const { requests, context } = setup();
+  const result = await executeAtlassianCodeMode(
+    {
+      code: `for (const o of [{ body: "# Hi" }, { body: "<p>x</p>", format: "markdown" }]) {
+        try { await confluence.pages.create({ space: "DOC", title: "T", ...o }); } catch (e) { console.log(e.code, e.message); } }`,
+    },
+    context,
+  );
+  assert.match(
+    result.content ?? "",
+    /^BAD_REQUEST Page bodies are storage XHTML\. Compose with storage\.\*/,
+  );
+  assert.match(result.content ?? "", /no option 'format'/);
+  assert.equal(requests.filter((r) => r.method === "POST").length, 0);
+});
+
+const RICH =
+  '<p>a</p><ac:structured-macro ac:name="status"><ac:parameter ac:name="title">x</ac:parameter></ac:structured-macro><ac:structured-macro ac:name="status"></ac:structured-macro><ac:structured-macro ac:name="info"><ac:rich-text-body><p>n</p></ac:rich-text-body></ac:structured-macro>';
+
+void test("pages.update refuses to drop structured elements unless allowRemoving", async () => {
+  const { requests, context } = setup();
+  const inner = globalThis.fetch;
+  globalThis.fetch = async (input, init) => {
+    const url = new URL(String(input));
+    if (
+      (init?.method ?? "GET") === "GET" &&
+      url.pathname.endsWith("/pages/100")
+    ) {
+      return Response.json({
+        id: "100",
+        title: "Old",
+        version: { number: 3 },
+        body: { storage: { value: RICH } },
+      });
+    }
+    return inner(input, init);
+  };
+  const result = await executeAtlassianCodeMode(
+    {
+      code: `try { await confluence.pages.update({ id: "100", body: "<p>plain</p>" }); } catch (e) { console.log(e.code, e.message); }
+        console.log((await confluence.pages.update({ id: "100", body: "<p>plain</p>", allowRemoving: true })).version);
+        const more = ${JSON.stringify(RICH)} + '<ac:structured-macro ac:name="toc"/>';
+        console.log((await confluence.pages.update({ id: "100", body: more })).version);`,
+    },
+    context,
+  );
+  assert.match(
+    result.content ?? "",
+    /^BAD_REQUEST update would remove 2 status, 1 info\. Edit the storage body \(pages\.get\(\{ id, body: "storage" \}\)\) or pass allowRemoving: true\.\n4\n4/,
+  );
+  assert.equal(requests.filter((r) => r.method === "PUT").length, 2);
+});
+
+void test("comments.add and attachment uploads are listed as created", async () => {
+  const { context } = setup();
+  const inner = globalThis.fetch;
+  globalThis.fetch = async (input, init) =>
+    new URL(String(input)).pathname.endsWith("/child/attachment")
+      ? Response.json({
+          results: [
+            {
+              id: "att9",
+              title: "a.txt",
+              extensions: { mediaType: "text/plain", fileSize: 1 },
+            },
+          ],
+        })
+      : inner(input, init);
+  const result = await executeAtlassianCodeMode(
+    {
+      code: `await files.write("a.txt", "x");
+        await confluence.comments.add({ id: "100", body: "hi" });
+        await confluence.attachments.upload({ id: "100", file: "artifact:a.txt" });`,
+    },
+    { ...context, conversationDir: await mkdtemp(join(tmpdir(), "cm-")) },
+  );
+  assert.match(result.content ?? "", /confluence comment 55/);
+  assert.match(result.content ?? "", /attachment att9 on page 100/);
+});
+
+void test("attachments.download round-trips binary bytes and lists choices on a miss", async () => {
+  const { authorized, context } = setup();
+  const png = Uint8Array.from([
+    0x89, 0x50, 0x4e, 0x47, 0, 255, 128, 13, 10, 0xc3, 0x28,
+  ]);
+  const inner = globalThis.fetch;
+  globalThis.fetch = async (input, init) => {
+    const url = new URL(String(input));
+    if (url.pathname.endsWith("/pages/100/attachments"))
+      return Response.json({
+        results: [
+          {
+            id: "att1",
+            title: "pic one.png",
+            downloadLink: "/download/attachments/100/pic.png",
+          },
+        ],
+      });
+    if (url.pathname.endsWith("/attachments/att1"))
+      return Response.json({
+        id: "att1",
+        title: "pic one.png",
+        downloadLink: "/download/attachments/100/pic.png",
+      });
+    if (url.pathname === "/wiki/download/attachments/100/pic.png")
+      return new Response(png, { headers: { "content-type": "image/png" } });
+    return inner(input, init);
+  };
+  const dir = await mkdtemp(join(tmpdir(), "cm-"));
+  const result = await executeAtlassianCodeMode(
+    {
+      code: `const a = await confluence.attachments.download({ id: "att1" });
+        const b = await confluence.attachments.download({ page: "100", filename: "pic one.png" });
+        console.log(a, b, (await files.read(a, { as: "bytes" })).join(","));
+        try { await confluence.attachments.download({ page: "100", filename: "x.png" }); } catch (e) { console.log(e.code, e.message); }`,
+    },
+    { ...context, conversationDir: dir },
+  );
+  assert.match(
+    result.content ?? "",
+    /^artifact:pic_one-1\.png artifact:pic_one-2\.png /,
+  );
+  assert.deepEqual(
+    [...(await readFile(join(dir, "code-mode", "pic_one-1.png")))],
+    [...png],
+  );
+  assert.match(
+    result.content ?? "",
+    /NOT_FOUND Page 100 has no attachment "x\.png"\. Attachments: pic one\.png/,
+  );
+  assert.equal(authorized[0].toolName, "confluence_get_page");
+});
+
+void test("request refuses atlas_doc_format writes, encodes query and saves binary responses", async () => {
+  const { requests, context } = setup();
+  const inner = globalThis.fetch;
+  let blobUrl: URL | undefined;
+  globalThis.fetch = async (input, init) => {
+    const url = new URL(String(input));
+    if (url.pathname === "/wiki/rest/api/blob")
+      return (
+        (blobUrl = url) &&
+        new Response(Uint8Array.from([1, 2, 3, 255]), {
+          headers: { "content-type": "application/pdf" },
+        })
+      );
+    return inner(input, init);
+  };
+  const dir = await mkdtemp(join(tmpdir(), "cm-"));
+  const result = await executeAtlassianCodeMode(
+    {
+      code: `try { await confluence.request("PUT", "/wiki/api/v2/pages/100", { body: { representation: "atlas_doc_format", value: "{}" } }); } catch (e) { console.log(e.code, e.message.slice(0, 33)); }
+        console.log(await confluence.request("GET", "/wiki/rest/api/blob", undefined, { q: "a&b c", ids: ["1", "2"] }));
+        console.log(await confluence.request("GET", "/wiki/api/v2/spaces"));`,
+    },
+    { ...context, conversationDir: dir },
+  );
+  assert.match(
+    result.content ?? "",
+    /^BAD_REQUEST atlas_doc_format bodies are not/,
+  );
+  assert.match(result.content ?? "", /artifact:confluence-response-1\.pdf/);
+  assert.equal(blobUrl?.searchParams.get("q"), "a&b c");
+  assert.deepEqual(blobUrl?.searchParams.getAll("ids"), ["1", "2"]);
+  assert.deepEqual(
+    [...(await readFile(join(dir, "code-mode", "confluence-response-1.pdf")))],
+    [1, 2, 3, 255],
+  );
+  assert.equal(requests.filter((r) => r.method === "PUT").length, 0);
 });

@@ -229,9 +229,9 @@ export function createConversationCore(
             ));
         if (spawnsShell) {
           if (!shell.available)
-            return blocked(
-              "shell-unavailable",
-              "/tools/bash/settings/shellPath",
+            throw new ToolExecutionError(
+              "SHELL_UNAVAILABLE",
+              `${input.toolName}: no usable shell is configured. Ask the user to set a shell path in Settings → Tools → bash.`,
             );
           bash.shellPath = shell.path;
         }
@@ -264,10 +264,13 @@ export function createConversationCore(
                     profile.id === settings.tools?.web_search?.profileId,
                 )
               : undefined;
+        // Missing tool setup fails the call so the agent can tell the user;
+        // configuration_blocked is reserved for invalid configuration/policy.
+        const service = toolProvider === "tavily" ? "Tavily" : "Atlassian";
         if (toolProvider && !selectedAccount)
-          return blocked(
-            "missing-account-reference",
-            `/tools/${toolProvider === "tavily" ? "web_search" : toolProvider}/profileId`,
+          throw new ToolExecutionError(
+            "MISSING_ACCOUNT",
+            `${input.toolName}: no ${service} account is selected for this tool. Ask the user to add or choose one in Settings → Integrations → ${service}.`,
           );
         const credentialKey =
           toolProvider === "jira" ||
@@ -280,11 +283,15 @@ export function createConversationCore(
         const apiKey = credentialKey
           ? await deps.auth.getApiKey(credentialKey).catch(() => undefined)
           : undefined;
-        if (credentialKey && !apiKey) return blocked("missing-credentials");
+        if (credentialKey && !apiKey)
+          throw new ToolExecutionError(
+            "MISSING_CREDENTIALS",
+            `${input.toolName}: the ${service} account "${selectedAccount!.name}" has no API token saved. Ask the user to add it in Settings → Integrations → ${service}.`,
+          );
         if (input.toolName === "python_exec" && (!python || !python.available))
-          return blocked(
-            "python-unavailable",
-            "/tools/python_exec/settings/interpreterPath",
+          throw new ToolExecutionError(
+            "PYTHON_UNAVAILABLE",
+            "python_exec: no usable Python interpreter is configured. Ask the user to set one in Settings → Tools → python_exec.",
           );
         const explanation = settings.tools?.explain_image?.settings;
         const explanationModel =
@@ -294,9 +301,9 @@ export function createConversationCore(
                 .catch(() => undefined)
             : undefined;
         if (input.toolName === "explain_image" && !explanationModel)
-          return blocked(
-            "model-required",
-            "/tools/explain_image/settings/model",
+          throw new ToolExecutionError(
+            "MODEL_REQUIRED",
+            "explain_image: no usable image model is configured. Ask the user to choose one in Settings → Tools → explain_image.",
           );
         const context: ToolExecutionContext = {
           cwd: input.cwd,
@@ -324,11 +331,12 @@ export function createConversationCore(
                       cwd: input.cwd,
                       requestCaptureId: input.requestCaptureId,
                       signal: input.signal,
-                      approvedRisk: userApproved(input.toolCallId)
-                        ? classifyCodeModeArguments(
-                            input.args as Record<string, unknown>,
-                          ).risk
-                        : null,
+                      admission: {
+                        by: userApproved(input.toolCallId) ? "user" : "rule",
+                        scriptRisk: classifyCodeModeArguments(
+                          input.args as Record<string, unknown>,
+                        ).risk,
+                      },
                     },
                     request,
                   ),

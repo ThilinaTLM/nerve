@@ -5,6 +5,7 @@ import { ToolExecutionError } from "../errors/tool-error.js";
 import {
   codeModeFooter,
   executeAtlassianCodeMode,
+  reportLines,
 } from "./atlassian-code-mode.js";
 
 const originalFetch = globalThis.fetch;
@@ -154,13 +155,13 @@ void test("fails closed without authorizeNested", async () => {
 void test("rejects unknown methods listing the valid ones", async () => {
   const result = await executeAtlassianCodeMode(
     {
-      code: `try { await host.call("jira.issues.delete", []); } catch (e) { console.log(e.message); }`,
+      code: `try { await host.call("jira.issues.remove", []); } catch (e) { console.log(e.message); }`,
     },
     makeContext({ events: [] }),
   );
   assert.match(
     result.content ?? "",
-    /Unknown method 'jira\.issues\.delete'.*jira\.issues\.search/,
+    /Unknown method 'jira\.issues\.remove'.*jira\.issues\.search/,
   );
   const details = codeModeResultDetailsSchema.parse(result.details);
   assert.equal(details.hostCalls[0].outcome, "failed");
@@ -237,4 +238,15 @@ void test("failed scripts print the error once, above a message-free footer", as
   const content = result.content ?? "";
   assert.equal(content.split("boom").length - 1, 1);
   assert.match(content.split("\n").at(-1)!, /^failed · exit 1$/);
+});
+
+void test("created entities are listed on one capped line", () => {
+  assert.deepEqual(reportLines([], [], []), []);
+  assert.deepEqual(reportLines([], [], ["SCRUM-6", "comment 1 on SCRUM-6"]), [
+    "Created: SCRUM-6, comment 1 on SCRUM-6",
+  ]);
+  const many = Array.from({ length: 23 }, (_, i) => `SCRUM-${i}`);
+  const [line] = reportLines([], [], many);
+  assert.match(line, /SCRUM-19, \+3 more$/);
+  assert.doesNotMatch(line, /SCRUM-20/);
 });

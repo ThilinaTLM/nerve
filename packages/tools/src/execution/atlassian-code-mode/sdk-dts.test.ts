@@ -4,6 +4,7 @@ import { dirname, join, resolve } from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 import ts from "typescript";
+import { atlassianMethods } from "./atlassian-defaults.js";
 import { confluenceMethods } from "./confluence-methods.js";
 import { diagramMethods } from "./diagram-methods.js";
 import { filesMethods } from "./files-methods.js";
@@ -27,6 +28,7 @@ function guideDir(): string {
 const guide = guideDir();
 const references = join(guide, "references");
 const generated = generateSdkDts([
+  ...atlassianMethods,
   ...jiraMethods,
   ...confluenceMethods,
   ...diagramMethods,
@@ -36,6 +38,7 @@ const generated = generateSdkDts([
 
 void test("references/*.d.ts match the method tables (UPDATE_SDK_DTS=1 regenerates)", () => {
   assert.deepEqual(Object.keys(generated).sort(), [
+    "atlassian.d.ts",
     "confluence.d.ts",
     "files.d.ts",
     "jira.d.ts",
@@ -100,6 +103,7 @@ void test("storage.md documents every storage helper and SKILL.md links existing
 void test("SDK calls and storage helpers named in the Markdown guide exist", () => {
   const sdk = new Set(
     [
+      ...atlassianMethods,
       ...jiraMethods,
       ...confluenceMethods,
       ...diagramMethods,

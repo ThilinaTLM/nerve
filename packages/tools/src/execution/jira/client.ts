@@ -132,15 +132,22 @@ export async function jiraRawRequest(
     method: string;
     path: unknown;
     body?: unknown;
+    query?: unknown;
+    onBinary?: (bytes: Buffer, contentType: string) => Promise<unknown>;
     signal?: AbortSignal;
   },
 ): Promise<unknown> {
-  const url = rawRequestUrl(connection.siteUrl, options.path, JIRA_RAW_BASES);
+  const url = rawRequestUrl(
+    connection.siteUrl,
+    options.path,
+    JIRA_RAW_BASES,
+    options.query,
+  );
   const init = atlassianJsonRequestInit(basicAuth(connection), options);
   const response = await fetch(url, init);
   if (!response.ok)
     await throwJiraError(response, options.method, url.pathname);
-  return await readRawBody(response);
+  return await readRawBody(response, options.onBinary);
 }
 
 export async function jiraMultipartRequest<T>(

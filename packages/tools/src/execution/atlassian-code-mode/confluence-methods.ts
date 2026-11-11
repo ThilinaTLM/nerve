@@ -6,26 +6,28 @@ import {
   pathSegment,
   requireConfluenceConnection,
 } from "../confluence/client.js";
-import { pageWebUrl, valuesFromConfluenceList } from "../confluence/format.js";
+import { valuesFromConfluenceList } from "../confluence/format.js";
 import { storageXmlToMarkdown } from "../confluence/markdown.js";
 import { markdownToStorage } from "../confluence/markdown-to-storage.js";
-import { lintStoragePage } from "../confluence/page-lint.js";
-import { fetchPageCurrent } from "../confluence/page-resolution.js";
-import { StorageXmlError } from "../confluence/storage-xml.js";
 import { listSpaces, resolveSpace } from "./confluence-spaces.js";
 import { rawMethod } from "../atlassian/raw-request.js";
 import {
-  type AttachmentSpec,
   attachmentReadAuthorizations,
   attachmentUploadAuthorizations,
   loadAttachment,
-  loadAttachments,
-  type LoadedAttachment,
   parseAttachmentSpec,
-  type UploadedAttachment,
-  uploadAttachment,
 } from "./attachments.js";
-import { partialWriteFailure } from "./confluence-partial-write.js";
+import { confluenceAttachmentMethods } from "./confluence-attachments.js";
+import {
+  commentFormat,
+  compactPage,
+  confluencePageWriteMethods,
+  pageBodyOption,
+  pageUrl,
+  uploadAttachment,
+} from "./confluence-page-writes.js";
+import { freshArtifactName, writeArtifact } from "./artifacts.js";
+import { codedError } from "./errors.js";
 import { clampInt, nonEmptyString, optionalText } from "./sdk-args.js";
 import {
   type CodeModeContext,
@@ -39,98 +41,6 @@ import {
 
 const DEFAULT_PAGE_LIMIT = 25;
 const MAX_PAGE_LIMIT = 250;
-
-type BodyFormat = "markdown" | "storage";
-
-/** Pages default to storage; a body with no markup at all can only be Markdown prose. */
-function formatOption(
-  value: unknown,
-  body: string,
-  defaultFormat: "storage" | "markdown" = "storage",
-): BodyFormat {
-  if (value === "markdown" || value === "storage") return value;
-  if (value !== undefined) {
-    throw new Error('format must be "markdown" or "storage".');
-  }
-  if (defaultFormat === "markdown") return "markdown";
-  return body.trim() === "" || body.trimStart().startsWith("<")
-    ? "storage"
-    : "markdown";
-}
-
-function attachmentSpecs(value: unknown): AttachmentSpec[] {
-  if (value === undefined) return [];
-  if (!Array.isArray(value)) {
-    throw new Error(
-      "attachments must be an array of file handles or { file, filename? }.",
-    );
-  }
-  return value.map(parseAttachmentSpec);
-}
-
-/** Converts to storage, lints, and turns malformed XML into a precise rejection (before any HTTP). */
-function finalizeBody(
-  body: string,
-  format: BodyFormat,
-  title: string,
-  toc: boolean,
-  attachments: LoadedAttachment[],
-) {
-  const images = new Map<string, { width: number; height: number }>();
-  for (const file of attachments) {
-    if (file.width && file.height) {
-      images.set(file.filename, { width: file.width, height: file.height });
-    }
-  }
-  try {
-    return lintStoragePage(
-      format === "storage" ? body : markdownToStorage(body),
-      { title, toc, images },
-    );
-  } catch (error) {
-    if (error instanceof StorageXmlError) {
-      throw new Error(
-        `Page body is not well-formed storage XHTML: ${error.message}`,
-        { cause: error },
-      );
-    }
-    throw error;
-  }
-}
-
-function referencedAttachments(storage: string): string[] {
-  return [
-    ...storage.matchAll(/<ri:attachment\b[^>]*\bri:filename="([^"]*)"/g),
-  ].map((m) => m[1]);
-}
-
-function pageUrl(
-  connection: ConfluenceConnection,
-  page: Record<string, unknown>,
-) {
-  return (
-    pageWebUrl(connection.siteUrl, page) ??
-    `${connection.siteUrl}/wiki/pages/viewpage.action?pageId=${String(page.id ?? "")}`
-  );
-}
-
-function compactPage(
-  connection: ConfluenceConnection,
-  page: Record<string, unknown>,
-  fallback: { title?: string; version?: number } = {},
-) {
-  const version = page.version as { number?: unknown } | undefined;
-  return {
-    id: String(page.id ?? ""),
-    title:
-      typeof page.title === "string" ? page.title : (fallback.title ?? null),
-    url: pageUrl(connection, page),
-    version:
-      typeof version?.number === "number"
-        ? version.number
-        : (fallback.version ?? null),
-  };
-}
 
 /** One `confluence_manage_label` check per label, so a rule on one label cannot admit the others. */
 const labelChecks = (id: string, labels: string[]): NestedAuthorization[] =>
@@ -149,11 +59,6 @@ function labelNames(value: unknown): string[] {
     const name = (item as { name?: unknown } | null)?.name;
     return typeof name === "string" ? [name] : [];
   });
-}
-
-function pageBodyOption(options: Record<string, unknown>) {
-  const body = typeof options.body === "string" ? options.body : undefined;
-  return body;
 }
 
 export const confluenceMethods: SdkMethod[] = [
@@ -263,7 +168,7 @@ export const confluenceMethods: SdkMethod[] = [
     bare: "id",
     options: ["id", "space", "title", "body", "children"],
     signature:
-      '/** By id, or by exact title (space defaults to the configured one). body defaults to "markdown". */ get(options: string | { id: string; body?: "markdown" | "storage" | false; children?: boolean } | { space?: string; title: string; body?: "markdown" | "storage" | false; children?: boolean }): Promise<Page>',
+      '/** By id, or by exact title (space defaults to the configured one). body "markdown" (default) is for reading; edit with body: "storage". */ get(options: string | { id: string; body?: "markdown" | "storage" | false; children?: boolean } | { space?: string; title: string; body?: "markdown" | "storage" | false; children?: boolean }): Promise<Page>',
     parse: (options) => {
       const id =
         options.id === undefined ? undefined : nonEmptyString(options.id, "id");
@@ -282,8 +187,9 @@ export const confluenceMethods: SdkMethod[] = [
         children: options.children === true,
       };
     },
+    // By title there is no page id yet: authorize the lookup as a page search.
     authorize: ({ id, space, title }) => ({
-      toolName: "confluence_get_page",
+      toolName: id ? "confluence_get_page" : "confluence_search_pages",
       args: id
         ? { page_id: id }
         : { ...(space ? { space_key: space } : {}), title },
@@ -305,7 +211,8 @@ export const confluenceMethods: SdkMethod[] = [
           | { id?: unknown }
           | undefined;
         if (!first?.id) {
-          throw new Error(
+          throw codedError(
+            "NOT_FOUND",
             `No Confluence page titled "${title}" in space ${spaceKey ?? space ?? "(default)"}. Use confluence.pages.search({ title }) to find similar titles.`,
           );
         }
@@ -364,266 +271,7 @@ export const confluenceMethods: SdkMethod[] = [
       return result;
     },
   }),
-  defineMethod({
-    product: "confluence",
-    path: "pages.create",
-    risk: "write",
-    options: [
-      "space",
-      "title",
-      "parent",
-      "body",
-      "format",
-      "toc",
-      "attachments",
-    ],
-    signature:
-      '/** body is storage XHTML from storage.*, linted on write. Pass attachments for images the body references. */ create(options: { space?: string; title: string; parent?: string; body: string; format?: "storage" | "markdown"; toc?: boolean; attachments?: AttachmentInput[] }): Promise<PageWrite>',
-    parse: (options) => {
-      const body = pageBodyOption(options) ?? "";
-      if (!body.trim()) throw new Error("body must be a non-empty string.");
-      return {
-        space: optionalText(options.space),
-        title: nonEmptyString(options.title, "title"),
-        parent:
-          options.parent === undefined
-            ? undefined
-            : nonEmptyString(options.parent, "parent"),
-        body,
-        format: formatOption(options.format, body),
-        toc: options.toc !== false,
-        attachments: attachmentSpecs(options.attachments),
-      };
-    },
-    authorize: ({ space, title, parent, body }) => ({
-      toolName: "confluence_create_page",
-      args: {
-        ...(space ? { space_key: space } : {}),
-        title,
-        ...(parent ? { parent_id: parent } : {}),
-        body,
-      },
-      summary: `${space ?? "default space"}/${title}`,
-    }),
-    authorizeAlso: ({ attachments }, env) => [
-      ...attachmentUploadAuthorizations("(new page)", attachments),
-      ...attachmentReadAuthorizations(attachments, env),
-    ],
-    resource: ({ space }) => `space ${space ?? "(default)"}`,
-    async run({ space, title, parent, body, format, toc, attachments }, env) {
-      const connection = await env.confluence();
-      // Read, validate and size attachments first so bad input fails before the page exists.
-      const loaded = await loadAttachments(attachments, env);
-      const page = finalizeBody(body, format, title, toc, loaded);
-      const { spaceId } = await resolveSpace(env, space);
-      const created = await confluenceRequest(connection, {
-        parse: jsonObject,
-        method: "POST",
-        path: "/pages",
-        body: {
-          spaceId,
-          title,
-          ...(parent ? { parentId: parent } : {}),
-          status: "current",
-          body: { representation: "storage", value: page.storage },
-        },
-        signal: env.context.signal,
-      });
-      const result = compactPage(connection, created, { title, version: 1 });
-      const uploaded: UploadedAttachment[] = [];
-      let version = result.version;
-      try {
-        for (const [index, file] of loaded.entries()) {
-          uploaded.push(
-            await uploadAttachment(
-              env,
-              result.id,
-              file,
-              attachments[index].comment,
-            ),
-          );
-        }
-        if (uploaded.length > 0 && page.storage.includes("ri:attachment")) {
-          // Save once more now that the attachments exist so image references resolve (bumps the version).
-          const updated = await confluenceRequest(connection, {
-            parse: jsonObject,
-            method: "PUT",
-            path: `/pages/${pathSegment(result.id)}`,
-            body: {
-              id: result.id,
-              status: "current",
-              title,
-              ...(parent ? { parentId: parent } : {}),
-              body: { representation: "storage", value: page.storage },
-              version: {
-                number: (version ?? 1) + 1,
-                message: "Attach images",
-              },
-            },
-            signal: env.context.signal,
-          });
-          version =
-            (updated.version as { number?: number } | undefined)?.number ??
-            (version ?? 1) + 1;
-        }
-      } catch (error) {
-        const stored = uploaded.map((file) => file.filename);
-        throw partialWriteFailure(
-          error,
-          `page ${result.id} (${result.url}) was already created with its body; ${
-            stored.length > 0
-              ? `uploaded: ${stored.join(", ")}; the remaining attachments`
-              : "its attachments"
-          } and image references are missing. Fix that page with confluence.pages.update / attachments.upload; do not create it again`,
-        );
-      }
-      const missing = referencedAttachments(page.storage).filter(
-        (name) => !uploaded.some((u) => u.filename === name),
-      );
-      const warnings = [
-        ...page.warnings,
-        ...missing.map(
-          (name) =>
-            `Body references attachment "${name}" that was not attached; pass it in attachments.`,
-        ),
-      ];
-      env.report.pages.push({
-        action: "created",
-        id: result.id,
-        title: result.title ?? title,
-        version,
-        fixes: page.fixes,
-        warnings,
-      });
-      return {
-        ...result,
-        version,
-        fixes: page.fixes,
-        warnings,
-        ...(uploaded.length ? { attachments: uploaded } : {}),
-      };
-    },
-  }),
-  defineMethod({
-    product: "confluence",
-    path: "pages.update",
-    risk: "write",
-    options: ["id", "title", "body", "format", "message", "toc", "attachments"],
-    signature:
-      '/** Replaces the whole body (read body: "storage" first to edit); omitted title/body are kept. */ update(options: { id: string; title?: string; body?: string; format?: "storage" | "markdown"; message?: string; toc?: boolean; attachments?: AttachmentInput[] }): Promise<PageWrite>',
-    parse: (options) => {
-      const body = pageBodyOption(options);
-      const title = optionalText(options.title);
-      if (body === undefined && !title) {
-        throw new Error("Provide a title and/or body to update.");
-      }
-      return {
-        id: nonEmptyString(options.id, "id"),
-        title,
-        body,
-        format: formatOption(options.format, body ?? ""),
-        message: optionalText(options.message),
-        toc: options.toc !== false,
-        attachments: attachmentSpecs(options.attachments),
-      };
-    },
-    authorize: ({ id, title, body, message }) => ({
-      toolName: "confluence_update_page",
-      args: {
-        page_id: id,
-        ...(title ? { title } : {}),
-        ...(body !== undefined ? { body } : {}),
-        ...(message ? { version_message: message } : {}),
-      },
-      summary: id,
-    }),
-    authorizeAlso: ({ id, attachments }, env) => [
-      ...attachmentUploadAuthorizations(id, attachments),
-      ...attachmentReadAuthorizations(attachments, env),
-    ],
-    resource: ({ id }) => `page ${id}`,
-    async run({ id, title, body, format, message, toc, attachments }, env) {
-      const connection = await env.confluence();
-      const loaded = await loadAttachments(attachments, env);
-      const current = await fetchPageCurrent(
-        connection,
-        id,
-        env.context.signal,
-      );
-      const currentVersion = (
-        current.version as { number?: unknown } | undefined
-      )?.number;
-      if (typeof currentVersion !== "number") {
-        throw new Error(
-          `Could not determine current version of Confluence page ${id}.`,
-        );
-      }
-      const currentBody = (
-        current.body as { storage?: { value?: unknown } } | undefined
-      )?.storage?.value;
-      const nextTitle =
-        title ?? (typeof current.title === "string" ? current.title : id);
-      const page =
-        body !== undefined
-          ? finalizeBody(body, format, nextTitle, toc, loaded)
-          : {
-              storage: typeof currentBody === "string" ? currentBody : "",
-              fixes: [],
-              warnings: [],
-            };
-      const uploaded: UploadedAttachment[] = [];
-      let updated;
-      try {
-        for (const [index, file] of loaded.entries()) {
-          uploaded.push(
-            await uploadAttachment(env, id, file, attachments[index].comment),
-          );
-        }
-        updated = await confluenceRequest(connection, {
-          parse: jsonObject,
-          method: "PUT",
-          path: `/pages/${pathSegment(id)}`,
-          body: {
-            id,
-            status: "current",
-            title: nextTitle,
-            ...(current.parentId ? { parentId: current.parentId } : {}),
-            body: { representation: "storage", value: page.storage },
-            version: {
-              number: currentVersion + 1,
-              ...(message ? { message } : {}),
-            },
-          },
-          signal: env.context.signal,
-        });
-      } catch (error) {
-        if (uploaded.length === 0) throw error;
-        throw partialWriteFailure(
-          error,
-          `page ${id} was not saved, but these attachments were already uploaded: ${uploaded.map((file) => file.filename).join(", ")}`,
-        );
-      }
-      const result = compactPage(
-        connection,
-        { ...updated, id },
-        { title: nextTitle, version: currentVersion + 1 },
-      );
-      env.report.pages.push({
-        action: "updated",
-        id,
-        title: result.title ?? nextTitle,
-        version: result.version,
-        fixes: page.fixes,
-        warnings: page.warnings,
-      });
-      return {
-        ...result,
-        fixes: page.fixes,
-        warnings: page.warnings,
-        ...(uploaded.length ? { attachments: uploaded } : {}),
-      };
-    },
-  }),
+  ...confluencePageWriteMethods,
   defineMethod({
     product: "confluence",
     path: "attachments.upload",
@@ -697,7 +345,7 @@ export const confluenceMethods: SdkMethod[] = [
       return {
         id: nonEmptyString(options.id, "id"),
         body,
-        format: formatOption(options.format, body, "markdown"),
+        format: commentFormat(options.format),
       };
     },
     authorize: ({ id, body }) => ({
@@ -720,21 +368,28 @@ export const confluenceMethods: SdkMethod[] = [
         },
         signal: env.context.signal,
       });
-      return { id: String(created.id ?? ""), pageId: id };
+      const commentId = String(created.id ?? "");
+      env.report.created.push(`confluence comment ${commentId}`);
+      return { id: commentId, pageId: id };
     },
   }),
+  ...confluenceAttachmentMethods,
   definePositionalMethod({
     product: "confluence",
     path: "request",
     risk: "destructive",
-    maxArgs: 3,
+    maxArgs: 4,
     signature:
-      '/** Path under /wiki/api/v2/ or /wiki/rest/api/. Returns JSON or text; non-GET is a destructive write. */ request(method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE", path: string, body?: unknown): Promise<unknown>',
-    parse: ([method, path, body]) => ({
-      method: rawMethod(method),
-      path,
-      body,
-    }),
+      '/** Path under /wiki/api/v2/ or /wiki/rest/api/. Returns JSON or text, a FileHandle for binary; non-GET is a destructive write (page bodies: use pages.create/update). */ request(method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE", path: string, body?: unknown, query?: Record<string, string | number | boolean | string[]>): Promise<unknown>',
+    parse: ([method, path, body, query]) => {
+      const verb = rawMethod(method);
+      if (verb !== "GET" && usesAtlasDocFormat(body)) {
+        throw new Error(
+          'atlas_doc_format bodies are not supported. Write pages with confluence.pages.create/update and storage.* (representation "storage").',
+        );
+      }
+      return { method: verb, path, body, query };
+    },
     // GET is a read. Anything else cannot be analysed: `confluence_manage_page`
     // (a purge) only supplies the deny rules, and the call always needs the
     // script to be approved at destructive level, whatever allow rules say.
@@ -751,16 +406,49 @@ export const confluenceMethods: SdkMethod[] = [
       ...(method === "GET" ? {} : { approvalRequired: true as const }),
     }),
     resource: ({ path }) => String(path),
-    async run({ method, path, body }, env) {
+    async run({ method, path, body, query }, env) {
       return await confluenceRawRequest(await env.confluence(), {
         method,
         path,
         body,
+        query,
+        onBinary: (bytes, contentType) => saveBinary(env, bytes, contentType),
         signal: env.context.signal,
       });
     },
   }),
 ];
+
+function usesAtlasDocFormat(body: unknown): boolean {
+  const inner = (body as { body?: { representation?: unknown } } | null)?.body;
+  return (
+    (body as { representation?: unknown } | null)?.representation ===
+      "atlas_doc_format" || inner?.representation === "atlas_doc_format"
+  );
+}
+
+const BINARY_EXTENSIONS: Record<string, string> = {
+  "image/png": ".png",
+  "image/jpeg": ".jpg",
+  "image/gif": ".gif",
+  "image/webp": ".webp",
+  "application/pdf": ".pdf",
+  "application/zip": ".zip",
+};
+
+async function saveBinary(
+  env: SdkEnvironment,
+  bytes: Buffer,
+  contentType: string,
+): Promise<string> {
+  const type = contentType.split(";")[0].trim().toLowerCase();
+  const name = await freshArtifactName(
+    env,
+    "confluence-response",
+    BINARY_EXTENSIONS[type] ?? ".bin",
+  );
+  return await writeArtifact(env, name, bytes);
+}
 
 export function confluenceConnectionLoader(context: CodeModeContext) {
   let connection: Promise<ConfluenceConnection> | undefined;

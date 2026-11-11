@@ -18,10 +18,11 @@ export type CodeModeCall = Omit<
 > & {
   signal: AbortSignal;
   /**
-   * Risk a person approved the script for (the classification of its script),
-   * or `null` when the outer call was allowed by a rule without approval.
+   * How the outer script was admitted and its classified risk: `user` when a
+   * person approved it (a ceiling for nested approvals), `rule` when a policy
+   * rule allowed it without approval.
    */
-  approvedRisk: CodeModeRisk | null;
+  admission: { by: "user" | "rule"; scriptRisk: CodeModeRisk };
 };
 
 /** One SDK call to check. */
@@ -30,8 +31,9 @@ export type CodeModeRequest = {
   args: Record<string, unknown>;
   /**
    * The call cannot be analysed (raw non-GET request), so `toolName` only
-   * supplies the deny rules; an allow rule never admits it. It always needs a
-   * person to have approved the script at destructive level.
+   * supplies the deny rules; its own allow rule never admits it. It runs only
+   * in a script whose classified risk is destructive and that either a person
+   * approved or a rule admitted while the nested verdict is `allow`.
    */
   approvalRequired?: boolean;
 };
@@ -54,10 +56,11 @@ function brokerable(toolName: string): boolean {
 /**
  * Checks one SDK call from a code-mode script against the conversation's
  * current policy, exactly as a direct call to `toolName` would be checked.
- * Only a person's approval of the script sets a ceiling (`approvedRisk`): a
- * call whose policy decision is "approval" runs when its own risk is within
- * it and is refused above it, or whenever the script was merely allowed by a
- * rule. Denials always hold.
+ * A person's approval of the script sets a ceiling: a call whose decision is
+ * "approval" runs when its own risk is within it and is refused above it.
+ * A script merely admitted by a rule has no ceiling, so such calls are refused,
+ * except a raw request with an `allow` verdict in a destructive script (the
+ * rule already admitted destructive work). Denials always hold.
  */
 export function createCodeModeAuthorizer(prepareAdmission: PrepareAdmission) {
   return async (
@@ -70,7 +73,7 @@ export function createCodeModeAuthorizer(prepareAdmission: PrepareAdmission) {
         "NESTED_DENIED",
         `${request.toolName}: not available to code mode`,
       );
-    const { signal, approvedRisk, ...identity } = call;
+    const { signal, admission: scripted, ...identity } = call;
     for (let attempt = 0; attempt <= MAX_STALE_RETRIES; attempt += 1) {
       signal.throwIfAborted();
       const admission = await prepareAdmission({
@@ -92,21 +95,28 @@ export function createCodeModeAuthorizer(prepareAdmission: PrepareAdmission) {
           `${parsed.data}: permission policy is unavailable until its configuration is repaired`,
         );
       const { decision: verdict, reason } = decision.supervision;
-      if (verdict === "allow" && !request.approvalRequired) return;
       if (verdict === "deny")
         throw new ToolExecutionError(
           "NESTED_DENIED",
           `${parsed.data}: denied${reason ? ` (${reason})` : ""}`,
         );
-      const risk = request.approvalRequired
+      const raw = request.approvalRequired === true;
+      if (verdict === "allow" && !raw) return;
+      const risk = raw
         ? "destructive"
         : codeModeToolRisk(parsed.data, request.args);
       const suffix = reason ? ` (${reason})` : "";
-      if (approvedRisk === null)
+      if (scripted.by === "rule") {
+        if (raw && verdict === "allow" && scripted.scriptRisk === "destructive")
+          return;
         throw new ToolExecutionError(
           "NESTED_APPROVAL_REQUIRED",
-          `${parsed.data}: needs ${describeCodeModeRisk(risk)} approval, but the script was allowed by a rule rather than approved${suffix}`,
+          raw
+            ? `${parsed.data}: a raw non-GET request needs the rule to allow it in a destructive script (script risk: ${describeCodeModeRisk(scripted.scriptRisk)}, rule verdict: ${verdict}); have a person approve the script or adjust the rule${suffix}`
+            : `${parsed.data}: needs ${describeCodeModeRisk(risk)} approval, but the script was allowed by a rule rather than approved${suffix}`,
         );
+      }
+      const approvedRisk = scripted.scriptRisk;
       if (codeModeRiskWithin(risk, approvedRisk)) return;
       throw new ToolExecutionError(
         "NESTED_APPROVAL_REQUIRED",

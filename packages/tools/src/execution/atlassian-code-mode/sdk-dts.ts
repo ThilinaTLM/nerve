@@ -1,4 +1,5 @@
 import {
+  ATLASSIAN_DTS_TYPES,
   CONFLUENCE_DTS_TYPES,
   FILES_DTS_TYPES,
   IMAGE_CHAIN_OPS,
@@ -75,6 +76,11 @@ export function generateSdkDts(methods: SdkMethod[]): Record<string, string> {
       CONFLUENCE_DTS_TYPES,
       "",
       ...globalObject("confluence"),
+    ]),
+    "atlassian.d.ts": file("atlassian.d.ts", [
+      ATLASSIAN_DTS_TYPES,
+      "",
+      ...globalObject("atlassian"),
     ]),
     "files.d.ts": file("files.d.ts", [
       FILES_DTS_TYPES,

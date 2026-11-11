@@ -33,9 +33,9 @@ interface Issue {
   /** Present when named in \`fields\`. */
   comment?: IssueComment[];
   attachment?: { id: string | null; filename: string | null; size: number | null; mimeType: string | null }[];
-  issuelinks?: { type: string | null; direction: "outward" | "inward"; key: string | null; summary: string | null }[];
+  issuelinks?: { id: string | null; type: string | null; direction: "outward" | "inward"; key: string | null; summary: string | null }[];
   subtasks?: { key: string | null; summary: string | null; status: string | null }[];
-  worklog?: { author: string | null; started: string | null; timeSpent: string | null; timeSpentSeconds: number | null; comment: string | null }[];
+  worklog?: { id: string | null; author: string | null; started: string | null; timeSpent: string | null; timeSpentSeconds: number | null; comment: string | null }[];
   timetracking?: {
     originalEstimate: string | null;
     remainingEstimate: string | null;
@@ -49,6 +49,7 @@ interface Issue {
 }
 
 interface IssueComment {
+  id: string | null;
   author: string | null;
   created: string | null;
   /** Markdown. */
@@ -176,3 +177,13 @@ export const IMAGE_CHAIN_OPS = `  /** fit "inside" (default) never enlarges. */
   crop(options: { left: number; top: number; width: number; height: number }): ImageChain;
   png(): ImageChain;
   jpeg(options?: { quality?: number }): ImageChain;`;
+
+export const ATLASSIAN_DTS_TYPES = `interface AtlassianPerson {
+  accountId: string;
+  name: string;
+  email?: string;
+}
+interface AtlassianDefaults {
+  jira?: { site: string; project?: string; user: AtlassianPerson };
+  confluence?: { site: string; space?: string; user: AtlassianPerson };
+}`;

@@ -1,3 +1,4 @@
+import { atlassianMethods } from "./atlassian-defaults.js";
 import {
   confluenceConnectionLoader,
   confluenceMethods,
@@ -30,6 +31,7 @@ import { STORAGE_PRELUDE } from "./storage-helpers.js";
 export type { SdkEnvironment, SdkMethod } from "./sdk-types.js";
 
 const methods: SdkMethod[] = [
+  ...atlassianMethods,
   ...jiraMethods,
   ...confluenceMethods,
   ...diagramMethods,
@@ -58,7 +60,7 @@ export function createSdkEnvironment(context: CodeModeContext): SdkEnvironment {
     confluence,
     jiraFields: createJiraFieldLoader(context, jira),
     confluenceSpaceKeys: confluenceSpaceKeyLoader(context, confluence),
-    report: { pages: [], artifacts: new Map() },
+    report: { pages: [], artifacts: new Map(), created: [] },
   };
 }
 
@@ -88,7 +90,9 @@ function productPrelude(product: string): string {
 /** Trusted prelude: SDK objects forwarding to `host.call`, plus the pure-JS `storage.*` builders. */
 export const SDK_PRELUDE = [
   `(() => {\n${RUNTIME_HEAD}`,
-  ...["jira", "confluence", "diagram", "files", "image"].map(productPrelude),
+  ...["atlassian", "jira", "confluence", "diagram", "files", "image"].map(
+    productPrelude,
+  ),
   `${RUNTIME_TAIL}})();`,
   STORAGE_PRELUDE,
 ].join("\n");

@@ -31,6 +31,7 @@ import {
   projectExtras,
 } from "./jira-discovery.js";
 import { fieldMetaMap } from "./jira-field-values.js";
+import { jiraExtraMethods, rawBinarySaver } from "./jira-extra-methods.js";
 import { jiraWriteMethods } from "./jira-write-methods.js";
 import { clampInt, nonEmptyString, optionalText } from "./sdk-args.js";
 import {
@@ -133,7 +134,7 @@ const readMethods: SdkMethod[] = [
     bare: "key",
     options: ["key", "fields", "comments", "transitions"],
     signature:
-      "/** `comments: true` adds all comments; `transitions: true` the statuses it can move to, with their required fields. */ get(options: string | { key: string; fields?: string[]; comments?: boolean; transitions?: boolean }): Promise<Issue & { comments?: IssueComment[]; transitions?: IssueTransition[] }>",
+      "/** `comments: true` adds all comments as `comments` (replacing `comment`); `transitions: true` the statuses it can move to, with their required fields. */ get(options: string | { key: string; fields?: string[]; comments?: boolean; transitions?: boolean }): Promise<Issue & { comments?: IssueComment[]; transitions?: IssueTransition[] }>",
     parse: (options) => ({
       key: nonEmptyString(options.key, "key"),
       fields: fieldsOption(options),
@@ -156,7 +157,10 @@ const readMethods: SdkMethod[] = [
         signal: env.context.signal,
       });
       const issue = flattenIssue(raw, connection.siteUrl, selection);
-      if (comments) issue.comments = await fetchComments(connection, key, env);
+      if (comments) {
+        delete issue.comment;
+        issue.comments = await fetchComments(connection, key, env);
+      }
       if (transitions) issue.transitions = await fetchTransitions(key, env);
       return issue;
     },
@@ -168,7 +172,7 @@ const readMethods: SdkMethod[] = [
     bare: "key",
     options: ["key", "include", "issueType"],
     signature:
-      '/** `include` adds, for learning a project\'s conventions: "fields" (create fields per issue type with required/allowed values; `issueType` limits it to one), "statuses" per issue type, "releases" (fix versions), "boards", "sprints" (active/future, scrum boards), "epics" (open). */ get(options: string | { key: string; include?: ("fields" | "statuses" | "releases" | "boards" | "sprints" | "epics")[]; issueType?: string }): Promise<JiraProject>',
+      '/** `include` adds, for learning a project\'s conventions: "fields" (create fields per issue type with required/allowed values; `issueType` limits it to one), "statuses" per issue type, "releases" (fix versions), "boards", "sprints" (active/future; "closedSprints" adds the 10 latest closed per board), "epics" (open). */ get(options: string | { key: string; include?: ("fields" | "statuses" | "releases" | "boards" | "sprints" | "closedSprints" | "epics")[]; issueType?: string }): Promise<JiraProject>',
     parse: (options) => {
       const include = options.include ?? [];
       if (
@@ -277,13 +281,14 @@ const readMethods: SdkMethod[] = [
     product: "jira",
     path: "request",
     risk: "destructive",
-    maxArgs: 3,
+    maxArgs: 4,
     signature:
-      '/** Path under /rest/api/3/ or /rest/agile/1.0/. Returns JSON or text; non-GET is a destructive write. */ request(method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE", path: string, body?: unknown): Promise<unknown>',
-    parse: ([method, path, body]) => ({
+      '/** Path under /rest/api/3/ or /rest/agile/1.0/. Returns JSON or text, or a FileHandle for binary responses; non-GET is a destructive write. `query` values may be arrays (repeated). */ request(method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE", path: string, body?: unknown, query?: Record<string, string | number | boolean | (string | number)[]>): Promise<unknown>',
+    parse: ([method, path, body, query]) => ({
       method: rawMethod(method),
       path,
       body,
+      query,
     }),
     // GET is a read. Anything else cannot be analysed: `jira_manage_comment`
     // (a delete) only supplies the deny rules, and the call always needs the
@@ -300,18 +305,24 @@ const readMethods: SdkMethod[] = [
       ...(method === "GET" ? {} : { approvalRequired: true as const }),
     }),
     resource: ({ path }) => String(path),
-    async run({ method, path, body }, env) {
+    async run({ method, path, body, query }, env) {
       return await jiraRawRequest(await env.jira(), {
         method,
         path,
         body,
+        query,
+        onBinary: method === "GET" ? rawBinarySaver(env, path) : undefined,
         signal: env.context.signal,
       });
     },
   }),
 ];
 
-export const jiraMethods: SdkMethod[] = [...readMethods, ...jiraWriteMethods];
+export const jiraMethods: SdkMethod[] = [
+  ...readMethods,
+  ...jiraWriteMethods,
+  ...jiraExtraMethods,
+];
 
 async function fetchTransitions(key: string, env: SdkEnvironment) {
   const response = await jiraRequest(await env.jira(), {
