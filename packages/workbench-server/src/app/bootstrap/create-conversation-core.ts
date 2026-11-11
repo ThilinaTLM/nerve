@@ -10,7 +10,11 @@ import {
 import { createProfileTransitions } from "../../infrastructure/configuration/agent-configuration/profile-transitions.js";
 import { agentConfigurationOperations } from "../../infrastructure/configuration/agent-configuration/scoped-configuration-operations.js";
 import type { LeadSettingsOverrides } from "@nervekit/contracts/agent-configuration";
-import type { Settings, BashToolSettings } from "@nervekit/contracts/settings";
+import {
+  defaultKrokiToolSettings,
+  type Settings,
+  type BashToolSettings,
+} from "@nervekit/contracts/settings";
 import { createScopedPermissionSource } from "../../core-host/scoped-permission-source.js";
 import { resolveAgentModel } from "@nervekit/harness/models";
 import { scopedConversationCreation } from "../../core-host/scoped-conversation-creation.js";
@@ -37,7 +41,7 @@ import {
 import {
   resolvePythonRuntime,
   resolveBashShellConfig,
-  classifyCodeModeArguments,
+  classifyQuickScriptArguments,
   ToolExecutionError,
   type ToolExecutionContext,
 } from "@nervekit/tools/execution";
@@ -47,7 +51,7 @@ import { createModelPort } from "../../core-host/model.adapter.js";
 import { createPermissionPort } from "../../core-host/permission.adapter.js";
 import { CoreProcessHost } from "../../core-host/process.adapter.js";
 import { createToolHostPort } from "../../core-host/tool-host.adapter.js";
-import { createCodeModeAuthorizer } from "../../core-host/code-mode-broker.js";
+import { createQuickScriptAuthorizer } from "../../core-host/quick-script-broker.js";
 import { isToolEnabled } from "../../core-host/tool-enablement.js";
 import { createExecutionAdmission } from "../../core-host/execution-admission/admission.js";
 import type { RuntimeDeps } from "./create-runtime-services.js";
@@ -235,59 +239,89 @@ export function createConversationCore(
             );
           bash.shellPath = shell.path;
         }
-        // Code mode reaches both products through its own selected account.
-        const codeMode = input.toolName === "atlassian_code_mode";
-        const atlassian = (provider: "jira" | "confluence") =>
-          providers.atlassianProfiles.find(
-            (profile) =>
-              profile.id ===
-              settings.tools?.[codeMode ? "atlassian_code_mode" : provider]
-                ?.profileId,
-          );
+        // Direct Jira/Confluence tools need their own account up front: missing
+        // setup fails the call so the agent can tell the user (configuration_blocked
+        // is reserved for invalid configuration/policy). quick_script instead
+        // leaves an unconfigured product out: its calls fail with an error naming
+        // the setting to fix.
+        const quickScript = input.toolName === "quick_script";
+        const quickScriptSettings = quickScript
+          ? settings.tools?.quick_script?.settings
+          : undefined;
         const toolProvider = input.toolName.startsWith("jira_")
           ? "jira"
           : input.toolName.startsWith("confluence_")
             ? "confluence"
-            : codeMode
-              ? "atlassian_code_mode"
-              : input.toolName === "web_search"
-                ? "tavily"
-                : undefined;
-        const selectedAccount =
-          toolProvider === "jira" ||
-          toolProvider === "confluence" ||
-          toolProvider === "atlassian_code_mode"
-            ? atlassian("jira")
-            : toolProvider === "tavily"
-              ? providers.tavilyProfiles.find(
-                  (profile) =>
-                    profile.id === settings.tools?.web_search?.profileId,
-                )
+            : input.toolName === "web_search"
+              ? "tavily"
               : undefined;
-        // Missing tool setup fails the call so the agent can tell the user;
-        // configuration_blocked is reserved for invalid configuration/policy.
-        const service = toolProvider === "tavily" ? "Tavily" : "Atlassian";
-        if (toolProvider && !selectedAccount)
+        const quickScriptWeb = quickScriptSettings?.web;
+        const tavilyAccount = providers.tavilyProfiles.find(
+          (profile) =>
+            profile.id ===
+            (toolProvider === "tavily"
+              ? settings.tools?.web_search?.profileId
+              : quickScriptWeb?.enabled
+                ? quickScriptWeb.profileId
+                : undefined),
+        );
+        if (toolProvider === "tavily" && !tavilyAccount)
           throw new ToolExecutionError(
             "MISSING_ACCOUNT",
-            `${input.toolName}: no ${service} account is selected for this tool. Ask the user to add or choose one in Settings → Integrations → ${service}.`,
+            `${input.toolName}: no Tavily account is selected for this tool. Ask the user to add or choose one in Settings → Integrations → Tavily.`,
           );
-        const credentialKey =
-          toolProvider === "jira" ||
-          toolProvider === "confluence" ||
-          toolProvider === "atlassian_code_mode"
-            ? `atlassian:${selectedAccount!.id}`
-            : toolProvider === "tavily"
-              ? `tavily:${selectedAccount!.id}`
-              : undefined;
-        const apiKey = credentialKey
-          ? await deps.auth.getApiKey(credentialKey).catch(() => undefined)
+        // quick_script's `web.search` is simply unavailable without a usable token.
+        const tavilyKey = tavilyAccount
+          ? await deps.auth
+              .getApiKey(`tavily:${tavilyAccount.id}`)
+              .catch(() => undefined)
           : undefined;
-        if (credentialKey && !apiKey)
+        if (toolProvider === "tavily" && tavilyAccount && !tavilyKey)
           throw new ToolExecutionError(
             "MISSING_CREDENTIALS",
-            `${input.toolName}: the ${service} account "${selectedAccount!.name}" has no API token saved. Ask the user to add it in Settings → Integrations → ${service}.`,
+            `${input.toolName}: the Tavily account "${tavilyAccount.name}" has no API token saved. Ask the user to add it in Settings → Integrations → Tavily.`,
           );
+        const atlassianProducts = quickScript
+          ? (["jira", "confluence"] as const)
+          : toolProvider === "jira" || toolProvider === "confluence"
+            ? ([toolProvider] as const)
+            : ([] as const);
+        const atlassianAccounts = new Map<
+          "jira" | "confluence",
+          {
+            profile: (typeof providers.atlassianProfiles)[number];
+            apiKey: string;
+          }
+        >();
+        for (const product of atlassianProducts) {
+          const selection = quickScript
+            ? quickScriptSettings?.[product]
+            : settings.tools?.[product];
+          const profile =
+            !quickScript || selection?.enabled
+              ? providers.atlassianProfiles.find(
+                  (candidate) => candidate.id === selection?.profileId,
+                )
+              : undefined;
+          if (!profile) {
+            if (quickScript) continue;
+            throw new ToolExecutionError(
+              "MISSING_ACCOUNT",
+              `${input.toolName}: no Atlassian account is selected for this tool. Ask the user to add or choose one in Settings → Integrations → Atlassian.`,
+            );
+          }
+          const apiKey = await deps.auth
+            .getApiKey(`atlassian:${profile.id}`)
+            .catch(() => undefined);
+          if (!apiKey) {
+            if (quickScript) continue;
+            throw new ToolExecutionError(
+              "MISSING_CREDENTIALS",
+              `${input.toolName}: the Atlassian account "${profile.name}" has no API token saved. Ask the user to add it in Settings → Integrations → Atlassian.`,
+            );
+          }
+          atlassianAccounts.set(product, { profile, apiKey });
+        }
         if (input.toolName === "python_exec" && (!python || !python.available))
           throw new ToolExecutionError(
             "PYTHON_UNAVAILABLE",
@@ -309,20 +343,31 @@ export function createConversationCore(
           cwd: input.cwd,
           shellPath: bash.shellPath,
           pythonRuntime: python?.available ? python : undefined,
-          kroki: settings.tools?.kroki_export
-            ?.settings as Settings["tools"]["kroki"],
-          getApiKey: async (provider) =>
-            provider === toolProvider ||
-            (codeMode && (provider === "jira" || provider === "confluence"))
-              ? apiKey
-              : undefined,
-          ...(codeMode
+          kroki: quickScript
             ? {
+                url:
+                  quickScriptSettings?.diagram?.url ??
+                  defaultKrokiToolSettings.url,
+              }
+            : (settings.tools?.kroki_export
+                ?.settings as Settings["tools"]["kroki"]),
+          getApiKey: async (provider) =>
+            provider === "jira" || provider === "confluence"
+              ? atlassianAccounts.get(provider)?.apiKey
+              : provider === "tavily"
+                ? tavilyKey
+                : undefined,
+          ...(quickScript
+            ? {
+                web: {
+                  enabled: quickScriptWeb?.enabled === true,
+                  search: Boolean(tavilyKey),
+                },
                 authorizeNested: (request) =>
                   // Only a person's approval of the script sets the ceiling: the
                   // admission stored on the tool call says whether a rule allowed
                   // it or a user approved it (read when the nested call is made).
-                  authorizeCodeModeCall(
+                  authorizeQuickScriptCall(
                     {
                       toolCallId: input.toolCallId,
                       conversationId: input.conversationId,
@@ -333,7 +378,7 @@ export function createConversationCore(
                       signal: input.signal,
                       admission: {
                         by: userApproved(input.toolCallId) ? "user" : "rule",
-                        scriptRisk: classifyCodeModeArguments(
+                        scriptRisk: classifyQuickScriptArguments(
                           input.args as Record<string, unknown>,
                         ).risk,
                       },
@@ -342,13 +387,12 @@ export function createConversationCore(
                   ),
               }
             : {}),
-          getProviderConfig: async (provider) =>
-            provider === "jira" || provider === "confluence"
-              ? {
-                  ...atlassian(provider),
-                  enabled: Boolean(atlassian(provider)),
-                }
-              : undefined,
+          getProviderConfig: async (provider) => {
+            if (provider !== "jira" && provider !== "confluence")
+              return undefined;
+            const account = atlassianAccounts.get(provider);
+            return { ...account?.profile, enabled: Boolean(account) };
+          },
           generateImage: (request) =>
             imageGeneration.generate(
               request,
@@ -408,7 +452,13 @@ export function createConversationCore(
                 input.toolName === "python_exec" && python?.available
                   ? python
                   : null,
-              account: selectedAccount ?? null,
+              accounts: Object.fromEntries(
+                [...atlassianAccounts].map(([product, { profile }]) => [
+                  product,
+                  profile,
+                ]),
+              ),
+              account: tavilyAccount ?? null,
               shellPath: spawnsShell ? (bash.shellPath ?? null) : null,
             }),
           ) as Record<string, unknown>,
@@ -545,9 +595,11 @@ export function createConversationCore(
               }
             }
             if (pointer.endsWith("/profileId")) {
-              const profiles = pointer.includes("/web_search/")
-                ? providers.tavilyProfiles
-                : providers.atlassianProfiles;
+              const profiles =
+                pointer.includes("/web_search/") ||
+                pointer.includes("/quick_script/settings/web/")
+                  ? providers.tavilyProfiles
+                  : providers.atlassianProfiles;
               return profiles.some((profile) => profile.id === value);
             }
             return true;
@@ -597,7 +649,7 @@ export function createConversationCore(
       supervision?.decision === "approval" && Boolean(supervision.approval)
     );
   };
-  const authorizeCodeModeCall = createCodeModeAuthorizer(
+  const authorizeQuickScriptCall = createQuickScriptAuthorizer(
     createExecutionAdmission(admissionPolicy),
   );
   const conversationTitles = new ConversationTitleService({

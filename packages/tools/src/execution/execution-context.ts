@@ -83,8 +83,10 @@ export interface IntegrationExecutionContext extends BaseExecutionContext {
   conversationDir?: string;
   getApiKey?: (provider: string) => Promise<string | undefined>;
   getProviderConfig?: (provider: string) => Promise<unknown>;
+  /** quick_script `web.*`: `enabled` by Settings; `search` when a Tavily account with a token is selected (its key is `getApiKey("tavily")`). */
+  web?: { enabled: boolean; search: boolean };
   /**
-   * Code mode: checks one brokered SDK call against the conversation's
+   * quick_script: checks one brokered SDK call against the conversation's
    * permission policy as if it were a direct call to `toolName` with `args`.
    * Resolves when allowed; rejects with the one-line reason otherwise
    * (`ToolExecutionError` code `NESTED_DENIED` or `NESTED_APPROVAL_REQUIRED`).

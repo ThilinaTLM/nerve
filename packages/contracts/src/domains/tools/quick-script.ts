@@ -1,0 +1,66 @@
+import { z } from "zod";
+
+/** One SDK call a quick-script script made through the host broker. */
+export const quickScriptHostCallSchema = z
+  .object({
+    /** SDK method, e.g. `jira.issues.search`. */
+    method: z.string(),
+    /** Direct tool the call was authorized as, e.g. `jira_search_issues`. */
+    authorizedAs: z.string().optional(),
+    /** Short argument summary for display (JQL, issue key). */
+    summary: z.string().optional(),
+    outcome: z.enum(["completed", "failed", "denied"]),
+    error: z.string().optional(),
+    durationMs: z.number().nonnegative(),
+  })
+  .passthrough();
+export type QuickScriptHostCall = z.infer<typeof quickScriptHostCallSchema>;
+
+/** A Confluence page the script wrote, with the linter's report. */
+export const quickScriptPageReportSchema = z.object({
+  action: z.enum(["created", "updated"]),
+  id: z.string(),
+  title: z.string(),
+  version: z.number().nullable(),
+  fixes: z.array(z.string()),
+  warnings: z.array(z.string()),
+});
+export type QuickScriptPageReport = z.infer<typeof quickScriptPageReportSchema>;
+
+/** A file the script wrote to the conversation's quick-script artifact folder. */
+export const quickScriptArtifactSchema = z.object({
+  /** `artifact:<name>`, the handle scripts use. */
+  handle: z.string(),
+  /** Absolute host path, for previews and opening in a tab. */
+  path: z.string(),
+  bytes: z.number().int().nonnegative(),
+  mediaType: z.string(),
+  /** Pixel size of PNG/JPEG artifacts, for previews. */
+  width: z.number().int().positive().optional(),
+  height: z.number().int().positive().optional(),
+});
+export type QuickScriptArtifact = z.infer<typeof quickScriptArtifactSchema>;
+
+export const quickScriptResultDetailsSchema = z
+  .object({
+    status: z.enum([
+      "completed",
+      "failed",
+      "timed_out",
+      "cancelled",
+      "memory_limit",
+    ]),
+    error: z.string().optional(),
+    durationMs: z.number().nonnegative(),
+    memoryUsedBytes: z.number().nonnegative().optional(),
+    outputTruncated: z.boolean().optional(),
+    hostCalls: z.array(quickScriptHostCallSchema),
+    pages: z.array(quickScriptPageReportSchema).optional(),
+    artifacts: z.array(quickScriptArtifactSchema).optional(),
+    /** Entities the run created (`SCRUM-6`, `comment 77 on SCRUM-6`); pages are in `pages`. */
+    created: z.array(z.string()).optional(),
+  })
+  .passthrough();
+export type QuickScriptResultDetails = z.infer<
+  typeof quickScriptResultDetailsSchema
+>;

@@ -37,9 +37,11 @@ import {
 import ToolConfigDialog from "./ToolConfigDialog.svelte";
 import {
   accountKind,
+  accountOptions,
+  integrationsMissingAccount,
   toolRows,
   toolSummary,
-  type AccountOption,
+  type AccountKind,
   type ToolId,
   type ToolPayload,
   type ToolRowDef,
@@ -89,20 +91,15 @@ function inheritedPayload(id: ToolId): ToolPayload {
 function changed(id: ToolId) {
   return editor.overrides.tools?.[id] !== undefined;
 }
-function accounts(id: ToolId): AccountOption[] {
-  const kind = accountKind(id);
-  return !kind
-    ? []
-    : kind === "tavily"
-      ? settingsDraft.providers.tavilyProfiles
-      : settingsDraft.providers.atlassianProfiles.map((p) => ({
-          id: p.id,
-          name: p.name,
-          detail: p.siteUrl,
-        }));
+const accounts = $derived(accountOptions(settingsDraft.providers));
+function hasAccount(kind: AccountKind, accountId: string | undefined) {
+  return accounts[kind].some((a) => a.id === accountId);
 }
 function accountName(id: ToolId, accountId: string | undefined) {
-  return accounts(id).find((a) => a.id === accountId)?.name;
+  const kind = accountKind(id);
+  return kind
+    ? accounts[kind].find((a) => a.id === accountId)?.name
+    : undefined;
 }
 function modelLabel(selection: unknown) {
   const v = selection as { provider: string; modelId: string } | undefined;
@@ -112,7 +109,8 @@ function modelLabel(selection: unknown) {
 }
 function summary(id: ToolId, value: ToolPayload) {
   return toolSummary(id, value, {
-    accountName: (_kind, accountId) => accountName(id, accountId),
+    accountName: (kind, accountId) =>
+      accounts[kind].find((a) => a.id === accountId)?.name,
     profileLabel: profileLabelFor,
     modelLabel,
   });
@@ -120,6 +118,11 @@ function summary(id: ToolId, value: ToolPayload) {
 function problem(id: ToolId, value: ToolPayload): string | undefined {
   if (accountKind(id) && !accountName(id, value.profileId))
     return "Choose an account";
+  // The tool works without integrations; only enabled ones lacking an account are flagged.
+  if (id === "quick_script" && value.enabled) {
+    const missing = integrationsMissingAccount(value, hasAccount);
+    if (missing.length) return `Choose an account for ${missing.join(", ")}`;
+  }
   return undefined;
 }
 function save(id: ToolId, next: ToolPayload) {
@@ -238,7 +241,7 @@ const python = $derived(status?.runtime.python);
       ? "Changes apply to this project only."
       : "Applies to every project unless it changes this."}
     models={usableModels}
-    accounts={accounts(dialogTool.id)}
+    {accounts}
     noAccountLabel={project
       ? "Use the account from your settings"
       : "No account"}

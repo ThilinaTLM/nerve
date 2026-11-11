@@ -94,17 +94,17 @@ void test("durable previews retain lifecycle details and totals while bounding v
   ]);
 });
 
-void test("atlassian_code_mode previews keep artifacts and SDK calls beyond the generic key cut", () => {
+void test("quick_script previews keep artifacts and SDK calls beyond the generic key cut", () => {
   const artifact = {
     handle: "artifact:chart.png",
-    path: "/data/conversations/c/code-mode/chart.png",
+    path: "/data/conversations/c/quick-script/chart.png",
     bytes: 100,
     mediaType: "image/png",
     width: 10,
     height: 10,
   };
   const projection = buildUserProjection(
-    "atlassian_code_mode",
+    "quick_script",
     { code: "return 1" },
     {
       content: "ok",

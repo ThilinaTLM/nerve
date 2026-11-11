@@ -1,4 +1,4 @@
-//! General-purpose image operations for the code-mode sandbox: inspect, or
+//! General-purpose image operations for the quick-script sandbox: inspect, or
 //! crop → resize → encode. Plain Rust; the N-API adapter is `napi.rs`.
 use super::{Format, JPEG_QUALITY, encode, reader};
 use image::imageops::FilterType;

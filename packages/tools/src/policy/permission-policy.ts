@@ -462,11 +462,7 @@ function compareEffectiveRules(
 }
 
 /** Tools whose rules match on the risk of this call's arguments, not a fixed category. */
-const ARGUMENT_RISK_TOOLS = new Set([
-  "async_bash",
-  "launch",
-  "atlassian_code_mode",
-]);
+const ARGUMENT_RISK_TOOLS = new Set(["async_bash", "launch", "quick_script"]);
 
 function requestMetadata(request: NormalizedPermissionRequest) {
   const metadata = permissionMetadataForTool(request.toolName);
@@ -479,11 +475,13 @@ function requestMetadata(request: NormalizedPermissionRequest) {
       baseRisk:
         risk === "read"
           ? ("read" as const)
-          : risk === "workspace_write"
-            ? ("write" as const)
-            : risk === "destructive"
-              ? ("destructive" as const)
-              : ("unknown" as const),
+          : risk === "network"
+            ? ("network" as const)
+            : risk === "workspace_write" || risk === "external_write"
+              ? ("write" as const)
+              : risk === "destructive"
+                ? ("destructive" as const)
+                : ("unknown" as const),
     };
   }
   return metadata;

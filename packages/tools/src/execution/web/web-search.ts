@@ -2,15 +2,17 @@ import type {
   WebExecutionContext,
   ToolExecutionResult,
 } from "../execution-context.js";
+import { ToolExecutionError } from "../errors/tool-error.js";
 import { withTimeoutSignal } from "../process/abort.js";
 import { numberArg } from "../process/arguments.js";
 import { buildProcessTextResult } from "../process/process-result.js";
 
-interface TavilyResult {
+export interface TavilyResult {
   title: string;
   url: string;
   content: string;
   score?: number;
+  published_date?: string;
 }
 
 interface TavilyResponse {
@@ -33,13 +35,42 @@ function maxResultsArg(value: unknown): number {
 const SNIPPET_MAX_CHARS = 300;
 
 /** Bound the per-result snippet so structured details stay small. */
-function snippet(value: unknown): string | undefined {
+export function snippet(value: unknown): string | undefined {
   if (typeof value !== "string") return undefined;
   const normalized = value.replace(/\s+/g, " ").trim();
   if (normalized.length === 0) return undefined;
   return normalized.length <= SNIPPET_MAX_CHARS
     ? normalized
     : `${normalized.slice(0, SNIPPET_MAX_CHARS - 1)}…`;
+}
+
+/** The Tavily search call, shared by `web_search` and the quick_script `web.search`. */
+export async function searchTavily(request: {
+  apiKey: string;
+  query: string;
+  maxResults: number;
+  includeAnswer: boolean;
+  signal: AbortSignal;
+}): Promise<TavilyResponse> {
+  const response = await fetch("https://api.tavily.com/search", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      api_key: request.apiKey,
+      query: request.query,
+      max_results: request.maxResults,
+      include_answer: request.includeAnswer,
+    }),
+    signal: request.signal,
+  });
+  if (!response.ok) {
+    throw new ToolExecutionError(
+      "WEB_SEARCH_HTTP_ERROR",
+      `Tavily API error: ${response.status} ${await response.text()}`,
+      { status: response.status },
+    );
+  }
+  return (await response.json()) as TavilyResponse;
 }
 
 export async function executeWebSearch(
@@ -56,25 +87,13 @@ export async function executeWebSearch(
     );
   }
 
-  const response = await fetch("https://api.tavily.com/search", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      api_key: apiKey,
-      query,
-      max_results: maxResults,
-      include_answer: true,
-    }),
+  const data = await searchTavily({
+    apiKey,
+    query,
+    maxResults,
+    includeAnswer: true,
     signal: withTimeoutSignal(context.signal, 60_000),
   });
-
-  if (!response.ok) {
-    throw new Error(
-      `Tavily API error: ${response.status} ${await response.text()}`,
-    );
-  }
-
-  const data = (await response.json()) as TavilyResponse;
   const results = Array.isArray(data.results) ? data.results : [];
 
   const lines: string[] = [];

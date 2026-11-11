@@ -41,7 +41,7 @@ const payload = $derived((draft.value ?? {}) as ToolPayload);
       bind:payload={() => payload, (value) => (draft = { ...draft, value })}
       bind:valid
       models={context.models}
-      accounts={context.accountsFor(tool)}
+      accounts={context.accounts}
       noAccountLabel="Use the account from settings"
       leadProfiles={context.leadProfiles}
     />

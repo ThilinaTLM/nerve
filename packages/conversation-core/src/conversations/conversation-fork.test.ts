@@ -86,11 +86,11 @@ async function fixture(): Promise<Fixture> {
     recursive: true,
   });
   await writeFile(reportPath, "full report");
-  await mkdir(join(directory, "conversations/src/code-mode"), {
+  await mkdir(join(directory, "conversations/src/quick-script"), {
     recursive: true,
   });
   await writeFile(
-    join(directory, "conversations/src/code-mode/notes.txt"),
+    join(directory, "conversations/src/quick-script/notes.txt"),
     "scratch",
   );
   events.append(message("evt_user", "user_message", "hello", null));
@@ -321,10 +321,10 @@ void test("fork copies only the path, remaps identities and files, and leaves th
       ),
       "artifact",
     );
-    // Code-mode scratch files travel with the fork.
+    // Quick-script scratch files travel with the fork.
     assert.equal(
       await readFile(
-        join(f.directory, "conversations", id, "code-mode/notes.txt"),
+        join(f.directory, "conversations", id, "quick-script/notes.txt"),
         "utf8",
       ),
       "scratch",

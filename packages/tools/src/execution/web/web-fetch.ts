@@ -46,15 +46,15 @@ function stringArg(value: unknown, name: string): string {
   return value;
 }
 
-function baseContentType(contentType: string): string {
+export function baseContentType(contentType: string): string {
   return contentType.split(";")[0]?.trim().toLowerCase() || "";
 }
 
-function getExtension(contentType: string): string {
+export function getExtension(contentType: string): string {
   return CONTENT_TYPE_EXT[baseContentType(contentType)] ?? ".bin";
 }
 
-function isTextType(contentType: string): boolean {
+export function isTextType(contentType: string): boolean {
   const base = baseContentType(contentType);
   return (
     base.startsWith("text/") ||
@@ -80,7 +80,7 @@ function formatKindForContent(
   return "binary";
 }
 
-function isHtml(contentType: string): boolean {
+export function isHtml(contentType: string): boolean {
   return baseContentType(contentType) === "text/html";
 }
 
@@ -253,6 +253,39 @@ export async function fetchWithPolicy(
   }
 }
 
+/** One policy-checked GET (SSRF guard, redirects, size limit); a non-2xx status throws. Shared by `web_fetch` and the quick_script `web.fetch`. */
+export async function downloadWebResource(
+  rawUrl: string,
+  signal: AbortSignal,
+  allowPrivateNetwork: boolean,
+): Promise<{
+  url: string;
+  status: number;
+  contentType: string;
+  buffer: Buffer;
+}> {
+  const { response, url } = await fetchWithPolicy(
+    rawUrl,
+    signal,
+    allowPrivateNetwork,
+  );
+  if (!response.ok) {
+    await response.body?.cancel().catch(() => undefined);
+    throw new ToolExecutionError(
+      "WEB_FETCH_HTTP_ERROR",
+      `Fetch failed: ${response.status} ${response.statusText}`,
+      { status: response.status },
+    );
+  }
+  return {
+    url: url.toString(),
+    status: response.status,
+    contentType:
+      response.headers.get("content-type") ?? "application/octet-stream",
+    buffer: await readBoundedResponse(response, signal),
+  };
+}
+
 export async function executeWebFetch(
   args: Record<string, unknown>,
   context: WebExecutionContext,
@@ -261,21 +294,12 @@ export async function executeWebFetch(
   const raw = args.raw === true;
 
   const signal = withTimeoutSignal(context.signal, 60_000);
-  const fetched = await fetchWithPolicy(
+  const downloaded = await downloadWebResource(
     requestedUrl,
     signal,
     context.webFetchPolicy?.allowPrivateNetwork === true,
   );
-  const { response } = fetched;
-  const url = fetched.url.toString();
-
-  if (!response.ok) {
-    throw new Error(`Fetch failed: ${response.status} ${response.statusText}`);
-  }
-
-  const contentType =
-    response.headers.get("content-type") ?? "application/octet-stream";
-  const buffer = await readBoundedResponse(response, signal);
+  const { url, status, buffer, contentType } = downloaded;
   const size = buffer.byteLength;
   const ext = getExtension(contentType);
   const details: Record<string, unknown> & {
@@ -287,7 +311,7 @@ export async function executeWebFetch(
     savedTo?: string;
   } = {
     url,
-    status: response.status,
+    status,
     contentType,
     size,
     converted: false,

@@ -66,9 +66,9 @@ const metadata = {
     ["path", "whole_tool"],
     false,
   ),
-  atlassian_code_mode: m(
+  quick_script: m(
     "integration",
-    "jira",
+    "quickScript",
     "network",
     ["code"],
     ["whole_tool"],

@@ -23,11 +23,7 @@ describe("tool lifecycle registry", () => {
   });
 
   it("encodes persistent, until-result, and header-only argument regions", () => {
-    for (const name of [
-      "bash",
-      "python_exec",
-      "atlassian_code_mode",
-    ] as const) {
+    for (const name of ["bash", "python_exec", "quick_script"] as const) {
       assert.equal(toolLifecycleRegistry[name].argumentRegion, "persistent");
       assert.deepEqual(toolLifecycleRegistry[name].resultPlaceholder, {
         variant: "text",

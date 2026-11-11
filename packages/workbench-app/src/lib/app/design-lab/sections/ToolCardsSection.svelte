@@ -156,22 +156,22 @@ const bashCases: LabeledCard[] = [
     props: { toolCall: vfx.pythonCompleted, cwd },
   },
   {
-    label: "atlassian_code_mode — running",
-    props: { toolCall: vfx.atlassianCodeRunning, cwd },
+    label: "quick_script — running",
+    props: { toolCall: vfx.quickScriptRunning, cwd },
   },
   {
-    label: "atlassian_code_mode — completed (SDK calls)",
-    props: { toolCall: vfx.atlassianCodeCompleted, cwd },
+    label: "quick_script — completed (SDK calls)",
+    props: { toolCall: vfx.quickScriptCompleted, cwd },
   },
   {
-    label: "atlassian_code_mode — failed (pages, error)",
-    props: { toolCall: vfx.atlassianCodeFailed, cwd },
+    label: "quick_script — failed (pages, error)",
+    props: { toolCall: vfx.quickScriptFailed, cwd },
   },
   {
-    label: "atlassian_code_mode — awaiting approval",
+    label: "quick_script — awaiting approval",
     props: {
-      toolCall: vfx.atlassianCodeWaiting,
-      pendingApproval: vfx.atlassianCodeWaitingApproval,
+      toolCall: vfx.quickScriptWaiting,
+      pendingApproval: vfx.quickScriptWaitingApproval,
       cwd,
       onGrantApproval: noop,
       onDenyApproval: noop,
@@ -437,7 +437,7 @@ let failedDetailsOpen = $state(false);
 
     <GallerySpecimen
       title="ArtifactList"
-      description="Files a code-mode script wrote: PNG/JPEG as previews on a light backdrop, other files as open-in-tab rows."
+      description="Files a quick-script script wrote: PNG/JPEG as previews on a light backdrop, other files as open-in-tab rows."
       source="presentation/tools/tool-call/ArtifactList"
       usage="2 files · tools"
     >
@@ -446,7 +446,7 @@ let failedDetailsOpen = $state(false);
           artifacts={[
             {
               handle: "artifact:points-by-status.png",
-              path: "/home/dev/.nerve/data/conversations/conv_1/code-mode/points-by-status.png",
+              path: "/home/dev/.nerve/data/conversations/conv_1/quick-script/points-by-status.png",
               bytes: 30_912,
               mediaType: "image/png",
               width: 584,
@@ -454,7 +454,7 @@ let failedDetailsOpen = $state(false);
             },
             {
               handle: "artifact:sprint.xlsx",
-              path: "/home/dev/.nerve/data/conversations/conv_1/code-mode/sprint.xlsx",
+              path: "/home/dev/.nerve/data/conversations/conv_1/quick-script/sprint.xlsx",
               bytes: 8_204,
               mediaType:
                 "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",

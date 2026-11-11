@@ -8,7 +8,7 @@ import ToolConfigForm from "./ToolConfigForm.svelte";
 import {
   accountKind,
   toolRow,
-  type AccountOption,
+  type AccountOptions,
   type ToolId,
   type ToolPayload,
 } from "./tool-settings";
@@ -21,7 +21,7 @@ type Props = {
   value: ToolPayload;
   description?: string;
   models?: ModelInfo[];
-  accounts?: AccountOption[];
+  accounts?: AccountOptions;
   noAccountLabel?: string;
   leadProfiles?: { name: string; label: string }[];
   resolvedPython?: string;
@@ -81,7 +81,7 @@ function save(): void {
     {resolvedPython}
   />
   {#snippet footerLeading()}
-    {#if onManageAccounts && accountKind(name)}
+    {#if onManageAccounts && (accountKind(name) || name === "quick_script")}
       <Button variant="outline" onclick={onManageAccounts}
         >Manage accounts</Button
       >

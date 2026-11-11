@@ -12,7 +12,7 @@ type ViewWithSharedBody = Exclude<
     kind:
       | "bash"
       | "python"
-      | "atlassian_code_mode"
+      | "quick_script"
       | "jira"
       | "confluence"
       | "generic";

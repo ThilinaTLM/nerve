@@ -95,11 +95,6 @@ function formatToolGuides(tools: string[]): string {
       label: `${family}_* tools`,
       active: tools.some((name) => name.startsWith(`${family}_`)),
     })),
-    {
-      skill: "atlassian-code-mode",
-      label: "atlassian_code_mode",
-      active: tools.includes("atlassian_code_mode"),
-    },
   ];
   return guides
     .filter((guide) => guide.active)

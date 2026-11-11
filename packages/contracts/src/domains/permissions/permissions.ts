@@ -10,6 +10,7 @@ import type { StaticToolRisk } from "./permission-rule-sets.js";
 export const toolRiskSchema = z.enum([
   "read",
   "workspace_write",
+  "external_write",
   "command",
   "network",
   "secret",

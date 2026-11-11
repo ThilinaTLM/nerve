@@ -12,7 +12,7 @@ import { imageGenerationToolDefinitions } from "./definitions/core/image-generat
 import { interactionToolDefinitions } from "./definitions/core/interaction.tools.js";
 import { jiraToolDefinitions } from "./definitions/core/jira.tools.js";
 import { krokiToolDefinitions } from "./definitions/core/kroki.tools.js";
-import { atlassianCodeModeToolDefinitions } from "./definitions/core/atlassian-code-mode.tools.js";
+import { quickScriptToolDefinitions } from "./definitions/core/quick-script.tools.js";
 import { pythonToolDefinitions } from "./definitions/core/python.tools.js";
 import { shellToolDefinitions } from "./definitions/core/shell.tools.js";
 import { webToolDefinitions } from "./definitions/core/web.tools.js";
@@ -36,7 +36,7 @@ const rawCoreToolDefinitions: readonly ToolDefinition[] = [
   ...(readToolDefinition ? [readToolDefinition] : []),
   ...shellToolDefinitions,
   ...pythonToolDefinitions,
-  ...atlassianCodeModeToolDefinitions,
+  ...quickScriptToolDefinitions,
   ...remainingFilesystemToolDefinitions,
   ...interactionToolDefinitions,
   ...webToolDefinitions,

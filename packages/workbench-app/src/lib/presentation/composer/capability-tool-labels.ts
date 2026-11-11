@@ -33,9 +33,9 @@ const capabilityToolCatalog: CapabilityToolGroup[] = [
   { key: "jira", label: "Jira", names: ["jira"] },
   { key: "confluence", label: "Confluence", names: ["confluence"] },
   {
-    key: "atlassian_code_mode",
-    label: "Atlassian code (experimental)",
-    names: ["atlassian_code_mode"],
+    key: "quick_script",
+    label: "Quick script",
+    names: ["quick_script"],
   },
 ];
 

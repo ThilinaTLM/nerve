@@ -327,11 +327,11 @@ it("derives created Jira issue links from the result self URL", () => {
   );
 });
 
-describe("atlassian_code_mode result", () => {
+describe("quick_script result", () => {
   it("lists the artifacts the run created", () => {
     const view = parseToolView(
       call(
-        "atlassian_code_mode",
+        "quick_script",
         { code: "return 1" },
         {
           content: "1\nexit 0",
@@ -342,7 +342,7 @@ describe("atlassian_code_mode result", () => {
             artifacts: [
               {
                 handle: "artifact:flow.png",
-                path: "/data/conversations/c/code-mode/flow.png",
+                path: "/data/conversations/c/quick-script/flow.png",
                 bytes: 2048,
                 mediaType: "image/png",
                 width: 760,
@@ -353,8 +353,8 @@ describe("atlassian_code_mode result", () => {
         },
       ),
     );
-    assert.equal(view.kind, "atlassian_code_mode");
-    if (view.kind !== "atlassian_code_mode") return;
+    assert.equal(view.kind, "quick_script");
+    if (view.kind !== "quick_script") return;
     assert.equal(view.artifacts[0]?.handle, "artifact:flow.png");
     assert.equal(view.artifacts[0]?.width, 760);
   });
@@ -362,7 +362,7 @@ describe("atlassian_code_mode result", () => {
   it("has no artifacts for results without the field", () => {
     const view = parseToolView(
       call(
-        "atlassian_code_mode",
+        "quick_script",
         { code: "return 1" },
         {
           content: "1",
@@ -370,16 +370,13 @@ describe("atlassian_code_mode result", () => {
         },
       ),
     );
-    assert.equal(
-      view.kind === "atlassian_code_mode" && view.artifacts.length,
-      0,
-    );
+    assert.equal(view.kind === "quick_script" && view.artifacts.length, 0);
   });
 
   it("reads page lint reports and keeps a failed script outcome", () => {
     const view = parseToolView(
       call(
-        "atlassian_code_mode",
+        "quick_script",
         { code: "boom()" },
         {
           content: "boom",
@@ -402,7 +399,7 @@ describe("atlassian_code_mode result", () => {
         },
       ),
     );
-    if (view.kind !== "atlassian_code_mode") assert.fail("wrong kind");
+    if (view.kind !== "quick_script") assert.fail("wrong kind");
     assert.equal(view.pages[0]?.title, "Runbook");
     assert.equal(view.status, "failed");
     assert.equal(outcomeLabel({ status: "completed" }, view), "failed");

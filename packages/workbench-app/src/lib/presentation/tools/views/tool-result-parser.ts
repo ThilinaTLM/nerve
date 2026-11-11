@@ -1,6 +1,6 @@
 import {
   bashResultDetailsSchema,
-  codeModeResultDetailsSchema,
+  quickScriptResultDetailsSchema,
   writeResultDetailsSchema,
   grepResultDetailsSchema,
   findResultDetailsSchema,
@@ -265,10 +265,10 @@ export function parseToolView(
     case "kroki_export":
       return parseKrokiView(args, rawResult);
 
-    case "atlassian_code_mode": {
-      const details = codeModeResultDetailsSchema.safeParse(result?.details);
+    case "quick_script": {
+      const details = quickScriptResultDetailsSchema.safeParse(result?.details);
       return {
-        kind: "atlassian_code_mode",
+        kind: "quick_script",
         code: stringField(args.code),
         output: resultOutputText(result, rawResult, liveOutput),
         status: details.success ? details.data.status : undefined,
@@ -280,6 +280,7 @@ export function parseToolView(
         hostCalls: details.success ? details.data.hostCalls : [],
         pages: details.success ? (details.data.pages ?? []) : [],
         artifacts: details.success ? (details.data.artifacts ?? []) : [],
+        created: details.success ? (details.data.created ?? []) : [],
         live: !result && Boolean(liveOutput?.text),
       };
     }

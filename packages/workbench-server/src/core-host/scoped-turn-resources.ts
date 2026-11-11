@@ -11,8 +11,36 @@ import { buildNerveSystemPrompt } from "./nerve-system-prompt.js";
 import { withAgentProfiles } from "./turn-resources.adapter.js";
 import { resolveSkillPlaceholders } from "@nervekit/skills";
 import { isToolEnabled } from "./tool-enablement.js";
+import { quickScriptDescription } from "@nervekit/tools/execution";
+import { quickScriptIntegrationNames } from "@nervekit/contracts/capabilities";
 
 const blocked = new Set<string>(subagentBlockedToolNames);
+
+/** An account-backed integration is active when enabled with an existing account selected; `web` needs only to be enabled (`fetch`), and `web.search` also lists with a Tavily account. */
+function activeQuickScriptIntegrations(
+  settings: LeadSettingsOverrides,
+  missingReferences: readonly string[],
+): string[] {
+  const configured = settings.tools?.quick_script?.settings;
+  const hasAccount = (name: (typeof quickScriptIntegrationNames)[number]) =>
+    Boolean(
+      configured?.[name]?.profileId &&
+      !missingReferences.includes(
+        `/tools/quick_script/settings/${name}/profileId`,
+      ),
+    );
+  return quickScriptIntegrationNames.flatMap((name) =>
+    !configured?.[name]?.enabled
+      ? []
+      : name !== "web"
+        ? hasAccount(name)
+          ? [name]
+          : []
+        : hasAccount(name)
+          ? [name, "web.search"]
+          : [name],
+  );
+}
 export function scopedTurnResources(options: {
   home: string;
   service: AgentConfigurationService;
@@ -71,7 +99,16 @@ export function scopedTurnResources(options: {
     ).map((tool) => ({
       ...tool,
       description:
-        resolveSkillPlaceholders(tool.description) +
+        resolveSkillPlaceholders(
+          tool.name === "quick_script"
+            ? quickScriptDescription({
+                integrations: activeQuickScriptIntegrations(
+                  settings,
+                  missingReferences,
+                ),
+              })
+            : tool.description,
+        ) +
         (tool.name === "plan_present"
           ? `\n\nWrite the plan under: ${join(options.home, "data", "plans")}`
           : ""),

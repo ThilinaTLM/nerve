@@ -24,8 +24,13 @@ export function isToolEnabled(
   missingReferences: readonly string[] = [],
 ): boolean {
   const name = capabilityForTool(toolName);
+  // A missing quick_script account only drops that integration; the tool still works.
   if (
-    missingReferences.some((pointer) => pointer.startsWith(`/tools/${name}/`))
+    missingReferences.some(
+      (pointer) =>
+        pointer.startsWith(`/tools/${name}/`) &&
+        !(name === "quick_script" && pointer.includes("/settings/")),
+    )
   )
     return false;
   const parsed = capabilityToolNameSchema.safeParse(name);

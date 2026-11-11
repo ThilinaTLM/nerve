@@ -1,5 +1,5 @@
 import type { Component } from "svelte";
-import AtlassianCodeToolView from "../tool-call/AtlassianCodeToolView.svelte";
+import QuickScriptToolView from "../tool-call/QuickScriptToolView.svelte";
 import AskUserToolView from "../tool-call/AskUserToolView.svelte";
 import BashToolView from "../tool-call/BashToolView.svelte";
 import ConfluenceToolView from "../tool-call/ConfluenceToolView.svelte";
@@ -45,7 +45,7 @@ const viewByKind: Record<ToolView["kind"], ToolViewComponent> = {
   explain_image: ExplainImageToolView,
   generate_image: GenerateImageToolView,
   kroki_export: KrokiToolView,
-  atlassian_code_mode: AtlassianCodeToolView,
+  quick_script: QuickScriptToolView,
   generic: GenericToolView,
 };
 

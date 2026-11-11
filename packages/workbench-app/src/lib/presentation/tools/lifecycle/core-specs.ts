@@ -390,7 +390,7 @@ function krokiPresentation(
   });
 }
 
-function atlassianCodePresentation(
+function quickScriptPresentation(
   source: ToolArgumentSource,
   stage: ToolLifecycleStage,
 ) {
@@ -400,7 +400,7 @@ function atlassianCodePresentation(
   return argumentPresentation({
     primaryArg: textArg(
       codeLines <= 1 ? code : undefined,
-      code ? "inline script" : "Atlassian code",
+      code ? "inline script" : "Quick script",
     ),
     secondary:
       timeout !== undefined
@@ -618,13 +618,13 @@ export const coreToolLifecycleSpecs = {
     emptyResult: "No diagram returned",
     present: krokiPresentation,
   }),
-  atlassian_code_mode: defineToolLifecycleSpec({
-    name: "atlassian_code_mode",
+  quick_script: defineToolLifecycleSpec({
+    name: "quick_script",
     argumentRegion: "persistent",
-    completedView: "atlassian_code_mode",
+    completedView: "quick_script",
     resultPlaceholder: { variant: "text", rows: 2 },
     emptyResult: "No output",
-    present: atlassianCodePresentation,
+    present: quickScriptPresentation,
   }),
   generate_image: defineToolLifecycleSpec({
     name: "generate_image",
@@ -712,7 +712,7 @@ export const coreToolLifecycleSpecs = {
     | "explain_image"
     | "generate_image"
     | "kroki_export"
-    | "atlassian_code_mode"
+    | "quick_script"
   >,
   ToolLifecycleSpec
 >;

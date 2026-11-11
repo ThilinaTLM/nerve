@@ -59,6 +59,10 @@ export const bundleOutputFiles = [
   "dist/builtin/skill-creator/SKILL.md",
   "dist/sandbox-libraries/xlsx.full.min.js",
   "dist/sandbox-libraries/papaparse.min.js",
+  "dist/sandbox-libraries/docx.min.js",
+  "dist/sandbox-libraries/mammoth.browser.min.js",
+  "dist/sandbox-libraries/pptxgen.bundle.js",
+  "dist/sandbox-libraries/jszip.min.js",
   "build/README.md",
   "THIRD-PARTY-LICENSES.txt",
 ];
@@ -132,7 +136,11 @@ export function thirdPartyPackageRoots(metafile: Metafile): string[] {
 
 /** Packages shipped as copied assets (not esbuild inputs) that still need license text. */
 const assetShippedPackageRoots = [
+  "packages/tools/node_modules/docx",
+  "packages/tools/node_modules/jszip",
+  "packages/tools/node_modules/mammoth",
   "packages/tools/node_modules/papaparse",
+  "packages/tools/node_modules/pptxgenjs",
   "packages/tools/node_modules/xlsx",
 ];
 

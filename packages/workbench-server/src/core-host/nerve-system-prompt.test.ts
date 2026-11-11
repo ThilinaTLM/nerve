@@ -148,15 +148,11 @@ void test("adds one guide line per active Jira/Confluence tool family", () => {
   assert.doesNotMatch(prompt, /confluence_\*/);
 });
 
-void test("atlassian_code_mode adds only its own guide line", () => {
+void test("quick_script adds no guide line: its description carries the pointer", () => {
   const prompt = buildNerveSystemPrompt({
     cwd: "/w",
     customPrompt: "Custom",
-    selectedTools: ["read", "atlassian_code_mode"],
+    selectedTools: ["read", "quick_script"],
   });
-  assert.match(
-    prompt,
-    /^Custom\n\nBefore first using atlassian_code_mode, read .*atlassian-code-mode.*\.\n\n/,
-  );
-  assert.doesNotMatch(prompt, /jira_\*|confluence_\*/);
+  assert.doesNotMatch(prompt, /Before first using/);
 });

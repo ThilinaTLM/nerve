@@ -48,7 +48,7 @@ import {
   trustAgentProfile,
 } from "../../../api/agent-profiles.api";
 import {
-  accountKind,
+  accountOptions,
   toolRow,
   toolSummary,
   type ToolPayload,
@@ -183,18 +183,7 @@ const rules = $derived(
     scope === "project" ? projectId : undefined,
   ),
 );
-function accountsFor(tool: ToolId) {
-  const account = accountKind(tool);
-  return account === "tavily"
-    ? settingsDraft.providers.tavilyProfiles
-    : account === "atlassian"
-      ? settingsDraft.providers.atlassianProfiles.map((p) => ({
-          id: p.id,
-          name: p.name,
-          detail: p.siteUrl,
-        }))
-      : [];
-}
+const accounts = $derived(accountOptions(settingsDraft.providers));
 const context = $derived<ProfileEditContext>({
   models: authenticatedRealModelOptions(models, authProviders),
   permissionOptions: rules
@@ -219,7 +208,7 @@ const context = $derived<ProfileEditContext>({
     const skills = launchPreferences.resolution?.settings.skills;
     return skills?.[source]?.[name] ?? skills?.defaults?.[source] ?? true;
   },
-  accountsFor,
+  accounts,
   seedTool: (tool) =>
     launchPreferences.resolution?.settings.tools?.[tool] ??
     resolveAgentConfiguration({ role: "lead" }).settings.tools?.[tool] ??
@@ -334,8 +323,8 @@ function text(row: ChangeRow) {
   if (row.key === "instructions") return String(row.value);
   const id = row.key.slice(5) as ToolId;
   return toolSummary(id, row.value as ToolPayload, {
-    accountName: (_kind, accountId) =>
-      accountsFor(id).find((a) => a.id === accountId)?.name,
+    accountName: (kind, accountId) =>
+      accounts[kind].find((a) => a.id === accountId)?.name,
     profileLabel: (name) =>
       all.find((p) => p.name === name)?.definition?.label ?? name,
     modelLabel: (selection) => modelText(selection as ModelSelection),

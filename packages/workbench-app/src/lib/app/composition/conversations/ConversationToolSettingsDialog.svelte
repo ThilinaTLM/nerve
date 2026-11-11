@@ -18,6 +18,7 @@ import { openSettingsPane } from "$lib/application/settings";
 import { settingsState } from "$lib/features/settings/state/settings-state.svelte";
 import ToolConfigDialog from "$lib/features/settings/views/pages/tools/ToolConfigDialog.svelte";
 import {
+  accountOptions,
   toolRow,
   type ToolId,
   type ToolPayload,
@@ -43,13 +44,7 @@ const value = $derived<ToolPayload>(
   toolId ? (configuration?.resolution.settings.tools?.[toolId] ?? {}) : {},
 );
 const accounts = $derived(
-  toolId === "web_search"
-    ? (settingsState.settingsDraft?.providers.tavilyProfiles ?? [])
-    : (settingsState.settingsDraft?.providers.atlassianProfiles.map((p) => ({
-        id: p.id,
-        name: p.name,
-        detail: p.siteUrl,
-      })) ?? []),
+  accountOptions(settingsState.settingsDraft?.providers),
 );
 const noAccountLabel = "No account";
 const usableModels = $derived(

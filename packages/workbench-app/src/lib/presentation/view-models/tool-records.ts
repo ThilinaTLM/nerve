@@ -22,7 +22,8 @@ export type ToolRisk =
   | "secret"
   | "destructive"
   | "agent_spawn"
-  | "workspace_write";
+  | "workspace_write"
+  | "external_write";
 
 export type ToolCallRecord = {
   id: string;

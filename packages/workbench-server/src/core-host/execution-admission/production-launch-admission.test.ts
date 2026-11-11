@@ -50,6 +50,7 @@ async function expectedTarget(
     toolConfiguration: null,
     modelConfiguration: null,
     python: null,
+    accounts: {},
     account: null,
     shellPath,
     ...prepared.target,

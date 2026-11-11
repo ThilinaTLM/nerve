@@ -77,9 +77,7 @@ const displayToolCall = $derived(details?.toolCall ?? previewToolCall);
 const view = $derived(parseToolViewCached(displayToolCall));
 const presentation = $derived(toolPresentationCached(view, displayToolCall));
 const completeResult = $derived(details?.completeResult);
-const artifacts = $derived(
-  view.kind === "atlassian_code_mode" ? view.artifacts : [],
-);
+const artifacts = $derived(view.kind === "quick_script" ? view.artifacts : []);
 const sections = $derived(
   availableToolDetailSections({
     agentPreview: details?.toolCall.agentPreview !== undefined,
