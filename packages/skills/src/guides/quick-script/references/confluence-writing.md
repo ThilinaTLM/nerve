@@ -1,14 +1,26 @@
 # Writing Confluence pages people can read
 
-Pages are storage XHTML built with `storage.*` ([storage.md](storage.md)) and written with `confluence.pages.create/update` ([confluence.d.ts](confluence.d.ts)); Markdown is for prose inside builders. Every write is linted.
+A page body is RichText ([storage.md](storage.md)): Markdown for prose, `storage.*` builders for structure, arrays to combine. Write with `confluence.pages.create/update` ([confluence.d.ts](confluence.d.ts)). Every write is linted.
+
+## Editing an existing page
+
+`const page = await confluence.pages.get({ id, body: "storage" })` (`page.body` is trusted markup; the default Markdown body is a read-only view: `@Name`, `- [ ]`, `[drawio macro: name]` placeholders), then pass `version: page.version` to `pages.update`.
+
+| Change                   | How                                                                                                                                                                      |
+| ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Append / prepend         | `body: [page.body, "## New\n\ntext"]`                                                                                                                                    |
+| Rewrite one section      | `body: storage.replaceSection(page.body, "Risks", "- new risk")`                                                                                                         |
+| Larger or surgical edits | `const d = await confluence.pages.download({ id })`, edit `d.file` with the Edit tool or `files.edit`, then `pages.update({ id, version: d.version, bodyFile: d.file })` |
+
+`body` and `bodyFile` are exclusive. Rewrites that drop existing macros, layouts, images or mentions throw unless `allowRemoving: true`; add-on macros (drawio, gliffy, ...) survive only if their storage stays in the body. Never rebuild a page from the Markdown view. Concatenating (`page.body + "..."`) loses trust and is rejected: use an array.
 
 ## Plan first
 
-Decide the outline first: one-line purpose, 3-7 sections, what goes in tables, Jira macros, diagrams. Gather data (and count empty lists) before assembling `[...parts].join("")`.
+Decide the outline first: one-line purpose, 3-7 sections, what goes in tables, Jira macros, diagrams. Gather data (and count empty lists) before assembling the `[...parts]` array.
 
 ## Structure
 
-- The page title is a separate field. Sections start at `storage.h1`, subsections at `h2`/`h3`; never skip a level and do not repeat the title as a first heading.
+- The page title is a separate field. Sections start at `#` (H1), subsections at `##`/`###`; never skip a level and do not repeat the title as a first heading.
 - Open with a short overview (2-4 lines, or one `info` panel) saying what the page is and its status. Do not add an "Overview" heading that repeats it.
 - Only long pages (about 600+ words or 6+ sections) get `storage.toc()` right after the overview; short pages get none.
 - Short paragraphs (1-3 sentences). Put raw output, reference material and long tails in `storage.expand`; code in `storage.code` with a language.
@@ -16,7 +28,7 @@ Decide the outline first: one-line purpose, 3-7 sections, what goes in tables, J
 
 ## Tables
 
-Use a table for lists with several attributes. Size columns to their content: narrow for key, type, status and date, wide for text. Give widths yourself with `columns: [{ key, title, width }]` (px; the content width is 760, `layout: "wide"` 960), or give none and the linter computes them. A `SCRUM-123` key needs about 100 px. Show statuses with `storage.status`.
+Use a table (Markdown for plain text cells, `storage.table` for lozenges, links, widths or merged cells) for lists with several attributes. Size columns to their content: narrow for key, type, status and date, wide for text. Give widths yourself with `columns: [{ key, title, width }]` (px; the content width is 760, `layout: "wide"` 960), or give none and the linter computes them. A `SCRUM-123` key needs about 100 px. Show statuses with `storage.status`.
 
 ## Panels
 
@@ -36,15 +48,15 @@ For a list of issues use one `storage.jiraIssues(jql, { columns })` macro (`["ke
 
 ## Images and diagrams
 
-Attach PNG or JPEG files (never SVG/WebP) via `attachments` in `pages.create/update`, then reference them with `storage.image(filename)`; the linter sets the width from the real size, capped at 760 px. Add `alt`/`caption` when the image carries information. Render diagrams with `diagram.render` ([files.md](files.md)) aiming for about 760 px natural width; an image scaled below 80% (a 1100 px diagram shown at 760) gets a warning because its text turns small, so simplify the diagram instead (`flowchart TB`, fewer nodes per row, shorter labels). Use `storage.layout` sparingly (two columns, never nested).
+Attach PNG or JPEG files (never SVG/WebP) via `attachments` in `pages.create/update`, then reference them with `storage.image(filename)` (an `https://` URL also works; `storage.viewFile(filename)` previews a PDF/Office attachment); the linter sets the width from the real size, capped at 760 px. Add `alt`/`caption` when the image carries information. Render diagrams with `diagram.render` ([files.md](files.md)) aiming for about 760 px natural width; an image scaled below 80% (a 1100 px diagram shown at 760) gets a warning because its text turns small, so simplify the diagram instead (`flowchart TB`, fewer nodes per row, shorter labels). Use `storage.layout` sparingly (two columns, never nested).
 
 ## The linter
 
 `pages.create/update` return `fixes` (applied automatically) and `warnings` (not applied); the tool result prints both for you. Act on warnings: fix the cause and call `pages.update` again.
 
-- **Rejected before any request:** malformed XML, with line and element (`Closing tag </div> at line 2 does not match <p>`). Builders escape plain strings; use `storage.escape` only inside `storage.raw`.
+- **Rejected before any request:** malformed XML, with line and element (`Closing tag </div> at line 2 does not match <p>`). Plain strings are Markdown or literal text; use `storage.escape` only inside `storage.raw`.
 - **Fixed automatically:** headings promoted so the top level is H1; a leading H1 equal to the title removed; a TOC inserted for long pages (~600 words or 6+ sections) (`toc: false` opts out); column widths computed for tables without them; image width set from the real size; loose inline content under a panel, expand, layout cell or the page root wrapped in `<p>`; Jira list macros given `data-layout="default"` (760 px).
-- **Warnings:** an explicit column width too narrow for its longest word (`Column "Key" is 90px; "SCRUM-4" needs about 100px`: widen it or drop the width); images scaled below 80%; skipped heading levels; SVG/WebP images; images of unknown size; a panel repeating the heading above it; a heading that only repeats an embedded issue key; empty sections; a body referencing an attachment you did not pass.
+- **Warnings:** an explicit column width too narrow for its longest word (`Column "Key" is 90px; "SCRUM-4" needs about 100px`: widen it or drop the width); images scaled below 80%; skipped heading levels; SVG/WebP images; images of unknown size; a panel repeating the heading above it; a heading that only repeats an embedded issue key; empty sections; a body referencing an attachment that is neither passed in `attachments` nor already on the page (existing attachments keep their real size).
 
 ## Worked example
 
@@ -66,9 +78,9 @@ const body = [
     `${issues.length} issues in 2.1; ${open.length} still open.`,
   ),
   storage.toc(),
-  storage.h1("Release flow"),
+  "# Release flow",
   storage.image("release-flow.png", { alt: "Release flow" }),
-  storage.h1("Open work"),
+  "# Open work",
   open.length
     ? storage.jiraIssues(
         'project = APP AND fixVersion = "2.1" AND statusCategory != Done',
@@ -76,10 +88,10 @@ const body = [
           columns: ["type", "key", "summary", "status", "assignee"],
         },
       )
-    : storage.p("Nothing is open."),
-  storage.h1("Risks"),
+    : "Nothing is open.",
+  "# Risks",
   storage.panel("warning", "QA environment is shared until Friday."),
-].join("");
+];
 const page = await confluence.pages.create({
   space: "ENG",
   title: "Release 2.1 status",

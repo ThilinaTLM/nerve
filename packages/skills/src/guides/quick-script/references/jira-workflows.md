@@ -69,7 +69,9 @@ await jira.issues.move({ keys: [t.key], sprint: 42 });
 - `fields` use field names and plain values: users by email or name, options, priority, components and versions by name, Markdown for rich text. A wrong name or value throws and lists the valid ones.
 - `issues.update({ key, fields })` replaces the given fields. For adding a single label or similar, use `jira.request` ([jira-raw.md](jira-raw.md)).
 - `issues.transition({ key, to: "Done", fields: { Resolution: "Done" } })` takes the status name. A missing required field or unreachable status throws with the choices.
-- Links, comments, worklogs and attachments: `issues.link`, `comments.add`, `worklogs.add`, `attachments.upload`.
-- Anything else (epic changes, bulk edits, deleting links): [jira-raw.md](jira-raw.md).
+- Related: `issues.link` / `unlink` (by issue key), `issues.rank`, `comments.*`, `worklogs.*` (`time` like `"1h 30m"`), `attachments.*`.
+- Images: `![](shot.png)` on its own line in a description or comment embeds the issue's attachment of that name (the newest if names repeat; Jira keeps duplicates, so check `attachments.list`). In `create`, pass the files too: `attachments: ["artifact:shot.png"]`. Reading returns `![](shot.png)` again.
+- Sprints: `sprints.create({ name })` (project's only scrum board, else `board`), `start({ id, duration: "2w" })`, `close({ id, moveOpenTo: "backlog" })` (open issues otherwise stay in the closed sprint), `issues(id)`, `delete(id)`. Ids come from `projects.get` with `include: ["sprints"]`.
+- Anything else (epic changes, bulk edits, remote links): [jira-raw.md](jira-raw.md).
 
 Create a few tickets per script, print the keys and URLs, and check with `issues.get` when the fields matter.

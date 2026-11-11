@@ -24,8 +24,10 @@ declare const files: {
   /** Default "text"; max 20 MB. */
   read(handle: FileHandle, options: { as: "bytes" }): Promise<Uint8Array>;
   read(handle: FileHandle, options?: { as?: "text" }): Promise<string>;
-  /** Artifact by default; with workspace: true `name` is a workspace path. Returns the handle or path. */
+  /** `name` or an `artifact:name` handle writes an artifact; with workspace: true `name` is a workspace path. Returns the handle or path. */
   write(name: string, data: string | Uint8Array | ArrayBuffer, options?: { workspace?: boolean }): Promise<string>;
+  /** Like the edit tool: each oldText must match exactly once in the original; all edits apply atomically. Returns the handle. */
+  edit(handle: FileHandle, edits: { oldText: string; newText: string }[]): Promise<FileHandle>;
 };
 
 declare const diagram: {

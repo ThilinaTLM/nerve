@@ -2,7 +2,13 @@
 
 Types: [files.d.ts](files.d.ts), [web.d.ts](web.d.ts).
 
-A **handle** is `artifact:<name>` (this conversation's artifact folder, shared by all scripts and listed in each result) or a workspace path. Artifact names: 1-128 letters, digits, `.`, `_`, `-`; no folders. Max 20 MB per file. Reading a workspace file needs `read` permission, `files.write(path, data, { workspace: true })` needs `write`; artifacts need none. One handle works everywhere: `files.read`, `image`, `confluence.attachments.upload`, page `attachments`. Artifacts persist, so render in one run and attach in the next. `web.fetch` files arrive as `artifact:web-N.ext`. Read bytes with `files.read(h, { as: "bytes" })` (a `Uint8Array`). Libraries load when the script mentions them; QuickJS has no JIT, so keep data to tens of thousands of rows.
+A **handle** is `artifact:<name>` or a workspace path. Artifacts live in `$NERVE_HOME/data/conversations/<id>/quick-script/`, shared by all scripts of the conversation and kept across runs; each result prints `Artifacts: … in <folder>`, so the Read/Edit tools can open `<folder>/<name>` directly. Names: 1-128 letters (any language), digits, spaces, `.`, `_`, `-`; no folders, no leading dot. `files.write` takes `name` or `artifact:name`; a missing artifact lists the existing ones.
+
+Permissions: workspace reads need `read`, `files.write(path, data, { workspace: true })` needs `write`, `files.edit(path, …)` needs `edit`; artifacts need none. One handle works everywhere: `files.read`, `files.edit`, `image`, attachments upload/download, page `attachments`. Render in one run, attach in the next. `web.fetch` files arrive as `artifact:web-N.ext`; downloads keep the original file name when valid. Read bytes with `files.read(h, { as: "bytes" })` (a `Uint8Array`).
+
+Limits: `files.read`/`files.write` 20 MB; attachment upload/download and binary `request()` responses 25 MB (the bytes stay on the host; larger files need the direct `jira_*`/`confluence_*` attachment tools).
+
+`files.edit(handle, [{ oldText, newText }])` works like the edit tool: each `oldText` must match exactly once in the original, all edits apply or none. Libraries load when the script mentions them; QuickJS has no JIT, so keep data to tens of thousands of rows.
 
 ## Excel and CSV
 
