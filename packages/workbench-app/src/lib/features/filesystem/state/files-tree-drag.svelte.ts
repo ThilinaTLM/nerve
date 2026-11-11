@@ -170,7 +170,7 @@ export class FilesTreeDrag {
       this.clear();
       const plan = planDrop(sources, directory, copy ? "copy" : "move");
       if (!plan.ok) {
-        notify.message(plan.reason);
+        notify.warning(plan.reason);
         return;
       }
       if (copy)
@@ -219,6 +219,7 @@ export class FilesTreeDrag {
         response.entries.length === 1
           ? `Added “${response.entries[0]?.name}”`
           : `Added ${response.entries.length} files`,
+        { activity: true },
       );
     } catch (caught) {
       if (

@@ -230,10 +230,9 @@ const treeEntriesById = $derived(
   new Map(treeNodes.map((node) => [node.entry.id, node.entry])),
 );
 
-async function copyText(text: string, label = "message") {
+async function copyText(text: string) {
   try {
     await writeClipboardText(text);
-    notify.success(`Copied ${label}`);
   } catch {
     notify.error("Could not copy to clipboard");
   }

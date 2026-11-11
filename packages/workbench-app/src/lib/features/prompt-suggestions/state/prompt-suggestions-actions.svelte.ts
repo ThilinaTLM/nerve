@@ -69,6 +69,7 @@ export async function setPromptSuggestionEnabled(
     request.enabled
       ? "Prompt suggestion enabled"
       : "Prompt suggestion disabled",
+    { activity: true },
   );
 }
 
@@ -78,7 +79,7 @@ export async function createPromptSuggestion(
 ): Promise<PromptSuggestionStatus> {
   const result = await requestPromptSuggestionCreation(request);
   await refreshPromptSuggestionStatuses(projectId);
-  notify.success("Prompt suggestion created");
+  notify.success("Prompt suggestion created", { activity: true });
   return result.suggestion;
 }
 
@@ -107,5 +108,6 @@ export async function setPromptSuggestionTrust(
     request.status === "unset"
       ? "Prompt suggestion trust reset"
       : `Prompt suggestion ${request.status}`,
+    { activity: true },
   );
 }

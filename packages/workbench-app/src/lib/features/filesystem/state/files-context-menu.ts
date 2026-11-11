@@ -83,7 +83,7 @@ export type FilesContextMenuContext = {
   setClipboard(mode: "cut" | "copy", entries: FilesystemProjectEntry[]): void;
   pasteInto(targetDirectory: string): Promise<void>;
   mention(entries: FilesystemProjectEntry[]): void;
-  copyText(text: string, label: string): Promise<void>;
+  copyText(text: string): Promise<void>;
   openNative(entry: FilesystemProjectEntry): void;
   revealNative(entry: FilesystemProjectEntry): void;
 };
@@ -118,7 +118,7 @@ export function buildFilesRootMenu(
       canPaste: context.canPaste,
       openDefault: () => context.openNative(entry),
       reveal: () => context.revealNative(entry),
-      copyPath: () => void context.copyText(project.directory, "path"),
+      copyPath: () => void context.copyText(project.directory),
     },
     context.isDesktop,
     menuIcons,
@@ -145,7 +145,6 @@ export function buildFilesItemMenu(
         copyPaths: () =>
           void context.copyText(
             targets.map((target) => target.path).join("\n"),
-            "paths",
           ),
         remove: () => context.requestDelete(targets),
       },
@@ -174,9 +173,8 @@ export function buildFilesItemMenu(
       mention: () => context.mention([entry]),
       openDefault: () => context.openNative(entry),
       reveal: () => context.revealNative(entry),
-      copyPath: () => void context.copyText(absolutePath, "path"),
-      copyRelativePath: () =>
-        void context.copyText(entry.path, "relative path"),
+      copyPath: () => void context.copyText(absolutePath),
+      copyRelativePath: () => void context.copyText(entry.path),
       remove: () => context.requestDelete([entry]),
     },
     context.isDesktop,

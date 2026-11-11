@@ -122,7 +122,6 @@ function time(log: ApplicationLogRecord): string {
 async function copy(text: string) {
   try {
     await writeClipboardText(text);
-    notify.success("Copied");
   } catch {
     notify.error("Could not copy to clipboard");
   }
@@ -271,6 +270,7 @@ const menuItems = $derived<ContextMenuItem[]>([
   destructive
   onConfirm={async () => {
     const pruned = await controller.prune();
-    if (pruned && controller.notice) notify.success(controller.notice);
+    if (pruned && controller.notice)
+      notify.success(controller.notice, { activity: true });
   }}
 />

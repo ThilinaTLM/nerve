@@ -37,9 +37,17 @@ let {
   onOpenChange?: (open: boolean) => void;
 } = $props();
 
+function setOpen(next: boolean) {
+  // Read first: an unbound parent may already have changed `open` (e.g.
+  // onConfirm cleared its state). Writing a dirty unbound prop pins a local
+  // override that later parent updates never replace, so the dialog would
+  // never reopen.
+  if (open !== next) open = next;
+  onOpenChange?.(next);
+}
+
 function close() {
-  open = false;
-  onOpenChange?.(false);
+  setOpen(false);
 }
 
 function handleConfirm() {
@@ -58,7 +66,7 @@ function handleCancel() {
 }
 </script>
 
-<AlertDialog.Root bind:open {onOpenChange}>
+<AlertDialog.Root bind:open={() => open, setOpen}>
   <AlertDialog.Content class={className} {portalProps}>
     <AlertDialog.Header>
       <AlertDialog.Title>{title}</AlertDialog.Title>

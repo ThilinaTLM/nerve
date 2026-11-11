@@ -427,7 +427,6 @@ function openExternal(url: string): void {
 async function copyUrl(url: string): Promise<void> {
   try {
     await writeClipboardText(url);
-    notify.success("Copied repository URL");
   } catch {
     notify.error("Could not copy to clipboard");
   }

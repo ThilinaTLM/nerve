@@ -483,10 +483,9 @@ const session = $derived({
     activeProject,
     activeConversation,
   }),
-  onCopy: (text: string, label: string) => {
-    void writeClipboardText(text).then(
-      () => notify.success(`Copied ${label}`),
-      () => notify.error("Could not copy to clipboard"),
+  onCopy: (text: string) => {
+    void writeClipboardText(text).catch(() =>
+      notify.error("Could not copy to clipboard"),
     );
   },
 });

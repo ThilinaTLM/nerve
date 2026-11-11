@@ -79,6 +79,8 @@ async function refresh(show = false) {
     notify.warning("Updated profile available", {
       description: `${captured.name} has changed. Your current snapshot is unchanged.`,
       action: profileReviewAction(id),
+      // Informational; not a failure for the Activity badge.
+      activity: false,
     });
   }
   if (show) open = true;
@@ -121,6 +123,7 @@ async function apply() {
       await onApplied();
       open = false;
       notify.success("Updated profile applied", {
+        activity: true,
         description: "Conversation choices were preserved.",
       });
     } else {

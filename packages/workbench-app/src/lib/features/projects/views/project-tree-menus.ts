@@ -92,10 +92,9 @@ export function countKeepEligible(
   );
 }
 
-async function copyToClipboard(text: string, label: string): Promise<void> {
+async function copyToClipboard(text: string): Promise<void> {
   try {
     await writeClipboardText(text);
-    notify.success(`Copied ${label}`);
   } catch {
     notify.error("Could not copy to clipboard");
   }
@@ -125,7 +124,7 @@ export function buildProjectMenu(
     {
       label: "Copy path",
       icon: Copy,
-      onSelect: () => void copyToClipboard(project.dir, "path"),
+      onSelect: () => void copyToClipboard(project.dir),
     },
     { type: "separator" },
     {
@@ -229,7 +228,7 @@ export function buildConversationMenu(
     {
       label: "Copy ID",
       icon: Copy,
-      onSelect: () => void copyToClipboard(conversation.id, "conversation id"),
+      onSelect: () => void copyToClipboard(conversation.id),
     },
     {
       label: "Delete",

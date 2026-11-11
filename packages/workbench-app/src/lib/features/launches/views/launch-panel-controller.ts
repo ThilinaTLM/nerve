@@ -305,75 +305,93 @@ function buildDefinitionEntry(
 export function createLaunchPanelActions(
   model: () => LaunchPanelModel,
   host: LaunchPanelActions,
+  options: {
+    /** Told why a user-initiated action was refused. */
+    readonly blocked?: (reason: string) => void;
+  } = {},
 ): LaunchPanelActions {
   const available = () => model().availability.available;
   const enabled = (capability: keyof LaunchPanelModel["capabilities"]) =>
     available() && model().capabilities[capability].enabled;
+  /** Like `enabled`, but reports the refusal reason for user actions. */
+  const allowed = (capability: keyof LaunchPanelModel["capabilities"]) => {
+    const current = model();
+    const state = current.capabilities[capability];
+    if (!current.availability.available) {
+      options.blocked?.(current.availability.message);
+      return false;
+    }
+    if (!state.enabled) {
+      options.blocked?.(state.reason);
+      return false;
+    }
+    return true;
+  };
 
   return {
     refreshDefinitions: () => {
       if (available()) return host.refreshDefinitions();
     },
     createFolder: (input) => {
-      if (enabled("manageDefinitions")) return host.createFolder(input);
+      if (allowed("manageDefinitions")) return host.createFolder(input);
     },
     renameFolder: (folder, label) => {
-      if (enabled("manageDefinitions")) return host.renameFolder(folder, label);
+      if (allowed("manageDefinitions")) return host.renameFolder(folder, label);
     },
     deleteFolder: (folder) => {
-      if (enabled("manageDefinitions")) return host.deleteFolder(folder);
+      if (allowed("manageDefinitions")) return host.deleteFolder(folder);
     },
     moveEntry: (input) => {
-      if (enabled("manageDefinitions")) return host.moveEntry(input);
+      if (allowed("manageDefinitions")) return host.moveEntry(input);
     },
     selectLaunch: (launchId) => host.selectLaunch(launchId),
     openLaunchOutput: (launchId) => {
       if (enabled("logs")) return host.openLaunchOutput(launchId);
     },
     startLaunch: (request) => {
-      if (enabled("start")) return host.startLaunch(request);
+      if (allowed("start")) return host.startLaunch(request);
     },
     runDefinition: (definition) => {
-      if (enabled("start")) return host.runDefinition(definition);
+      if (allowed("start")) return host.runDefinition(definition);
     },
     confirmPortConflict: () => {
-      if (enabled("start")) return host.confirmPortConflict();
+      if (allowed("start")) return host.confirmPortConflict();
     },
     dismissPortConflict: () => host.dismissPortConflict(),
     cancelLaunch: (launchId, request) => {
-      if (enabled("cancel")) return host.cancelLaunch(launchId, request);
+      if (allowed("cancel")) return host.cancelLaunch(launchId, request);
     },
     forceKillLaunch: (launchId) => {
-      if (enabled("cancel"))
+      if (allowed("cancel"))
         return host.cancelLaunch(launchId, {
           signal: "SIGKILL",
           reason: "force_kill",
         });
     },
     restartLaunch: (launchId) => {
-      if (enabled("restart")) return host.restartLaunch(launchId);
+      if (allowed("restart")) return host.restartLaunch(launchId);
     },
     removeLaunch: (launchId) => {
-      if (enabled("remove")) return host.removeLaunch(launchId);
+      if (allowed("remove")) return host.removeLaunch(launchId);
     },
     cleanupRuns: (launchIds) => {
-      if (enabled("remove")) return host.cleanupRuns(launchIds);
+      if (allowed("remove")) return host.cleanupRuns(launchIds);
     },
     pruneLaunches: () => {
-      if (enabled("prune")) return host.pruneLaunches();
+      if (allowed("prune")) return host.pruneLaunches();
     },
     copyText: (text) => {
       if (enabled("copy")) return host.copyText(text);
     },
     createDefinition: (input) => {
-      if (enabled("manageDefinitions")) return host.createDefinition(input);
+      if (allowed("manageDefinitions")) return host.createDefinition(input);
     },
     updateDefinition: (definition, input) => {
-      if (enabled("manageDefinitions"))
+      if (allowed("manageDefinitions"))
         return host.updateDefinition(definition, input);
     },
     deleteDefinition: (definition) => {
-      if (enabled("manageDefinitions"))
+      if (allowed("manageDefinitions"))
         return host.deleteDefinition(definition);
     },
     loadLogs: (launchId, query) => {

@@ -271,7 +271,7 @@ export async function deleteConversationAndRefresh(conversationId: string) {
     await closeCenterTabs([{ kind: "conversation", id: conversationId }]);
     await queryClient.invalidateQueries({ queryKey: queryKeys.workspace });
     await loadWorkspaceState();
-    notify.success("Conversation removed");
+    notify.success("Conversation removed", { activity: true });
   } catch (caught) {
     const message = caught instanceof Error ? caught.message : String(caught);
     workspaceState.error = message;

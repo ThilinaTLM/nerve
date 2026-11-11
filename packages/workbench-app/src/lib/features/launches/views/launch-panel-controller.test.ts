@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import type { LaunchRecord } from "@nervekit/contracts/launches";
 import {
+  createLaunchPanelActions,
   isValidLaunchPort,
   launchActivity,
   launchEntryId,
@@ -12,7 +13,11 @@ import {
   launchPanelActiveItemKey,
   launchRunLabel,
 } from "./launch-panel-controller.js";
-import type { LaunchPanelDefinition } from "./launch-panel-types.js";
+import type {
+  LaunchPanelActions,
+  LaunchPanelDefinition,
+  LaunchPanelModel,
+} from "./launch-panel-types.js";
 
 function run(id: string, patch: Partial<LaunchRecord> = {}): LaunchRecord {
   const now = new Date().toISOString();
@@ -305,4 +310,58 @@ test("authoritative deletion exposes normal orphan runs with all controls", () =
   );
   assert.equal(projected.runs[0]?.definitionUnavailable, undefined);
   assert.equal(projected.runs[0]?.canForceKill, true);
+});
+
+function guardedActions(
+  model: Pick<LaunchPanelModel, "availability" | "capabilities">,
+) {
+  const hostCalls: string[] = [];
+  const blocked: string[] = [];
+  const host = new Proxy({} as LaunchPanelActions, {
+    get: (_target, name) => () => {
+      hostCalls.push(String(name));
+    },
+  });
+  const actions = createLaunchPanelActions(
+    () => model as LaunchPanelModel,
+    host,
+    { blocked: (reason) => blocked.push(reason) },
+  );
+  return { actions, hostCalls, blocked };
+}
+
+test("refused user actions report why; passive actions stay silent", () => {
+  const enabled = { enabled: true } as const;
+  const locked = { enabled: false, reason: "Catalog is broken." } as const;
+  const { actions, hostCalls, blocked } = guardedActions({
+    availability: { available: true },
+    capabilities: {
+      start: enabled,
+      cancel: enabled,
+      restart: enabled,
+      remove: enabled,
+      prune: enabled,
+      copy: locked,
+      logs: locked,
+      manageDefinitions: locked,
+    },
+  });
+  void actions.deleteDefinition(definition());
+  void actions.loadLogs("run", {});
+  void actions.copyText("x");
+  void actions.runDefinition(definition());
+  assert.deepEqual(blocked, ["Catalog is broken."]);
+  assert.deepEqual(hostCalls, ["runDefinition"]);
+});
+
+test("an unavailable panel reports its availability message", () => {
+  const { actions, hostCalls, blocked } = guardedActions({
+    availability: { available: false, message: "Select a project." },
+    capabilities: {
+      start: { enabled: true },
+    } as LaunchPanelModel["capabilities"],
+  });
+  void actions.runDefinition(definition());
+  assert.deepEqual(blocked, ["Select a project."]);
+  assert.deepEqual(hostCalls, []);
 });

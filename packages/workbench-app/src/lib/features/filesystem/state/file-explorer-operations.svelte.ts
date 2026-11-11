@@ -116,6 +116,7 @@ export async function moveFileExplorerEntries(
   } else if (done.length > 0) {
     const undo = done.map(({ from, to }) => ({ from: to, to: from })).reverse();
     notify.success(`${verb} ${describeNames(done.map((m) => m.from))}`, {
+      activity: true,
       action:
         options.undoable === false
           ? undefined
@@ -156,7 +157,9 @@ export async function copyFileExplorerEntries(
       description: describeFileOperationError(failure),
     });
   } else if (done.length > 0) {
-    notify.success(`${verb} ${describeNames(done.map((c) => c.from))}`);
+    notify.success(`${verb} ${describeNames(done.map((c) => c.from))}`, {
+      activity: true,
+    });
   }
   return done;
 }
@@ -235,6 +238,7 @@ export async function deleteFileExplorerEntries(
   } else if (removed.length > 0) {
     notify.success(
       method === "trash" ? `Moved ${names} to trash` : `Deleted ${names}`,
+      { activity: true },
     );
   }
 }

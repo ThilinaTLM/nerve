@@ -29,7 +29,6 @@ let examples = $state<Record<string, boolean>>({});
 async function copyQuarantinePath(): Promise<void> {
   try {
     await writeClipboardText(`${home}/quarantine`);
-    notify.success("Copied quarantine folder path");
   } catch {
     notify.error("Could not copy to clipboard");
   }

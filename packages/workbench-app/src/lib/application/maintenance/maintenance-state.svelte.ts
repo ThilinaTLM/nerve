@@ -41,9 +41,11 @@ const controller = new MaintenanceController({
   },
   terminal: async (operation, announce) => {
     if (announce) {
+      // Maintenance operations are already daemon Activity entries.
       if (operation.status === "failed")
         notify.error("Cleanup failed", {
           description: operation.error ?? operation.message,
+          activity: false,
         });
       else if (operation.warnings.length || operation.status === "cancelled")
         notify.message(operation.message);

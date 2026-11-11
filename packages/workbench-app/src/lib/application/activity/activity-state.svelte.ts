@@ -18,6 +18,7 @@ export type {
 import { toast } from "svelte-sonner";
 import { ActivityAttention } from "./activity-attention";
 import { updateActivityReadIds } from "./activity-read-state";
+import { setActivityNoticeSink } from "$lib/application/notifications/activity-notices";
 const attention = new ActivityAttention();
 const state = $state<{
   activities: Activity[];
@@ -116,9 +117,15 @@ export const activityInbox = {
   notify: (input: ActivityNoticeInput): void => controller.notify(input),
   observeStarted: (input: ActivityStartedInput) =>
     controller.observeStarted(input),
-  start: () => controller.start(),
+  start: () => {
+    controller.start();
+    setActivityNoticeSink((notice) => controller.notify(notice));
+  },
   reconnect: () => controller.refresh(),
-  dispose: () => controller.dispose(),
+  dispose: () => {
+    setActivityNoticeSink(undefined);
+    controller.dispose();
+  },
   opened: () => {
     state.unseenFailure = attention.update(state.activities, true);
     void controller.refresh();

@@ -69,6 +69,9 @@ export type WorkbenchLaunchPanelHostActions = {
   }) => void;
 };
 
+const MISSING_DEFINITION =
+  "This saved launch no longer exists. Refresh launches.";
+
 export function createWorkbenchLaunchPanelAdapter(
   activeProject: () => Project | undefined,
   launches: () => readonly LaunchRecord[],
@@ -294,7 +297,6 @@ export function createWorkbenchLaunchPanelAdapter(
     copyText: async (text) => {
       try {
         await writeClipboardText(text);
-        notify.success("Copied to clipboard");
       } catch {
         notify.error("Could not copy to clipboard");
       }
@@ -311,7 +313,7 @@ export function createWorkbenchLaunchPanelAdapter(
           },
           revision(project.id),
         );
-        notify.success("Launch saved");
+        notify.success("Launch saved", { activity: true });
       } catch (error) {
         notify.error(`Could not save launch: ${errorMessage(error)}`);
         throw error;
@@ -325,7 +327,11 @@ export function createWorkbenchLaunchPanelAdapter(
     ) => {
       const project = activeProject();
       const item = original(definition);
-      if (!project || !item) return;
+      if (!project) return;
+      if (!item) {
+        notify.error(MISSING_DEFINITION);
+        return;
+      }
       try {
         await updateLaunchDefinition(
           project.id,
@@ -336,7 +342,7 @@ export function createWorkbenchLaunchPanelAdapter(
           },
           revision(project.id),
         );
-        notify.success("Launch updated");
+        notify.success("Launch updated", { activity: true });
       } catch (error) {
         notify.error(`Could not update launch: ${errorMessage(error)}`);
         throw error;
@@ -347,10 +353,17 @@ export function createWorkbenchLaunchPanelAdapter(
     deleteDefinition: async (definition) => {
       const project = activeProject();
       const item = original(definition);
-      if (!project || !item) return;
+      if (!project) return;
+      if (!item) {
+        notify.error(MISSING_DEFINITION);
+        return;
+      }
       try {
         await deleteLaunchDefinition(project.id, item.id, revision(project.id));
-        notify.success("Saved launch deleted");
+        notify.success("Saved launch deleted", {
+          description: definition.label ?? definition.command,
+          activity: true,
+        });
       } catch (error) {
         notify.error(`Could not remove saved launch: ${errorMessage(error)}`);
         throw error;
@@ -362,7 +375,10 @@ export function createWorkbenchLaunchPanelAdapter(
       launchState.launchLogs = await getLaunchLogs(launchId, query);
     },
   };
-  adapter.actions = createLaunchPanelActions(() => adapter.model, host);
+  adapter.actions = createLaunchPanelActions(() => adapter.model, host, {
+    blocked: (reason) =>
+      notify.warning("Launch action unavailable", { description: reason }),
+  });
 
   // Revalidate on mount and project switches. Cached definitions render
   // immediately, so the loading state only shows on a cold cache.
