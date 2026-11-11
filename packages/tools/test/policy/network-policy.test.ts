@@ -34,6 +34,22 @@ describe("web fetch network policy", () => {
     );
   });
 
+  it("checks bracketed IPv6 literals without DNS", async () => {
+    const noDns = async (): Promise<string[]> => {
+      throw new Error("DNS must not be used for IP literals");
+    };
+    for (const literal of ["[::1]", "[64:ff9b::7f00:1]", "[2002:a00:1::]"]) {
+      await assert.rejects(
+        assertSafeHttpUrl(`http://${literal}/`, { resolveHost: noDns }),
+        /Private, local, link-local/,
+      );
+    }
+    const url = await assertSafeHttpUrl("http://[2606:4700:4700::1111]/", {
+      resolveHost: noDns,
+    });
+    assert.equal(url.hostname, "[2606:4700:4700::1111]");
+  });
+
   it("allows trusted hosts to opt into private development access", async () => {
     const url = await assertSafeHttpUrl("http://127.0.0.1:3747", {
       allowPrivateNetwork: true,

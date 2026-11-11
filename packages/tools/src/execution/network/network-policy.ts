@@ -39,7 +39,11 @@ export async function assertSafeHttpUrl(
   }
   if (options.allowPrivateNetwork) return url;
 
-  const hostname = url.hostname.toLowerCase().replace(/\.$/, "");
+  // IPv6 literals keep their brackets in URL.hostname ("[::1]").
+  const hostname = url.hostname
+    .toLowerCase()
+    .replace(/^\[(.*)\]$/, "$1")
+    .replace(/\.$/, "");
   if (
     hostname === "localhost" ||
     hostname.endsWith(".localhost") ||
