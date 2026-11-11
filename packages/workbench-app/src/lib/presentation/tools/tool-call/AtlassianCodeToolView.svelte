@@ -4,10 +4,10 @@ import CircleX from "@lucide/svelte/icons/circle-x";
 import ShieldAlert from "@lucide/svelte/icons/shield-alert";
 import type { ToolCallDisplayRecord } from "../views/tool-result-view";
 import type { ToolView } from "../views/tool-result-view";
+import type { CodeModeArtifact } from "@nervekit/contracts/tools";
 import { COLLAPSED_LINES } from "../views/tool-result-view";
 import { formatDuration } from "../views/tool-presentation-helpers";
 import { cn } from "@nervekit/ui-kit/utils";
-import ArtifactList from "./ArtifactList.svelte";
 import ToolSections from "./ToolSections.svelte";
 
 type Props = {
@@ -33,12 +33,40 @@ const hasSummary = $derived(
     scriptFailed,
 );
 
+// Artifact handles in call summaries become links that open the file in a tab;
+// artifacts no call names are listed once after the calls.
+const artifactsByHandle = $derived(
+  new Map(view.artifacts.map((artifact) => [artifact.handle, artifact])),
+);
+function summaryParts(text: string) {
+  return text
+    .split(/(artifact:[A-Za-z0-9._-]+)/)
+    .filter(Boolean)
+    .map((part) => ({ text: part, artifact: artifactsByHandle.get(part) }));
+}
+const unnamedArtifacts = $derived(
+  view.artifacts.filter(
+    (artifact) =>
+      !view.hostCalls.some((call) => call.summary?.includes(artifact.handle)),
+  ),
+);
+
 function pageLintLabel(fixes: number, warnings: number): string {
   if (warnings > 0)
     return `${warnings} lint warning${warnings === 1 ? "" : "s"}`;
   return fixes > 0 ? `lint fixed ${fixes}` : "lint clean";
 }
 </script>
+
+{#snippet artifactLink(artifact: CodeModeArtifact)}
+  <button
+    type="button"
+    class="cursor-pointer border-0 bg-transparent p-0 font-mono text-primary hover:text-primary-strong disabled:cursor-default disabled:text-muted-foreground"
+    title="Open in a new tab"
+    disabled={!onOpenFile}
+    onclick={() => onOpenFile?.(artifact.path)}>{artifact.handle}</button
+  >
+{/snippet}
 
 {#if hasSummary}
   <ToolSections>
@@ -68,11 +96,15 @@ function pageLintLabel(fixes: number, warnings: number): string {
             <span class="flex-none font-mono text-foreground"
               >{call.method}</span
             >
-            <span class="min-w-0 flex-1 truncate text-muted-foreground"
-              >{call.outcome === "completed"
-                ? (call.summary ?? "")
-                : (call.error ?? call.summary ?? "")}</span
-            >
+            <span class="min-w-0 flex-1 truncate text-muted-foreground">
+              {#if call.outcome === "completed"}
+                {#each summaryParts(call.summary ?? "") as part, partIndex (partIndex)}
+                  {#if part.artifact}
+                    {@render artifactLink(part.artifact)}
+                  {:else}{part.text}{/if}
+                {/each}
+              {:else}{call.error ?? call.summary ?? ""}{/if}
+            </span>
             <span
               class="flex-none text-caption text-muted-foreground tabular-nums"
               >{formatDuration(call.durationMs)}</span
@@ -87,8 +119,15 @@ function pageLintLabel(fixes: number, warnings: number): string {
       </ul>
     {/if}
 
-    {#if view.artifacts.length > 0}
-      <ArtifactList artifacts={view.artifacts} {onOpenFile} />
+    {#if unnamedArtifacts.length > 0}
+      <p
+        class="m-0 flex min-w-0 flex-wrap items-baseline gap-x-2 px-2.5 py-1 text-ui text-muted-foreground"
+      >
+        <span>Files</span>
+        {#each unnamedArtifacts as artifact (artifact.handle)}
+          {@render artifactLink(artifact)}
+        {/each}
+      </p>
     {/if}
 
     {#if view.pages.length > 0}
