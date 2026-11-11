@@ -1,13 +1,17 @@
+import { randomUUID } from "node:crypto";
 import {
   lstat,
   mkdir,
   readdir,
   readFile,
+  rename,
+  rm,
   stat,
   writeFile,
 } from "node:fs/promises";
 import { dirname, extname, join } from "node:path";
 import { image } from "@nervekit/native";
+import type { BinarySink } from "../../atlassian/raw-request.js";
 import { codedError } from "../errors.js";
 import { resolveToolPath } from "../../filesystem/path.js";
 import type {
@@ -24,8 +28,8 @@ import type {
 
 /** Files crossing the JSON bridge (`files.read`/`files.write` data), and the largest file read into the sandbox. */
 export const MAX_FILE_BYTES = 20 * 1024 * 1024;
-/** Attachment upload/download and raw binary downloads stay on the host; matches the direct attachment tools. */
-export const MAX_ATTACHMENT_BYTES = 25 * 1024 * 1024;
+/** Attachment upload/download and raw binary downloads stream between disk and the network; they never enter memory or the sandbox. */
+export const MAX_ATTACHMENT_BYTES = 100 * 1024 * 1024;
 
 export const ARTIFACT_PREFIX = "artifact:";
 // Unicode letters and digits, space, `_`, `.`, `-`; no separators, no leading dot or space, no trailing space.
@@ -140,11 +144,12 @@ export function readAuthorizations(refs: FileRef[]): NestedAuthorization[] {
   );
 }
 
-export async function readFileRef(
+/** Checks a handle is a regular file within `maxBytes` and returns its size, without reading it. */
+export async function statFileRef(
   ref: FileRef,
   maxBytes = MAX_FILE_BYTES,
   tooLargeHint = "Process it with the bash or python tools instead.",
-): Promise<Buffer> {
+): Promise<number> {
   const info = await (
     ref.kind === "artifact" ? lstat(ref.path) : stat(ref.path)
   ).catch(async (error: NodeJS.ErrnoException) => {
@@ -156,6 +161,15 @@ export async function readFileRef(
       `${ref.handle} is ${formatMb(info.size)}; the limit is ${formatMb(maxBytes)}. ${tooLargeHint}`,
     );
   }
+  return info.size;
+}
+
+export async function readFileRef(
+  ref: FileRef,
+  maxBytes = MAX_FILE_BYTES,
+  tooLargeHint = "Process it with the bash or python tools instead.",
+): Promise<Buffer> {
+  await statFileRef(ref, maxBytes, tooLargeHint);
   return await readFile(ref.path);
 }
 
@@ -186,6 +200,50 @@ export async function writeArtifact(
   await mkdir(dir, { recursive: true, mode: 0o700 });
   await writeFile(join(dir, name), bytes, { mode: 0o600 });
   return reportArtifact(env, name, bytes.byteLength);
+}
+
+/**
+ * A fresh path inside the artifact folder for a download in progress. The name
+ * starts with a dot, so listings and handles never expose it.
+ */
+export async function artifactTempPath(env: SdkEnvironment): Promise<string> {
+  const dir = artifactDir(env);
+  await mkdir(dir, { recursive: true, mode: 0o700 });
+  return join(dir, `.${randomUUID()}.part`);
+}
+
+/** Moves a finished download into place as artifact `name` and records it; removes the temp file on failure. */
+export async function commitArtifact(
+  env: SdkEnvironment,
+  tempPath: string,
+  name: string,
+): Promise<string> {
+  try {
+    assertArtifactName(name);
+    const { size } = await stat(tempPath);
+    await rename(tempPath, join(artifactDir(env), name));
+    return reportArtifact(env, name, size);
+  } catch (error) {
+    await rm(tempPath, { force: true });
+    throw error;
+  }
+}
+
+/** Streams a binary `request()` response into a fresh `<base>-N<ext>` artifact. */
+export function artifactBinarySink(
+  env: SdkEnvironment,
+  base: string,
+  extensionFor: (contentType: string) => string,
+): BinarySink {
+  return {
+    prepare: () => artifactTempPath(env),
+    commit: async (path, _bytes, contentType) =>
+      await commitArtifact(
+        env,
+        path,
+        await freshArtifactName(env, base, extensionFor(contentType)),
+      ),
+  };
 }
 
 /** Records an artifact the run wrote or changed for the result report; returns its handle. */

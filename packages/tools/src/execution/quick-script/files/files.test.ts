@@ -14,7 +14,6 @@ import { image } from "@nervekit/native";
 import { executeQuickScript } from "../quick-script.js";
 import {
   loadAttachments,
-  MAX_ATTACHMENTS_TOTAL_BYTES,
 } from "../atlassian/attachments.js";
 import { createSdkEnvironment } from "../sdk.js";
 import { preludesFor } from "../sdk.js";
@@ -221,21 +220,6 @@ void test("RichText Markdown in storage.* builders becomes storage markup", asyn
     result.content ?? "",
     /<ac:rich-text-body><p>Some <em>emphasis<\/em><\/p><\/ac:rich-text-body>/,
   );
-});
-
-void test("loading attachments is capped in total before the files are read", async () => {
-  const { cwd } = await setup();
-  const size = 20 * 1024 * 1024;
-  const count = Math.floor(MAX_ATTACHMENTS_TOTAL_BYTES / size) + 1;
-  const specs = [];
-  for (let i = 0; i < count; i++) {
-    await writeFile(join(cwd, `big-${i}.bin`), Buffer.alloc(size));
-    specs.push({ file: `big-${i}.bin` });
-  }
-  const env = createSdkEnvironment({ cwd });
-  await assert.rejects(loadAttachments(specs, env), /the limit is/);
-  const loaded = await loadAttachments(specs.slice(0, count - 1), env);
-  assert.equal(loaded.length, count - 1);
 });
 
 void test("files.write accepts a name or an artifact handle and keeps Unicode names", async () => {

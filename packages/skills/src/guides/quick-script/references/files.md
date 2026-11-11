@@ -6,7 +6,7 @@ A **handle** is `artifact:<name>` or a workspace path. Artifacts live in `$NERVE
 
 Permissions: workspace reads need `read`, `files.write(path, data, { workspace: true })` needs `write`, `files.edit(path, …)` needs `edit`; artifacts need none. One handle works everywhere: `files.read`, `files.edit`, `image`, attachments upload/download, page `attachments`. Render in one run, attach in the next. `web.fetch` files arrive as `artifact:web-N.ext`; downloads keep the original file name when valid. Read bytes with `files.read(h, { as: "bytes" })` (a `Uint8Array`).
 
-Limits: `files.read`/`files.write` 20 MB; attachment upload/download and binary `request()` responses 25 MB (the bytes stay on the host; larger files need the direct `jira_*`/`confluence_*` attachment tools).
+Limits: `files.read`/`files.write` 20 MB; attachment upload/download and binary `request()` responses 100 MB (streamed between disk and the network, never held in memory or the sandbox).
 
 `files.edit(handle, [{ oldText, newText }])` works like the edit tool: each `oldText` must match exactly once in the original, all edits apply or none. Libraries load when the script mentions them; QuickJS has no JIT, so keep data to tens of thousands of rows.
 

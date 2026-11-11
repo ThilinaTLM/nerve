@@ -1,3 +1,4 @@
+import { openAsBlob } from "node:fs";
 import { basename } from "node:path";
 import { anyJson, isArray, jsonObject } from "../../atlassian/http.js";
 import {
@@ -14,7 +15,7 @@ import {
   MAX_ATTACHMENT_BYTES,
   mediaTypeFor,
   parseHandle,
-  readFileRef,
+  statFileRef,
 } from "../files/artifacts.js";
 import {
   type AttachmentSpec,
@@ -72,7 +73,13 @@ function record(value: unknown): Record<string, unknown> {
     : {};
 }
 
-type LoadedFile = { bytes: Buffer; filename: string; mediaType: string };
+/** A file checked for upload; its bytes are streamed from `path` and never held in memory. */
+type LoadedFile = {
+  path: string;
+  size: number;
+  filename: string;
+  mediaType: string;
+};
 
 function attachmentSpecs(value: unknown): AttachmentSpec[] {
   if (value === undefined) return [];
@@ -89,20 +96,20 @@ async function loadFile(
   env: SdkEnvironment,
 ): Promise<LoadedFile> {
   const ref = parseHandle(spec.file, env);
-  const bytes = await readFileRef(
+  const size = await statFileRef(
     ref,
     MAX_ATTACHMENT_BYTES,
-    "Upload files this large with jira_manage_attachment (direct tool).",
+    "Split or compress it.",
   );
   const filename = spec.filename ?? basename(ref.path);
-  return { bytes, filename, mediaType: mediaTypeFor(filename) };
+  return { path: ref.path, size, filename, mediaType: mediaTypeFor(filename) };
 }
 
 async function uploadFile(env: SdkEnvironment, key: string, file: LoadedFile) {
   const form = new FormData();
   form.append(
     "file",
-    new Blob([new Uint8Array(file.bytes)], { type: file.mediaType }),
+    await openAsBlob(file.path, { type: file.mediaType }),
     file.filename,
   );
   const data = await jiraMultipartRequest(await env.jira(), {
@@ -118,7 +125,7 @@ async function uploadFile(env: SdkEnvironment, key: string, file: LoadedFile) {
     id,
     filename: String(raw.filename ?? file.filename),
     mediaType: String(raw.mimeType ?? file.mediaType),
-    size: typeof raw.size === "number" ? raw.size : file.bytes.byteLength,
+    size: typeof raw.size === "number" ? raw.size : file.size,
   };
 }
 
@@ -597,7 +604,7 @@ export const jiraWriteMethods: SdkMethod[] = [
     risk: "external_write",
     options: ["key", "file", "filename"],
     signature:
-      "/** Any file handle; max 25 MB. Jira keeps duplicates with the same filename (unlike Confluence): check attachments.list first. */ upload(options: { key: string; file: FileHandle; filename?: string }): Promise<{ id: string; filename: string; mediaType: string; size: number }>",
+      "/** Any file handle; max 100 MB. Jira keeps duplicates with the same filename (unlike Confluence): check attachments.list first. */ upload(options: { key: string; file: FileHandle; filename?: string }): Promise<{ id: string; filename: string; mediaType: string; size: number }>",
     parse: (options) => ({
       key: nonEmptyString(options.key, "key"),
       spec: parseAttachmentSpec({

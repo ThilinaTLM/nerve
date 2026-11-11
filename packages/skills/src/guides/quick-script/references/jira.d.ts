@@ -156,13 +156,13 @@ declare const jira: {
     delete(options: { key: string; id: string }): Promise<{ id: string }>;
   };
   attachments: {
-    /** Any file handle; max 25 MB. Jira keeps duplicates with the same filename (unlike Confluence): check attachments.list first. */
+    /** Any file handle; max 100 MB. Jira keeps duplicates with the same filename (unlike Confluence): check attachments.list first. */
     upload(options: { key: string; file: FileHandle; filename?: string }): Promise<{ id: string; filename: string; mediaType: string; size: number }>;
     /** Attachments of an issue, oldest first. Jira keeps duplicates with the same filename (unlike Confluence); `![](filename)` embeds the newest. */
     list(options: string | { key: string }): Promise<{ id: string; filename: string; size: number; mediaType: string; created: string | null; author: string | null }[]>;
     /** Destructive. */
     delete(options: string | { id: string }): Promise<{ id: string }>;
-    /** Saves the attachment as `artifact:<its filename>` (or `name`); max 25 MB. */
+    /** Saves the attachment as `artifact:<its filename>` (or `name`); max 100 MB. */
     download(options: string | { id: string; name?: string }): Promise<FileHandle>;
   };
   sprints: {

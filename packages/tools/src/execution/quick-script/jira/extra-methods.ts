@@ -1,20 +1,23 @@
+import { rm } from "node:fs/promises";
 import { extname } from "node:path";
 import { jsonObject } from "../../atlassian/http.js";
 import { ToolExecutionError } from "../../errors/tool-error.js";
 import {
   type JiraConnection,
-  jiraDownload,
+  jiraDownloadToFile,
   jiraRequest,
   pathSegment,
 } from "../../jira/client.js";
 import { adfToMarkdown } from "../../jira/adf-markdown.js";
 import { markdownToAdf } from "../../jira/markdown-adf.js";
 import {
+  artifactBinarySink,
   artifactNameOf,
   artifactNameFor,
+  artifactTempPath,
+  commitArtifact,
   freshArtifactName,
   MAX_ATTACHMENT_BYTES,
-  writeArtifact,
 } from "../files/artifacts.js";
 import { codedError } from "../errors.js";
 import { noteChange } from "./report.js";
@@ -47,15 +50,10 @@ export async function fetchJiraMe(
   };
 }
 
-/** `jira.request` onBinary: saves a binary response as an artifact named after the path's file extension. */
+/** `jira.request` onBinary: streams a binary response into an artifact named after the path's file extension. */
 export function rawBinarySaver(env: SdkEnvironment, path: unknown) {
   const extension = extname(String(path).split("?")[0] ?? "") || ".bin";
-  return async (bytes: Uint8Array) =>
-    await writeArtifact(
-      env,
-      await freshArtifactName(env, "response", extension),
-      bytes,
-    );
+  return artifactBinarySink(env, "response", () => extension);
 }
 
 export const jiraExtraMethods: SdkMethod[] = [
@@ -66,7 +64,7 @@ export const jiraExtraMethods: SdkMethod[] = [
     bare: "id",
     options: ["id", "name"],
     signature:
-      "/** Saves the attachment as `artifact:<its filename>` (or `name`); max 25 MB. */ download(options: string | { id: string; name?: string }): Promise<FileHandle>",
+      "/** Saves the attachment as `artifact:<its filename>` (or `name`); max 100 MB. */ download(options: string | { id: string; name?: string }): Promise<FileHandle>",
     parse: (options) => ({
       id: nonEmptyString(options.id, "id"),
       name:
@@ -88,16 +86,17 @@ export const jiraExtraMethods: SdkMethod[] = [
       const tooBig = (size: number) =>
         codedError(
           "BAD_REQUEST",
-          `Attachment ${id} is ${(size / 1048576).toFixed(1)} MB; the limit is 25 MB. Use jira_download_attachment (direct tool).`,
+          `Attachment ${id} is ${(size / 1048576).toFixed(1)} MB; the limit is ${MAX_ATTACHMENT_BYTES / 1048576} MB.`,
         );
       if (typeof meta.size === "number" && meta.size > MAX_ATTACHMENT_BYTES) {
         throw tooBig(meta.size);
       }
-      const downloaded = await jiraDownload(
-        connection,
-        id,
-        env.context.signal,
-      ).catch((error: unknown) => {
+      const tempPath = await artifactTempPath(env);
+      const downloaded = await jiraDownloadToFile(connection, id, {
+        destination: tempPath,
+        maxBytes: MAX_ATTACHMENT_BYTES,
+        signal: env.context.signal,
+      }).catch((error: unknown) => {
         if (
           error instanceof ToolExecutionError &&
           error.code === "JIRA_ATTACHMENT_TOO_LARGE"
@@ -106,9 +105,6 @@ export const jiraExtraMethods: SdkMethod[] = [
         }
         throw error;
       });
-      if (downloaded.bytes.byteLength > MAX_ATTACHMENT_BYTES) {
-        throw tooBig(downloaded.bytes.byteLength);
-      }
       const filename = artifactNameFor(
         String(meta.filename ?? downloaded.filename ?? `attachment-${id}`),
       );
@@ -119,9 +115,12 @@ export const jiraExtraMethods: SdkMethod[] = [
           env,
           filename.slice(0, filename.length - extension.length),
           extension,
-        );
+        ).catch(async (error: unknown) => {
+          await rm(tempPath, { force: true });
+          throw error;
+        });
       }
-      return await writeArtifact(env, target, downloaded.bytes);
+      return await commitArtifact(env, tempPath, target);
     },
   }),
   defineMethod({

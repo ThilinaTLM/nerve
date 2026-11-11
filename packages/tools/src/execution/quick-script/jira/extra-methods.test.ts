@@ -42,7 +42,7 @@ void test("attachments.download writes exact bytes to a fresh artifact and autho
 void test("attachments.download refuses files over the size limit", async () => {
   const { run } = setup((s) => {
     if (s.path === "/attachment/9")
-      return Response.json({ id: "9", filename: "big.zip", size: 30_000_000 });
+      return Response.json({ id: "9", filename: "big.zip", size: 150_000_000 });
   });
   const result = await run(
     `try { await jira.attachments.download("9"); } catch (e) { console.log(e.code, e.message); }`,
@@ -51,7 +51,7 @@ void test("attachments.download refuses files over the size limit", async () => 
   );
   assert.match(
     result.content ?? "",
-    /BAD_REQUEST Attachment 9 is 28.6 MB.*jira_download_attachment/,
+    /BAD_REQUEST Attachment 9 is 143.1 MB.*limit is 100 MB/,
   );
 });
 

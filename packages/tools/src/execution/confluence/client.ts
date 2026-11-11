@@ -4,7 +4,16 @@ import type { IntegrationExecutionContext } from "../execution-context.js";
 import { withTimeoutSignal } from "../process/abort.js";
 import { safeAtlassianError } from "../atlassian/atlassian-error.js";
 import { ToolExecutionError } from "../errors/tool-error.js";
-import { rawRequestUrl, readRawBody } from "../atlassian/raw-request.js";
+import {
+  type BinaryHandler,
+  rawRequestUrl,
+  readRawBody,
+} from "../atlassian/raw-request.js";
+import {
+  BodyTooLargeError,
+  idleTimeoutSignal,
+  streamBodyToFile,
+} from "../atlassian/stream-download.js";
 import {
   anyJson,
   atlassianJsonRequestInit,
@@ -141,7 +150,7 @@ export async function confluenceRawRequest(
     path: unknown;
     body?: unknown;
     query?: unknown;
-    onBinary?: (bytes: Buffer, contentType: string) => Promise<unknown>;
+    onBinary?: BinaryHandler;
     signal?: AbortSignal;
   },
 ): Promise<unknown> {
@@ -174,7 +183,7 @@ export async function confluenceAttachmentRequest<T>(
       "X-Atlassian-Token": "nocheck",
     },
     body: options.form,
-    signal: withTimeoutSignal(options.signal, 60_000),
+    signal: withTimeoutSignal(options.signal, UPLOAD_TIMEOUT_MS),
   });
   if (!response.ok) {
     await throwConfluenceError(
@@ -194,57 +203,112 @@ export async function confluenceAttachmentRequest<T>(
   );
 }
 
+/** Uploads of up to 100 MB need longer than a JSON request. */
+const UPLOAD_TIMEOUT_MS = 10 * 60_000;
+const DIRECT_DOWNLOAD_MAX_BYTES = 25 * 1024 * 1024;
+/** Signed media-host redirects followed after the authenticated first hop. */
+const MAX_MEDIA_REDIRECTS = 3;
+
+function attachmentTooLarge(maximum: number, bytes: number) {
+  return new ToolExecutionError(
+    "CONFLUENCE_ATTACHMENT_TOO_LARGE",
+    guideErrorMessage(
+      `Confluence attachment exceeds the ${maximum / 1048576} MiB download limit.`,
+    ),
+    { bytes, maximum },
+  );
+}
+
+/**
+ * Starts an attachment download. Only the first request, to the configured
+ * site, carries credentials. Cloud answers with a redirect to a signed media
+ * URL (e.g. api.media.atlassian.com); each further hop must be https and is
+ * fetched without the Authorization header, so the token never leaves the site.
+ */
+async function openConfluenceDownload(
+  connection: ConfluenceConnection,
+  downloadLink: string,
+  signal: AbortSignal,
+): Promise<{ response: Response; url: URL }> {
+  const url = resolveConfluenceDownloadUrl(connection, downloadLink);
+  let response = await fetch(url, {
+    headers: { Authorization: basicAuth(connection) },
+    redirect: "manual",
+    signal,
+  });
+  for (
+    let hops = 0;
+    response.status >= 300 && response.status < 400;
+    hops += 1
+  ) {
+    const location = response.headers.get("location");
+    await response.body?.cancel().catch(() => undefined);
+    const target = location ? new URL(location, url) : undefined;
+    if (target?.protocol !== "https:" || hops >= MAX_MEDIA_REDIRECTS) {
+      throw new ToolExecutionError(
+        "CONFLUENCE_UNTRUSTED_REDIRECT",
+        hops >= MAX_MEDIA_REDIRECTS
+          ? "Confluence attachment download redirected too many times."
+          : "Confluence attachment download redirected to a non-https location.",
+        { status: response.status, location },
+      );
+    }
+    response = await fetch(target, { redirect: "manual", signal });
+  }
+  if (!response.ok) {
+    await throwConfluenceError(response, "GET", url.pathname);
+  }
+  return { response, url };
+}
+
 export async function confluenceDownload(
   connection: ConfluenceConnection,
   downloadLink: string,
   signal?: AbortSignal,
 ): Promise<Uint8Array> {
-  const url = resolveConfluenceDownloadUrl(connection, downloadLink);
-  const timeout = withTimeoutSignal(signal, 60_000);
-  let response = await fetch(url, {
-    headers: { Authorization: basicAuth(connection) },
-    redirect: "manual",
-    signal: timeout,
-  });
-  // Cloud answers downloads with a redirect to a signed media URL. Follow it
-  // once, over https and without credentials, so the token never leaves the site.
-  if (response.status >= 300 && response.status < 400) {
-    const location = response.headers.get("location");
-    const target = location ? new URL(location, url) : undefined;
-    if (target?.protocol !== "https:") {
-      throw new ToolExecutionError(
-        "CONFLUENCE_UNTRUSTED_REDIRECT",
-        "Confluence attachment download redirected to a non-https location.",
-        { status: response.status, location },
-      );
-    }
-    response = await fetch(target, { redirect: "error", signal: timeout });
-  }
-  if (!response.ok) {
-    await throwConfluenceError(response, "GET", url.pathname);
-  }
-  const maximum = 25 * 1024 * 1024;
+  const maximum = DIRECT_DOWNLOAD_MAX_BYTES;
+  const { response } = await openConfluenceDownload(
+    connection,
+    downloadLink,
+    withTimeoutSignal(signal, 60_000),
+  );
   const declared = Number(response.headers.get("content-length") ?? 0);
-  if (declared > maximum) {
-    throw new ToolExecutionError(
-      "CONFLUENCE_ATTACHMENT_TOO_LARGE",
-      guideErrorMessage(
-        "Confluence attachment exceeds the 25 MiB download limit.",
-      ),
-      { bytes: declared, maximum },
-    );
-  }
+  if (declared > maximum) throw attachmentTooLarge(maximum, declared);
   const bytes = new Uint8Array(await response.arrayBuffer());
   if (bytes.byteLength > maximum) {
-    throw new ToolExecutionError(
-      "CONFLUENCE_ATTACHMENT_TOO_LARGE",
-      guideErrorMessage(
-        "Confluence attachment exceeds the 25 MiB download limit.",
-      ),
-      { bytes: bytes.byteLength, maximum },
-    );
+    throw attachmentTooLarge(maximum, bytes.byteLength);
   }
   return bytes;
+}
+
+/**
+ * Streams an attachment to `destination` (removed on failure or abort) with
+ * the limit enforced on Content-Length and on the bytes received.
+ */
+export async function confluenceDownloadToFile(
+  connection: ConfluenceConnection,
+  downloadLink: string,
+  options: { destination: string; maxBytes: number; signal?: AbortSignal },
+): Promise<number> {
+  const idle = idleTimeoutSignal(options.signal, 60_000);
+  try {
+    const { response } = await openConfluenceDownload(
+      connection,
+      downloadLink,
+      idle.signal,
+    );
+    return await streamBodyToFile(response, options.destination, {
+      maxBytes: options.maxBytes,
+      signal: idle.signal,
+      onChunk: idle.touch,
+    }).catch((error: unknown) => {
+      throw error instanceof BodyTooLargeError
+        ? attachmentTooLarge(options.maxBytes, error.bytes)
+        : error;
+    });
+  } finally {
+    idle.dispose();
+  }
 }
 
 function resolveConfluenceDownloadUrl(
