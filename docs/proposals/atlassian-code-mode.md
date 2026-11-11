@@ -18,7 +18,7 @@ The tool can be switched on in tool settings independently of the 28 existing `j
 ## Non-goals
 
 - Replacing `bash`, `python_exec` or local file tools. `python_exec` is not a security boundary (`execution/python/python.ts`); this sandbox is, which is why integration calls and their credentials can live here.
-- General package installation, network access from scripts, or saved scripts and artifacts directories. These were the core of the earlier TypeScript execution environment proposal, and they need an OS-level sandbox.
+- General package installation, network access from scripts, or saved scripts. These were the core of the earlier TypeScript execution environment proposal, and they need an OS-level sandbox. Scripts get a fixed set of bundled libraries and a per-conversation artifact folder instead (see [Artifacts](#artifacts)).
 - Database schema changes.
 
 ## Tool
@@ -31,7 +31,8 @@ atlassian_code_mode({
 ```
 
 - The code is passed inline, not as a file path. Writing a file and then running it would cost an extra round trip.
-- The result is the script's printed output, then one footer line:
+- A top-level `return value` prints the value compactly: an array of flat objects prints as a table, anything else as JSON. `console.log` still works.
+- The result is the script's printed output, then the linter report for every page written, the artifacts created, and one footer line:
 
   ```text
   <console output>
@@ -53,6 +54,11 @@ The SDK follows the Jira and Confluence REST APIs, so models can rely on what th
 - **Confluence pages are written in storage format.** Builders produce the markup, a linter checks it before each write, and Markdown is used only for prose. See [Confluence pages](#confluence-pages). Page bodies can be read as Markdown or storage format.
 - **Compact, flattened results.** For example `{ key, summary, status, assignee: { name, email }, updated, … }`, not `fields.status.statusCategory.…`. `fields: [...]` selects what comes back, and `raw: true` returns the unmodified REST object when something is missing.
 - **Complete data.** Results are not truncated or shaped for display. Large text is the script's to filter, not the SDK's to cut.
+- **One calling convention.** Every method takes a single ID or one options object. Each resource has one ID name (`key` for issues, `id` for pages), without aliases, so the reference stays short.
+- **Consistent verbs.** Each resource uses `search`/`get`/`create`/`update`/`delete`; workflow actions (`issues.transition`, `issues.comment`) are the exceptions.
+- **Actionable errors.** An invalid value lists the valid ones, for example "No transition to 'Done' from 'Backlog'; available: In Progress, Selected for Development".
+- **Stop on the first auth failure.** A 401 or 403 ends the whole script with one message ("Jira token is invalid", "no access to project APP") instead of failing every call in a loop.
+- **Raw requests.** `jira.request(method, path, body?)` and `confluence.request(…)` cover everything the curated methods do not, so the SDK stays small without losing capabilities. `GET` is checked as a read and any other method as `destructive`.
 
 ### Shape
 
@@ -80,33 +86,59 @@ confluence.pages.move | delete
 confluence.comments.*, confluence.labels.*, confluence.restrictions.*, confluence.attachments.*
 ```
 
-This covers what the 28 tools do today. The `request()` escape hatch is an [open question](#open-questions).
+This covers what the 28 tools do today. Jira workflow discovery also needs issue types with their create fields, workflows and transitions, boards, sprints, versions (releases) and components.
 
 ### Documentation
 
-- The tool description is about 400 characters long. It covers what the tool is, the two rules that cause most failures (print with `console.log` instead of using `return`; JQL must include a restriction), and a pointer to the guide.
-- The built-in guide skill `atlassian-code-mode` (`packages/skills/src/guides/atlassian-code-mode/`) has a short `SKILL.md` and reference files the agent reads on demand: `jira.md`, `confluence.md` (including page style and linter rules) and `storage.md` (builders).
+- The tool description is about 400 characters long. It covers what the tool is, the rule that causes most failures (JQL must include a restriction), and a pointer to the guide.
+- The built-in guide skill `atlassian-code-mode` (`packages/skills/src/guides/atlassian-code-mode/`) has a short `SKILL.md` (globals, the rules that cause most failures, and a "read X when Y" table) and reference files the agent reads on demand:
+
+  | File                               | Covers                                                                                                                     |
+  | ---------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+  | `references/sdk.d.ts`              | Every SDK method with request and response types, generated from the method tables                                         |
+  | `references/files.md`              | Artifacts, workspace files, supported types (PNG/JPEG, CSV, XLSX, diagrams), the bundled libraries and limits              |
+  | `references/confluence-writing.md` | Writing pages people can read: structure, headings, TOC, tables, panels, images, diagrams; the linter's fixes and warnings |
+  | `references/storage.md`            | The `storage.*` builders                                                                                                   |
+  | `references/jira-workflows.md`     | Discovering a project's conventions, then creating and updating tickets that follow them                                   |
+  | `references/project-knowledge.md`  | Saving discovered conventions as a project skill                                                                           |
+
+- `jira-workflows.md` describes a discovery pass: sample recent tickets per issue type; read workflows and transitions, epics, sprints, fix versions and releases, components, labels and required custom fields; summarise the conventions; confirm them with the user; then create or update tickets that follow them.
+- `project-knowledge.md` tells the agent to offer to save those conventions with the built-in `skill-creator` skill, recommending the project-level `./.nerve/skills/<name>/`, and to write only after the user agrees. Later conversations read that skill instead of exploring again.
 - `formatToolGuides` in `nerve-system-prompt.ts` adds the guide line when `atlassian_code_mode` is active.
-- A drift test (`guide-coverage.test.ts`) fails when the method tables and the reference files disagree in either direction.
+- The type definitions are generated from the method tables, and a test fails when the committed `sdk.d.ts` is out of date, so the reference cannot drift.
 
 ## Libraries and helpers
 
-The engine runs only the script and small pure-JS helpers. Data-heavy work runs on the host as Rust or TS host functions with byte and row caps, so large data is not serialised through the interpreter.
+**Rule:** prefer a well-known JavaScript library that runs inside the sandbox over a custom API. Agents already know `XLSX.read` and `Papa.parse`; a custom Excel SDK would be one more thing to document and get wrong. Host functions are used only where nothing well known runs in QuickJS, or where the work needs the network or native code.
 
-| Need                                   | v1                                                                                                             | Runs in       |
-| -------------------------------------- | -------------------------------------------------------------------------------------------------------------- | ------------- |
-| CSV parse/write                        | papaparse                                                                                                      | sandbox       |
-| Excel read                             | `calamine`                                                                                                     | host (Rust)   |
-| Excel write                            | `rust_xlsxwriter`                                                                                              | host (Rust)   |
-| Confluence storage builder             | in-house: tables, headings, panels and status, code, expand, toc, Jira issue macro, links, images, attachments | sandbox       |
-| Markdown → ADF / storage               | in-house, grown from `jira/adf.ts` `textToAdf`; `marked` for tokenising if needed                              | sandbox       |
-| Storage → Markdown                     | existing `isolatedHtmlToMarkdown` worker                                                                       | host          |
-| Diagrams (Mermaid, PlantUML, D2, …)    | existing Kroki executor as `diagram.render({ type, source, format })`, output usable as a page attachment      | host, network |
-| Workspace files (Excel in, report out) | `files.read(path)` / `files.write(path, data)`, checked as `read` and `write` calls                            | host          |
+| Need                                | Library                                                                                                                 | Runs in       |
+| ----------------------------------- | ----------------------------------------------------------------------------------------------------------------------- | ------------- |
+| Excel read/write                    | SheetJS CE (`XLSX`, Apache-2.0; its docs test it on QuickJS-NG), from the SheetJS CDN tarball, not the stale npm 0.18   | sandbox       |
+| CSV parse/write                     | Papa Parse (`Papa`, MIT)                                                                                                | sandbox       |
+| Confluence storage builders         | in-house `storage.*`                                                                                                    | sandbox       |
+| Markdown → storage                  | the in-house converter, bundled into the sandbox so `storage.markdown()` returns real markup                            | sandbox       |
+| Storage → Markdown                  | existing `isolatedHtmlToMarkdown` worker                                                                                | host          |
+| Images (info, resize, crop, format) | a small `sharp`-style chain (`image(file).resize({ width: 760 }).png().save("name.png")`) over the native `image` crate | host (Rust)   |
+| Diagrams (Mermaid, PlantUML, D2, …) | existing Kroki executor as `diagram.render({ type, source })`                                                           | host, network |
+| Files                               | `files.read/write/list` over [artifacts](#artifacts) and the workspace                                                  | host          |
 
-Later, each only when a task needs it: DuckDB (host-side, `enable_external_access=false`; tens of MB per platform), Arquero for dataframe work, chart rendering (Vega-Lite through Kroki), SheetJS (after its licence and distribution have been checked).
+- Libraries are bundled at build time and evaluated lazily: `XLSX` and `Papa` are globals that load on first use, so scripts that do not need them pay nothing.
+- Binary data crosses into the sandbox as `Uint8Array` (base64 on the JSON bridge) up to a size cap. Images never cross: image operations take and return file handles.
+- QuickJS does not JIT, so very large sheets are slow. The guide says to filter early and keep sheets to tens of thousands of rows.
+
+Later, each only when a task needs it: DuckDB (host-side, tens of MB per platform), Arquero for dataframe work, chart rendering (Vega-Lite through Kroki).
 
 Kroki sends diagram source to the configured Kroki server, so `diagram.render` keeps the `kroki_export` risk and permission behaviour.
+
+## Artifacts
+
+Files a script produces (rendered diagrams, edited images, generated CSV and Excel files) live in one folder per conversation: `$NERVE_HOME/data/conversations/<id>/code-mode/`.
+
+- Scripts refer to them by name (`artifact:status.png`), never by host path. `files.read`, `diagram.render`, `image(...)`, `confluence.attachments.upload` and page `attachments` all accept the same file handle, whether it names an artifact or a workspace file.
+- Because the folder is per conversation, one script can render a diagram and a later one can upload it.
+- Reading a workspace file is checked as a `read` call. `files.write` writes only artifacts; copying into the workspace is explicit (`files.write("./out/report.xlsx", data, { workspace: true })`) and checked as a `write` call.
+- Each result lists the artifacts the run created, and the tool card shows them.
+- Deleting the conversation deletes the folder (`deleteConversationFiles` already removes the conversation directory). Forking copies it.
 
 ## Confluence pages
 
@@ -164,13 +196,12 @@ Verified on the live site: the default content width is 760 px. The `wide` (960 
 - Host functions are async. A call crosses to TS through a threadsafe function and resolves the script's promise, even after a long wait for approval.
 - TypeScript is stripped in TS with Node's built-in `module.stripTypeScriptTypes`, which adds no dependency. On Node 24.21 it still emits an `ExperimentalWarning` and its options changed in Node 26; if that churn matters, `oxc` in Rust is the replacement. Features that need a transform, such as `enum`, fail before the script starts.
 - Helper libraries are compiled to QuickJS bytecode once at build time and loaded per run.
-- Calamine and rust_xlsxwriter live in the same domain, so workbook data can stay in Rust and pass to the script as rows only when asked.
 
-**Why native instead of `quickjs-emscripten`:** native cancellation and memory limits, no asyncify cost, and Rust data libraries without a WASM boundary. `packages/native/AGENTS.md` limits native code to CPU-heavy kernels and OS primitives. A sandbox engine is an isolation primitive, but this exception needs explicit agreement. The cost is a few MB per prebuild target, on all six targets.
+**Why native instead of `quickjs-emscripten`:** native cancellation and memory limits, no asyncify cost, and native image processing without a WASM boundary. `packages/native/AGENTS.md` limits native code to CPU-heavy kernels and OS primitives. A sandbox engine is an isolation primitive, but this exception needs explicit agreement. The cost is a few MB per prebuild target, on all six targets.
 
 **Fallback:** `quickjs-emscripten` 0.32.0 (MIT, asyncify variant) in a worker thread, terminated on deadline. The SDK, host functions and records are the same, and only the engine adapter changes.
 
-QuickJS does not JIT, so plain JS loops over 100k rows are slow. The guide says to push filtering into JQL and CQL and to do bulk data work in host functions.
+QuickJS does not JIT, so plain JS loops over 100k rows are slow. The guide says to push filtering into JQL and CQL.
 
 ## Proof of concept
 
@@ -216,26 +247,22 @@ Branch `feat/atlassian-code-mode` (then `poc/atlassian-code-mode`): a `sandbox` 
   - Jira writes, which are not built yet.
   - Approvals inside a script.
   - Precompiling helper bytecode.
-  - Excel host functions.
+  - Excel and CSV libraries in the sandbox.
   - The `wide` and `full-width` content widths.
 
 ## Permissions and approvals
 
-The executors do no permission checks; policy runs before dispatch in `scoped-permission-source.ts`. Every host call therefore goes through a broker:
+The script is approved as a whole, the way `bash` and `python_exec` commands are. The permission engine and rule model stay as they are; only the code-mode tool's risk becomes dynamic.
 
-1. Each SDK method declares its group (`jira`/`confluence`), its risk (`read`, `write`, `destructive`) and its target (issue key, project, space, page ID, file path).
-2. The broker evaluates the conversation's policy for that operation, as it does for a direct call. `files.*` is evaluated as the matching `read` or `write` call, and `diagram.render` as `kroki_export`.
-3. On `prompt`, the outer tool call moves to `awaiting_approval` with an interaction that describes the nested operation. The script waits on its pending promise. Approving resolves it; denying rejects it with the one-line denial reason.
-4. Cancelling the outer call kills the runtime and aborts in-flight host calls. Calls that already finished stay in the record, and none of them are undone.
-5. After a daemon restart the runtime is gone. The outer call settles as `indeterminate`, listing the nested calls that finished, and is never replayed.
+1. **Classify the script.** Before admission, Nerve scans the script for SDK calls (`jira.issues.create(`, `confluence.pages.update(`, `files.write(`, `jira.request("POST"`, …). The script's risk is the highest risk among them: reads only → `read`; any write → `workspace_write`-level write; deletes, a non-GET `request()` or a computed method name → `destructive`. Its targets (projects, spaces, page IDs, workspace paths) are collected where they are literals.
+2. **Use the risk for rule matching.** `atlassian_code_mode` gets a `classifyRisk` and joins `async_bash` and `launch` as tools whose per-call risk feeds rule matching (`permission-policy.ts` `requestMetadata`). Existing rules such as "allow read" or "prompt on destructive" then apply unchanged.
+3. **One approval.** When a rule prompts, the approval shows the script and the operations found ("creates Jira issues in APP; updates Confluence page 98506"). Approving runs the script.
+4. **Runtime ceiling.** Scanning text can be fooled (`const j = jira; j["issues"]["create"]`). The broker (`code-mode-broker.ts`) therefore still checks every SDK call: a call whose risk exceeds the approved classification is refused, and deny rules apply to every call as they do today.
+5. Cancelling the call kills the runtime and aborts in-flight host calls. Calls that already finished stay in the record and are not undone. After a daemon restart the call settles as `indeterminate` and is never replayed.
 
-**Finding (POC):** approval is a gate before dispatch, not something a running call can ask for. In `ToolCallService.process` (`conversation-core/src/tool-calls/tool-call.service.ts`), an `approval` decision sets the row to `awaiting_approval` with an `approval` interaction and returns. Resolving the interaction runs admission again from the start and only then dispatches. Once a call is `running`, nothing lets it raise an interaction and wait in memory. Nested approvals therefore need one of:
+This needs no conversation-core state change and no database change.
 
-1. **Interaction on a running call.** The row stays `running` (or gets a new waiting state) with a nested `approval` interaction in the existing JSON `interaction` field. An in-memory resolver settles the script's pending promise. After a restart the call settles as `indeterminate`. This needs a state machine change in conversation-core, but no table or column.
-2. **Up-front grant.** The outer call's approval shows the script, and approving it allows the nested calls that rule would prompt for, for that run only. This is simple, but the user approves code rather than concrete operations.
-3. **Two runs.** The first run records intended writes without performing them and returns them. The user approves the list, and a second run performs exactly those writes. This avoids pausing a script, but it doubles the reads and breaks scripts whose writes depend on earlier writes.
-
-The POC slice is read-only and uses neither: the broker (`workbench-server/src/core-host/code-mode-broker.ts`) evaluates every SDK call through `createExecutionAdmission` as the equivalent direct tool. `allow` proceeds, `deny` rejects with the reason, and `approval` is refused with its reason as "code mode cannot request approval yet".
+**Alternatives considered:** pausing the running script for each nested approval (needs a new waiting state in conversation-core), and a preview run followed by an apply run (doubles reads and breaks writes that depend on earlier writes).
 
 Rule granularity: policies today target Jira and Confluence with `whole_tool`. Matching on the operation name (`jira.issues.transition`) and its target is a natural extension of the same rule language. See [open questions](#open-questions).
 
@@ -243,7 +270,7 @@ Rule granularity: policies today target Jira and Confluence with `whole_tool`. M
 
 - Nested calls are recorded in the outer result's `details`: operation, a summary of the arguments, outcome, duration and result size. They are not separate rows.
 - The tool card shows the script (collapsed), the printed output, and a list of nested calls with their outcome. Later, Jira and Confluence nested calls can reuse `JiraIssueCard` and `AtlassianResultSurface` for the entities they touched.
-- Files written by `files.write` and diagrams render as they do for `write` and `kroki_export`.
+- Artifacts the run created are listed with previews for images, as `python_exec` artifacts are.
 
 ## Enablement
 
@@ -270,17 +297,16 @@ Rule granularity: policies today target Jira and Confluence with `whole_tool`. M
 ## Delivery
 
 1. Spike: done on Linux, Windows and macOS (see [Proof of concept](#proof-of-concept)).
-2. Broker and nested approvals on the existing tool-call lifecycle, with read-only SDK methods first.
-3. Jira and Confluence SDK (read, then write), with generated documentation and the guide skill.
-4. Helpers: storage builder, Markdown → ADF/storage, CSV, Excel, `files.*`, `diagram.render`.
-5. Tool card and records.
-6. Benchmark and decision.
+2. Broker, read-only Jira SDK, Confluence SDK with builders, linter, attachments and diagrams: done (PR #569).
+3. **Simplify the SDK and runtime:** one calling convention, auth short-circuit, `return` printing, automatic lint and artifact report, bundled Markdown converter, `request()`, per-conversation artifacts and `files.*`, `image(...)`, lazily loaded SheetJS and Papa Parse.
+4. **Guide skill reorganisation:** generated `sdk.d.ts`, plus the reference files listed in [Documentation](#documentation).
+5. **Jira writes and discovery methods:** issues, comments, transitions, links, worklogs, attachments; issue types and create fields, workflows, boards, sprints, versions, components.
+6. **Approvals:** script classification, dynamic risk and the runtime ceiling.
+7. Benchmark and decision.
 
 ## Open questions
 
-- **Nested approvals:** does the current interaction model support several sequential approvals inside one running call without schema changes?
 - **Rule granularity:** should rules match SDK operations and targets, or only group and risk, as today?
-- **Raw escape hatch:** should there be `jira.request(method, path, body?)` / `confluence.request(…)`, with GET treated as `read` and every other method as `write`? It removes coverage gaps but makes targets opaque. Proposed: leave it out of v1, and add it only if benchmark tasks hit SDK gaps.
-- **Native exception:** is adding the sandbox engine (and calamine/xlsxwriter) to `packages/native` acceptable, given its "measured CPU kernels and OS primitives" rule and the per-target size?
+- **Native exception:** is adding the sandbox engine to `packages/native` acceptable, given its "measured CPU kernels and OS primitives" rule and the per-target size?
 - **Coexistence:** when both interfaces are enabled, does the agent pick code mode reliably, or should enabling one hide the other?
 - **Generalisation:** the runtime, broker and records don't depend on Atlassian. If the experiment succeeds, should other integrations (web, future services) get SDK namespaces in the same tool?
