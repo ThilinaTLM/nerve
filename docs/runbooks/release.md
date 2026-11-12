@@ -7,7 +7,7 @@ Nerve publishes one npm package, `@nervekit/desktop`. The source implementation 
 ## Requirements
 
 - Node.js 24+
-- pnpm 11.20.0
+- pnpm 11.28.10
 - rustup with the pinned toolchain from `rust-toolchain.toml` (currently Rust 1.97.1)
 
 ## Public npm package

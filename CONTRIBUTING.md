@@ -4,7 +4,7 @@ Thanks for your interest in Nerve. The project is currently beta, so small, focu
 
 ## Setup
 
-Install Node.js 24+, pnpm 11.20.0, and rustup (toolchain pinned in `rust-toolchain.toml`), then run `pnpm install`.
+Install Node.js 24+, pnpm 11.28.10, and rustup (toolchain pinned in `rust-toolchain.toml`), then run `pnpm install`.
 
 ## Testing
 

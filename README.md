@@ -66,7 +66,7 @@ The website is the primary source for product and developer documentation:
 
 ## Develop from source
 
-The repository requires Node.js 24 or newer, pnpm 11.20.0, and rustup; the Rust version is pinned in `rust-toolchain.toml`.
+The repository requires Node.js 24 or newer, pnpm 11.28.10, and rustup; the Rust version is pinned in `rust-toolchain.toml`.
 
 ```sh
 pnpm install
