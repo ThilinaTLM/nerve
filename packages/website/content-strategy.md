@@ -500,7 +500,7 @@ Add the website build and deployment jobs to `.github/workflows/release.yml`:
 - deploy only from the stable and prerelease version tags handled by the release workflow, not from ordinary `main` pushes;
 - grant `contents: read`, `pages: write`, and `id-token: write` only to the Pages jobs;
 - keep a `github-pages` concurrency group with in-progress cancellation;
-- checkout, use pnpm 11.20.0 and Node 24, and install the frozen root workspace;
+- checkout, use pnpm 11.28.10 and Node 24, and install the frozen root workspace;
 - run `pnpm --filter @nervekit/website check` and `build` after release validation;
 - upload `packages/website/dist` with `actions/upload-pages-artifact` and deploy with `actions/deploy-pages` after npm publication;
 - use the `github-pages` environment and expose the deployment URL.

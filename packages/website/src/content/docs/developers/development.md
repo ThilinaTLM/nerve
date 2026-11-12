@@ -5,7 +5,7 @@ sidebar:
   order: 8
 ---
 
-Requirements: Node.js 24+, pnpm 11.20.0, and rustup. The repository's `rust-toolchain.toml` installs the pinned Rust toolchain (currently 1.97.1).
+Requirements: Node.js 24+, pnpm 11.28.10, and rustup. The repository's `rust-toolchain.toml` installs the pinned Rust toolchain (currently 1.97.1).
 
 ```sh
 git clone https://github.com/ThilinaTLM/nerve.git
