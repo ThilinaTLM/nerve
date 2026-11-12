@@ -21,6 +21,8 @@ export interface TrayControllerDependencies {
   getMainWindow: () => BrowserWindowType | undefined;
   getManagedDaemon: () => ManagedDaemon | undefined;
   showMainWindow: () => void | Promise<void>;
+  /** Replaces the main window with a new native window. */
+  recreateMainWindow: () => Promise<void>;
   hideWindow: (window: BrowserWindowType) => void;
   requestQuit: (options?: QuitOptions) => void;
   restartDaemon: () => void;
@@ -106,6 +108,11 @@ export function createTrayController(
     );
   }
 
+  /**
+   * Restarts the GPU process (recovers a wedged GPU, e.g. after Linux
+   * suspend) and recreates the native window (recovers a window whose
+   * surface stopped presenting, e.g. after Windows sleep).
+   */
   function restartGraphics(): void {
     try {
       const pid = restartGpuProcess({
@@ -120,13 +127,16 @@ export function createTrayController(
           : "Restarted GPU process from tray",
         { context: { pid } },
       );
-      // Hard reload (Ctrl+F5) so the UI also re-fetches its assets.
-      dependencies.getMainWindow()?.webContents.reloadIgnoringCache();
     } catch (error) {
       void desktopLog("error", "tray", "Failed to restart GPU process", {
         error,
       });
     }
+    void dependencies.recreateMainWindow().catch((error: unknown) => {
+      void desktopLog("error", "tray", "Failed to recreate main window", {
+        error,
+      });
+    });
   }
 
   function updateTrayIcon(): void {
