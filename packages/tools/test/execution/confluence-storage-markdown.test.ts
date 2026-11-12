@@ -96,7 +96,7 @@ describe("Confluence storage macros to Markdown", () => {
     );
     assert.match(out, /^Owner @\{557:abc\} due 2026-05-01 \[In progress\]$/m);
     assert.match(out, /^- \[ \] todo\n- \[x\] done$/m);
-    assert.match(out, /^- Decision: Use Postgres$/m);
+    assert.match(out, /^- \[decided\] Use Postgres$/m);
     assert.match(out, /\[see\]\(page:Other%20page\)/);
   });
 

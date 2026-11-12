@@ -185,11 +185,25 @@ const ENTITIES: Record<string, string> = {
   nbsp: " ",
 };
 
+/** Removes tags until none are left, so nested fragments cannot reassemble one. */
+function stripTags(text: string): string {
+  let previous: string;
+  let current = text;
+  do {
+    previous = current;
+    current = current.replaceAll(/<[^<>]*>/g, "");
+  } while (current !== previous);
+  return current.replaceAll(/[<>]/g, "");
+}
+
 /** The page's visible text as Confluence matches it: tags dropped, entities decoded, whitespace collapsed. */
 function storageText(storage: string): string {
-  return storage
-    .replaceAll(/<\/(?:p|li|h[1-6]|tr|div|ac:task-body)>|<br\s*\/?>/gi, "\n")
-    .replaceAll(/<[^>]+>/g, "")
+  return stripTags(
+    storage.replaceAll(
+      /<\/(?:p|li|h[1-6]|tr|div|ac:task-body)>|<br\s*\/?>/gi,
+      "\n",
+    ),
+  )
     .replaceAll(/&(#x?[0-9a-f]+|[a-z]+);/gi, (match, name: string) => {
       if (name[0] === "#") {
         const code =
