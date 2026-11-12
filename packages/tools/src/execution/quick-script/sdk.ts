@@ -64,7 +64,14 @@ export function createSdkEnvironment(
     confluence,
     jiraFields: createJiraFieldLoader(context, jira),
     confluenceSpaceKeys: confluenceSpaceKeyLoader(context, confluence),
-    report: { pages: [], artifacts: new Map(), created: [] },
+    report: {
+      pages: [],
+      artifacts: new Map(),
+      created: [],
+      updated: [],
+      deleted: [],
+      raw: [],
+    },
   };
 }
 

@@ -6,6 +6,8 @@ import {
   quickScriptFooter,
   executeQuickScript,
   reportLines,
+  reconcileReport,
+  type ChangeReport,
 } from "./quick-script.js";
 
 const originalFetch = globalThis.fetch;
@@ -240,13 +242,62 @@ void test("failed scripts print the error once, above a message-free footer", as
   assert.match(content.split("\n").at(-1)!, /^failed · exit 1$/);
 });
 
-void test("created entities are listed on one capped line", () => {
-  assert.deepEqual(reportLines([], [], []), []);
-  assert.deepEqual(reportLines([], [], ["SCRUM-6", "comment 1 on SCRUM-6"]), [
-    "Created: SCRUM-6, comment 1 on SCRUM-6",
-  ]);
+const changes = (partial: Partial<ChangeReport>): ChangeReport => ({
+  created: [],
+  updated: [],
+  deleted: [],
+  raw: [],
+  ...partial,
+});
+
+void test("created, updated and deleted entities are listed on capped lines", () => {
+  assert.deepEqual(reportLines([], [], changes({})), []);
+  assert.deepEqual(
+    reportLines(
+      [],
+      [],
+      changes({ created: ["SCRUM-6", "comment 1 on SCRUM-6"] }),
+    ),
+    ["Created: SCRUM-6, comment 1 on SCRUM-6"],
+  );
   const many = Array.from({ length: 23 }, (_, i) => `SCRUM-${i}`);
-  const [line] = reportLines([], [], many);
+  const [line] = reportLines([], [], changes({ created: many }));
   assert.match(line, /SCRUM-19, \+3 more$/);
   assert.doesNotMatch(line, /SCRUM-20/);
+});
+
+void test("an entity created and then deleted in one run is only shown as deleted; created and updated is created", () => {
+  const report = reconcileReport(
+    changes({
+      created: ["SCRUM-6", "SCRUM-7", "attachment 5 on page 1"],
+      updated: ["SCRUM-7", "SCRUM-1"],
+      deleted: ["SCRUM-6", "SCRUM-2", "attachment 5"],
+      raw: ["POST /rest/api/3/x"],
+    }),
+  );
+  assert.deepEqual(reportLines([], [], report), [
+    "Created: SCRUM-7",
+    "Updated: SCRUM-1",
+    "Deleted: SCRUM-6 (created in this run), SCRUM-2, attachment 5 (created in this run)",
+    "Raw: POST /rest/api/3/x",
+  ]);
+});
+
+void test("the artifacts footer names the folder once so Read/Edit can open them", () => {
+  const artifact = (name: string, bytes: number) => ({
+    handle: `artifact:${name}`,
+    path: `/data/conv/quick-script/${name}`,
+    bytes,
+    mediaType: "text/plain",
+  });
+  assert.deepEqual(
+    reportLines(
+      [],
+      [artifact("a.txt", 5), artifact("résumé 日本.md", 2048)],
+      changes({}),
+    ),
+    [
+      "Artifacts: artifact:a.txt (5 B), artifact:résumé 日本.md (2.0 KB) in /data/conv/quick-script",
+    ],
+  );
 });

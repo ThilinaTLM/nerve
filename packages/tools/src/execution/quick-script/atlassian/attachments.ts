@@ -1,14 +1,17 @@
+import { openAsBlob } from "node:fs";
+import { open, readFile } from "node:fs/promises";
 import { extname } from "node:path";
 import { image } from "@nervekit/native";
 import { anyJson } from "../../atlassian/http.js";
 import { confluenceAttachmentRequest } from "../../confluence/client.js";
 import { valuesFromConfluenceList } from "../../confluence/format.js";
 import {
+  MAX_ATTACHMENT_BYTES,
   MAX_FILE_BYTES,
   mediaTypeFor,
   parseHandle,
   readAuthorizations,
-  readFileRef,
+  statFileRef,
 } from "../files/artifacts.js";
 import type { NestedAuthorization, SdkEnvironment } from "../sdk-types.js";
 
@@ -19,9 +22,14 @@ export type AttachmentSpec = {
   comment?: string;
 };
 
-/** A file ready to upload, with image dimensions when it is an image. */
+/**
+ * A file ready to upload, with image dimensions when it is an image. The bytes
+ * are streamed from `path` unless an image was converted (`bytes`, then in memory).
+ */
 export type LoadedAttachment = {
-  bytes: Buffer;
+  path: string;
+  size: number;
+  bytes?: Buffer;
   filename: string;
   mediaType: string;
   width?: number;
@@ -33,6 +41,8 @@ export type UploadedAttachment = {
   filename: string;
   mediaType: string;
   size: number;
+  /** Attachment version; above 1 means a same-name upload replaced an existing file. */
+  version?: number;
   width?: number;
   height?: number;
 };
@@ -111,63 +121,83 @@ function withExtension(filename: string, extension: string): string {
   return (current ? filename.slice(0, -current.length) : filename) + extension;
 }
 
-/** Largest total size of the files one call loads into host memory. */
-export const MAX_ATTACHMENTS_TOTAL_BYTES = 50 * 1024 * 1024;
+/** Advice for files beyond the transfer limit. */
+const ATTACHMENT_TOO_LARGE_HINT = "Split or compress it.";
 
-/**
- * Loads attachments one after another so memory never exceeds the total cap;
- * each file is size-checked before it is read.
- */
+/** Bytes read to recognize an image (the SVG check looks at the first 1 KiB). */
+const SNIFF_BYTES = 1100;
+
+async function readHead(path: string): Promise<Buffer> {
+  const handle = await open(path, "r");
+  try {
+    const head = Buffer.alloc(SNIFF_BYTES);
+    const { bytesRead } = await handle.read(head, 0, SNIFF_BYTES, 0);
+    return head.subarray(0, bytesRead);
+  } finally {
+    await handle.close();
+  }
+}
+
+/** Loads attachments one after another; files are only checked here and streamed when uploaded. */
 export async function loadAttachments(
   specs: readonly AttachmentSpec[],
   env: SdkEnvironment,
 ): Promise<LoadedAttachment[]> {
   const loaded: LoadedAttachment[] = [];
-  let total = 0;
-  for (const spec of specs) {
-    const remaining = MAX_ATTACHMENTS_TOTAL_BYTES - total;
-    const file = await loadAttachment(
-      spec,
-      env,
-      Math.min(MAX_FILE_BYTES, remaining),
-    );
-    total += file.bytes.byteLength;
-    loaded.push(file);
-  }
+  for (const spec of specs) loaded.push(await loadAttachment(spec, env));
   return loaded;
 }
 
 /**
- * Reads, validates and normalizes an attachment: SVG is rejected, GIF/WebP are
- * converted to PNG, and image dimensions come from the native image module.
+ * Checks and describes an attachment without reading it into memory: SVG is
+ * rejected, and PNG/JPEG/GIF/WebP up to 20 MB are read for their dimensions
+ * (GIF/WebP are converted to PNG). Larger images upload unchanged.
  */
 export async function loadAttachment(
   spec: AttachmentSpec,
   env: SdkEnvironment,
-  maxBytes = MAX_FILE_BYTES,
+  maxBytes = MAX_ATTACHMENT_BYTES,
 ): Promise<LoadedAttachment> {
   const ref = parseHandle(spec.file, env);
-  let bytes = await readFileRef(ref, maxBytes);
+  const size = await statFileRef(ref, maxBytes, ATTACHMENT_TOO_LARGE_HINT);
   let filename =
     spec.filename ??
     (ref.kind === "artifact" ? ref.name : ref.path.split(/[\\/]/).pop()!);
-  const kind = sniffImage(bytes);
+  const kind = sniffImage(await readHead(ref.path));
   if (kind === "svg" || /\.svg$/i.test(filename)) {
     throw new Error(
       `SVG attachments are not supported (Confluence does not render them reliably): "${filename}". Render diagrams as PNG with diagram.render() or provide a PNG/JPEG.`,
     );
   }
-  if (!kind) return { bytes, filename, mediaType: mediaTypeFor(filename) };
-  let info = await image.imageInfo(bytes);
-  let mediaType = kind === "jpeg" ? "image/jpeg" : "image/png";
-  if (kind === "gif" || kind === "webp") {
-    const converted = await image.transformImage(bytes, { format: "png" });
-    bytes = converted.data;
-    info = { format: "png", width: converted.width, height: converted.height };
-    mediaType = "image/png";
-    filename = withExtension(filename, ".png");
+  const plain = {
+    path: ref.path,
+    size,
+    filename,
+    mediaType: mediaTypeFor(filename),
+  };
+  if (!kind || size > MAX_FILE_BYTES) return plain;
+  const original = await readFile(ref.path);
+  let info = await image.imageInfo(original);
+  if (kind === "jpeg" || kind === "png") {
+    return {
+      ...plain,
+      mediaType: kind === "jpeg" ? "image/jpeg" : "image/png",
+      width: info.width,
+      height: info.height,
+    };
   }
-  return { bytes, filename, mediaType, width: info.width, height: info.height };
+  const converted = await image.transformImage(original, { format: "png" });
+  info = { format: "png", width: converted.width, height: converted.height };
+  filename = withExtension(filename, ".png");
+  return {
+    path: ref.path,
+    size: converted.data.byteLength,
+    bytes: Buffer.from(converted.data),
+    filename,
+    mediaType: "image/png",
+    width: info.width,
+    height: info.height,
+  };
 }
 
 export async function uploadAttachment(
@@ -179,7 +209,9 @@ export async function uploadAttachment(
   const form = new FormData();
   form.append(
     "file",
-    new Blob([new Uint8Array(file.bytes)], { type: file.mediaType }),
+    file.bytes
+      ? new Blob([new Uint8Array(file.bytes)], { type: file.mediaType })
+      : await openAsBlob(file.path, { type: file.mediaType }),
     file.filename,
   );
   form.append("minorEdit", "true");
@@ -195,6 +227,7 @@ export async function uploadAttachment(
     id?: unknown;
     title?: unknown;
     extensions?: { mediaType?: unknown; fileSize?: unknown };
+    version?: { number?: unknown };
   };
   return {
     id: String(raw.id ?? ""),
@@ -206,7 +239,10 @@ export async function uploadAttachment(
     size:
       typeof raw.extensions?.fileSize === "number"
         ? raw.extensions.fileSize
-        : file.bytes.byteLength,
+        : file.size,
+    ...(typeof raw.version?.number === "number"
+      ? { version: raw.version.number }
+      : {}),
     ...(file.width ? { width: file.width, height: file.height } : {}),
   };
 }

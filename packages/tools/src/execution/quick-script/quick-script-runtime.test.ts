@@ -236,7 +236,7 @@ void test("an unknown space key lists close matches", async () => {
     });
   };
   const result = await run(
-    `try { await confluence.pages.create({ space: "ENGINEERNG", title: "T", body: "<p>x</p>" }); } catch (e) { console.log(e.message); }`,
+    `try { await confluence.pages.create({ space: "ENGINEERNG", title: "T", body: "x" }); } catch (e) { console.log(e.message); }`,
   );
   assert.match(
     result.content ?? "",
@@ -326,7 +326,7 @@ void test("request() returns text for non-JSON and refuses oversized responses",
   const big = await run(
     `try { await jira.request("GET", "/rest/api/3/x"); } catch (e) { console.log(e.message); }`,
   );
-  assert.match(big.content ?? "", /Response is larger than 5242880 bytes/);
+  assert.match(big.content ?? "", /Response is larger than 5 MB/);
 });
 
 void test("cancelling aborts the in-flight host request and the run settles cancelled", async () => {
@@ -388,4 +388,62 @@ void test("a misspelled SDK method lists the valid names with a BAD_REQUEST code
     ok.content!,
     /^\["function","\{\\"a\\":1\}","\[object Object\]"\]/,
   );
+});
+
+void test("request() with an undefined body on GET sends no body", async () => {
+  let init: RequestInit | undefined;
+  globalThis.fetch = async (_input, requestInit) => {
+    init = requestInit;
+    return new Response("{}", {
+      headers: { "content-type": "application/json" },
+    });
+  };
+  const result = await run(
+    `await jira.request("GET", "/rest/api/3/search/jql", undefined, { jql: "x" });
+     await confluence.request("GET", "/wiki/api/v2/spaces", null, { limit: 1 });`,
+  );
+  assert.equal(result.exitCode, 0, result.content);
+  assert.equal(init?.body, undefined);
+  assert.equal(
+    (init?.headers as Record<string, string>)["Content-Type"],
+    undefined,
+  );
+});
+
+void test("a host call still running when the script times out is aborted and does not touch the result", async () => {
+  let requestSignal: AbortSignal | undefined;
+  globalThis.fetch = (_input, init) => {
+    requestSignal = init?.signal ?? undefined;
+    return new Promise<Response>((_resolve, reject) => {
+      init?.signal?.addEventListener("abort", () =>
+        reject(init.signal?.reason),
+      );
+    });
+  };
+  const result = await executeQuickScript(
+    { code: `await jira.issues.get("A-1");`, timeout: 1 },
+    context(),
+  );
+  assert.equal(result.exitCode, 124);
+  assert.equal(requestSignal?.aborted, true);
+  const calls = (result.details as { hostCalls: unknown[] }).hostCalls;
+  await new Promise((resolve) => setTimeout(resolve, 20));
+  assert.equal((result.details as { hostCalls: unknown[] }).hostCalls, calls);
+  assert.ok(
+    calls.every((call) => (call as { outcome: string }).outcome === "failed"),
+  );
+});
+
+void test("Raw footer lines come only from request(), not from typed destructive methods", async () => {
+  globalThis.fetch = async () => new Response(null, { status: 204 });
+  const result = await run(
+    `await jira.issues.delete("A-1"); await jira.request("DELETE", "/rest/api/3/issue/A-2");`,
+  );
+  assert.equal(result.exitCode, 0, result.content);
+  assert.match(result.content ?? "", /^Deleted: A-1$/m);
+  assert.match(
+    result.content ?? "",
+    /^Raw: DELETE \/rest\/api\/3\/issue\/A-2$/m,
+  );
+  assert.doesNotMatch(result.content ?? "", /Raw: .*A-1/);
 });

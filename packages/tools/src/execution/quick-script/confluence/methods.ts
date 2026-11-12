@@ -7,8 +7,7 @@ import {
   requireConfluenceConnection,
 } from "../../confluence/client.js";
 import { valuesFromConfluenceList } from "../../confluence/format.js";
-import { storageXmlToMarkdown } from "../../confluence/markdown.js";
-import { markdownToStorage } from "../../confluence/markdown-to-storage.js";
+import { pageMarkdown } from "./page-read.js";
 import { listSpaces, resolveSpace } from "./spaces.js";
 import { rawMethod } from "../../atlassian/raw-request.js";
 import {
@@ -18,15 +17,16 @@ import {
   parseAttachmentSpec,
 } from "../atlassian/attachments.js";
 import { confluenceAttachmentMethods } from "./attachments.js";
+import { withTidyErrors } from "../tidy-errors.js";
+import { confluenceCommentMethods } from "./comment-methods.js";
+import { confluenceExtraMethods } from "./extra-methods.js";
 import {
-  commentFormat,
   compactPage,
   confluencePageWriteMethods,
-  pageBodyOption,
   pageUrl,
   uploadAttachment,
 } from "./page-writes.js";
-import { freshArtifactName, writeArtifact } from "../files/artifacts.js";
+import { artifactBinarySink } from "../files/artifacts.js";
 import { codedError, orNotAvailable } from "../errors.js";
 import { clampInt, nonEmptyString, optionalText } from "../sdk-args.js";
 import {
@@ -35,20 +35,11 @@ import {
   definePositionalMethod,
   type SdkEnvironment,
   orWhenUnsupported,
-  type NestedAuthorization,
   type SdkMethod,
 } from "../sdk-types.js";
 
 const DEFAULT_PAGE_LIMIT = 25;
 const MAX_PAGE_LIMIT = 250;
-
-/** One `confluence_manage_label` check per label, so a rule on one label cannot admit the others. */
-const labelChecks = (id: string, labels: string[]): NestedAuthorization[] =>
-  labels.map((label) => ({
-    toolName: "confluence_manage_label",
-    args: { action: "add", page_id: id, label, prefix: "global" },
-    summary: `${id} +${labels.join(",")}`,
-  }));
 
 function escapeCql(value: string): string {
   return value.replaceAll("\\", "\\\\").replaceAll('"', '\\"');
@@ -168,7 +159,7 @@ export const confluenceMethods: SdkMethod[] = [
     bare: "id",
     options: ["id", "space", "title", "body", "children"],
     signature:
-      '/** By id, or by exact title (space defaults to the configured one). body "markdown" (default) is for reading; edit with body: "storage". */ get(options: string | { id: string; body?: "markdown" | "storage" | false; children?: boolean } | { space?: string; title: string; body?: "markdown" | "storage" | false; children?: boolean }): Promise<Page>',
+      '/** By id or exact title (space defaults to the configured one). body "markdown" (default) is read-only (@Name, - [ ], [drawio macro: name] placeholders); to edit use "storage". */ get(options: string | ({ id: string } | { space?: string; title: string }) & { body?: "markdown" | "storage" | false; children?: boolean }): Promise<Page>',
     parse: (options) => {
       const id =
         options.id === undefined ? undefined : nonEmptyString(options.id, "id");
@@ -244,10 +235,7 @@ export const confluenceMethods: SdkMethod[] = [
       };
       if (body !== false) {
         const xml = typeof storage === "string" ? storage : "";
-        result.body =
-          body === "storage"
-            ? xml
-            : await storageXmlToMarkdown(xml, env.context.signal);
+        result.body = body === "storage" ? xml : await pageMarkdown(env, xml);
       }
       if (children) {
         const response = await confluenceRequest(connection, {
@@ -278,7 +266,7 @@ export const confluenceMethods: SdkMethod[] = [
     risk: "external_write",
     options: ["id", "file", "filename", "comment"],
     signature:
-      "/** Same filename replaces. SVG rejected; max 20 MB. */ upload(options: { id: string; file: FileHandle; filename?: string; comment?: string }): Promise<AttachmentInfo>",
+      "/** Same filename replaces. SVG rejected; max 100 MB. */ upload(options: { id: string; file: FileHandle; filename?: string; comment?: string }): Promise<AttachmentInfo>",
     parse: (options) => ({
       id: nonEmptyString(options.id, "id"),
       spec: parseAttachmentSpec({
@@ -299,88 +287,16 @@ export const confluenceMethods: SdkMethod[] = [
       );
     },
   }),
-  defineMethod({
-    product: "confluence",
-    path: "labels.add",
-    risk: "external_write",
-    options: ["id", "labels"],
-    signature:
-      "add(options: { id: string; labels: string | string[] }): Promise<{ id: string; labels: string[] }>",
-    parse: (options) => {
-      const raw = options.labels;
-      const labels = (Array.isArray(raw) ? raw : [raw])
-        .map((label) => (typeof label === "string" ? label.trim() : ""))
-        .filter(Boolean);
-      if (labels.length === 0) {
-        throw new Error(
-          "labels must be a non-empty string or array of strings.",
-        );
-      }
-      return { id: nonEmptyString(options.id, "id"), labels };
-    },
-    authorize: ({ id, labels }) => labelChecks(id, labels)[0],
-    authorizeAlso: ({ id, labels }) => labelChecks(id, labels).slice(1),
-    resource: ({ id }) => `page ${id}`,
-    async run({ id, labels }, env) {
-      await confluenceRequest(await env.confluence(), {
-        api: "v1",
-        method: "POST",
-        path: `/content/${pathSegment(id)}/label`,
-        body: labels.map((name) => ({ prefix: "global", name })),
-        signal: env.context.signal,
-      });
-      return { id, labels };
-    },
-  }),
-  defineMethod({
-    product: "confluence",
-    path: "comments.add",
-    risk: "external_write",
-    options: ["id", "body", "format"],
-    signature:
-      '/** Footer comment; Markdown unless format is "storage". */ add(options: { id: string; body: string; format?: "markdown" | "storage" }): Promise<{ id: string; pageId: string }>',
-    parse: (options) => {
-      const body = pageBodyOption(options);
-      if (!body?.trim()) throw new Error("body must be a non-empty string.");
-      return {
-        id: nonEmptyString(options.id, "id"),
-        body,
-        format: commentFormat(options.format),
-      };
-    },
-    authorize: ({ id, body }) => ({
-      toolName: "confluence_manage_comment",
-      args: { action: "create", kind: "footer", page_id: id, body },
-      summary: id,
-    }),
-    resource: ({ id }) => `page ${id}`,
-    async run({ id, body, format }, env) {
-      const created = await confluenceRequest(await env.confluence(), {
-        parse: jsonObject,
-        method: "POST",
-        path: "/footer-comments",
-        body: {
-          pageId: id,
-          body: {
-            representation: "storage",
-            value: format === "storage" ? body : markdownToStorage(body),
-          },
-        },
-        signal: env.context.signal,
-      });
-      const commentId = String(created.id ?? "");
-      env.report.created.push(`confluence comment ${commentId}`);
-      return { id: commentId, pageId: id };
-    },
-  }),
   ...confluenceAttachmentMethods,
+  ...confluenceCommentMethods,
+  ...confluenceExtraMethods,
   definePositionalMethod({
     product: "confluence",
     path: "request",
     risk: "destructive",
     maxArgs: 4,
     signature:
-      '/** Path under /wiki/api/v2/ or /wiki/rest/api/. Returns JSON or text, a FileHandle for binary (page bodies: use pages.create/update). */ request(method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE", path: string, body?: unknown, query?: Record<string, string | number | boolean | string[]>): Promise<unknown>',
+      '/** Path under /wiki/api/v2/ or /wiki/rest/api/; binary returns a FileHandle. Page bodies: use pages.create/update. */ request(method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE", path: string, body?: unknown, query?: Record<string, string | number | boolean | string[]>): Promise<unknown>',
     parse: ([method, path, body, query]) => {
       const verb = rawMethod(method);
       if (verb !== "GET" && usesAtlasDocFormat(body)) {
@@ -412,12 +328,18 @@ export const confluenceMethods: SdkMethod[] = [
         path,
         body,
         query,
-        onBinary: (bytes, contentType) => saveBinary(env, bytes, contentType),
+        onBinary: artifactBinarySink(
+          env,
+          "confluence-response",
+          (type) =>
+            BINARY_EXTENSIONS[type.split(";")[0].trim().toLowerCase()] ??
+            ".bin",
+        ),
         signal: env.context.signal,
       });
     },
   }),
-];
+].map(withTidyErrors);
 
 function usesAtlasDocFormat(body: unknown): boolean {
   const inner = (body as { body?: { representation?: unknown } } | null)?.body;
@@ -435,20 +357,6 @@ const BINARY_EXTENSIONS: Record<string, string> = {
   "application/pdf": ".pdf",
   "application/zip": ".zip",
 };
-
-async function saveBinary(
-  env: SdkEnvironment,
-  bytes: Buffer,
-  contentType: string,
-): Promise<string> {
-  const type = contentType.split(";")[0].trim().toLowerCase();
-  const name = await freshArtifactName(
-    env,
-    "confluence-response",
-    BINARY_EXTENSIONS[type] ?? ".bin",
-  );
-  return await writeArtifact(env, name, bytes);
-}
 
 export function confluenceConnectionLoader(context: QuickScriptContext) {
   let connection: Promise<ConfluenceConnection> | undefined;

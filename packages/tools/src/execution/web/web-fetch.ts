@@ -15,6 +15,7 @@ import {
 import { withTimeoutSignal } from "../process/abort.js";
 import {
   assertSafeHttpUrl,
+  createPinnedFetch,
   type HostResolver,
 } from "../network/network-policy.js";
 import { ToolExecutionError } from "../errors/tool-error.js";
@@ -221,7 +222,9 @@ export async function fetchWithPolicy(
     resolveHost?: HostResolver;
   } = {},
 ): Promise<{ response: Response; url: URL }> {
-  const fetchImpl = dependencies.fetch ?? fetch;
+  const fetchImpl =
+    dependencies.fetch ??
+    (allowPrivateNetwork ? fetch : createPinnedFetch(dependencies.resolveHost));
   const networkPolicy = {
     allowPrivateNetwork,
     resolveHost: dependencies.resolveHost,

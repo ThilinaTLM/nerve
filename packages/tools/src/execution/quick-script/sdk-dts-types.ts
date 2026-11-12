@@ -4,92 +4,109 @@
  * method tables (see sdk-dts.ts). Each shape lives in the one file that uses
  * it most; the files are compiled together.
  */
-export const JIRA_DTS_TYPES = `interface JiraUser {
-  name: string | null;
-  email: string | null;
-  accountId: string | null;
+export const JIRA_DTS_TYPES = `type Str = string | null;
+type Num = number | null;
+type Fields = Record<string, unknown>;
+
+interface WorklogRef {
+  id: string;
+  timeSpent: string;
+}
+
+/** created and author only in attachments.list. */
+interface JiraAttachment {
+  id: string;
+  filename: string;
+  mediaType: string;
+  size: number;
+  created?: Str;
+  author?: Str;
+}
+
+interface JiraUser {
+  name: Str;
+  email: Str;
+  accountId: Str;
 }
 
 interface Issue {
   key: string;
   id: string;
   url: string;
-  summary: string | null;
-  status: string | null;
-  statusCategory: string | null;
-  type: string | null;
-  priority: string | null;
+  summary: Str;
+  status: Str;
+  statusCategory: Str;
+  type: Str;
+  priority: Str;
   assignee: JiraUser | null;
   reporter: JiraUser | null;
-  created: string | null;
-  updated: string | null;
-  resolution: string | null;
+  created: Str;
+  updated: Str;
+  resolution: Str;
   labels: string[];
   components: string[];
   fixVersions: string[];
-  parent: { key: string; summary: string | null } | null;
+  parent: { key: string; summary: Str } | null;
   /** Markdown. issues.get returns it; issues.search only if requested. */
-  description?: string | null;
-  /** Present when named in \`fields\`. */
+  description?: Str;
+  /** Present when named in \`fields\` (also attachment, subtasks: [key, summary, status] objects). */
   comment?: IssueComment[];
-  attachment?: { id: string | null; filename: string | null; size: number | null; mimeType: string | null }[];
-  issuelinks?: { id: string | null; type: string | null; direction: "outward" | "inward"; key: string | null; summary: string | null }[];
-  subtasks?: { key: string | null; summary: string | null; status: string | null }[];
-  worklog?: { id: string | null; author: string | null; started: string | null; timeSpent: string | null; timeSpentSeconds: number | null; comment: string | null }[];
-  timetracking?: {
-    originalEstimate: string | null;
-    remainingEstimate: string | null;
-    timeSpent: string | null;
-    originalEstimateSeconds: number | null;
-    remainingEstimateSeconds: number | null;
-    timeSpentSeconds: number | null;
-  };
-  /** Other requested fields, keyed by the name you passed (options become strings, users names, rich text Markdown). */
+  issuelinks?: { id: Str; type: Str; direction: "outward" | "inward"; key: Str; summary: Str }[];
+  worklog?: { id: Str; author: Str; started: Str; timeSpent: Str; timeSpentSeconds: Num; comment: Str }[];
+  /** originalEstimate, remainingEstimate, timeSpent and their …Seconds. */
+  timetracking?: Record<string, string | number | null>;
+  /** Other requested fields by the name you passed (options as strings, users as names, rich text as Markdown). */
   [field: string]: unknown;
 }
 
 interface IssueComment {
-  id: string | null;
-  author: string | null;
-  created: string | null;
+  id: Str;
+  author: Str;
+  created: Str;
   /** Markdown. */
   body: string;
 }
 
 interface IssueTransition {
   name: string;
-  /** Target status. */
   to: string;
   requiredFields: string[];
 }
 
+interface Sprint {
+  id: number;
+  name: string;
+  state: Str;
+  startDate: Str;
+  endDate: Str;
+  goal: Str;
+  boardId: number;
+}
+
 interface JiraProject {
   key: string;
-  name: string | null;
+  name: Str;
   lead: JiraUser | null;
   issueTypes: string[];
   components: string[];
   versions: string[];
-  /** include "fields": what each issue type's create screen takes. */
   createFields?: {
     issueType: string;
     subtask: boolean;
     fields: { name: string; required: boolean; type: string; allowed?: string[] }[];
   }[];
-  /** include "statuses": "Name (category)" per issue type. */
   statuses?: { issueType: string; statuses: string[] }[];
-  /** include "releases": unarchived fix versions, unreleased first. */
-  releases?: { name: string; released: boolean; releaseDate: string | null; startDate: string | null }[];
-  boards?: { id: number; name: string; type: string | null }[];
-  sprints?: { id: number; name: string; state: string | null; startDate: string | null; endDate: string | null; goal: string | null; boardId: number }[];
-  epics?: { key: string; summary: string | null; status: string | null }[];
+  releases?: { name: string; released: boolean; releaseDate: Str; startDate: Str }[];
+  boards?: { id: number; name: string; type: Str }[];
+  sprints?: Sprint[];
+  epics?: { key: string; summary: Str; status: Str }[];
 }
 
 interface JiraField {
   id: string;
   name: string;
   custom: boolean;
-  type: string | null;
+  type: Str;
 }`;
 
 export const CONFLUENCE_DTS_TYPES = `// FileHandle is declared in files.d.ts.
@@ -121,33 +138,46 @@ interface Page {
   version: number | null;
   parentId: string | null;
   labels: string[];
-  /** Markdown, or storage XHTML with body: "storage"; absent with body: false. */
+  /** Markdown (read-only view), or storage XHTML with body: "storage" (trusted: splice into a RichText array). */
   body?: string;
   /** First 100 direct children; only with children: true. */
   children?: { id: string; title: string | null }[];
 }
 
-/** A new page with attachments is saved twice, so its version is then 2. */
+/** A new page with attachments ends at version 2. */
 interface PageWrite {
   id: string;
   title: string | null;
   url: string;
   version: number | null;
-  /** Corrections the linter applied. */
-  fixes: string[];
-  /** Problems left for you to fix with pages.update. */
+    fixes: string[];
+  /** Left for you to fix with pages.update. */
   warnings: string[];
   attachments?: AttachmentInfo[];
 }
 
+/** Markdown (HTML escaped) | storage.* output (trusted markup) | array of those, joined. A string of storage XHTML is rejected: use storage.raw or an array. */
+type RichText = string | RichText[];
+
 type AttachmentInput = FileHandle | { file: FileHandle; filename?: string; comment?: string };
+
+interface ConfluenceComment {
+  id: string;
+  author: string | null;
+  created: string | null;
+  body: string;
+  parentId: string | null;
+  inline?: { selection: string; resolved: boolean };
+}
 
 interface AttachmentInfo {
   id: string;
   filename: string;
   mediaType: string;
   size: number;
-  /** Pixel size of images. */
+  /** Bumped by a same-filename re-upload. */
+  version?: number;
+  comment?: string;
   width?: number;
   height?: number;
 }`;

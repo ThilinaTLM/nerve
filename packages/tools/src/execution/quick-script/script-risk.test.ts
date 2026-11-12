@@ -151,3 +151,81 @@ void test("workspace and external writes share a rank: either ceiling admits the
   assert.ok(quickScriptRiskWithin("workspace_write", "external_write"));
   assert.ok(!quickScriptRiskWithin("destructive", "external_write"));
 });
+
+void test("escaped identifiers, constructor chains and host.call cannot hide calls", () => {
+  for (const code of [
+    `await \\u006aira.issues.delete("A-1")`,
+    `await \\u{6a}ira.issues.delete("A-1")`,
+    `await [].constructor.constructor("return jira")().issues.delete("A-1")`,
+    `await ({})["constructor"]["constructor"]("return 1")()`,
+    `await host.call("jira.issues.delete", [{ key: "A-1" }])`,
+    `const h = host["call"]; await h("jira.issues.delete", [])`,
+    `await this.jira.issues.delete("A-1")`,
+  ])
+    assert.equal(classify(code).risk, "destructive", code);
+  // Properties named like escapes are not escapes.
+  assert.equal(
+    classify(`console.log(new URL("https://x.test").host)`).risk,
+    "read",
+  );
+  // An escaped method name is read as the method it names.
+  assert.equal(
+    classify(`await jira.request("\\u0047ET", "/rest/api/3/myself")`).risk,
+    "network",
+  );
+});
+
+void test("workspace writes hidden behind quoted, computed or escaped option keys are found", () => {
+  for (const code of [
+    `await files.write("a.txt", "x", { "workspace": true })`,
+    `await files.write("a.txt", "x", { ["work" + "space"]: true })`,
+    `await files.write("a.txt", "x", { "\\u0077orkspace": true })`,
+    `await files.write("a.txt", "x", { ...opts })`,
+    `await files.write("a.txt", "x", { workspace })`,
+    `await files.write("a.txt", "x", opts)`,
+  ])
+    assert.equal(classify(code).risk, "workspace_write", code);
+  for (const code of [
+    `await files.write("a.txt", "x", { "workspace": false })`,
+    `await files.write("artifact:a.txt", "x", { other: 1 })`,
+  ])
+    assert.equal(classify(code).risk, "read", code);
+});
+
+void test("files.edit is a workspace write unless it targets a literal artifact handle", () => {
+  assert.equal(
+    classify(
+      `await files.edit("artifact:a.md", [{ oldText: "a", newText: "b" }])`,
+    ).risk,
+    "read",
+  );
+  assert.equal(
+    classify(`await files.edit("src/a.ts", [{ oldText: "a", newText: "b" }])`)
+      .risk,
+    "workspace_write",
+  );
+  assert.equal(
+    classify(`await files.edit(handle, edits)`).risk,
+    "workspace_write",
+  );
+});
+
+void test("image chains read at most; only the bare global is not analysable", () => {
+  const chain = classify(
+    `await image("artifact:a.png").resize({ width: 100 }).png().save("b.png")`,
+  );
+  assert.equal(chain.risk, "read");
+  assert.deepEqual(chain.operations, ["image (artifact:a.png)"]);
+  assert.equal(
+    classify(`const i = image("wide.png"); await i.info()`).risk,
+    "read",
+  );
+  assert.equal(
+    classify(`const f = image; await f("x.png").info()`).risk,
+    "destructive",
+  );
+  assert.equal(
+    classify(`await image("a.png").constructor("x")()`).risk,
+    "destructive",
+  );
+});

@@ -4,7 +4,16 @@ import type { IntegrationExecutionContext } from "../execution-context.js";
 import { withTimeoutSignal } from "../process/abort.js";
 import { safeAtlassianError } from "../atlassian/atlassian-error.js";
 import { ToolExecutionError } from "../errors/tool-error.js";
-import { rawRequestUrl, readRawBody } from "../atlassian/raw-request.js";
+import {
+  type BinaryHandler,
+  rawRequestUrl,
+  readRawBody,
+} from "../atlassian/raw-request.js";
+import {
+  BodyTooLargeError,
+  idleTimeoutSignal,
+  streamBodyToFile,
+} from "../atlassian/stream-download.js";
 import {
   atlassianJsonRequestInit,
   basicAuthHeader,
@@ -133,7 +142,7 @@ export async function jiraRawRequest(
     path: unknown;
     body?: unknown;
     query?: unknown;
-    onBinary?: (bytes: Buffer, contentType: string) => Promise<unknown>;
+    onBinary?: BinaryHandler;
     signal?: AbortSignal;
   },
 ): Promise<unknown> {
@@ -163,7 +172,7 @@ export async function jiraMultipartRequest<T>(
       "X-Atlassian-Token": "nocheck",
     },
     body: options.form,
-    signal: withTimeoutSignal(options.signal, 60_000),
+    signal: withTimeoutSignal(options.signal, UPLOAD_TIMEOUT_MS),
   });
   if (!response.ok) await throwJiraError(response, "POST", options.path);
   return readAtlassianJson(
@@ -173,11 +182,26 @@ export async function jiraMultipartRequest<T>(
   );
 }
 
-export async function jiraDownload(
+/** Uploads of up to 100 MB need longer than a JSON request. */
+const UPLOAD_TIMEOUT_MS = 10 * 60_000;
+const DIRECT_DOWNLOAD_MAX_BYTES = 25 * 1024 * 1024;
+
+function attachmentTooLarge(maximum: number, bytes: number) {
+  return new ToolExecutionError(
+    "JIRA_ATTACHMENT_TOO_LARGE",
+    guideErrorMessage(
+      `Jira attachment exceeds the ${maximum / 1048576} MiB download limit.`,
+    ),
+    { bytes, maximum },
+  );
+}
+
+/** Starts an attachment download; a redirect is refused so the token never leaves the site. */
+async function openJiraDownload(
   connection: JiraConnection,
   attachmentId: string,
-  signal?: AbortSignal,
-): Promise<{ bytes: Uint8Array; contentType?: string; filename?: string }> {
+  signal: AbortSignal,
+): Promise<Response> {
   const url = new URL(
     `${connection.siteUrl}/rest/api/3/attachment/content/${pathSegment(attachmentId)}`,
   );
@@ -185,7 +209,7 @@ export async function jiraDownload(
   const response = await fetch(url, {
     headers: { Authorization: basicAuth(connection) },
     redirect: "manual",
-    signal: withTimeoutSignal(signal, 60_000),
+    signal,
   });
   if (response.status >= 300 && response.status < 400) {
     const location = response.headers.get("location");
@@ -202,30 +226,67 @@ export async function jiraDownload(
       `/attachment/content/${pathSegment(attachmentId)}`,
     );
   }
-  const declared = Number(response.headers.get("content-length") ?? 0);
-  const maximum = 25 * 1024 * 1024;
-  if (declared > maximum) {
-    throw new ToolExecutionError(
-      "JIRA_ATTACHMENT_TOO_LARGE",
-      guideErrorMessage("Jira attachment exceeds the 25 MiB download limit."),
-      { bytes: declared, maximum },
-    );
-  }
-  const bytes = new Uint8Array(await response.arrayBuffer());
-  if (bytes.byteLength > maximum) {
-    throw new ToolExecutionError(
-      "JIRA_ATTACHMENT_TOO_LARGE",
-      guideErrorMessage("Jira attachment exceeds the 25 MiB download limit."),
-      { bytes: bytes.byteLength, maximum },
-    );
-  }
+  return response;
+}
+
+function downloadInfo(response: Response) {
   return {
-    bytes,
     contentType: response.headers.get("content-type") ?? undefined,
     filename: filenameFromDisposition(
       response.headers.get("content-disposition"),
     ),
   };
+}
+
+export async function jiraDownload(
+  connection: JiraConnection,
+  attachmentId: string,
+  signal?: AbortSignal,
+): Promise<{ bytes: Uint8Array; contentType?: string; filename?: string }> {
+  const maximum = DIRECT_DOWNLOAD_MAX_BYTES;
+  const response = await openJiraDownload(
+    connection,
+    attachmentId,
+    withTimeoutSignal(signal, 60_000),
+  );
+  const declared = Number(response.headers.get("content-length") ?? 0);
+  if (declared > maximum) throw attachmentTooLarge(maximum, declared);
+  const bytes = new Uint8Array(await response.arrayBuffer());
+  if (bytes.byteLength > maximum) {
+    throw attachmentTooLarge(maximum, bytes.byteLength);
+  }
+  return { bytes, ...downloadInfo(response) };
+}
+
+/**
+ * Streams an attachment to `destination` (removed on failure or abort) with
+ * the limit enforced on Content-Length and on the bytes received.
+ */
+export async function jiraDownloadToFile(
+  connection: JiraConnection,
+  attachmentId: string,
+  options: { destination: string; maxBytes: number; signal?: AbortSignal },
+): Promise<{ bytes: number; contentType?: string; filename?: string }> {
+  const idle = idleTimeoutSignal(options.signal, 60_000);
+  try {
+    const response = await openJiraDownload(
+      connection,
+      attachmentId,
+      idle.signal,
+    );
+    const bytes = await streamBodyToFile(response, options.destination, {
+      maxBytes: options.maxBytes,
+      signal: idle.signal,
+      onChunk: idle.touch,
+    }).catch((error: unknown) => {
+      throw error instanceof BodyTooLargeError
+        ? attachmentTooLarge(options.maxBytes, error.bytes)
+        : error;
+    });
+    return { bytes, ...downloadInfo(response) };
+  } finally {
+    idle.dispose();
+  }
 }
 
 function basicAuth(connection: JiraConnection): string {

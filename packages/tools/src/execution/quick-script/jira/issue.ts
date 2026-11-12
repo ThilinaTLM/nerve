@@ -216,20 +216,7 @@ export function flattenIssue(
         });
         break;
       case "worklog":
-        out.worklog = arrayOf(asRecord(value).worklogs).map((raw) => {
-          const entry = asRecord(raw);
-          return {
-            id: stringOrNull(entry.id),
-            author: userOf(entry.author)?.name ?? null,
-            started: stringOrNull(entry.started),
-            timeSpent: stringOrNull(entry.timeSpent),
-            timeSpentSeconds:
-              typeof entry.timeSpentSeconds === "number"
-                ? entry.timeSpentSeconds
-                : null,
-            comment: entry.comment ? adfToMarkdown(entry.comment) : null,
-          };
-        });
+        out.worklog = arrayOf(asRecord(value).worklogs).map(simplifyWorklog);
         break;
       case "timetracking": {
         const tracking = asRecord(value);
@@ -285,6 +272,21 @@ export function simplifyValue(value: unknown): unknown {
   if (typeof record.displayName === "string") return record.displayName;
   if (typeof record.name === "string") return record.name;
   return value;
+}
+
+export function simplifyWorklog(raw: unknown) {
+  const entry = asRecord(raw);
+  return {
+    id: stringOrNull(entry.id),
+    author: userOf(entry.author)?.name ?? null,
+    started: stringOrNull(entry.started),
+    timeSpent: stringOrNull(entry.timeSpent),
+    timeSpentSeconds:
+      typeof entry.timeSpentSeconds === "number"
+        ? entry.timeSpentSeconds
+        : null,
+    comment: entry.comment ? adfToMarkdown(entry.comment) : null,
+  };
 }
 
 export function simplifyComment(raw: unknown) {

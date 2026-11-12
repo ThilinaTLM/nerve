@@ -1,15 +1,19 @@
+import { rm } from "node:fs/promises";
 import { extname } from "node:path";
+import { ToolExecutionError } from "../../errors/tool-error.js";
 import { jsonObject } from "../../atlassian/http.js";
 import {
-  confluenceDownload,
+  confluenceDownloadToFile,
   confluenceRequest,
   pathSegment,
 } from "../../confluence/client.js";
 import { valuesFromConfluenceList } from "../../confluence/format.js";
 import {
+  artifactNameFor,
+  artifactTempPath,
+  commitArtifact,
   freshArtifactName,
-  MAX_FILE_BYTES,
-  writeArtifact,
+  MAX_ATTACHMENT_BYTES,
 } from "../files/artifacts.js";
 import { codedError } from "../errors.js";
 import { nonEmptyString } from "../sdk-args.js";
@@ -26,7 +30,7 @@ export const confluenceAttachmentMethods: SdkMethod[] = [
     risk: "network",
     options: ["id", "page", "filename"],
     signature:
-      "/** By attachment id, or by page id and exact filename. Max 20 MB. */ download(options: { id: string } | { page: string; filename: string }): Promise<FileHandle>",
+      "/** By attachment id, or by page id and exact filename. Max 100 MB. */ download(options: { id: string } | { page: string; filename: string }): Promise<FileHandle>",
     parse: (options): Target => {
       if (options.id !== undefined) {
         return { id: nonEmptyString(options.id, "id") };
@@ -78,29 +82,35 @@ export const confluenceAttachmentMethods: SdkMethod[] = [
       if (typeof found.downloadLink !== "string") {
         throw codedError("NOT_FOUND", "Attachment has no download link.");
       }
-      const bytes = await confluenceDownload(
-        connection,
-        found.downloadLink,
-        env.context.signal,
-      );
-      if (bytes.byteLength > MAX_FILE_BYTES) {
-        throw new Error(
-          `Attachment is ${bytes.byteLength} bytes; the limit is ${MAX_FILE_BYTES}.`,
-        );
-      }
+      const tempPath = await artifactTempPath(env);
+      await confluenceDownloadToFile(connection, found.downloadLink, {
+        destination: tempPath,
+        maxBytes: MAX_ATTACHMENT_BYTES,
+        signal: env.context.signal,
+      }).catch((error: unknown) => {
+        if (
+          error instanceof ToolExecutionError &&
+          error.code === "CONFLUENCE_ATTACHMENT_TOO_LARGE"
+        ) {
+          throw new Error(
+            `Attachment is ${(Number(error.details?.bytes ?? 0) / 1048576).toFixed(1)} MB; the limit is ${MAX_ATTACHMENT_BYTES / 1048576} MB.`,
+          );
+        }
+        throw error;
+      });
       const title =
         typeof found.title === "string" ? found.title : "attachment";
-      const extension = extname(title);
-      const stem = title
-        .slice(0, title.length - extension.length)
-        .replace(/[^A-Za-z0-9._-]+/g, "_")
-        .replace(/^[._-]+/, "");
+      const filename = artifactNameFor(title);
+      const extension = extname(filename);
       const name = await freshArtifactName(
         env,
-        stem || "attachment",
-        extension.replace(/[^A-Za-z0-9.]/g, ""),
-      );
-      return await writeArtifact(env, name, bytes);
+        filename.slice(0, filename.length - extension.length),
+        extension,
+      ).catch(async (error: unknown) => {
+        await rm(tempPath, { force: true });
+        throw error;
+      });
+      return await commitArtifact(env, tempPath, name);
     },
   }),
 ];

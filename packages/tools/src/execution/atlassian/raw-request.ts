@@ -1,7 +1,13 @@
+import { rm } from "node:fs/promises";
 import { ToolExecutionError } from "../errors/tool-error.js";
+import { BodyTooLargeError, streamBodyToFile } from "./stream-download.js";
 
-/** Largest raw response body returned to a script. */
+/** Largest textual raw response body returned to a script. */
 export const RAW_RESPONSE_MAX_BYTES = 5 * 1024 * 1024;
+/** Largest binary raw response streamed to an artifact; matches the attachment transfer limit. */
+export const RAW_BINARY_MAX_BYTES = 100 * 1024 * 1024;
+/** Largest binary response handed to a buffering `onBinary` function. */
+const RAW_BINARY_BUFFERED_MAX_BYTES = 25 * 1024 * 1024;
 
 const RAW_METHODS = ["GET", "POST", "PUT", "PATCH", "DELETE"] as const;
 
@@ -68,21 +74,62 @@ function appendRawQuery(url: URL, query: unknown): void {
 const TEXTUAL_CONTENT_TYPE = /json|text|xml|javascript|x-www-form-urlencoded/i;
 
 /**
+ * Where a binary raw response goes. `prepare` returns a temporary path to
+ * stream into; `commit` moves the finished file into place and returns what the
+ * script sees. The temp file is removed if streaming or `commit` fails.
+ */
+export type BinarySink = {
+  prepare: (contentType: string) => Promise<string>;
+  commit: (
+    path: string,
+    bytes: number,
+    contentType: string,
+  ) => Promise<unknown>;
+};
+
+/** A sink streams to disk; a function receives the whole body in memory (capped at 25 MB). */
+export type BinaryHandler =
+  | BinarySink
+  | ((bytes: Buffer, contentType: string) => Promise<unknown>);
+
+/**
  * Reads a successful body (capped), returning parsed JSON when it is JSON and
  * text otherwise. With `onBinary`, a response whose content type is not
- * textual is handed to it as bytes instead of being decoded.
+ * textual is handed to it instead of being decoded.
  */
 export async function readRawBody(
   response: Response,
-  onBinary?: (bytes: Buffer, contentType: string) => Promise<unknown>,
+  onBinary?: BinaryHandler,
 ): Promise<unknown> {
-  const declared = Number(response.headers.get("content-length") ?? 0);
+  const contentType = response.headers.get("content-type") ?? "";
+  const binary = Boolean(
+    onBinary && contentType && !TEXTUAL_CONTENT_TYPE.test(contentType),
+  );
+  const sink = binary && typeof onBinary === "object" ? onBinary : undefined;
+  const limit = !binary
+    ? RAW_RESPONSE_MAX_BYTES
+    : sink
+      ? RAW_BINARY_MAX_BYTES
+      : RAW_BINARY_BUFFERED_MAX_BYTES;
   const tooLarge = () =>
     new ToolExecutionError(
       "RESPONSE_TOO_LARGE",
-      `Response is larger than ${RAW_RESPONSE_MAX_BYTES} bytes; narrow the request (fields, limit, paging).`,
+      binary
+        ? `Binary response is larger than ${limit / 1048576} MB.`
+        : "Response is larger than 5 MB; narrow the request (fields, limit, paging).",
     );
-  if (declared > RAW_RESPONSE_MAX_BYTES) {
+  if (sink) {
+    const path = await sink.prepare(contentType);
+    try {
+      const bytes = await streamBodyToFile(response, path, { maxBytes: limit });
+      return await sink.commit(path, bytes, contentType);
+    } catch (error) {
+      await rm(path, { force: true });
+      throw error instanceof BodyTooLargeError ? tooLarge() : error;
+    }
+  }
+  const declared = Number(response.headers.get("content-length") ?? 0);
+  if (declared > limit) {
     await response.body?.cancel();
     throw tooLarge();
   }
@@ -94,15 +141,14 @@ export async function readRawBody(
       const { done, value } = await reader.read();
       if (done) break;
       bytes += value.byteLength;
-      if (bytes > RAW_RESPONSE_MAX_BYTES) {
+      if (bytes > limit) {
         await reader.cancel();
         throw tooLarge();
       }
       chunks.push(value);
     }
   }
-  const contentType = response.headers.get("content-type") ?? "";
-  if (onBinary && contentType && !TEXTUAL_CONTENT_TYPE.test(contentType)) {
+  if (binary && typeof onBinary === "function") {
     return await onBinary(Buffer.concat(chunks), contentType);
   }
   const text = Buffer.concat(chunks).toString("utf8");

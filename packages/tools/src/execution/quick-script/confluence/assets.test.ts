@@ -220,7 +220,7 @@ void test("pages.create with attachments: create, upload, then save again so ima
       code: `
         const page = await confluence.pages.create({
           space: "DOC", title: "T",
-          body: storage.h1("Intro") + storage.image("shot.png", { alt: "Shot" }) + storage.image("missing.png"),
+          body: [storage.heading(1, "Intro"), storage.image("shot.png", { alt: "Shot" }), storage.image("missing.png")],
           attachments: ["shot.png"],
         });
         console.log(JSON.stringify(page));
@@ -250,10 +250,14 @@ void test("pages.create with attachments: create, upload, then save again so ima
   const page = JSON.parse(result.content!.split("\n")[0]);
   assert.equal(page.version, 2);
   assert.equal(page.attachments[0].width, 1400);
-  assert.match(page.warnings.join("\n"), /"missing\.png" has no width/);
   assert.match(
     page.warnings.join("\n"),
-    /references attachment "missing\.png" that was not attached/,
+    /"missing\.png" that is not on the page/,
+  );
+  assert.doesNotMatch(page.warnings.join("\n"), /"missing\.png" has no width/);
+  assert.match(
+    page.warnings.join("\n"),
+    /attachment "missing\.png" that is not on the page/,
   );
 });
 
@@ -261,7 +265,7 @@ void test("malformed bodies are rejected before any HTTP", async () => {
   const { events, context } = await setup();
   const result = await executeQuickScript(
     {
-      code: `try { await confluence.pages.create({ space: "DOC", title: "T", body: "<p>unclosed" }); } catch (e) { console.log(e.message); }`,
+      code: `try { await confluence.pages.create({ space: "DOC", title: "T", body: storage.raw("<p>unclosed") }); } catch (e) { console.log(e.message); }`,
     },
     context,
   );
@@ -312,7 +316,7 @@ void test("page attachments accept artifact handles and report the lint result a
         const d = await diagram.render({ type: "mermaid", source: "graph TD; A-->B", name: "flow.png" });
         await confluence.pages.create({
           space: "DOC", title: "Flow",
-          body: storage.h2("Diagram") + storage.image("flow.png") + storage.image("other.png"),
+          body: [storage.heading(2, "Diagram"), storage.image("flow.png"), storage.image("other.png")],
           attachments: [d],
         });
       `,
@@ -323,7 +327,7 @@ void test("page attachments accept artifact handles and report the lint result a
   const lines = (result.content ?? "").split("\n");
   assert.match(lines[0], /^Page 100 "Flow" created \(v2\) · fixes: /);
   assert.match(lines[0], /Promoted all headings/);
-  assert.match(lines[0], /"other\.png" has no width/);
+  assert.match(lines[0], /"other\.png" that is not on the page/);
   assert.match(lines[1], /^Artifacts: artifact:flow\.png/);
   const details = quickScriptResultDetailsSchema.parse(result.details);
   assert.equal(details.pages?.[0]?.id, "100");
@@ -335,15 +339,15 @@ void test("storage builders produce well-formed XHTML", async () => {
     {
       code: `
         const body = [
-          storage.h1("Overview"), storage.p("Plain & simple"),
-          storage.layout([storage.markdown("left **bold**"), storage.panel("tip", "right")], { type: "two_left_sidebar" }),
-          storage.h1("Work"),
+          storage.heading(1, "Overview"), storage.p("Plain & simple"),
+          storage.layout(["left **bold**", storage.panel("tip", "right")], { type: "two_left_sidebar" }),
+          storage.heading(1, "Work"),
           storage.table([{ k: "APP-1", s: "Summary" }], { columns: [{ key: "k", title: "Key", width: 90 }, { key: "s", title: "Summary" }], layout: "wide" }),
           storage.tasks([{ text: "one", done: true }, "two"]),
           storage.p(["See ", storage.link("https://x.test/?a=1&b=2", "docs"), " by ", storage.mention("abc"), " on ", storage.date("2026-01-02")]),
           storage.image("a.png", { width: 300, caption: "Cap", alt: "A" }),
-          storage.h1("Last"), storage.p("x"),
-        ].join("");
+          storage.heading(1, "Last"), storage.p("x"),
+        ];
         await confluence.pages.create({ space: "DOC", title: "T", body });
       `,
     },
@@ -369,14 +373,14 @@ void test("jiraIssues builds semicolon-separated columns and a layout; panels ma
     {
       code: `
         const body = [
-          storage.h1("A"),
+          storage.heading(1, "A"),
           storage.jiraIssues("project = A", { columns: ["key", "summary", "type", "assignee"], limit: 20 }),
           storage.jiraIssues("project = B", { columns: "key, status", layout: "wide" }),
           storage.panel("info", ["Plain text", storage.date("2026-01-02")]),
           storage.panel("warning", "yellow"), storage.panel("error", "red", { title: "Blocked" }),
           storage.panel("success", "green"), storage.panel("note", "purple"),
           storage.expand("More", [storage.p("a"), storage.p("b")]),
-        ].join("");
+        ];
         try { storage.panel("tip2", "x"); } catch (e) { console.log(e.message); }
         await confluence.pages.create({ space: "DOC", title: "T", body });
       `,
@@ -441,7 +445,7 @@ void test("a failed upload after pages.create names the created page and the mis
   failUploadsOf("b.png");
   const result = await executeQuickScript(
     {
-      code: `try { await confluence.pages.create({ space: "DOC", title: "T", body: "<p>x</p>", attachments: ["a.png", "b.png"] }); } catch (e) { console.log(e.code, e.message); }`,
+      code: `try { await confluence.pages.create({ space: "DOC", title: "T", body: storage.raw("<p>x</p>"), attachments: ["a.png", "b.png"] }); } catch (e) { console.log(e.code, e.message); }`,
     },
     context,
   );
@@ -468,7 +472,7 @@ void test("a failed pages.update save names the attachments already uploaded", a
       : inner(input, init);
   const result = await executeQuickScript(
     {
-      code: `try { await confluence.pages.update({ id: "100", body: "<p>x</p>", attachments: ["a.png"] }); } catch (e) { console.log(e.message); }`,
+      code: `try { await confluence.pages.update({ id: "100", body: storage.raw("<p>x</p>"), attachments: ["a.png"] }); } catch (e) { console.log(e.message); }`,
     },
     context,
   );

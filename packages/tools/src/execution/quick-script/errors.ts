@@ -1,3 +1,4 @@
+import { basename, sep } from "node:path";
 import { ToolExecutionError } from "../errors/tool-error.js";
 
 /** What a script sees as `HostError.code`; every host failure has one of these. */
@@ -32,7 +33,10 @@ export function codedError(
  * `BAD_REQUEST`.
  */
 export function hostErrorCode(error: unknown): HostErrorCode {
-  if (!(error instanceof ToolExecutionError)) return "BAD_REQUEST";
+  if (!(error instanceof ToolExecutionError))
+    return (error as { code?: unknown } | null)?.code === "ENOENT"
+      ? "NOT_FOUND"
+      : "BAD_REQUEST";
   const { code } = error;
   if (isHostErrorCode(code)) return code;
   if (code.startsWith("NESTED_")) return "DENIED";
@@ -72,4 +76,47 @@ export async function orNotAvailable<T>(
     }
     throw error;
   }
+}
+
+/** Where host paths in error messages are shown relative to: the workspace and the artifact folder. */
+export type DisplayPaths = { cwd: string; artifactDir?: string };
+
+const ERRNO_TEXT: Record<string, string> = {
+  ENOENT: "not found",
+  EACCES: "permission denied",
+  EPERM: "permission denied",
+  EISDIR: "is a directory",
+  ENOTDIR: "not a directory",
+  EEXIST: "already exists",
+  ENOSPC: "no space left on device",
+};
+
+/**
+ * A file-system failure (`ENOENT: no such file or directory, open '/home/…'`)
+ * as `not found: artifact:x.png` / `not found: src/a.ts`: artifacts by handle,
+ * workspace paths relative, anything else by file name only.
+ */
+export function errnoMessage(
+  error: unknown,
+  paths?: DisplayPaths,
+): string | undefined {
+  const { code, path } = (error ?? {}) as { code?: unknown; path?: unknown };
+  if (typeof code !== "string" || typeof path !== "string" || !paths)
+    return undefined;
+  const text = ERRNO_TEXT[code];
+  if (!text) return undefined;
+  const within = (root: string | undefined) => {
+    if (!root) return undefined;
+    const relative = path.startsWith(root + sep)
+      ? path.slice(root.length + 1)
+      : undefined;
+    return relative;
+  };
+  const artifact = within(paths.artifactDir);
+  const workspace = within(paths.cwd);
+  const shown =
+    artifact !== undefined
+      ? `artifact:${artifact}`
+      : (workspace ?? basename(path));
+  return `${text}: ${shown}`;
 }

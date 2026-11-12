@@ -1,13 +1,18 @@
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir, stat, writeFile } from "node:fs/promises";
 import { dirname } from "node:path";
+import { ToolExecutionError } from "../../errors/tool-error.js";
+import { executeEdit } from "../../filesystem/edit.js";
 import { resolveToolPath } from "../../filesystem/path.js";
 import {
-  assertArtifactName,
+  ARTIFACT_PREFIX,
+  artifactNameOf,
   listArtifacts,
   MAX_FILE_BYTES,
+  notFound,
   parseHandle,
   readAuthorizations,
   readFileRef,
+  reportArtifact,
   writeArtifact,
 } from "./artifacts.js";
 import { definePositionalMethod, type SdkMethod } from "../sdk-types.js";
@@ -56,7 +61,7 @@ export const filesMethods: SdkMethod[] = [
     risk: "write",
     maxArgs: 3,
     signature:
-      "/** Artifact by default; with workspace: true `name` is a workspace path. Returns the handle or path. */ write(name: string, data: string | Uint8Array | ArrayBuffer, options?: { workspace?: boolean }): Promise<string>",
+      "/** `name` or an `artifact:name` handle writes an artifact; with workspace: true `name` is a workspace path. Returns the handle or path. */ write(name: string, data: string | Uint8Array | ArrayBuffer, options?: { workspace?: boolean }): Promise<string>",
     parse: ([name, data, options]) => {
       const workspace =
         (options as { workspace?: unknown } | undefined)?.workspace === true;
@@ -75,7 +80,22 @@ export const filesMethods: SdkMethod[] = [
       if (typeof name !== "string" || !name.trim()) {
         throw new Error("name must be a non-empty string.");
       }
-      if (!workspace) assertArtifactName(name);
+      if (workspace && name.startsWith(ARTIFACT_PREFIX)) {
+        throw new Error(
+          `${name} is an artifact handle; drop { workspace: true } or pass a workspace path.`,
+        );
+      }
+      if (!workspace) {
+        try {
+          return { name: artifactNameOf(name), bytes, workspace };
+        } catch (error) {
+          throw /[\\/]/.test(name)
+            ? new Error(
+                `${(error as Error).message} For a workspace file use files.write(path, data, { workspace: true }).`,
+              )
+            : error;
+        }
+      }
       return { name, bytes, workspace };
     },
     // Artifacts are the tool's own files; only workspace writes are checked.
@@ -96,6 +116,53 @@ export const filesMethods: SdkMethod[] = [
       await mkdir(dirname(path), { recursive: true });
       await writeFile(path, bytes);
       return path;
+    },
+  }),
+  definePositionalMethod({
+    product: "files",
+    path: "edit",
+    risk: "write",
+    maxArgs: 2,
+    signature:
+      "/** Like the edit tool: each oldText must match exactly once in the original; all edits apply atomically. Returns the handle. */ edit(handle: FileHandle, edits: { oldText: string; newText: string }[]): Promise<FileHandle>",
+    parse: ([handle, edits]) => {
+      if (!Array.isArray(edits) || edits.length === 0) {
+        throw new Error(
+          "edits must be a non-empty array of { oldText, newText }.",
+        );
+      }
+      return { handle, edits: edits as { oldText: string; newText: string }[] };
+    },
+    // Artifacts are the tool's own files; workspace paths are checked as the direct `edit` tool.
+    authorize: ({ handle, edits }, env) => {
+      const ref = parseHandle(handle, env);
+      return ref.kind === "workspace"
+        ? {
+            toolName: "edit",
+            args: { path: ref.path, edits },
+            summary: ref.path,
+          }
+        : undefined;
+    },
+    resource: ({ handle }) => String(handle),
+    async run({ handle, edits }, env) {
+      const ref = parseHandle(handle, env);
+      const cwd = ref.kind === "artifact" ? dirname(ref.path) : env.context.cwd;
+      try {
+        await executeEdit(
+          { path: ref.kind === "artifact" ? ref.name : ref.handle, edits },
+          { cwd },
+        );
+      } catch (error) {
+        if (!(error instanceof ToolExecutionError)) throw error;
+        if (error.code === "EDIT_FILE_NOT_FOUND")
+          throw ref.kind === "artifact"
+            ? await notFound(ref)
+            : new Error(`file not found: ${ref.handle}`);
+        throw error;
+      }
+      if (ref.kind === "workspace") return ref.path;
+      return reportArtifact(env, ref.name, (await stat(ref.path)).size);
     },
   }),
 ];

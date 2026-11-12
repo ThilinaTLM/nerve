@@ -1,13 +1,18 @@
+import { randomUUID } from "node:crypto";
 import {
   lstat,
   mkdir,
   readdir,
   readFile,
+  rename,
+  rm,
   stat,
   writeFile,
 } from "node:fs/promises";
-import { extname, join } from "node:path";
+import { dirname, extname, join } from "node:path";
 import { image } from "@nervekit/native";
+import type { BinarySink } from "../../atlassian/raw-request.js";
+import { codedError } from "../errors.js";
 import { resolveToolPath } from "../../filesystem/path.js";
 import type {
   ArtifactReport,
@@ -21,12 +26,35 @@ import type {
  * `artifact:<name>` for the folder, anything else is a workspace path.
  */
 
-/** Files crossing the JSON bridge, and the largest file read at all. */
+/** Files crossing the JSON bridge (`files.read`/`files.write` data), and the largest file read into the sandbox. */
 export const MAX_FILE_BYTES = 20 * 1024 * 1024;
+/** Attachment upload/download and raw binary downloads stream between disk and the network; they never enter memory or the sandbox. */
+export const MAX_ATTACHMENT_BYTES = 100 * 1024 * 1024;
 
-const ARTIFACT_PREFIX = "artifact:";
-// Letters, digits, `_`, `.`, `-`; no separators, no leading dot.
-const ARTIFACT_NAME = /^[A-Za-z0-9_][A-Za-z0-9._-]{0,127}$/;
+export const ARTIFACT_PREFIX = "artifact:";
+// Unicode letters and digits, space, `_`, `.`, `-`; no separators, no leading dot or space, no trailing space.
+const ARTIFACT_NAME = /^[\p{L}\p{N}_][\p{L}\p{N} ._-]{0,127}$/u;
+
+const isArtifactName = (name: string): boolean =>
+  ARTIFACT_NAME.test(name) && !name.endsWith(" ");
+
+/**
+ * An artifact name for a foreign file name (an attachment title): kept as is
+ * when valid, otherwise folders, control and other unsupported characters
+ * become `_`, leading dots are dropped and the extension survives truncation.
+ */
+export function artifactNameFor(filename: string, fallback = "attachment") {
+  if (isArtifactName(filename)) return filename;
+  const extension = extname(filename).replace(/[^\p{L}\p{N}.]/gu, "");
+  const stem = filename
+    .slice(0, filename.length - extname(filename).length)
+    .replace(/[^\p{L}\p{N} ._-]+/gu, "_")
+    .replace(/^[. _-]+/, "")
+    .trimEnd();
+  const kept = extension.slice(-20);
+  const name = `${stem.slice(0, 128 - kept.length)}${kept}`.trimEnd();
+  return isArtifactName(name) ? name : fallback;
+}
 
 const MEDIA_TYPES: Record<string, string> = {
   ".png": "image/png",
@@ -58,6 +86,9 @@ export type FileRef =
   | { kind: "artifact"; name: string; path: string; handle: string }
   | { kind: "workspace"; path: string; handle: string };
 
+const formatMb = (bytes: number): string =>
+  `${Math.round((bytes / (1024 * 1024)) * 10) / 10} MB`;
+
 export function artifactDir(env: SdkEnvironment): string {
   const dir = env.context.conversationDir;
   if (!dir) throw new Error("Artifacts are not available in this context.");
@@ -65,12 +96,21 @@ export function artifactDir(env: SdkEnvironment): string {
 }
 
 export function assertArtifactName(name: unknown): string {
-  if (typeof name !== "string" || !ARTIFACT_NAME.test(name)) {
+  if (typeof name !== "string" || !isArtifactName(name)) {
     throw new Error(
-      `Invalid artifact name ${JSON.stringify(name)}: use 1-128 letters, digits, '.', '_' or '-' (no folders, no leading dot).`,
+      `Invalid artifact name ${JSON.stringify(name)}: use 1-128 letters, digits, spaces, '.', '_' or '-' (no folders, no leading dot).`,
     );
   }
   return name;
+}
+
+/** `name` or `artifact:name` (a handle from another call) to the bare, validated name. */
+export function artifactNameOf(nameOrHandle: unknown): string {
+  return assertArtifactName(
+    typeof nameOrHandle === "string" && nameOrHandle.startsWith(ARTIFACT_PREFIX)
+      ? nameOrHandle.slice(ARTIFACT_PREFIX.length)
+      : nameOrHandle,
+  );
 }
 
 export function parseHandle(handle: unknown, env: SdkEnvironment): FileRef {
@@ -104,20 +144,50 @@ export function readAuthorizations(refs: FileRef[]): NestedAuthorization[] {
   );
 }
 
-export async function readFileRef(
+/** Checks a handle is a regular file within `maxBytes` and returns its size, without reading it. */
+export async function statFileRef(
   ref: FileRef,
   maxBytes = MAX_FILE_BYTES,
-): Promise<Buffer> {
-  const info =
-    ref.kind === "artifact" ? await lstat(ref.path) : await stat(ref.path);
+  tooLargeHint = "Process it with the bash or python tools instead.",
+): Promise<number> {
+  const info = await (
+    ref.kind === "artifact" ? lstat(ref.path) : stat(ref.path)
+  ).catch(async (error: NodeJS.ErrnoException) => {
+    throw error.code === "ENOENT" ? await notFound(ref) : error;
+  });
   if (!info.isFile()) throw new Error(`Not a regular file: ${ref.handle}`);
   if (info.size > maxBytes) {
     throw new Error(
-      `${ref.handle} is ${info.size} bytes; the limit is ${maxBytes}.`,
+      `${ref.handle} is ${formatMb(info.size)}; the limit is ${formatMb(maxBytes)}. ${tooLargeHint}`,
     );
   }
+  return info.size;
+}
+
+export async function readFileRef(
+  ref: FileRef,
+  maxBytes = MAX_FILE_BYTES,
+  tooLargeHint = "Process it with the bash or python tools instead.",
+): Promise<Buffer> {
+  await statFileRef(ref, maxBytes, tooLargeHint);
   return await readFile(ref.path);
 }
+
+/** A missing file by its handle, never its host path; for artifacts it lists what exists. */
+export async function notFound(ref: FileRef): Promise<Error> {
+  if (ref.kind === "workspace") {
+    return codedError("NOT_FOUND", `file not found: ${ref.handle}`);
+  }
+  const names = await readdir(dirname(ref.path)).catch(() => []);
+  const shown = names.filter(isArtifactName).sort().slice(0, MAX_LISTED_NAMES);
+  const more = names.length - shown.length;
+  return codedError(
+    "NOT_FOUND",
+    `artifact "${ref.name}" not found; files.list() shows: ${shown.length > 0 ? shown.join(", ") + (more > 0 ? `, +${more} more` : "") : "(no artifacts yet)"}`,
+  );
+}
+
+const MAX_LISTED_NAMES = 10;
 
 /** Writes an artifact (creating the folder on first use) and records it for the result report. */
 export async function writeArtifact(
@@ -128,13 +198,65 @@ export async function writeArtifact(
   assertArtifactName(name);
   const dir = artifactDir(env);
   await mkdir(dir, { recursive: true, mode: 0o700 });
-  const path = join(dir, name);
-  await writeFile(path, bytes, { mode: 0o600 });
+  await writeFile(join(dir, name), bytes, { mode: 0o600 });
+  return reportArtifact(env, name, bytes.byteLength);
+}
+
+/**
+ * A fresh path inside the artifact folder for a download in progress. The name
+ * starts with a dot, so listings and handles never expose it.
+ */
+export async function artifactTempPath(env: SdkEnvironment): Promise<string> {
+  const dir = artifactDir(env);
+  await mkdir(dir, { recursive: true, mode: 0o700 });
+  return join(dir, `.${randomUUID()}.part`);
+}
+
+/** Moves a finished download into place as artifact `name` and records it; removes the temp file on failure. */
+export async function commitArtifact(
+  env: SdkEnvironment,
+  tempPath: string,
+  name: string,
+): Promise<string> {
+  try {
+    assertArtifactName(name);
+    const { size } = await stat(tempPath);
+    await rename(tempPath, join(artifactDir(env), name));
+    return reportArtifact(env, name, size);
+  } catch (error) {
+    await rm(tempPath, { force: true });
+    throw error;
+  }
+}
+
+/** Streams a binary `request()` response into a fresh `<base>-N<ext>` artifact. */
+export function artifactBinarySink(
+  env: SdkEnvironment,
+  base: string,
+  extensionFor: (contentType: string) => string,
+): BinarySink {
+  return {
+    prepare: () => artifactTempPath(env),
+    commit: async (path, _bytes, contentType) =>
+      await commitArtifact(
+        env,
+        path,
+        await freshArtifactName(env, base, extensionFor(contentType)),
+      ),
+  };
+}
+
+/** Records an artifact the run wrote or changed for the result report; returns its handle. */
+export function reportArtifact(
+  env: SdkEnvironment,
+  name: string,
+  bytes: number,
+): string {
   const handle = `${ARTIFACT_PREFIX}${name}`;
   env.report.artifacts.set(handle, {
     handle,
-    path,
-    bytes: bytes.byteLength,
+    path: join(artifactDir(env), name),
+    bytes,
     mediaType: mediaTypeFor(name),
   });
   return handle;
@@ -150,7 +272,7 @@ export async function listArtifacts(env: SdkEnvironment) {
   );
   const files = [];
   for (const entry of entries) {
-    if (!entry.isFile() || !ARTIFACT_NAME.test(entry.name)) continue;
+    if (!entry.isFile() || !isArtifactName(entry.name)) continue;
     const info = await stat(join(dir, entry.name));
     files.push({
       handle: `${ARTIFACT_PREFIX}${entry.name}`,

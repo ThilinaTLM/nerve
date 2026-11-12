@@ -91,3 +91,26 @@ void test("parses GFM tables, escaped pipes and line breaks in cells", () => {
     },
   ]);
 });
+
+void test("images on their own line become media nodes and read back as ![](name)", () => {
+  const known = (name: string) =>
+    name === "my shot.png" ? "uuid-1" : undefined;
+  const adf = markdownToAdf(
+    "Before ![](my%20shot.png) after\n\n![x](other.png) and ![l](https://x.test/a.png)",
+    known,
+  );
+  assert.deepEqual(
+    adf.content.map((node) => node.type),
+    ["paragraph", "mediaSingle", "paragraph", "paragraph"],
+  );
+  assert.equal(
+    adfToMarkdown({ type: "doc", version: 1, content: [adf.content[1]] }),
+    "![](my%20shot.png)",
+  );
+  // Unresolved images never leave a stray "!".
+  assert.doesNotMatch(JSON.stringify(adf.content[3]), /!/);
+  assert.deepEqual(markdownToAdf("![](a.png)").content[0], {
+    type: "paragraph",
+    content: [{ type: "text", text: "a.png" }],
+  });
+});

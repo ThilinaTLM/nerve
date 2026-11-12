@@ -1,6 +1,6 @@
 # Saving project knowledge as a skill
 
-After you have explored a Jira project or Confluence space (issue types, workflows, required fields, conventions), later conversations would otherwise repeat the exploration. Offer to save what you learned as a skill.
+After exploring a Jira project or Confluence space, offer to save what you learned as a skill so later conversations skip the exploration.
 
 **First step, before writing anything: read the built-in `skill-creator` skill.** Every skill you save must follow it.
 
@@ -12,7 +12,7 @@ After you have explored a Jira project or Confluence space (issue types, workflo
 
 ## What to record
 
-Keep it short and factual, only what you verified in the data:
+Short and factual, only what you verified:
 
 - Jira: project keys; issue types and what each is for; workflow status names per issue type and the transitions that need a field; required and commonly used custom fields (name and accepted values); naming and labelling conventions; components; sprint cadence and board; versioning and release naming; epic usage.
 - Confluence: spaces and the parent pages for each kind of page; page templates and title patterns; labels in use.

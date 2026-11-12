@@ -1,5 +1,8 @@
 import { lookup } from "node:dns/promises";
+import { request as httpRequest, type RequestOptions } from "node:http";
+import { request as httpsRequest } from "node:https";
 import { isIP } from "node:net";
+import { Readable } from "node:stream";
 import { ToolExecutionError } from "../errors/tool-error.js";
 
 export type HostResolver = (hostname: string) => Promise<readonly string[]>;
@@ -36,7 +39,11 @@ export async function assertSafeHttpUrl(
   }
   if (options.allowPrivateNetwork) return url;
 
-  const hostname = url.hostname.toLowerCase().replace(/\.$/, "");
+  // IPv6 literals keep their brackets in URL.hostname ("[::1]").
+  const hostname = url.hostname
+    .toLowerCase()
+    .replace(/^\[(.*)\]$/, "$1")
+    .replace(/\.$/, "");
   if (
     hostname === "localhost" ||
     hostname.endsWith(".localhost") ||
@@ -68,30 +75,141 @@ export function isNonPublicAddress(address: string): boolean {
   if (version === 4) return isNonPublicIpv4(normalized);
   if (version !== 6) return true;
 
-  const mapped = normalized.match(/^::ffff:(.+)$/);
-  if (mapped?.[1]) {
-    if (mapped[1].includes(".")) return isNonPublicIpv4(mapped[1]);
-    const [high, low] = mapped[1]
-      .split(":")
-      .map((part) => Number.parseInt(part || "0", 16));
-    if (Number.isFinite(high) && Number.isFinite(low)) {
-      return isNonPublicIpv4(
-        `${(high >> 8) & 0xff}.${high & 0xff}.${(low >> 8) & 0xff}.${low & 0xff}`,
-      );
-    }
+  const groups = parseIpv6(normalized);
+  if (!groups) return true;
+  const [g0 = 0, g1 = 0, g2 = 0, g3 = 0, g4 = 0, g5 = 0, g6 = 0, g7 = 0] =
+    groups;
+  const v4 = (high: number, low: number) =>
+    isNonPublicIpv4(
+      `${(high >> 8) & 0xff}.${high & 0xff}.${(low >> 8) & 0xff}.${low & 0xff}`,
+    );
+  // ::, ::1, IPv4-compatible ::/96 and IPv4-mapped ::ffff:0:0/96.
+  if (g0 === 0 && g1 === 0 && g2 === 0 && g3 === 0 && g4 === 0) {
+    if (g5 === 0 && g6 === 0 && g7 <= 1) return true;
+    if (g5 === 0xffff || g5 === 0) return v4(g6, g7);
   }
-  if (normalized === "::" || normalized === "::1") return true;
-  const segments = normalized.split(":");
-  const first = Number.parseInt(segments[0] || "0", 16);
-  const second = Number.parseInt(segments[1] || "0", 16);
+  // NAT64 64:ff9b::/96 (embedded v4) and local-use 64:ff9b:1::/48.
+  if (g0 === 0x64 && g1 === 0xff9b) {
+    if (g2 === 1) return true;
+    if (g2 === 0 && g3 === 0 && g4 === 0 && g5 === 0) return v4(g6, g7);
+  }
+  // 6to4 2002::/16 embeds the v4 address in bits 16-47.
+  if (g0 === 0x2002) return v4(g1, g2);
+  // Teredo 2001::/32 (embeds server and obfuscated client v4).
+  if (g0 === 0x2001 && g1 === 0) return true;
   return (
-    (first & 0xfe00) === 0xfc00 ||
-    (first & 0xffc0) === 0xfe80 ||
-    (first & 0xff00) === 0xff00 ||
-    normalized.startsWith("2001:2:") ||
-    normalized.startsWith("2001:db8:") ||
-    (first === 0x3fff && second < 0x1000)
+    (g0 & 0xfe00) === 0xfc00 ||
+    (g0 & 0xffc0) === 0xfe80 ||
+    (g0 & 0xff00) === 0xff00 ||
+    (g0 === 0x2001 && g1 === 2) ||
+    (g0 === 0x2001 && g1 === 0xdb8) ||
+    (g0 === 0x3fff && g1 < 0x1000)
   );
+}
+
+function parseIpv6(address: string): number[] | undefined {
+  let text = address;
+  const dotted = text.match(/^(.*:)(\d+\.\d+\.\d+\.\d+)$/);
+  if (dotted?.[1] && dotted[2]) {
+    const o = dotted[2].split(".").map(Number);
+    if (o.some((n) => n > 255)) return undefined;
+    text = `${dotted[1]}${(((o[0] ?? 0) << 8) | (o[1] ?? 0)).toString(16)}:${(((o[2] ?? 0) << 8) | (o[3] ?? 0)).toString(16)}`;
+  }
+  const halves = text.split("::");
+  if (halves.length > 2) return undefined;
+  const head = halves[0] ? halves[0].split(":") : [];
+  const tail = halves[1] ? halves[1].split(":") : [];
+  const fill = halves.length === 2 ? 8 - head.length - tail.length : 0;
+  if (fill < 0 || (halves.length === 1 && head.length !== 8)) return undefined;
+  const parts = [...head, ...Array<string>(fill).fill("0"), ...tail];
+  const groups = parts.map((part) => Number.parseInt(part, 16));
+  return groups.length === 8 && groups.every(Number.isFinite)
+    ? groups
+    : undefined;
+}
+
+/**
+ * Resolves once, rejects non-public answers, and returns the vetted address so
+ * the connection uses exactly the IP that was checked (no DNS rebinding window).
+ */
+export function createPinnedLookup(
+  resolveHost: HostResolver = defaultResolver,
+): NonNullable<RequestOptions["lookup"]> {
+  return ((
+    hostname: string,
+    options: { all?: boolean } | number | undefined,
+    callback: (...args: unknown[]) => void,
+  ) => {
+    const all = typeof options === "object" && options?.all === true;
+    resolveHost(hostname).then(
+      (addresses) => {
+        if (addresses.length === 0 || addresses.some(isNonPublicAddress)) {
+          callback(
+            new ToolExecutionError(
+              "WEB_FETCH_PRIVATE_NETWORK_DENIED",
+              "Private, local, link-local, and metadata network destinations are blocked by host policy.",
+              { hostname },
+            ),
+          );
+          return;
+        }
+        const entries = addresses.map((address) => ({
+          address,
+          family: isIP(address),
+        }));
+        if (all) callback(null, entries);
+        else callback(null, entries[0]?.address, entries[0]?.family);
+      },
+      (error: unknown) => callback(error),
+    );
+  }) as NonNullable<RequestOptions["lookup"]>;
+}
+
+/** GET-style fetch whose socket connects only to the vetted, pinned address. */
+export function createPinnedFetch(resolveHost?: HostResolver): typeof fetch {
+  const lookup = createPinnedLookup(resolveHost);
+  return async (input: string | URL | Request, init?: RequestInit) => {
+    const url = new URL(input instanceof Request ? input.url : input);
+    const request = url.protocol === "https:" ? httpsRequest : httpRequest;
+    const headers: Record<string, string> = {};
+    new Headers(init?.headers).forEach((value, key) => {
+      headers[key] = value;
+    });
+    return await new Promise<Response>((resolve, reject) => {
+      const req = request(
+        url,
+        {
+          method: init?.method ?? "GET",
+          headers,
+          lookup,
+          signal: init?.signal ?? undefined,
+        },
+        (res) => {
+          const responseHeaders = new Headers();
+          for (const [key, value] of Object.entries(res.headers)) {
+            for (const v of Array.isArray(value) ? value : [value]) {
+              if (v !== undefined) responseHeaders.append(key, v);
+            }
+          }
+          const status = res.statusCode ?? 502;
+          const nullBody = [101, 204, 205, 304].includes(status);
+          if (nullBody) res.resume();
+          resolve(
+            new Response(
+              nullBody ? null : (Readable.toWeb(res) as ReadableStream),
+              {
+                status,
+                statusText: res.statusMessage,
+                headers: responseHeaders,
+              },
+            ),
+          );
+        },
+      );
+      req.on("error", reject);
+      req.end();
+    });
+  };
 }
 
 function isNonPublicIpv4(address: string): boolean {

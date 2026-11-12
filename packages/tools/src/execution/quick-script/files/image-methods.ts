@@ -1,6 +1,7 @@
 import { extname } from "node:path";
 import { image } from "@nervekit/native";
 import {
+  artifactNameOf,
   parseHandle,
   readAuthorizations,
   readFileRef,
@@ -73,9 +74,10 @@ export const imageMethods: SdkMethod[] = [
         );
       }
       const out = await transform(env, file, ops);
-      const fileName = extname(name)
-        ? name
-        : `${name}.${out.format === "jpeg" ? "jpg" : "png"}`;
+      const bare = artifactNameOf(name);
+      const fileName = extname(bare)
+        ? bare
+        : `${bare}.${out.format === "jpeg" ? "jpg" : "png"}`;
       return await writeArtifact(env, fileName, out.data);
     },
   }),

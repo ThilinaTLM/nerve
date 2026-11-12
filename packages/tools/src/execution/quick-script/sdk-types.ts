@@ -79,6 +79,12 @@ export type SdkEnvironment = {
     artifacts: Map<string, ArtifactReport>;
     /** Entities the run created, listed in the footer for follow-up and cleanup: `SCRUM-6`, `comment 10023 on SCRUM-6`, `sprint 5`. Pages are reported in `pages`. */
     created: string[];
+    /** Existing entities the run changed in a way that is not a creation: `attachment 77 on page 5 (new version)`. Use the same label as `created`/`deleted` for the same entity. */
+    updated: string[];
+    /** Entities the run deleted, with the same labels as `created` (an entity created and deleted in one run is shown once, as deleted). */
+    deleted: string[];
+    /** Raw non-GET requests (`POST /rest/api/3/issue`); recorded by the executor, not by methods. */
+    raw: string[];
   };
 };
 
