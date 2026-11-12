@@ -471,37 +471,51 @@ impl Worker {
 
     /// Linux only: a directory appeared under a tree scope, so watch it and its
     /// non-ignored subdirectories (within the directory budget).
+    ///
+    /// A subdirectory created after the scan but before its parent's watch is
+    /// registered produces no event, so rescan until a pass adds no new watches.
     fn watch_new_directory(&mut self, id: &str, directory: &std::path::Path) {
         let limit = self.limits.max_tree_directories;
-        let Some(scope) = self.scopes.get_mut(id) else {
+        let Some(scope) = self.scopes.get(id) else {
             return;
         };
         let Some(tree) = scope.tree.as_ref() else {
             return;
         };
-        if !directory.starts_with(&tree.root) || !directory.is_dir() {
+        if !directory.starts_with(&tree.root) {
             return;
         }
-        let (found, _) = tree_directories(directory, limit);
-        for path in found {
-            let scope = self.scopes.get_mut(id).expect("scope exists");
-            if scope.paths.contains(&path) {
-                continue;
-            }
-            if scope.paths.len() >= limit {
-                scope.degraded = true;
+        loop {
+            if !directory.is_dir() {
                 return;
             }
-            if !self.registrations.contains_key(&path) && self.backend.watch(&path, false).is_err()
-            {
-                scope.degraded = true;
-                continue;
+            let (found, _) = tree_directories(directory, limit);
+            let mut added = false;
+            for path in found {
+                let scope = self.scopes.get_mut(id).expect("scope exists");
+                if scope.paths.contains(&path) {
+                    continue;
+                }
+                if scope.paths.len() >= limit {
+                    scope.degraded = true;
+                    return;
+                }
+                if !self.registrations.contains_key(&path)
+                    && self.backend.watch(&path, false).is_err()
+                {
+                    scope.degraded = true;
+                    continue;
+                }
+                scope.paths.insert(path.clone());
+                self.registrations
+                    .entry(path)
+                    .or_default()
+                    .insert(id.to_string());
+                added = true;
             }
-            scope.paths.insert(path.clone());
-            self.registrations
-                .entry(path)
-                .or_default()
-                .insert(id.to_string());
+            if !added {
+                return;
+            }
         }
     }
 
