@@ -5,6 +5,7 @@ export { default as EntityRow } from "./EntityRow.svelte";
 export { default as SettingsSidebarStatus } from "./SettingsSidebarStatus.svelte";
 
 export { default as SettingsPageHeader } from "./SettingsPageHeader.svelte";
+export { default as SettingsBreadcrumb } from "./SettingsBreadcrumb.svelte";
 export { default as SettingsInfoHint } from "./SettingsInfoHint.svelte";
 export { default as SettingsSection } from "./SettingsSection.svelte";
 export { default as SettingsRow } from "./SettingsRow.svelte";

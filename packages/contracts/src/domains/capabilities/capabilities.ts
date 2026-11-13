@@ -3,7 +3,6 @@ import { subagentToolNames } from "../tools/subagent-tools.js";
 import {
   imageExplanationToolSettingsSchema,
   imageGenerationToolSettingsSchema,
-  krokiToolSettingsSchema,
   pythonExecToolSettingsSchema,
   bashToolSettingsSchema,
   planPresentToolSettingsSchema,
@@ -23,7 +22,6 @@ export const capabilityToolNameSchema = z.enum([
   "bash",
 ]);
 export type CapabilityToolName = z.infer<typeof capabilityToolNameSchema>;
-const profileIdSchema = z.string().trim().min(1).max(256);
 const skillNameSchema = z.string().trim().min(1).max(256);
 const skillOverridesSchema = z
   .record(skillNameSchema, z.boolean())
@@ -45,49 +43,18 @@ function payload<S extends z.ZodType>(settings: S) {
     .strict();
 }
 const basicPayload = payload(z.never());
-const accountPayload = z
-  .object({
-    enabled: z.boolean().optional(),
-    profileId: profileIdSchema.optional(),
-  })
-  .strict();
-export const quickScriptIntegrationSchema = z
-  .object({ enabled: z.boolean(), profileId: profileIdSchema.optional() })
-  .strict();
-/**
- * `quick_script` configuration: integrations (each its own account) and
- * utilities. A missing key means off / default. `web` selects a Tavily
- * account; Jira and Confluence select Atlassian accounts.
- */
-export const quickScriptToolSettingsSchema = z
-  .object({
-    jira: quickScriptIntegrationSchema.optional(),
-    confluence: quickScriptIntegrationSchema.optional(),
-    web: quickScriptIntegrationSchema.optional(),
-    diagram: krokiToolSettingsSchema.optional(),
-  })
-  .strict();
-export type QuickScriptToolSettings = z.infer<
-  typeof quickScriptToolSettingsSchema
->;
-/** Integrations of `quick_script`, in settings and description order. */
-export const quickScriptIntegrationNames = [
-  "jira",
-  "confluence",
-  "web",
-] as const;
 /** Canonical per-tool payloads shared by scoped agent preferences and profiles. */
 export const capabilityToolPayloadSchemas = {
   python_exec: payload(pythonExecToolSettingsSchema),
-  web_search: accountPayload,
+  web_search: basicPayload,
   web_fetch: basicPayload,
   explain_image: payload(imageExplanationToolSettingsSchema),
   generate_image: payload(imageGenerationToolSettingsSchema),
-  kroki_export: payload(krokiToolSettingsSchema),
+  kroki_export: basicPayload,
   plan_present: payload(planPresentToolSettingsSchema),
   subagents: basicPayload,
-  jira: accountPayload,
-  confluence: accountPayload,
-  quick_script: payload(quickScriptToolSettingsSchema),
+  jira: basicPayload,
+  confluence: basicPayload,
+  quick_script: basicPayload,
   bash: z.object({ settings: bashToolSettingsSchema }).strict(),
 };

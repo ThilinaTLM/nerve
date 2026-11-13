@@ -73,6 +73,15 @@ export class AgentConfigurationPaths {
   agent(scope: AgentScope): string {
     return this.paths.resolve(scope, "agent.json").path;
   }
+  /** Extension settings; the conversation file needs no database row, so a child's frozen settings can be written before it exists. */
+  extensions(scope: AgentScope): string {
+    return scope.scope === "conversation"
+      ? path.join(
+          this.conversationConfigDirectory(scope.conversationId),
+          "extensions.json",
+        )
+      : this.paths.resolve(scope, "extensions.json").path;
+  }
   creation(scope: PreferenceScope): string {
     return this.paths.resolve(scope, "conversation-defaults.json").path;
   }

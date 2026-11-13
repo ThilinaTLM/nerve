@@ -1,13 +1,9 @@
-import type {
-  CapabilityToolName,
-  quickScriptIntegrationNames,
-} from "@nervekit/contracts/capabilities";
+import type { CapabilityToolName } from "@nervekit/contracts/capabilities";
 export type ToolId = CapabilityToolName;
 
 /** The editable shape shared by every tool: all fields optional. */
 export type ToolPayload = {
   enabled?: boolean;
-  profileId?: string;
   settings?: Record<string, unknown>;
 };
 
@@ -106,12 +102,8 @@ export function toolRow(id: ToolId): ToolRowDef {
 
 export type AccountOption = { id: string; name: string; detail?: string };
 
-/** Tools whose account is chosen from the user's integration accounts. */
+/** Account kinds the user manages in Settings → Integrations. */
 export type AccountKind = "tavily" | "atlassian";
-export function accountKind(id: ToolId): AccountKind | undefined {
-  if (id === "web_search") return "tavily";
-  return id === "jira" || id === "confluence" ? "atlassian" : undefined;
-}
 
 /** Every account the user can pick from, by kind. */
 export type AccountOptions = Record<AccountKind, AccountOption[]>;
@@ -133,39 +125,7 @@ export function accountOptions(
   };
 }
 
-/** quick_script integrations in settings order, each with the account kind it uses. */
-export const quickScriptIntegrations = [
-  { id: "jira", label: "Jira", kind: "atlassian" },
-  { id: "confluence", label: "Confluence", kind: "atlassian" },
-  { id: "web", label: "Web", kind: "tavily" },
-] as const satisfies readonly {
-  id: (typeof quickScriptIntegrationNames)[number];
-  label: string;
-  kind: AccountKind;
-}[];
-
-type IntegrationSelection = { enabled?: boolean; profileId?: string };
-function enabledIntegrations(payload: ToolPayload) {
-  const s = (payload.settings ?? {}) as Record<string, IntegrationSelection>;
-  return quickScriptIntegrations.filter((i) => s[i.id]?.enabled);
-}
-
-/** Labels of quick_script integrations that are enabled but have no existing account. */
-export function integrationsMissingAccount(
-  payload: ToolPayload,
-  hasAccount: (kind: AccountKind, id: string | undefined) => boolean,
-): string[] {
-  const s = (payload.settings ?? {}) as Record<string, IntegrationSelection>;
-  return enabledIntegrations(payload)
-    .filter((i) => !hasAccount(i.kind, s[i.id]?.profileId))
-    .map((i) => i.label);
-}
-
 export type ToolDisplayContext = {
-  accountName: (
-    kind: AccountKind,
-    id: string | undefined,
-  ) => string | undefined;
   profileLabel: (name: string) => string;
   modelLabel: (selection: unknown) => string | undefined;
 };
@@ -197,29 +157,10 @@ export function toolSettingsSummary(
     }
     case "python_exec":
       return `${(s.interpreterPath as string | undefined) ?? "auto-detect"}`;
-    case "quick_script": {
-      const chosen = (payload.settings ?? {}) as Record<
-        string,
-        IntegrationSelection
-      >;
-      const active = enabledIntegrations(payload).map((i) => {
-        const account = context.accountName(i.kind, chosen[i.id]?.profileId);
-        return account ? `${i.label} (${account})` : `${i.label} (no account)`;
-      });
-      return `${active.length ? active.join(", ") : "no integrations"}`;
-    }
-    case "web_search":
-    case "jira":
-    case "confluence": {
-      const name = context.accountName(accountKind(id)!, payload.profileId);
-      return `${name ? `account: ${name}` : "no account"}`;
-    }
     case "explain_image":
       return `${context.modelLabel(s.model) ?? "no model"}`;
     case "generate_image":
       return `${String(s.model ?? "")}`;
-    case "kroki_export":
-      return `${String(s.url ?? "").replace(/^https?:\/\//, "")}`;
     case "plan_present":
       return `after approval: ${context.profileLabel(String(s.approvalProfile ?? ""))}`;
     default:

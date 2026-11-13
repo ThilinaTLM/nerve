@@ -93,20 +93,6 @@ export const providersSettingsSchema = z.object({
 });
 export type ProvidersSettings = z.infer<typeof providersSettingsSchema>;
 
-export const jiraToolSettingsSchema = z.object({
-  enabled: z.boolean(),
-  profileId: z.string().trim().min(1).optional(),
-});
-
-export const confluenceToolSettingsSchema = z.object({
-  enabled: z.boolean(),
-  profileId: z.string().trim().min(1).optional(),
-});
-
-export const webToolSettingsSchema = z.object({
-  tavilyProfileId: z.string().trim().min(1).optional(),
-});
-
 const bashAutoPromotionSettingsSchema = z.object({
   enabled: z.boolean(),
   afterMs: z.number().int().positive().max(86_400_000),
@@ -218,6 +204,13 @@ export type ImageGenerationToolSettings = z.infer<
   typeof imageGenerationToolSettingsSchema
 >;
 
+/** Default of `generate_image` until image generation moves to its extension. */
+export const defaultImageGenerationSettings: ImageGenerationToolSettings = {
+  provider: "openai-codex",
+  model: "gpt-image-2.5-flare",
+  options: { quality: "auto", size: "auto", background: "auto" },
+};
+
 export const krokiToolSettingsSchema = z
   .object({
     url: z
@@ -259,20 +252,11 @@ export const defaultKrokiToolSettings: KrokiToolSettings = {
 };
 
 const toolSettingsSchema = z.object({
-  kroki: krokiToolSettingsSchema,
   disabled: disabledToolListSchema,
   bash: bashToolSettingsSchema,
   pythonExec: pythonExecToolSettingsSchema,
   planPresent: planPresentToolSettingsSchema,
-  jira: jiraToolSettingsSchema,
-  confluence: confluenceToolSettingsSchema,
-  web: webToolSettingsSchema,
   imageExplanation: imageExplanationToolSettingsSchema,
-  imageGeneration: imageGenerationToolSettingsSchema.default({
-    provider: "openai-codex",
-    model: "gpt-image-2.5-flare",
-    options: { quality: "auto", size: "auto", background: "auto" },
-  }),
 });
 
 export const compactionProfileSchema = z.enum([
@@ -460,16 +444,7 @@ export const defaultSettings: Settings = {
     },
     pythonExec: {},
     planPresent: { approvalProfile: "coding" },
-    jira: { enabled: false },
-    confluence: { enabled: false },
-    web: {},
-    kroki: defaultKrokiToolSettings,
     imageExplanation: { thinkingLevel: "off" },
-    imageGeneration: {
-      provider: "openai-codex",
-      model: "gpt-image-2.5-flare",
-      options: { quality: "auto", size: "auto", background: "auto" },
-    },
   },
   skills: {
     disabled: [],

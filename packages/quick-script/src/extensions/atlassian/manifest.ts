@@ -15,6 +15,53 @@ export const atlassianExtension: ExtensionManifest = {
   description: "Jira and Confluence through one Atlassian account.",
   source: "builtin",
   icon: "layers",
+  enabledByDefault: false,
+  settingsVersion: 1,
+  accounts: [
+    {
+      kind: "atlassian",
+      label: "Atlassian account",
+      fields: {
+        name: { type: "string", label: "Name", maxLength: 128 },
+        siteUrl: {
+          type: "string",
+          label: "Site URL",
+          format: "url",
+          placeholder: "https://acme.atlassian.net/",
+        },
+        email: { type: "string", label: "Email" },
+        defaultProjectKey: { type: "string", label: "Default Jira project" },
+        defaultSpaceKey: { type: "string", label: "Default Confluence space" },
+      },
+      secret: {
+        label: "API token",
+        help: "Create an API token in your Atlassian account settings.",
+      },
+      test: true,
+    },
+  ],
+  settings: {
+    fields: {
+      account: {
+        type: "account",
+        kind: "atlassian",
+        label: "Account",
+        description: "The Atlassian account used for Jira and Confluence.",
+      },
+      jira: {
+        type: "boolean",
+        label: "Jira",
+        description: "Offer the jira namespace.",
+        default: false,
+      },
+      confluence: {
+        type: "boolean",
+        label: "Confluence",
+        description: "Offer the confluence namespace.",
+        default: false,
+      },
+    },
+  },
   contributes: {
     tools: [
       "jira_search_users",

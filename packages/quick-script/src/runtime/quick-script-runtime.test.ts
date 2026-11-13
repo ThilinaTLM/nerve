@@ -141,7 +141,7 @@ void test("a script runs without integrations; an absent product names the setti
   );
   assert.match(
     missing.content ?? "",
-    /not available in quick_script.*Settings → Tools → quick_script/s,
+    /not available in quick_script.*Settings → Extensions → Atlassian/s,
   );
 });
 
@@ -161,7 +161,7 @@ void test("a 401 stops the whole script with one message and no further requests
   assert.doesNotMatch(result.content ?? "", /never printed/);
   assert.match(
     result.content ?? "",
-    /Jira rejected the API token for dev@example\.com; update it in Settings → Integrations\.\n.*failed · exit 1$/s,
+    /Jira rejected the API token for dev@example\.com; update it in Settings → Extensions → Atlassian\.\n.*failed · exit 1$/s,
   );
   const details = quickScriptResultDetailsSchema.parse(result.details);
   assert.equal(details.status, "failed");

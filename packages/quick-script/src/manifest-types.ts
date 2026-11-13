@@ -1,3 +1,8 @@
+import type {
+  AccountKind,
+  ExtensionSettingsDefinition,
+  SettingsSchema,
+} from "@nervekit/contracts/extensions";
 import type { SdkMethod } from "./runtime/sdk-types.js";
 
 /** One `sdk.docs` topic. `id` is the full topic id (`jira/workflows`); `file` is relative to the owner's `docs/` folder. */
@@ -28,7 +33,7 @@ export type SdkNamespace = {
   };
 };
 
-/** The manifest of a built-in extension (installed extensions come later). The settings schema joins it with the extension settings step. */
+/** The manifest of a built-in extension (installed extensions come later). */
 export type ExtensionManifest = {
   /** Kebab-case, unique, stable. */
   id: string;
@@ -38,6 +43,16 @@ export type ExtensionManifest = {
   source: "builtin";
   /** Lucide icon name. */
   icon: string;
+  /** Default of the implicit `enabled` switch. */
+  enabledByDefault: boolean;
+  /** Settings the extension offers; the Extensions page is generated from it. */
+  settings: SettingsSchema;
+  /** Version of `settings`; bump when a field changes meaning. */
+  settingsVersion: number;
+  /** `migrations[n]` converts version n-1 settings to version n, on read. */
+  migrations?: ExtensionSettingsDefinition["migrations"];
+  /** Account kinds the extension defines (user-only, credentials in the secret store). */
+  accounts?: AccountKind[];
   contributes: {
     sdk?: SdkNamespace[];
     /** Direct tool names. */

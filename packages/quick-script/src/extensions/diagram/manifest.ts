@@ -8,6 +8,21 @@ export const diagramExtension: ExtensionManifest = {
   description: "Render Mermaid, D2, PlantUML and other diagrams with Kroki.",
   source: "builtin",
   icon: "workflow",
+  enabledByDefault: true,
+  settingsVersion: 1,
+  settings: {
+    fields: {
+      server: {
+        type: "string",
+        label: "Kroki server",
+        description:
+          "Diagram source is sent to this server. The public default is shared.",
+        format: "url",
+        default: "https://kroki.io/",
+        placeholder: "https://kroki.io/",
+      },
+    },
+  },
   contributes: {
     tools: ["kroki_export"],
     sdk: [

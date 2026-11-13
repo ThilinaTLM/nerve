@@ -8,6 +8,11 @@ import { scopedTurnResources } from "./scoped-turn-resources.js";
 import { requireToolDefinition } from "@nervekit/tools/catalog";
 import type { Skill } from "@nervekit/harness/resources";
 
+const noExtensions = async () => ({
+  resolution: { extensions: {}, unknown: [], diagnostics: [] },
+  accounts: { atlassianProfiles: [], tavilyProfiles: [] },
+});
+
 void test("turns use captured instructions without consulting their source template, while project context stays fresh", async () => {
   const project = await mkdtemp(join(tmpdir(), "nerve-template-prompt-"));
   try {
@@ -18,6 +23,7 @@ void test("turns use captured instructions without consulting their source templ
       nerveSkills: () => [],
       agentBrowserSkills: () => [],
       hasChildren: () => false,
+      extensions: noExtensions,
       service: {
         profiles: {
           get: async () => {
@@ -67,6 +73,7 @@ void test("prompt preparation reads initialized and subsequently replaced skill 
       nerveSkills: () => nerveSkills,
       agentBrowserSkills: () => browserSkills,
       hasChildren: () => false,
+      extensions: noExtensions,
       service: {} as never,
     });
     const skill = (name: string, filePath: string): Skill => ({

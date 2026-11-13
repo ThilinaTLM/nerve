@@ -23,10 +23,12 @@ export const MIGRATION_METADATA: readonly MigrationRegistryEntry[] =
     {
       step: { id: "0002-agent-profiles" },
       checksum:
-        "d38155a16d87079d02ba3e4fc140b9a0c4e7ad8b4f4c68612e98bcfe1ffed7d7",
-      // Draft label recorded by v0.38.0-v0.39.x homes.
+        "893d816d07e9525e5b5f90f099c29145f0817935c6fafc5b7827ec1a65b4ad26",
+      // Draft label recorded by v0.38.0-v0.39.x homes, then the revision released in
+      // v0.38.0-v0.40.x, before its output was validated against frozen agent schemas.
       previousChecksums: [
         "4bc089e0c758119861523ef4234aa6f008206334d0a65cd524293c9908ca646e",
+        "d38155a16d87079d02ba3e4fc140b9a0c4e7ad8b4f4c68612e98bcfe1ffed7d7",
       ],
       stage: "released",
       releasedIn: "0.38.0",
@@ -44,5 +46,11 @@ export const MIGRATION_METADATA: readonly MigrationRegistryEntry[] =
         "6b19831f2bc19fc3494b2835a3bc41507623e2a913e4c5b5fc0b1b62a08a14bc",
       stage: "released",
       releasedIn: "0.40.0",
+    },
+    {
+      step: { id: "0005-extension-settings" },
+      checksum:
+        "1e5da49397d6428efa4e62a5e1afd5694923061f852a593c6caa995a03059a57",
+      stage: "draft",
     },
   ]);

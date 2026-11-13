@@ -14,7 +14,7 @@ const namespaces: QuickScriptAvailability = {
     configured: true,
     available: false,
     reason: "no Atlassian account is selected for Confluence.",
-    fix: "Ask the user to choose an Atlassian account in Settings → Tools → quick_script.",
+    fix: "Ask the user to choose an Atlassian account in Settings → Extensions → Atlassian.",
   },
   storage: {
     configured: false,

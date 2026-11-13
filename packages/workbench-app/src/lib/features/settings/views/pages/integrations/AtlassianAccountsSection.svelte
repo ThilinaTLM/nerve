@@ -25,11 +25,6 @@ import { settingsState } from "$lib/features/settings/state/settings-state.svelt
 import ConfirmDialog from "@nervekit/ui-kit/components/composites/confirm-dialog";
 import { SettingsItem } from "$lib/presentation/settings";
 import SettingsEntityListSection from "../../shared/settings-entity-list-section.svelte";
-import type { ScopedAgentState } from "$lib/application/agent-configuration/scoped-agent-state.svelte";
-import { accountOptions } from "../tools/tool-settings";
-import IntegrationAccountUsage from "./IntegrationAccountUsage.svelte";
-import { accountUsedEverywhere, useAccountEverywhere } from "./account-usage";
-import ListChecks from "@lucide/svelte/icons/list-checks";
 import type { SettingsChange } from "../settings-change";
 import AtlassianProfileDialog from "./AtlassianAccountDialog.svelte";
 import {
@@ -44,10 +39,8 @@ type Props = {
   settingsDraft: Settings;
   authProviders: AuthProviderMetadata[];
   onSettingsChange?: SettingsChange;
-  /** User-scope tool settings; tools using these accounts are picked below the list. */
-  tools: ScopedAgentState;
 };
-let { settingsDraft, authProviders, onSettingsChange, tools }: Props = $props();
+let { settingsDraft, authProviders, onSettingsChange }: Props = $props();
 let dialogOpen = $state(false);
 let editing = $state<AtlassianProfile | undefined>();
 let pendingDelete = $state<AtlassianProfile | undefined>();
@@ -192,13 +185,6 @@ async function remove(): Promise<void> {
   itemKey={(profile) => profile.id}
   onAdd={openAdd}
 >
-  {#snippet footer()}
-    <IntegrationAccountUsage
-      kind="atlassian"
-      accounts={accountOptions(settingsDraft.providers).atlassian}
-      editor={tools}
-    />
-  {/snippet}
   {#snippet row(profile)}
     {@const ready = atlassianProfileReady(profile, authProviders)}
     {@const status = healthStatus(profile)}
@@ -231,15 +217,6 @@ async function remove(): Promise<void> {
             onclick={() => void testConnection(profile.id)}
           />
         {/if}
-        {#if tools.resolution && !accountUsedEverywhere("atlassian", tools.resolution.settings.tools ?? {}, profile.id)}
-          <IconAction
-            icon={ListChecks}
-            label="Use for all Jira and Confluence tools"
-            disabled={tools.saving}
-            onclick={() =>
-              void tools.save(useAccountEverywhere("atlassian", profile.id))}
-          />
-        {/if}
         <IconAction
           icon={Trash2}
           label="Delete account"
@@ -261,7 +238,7 @@ async function remove(): Promise<void> {
   open={!!pendingDelete}
   title="Delete Atlassian account?"
   description={pendingDelete
-    ? `Delete “${pendingDelete.name}”, its stored token, and disable tools that use it?`
+    ? `Delete “${pendingDelete.name}”, its stored token, and unselect it wherever extensions use it?`
     : ""}
   confirmLabel="Delete"
   destructive

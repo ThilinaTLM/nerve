@@ -42,6 +42,8 @@ import type { ApplicationLogger } from "../infrastructure/diagnostics/index.js";
 import type { WorkbenchNoticePublisher } from "../infrastructure/events/index.js";
 import type { SecretProvider } from "../infrastructure/secrets/index.js";
 import type { InitializedStorage } from "../infrastructure/storage-bootstrap/index.js";
+import { createExtensionViews } from "../core-host/extension-views.js";
+import type { ExtensionSettingsService } from "../infrastructure/configuration/extensions/extension-settings-service.js";
 import { createPermissionConfigurationService } from "../core-host/permission-configuration.js";
 
 export interface AdapterInfrastructure {
@@ -76,6 +78,7 @@ export interface AdapterServices {
   conversationTitles: ConversationTitleService;
   conversationCore: ConversationCore;
   agentConfiguration: AgentConfigurationService;
+  extensionSettings: ExtensionSettingsService;
   configurationOperations: ReturnType<typeof agentConfigurationOperations>;
   admissionPolicy: ScopedPermissionPolicySource;
   coreStorage: CoreStorage;
@@ -106,6 +109,17 @@ export function createServerAdapterContexts(
     if (!project) throw new Error(`Project not found: ${id}`);
     return project;
   };
+  const extensionViews = createExtensionViews({
+    extensions: services.extensionSettings,
+    agents: services.agentConfiguration,
+    accounts: () => infrastructure.storage.settings.providers,
+    hasCredential: async (kind, id) =>
+      Boolean(
+        await infrastructure.auth
+          .getApiKey(`${kind}:${id}`)
+          .catch(() => undefined),
+      ),
+  });
   const protocol = {
     activity: {
       activities: infrastructure.activities,
@@ -118,6 +132,8 @@ export function createServerAdapterContexts(
       git: services.git,
       conversationCore: services.conversationCore,
       agentConfiguration: services.agentConfiguration,
+      extensionSettings: services.extensionSettings,
+      extensionViews,
       configurationOperations: services.configurationOperations,
       admissionPolicy: services.admissionPolicy,
       workspaceMonitor: services.workspaceMonitor,

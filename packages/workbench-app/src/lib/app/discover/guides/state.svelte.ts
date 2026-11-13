@@ -76,30 +76,26 @@ export function voiceConfigured(): boolean {
   return hasChatGptAudioAuth(settingsState.authProviders);
 }
 
+// TODO(extensions-page): the selected accounts live in extension settings now;
+// until the Extensions page reads them, "ready" means a usable account exists.
 export function atlassianConfigured(): boolean {
   const settings = settingsState.settingsDraft;
-  if (!settings) return false;
-  return (["jira", "confluence"] as const).every((integration) => {
-    const configuration = settings.tools[integration];
-    const profile = settings.providers.atlassianProfiles.find(
-      (candidate) => candidate.id === configuration.profileId,
-    );
-    return (
-      configuration.enabled &&
-      atlassianProfileReady(profile, settingsState.authProviders)
-    );
-  });
+  return Boolean(
+    settings?.providers.atlassianProfiles.some((profile) =>
+      atlassianProfileReady(profile, settingsState.authProviders),
+    ),
+  );
 }
 
 export function webSearchConfigured(): boolean {
-  const profileId = settingsState.settingsDraft?.tools.web.tavilyProfileId;
   return Boolean(
-    profileId &&
-    settingsState.authProviders.some(
-      (provider) =>
-        provider.provider === `tavily:${profileId}` &&
-        provider.configured &&
-        provider.credentialType === "api_key",
+    settingsState.settingsDraft?.providers.tavilyProfiles.some((profile) =>
+      settingsState.authProviders.some(
+        (provider) =>
+          provider.provider === `tavily:${profile.id}` &&
+          provider.configured &&
+          provider.credentialType === "api_key",
+      ),
     ),
   );
 }
@@ -273,7 +269,9 @@ async function prepareSetupStep(
   let target = visibleTarget(step.targetId);
   const preparation = step.preparation;
   if (enterCoach && !target && preparation?.kind === "settings") {
-    await openSettingsPane(preparation.pageId, preparation.sectionId);
+    await openSettingsPane(preparation.pageId, {
+      section: preparation.sectionId,
+    });
   }
 
   await settlePreparation();

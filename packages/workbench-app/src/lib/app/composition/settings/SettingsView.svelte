@@ -27,6 +27,7 @@ import {
   skillSourceSectionIds,
   sourcesForScope,
 } from "$lib/domain/skills/skill-catalog";
+import { notify } from "$lib/application/notifications/notify.svelte";
 import SettingsPageActions from "./SettingsPageActions.svelte";
 import SettingsPageContent from "./SettingsPageContent.svelte";
 import { createSettingsPageControllers } from "./settings-page-controllers.svelte";
@@ -52,6 +53,10 @@ type Props = {
   daemonRestarting?: boolean;
   activePageId?: string;
   activeSectionId?: string;
+  /** Open detail item of the active page; "" shows the list. */
+  activeItemId?: string;
+  /** Valid detail items per page id (labels for the breadcrumb). */
+  detailItems?: Readonly<Record<string, { id: string; label: string }[]>>;
   models?: ModelInfo[];
   authProviders?: AuthProviderMetadata[];
   /** The project of a project target. */
@@ -82,6 +87,8 @@ let {
   daemonRestarting = false,
   activePageId = $bindable(),
   activeSectionId = $bindable(),
+  activeItemId = $bindable(""),
+  detailItems = {},
   models = [],
   authProviders = [],
   project,
@@ -122,15 +129,19 @@ const skillsDescription = $derived(
 );
 
 const pages = $derived(
-  settingsPagesFor(target).map((page) =>
-    page.id === "skills"
+  settingsPagesFor(target).map((page) => {
+    const withDetail =
+      page.detail && detailItems[page.id]
+        ? { ...page, detail: { ...page.detail, items: detailItems[page.id] } }
+        : page;
+    return page.id === "skills"
       ? {
-          ...page,
+          ...withDetail,
           sections: skillSections.length > 0 ? skillSections : page.sections,
           description: skillsDescription,
         }
-      : page,
-  ),
+      : withDetail;
+  }),
 );
 
 /** Project pages that differ from the user's settings are marked with their count. */
@@ -180,6 +191,11 @@ function statusText(): string {
   {scopeHeader}
   bind:activePageId
   bind:activeSectionId
+  bind:activeItemId
+  onUnknownItem={(item, page) =>
+    notify.warning(`${page.label} item "${item}" was not found`, {
+      description: "Showing the list instead.",
+    })}
   ariaLabel="Settings pages"
   showHeader={!!settingsDraft}
 >

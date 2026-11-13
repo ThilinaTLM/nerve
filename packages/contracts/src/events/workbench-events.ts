@@ -56,6 +56,7 @@ export function isWorkbenchOperation(method: string): boolean {
     "scratchNote.",
     "promptSuggestion.",
     "agentProfiles.",
+    "extensions.",
     "projectInstructions.",
     "launch.",
     "launchDefinition.",

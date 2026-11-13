@@ -11,7 +11,10 @@ void test("Required configuration does not lock a Recommended enabled switch", (
   assert.deepEqual(
     capabilityToolLocks(["jira"], {
       "/tools/jira/profileId": { source: "requirement", profile: "planning" },
-      "/tools/jira/enabled": { source: "recommendation", profile: "planning" },
+      "/tools/python_exec/enabled": {
+        source: "recommendation",
+        profile: "planning",
+      },
     }),
     { enabledBy: undefined },
   );
@@ -20,7 +23,10 @@ void test("Required configuration does not lock a Recommended enabled switch", (
 void test("Required enabled does not lock unrelated editable configuration", () => {
   assert.deepEqual(
     capabilityToolLocks(["jira"], {
-      "/tools/jira/enabled": { source: "requirement", profile: "planning" },
+      "/tools/python_exec/enabled": {
+        source: "requirement",
+        profile: "planning",
+      },
       "/tools/jira/profileId": {
         source: "recommendation",
         profile: "planning",
@@ -33,7 +39,10 @@ void test("Required enabled does not lock unrelated editable configuration", () 
 void test("only exact enabled units in the selected group lock switches", () => {
   assert.deepEqual(
     capabilityToolLocks(["read_file", "list_files"], {
-      "/tools/jira/enabled": { source: "requirement", profile: "planning" },
+      "/tools/python_exec/enabled": {
+        source: "requirement",
+        profile: "planning",
+      },
       "/tools/read_file/enabled": { source: "project" },
       "/tools/list_files/enabled": { source: "user" },
     }),
@@ -111,24 +120,30 @@ void test("Required vision model leaves reasoning editable; atomic settings lock
 void test("Required enabled leaves editable config marked and resettable without resetting hidden choices", () => {
   const overrides = {
     tools: {
-      jira: { enabled: false, profileId: "local-account" },
-      confluence: { profileId: "unrelated-account" },
+      python_exec: {
+        enabled: false,
+        settings: { interpreterPath: "/local/python" },
+      },
+      bash: { settings: { shellPath: "/unrelated/shell" } },
     },
   };
   const provenance = {
-    "/tools/jira/enabled": {
+    "/tools/python_exec/enabled": {
       source: "requirement" as const,
       profile: "planning",
     },
   };
   assert.deepEqual(
-    editableToolOverrideResets(["jira"], overrides, provenance),
-    ["/overrides/tools/jira/profileId"],
+    editableToolOverrideResets(["python_exec"], overrides, provenance),
+    ["/overrides/tools/python_exec/settings/interpreterPath"],
   );
   assert.deepEqual(
-    editableToolOverrideResets(["jira"], overrides, {
+    editableToolOverrideResets(["python_exec"], overrides, {
       ...provenance,
-      "/tools/jira/profileId": { source: "requirement", profile: "planning" },
+      "/tools/python_exec/settings/interpreterPath": {
+        source: "requirement",
+        profile: "planning",
+      },
     }),
     [],
   );

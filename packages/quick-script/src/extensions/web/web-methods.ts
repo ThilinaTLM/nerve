@@ -23,7 +23,7 @@ import {
   type SdkMethod,
 } from "../../runtime/sdk-types.js";
 
-const SETTINGS = "Settings → Tools → quick_script → Web";
+const SETTINGS = "Settings → Extensions → Web";
 const FETCH_AS = ["markdown", "text", "json", "file"] as const;
 type FetchAs = (typeof FETCH_AS)[number];
 
@@ -203,7 +203,7 @@ export const webMethods: SdkMethod[] = [
       if (!apiKey) {
         throw codedError(
           "DENIED",
-          `web.search: the selected Tavily account has no API token. Ask the user to add it in Settings → Integrations → Tavily.`,
+          `web.search: the selected Tavily account has no API token. Ask the user to add it in Settings → Extensions → Web.`,
         );
       }
       let data;

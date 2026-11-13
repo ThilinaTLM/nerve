@@ -30,12 +30,19 @@ import type {
 import type { SettingsScopeTarget } from "./settings-scope";
 import {
   layoutByScope,
+  resolveSettingsTarget,
+  settingsPageDetail,
   pagesByScope,
   resolveSettingsPageId,
   settingsPageIds,
 } from "./settings-page-data";
 
-export { resolveSettingsPageId, settingsPageIds };
+export {
+  resolveSettingsPageId,
+  resolveSettingsTarget,
+  settingsPageDetail,
+  settingsPageIds,
+};
 
 const icons: Record<string, Component> = {
   providers: CloudCog,

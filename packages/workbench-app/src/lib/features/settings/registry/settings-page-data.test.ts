@@ -5,7 +5,10 @@ import {
   layoutByScope,
   pagesByScope,
   resolveSettingsPageId,
+  resolveSettingsTarget,
+  settingsPageDetail,
   settingsPageIds,
+  type SettingsRedirect,
 } from "./settings-page-data";
 
 const grouped = (kind: "user" | "project") =>
@@ -56,5 +59,72 @@ describe("settings page registry", () => {
     assert.equal(resolveSettingsPageId("project", "providers"), "general");
     assert.equal(resolveSettingsPageId("project", "trust"), "trust");
     assert.equal(resolveSettingsPageId("user", undefined), "providers");
+  });
+});
+
+describe("settings deep-link targets", () => {
+  const redirects: SettingsRedirect[] = [
+    {
+      from: { pageId: "integrations", section: "tavily-accounts" },
+      to: { pageId: "general", item: "web", section: "accounts" },
+    },
+    { from: { pageId: "integrations" }, to: { pageId: "general" } },
+    { from: { pageId: "tools" }, to: { pageId: "nowhere" } },
+  ];
+
+  it("keeps integrations targets while redirects are disabled", () => {
+    assert.deepEqual(
+      resolveSettingsTarget("user", {
+        pageId: "integrations",
+        section: "tavily-accounts",
+      }),
+      { pageId: "integrations", section: "tavily-accounts" },
+    );
+  });
+
+  it("maps old targets to a page, item and section when enabled", () => {
+    const options = { redirects, enabled: true };
+    assert.deepEqual(
+      resolveSettingsTarget(
+        "user",
+        { pageId: "integrations", section: "tavily-accounts" },
+        options,
+      ),
+      { pageId: "general", section: "accounts" },
+    );
+    assert.deepEqual(
+      resolveSettingsTarget(
+        "user",
+        { pageId: "integrations", section: "other" },
+        options,
+      ),
+      { pageId: "general", section: "other" },
+    );
+  });
+
+  it("ignores redirects whose destination is not in the scope", () => {
+    assert.deepEqual(
+      resolveSettingsTarget(
+        "user",
+        { pageId: "tools" },
+        {
+          redirects,
+          enabled: true,
+        },
+      ),
+      { pageId: "tools" },
+    );
+  });
+
+  it("drops items for pages without a detail and unknown pages fall back", () => {
+    assert.equal(settingsPageDetail("user", "tools"), undefined);
+    assert.deepEqual(
+      resolveSettingsTarget("user", { pageId: "tools", item: "x" }),
+      { pageId: "tools" },
+    );
+    assert.deepEqual(
+      resolveSettingsTarget("user", { pageId: "gone", item: "x" }),
+      { pageId: "providers" },
+    );
   });
 });

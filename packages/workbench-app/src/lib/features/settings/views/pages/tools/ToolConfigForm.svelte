@@ -10,20 +10,9 @@ import type { ModelInfo } from "$lib/api";
 import SelectField from "@nervekit/ui-kit/components/composites/select-field";
 import { Input } from "@nervekit/ui-kit/components/ui/input";
 import { Label } from "@nervekit/ui-kit/components/ui/label";
-import SwitchField from "@nervekit/ui-kit/components/composites/switch-field";
-import { GroupLabel } from "@nervekit/ui-kit/components/composites/group-label";
 import { Switch } from "@nervekit/ui-kit/components/ui/switch";
 import ModelPicker from "$lib/presentation/model-picker/ModelPicker.svelte";
-import KrokiServerField from "./KrokiServerField.svelte";
-import { isValidKrokiUrl } from "./kroki-server";
-import {
-  accountKind,
-  quickScriptIntegrations,
-  type AccountKind,
-  type AccountOptions,
-  type ToolId,
-  type ToolPayload,
-} from "./tool-settings";
+import { type ToolId, type ToolPayload } from "./tool-settings";
 
 type Props = {
   name: ToolId;
@@ -33,9 +22,6 @@ type Props = {
   valid?: boolean;
   /** Authenticated models; the vision picker narrows them itself. */
   models?: ModelInfo[];
-  accounts?: AccountOptions;
-  /** Label of the "no account" choice; projects use it to follow user settings. */
-  noAccountLabel?: string;
   /** Main-agent profiles offered as the plan-approval target. */
   leadProfiles?: { name: string; label: string }[];
   /** The Python executable currently in use, shown under the path field. */
@@ -48,8 +34,6 @@ let {
   payload = $bindable(),
   valid = $bindable(true),
   models = [],
-  accounts = { tavily: [], atlassian: [] },
-  noAccountLabel = "No account",
   leadProfiles = [],
   resolvedPython,
 }: Props = $props();
@@ -92,28 +76,6 @@ const validTimeout = $derived(
     Number(timeoutSeconds) <= 3600,
 );
 
-const krokiUrl = $derived(String(settings.url ?? ""));
-
-// quick_script: integrations (account each) and utilities (Kroki server).
-type Selection = { enabled?: boolean; profileId?: string };
-function selection(id: string): Selection {
-  return (settings[id] ?? {}) as Selection;
-}
-function patchIntegration(id: string, next: Selection): void {
-  patchSettings({ [id]: { enabled: false, ...selection(id), ...next } });
-}
-const diagramUrl = $derived(
-  String(((settings.diagram ?? {}) as Loose).url ?? ""),
-);
-function setDiagramUrl(url: string): void {
-  const next = { ...settings };
-  if (url) next.diagram = { url };
-  else delete next.diagram;
-  payload = {
-    ...payload,
-    settings: Object.keys(next).length ? next : undefined,
-  };
-}
 const imageSize = $derived(
   String(((settings.options ?? {}) as Loose).size ?? "auto"),
 );
@@ -125,17 +87,13 @@ $effect(() => {
   const nextValid =
     name === "bash"
       ? validAfter && (auto.enabled || validTimeout)
-      : name === "kroki_export"
-        ? isValidKrokiUrl(krokiUrl)
-        : name === "quick_script"
-          ? !diagramUrl || isValidKrokiUrl(diagramUrl)
-          : name === "generate_image"
-            ? validSize
-            : name === "plan_present"
-              ? Boolean(settings.approvalProfile)
-              : name === "explain_image"
-                ? Boolean(settings.model)
-                : true;
+      : name === "generate_image"
+        ? validSize
+        : name === "plan_present"
+          ? Boolean(settings.approvalProfile)
+          : name === "explain_image"
+            ? Boolean(settings.model)
+            : true;
   if (valid !== nextValid) valid = nextValid;
 });
 
@@ -163,16 +121,6 @@ const imageModelItems = [
     detail: "Highest quality and precision-focused generation.",
   },
 ];
-function accountItems(kind: AccountKind) {
-  return [
-    { value: "", label: noAccountLabel },
-    ...accounts[kind].map((account) => ({
-      value: account.id,
-      label: account.name,
-      detail: account.detail,
-    })),
-  ];
-}
 </script>
 
 <div class="grid gap-4">
@@ -289,71 +237,11 @@ function accountItems(kind: AccountKind) {
         {/if}
       </p>
     </div>
-  {:else if accountKind(name)}
-    {@const kind = accountKind(name)!}
-    <div class="grid gap-1.5">
-      <Label>{kind === "tavily" ? "Tavily account" : "Atlassian account"}</Label
-      >
-      <SelectField
-        items={accountItems(kind)}
-        value={payload.profileId ?? ""}
-        disabled={required("profileId")}
-        ariaLabel="Account"
-        onValueChange={(next) =>
-          (payload = { ...payload, profileId: next || undefined })}
-      />
-      {#if accounts[kind].length === 0}
-        <p class="text-ui text-muted-foreground">
-          No accounts yet. Add one in Integrations to use this tool.
-        </p>
-      {/if}
-    </div>
-  {:else if name === "quick_script"}
-    <div class="grid gap-3">
-      <GroupLabel label="Integrations" />
-      {#each quickScriptIntegrations as integration (integration.id)}
-        {@const chosen = selection(integration.id)}
-        <SwitchField
-          label={integration.label}
-          checked={chosen.enabled === true}
-          disabled={required(`settings/${integration.id}/enabled`)}
-          onCheckedChange={(enabled) =>
-            patchIntegration(integration.id, { enabled })}
-        />
-        {#if chosen.enabled}
-          <SelectField
-            items={accountItems(integration.kind)}
-            value={chosen.profileId ?? ""}
-            disabled={required(`settings/${integration.id}/profileId`)}
-            ariaLabel={`${integration.label} account`}
-            onValueChange={(next) =>
-              patchIntegration(integration.id, {
-                profileId: next || undefined,
-              })}
-          />
-          {#if accounts[integration.kind].length === 0}
-            <p class="text-ui text-muted-foreground">
-              No accounts yet. Add one in Integrations to use {integration.label}.
-            </p>
-          {:else if !chosen.profileId}
-            <p class="text-ui text-warning">
-              Choose an account; {integration.label} stays unavailable to scripts
-              until one is selected.
-            </p>
-          {/if}
-        {/if}
-      {/each}
-    </div>
-    <div class="grid gap-3">
-      <GroupLabel label="Utilities" />
-      <KrokiServerField
-        id="tool-quick-script-kroki-url"
-        url={diagramUrl}
-        optional
-        disabled={required("settings/diagram/url")}
-        onChange={setDiagramUrl}
-      />
-    </div>
+  {:else if ["jira", "confluence", "web_search", "quick_script", "kroki_export"].includes(name)}
+    <!-- TODO(extensions-page): accounts and the Kroki server are extension settings now; the Extensions page replaces this hint. -->
+    <p class="text-ui text-muted-foreground">
+      Accounts and servers are chosen in the extension's own settings.
+    </p>
   {:else if name === "explain_image"}
     <div class="grid gap-1.5">
       <Label>Vision model</Label>
@@ -444,13 +332,6 @@ function accountItems(kind: AccountKind) {
         onValueChange={(next) => patchImageOptions({ background: next })}
       />
     </div>
-  {:else if name === "kroki_export"}
-    <KrokiServerField
-      id="tool-kroki-url"
-      url={krokiUrl}
-      disabled={required("settings/url")}
-      onChange={(url) => patchSettings({ url })}
-    />
   {:else if name === "plan_present"}
     <div class="grid gap-1.5">
       <Label>After approval switch to</Label>

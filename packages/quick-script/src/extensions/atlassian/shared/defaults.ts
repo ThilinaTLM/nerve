@@ -68,7 +68,7 @@ async function loadDefaults(env: SdkEnvironment) {
   if (!jira && !confluence) {
     throw new ToolExecutionError(
       "JIRA_NOT_CONFIGURED",
-      "atlassian.defaults: neither Jira nor Confluence is available. Ask the user to enable one and choose an Atlassian account in Settings → Tools → quick_script.",
+      "atlassian.defaults: neither Jira nor Confluence is available. Ask the user to enable one and choose an Atlassian account in Settings → Extensions → Atlassian.",
     );
   }
   return { ...(jira ? { jira } : {}), ...(confluence ? { confluence } : {}) };

@@ -1,3 +1,7 @@
+import type {
+  ExtensionMetadata,
+  ExtensionSettingsDefinition,
+} from "@nervekit/contracts/extensions";
 import { createSdkNamespace } from "./runtime/discovery.js";
 import { runtimeNamespaces } from "./runtime/runtime-namespaces.js";
 import type { SdkMethod } from "./runtime/sdk-types.js";
@@ -50,4 +54,28 @@ export const registeredMethods: readonly SdkMethod[] =
 
 export function findNamespace(id: string): RegisteredNamespace | undefined {
   return registeredNamespaces.find((namespace) => namespace.id === id);
+}
+
+/** What the settings machinery needs of every registered extension. */
+export const extensionSettingsDefinitions: readonly ExtensionSettingsDefinition[] =
+  builtinExtensions.map((extension) => ({
+    id: extension.id,
+    settingsVersion: extension.settingsVersion,
+    enabledByDefault: extension.enabledByDefault,
+    settings: extension.settings,
+    ...(extension.migrations ? { migrations: extension.migrations } : {}),
+  }));
+
+/** Serializable description of an extension, for the app. */
+export function extensionMetadata(
+  extension: ExtensionManifest,
+): ExtensionMetadata {
+  return {
+    id: extension.id,
+    name: extension.name,
+    description: extension.description,
+    icon: extension.icon,
+    source: extension.source,
+    settingsVersion: extension.settingsVersion,
+  };
 }

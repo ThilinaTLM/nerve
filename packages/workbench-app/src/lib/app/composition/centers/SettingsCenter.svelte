@@ -4,6 +4,10 @@ import type { Project } from "@nervekit/contracts/core";
 import { openProjectSettingsPane } from "$lib/application/settings";
 import SettingsView from "$lib/app/composition/settings/SettingsView.svelte";
 import type { SettingsScopeTarget } from "$lib/features/settings/registry/settings-scope";
+import {
+  pagesByScope,
+  settingsPageDetail,
+} from "$lib/features/settings/registry/settings-page-data";
 import { settingsState } from "$lib/features/settings/state/settings-state.svelte";
 import { settingsSelectors } from "$lib/features/settings/state/settings-selectors.svelte";
 import { workspaceSelectors } from "$lib/application/workspace/workspace-selectors.svelte";
@@ -24,11 +28,13 @@ let {
   project,
   pageId = $bindable(),
   sectionId = $bindable(),
+  itemId = $bindable(""),
 }: {
   target: SettingsScopeTarget;
   project?: Project;
   pageId?: string;
   sectionId?: string;
+  itemId?: string;
 } = $props();
 
 const status = $derived(workspaceSelectors.status);
@@ -36,7 +42,19 @@ const activeProject = $derived(workspaceSelectors.activeProject);
 const projectSettingsAction = $derived.by(() => {
   if (target.kind !== "user" || !activeProject) return undefined;
   const { id, name } = activeProject;
-  return { name, onOpen: () => void openProjectSettingsPane(id) };
+  // Switching scope keeps the open page and detail when the project has them.
+  const keep = !!settingsPageDetail("project", pageId);
+  return {
+    name,
+    onOpen: () =>
+      void openProjectSettingsPane(
+        id,
+        pageId && Object.hasOwn(pagesByScope.project, pageId)
+          ? pageId
+          : undefined,
+        keep && itemId ? { item: itemId } : {},
+      ),
+  };
 });
 const settingsSaveStatus = $derived(settingsSelectors.settingsSaveStatus);
 const settingsMessage = $derived(settingsSelectors.settingsMessage);
@@ -60,6 +78,7 @@ $effect(() => {
   daemonRestarting={settingsState.daemonRestarting}
   bind:activePageId={pageId}
   bind:activeSectionId={sectionId}
+  bind:activeItemId={itemId}
   models={settingsState.models}
   authProviders={settingsState.authProviders}
   {project}

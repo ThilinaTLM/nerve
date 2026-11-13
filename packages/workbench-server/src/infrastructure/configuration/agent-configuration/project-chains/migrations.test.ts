@@ -18,10 +18,10 @@ import {
   projectAgentConfiguration,
   projectConversationDefaults,
   projectCapabilitiesConfiguration,
-  projectIntegrations,
   projectSubagentCatalog,
 } from "./scoped-migrations.js";
 import { projectProfileConfiguration } from "./profile-migrations.js";
+import { projectExtensionsConfiguration } from "../../extensions/project-extensions.js";
 import { projectPermissionsConfiguration } from "../../../../core-host/project-permission-migrations.js";
 
 async function fixture(t: TestContext) {
@@ -41,7 +41,12 @@ async function fixture(t: TestContext) {
   return { home, context, service, put };
 }
 const preferences = { schemaVersion: 1, revision: 0, overrides: {} };
-const integrations = { version: 2, profiles: { atlassian: [], tavily: [] } };
+const movedKeys = {
+  jira: { enabled: true, profileId: "acme" },
+  quick_script: { enabled: true, settings: { diagram: { url: "https://k/" } } },
+  python_exec: { enabled: true },
+};
+const extensions = { schemaVersion: 1, revision: 0, extensions: {} };
 const profile = {
   schemaVersion: 1,
   name: "review",
@@ -54,28 +59,20 @@ const cases: {
   healthy: unknown;
   older?: unknown;
 }[] = [
-  { type: projectAgentConfiguration, healthy: preferences },
+  {
+    type: projectAgentConfiguration,
+    healthy: { ...preferences, version: 2 },
+    older: { ...preferences, overrides: { tools: movedKeys } },
+  },
+  { type: projectExtensionsConfiguration, healthy: extensions },
   { type: projectConversationDefaults, healthy: preferences },
   {
     type: projectCapabilitiesConfiguration,
     healthy: {
-      schemaVersion: 3,
+      schemaVersion: 4,
       overrides: { tools: { web_search: { enabled: false } } },
     },
     older: { schemaVersion: 2, tools: { web_search: { enabled: false } } },
-  },
-  {
-    type: projectIntegrations,
-    healthy: integrations,
-    older: {
-      ...integrations,
-      version: 1,
-      tools: {
-        jira: { enabled: false },
-        confluence: { enabled: false },
-        web: {},
-      },
-    },
   },
   {
     type: projectSubagentCatalog,
@@ -84,7 +81,7 @@ const cases: {
   },
   {
     type: projectProfileConfiguration("review"),
-    healthy: { ...profile, version: 2 },
+    healthy: { ...profile, version: 3 },
     older: { ...profile, whenToUse: undefined, description: "Review" },
   },
   {
@@ -206,26 +203,45 @@ void test("harness and Markdown are notices only; catalog entries never create p
     [harness, markdown],
   );
 });
-void test("integrations bump is independent and never writes tool selections into agent settings", async (t) => {
+void test("agent settings and capabilities drop keys that moved to extensions, and say so", async (t) => {
   const f = await fixture(t);
-  await f.put("config/harness.json", "corrupt unrelated legacy settings");
-  const file = await f.put("config/integrations.json", {
-    ...integrations,
-    version: 1,
-    tools: {
-      jira: { enabled: false },
-      confluence: { enabled: false },
-      web: {},
-    },
+  const agent = await f.put("config/agent.json", {
+    ...preferences,
+    overrides: { tools: movedKeys },
   });
-  assert.equal(
-    (await f.service.load(f.context, projectIntegrations)).classification,
-    "migrated",
-  );
-  assert.deepEqual(JSON.parse(await readFile(file, "utf8")), integrations);
-  await assert.rejects(
-    readFile(join(f.context.directory, ".nerve/config/agent.json")),
-    { code: "ENOENT" },
+  const upgraded = await f.service.load(f.context, projectAgentConfiguration);
+  assert.equal(upgraded.classification, "migrated");
+  assert.deepEqual(JSON.parse(await readFile(agent, "utf8")), {
+    ...preferences,
+    overrides: {
+      tools: {
+        jira: { enabled: true },
+        quick_script: { enabled: true },
+        python_exec: { enabled: true },
+      },
+    },
+    version: 2,
+  });
+  const notice = f.service
+    .health("p")
+    .issues.find((issue) => issue.type === "agent-settings");
+  assert.match(notice?.message ?? "", /moved to Extensions/);
+  const capabilities = await f.put("config/capabilities.json", {
+    schemaVersion: 3,
+    overrides: { tools: { web_search: { enabled: true, profileId: "tav" } } },
+  });
+  await f.service.load(f.context, projectCapabilitiesConfiguration);
+  assert.deepEqual(JSON.parse(await readFile(capabilities, "utf8")), {
+    schemaVersion: 4,
+    overrides: { tools: { web_search: { enabled: true } } },
+  });
+  // Nothing moved: no notice beyond the plain upgrade.
+  await f.put("config/agent.json", preferences);
+  await f.service.reload(f.context, projectAgentConfiguration);
+  assert.doesNotMatch(
+    f.service.health("p").issues.find((i) => i.type === "agent-settings")
+      ?.message ?? "",
+    /moved to Extensions/,
   );
 });
 

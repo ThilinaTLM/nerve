@@ -271,8 +271,8 @@ test("source defaults participate at layer priority; same-section named exceptio
   );
   assert.equal(
     requirementOverlaps(
-      { tools: { jira: { profileId: "a" } } },
-      { tools: { jira: { enabled: false } } },
+      { tools: { python_exec: { settings: { interpreterPath: "/a" } } } },
+      { tools: { python_exec: { enabled: false } } },
     ).length,
     0,
   );

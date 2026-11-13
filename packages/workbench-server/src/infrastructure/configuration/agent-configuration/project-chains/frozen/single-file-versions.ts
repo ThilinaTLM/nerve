@@ -34,48 +34,6 @@ const capabilities = z
       .optional(),
   })
   .strict();
-const releasedIntegrations = z
-  .object({
-    version: z.literal(1),
-    profiles: z
-      .object({
-        atlassian: z.array(
-          z
-            .object({
-              id: z.string().min(1),
-              name: z.string().min(1),
-              siteUrl: z.string().url().optional(),
-              email: z.string().email().optional(),
-              defaultProjectKey: z.string().min(1).optional(),
-              defaultSpaceKey: z.string().min(1).optional(),
-              credential: z.string().min(1),
-            })
-            .strict(),
-        ),
-        tavily: z.array(
-          z
-            .object({
-              id: z.string().min(1),
-              name: z.string().min(1),
-              credential: z.string().min(1),
-            })
-            .strict(),
-        ),
-      })
-      .strict(),
-    tools: z
-      .object({
-        jira: z
-          .object({ enabled: z.boolean(), profileId: z.string().optional() })
-          .strict(),
-        confluence: z
-          .object({ enabled: z.boolean(), profileId: z.string().optional() })
-          .strict(),
-        web: z.object({ tavilyProfileId: z.string().optional() }).strict(),
-      })
-      .strict(),
-  })
-  .strict();
 export function migrateCapabilitiesV2(value: unknown): unknown {
   const raw = capabilities.parse(value);
   const tools: Record<
@@ -110,8 +68,4 @@ export function migrateCapabilitiesV2(value: unknown): unknown {
       ...(Object.keys(raw.skills ?? {}).length ? { skills: raw.skills } : {}),
     },
   };
-}
-export function migrateIntegrationsV1(value: unknown): unknown {
-  const old = releasedIntegrations.parse(value);
-  return { version: 2, profiles: old.profiles };
 }

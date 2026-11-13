@@ -70,7 +70,7 @@ export async function orNotAvailable<T>(
       const name = product === "jira" ? "Jira" : "Confluence";
       throw new ToolExecutionError(
         error.code,
-        `${product}: not available in quick_script. Ask the user to enable ${name} and choose an Atlassian account with a saved API token in Settings → Tools → quick_script.`,
+        `${product}: not available in quick_script. Ask the user to enable ${name} and choose an Atlassian account with a saved API token in Settings → Extensions → Atlassian.`,
         error.details,
       );
     }

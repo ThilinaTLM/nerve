@@ -488,7 +488,7 @@ async function unauthorizedMessage(
     product === "JIRA" ? env.jira() : env.confluence()
   ).catch(() => undefined);
   const name = product === "JIRA" ? "Jira" : "Confluence";
-  return `${name} rejected the API token${connection ? ` for ${connection.email}` : ""}; update it in Settings → Integrations.`;
+  return `${name} rejected the API token${connection ? ` for ${connection.email}` : ""}; update it in Settings → Extensions → Atlassian.`;
 }
 
 function truncate(text: string, max: number): string {

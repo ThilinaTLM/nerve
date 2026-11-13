@@ -1,5 +1,8 @@
 import { z } from "zod";
-import { defaultSettings } from "../settings/settings.js";
+import {
+  defaultImageGenerationSettings,
+  defaultSettings,
+} from "../settings/settings.js";
 import type { ModelSelection, ThinkingLevel } from "../models/models.js";
 import {
   childLaunchOverridesSchema,
@@ -58,9 +61,9 @@ const builtin: LeadSettingsOverrides = {
     },
     generate_image: {
       enabled: false,
-      settings: defaultSettings.tools.imageGeneration,
+      settings: defaultImageGenerationSettings,
     },
-    kroki_export: { enabled: false, settings: defaultSettings.tools.kroki },
+    kroki_export: { enabled: false },
     bash: { settings: defaultSettings.tools.bash },
     plan_present: {
       enabled: false,

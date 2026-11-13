@@ -5,12 +5,16 @@ import {
 } from "@nervekit/contracts/agent-configuration";
 import type { ProjectConfigurationType } from "../../project-migration/project-migration.js";
 import { convertProfileDocument } from "./frozen/profile-document.js";
+import {
+  dropMovedFromProfile,
+  movedKeysNotice,
+} from "./frozen/moved-extension-keys.js";
 // The project file version is independent of the shared home/profile DTO schemaVersion.
-export type ProjectProfileDocument = ProfileDefinition & { version: 2 };
+export type ProjectProfileDocument = ProfileDefinition & { version: 3 };
 export const projectProfileSchema = {
   parse(value: unknown): ProjectProfileDocument {
     const { version, ...profile } = z
-      .object({ version: z.literal(2) })
+      .object({ version: z.literal(3) })
       .passthrough()
       .parse(value);
     return { ...profileDefinitionSchema.parse(profile), version };
@@ -40,14 +44,22 @@ export function projectProfileConfiguration(
     fallbackDescription:
       "This entry is hidden and does not fall through to a lower-precedence profile.",
     path: `agent-profiles/${name}.json`,
-    currentVersion: 2,
+    currentVersion: 3,
     version: { field: "version", absent: 1 },
     migrators: {
       1: (value) => ({
         ...(convertProfileDocument(value) as object),
         version: 2,
       }),
+      2: (value) => ({
+        ...(dropMovedFromProfile(value).value as object),
+        version: 3,
+      }),
     },
+    upgradeNotice: (original) =>
+      dropMovedFromProfile(original).dropped.length
+        ? movedKeysNotice
+        : undefined,
     schema: {
       parse(value) {
         const parsed = projectProfileSchema.parse(value);

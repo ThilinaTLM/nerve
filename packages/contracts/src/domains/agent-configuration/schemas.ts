@@ -1,4 +1,8 @@
 import { z } from "zod";
+import {
+  profileExtensionsSchema,
+  type ProfileExtensions,
+} from "../extensions/document.js";
 import { modelSelectionSchema, thinkingLevelSchema } from "../models/models.js";
 import { permissionRuleSetIdSchema } from "../permissions/permission-rule-sets.js";
 import {
@@ -10,7 +14,6 @@ import {
 import {
   capabilitySkillsSchema,
   capabilityToolPayloadSchemas,
-  quickScriptIntegrationSchema,
 } from "../capabilities/capabilities.js";
 import {
   bashToolSettingsSchema,
@@ -19,7 +22,6 @@ import {
   openAiCodexImageGenerationSettingsSchema,
   planPresentToolSettingsSchema,
   pythonExecToolSettingsSchema,
-  krokiToolSettingsSchema,
 } from "../settings/settings.js";
 
 const model = modelSelectionSchema.strict();
@@ -66,31 +68,16 @@ function payload<S extends z.ZodType>(settings: S) {
     .refine(nonempty, "Empty tool entry");
 }
 const toggle = z.strictObject({ enabled: z.boolean() });
-const account = capabilityToolPayloadSchemas.jira.refine(
-  nonempty,
-  "Empty tool entry",
-);
-const quickScriptIntegration = quickScriptIntegrationSchema
-  .partial()
-  .refine(nonempty);
-const quickScriptOverrides = z
-  .strictObject({
-    jira: quickScriptIntegration.optional(),
-    confluence: quickScriptIntegration.optional(),
-    web: quickScriptIntegration.optional(),
-    diagram: krokiToolSettingsSchema.partial().refine(nonempty).optional(),
-  })
-  .refine(nonempty);
 const childToolShape = {
   python_exec: payload(pythonExecToolSettingsSchema.partial()),
-  web_search: account,
-  jira: account,
-  confluence: account,
-  quick_script: payload(quickScriptOverrides),
+  web_search: toggle,
+  jira: toggle,
+  confluence: toggle,
+  quick_script: toggle,
   web_fetch: toggle,
   explain_image: payload(explanation.partial().refine(nonempty)),
   generate_image: payload(generation),
-  kroki_export: payload(krokiToolSettingsSchema.partial().refine(nonempty)),
+  kroki_export: toggle,
   bash: z.strictObject({ settings: bash.partial().refine(nonempty) }),
 };
 const leadTools = z
@@ -155,10 +142,7 @@ const completeTools = z.strictObject({
     enabled: z.boolean(),
     settings: generation,
   }),
-  kroki_export: z.strictObject({
-    enabled: z.boolean(),
-    settings: krokiToolSettingsSchema,
-  }),
+  kroki_export: toggle,
   bash: z.strictObject({ settings: bash }),
 });
 export const completeChildSettingsSchema = childSettingsOverridesSchema.extend({
@@ -186,6 +170,7 @@ export const appliedProfileSchema = z
     ...contribution,
     recommendations: profileSettingsOverridesSchema,
     requirements: profileSettingsOverridesSchema,
+    extensions: profileExtensionsSchema.optional(),
   })
   .superRefine(checkOverlap);
 export type AppliedProfile = z.infer<typeof appliedProfileSchema>;
@@ -260,6 +245,8 @@ export const profileDefinitionSchema = z
     instructions: agentProfileInstructionsSchema,
     recommendations: profileSettingsOverridesSchema.optional(),
     requirements: profileSettingsOverridesSchema.optional(),
+    /** Extension entries the profile recommends or requires (locks) in the conversation. */
+    extensions: profileExtensionsSchema.optional(),
   })
   .superRefine((v, ctx) => {
     checkOverlap(v, ctx);
@@ -410,13 +397,34 @@ export function requirementOverlaps(
   }
   return a.filter((x) => b.some((y) => overlaps(x, y)));
 }
+/** Extension fields (and enablement) a profile both recommends and requires. */
+export function extensionOverlaps(extensions?: ProfileExtensions): string[] {
+  const overlaps: string[] = [];
+  for (const [id, required] of Object.entries(extensions?.requirements ?? {})) {
+    const recommended = extensions?.recommendations?.[id];
+    if (!recommended) continue;
+    if (recommended.enabled !== undefined && required.enabled !== undefined)
+      overlaps.push(`/extensions/${id}/enabled`);
+    for (const key of Object.keys(required.settings ?? {}))
+      if (recommended.settings && Object.hasOwn(recommended.settings, key))
+        overlaps.push(`/extensions/${id}/settings/${key}`);
+  }
+  return overlaps;
+}
 function checkOverlap(
   v: {
     recommendations?: LeadSettingsOverrides;
     requirements?: LeadSettingsOverrides;
+    extensions?: ProfileExtensions;
   },
   ctx: z.RefinementCtx,
 ) {
+  for (const pointer of extensionOverlaps(v.extensions))
+    ctx.addIssue({
+      code: "custom",
+      path: ["extensions", "requirements"],
+      message: `Recommendation/requirement overlap: ${pointer}`,
+    });
   for (const pointer of requirementOverlaps(v.recommendations, v.requirements))
     ctx.addIssue({
       code: "custom",

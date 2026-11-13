@@ -67,31 +67,9 @@ const cases: Record<string, readonly [unknown, unknown]> = {
     "/upper/python",
   ],
   "/tools/web_search/enabled": booleanPair,
-  "/tools/web_search/profileId": ["lower-search", "upper-search"],
   "/tools/jira/enabled": booleanPair,
-  "/tools/jira/profileId": ["lower-jira", "upper-jira"],
   "/tools/confluence/enabled": booleanPair,
-  "/tools/confluence/profileId": ["lower-confluence", "upper-confluence"],
   "/tools/quick_script/enabled": booleanPair,
-  "/tools/quick_script/settings/jira/enabled": booleanPair,
-  "/tools/quick_script/settings/jira/profileId": [
-    "lower-qs-jira",
-    "upper-qs-jira",
-  ],
-  "/tools/quick_script/settings/confluence/enabled": booleanPair,
-  "/tools/quick_script/settings/confluence/profileId": [
-    "lower-qs-confluence",
-    "upper-qs-confluence",
-  ],
-  "/tools/quick_script/settings/web/enabled": booleanPair,
-  "/tools/quick_script/settings/web/profileId": [
-    "lower-qs-web",
-    "upper-qs-web",
-  ],
-  "/tools/quick_script/settings/diagram/url": [
-    "https://lower-diagram.example/",
-    "https://upper-diagram.example/",
-  ],
   "/tools/web_fetch/enabled": booleanPair,
   "/tools/plan_present/enabled": booleanPair,
   "/tools/plan_present/settings/approvalProfile": ["planning", "coding"],
@@ -116,10 +94,6 @@ const cases: Record<string, readonly [unknown, unknown]> = {
     },
   ],
   "/tools/kroki_export/enabled": booleanPair,
-  "/tools/kroki_export/settings/url": [
-    "https://lower.example/",
-    "https://upper.example/",
-  ],
   "/tools/bash/settings/shellPath": ["/lower/bash", "/upper/bash"],
   "/tools/bash/settings/autoPromotion": [
     { enabled: true, afterMs: 1000 },

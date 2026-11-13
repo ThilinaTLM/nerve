@@ -275,26 +275,6 @@ void test("completion enablement writes scoped agent settings with the captured 
   ]);
 });
 
-void test("tool completion disables missing-reference tools rather than selecting integration accounts", async () => {
-  const f = setup();
-  f.ports.configuration.getEffective = async (conversationId) => ({
-    status: "available",
-    conversationId,
-    role: "lead",
-    resolution: resolveAgentConfiguration({
-      role: "lead",
-      conversation: {
-        tools: { jira: { enabled: true, profileId: "missing" } },
-      },
-      referenceAvailable: () => false,
-    }),
-    sources: [],
-    diagnostics: [],
-  });
-  const tools = await f.load("tools");
-  assert.equal(tools[0].item.available, false);
-});
-
 void test("child completion never offers preference editing", async () => {
   const f = setup();
   const original = f.ports.configuration.getEffective;

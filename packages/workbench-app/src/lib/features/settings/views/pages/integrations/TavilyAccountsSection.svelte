@@ -8,11 +8,6 @@ import { settingsState } from "$lib/features/settings/state/settings-state.svelt
 import ConfirmDialog from "@nervekit/ui-kit/components/composites/confirm-dialog";
 import { SettingsItem } from "$lib/presentation/settings";
 import SettingsEntityListSection from "../../shared/settings-entity-list-section.svelte";
-import type { ScopedAgentState } from "$lib/application/agent-configuration/scoped-agent-state.svelte";
-import { accountOptions } from "../tools/tool-settings";
-import IntegrationAccountUsage from "./IntegrationAccountUsage.svelte";
-import { accountUsedEverywhere, useAccountEverywhere } from "./account-usage";
-import ListChecks from "@lucide/svelte/icons/list-checks";
 import type { SettingsChange } from "../settings-change";
 import {
   credentialConfigured,
@@ -26,10 +21,8 @@ type Props = {
   settingsDraft: Settings;
   authProviders: AuthProviderMetadata[];
   onSettingsChange?: SettingsChange;
-  /** User-scope tool settings; tools using these accounts are picked below the list. */
-  tools: ScopedAgentState;
 };
-let { settingsDraft, authProviders, onSettingsChange, tools }: Props = $props();
+let { settingsDraft, authProviders, onSettingsChange }: Props = $props();
 let dialogOpen = $state(false);
 let editing = $state<TavilyProfile | undefined>();
 let pendingDelete = $state<TavilyProfile | undefined>();
@@ -84,13 +77,6 @@ async function remove(): Promise<void> {
   itemKey={(profile) => profile.id}
   onAdd={openAdd}
 >
-  {#snippet footer()}
-    <IntegrationAccountUsage
-      kind="tavily"
-      accounts={accountOptions(settingsDraft.providers).tavily}
-      editor={tools}
-    />
-  {/snippet}
   {#snippet row(profile)}
     <SettingsItem
       title={profile.name}
@@ -102,15 +88,6 @@ async function remove(): Promise<void> {
       openLabel={`Edit ${profile.name}`}
     >
       {#snippet actions()}
-        {#if tools.resolution && !accountUsedEverywhere("tavily", tools.resolution.settings.tools ?? {}, profile.id)}
-          <IconAction
-            icon={ListChecks}
-            label="Use for all web search tools"
-            disabled={tools.saving}
-            onclick={() =>
-              void tools.save(useAccountEverywhere("tavily", profile.id))}
-          />
-        {/if}
         <IconAction
           icon={Trash2}
           label="Delete account"

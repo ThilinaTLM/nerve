@@ -5,11 +5,7 @@ export function registerProjectRecovery(
 ): void {
   service.projectMigration.onResolved(async (context, type) => {
     const scope = { scope: "project" as const, projectId: context.projectId };
-    if (
-      ["agent-settings", "capabilities", "integrations", "subagents"].includes(
-        type.id,
-      )
-    )
+    if (["agent-settings", "capabilities", "subagents"].includes(type.id))
       await service.reload(scope);
     if (type.id === "conversation-defaults")
       await service.reloadCreation(scope);

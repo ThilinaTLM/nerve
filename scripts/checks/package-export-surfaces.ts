@@ -37,6 +37,7 @@ export const packageExportSurfaces: Readonly<Record<string, string[]>> =
       "./settings",
       "./skills",
       "./status",
+      "./extensions",
       "./agent-configuration",
       "./agent-profiles",
       "./subagents",

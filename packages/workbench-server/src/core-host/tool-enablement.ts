@@ -13,6 +13,9 @@ export function capabilityForTool(toolName: string): string {
         : toolName;
 }
 
+/** Which direct-tool accounts the resolved extension settings select and the home still has. */
+export type DirectToolAccounts = { atlassian: boolean; search: boolean };
+
 /**
  * Whether resolved settings enable a tool. Tools without a capability toggle
  * (and bash, which is always on) are enabled. The same rule decides which
@@ -22,17 +25,19 @@ export function isToolEnabled(
   toolName: string,
   settings: Pick<LeadSettingsOverrides, "tools">,
   missingReferences: readonly string[] = [],
+  accounts?: DirectToolAccounts,
 ): boolean {
   const name = capabilityForTool(toolName);
-  // A missing quick_script account only drops that integration; the tool still works.
   if (
-    missingReferences.some(
-      (pointer) =>
-        pointer.startsWith(`/tools/${name}/`) &&
-        !(name === "quick_script" && pointer.includes("/settings/")),
-    )
+    missingReferences.some((pointer) => pointer.startsWith(`/tools/${name}/`))
   )
     return false;
+  // Direct tools need the account their extension selects; quick_script drops only the namespace.
+  if (accounts) {
+    if ((name === "jira" || name === "confluence") && !accounts.atlassian)
+      return false;
+    if (name === "web_search" && !accounts.search) return false;
+  }
   const parsed = capabilityToolNameSchema.safeParse(name);
   if (!parsed.success || parsed.data === "bash") return true;
   const entry = settings.tools?.[parsed.data];

@@ -26,7 +26,6 @@ import type {
   Settings,
   StatusResponse,
 } from "$lib/api";
-import { openSettingsPane } from "$lib/application/settings";
 import { ScopedAgentState } from "$lib/application/agent-configuration/scoped-agent-state.svelte";
 import { workbenchStartupState } from "$lib/application/startup/workbench-startup-state.svelte";
 import {
@@ -47,13 +46,9 @@ import {
 } from "../../shared/profile-options.svelte";
 import ToolConfigDialog from "./ToolConfigDialog.svelte";
 import {
-  accountKind,
-  accountOptions,
-  integrationsMissingAccount,
   toolRows,
   toolSettingsSummary,
   toolSummary,
-  type AccountKind,
   type ToolId,
   type ToolPayload,
   type ToolRowDef,
@@ -61,7 +56,6 @@ import {
 let {
   scope,
   projectId,
-  settingsDraft,
   status,
   models = [],
   authProviders = [],
@@ -103,16 +97,6 @@ function inheritedPayload(id: ToolId): ToolPayload {
 function changed(id: ToolId) {
   return editor.overrides.tools?.[id] !== undefined;
 }
-const accounts = $derived(accountOptions(settingsDraft.providers));
-function hasAccount(kind: AccountKind, accountId: string | undefined) {
-  return accounts[kind].some((a) => a.id === accountId);
-}
-function accountName(id: ToolId, accountId: string | undefined) {
-  const kind = accountKind(id);
-  return kind
-    ? accounts[kind].find((a) => a.id === accountId)?.name
-    : undefined;
-}
 function modelLabel(selection: unknown) {
   const v = selection as { provider: string; modelId: string } | undefined;
   if (!v) return undefined;
@@ -120,8 +104,6 @@ function modelLabel(selection: unknown) {
   return m ? modelDisplayName(m) : v.modelId;
 }
 const displayContext = $derived({
-  accountName: (kind: AccountKind, accountId: string | undefined) =>
-    accounts[kind].find((a) => a.id === accountId)?.name,
   profileLabel: profileLabelFor,
   modelLabel,
 });
@@ -132,16 +114,6 @@ function summary(id: ToolId, value: ToolPayload) {
 /** The row's status line: settings only, or what the tool does. */
 function rowSummary(row: ToolRowDef, value: ToolPayload) {
   return toolSettingsSummary(row.id, value, displayContext) ?? row.description;
-}
-function problem(id: ToolId, value: ToolPayload): string | undefined {
-  if (accountKind(id) && !accountName(id, value.profileId))
-    return "Choose an account";
-  // The tool works without integrations; only enabled ones lacking an account are flagged.
-  if (id === "quick_script" && value.enabled) {
-    const missing = integrationsMissingAccount(value, hasAccount);
-    if (missing.length) return `Choose an account for ${missing.join(", ")}`;
-  }
-  return undefined;
 }
 function save(id: ToolId, next: ToolPayload) {
   try {
@@ -213,22 +185,13 @@ const python = $derived(status?.runtime.python);
     <SettingsList>
       {#each toolRows as row (row.id)}
         {@const value = payload(row.id)}
-        {@const issue =
-          !row.always && value.enabled ? problem(row.id, value) : undefined}
         <SettingsItem
           title={row.label}
           icon={toolIcons[row.id] ?? Wrench}
           summary={rowSummary(row, value)}
-          problem={issue}
-          problemAction={issue && row.configurable
-            ? {
-                label: accountKind(row.id) ? "Choose account" : "Configure",
-                onclick: () => configure(row),
-              }
-            : undefined}
           always={row.always}
           checked={row.always ? undefined : value.enabled === true}
-          disabled={locked || (!value.enabled && !!problem(row.id, value))}
+          disabled={locked}
           onCheckedChange={(next) => toggle(row.id, next)}
           onOpen={row.configurable ? () => configure(row) : undefined}
           openLabel={`Configure ${row.label}`}
@@ -257,15 +220,8 @@ const python = $derived(status?.runtime.python);
       ? "Changes apply to this project only."
       : "Applies to every project unless it changes this."}
     models={usableModels}
-    {accounts}
-    noAccountLabel={project
-      ? "Use the account from your settings"
-      : "No account"}
     leadProfiles={leadProfileOptions()}
     resolvedPython={python?.executable}
-    onManageAccounts={project
-      ? undefined
-      : () => void openSettingsPane("integrations")}
     onSave={(next) => save(dialogTool.id, next)}
   />
 {/if}

@@ -9,6 +9,26 @@ export const webExtension: ExtensionManifest = {
   description: "Fetch web pages and search the web.",
   source: "builtin",
   icon: "globe",
+  enabledByDefault: false,
+  settingsVersion: 1,
+  accounts: [
+    {
+      kind: "tavily",
+      label: "Tavily account",
+      fields: { name: { type: "string", label: "Name", maxLength: 128 } },
+      secret: { label: "API key" },
+    },
+  ],
+  settings: {
+    fields: {
+      searchAccount: {
+        type: "account",
+        kind: "tavily",
+        label: "Search account",
+        description: "The Tavily account `web.search` and web_search use.",
+      },
+    },
+  },
   contributes: {
     tools: ["web_fetch", "web_search"],
     sdk: [

@@ -1,17 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { toolSettingsMutation } from "./tool-settings-mutation";
-test("clearing an account emits a reset, not an omitted update that leaves the old account selected", () => {
-  const result = toolSettingsMutation(
-    "web_search",
-    { enabled: true, profileId: undefined },
-    { tools: { web_search: { enabled: true, profileId: "old" } } },
-  );
-  assert.deepEqual(result.changes, {
-    tools: { web_search: { enabled: true } },
-  });
-  assert.deepEqual(result.resets, ["/overrides/tools/web_search/profileId"]);
-});
 test("clearing a scalar tool setting removes only the local choice, never inherited settings", () => {
   const result = toolSettingsMutation(
     "python_exec",
@@ -107,15 +96,20 @@ test("Required atomic settings are omitted without suppressing editable siblings
 test("clearing Required fields never resets hidden local choices", () => {
   assert.deepEqual(
     toolSettingsMutation(
-      "jira",
-      { enabled: true, profileId: undefined },
+      "python_exec",
+      { enabled: true, settings: { interpreterPath: undefined } },
       {
-        tools: { jira: { profileId: "old", enabled: false } },
+        tools: {
+          python_exec: {
+            enabled: false,
+            settings: { interpreterPath: "/old/python" },
+          },
+        },
       },
-      ["/tools/jira/profileId"],
+      ["/tools/python_exec/settings/interpreterPath"],
     ),
     {
-      changes: { tools: { jira: { enabled: true } } },
+      changes: { tools: { python_exec: { enabled: true } } },
       resets: [],
     },
   );
@@ -124,49 +118,21 @@ test("clearing Required fields never resets hidden local choices", () => {
 test("a fully Required effective payload produces no changes or resets", () => {
   assert.deepEqual(
     toolSettingsMutation(
-      "jira",
-      { enabled: true, profileId: "required" },
+      "python_exec",
+      { enabled: true, settings: { interpreterPath: "/required/python" } },
       {
-        tools: { jira: { enabled: false, profileId: "hidden" } },
+        tools: {
+          python_exec: {
+            enabled: false,
+            settings: { interpreterPath: "/hidden/python" },
+          },
+        },
       },
-      ["/tools/jira/enabled", "/tools/jira/profileId"],
+      [
+        "/tools/python_exec/enabled",
+        "/tools/python_exec/settings/interpreterPath",
+      ],
     ),
     { changes: {}, resets: [] },
   );
-});
-
-test("quick_script keeps per-integration accounts and resets a cleared one", () => {
-  const result = toolSettingsMutation(
-    "quick_script",
-    {
-      enabled: true,
-      settings: {
-        jira: { enabled: true, profileId: "a" },
-        confluence: { enabled: true, profileId: undefined },
-        diagram: { url: "https://kroki.example/" },
-      },
-    },
-    {
-      tools: {
-        quick_script: {
-          settings: { confluence: { enabled: true, profileId: "old" } },
-        },
-      },
-    },
-  );
-  assert.deepEqual(result.changes, {
-    tools: {
-      quick_script: {
-        enabled: true,
-        settings: {
-          jira: { enabled: true, profileId: "a" },
-          confluence: { enabled: true },
-          diagram: { url: "https://kroki.example/" },
-        },
-      },
-    },
-  });
-  assert.deepEqual(result.resets, [
-    "/overrides/tools/quick_script/settings/confluence/profileId",
-  ]);
 });

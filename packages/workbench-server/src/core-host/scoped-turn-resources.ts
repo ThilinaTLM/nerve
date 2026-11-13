@@ -15,7 +15,11 @@ import { quickScriptDescription } from "@nervekit/quick-script";
 import {
   configuredNamespaces,
   quickScriptAvailability,
+  selectedAtlassianAccount,
+  selectedSearchAccount,
+  type AccountDirectory,
 } from "./quick-script-availability.js";
+import type { ExtensionResolution } from "@nervekit/contracts/extensions";
 
 const blocked = new Set<string>(subagentBlockedToolNames);
 
@@ -30,6 +34,11 @@ export function scopedTurnResources(options: {
   nerveSkills(): readonly Skill[];
   agentBrowserSkills(): readonly Skill[];
   hasChildren(id: string): boolean;
+  /** Resolved extension settings and the home's accounts, for this conversation. */
+  extensions(
+    conversationId: string | undefined,
+    projectId: string,
+  ): Promise<{ resolution: ExtensionResolution; accounts: AccountDirectory }>;
 }) {
   return async (
     input: ConfigurationPreviewInput,
@@ -38,6 +47,14 @@ export function scopedTurnResources(options: {
     missingReferences: readonly string[] = [],
   ) => {
     const child = input.conversation.parentConversationId !== null;
+    const { resolution, accounts } = await options.extensions(
+      input.conversation.id,
+      input.conversation.projectId,
+    );
+    const directAccounts = {
+      atlassian: Boolean(selectedAtlassianAccount(resolution, accounts)),
+      search: Boolean(selectedSearchAccount(resolution, accounts)),
+    };
     const selected = [
       ...(await options.tools(
         input.projectDir,
@@ -48,7 +65,7 @@ export function scopedTurnResources(options: {
     ].filter(
       (tool) =>
         !(child && blocked.has(tool.name)) &&
-        isToolEnabled(tool.name, settings, missingReferences),
+        isToolEnabled(tool.name, settings, missingReferences, directAccounts),
     );
     const profiles = [];
     if (!child && selected.some((tool) => tool.name === "subagent_prompt"))
@@ -81,7 +98,7 @@ export function scopedTurnResources(options: {
           tool.name === "quick_script"
             ? quickScriptDescription({
                 namespaces: configuredNamespaces(
-                  quickScriptAvailability(settings, missingReferences),
+                  quickScriptAvailability(resolution, accounts),
                 ),
               })
             : tool.description,

@@ -160,12 +160,12 @@ void test("web is refused with the setting to change when disabled or without a 
         ["https://x.test"],
         envWith(undefined),
       ),
-    { code: "DENIED", message: /Settings → Tools → quick_script → Web/ },
+    { code: "DENIED", message: /Settings → Extensions → Web/ },
   );
   const noSearch = envWith({ enabled: true, search: false });
   assert.throws(() => findSdkMethod("web.search")!.prepare(["q"], noSearch), {
     code: "DENIED",
-    message: /Tavily account.*Settings → Tools → quick_script → Web/,
+    message: /Tavily account.*Settings → Extensions → Web/,
   });
   assert.doesNotThrow(() =>
     findSdkMethod("web.fetch")!.prepare(["https://x.test"], noSearch),

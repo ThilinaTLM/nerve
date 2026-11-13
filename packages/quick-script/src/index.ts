@@ -2,7 +2,12 @@ import type { QuickScriptRuntime } from "@nervekit/tools/catalog";
 import { executeQuickScript } from "./runtime/quick-script.js";
 import { classifyQuickScriptArguments } from "./runtime/script-risk.js";
 
-export { builtinExtensions } from "./registry.js";
+export {
+  builtinExtensions,
+  extensionMetadata,
+  extensionSettingsDefinitions,
+} from "./registry.js";
+export type { ExtensionManifest } from "./manifest-types.js";
 export type { QuickScriptCapabilities } from "./runtime/description.js";
 export { quickScriptDescription } from "./runtime/description.js";
 export * from "./runtime/script-risk.js";

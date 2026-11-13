@@ -14,11 +14,9 @@ import {
   agentProfileCatalog,
   leadAgentProfiles,
 } from "$lib/application/agent-profiles/agent-profile-catalog.svelte";
-import { openSettingsPane } from "$lib/application/settings";
 import { settingsState } from "$lib/features/settings/state/settings-state.svelte";
 import ToolConfigDialog from "$lib/features/settings/views/pages/tools/ToolConfigDialog.svelte";
 import {
-  accountOptions,
   toolRow,
   type ToolId,
   type ToolPayload,
@@ -43,10 +41,6 @@ const toolId = $derived<ToolId | undefined>(
 const value = $derived<ToolPayload>(
   toolId ? (configuration?.resolution.settings.tools?.[toolId] ?? {}) : {},
 );
-const accounts = $derived(
-  accountOptions(settingsState.settingsDraft?.providers),
-);
-const noAccountLabel = "No account";
 const usableModels = $derived(
   authenticatedRealModelOptions(
     settingsState.models,
@@ -89,10 +83,7 @@ $effect(() => {
     {requiredPointers}
     description={scopeNote}
     models={usableModels}
-    {accounts}
-    {noAccountLabel}
     {leadProfiles}
-    onManageAccounts={() => void openSettingsPane("integrations")}
     onSave={(next) => {
       const mutation = toolSettingsMutation(
         toolId,

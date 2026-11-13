@@ -5,12 +5,12 @@ import { createHash, randomUUID } from "node:crypto";
 import { isDeepStrictEqual } from "node:util";
 import {
   defaultUserConfiguration,
-  type IntegrationsConfig,
+  type AccountsConfig,
   type Settings,
   type SettingsHealth,
   settingsSchema,
   type UserConfiguration,
-  integrationsConfigSchema,
+  accountsConfigSchema,
 } from "@nervekit/contracts/settings";
 import type { StoragePaths } from "../storage-bootstrap/paths.js";
 import {
@@ -202,7 +202,7 @@ function documentPaths(
     ["ui", paths.uiConfigPath],
     ["permissions", paths.permissionsConfigPath],
     ["providers", paths.providersConfigPath],
-    ["integrations", paths.integrationsConfigPath],
+    ["accounts", paths.accountsConfigPath],
   ];
 }
 
@@ -213,7 +213,7 @@ export async function writeHomeConfiguration(
     "daemon",
     "ui",
     "providers",
-    "integrations",
+    "accounts",
   ],
 ): Promise<UserConfiguration> {
   const parsed = decodeConfiguration(configuration);
@@ -293,9 +293,7 @@ function decodeConfiguration(
     providers: HOME_CONFIGURATION_CODECS.providers.decode(
       configuration.providers,
     ),
-    integrations: HOME_CONFIGURATION_CODECS.integrations.decode(
-      configuration.integrations,
-    ),
+    accounts: HOME_CONFIGURATION_CODECS.accounts.decode(configuration.accounts),
   };
 }
 
@@ -308,7 +306,7 @@ function configDocuments(
     { path: paths.uiConfigPath, value: configuration.ui },
     { path: paths.permissionsConfigPath, value: configuration.permissions },
     { path: paths.providersConfigPath, value: configuration.providers },
-    { path: paths.integrationsConfigPath, value: configuration.integrations },
+    { path: paths.accountsConfigPath, value: configuration.accounts },
   ];
 }
 
@@ -316,7 +314,7 @@ function configDocuments(
 export function settingsFromConfiguration(
   configuration: UserConfiguration,
 ): Settings {
-  const { daemon, ui, integrations } = configuration;
+  const { daemon, ui, accounts } = configuration;
   return settingsSchema.parse({
     ...defaultSettings,
     application: {
@@ -333,7 +331,7 @@ export function settingsFromConfiguration(
     logging: daemon.logging,
     permissions: { exceptions: [] },
     providers: {
-      atlassianProfiles: integrations.profiles.atlassian.map((profile) => ({
+      atlassianProfiles: accounts.profiles.atlassian.map((profile) => ({
         id: profile.id,
         name: profile.name,
         siteUrl: profile.siteUrl,
@@ -341,7 +339,7 @@ export function settingsFromConfiguration(
         defaultProjectKey: profile.defaultProjectKey,
         defaultSpaceKey: profile.defaultSpaceKey,
       })),
-      tavilyProfiles: integrations.profiles.tavily.map((profile) => ({
+      tavilyProfiles: accounts.profiles.tavily.map((profile) => ({
         id: profile.id,
         name: profile.name,
       })),
@@ -354,7 +352,7 @@ export function configurationWithSettings(
   settings: Settings,
 ): UserConfiguration {
   const parsed = settingsSchema.parse(settings);
-  const integrations = integrationsFromSettings(current.integrations, parsed);
+  const accounts = accountsFromSettings(current.accounts, parsed);
   return decodeConfiguration(
     preserveConfigurationExtensions(current, {
       ...current,
@@ -379,7 +377,7 @@ export function configurationWithSettings(
         transcription: parsed.transcription,
       },
       permissions: current.permissions,
-      integrations,
+      accounts,
     }),
   );
 }
@@ -397,10 +395,10 @@ function preserveConfigurationExtensions(
   return merged;
 }
 
-function integrationsFromSettings(
-  current: IntegrationsConfig,
+function accountsFromSettings(
+  current: AccountsConfig,
   settings: Settings,
-): IntegrationsConfig {
+): AccountsConfig {
   const atlassianCredentials = new Map(
     current.profiles.atlassian.map((profile) => [
       profile.id,
@@ -410,7 +408,7 @@ function integrationsFromSettings(
   const tavilyCredentials = new Map(
     current.profiles.tavily.map((profile) => [profile.id, profile.credential]),
   );
-  return integrationsConfigSchema.parse({
+  return accountsConfigSchema.parse({
     version: 2,
     profiles: {
       atlassian: settings.providers.atlassianProfiles.map((profile) => ({
