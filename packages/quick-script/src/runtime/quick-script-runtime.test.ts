@@ -2,17 +2,12 @@ import assert from "node:assert/strict";
 import { afterEach, test } from "node:test";
 import { quickScriptResultDetailsSchema } from "@nervekit/contracts/tools";
 import { executeQuickScript } from "./quick-script.js";
+import type { Nested } from "./test-nested.js";
 
 const originalFetch = globalThis.fetch;
 afterEach(() => {
   globalThis.fetch = originalFetch;
 });
-
-type Nested = {
-  toolName: string;
-  args: Record<string, unknown>;
-  approvalRequired?: boolean;
-};
 
 function context(authorized: Nested[] = []) {
   return {
@@ -293,21 +288,31 @@ void test("request() is authorized by method and rejects URLs outside the produc
       "DELETE /wiki/rest/api/content/1/label?name=x",
     ],
   );
-  // GET is a read; any other method is checked as a destructive manage tool.
-  assert.deepEqual(
-    authorized.slice(0, 4).map((r) => r.toolName),
-    [
-      "jira_get_project",
-      "jira_manage_comment",
-      "confluence_get_page",
-      "confluence_manage_page",
-    ],
-  );
-  // Non-GET raw requests are never allowed by another tool's rule alone.
-  assert.deepEqual(
-    authorized.slice(0, 4).map((r) => r.approvalRequired === true),
-    [false, true, false, true],
-  );
+  // GET is a network read; any other method is destructive. The target names method and path.
+  assert.deepEqual(authorized.slice(0, 4), [
+    {
+      operation: "jira.request",
+      targets: ["jira:request/GET /rest/api/3/myself"],
+      risk: "network",
+    },
+    {
+      operation: "jira.request",
+      targets: ["jira:request/POST /rest/agile/1.0/sprint"],
+      risk: "destructive",
+    },
+    {
+      operation: "confluence.request",
+      targets: ["confluence:request/GET /wiki/api/v2/spaces?limit=1"],
+      risk: "network",
+    },
+    {
+      operation: "confluence.request",
+      targets: [
+        "confluence:request/DELETE /wiki/rest/api/content/1/label?name=x",
+      ],
+      risk: "destructive",
+    },
+  ]);
 });
 
 void test("request() returns text for non-JSON and refuses oversized responses", async () => {

@@ -63,11 +63,7 @@ export const diagramMethods: SdkMethod[] = [
             : assertArtifactName(options.name),
       };
     },
-    authorize: ({ type, source }) => ({
-      toolName: "kroki_export",
-      args: { diagram_type: type, source },
-      summary: type,
-    }),
+    authorize: ({ type }) => ({ targets: [], summary: type }),
     resource: () => "the Kroki server",
     async run({ type, source, name }, env) {
       if (!env.context.kroki) {

@@ -51,6 +51,7 @@ import {
   type SdkEnvironment,
   type SdkMethod,
 } from "../../../runtime/sdk-types.js";
+import { jiraIssue, jiraProject, rawRequest } from "../shared/targets.js";
 
 const MAX_SEARCH_LIMIT = 1000;
 const DEFAULT_SEARCH_LIMIT = 50;
@@ -81,16 +82,6 @@ function selectFields(
     : Promise.resolve(defaultSelection(defaults));
 }
 
-/** The closest `jira_get_project` includes, so rules on the direct read apply. */
-function directInclude(include: readonly ProjectInclude[]): string[] {
-  const names: Partial<Record<ProjectInclude, string>> = {
-    fields: "create_meta",
-    statuses: "statuses",
-    releases: "versions",
-  };
-  return include.flatMap((item) => names[item] ?? []);
-}
-
 const readMethods: SdkMethod[] = [
   defineMethod({
     product: "jira",
@@ -105,11 +96,7 @@ const readMethods: SdkMethod[] = [
       limit: clampInt(options.limit, DEFAULT_SEARCH_LIMIT, 1, MAX_SEARCH_LIMIT),
       fields: fieldsOption(options),
     }),
-    authorize: ({ jql }) => ({
-      toolName: "jira_search_issues",
-      args: { jql },
-      summary: jql,
-    }),
+    authorize: ({ jql }) => ({ targets: [], summary: jql }),
     resource: () => "this Jira search",
     async run({ jql, limit, fields }, env) {
       const selection = await selectFields(fields, DEFAULT_SEARCH_FIELDS, env);
@@ -152,11 +139,7 @@ const readMethods: SdkMethod[] = [
       comments: options.comments === true,
       transitions: options.transitions === true,
     }),
-    authorize: ({ key }) => ({
-      toolName: "jira_get_issue",
-      args: { issue_key: key },
-      summary: key,
-    }),
+    authorize: ({ key }) => ({ targets: [jiraIssue(key)], summary: key }),
     resource: ({ key }) => `issue ${key}`,
     async run({ key, fields, comments, transitions }, env) {
       const selection = await selectFields(fields, DEFAULT_GET_FIELDS, env);
@@ -202,14 +185,7 @@ const readMethods: SdkMethod[] = [
         issueType: optionalText(options.issueType),
       };
     },
-    authorize: ({ key, include }) => ({
-      toolName: "jira_get_project",
-      args: {
-        project_key: key,
-        ...(include.length > 0 ? { include: directInclude(include) } : {}),
-      },
-      summary: key,
-    }),
+    authorize: ({ key }) => ({ targets: [jiraProject(key)], summary: key }),
     resource: ({ key }) => `project ${key}`,
     async run({ key, include, issueType }, env) {
       const [project, extras] = await Promise.all([
@@ -240,11 +216,7 @@ const readMethods: SdkMethod[] = [
     signature:
       "search(options: string | { query: string }): Promise<JiraUser[]>",
     parse: (options) => nonEmptyString(options.query, "query"),
-    authorize: (query) => ({
-      toolName: "jira_search_users",
-      args: { query },
-      summary: query,
-    }),
+    authorize: (query) => ({ targets: [], summary: query }),
     resource: () => "Jira users",
     async run(query, env) {
       const response = await searchJiraUsers(await env.jira(), {
@@ -270,15 +242,7 @@ const readMethods: SdkMethod[] = [
     options: [],
     signature: "list(): Promise<JiraField[]>",
     parse: () => undefined,
-    // There is no dedicated field-listing tool. `jira_get_project` with
-    // `include: ["fields"]` is the closest direct read of field metadata, so a
-    // policy that allows project reads allows this, and one that blocks Jira
-    // reads blocks it.
-    authorize: () => ({
-      toolName: "jira_get_project",
-      args: { include: ["fields"] },
-      summary: "all fields",
-    }),
+    authorize: () => ({ targets: [], summary: "all fields" }),
     resource: () => "Jira fields",
     run: async (_parsed, env) =>
       (await env.jiraFields()).map(({ id, name, custom, type }) => ({
@@ -301,19 +265,12 @@ const readMethods: SdkMethod[] = [
       body,
       query,
     }),
-    // GET is a read. Anything else cannot be analysed: `jira_manage_comment`
-    // (a delete) only supplies the deny rules, and the call always needs the
-    // script to be approved at destructive level, whatever allow rules say.
+    // GET is a network read. Anything else cannot be analysed and counts as
+    // destructive; a rule matching the method and path can still allow it.
     authorize: ({ method, path }) => ({
-      toolName: method === "GET" ? "jira_get_project" : "jira_manage_comment",
-      // Placeholder identifiers only satisfy the direct tool's parameter
-      // schema; the real target is the method and path in `summary`.
-      args:
-        method === "GET"
-          ? {}
-          : { action: "delete", issue_key: "raw-request", comment_id: "-" },
+      risk: method === "GET" ? "network" : "destructive",
+      targets: [rawRequest("jira", `${method} ${String(path)}`)],
       summary: `${method} ${String(path)}`,
-      ...(method === "GET" ? {} : { approvalRequired: true as const }),
     }),
     resource: ({ path }) => String(path),
     async run({ method, path, body, query }, env) {

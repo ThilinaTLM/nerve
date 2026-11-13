@@ -85,14 +85,18 @@ export const atlassianMethods: SdkMethod[] = [
     signature:
       "/** Configured sites, default project/space and current user; only configured products appear. Cached per run. */ defaults(): Promise<AtlassianDefaults>",
     parse: () => undefined,
-    // No dedicated tool: the product reads are the closest, so blocking them blocks this.
+    // Reads both products, so each product's read operation is checked: blocking either blocks this.
     authorize: () => ({
-      toolName: "jira_get_project",
-      args: {},
+      operation: "jira.projects.list",
+      targets: [],
       summary: "defaults",
     }),
     authorizeAlso: () => [
-      { toolName: "confluence_search_spaces", args: {}, summary: "defaults" },
+      {
+        operation: "confluence.spaces.search",
+        targets: [],
+        summary: "defaults",
+      },
     ],
     resource: () => "Atlassian defaults",
     run: (_parsed, env) => {

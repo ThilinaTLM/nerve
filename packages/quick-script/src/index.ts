@@ -7,6 +7,8 @@ export {
   extensionMetadata,
   extensionSettingsDefinitions,
 } from "./registry.js";
+export { findNamespace as findQuickScriptNamespace } from "./registry.js";
+export { quickScriptRiskOfMethod } from "./runtime/script-risk.js";
 export type { ExtensionManifest } from "./manifest-types.js";
 export type { QuickScriptCapabilities } from "./runtime/description.js";
 export { quickScriptDescription } from "./runtime/description.js";

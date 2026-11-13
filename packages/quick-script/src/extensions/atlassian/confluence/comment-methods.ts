@@ -14,24 +14,17 @@ import {
   type SdkEnvironment,
   type SdkMethod,
 } from "../../../runtime/sdk-types.js";
+import { confluenceComment, confluencePage } from "../shared/targets.js";
 import { authorizeLookedUp, storageBodyOption } from "./extra-methods.js";
 
 const MAX_LIST_PAGES = 5;
 
 type Json = Record<string, unknown>;
 
-function commentArgs(
-  action: string,
-  kind: "footer" | "inline",
-  fields: Json = {},
-) {
-  return { action, kind, ...fields };
-}
-
-function commentPageId(comment: Json): Json {
+function commentPage(comment: Json): string[] {
   return comment.pageId === undefined
-    ? {}
-    : { page_id: String(comment.pageId) };
+    ? []
+    : [confluencePage(String(comment.pageId))];
 }
 
 type FoundComment = { kind: "footer" | "inline"; comment: Json };
@@ -280,11 +273,7 @@ export const confluenceCommentMethods: SdkMethod[] = [
         resolved: options.resolved as boolean | undefined,
       };
     },
-    authorize: ({ id }) => ({
-      toolName: "confluence_get_page",
-      args: { page_id: id },
-      summary: id,
-    }),
+    authorize: ({ id }) => ({ targets: [confluencePage(id)], summary: id }),
     resource: ({ id }) => `page ${id}`,
     async run({ id, inline, resolved }, env) {
       return await listComments(await env.confluence(), env, id, {
@@ -305,14 +294,8 @@ export const confluenceCommentMethods: SdkMethod[] = [
       body: storageBodyOption(options),
       inline: parseInline(options.inline),
     }),
-    authorize: ({ id, body, inline }) => ({
-      toolName: "confluence_manage_comment",
-      args: {
-        action: "create",
-        kind: inline ? "inline" : "footer",
-        page_id: id,
-        body,
-      },
+    authorize: ({ id }) => ({
+      targets: [confluencePage(id)],
       summary: id,
     }),
     resource: ({ id }) => `page ${id}`,
@@ -374,15 +357,11 @@ export const confluenceCommentMethods: SdkMethod[] = [
     resource: ({ id }) => `comment ${id}`,
     async run({ id, body }, env) {
       const { kind, comment } = await findComment(env, id);
-      await authorizeLookedUp(
-        env,
-        "confluence_manage_comment",
-        commentArgs("update", kind, {
-          comment_id: id,
-          ...commentPageId(comment),
-          body,
-        }),
-      );
+      await authorizeLookedUp(env, {
+        operation: "confluence.comments.update",
+        targets: [confluenceComment(id), ...commentPage(comment)],
+        risk: "external_write",
+      });
       await confluenceRequest(await env.confluence(), {
         method: "PUT",
         path: `/${kind}-comments/${pathSegment(id)}`,
@@ -408,14 +387,11 @@ export const confluenceCommentMethods: SdkMethod[] = [
     resource: ({ id }) => `comment ${id}`,
     async run({ id }, env) {
       const { kind, comment } = await findComment(env, id);
-      await authorizeLookedUp(
-        env,
-        "confluence_manage_comment",
-        commentArgs("delete", kind, {
-          comment_id: id,
-          ...commentPageId(comment),
-        }),
-      );
+      await authorizeLookedUp(env, {
+        operation: "confluence.comments.delete",
+        targets: [confluenceComment(id), ...commentPage(comment)],
+        risk: "destructive",
+      });
       await confluenceRequest(await env.confluence(), {
         method: "DELETE",
         path: `/${kind}-comments/${pathSegment(id)}`,
@@ -438,15 +414,11 @@ export const confluenceCommentMethods: SdkMethod[] = [
     resource: ({ id }) => `comment ${id}`,
     async run({ id, body }, env) {
       const { kind, comment } = await findComment(env, id);
-      await authorizeLookedUp(
-        env,
-        "confluence_manage_comment",
-        commentArgs("create", kind, {
-          parent_comment_id: id,
-          ...commentPageId(comment),
-          body,
-        }),
-      );
+      await authorizeLookedUp(env, {
+        operation: "confluence.comments.reply",
+        targets: [confluenceComment(id), ...commentPage(comment)],
+        risk: "external_write",
+      });
       const created = await confluenceRequest(await env.confluence(), {
         parse: jsonObject,
         method: "POST",
@@ -504,14 +476,11 @@ export const confluenceCommentMethods: SdkMethod[] = [
         }
         throw error;
       }
-      await authorizeLookedUp(
-        env,
-        "confluence_manage_comment",
-        commentArgs(resolved ? "resolve" : "reopen", "inline", {
-          comment_id: id,
-          ...commentPageId(comment),
-        }),
-      );
+      await authorizeLookedUp(env, {
+        operation: "confluence.comments.resolve",
+        targets: [confluenceComment(id), ...commentPage(comment)],
+        risk: "external_write",
+      });
       await confluenceRequest(connection, {
         method: "PUT",
         path: `/inline-comments/${pathSegment(id)}`,

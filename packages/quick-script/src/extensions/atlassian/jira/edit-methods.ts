@@ -7,6 +7,7 @@ import { simplifyWorklog } from "./issue.js";
 import { listValues } from "./field-values.js";
 import { nonEmptyString, optionalText } from "../../../runtime/sdk-args.js";
 import { defineMethod, type SdkMethod } from "../../../runtime/sdk-types.js";
+import { jiraAttachment, jiraIssue } from "../shared/targets.js";
 
 const MAX_RANK_KEYS = 50;
 const list = (value: unknown): unknown[] => (Array.isArray(value) ? value : []);
@@ -62,14 +63,7 @@ export const jiraEditMethods: SdkMethod[] = [
       return { keys: keys as string[], before, after };
     },
     authorize: ({ keys, before, after }) => ({
-      toolName: "jira_manage_backlog",
-      args: {
-        action: "rank",
-        issue_key: keys[0],
-        ...(before
-          ? { rank_before_issue_key: before }
-          : { rank_after_issue_key: after }),
-      },
+      targets: [...keys, (before ?? after)!].map(jiraIssue),
       summary: `${keys.join(", ")} ${before ? `before ${before}` : `after ${after}`}`,
     }),
     resource: ({ keys }) => `issue ${keys[0]}`,
@@ -100,13 +94,7 @@ export const jiraEditMethods: SdkMethod[] = [
       type: optionalText(options.type)?.trim(),
     }),
     authorize: ({ key, to, type }) => ({
-      toolName: "jira_manage_issue_link",
-      args: {
-        action: "delete",
-        issue_key: key,
-        other_issue_key: to,
-        ...(type ? { link_type: type } : {}),
-      },
+      targets: [jiraIssue(key), jiraIssue(to)],
       summary: `${key} ${type ?? "link"} ${to}`,
     }),
     resource: ({ key }) => `issue ${key}`,
@@ -174,11 +162,7 @@ export const jiraEditMethods: SdkMethod[] = [
     signature:
       '/** All worklogs of an issue (the `worklog` field of issues.get stops at 20). */ list(options: string | { key: string }): Promise<NonNullable<Issue["worklog"]>>',
     parse: (options) => nonEmptyString(options.key, "key"),
-    authorize: (key) => ({
-      toolName: "jira_get_issue",
-      args: { issue_key: key },
-      summary: key,
-    }),
+    authorize: (key) => ({ targets: [jiraIssue(key)], summary: key }),
     resource: (key) => `issue ${key}`,
     async run(key, env) {
       const connection = await env.jira();
@@ -219,8 +203,7 @@ export const jiraEditMethods: SdkMethod[] = [
       return parsed;
     },
     authorize: ({ key, id }) => ({
-      toolName: "jira_manage_worklog",
-      args: { action: "update", issue_key: key, worklog_id: id },
+      targets: [jiraIssue(key)],
       summary: `${key} worklog ${id}`,
     }),
     resource: ({ key }) => `issue ${key}`,
@@ -252,8 +235,7 @@ export const jiraEditMethods: SdkMethod[] = [
       id: nonEmptyString(options.id, "id"),
     }),
     authorize: ({ key, id }) => ({
-      toolName: "jira_manage_worklog",
-      args: { action: "delete", issue_key: key, worklog_id: id },
+      targets: [jiraIssue(key)],
       summary: `${key} worklog ${id}`,
     }),
     resource: ({ key }) => `issue ${key}`,
@@ -276,11 +258,7 @@ export const jiraEditMethods: SdkMethod[] = [
     signature:
       "/** Oldest first; `![](filename)` embeds the newest duplicate. */ list(options: string | { key: string }): Promise<JiraAttachment[]>",
     parse: (options) => nonEmptyString(options.key, "key"),
-    authorize: (key) => ({
-      toolName: "jira_get_issue",
-      args: { issue_key: key },
-      summary: key,
-    }),
+    authorize: (key) => ({ targets: [jiraIssue(key)], summary: key }),
     resource: (key) => `issue ${key}`,
     run: (key, env) => issueAttachments(env, key),
   }),
@@ -294,8 +272,7 @@ export const jiraEditMethods: SdkMethod[] = [
       "delete(options: string | { id: string }): Promise<{ id: string }>",
     parse: (options) => nonEmptyString(options.id, "id"),
     authorize: (id) => ({
-      toolName: "jira_manage_attachment",
-      args: { action: "delete", attachment_id: id },
+      targets: [jiraAttachment(id)],
       summary: `attachment ${id}`,
     }),
     resource: (id) => `attachment ${id}`,

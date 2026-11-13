@@ -28,6 +28,7 @@ import {
   type SdkEnvironment,
   type SdkMethod,
 } from "../../../runtime/sdk-types.js";
+import { jiraAttachment, jiraIssue } from "../shared/targets.js";
 
 const MAX_PROJECTS = 1000;
 const PROJECT_PAGE_SIZE = 50;
@@ -71,8 +72,7 @@ export const jiraExtraMethods: SdkMethod[] = [
         options.name === undefined ? undefined : artifactNameOf(options.name),
     }),
     authorize: ({ id }) => ({
-      toolName: "jira_download_attachment",
-      args: { attachment_id: id },
+      targets: [jiraAttachment(id)],
       summary: `attachment ${id}`,
     }),
     resource: ({ id }) => `attachment ${id}`,
@@ -135,13 +135,9 @@ export const jiraExtraMethods: SdkMethod[] = [
       key: nonEmptyString(options.key, "key"),
       subtasks: options.subtasks === true,
     }),
-    // No direct tool deletes issues: the issue-keyed write tool supplies the
-    // deny rules, and the call always needs approval.
     authorize: ({ key }) => ({
-      toolName: "jira_update_issue",
-      args: { issue_key: key },
+      targets: [jiraIssue(key)],
       summary: `DELETE issue ${key}`,
-      approvalRequired: true as const,
     }),
     resource: ({ key }) => `issue ${key}`,
     async run({ key, subtasks }, env) {
@@ -177,8 +173,7 @@ export const jiraExtraMethods: SdkMethod[] = [
     signature: "list(): Promise<{ key: string; name: string; type: string }[]>",
     parse: () => undefined,
     authorize: () => ({
-      toolName: "jira_get_project",
-      args: {},
+      targets: [],
       summary: "all projects",
     }),
     resource: () => "Jira projects",
@@ -220,8 +215,7 @@ export const jiraExtraMethods: SdkMethod[] = [
       "me(): Promise<{ accountId: string; name: string; email: string | null; timeZone: string | null }>",
     parse: () => undefined,
     authorize: () => ({
-      toolName: "jira_search_users",
-      args: { query: "me" },
+      targets: [],
       summary: "current user",
     }),
     resource: () => "Jira user",

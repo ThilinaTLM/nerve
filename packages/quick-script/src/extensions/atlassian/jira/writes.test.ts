@@ -5,8 +5,9 @@ import { join } from "node:path";
 import { test } from "node:test";
 
 import { lastOf, returned, setup } from "./test-harness.js";
+import { nestedName } from "../../../runtime/test-nested.js";
 
-void test("issues.create resolves field names, converts Markdown and users, and authorizes as jira_create_issue", async () => {
+void test("issues.create resolves field names, converts Markdown and users, and authorizes as jira.issues.create", async () => {
   const { sent, authorized, run } = setup();
   const result = await run(`
     return await jira.issues.create({
@@ -32,8 +33,9 @@ void test("issues.create resolves field names, converts Markdown and users, and 
     { type: "text", text: "file", marks: [{ type: "strong" }] },
   ]);
   assert.deepEqual(authorized[0], {
-    toolName: "jira_create_issue",
-    args: { issue_type: "bug", summary: "Crash on save" },
+    operation: "jira.issues.create",
+    targets: [],
+    risk: "external_write",
   });
 });
 
@@ -83,7 +85,7 @@ void test("issues.update sends converted fields and validates against the edit s
   );
   assert.match(result.content ?? "", /"Priority"|Valid values: High, Low\./);
   assert.match(result.content ?? "", /fields must name at least one field/);
-  assert.equal(authorized[0].toolName, "jira_update_issue");
+  assert.equal(nestedName(authorized[0]), "jira.issues.update");
   assert.equal(sent.filter((s) => s.method === "PUT").length, 1);
 });
 
@@ -108,16 +110,15 @@ void test("issues.transition moves by status name, with required fields and a co
   assert.equal(comments.length, 1);
   assert.equal(comments[0].body.body.type, "doc");
   assert.deepEqual(authorized[0], {
-    toolName: "jira_transition_issue",
-    args: { issue_key: "APP-1", transition: "in progress" },
+    operation: "jira.issues.transition",
+    targets: ["jira:issue/APP-1"],
+    risk: "external_write",
   });
-  assert.ok(
-    authorized.some(
-      (call) =>
-        call.toolName === "jira_manage_comment" &&
-        call.args.action === "create",
-    ),
-  );
+  // The comment is part of the transition: one check per call.
+  assert.deepEqual(authorized.map(nestedName), [
+    "jira.issues.transition",
+    "jira.issues.transition",
+  ]);
 });
 
 void test("issues.transition errors list the missing fields and the reachable statuses", async () => {
@@ -182,19 +183,16 @@ void test("comments, worklogs, links and sprint moves send the REST shapes and a
   );
   assert.equal(moves.length, 2);
   assert.deepEqual(moves[0].body, { issues: ["APP-1"] });
-  assert.deepEqual(
-    authorized.map((a) => [a.toolName, a.args.action]),
-    [
-      ["jira_manage_comment", "create"],
-      ["jira_manage_comment", "update"],
-      ["jira_manage_comment", "delete"],
-      ["jira_manage_worklog", "create"],
-      ["jira_manage_issue_link", "create"],
-      ["jira_manage_issue_link", "create"],
-      ["jira_manage_backlog", "move_to_sprint"],
-      ["jira_manage_backlog", "move_to_backlog"],
-    ],
-  );
+  assert.deepEqual(authorized.map(nestedName), [
+    "jira.comments.add",
+    "jira.comments.update",
+    "jira.comments.delete",
+    "jira.worklogs.add",
+    "jira.issues.link",
+    "jira.issues.link",
+    "jira.issues.move",
+    "jira.issues.move",
+  ]);
 });
 
 void test("issues.link rejects unknown link types with the valid ones", async () => {
@@ -220,10 +218,10 @@ void test("attachments.upload sends a multipart file read from a workspace handl
   const upload = lastOf(sent, "POST", "/issue/APP-1/attachments")!;
   assert.ok(upload.body instanceof FormData);
   assert.equal((upload.body.get("file") as File).name, "n.txt");
-  assert.deepEqual(
-    authorized.map((a) => a.toolName),
-    ["jira_manage_attachment", "read"],
-  );
+  assert.deepEqual(authorized.map(nestedName), [
+    "jira.attachments.upload",
+    "read",
+  ]);
 });
 
 void test("projects.get include returns create fields, statuses, releases, boards, sprints and epics", async () => {
@@ -335,11 +333,9 @@ void test("projects.get include returns create fields, statuses, releases, board
     { key: "APP-5", summary: "Epic", status: "In Progress" },
   ]);
   assert.deepEqual(authorized[0], {
-    toolName: "jira_get_project",
-    args: {
-      project_key: "APP",
-      include: ["create_meta", "statuses", "versions"],
-    },
+    operation: "jira.projects.get",
+    targets: ["jira:project/APP"],
+    risk: "network",
   });
   assert.ok(sent.length > 0);
 });

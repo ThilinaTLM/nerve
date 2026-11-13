@@ -3,15 +3,14 @@ import { afterEach, test } from "node:test";
 import { quickScriptResultDetailsSchema } from "@nervekit/contracts/tools";
 import { ToolExecutionError } from "@nervekit/tools/execution";
 import { executeQuickScript } from "../../../runtime/quick-script.js";
+import type { Nested } from "../../../runtime/test-nested.js";
 
 const originalFetch = globalThis.fetch;
 afterEach(() => {
   globalThis.fetch = originalFetch;
 });
 
-function context(
-  authorized: Array<{ toolName: string; args: Record<string, unknown> }> = [],
-) {
+function context(authorized: Nested[] = []) {
   return {
     cwd: process.cwd(),
     getApiKey: async () => "token",
@@ -20,10 +19,7 @@ function context(
       siteUrl: "https://example.atlassian.net",
       email: "dev@example.com",
     }),
-    authorizeNested: async (request: {
-      toolName: string;
-      args: Record<string, unknown>;
-    }) => {
+    authorizeNested: async (request: Nested) => {
       authorized.push(request);
     },
   };
@@ -46,10 +42,7 @@ void test("every method takes one ID string or one options object, with one ID n
     }
     return Response.json({ id: "4", key: "SCRUM-4", fields: { summary: "S" } });
   };
-  const authorized: Array<{
-    toolName: string;
-    args: Record<string, unknown>;
-  }> = [];
+  const authorized: Nested[] = [];
   const result = await executeQuickScript(
     {
       code: `
@@ -93,12 +86,8 @@ void test("every method takes one ID string or one options object, with one ID n
     lines[3],
   );
   assert.deepEqual(
-    authorized.map((r) => r.args),
-    [
-      { project_key: "SCRUM" },
-      { issue_key: "SCRUM-4" },
-      { issue_key: "SCRUM-4" },
-    ],
+    authorized.map((r) => ("operation" in r ? r.targets : [])),
+    [["jira:project/SCRUM"], ["jira:issue/SCRUM-4"], ["jira:issue/SCRUM-4"]],
   );
 });
 

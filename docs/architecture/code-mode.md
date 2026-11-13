@@ -1,6 +1,6 @@
 # Code mode
 
-`quick_script` lets the agent do multi-step integration work (Jira and Confluence today) and file, image and diagram handling in one tool call: it writes a TypeScript script instead of spending a model turn per request. The script runs in a sandbox with no ambient authority, and every external effect is a **host call** authorized as the equivalent direct tool, so batching does not widen what policy allows.
+`quick_script` lets the agent do multi-step integration work (Jira and Confluence today) and file, image and diagram handling in one tool call: it writes a TypeScript script instead of spending a model turn per request. The script runs in a sandbox with no ambient authority, and every external effect is a **host call** checked against the same policy as an operation, so batching does not widen what policy allows.
 
 ```mermaid
 flowchart TD
@@ -10,7 +10,7 @@ flowchart TD
   R --> H[Host call]
   H --> F[Find method, prepare arguments]
   F --> G[Assert declared risk]
-  G --> N[Broker authorizes as direct tool]
+  G --> N[Broker checks the operation]
   N -->|Allowed| X[Run method]
   N -->|Refused| E[Coded error]
   X --> R
@@ -42,17 +42,17 @@ Two levels apply; see [permissions](permissions.md) for the general model. The t
 
 **Script level.** Admission scans the script text for SDK calls and the highest risk wins on the scale read < network < workspace write = external write < destructive (Jira/Confluence writes are external, workspace file writes local; the label prefers external on a tie): local files, XLSX and docx work is read, any integration read (Jira, Confluence, web, diagrams, a GET `request`) is network, so rule sets treat a script like the equivalent direct network tool. Anything the scanner cannot follow (aliasing, bracket access, `eval`, a computed request method) counts as destructive, and ambiguous syntax takes the riskier reading. The approval shows the risk and the operations found.
 
-**Nested level.** Each host call is checked against current policy as a direct call to its tool would be, and a deny always holds. When the verdict needs approval, the script's admission decides. A script a **user approved** may make calls up to the risk they approved. A script a **rule allowed** has no ceiling to spend, so such calls are refused. The one exception is a raw non-GET request, which cannot be analysed: it runs only in a destructive, rule-admitted script when its verdict is allow.
+**Nested level.** Each host call is checked against current policy as a request for tool `quick_script` ([operation and resource rules](permissions.md#operation-and-resource-rules)): the operation (`jira.issues.create`) is the primary argument, the namespace the tool group, the method's declared risk gives the base risk (a Jira/Confluence write is never `write`) and the resources it acts on are `resource` targets. The broker accepts any operation of a registered namespace. `web.*` and `files.*` keep the direct route (`web_fetch`, `web_search`, `read` / `write` / `edit`, plus `read` for file arguments such as attachments). A deny always holds. When the verdict needs approval, the script's admission decides. A script a **user approved** may make calls up to the risk they approved. A script a **rule allowed** has no ceiling to spend, so such calls are refused. A raw `request` is an operation like any other: GET is `network`, any other method `destructive`, and the target is `<system>:request/<METHOD> <path>`. A rule matching that method and path can allow it; otherwise it needs a destructive approval. Denials and approval errors name `operation · targets`, and the tool record stores both (`method`, `targets`); `authorizedAs` is set only for the remaining direct routes.
 
-The scan can be evaded, so it is only the first level. The executor also refuses a method whose declared risk is below that of the direct call it is authorized as, and a unit test checks that every method's nested arguments validate against the direct tool's schema.
+The scan can be evaded, so it is only the first level. The executor also refuses a method whose declared risk is below that of the check it runs (an operation's own risk, or the direct tool for `web.*` and `files.*`), and a unit test checks that every operation's targets are normalized and that built-in rule sets decide each SDK call the same as the old direct-tool identity did.
 
 ## SDK methods
 
-Each method is declared once in a method table (`defineMethod` and a positional variant): signature, declared risk, authorizing tool, argument parsing and implementation. The sandbox prelude, the scanner and dispatch read these tables. `sdk.describe` generates declarations from them at run time ([`sdk-dts.ts`](../../packages/quick-script/src/runtime/sdk-dts.ts)).
+Each method is declared once in a method table (`defineMethod` and a positional variant): signature, declared risk, authorization (operation, targets and risk; the operation defaults to `<namespace>.<path>`), argument parsing and implementation. The sandbox prelude, the scanner and dispatch read these tables. `sdk.describe` generates declarations from them at run time ([`sdk-dts.ts`](../../packages/quick-script/src/runtime/sdk-dts.ts)).
 
 ### Registry and extensions
 
-Namespaces come from one registry ([`extensions/registry.ts`](../../packages/quick-script/src/registry.ts)): the runtime's (`files`, `image`, `libraries`, `sdk`) followed by the namespaces that built-in extension manifests contribute (`ExtensionManifest` in `manifest-types.ts`). Manifests exist for `atlassian` (namespaces `atlassian`, `jira`, `confluence`, `storage`; `jira` and `confluence` are tied to their switches by `enabledBy`), `web` and `diagram`, each in `extensions/<id>/` with its declarations and `docs/`. A namespace declares its `summary`, up to three `rules`, method table, shared type declarations and doc topics. The description, prelude, guarded globals and discovery all read the registry; adding a namespace means adding it to a manifest. Settings still live under `tools.quick_script.settings`, and authorization still names direct tools.
+Namespaces come from one registry ([`extensions/registry.ts`](../../packages/quick-script/src/registry.ts)): the runtime's (`files`, `image`, `libraries`, `sdk`) followed by the namespaces that built-in extension manifests contribute (`ExtensionManifest` in `manifest-types.ts`). Manifests exist for `atlassian` (namespaces `atlassian`, `jira`, `confluence`, `storage`; `jira` and `confluence` are tied to their switches by `enabledBy`), `web` and `diagram`, each in `extensions/<id>/` with its declarations and `docs/`. A namespace declares its `summary`, up to three `rules`, method table, shared type declarations and doc topics. The description, prelude, guarded globals and discovery all read the registry; adding a namespace means adding it to a manifest. Settings still live under `tools.quick_script.settings`, and authorization names operations (`web.*` and `files.*` still name their direct tools).
 
 ### Discovery
 

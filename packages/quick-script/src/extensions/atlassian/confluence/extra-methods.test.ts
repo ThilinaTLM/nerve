@@ -6,6 +6,7 @@ import {
 } from "../../../runtime/quick-script.js";
 import type { QuickScriptContext } from "../../../runtime/sdk-types.js";
 import { normalizeLabels } from "./extra-methods.js";
+import type { Nested } from "../../../runtime/test-nested.js";
 
 const originalFetch = globalThis.fetch;
 afterEach(() => {
@@ -281,7 +282,7 @@ void test("comments.add inline counts matches in the page text and sends the sel
 });
 
 void test("attachments.delete authorizes with the attachment's real page", async () => {
-  const authorized: Record<string, unknown>[] = [];
+  const authorized: Nested[] = [];
   const { context } = setup(({ method, path }) => {
     if (method === "GET" && path === "/attachments/9")
       return Response.json({ id: "9", pageId: "77" });
@@ -289,14 +290,18 @@ void test("attachments.delete authorizes with the attachment's real page", async
     return undefined;
   });
   context.authorizeNested = async (request) => {
-    authorized.push(request.args);
+    authorized.push(request);
   };
   await executeQuickScript(
     { code: `await confluence.attachments.delete("9");` },
     context,
   );
   assert.deepEqual(authorized, [
-    { action: "delete", page_id: "77", attachment_id: "9" },
+    {
+      operation: "confluence.attachments.delete",
+      targets: ["confluence:attachment/9", "confluence:page/77"],
+      risk: "destructive",
+    },
   ]);
 });
 

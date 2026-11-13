@@ -2,7 +2,11 @@ import type { ToolRisk } from "@nervekit/contracts/permissions";
 import { type ToolName, toolNameSchema } from "@nervekit/contracts/tools";
 import { classifyToolRisk } from "@nervekit/tools/catalog";
 import { findSdkMethod } from "./sdk.js";
-import type { MethodRisk } from "./sdk-types.js";
+import {
+  isOperationCheck,
+  type MethodRisk,
+  type NestedCheck,
+} from "./sdk-types.js";
 
 /**
  * Risk of a quick-script script, from its text, before it runs. Approval is for
@@ -95,27 +99,33 @@ export function quickScriptRiskOfMethod(risk: MethodRisk): QuickScriptRisk {
 
 /**
  * Guards the declaration against the authorization: a method must not be
- * declared as less risky than the direct tool call it is checked as, or the
- * script scan would under-report what the call does.
+ * declared as less risky than the check it runs (an operation's own risk, or
+ * the direct tool call it is authorized as), or the script scan would
+ * under-report what the call does.
  */
 export function assertDeclaredRisk(
   name: string,
   declared: MethodRisk,
-  authorizations: readonly {
-    toolName: string;
-    args: Record<string, unknown>;
-  }[],
+  authorizations: readonly NestedCheck[],
 ): void {
   const ceiling =
     declared === "none" ? -1 : RANK[quickScriptRiskOfMethod(declared)];
-  for (const { toolName, args } of authorizations) {
-    const parsed = toolNameSchema.safeParse(toolName);
-    const effective = parsed.success
-      ? quickScriptToolRisk(parsed.data, args)
-      : "destructive";
+  for (const check of authorizations) {
+    let effective: QuickScriptRisk;
+    let label: string;
+    if (isOperationCheck(check)) {
+      effective = quickScriptRiskOfMethod(check.risk);
+      label = check.operation;
+    } else {
+      const parsed = toolNameSchema.safeParse(check.toolName);
+      effective = parsed.success
+        ? quickScriptToolRisk(parsed.data, check.args)
+        : "destructive";
+      label = check.toolName;
+    }
     if (RANK[effective] > ceiling) {
       throw new Error(
-        `Internal error: ${name} declares risk "${declared}" but is authorized as ${toolName} with ${describeQuickScriptRisk(effective)} risk; fix the method's risk declaration.`,
+        `Internal error: ${name} declares risk "${declared}" but is authorized as ${label} with ${describeQuickScriptRisk(effective)} risk; fix the method's risk declaration.`,
       );
     }
   }

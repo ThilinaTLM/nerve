@@ -9,13 +9,14 @@ import {
   reconcileReport,
   type ChangeReport,
 } from "./quick-script.js";
+import { type Nested, nestedName } from "./test-nested.js";
 
 const originalFetch = globalThis.fetch;
 afterEach(() => {
   globalThis.fetch = originalFetch;
 });
 
-type Authorization = { toolName: string; args: Record<string, unknown> };
+type Authorization = Nested;
 
 function makeContext(options: {
   events: string[];
@@ -30,7 +31,7 @@ function makeContext(options: {
       email: "dev@example.com",
     }),
     authorizeNested: async (request: Authorization) => {
-      options.events.push(`authorize ${request.toolName}`);
+      options.events.push(`authorize ${nestedName(request)}`);
       options.authorize?.(request);
     },
   };
@@ -92,9 +93,9 @@ void test("paginates search to the limit, resolves field names, and authorizes b
     Color: "Blue",
   });
   assert.deepEqual(authorized, [
-    { toolName: "jira_search_issues", args: { jql: "project = NER" } },
+    { operation: "jira.issues.search", targets: [], risk: "network" },
   ]);
-  assert.equal(events[0], "authorize jira_search_issues");
+  assert.equal(events[0], "authorize jira.issues.search");
   assert.equal(bodies.length, 2);
   assert.equal(bodies[1].nextPageToken, "page2");
   assert.equal(bodies[1].maxResults, 1);
@@ -128,11 +129,12 @@ void test("surfaces a denial as a catchable HostError and records it as denied",
       },
     }),
   );
-  assert.deepEqual(events, ["authorize jira_get_issue"]);
+  assert.deepEqual(events, ["authorize jira.issues.get"]);
   assert.match(result.content ?? "", /caught: HostError Jira reads are denied/);
   const details = quickScriptResultDetailsSchema.parse(result.details);
   assert.equal(details.hostCalls[0].outcome, "denied");
-  assert.equal(details.hostCalls[0].authorizedAs, "jira_get_issue");
+  assert.equal(details.hostCalls[0].authorizedAs, undefined);
+  assert.deepEqual(details.hostCalls[0].targets, ["jira:issue/NER-1"]);
   assert.equal(details.hostCalls[0].summary, "NER-1");
   assert.match(result.content ?? "", /1 denied/);
 });

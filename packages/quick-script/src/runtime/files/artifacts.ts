@@ -16,7 +16,7 @@ import { codedError } from "../errors.js";
 import { resolveToolPath } from "@nervekit/tools/execution";
 import type {
   ArtifactReport,
-  NestedAuthorization,
+  DirectAuthorization,
   SdkEnvironment,
 } from "../sdk-types.js";
 
@@ -136,7 +136,7 @@ export function parseHandle(handle: unknown, env: SdkEnvironment): FileRef {
 }
 
 /** Workspace reads are checked as the direct `read` tool; artifacts are the tool's own files. */
-export function readAuthorizations(refs: FileRef[]): NestedAuthorization[] {
+export function readAuthorizations(refs: FileRef[]): DirectAuthorization[] {
   return refs.flatMap((ref) =>
     ref.kind === "workspace"
       ? [{ toolName: "read", args: { path: ref.path }, summary: ref.path }]

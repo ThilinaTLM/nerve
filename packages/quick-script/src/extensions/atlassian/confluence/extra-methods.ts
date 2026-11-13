@@ -7,12 +7,13 @@ import { codedError } from "../../../runtime/errors.js";
 import { nonEmptyString } from "../../../runtime/sdk-args.js";
 import {
   defineMethod,
-  type NestedAuthorization,
+  type MethodRisk,
   type SdkEnvironment,
   type SdkMethod,
 } from "../../../runtime/sdk-types.js";
 import { pageUrl } from "./page-writes.js";
 import { partialWriteFailure } from "./partial-write.js";
+import { confluenceAttachment, confluencePage } from "../shared/targets.js";
 
 const MAX_LIST_PAGES = 5;
 const LABEL_PATTERN = /^[\p{L}\p{N}_-]+$/u;
@@ -52,33 +53,21 @@ export function normalizeLabels(value: unknown): string[] {
   return [...new Set(labels)];
 }
 
-const labelChecks = (
-  action: "add" | "remove",
-  id: string,
-  labels: string[],
-): NestedAuthorization[] =>
-  labels.map((label) => ({
-    toolName: "confluence_manage_label",
-    args: { action, page_id: id, label, prefix: "global" },
-    summary: `${id} ${action === "add" ? "+" : "-"}${labels.join(",")}`,
-  }));
-
 /**
- * Authorization that needs a lookup first (the target's page or comment kind).
- * `authorize` is synchronous and sees only the arguments, so these methods
- * authorize here, before their first write.
+ * Authorization that needs a lookup first (the page a comment or attachment
+ * belongs to). `authorize` is synchronous and sees only the arguments, so these
+ * methods authorize here, before their first write.
  */
 export async function authorizeLookedUp(
   env: SdkEnvironment,
-  toolName: string,
-  args: Json,
+  check: { operation: string; targets: string[]; risk: MethodRisk },
 ): Promise<void> {
   if (!env.context.authorizeNested) {
     throw new Error(
       "Nested authorization is unavailable; refusing to run SDK calls.",
     );
   }
-  await env.context.authorizeNested({ toolName, args });
+  await env.context.authorizeNested(check);
 }
 
 /** The sandbox converts RichText to storage XHTML before the call; the host only checks it is well-formed storage. */
@@ -101,11 +90,7 @@ export const confluenceExtraMethods: SdkMethod[] = [
     signature:
       "/** Of a page (id = page id). */ list(id: string | { id: string }): Promise<AttachmentInfo[]>",
     parse: (options) => ({ id: nonEmptyString(options.id, "id") }),
-    authorize: ({ id }) => ({
-      toolName: "confluence_get_page",
-      args: { page_id: id },
-      summary: id,
-    }),
+    authorize: ({ id }) => ({ targets: [confluencePage(id)], summary: id }),
     resource: ({ id }) => `page ${id}`,
     async run({ id }, env) {
       const connection = await env.confluence();
@@ -159,10 +144,10 @@ export const confluenceExtraMethods: SdkMethod[] = [
           `Attachment ${id} is not on a page; it cannot be deleted from here.`,
         );
       }
-      await authorizeLookedUp(env, "confluence_manage_attachment", {
-        action: "delete",
-        page_id: String(pageId),
-        attachment_id: id,
+      await authorizeLookedUp(env, {
+        operation: "confluence.attachments.delete",
+        targets: [confluenceAttachment(id), confluencePage(String(pageId))],
+        risk: "destructive",
       });
       await confluenceRequest(connection, {
         method: "DELETE",
@@ -184,8 +169,10 @@ export const confluenceExtraMethods: SdkMethod[] = [
       id: nonEmptyString(options.id, "id"),
       labels: normalizeLabels(options.labels),
     }),
-    authorize: ({ id, labels }) => labelChecks("add", id, labels)[0],
-    authorizeAlso: ({ id, labels }) => labelChecks("add", id, labels).slice(1),
+    authorize: ({ id, labels }) => ({
+      targets: [confluencePage(id)],
+      summary: `${id} +${labels.join(",")}`,
+    }),
     resource: ({ id }) => `page ${id}`,
     async run({ id, labels }, env) {
       try {
@@ -222,9 +209,10 @@ export const confluenceExtraMethods: SdkMethod[] = [
       id: nonEmptyString(options.id, "id"),
       labels: normalizeLabels(options.labels),
     }),
-    authorize: ({ id, labels }) => labelChecks("remove", id, labels)[0],
-    authorizeAlso: ({ id, labels }) =>
-      labelChecks("remove", id, labels).slice(1),
+    authorize: ({ id, labels }) => ({
+      targets: [confluencePage(id)],
+      summary: `${id} -${labels.join(",")}`,
+    }),
     resource: ({ id }) => `page ${id}`,
     async run({ id, labels }, env) {
       const connection = await env.confluence();
@@ -294,8 +282,7 @@ export const confluenceExtraMethods: SdkMethod[] = [
       };
     },
     authorize: ({ id }) => ({
-      toolName: "confluence_update_page",
-      args: { page_id: id },
+      targets: [confluencePage(id)],
       summary: id,
     }),
     resource: ({ id }) => `page ${id}`,
@@ -327,21 +314,10 @@ export const confluenceExtraMethods: SdkMethod[] = [
         purge: options.purge === true,
       };
     },
-    authorize: ({ id, purge }) => ({
-      toolName: "confluence_manage_page",
-      args: { action: purge ? "purge" : "trash", page_id: id },
+    authorize: ({ id }) => ({
+      targets: [confluencePage(id)],
       summary: id,
     }),
-    authorizeAlso: ({ id, purge }) =>
-      purge
-        ? [
-            {
-              toolName: "confluence_manage_page",
-              args: { action: "trash", page_id: id },
-              summary: id,
-            },
-          ]
-        : [],
     resource: ({ id }) => `page ${id}`,
     async run({ id, purge }, env) {
       const connection = await env.confluence();
@@ -390,8 +366,7 @@ export const confluenceExtraMethods: SdkMethod[] = [
       "restore(id: string | { id: string }): Promise<{ id: string; title: string | null; url: string; version: number | null }>",
     parse: (options) => ({ id: nonEmptyString(options.id, "id") }),
     authorize: ({ id }) => ({
-      toolName: "confluence_manage_page",
-      args: { action: "restore", page_id: id },
+      targets: [confluencePage(id)],
       summary: id,
     }),
     resource: ({ id }) => `page ${id}`,

@@ -1,0 +1,1002 @@
+{
+  "jira.issues.search": [
+    [
+      {
+        "toolName": "jira_search_issues",
+        "args": {
+          "jql": "project = A"
+        }
+      }
+    ]
+  ],
+  "jira.issues.get": [
+    [
+      {
+        "toolName": "jira_get_issue",
+        "args": {
+          "issue_key": "A-1"
+        }
+      }
+    ],
+    [
+      {
+        "toolName": "jira_get_issue",
+        "args": {
+          "issue_key": "A-1"
+        }
+      }
+    ]
+  ],
+  "jira.projects.get": [
+    [
+      {
+        "toolName": "jira_get_project",
+        "args": {
+          "project_key": "A"
+        }
+      }
+    ],
+    [
+      {
+        "toolName": "jira_get_project",
+        "args": {
+          "project_key": "A",
+          "include": ["create_meta"]
+        }
+      }
+    ]
+  ],
+  "jira.users.search": [
+    [
+      {
+        "toolName": "jira_search_users",
+        "args": {
+          "query": "ann"
+        }
+      }
+    ]
+  ],
+  "jira.users.me": [
+    [
+      {
+        "toolName": "jira_search_users",
+        "args": {
+          "query": "me"
+        }
+      }
+    ]
+  ],
+  "jira.projects.list": [
+    [
+      {
+        "toolName": "jira_get_project",
+        "args": {}
+      }
+    ]
+  ],
+  "jira.issues.delete": [
+    [
+      {
+        "toolName": "jira_update_issue",
+        "args": {
+          "issue_key": "A-1"
+        },
+        "approvalRequired": true
+      }
+    ],
+    [
+      {
+        "toolName": "jira_update_issue",
+        "args": {
+          "issue_key": "A-1"
+        },
+        "approvalRequired": true
+      }
+    ]
+  ],
+  "jira.attachments.download": [
+    [
+      {
+        "toolName": "jira_download_attachment",
+        "args": {
+          "attachment_id": "9"
+        }
+      }
+    ],
+    [
+      {
+        "toolName": "jira_download_attachment",
+        "args": {
+          "attachment_id": "9"
+        }
+      }
+    ]
+  ],
+  "jira.adf.fromMarkdown": [[]],
+  "jira.adf.toMarkdown": [[]],
+  "jira.fields.list": [
+    [
+      {
+        "toolName": "jira_get_project",
+        "args": {
+          "include": ["fields"]
+        }
+      }
+    ]
+  ],
+  "jira.issues.create": [
+    [
+      {
+        "toolName": "jira_create_issue",
+        "args": {
+          "issue_type": "Bug",
+          "summary": "s"
+        }
+      }
+    ],
+    [
+      {
+        "toolName": "jira_create_issue",
+        "args": {
+          "issue_type": "Bug",
+          "summary": "s"
+        }
+      },
+      {
+        "toolName": "jira_manage_attachment",
+        "args": {
+          "action": "upload",
+          "issue_key": "(new issue)",
+          "file_path": "a.png"
+        }
+      },
+      {
+        "toolName": "read",
+        "args": {
+          "path": "/home/tlm/Projects/nerve/packages/quick-script/a.png"
+        }
+      }
+    ]
+  ],
+  "jira.issues.rank": [
+    [
+      {
+        "toolName": "jira_manage_backlog",
+        "args": {
+          "action": "rank",
+          "issue_key": "A-1",
+          "rank_before_issue_key": "A-2"
+        }
+      }
+    ],
+    [
+      {
+        "toolName": "jira_manage_backlog",
+        "args": {
+          "action": "rank",
+          "issue_key": "A-1",
+          "rank_after_issue_key": "A-2"
+        }
+      }
+    ]
+  ],
+  "jira.issues.unlink": [
+    [
+      {
+        "toolName": "jira_manage_issue_link",
+        "args": {
+          "action": "delete",
+          "issue_key": "A-1",
+          "other_issue_key": "A-2"
+        }
+      }
+    ],
+    [
+      {
+        "toolName": "jira_manage_issue_link",
+        "args": {
+          "action": "delete",
+          "issue_key": "A-1",
+          "other_issue_key": "A-2",
+          "link_type": "Blocks"
+        }
+      }
+    ]
+  ],
+  "jira.worklogs.list": [
+    [
+      {
+        "toolName": "jira_get_issue",
+        "args": {
+          "issue_key": "A-1"
+        }
+      }
+    ]
+  ],
+  "jira.worklogs.update": [
+    [
+      {
+        "toolName": "jira_manage_worklog",
+        "args": {
+          "action": "update",
+          "issue_key": "A-1",
+          "worklog_id": "1"
+        }
+      }
+    ]
+  ],
+  "jira.worklogs.delete": [
+    [
+      {
+        "toolName": "jira_manage_worklog",
+        "args": {
+          "action": "delete",
+          "issue_key": "A-1",
+          "worklog_id": "1"
+        }
+      }
+    ]
+  ],
+  "jira.attachments.list": [
+    [
+      {
+        "toolName": "jira_get_issue",
+        "args": {
+          "issue_key": "A-1"
+        }
+      }
+    ]
+  ],
+  "jira.attachments.delete": [
+    [
+      {
+        "toolName": "jira_manage_attachment",
+        "args": {
+          "action": "delete",
+          "attachment_id": "9"
+        }
+      }
+    ]
+  ],
+  "jira.sprints.create": [
+    [
+      {
+        "toolName": "jira_manage_sprint",
+        "args": {
+          "action": "create",
+          "name": "S"
+        }
+      }
+    ],
+    [
+      {
+        "toolName": "jira_manage_sprint",
+        "args": {
+          "action": "create",
+          "name": "S",
+          "board_id": "3"
+        }
+      }
+    ]
+  ],
+  "jira.sprints.update": [
+    [
+      {
+        "toolName": "jira_manage_sprint",
+        "args": {
+          "action": "update",
+          "sprint_id": "5"
+        }
+      }
+    ]
+  ],
+  "jira.sprints.start": [
+    [
+      {
+        "toolName": "jira_manage_sprint",
+        "args": {
+          "action": "start",
+          "sprint_id": "5"
+        }
+      }
+    ]
+  ],
+  "jira.sprints.close": [
+    [
+      {
+        "toolName": "jira_manage_sprint",
+        "args": {
+          "action": "close",
+          "sprint_id": "5"
+        }
+      }
+    ],
+    [
+      {
+        "toolName": "jira_manage_sprint",
+        "args": {
+          "action": "close",
+          "sprint_id": "5"
+        }
+      },
+      {
+        "toolName": "jira_manage_backlog",
+        "args": {
+          "action": "move_to_backlog",
+          "issue_key": "(open issues of sprint 5)"
+        }
+      }
+    ],
+    [
+      {
+        "toolName": "jira_manage_sprint",
+        "args": {
+          "action": "close",
+          "sprint_id": "5"
+        }
+      },
+      {
+        "toolName": "jira_manage_backlog",
+        "args": {
+          "action": "move_to_sprint",
+          "issue_key": "(open issues of sprint 5)",
+          "sprint_id": "6"
+        }
+      }
+    ]
+  ],
+  "jira.sprints.issues": [
+    [
+      {
+        "toolName": "jira_get_sprint",
+        "args": {
+          "sprint_id": "5",
+          "include_issues": true
+        }
+      }
+    ],
+    [
+      {
+        "toolName": "jira_get_sprint",
+        "args": {
+          "sprint_id": "5",
+          "include_issues": true
+        }
+      }
+    ]
+  ],
+  "jira.sprints.delete": [
+    [
+      {
+        "toolName": "jira_manage_sprint",
+        "args": {
+          "action": "delete",
+          "sprint_id": "5"
+        }
+      }
+    ]
+  ],
+  "confluence.pages.download": [
+    [
+      {
+        "toolName": "confluence_get_page",
+        "args": {
+          "page_id": "1"
+        }
+      }
+    ],
+    [
+      {
+        "toolName": "confluence_get_page",
+        "args": {
+          "page_id": "1"
+        }
+      }
+    ]
+  ],
+  "jira.issues.update": [
+    [
+      {
+        "toolName": "jira_update_issue",
+        "args": {
+          "issue_key": "A-1"
+        }
+      }
+    ]
+  ],
+  "jira.issues.transition": [
+    [
+      {
+        "toolName": "jira_transition_issue",
+        "args": {
+          "issue_key": "A-1",
+          "transition": "Done"
+        }
+      }
+    ],
+    [
+      {
+        "toolName": "jira_transition_issue",
+        "args": {
+          "issue_key": "A-1",
+          "transition": "Done"
+        }
+      },
+      {
+        "toolName": "jira_manage_comment",
+        "args": {
+          "action": "create",
+          "issue_key": "A-1",
+          "body": "x"
+        }
+      }
+    ]
+  ],
+  "jira.issues.link": [
+    [
+      {
+        "toolName": "jira_manage_issue_link",
+        "args": {
+          "action": "create",
+          "issue_key": "A-1",
+          "other_issue_key": "A-2",
+          "link_type": "Blocks"
+        }
+      }
+    ]
+  ],
+  "jira.issues.move": [
+    [
+      {
+        "toolName": "jira_manage_backlog",
+        "args": {
+          "action": "move_to_sprint",
+          "issue_key": "A-1",
+          "sprint_id": "3"
+        }
+      }
+    ],
+    [
+      {
+        "toolName": "jira_manage_backlog",
+        "args": {
+          "action": "move_to_backlog",
+          "issue_key": "A-1"
+        }
+      }
+    ]
+  ],
+  "jira.comments.add": [
+    [
+      {
+        "toolName": "jira_manage_comment",
+        "args": {
+          "action": "create",
+          "issue_key": "A-1",
+          "body": "x"
+        }
+      }
+    ]
+  ],
+  "jira.comments.update": [
+    [
+      {
+        "toolName": "jira_manage_comment",
+        "args": {
+          "action": "update",
+          "issue_key": "A-1",
+          "comment_id": "1",
+          "body": "x"
+        }
+      }
+    ]
+  ],
+  "jira.comments.delete": [
+    [
+      {
+        "toolName": "jira_manage_comment",
+        "args": {
+          "action": "delete",
+          "issue_key": "A-1",
+          "comment_id": "1"
+        }
+      }
+    ]
+  ],
+  "jira.worklogs.add": [
+    [
+      {
+        "toolName": "jira_manage_worklog",
+        "args": {
+          "action": "create",
+          "issue_key": "A-1",
+          "time_spent": "1h"
+        }
+      }
+    ]
+  ],
+  "jira.attachments.upload": [
+    [
+      {
+        "toolName": "jira_manage_attachment",
+        "args": {
+          "action": "upload",
+          "issue_key": "A-1",
+          "file_path": "a.png"
+        }
+      },
+      {
+        "toolName": "read",
+        "args": {
+          "path": "/home/tlm/Projects/nerve/packages/quick-script/a.png"
+        }
+      }
+    ]
+  ],
+  "jira.request": [
+    [
+      {
+        "toolName": "jira_get_project",
+        "args": {}
+      }
+    ],
+    [
+      {
+        "toolName": "jira_manage_comment",
+        "args": {
+          "action": "delete",
+          "issue_key": "raw-request",
+          "comment_id": "-"
+        },
+        "approvalRequired": true
+      }
+    ],
+    [
+      {
+        "toolName": "jira_manage_comment",
+        "args": {
+          "action": "delete",
+          "issue_key": "raw-request",
+          "comment_id": "-"
+        },
+        "approvalRequired": true
+      }
+    ],
+    [
+      {
+        "toolName": "jira_get_project",
+        "args": {}
+      }
+    ]
+  ],
+  "confluence.spaces.search": [
+    [
+      {
+        "toolName": "confluence_search_spaces",
+        "args": {
+          "keys": ["S"]
+        }
+      }
+    ]
+  ],
+  "confluence.pages.search": [
+    [
+      {
+        "toolName": "confluence_search_pages",
+        "args": {
+          "cql": "(type = page)"
+        }
+      }
+    ]
+  ],
+  "confluence.pages.get": [
+    [
+      {
+        "toolName": "confluence_get_page",
+        "args": {
+          "page_id": "1"
+        }
+      }
+    ],
+    [
+      {
+        "toolName": "confluence_search_pages",
+        "args": {
+          "title": "x"
+        }
+      }
+    ],
+    [
+      {
+        "toolName": "confluence_search_pages",
+        "args": {
+          "space_key": "S",
+          "title": "x"
+        }
+      }
+    ]
+  ],
+  "confluence.pages.create": [
+    [
+      {
+        "toolName": "confluence_create_page",
+        "args": {
+          "space_key": "S",
+          "title": "t",
+          "body": "<p>x</p>"
+        }
+      }
+    ],
+    [
+      {
+        "toolName": "confluence_create_page",
+        "args": {
+          "space_key": "S",
+          "title": "t",
+          "body": "<p>x</p>"
+        }
+      },
+      {
+        "toolName": "confluence_manage_attachment",
+        "args": {
+          "action": "upload",
+          "page_id": "(new page)",
+          "file_path": "a.png"
+        }
+      },
+      {
+        "toolName": "read",
+        "args": {
+          "path": "/home/tlm/Projects/nerve/packages/quick-script/a.png"
+        }
+      }
+    ]
+  ],
+  "confluence.pages.update": [
+    [
+      {
+        "toolName": "confluence_update_page",
+        "args": {
+          "page_id": "1",
+          "title": "t"
+        }
+      }
+    ],
+    [
+      {
+        "toolName": "confluence_update_page",
+        "args": {
+          "page_id": "1",
+          "body": "<p>x</p>"
+        }
+      }
+    ],
+    [
+      {
+        "toolName": "confluence_update_page",
+        "args": {
+          "page_id": "1",
+          "title": "t"
+        }
+      },
+      {
+        "toolName": "confluence_manage_attachment",
+        "args": {
+          "action": "upload",
+          "page_id": "1",
+          "file_path": "a.png"
+        }
+      },
+      {
+        "toolName": "read",
+        "args": {
+          "path": "/home/tlm/Projects/nerve/packages/quick-script/a.png"
+        }
+      }
+    ]
+  ],
+  "confluence.attachments.upload": [
+    [
+      {
+        "toolName": "confluence_manage_attachment",
+        "args": {
+          "action": "upload",
+          "page_id": "1",
+          "file_path": "a.png"
+        }
+      },
+      {
+        "toolName": "read",
+        "args": {
+          "path": "/home/tlm/Projects/nerve/packages/quick-script/a.png"
+        }
+      }
+    ]
+  ],
+  "confluence.attachments.download": [
+    [
+      {
+        "toolName": "confluence_get_page",
+        "args": {
+          "page_id": "att1"
+        }
+      }
+    ],
+    [
+      {
+        "toolName": "confluence_get_page",
+        "args": {
+          "page_id": "1"
+        }
+      }
+    ]
+  ],
+  "confluence.labels.add": [
+    [
+      {
+        "toolName": "confluence_manage_label",
+        "args": {
+          "action": "add",
+          "page_id": "1",
+          "label": "a",
+          "prefix": "global"
+        }
+      }
+    ]
+  ],
+  "confluence.labels.remove": [
+    [
+      {
+        "toolName": "confluence_manage_label",
+        "args": {
+          "action": "remove",
+          "page_id": "1",
+          "label": "a",
+          "prefix": "global"
+        }
+      }
+    ]
+  ],
+  "confluence.attachments.list": [
+    [
+      {
+        "toolName": "confluence_get_page",
+        "args": {
+          "page_id": "1"
+        }
+      }
+    ]
+  ],
+  "confluence.attachments.delete": [[]],
+  "confluence.comments.list": [
+    [
+      {
+        "toolName": "confluence_get_page",
+        "args": {
+          "page_id": "1"
+        }
+      }
+    ]
+  ],
+  "confluence.comments.update": [[]],
+  "confluence.comments.delete": [[]],
+  "confluence.comments.reply": [[]],
+  "confluence.comments.resolve": [[]],
+  "confluence.pages.move": [
+    [
+      {
+        "toolName": "confluence_update_page",
+        "args": {
+          "page_id": "1"
+        }
+      }
+    ]
+  ],
+  "confluence.pages.delete": [
+    [
+      {
+        "toolName": "confluence_manage_page",
+        "args": {
+          "action": "trash",
+          "page_id": "1"
+        }
+      }
+    ],
+    [
+      {
+        "toolName": "confluence_manage_page",
+        "args": {
+          "action": "purge",
+          "page_id": "1"
+        }
+      },
+      {
+        "toolName": "confluence_manage_page",
+        "args": {
+          "action": "trash",
+          "page_id": "1"
+        }
+      }
+    ]
+  ],
+  "confluence.pages.restore": [
+    [
+      {
+        "toolName": "confluence_manage_page",
+        "args": {
+          "action": "restore",
+          "page_id": "1"
+        }
+      }
+    ]
+  ],
+  "confluence.comments.add": [
+    [
+      {
+        "toolName": "confluence_manage_comment",
+        "args": {
+          "action": "create",
+          "kind": "footer",
+          "page_id": "1",
+          "body": "x"
+        }
+      }
+    ]
+  ],
+  "atlassian.defaults": [
+    [
+      {
+        "toolName": "jira_get_project",
+        "args": {}
+      },
+      {
+        "toolName": "confluence_search_spaces",
+        "args": {}
+      }
+    ]
+  ],
+  "confluence.request": [
+    [
+      {
+        "toolName": "confluence_get_page",
+        "args": {
+          "page_id": "raw-request"
+        }
+      }
+    ],
+    [
+      {
+        "toolName": "confluence_manage_page",
+        "args": {
+          "action": "purge",
+          "page_id": "raw-request"
+        },
+        "approvalRequired": true
+      }
+    ],
+    [
+      {
+        "toolName": "confluence_manage_page",
+        "args": {
+          "action": "purge",
+          "page_id": "raw-request"
+        },
+        "approvalRequired": true
+      }
+    ]
+  ],
+  "diagram.render": [
+    [
+      {
+        "toolName": "kroki_export",
+        "args": {
+          "diagram_type": "mermaid",
+          "source": "graph TD; A-->B"
+        }
+      }
+    ]
+  ],
+  "files.list": [[]],
+  "files.read": [
+    [],
+    [
+      {
+        "toolName": "read",
+        "args": {
+          "path": "/home/tlm/Projects/nerve/packages/quick-script/notes.txt"
+        }
+      }
+    ]
+  ],
+  "files.write": [
+    [],
+    [
+      {
+        "toolName": "write",
+        "args": {
+          "path": "/home/tlm/Projects/nerve/packages/quick-script/a.txt",
+          "content": ""
+        }
+      }
+    ]
+  ],
+  "files.edit": [
+    [],
+    [
+      {
+        "toolName": "edit",
+        "args": {
+          "path": "/home/tlm/Projects/nerve/packages/quick-script/notes.txt",
+          "edits": [
+            {
+              "oldText": "a",
+              "newText": "b"
+            }
+          ]
+        }
+      }
+    ]
+  ],
+  "image.info": [
+    [
+      {
+        "toolName": "read",
+        "args": {
+          "path": "/home/tlm/Projects/nerve/packages/quick-script/a.png"
+        }
+      }
+    ]
+  ],
+  "image.save": [
+    [
+      {
+        "toolName": "read",
+        "args": {
+          "path": "/home/tlm/Projects/nerve/packages/quick-script/a.png"
+        }
+      }
+    ]
+  ],
+  "web.fetch": [
+    [
+      {
+        "toolName": "web_fetch",
+        "args": {
+          "url": "https://example.com/a"
+        }
+      }
+    ],
+    [
+      {
+        "toolName": "web_fetch",
+        "args": {
+          "url": "https://example.com/a"
+        }
+      }
+    ]
+  ],
+  "web.search": [
+    [
+      {
+        "toolName": "web_search",
+        "args": {
+          "query": "nerve",
+          "max_results": 5
+        }
+      }
+    ],
+    [
+      {
+        "toolName": "web_search",
+        "args": {
+          "query": "nerve",
+          "max_results": 20
+        }
+      }
+    ]
+  ],
+  "sdk.list": [[]],
+  "sdk.describe": [[]],
+  "sdk.search": [[], []],
+  "sdk.docs": [[], [], []]
+}

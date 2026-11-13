@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { afterEach, test } from "node:test";
 import { executeQuickScript } from "../../../runtime/quick-script.js";
 import { assertWellFormedStorage } from "@nervekit/tools/integrations";
+import { type Nested, nestedName } from "../../../runtime/test-nested.js";
 
 const originalFetch = globalThis.fetch;
 afterEach(() => {
@@ -79,8 +80,7 @@ function setup() {
       return Response.json({ id: "55" });
     return new Response("{}", { status: 404 });
   };
-  const authorized: Array<{ toolName: string; args: Record<string, unknown> }> =
-    [];
+  const authorized: Nested[] = [];
   const context = {
     cwd: process.cwd(),
     getApiKey: async () => "token",
@@ -89,11 +89,8 @@ function setup() {
       siteUrl: "https://example.atlassian.net",
       email: "dev@example.com",
     }),
-    authorizeNested: async (request: {
-      toolName: string;
-      args: Record<string, unknown>;
-    }) => {
-      events.push(`authorize ${request.toolName}`);
+    authorizeNested: async (request: Nested) => {
+      events.push(`authorize ${nestedName(request)}`);
       authorized.push(request);
     },
   };
@@ -108,8 +105,12 @@ void test("pages.create converts Markdown to storage after authorizing", async (
     },
     context,
   );
-  assert.equal(events[0], "authorize confluence_create_page");
-  assert.equal(authorized[0].args.space_key, "DOC");
+  assert.equal(events[0], "authorize confluence.pages.create");
+  assert.deepEqual(authorized[0], {
+    operation: "confluence.pages.create",
+    targets: ["confluence:space/DOC"],
+    risk: "external_write",
+  });
   const post = requests.find((r) => r.method === "POST")!;
   assert.deepEqual(post.body, {
     spaceId: "10",
@@ -140,7 +141,7 @@ void test("pages.update fetches the current version and bumps it", async () => {
     },
     context,
   );
-  assert.equal(authorized[0].toolName, "confluence_update_page");
+  assert.equal(nestedName(authorized[0]), "confluence.pages.update");
   const put = requests.find((r) => r.method === "PUT")!;
   assert.deepEqual(put.body.version, { number: 4, message: "m" });
   assert.equal(put.body.title, "Old");
@@ -165,7 +166,7 @@ void test("pages.update with a stale version throws CONFLICT naming the current 
   assert.equal(requests.filter((r) => r.method === "PUT").length, 1);
 });
 
-void test("pages.get by title authorizes as a page search and misses are NOT_FOUND", async () => {
+void test("pages.get by title authorizes the space searched and misses are NOT_FOUND", async () => {
   const { authorized, context } = setup();
   const result = await executeQuickScript(
     {
@@ -174,8 +175,9 @@ void test("pages.get by title authorizes as a page search and misses are NOT_FOU
     context,
   );
   assert.deepEqual(authorized[0], {
-    toolName: "confluence_search_pages",
-    args: { space_key: "DOC", title: "Nope" },
+    operation: "confluence.pages.get",
+    targets: ["confluence:space/DOC"],
+    risk: "network",
   });
   assert.match(result.content ?? "", /^NOT_FOUND/);
 });
@@ -250,17 +252,17 @@ void test("write methods are denied before any HTTP", async () => {
     {
       ...context,
       authorizeNested: async (request) => {
-        events.push(`authorize ${request.toolName}`);
+        events.push(`authorize ${nestedName(request)}`);
         throw new Error("approval required");
       },
     },
   );
-  assert.deepEqual(events, ["authorize confluence_manage_label"]);
+  assert.deepEqual(events, ["authorize confluence.labels.add"]);
   assert.match(result.content ?? "", /^approval required/);
   assert.match(result.content ?? "", /1 denied/);
 });
 
-void test("labels.add authorizes every label, not only the first", async () => {
+void test("labels.add authorizes the page once for all labels", async () => {
   const { authorized, context } = setup();
   await executeQuickScript(
     {
@@ -268,10 +270,13 @@ void test("labels.add authorizes every label, not only the first", async () => {
     },
     context,
   );
-  assert.deepEqual(
-    authorized.map((request) => request.args.label),
-    ["a", "b", "c"],
-  );
+  assert.deepEqual(authorized, [
+    {
+      operation: "confluence.labels.add",
+      targets: ["confluence:page/100"],
+      risk: "external_write",
+    },
+  ]);
 });
 
 void test("a server error on child lookup fails the call instead of listing no children", async () => {
@@ -484,7 +489,7 @@ void test("attachments.download round-trips binary bytes and lists choices on a 
     result.content ?? "",
     /NOT_FOUND Page 100 has no attachment "x\.png"\. Attachments: pic one\.png/,
   );
-  assert.equal(authorized[0].toolName, "confluence_get_page");
+  assert.equal(nestedName(authorized[0]), "confluence.attachments.download");
 });
 
 void test("request refuses atlas_doc_format writes, encodes query and saves binary responses", async () => {

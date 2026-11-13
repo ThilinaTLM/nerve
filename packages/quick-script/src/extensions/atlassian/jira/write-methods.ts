@@ -44,6 +44,7 @@ import {
   orWhenUnsupported,
   type SdkMethod,
 } from "../../../runtime/sdk-types.js";
+import { jiraIssue, jiraProject, jiraSprint } from "../shared/targets.js";
 
 const MAX_MOVE_KEYS = 50;
 
@@ -159,27 +160,12 @@ export const jiraWriteMethods: SdkMethod[] = [
       attachments: attachmentSpecs(options.attachments),
     }),
     authorize: ({ project, type, summary }) => ({
-      toolName: "jira_create_issue",
-      args: {
-        ...(project ? { project_key: project } : {}),
-        issue_type: type,
-        summary,
-      },
+      targets: project ? [jiraProject(project)] : [],
       summary: `${project ?? "default project"} ${type}: ${summary}`,
     }),
-    authorizeAlso: ({ attachments }, env) => [
-      ...attachments.map((spec) => ({
-        toolName: "jira_manage_attachment",
-        args: {
-          action: "upload",
-          issue_key: "(new issue)",
-          file_path: spec.file,
-          ...(spec.filename ? { filename: spec.filename } : {}),
-        },
-        summary: `(new issue) ← ${spec.filename ?? spec.file}`,
-      })),
-      ...attachmentReadAuthorizations(attachments, env),
-    ],
+    // Attaching files is part of creating the issue; only the file reads need their own check.
+    authorizeAlso: ({ attachments }, env) =>
+      attachmentReadAuthorizations(attachments, env),
     resource: ({ project }) => (project ? `project ${project}` : "Jira"),
     async run(
       { project, type, summary, description, fields, attachments },
@@ -273,8 +259,7 @@ export const jiraWriteMethods: SdkMethod[] = [
       fields: fieldsOption(options.fields, true),
     }),
     authorize: ({ key }) => ({
-      toolName: "jira_update_issue",
-      args: { issue_key: key },
+      targets: [jiraIssue(key)],
       summary: key,
     }),
     resource: ({ key }) => `issue ${key}`,
@@ -322,20 +307,9 @@ export const jiraWriteMethods: SdkMethod[] = [
           : markdownOption(options.comment, "comment"),
     }),
     authorize: ({ key, to }) => ({
-      toolName: "jira_transition_issue",
-      args: { issue_key: key, transition: to },
+      targets: [jiraIssue(key)],
       summary: `${key} → ${to}`,
     }),
-    authorizeAlso: ({ key, comment }) =>
-      comment
-        ? [
-            {
-              toolName: "jira_manage_comment",
-              args: { action: "create", issue_key: key, body: comment },
-              summary: key,
-            },
-          ]
-        : [],
     resource: ({ key }) => `issue ${key}`,
     async run({ key, to, fields, comment }, env) {
       const connection = await env.jira();
@@ -408,9 +382,8 @@ export const jiraWriteMethods: SdkMethod[] = [
       key: nonEmptyString(options.key, "key"),
       body: markdownOption(options.body, "body"),
     }),
-    authorize: ({ key, body }) => ({
-      toolName: "jira_manage_comment",
-      args: { action: "create", issue_key: key, body },
+    authorize: ({ key }) => ({
+      targets: [jiraIssue(key)],
       summary: key,
     }),
     resource: ({ key }) => `issue ${key}`,
@@ -443,9 +416,8 @@ export const jiraWriteMethods: SdkMethod[] = [
       id: nonEmptyString(options.id, "id"),
       body: markdownOption(options.body, "body"),
     }),
-    authorize: ({ key, id, body }) => ({
-      toolName: "jira_manage_comment",
-      args: { action: "update", issue_key: key, comment_id: id, body },
+    authorize: ({ key, id }) => ({
+      targets: [jiraIssue(key)],
       summary: `${key} comment ${id}`,
     }),
     resource: ({ key }) => `issue ${key}`,
@@ -472,8 +444,7 @@ export const jiraWriteMethods: SdkMethod[] = [
       id: nonEmptyString(options.id, "id"),
     }),
     authorize: ({ key, id }) => ({
-      toolName: "jira_manage_comment",
-      args: { action: "delete", issue_key: key, comment_id: id },
+      targets: [jiraIssue(key)],
       summary: `${key} comment ${id}`,
     }),
     resource: ({ key }) => `issue ${key}`,
@@ -500,13 +471,7 @@ export const jiraWriteMethods: SdkMethod[] = [
       type: nonEmptyString(options.type, "type"),
     }),
     authorize: ({ key, to, type }) => ({
-      toolName: "jira_manage_issue_link",
-      args: {
-        action: "create",
-        issue_key: key,
-        other_issue_key: to,
-        link_type: type,
-      },
+      targets: [jiraIssue(key), jiraIssue(to)],
       summary: `${key} ${type} ${to}`,
     }),
     resource: ({ key }) => `issue ${key}`,
@@ -576,8 +541,7 @@ export const jiraWriteMethods: SdkMethod[] = [
           : markdownOption(options.comment, "comment"),
     }),
     authorize: ({ key, time }) => ({
-      toolName: "jira_manage_worklog",
-      args: { action: "create", issue_key: key, time_spent: time },
+      targets: [jiraIssue(key)],
       summary: `${key} ${time}`,
     }),
     resource: ({ key }) => `issue ${key}`,
@@ -616,13 +580,7 @@ export const jiraWriteMethods: SdkMethod[] = [
       }),
     }),
     authorize: ({ key, spec }) => ({
-      toolName: "jira_manage_attachment",
-      args: {
-        action: "upload",
-        issue_key: key,
-        file_path: spec.file,
-        ...(spec.filename ? { filename: spec.filename } : {}),
-      },
+      targets: [jiraIssue(key)],
       summary: `${key} ← ${spec.filename ?? spec.file}`,
     }),
     authorizeAlso: ({ spec }, env) => attachmentReadAuthorizations([spec], env),
@@ -658,15 +616,10 @@ export const jiraWriteMethods: SdkMethod[] = [
       return { keys: keys as string[], sprint: sprint as number | "backlog" };
     },
     authorize: ({ keys, sprint }) => ({
-      toolName: "jira_manage_backlog",
-      args:
-        sprint === "backlog"
-          ? { action: "move_to_backlog", issue_key: keys[0] }
-          : {
-              action: "move_to_sprint",
-              issue_key: keys[0],
-              sprint_id: String(sprint),
-            },
+      targets: [
+        ...keys.map(jiraIssue),
+        ...(sprint === "backlog" ? [] : [jiraSprint(sprint)]),
+      ],
       summary: `${keys.join(", ")} → ${sprint === "backlog" ? "backlog" : `sprint ${sprint}`}`,
     }),
     resource: ({ sprint }) =>

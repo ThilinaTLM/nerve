@@ -3,10 +3,15 @@ import { toolNameSchema } from "@nervekit/contracts/tools";
 import {
   quickScriptRiskWithin,
   quickScriptToolRisk,
+  quickScriptRiskOfMethod,
+  findQuickScriptNamespace,
   describeQuickScriptRisk,
   type QuickScriptRisk,
 } from "@nervekit/quick-script";
-import { ToolExecutionError } from "@nervekit/tools/execution";
+import {
+  ToolExecutionError,
+  type QuickScriptNestedRequest,
+} from "@nervekit/tools/execution";
 
 type PrepareAdmission = NonNullable<PermissionPort["prepareAdmission"]>;
 type AdmissionInput = Parameters<PrepareAdmission>[0];
@@ -25,34 +30,17 @@ export type QuickScriptCall = Omit<
   admission: { by: "user" | "rule"; scriptRisk: QuickScriptRisk };
 };
 
-/** One SDK call to check. */
-export type QuickScriptRequest = {
-  toolName: string;
-  args: Record<string, unknown>;
-  /**
-   * The call cannot be analysed (raw non-GET request), so `toolName` only
-   * supplies the deny rules; its own allow rule never admits it. It runs only
-   * in a script whose classified risk is destructive and that either a person
-   * approved or a rule admitted while the nested verdict is `allow`.
-   */
-  approvalRequired?: boolean;
-};
+/** One SDK call to check: an operation with its targets and risk, or a remaining direct tool (`web_fetch`, `read` / `write` / `edit`). */
+export type QuickScriptRequest = QuickScriptNestedRequest;
 
 const MAX_STALE_RETRIES = 5;
 
-/**
- * Direct tools a quick-script SDK call may be authorized as: the Atlassian tools,
- * `read` / `write` / `edit` for workspace files (`files.*`, attachments),
- * `kroki_export` for diagrams, and `web_fetch` / `web_search` for the web namespace.
- */
-function brokerable(toolName: string): boolean {
+/** Direct tools a quick-script SDK call may still be authorized as: `read` / `write` / `edit` for workspace files and `web_fetch` / `web_search` for the web namespace. */
+function brokerableDirectTool(toolName: string): boolean {
   return (
-    toolName.startsWith("jira_") ||
-    toolName.startsWith("confluence_") ||
     toolName === "read" ||
     toolName === "write" ||
     toolName === "edit" ||
-    toolName === "kroki_export" ||
     toolName === "web_fetch" ||
     toolName === "web_search"
   );
@@ -60,12 +48,13 @@ function brokerable(toolName: string): boolean {
 
 /**
  * Checks one SDK call from a quick-script script against the conversation's
- * current policy, exactly as a direct call to `toolName` would be checked.
- * A person's approval of the script sets a ceiling: a call whose decision is
- * "approval" runs when its own risk is within it and is refused above it.
- * A script merely admitted by a rule has no ceiling, so such calls are refused,
- * except a raw request with an `allow` verdict in a destructive script (the
- * rule already admitted destructive work). Denials always hold.
+ * current policy. An operation is checked as a `quick_script` request (the
+ * operation is the primary argument, its namespace the tool group, its targets
+ * `resource` targets); `web.*` and `files.*` are checked as the direct tool
+ * they stand for. A person's approval of the script sets a ceiling: a call
+ * whose decision is "approval" runs when its own risk is within it and is
+ * refused above it. A script merely admitted by a rule has no ceiling, so such
+ * calls are refused. Denials always hold.
  */
 export function createQuickScriptAuthorizer(
   prepareAdmission: PrepareAdmission,
@@ -74,23 +63,50 @@ export function createQuickScriptAuthorizer(
     call: QuickScriptCall,
     request: QuickScriptRequest,
   ): Promise<void> => {
-    const parsed = toolNameSchema.safeParse(request.toolName);
-    if (!parsed.success || !brokerable(parsed.data))
-      throw new ToolExecutionError(
-        "NESTED_DENIED",
-        `${request.toolName}: not available to quick_script`,
-      );
+    let toolName: string;
+    let args: Record<string, unknown>;
+    let label: string;
+    let risk: QuickScriptRisk;
+    if ("operation" in request) {
+      const [namespace] = request.operation.split(".");
+      if (!namespace || !findQuickScriptNamespace(namespace))
+        throw new ToolExecutionError(
+          "NESTED_DENIED",
+          `${request.operation}: not available to quick_script`,
+        );
+      toolName = "quick_script";
+      args = {
+        operation: request.operation,
+        targets: [...request.targets],
+        risk: request.risk,
+      };
+      label = [request.operation, request.targets.join(", ")]
+        .filter(Boolean)
+        .join(" · ");
+      risk = quickScriptRiskOfMethod(request.risk);
+    } else {
+      const parsed = toolNameSchema.safeParse(request.toolName);
+      if (!parsed.success || !brokerableDirectTool(parsed.data))
+        throw new ToolExecutionError(
+          "NESTED_DENIED",
+          `${request.toolName}: not available to quick_script`,
+        );
+      toolName = parsed.data;
+      args = request.args;
+      label = parsed.data;
+      risk = quickScriptToolRisk(parsed.data, request.args);
+    }
     const { signal, admission: scripted, ...identity } = call;
     for (let attempt = 0; attempt <= MAX_STALE_RETRIES; attempt += 1) {
       signal.throwIfAborted();
       const admission = await prepareAdmission({
         ...identity,
-        toolName: parsed.data,
-        args: structuredClone(request.args),
+        toolName,
+        args: structuredClone(args),
         target: {
           kind: "quick_script_nested",
           parentToolName: "quick_script",
-          toolName: parsed.data,
+          toolName,
           cwd: identity.cwd,
         },
       });
@@ -99,40 +115,31 @@ export function createQuickScriptAuthorizer(
       if (decision.kind === "blocked")
         throw new ToolExecutionError(
           "NESTED_DENIED",
-          `${parsed.data}: permission policy is unavailable until its configuration is repaired`,
+          `${label}: permission policy is unavailable until its configuration is repaired`,
         );
       const { decision: verdict, reason } = decision.supervision;
       if (verdict === "deny")
         throw new ToolExecutionError(
           "NESTED_DENIED",
-          `${parsed.data}: denied${reason ? ` (${reason})` : ""}`,
+          `${label}: denied${reason ? ` (${reason})` : ""}`,
         );
-      const raw = request.approvalRequired === true;
-      if (verdict === "allow" && !raw) return;
-      const risk = raw
-        ? "destructive"
-        : quickScriptToolRisk(parsed.data, request.args);
+      if (verdict === "allow") return;
       const suffix = reason ? ` (${reason})` : "";
-      if (scripted.by === "rule") {
-        if (raw && verdict === "allow" && scripted.scriptRisk === "destructive")
-          return;
+      if (scripted.by === "rule")
         throw new ToolExecutionError(
           "NESTED_APPROVAL_REQUIRED",
-          raw
-            ? `${parsed.data}: a raw non-GET request needs the rule to allow it in a destructive script (script risk: ${describeQuickScriptRisk(scripted.scriptRisk)}, rule verdict: ${verdict}); have a person approve the script or adjust the rule${suffix}`
-            : `${parsed.data}: needs ${describeQuickScriptRisk(risk)} approval, but the script was allowed by a rule rather than approved${suffix}`,
+          `${label}: needs ${describeQuickScriptRisk(risk)} approval, but the script was allowed by a rule rather than approved${suffix}`,
         );
-      }
       const approvedRisk = scripted.scriptRisk;
       if (quickScriptRiskWithin(risk, approvedRisk)) return;
       throw new ToolExecutionError(
         "NESTED_APPROVAL_REQUIRED",
-        `${parsed.data}: script was approved for ${describeQuickScriptRisk(approvedRisk)} operations; this call needs ${describeQuickScriptRisk(risk)} approval${suffix}`,
+        `${label}: script was approved for ${describeQuickScriptRisk(approvedRisk)} operations; this call needs ${describeQuickScriptRisk(risk)} approval${suffix}`,
       );
     }
     throw new ToolExecutionError(
       "NESTED_DENIED",
-      `${parsed.data}: permission policy kept changing; retry`,
+      `${label}: permission policy kept changing; retry`,
       {},
       true,
     );

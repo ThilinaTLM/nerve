@@ -14,7 +14,7 @@ import {
   statFileRef,
 } from "../../../runtime/files/artifacts.js";
 import type {
-  NestedAuthorization,
+  DirectAuthorization,
   SdkEnvironment,
 } from "../../../runtime/sdk-types.js";
 
@@ -83,24 +83,8 @@ export function parseAttachmentSpec(raw: unknown): AttachmentSpec {
 export function attachmentReadAuthorizations(
   specs: AttachmentSpec[],
   env: SdkEnvironment,
-): NestedAuthorization[] {
+): DirectAuthorization[] {
   return readAuthorizations(specs.map((spec) => parseHandle(spec.file, env)));
-}
-
-export function attachmentUploadAuthorizations(
-  pageId: string,
-  specs: AttachmentSpec[],
-): NestedAuthorization[] {
-  return specs.map((spec) => ({
-    toolName: "confluence_manage_attachment",
-    args: {
-      action: "upload",
-      page_id: pageId,
-      file_path: spec.file,
-      ...(spec.filename ? { filename: spec.filename } : {}),
-    },
-    summary: `${pageId} ← ${spec.filename ?? spec.file}`,
-  }));
 }
 
 type ImageKind = "png" | "jpeg" | "gif" | "webp" | "svg";

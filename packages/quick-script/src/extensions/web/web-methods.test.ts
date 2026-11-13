@@ -136,7 +136,7 @@ void test("web.search returns compact hits via Tavily and authorizes as web_sear
   const { prepared, value } = await call("web.search", [
     { query: "nerve", limit: 2 },
   ]);
-  assert.deepEqual(prepared.authorization?.args, {
+  assert.deepEqual((prepared.authorization as { args: unknown }).args, {
     query: "nerve",
     max_results: 2,
   });

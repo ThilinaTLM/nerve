@@ -17,7 +17,6 @@ import { resolveSpace } from "./spaces.js";
 import {
   type AttachmentSpec,
   attachmentReadAuthorizations,
-  attachmentUploadAuthorizations,
   loadAttachments,
   type LoadedAttachment,
   parseAttachmentSpec,
@@ -41,6 +40,7 @@ import {
   type SdkEnvironment,
   type SdkMethod,
 } from "../../../runtime/sdk-types.js";
+import { confluencePage, confluenceSpace } from "../shared/targets.js";
 
 /** Uploads one file; a same-name upload is a new version (updated), otherwise a new attachment (created). */
 export async function uploadAttachment(
@@ -302,20 +302,13 @@ export const confluencePageWriteMethods: SdkMethod[] = [
         attachments: attachmentSpecs(options.attachments),
       };
     },
-    authorize: ({ space, title, parent, body }) => ({
-      toolName: "confluence_create_page",
-      args: {
-        ...(space ? { space_key: space } : {}),
-        title,
-        ...(parent ? { parent_id: parent } : {}),
-        body,
-      },
+    authorize: ({ space, title }) => ({
+      targets: space ? [confluenceSpace(space)] : [],
       summary: `${space ?? "default space"}/${title}`,
     }),
-    authorizeAlso: ({ attachments }, env) => [
-      ...attachmentUploadAuthorizations("(new page)", attachments),
-      ...attachmentReadAuthorizations(attachments, env),
-    ],
+    // Attaching files is part of creating the page; only the file reads need their own check.
+    authorizeAlso: ({ attachments }, env) =>
+      attachmentReadAuthorizations(attachments, env),
     resource: ({ space }) => `space ${space ?? "(default)"}`,
     async run({ space, title, parent, body, toc, attachments }, env) {
       const connection = await env.confluence();
@@ -437,18 +430,11 @@ export const confluencePageWriteMethods: SdkMethod[] = [
         attachments: attachmentSpecs(options.attachments),
       };
     },
-    authorize: ({ id, title, body, message }) => ({
-      toolName: "confluence_update_page",
-      args: {
-        page_id: id,
-        ...(title ? { title } : {}),
-        ...(body !== undefined ? { body } : {}),
-        ...(message ? { version_message: message } : {}),
-      },
+    authorize: ({ id }) => ({
+      targets: [confluencePage(id)],
       summary: id,
     }),
-    authorizeAlso: ({ id, bodyFile, attachments }, env) => [
-      ...attachmentUploadAuthorizations(id, attachments),
+    authorizeAlso: ({ bodyFile, attachments }, env) => [
       ...attachmentReadAuthorizations(attachments, env),
       ...(bodyFile ? readAuthorizations([parseHandle(bodyFile, env)]) : []),
     ],
@@ -589,8 +575,7 @@ export const confluencePageWriteMethods: SdkMethod[] = [
       attachments: options.attachments === true,
     }),
     authorize: ({ id }) => ({
-      toolName: "confluence_get_page",
-      args: { page_id: id },
+      targets: [confluencePage(id)],
       summary: id,
     }),
     resource: ({ id }) => `page ${id}`,

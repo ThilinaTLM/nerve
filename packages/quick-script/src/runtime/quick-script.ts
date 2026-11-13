@@ -9,6 +9,7 @@ import type {
   PageReport,
   SdkEnvironment,
 } from "./sdk-types.js";
+import { isOperationCheck } from "./sdk-types.js";
 import { ToolExecutionError } from "@nervekit/tools/execution";
 import { type DisplayPaths, errnoMessage, hostErrorCode } from "./errors.js";
 import { processFooter } from "@nervekit/tools/result-projection";
@@ -146,8 +147,14 @@ export async function executeQuickScript(
       record({ outcome: "failed", error: cleanMessage(error, paths) });
       throw hostFailure(error, undefined, paths);
     }
+    const operationTargets = checks
+      .filter(isOperationCheck)
+      .flatMap((check) => check.targets.map((target) => target.value));
     const base = {
-      authorizedAs: checks[0]?.toolName,
+      ...(checks[0] && !isOperationCheck(checks[0])
+        ? { authorizedAs: checks[0].toolName }
+        : {}),
+      ...(operationTargets.length > 0 ? { targets: operationTargets } : {}),
       summary: truncate(
         prepared.authorization?.summary ?? prepared.resource,
         200,
@@ -160,11 +167,15 @@ export async function executeQuickScript(
         );
       }
       for (const request of checks) {
-        await context.authorizeNested!({
-          toolName: request.toolName,
-          args: request.args,
-          ...(request.approvalRequired ? { approvalRequired: true } : {}),
-        });
+        await context.authorizeNested!(
+          isOperationCheck(request)
+            ? {
+                operation: request.operation,
+                targets: request.targets.map((target) => target.value),
+                risk: request.risk,
+              }
+            : { toolName: request.toolName, args: request.args },
+        );
       }
     } catch (error) {
       record({ ...base, outcome: "denied", error: cleanMessage(error, paths) });
@@ -175,7 +186,9 @@ export async function executeQuickScript(
       // A raw non-GET request cannot be analysed; the footer names what was sent.
       if (
         sdkMethod.path === "request" &&
-        prepared.authorization?.approvalRequired &&
+        prepared.authorization &&
+        isOperationCheck(prepared.authorization) &&
+        prepared.authorization.risk === "destructive" &&
         !sealed
       )
         env.report.raw.push(prepared.authorization.summary);

@@ -5,7 +5,9 @@ export const quickScriptHostCallSchema = z
   .object({
     /** SDK method, e.g. `jira.issues.search`. */
     method: z.string(),
-    /** Direct tool the call was authorized as, e.g. `jira_search_issues`. */
+    /** Resource targets the call was authorized for, e.g. `jira:issue/APP-12`. */
+    targets: z.array(z.string()).optional(),
+    /** Set only when the call was authorized as a remaining direct tool (`web_fetch`, `write`); older records name the tool for every call. */
     authorizedAs: z.string().optional(),
     /** Short argument summary for display (JQL, issue key). */
     summary: z.string().optional(),

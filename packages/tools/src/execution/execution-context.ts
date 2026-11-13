@@ -1,3 +1,4 @@
+import type { OperationRisk } from "../policy/operation-request.js";
 import type { ToolOutputStream } from "@nervekit/contracts/tools";
 import type {
   ToolContentBlockPayload,
@@ -106,16 +107,11 @@ export interface IntegrationExecutionContext extends BaseExecutionContext {
   namespaces?: QuickScriptAvailability;
   /**
    * quick_script: checks one brokered SDK call against the conversation's
-   * permission policy as if it were a direct call to `toolName` with `args`.
-   * Resolves when allowed; rejects with the one-line reason otherwise
-   * (`ToolExecutionError` code `NESTED_DENIED` or `NESTED_APPROVAL_REQUIRED`).
+   * permission policy. Resolves when allowed; rejects with the one-line reason
+   * otherwise (`ToolExecutionError` code `NESTED_DENIED` or
+   * `NESTED_APPROVAL_REQUIRED`).
    */
-  authorizeNested?: (request: {
-    toolName: string;
-    args: Record<string, unknown>;
-    /** Never allowed by a rule alone; needs a user-approved destructive script (raw non-GET requests). */
-    approvalRequired?: boolean;
-  }) => Promise<void>;
+  authorizeNested?: (request: QuickScriptNestedRequest) => Promise<void>;
 }
 
 /** Complete host context accepted by catalog dispatch. Executors use narrower contexts. */
@@ -202,3 +198,17 @@ export type ExplainImageToolArgs = ToolPathArgs & {
 
 export type JiraToolArgs = Record<string, unknown>;
 export type ConfluenceToolArgs = Record<string, unknown>;
+
+/**
+ * One SDK call to check: an operation (`jira.issues.create`) with its
+ * normalized resource targets and risk, or, for `web.*` and `files.*`, the
+ * remaining direct tool the call is authorized as.
+ */
+export type QuickScriptNestedRequest =
+  | {
+      operation: string;
+      /** Normalized `<system>:<type>/<id>` values. */
+      targets: string[];
+      risk: OperationRisk;
+    }
+  | { toolName: string; args: Record<string, unknown> };

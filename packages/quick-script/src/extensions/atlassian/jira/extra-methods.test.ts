@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { test } from "node:test";
 
 import { returned, setup } from "./test-harness.js";
+import { nestedName } from "../../../runtime/test-nested.js";
 
 const PNG = Uint8Array.from([
   0x89, 0x50, 0x4e, 0x47, 0, 255, 0xc3, 0x28, 13, 10,
@@ -34,8 +35,9 @@ void test("attachments.download writes exact bytes to a fresh artifact and autho
     );
   }
   assert.deepEqual(authorized[0], {
-    toolName: "jira_download_attachment",
-    args: { attachment_id: "9" },
+    operation: "jira.attachments.download",
+    targets: ["jira:attachment/9"],
+    risk: "network",
   });
 });
 
@@ -80,9 +82,11 @@ void test("issues.delete passes deleteSubtasks, needs approval, and explains the
       .query.get("deleteSubtasks"),
     "true",
   );
-  assert.equal(authorized[0].toolName, "jira_update_issue");
-  assert.deepEqual(authorized[0].args, { issue_key: "APP-2" });
-  assert.equal((authorized[0] as { summary?: string }).summary, undefined);
+  assert.deepEqual(authorized[0], {
+    operation: "jira.issues.delete",
+    targets: ["jira:issue/APP-2"],
+    risk: "destructive",
+  });
 });
 
 void test("projects.list pages through /project/search and users.me reads /myself", async () => {
@@ -121,10 +125,10 @@ void test("projects.list pages through /project/search and users.me reads /mysel
     },
   ]);
   assert.equal(sent.filter((s) => s.path === "/project/search").length, 2);
-  assert.deepEqual(
-    authorized.map((a) => a.toolName),
-    ["jira_get_project", "jira_search_users"],
-  );
+  assert.deepEqual(authorized.map(nestedName), [
+    "jira.projects.list",
+    "jira.users.me",
+  ]);
 });
 
 void test("jira.adf converts Markdown both ways without authorization", async () => {

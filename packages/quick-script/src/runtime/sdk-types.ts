@@ -8,15 +8,51 @@ import type {
 import type { JiraConnection } from "@nervekit/tools/integrations";
 import type { JiraFieldInfo } from "../extensions/atlassian/jira/issue.js";
 
-/** What a method is authorized as: the equivalent direct tool call. */
+/** A resource a call acts on, normalized `<system>:<type>/<id>`: `jira:issue/APP-12`, `confluence:page/123`, `jira:request/GET /rest/api/3/myself`. */
+export type OperationTarget = { kind: "resource"; value: string };
+
+/** What the policy checks for a call: the operation, the resources it acts on and its risk. */
 export type NestedAuthorization = {
-  toolName: string;
-  args: Record<string, unknown>;
+  /** `<namespace>.<path>`, e.g. `jira.issues.create`. */
+  operation: string;
+  targets: OperationTarget[];
+  /** The method's declared risk, or the call's own risk (raw requests). */
+  risk: MethodRisk;
   /** Short label for the record (JQL, issue key, ...). */
   summary: string;
-  /** Cannot be analysed (raw non-GET request): `toolName` supplies the deny rules only and an allow rule never admits it. */
-  approvalRequired?: true;
 };
+
+/** A call authorized as a direct tool that remains (`web_fetch`, `read`/`write`/`edit` for files). */
+export type DirectAuthorization = {
+  toolName: string;
+  args: Record<string, unknown>;
+  summary: string;
+};
+
+/** A check on a prepared call: an operation or a remaining direct tool. */
+export type NestedCheck = NestedAuthorization | DirectAuthorization;
+
+/** What a method returns from `authorize`; the operation and risk default to the method's. */
+export type MethodAuthorization =
+  | DirectAuthorization
+  | (Pick<NestedAuthorization, "summary"> &
+      Partial<Pick<NestedAuthorization, "operation" | "risk">> & {
+        targets: readonly (OperationTarget | string)[];
+      });
+
+export function isOperationCheck(
+  check: NestedCheck,
+): check is NestedAuthorization {
+  return "operation" in check;
+}
+
+/** `operation · target, target`, as shown in approvals, errors and records. */
+export function describeCheck(check: NestedCheck): string {
+  if (!isOperationCheck(check)) return check.toolName;
+  return [check.operation, check.targets.map((t) => t.value).join(", ")]
+    .filter(Boolean)
+    .join(" · ");
+}
 
 /** The optional lookup was refused as unknown or unsupported (404/400); anything else, such as 401/403/5xx, is a real failure. */
 const UNSUPPORTED_LOOKUP = [
@@ -94,10 +130,10 @@ export type SdkEnvironment = {
 export type SdkProduct = string;
 
 export type PreparedCall = {
-  /** The direct tool the call is checked as; absent for calls with no external effect (own artifacts). */
-  authorization?: NestedAuthorization;
-  /** Further direct-tool checks (e.g. `read` for a file path); all must pass before the call runs. */
-  additionalAuthorizations?: NestedAuthorization[];
+  /** What the call is checked as; absent for calls with no external effect (own artifacts). */
+  authorization?: NestedCheck;
+  /** Further checks (e.g. direct `read` for a file path); all must pass before the call runs. */
+  additionalAuthorizations?: NestedCheck[];
   /** What a 403 refers to, e.g. `project APP`. */
   resource: string;
   run: (env: SdkEnvironment) => Promise<unknown>;
@@ -105,8 +141,7 @@ export type PreparedCall = {
 
 /**
  * What a method can do at most: `none` has no external effect, `read` reads local data, `network` reads through an integration, `write` changes workspace files, `external_write` changes things in an integration, `destructive` deletes or is not analysable (`request`).
- * It must not be lower than the risk of the direct tool call the method is
- * authorized as; the executor refuses to run a method that violates this.
+ * It must not be lower than the risk of the check the method runs; the executor refuses to run a method that violates this.
  */
 export type MethodRisk =
   | "none"
@@ -137,12 +172,27 @@ type MethodBody<P> = {
   path: string;
   risk: MethodRisk;
   signature: string;
-  authorize?(parsed: P, env: SdkEnvironment): NestedAuthorization | undefined;
-  authorizeAlso?(parsed: P, env: SdkEnvironment): NestedAuthorization[];
+  authorize?(parsed: P, env: SdkEnvironment): MethodAuthorization | undefined;
+  authorizeAlso?(parsed: P, env: SdkEnvironment): MethodAuthorization[];
   /** Resource named by a 403; defaults to the authorization summary. */
   resource?(parsed: P): string;
   run(parsed: P, env: SdkEnvironment): Promise<unknown>;
 };
+
+function resolveAuthorization(
+  method: { product: string; path: string; risk: MethodRisk },
+  authorization: MethodAuthorization,
+): NestedCheck {
+  if ("toolName" in authorization) return authorization;
+  return {
+    operation: authorization.operation ?? `${method.product}.${method.path}`,
+    targets: authorization.targets.map((target) =>
+      typeof target === "string" ? { kind: "resource", value: target } : target,
+    ),
+    risk: authorization.risk ?? method.risk,
+    summary: authorization.summary,
+  };
+}
 
 function build<P>(
   definition: MethodBody<P>,
@@ -155,10 +205,14 @@ function build<P>(
     signature: definition.signature,
     prepare(args, env) {
       const parsed = parse(args);
-      const authorization = definition.authorize?.(parsed, env);
+      const declared = definition.authorize?.(parsed, env);
+      const authorization =
+        declared && resolveAuthorization(definition, declared);
       return {
         authorization,
-        additionalAuthorizations: definition.authorizeAlso?.(parsed, env),
+        additionalAuthorizations: definition
+          .authorizeAlso?.(parsed, env)
+          .map((also) => resolveAuthorization(definition, also)),
         resource: definition.resource?.(parsed) ?? authorization?.summary ?? "",
         run: (env) => definition.run(parsed, env),
       };

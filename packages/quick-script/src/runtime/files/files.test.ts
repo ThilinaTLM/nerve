@@ -13,6 +13,7 @@ import { test } from "node:test";
 import { image } from "@nervekit/native";
 import { executeQuickScript } from "../quick-script.js";
 import { preludesFor } from "../sdk.js";
+import type { QuickScriptNestedRequest } from "@nervekit/tools/execution";
 
 type Nested = { toolName: string; args: Record<string, unknown> };
 
@@ -39,8 +40,8 @@ async function setup() {
   const context = {
     cwd,
     conversationDir,
-    authorizeNested: async (request: Nested) => {
-      authorized.push(request);
+    authorizeNested: async (request: QuickScriptNestedRequest) => {
+      authorized.push(request as Nested);
     },
   };
   const run = (code: string) => executeQuickScript({ code }, context);

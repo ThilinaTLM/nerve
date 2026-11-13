@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { test } from "node:test";
 
 import { lastOf, setup } from "./test-harness.js";
+import { nestedName } from "../../../runtime/test-nested.js";
 
 /** The returned JSON: before the footer and the "Created:" line. */
 const returned = (content: string | undefined) =>
@@ -124,10 +125,7 @@ void test("issues.create uploads attachments and sets the description afterwards
   );
   const update = lastOf(sent, "PUT", "/issue/APP-10")!;
   assert.equal(update.body.fields.description.content[1].type, "mediaSingle");
-  assert.deepEqual(
-    authorized.map((a) => a.toolName),
-    ["jira_create_issue", "jira_manage_attachment", "read"],
-  );
+  assert.deepEqual(authorized.map(nestedName), ["jira.issues.create", "read"]);
 });
 
 void test("worklogs: update, delete, tidy bad-time message, and clean errors", async () => {
@@ -166,13 +164,10 @@ void test("worklogs: update, delete, tidy bad-time message, and clean errors", a
     timeSpent: "2h",
   });
   assert.ok(lastOf(sent, "DELETE", "/issue/APP-1/worklog/5"));
-  assert.deepEqual(
-    authorized.slice(0, 2).map((a) => [a.toolName, a.args.action]),
-    [
-      ["jira_manage_worklog", "update"],
-      ["jira_manage_worklog", "delete"],
-    ],
-  );
+  assert.deepEqual(authorized.slice(0, 2).map(nestedName), [
+    "jira.worklogs.update",
+    "jira.worklogs.delete",
+  ]);
 });
 
 void test("issues.unlink removes links by key, asks for type when ambiguous", async () => {
@@ -229,7 +224,7 @@ void test("issues.rank sends one anchor to the agile API", async () => {
     issues: ["APP-3", "APP-4"],
     rankAfterIssue: "APP-1",
   });
-  assert.equal(authorized[0].args.action, "rank");
+  assert.equal(nestedName(authorized[0]), "jira.issues.rank");
 });
 
 void test("sprints: create picks the only scrum board, start needs an end, close moves open issues", async () => {
@@ -278,16 +273,12 @@ void test("sprints: create picks the only scrum board, start needs an end, close
   const started = sent.filter((s) => s.method === "PUT")[0].body;
   assert.equal(started.state, "active");
   assert.ok(Date.parse(started.endDate) > Date.now() + 13 * 86_400_000);
-  assert.deepEqual(
-    authorized.map((a) => a.toolName),
-    [
-      "jira_manage_sprint",
-      "jira_manage_sprint",
-      "jira_manage_sprint",
-      "jira_manage_sprint",
-      "jira_manage_backlog",
-    ],
-  );
+  assert.deepEqual(authorized.map(nestedName), [
+    "jira.sprints.create",
+    "jira.sprints.start",
+    "jira.sprints.start",
+    "jira.sprints.close",
+  ]);
 });
 
 void test("sprints.create accepts a team-managed (simple) board and skips kanban", async () => {

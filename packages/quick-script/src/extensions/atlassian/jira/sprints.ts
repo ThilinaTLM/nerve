@@ -17,6 +17,7 @@ import {
   type SdkEnvironment,
   type SdkMethod,
 } from "../../../runtime/sdk-types.js";
+import { jiraBoard, jiraProject, jiraSprint } from "../shared/targets.js";
 
 const PAGE = 50;
 const MAX_ISSUES = 1000;
@@ -186,9 +187,8 @@ async function moveIssues(
   }
 }
 
-const sprintAuthorization = (action: string, id: number) => ({
-  toolName: "jira_manage_sprint",
-  args: { action, sprint_id: String(id) },
+const sprintAuthorization = (id: number) => ({
+  targets: [jiraSprint(id)],
   summary: `sprint ${id}`,
 });
 
@@ -212,13 +212,13 @@ export const jiraSprintMethods: SdkMethod[] = [
       startDate: dateOption(options.startDate, "startDate"),
       endDate: dateOption(options.endDate, "endDate"),
     }),
-    authorize: ({ board, name }) => ({
-      toolName: "jira_manage_sprint",
-      args: {
-        action: "create",
-        name,
-        ...(board === undefined ? {} : { board_id: String(board) }),
-      },
+    authorize: ({ board, project, name }) => ({
+      targets:
+        board !== undefined
+          ? [jiraBoard(board)]
+          : project
+            ? [jiraProject(project)]
+            : [],
       summary: name,
     }),
     resource: ({ project, board }) =>
@@ -263,7 +263,7 @@ export const jiraSprintMethods: SdkMethod[] = [
       }
       return { id: sprintId(options.id), changes };
     },
-    authorize: ({ id }) => sprintAuthorization("update", id),
+    authorize: ({ id }) => sprintAuthorization(id),
     resource: ({ id }) => `sprint ${id}`,
     async run({ id, changes }, env) {
       const current = await getSprint(env, id);
@@ -291,7 +291,7 @@ export const jiraSprintMethods: SdkMethod[] = [
             : durationDays(options.duration),
       };
     },
-    authorize: ({ id }) => sprintAuthorization("start", id),
+    authorize: ({ id }) => sprintAuthorization(id),
     resource: ({ id }) => `sprint ${id}`,
     async run({ id, endDate, days }, env) {
       const current = await getSprint(env, id);
@@ -334,27 +334,14 @@ export const jiraSprintMethods: SdkMethod[] = [
           : sprintId(target, "moveOpenTo");
       return { id: sprintId(options.id), moveOpenTo };
     },
-    authorize: ({ id }) => sprintAuthorization("close", id),
-    authorizeAlso: ({ id, moveOpenTo }) =>
-      moveOpenTo === undefined
-        ? []
-        : [
-            {
-              toolName: "jira_manage_backlog",
-              args:
-                moveOpenTo === "backlog"
-                  ? {
-                      action: "move_to_backlog",
-                      issue_key: `(open issues of sprint ${id})`,
-                    }
-                  : {
-                      action: "move_to_sprint",
-                      issue_key: `(open issues of sprint ${id})`,
-                      sprint_id: String(moveOpenTo),
-                    },
-              summary: `open issues → ${moveOpenTo === "backlog" ? "backlog" : `sprint ${moveOpenTo}`}`,
-            },
-          ],
+    // Moving the open issues is part of closing: the destination sprint is a second target.
+    authorize: ({ id, moveOpenTo }) => ({
+      targets: [
+        jiraSprint(id),
+        ...(typeof moveOpenTo === "number" ? [jiraSprint(moveOpenTo)] : []),
+      ],
+      summary: `sprint ${id}`,
+    }),
     resource: ({ id }) => `sprint ${id}`,
     async run({ id, moveOpenTo }, env) {
       const current = await getSprint(env, id);
@@ -409,8 +396,7 @@ export const jiraSprintMethods: SdkMethod[] = [
       };
     },
     authorize: ({ id }) => ({
-      toolName: "jira_get_sprint",
-      args: { sprint_id: String(id), include_issues: true },
+      targets: [jiraSprint(id)],
       summary: `sprint ${id}`,
     }),
     resource: ({ id }) => `sprint ${id}`,
@@ -436,7 +422,7 @@ export const jiraSprintMethods: SdkMethod[] = [
     signature:
       "/** Jira deletes future sprints only. */ delete(options: number | { id: number }): Promise<{ id: number }>",
     parse: (options) => sprintId(options.id),
-    authorize: (id) => sprintAuthorization("delete", id),
+    authorize: (id) => sprintAuthorization(id),
     resource: (id) => `sprint ${id}`,
     async run(id, env) {
       await jiraRequest(await env.jira(), {

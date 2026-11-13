@@ -52,6 +52,8 @@ export interface NormalizedPermissionRequest {
   targets: PermissionTarget[];
   projectId?: string;
   conversationId: string;
+  /** Set for a quick_script SDK operation checked by name (`jira.issues.create`), not for a script. */
+  operation?: { namespace: string; baseRisk: StaticToolRisk };
 }
 
 export interface EffectivePermissionRule {
@@ -466,6 +468,13 @@ const ARGUMENT_RISK_TOOLS = new Set(["async_bash", "launch", "quick_script"]);
 
 function requestMetadata(request: NormalizedPermissionRequest) {
   const metadata = permissionMetadataForTool(request.toolName);
+  if (request.operation)
+    return {
+      ...metadata,
+      groups: [request.operation.namespace],
+      baseRisk: request.operation.baseRisk,
+      primaryTargetComplete: true,
+    };
   if (ARGUMENT_RISK_TOOLS.has(request.toolName)) {
     const risk = requireToolDefinition(request.toolName).classifyRisk?.(
       request.args,
@@ -594,7 +603,9 @@ function targetMatches(
         ? target.normalizedUrl
         : target.kind === "agent"
           ? target.agentId
-          : "*";
+          : target.kind === "resource"
+            ? target.value
+            : "*";
   return value !== undefined && patternMatches(value, matcher.pattern);
 }
 
@@ -663,6 +674,12 @@ function suggestPermissionRules(
         kind: "agent",
         pattern: escapeGlobLiteral(target.agentId),
       },
+    };
+  } else if (target?.kind === "resource") {
+    when.primaryArgument = { operator: "equals", value: primary! };
+    when.targets = {
+      quantifier: "all",
+      matcher: { kind: "resource", pattern: escapeGlobLiteral(target.value) },
     };
   } else if (primary !== undefined) {
     when.primaryArgument = { operator: "equals", value: primary };

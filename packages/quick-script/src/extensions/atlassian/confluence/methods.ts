@@ -12,7 +12,6 @@ import { listSpaces, resolveSpace } from "./spaces.js";
 import { rawMethod } from "@nervekit/tools/integrations";
 import {
   attachmentReadAuthorizations,
-  attachmentUploadAuthorizations,
   loadAttachment,
   parseAttachmentSpec,
 } from "../shared/attachments.js";
@@ -41,6 +40,11 @@ import {
   orWhenUnsupported,
   type SdkMethod,
 } from "../../../runtime/sdk-types.js";
+import {
+  confluencePage,
+  confluenceSpace,
+  rawRequest,
+} from "../shared/targets.js";
 
 const DEFAULT_PAGE_LIMIT = 25;
 const MAX_PAGE_LIMIT = 250;
@@ -66,11 +70,7 @@ export const confluenceMethods: SdkMethod[] = [
     signature:
       "/** Contains match on key or name. */ search(options?: string | { query?: string }): Promise<Space[]>",
     parse: (options) => optionalText(options.query)?.trim() ?? "",
-    authorize: (query) => ({
-      toolName: "confluence_search_spaces",
-      args: query ? { keys: [query] } : {},
-      summary: query || "all spaces",
-    }),
+    authorize: (query) => ({ targets: [], summary: query || "all spaces" }),
     resource: () => "Confluence spaces",
     async run(query, env) {
       const connection = await env.confluence();
@@ -106,13 +106,8 @@ export const confluenceMethods: SdkMethod[] = [
         title,
       };
     },
-    authorize: ({ cql, space, title }) => ({
-      toolName: "confluence_search_pages",
-      args: {
-        cql,
-        ...(space ? { space_key: space } : {}),
-        ...(title ? { title } : {}),
-      },
+    authorize: ({ cql, space }) => ({
+      targets: space ? [confluenceSpace(space)] : [],
       summary: cql,
     }),
     resource: () => "this Confluence search",
@@ -182,12 +177,13 @@ export const confluenceMethods: SdkMethod[] = [
         children: options.children === true,
       };
     },
-    // By title there is no page id yet: authorize the lookup as a page search.
+    // By title there is no page id yet: the target is the space searched.
     authorize: ({ id, space, title }) => ({
-      toolName: id ? "confluence_get_page" : "confluence_search_pages",
-      args: id
-        ? { page_id: id }
-        : { ...(space ? { space_key: space } : {}), title },
+      targets: id
+        ? [confluencePage(id)]
+        : space
+          ? [confluenceSpace(space)]
+          : [],
       summary: id ?? `${space ?? "default space"}/${title}`,
     }),
     resource: ({ id, title }) => (id ? `page ${id}` : `page "${title}"`),
@@ -279,7 +275,10 @@ export const confluenceMethods: SdkMethod[] = [
         comment: options.comment,
       }),
     }),
-    authorize: ({ id, spec }) => attachmentUploadAuthorizations(id, [spec])[0],
+    authorize: ({ id, spec }) => ({
+      targets: [confluencePage(id)],
+      summary: `${id} ← ${spec.filename ?? spec.file}`,
+    }),
     authorizeAlso: ({ spec }, env) => attachmentReadAuthorizations([spec], env),
     resource: ({ id }) => `page ${id}`,
     async run({ id, spec }, env) {
@@ -310,20 +309,12 @@ export const confluenceMethods: SdkMethod[] = [
       }
       return { method: verb, path, body, query };
     },
-    // GET is a read. Anything else cannot be analysed: `confluence_manage_page`
-    // (a purge) only supplies the deny rules, and the call always needs the
-    // script to be approved at destructive level, whatever allow rules say.
+    // GET is a network read. Anything else cannot be analysed and counts as
+    // destructive; a rule matching the method and path can still allow it.
     authorize: ({ method, path }) => ({
-      toolName:
-        method === "GET" ? "confluence_get_page" : "confluence_manage_page",
-      // Placeholder page id only satisfies the direct tool's parameter schema;
-      // the real target is the method and path in `summary`.
-      args:
-        method === "GET"
-          ? { page_id: "raw-request" }
-          : { action: "purge", page_id: "raw-request" },
+      risk: method === "GET" ? "network" : "destructive",
+      targets: [rawRequest("confluence", `${method} ${String(path)}`)],
       summary: `${method} ${String(path)}`,
-      ...(method === "GET" ? {} : { approvalRequired: true as const }),
     }),
     resource: ({ path }) => String(path),
     async run({ method, path, body, query }, env) {

@@ -17,8 +17,8 @@ import type {
 import { STORAGE_PRELUDE } from "./files/storage-helpers.js";
 
 /**
- * The SDK in one place. Every method declares its signature, the direct tool
- * it is authorized as, and its implementation. The prelude injected into the
+ * The SDK in one place. Every method declares its signature, what it is
+ * authorized as (an operation with targets), and its implementation. The prelude injected into the
  * sandbox is generated from the method tables the registry collects; the
  * Markdown docs are checked against them by extensions/docs.test.ts.
  */

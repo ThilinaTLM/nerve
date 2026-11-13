@@ -84,7 +84,9 @@ function pageLintLabel(fixes: number, warnings: number): string {
         {#each hostCalls as call, index (index)}
           <li
             class="flex min-w-0 items-baseline gap-2 px-2.5 py-0.5 text-ui"
-            title={call.error}
+            title={[call.targets?.join(", "), call.error]
+              .filter(Boolean)
+              .join(" — ") || undefined}
           >
             {#if call.outcome === "completed"}
               <CircleCheck

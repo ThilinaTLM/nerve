@@ -7,6 +7,7 @@ import { image } from "@nervekit/native";
 import { quickScriptResultDetailsSchema } from "@nervekit/contracts/tools";
 import { assertWellFormedStorage } from "@nervekit/tools/integrations";
 import { executeQuickScript } from "../../../runtime/quick-script.js";
+import { type Nested, nestedName } from "../../../runtime/test-nested.js";
 
 const originalFetch = globalThis.fetch;
 afterEach(() => {
@@ -48,8 +49,7 @@ async function setup(options: { deny?: string } = {}) {
   const kroki = await png(800, 400);
   const events: string[] = [];
   const requests: Recorded[] = [];
-  const authorized: Array<{ toolName: string; args: Record<string, unknown> }> =
-    [];
+  const authorized: Nested[] = [];
   globalThis.fetch = async (input, init) => {
     const url = new URL(String(input));
     const method = init?.method ?? "GET";
@@ -115,20 +115,17 @@ async function setup(options: { deny?: string } = {}) {
       siteUrl: "https://example.atlassian.net",
       email: "dev@example.com",
     }),
-    authorizeNested: async (request: {
-      toolName: string;
-      args: Record<string, unknown>;
-    }) => {
-      events.push(`authorize ${request.toolName}`);
+    authorizeNested: async (request: Nested) => {
+      const name = nestedName(request);
+      events.push(`authorize ${name}`);
       authorized.push(request);
-      if (options.deny === request.toolName)
-        throw new Error(`denied ${request.toolName}`);
+      if (options.deny === name) throw new Error(`denied ${name}`);
     },
   };
   return { cwd, artifactDir, events, requests, authorized, context };
 }
 
-void test("attachments.upload authorizes manage_attachment and read before any I/O, then returns dimensions", async () => {
+void test("attachments.upload authorizes the operation and read before any I/O, then returns dimensions", async () => {
   const { cwd, events, requests, authorized, context } = await setup();
   await writeFile(join(cwd, "chart.png"), await png(1200, 600));
   const result = await executeQuickScript(
@@ -138,11 +135,14 @@ void test("attachments.upload authorizes manage_attachment and read before any I
     context,
   );
   assert.deepEqual(events.slice(0, 2), [
-    "authorize confluence_manage_attachment",
+    "authorize confluence.attachments.upload",
     "authorize read",
   ]);
   assert.equal(events[2]?.startsWith("fetch PUT"), true);
-  assert.equal(authorized[1].args.path, join(cwd, "chart.png"));
+  assert.deepEqual(authorized[1], {
+    toolName: "read",
+    args: { path: join(cwd, "chart.png") },
+  });
   assert.deepEqual(JSON.parse(result.content!.split("\n")[0]), {
     id: "att1",
     filename: "chart.png",
@@ -234,10 +234,9 @@ void test("pages.create with attachments: create, upload, then save again so ima
       .map((e) => e.split(" ").slice(0, 2).join(" ")),
     ["fetch GET", "fetch POST", "fetch PUT", "fetch PUT"],
   );
-  // Authorizations (create, per-attachment manage + read) all precede the first fetch.
-  assert.deepEqual(events.slice(0, 3), [
-    "authorize confluence_create_page",
-    "authorize confluence_manage_attachment",
+  // Authorizations (create, per-attachment read) all precede the first fetch.
+  assert.deepEqual(events.slice(0, 2), [
+    "authorize confluence.pages.create",
     "authorize read",
   ]);
   const post = requests.find((r) => r.method === "POST")!;
@@ -290,10 +289,11 @@ void test("diagram.render saves an artifact and returns its handle; the handle u
     context,
   );
   assert.deepEqual(authorized[0], {
-    toolName: "kroki_export",
-    args: { diagram_type: "mermaid", source: "graph TD; A-->B" },
+    operation: "diagram.render",
+    targets: [],
+    risk: "network",
   });
-  assert.equal(events[0], "authorize kroki_export");
+  assert.equal(events[0], "authorize diagram.render");
   const [handleLine, uploadLine] = result.content!.split("\n");
   assert.equal(handleLine, "artifact:diagram-1.png");
   assert.deepEqual(await readdir(artifactDir), ["diagram-1.png"]);

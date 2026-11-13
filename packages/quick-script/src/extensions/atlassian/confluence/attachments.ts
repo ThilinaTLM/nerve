@@ -18,6 +18,7 @@ import {
 import { codedError } from "../../../runtime/errors.js";
 import { nonEmptyString } from "../../../runtime/sdk-args.js";
 import { defineMethod, type SdkMethod } from "../../../runtime/sdk-types.js";
+import { confluenceAttachment, confluencePage } from "../shared/targets.js";
 
 type Target = { id: string } | { page: string; filename: string };
 
@@ -44,8 +45,11 @@ export const confluenceAttachmentMethods: SdkMethod[] = [
       };
     },
     authorize: (target) => ({
-      toolName: "confluence_get_page",
-      args: { page_id: "id" in target ? target.id : target.page },
+      targets: [
+        "id" in target
+          ? confluenceAttachment(target.id)
+          : confluencePage(target.page),
+      ],
       summary:
         "id" in target
           ? `attachment ${target.id}`

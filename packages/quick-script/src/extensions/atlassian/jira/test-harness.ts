@@ -14,7 +14,8 @@ export type Sent = {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   body: any;
 };
-export type Nested = { toolName: string; args: Record<string, unknown> };
+export type { Nested } from "../../../runtime/test-nested.js";
+import type { Nested } from "../../../runtime/test-nested.js";
 
 export const FIELDS = [
   { id: "summary", name: "Summary", custom: false, schema: { type: "string" } },

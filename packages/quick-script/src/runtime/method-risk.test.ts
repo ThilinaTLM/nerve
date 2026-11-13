@@ -8,6 +8,8 @@ import {
 } from "@nervekit/tools/catalog";
 import { markdownToAdf } from "@nervekit/tools/integrations";
 import { adfToMarkdown } from "@nervekit/tools/integrations";
+import { SAMPLES } from "./method-samples.js";
+import { type MethodRisk, isOperationCheck } from "./sdk-types.js";
 import { createSdkEnvironment, findSdkMethod, sdkMethodNames } from "./sdk.js";
 import {
   assertDeclaredRisk,
@@ -15,142 +17,6 @@ import {
   quickScriptRiskOfToolRisk,
   quickScriptToolRisk,
 } from "./script-risk.js";
-
-/** Representative arguments for every SDK method; a new method must be added here. */
-const SAMPLES: Record<string, unknown[][]> = {
-  "jira.issues.search": [["project = A"]],
-  "jira.issues.get": [["A-1"], [{ key: "A-1", transitions: true }]],
-  "jira.projects.get": [["A"], [{ key: "A", include: ["fields", "epics"] }]],
-  "jira.users.search": [["ann"]],
-  "jira.users.me": [[]],
-  "jira.projects.list": [[]],
-  "jira.issues.delete": [["A-1"], [{ key: "A-1", subtasks: true }]],
-  "jira.attachments.download": [["9"], [{ id: "9", name: "a.png" }]],
-  "jira.adf.fromMarkdown": [["**x**"]],
-  "jira.adf.toMarkdown": [[{ type: "doc", content: [] }]],
-  "jira.fields.list": [[]],
-  "jira.issues.create": [
-    [{ type: "Bug", summary: "s" }],
-    [{ type: "Bug", summary: "s", attachments: ["a.png"] }],
-  ],
-  "jira.issues.rank": [
-    [{ keys: ["A-1"], before: "A-2" }],
-    [{ keys: ["A-1"], after: "A-2" }],
-  ],
-  "jira.issues.unlink": [
-    [{ key: "A-1", to: "A-2" }],
-    [{ key: "A-1", to: "A-2", type: "Blocks" }],
-  ],
-  "jira.worklogs.list": [["A-1"]],
-  "jira.worklogs.update": [[{ key: "A-1", id: "1", time: "1h" }]],
-  "jira.worklogs.delete": [[{ key: "A-1", id: "1" }]],
-  "jira.attachments.list": [["A-1"]],
-  "jira.attachments.delete": [["9"]],
-  "jira.sprints.create": [[{ name: "S" }], [{ board: 3, name: "S" }]],
-  "jira.sprints.update": [[{ id: 5, name: "S" }]],
-  "jira.sprints.start": [[{ id: 5, duration: "2w" }]],
-  "jira.sprints.close": [
-    [{ id: 5 }],
-    [{ id: 5, moveOpenTo: "backlog" }],
-    [{ id: 5, moveOpenTo: 6 }],
-  ],
-  "jira.sprints.issues": [[5], [{ id: 5, jql: "x", limit: 3 }]],
-  "jira.sprints.delete": [[5]],
-  "confluence.pages.download": [
-    [{ id: "1" }],
-    [{ id: "1", attachments: true }],
-  ],
-  "jira.issues.update": [[{ key: "A-1", fields: { Summary: "s" } }]],
-  "jira.issues.transition": [
-    [{ key: "A-1", to: "Done" }],
-    [{ key: "A-1", to: "Done", comment: "x" }],
-  ],
-  "jira.issues.link": [[{ key: "A-1", to: "A-2", type: "Blocks" }]],
-  "jira.issues.move": [
-    [{ keys: ["A-1"], sprint: 3 }],
-    [{ keys: ["A-1"], sprint: "backlog" }],
-  ],
-  "jira.comments.add": [[{ key: "A-1", body: "x" }]],
-  "jira.comments.update": [[{ key: "A-1", id: "1", body: "x" }]],
-  "jira.comments.delete": [[{ key: "A-1", id: "1" }]],
-  "jira.worklogs.add": [[{ key: "A-1", time: "1h" }]],
-  "jira.attachments.upload": [[{ key: "A-1", file: "a.png" }]],
-  "jira.request": [
-    ["GET", "/x"],
-    ["POST", "/x", {}],
-    ["DELETE", "/x"],
-    ["GET", "/x", undefined, { expand: ["a", "b"] }],
-  ],
-  "confluence.spaces.search": [["S"]],
-  "confluence.pages.search": [["type = page"]],
-  "confluence.pages.get": [
-    ["1"],
-    [{ title: "x" }],
-    [{ space: "S", title: "x" }],
-  ],
-  "confluence.pages.create": [
-    [{ space: "S", title: "t", body: "<p>x</p>" }],
-    [
-      {
-        space: "S",
-        title: "t",
-        body: "<p>x</p>",
-        attachments: ["a.png"],
-      },
-    ],
-  ],
-  "confluence.pages.update": [
-    [{ id: "1", title: "t" }],
-    [{ id: "1", version: 2, body: "<p>x</p>", allowRemoving: true }],
-    [{ id: "1", title: "t", attachments: ["a.png"] }],
-  ],
-  "confluence.attachments.upload": [[{ id: "1", file: "a.png" }]],
-  "confluence.attachments.download": [
-    [{ id: "att1" }],
-    [{ page: "1", filename: "a.png" }],
-  ],
-  "confluence.labels.add": [[{ id: "1", labels: ["a"] }]],
-  "confluence.labels.remove": [[{ id: "1", labels: ["a"] }]],
-  "confluence.attachments.list": [["1"]],
-  "confluence.attachments.delete": [["1"]],
-  "confluence.comments.list": [["1"]],
-  "confluence.comments.update": [[{ id: "1", body: "x" }]],
-  "confluence.comments.delete": [["1"]],
-  "confluence.comments.reply": [[{ id: "1", body: "x" }]],
-  "confluence.comments.resolve": [[{ id: "1" }]],
-  "confluence.pages.move": [[{ id: "1", parent: "2" }]],
-  "confluence.pages.delete": [["1"], [{ id: "1", purge: true }]],
-  "confluence.pages.restore": [["1"]],
-  "confluence.comments.add": [[{ id: "1", body: "x" }]],
-  "atlassian.defaults": [[]],
-  "confluence.request": [
-    ["GET", "/x", undefined, { a: "b" }],
-    ["PUT", "/x", {}],
-    ["DELETE", "/x"],
-  ],
-  "diagram.render": [[{ type: "mermaid", source: "graph TD; A-->B" }]],
-  "files.list": [[]],
-  "files.read": [["artifact:a.txt"], ["notes.txt"]],
-  "files.write": [
-    ["a.txt", { text: "x" }],
-    ["a.txt", { text: "x" }, { workspace: true }],
-  ],
-  "files.edit": [
-    ["artifact:a.txt", [{ oldText: "a", newText: "b" }]],
-    ["notes.txt", [{ oldText: "a", newText: "b" }]],
-  ],
-  "image.info": [[{ file: "a.png", ops: {} }]],
-  "image.save": [[{ file: "a.png", ops: {}, name: "b.png" }]],
-  "web.fetch": [
-    ["https://example.com/a"],
-    [{ url: "https://example.com/a", as: "file", name: "a.bin" }],
-  ],
-  "web.search": [["nerve"], [{ query: "nerve", limit: 20 }]],
-  "sdk.list": [[]],
-  "sdk.describe": [["jira.issues"]],
-  "sdk.search": [["sprint"], ["sprint", { in: "jira", offset: 0 }]],
-  "sdk.docs": [[], ["jira"], ["jira/workflows"]],
-};
 
 const env = createSdkEnvironment({
   cwd: process.cwd(),
@@ -172,8 +38,23 @@ void test("every method has samples, and its declared risk covers every authoriz
         () => assertDeclaredRisk(name, method.risk, checks),
         `${name} ${JSON.stringify(args)}`,
       );
-      // Admission validates nested calls against the direct tool's schema.
       for (const check of checks) {
+        if (isOperationCheck(check)) {
+          // Operations stay within the method's own namespace, except where a method reads several products.
+          assert.ok(
+            check.operation.startsWith(`${method.product}.`) ||
+              name === "atlassian.defaults",
+            `${name} -> ${check.operation}`,
+          );
+          for (const target of check.targets)
+            assert.match(
+              target.value,
+              /^(jira|confluence):[a-z]+\/\S/,
+              `${name} target ${target.value}`,
+            );
+          continue;
+        }
+        // Remaining direct tools are admitted against the tool's schema.
         const definition = requireToolDefinition(check.toolName);
         const errors = describeToolArgumentErrors(
           definition,
@@ -190,14 +71,13 @@ void test("every method has samples, and its declared risk covers every authoriz
 });
 
 void test("the guard refuses a declaration below the authorization's risk", () => {
-  const comment = {
-    toolName: "jira_manage_comment",
-    args: { action: "create" },
-  };
-  const remove = {
-    toolName: "jira_manage_comment",
-    args: { action: "delete" },
-  };
+  const direct = (toolName: string, args: Record<string, unknown>) => ({
+    toolName,
+    args,
+    summary: "",
+  });
+  const comment = direct("jira_manage_comment", { action: "create" });
+  const remove = direct("jira_manage_comment", { action: "delete" });
   assertDeclaredRisk("m", "write", [comment]);
   assert.throws(
     () => assertDeclaredRisk("m", "write", [remove]),
@@ -207,8 +87,17 @@ void test("the guard refuses a declaration below the authorization's risk", () =
     () => assertDeclaredRisk("m", "read", [comment]),
     /declares risk "read"/,
   );
-  assert.throws(() =>
-    assertDeclaredRisk("m", "none", [{ toolName: "read", args: {} }]),
+  assert.throws(() => assertDeclaredRisk("m", "none", [direct("read", {})]));
+  const operation = (risk: MethodRisk) => ({
+    operation: "jira.x.y",
+    targets: [],
+    risk,
+    summary: "",
+  });
+  assertDeclaredRisk("m", "destructive", [operation("network")]);
+  assert.throws(
+    () => assertDeclaredRisk("m", "network", [operation("destructive")]),
+    /authorized as jira\.x\.y with destructive risk/,
   );
 });
 
@@ -298,14 +187,18 @@ void test("Markdown converts to ADF and back", () => {
   assert.equal(adfToMarkdown(adf), markdown);
 });
 
-void test("raw non-GET requests are never admitted by another tool's allow rule; GET stays a read check", () => {
+void test("raw requests are checked as the request operation: GET is a network read, anything else destructive, with method and path as the target", () => {
   for (const product of ["jira", "confluence"]) {
     const request = findSdkMethod(`${product}.request`)!;
-    const get = request.prepare(["get", "/x"], env).authorization!;
-    assert.equal(get.approvalRequired, undefined);
+    assert.deepEqual(request.prepare(["get", "/x"], env).authorization, {
+      operation: `${product}.request`,
+      targets: [{ kind: "resource", value: `${product}:request/GET /x` }],
+      risk: "network",
+      summary: "GET /x",
+    });
     for (const verb of ["POST", "PUT", "PATCH", "DELETE"]) {
       const write = request.prepare([verb, "/x/1"], env).authorization!;
-      assert.equal(write.approvalRequired, true, `${product} ${verb}`);
+      assert.equal(isOperationCheck(write) && write.risk, "destructive");
       assert.equal(write.summary, `${verb} /x/1`);
     }
   }
