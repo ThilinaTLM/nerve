@@ -1,20 +1,12 @@
 <script lang="ts">
-import { Badge, badgeVariants } from "@nervekit/ui-kit/components/ui/badge";
-import CircleCheck from "@lucide/svelte/icons/circle-check";
-import CircleX from "@lucide/svelte/icons/circle-x";
-import TriangleAlert from "@lucide/svelte/icons/triangle-alert";
-import CircleMinus from "@lucide/svelte/icons/circle-minus";
-import CircleHelp from "@lucide/svelte/icons/circle-help";
-import Pencil from "@lucide/svelte/icons/pencil";
+import SquareKanban from "@lucide/svelte/icons/square-kanban";
 import Trash2 from "@lucide/svelte/icons/trash-2";
 import RefreshCw from "@lucide/svelte/icons/refresh-cw";
 import { onMount } from "svelte";
 import type { AtlassianProfileHealth } from "@nervekit/contracts/auth";
-import * as Tooltip from "@nervekit/ui-kit/components/ui/tooltip";
 import { onEvent } from "$lib/application/events/workbench-event-bus";
 import {
   atlassianHealthBadge,
-  atlassianHealthDetail,
   atlassianHealthStale,
 } from "$lib/presentation/integrations/atlassian-health";
 import { IconAction } from "@nervekit/ui-kit/components/composites/icon-action";
@@ -31,7 +23,7 @@ import {
 } from "$lib/api";
 import { settingsState } from "$lib/features/settings/state/settings-state.svelte";
 import ConfirmDialog from "@nervekit/ui-kit/components/composites/confirm-dialog";
-import { SettingsListItem } from "$lib/presentation/settings";
+import { SettingsItem } from "$lib/presentation/settings";
 import SettingsEntityListSection from "../../shared/settings-entity-list-section.svelte";
 import type { ScopedAgentState } from "$lib/application/agent-configuration/scoped-agent-state.svelte";
 import { accountOptions } from "../tools/tool-settings";
@@ -64,14 +56,6 @@ let checking = $state<Record<string, boolean>>({});
 let checkErrors = $state<Record<string, string>>({});
 /** Saved profiles to test once the daemon has persisted them. Not rendered. */
 let awaitingSave: string[] = [];
-
-const healthIcons = {
-  check: CircleCheck,
-  x: CircleX,
-  alert: TriangleAlert,
-  minus: CircleMinus,
-  help: CircleHelp,
-};
 
 const services = [
   { id: "jira", label: "Jira" },
@@ -126,6 +110,40 @@ onMount(() => {
   };
 });
 
+function openEdit(profile: AtlassianProfile): void {
+  editing = profile;
+  dialogOpen = true;
+}
+/** Normal state: per-service results. Rejected, restricted or unreachable ones are problems. */
+function healthStatus(profile: AtlassianProfile): {
+  summary: string;
+  problem?: string;
+  retry: boolean;
+} {
+  const results = services.map((service) => ({
+    service,
+    badge: atlassianHealthBadge(health[profile.id]?.[service.id]),
+  }));
+  const problems = results.filter(
+    ({ badge }) => badge.tone === "destructive" || badge.tone === "warning",
+  );
+  return {
+    summary: [
+      profile.siteUrl,
+      ...results.map(
+        ({ service, badge }) => `${service.label} ${badge.label.toLowerCase()}`,
+      ),
+    ]
+      .filter(Boolean)
+      .join(" · "),
+    problem: problems.length
+      ? problems
+          .map(({ service, badge }) => `${service.label}: ${badge.label}`)
+          .join(", ")
+      : undefined,
+    retry: problems.every(({ badge }) => badge.tone === "warning"),
+  };
+}
 function hasToken(profile: AtlassianProfile): boolean {
   return credentialConfigured(authProviders, atlassianCredentialId(profile.id));
 }
@@ -182,42 +200,26 @@ async function remove(): Promise<void> {
     />
   {/snippet}
   {#snippet row(profile)}
-    <SettingsListItem
+    {@const ready = atlassianProfileReady(profile, authProviders)}
+    {@const status = healthStatus(profile)}
+    {@const checkError = checkErrors[profile.id]}
+    <SettingsItem
       title={profile.name}
-      description={[profile.siteUrl, profile.email]
-        .filter(Boolean)
-        .join(" · ") || "Connection details incomplete"}
+      icon={SquareKanban}
+      summary={status.summary}
+      problem={!ready
+        ? "Connection details incomplete"
+        : checkError
+          ? "Couldn’t check the connection"
+          : status.problem}
+      problemAction={!ready
+        ? { label: "Complete", onclick: () => openEdit(profile) }
+        : checkError || status.retry
+          ? { label: "Retry", onclick: () => void testConnection(profile.id) }
+          : { label: "Edit", onclick: () => openEdit(profile) }}
+      onOpen={() => openEdit(profile)}
+      openLabel={`Edit ${profile.name}`}
     >
-      {#snippet status()}
-        {#if !atlassianProfileReady(profile, authProviders)}
-          <Badge variant="warning">Incomplete</Badge>
-        {:else if checkErrors[profile.id]}
-          <Badge variant="warning" title={checkErrors[profile.id]}
-            >Couldn’t check</Badge
-          >
-        {:else}
-          <Tooltip.Provider delayDuration={200}>
-            {#each services as service (service.id)}
-              {@const result = health[profile.id]?.[service.id]}
-              {@const badge = atlassianHealthBadge(result)}
-              {@const HealthIcon = healthIcons[badge.glyph]}
-              {@const label = `${service.label}: ${badge.label}`}
-              <Tooltip.Root>
-                <Tooltip.Trigger
-                  aria-label={label}
-                  class={badgeVariants({ variant: badge.tone })}
-                >
-                  <HealthIcon data-icon="inline-start" aria-hidden="true" />
-                  {service.label}
-                </Tooltip.Trigger>
-                <Tooltip.Content side="top"
-                  >{label}. {atlassianHealthDetail(result)}</Tooltip.Content
-                >
-              </Tooltip.Root>
-            {/each}
-          </Tooltip.Provider>
-        {/if}
-      {/snippet}
       {#snippet actions()}
         {#if atlassianProfileReady(profile, authProviders)}
           <IconAction
@@ -239,21 +241,13 @@ async function remove(): Promise<void> {
           />
         {/if}
         <IconAction
-          icon={Pencil}
-          label="Edit account"
-          onclick={() => {
-            editing = profile;
-            dialogOpen = true;
-          }}
-        />
-        <IconAction
           icon={Trash2}
           label="Delete account"
           tone="destructive"
           onclick={() => (pendingDelete = profile)}
         />
       {/snippet}
-    </SettingsListItem>
+    </SettingsItem>
   {/snippet}
 </SettingsEntityListSection>
 

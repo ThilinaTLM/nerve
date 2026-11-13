@@ -175,11 +175,12 @@ function onOff(payload: ToolPayload): string {
 }
 
 /** One short line: "On · account: Work", "/bin/bash · timeout 900 s". */
-export function toolSummary(
+/** How a tool is set up, without its on/off state (the switch shows that). */
+export function toolSettingsSummary(
   id: ToolId,
   payload: ToolPayload,
   context: ToolDisplayContext,
-): string {
+): string | undefined {
   const s = (payload.settings ?? {}) as Record<string, unknown>;
   switch (id) {
     case "bash": {
@@ -195,7 +196,7 @@ export function toolSummary(
       ].join(" · ");
     }
     case "python_exec":
-      return `${onOff(payload)} · ${(s.interpreterPath as string | undefined) ?? "auto-detect"}`;
+      return `${(s.interpreterPath as string | undefined) ?? "auto-detect"}`;
     case "quick_script": {
       const chosen = (payload.settings ?? {}) as Record<
         string,
@@ -205,23 +206,35 @@ export function toolSummary(
         const account = context.accountName(i.kind, chosen[i.id]?.profileId);
         return account ? `${i.label} (${account})` : `${i.label} (no account)`;
       });
-      return `${onOff(payload)} · ${active.length ? active.join(", ") : "no integrations"}`;
+      return `${active.length ? active.join(", ") : "no integrations"}`;
     }
     case "web_search":
     case "jira":
     case "confluence": {
       const name = context.accountName(accountKind(id)!, payload.profileId);
-      return `${onOff(payload)} · ${name ? `account: ${name}` : "no account"}`;
+      return `${name ? `account: ${name}` : "no account"}`;
     }
     case "explain_image":
-      return `${onOff(payload)} · ${context.modelLabel(s.model) ?? "no model"}`;
+      return `${context.modelLabel(s.model) ?? "no model"}`;
     case "generate_image":
-      return `${onOff(payload)} · ${String(s.model ?? "")}`;
+      return `${String(s.model ?? "")}`;
     case "kroki_export":
-      return `${onOff(payload)} · ${String(s.url ?? "").replace(/^https?:\/\//, "")}`;
+      return `${String(s.url ?? "").replace(/^https?:\/\//, "")}`;
     case "plan_present":
-      return `${onOff(payload)} · after approval: ${context.profileLabel(String(s.approvalProfile ?? ""))}`;
+      return `after approval: ${context.profileLabel(String(s.approvalProfile ?? ""))}`;
     default:
-      return onOff(payload);
+      return undefined;
   }
+}
+
+/** On/off plus the settings, for change descriptions and profile summaries. */
+export function toolSummary(
+  id: ToolId,
+  payload: ToolPayload,
+  context: ToolDisplayContext,
+): string {
+  const settings = toolSettingsSummary(id, payload, context);
+  return id === "bash"
+    ? (settings ?? "")
+    : [onOff(payload), settings].filter(Boolean).join(" · ");
 }

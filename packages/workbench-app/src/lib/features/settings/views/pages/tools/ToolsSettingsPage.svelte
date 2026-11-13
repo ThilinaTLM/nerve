@@ -4,12 +4,22 @@ import { toolSettingsMutation } from "./tool-settings-mutation";
 import { clampThinkingLevelForModel } from "$lib/presentation/state/thinking-levels";
 import ProjectCapabilityTrustAction from "../capabilities/ProjectCapabilityTrustAction.svelte";
 import ProjectCapabilityTrustNotice from "../capabilities/ProjectCapabilityTrustNotice.svelte";
-import Settings2 from "@lucide/svelte/icons/settings-2";
-import TriangleAlert from "@lucide/svelte/icons/triangle-alert";
+import Bot from "@lucide/svelte/icons/bot";
+import Eye from "@lucide/svelte/icons/eye";
+import FileText from "@lucide/svelte/icons/file-text";
+import Globe from "@lucide/svelte/icons/globe";
+import Image from "@lucide/svelte/icons/image";
+import ListChecks from "@lucide/svelte/icons/list-checks";
+import Network from "@lucide/svelte/icons/network";
+import ScrollText from "@lucide/svelte/icons/scroll-text";
+import Search from "@lucide/svelte/icons/search";
+import SquareKanban from "@lucide/svelte/icons/square-kanban";
+import SquareTerminal from "@lucide/svelte/icons/square-terminal";
+import Wrench from "@lucide/svelte/icons/wrench";
+import Code from "@lucide/svelte/icons/code";
 import { leadSettingsOverridesSchema } from "@nervekit/contracts/agent-configuration";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
 import { Skeleton } from "@nervekit/ui-kit/components/ui/skeleton";
-import { Switch } from "@nervekit/ui-kit/components/ui/switch";
 import type {
   AuthProviderMetadata,
   ModelInfo,
@@ -21,7 +31,8 @@ import { ScopedAgentState } from "$lib/application/agent-configuration/scoped-ag
 import { workbenchStartupState } from "$lib/application/startup/workbench-startup-state.svelte";
 import {
   SettingsChangeIndicator,
-  SettingsRow,
+  SettingsItem,
+  SettingsList,
   SettingsSection,
 } from "$lib/presentation/settings";
 import {
@@ -40,6 +51,7 @@ import {
   accountOptions,
   integrationsMissingAccount,
   toolRows,
+  toolSettingsSummary,
   toolSummary,
   type AccountKind,
   type ToolId,
@@ -107,13 +119,19 @@ function modelLabel(selection: unknown) {
   const m = models.find((m) => modelKey(m) === modelKey(v));
   return m ? modelDisplayName(m) : v.modelId;
 }
+const displayContext = $derived({
+  accountName: (kind: AccountKind, accountId: string | undefined) =>
+    accounts[kind].find((a) => a.id === accountId)?.name,
+  profileLabel: profileLabelFor,
+  modelLabel,
+});
+/** On/off plus settings: what the change indicator compares. */
 function summary(id: ToolId, value: ToolPayload) {
-  return toolSummary(id, value, {
-    accountName: (kind, accountId) =>
-      accounts[kind].find((a) => a.id === accountId)?.name,
-    profileLabel: profileLabelFor,
-    modelLabel,
-  });
+  return toolSummary(id, value, displayContext);
+}
+/** The row's status line: settings only, or what the tool does. */
+function rowSummary(row: ToolRowDef, value: ToolPayload) {
+  return toolSettingsSummary(row.id, value, displayContext) ?? row.description;
 }
 function problem(id: ToolId, value: ToolPayload): string | undefined {
   if (accountKind(id) && !accountName(id, value.profileId))
@@ -146,7 +164,22 @@ function onRetry() {
 }
 let dialogOpen = $state(false);
 let dialogTool = $state<ToolRowDef>(toolRows[0]);
+const toolIcons: Partial<Record<ToolId, typeof Wrench>> = {
+  bash: SquareTerminal,
+  python_exec: Code,
+  web_search: Search,
+  web_fetch: Globe,
+  explain_image: Eye,
+  generate_image: Image,
+  kroki_export: Network,
+  jira: SquareKanban,
+  confluence: FileText,
+  quick_script: ScrollText,
+  plan_present: ListChecks,
+  subagents: Bot,
+};
 function configure(row: ToolRowDef) {
+  if (locked) return;
   dialogTool = row;
   dialogOpen = true;
 }
@@ -171,66 +204,49 @@ const python = $derived(status?.runtime.python);
   <SettingsSection
     id="tools"
     description="Read, edit, ask_user, process and todo tools are always on. Permissions govern them."
-    divided
   >
     {#snippet actions()}{#if project}<ProjectCapabilityTrustAction
           document={editor.document}
           scope={editor.scope}
           onReload={onRetry}
         />{/if}{/snippet}
-    {#each toolRows as row (row.id)}
-      {@const value = payload(row.id)}
-      {@const issue =
-        !row.always && value.enabled ? problem(row.id, value) : undefined}
-      {@const unavailable = false}
-      <SettingsRow label={row.label} description={summary(row.id, value)}>
-        {#snippet badges()}
-          {#if changed(row.id)}
-            <SettingsChangeIndicator
-              compact
-              {scope}
-              from={summary(row.id, inheritedPayload(row.id))}
-              to={summary(row.id, value)}
-              onReset={() => reset(row.id)}
-            />
-          {/if}
-        {/snippet}
-        {#snippet hint()}
-          {#if issue || unavailable}
-            <span class="inline-flex items-center gap-1 text-warning">
-              <TriangleAlert class="size-3" aria-hidden="true" />
-              {issue ?? "Not set up on this machine"}
-            </span>
-          {/if}
-        {/snippet}
-        {#snippet control()}
-          {#if row.configurable}
-            <Button
-              size="sm"
-              variant="outline"
-              aria-label={`Configure ${row.label}`}
-              disabled={locked}
-              onclick={() => configure(row)}
-            >
-              <Settings2 class="size-3.5" aria-hidden="true" />Configure
-            </Button>
-          {/if}
-          {#if row.always}
-            <!-- Same width as Switch so Configure buttons line up. -->
-            <span class="w-7 flex-none" aria-hidden="true"></span>
-          {:else}
-            <Switch
-              checked={value.enabled === true}
-              disabled={locked ||
-                (!value.enabled && !!problem(row.id, value)) ||
-                (project && !!unavailable)}
-              aria-label={`Enable ${row.label}`}
-              onCheckedChange={(next) => toggle(row.id, next)}
-            />
-          {/if}
-        {/snippet}
-      </SettingsRow>
-    {/each}
+    <SettingsList>
+      {#each toolRows as row (row.id)}
+        {@const value = payload(row.id)}
+        {@const issue =
+          !row.always && value.enabled ? problem(row.id, value) : undefined}
+        <SettingsItem
+          title={row.label}
+          icon={toolIcons[row.id] ?? Wrench}
+          summary={rowSummary(row, value)}
+          problem={issue}
+          problemAction={issue && row.configurable
+            ? {
+                label: accountKind(row.id) ? "Choose account" : "Configure",
+                onclick: () => configure(row),
+              }
+            : undefined}
+          always={row.always}
+          checked={row.always ? undefined : value.enabled === true}
+          disabled={locked || (!value.enabled && !!problem(row.id, value))}
+          onCheckedChange={(next) => toggle(row.id, next)}
+          onOpen={row.configurable ? () => configure(row) : undefined}
+          openLabel={`Configure ${row.label}`}
+        >
+          {#snippet meta()}
+            {#if changed(row.id)}
+              <SettingsChangeIndicator
+                compact
+                {scope}
+                from={summary(row.id, inheritedPayload(row.id))}
+                to={summary(row.id, value)}
+                onReset={() => reset(row.id)}
+              />
+            {/if}
+          {/snippet}
+        </SettingsItem>
+      {/each}
+    </SettingsList>
   </SettingsSection>
 
   <ToolConfigDialog

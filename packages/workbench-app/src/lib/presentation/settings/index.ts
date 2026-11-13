@@ -15,6 +15,7 @@ export { default as SettingsPreviewCards } from "./SettingsPreviewCards.svelte";
 export type { SettingsPreviewOption } from "./SettingsPreviewCards.svelte";
 export { default as SettingsList } from "./SettingsList.svelte";
 export { default as SettingsListItem } from "./SettingsListItem.svelte";
+export { default as SettingsItem } from "./SettingsItem.svelte";
 export { default as SettingsDisclosureItem } from "./SettingsDisclosureItem.svelte";
 export { default as SettingsStatGrid } from "./SettingsStatGrid.svelte";
 export type { SettingsStat } from "./SettingsStatGrid.svelte";

@@ -1,13 +1,12 @@
 <script lang="ts">
-import { Badge } from "@nervekit/ui-kit/components/ui/badge";
-import Pencil from "@lucide/svelte/icons/pencil";
+import Search from "@lucide/svelte/icons/search";
 import Trash2 from "@lucide/svelte/icons/trash-2";
 import { IconAction } from "@nervekit/ui-kit/components/composites/icon-action";
 import type { AuthProviderMetadata, Settings, TavilyProfile } from "$lib/api";
 import { deleteProviderCredential, getAuthProviders } from "$lib/api";
 import { settingsState } from "$lib/features/settings/state/settings-state.svelte";
 import ConfirmDialog from "@nervekit/ui-kit/components/composites/confirm-dialog";
-import { SettingsListItem } from "$lib/presentation/settings";
+import { SettingsItem } from "$lib/presentation/settings";
 import SettingsEntityListSection from "../../shared/settings-entity-list-section.svelte";
 import type { ScopedAgentState } from "$lib/application/agent-configuration/scoped-agent-state.svelte";
 import { accountOptions } from "../tools/tool-settings";
@@ -40,6 +39,10 @@ function configured(profile: TavilyProfile): boolean {
 }
 function openAdd(): void {
   editing = undefined;
+  dialogOpen = true;
+}
+function openEdit(profile: TavilyProfile): void {
+  editing = profile;
   dialogOpen = true;
 }
 function save(profile: TavilyProfile): void {
@@ -89,12 +92,15 @@ async function remove(): Promise<void> {
     />
   {/snippet}
   {#snippet row(profile)}
-    <SettingsListItem title={profile.name}>
-      {#snippet status()}
-        {#if !configured(profile)}
-          <Badge variant="warning">Incomplete</Badge>
-        {/if}
-      {/snippet}
+    <SettingsItem
+      title={profile.name}
+      icon={Search}
+      summary="API key stored"
+      problem={configured(profile) ? undefined : "API key missing"}
+      problemAction={{ label: "Add key", onclick: () => openEdit(profile) }}
+      onOpen={() => openEdit(profile)}
+      openLabel={`Edit ${profile.name}`}
+    >
       {#snippet actions()}
         {#if tools.resolution && !accountUsedEverywhere("tavily", tools.resolution.settings.tools ?? {}, profile.id)}
           <IconAction
@@ -106,21 +112,13 @@ async function remove(): Promise<void> {
           />
         {/if}
         <IconAction
-          icon={Pencil}
-          label="Edit account"
-          onclick={() => {
-            editing = profile;
-            dialogOpen = true;
-          }}
-        />
-        <IconAction
           icon={Trash2}
           label="Delete account"
           tone="destructive"
           onclick={() => (pendingDelete = profile)}
         />
       {/snippet}
-    </SettingsListItem>
+    </SettingsItem>
   {/snippet}
 </SettingsEntityListSection>
 
