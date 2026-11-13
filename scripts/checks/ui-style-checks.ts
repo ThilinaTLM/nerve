@@ -41,6 +41,19 @@ export function checkUiStyles(
       if (/import\s+["'][^"']+\.css["']/.test(text))
         fail(file, "Svelte components may not import CSS");
     }
+    // Keyframes live only in ui-kit animation.css, including app partials and
+    // CodeMirror themes declared in TypeScript.
+    for (const file of trackedFiles.filter(
+      (path) =>
+        /^packages\/workbench-app\/src\/.*\.(?:css|[cm]?ts)$/.test(path) &&
+        !path.includes("/design-lab/"),
+    )) {
+      if (/@keyframes\b/.test(read(file)))
+        fail(
+          file,
+          "@keyframes belong in packages/ui-kit/src/styles/animation.css",
+        );
+    }
     for (const file of trackedFiles.filter(
       (path) => sourceExtensions.test(path) && !path.endsWith(".svelte"),
     )) {
@@ -142,6 +155,20 @@ export function checkUiStyles(
           `${underlines[0]} is for prose links only; buttons answer hover with a fill or colour change`,
         );
       if (/color-mix\(/.test(text))
+        fail(
+          file,
+          "color-mix() belongs in ui-kit theme tokens; use a derived token",
+        );
+    }
+    // Editor themes and other TS-authored styles follow the same rule.
+    for (const file of trackedFiles) {
+      if (
+        !/^packages\/workbench-app\/src\/lib\/.*\.[cm]?ts$/.test(file) ||
+        /\.test\.[cm]?ts$/.test(file) ||
+        file.includes("/design-lab/")
+      )
+        continue;
+      if (/color-mix\(/.test(read(file)))
         fail(
           file,
           "color-mix() belongs in ui-kit theme tokens; use a derived token",

@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
 """Read-only inspector for a Nerve home (conversation-core SQLite + managed files + logs).
 
-Never writes to the inspected home. Prints metadata only by default; message text,
-tool arguments and log context are omitted unless --preview N is given.
+Never writes to the inspected home. Message text, tool arguments, payloads and log
+context are shown as lengths unless --preview N is given; titles, reasons, error and
+log messages are always shown truncated and redacted. Global options (--home, --db,
+--preview) may come before or after the subcommand.
 
 Usage (from anywhere):
   nerve_debug.py --home PATH snapshot
@@ -86,7 +88,7 @@ class Home:
     @property
     def conn(self) -> sqlite3.Connection:
         if self._conn is None:
-            uri = f"file:{self.db_path}?mode=ro"
+            uri = Path(self.db_path).resolve().as_uri() + "?mode=ro"
             self._conn = sqlite3.connect(uri, uri=True)
             self._conn.row_factory = sqlite3.Row
             self._conn.execute("PRAGMA query_only=ON")
@@ -261,7 +263,9 @@ def describe_event(e: dict, n: int) -> str:
             if p.get("failure"):
                 bits.append(f"failure[{p['failure'].get('category')}]={preview(p['failure'].get('message'), max(n, 120))}")
             return " ".join(bits)
-        extra = {k: p[k] for k in ("producer", "childConversationId", "assignmentId", "bashId", "status", "exitCode") if p.get(k) is not None}
+        extra = {k: p[k] for k in ("producer", "outcome") if p.get(k) is not None}
+        if isinstance(p.get("task"), dict):
+            extra["task"] = p["task"]
         return f"notice {sub} {json.dumps(extra)} text={preview(p.get('text'), n)}"
     if t == "assistant_message":
         calls = [f"{c.get('name')}:{c.get('id')}" for c in p.get("content", []) if c.get("type") == "toolCall"]
@@ -484,18 +488,27 @@ def cmd_logs(h: Home, args) -> None:
 
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--home", help="Nerve home (e.g. data/storage-1 or ~/.nerve); used for files and logs")
-    ap.add_argument("--db", help="SQLite file to query instead of <home>/data/nerve.sqlite (e.g. a snapshot)")
-    ap.add_argument("--preview", type=int, default=0, help="show up to N redacted chars of text/arguments (default: lengths only)")
+    # Global options are accepted before or after the subcommand. Subparser copies use
+    # SUPPRESS so an omitted flag does not overwrite a value given before the subcommand.
+    common = argparse.ArgumentParser(add_help=False)
+    for parser, default in ((ap, None), (common, argparse.SUPPRESS)):
+        parser.add_argument("--home", default=default, help="Nerve home (e.g. data/storage-1 or ~/.nerve); used for files and logs")
+        parser.add_argument("--db", default=default, help="SQLite file to query instead of <home>/data/nerve.sqlite (e.g. a snapshot)")
+        parser.add_argument("--preview", type=int, default=0 if default is None else default,
+                            help="show up to N redacted chars of text/arguments (default: lengths only)")
     sub = ap.add_subparsers(dest="cmd", required=True)
-    sub.add_parser("snapshot")
-    p = sub.add_parser("find"); p.add_argument("text", nargs="?"); p.add_argument("--limit", type=int, default=20)
-    p = sub.add_parser("overview"); p.add_argument("conversation")
-    p = sub.add_parser("timeline"); p.add_argument("conversation"); p.add_argument("--limit", type=int, default=40)
+
+    def command(name: str) -> argparse.ArgumentParser:
+        return sub.add_parser(name, parents=[common])
+
+    command("snapshot")
+    p = command("find"); p.add_argument("text", nargs="?"); p.add_argument("--limit", type=int, default=20)
+    p = command("overview"); p.add_argument("conversation")
+    p = command("timeline"); p.add_argument("conversation"); p.add_argument("--limit", type=int, default=40)
     p.add_argument("--before-seq", type=int); p.add_argument("--after-seq", type=int)
-    p = sub.add_parser("tool"); p.add_argument("tool_call")
-    p = sub.add_parser("check"); p.add_argument("conversation", nargs="?"); p.add_argument("--limit", type=int, default=50)
-    p = sub.add_parser("logs"); p.add_argument("id", nargs="?", help="any ID substring (conv_, tool_, evt_, bash id…)"); p.add_argument("--since"); p.add_argument("--until")
+    p = command("tool"); p.add_argument("tool_call")
+    p = command("check"); p.add_argument("conversation", nargs="?"); p.add_argument("--limit", type=int, default=50)
+    p = command("logs"); p.add_argument("id", nargs="?", help="any ID substring (conv_, tool_, evt_, bash id…)"); p.add_argument("--since"); p.add_argument("--until")
     p.add_argument("--level", help="comma list, e.g. warn,error"); p.add_argument("--limit", type=int, default=50)
     args = ap.parse_args()
     h = Home(args.home, args.db)

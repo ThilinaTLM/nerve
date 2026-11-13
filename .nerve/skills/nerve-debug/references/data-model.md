@@ -8,7 +8,7 @@ Read this when you need to interpret a row, state or event. Verify details in th
 - **Tables hold current state and unfinished work. Events hold facts.** When a tool call settles, the core appends a `tool_call_response` event and deletes the `tool_call` row in the same transaction. When an input is delivered, the core appends an event and deletes the `input_queue` row. A missing row is normal; a row that should be gone is the anomaly.
 - **History is a branchable event tree.** `previous_event_id` links each event to its predecessor. `conversation.head_event_id` selects the active branch, which is the transcript and model context. `sequence` orders replay across **all** branches.
 - **Configuration lives in files, not SQLite.** It is in `data/conversations/<conv>/config/*.json` plus user and project scopes. Only `working_directory` is a column.
-- **Live progress is memory-only.** Streaming text, tool progress, process handles, launch runs and the "input being processed" flag are not persisted. A restart loses them by design.
+- **Live progress is memory-only.** Streaming text, tool progress, process handles, launch run state and the "input being processed" flag are not persisted. A restart loses them by design.
 - **External effects are not exactly-once.** An interrupted non-replay-safe tool settles as `indeterminate`. Never rerun it to find out what happened.
 
 Timestamps are ISO-8601 UTC **text** columns, so compare them as strings. IDs are prefixed ULIDs (`conv_`, `evt_`, `tool_`, `turn_`, `proj_`). An assistant `toolCall` block carries the provider's ID (such as `toolu_…`). The core tool ID (`tool_…`) is in `tool_call.id` and in `tool_call_response.payload.toolCallId`; the two IDs are linked through `provider_call_id`.
@@ -31,13 +31,13 @@ Timestamps are ISO-8601 UTC **text** columns, so compare them as strings. IDs ar
 
 ## Events
 
-| `event_type`         | Payload highlights                                                                                                                                                                                              |
-| -------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `user_message`       | `text`, `source` (`user`/`parent_conversation`), `senderConversationId`, `acceptedAt`; `input_id` column = submission identity                                                                                  |
-| `assistant_message`  | `content[]` (`text`/`thinking`/`toolCall{id,name,arguments}`), `stopReason` (`stop`/`toolUse`/`length`/`error`/`aborted`/`deferred`/`pending`), `provider`, `model`, `errorMessage`, `usage`                    |
-| `tool_call_response` | `toolCallId`, `toolName`, `outcome` (`completed`/`failed`/`denied`/`cancelled`/`indeterminate`), `supervision`, `interactionResolution`, `resolutionRequestId`, `agentProjection`, `userProjection`, `assetIds` |
-| `system_event`       | `subtype` = `execution_state` (see below), or a delivered notice: `task_result` (`task` = `{kind: bash, id, exitCode}` or `{kind: subagent, id, assignmentId}`, `outcome`), `user_intervention`, `notification` |
-| `compaction`         | `summary`, `firstKeptEventId`, `tokensBefore`; original events stay in the tree                                                                                                                                 |
+| `event_type`         | Payload highlights                                                                                                                                                                                                                                                                                                    |
+| -------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `user_message`       | `text`, `source` (`user`/`parent_conversation`), `senderConversationId`, `acceptedAt`; `input_id` column = submission identity                                                                                                                                                                                        |
+| `assistant_message`  | `content[]` (`text`/`thinking`/`toolCall{id,name,arguments}`), `stopReason` (`stop`/`toolUse`/`length`/`error`/`aborted`/`deferred`/`pending`), `provider`, `model`, `errorMessage`, `usage`                                                                                                                          |
+| `tool_call_response` | `toolCallId`, `toolName`, `outcome` (`completed`/`failed`/`denied`/`cancelled`/`indeterminate`), `supervision`, `interactionResolution`, `resolutionRequestId`, `agentProjection`, `userProjection`, `assetIds`                                                                                                       |
+| `system_event`       | `subtype` = `execution_state` (see below), or a delivered notice: `task_result` (`task` = `{kind: bash, id, exitCode}` or `{kind: subagent, id, assignmentId}`, `outcome` = `completed`/`failed`/`cancelled`/`timed_out`/`interrupted`), `user_intervention`, `notification`; or `fork` (heads a forked conversation) |
+| `compaction`         | `summary`, `firstKeptEventId`, `tokensBefore`; original events stay in the tree                                                                                                                                                                                                                                       |
 
 **Executions.** An execution is a span of turns. It begins with `execution_state/started`, and the ID of that event _is_ the execution ID. Later transitions carry `executionId` and are one of `waiting` (with `waiting.toolCallId` or `waiting.childConversationId`), `retrying` (`retry.attempt/maxAttempts/error`), `completed`, `failed` (`failure.message/category`), `cancelled` or `interrupted`. An execution is **open** when the latest `execution_state` event, ordered by `sequence` regardless of branch, is `started`, `waiting` or `retrying`. Recovery appends `interrupted` for an open execution that has no unfinished tool rows.
 
@@ -64,22 +64,23 @@ The `pendingWork` and `pendingInput` summary fields are computed when read acros
 
 ```
 <home>/manifest.json                 home format + applied home migration steps
-<home>/daemon.json                   running daemon: pid, port, url, dataDir, version (never print tokens)
-<home>/config/*.json                 user settings (daemon.json has logging.level, default "warn")
+<home>/daemon.json                   running-daemon lease: pid, port, url, dataDir, version (never print tokens)
+<home>/config/*.json                 user settings (config/daemon.json holds logging.level, default "info")
 <home>/data/nerve.sqlite(-wal,-shm)  core database
 <home>/data/conversations/<conv>/config/agent.json      applied profile snapshot, overrides, frozen child defaults
-<home>/data/conversations/<conv>/tool-calls/<tool>/...  result.json (payload), files/stdout.txt etc. (report)
-<home>/data/conversations/<conv>/async-bash/<bash>/...  background output
-<home>/data/{images,plans,agent-profiles,launches}/
+<home>/data/conversations/<conv>/tool-calls/<tool_call_id>/...  result.json (payload), files/… (reports, including async bash output)
+<home>/data/{images,plans,agent-profiles}/
+<home>/data/launches/<run>/              launch log bundles (persist; run state itself is memory-only)
 <home>/logs/application-YYYY-MM-DD.jsonl   daemon log (fields: ts, level, source, component, message, context, error, conversationId?)
 <home>/logs/desktop-YYYY-MM-DD.jsonl       desktop shell log; startup.jsonl; performance-*.jsonl
 <home>/crashes/                             crash reports
 <home>/migrations/{last-failure.json,reports/,work/}   upgrade failures and set-aside reports
-<home>/quarantine/                          set-aside sources from migrations and settings resets
+<home>/quarantine/                          set-aside sources from migrations and settings resets (settings under quarantine/settings/)
+<home>/data/quarantine/files/               set-aside managed files
 <home>/secrets/, <home>/tls/                never read or print
 ```
 
-Logs keep 14 days by default at level `warn`. Most lifecycle steps are **not** logged, and deleting a conversation also removes log lines tagged with its `conversationId`. A missing log line proves nothing. Renderer errors appear as `component: web-runtime`. Unreadable conversations log `"Conversation read failed; skipped"` with `context.operation`.
+Application logging is off by default (`diagnostics.loggingEnabled` or `NERVE_LOGGING_ENABLED`); when on, logs keep 14 days at level `info`. Always locate output files through `asset.logical_path` rather than guessing paths. Most lifecycle steps are **not** logged, and deleting a conversation also removes log lines tagged with its `conversationId`. A missing log line proves nothing. Renderer errors appear as `component: web-runtime`. Unreadable conversations log `"Conversation read failed; skipped"` with `context.operation`.
 
 ## Source of truth
 

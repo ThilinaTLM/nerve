@@ -412,10 +412,9 @@ export const codeMirrorTheme = EditorView.theme({
   },
   ".cm-gutters": {
     backgroundColor: "var(--background)",
-    color: "color-mix(in oklab, var(--muted-foreground) 70%, transparent)",
+    color: "var(--muted-foreground)",
     border: "none",
-    borderRight:
-      "1px solid color-mix(in oklab, var(--background) 55%, var(--border))",
+    borderRight: "1px solid var(--border-subtle)",
   },
   ".cm-lineNumbers .cm-gutterElement": {
     minWidth: "3ch",
@@ -429,7 +428,7 @@ export const codeMirrorTheme = EditorView.theme({
     color: "inherit",
   },
   ".cm-activeLine": {
-    backgroundColor: "color-mix(in oklab, var(--foreground) 4%, transparent)",
+    backgroundColor: "var(--hover)",
   },
   "&:not(.cm-focused) .cm-activeLine": { backgroundColor: "transparent" },
   ".cm-foldGutter .cm-gutterElement": {
@@ -462,38 +461,31 @@ export const codeMirrorTheme = EditorView.theme({
     borderLeft: "2px solid var(--primary)",
   },
   ".cm-selectionBackground": {
-    backgroundColor:
-      "color-mix(in oklab, var(--background) 86%, var(--primary)) !important",
+    backgroundColor: "var(--selected) !important",
   },
   "&.cm-focused .cm-selectionBackground, ::selection": {
-    backgroundColor:
-      "color-mix(in oklab, var(--background) 76%, var(--primary)) !important",
+    backgroundColor: "var(--text-selection) !important",
   },
   ".cm-selectionMatch": {
-    backgroundColor:
-      "color-mix(in oklab, var(--background) 82%, var(--info)) !important",
+    backgroundColor: "var(--info-subtle) !important",
   },
   "&.cm-focused .cm-matchingBracket": {
     backgroundColor: "transparent",
-    outline:
-      "1px solid color-mix(in oklab, var(--foreground) 35%, transparent)",
+    outline: "1px solid var(--muted-foreground)",
     borderRadius: "2px",
   },
   ".cm-searchMatch": {
-    backgroundColor:
-      "color-mix(in oklab, var(--background) 65%, var(--warning)) !important",
+    backgroundColor: "var(--warning-strong) !important",
     borderRadius: "var(--radius-sm)",
     boxShadow: "inset 0 -1px 0 var(--warning)",
   },
   ".cm-searchMatch-selected": {
-    backgroundColor:
-      "color-mix(in oklab, var(--background) 52%, var(--primary)) !important",
+    backgroundColor: "var(--primary-strong) !important",
     boxShadow: "inset 0 0 0 1px var(--primary)",
   },
   ".cm-target-line": {
-    backgroundColor: "color-mix(in oklab, var(--warning) 18%, transparent)",
-    boxShadow:
-      "inset 0.2rem 0 0 color-mix(in oklab, var(--warning) 72%, transparent)",
+    backgroundColor: "var(--warning-subtle)",
+    boxShadow: "inset 0.2rem 0 0 var(--warning)",
   },
   ".cm-panels": {
     color: "var(--foreground)",

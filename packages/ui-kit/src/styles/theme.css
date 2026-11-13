@@ -126,10 +126,12 @@
    * - <tone>-strong: 40% for tinted borders, rings and highlight marks.
    * - border-subtle: hairline dividers inside an already bordered surface.
    * - focus: the focus halo (`ring-focus`, `outline-focus`).
-   * - scrim: the dim layer behind modal overlays. */
+   * - scrim: the dim layer behind modal overlays.
+   * - text-selection: selected text inside code and composer editors. */
   --border-subtle: color-mix(in oklab, var(--border) 60%, transparent);
   --focus: color-mix(in oklab, var(--ring) 50%, transparent);
   --scrim: color-mix(in oklab, var(--background) 60%, transparent);
+  --text-selection: color-mix(in oklab, var(--primary) 22%, transparent);
   --primary-subtle: color-mix(in oklab, var(--primary) 8%, transparent);
   --primary-strong: color-mix(in oklab, var(--primary) 40%, transparent);
   --info-subtle: color-mix(in oklab, var(--info) 8%, transparent);
@@ -432,7 +434,7 @@
   --spacing-control: 1.75rem;
   --spacing-control-sm: 1.5rem;
 
-  /* Type scale: four roles, 12-16px. Tailwind's default sizes are cleared so
+  /* Type scale: four roles, 13-16px. Tailwind's default sizes are cleared so
    * only these utilities exist (`text-caption`, `text-ui`, `text-body`,
    * `text-title`).
    * - caption: glanceable extras (timestamps, counts, chips, section labels).

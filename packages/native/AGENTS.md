@@ -1,6 +1,6 @@
 # Native addon (`packages/native`)
 
-Inherits the root `AGENTS.md`. Layout and APIs: `README.md`.
+Layout and APIs: `README.md`.
 
 **When to add native code**
 
@@ -19,4 +19,4 @@ Inherits the root `AGENTS.md`. Layout and APIs: `README.md`.
 - Provide an explicit close/cancel API, check cancellation cooperatively inside long loops and dispose memory off-thread. Rejecting a promise does not stop native work; finalizers are a fallback only.
 - JS-facing offsets are UTF-16 code units, never byte offsets. Unicode casing stays in JS.
 - Benchmarks report p50/p95, event-loop lag and total RSS (the JS heap misses Rust allocations); a single Linux run is not cross-platform evidence.
-- Validate with `pnpm --filter @nervekit/native check` and `pnpm --filter @nervekit/native test`. Rebuild with `build:native` before testing Rust changes through TS.
+- Rebuild with `pnpm --filter @nervekit/native build:native` before testing Rust changes through TS.

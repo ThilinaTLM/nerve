@@ -17,13 +17,11 @@ export const composerEditorTheme = EditorView.theme({
   ".cm-line": { padding: "0 2px" },
   ".cm-cursor": { borderLeftColor: "var(--primary)" },
   ".cm-placeholder": {
-    color: "color-mix(in oklab, var(--muted-foreground) 75%, transparent)",
+    color: "var(--muted-foreground)",
   },
   ".cm-quote-block-line": {
-    backgroundColor:
-      "color-mix(in oklab, var(--muted-foreground) 8%, transparent)",
-    boxShadow:
-      "inset 2px 0 0 color-mix(in oklab, var(--primary) 55%, transparent)",
+    backgroundColor: "var(--hover)",
+    boxShadow: "inset 2px 0 0 var(--primary)",
     color: "var(--muted-foreground)",
   },
   ".cm-scroller": {
@@ -36,7 +34,7 @@ export const composerEditorTheme = EditorView.theme({
   "&.cm-focused .cm-cursor": { borderLeftColor: "var(--primary)" },
   "&.cm-focused .cm-selectionBackground, .cm-selectionBackground, ::selection":
     {
-      backgroundColor: "color-mix(in oklab, var(--primary) 22%, transparent)",
+      backgroundColor: "var(--text-selection)",
     },
   /* chips stream: mention chips + dictation placeholder */
   ".cm-mention-chip": {
@@ -89,25 +87,23 @@ export const composerEditorTheme = EditorView.theme({
     borderRadius: "9999px",
   },
   ".cm-dictation-chip[data-dictation='recording']": {
-    borderColor: "color-mix(in oklab, var(--destructive) 45%, transparent)",
+    borderColor: "var(--destructive-strong)",
   },
   ".cm-dictation-chip[data-dictation='recording'] .cm-dictation-icon": {
     background: "var(--destructive)",
-    animation: "cm-nerve-dictation-pulse 1.2s ease-in-out infinite",
+    animation: "dictation-pulse 1.2s ease-in-out infinite",
   },
   ".cm-dictation-chip[data-dictation='transcribing'] .cm-dictation-icon": {
     border: "1.5px solid var(--muted-foreground)",
     borderTopColor: "transparent",
-    animation: "cm-nerve-dictation-spin 0.8s linear infinite",
+    animation: "spin 0.8s linear infinite",
   },
   ".cm-dictation-chip[data-dictation='failed']": {
-    borderColor: "color-mix(in oklab, var(--destructive) 45%, transparent)",
+    borderColor: "var(--destructive-strong)",
     color: "var(--destructive)",
   },
   ".cm-dictation-chip[data-dictation='failed'] .cm-dictation-icon": {
     background: "var(--destructive)",
     borderRadius: "2px",
   },
-  "@keyframes cm-nerve-dictation-pulse": { "50%": { opacity: "0.35" } },
-  "@keyframes cm-nerve-dictation-spin": { to: { transform: "rotate(360deg)" } },
 });
