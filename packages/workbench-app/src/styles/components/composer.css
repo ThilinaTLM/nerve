@@ -58,13 +58,6 @@
       var(--motion-enter-easing) both;
   }
 
-  @keyframes composer-badge-dot-in {
-    from {
-      opacity: 0;
-      transform: scale(0);
-    }
-  }
-
   @media (prefers-reduced-motion: reduce) {
     .composer-badge-dot {
       animation: none;

@@ -4,13 +4,13 @@ TypeScript façades over one Rust N-API addon. Consumers import only the package
 
 ## Layout
 
-| Path                                                   | Contents                                                                                            |
-| ------------------------------------------------------ | --------------------------------------------------------------------------------------------------- |
-| `native/src/{files,git,image,monitor,process,search}/` | Plain Rust domain logic; N-API adapters live in each domain's `napi.rs`                             |
-| `native/src/core/`                                     | Shared mechanisms: Tokio runtime, cancellation, admission permit, handle registry, error categories |
-| `native/src/api/`                                      | Cross-domain composition (e.g. injecting Git reads into the monitor)                                |
-| `src/<domain>/`                                        | Public façades and the domain's private `binding.ts`                                                |
-| `src/binding/`                                         | Shared addon loader and the composed binding contract                                               |
+| Path                                                           | Contents                                                                                            |
+| -------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
+| `native/src/{files,git,image,monitor,process,sandbox,search}/` | Plain Rust domain logic; N-API adapters live in each domain's `napi.rs`                             |
+| `native/src/core/`                                             | Shared mechanisms: Tokio runtime, cancellation, admission permit, handle registry, error categories |
+| `native/src/api/`                                              | Cross-domain composition (e.g. injecting Git reads into the monitor)                                |
+| `src/<domain>/`                                                | Public façades and the domain's private `binding.ts`                                                |
+| `src/binding/`                                                 | Shared addon loader and the composed binding contract                                               |
 
 Domains use only their own modules and `core`. `pnpm check:boundaries` (part of `pnpm check`) enforces this with a lexical scan; it does not resolve macros or `include!`.
 
@@ -21,6 +21,7 @@ Domains use only their own modules and `core`. `pnpm check:boundaries` (part of 
 - **Monitor:** filesystem and Git change watching with bounded scopes, event coalescing and polling fallback. `close()` removes the handle and joins its worker. `syncTree` scopes watch a project recursively while skipping ignored directories (per-directory inotify watches on Linux, one recursive watch elsewhere), bounded by `maxTreeDirectories`.
 - **Files:** ignore-aware project primitives exported as `files` (`isAvailable`, `listDirectory`, `createPathIndex`, `searchContent`), built on the `ignore` crate (`.gitignore`/`.ignore`/git excludes/global excludes, with or without a repo; `.git` always ignored). The path index walks in the background, publishes progressively, matches fuzzily with `nucleo-matcher` (UTF-16 positions) and updates through `applyChanges`. Content search uses `grep-*` with a parallel walk, binary skipping, windowed previews, and result/time budgets.
 - **Image:** `image.prepareImage(data, options)` decodes the first frame of PNG/JPEG/GIF/WebP (pure Rust `image` crate, bounded input and decoder limits), fits it inside `maxDimension` without enlarging (Lanczos3), and re-encodes only when needed: PNG for PNG/GIF/WebP sources, JPEG for JPEG sources; over `maxBase64Bytes` it tries JPEG q85 (alpha flattened onto white), then shrinks by ×0.75 for a bounded number of attempts, else rejects. Sources already within limits and `acceptedFormats` return unchanged. Runs on a worker thread; provider limits live in the caller's policy.
+- **Sandbox:** embedded QuickJS runtime for `quick_script`, one fresh runtime per script on a dedicated thread, bounded by memory, timeout, host-call and output limits. Scripts see only ECMAScript built-ins plus caller-bound output and async host calls; the caller owns which host methods exist and their authorization ([code mode](../../docs/architecture/code-mode.md)).
 - **Search:** in-memory lexical indexes for completion (below).
 
 ## Search

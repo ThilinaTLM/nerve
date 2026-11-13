@@ -1,21 +1,6 @@
 # Symptom playbooks
 
-Each playbook assumes you already ran `overview`, `check` and `timeline` for the conversation (see SKILL.md). `$D` means `python3 <skill>/scripts/nerve_debug.py --home <home>`. SQL runs with `sqlite3 -readonly <db>`. Field meanings are in [data-model.md](data-model.md).
-
-## Contents
-
-1. [Stuck "running" / never finishes](#1-stuck-running)
-2. [Missing or non-actionable approval, question, plan review](#2-missing-or-non-actionable-prompt)
-3. [Sub-agent finished but lead never resumed / child stuck](#3-sub-agents)
-4. [Background command (async bash) or launch never reported](#4-async-bash-and-launches)
-5. [Prompt not delivered, delivered twice, or lost](#5-input-delivery)
-6. [Transcript looks wrong: missing messages, branches, compaction](#6-transcript-and-branches)
-7. [Tool result or output file missing; possible duplicate side effect](#7-tool-results-and-side-effects)
-8. [Model/provider errors, retries](#8-provider-failures)
-9. [Conversation can't be loaded; startup or upgrade failure](#9-unreadable-conversations-and-upgrades)
-10. [UI disagrees with storage](#10-ui-versus-storage)
-
----
+Each playbook assumes you already ran `overview`, `check` and `timeline` for the conversation (see SKILL.md). `$D` means `python3 <skill>/scripts/nerve_debug.py --home <home>`. SQL runs with `sqlite3 -readonly <db>`; replace `<…>` placeholders with literal IDs (unbound `:named` parameters in the sqlite3 shell silently match nothing). Field meanings are in [data-model.md](data-model.md).
 
 ## 1. Stuck running
 
@@ -23,7 +8,7 @@ Status `running` means an open execution, an unfinished tool row, or in-memory i
 
 1. In `overview`, find which condition holds: the open execution (`latest execution_state … [OPEN]`), open tool rows, or neither. Neither means memory-only processing; re-check after a moment.
 2. If a tool row is `running` with `claimed=1`, run `$D tool <tool_id>` and the `logs <tool_id>` command. Long-running bash is normal unless its time budget passed. A `ready` row that never advances suggests the scheduler never resumed. Look for an earlier recovery failure in the logs.
-3. If the execution is open and there are **no tool rows**, the last event is usually `retrying`, an assistant message mid-turn, or a `started` with nothing after it. A daemon restart should append `interrupted` (see `recoverCore`). If the daemon restarted and the execution is still open, that is a real lead. Confirm the restart time with `logs --since` and `startup.jsonl`.
+3. If the execution is open and there are **no tool rows**, the last event is usually `retrying`, an assistant message mid-turn, or a `started` with nothing after it. A daemon restart should append `interrupted` (see `recoverCore`). If the daemon restarted and the execution is still open, that is a real lead. Confirm the restart time with `logs --since` and by reading `<home>/logs/startup.jsonl` directly (the helper does not parse it).
 4. Check children: a parent with `waiting.childConversationId` is waiting for that child, so follow section 3.
 5. Report the last durable transition (event seq/time) and what should have followed it.
 
@@ -60,14 +45,15 @@ Flow: the lead's `subagent_prompt` creates or reuses a child (case-insensitive n
    - Queued with the lead `paused=1`: notices respect pause. Stopping the lead pauses it and cascades.
    - Queued on an idle, unpaused lead with `wake=1`: the wake was lost. This is a real lead.
    - No notice at all: an explicit stop or cascade suppresses cancellation notices by design. Otherwise, check whether the child execution actually ended.
-4. A child `running` under a paused or deleted lead should not happen after a stop. `check` flags it.
+4. A child `running` under a paused lead should not happen after a stop. `check` flags it. (Deleting a lead deletes its children.)
 
 ```sql
 -- Notices delivered to a lead for one child
-SELECT sequence, id, created_at, json_extract(payload,'$.status') AS status, json_extract(payload,'$.assignmentId') AS assignment
+SELECT sequence, id, created_at, json_extract(payload,'$.outcome') AS outcome, json_extract(payload,'$.task.assignmentId') AS assignment
 FROM conversation_event
-WHERE conversation_id = :lead AND event_type = 'system_event'
-  AND json_extract(payload,'$.childConversationId') = :child
+WHERE conversation_id = '<lead_conv_id>' AND event_type = 'system_event'
+  AND json_extract(payload,'$.subtype') = 'task_result'
+  AND json_extract(payload,'$.task.id') = '<child_conv_id>'
 ORDER BY sequence DESC LIMIT 20;
 ```
 
@@ -76,17 +62,17 @@ ORDER BY sequence DESC LIMIT 20;
 - **Async bash** is owned by the conversation. Its terminal status and its `task_result` notice commit together. A `running` row after a daemon restart becomes `lost` (notice outcome `interrupted`) during recovery (native handles cannot be reattached). That is expected, not a bug, and must never be rerun automatically.
   1. Run `$D tool <bash tool_id>` (shows the `async_bash` row and assets) or check `overview`'s async_bash list.
   2. If the status is terminal, look for the notice in the queue (undelivered) or the timeline (delivered). The notice wakes only an unpaused conversation.
-  3. Output is in `asset` rows with `async_bash_id`, under `data/conversations/<conv>/async-bash/<bashId>/`.
-- **Launches** are owned by the workbench, and run records are **memory-only**. After a restart, the initiating conversation is never notified, by design. Definitions are in `<project>/.nerve/launches/definitions.json` and logs are in `<home>/data/launches/`.
+  3. Output is in `asset` rows with `async_bash_id`; open them through `asset.logical_path` (relative to `<home>/data/`, usually under `conversations/<conv>/tool-calls/<tool_call_id>/`).
+- **Launches** are owned by the workbench, and run records are **memory-only**. After a restart, the initiating conversation is never notified, by design. Definitions are in `<project>/.nerve/launches/definitions.json`; log bundles persist in `<home>/data/launches/<run>/`.
 
 ## 5. Input delivery
 
 Input IDs deduplicate across pending rows and delivered events (`conversation_event.input_id`), but **not** across cancelled ones. Delivery appends the event and deletes the queue row atomically.
 
 ```sql
-SELECT 'queued' AS where_, input_id, accepted_at AS at FROM input_queue WHERE input_id = :input
+SELECT 'queued' AS where_, input_id, accepted_at AS at FROM input_queue WHERE input_id = '<input_id>'
 UNION ALL
-SELECT 'delivered', input_id, created_at FROM conversation_event WHERE input_id = :input;
+SELECT 'delivered', input_id, created_at FROM conversation_event WHERE input_id = '<input_id>';
 ```
 
 - Stuck in the queue: check `paused`, `delivery_target`/`target_execution_id` (it waits for that execution's boundary), unfinished tool rows (they block delivery), and `wake_when_idle=0` (accepted without waking). Child conversations reject direct user input.
@@ -117,7 +103,7 @@ SELECT 'delivered', input_id, created_at FROM conversation_event WHERE input_id 
 ## 9. Unreadable conversations and upgrades
 
 - "N conversations couldn't be loaded": a row or event fails the current contracts. Find it with `logs --level warn` and the message `Conversation read failed; skipped` (`context.operation` = `get`, `recovery`, `status.refresh` …). Use `timeline` with `--preview 0` on that conversation, then look for the invalid payload with bounded SQL (`json_valid(payload)` is enforced, so it is a shape problem). Never edit the row; the supported fix is Delete or a code fix.
-- Daemon does not start after an upgrade: read `<home>/migrations/last-failure.json`, `migrations/reports/*.json`, and `manifest.json` (applied home steps). Set-aside data is under `<home>/quarantine/`. See `docs/architecture/migrations.md`.
+- Daemon does not start after an upgrade: read `<home>/migrations/last-failure.json`, `migrations/reports/*.json`, and `manifest.json` (applied home steps). Set-aside data is under `<home>/quarantine/` (managed files under `<home>/data/quarantine/files/`). See `docs/architecture/migrations.md`.
 - Invalid settings: the settings-health notice applies; preserved bytes are in `quarantine/`. See `docs/architecture/storage.md#settings-health`.
 
 ## 10. UI versus storage

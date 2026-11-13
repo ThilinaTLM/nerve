@@ -2,6 +2,10 @@
 
 Root `docs/` is for maintainers working across package boundaries. Public product and developer documentation lives in [`packages/website/src/content/docs/`](../packages/website/src/content/docs/) and is published at [nerve.tlmtech.dev](https://nerve.tlmtech.dev).
 
+## Guidelines
+
+- [Agent-facing content](agent-facing.md) — principles for prompts, tools, results, errors, skills and `AGENTS.md` files.
+
 ## Current architecture
 
 Start with the codebase overview, then the conversation core.
@@ -31,6 +35,13 @@ Start with the codebase overview, then the conversation core.
 - [Launch catalog](architecture/launch-definitions.md) — saved project commands, folders, safe shared editing and client cache.
 - [Git workspace sync](architecture/git-workspace-sync.md) — server-owned repository and worktree state, demand-driven reads and background fetch.
 - [Pull request sync](architecture/pull-request-sync.md) — server-owned PR snapshots, rate-limit-free change detection and the shared client store.
+
+**UI design system**
+
+- [Styling](ui/styling.md) — tokens, surfaces, themes, type scale, controls, scoped styles and global CSS.
+- [Settings UI](ui/settings.md) — headings, navigation, sections, lists, entity cards and provenance.
+- [Transcript notices](ui/transcript-notices.md) — notice cards and their shared anatomy with tool calls.
+- [Panel views](ui/panels.md) — dock panel primitives and layout rules.
 
 ## Maintainer runbooks
 

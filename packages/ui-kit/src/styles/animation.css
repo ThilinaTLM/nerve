@@ -290,3 +290,18 @@
     opacity: 0;
   }
 }
+
+/* Composer badge dot pop-in (workbench-app composer.css `.composer-badge-dot`). */
+@keyframes composer-badge-dot-in {
+  from {
+    opacity: 0;
+    transform: scale(0);
+  }
+}
+
+/* Recording indicator in the composer dictation chip (composer-editor-theme.ts). */
+@keyframes dictation-pulse {
+  50% {
+    opacity: 0.35;
+  }
+}
