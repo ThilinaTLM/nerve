@@ -1,23 +1,24 @@
 # Extensions
 
-> **Status:** Draft. How `quick_script` works today: [architecture/code-mode.md](../../architecture/code-mode.md).
+> **Status:** Accepted for steps 1–5 (branch `feat/extensions`). MCP servers and installable extensions are later proposals. How `quick_script` works today: [architecture/code-mode.md](../../architecture/code-mode.md).
 
 ## Summary
 
-An **extension** is a unit of capability with its own settings. It contributes things to Nerve: `quick_script` SDK namespaces first, and later direct tools, skills, MCP servers, themes and more. Built-in extensions (Atlassian, Web, Image generation, Diagrams) come first, then installable extensions.
+An **extension** is a unit of capability with its own settings. It contributes `quick_script` SDK namespaces and, for built-in extensions, direct tools and skills. This proposal covers the four built-in extensions (Atlassian, Web, Image generation, Diagrams).
 
-**MCP servers are a separate resource**, like skills and prompt suggestions. A user or project configures them on their own Settings → MCP servers page, and an extension may bundle some. Their tools reach the agent as `quick_script` namespaces too.
+**Later:** MCP servers become a separate resource with their own page, reaching the agent as `mcp.<server>` namespaces through the same registry ([mcp.md](mcp.md)). Installable extensions follow once the contract has settled.
 
 Integration-style direct tools (Jira, Confluence, diagram export, image generation) are removed, and their capabilities are reached only through `quick_script` namespaces. The tool description becomes a short namespace index, and the agent pulls detail on demand with `sdk.*` calls inside the sandbox. Settings → Integrations becomes **Settings → Extensions**: one page, at user and project scope, where each extension is enabled and configured from a settings schema it declares.
 
 | File                             | Covers                                                                                          |
 | -------------------------------- | ----------------------------------------------------------------------------------------------- |
 | [extensions.md](extensions.md)   | Extension manifest, contributions, built-in extensions, docs layout, package, installable tiers |
-| [settings.md](settings.md)       | Settings schema, storage (client or agent configuration), layering, accounts, migration         |
-| [ui.md](ui.md)                   | Extensions, MCP servers and Tools pages; wireframe                                              |
+| [settings.md](settings.md)       | Settings schema, `extensions.json` storage and versions, layering, accounts, migration          |
+| [ui.md](ui.md)                   | Extensions page, detail view, Tools page; wireframe                                             |
 | [discovery.md](discovery.md)     | `sdk.*` API, large namespaces and output budgets, tool description                              |
 | [permissions.md](permissions.md) | Operation-level rules replacing direct-tool authorization                                       |
-| [mcp.md](mcp.md)                 | MCP servers: sources, settings, `quick_script` namespaces                                       |
+| [parity.md](parity.md)           | Every removed direct tool mapped to its SDK route                                               |
+| [mcp.md](mcp.md)                 | Later: MCP servers (notes for a separate proposal)                                              |
 
 ## Problem
 
@@ -38,12 +39,12 @@ Integration-style direct tools (Jira, Confluence, diagram export, image generati
 ## Goals
 
 1. **Constant-size tool surface.** Adding a namespace adds about one line to the `quick_script` description, never a schema.
-2. **One contract for built-in and installed extensions**, and one namespace mechanism shared with MCP servers. An extension provides its own metadata, settings schema and docs, and nothing else in the system needs to change.
+2. **One contract for every extension**, designed so installed extensions and MCP servers can use it later. An extension provides its own metadata, settings schema and docs, and nothing else in the system needs to change.
 3. **Generic settings UI.** The Extensions page renders any extension from its settings schema.
 4. **Docs live with the extension** and are disclosed on demand, filtered to what is available.
 5. **Policy granularity does not regress** when the direct tools go.
 
-**Non-goals:** extension packaging, distribution, signing and installation UX (a later proposal; this one fixes the contract and settings), and moving general-purpose tools (`read`, `write`, `edit`, `bash`, `python_exec`, `web_fetch`, `web_search`) into the sandbox only. Those stay direct because agents use them outside integration work.
+**Non-goals:** MCP servers; installable extensions (packaging, distribution, signing, installation UX); exposing the conversation settings layer in the UI; and moving general-purpose tools (`read`, `write`, `edit`, `bash`, `python_exec`, `web_fetch`, `web_search`) into the sandbox only. Those stay direct because agents use them outside integration work.
 
 ## Design
 
@@ -51,14 +52,12 @@ Integration-style direct tools (Jira, Confluence, diagram export, image generati
 flowchart TD
   subgraph Extensions
     B[Built-in: Atlassian, Web, Image generation, Diagrams]
-    I[Installed, later]
   end
-  B & I --> REG[Extension registry]
-  M[MCP servers: user, project, bundled] --> QS
+  B --> REG[Extension registry]
   SET[Extension settings: defaults → user → project → conversation] --> REG
   REG --> QS[quick_script namespaces]
   REG --> T[Direct tools, e.g. web_fetch]
-  REG --> SK[Skills, themes, later]
+  REG --> SK[Skills]
   QS --> DESC[Tool description: namespace index]
   QS --> DISC["sdk.list / describe / search / docs"]
   QS --> POL[Permission operations and risk]
@@ -69,32 +68,36 @@ flowchart TD
 
 - **"Extension" is the unit.** It names the page, the manifest and the registry. "Provider" stays reserved for model providers (Settings → Providers).
 - **Jira and Confluence are one Atlassian extension**, with one account picker and a switch per product.
-- **Extensions declare a settings schema** that is stored either in agent configuration (layered like other agent settings) or on the client, and the UI is generated from it ([settings.md](settings.md)).
-- **Settings → Integrations becomes Settings → Extensions**, at user and project scope, with a detail view per extension. **MCP servers** get their own page next to Skills ([ui.md](ui.md)). The conversation layer exists in the backend but is not exposed in the UI.
+- **Extensions declare a settings schema**, stored in `extensions.json` at user, project and conversation scope with a version per extension, and settable by agent profiles; the UI is generated from it. Accounts live in the user-only `accounts.json` (renamed from `integrations.json`) ([settings.md](settings.md)).
+- **Settings → Integrations becomes Settings → Extensions**, at user and project scope, with a detail view per extension on a nested settings route (`extensions/atlassian`) ([ui.md](ui.md)). The conversation layer exists in the backend but is not exposed in the UI.
 - **Discovery happens in the sandbox** through `sdk.*`, not through a guide rendered per settings combination ([options](#options-considered)).
 - **`packages/skills` holds only catalog skills.** `guides/` is deleted; extension docs live with their code ([extensions.md](extensions.md#docs-layout)).
 - **Quick-script moves to a new `@nervekit/quick-script` package** ([extensions.md](extensions.md#package)).
 - **Image generation is the `imagegen` namespace**, named for the capability so it can support several backends.
 - **`web_fetch` and `web_search` stay as direct tools**, contributed by the Web extension, and `web.fetch` and `web.search` stay in the SDK. Both routes authorize the same way.
-- **MCP servers are their own resource with their own page**, not extensions. Extensions may bundle servers ([mcp.md](mcp.md)).
-- **Unannotated MCP tools default to destructive.** Annotations lower risk only on servers the user trusts ([mcp.md](mcp.md)).
+- **Nested checks become operations** (`jira.issues.create`) evaluated as `quick_script` with the namespace as tool group; built-in rule sets give the same decisions as today ([permissions.md](permissions.md)).
 - **Large namespaces:** discovery bounds itself, summarises, spills the full text to an artifact the agent can read or grep, and pages `search` results ([discovery.md](discovery.md#large-namespaces)).
+- **MCP servers are deferred** to their own proposal; [mcp.md](mcp.md) keeps the decisions made so far.
 
-## Migration
+## Delivery
 
-1. **Registry, discovery and built-in extensions.** Introduce the manifest and registry in `packages/tools`. Wrap existing namespaces as built-in extensions, add `sdk.*`, and build the `quick_script` description and prelude from the registry. Docs move next to their extensions. `SKILL.md` is removed and its rules move into the description. Measure before and after.
+Five steps on one branch, each leaving `main`-quality code. The agent-visible changes come in step 1 and step 5; steps 2–4 are internal or settings-only.
+
+1. **Registry, discovery and built-in extensions.** Manifest and registry, the four built-in extensions wrapping today's namespaces, `sdk.*` with the discovery budget, the `quick_script` description and prelude built from the registry. Docs move next to their extensions; `SKILL.md` is removed and its rules move into the description. Direct tools are untouched.
 2. **Package split.** Move quick-script code to `@nervekit/quick-script` and delete `packages/skills/src/guides/quick-script`.
-3. **Extension settings and the Extensions page.** Add the `extensions` settings key and the settings schema renderer. Switch availability and `web_search` to the new settings, replace the Integrations page, and trim the Tools page ([ui.md](ui.md)).
-4. **Operation-level rules.** Add the rule contract change and the broker rewrite, and migrate built-in rule sets. This is a prerequisite for step 5.
-5. **Direct-tool removal.** Confirm parity (a typed method or a raw recipe for every direct-tool capability), and run the benchmark. Then add `imagegen`, remove `jira_*`, `confluence_*`, `kroki_export`, `generate_image`, `guides/jira` and `guides/confluence` and their presentation code, and migrate rules and settings.
-6. **MCP servers**: catalog, MCP servers page, `mcp.<server>` namespaces.
-7. **Installable extensions**, with their own proposal.
+3. **Extension settings and the Extensions page.** The `extensions` settings key with schema validation and per-field layering, availability computed from it, settings migration, the nested settings route, the generated Extensions page and detail view. Replaces the Integrations page and trims the Tools page ([ui.md](ui.md)).
+4. **Operation-level rules.** The rule contract change, the broker rewrite and the equivalence test over built-in rule sets ([permissions.md](permissions.md)).
+5. **Direct-tool removal.** Close the gaps in [parity.md](parity.md), add `imagegen`, run the benchmark, then remove `jira_*`, `confluence_*`, `kroki_export`, `generate_image`, `guides/jira`, `guides/confluence`, their settings and presentation code, and migrate rules, exceptions and settings.
 
-Rule and setting changes from steps 3–5 go into the release's single home migration step, and into project configuration version chains for project files.
+Rule, exception and setting changes from steps 3–5 go into the release's single home migration step, and into the project configuration version chain for project files. None of them touch the database.
+
+**Later:** MCP servers ([mcp.md](mcp.md)), then installable extensions.
 
 ## Measurement
 
-A fixed task set against the test Atlassian site, each with a written success check: single lookups; cross-call joins; bulk updates with approvals; Excel to a Confluence page with a diagram; edits with known pitfalls (custom field by name, required transition field, stale page version). Five runs per model family (Claude, GPT). Run it before step 1 and again before step 5, where it compares `quick_script` alone with the direct tools alone.
+Required before step 5 only; steps 1–4 are reversible and leave the direct tools in place. Step 1 checks token counts in unit tests instead: the `quick_script` description size and the tool-definition total per request, before and after.
+
+A fixed task set against the test Atlassian site, each with a written success check: single lookups; cross-call joins; bulk updates with approvals; Excel to a Confluence page with a diagram; edits with known pitfalls (custom field by name, required transition field, stale page version). Five runs per model family (Claude, GPT), comparing `quick_script` alone with the direct tools alone. No harness exists yet; building it is part of step 5.
 
 Report:
 
@@ -105,7 +108,7 @@ Report:
 - calls into unavailable namespaces
 - approvals
 
-Step 1 proceeds when success and turns hold steady while upfront tokens drop. Step 5 proceeds unless the direct tools win clearly on a model family.
+Step 5 proceeds unless the direct tools win clearly on a model family.
 
 ## Options considered
 
@@ -115,6 +118,5 @@ Step 1 proceeds when success and turns hold steady while upfront tokens drop. St
 
 ## Open questions
 
-- **Discovery budget size:** about 12 KB is a starting point; tune it with the measurement, especially on large MCP servers.
-- **Further built-in extensions:** GitHub/GitLab (PR-sync credentials exist), or left to MCP?
-- **Detail view routing:** a nested settings route (`extensions/atlassian`) is a new pattern for the settings registry ([ui.md](ui.md#open-questions)).
+- **Discovery budget size:** about 12 KB is a starting point; tune it with the measurement.
+- **Further built-in extensions** (GitHub/GitLab, for which PR-sync credentials exist): out of scope here; revisit with MCP.

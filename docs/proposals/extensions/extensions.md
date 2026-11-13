@@ -11,18 +11,15 @@ type ExtensionManifest = {
   id: string; // "atlassian"; kebab-case, unique, stable (settings are keyed by it)
   name: string; // "Atlassian"
   description: string; // one line for the Extensions page
-  source: "builtin" | "installed";
-  version?: string; // installed extensions
-  icon?: string; // lucide icon name for built-in; image for installed
+  source: "builtin"; // "installed" comes with installable extensions
+  icon: string; // lucide icon name
   accounts?: AccountKind[]; // account kinds this extension defines (settings.md#accounts)
   settings?: SettingsSchema; // see settings.md
   contributes: {
     sdk?: SdkNamespace[]; // quick_script namespaces
-    tools?: string[]; // direct tool names (built-in only for now)
+    tools?: string[]; // direct tool names
     skills?: string[]; // skill directories shipped with the extension
-    mcpServers?: McpServerDefinition[]; // listed on the MCP servers page (mcp.md)
-    themes?: ThemeContribution[]; // client-side, later
-  };
+  }; // later: mcpServers (mcp.md), themes
 };
 ```
 
@@ -44,7 +41,9 @@ type SdkNamespace = {
 };
 ```
 
-The registry replaces the hard-coded lists in `description.ts`, `sdk.ts`, `runtime-prelude.ts` (guarded globals), `scoped-turn-resources.ts` and `brokerable()`. The [namespace design rules](../../architecture/code-mode.md#namespace-design-rules) apply to every namespace, MCP servers are not extensions but expose namespaces through the same registry ([mcp.md](mcp.md)); there the server defines the shape.
+The registry replaces the hard-coded lists in `description.ts`, `sdk.ts`, `runtime-prelude.ts` (guarded globals), `scoped-turn-resources.ts` and `brokerable()`. The [namespace design rules](../../architecture/code-mode.md#namespace-design-rules) apply to every namespace. MCP servers will register namespaces in the same registry ([mcp.md](mcp.md)).
+
+`methods` keeps today's method tables, with `authorize` returning an operation instead of a direct tool ([permissions.md](permissions.md#nested-check)). Until step 4 the registry adapter still supplies the direct-tool identity, so steps 1–3 do not touch policy.
 
 ## Built-in extensions
 
@@ -87,7 +86,6 @@ packages/quick-script/src/
     web/
     imagegen/
     diagram/
-  mcp/                  MCP server catalog and namespace bridge
   registry.ts
 ```
 
@@ -105,20 +103,17 @@ packages/quick-script/src/
 
 ## Package
 
-A new package, `@nervekit/quick-script`, holds the runtime, registry, built-in extensions, MCP bridge and their docs. It sits in the engine layer beside `tools`:
+A new package, `@nervekit/quick-script`, holds the runtime, registry, built-in extensions and their docs. It sits in the engine layer beside `tools`:
 
 - It depends on `contracts`, `native` (sandbox, image) and the integration clients.
 - `tools` registers the single `quick_script` definition from it.
 - The Jira and Confluence clients move into the Atlassian extension once the direct tools are deleted, since nothing else uses them.
 - `ALLOWED_INTERNAL_DEPENDENCIES` gets the new edges.
 
-The registry may later move to its own package when extensions contribute more than `quick_script` namespaces (skills, themes). Until then it stays with its only consumer.
+The registry may later move to its own package when MCP servers or installed extensions need it outside quick-script. Until then it stays with its only consumer.
 
-## Installable extensions
+**Contracts:** the manifest, settings schema and availability types go in `packages/contracts` (`domains/extensions/`), because the server, the app and later installed extensions all read them.
 
-There are two tiers with different trust:
+## Installable extensions (later)
 
-1. **Sandbox-only extensions** ship pure JS for the sandbox (like `XLSX` today), skills or themes. They have no host authority, so they are safe whatever their source.
-2. **Host extensions** ship trusted code that implements SDK methods, with declared risk, operations, settings and accounts. They run in the daemon, so installing one means trusting it. Their effects go through the same nested authorization as built-in extensions.
-
-Packaging, installation, updates and signing are a separate proposal. This one guarantees only that an extension registered at startup is indistinguishable from a built-in one to the agent, to policy and to the Extensions page.
+Two tiers with different trust are expected: **sandbox-only** extensions (pure JS for the sandbox, skills, themes; no host authority) and **host** extensions (trusted daemon code implementing SDK methods through the same nested authorization). Packaging, installation, updates and signing are a separate proposal. This one guarantees only that the contract does not assume an extension is compiled in.

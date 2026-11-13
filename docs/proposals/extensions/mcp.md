@@ -2,6 +2,8 @@
 
 Part of [Extensions](README.md).
 
+> **Status:** Deferred. Not part of delivery steps 1–5; it becomes its own proposal. Candidate client: [`pi` `packages/mcp`](https://github.com/earendil-works/pi/tree/main/packages/mcp), to be evaluated. The notes below record decisions already made (MCP servers are a separate resource with their own page; unannotated tools default to destructive) and the design sketch so far.
+
 MCP servers are their own kind of agent resource, like skills and prompt suggestions, not a kind of extension. A user or project configures servers directly, and an extension may also bundle one or more. Either way, a server's tools reach the agent only through `quick_script`, as the namespace `mcp.<server>`, so a server with a hundred tools adds one line to the tool description.
 
 ```mermaid
@@ -27,7 +29,7 @@ flowchart LR
 
 ## Enablement and per-server settings
 
-Server definitions and server settings are separate, like skills and their on/off state. Settings live in agent configuration under `mcpServers`, layered built-in default → user → project → conversation like other agent settings ([settings.md](settings.md#storage-and-layering)):
+Server definitions and server settings are separate, like skills and their on/off state. Settings are layered built-in default → user → project → conversation like extension settings ([settings.md](settings.md#storage-and-layering)); the file layout is decided in the MCP proposal:
 
 ```ts
 mcpServers: {
@@ -51,7 +53,13 @@ mcpServers: {
 
 ## Settings page
 
-Settings → MCP servers is a sibling of Skills, at user and project scope ([ui.md](ui.md#mcp-servers-page)).
+Settings → MCP servers sits next to Skills at user and project scope: a catalog from several sources, switched on and off per scope. Modelled on the Skills page, with `SettingsItem` rows ([settings UI](../../ui/settings.md)):
+
+- **Toolbar:** search, "N of M enabled", and Add server (user scope adds to the user file, project scope to `.nerve/mcp-servers.json`).
+- **Sections by source:** Yours, This project, From extensions. Each row shows the name, transport and command or URL, status (Connected · 41 tools, Not started, Failed as the problem line), change indicator and enable switch. Extension rows name their extension and are read-only.
+- **Project servers need trust.** An untrusted project file shows the standard project trust notice; its servers are listed but cannot be enabled until trusted.
+- **Server detail view** on the nested settings route ([ui.md](ui.md#nested-settings-route)): connection (status, last error, Restart), definition (read-only for extension servers), account, trust annotations switch, and a searchable tool list with each tool's risk and an override Select. The namespace name (`mcp.github`) is shown so the user can recognise it in approvals.
+- **Unused entries:** settings for servers that no longer exist, with Remove, as on the Skills page.
 
 ## Open questions
 
