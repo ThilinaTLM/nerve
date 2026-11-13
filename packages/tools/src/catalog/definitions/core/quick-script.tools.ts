@@ -1,8 +1,9 @@
 import { Type } from "typebox";
-import { quickScriptDescription } from "../../../execution/quick-script/description.js";
-import { executeQuickScript } from "../../../execution/quick-script/quick-script.js";
-import { classifyQuickScriptArguments } from "../../../execution/quick-script/script-risk.js";
 import type { ToolDefinition } from "../../contracts.js";
+import {
+  classifyQuickScriptRisk,
+  executeQuickScript,
+} from "../../quick-script-runtime.js";
 
 const quickScriptParameters = Type.Object(
   {
@@ -28,10 +29,11 @@ export const quickScriptToolDefinitions = [
     traits: ["write_capable", "credentialed", "long_running"],
     executionKind: "local",
     executor: executeQuickScript,
-    classifyRisk: (args) => classifyQuickScriptArguments(args).risk,
+    classifyRisk: classifyQuickScriptRisk,
     label: "Quick script",
-    // Baseline without integrations; scoped-turn-resources rebuilds it per conversation.
-    description: quickScriptDescription(),
+    // Placeholder: the host builds the real description per conversation from the extension registry (`quickScriptDescription` in @nervekit/quick-script).
+    description:
+      "Run a sandboxed TypeScript script (ES module, top-level await) that calls the SDK namespaces of the configured extensions; only its output returns.",
     parameters: quickScriptParameters,
     executionMode: "parallel",
   },

@@ -200,6 +200,43 @@ importers:
         specifier: 5.9.3
         version: 5.9.3
 
+  packages/quick-script:
+    dependencies:
+      '@nervekit/contracts':
+        specifier: workspace:*
+        version: link:../contracts
+      '@nervekit/native':
+        specifier: workspace:*
+        version: link:../native
+      '@nervekit/tools':
+        specifier: workspace:*
+        version: link:../tools
+    devDependencies:
+      '@types/node':
+        specifier: 24.10.1
+        version: 24.10.1
+      docx:
+        specifier: 9.15.3
+        version: 9.15.3
+      jszip:
+        specifier: 3.10.2
+        version: 3.10.2
+      mammoth:
+        specifier: 1.13.0
+        version: 1.13.0
+      papaparse:
+        specifier: 5.5.3
+        version: 5.5.3
+      pptxgenjs:
+        specifier: 4.0.1
+        version: 4.0.1
+      typescript:
+        specifier: 5.9.3
+        version: 5.9.3
+      xlsx:
+        specifier: https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz
+        version: https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz
+
   packages/skills:
     dependencies:
       '@nervekit/harness':
@@ -252,27 +289,9 @@ importers:
       '@types/shell-quote':
         specifier: ^1.7.5
         version: 1.7.5
-      docx:
-        specifier: 9.15.3
-        version: 9.15.3
-      jszip:
-        specifier: 3.10.2
-        version: 3.10.2
-      mammoth:
-        specifier: 1.13.0
-        version: 1.13.0
-      papaparse:
-        specifier: 5.5.3
-        version: 5.5.3
-      pptxgenjs:
-        specifier: 4.0.1
-        version: 4.0.1
       typescript:
         specifier: 5.9.3
         version: 5.9.3
-      xlsx:
-        specifier: https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz
-        version: https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz
 
   packages/ui-kit:
     dependencies:
@@ -606,6 +625,9 @@ importers:
       '@nervekit/protocol':
         specifier: workspace:*
         version: link:../protocol
+      '@nervekit/quick-script':
+        specifier: workspace:*
+        version: link:../quick-script
       '@nervekit/skills':
         specifier: workspace:*
         version: link:../skills
@@ -11295,7 +11317,7 @@ snapshots:
 
   '@types/cross-spawn@6.0.6':
     dependencies:
-      '@types/node': 25.9.5
+      '@types/node': 24.10.1
 
   '@types/d3-array@3.2.2': {}
 
@@ -11478,7 +11500,7 @@ snapshots:
 
   '@types/sax@1.2.7':
     dependencies:
-      '@types/node': 25.9.5
+      '@types/node': 24.10.1
 
   '@types/shell-quote@1.7.5': {}
 
@@ -14663,7 +14685,7 @@ snapshots:
       '@protobufjs/path': 1.1.2
       '@protobufjs/pool': 1.1.0
       '@protobufjs/utf8': 1.1.1
-      '@types/node': 25.9.5
+      '@types/node': 24.10.1
       long: 5.3.2
 
   proxy-agent-negotiate@1.1.0: {}

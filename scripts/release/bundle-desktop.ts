@@ -48,8 +48,8 @@ export const bundleAssets: [source: string, destination: string][] = [
   ["packages/workbench-server/dist/web", "dist/web"],
   ["packages/skills/dist/builtin", "dist/builtin"],
   ["packages/skills/dist/guides", "dist/guides"],
-  ["packages/tools/dist/sandbox-libraries", "dist/sandbox-libraries"],
-  ["packages/tools/dist/quick-script-docs", "dist/quick-script-docs"],
+  ["packages/quick-script/dist/sandbox-libraries", "dist/sandbox-libraries"],
+  ["packages/quick-script/dist/quick-script-docs", "dist/quick-script-docs"],
 ];
 
 /** Files every bundled desktop dist must contain (relative to the package root). */
@@ -138,12 +138,12 @@ export function thirdPartyPackageRoots(metafile: Metafile): string[] {
 
 /** Packages shipped as copied assets (not esbuild inputs) that still need license text. */
 const assetShippedPackageRoots = [
-  "packages/tools/node_modules/docx",
-  "packages/tools/node_modules/jszip",
-  "packages/tools/node_modules/mammoth",
-  "packages/tools/node_modules/papaparse",
-  "packages/tools/node_modules/pptxgenjs",
-  "packages/tools/node_modules/xlsx",
+  "packages/quick-script/node_modules/docx",
+  "packages/quick-script/node_modules/jszip",
+  "packages/quick-script/node_modules/mammoth",
+  "packages/quick-script/node_modules/papaparse",
+  "packages/quick-script/node_modules/pptxgenjs",
+  "packages/quick-script/node_modules/xlsx",
 ];
 
 async function collectThirdPartyLicenses(

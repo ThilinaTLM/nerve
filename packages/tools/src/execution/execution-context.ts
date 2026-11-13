@@ -7,7 +7,6 @@ import type {
 } from "@nervekit/contracts/tools";
 import type { PythonRuntime } from "./python/runtime.js";
 import type { KrokiToolSettings } from "@nervekit/contracts/settings";
-import type { QuickScriptAvailability } from "./quick-script/extensions/manifest-types.js";
 
 export type ToolExecutionOutputUpdate = {
   kind: "output";
@@ -74,6 +73,23 @@ export interface ImageGenerationExecutionContext extends BaseExecutionContext {
     request: ImageGenerateRequest,
   ) => Promise<ImageGenerateResponse>;
 }
+/** Whether a configured quick_script namespace can be used now; the same text reaches the agent and, later, the Extensions page. */
+export type NamespaceAvailability =
+  | { configured: boolean; available: true }
+  | {
+      configured: boolean;
+      available: false;
+      /** Why the namespace cannot be used. */
+      reason: string;
+      /** What the user must do. */
+      fix: string;
+    };
+
+/** Availability by namespace id, computed by the host from settings. */
+export type QuickScriptAvailability = Readonly<
+  Record<string, NamespaceAvailability>
+>;
+
 export interface KrokiExecutionContext extends BaseExecutionContext {
   artifactDir?: string;
   kroki?: KrokiToolSettings;

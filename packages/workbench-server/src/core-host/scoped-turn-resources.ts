@@ -11,7 +11,7 @@ import { buildNerveSystemPrompt } from "./nerve-system-prompt.js";
 import { withAgentProfiles } from "./turn-resources.adapter.js";
 import { resolveSkillPlaceholders } from "@nervekit/skills";
 import { isToolEnabled } from "./tool-enablement.js";
-import { quickScriptDescription } from "@nervekit/tools/execution";
+import { quickScriptDescription } from "@nervekit/quick-script";
 import {
   configuredNamespaces,
   quickScriptAvailability,

@@ -19,6 +19,10 @@ export const ALLOWED_INTERNAL_DEPENDENCIES: ReadonlyMap<
     ["@nervekit/contracts", "@nervekit/native", "@nervekit/skills"],
   ],
   [
+    "@nervekit/quick-script",
+    ["@nervekit/contracts", "@nervekit/native", "@nervekit/tools"],
+  ],
+  [
     "@nervekit/conversation-core",
     [
       "@nervekit/contracts",
@@ -39,6 +43,7 @@ export const ALLOWED_INTERNAL_DEPENDENCIES: ReadonlyMap<
       "@nervekit/harness",
       "@nervekit/skills",
       "@nervekit/tools",
+      "@nervekit/quick-script",
       "@nervekit/conversation-core",
     ],
   ],

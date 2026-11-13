@@ -238,6 +238,7 @@ test("known operational scripts map to their owning runtime", () => {
   assert.deepEqual(skills.packages, [
     "@nervekit/conversation-core",
     "@nervekit/desktop-shell",
+    "@nervekit/quick-script",
     "@nervekit/skills",
     "@nervekit/tools",
     "@nervekit/workbench-server",

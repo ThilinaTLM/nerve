@@ -54,6 +54,7 @@ export const TEST_RUNNERS: ReadonlyMap<string, TestRunner> = new Map([
     }),
   ],
   ["@nervekit/tools", tsxRunner(["test/**/*.test.ts", "src/**/*.test.ts"])],
+  ["@nervekit/quick-script", tsxRunner(["src/**/*.test.ts"])],
   ["@nervekit/ui-kit", tsxRunner(["src/**/!(*.svelte).test.ts"])],
   ["@nervekit/website", tsxRunner(["scripts/**/*.test.ts"])],
   [

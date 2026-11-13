@@ -22,7 +22,7 @@ import {
   builtInPermissionRuleSets,
 } from "@nervekit/tools/policy";
 import { classifyToolRisk } from "@nervekit/tools/catalog";
-import { classifyQuickScriptArguments } from "@nervekit/tools/execution";
+import { classifyQuickScriptArguments } from "@nervekit/quick-script";
 import type { AgentConfigurationService } from "../infrastructure/configuration/agent-configuration/agent-configuration-service.js";
 import {
   canonicalDigest,

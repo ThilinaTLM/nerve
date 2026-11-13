@@ -13,6 +13,7 @@ flowchart TB
   subgraph Engine
     harness --> skills
     skills --> tools
+    tools --> quick-script
     harness --> conversation-core
     tools --> conversation-core
   end
@@ -23,6 +24,7 @@ flowchart TB
   contracts --> protocol
   native --> harness
   conversation-core --> workbench-server
+  quick-script --> workbench-server
   protocol --> workbench-server
   protocol --> workbench-app
   contracts --> workbench-app
@@ -31,20 +33,21 @@ flowchart TB
 
 Arrows mean “is consumed by.” The diagram highlights key direct dependencies; contracts supply shared domain types throughout the engine and product, so their other edges are omitted. The exact allowed graph lives in [`ALLOWED_INTERNAL_DEPENDENCIES`](../../scripts/checks/package-architecture.rules.ts) and is enforced by the [boundary checker](../../scripts/checks/check-package-boundaries.ts).
 
-| Package             | Layer      | One-line responsibility                                                                             |
-| ------------------- | ---------- | --------------------------------------------------------------------------------------------------- |
-| `contracts`         | Foundation | Transport-neutral domain schemas and policy contracts.                                              |
-| `protocol`          | Foundation | Sessions, remote procedure calls, replay and transport lifecycle.                                   |
-| `native`            | Foundation | Rust-backed Git reads, managed processes, file monitoring, listing, search and script sandbox.      |
-| `ui-kit`            | Foundation | Domain-independent UI primitives and shared styles.                                                 |
-| `harness`           | Engine     | Model execution, the agent loop and a conversation-aware harness facade (trees, hooks, compaction). |
-| `skills`            | Engine     | Built-in skills and their integration with harness resources.                                       |
-| `tools`             | Engine     | Tool execution, policy and result projection.                                                       |
-| `conversation-core` | Engine     | Portable conversation storage and durable runtime behavior.                                         |
-| `workbench-server`  | Product    | Host services, core composition and client-facing adapters.                                         |
-| `workbench-app`     | Product    | Web UI, application workflows and feature state.                                                    |
-| `desktop-shell`     | Product    | Electron windows, integration and daemon supervision.                                               |
-| `website`           | Standalone | Public website and documentation.                                                                   |
+| Package             | Layer      | One-line responsibility                                                                                                                                                          |
+| ------------------- | ---------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `contracts`         | Foundation | Transport-neutral domain schemas and policy contracts.                                                                                                                           |
+| `protocol`          | Foundation | Sessions, remote procedure calls, replay and transport lifecycle.                                                                                                                |
+| `native`            | Foundation | Rust-backed Git reads, managed processes, file monitoring, listing, search and script sandbox.                                                                                   |
+| `ui-kit`            | Foundation | Domain-independent UI primitives and shared styles.                                                                                                                              |
+| `harness`           | Engine     | Model execution, the agent loop and a conversation-aware harness facade (trees, hooks, compaction).                                                                              |
+| `skills`            | Engine     | Built-in skills and their integration with harness resources.                                                                                                                    |
+| `tools`             | Engine     | Tool execution, policy and result projection.                                                                                                                                    |
+| `quick-script`      | Engine     | `quick_script` runtime, extension registry and built-in extensions (Atlassian, web, diagram). Builds on `tools`; the tools catalog reaches it through an installed runtime port. |
+| `conversation-core` | Engine     | Portable conversation storage and durable runtime behavior.                                                                                                                      |
+| `workbench-server`  | Product    | Host services, core composition and client-facing adapters.                                                                                                                      |
+| `workbench-app`     | Product    | Web UI, application workflows and feature state.                                                                                                                                 |
+| `desktop-shell`     | Product    | Electron windows, integration and daemon supervision.                                                                                                                            |
+| `website`           | Standalone | Public website and documentation.                                                                                                                                                |
 
 ## Reusable engine
 

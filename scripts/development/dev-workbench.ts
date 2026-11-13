@@ -40,6 +40,7 @@ try {
       "@nervekit/harness",
       "--filter",
       "@nervekit/tools",
+      "@nervekit/quick-script",
       ...(!uiOnly
         ? [
             "--filter",

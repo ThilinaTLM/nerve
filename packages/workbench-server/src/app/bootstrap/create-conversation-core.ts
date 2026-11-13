@@ -42,10 +42,10 @@ import {
 import {
   resolvePythonRuntime,
   resolveBashShellConfig,
-  classifyQuickScriptArguments,
   ToolExecutionError,
   type ToolExecutionContext,
 } from "@nervekit/tools/execution";
+import { classifyQuickScriptArguments } from "@nervekit/quick-script";
 import { explainImageWithModel } from "@nervekit/harness/models";
 import { listAvailableSkills } from "../../core-host/resource-loader.js";
 import { createModelPort } from "../../core-host/model.adapter.js";

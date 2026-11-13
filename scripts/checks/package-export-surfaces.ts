@@ -79,7 +79,9 @@ export const packageExportSurfaces: Readonly<Record<string, string[]>> =
       "./result-projection",
       "./git",
       "./execution",
+      "./integrations",
     ],
+    "@nervekit/quick-script": ["."],
     "@nervekit/ui-kit": [
       ".",
       "./styles/app.css",

@@ -4,9 +4,9 @@ import {
   quickScriptRiskWithin,
   quickScriptToolRisk,
   describeQuickScriptRisk,
-  ToolExecutionError,
   type QuickScriptRisk,
-} from "@nervekit/tools/execution";
+} from "@nervekit/quick-script";
+import { ToolExecutionError } from "@nervekit/tools/execution";
 
 type PrepareAdmission = NonNullable<PermissionPort["prepareAdmission"]>;
 type AdmissionInput = Parameters<PrepareAdmission>[0];
