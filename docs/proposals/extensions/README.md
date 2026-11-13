@@ -89,7 +89,7 @@ Five steps on one branch, each leaving `main`-quality code. The agent-visible ch
 4. **Operation-level rules.** The rule contract change, the broker rewrite and the equivalence test over built-in rule sets ([permissions.md](permissions.md)).
 5. **Direct-tool removal.** Close the gaps in [parity.md](parity.md), add `imagegen`, run the benchmark, then remove `jira_*`, `confluence_*`, `kroki_export`, `generate_image`, `guides/jira`, `guides/confluence`, their settings and presentation code, and migrate rules, exceptions and settings.
 
-Rule, exception and setting changes from steps 3–5 go into the release's single home migration step, and into the project configuration version chain for project files. None of them touch the database.
+Rule, exception and setting changes from steps 3–5 go into one new draft home migration step (`0005`), and into the project configuration version chain for project files. None of them touch the database.
 
 **Later:** MCP servers ([mcp.md](mcp.md)), then installable extensions.
 

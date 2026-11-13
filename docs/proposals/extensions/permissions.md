@@ -94,7 +94,7 @@ The approval and the tool record show operations and targets: "jira.issues.creat
 ## Migration
 
 - **Built-in rule sets** are updated in step 4 where the equivalence test requires it.
-- **User rules and exceptions** that name a removed tool are rewritten in the release's single home migration step (step 5):
+- **User rules and exceptions** that name a removed tool are rewritten in the draft home migration step (`0005`) (step 5):
 
   | From                                                   | To                                                                         |
   | ------------------------------------------------------ | -------------------------------------------------------------------------- |

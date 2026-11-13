@@ -20,7 +20,7 @@ flowchart LR
 | Source    | Definition stored in                                | Notes                                                                                                 |
 | --------- | --------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
 | User      | `config/mcp-servers.json` in the home               | Personal servers, available in every project.                                                         |
-| Project   | `.nerve/mcp-servers.json` in the project            | Shared with the repository. Runs commands from the repository, so it needs trust (below).             |
+| Project   | `.nerve/config/mcp-servers.json` in the project     | Shared with the repository. Runs commands from the repository, so it needs trust (below).             |
 | Extension | The extension's manifest (`contributes.mcpServers`) | Present while the extension is enabled; its definition is read-only and versioned with the extension. |
 
 - **A definition** is a name (the namespace suffix, unique across sources), a transport (`stdio` command with args and env, or `http` URL), the account kind it needs for credentials, and optional default risk overrides. Secrets live in accounts, never in the definition.
@@ -55,7 +55,7 @@ mcpServers: {
 
 Settings → MCP servers sits next to Skills at user and project scope: a catalog from several sources, switched on and off per scope. Modelled on the Skills page, with `SettingsItem` rows ([settings UI](../../ui/settings.md)):
 
-- **Toolbar:** search, "N of M enabled", and Add server (user scope adds to the user file, project scope to `.nerve/mcp-servers.json`).
+- **Toolbar:** search, "N of M enabled", and Add server (user scope adds to the user file, project scope to `.nerve/config/mcp-servers.json`).
 - **Sections by source:** Yours, This project, From extensions. Each row shows the name, transport and command or URL, status (Connected · 41 tools, Not started, Failed as the problem line), change indicator and enable switch. Extension rows name their extension and are read-only.
 - **Project servers need trust.** An untrusted project file shows the standard project trust notice; its servers are listed but cannot be enabled until trusted.
 - **Server detail view** on the nested settings route ([ui.md](ui.md#nested-settings-route)): connection (status, last error, Restart), definition (read-only for extension servers), account, trust annotations switch, and a searchable tool list with each tool's risk and an override Select. The namespace name (`mcp.github`) is shown so the user can recognise it in approvals.

@@ -70,7 +70,7 @@ Extension settings have their own file at each scope, separate from `config/agen
 | Scope        | File                                                                         |
 | ------------ | ---------------------------------------------------------------------------- |
 | User         | `config/extensions.json` in the home                                         |
-| Project      | `.nerve/extensions.json`                                                     |
+| Project      | `.nerve/config/extensions.json`                                              |
 | Conversation | `config/extensions.json` in the conversation's data directory (backend only) |
 
 ```json
@@ -107,9 +107,9 @@ Extension settings have their own file at each scope, separate from `config/agen
 - **A field's `scopes` limit where it may be set.** A field without `project` is rejected in project files with a diagnostic, and the project UI shows it read-only with its user value.
 - **Conversation layer:** the backend resolves and validates it like the others. The UI does not expose it in this proposal.
 - **Agent profiles** get an optional `extensions` section in their definitions, with the same entry shape, so a profile can enable or disable an extension, set fields and lock them ("Locked by Planning"). The applied profile snapshot includes it.
-- **Sub-agents** inherit the parent's resolved extension settings. A child profile may narrow them (disable an extension) but cannot select an account its parent's scope does not have.
+- **Sub-agents** resolve like child tool settings today: user → project → child profile, frozen at creation; the parent conversation's layer is not inherited. A child profile may narrow them (disable an extension) but cannot select an account the user does not have.
 - **Validation:** each entry is validated by its extension's compiled schema. An entry whose extension is not registered is kept and reported, never dropped, so a later registration restores it.
-- **Project trust:** `.nerve/extensions.json` changes what the agent may reach (an account choice, a Kroki server URL), so it is trusted by exact content like project permission overlays. An untrusted file is ignored with a notice.
+- **Project trust:** `.nerve/config/extensions.json` changes what the agent may reach (an account choice, a Kroki server URL), so it is trusted by exact content like project permission overlays. An untrusted file is ignored with a notice.
 
 ## Versions
 
@@ -145,12 +145,14 @@ Moved from `agent.json` (and profile definitions) into `extensions.json` at the 
 | From (`config/agent.json` `overrides`)                                               | To (`extensions.json`)                                   |
 | ------------------------------------------------------------------------------------ | -------------------------------------------------------- |
 | `tools.jira`, `tools.confluence`, `tools.quick_script.settings.jira` / `.confluence` | `atlassian` (`enabled`, `account`, `jira`, `confluence`) |
-| `tools.quick_script.settings.web`, `tools.web_search.profileId`                      | `web` (`searchAccount`)                                  |
-| `tools.quick_script.settings.diagram`, Kroki tool settings                           | `diagram` (`server`)                                     |
-| Image generation tool settings                                                       | `imagegen`                                               |
+| `tools.quick_script.settings.web.profileId`, `tools.web_search.profileId`            | `web` (`searchAccount`)                                  |
+| `tools.quick_script.settings.diagram.url`, else `tools.kroki_export.settings`        | `diagram` (`server`)                                     |
+| `tools.generate_image.settings`                                                      | `imagegen`                                               |
 
-- `config/integrations.json` is renamed to `config/accounts.json`; its content is unchanged.
-- User and conversation files move in the release's single home migration step. Project files move through their configuration version chain ([project configuration versions](../../architecture/configuration.md#project-configuration-versions)), since home migrations never touch project files. Creating `.nerve/extensions.json` from approved `agent.json` content is a deterministic conversion, so it keeps trust under the same rule.
+- `config/integrations.json` is renamed to `config/accounts.json` in the home step; its content is unchanged.
+- User and conversation files move in a new draft home migration step (`0005`; every existing step is released). Unused Settings-level defaults with no writer (`tools.kroki`, `tools.imageGeneration`, `tools.web`) are removed from the settings schema.
+- **Project files are not converted across files.** Each project chain reads and writes one file ([project configuration versions](../../architecture/configuration.md#project-configuration-versions)), so the `agent.json` chain's v2 migrator drops the moved keys and reports a diagnostic ("moved to Extensions; set again in project settings"). Projects rarely pin these, since account ids are local to a home. `.nerve/config/extensions.json` starts its own chain at v1.
+- The unused project-scope integrations chain (`.nerve/config/integrations.json`, no reader) is removed; accounts are user-only.
 - When `tools.jira` and `tools.quick_script.settings.jira` disagree, the `quick_script` value wins, because it is the route that remains. Jira and Confluence using different accounts at the same scope cannot be expressed in one Atlassian extension; the migration keeps the Jira account and reports the dropped Confluence choice.
 - `tools.quick_script` becomes a plain toggle; `tools.<name>` keeps only enablement and tool-only options (`python_exec`, `bash`).
 - All of these are configuration files, so there is no database change. Old direct-tool calls in conversation history are not migrated; they render as generic tool calls.
