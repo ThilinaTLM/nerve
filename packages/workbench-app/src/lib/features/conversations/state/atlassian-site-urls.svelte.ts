@@ -1,13 +1,12 @@
+import { selectedAtlassianAccountId } from "$lib/application/extensions/selected-accounts.svelte";
 import { settingsReadModel } from "$lib/application/preferences/settings-read-model.svelte";
 
-/**
- * Optional link decoration derived from the orchestrated core settings load.
- * TODO(extensions-page): the selected account lives in extension settings now;
- * until the Extensions page reads it, only a single account is unambiguous.
- */
+/** Optional link decoration: the site of the Atlassian account the extension selects. */
 function selectedSiteUrl(): string | undefined {
-  const profiles = settingsReadModel.settingsDraft?.providers.atlassianProfiles;
-  return profiles?.length === 1 ? profiles[0]?.siteUrl : undefined;
+  const selected = selectedAtlassianAccountId();
+  return settingsReadModel.settingsDraft?.providers.atlassianProfiles.find(
+    (profile) => profile.id === selected,
+  )?.siteUrl;
 }
 
 export function jiraSiteUrl(): string | undefined {

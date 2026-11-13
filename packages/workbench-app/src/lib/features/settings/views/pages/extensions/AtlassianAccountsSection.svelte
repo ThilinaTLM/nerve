@@ -140,7 +140,7 @@ function healthStatus(profile: AtlassianProfile): {
 function hasToken(profile: AtlassianProfile): boolean {
   return credentialConfigured(authProviders, atlassianCredentialId(profile.id));
 }
-function openAdd(): void {
+export function openAdd(): void {
   editing = undefined;
   dialogOpen = true;
 }
@@ -174,7 +174,7 @@ async function remove(): Promise<void> {
 </script>
 
 <SettingsEntityListSection
-  sectionId="atlassian-accounts"
+  sectionId="accounts"
   title="Atlassian accounts"
   addLabel="Add account"
   addTourId="setup-atlassian-add-profile"

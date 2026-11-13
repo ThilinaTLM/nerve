@@ -128,6 +128,24 @@ function onKeydown(event: KeyboardEvent): void {
   backToList();
 }
 
+let rootElement = $state<HTMLElement | null>(null);
+/** Open layers own Escape while they are up. */
+const OPEN_LAYER =
+  '[role="dialog"], [role="alertdialog"], [role="menu"], [role="listbox"], [data-popover-content], [data-select-content]';
+
+// Focus can fall to the page body (the clicked row unmounted, a control was
+// removed). Escape then never reaches the section, so catch it on the window,
+// but only for a visible shell and when nothing else has claimed the key.
+function onWindowKeydown(event: KeyboardEvent): void {
+  if (event.key !== "Escape" || event.defaultPrevented || !inDetail) return;
+  const target = event.target;
+  if (target !== document.body && target !== document.documentElement) return;
+  if (!rootElement || rootElement.getClientRects().length === 0) return;
+  if (document.querySelector(OPEN_LAYER)) return;
+  event.preventDefault();
+  backToList();
+}
+
 $effect(() => {
   if (pages.length === 0 || pages.some((page) => page.id === activePageId))
     return;
@@ -168,9 +186,14 @@ function selectPage(id: string): void {
 }
 </script>
 
+<svelte:window onkeydown={onWindowKeydown} />
 <!-- Escape bubbles up from focused controls to close an open detail; the section itself is not interactive. -->
 <!-- svelte-ignore a11y_no_static_element_interactions -->
-<section class={cn("settings-page-container", className)} onkeydown={onKeydown}>
+<section
+  bind:this={rootElement}
+  class={cn("settings-page-container", className)}
+  onkeydown={onKeydown}
+>
   <div class="settings-page">
     <aside
       class="settings-sidebar flex flex-col gap-3 overflow-hidden"

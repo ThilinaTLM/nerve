@@ -237,11 +237,6 @@ const imageModelItems = [
         {/if}
       </p>
     </div>
-  {:else if ["jira", "confluence", "web_search", "quick_script", "kroki_export"].includes(name)}
-    <!-- TODO(extensions-page): accounts and the Kroki server are extension settings now; the Extensions page replaces this hint. -->
-    <p class="text-ui text-muted-foreground">
-      Accounts and servers are chosen in the extension's own settings.
-    </p>
   {:else if name === "explain_image"}
     <div class="grid gap-1.5">
       <Label>Vision model</Label>

@@ -13,13 +13,13 @@ Settings has two scopes. **User** settings apply everywhere. **Project** setting
 
 ## User pages
 
-| Group           | Pages                                                     | Use them to                                                                                                                       |
-| --------------- | --------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
-| **Connections** | Providers, Integrations                                   | Sign in to model providers and add accounts for tools such as Tavily and Atlassian. See [Providers](/models/providers-and-auth/). |
-| **Agent**       | General, Tools, Skills                                    | Set defaults for new conversations, turn tools on or off, and enable skills.                                                      |
-| **Catalog**     | Agents, Sub-Agents, Permission rules, Models, Suggestions | Edit agent profiles, choose teammate profiles, define permission rules, limit the models in pickers, and manage prompt chips.     |
-| **App**         | Workbench, Notifications, Shortcuts, Voice, Titles        | Pick a theme, set desktop options, tune notifications and sounds, review shortcuts, set up voice input, and enable AI titles.     |
-| **System**      | Storage, System                                           | See what Nerve stores, clean up space, and change network, diagnostics, and daemon options.                                       |
+| Group           | Pages                                                     | Use them to                                                                                                                                       |
+| --------------- | --------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Connections** | Providers, Extensions                                     | Sign in to model providers, and set up extensions and their accounts, such as Tavily and Atlassian. See [Providers](/models/providers-and-auth/). |
+| **Agent**       | General, Tools, Skills                                    | Set defaults for new conversations, turn tools on or off, and enable skills.                                                                      |
+| **Catalog**     | Agents, Sub-Agents, Permission rules, Models, Suggestions | Edit agent profiles, choose teammate profiles, define permission rules, limit the models in pickers, and manage prompt chips.                     |
+| **App**         | Workbench, Notifications, Shortcuts, Voice, Titles        | Pick a theme, set desktop options, tune notifications and sounds, review shortcuts, set up voice input, and enable AI titles.                     |
+| **System**      | Storage, System                                           | See what Nerve stores, clean up space, and change network, diagnostics, and daemon options.                                                       |
 
 ### Workbench
 
@@ -29,8 +29,9 @@ Settings has two scopes. **User** settings apply everywhere. **Project** setting
 ### Agent
 
 - **General** holds defaults for new conversations: profile, permission level, model, thinking level, and compaction. Projects and conversations can override them.
-- **Tools** lists core and third-party tools. Controls include enablement, background-command behavior, Python, image explanation, and image generation. Integration tools appear only when their module is available.
+- **Tools** lists core and third-party tools. Controls include enablement, background-command behavior, Python, image explanation, and image generation. Web search follows the Web extension, and Jira, Confluence and diagram export take their accounts and servers from their extensions.
 - **Skills** lists your, project, built-in, and Agent Browser skills. See [Skills and project resources](/guides/skills-and-resources/).
+- **Extensions** lists the built-in extensions (Atlassian, Web, Diagrams). Each row shows how it is set up and has its own switch; open one to change its settings, manage its accounts, and see what it adds to `quick_script`. Projects can override an extension; a project's extension file is ignored until you trust it.
 
 ### Catalog
 
@@ -60,7 +61,7 @@ Besides the agent and catalog pages above, a project has:
 
 ## Diagram export
 
-**Settings → Tools → Third party → Diagram export** lets the agent render diagrams through a Kroki server. It is off by default. Set the Kroki URL (default `https://kroki.io/`), then enable the tool.
+**Settings → Extensions → Diagrams** sets the Kroki server the agent renders diagrams with (default `https://kroki.io/`). Enable the extension, and the Diagram export tool on **Settings → Tools**.
 
 Diagram source is sent to the configured server when the tool runs. Use a trusted self-hosted server for private diagrams. SVG is the default output; PNG is also supported, depending on your server. Exports appear as a linked file in the tool call's card.
 

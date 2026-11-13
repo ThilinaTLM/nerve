@@ -30,7 +30,7 @@ let pendingDelete = $state<TavilyProfile | undefined>();
 function configured(profile: TavilyProfile): boolean {
   return credentialConfigured(authProviders, tavilyCredentialId(profile.id));
 }
-function openAdd(): void {
+export function openAdd(): void {
   editing = undefined;
   dialogOpen = true;
 }
@@ -66,14 +66,14 @@ async function remove(): Promise<void> {
 </script>
 
 <SettingsEntityListSection
-  sectionId="tavily-accounts"
-  title="Tavily (web search)"
+  sectionId="accounts"
+  title="Tavily accounts"
   addLabel="Add account"
   addTourId="setup-tavily-add-profile"
   emptyTitle="No Tavily accounts"
   emptyDescription="Add a named Tavily API key for web search."
   items={settingsDraft.providers.tavilyProfiles}
-  listAriaLabel="Tavily (web search)"
+  listAriaLabel="Tavily accounts"
   itemKey={(profile) => profile.id}
   onAdd={openAdd}
 >

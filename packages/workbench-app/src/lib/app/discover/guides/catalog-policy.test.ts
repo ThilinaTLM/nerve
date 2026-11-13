@@ -80,7 +80,7 @@ describe("guide catalog policy", () => {
     assert.deepEqual(autoCompletedGuideIds(guides, {}), ["web-search"]);
   });
 
-  it("auto-completes Atlassian setup only when both integrations are ready", () => {
+  it("auto-completes Atlassian setup only when the selected account is ready", () => {
     const incomplete = resolveGuides(guideCatalog, {}, noSignals).find(
       (guide) => guide.id === "atlassian",
     );

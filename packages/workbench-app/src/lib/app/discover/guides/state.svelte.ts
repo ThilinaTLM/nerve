@@ -12,6 +12,7 @@ import {
   openConversationHistory,
 } from "$lib/features/conversations/state/composer-signals.svelte";
 import { settingsState } from "$lib/features/settings/state/settings-state.svelte";
+import { selectedAtlassianAccountId } from "$lib/application/extensions/selected-accounts.svelte";
 import { atlassianProfileReady } from "$lib/features/settings/views/pages/providers/provider-profiles";
 import { openSettingsPane } from "$lib/application/settings/settings-actions.svelte";
 import {
@@ -76,14 +77,14 @@ export function voiceConfigured(): boolean {
   return hasChatGptAudioAuth(settingsState.authProviders);
 }
 
-// TODO(extensions-page): the selected accounts live in extension settings now;
-// until the Extensions page reads them, "ready" means a usable account exists.
+/** The Atlassian account the extension selects exists and has its token. */
 export function atlassianConfigured(): boolean {
-  const settings = settingsState.settingsDraft;
+  const selected = selectedAtlassianAccountId();
+  const profile = settingsState.settingsDraft?.providers.atlassianProfiles.find(
+    (candidate) => candidate.id === selected,
+  );
   return Boolean(
-    settings?.providers.atlassianProfiles.some((profile) =>
-      atlassianProfileReady(profile, settingsState.authProviders),
-    ),
+    profile && atlassianProfileReady(profile, settingsState.authProviders),
   );
 }
 
@@ -270,6 +271,7 @@ async function prepareSetupStep(
   const preparation = step.preparation;
   if (enterCoach && !target && preparation?.kind === "settings") {
     await openSettingsPane(preparation.pageId, {
+      ...(preparation.itemId ? { item: preparation.itemId } : {}),
       section: preparation.sectionId,
     });
   }

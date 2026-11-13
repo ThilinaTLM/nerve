@@ -119,6 +119,24 @@ export const extensionMetadataSchema = z.strictObject({
   icon: z.string().min(1),
   source: z.enum(["builtin"]),
   settingsVersion: z.number().int().positive(),
+  /** Default of the implicit `enabled` switch. */
+  enabledByDefault: z.boolean(),
+  /** What the extension adds, for the detail view. */
+  contributes: z.strictObject({
+    /** `quick_script` namespaces. */
+    namespaces: z.array(
+      z.strictObject({
+        id: z.string().min(1),
+        /** Boolean setting that switches the namespace; absent when it follows the extension. */
+        enabledBy: z.string().optional(),
+        summary: z.string(),
+      }),
+    ),
+    /** Direct tool names. */
+    tools: z.array(z.string()),
+    /** Skill names. */
+    skills: z.array(z.string()),
+  }),
 });
 export type ExtensionMetadata = z.infer<typeof extensionMetadataSchema>;
 

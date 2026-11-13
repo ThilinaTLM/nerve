@@ -8,6 +8,8 @@ import {
   pagesByScope,
   settingsPageDetail,
 } from "$lib/features/settings/registry/settings-page-data";
+import { loadExtensionItems } from "$lib/application/extensions/scoped-extensions-state.svelte";
+import { workbenchStartupState } from "$lib/application/startup/workbench-startup-state.svelte";
 import { settingsState } from "$lib/features/settings/state/settings-state.svelte";
 import { settingsSelectors } from "$lib/features/settings/state/settings-selectors.svelte";
 import { workspaceSelectors } from "$lib/application/workspace/workspace-selectors.svelte";
@@ -62,6 +64,16 @@ const skillsProjectId = $derived(
   target.kind === "project" ? target.projectId : undefined,
 );
 
+// The breadcrumb names the open extension; the list is known once the daemon answers.
+let extensionItems = $state<{ id: string; label: string }[]>();
+$effect(() => {
+  if (pageId !== "extensions" || extensionItems) return;
+  if (!workbenchStartupState.progressiveActive) return;
+  void loadExtensionItems()
+    .then((items) => (extensionItems = items))
+    .catch(() => undefined);
+});
+
 $effect(() => {
   if (settingsState.skillsProjectId === (skillsProjectId ?? null)) return;
   void loadSettingsSkills(skillsProjectId);
@@ -71,6 +83,7 @@ $effect(() => {
 <SettingsView
   {target}
   {projectSettingsAction}
+  detailItems={extensionItems ? { extensions: extensionItems } : {}}
   {status}
   bind:settingsDraft={settingsState.settingsDraft}
   applicationConfiguration={settingsState.applicationConfiguration}

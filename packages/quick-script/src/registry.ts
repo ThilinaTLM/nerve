@@ -77,5 +77,15 @@ export function extensionMetadata(
     icon: extension.icon,
     source: extension.source,
     settingsVersion: extension.settingsVersion,
+    enabledByDefault: extension.enabledByDefault,
+    contributes: {
+      namespaces: (extension.contributes.sdk ?? []).map((namespace) => ({
+        id: namespace.id,
+        ...(namespace.enabledBy ? { enabledBy: namespace.enabledBy } : {}),
+        summary: namespace.summary,
+      })),
+      tools: extension.contributes.tools ?? [],
+      skills: extension.contributes.skills ?? [],
+    },
   };
 }

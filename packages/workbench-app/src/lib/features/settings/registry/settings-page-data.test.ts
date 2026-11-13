@@ -17,7 +17,7 @@ const grouped = (kind: "user" | "project") =>
 describe("settings page registry", () => {
   it("groups the user nav as approved", () => {
     assert.deepEqual(grouped("user"), [
-      ["Connections", ["providers", "integrations"]],
+      ["Connections", ["providers", "extensions"]],
       ["Agent", ["general", "tools", "skills"]],
       [
         "Catalog",
@@ -30,7 +30,7 @@ describe("settings page registry", () => {
 
   it("groups the project nav as approved", () => {
     assert.deepEqual(grouped("project"), [
-      ["Agent", ["general", "tools", "skills"]],
+      ["Agent", ["general", "tools", "skills", "extensions"]],
       ["Catalog", ["agents", "sub-agents", "permission-rules", "suggestions"]],
       ["This project", ["launch", "instructions-files", "trust"]],
     ]);
@@ -72,13 +72,26 @@ describe("settings deep-link targets", () => {
     { from: { pageId: "tools" }, to: { pageId: "nowhere" } },
   ];
 
-  it("keeps integrations targets while redirects are disabled", () => {
+  it("sends old integrations targets to the extension detail", () => {
     assert.deepEqual(
       resolveSettingsTarget("user", {
         pageId: "integrations",
         section: "tavily-accounts",
       }),
-      { pageId: "integrations", section: "tavily-accounts" },
+      { pageId: "extensions", item: "web", section: "accounts" },
+    );
+    assert.deepEqual(
+      resolveSettingsTarget("user", {
+        pageId: "integrations",
+        section: "atlassian-accounts",
+      }),
+      { pageId: "extensions", item: "atlassian", section: "accounts" },
+    );
+    assert.deepEqual(
+      resolveSettingsTarget("project", { pageId: "integrations" }),
+      {
+        pageId: "extensions",
+      },
     );
   });
 

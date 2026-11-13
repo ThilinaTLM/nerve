@@ -109,7 +109,8 @@ test("clearing Required fields never resets hidden local choices", () => {
       ["/tools/python_exec/settings/interpreterPath"],
     ),
     {
-      changes: { tools: { python_exec: { enabled: true } } },
+      // The cleared field leaves an empty object, which writes nothing.
+      changes: { tools: { python_exec: { enabled: true, settings: {} } } },
       resets: [],
     },
   );

@@ -45,23 +45,30 @@ describe("setup guide policy", () => {
     assert.equal(steps[0]?.targetId, "setup-auth-openai-codex-connected");
   });
 
-  it("guides web-search setup through Tavily configuration and saving", () => {
+  it("guides web-search setup through the Web extension", () => {
     const steps = setupStepsForArea("web-search", {
       codexConnected: false,
     });
     assert.deepEqual(
       steps.map((step) => step.targetId),
-      ["setup-tavily-add-profile", "setup-tavily-api-key", "setup-tavily-save"],
+      [
+        "setup-tavily-add-profile",
+        "setup-tavily-api-key",
+        "setup-tavily-save",
+        "setup-extension-web-enabled",
+        "setup-extension-web-searchAccount",
+      ],
     );
     assert.deepEqual(steps[0]?.preparation, {
       kind: "settings",
-      pageId: "integrations",
-      sectionId: "tavily-accounts",
+      pageId: "extensions",
+      itemId: "web",
+      sectionId: "accounts",
     });
     assert.equal(steps[0]?.advanceByClickingTarget, true);
   });
 
-  it("guides Atlassian profile setup and both tool integrations", () => {
+  it("guides Atlassian account setup through the Atlassian extension", () => {
     const steps = setupStepsForArea("atlassian", {
       codexConnected: false,
     });
@@ -70,27 +77,25 @@ describe("setup guide policy", () => {
       [
         "setup-atlassian-add-profile",
         "setup-atlassian-profile-form",
-        "setup-atlassian-configure-jira",
-        "setup-atlassian-select-jira-profile",
-        "setup-atlassian-enable-jira",
-        "setup-atlassian-configure-confluence",
-        "setup-atlassian-select-confluence-profile",
-        "setup-atlassian-enable-confluence",
+        "setup-extension-atlassian-enabled",
+        "setup-extension-atlassian-account",
+        "setup-extension-atlassian-jira",
+        "setup-extension-atlassian-confluence",
       ],
     );
     assert.deepEqual(steps[0]?.preparation, {
       kind: "settings",
-      pageId: "integrations",
-      sectionId: "atlassian-accounts",
+      pageId: "extensions",
+      itemId: "atlassian",
+      sectionId: "accounts",
     });
-    assert.deepEqual(steps[2]?.preparation, {
+    assert.deepEqual(steps[3]?.preparation, {
       kind: "settings",
-      pageId: "tools",
-      sectionId: "tools",
+      pageId: "extensions",
+      itemId: "atlassian",
+      sectionId: "settings",
     });
     assert.equal(steps[0]?.advanceByClickingTarget, true);
-    assert.equal(steps[2]?.advanceByClickingTarget, true);
-    assert.equal(steps[5]?.advanceByClickingTarget, true);
   });
 
   it("opens required dialogs when advancing to dialog-backed steps", () => {

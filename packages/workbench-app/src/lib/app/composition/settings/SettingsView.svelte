@@ -213,9 +213,15 @@ function statusText(): string {
     />
   {/snippet}
 
-  {#snippet children(page)}
+  {#snippet children(page, itemId)}
     <SettingsPageContent
       {page}
+      {itemId}
+      sectionId={activeSectionId}
+      onOpenItem={(id, section) => {
+        activeItemId = id;
+        if (section) activeSectionId = section;
+      }}
       {target}
       {controllers}
       {status}

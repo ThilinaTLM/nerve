@@ -23,7 +23,7 @@ Reads are bounded and parallel-capable. `edit` accepts only `path` plus exact, u
 - Confluence reads: `confluence_search_spaces`, `confluence_search_pages`, `confluence_get_page`, `confluence_download_page`
 - Confluence writes: `confluence_create_page`, `confluence_update_page`, `confluence_manage_comment`, `confluence_manage_page`, `confluence_manage_label`, `confluence_manage_restriction`, `confluence_manage_attachment`
 
-Web search/fetch, image explanation, and Python are individual global tool toggles. Search requires Tavily. Jira/Confluence are enabled and assigned an Atlassian profile per user, project, or conversation; Web search uses the selected Tavily profile. Atlassian responses and mutation reports are always saved as managed raw artifacts while the agent receives a bounded semantic preview. Related Jira/Confluence data is selected with each read tool's compact `include` array.
+Web search/fetch, image explanation, and Python are individual global tool toggles. Search requires Tavily. Jira/Confluence use the Atlassian account selected in **Settings → Extensions → Atlassian**; Web search uses the Tavily account selected in the Web extension. Atlassian responses and mutation reports are always saved as managed raw artifacts while the agent receives a bounded semantic preview. Related Jira/Confluence data is selected with each read tool's compact `include` array.
 
 ## Images
 
@@ -38,7 +38,7 @@ Configure and enable image generation separately. `generate_image` accepts a pro
 
 - `kroki_export`
 
-Disabled by default. Configure a trusted Kroki endpoint under **Settings → Tools → Third party → Diagram export**, then enable the tool. Diagram source is sent to that server; use a self-hosted endpoint for private diagrams. It accepts source from a file or inline and returns a linked SVG or PNG artifact. See [diagram settings and limits](/guides/settings/#diagram-export).
+Disabled by default. Configure a trusted Kroki endpoint under **Settings → Extensions → Diagrams**, then enable the tool. Diagram source is sent to that server; use a self-hosted endpoint for private diagrams. It accepts source from a file or inline and returns a linked SVG or PNG artifact. See [diagram settings and limits](/guides/settings/#diagram-export).
 
 ## Interaction and to-dos
 

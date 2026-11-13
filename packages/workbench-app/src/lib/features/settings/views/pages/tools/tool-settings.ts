@@ -13,7 +13,7 @@ export type ToolRowDef = {
   description: string;
   /** Always on: only its configuration is offered. */
   always?: boolean;
-  /** Has a Configure dialog. */
+  /** Has a Configure dialog; otherwise its setup lives in an extension. */
   configurable: boolean;
 };
 
@@ -35,7 +35,7 @@ export const toolRows: readonly ToolRowDef[] = [
     id: "web_search",
     label: "Web search",
     description: "Search the web through Tavily.",
-    configurable: true,
+    configurable: false,
   },
   {
     id: "web_fetch",
@@ -59,26 +59,26 @@ export const toolRows: readonly ToolRowDef[] = [
     id: "kroki_export",
     label: "Diagram export",
     description: "Render diagrams to SVG or PNG with Kroki.",
-    configurable: true,
+    configurable: false,
   },
   {
     id: "jira",
     label: "Jira",
     description: "Search and manage Jira Cloud issues.",
-    configurable: true,
+    configurable: false,
   },
   {
     id: "confluence",
     label: "Confluence",
     description: "Search and manage Confluence Cloud content.",
-    configurable: true,
+    configurable: false,
   },
   {
     id: "quick_script",
     label: "Quick script",
     description:
       "Experimental: run short TypeScript scripts with Jira, Confluence and document utilities, instead of separate tools.",
-    configurable: true,
+    configurable: false,
   },
   {
     id: "plan_present",
@@ -102,7 +102,7 @@ export function toolRow(id: ToolId): ToolRowDef {
 
 export type AccountOption = { id: string; name: string; detail?: string };
 
-/** Account kinds the user manages in Settings → Integrations. */
+/** Account kinds the user manages in an extension's Accounts section. */
 export type AccountKind = "tavily" | "atlassian";
 
 /** Every account the user can pick from, by kind. */

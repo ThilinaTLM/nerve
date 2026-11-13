@@ -27,6 +27,11 @@ import type {
   StatusResponse,
 } from "$lib/api";
 import { ScopedAgentState } from "$lib/application/agent-configuration/scoped-agent-state.svelte";
+import { ScopedExtensionsState } from "$lib/application/extensions/scoped-extensions-state.svelte";
+import {
+  openProjectSettingsPane,
+  openSettingsPane,
+} from "$lib/application/settings";
 import { workbenchStartupState } from "$lib/application/startup/workbench-startup-state.svelte";
 import {
   SettingsChangeIndicator,
@@ -45,7 +50,9 @@ import {
   profileLabelFor,
 } from "../../shared/profile-options.svelte";
 import ToolConfigDialog from "./ToolConfigDialog.svelte";
+import { toolExtensionState, toolSettingsLink } from "./tool-extension-links";
 import {
+  accountOptions,
   toolRows,
   toolSettingsSummary,
   toolSummary,
@@ -56,6 +63,7 @@ import {
 let {
   scope,
   projectId,
+  settingsDraft,
   status,
   models = [],
   authProviders = [],
@@ -82,6 +90,28 @@ $effect(() => {
   ensureProfilesFor(scope, projectId);
 });
 $effect(() => editor.observe());
+// Web, Atlassian and Quick script rows reflect the extensions they depend on.
+const extensions = new ScopedExtensionsState();
+$effect(() => {
+  if (!workbenchStartupState.progressiveActive || (project && !projectId))
+    return;
+  void extensions.load(
+    project ? { scope: "project", projectId: projectId! } : { scope: "user" },
+  );
+});
+$effect(() => extensions.observe());
+const accounts = $derived(accountOptions(settingsDraft.providers));
+function extensionState(id: ToolId) {
+  return toolExtensionState(id, extensions.view?.extensions, accounts);
+}
+function openExtension(item?: string, section?: string) {
+  const options = {
+    ...(item ? { item } : {}),
+    ...(section ? { section } : {}),
+  };
+  if (projectId) void openProjectSettingsPane(projectId, "extensions", options);
+  else void openSettingsPane("extensions", options);
+}
 const error = $derived(editor.error);
 const loading = $derived(!editor.resolution && !error);
 const locked = $derived(editor.saving || !editor.resolution);
@@ -185,16 +215,35 @@ const python = $derived(status?.runtime.python);
     <SettingsList>
       {#each toolRows as row (row.id)}
         {@const value = payload(row.id)}
+        {@const fromExtension = extensionState(row.id)}
+        {@const link = toolSettingsLink(row.id)}
         <SettingsItem
           title={row.label}
           icon={toolIcons[row.id] ?? Wrench}
-          summary={rowSummary(row, value)}
+          summary={fromExtension?.summary ?? rowSummary(row, value)}
+          problem={fromExtension?.problem}
+          problemAction={fromExtension?.fix
+            ? {
+                label: fromExtension.fix.label,
+                onclick: () =>
+                  openExtension(
+                    fromExtension.fix?.extensionId,
+                    fromExtension.fix?.section,
+                  ),
+              }
+            : undefined}
           always={row.always}
           checked={row.always ? undefined : value.enabled === true}
-          disabled={locked}
+          disabled={locked || fromExtension?.disabled === true}
           onCheckedChange={(next) => toggle(row.id, next)}
-          onOpen={row.configurable ? () => configure(row) : undefined}
-          openLabel={`Configure ${row.label}`}
+          onOpen={row.configurable
+            ? () => configure(row)
+            : link?.item
+              ? () => openExtension(link.item)
+              : undefined}
+          openLabel={row.configurable
+            ? `Configure ${row.label}`
+            : `Open ${row.label} extension settings`}
         >
           {#snippet meta()}
             {#if changed(row.id)}

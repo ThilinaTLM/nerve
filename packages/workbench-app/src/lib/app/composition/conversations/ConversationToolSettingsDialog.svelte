@@ -1,6 +1,7 @@
 <!--
   Conversation-level tool configuration with the same dialog as Settings → Tools,
-  seeded with the conversation's effective payload. Saving stores a
+  seeded with the conversation's effective payload. Tools an extension sets up
+  open that extension's settings instead. Saving stores a
   conversation choice; cleared optional local fields are reset explicitly.
 -->
 <script lang="ts">
@@ -21,6 +22,8 @@ import {
   type ToolId,
   type ToolPayload,
 } from "$lib/features/settings/views/pages/tools/tool-settings";
+import { toolSettingsLink } from "$lib/features/settings/views/pages/tools/tool-extension-links";
+import { openSettingsPane } from "$lib/application/settings";
 import { sourceLabel } from "$lib/presentation/settings/configuration-source";
 
 type Props = {
@@ -59,6 +62,18 @@ const requiredPointers = $derived(
 const scopeNote = $derived(
   `${sourceLabel(toolId ? configuration?.resolution.provenance[`/tools/${toolId}/enabled`] : undefined)}. Applies only to this conversation.`,
 );
+
+/* Tools set up by an extension have no dialog: their configure action opens
+ * the extension's settings instead. */
+$effect(() => {
+  if (!group || toolId) return;
+  const link = group.names
+    .map((name) => toolSettingsLink(name))
+    .find((candidate) => candidate !== undefined);
+  if (!link) return;
+  void openSettingsPane("extensions", link.item ? { item: link.item } : {});
+  onClose();
+});
 
 /* A newly selected group opens its dialog; closing the dialog ends the
  * configuration. Capability refreshes while it is open never reopen it. */

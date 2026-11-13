@@ -11,7 +11,7 @@ import Lightbulb from "@lucide/svelte/icons/lightbulb";
 import Mic from "@lucide/svelte/icons/mic";
 import Monitor from "@lucide/svelte/icons/monitor";
 import Play from "@lucide/svelte/icons/play";
-import Plug from "@lucide/svelte/icons/plug";
+import Blocks from "@lucide/svelte/icons/blocks";
 import Server from "@lucide/svelte/icons/server";
 import ShieldCheck from "@lucide/svelte/icons/shield-check";
 import Shield from "@lucide/svelte/icons/shield";
@@ -46,7 +46,7 @@ export {
 
 const icons: Record<string, Component> = {
   providers: CloudCog,
-  integrations: Plug,
+  extensions: Blocks,
   general: SlidersHorizontal,
   tools: Wrench,
   skills: Library,

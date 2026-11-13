@@ -27,14 +27,12 @@ const providers: PageData = {
     { id: "custom-models", label: "Custom models" },
   ],
 };
-const integrations: PageData = {
-  label: "Integrations",
+const extensions: PageData = {
+  label: "Extensions",
   description:
-    "Accounts the agent's tools sign in with. Add several and choose one per tool.",
-  sections: [
-    { id: "tavily-accounts", label: "Tavily" },
-    { id: "atlassian-accounts", label: "Atlassian" },
-  ],
+    "What the agent's quick_script can use. Open one to set it up and manage its accounts.",
+  sections: [{ id: "builtin", label: "Built-in" }],
+  detail: { param: "extension" },
 };
 const general: PageData = {
   label: "General",
@@ -88,7 +86,7 @@ const suggestions: PageData = {
 
 const userPages: Record<string, PageData> = {
   providers,
-  integrations,
+  extensions,
   general,
   tools,
   skills,
@@ -172,6 +170,11 @@ const projectPages: Record<string, PageData> = {
   },
   tools,
   skills,
+  extensions: {
+    ...extensions,
+    description:
+      "Overrides for this project. Anything left unset follows your user settings.",
+  },
   agents: {
     ...agents,
     description:
@@ -227,7 +230,7 @@ const userLayout: NavLayout = [
   {
     id: "connections",
     title: "Connections",
-    pages: ["providers", "integrations"],
+    pages: ["providers", "extensions"],
   },
   { id: "agent", title: "Agent", pages: ["general", "tools", "skills"] },
   {
@@ -250,7 +253,11 @@ const userLayout: NavLayout = [
 ];
 
 const projectLayout: NavLayout = [
-  { id: "agent", title: "Agent", pages: ["general", "tools", "skills"] },
+  {
+    id: "agent",
+    title: "Agent",
+    pages: ["general", "tools", "skills", "extensions"],
+  },
   {
     id: "catalog",
     title: "Catalog",
@@ -309,11 +316,8 @@ export type SettingsRedirect = {
   to: { pageId: string; item?: string; section?: string };
 };
 
-/**
- * Turned on when the Extensions page replaces Integrations. While off, old
- * `integrations` targets keep opening the Integrations page.
- */
-export const SETTINGS_REDIRECTS_ENABLED = false;
+/** Turned off only by tests that exercise targets without redirects. */
+export const SETTINGS_REDIRECTS_ENABLED = true;
 
 /** Old page/section targets and where they live now. */
 export const settingsRedirects: readonly SettingsRedirect[] = [

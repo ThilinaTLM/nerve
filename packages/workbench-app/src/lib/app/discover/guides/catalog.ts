@@ -106,7 +106,7 @@ export const guideCatalog: readonly GuideDefinition[] = [
     version: 1,
     title: "Set up web search",
     description:
-      "Add a Tavily API key to let agents use the web_search tool for current information.",
+      "Add a Tavily API key and turn on the Web extension to let agents search the web for current information.",
     category: "setup",
     priority: "optional",
     lifecycle: "available",
@@ -119,7 +119,7 @@ export const guideCatalog: readonly GuideDefinition[] = [
     version: 1,
     title: "Connect Jira and Confluence",
     description:
-      "Add an Atlassian profile, choose it for Jira and Confluence, and enable both tool groups for agent access.",
+      "Add an Atlassian account, then turn on the Atlassian extension and choose Jira and Confluence for agent access.",
     category: "setup",
     priority: "optional",
     lifecycle: "new",
