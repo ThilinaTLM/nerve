@@ -18,6 +18,16 @@ flowchart TD
   R --> O[Content and details]
 ```
 
+## Positioning and name
+
+| Tool           | Use for                                                                | Runs                                         |
+| -------------- | ---------------------------------------------------------------------- | -------------------------------------------- |
+| `quick_script` | Integrations and document utilities; getting multi-step work done fast | Sandboxed TypeScript; effects via host calls |
+| `python_exec`  | General Python scripting                                               | Local Python; not a security boundary        |
+| `bash`         | The local machine: builds, git, processes                              | Local shell                                  |
+
+The tool descriptions carry this split. The name `quick_script` feels like scripting without promising a runtime. Rejected names: `tsx` and `deno` (agents expect Node or Deno APIs, `fetch`, imports, JSX), `code_mode` (says nothing about when to choose it), `macro` (clashes with Confluence macros), `sdk` and `integrations` (hide the file utilities). The description's first line states the sandbox limits, and `import`, `require` and JSX fail with an error naming the alternative.
+
 ## Sandbox
 
 The engine is QuickJS in the `native` addon: a fresh runtime per script on its own thread, with caps on memory, time, output and host calls. The script has no filesystem, network or timers, only `console` and the host-call channel. Everything else, including methods, credentials and policy, belongs to the tool.
@@ -39,6 +49,22 @@ The scan can be evaded, so it is only the first level. The executor also refuses
 ## SDK methods
 
 Each method is declared once in a method table (`defineMethod` and a positional variant): signature, declared risk, authorizing tool, argument parsing and implementation. The sandbox prelude, the scanner and dispatch read these tables. The guide's `references/*.d.ts` files are generated from them, and a test fails when they are stale.
+
+### Namespace design rules
+
+These held up in the Atlassian SDK and apply to every namespace:
+
+- **Follow the service's own API vocabulary** (resource names, query languages, IDs) so models reuse what they know; the SDK fills in site, version, auth and pagination.
+- **Names instead of awkward IDs** where the API makes them painful (custom fields, transitions, users, spaces).
+- **One calling convention:** a bare ID or one options object, one ID name per resource, no aliases. Unknown options fail with the valid names.
+- **Compact, complete results:** flattened, never truncated for display.
+- **Actionable errors** that list the valid values, with a closed `e.code` set.
+- **A raw `request()` escape hatch** plus a recipes reference keeps the typed surface small. Promote a recipe to a method only when agents keep getting it wrong.
+- **Writes report what they changed** (`Created:` / `Updated:` / `Deleted:` footer lines) and protect user content (stale-version `CONFLICT`, lossy-update guard on Confluence pages).
+
+### Libraries
+
+Prefer a well-known JavaScript library that runs inside the sandbox over a custom API, because agents already know `XLSX.read` and `Papa.parse`. Use host functions only where nothing runs in QuickJS or the work needs the network or native code (`image`, `diagram`). Libraries load lazily, only for scripts that mention them ([`libraries.ts`](../../packages/tools/src/execution/quick-script/libraries.ts)). Each new library needs a QuickJS run test and a section in the guide.
 
 ## Errors
 
@@ -62,7 +88,7 @@ Cancelling the tool call aborts the sandbox and in-flight host calls; finished c
 | ----------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Executor, host-call loop and result | [`quick-script.ts`](../../packages/tools/src/execution/quick-script/quick-script.ts)                                                                                                                                                      |
 | Layout                              | One folder per namespace under `execution/quick-script/`: `jira/`, `confluence/`, `atlassian/` (shared defaults, attachments), `files/` (files, image, diagram, storage helpers); runtime, SDK model, scanner and description at the root |
-| Tool description                    | [`description.ts`](../../packages/tools/src/execution/quick-script/description.ts): fragment registry, `landed` flag per namespace or library                                                                                             |
+| Tool description                    | [`description.ts`](../../packages/tools/src/execution/quick-script/description.ts): one fragment per active integration, in fixed order                                                                                                   |
 | Method model and prelude            | [`sdk-types.ts`](../../packages/tools/src/execution/quick-script/sdk-types.ts) and [`sdk.ts`](../../packages/tools/src/execution/quick-script/sdk.ts)                                                                                     |
 | Script scan and declared-risk guard | [`script-risk.ts`](../../packages/tools/src/execution/quick-script/script-risk.ts) and [`method-risk.test.ts`](../../packages/tools/src/execution/quick-script/method-risk.test.ts)                                                       |
 | Generated reference types           | [`sdk-dts.ts`](../../packages/tools/src/execution/quick-script/sdk-dts.ts) and [guide](../../packages/skills/src/guides/quick-script/)                                                                                                    |
