@@ -1,6 +1,6 @@
 # `storage.*` builders and RichText
 
-Pure functions (no host calls) returning Confluence storage markup. Page and comment bodies and every body argument below are **RichText**: a Markdown string (HTML in it is escaped, so Jira/user text is safe), builder output, or an array of those joined in order. Markdown covers headings, lists, `- [ ]` tasks, tables, fenced code, quotes, `---`, emphasis, links, `![alt](https://url)`; builders cover the rest. Style and linting: [confluence-writing.md](confluence-writing.md).
+Pure functions (no host calls) returning Confluence storage markup. Page and comment bodies and every body argument below are **RichText**: a Markdown string (HTML in it is escaped, so Jira/user text is safe), builder output, or an array of those joined in order. Markdown covers headings, lists, `- [ ]` tasks, tables, fenced code, quotes, `---`, emphasis, links, `![alt](https://url)`; builders cover the rest. Style and linting: `sdk.docs("confluence/writing")`.
 
 ```ts
 const page = await confluence.pages.get({ id, body: "storage" }); // page.body is trusted markup

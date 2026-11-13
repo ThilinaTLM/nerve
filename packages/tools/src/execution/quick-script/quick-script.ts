@@ -3,6 +3,7 @@ import { sandbox } from "@nervekit/native";
 import type { QuickScriptHostCall } from "@nervekit/contracts/tools";
 import type { ToolExecutionResult } from "../execution-context.js";
 import type {
+  SdkMethod,
   ArtifactReport,
   QuickScriptContext,
   PageReport,
@@ -13,6 +14,7 @@ import { type DisplayPaths, errnoMessage, hostErrorCode } from "./errors.js";
 import { processFooter } from "../../result-projection/process-footer.js";
 import { withImageSizes } from "./files/artifacts.js";
 import { assertDeclaredRisk } from "./script-risk.js";
+import { declarationLine } from "./sdk-dts.js";
 import {
   createSdkEnvironment,
   findSdkMethod,
@@ -130,8 +132,9 @@ export async function executeQuickScript(
     try {
       prepared = sdkMethod.prepare(callArgs, env);
     } catch (error) {
-      record({ outcome: "failed", error: cleanMessage(error, paths) });
-      throw hostFailure(error, undefined, paths);
+      const taught = withDeclaration(error, sdkMethod);
+      record({ outcome: "failed", error: cleanMessage(taught, paths) });
+      throw hostFailure(taught, undefined, paths);
     }
     const checks = [
       ...(prepared.authorization ? [prepared.authorization] : []),
@@ -275,6 +278,20 @@ export async function executeQuickScript(
       processStatusIncluded: true,
     },
   };
+}
+
+/** A wrong-argument error ends with the method's declaration, so the call can be fixed without a `sdk.describe`. */
+function withDeclaration(error: unknown, method: SdkMethod): unknown {
+  if (!(error instanceof Error) || error instanceof ToolExecutionError)
+    return error;
+  return Object.assign(
+    new Error(`${error.message} Declaration: ${declarationLine(method)}`, {
+      cause: error,
+    }),
+    (error as { code?: unknown }).code === undefined
+      ? {}
+      : { code: (error as { code?: unknown }).code },
+  );
 }
 
 /** What the run changed, as listed in the footer. */

@@ -4,7 +4,7 @@ import { createServer } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, before, test } from "node:test";
-import { createSdkEnvironment, findSdkMethod } from "../sdk.js";
+import { createSdkEnvironment, findSdkMethod } from "../../sdk.js";
 
 const PNG = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0, 255, 128, 13, 10]);
 let dir = "";

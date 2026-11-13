@@ -1,16 +1,16 @@
 import { krokiToolSettingsSchema } from "@nervekit/contracts/settings";
 import { krokiDiagramTypeSchema } from "@nervekit/contracts/tools";
-import { fetchKrokiDiagram } from "../../kroki/kroki-export.js";
-import { withTimeoutSignal } from "../../process/abort.js";
+import { fetchKrokiDiagram } from "../../../kroki/kroki-export.js";
+import { withTimeoutSignal } from "../../../process/abort.js";
 import {
   assertArtifactName,
   freshArtifactName,
   writeArtifact,
-} from "./artifacts.js";
-import { nonEmptyString } from "../sdk-args.js";
-import { defineMethod, type SdkMethod } from "../sdk-types.js";
+} from "../../files/artifacts.js";
+import { nonEmptyString } from "../../sdk-args.js";
+import { defineMethod, type SdkMethod } from "../../sdk-types.js";
 
-const MAX_SOURCE_BYTES = 128 * 1024;
+export const MAX_SOURCE_BYTES = 128 * 1024;
 
 const PIE_COLORS = [
   "#2563eb",

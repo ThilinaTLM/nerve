@@ -146,6 +146,10 @@ const SAMPLES: Record<string, unknown[][]> = {
     [{ url: "https://example.com/a", as: "file", name: "a.bin" }],
   ],
   "web.search": [["nerve"], [{ query: "nerve", limit: 20 }]],
+  "sdk.list": [[]],
+  "sdk.describe": [["jira.issues"]],
+  "sdk.search": [["sprint"], ["sprint", { in: "jira", offset: 0 }]],
+  "sdk.docs": [[], ["jira"], ["jira/workflows"]],
 };
 
 const env = createSdkEnvironment({

@@ -1,6 +1,6 @@
 # Writing Confluence pages people can read
 
-A page body is RichText ([storage.md](storage.md)): Markdown for prose, `storage.*` builders for structure, arrays to combine. Write with `confluence.pages.create/update` ([confluence.d.ts](confluence.d.ts)). Every write is linted.
+A page body is RichText (`sdk.docs("storage/builders")`): Markdown for prose, `storage.*` builders for structure, arrays to combine. Write with `confluence.pages.create/update`. Every write is linted.
 
 ## Editing an existing page
 
@@ -48,7 +48,7 @@ For a list of issues use one `storage.jiraIssues(jql, { columns })` macro (`["ke
 
 ## Images and diagrams
 
-Attach PNG or JPEG files (never SVG/WebP) via `attachments`, then reference them with `storage.image(filename)`; the linter sets the width from the real size, capped at 760 px. Add `alt`/`caption` when the image carries information. Render diagrams with `diagram.render` ([files.md](files.md)) aiming for about 760 px natural width; an image scaled below 80% (a 1100 px diagram shown at 760) gets a warning because its text turns small, so simplify the diagram instead (`flowchart TB`, fewer nodes per row, shorter labels). Use `storage.layout` sparingly (two columns, never nested).
+Attach PNG or JPEG files via `attachments` (GIF/WebP are converted to PNG, SVG is rejected), then reference them with `storage.image(filename)`; the linter sets the width from the real size, capped at 760 px, so aim for about 760 px natural width. Add `alt`/`caption` when the image carries information. An image scaled below 80% (a 1100 px diagram shown at 760) gets a warning because its text turns small: shrink or simplify the source instead (diagrams: `sdk.docs("diagram/render")`). Use `storage.layout` sparingly (two columns, never nested).
 
 ## The linter
 

@@ -1,4 +1,5 @@
-import { cp, mkdir, rm } from "node:fs/promises";
+import { existsSync } from "node:fs";
+import { cp, mkdir, readdir, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { build } from "esbuild";
 import { repoRoot } from "../workspace/repo.ts";
@@ -46,4 +47,19 @@ for (const { name, file, ...options } of libraries) {
     join(source, options.license ?? "LICENSE"),
     join(destination, `${name}.LICENSE`),
   );
+}
+
+// quick_script doc topics (Markdown beside the code that owns them) -> dist/quick-script-docs/<owner>/.
+const quickScript = join(toolsRoot, "src", "execution", "quick-script");
+const docsDestination = join(toolsRoot, "dist", "quick-script-docs");
+await rm(docsDestination, { recursive: true, force: true });
+await cp(join(quickScript, "docs"), join(docsDestination, "runtime"), {
+  recursive: true,
+});
+for (const owner of await readdir(join(quickScript, "extensions"), {
+  withFileTypes: true,
+})) {
+  const docs = join(quickScript, "extensions", owner.name, "docs");
+  if (owner.isDirectory() && existsSync(docs))
+    await cp(docs, join(docsDestination, owner.name), { recursive: true });
 }

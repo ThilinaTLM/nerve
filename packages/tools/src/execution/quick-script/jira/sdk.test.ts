@@ -71,15 +71,27 @@ void test("every method takes one ID string or one options object, with one ID n
   );
   const lines = (result.content ?? "").split("\n");
   assert.equal(lines[0], "SCRUM SCRUM-4 S");
-  assert.equal(
+  assert.ok(
+    lines[1].startsWith(
+      "HostError: jira.issues.get has no option 'issueKey'; valid options: key, fields, comments, transitions." +
+        " Declaration: jira.issues.get(",
+    ),
     lines[1],
-    "HostError: jira.issues.get has no option 'issueKey'; valid options: key, fields, comments, transitions.",
   );
-  assert.equal(
+  assert.ok(
+    lines[2].startsWith(
+      "HostError: jira.issues.get takes one argument (a key string or an options object), got 2." +
+        " Declaration: jira.issues.get(",
+    ),
     lines[2],
-    "HostError: jira.issues.get takes one argument (a key string or an options object), got 2.",
   );
-  assert.equal(lines[3], "HostError: key must be a non-empty string.");
+  assert.ok(
+    lines[3].startsWith(
+      "HostError: key must be a non-empty string." +
+        " Declaration: jira.projects.get(",
+    ),
+    lines[3],
+  );
   assert.deepEqual(
     authorized.map((r) => r.args),
     [

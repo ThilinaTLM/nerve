@@ -96,7 +96,7 @@ packages/quick-script/src/
 
 ### `packages/skills` keeps only skills
 
-- **Delete `guides/`.** `guides/jira` and `guides/confluence` go with the direct tools; `guides/quick-script` becomes extension and runtime docs.
+- **Delete `guides/`.** `guides/jira` and `guides/confluence` go with the direct tools; the former quick-script guide became extension and runtime docs in step 1.
 - `builtinSkillFilePath` searches only `builtin/`, and `{{skill:…}}` resolves only catalog skills. The system prompt's `formatToolGuides` goes away.
 - **Rule:** content that helps with a kind of task and appears in `available_skills` is a skill. Content that explains one tool or namespace lives with it and is reached through it (the tool description, `sdk.docs`, or errors). An extension that wants to teach a task ships a real skill through `contributes.skills`.
 - The `project-knowledge` topic points at `skill-creator`, which remains the single owner of skill format rules.

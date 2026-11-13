@@ -60,7 +60,8 @@ export const RUNTIME_HEAD = String.raw`
   });
 `;
 
-export const RUNTIME_TAIL = String.raw`
+/** `guarded` are the namespace globals that fail with the valid names on a misspelled method; they come from the registry. */
+export const runtimeTail = (guarded: readonly string[]) => String.raw`
   const filesRead = files.read;
   const filesWrite = files.write;
   files.read = async (handle, options) => {
@@ -104,7 +105,7 @@ export const RUNTIME_TAIL = String.raw`
       throw error;
     },
   });
-  for (const name of ["atlassian", "jira", "confluence", "web", "files", "diagram"]) {
+  for (const name of ${JSON.stringify(guarded)}) {
     globalThis[name] = guard(name, globalThis[name]);
   }
 `;

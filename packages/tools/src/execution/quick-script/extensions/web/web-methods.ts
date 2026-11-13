@@ -1,27 +1,27 @@
-import { isolatedHtmlToMarkdown } from "../../atlassian/isolated-html-to-markdown.js";
-import { ToolExecutionError } from "../../errors/tool-error.js";
-import { withTimeoutSignal } from "../../process/abort.js";
+import { isolatedHtmlToMarkdown } from "../../../atlassian/isolated-html-to-markdown.js";
+import { ToolExecutionError } from "../../../errors/tool-error.js";
+import { withTimeoutSignal } from "../../../process/abort.js";
 import {
   baseContentType,
   downloadWebResource,
   getExtension,
   isHtml,
   isTextType,
-} from "../../web/web-fetch.js";
-import { searchTavily, snippet } from "../../web/web-search.js";
-import { codedError, type HostErrorCode } from "../errors.js";
+} from "../../../web/web-fetch.js";
+import { searchTavily, snippet } from "../../../web/web-search.js";
+import { codedError, type HostErrorCode } from "../../errors.js";
 import {
   assertArtifactName,
   freshArtifactName,
   MAX_FILE_BYTES,
   writeArtifact,
-} from "../files/artifacts.js";
-import { clampInt, nonEmptyString } from "../sdk-args.js";
+} from "../../files/artifacts.js";
+import { clampInt, nonEmptyString } from "../../sdk-args.js";
 import {
   defineMethod,
   type SdkEnvironment,
   type SdkMethod,
-} from "../sdk-types.js";
+} from "../../sdk-types.js";
 
 const SETTINGS = "Settings → Tools → quick_script → Web";
 const FETCH_AS = ["markdown", "text", "json", "file"] as const;

@@ -1,45 +1,31 @@
-import { atlassianMethods } from "./atlassian/defaults.js";
 import {
   confluenceConnectionLoader,
-  confluenceMethods,
   confluenceSpaceKeyLoader,
 } from "./confluence/methods.js";
-import { diagramMethods } from "./files/diagram-methods.js";
-import { filesMethods } from "./files/files-methods.js";
-import { imageMethods } from "./files/image-methods.js";
 import {
-  createJiraFieldLoader,
-  jiraConnectionLoader,
-  jiraMethods,
-} from "./jira/methods.js";
+  registeredMethods,
+  registeredNamespaces,
+} from "./extensions/registry.js";
+import { createJiraFieldLoader, jiraConnectionLoader } from "./jira/methods.js";
 import { librariesPrelude } from "./libraries.js";
-import { RUNTIME_HEAD, RUNTIME_TAIL } from "./runtime-prelude.js";
+import { RUNTIME_HEAD, runtimeTail } from "./runtime-prelude.js";
 import type {
   QuickScriptContext,
   SdkEnvironment,
   SdkMethod,
 } from "./sdk-types.js";
 import { STORAGE_PRELUDE } from "./files/storage-helpers.js";
-import { webMethods } from "./web/web-methods.js";
 
 /**
  * The SDK in one place. Every method declares its signature, the direct tool
  * it is authorized as, and its implementation. The prelude injected into the
- * sandbox is generated from these tables; the guide skill's references are
- * checked against them by guide-coverage.test.ts.
+ * sandbox is generated from the method tables the registry collects; the
+ * Markdown docs are checked against them by extensions/docs.test.ts.
  */
 
 export type { SdkEnvironment, SdkMethod } from "./sdk-types.js";
 
-const methods: SdkMethod[] = [
-  ...atlassianMethods,
-  ...jiraMethods,
-  ...confluenceMethods,
-  ...diagramMethods,
-  ...filesMethods,
-  ...imageMethods,
-  ...webMethods,
-];
+const methods: readonly SdkMethod[] = registeredMethods;
 
 const methodByName = new Map<string, SdkMethod>(
   methods.map((method) => [`${method.product}.${method.path}`, method]),
@@ -64,6 +50,7 @@ export function createSdkEnvironment(
     confluence,
     jiraFields: createJiraFieldLoader(context, jira),
     confluenceSpaceKeys: confluenceSpaceKeyLoader(context, confluence),
+    discovery: { used: 0 },
     report: {
       pages: [],
       artifacts: new Map(),
@@ -98,19 +85,19 @@ function productPrelude(product: string): string {
   return `  globalThis.${product} = {\n${body}\n  };`;
 }
 
+/** Namespaces with host methods get a global object; `image` is a function and gets none (the prelude wraps it). */
+const withMethods = registeredNamespaces.filter(
+  (namespace) => namespace.methods.length > 0,
+);
+const guarded = withMethods
+  .filter((namespace) => !namespace.callable)
+  .map((namespace) => namespace.id);
+
 /** Trusted prelude: SDK objects forwarding to `host.call`, plus the pure-JS `storage.*` builders. */
 export const SDK_PRELUDE = [
   `(() => {\n${RUNTIME_HEAD}`,
-  ...[
-    "atlassian",
-    "jira",
-    "confluence",
-    "diagram",
-    "files",
-    "image",
-    "web",
-  ].map(productPrelude),
-  `${RUNTIME_TAIL}})();`,
+  ...withMethods.map((namespace) => productPrelude(namespace.id)),
+  `${runtimeTail(guarded)}})();`,
   STORAGE_PRELUDE,
 ].join("\n");
 

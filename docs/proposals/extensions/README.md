@@ -84,7 +84,7 @@ flowchart TD
 Five steps on one branch, each leaving `main`-quality code. The agent-visible changes come in step 1 and step 5; steps 2–4 are internal or settings-only.
 
 1. **Registry, discovery and built-in extensions.** Manifest and registry, the four built-in extensions wrapping today's namespaces, `sdk.*` with the discovery budget, the `quick_script` description and prelude built from the registry. Docs move next to their extensions; `SKILL.md` is removed and its rules move into the description. Direct tools are untouched.
-2. **Package split.** Move quick-script code to `@nervekit/quick-script` and delete `packages/skills/src/guides/quick-script`.
+2. **Package split.** Move quick-script code to `@nervekit/quick-script`.
 3. **Extension settings and the Extensions page.** The `extensions` settings key with schema validation and per-field layering, availability computed from it, settings migration, the nested settings route, the generated Extensions page and detail view. Replaces the Integrations page and trims the Tools page ([ui.md](ui.md)).
 4. **Operation-level rules.** The rule contract change, the broker rewrite and the equivalence test over built-in rule sets ([permissions.md](permissions.md)).
 5. **Direct-tool removal.** Close the gaps in [parity.md](parity.md), add `imagegen`, run the benchmark, then remove `jira_*`, `confluence_*`, `kroki_export`, `generate_image`, `guides/jira`, `guides/confluence`, their settings and presentation code, and migrate rules, exceptions and settings.

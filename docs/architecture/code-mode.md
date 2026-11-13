@@ -34,7 +34,7 @@ The engine is QuickJS in the `native` addon: a fresh runtime per script on its o
 
 ## Configuration
 
-`tools.quick_script = { enabled, settings?: { jira?, confluence?, web?, diagram? } }`, off by default. Jira, Confluence and web are each `{ enabled, profileId? }` with their own account (web: Tavily for search; fetch needs none); `diagram` is the Kroki server (default `https://kroki.io/`). The tool works with no integration: utilities are always present. A disabled integration, or one without an account or saved token, is absent for that run, and a call into it fails with an error naming Settings → Tools → quick_script. The tool description is built per conversation from the active integrations (`quickScriptDescription`, applied in `scoped-turn-resources.ts`) and carries the guide pointer.
+`tools.quick_script = { enabled, settings?: { jira?, confluence?, web?, diagram? } }`, off by default. Jira, Confluence and web are each `{ enabled, profileId? }` with their own account (web: Tavily for search; fetch needs none); `diagram` is the Kroki server (default `https://kroki.io/`). The tool works with no integration: utilities are always present. A disabled integration, or one without an account or saved token, is unavailable for that run, and a call into it fails with an error naming Settings → Tools → quick_script. The host computes each extension namespace as configured (its switch is on) and available (also an existing account and saved token) with a reason and fix ([`quick-script-availability.ts`](../../packages/workbench-server/src/core-host/quick-script-availability.ts)). Configured namespaces build the tool description; the same availability reaches the sandbox as `context.namespaces`, so `sdk.list` can report it. The description never contains availability, so credential changes do not touch the prompt prefix.
 
 ## Permissions
 
@@ -48,7 +48,24 @@ The scan can be evaded, so it is only the first level. The executor also refuses
 
 ## SDK methods
 
-Each method is declared once in a method table (`defineMethod` and a positional variant): signature, declared risk, authorizing tool, argument parsing and implementation. The sandbox prelude, the scanner and dispatch read these tables. The guide's `references/*.d.ts` files are generated from them, and a test fails when they are stale.
+Each method is declared once in a method table (`defineMethod` and a positional variant): signature, declared risk, authorizing tool, argument parsing and implementation. The sandbox prelude, the scanner and dispatch read these tables. `sdk.describe` generates declarations from them at run time ([`sdk-dts.ts`](../../packages/tools/src/execution/quick-script/sdk-dts.ts)).
+
+### Registry and extensions
+
+Namespaces come from one registry ([`extensions/registry.ts`](../../packages/tools/src/execution/quick-script/extensions/registry.ts)): the runtime's (`files`, `image`, `libraries`, `sdk`) followed by the namespaces that built-in extension manifests contribute (`ExtensionManifest` in `extensions/manifest-types.ts`). Manifests exist for `atlassian` (namespaces `atlassian`, `jira`, `confluence`, `storage`; `jira` and `confluence` are tied to their switches by `enabledBy`), `web` and `diagram`, each in `extensions/<id>/` with its declarations and `docs/`. A namespace declares its `summary`, up to three `rules`, method table, shared type declarations and doc topics. The description, prelude, guarded globals and discovery all read the registry; adding a namespace means adding it to a manifest. Settings still live under `tools.quick_script.settings`, and authorization still names direct tools.
+
+### Discovery
+
+The tool description is a cache-stable index: sandbox limits, global rules, the rules of each configured namespace, namespace summaries and the libraries. Detail comes from the `sdk` runtime namespace (risk `none`, so scripts using only `sdk.*` classify as read; [`discovery.ts`](../../packages/tools/src/execution/quick-script/discovery.ts)):
+
+| Call                                  | Returns                                                                                                              |
+| ------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| `sdk.list()`                          | Every namespace with source, availability (reason and fix), method count and doc topics                              |
+| `sdk.describe(path)`                  | Declarations for a namespace, group or method with the shapes they use; unavailable namespaces return reason and fix |
+| `sdk.search(query, { in?, offset? })` | One line per method, path matches before doc matches, 20 per page with a `next:` hint                                |
+| `sdk.docs(topic?)`                    | Topic index with when-to-read lines, or one Markdown topic                                                           |
+
+All `sdk.*` text of one run shares a budget of 12,000 characters. Past it, `describe` returns a summary and writes the full declarations to the artifact `sdk-<path>.d.ts`; `docs` returns an excerpt and writes the full topic. A wrong-argument error ends with the method's declaration. Doc topics are Markdown files in each extension's `docs/` (runtime topics in `quick-script/docs/`), named `<namespace>/<topic>`, with each fact in one topic and limits written as `{{limit:name}}` and filled from the constants that enforce them (`extensions/limits.ts`). `copy-tools-assets.ts` ships them in `dist/quick-script-docs/`. Tests render every topic and `describe` output and fail on links to missing topics or on method names that do not exist.
 
 ### Namespace design rules
 
@@ -64,7 +81,7 @@ These held up in the Atlassian SDK and apply to every namespace:
 
 ### Libraries
 
-Prefer a well-known JavaScript library that runs inside the sandbox over a custom API, because agents already know `XLSX.read` and `Papa.parse`. Use host functions only where nothing runs in QuickJS or the work needs the network or native code (`image`, `diagram`). Libraries load lazily, only for scripts that mention them ([`libraries.ts`](../../packages/tools/src/execution/quick-script/libraries.ts)). Each new library needs a QuickJS run test and a section in the guide.
+Prefer a well-known JavaScript library that runs inside the sandbox over a custom API, because agents already know `XLSX.read` and `Papa.parse`. Use host functions only where nothing runs in QuickJS or the work needs the network or native code (`image`, `diagram`). Libraries load lazily, only for scripts that mention them ([`libraries.ts`](../../packages/tools/src/execution/quick-script/libraries.ts)). Each new library needs a QuickJS run test and a doc topic.
 
 ## Errors
 
@@ -84,14 +101,14 @@ Cancelling the tool call aborts the sandbox and in-flight host calls; finished c
 
 ## Where it lives
 
-| Concern                             | Owner                                                                                                                                                                                                                                     |
-| ----------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Executor, host-call loop and result | [`quick-script.ts`](../../packages/tools/src/execution/quick-script/quick-script.ts)                                                                                                                                                      |
-| Layout                              | One folder per namespace under `execution/quick-script/`: `jira/`, `confluence/`, `atlassian/` (shared defaults, attachments), `files/` (files, image, diagram, storage helpers); runtime, SDK model, scanner and description at the root |
-| Tool description                    | [`description.ts`](../../packages/tools/src/execution/quick-script/description.ts): one fragment per active integration, in fixed order                                                                                                   |
-| Method model and prelude            | [`sdk-types.ts`](../../packages/tools/src/execution/quick-script/sdk-types.ts) and [`sdk.ts`](../../packages/tools/src/execution/quick-script/sdk.ts)                                                                                     |
-| Script scan and declared-risk guard | [`script-risk.ts`](../../packages/tools/src/execution/quick-script/script-risk.ts) and [`method-risk.test.ts`](../../packages/tools/src/execution/quick-script/method-risk.test.ts)                                                       |
-| Generated reference types           | [`sdk-dts.ts`](../../packages/tools/src/execution/quick-script/sdk-dts.ts) and [guide](../../packages/skills/src/guides/quick-script/)                                                                                                    |
-| Nested authorization                | [`createQuickScriptAuthorizer`](../../packages/workbench-server/src/core-host/quick-script-broker.ts), wired in [`create-conversation-core.ts`](../../packages/workbench-server/src/app/bootstrap/create-conversation-core.ts)            |
-| Sandbox engine                      | [`sandbox/`](../../packages/native/src/sandbox/) bindings and [Rust engine](../../packages/native/native/src/sandbox/mod.rs)                                                                                                              |
-| Result details contract             | [`quick-script.ts`](../../packages/contracts/src/domains/tools/quick-script.ts)                                                                                                                                                           |
+| Concern                             | Owner                                                                                                                                                                                                                                                                                                           |
+| ----------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Executor, host-call loop and result | [`quick-script.ts`](../../packages/tools/src/execution/quick-script/quick-script.ts)                                                                                                                                                                                                                            |
+| Layout                              | `extensions/<id>/` (manifest, declarations, docs; `web` and `diagram` code), `jira/`, `confluence/`, `atlassian/` (Atlassian method code, shared defaults, attachments), `files/` (files, image, storage helpers), `docs/` (runtime topics); runtime, SDK model, scanner, discovery and description at the root |
+| Tool description                    | [`description.ts`](../../packages/tools/src/execution/quick-script/description.ts): built from the registry for the configured namespaces, in registry order                                                                                                                                                    |
+| Method model and prelude            | [`sdk-types.ts`](../../packages/tools/src/execution/quick-script/sdk-types.ts) and [`sdk.ts`](../../packages/tools/src/execution/quick-script/sdk.ts)                                                                                                                                                           |
+| Script scan and declared-risk guard | [`script-risk.ts`](../../packages/tools/src/execution/quick-script/script-risk.ts) and [`method-risk.test.ts`](../../packages/tools/src/execution/quick-script/method-risk.test.ts)                                                                                                                             |
+| Declarations for `sdk.describe`     | [`sdk-dts.ts`](../../packages/tools/src/execution/quick-script/sdk-dts.ts)                                                                                                                                                                                                                                      |
+| Nested authorization                | [`createQuickScriptAuthorizer`](../../packages/workbench-server/src/core-host/quick-script-broker.ts), wired in [`create-conversation-core.ts`](../../packages/workbench-server/src/app/bootstrap/create-conversation-core.ts)                                                                                  |
+| Sandbox engine                      | [`sandbox/`](../../packages/native/src/sandbox/) bindings and [Rust engine](../../packages/native/native/src/sandbox/mod.rs)                                                                                                                                                                                    |
+| Result details contract             | [`quick-script.ts`](../../packages/contracts/src/domains/tools/quick-script.ts)                                                                                                                                                                                                                                 |

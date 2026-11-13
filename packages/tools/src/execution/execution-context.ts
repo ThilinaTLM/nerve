@@ -7,6 +7,7 @@ import type {
 } from "@nervekit/contracts/tools";
 import type { PythonRuntime } from "./python/runtime.js";
 import type { KrokiToolSettings } from "@nervekit/contracts/settings";
+import type { QuickScriptAvailability } from "./quick-script/extensions/manifest-types.js";
 
 export type ToolExecutionOutputUpdate = {
   kind: "output";
@@ -85,6 +86,8 @@ export interface IntegrationExecutionContext extends BaseExecutionContext {
   getProviderConfig?: (provider: string) => Promise<unknown>;
   /** quick_script `web.*`: `enabled` by Settings; `search` when a Tavily account with a token is selected (its key is `getApiKey("tavily")`). */
   web?: { enabled: boolean; search: boolean };
+  /** quick_script: whether each extension namespace is usable now, with reason and fix; `sdk.list` and `sdk.describe` report it. Absent: every namespace counts as available. */
+  namespaces?: QuickScriptAvailability;
   /**
    * quick_script: checks one brokered SDK call against the conversation's
    * permission policy as if it were a direct call to `toolName` with `args`.

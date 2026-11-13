@@ -1,5 +1,6 @@
 import { ConversationTitleService } from "../../domains/conversation-titles/title.service.js";
 import { projectGitRemotes } from "../../core-host/project-git-remotes.js";
+import { quickScriptAvailability } from "../../core-host/quick-script-availability.js";
 import { capabilityToolNameSchema } from "@nervekit/contracts/capabilities";
 import { ProjectMigrationService } from "../../infrastructure/configuration/project-migration/project-migration.js";
 import { projectMigrationTrust } from "../../infrastructure/configuration/project-migration/project-migration-trust.js";
@@ -363,6 +364,10 @@ export function createConversationCore(
                   enabled: quickScriptWeb?.enabled === true,
                   search: Boolean(tavilyKey),
                 },
+                namespaces: quickScriptAvailability(settings, [], {
+                  jira: atlassianAccounts.has("jira"),
+                  confluence: atlassianAccounts.has("confluence"),
+                }),
                 authorizeNested: (request) =>
                   // Only a person's approval of the script sets the ceiling: the
                   // admission stored on the tool call says whether a rule allowed

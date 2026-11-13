@@ -17,3 +17,8 @@ export * from "./shell/shell-config.js";
 export * from "./atlassian/connection-check.js";
 export * from "./quick-script/script-risk.js";
 export * from "./quick-script/description.js";
+export type {
+  NamespaceAvailability,
+  QuickScriptAvailability,
+} from "./quick-script/extensions/manifest-types.js";
+export { builtinExtensions } from "./quick-script/extensions/registry.js";

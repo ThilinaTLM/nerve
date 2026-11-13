@@ -73,6 +73,8 @@ export type SdkEnvironment = {
   jiraFields: () => Promise<JiraFieldInfo[]>;
   /** Confluence space keys by id, fetched lazily and cached per script run. */
   confluenceSpaceKeys: (ids: string[]) => Promise<Map<string, string>>;
+  /** Characters of `sdk.*` text returned so far; discovery shares one budget per run. */
+  discovery: { used: number };
   /** What the run produced; appended to the tool result automatically. */
   report: {
     pages: PageReport[];
@@ -88,14 +90,8 @@ export type SdkEnvironment = {
   };
 };
 
-export type SdkProduct =
-  | "atlassian"
-  | "jira"
-  | "confluence"
-  | "diagram"
-  | "files"
-  | "image"
-  | "web";
+/** A namespace id: the global a method lives on (`jira`, `files`, `sdk`). */
+export type SdkProduct = string;
 
 export type PreparedCall = {
   /** The direct tool the call is checked as; absent for calls with no external effect (own artifacts). */
@@ -126,7 +122,7 @@ export type SdkMethod = {
   path: string;
   /** Upper bound of the method's effect; the script scanner and the runtime ceiling start from it. */
   risk: MethodRisk;
-  /** TypeScript method declaration, optionally led by a one-line JSDoc comment; generates the guide's `references/*.d.ts` (sdk-dts.ts). */
+  /** TypeScript method declaration, optionally led by a one-line JSDoc comment; generates the declarations `sdk.describe` serves (sdk-dts.ts). */
   signature: string;
   /**
    * Validates the script's arguments (throws on bad input) and returns what

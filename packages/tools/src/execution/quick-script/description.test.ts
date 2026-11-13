@@ -1,41 +1,68 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { quickScriptDescription } from "./description.js";
+import { builtinExtensions } from "./extensions/registry.js";
 
-void test("without integrations the description lists only utilities", () => {
+const ALL = builtinExtensions.flatMap((extension) =>
+  (extension.contributes.sdk ?? []).map((namespace) => namespace.id),
+);
+
+/** Description size cap (characters) with every namespace configured; raise it only on purpose. */
+const MAX_DESCRIPTION_CHARS = 3_200;
+/** Cap for one namespace's summary plus rules. */
+const MAX_NAMESPACE_CHARS = 420;
+
+void test("without extensions the description lists the runtime only", () => {
   const text = quickScriptDescription();
-  assert.doesNotMatch(
-    text,
-    /Integrations:|jira|confluence|Write to integrations/,
-  );
+  assert.doesNotMatch(text, /jira|confluence|Write to Jira/);
   assert.match(text, /^Run a sandboxed TypeScript script/);
+  assert.match(text, /Namespaces: files \([^)]*\); image \([^)]*\)\./);
   assert.match(
     text,
-    /\nUtilities: files, XLSX, Papa, docx \+ mammoth \(Word\), PptxGenJS \+ pptxText \(PowerPoint\), image, diagram \(Kroki\)\.\n/,
+    /\nLibraries: XLSX, Papa, docx, mammoth, PptxGenJS, pptxText, JSZip\.\n/,
   );
-  assert.match(text, /Read \{\{skill:quick-script\}\} before first use\.$/);
+  assert.match(text, /sdk\.describe\("<namespace>"\)/);
+  assert.doesNotMatch(text, /\{\{/);
 });
 
-void test("integration fragments appear in fixed order, only when active", () => {
-  const both = quickScriptDescription({
-    integrations: ["confluence", "jira"],
+void test("namespaces appear in registry order, only when configured, with their rules", () => {
+  const text = quickScriptDescription({
+    namespaces: ["web", "jira", "atlassian"],
   });
-  assert.match(both, /Integrations: jira \([^)]*\), confluence \([^)]*\)\./);
-  assert.match(both, /Write to integrations only on explicit user request\./);
-  const jiraOnly = quickScriptDescription({ integrations: ["jira"] });
-  assert.doesNotMatch(jiraOnly, /confluence/);
+  assert.match(text, /atlassian \([^)]*\); jira \([^)]*\); web \([^)]*\)\./);
+  assert.match(
+    text,
+    /\natlassian: Write to Jira and Confluence only on explicit user request/,
+  );
+  assert.doesNotMatch(text, /confluence \(|diagram \(/);
+  assert.match(text, /web: `web\.fetch` content can be up to 8 MiB/);
 });
 
-void test("web lists search only with a Tavily account, and alone does not announce writes", () => {
-  const fetchOnly = quickScriptDescription({ integrations: ["web"] });
-  assert.match(fetchOnly, /Integrations: web \(fetch\)\./);
-  assert.doesNotMatch(fetchOnly, /Write to integrations/);
-  const withSearch = quickScriptDescription({
-    integrations: ["web", "web.search"],
-  });
-  assert.match(withSearch, /Integrations: web \(fetch, search\)\./);
+void test("the description is stable for one configuration and independent of availability", () => {
+  assert.equal(
+    quickScriptDescription({ namespaces: ["jira"] }),
+    quickScriptDescription({ namespaces: ["jira"] }),
+  );
   assert.doesNotMatch(
-    quickScriptDescription({ integrations: ["web.search"] }),
-    /web/,
+    quickScriptDescription({ namespaces: ALL }),
+    /\d+ methods|unavailable/,
   );
+});
+
+void test("the full description stays under its size cap", () => {
+  const text = quickScriptDescription({ namespaces: ALL });
+  assert.ok(text.length <= MAX_DESCRIPTION_CHARS, `${text.length} characters`);
+});
+
+void test("each namespace contributes a short summary and at most three rules", () => {
+  for (const extension of builtinExtensions)
+    for (const namespace of extension.contributes.sdk ?? []) {
+      const rules = namespace.rules ?? [];
+      assert.ok(rules.length <= 3, `${namespace.id} has ${rules.length} rules`);
+      const size = [namespace.summary, ...rules].join("").length;
+      assert.ok(
+        size <= MAX_NAMESPACE_CHARS,
+        `${namespace.id}: ${size} characters`,
+      );
+    }
 });

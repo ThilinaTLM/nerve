@@ -49,6 +49,7 @@ export const bundleAssets: [source: string, destination: string][] = [
   ["packages/skills/dist/builtin", "dist/builtin"],
   ["packages/skills/dist/guides", "dist/guides"],
   ["packages/tools/dist/sandbox-libraries", "dist/sandbox-libraries"],
+  ["packages/tools/dist/quick-script-docs", "dist/quick-script-docs"],
 ];
 
 /** Files every bundled desktop dist must contain (relative to the package root). */
@@ -63,6 +64,7 @@ export const bundleOutputFiles = [
   "dist/sandbox-libraries/mammoth.browser.min.js",
   "dist/sandbox-libraries/pptxgen.bundle.js",
   "dist/sandbox-libraries/jszip.min.js",
+  "dist/quick-script-docs/runtime/files.md",
   "build/README.md",
   "THIRD-PARTY-LICENSES.txt",
 ];
