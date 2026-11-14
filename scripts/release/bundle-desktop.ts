@@ -34,7 +34,7 @@ export const bundleEntryPoints: Record<string, string> = {
   daemon: "packages/workbench-server/dist/main.js",
   // Worker/subprocess entrypoints, named as their referencing code expects.
   "html-to-markdown.worker":
-    "packages/tools/dist/execution/atlassian/html-to-markdown.worker.js",
+    "packages/tools/dist/execution/web/html-to-markdown.worker.js",
   "git-isolated-reader-helper":
     "packages/tools/dist/git/read/git-isolated-reader-helper.js",
   worker:
