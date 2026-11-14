@@ -24,10 +24,6 @@ Separate proposal when phase 2 lands. Scope:
 - Two trust tiers were sketched: sandbox-only extensions (pure JS, skills, themes; no host authority) and host extensions (trusted daemon code behind the same nested authorization).
 - Trust of project-contributed extensions follows the exact-content trust of project files.
 
-## Open items
+## Follow-ups
 
-- **Permission exceptions naming extension tools.** Rule exceptions with `tool: "<name>"` validate against core tool names only, because contracts cannot see the runtime registry; extension tools are matched through their `quick_script` operation (`web.search`). Decide how contracts learn extension tool names, or keep operations as the only route.
-- **Account test hook UX.** The Settings "Test" button words the four failure reasons; whether it should also show what was checked, or run automatically after saving, is open.
-- **Planning rule set names built-in namespaces.** `planning.json` allows network reads in the Atlassian and web namespaces by name, a reviewed exception to the naming rule. A namespace flag such as `research: true` would let the rule set derive it.
-- **Dropped:** GIF and WebP dimensions and conversion for Atlassian uploads (SVG is rejected). Reopen only if agents need them.
-- **Unverified:** whether the image generation backend's HTTP 403 is an account restriction or a request problem; confirm before wording a fix for it.
+Small gaps, decisions and unverified paths left by phase 1 are in [extension-follow-ups](../extension-follow-ups.md).
