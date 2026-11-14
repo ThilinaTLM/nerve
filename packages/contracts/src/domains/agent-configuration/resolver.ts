@@ -49,7 +49,7 @@ const builtin: LeadSettingsOverrides = {
     python_exec: { enabled: true, settings: {} },
     web_search: { enabled: true },
     web_fetch: { enabled: true },
-    quick_script: { enabled: false },
+    quick_script: { enabled: true },
     explain_image: {
       enabled: false,
       settings: defaultSettings.tools.imageExplanation,
