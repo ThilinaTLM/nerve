@@ -1,11 +1,10 @@
 export type { Project } from "@nervekit/contracts/core";
 export type { MaintenanceOperation } from "@nervekit/contracts/maintenance";
 export type {
-  AtlassianProfile,
+  AccountView,
   ColorTheme,
   HeaderType,
   Settings,
-  TavilyProfile,
   TranscriptionModel,
   UpdateSettingsRequest,
 } from "@nervekit/contracts/settings";

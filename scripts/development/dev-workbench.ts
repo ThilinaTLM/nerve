@@ -40,15 +40,9 @@ try {
       "@nervekit/harness",
       "--filter",
       "@nervekit/tools",
-      "@nervekit/quick-script",
-      ...(!uiOnly
-        ? [
-            "--filter",
-            "@nervekit/skills",
-            "--filter",
-            "@nervekit/conversation-core",
-          ]
-        : []),
+      "--filter",
+      "@nervekit/extensions",
+      ...(!uiOnly ? ["--filter", "@nervekit/conversation-core"] : []),
       "build",
     ],
     options,

@@ -27,6 +27,7 @@ function descriptor(definition: ToolDefinition): ToolDescriptor {
     argumentSensitive: Boolean(definition.classifyRisk),
     description: definition.description,
     group: definition.group,
+    ...(definition.extension ? { extension: definition.extension.id } : {}),
     executionKind: definition.executionKind,
     traits: [...definition.traits],
     permission: {

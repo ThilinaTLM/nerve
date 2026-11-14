@@ -5,9 +5,11 @@ import {
   quickScriptToolRisk,
   quickScriptRiskOfMethod,
   findQuickScriptNamespace,
+  type QuickScriptRegistry,
   describeQuickScriptRisk,
   type QuickScriptRisk,
-} from "@nervekit/quick-script";
+} from "@nervekit/tools/quick-script";
+import { hostRegistry } from "./host-tools.js";
 import {
   ToolExecutionError,
   type QuickScriptNestedRequest,
@@ -35,14 +37,13 @@ export type QuickScriptRequest = QuickScriptNestedRequest;
 
 const MAX_STALE_RETRIES = 5;
 
-/** Direct tools a quick-script SDK call may still be authorized as: `read` / `write` / `edit` for workspace files and `web_fetch` / `web_search` for the web namespace. */
+/** Direct tools a quick-script SDK call may still be authorized as: `read` / `write` / `edit` for workspace files and `web_fetch` for `web.fetch`. */
 function brokerableDirectTool(toolName: string): boolean {
   return (
     toolName === "read" ||
     toolName === "write" ||
     toolName === "edit" ||
-    toolName === "web_fetch" ||
-    toolName === "web_search"
+    toolName === "web_fetch"
   );
 }
 
@@ -58,6 +59,7 @@ function brokerableDirectTool(toolName: string): boolean {
  */
 export function createQuickScriptAuthorizer(
   prepareAdmission: PrepareAdmission,
+  registry: QuickScriptRegistry = hostRegistry,
 ) {
   return async (
     call: QuickScriptCall,
@@ -69,7 +71,14 @@ export function createQuickScriptAuthorizer(
     let risk: QuickScriptRisk;
     if ("operation" in request) {
       const [namespace] = request.operation.split(".");
-      if (!namespace || !findQuickScriptNamespace(namespace))
+      // An operation belongs to a namespace, or to an extension's own direct tool (`<extension>.<tool>`).
+      if (
+        !namespace ||
+        !(
+          findQuickScriptNamespace(namespace, registry) ??
+          registry?.extensions.find((extension) => extension.id === namespace)
+        )
+      )
         throw new ToolExecutionError(
           "NESTED_DENIED",
           `${request.operation}: not available to quick_script`,

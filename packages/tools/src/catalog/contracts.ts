@@ -11,6 +11,7 @@ import type {
   ToolExecutionResult,
 } from "../execution/execution-context.js";
 import type { AgentResultPolicy } from "../result-projection/types.js";
+import type { ToolPermissionMetadata } from "./permission-metadata.js";
 
 export type CoreToolExecutionMode = "sequential" | "parallel";
 export type ToolArgumentRiskClassifier = (
@@ -47,6 +48,10 @@ interface ToolDefinitionBase<TParams extends TObject = TObject> {
     durableAllow: "never" | "tool" | "target";
     targets?: readonly ToolPermissionTargetDescriptor[];
   };
+  /** The extension that contributes the tool (`id`), absent for core tools; the Tools page groups by it. */
+  extension?: { id: string; name: string };
+  /** Permission metadata of a tool the core manifest does not know (extension tools). */
+  permissionMetadata?: ToolPermissionMetadata;
   /** Host/model-only semantic result projection policy; never exposed publicly. */
   agentResult?: AgentResultPolicy;
 }

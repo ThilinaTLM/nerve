@@ -1,4 +1,6 @@
 import type { CapabilityToolName } from "@nervekit/contracts/capabilities";
+import type { AccountKind } from "@nervekit/contracts/extensions";
+import type { AccountView } from "@nervekit/contracts/settings";
 export type ToolId = CapabilityToolName;
 
 /** The editable shape shared by every tool: all fields optional. */
@@ -32,12 +34,6 @@ export const toolRows: readonly ToolRowDef[] = [
     configurable: true,
   },
   {
-    id: "web_search",
-    label: "Web search",
-    description: "Search the web through Tavily.",
-    configurable: false,
-  },
-  {
     id: "web_fetch",
     label: "Web fetch",
     description: "Fetch a URL as readable markdown.",
@@ -53,7 +49,7 @@ export const toolRows: readonly ToolRowDef[] = [
     id: "quick_script",
     label: "Quick script",
     description:
-      "Run short TypeScript scripts that call the enabled extensions (Jira, Confluence, web, diagrams, images) and document utilities.",
+      "Run short TypeScript scripts that call the enabled extensions and document utilities.",
     configurable: false,
   },
   {
@@ -78,27 +74,40 @@ export function toolRow(id: ToolId): ToolRowDef {
 
 export type AccountOption = { id: string; name: string; detail?: string };
 
-/** Account kinds the user manages in an extension's Accounts section. */
-export type AccountKind = "tavily" | "atlassian";
+/** Every account the user can pick from, by account kind. */
+export type AccountOptions = Record<string, AccountOption[]>;
 
-/** Every account the user can pick from, by kind. */
-export type AccountOptions = Record<AccountKind, AccountOption[]>;
+/** The account's first filled field in the kind's order, e.g. the site URL. */
+function accountDetail(
+  kind: AccountKind | undefined,
+  account: AccountView,
+): string | undefined {
+  for (const key of Object.keys(kind?.fields ?? {})) {
+    const value = account.fields[key];
+    if (key !== "name" && typeof value === "string" && value) return value;
+  }
+  return undefined;
+}
+
 export function accountOptions(
-  providers:
-    | {
-        tavilyProfiles: AccountOption[];
-        atlassianProfiles: { id: string; name: string; siteUrl?: string }[];
-      }
-    | undefined,
+  accounts: readonly AccountView[],
+  kinds: readonly AccountKind[],
 ): AccountOptions {
-  return {
-    tavily: providers?.tavilyProfiles ?? [],
-    atlassian: (providers?.atlassianProfiles ?? []).map((p) => ({
-      id: p.id,
-      name: p.name,
-      detail: p.siteUrl,
-    })),
-  };
+  const options: AccountOptions = Object.fromEntries(
+    kinds.map(({ kind }) => [kind, []]),
+  );
+  for (const account of accounts) {
+    const detail = accountDetail(
+      kinds.find(({ kind }) => kind === account.kind),
+      account,
+    );
+    (options[account.kind] ??= []).push({
+      id: account.id,
+      name: account.name,
+      ...(detail ? { detail } : {}),
+    });
+  }
+  return options;
 }
 
 export type ToolDisplayContext = {

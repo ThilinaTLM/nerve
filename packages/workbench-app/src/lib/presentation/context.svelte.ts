@@ -63,13 +63,6 @@ export interface VoiceInputCapability {
   AudioAuthDialog: Component<any>;
 }
 
-export interface AtlassianLinkCapability {
-  /** Reactive getter; returns undefined until settings are known. */
-  jiraSiteUrl: () => string | undefined;
-  /** Reactive getter; returns undefined until settings are known. */
-  confluenceSiteUrl: () => string | undefined;
-}
-
 export interface SubagentsCapability {
   /** Reactive getter: sub-agents, newest parent prompt first (then creation time and name). */
   list: () => readonly SubagentRef[];
@@ -136,8 +129,6 @@ export interface ConversationUiCapabilities {
    * large; callers then keep their placeholder.
    */
   imageSource?: (path: string) => Promise<string | undefined>;
-  /** Site URLs used to build external Jira/Confluence links. */
-  atlassian?: AtlassianLinkCapability;
 }
 
 const KEY = Symbol.for("nerve.conversationUi.capabilities");

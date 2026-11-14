@@ -246,11 +246,11 @@ const pendingGuides: ResolvedGuide[] = [
     completed: false,
   }),
   guide({
-    id: "web-search",
+    id: "agent-defaults",
     version: 1,
-    title: "Set up web search",
+    title: "Configure agent defaults",
     description:
-      "Add a Tavily API key to let agents use the web_search tool for current information.",
+      "Choose the profile, permissions, model, and thinking defaults used by new agents.",
     category: "setup",
     priority: "optional",
     actionLabel: "Start guide",

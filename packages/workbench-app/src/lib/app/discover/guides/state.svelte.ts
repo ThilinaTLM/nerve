@@ -12,8 +12,6 @@ import {
   openConversationHistory,
 } from "$lib/features/conversations/state/composer-signals.svelte";
 import { settingsState } from "$lib/features/settings/state/settings-state.svelte";
-import { selectedAtlassianAccountId } from "$lib/application/extensions/selected-accounts.svelte";
-import { atlassianProfileReady } from "$lib/features/settings/views/pages/providers/provider-profiles";
 import { openSettingsPane } from "$lib/application/settings/settings-actions.svelte";
 import {
   captureCenterTabsPresentation,
@@ -77,37 +75,11 @@ export function voiceConfigured(): boolean {
   return hasChatGptAudioAuth(settingsState.authProviders);
 }
 
-/** The Atlassian account the extension selects exists and has its token. */
-export function atlassianConfigured(): boolean {
-  const selected = selectedAtlassianAccountId();
-  const profile = settingsState.settingsDraft?.providers.atlassianProfiles.find(
-    (candidate) => candidate.id === selected,
-  );
-  return Boolean(
-    profile && atlassianProfileReady(profile, settingsState.authProviders),
-  );
-}
-
-export function webSearchConfigured(): boolean {
-  return Boolean(
-    settingsState.settingsDraft?.providers.tavilyProfiles.some((profile) =>
-      settingsState.authProviders.some(
-        (provider) =>
-          provider.provider === `tavily:${profile.id}` &&
-          provider.configured &&
-          provider.credentialType === "api_key",
-      ),
-    ),
-  );
-}
-
 function guideSignals(): GuideSignals {
   return {
     "project-open": Boolean(workspaceSelectors.activeProject),
-    "atlassian-ready": atlassianConfigured(),
     "provider-ready": providerConfigured(),
     "voice-ready": voiceConfigured(),
-    "web-search-ready": webSearchConfigured(),
   };
 }
 

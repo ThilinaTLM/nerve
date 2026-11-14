@@ -9,16 +9,20 @@ import type { AgentConfigurationService } from "../infrastructure/configuration/
 import { loadHarnessResources } from "./resource-loader.js";
 import { buildNerveSystemPrompt } from "./nerve-system-prompt.js";
 import { withAgentProfiles } from "./turn-resources.adapter.js";
-import { resolveSkillPlaceholders } from "@nervekit/skills";
+import { resolveSkillPlaceholders } from "../builtin-skills/index.js";
 import { isToolEnabled } from "./tool-enablement.js";
-import { quickScriptDescription } from "@nervekit/quick-script";
 import {
   configuredNamespaces,
-  quickScriptAvailability,
-  selectedSearchAccount,
-  type AccountDirectory,
-} from "./quick-script-availability.js";
+  quickScriptDescription,
+  type QuickScriptRegistry,
+} from "@nervekit/tools/quick-script";
 import type { ExtensionResolution } from "@nervekit/contracts/extensions";
+import type { AccountsReader } from "../domains/accounts/accounts.service.js";
+import {
+  extensionAvailability,
+  extensionToolOffered,
+} from "./extension-availability.js";
+import { createExtensionPorts } from "./extension-ports.js";
 
 const blocked = new Set<string>(subagentBlockedToolNames);
 
@@ -33,11 +37,13 @@ export function scopedTurnResources(options: {
   nerveSkills(): readonly Skill[];
   agentBrowserSkills(): readonly Skill[];
   hasChildren(id: string): boolean;
+  /** The extensions the host serves. */
+  registry: QuickScriptRegistry;
   /** Resolved extension settings and the home's accounts, for this conversation. */
   extensions(
     conversationId: string | undefined,
     projectId: string,
-  ): Promise<{ resolution: ExtensionResolution; accounts: AccountDirectory }>;
+  ): Promise<{ resolution: ExtensionResolution; accounts: AccountsReader }>;
 }) {
   return async (
     input: ConfigurationPreviewInput,
@@ -50,9 +56,16 @@ export function scopedTurnResources(options: {
       input.conversation.id,
       input.conversation.projectId,
     );
-    const directAccounts = {
-      search: Boolean(selectedSearchAccount(resolution, accounts)),
-    };
+    // Direct tools of extensions are offered while the extension (and its switch) is on and its requirements are met.
+    const offered = await extensionAvailability(
+      options.registry,
+      resolution,
+      accounts,
+      {
+        checkSecrets: true,
+        ports: createExtensionPorts({ resolution, accounts }),
+      },
+    );
     const selected = [
       ...(await options.tools(
         input.projectDir,
@@ -63,7 +76,8 @@ export function scopedTurnResources(options: {
     ].filter(
       (tool) =>
         !(child && blocked.has(tool.name)) &&
-        isToolEnabled(tool.name, settings, missingReferences, directAccounts),
+        isToolEnabled(tool.name, settings, missingReferences) &&
+        extensionToolOffered(offered, tool.name),
     );
     const profiles = [];
     if (!child && selected.some((tool) => tool.name === "subagent_prompt"))
@@ -83,6 +97,24 @@ export function scopedTurnResources(options: {
             permission: "Independent child policy",
           });
       }
+    // Only configured namespaces: unavailability stays out of the description so credential changes keep the prompt prefix.
+    const quickScriptText = quickScriptDescription(
+      {
+        namespaces: configuredNamespaces(
+          (
+            await extensionAvailability(
+              options.registry,
+              resolution,
+              accounts,
+              {
+                checkSecrets: false,
+              },
+            )
+          ).namespaces,
+        ),
+      },
+      options.registry,
+    );
     const tools = withAgentProfiles(
       selected,
       profiles,
@@ -93,13 +125,7 @@ export function scopedTurnResources(options: {
       ...tool,
       description:
         resolveSkillPlaceholders(
-          tool.name === "quick_script"
-            ? quickScriptDescription({
-                namespaces: configuredNamespaces(
-                  quickScriptAvailability(resolution, accounts),
-                ),
-              })
-            : tool.description,
+          tool.name === "quick_script" ? quickScriptText : tool.description,
         ) +
         (tool.name === "plan_present"
           ? `\n\nWrite the plan under: ${join(options.home, "data", "plans")}`

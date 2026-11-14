@@ -15,7 +15,6 @@ export function hasMeaningfulDurableBody(view: ToolView | undefined): boolean {
       return (
         view.hostCalls.length > 0 ||
         view.plannedOperations.length > 0 ||
-        view.pages.length > 0 ||
         view.artifacts.length > 0 ||
         (view.status !== undefined && view.status !== "completed")
       );

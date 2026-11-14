@@ -3,6 +3,11 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import type { ToolCallRecord } from "../../state/tool-types";
 import { toolLifecycleSpec } from "../lifecycle/registry";
+import {
+  displayArtifactHandles,
+  displayLinks,
+  displayTable,
+} from "./extension-display";
 import { parseToolView, parseToolViewCached } from "./tool-result-parser";
 
 function call(
@@ -373,7 +378,7 @@ describe("quick_script result", () => {
     assert.equal(view.kind === "quick_script" && view.artifacts.length, 0);
   });
 
-  it("reads page lint reports and keeps a failed script outcome", () => {
+  it("keeps a failed script outcome", () => {
     const view = parseToolView(
       call(
         "quick_script",
@@ -385,24 +390,86 @@ describe("quick_script result", () => {
             error: "boom",
             durationMs: 5,
             hostCalls: [],
-            pages: [
+          },
+        },
+      ),
+    );
+    if (view.kind !== "quick_script") assert.fail("wrong kind");
+    assert.equal(view.status, "failed");
+    assert.equal(outcomeLabel({ status: "completed" }, view), "failed");
+    assert.equal(outcomeLabel({ status: "denied" }, view), "denied");
+  });
+});
+
+describe("extension tool result", () => {
+  it("is rendered by the display kind the extension names, for any tool", () => {
+    const view = parseToolView(
+      call(
+        "any_extension_tool",
+        { query: "nerve" },
+        {
+          content: "[]",
+          details: {
+            extension: "demo",
+            tool: "any_extension_tool",
+            display: {
+              kind: "links",
+              value: [{ title: "T", url: "https://x.test" }],
+            },
+            artifacts: [
               {
-                action: "created",
-                id: "1",
-                title: "Runbook",
-                version: 1,
-                fixes: ["a"],
-                warnings: [],
+                handle: "artifact:a.png",
+                path: "/c/a.png",
+                bytes: 3,
+                mediaType: "image/png",
               },
             ],
           },
         },
       ),
     );
-    if (view.kind !== "quick_script") assert.fail("wrong kind");
-    assert.equal(view.pages[0]?.title, "Runbook");
-    assert.equal(view.status, "failed");
-    assert.equal(outcomeLabel({ status: "completed" }, view), "failed");
-    assert.equal(outcomeLabel({ status: "denied" }, view), "denied");
+    assert.ok(view.kind === "extension");
+    assert.equal(view.extension, "demo");
+    assert.equal(view.display.kind, "links");
+    assert.equal(view.artifacts[0]?.handle, "artifact:a.png");
+  });
+
+  it("falls back to the generic view without display details", () => {
+    const view = parseToolView(
+      call("any_extension_tool", {}, { content: "plain" }),
+    );
+    assert.equal(view.kind, "generic");
+  });
+});
+
+describe("display kinds", () => {
+  it("read links, tables and artifact handles tolerantly", () => {
+    assert.deepEqual(
+      displayLinks([
+        { title: "A", url: "https://a.test", snippet: "s" },
+        { name: "B", href: "https://b.test", content: "c" },
+        { title: "no url" },
+      ]),
+      [
+        { title: "A", url: "https://a.test", snippet: "s" },
+        { title: "B", url: "https://b.test", snippet: "c" },
+      ],
+    );
+    assert.deepEqual(displayTable([{ a: 1, b: "x" }, { a: 2 }]), {
+      columns: ["a", "b"],
+      rows: [
+        ["1", "x"],
+        ["2", ""],
+      ],
+    });
+    assert.deepEqual(displayTable({ columns: ["k"], rows: [["v"]] }), {
+      columns: ["k"],
+      rows: [["v"]],
+    });
+    assert.equal(displayTable("nope"), undefined);
+    assert.deepEqual(
+      displayArtifactHandles(["artifact:a", { handle: "artifact:b" }, 3]),
+      ["artifact:a", "artifact:b"],
+    );
   });
 });

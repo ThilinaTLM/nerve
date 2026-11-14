@@ -47,52 +47,6 @@ const permissionSettingsSchema = z.object({
   exceptions: permissionExceptionListSchema,
 });
 
-export const atlassianProfileSchema = z.object({
-  id: z.string().min(1),
-  name: z.string().trim().min(1),
-  siteUrl: z.string().trim().url().optional(),
-  email: z.string().trim().email().optional(),
-  defaultProjectKey: z.string().trim().min(1).optional(),
-  defaultSpaceKey: z.string().trim().min(1).optional(),
-});
-export type AtlassianProfile = z.infer<typeof atlassianProfileSchema>;
-
-export const tavilyProfileSchema = z.object({
-  id: z.string().min(1),
-  name: z.string().trim().min(1),
-});
-export type TavilyProfile = z.infer<typeof tavilyProfileSchema>;
-
-function uniqueProfileIds<T extends { id: string }>(
-  profiles: T[],
-  context: z.RefinementCtx,
-): void {
-  const seen = new Set<string>();
-  for (const [index, profile] of profiles.entries()) {
-    if (seen.has(profile.id)) {
-      context.addIssue({
-        code: "custom",
-        message: `Duplicate profile id '${profile.id}'`,
-        path: [index, "id"],
-      });
-    }
-    seen.add(profile.id);
-  }
-}
-
-const atlassianProfilesSchema = z
-  .array(atlassianProfileSchema)
-  .superRefine(uniqueProfileIds);
-const tavilyProfilesSchema = z
-  .array(tavilyProfileSchema)
-  .superRefine(uniqueProfileIds);
-
-export const providersSettingsSchema = z.object({
-  atlassianProfiles: atlassianProfilesSchema,
-  tavilyProfiles: tavilyProfilesSchema,
-});
-export type ProvidersSettings = z.infer<typeof providersSettingsSchema>;
-
 const bashAutoPromotionSettingsSchema = z.object({
   enabled: z.boolean(),
   afterMs: z.number().int().positive().max(86_400_000),
@@ -130,46 +84,6 @@ export const imageExplanationToolSettingsSchema = z.object({
 export type ImageExplanationToolSettings = z.infer<
   typeof imageExplanationToolSettingsSchema
 >;
-
-export const krokiToolSettingsSchema = z
-  .object({
-    url: z
-      .string()
-      .trim()
-      .min(1)
-      .max(2_048)
-      .url()
-      .refine(
-        (value) => {
-          try {
-            const url = new URL(value);
-            return (
-              ["http:", "https:"].includes(url.protocol) &&
-              !url.username &&
-              !url.password &&
-              !url.search &&
-              !url.hash
-            );
-          } catch {
-            return false;
-          }
-        },
-        {
-          message:
-            "Use an HTTP(S) URL without credentials, query parameters, or fragments.",
-        },
-      )
-      .transform((value) => {
-        const url = new URL(value);
-        if (!url.pathname.endsWith("/")) url.pathname += "/";
-        return url.href;
-      }),
-  })
-  .strict();
-export type KrokiToolSettings = z.infer<typeof krokiToolSettingsSchema>;
-export const defaultKrokiToolSettings: KrokiToolSettings = {
-  url: "https://kroki.io/",
-};
 
 const toolSettingsSchema = z.object({
   disabled: disabledToolListSchema,
@@ -300,7 +214,6 @@ export const settingsSchema = z.object({
     baseDelayMs: z.number().int().positive(),
   }),
   permissions: permissionSettingsSchema,
-  providers: providersSettingsSchema,
   tools: toolSettingsSchema,
   skills: z.object({
     disabled: z.array(z.string().min(1)),
@@ -349,7 +262,6 @@ export const defaultSettings: Settings = {
     baseDelayMs: 2000,
   },
   permissions: { exceptions: [] },
-  providers: { atlassianProfiles: [], tavilyProfiles: [] },
   tools: {
     disabled: ["plan_present", "explain_image", ...subagentToolNames],
     bash: {
@@ -414,12 +326,6 @@ export const updateSettingsRequestSchema = z.strictObject({
   permissions: z
     .object({
       exceptions: permissionExceptionListSchema.optional(),
-    })
-    .optional(),
-  providers: z
-    .object({
-      atlassianProfiles: atlassianProfilesSchema.optional(),
-      tavilyProfiles: tavilyProfilesSchema.optional(),
     })
     .optional(),
 });

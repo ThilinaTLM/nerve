@@ -36,8 +36,12 @@ export function hasSharedToolViewBody(view: ViewWithSharedBody): boolean {
         : view.action === "status"
           ? view.rows.length > 0 || Boolean(view.header)
           : view.lines.length > 0;
-    case "web_search":
-      return Boolean(view.answer || view.results.length);
+    case "extension":
+      return Boolean(
+        view.display.value !== undefined ||
+        view.resultText?.length ||
+        view.artifacts.length,
+      );
     case "web_fetch":
       return Boolean(view.content?.length);
     case "explain_image":

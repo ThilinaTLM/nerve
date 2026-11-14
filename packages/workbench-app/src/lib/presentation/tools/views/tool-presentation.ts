@@ -15,6 +15,7 @@ import type { ToolPresentation } from "./tool-presentation-types";
 import type { ToolCallDisplayRecord } from "./tool-result-parser";
 import { COLLAPSED_LINES, type ToolView } from "./tool-result-view";
 import { presentToolArguments } from "../lifecycle/registry";
+import { displayItemCount } from "./extension-display";
 import { subagentPresentation } from "./subagent-presentation";
 
 export type { ToolPresentation } from "./tool-presentation-types";
@@ -373,16 +374,17 @@ function projectToolPresentation(
       };
     }
 
-    case "web_search":
+    case "extension": {
+      const items = displayItemCount(view.display);
       return {
         ...base,
-        primaryArg: view.query ? { text: view.query } : undefined,
-        meta: [
-          { text: plural(view.results.length, "result") },
-          ...outputMeta(view),
-        ],
-        detailsAction: detailsActionFor(view.results.length, "results"),
+        meta: items ? [{ text: plural(items.count, items.noun) }] : [],
+        detailsAction: items
+          ? (previewDetailsAction ??
+            detailsActionFor(items.count, `${items.noun}s`))
+          : previewDetailsAction,
       };
+    }
 
     case "todos":
       return {

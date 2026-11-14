@@ -2,9 +2,8 @@ import assert from "node:assert/strict";
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { after, describe, it, mock } from "node:test";
+import { after, describe, it } from "node:test";
 import { executeExplainImage } from "../../src/execution/vision/explain-image.js";
-import { executeWebSearch } from "../../src/execution/web/web-search.js";
 
 const roots: string[] = [];
 after(async () => {
@@ -20,38 +19,6 @@ async function artifactFixture(name: string) {
 }
 
 describe("owner-scoped artifact routing", () => {
-  it("stores web-search recovery output in the supplied tool-call directory", async () => {
-    const { root, artifactDir } = await artifactFixture("web-search-owner");
-    const fetchMock = mock.method(
-      globalThis,
-      "fetch",
-      async () =>
-        new Response(
-          JSON.stringify({
-            answer: "x".repeat(300_000),
-            results: [],
-          }),
-          { status: 200, headers: { "content-type": "application/json" } },
-        ),
-    );
-    try {
-      const result = await executeWebSearch(
-        { query: "owner routing" },
-        {
-          cwd: root,
-          artifactDir,
-          getApiKey: async () => "test-key",
-        },
-      );
-      const path = (result.details as { fullOutputPath?: string })
-        .fullOutputPath;
-      assert.equal(path, join(artifactDir, "output.txt"));
-      assert.match(await readFile(path ?? "", "utf8"), /^\*\*Answer:\*\*/);
-    } finally {
-      fetchMock.mock.restore();
-    }
-  });
-
   it("stores image-explanation recovery output in the supplied tool-call directory", async () => {
     const { root, artifactDir } = await artifactFixture("vision-owner");
     const image = join(root, "image.png");

@@ -4,6 +4,10 @@ import { oauthFlowInfoSchema } from "./auth.js";
 
 const workbenchRoles = ["workbench_server"] as const;
 const providerSchema = z.string().min(1).max(128);
+const accountPayloadSchema = z.object({
+  kind: z.string().min(1).max(64),
+  accountId: z.string().min(1).max(256),
+});
 const providerPayloadSchema = z.object({ provider: providerSchema });
 
 export const authEventDefinitions = [
@@ -30,11 +34,14 @@ export const authEventDefinitions = [
     z.object({ flow: oauthFlowInfoSchema }),
     { allowedSourceRoles: workbenchRoles, scope: ["flow.flowId"] },
   ),
-  definePublicEvent(
-    "auth.integration_health_changed",
-    z.object({ profileId: z.string().min(1).max(256) }),
-    { allowedSourceRoles: workbenchRoles, scope: ["profileId"] },
-  ),
+  definePublicEvent("accounts.changed", accountPayloadSchema, {
+    allowedSourceRoles: workbenchRoles,
+    scope: ["accountId"],
+  }),
+  definePublicEvent("accounts.health_changed", accountPayloadSchema, {
+    allowedSourceRoles: workbenchRoles,
+    scope: ["accountId"],
+  }),
   definePublicEvent("auth.credential_deleted", providerPayloadSchema, {
     allowedSourceRoles: workbenchRoles,
     scope: ["provider"],

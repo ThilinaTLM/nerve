@@ -238,6 +238,14 @@ const searchCases: LabeledCard[] = [
     props: { toolCall: vfx.webSearchCompleted, cwd },
   },
   {
+    label: "extension tool (table) — completed",
+    props: { toolCall: vfx.extensionTableCompleted, cwd },
+  },
+  {
+    label: "extension tool (markdown) — completed",
+    props: { toolCall: vfx.extensionMarkdownCompleted, cwd, onOpenFile: noop },
+  },
+  {
     label: "web_fetch — completed",
     props: { toolCall: vfx.webFetchCompleted, cwd, onOpenFile: noop },
   },
@@ -246,7 +254,7 @@ const searchCases: LabeledCard[] = [
     props: { toolCall: vfx.webFetchFailed, cwd },
   },
   {
-    label: "jira_search_issues (removed tool) — recorded call",
+    label: "acme_search_items (removed tool) — recorded call",
     props: { toolCall: vfx.removedToolCompleted, cwd },
   },
   {

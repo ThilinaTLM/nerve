@@ -1,10 +1,13 @@
+import type { AccountView } from "@nervekit/contracts/settings";
 import type {
-  AtlassianProfileHealth,
+  AccountHealth,
+  AccountRef,
   AuthProviderMetadata,
   CredentialKeyResponse,
   EncryptedSecretEnvelope,
   OAuthFlowInfo,
   RespondOAuthFlowRequest,
+  SaveAccountRequest,
 } from "@nervekit/contracts/auth";
 import {
   apiDelete,
@@ -78,21 +81,26 @@ export async function cancelOAuthFlow(flowId: string): Promise<OAuthFlowInfo> {
   ).flow;
 }
 
-export async function listIntegrationHealth(): Promise<
-  AtlassianProfileHealth[]
-> {
-  return (await protocolRequest("auth.integrationHealth.list", {})).result
-    .profiles;
+export async function saveAccount(
+  request: SaveAccountRequest,
+): Promise<AccountView> {
+  return (
+    await protocolRequest("accounts.save", request, {
+      idempotencyKey: crypto.randomUUID(),
+    })
+  ).result.account;
 }
 
-export async function checkIntegrationHealth(
-  profileId: string,
-): Promise<AtlassianProfileHealth> {
+export async function deleteAccount(ref: AccountRef): Promise<void> {
+  await protocolRequest("accounts.delete", ref, {
+    idempotencyKey: crypto.randomUUID(),
+  });
+}
+
+export async function testAccount(ref: AccountRef): Promise<AccountHealth> {
   return (
-    await protocolRequest(
-      "auth.integrationHealth.check",
-      { profileId },
-      { idempotencyKey: crypto.randomUUID() },
-    )
+    await protocolRequest("accounts.test", ref, {
+      idempotencyKey: crypto.randomUUID(),
+    })
   ).result.health;
 }

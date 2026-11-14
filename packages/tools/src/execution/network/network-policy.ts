@@ -165,7 +165,7 @@ export function createPinnedLookup(
   }) as NonNullable<RequestOptions["lookup"]>;
 }
 
-/** GET-style fetch whose socket connects only to the vetted, pinned address. */
+/** Fetch whose socket connects only to the vetted, pinned address. A request body must be a string or bytes. */
 export function createPinnedFetch(resolveHost?: HostResolver): typeof fetch {
   const lookup = createPinnedLookup(resolveHost);
   return async (input: string | URL | Request, init?: RequestInit) => {
@@ -207,7 +207,22 @@ export function createPinnedFetch(resolveHost?: HostResolver): typeof fetch {
         },
       );
       req.on("error", reject);
-      req.end();
+      const body = init?.body;
+      if (body === undefined || body === null) req.end();
+      else if (typeof body === "string" || ArrayBuffer.isView(body))
+        req.end(body);
+      else if (body instanceof ReadableStream) {
+        const source = Readable.fromWeb(body as never);
+        source.on("error", (error) => req.destroy(error));
+        source.pipe(req);
+      } else {
+        req.destroy();
+        reject(
+          new TypeError(
+            "A pinned fetch body must be a string, bytes or a stream.",
+          ),
+        );
+      }
     });
   };
 }

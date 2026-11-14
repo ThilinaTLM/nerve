@@ -84,7 +84,7 @@ function overlay(
 }
 
 test("catalog has complete static policy metadata", () => {
-  // `quick_script` is registered by @nervekit/quick-script; its static metadata is checked here too.
+  // `quick_script` is defined in @nervekit/tools/quick-script; its static metadata is checked here too.
   assert.equal(toolManifest.length, toolNameSchema.options.length - 1);
   for (const definition of toolManifest) {
     const metadata = permissionMetadataForTool(definition.name);
@@ -225,7 +225,6 @@ test("planning separates research, prompted analysis, and mutations", () => {
   );
 
   for (const [toolName, args] of [
-    ["web_search", { query: "Nerve planning" }],
     ["web_fetch", { url: "https://example.com" }],
     ["explain_image", { path: "/workspace/screenshot.png" }],
   ] as const) {

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import type { ImageGenerateRequest } from "@nervekit/quick-script";
+import type { ImageGenerateRequest } from "@nervekit/extension-api";
 import type { ImageGenerationProviderAdapter } from "../../../src/domains/image-generation/image-generation.provider.js";
 import { ImageGenerationService } from "../../../src/domains/image-generation/image-generation.service.js";
 

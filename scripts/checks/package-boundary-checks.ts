@@ -202,7 +202,8 @@ export function checkPackageBoundaries(
   }
 
   function forbiddenContractsImport(specifier: string) {
-    return /^(?:@nervekit\/|hono(?:\/|$)|svelte(?:\/|$)|ws$|better-sqlite3$|sqlite3$)/.test(
+    // `@nervekit/extension-api` is dependency-free types (the manifests contracts validate).
+    return /^(?:@nervekit\/(?!extension-api(?:\/|$))|hono(?:\/|$)|svelte(?:\/|$)|ws$|better-sqlite3$|sqlite3$)/.test(
       specifier,
     );
   }

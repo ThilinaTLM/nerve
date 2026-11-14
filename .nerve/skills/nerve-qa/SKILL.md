@@ -52,7 +52,7 @@ $H copy-secrets --slot N   # slot must be stopped; backs up data/storage-N/secre
 
 What it does:
 
-- Copies API keys (Atlassian, Tavily, provider keys) from `~/.nerve`, read-only, re-encrypted with the slot's own `master.key`, and copies `config/providers.json`. Accounts (`accounts.json` or `integrations.json`, whichever the slot uses) and keys are **merged**: production's win by id, and accounts only the slot has (such as the `Nerve Test` test-site account) are kept.
+- Copies API keys (Atlassian, Tavily, provider keys) from `~/.nerve`, read-only, re-encrypted with the slot's own `master.key`, and copies `config/providers.json`. Accounts are merged in the format the slot uses: production's win by id, and accounts only the slot has (such as the `Nerve Test` test-site account) are kept. A slot that has not run migration 0005 yet gets production's old-format accounts and key names unchanged. A migrated slot (`accounts.json` v2) gets them converted with the migration's own mapping, with keys stored as `provider:account:<kind>:<id>:apiKey`; old-format data is never written to it. A v2 production is copied as is. Copying v2 accounts into an unmigrated slot fails: start the slot once, stop it, then rerun.
 - Copies subscription (OAuth) sessions as the access token and expiry only. **Refresh tokens are never copied**: refresh rotates the token and would log production out. The slot cannot refresh, so once the access token expires, requests fail with a token-refresh error.
 - Prints each OAuth provider's expiry (local time, minutes left). `WARNING ... within 15 minutes` means production may refresh soon; make a production request with that provider first, or rerun later.
 

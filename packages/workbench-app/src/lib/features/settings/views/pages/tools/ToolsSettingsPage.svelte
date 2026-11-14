@@ -1,4 +1,5 @@
 <script lang="ts">
+import { accountsState } from "$lib/application/extensions/accounts-state.svelte";
 import { Callout } from "@nervekit/ui-kit/components/composites/callout";
 import { toolSettingsMutation } from "./tool-settings-mutation";
 import { clampThinkingLevelForModel } from "$lib/presentation/state/thinking-levels";
@@ -9,19 +10,22 @@ import Eye from "@lucide/svelte/icons/eye";
 import Globe from "@lucide/svelte/icons/globe";
 import ListChecks from "@lucide/svelte/icons/list-checks";
 import ScrollText from "@lucide/svelte/icons/scroll-text";
-import Search from "@lucide/svelte/icons/search";
 import SquareTerminal from "@lucide/svelte/icons/square-terminal";
 import Wrench from "@lucide/svelte/icons/wrench";
 import Code from "@lucide/svelte/icons/code";
 import { leadSettingsOverridesSchema } from "@nervekit/contracts/agent-configuration";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
 import { Skeleton } from "@nervekit/ui-kit/components/ui/skeleton";
-import type {
-  AuthProviderMetadata,
-  ModelInfo,
-  Settings,
-  StatusResponse,
+import {
+  listTools,
+  type AuthProviderMetadata,
+  type ModelInfo,
+  type StatusResponse,
 } from "$lib/api";
+import { capabilityToggleToolNameSchema } from "@nervekit/contracts/capabilities";
+import type { ToolDescriptor } from "@nervekit/contracts/tools";
+import { setExtensionToolNames } from "$lib/presentation/tools/lifecycle/extension-tools";
+import { extensionIcon } from "../extensions/extension-icons";
 import { ScopedAgentState } from "$lib/application/agent-configuration/scoped-agent-state.svelte";
 import { ScopedExtensionsState } from "$lib/application/extensions/scoped-extensions-state.svelte";
 import {
@@ -46,7 +50,11 @@ import {
   profileLabelFor,
 } from "../../shared/profile-options.svelte";
 import ToolConfigDialog from "./ToolConfigDialog.svelte";
-import { toolExtensionState, toolSettingsLink } from "./tool-extension-links";
+import {
+  extensionToolState,
+  toolExtensionState,
+  toolSettingsLink,
+} from "./tool-extension-links";
 import {
   accountOptions,
   toolRows,
@@ -59,14 +67,12 @@ import {
 let {
   scope,
   projectId,
-  settingsDraft,
   status,
   models = [],
   authProviders = [],
 }: {
   scope: "user" | "project";
   projectId?: string;
-  settingsDraft: Settings;
   status?: StatusResponse;
   models?: ModelInfo[];
   authProviders?: AuthProviderMetadata[];
@@ -86,7 +92,20 @@ $effect(() => {
   ensureProfilesFor(scope, projectId);
 });
 $effect(() => editor.observe());
-// Web, Atlassian and Quick script rows reflect the extensions they depend on.
+// The direct tools extensions contribute, grouped under their extension below the core tools.
+let toolDescriptors = $state<ToolDescriptor[]>([]);
+$effect(() => {
+  if (!workbenchStartupState.progressiveActive) return;
+  void listTools()
+    .then((tools) => {
+      toolDescriptors = tools;
+      setExtensionToolNames(
+        tools.flatMap((tool) => (tool.extension ? [tool.name] : [])),
+      );
+    })
+    .catch(() => undefined);
+});
+// Web fetch and Quick script rows, and the extension groups, reflect the extensions they depend on.
 const extensions = new ScopedExtensionsState();
 $effect(() => {
   if (!workbenchStartupState.progressiveActive || (project && !projectId))
@@ -96,9 +115,49 @@ $effect(() => {
   );
 });
 $effect(() => extensions.observe());
-const accounts = $derived(accountOptions(settingsDraft.providers));
+const accounts = $derived(
+  accountOptions(accountsState.accounts, accountsState.kinds),
+);
 function extensionState(id: ToolId) {
   return toolExtensionState(id, extensions.view?.extensions, accounts);
+}
+type ExtensionToolGroup = {
+  extensionId: string;
+  name: string;
+  icon: string;
+  tools: ToolDescriptor[];
+};
+const extensionGroups = $derived.by(() => {
+  const groups: ExtensionToolGroup[] = [];
+  for (const tool of toolDescriptors) {
+    if (!tool.extension) continue;
+    let group = groups.find((entry) => entry.extensionId === tool.extension);
+    if (!group) {
+      const owner = extensions.view?.extensions.find(
+        (extension) => extension.metadata.id === tool.extension,
+      );
+      group = {
+        extensionId: tool.extension,
+        name: owner?.metadata.name ?? tool.extension,
+        icon: owner?.metadata.icon ?? "puzzle",
+        tools: [],
+      };
+      groups.push(group);
+    }
+    group.tools.push(tool);
+  }
+  return groups;
+});
+/** An extension tool's row label: its name as words (`web_search` → Web search). */
+function toolLabel(name: string): string {
+  const words = name.replaceAll("_", " ");
+  return words.charAt(0).toUpperCase() + words.slice(1);
+}
+/** The per-profile switch of an extension tool, when it has one (it is a capability toggle). */
+function toolSwitch(name: string): ToolId | undefined {
+  return capabilityToggleToolNameSchema.safeParse(name).success
+    ? (name as ToolId)
+    : undefined;
 }
 function openExtension(item?: string, section?: string) {
   const options = {
@@ -165,7 +224,6 @@ let dialogTool = $state<ToolRowDef>(toolRows[0]);
 const toolIcons: Partial<Record<ToolId, typeof Wrench>> = {
   bash: SquareTerminal,
   python_exec: Code,
-  web_search: Search,
   web_fetch: Globe,
   explain_image: Eye,
   quick_script: ScrollText,
@@ -252,6 +310,61 @@ const python = $derived(status?.runtime.python);
       {/each}
     </SettingsList>
   </SettingsSection>
+
+  {#each extensionGroups as group (group.extensionId)}
+    <SettingsSection
+      title={group.name}
+      description={`Tools from the ${group.name} extension.`}
+    >
+      <SettingsList ariaLabel={`${group.name} tools`}>
+        {#each group.tools as tool (tool.name)}
+          {@const switchId = toolSwitch(tool.name)}
+          {@const fromExtension = extensionToolState(
+            tool.name,
+            group.extensionId,
+            extensions.view?.extensions,
+            accounts,
+          )}
+          <SettingsItem
+            title={toolLabel(tool.name)}
+            icon={extensionIcon(group.icon)}
+            summary={fromExtension?.summary ?? tool.description}
+            problem={fromExtension?.problem}
+            problemAction={fromExtension?.fix
+              ? {
+                  label: fromExtension.fix.label,
+                  onclick: () =>
+                    openExtension(
+                      fromExtension.fix?.extensionId,
+                      fromExtension.fix?.section,
+                    ),
+                }
+              : undefined}
+            always={switchId === undefined}
+            checked={switchId ? payload(switchId).enabled === true : undefined}
+            disabled={locked || fromExtension?.disabled === true}
+            onCheckedChange={(next) => {
+              if (switchId) toggle(switchId, next);
+            }}
+            onOpen={() => openExtension(group.extensionId)}
+            openLabel={`Open ${group.name} extension settings`}
+          >
+            {#snippet meta()}
+              {#if switchId && changed(switchId)}
+                <SettingsChangeIndicator
+                  compact
+                  {scope}
+                  from={summary(switchId, inheritedPayload(switchId))}
+                  to={summary(switchId, payload(switchId))}
+                  onReset={() => reset(switchId)}
+                />
+              {/if}
+            {/snippet}
+          </SettingsItem>
+        {/each}
+      </SettingsList>
+    </SettingsSection>
+  {/each}
 
   <ToolConfigDialog
     bind:open={dialogOpen}

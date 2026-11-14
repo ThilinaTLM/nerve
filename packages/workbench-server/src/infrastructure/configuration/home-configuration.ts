@@ -5,12 +5,10 @@ import { createHash, randomUUID } from "node:crypto";
 import { isDeepStrictEqual } from "node:util";
 import {
   defaultUserConfiguration,
-  type AccountsConfig,
   type Settings,
   type SettingsHealth,
   settingsSchema,
   type UserConfiguration,
-  accountsConfigSchema,
 } from "@nervekit/contracts/settings";
 import type { StoragePaths } from "../storage-bootstrap/paths.js";
 import {
@@ -314,7 +312,7 @@ function configDocuments(
 export function settingsFromConfiguration(
   configuration: UserConfiguration,
 ): Settings {
-  const { daemon, ui, accounts } = configuration;
+  const { daemon, ui } = configuration;
   return settingsSchema.parse({
     ...defaultSettings,
     application: {
@@ -330,20 +328,6 @@ export function settingsFromConfiguration(
     transcription: ui.transcription,
     logging: daemon.logging,
     permissions: { exceptions: [] },
-    providers: {
-      atlassianProfiles: accounts.profiles.atlassian.map((profile) => ({
-        id: profile.id,
-        name: profile.name,
-        siteUrl: profile.siteUrl,
-        email: profile.email,
-        defaultProjectKey: profile.defaultProjectKey,
-        defaultSpaceKey: profile.defaultSpaceKey,
-      })),
-      tavilyProfiles: accounts.profiles.tavily.map((profile) => ({
-        id: profile.id,
-        name: profile.name,
-      })),
-    },
   });
 }
 
@@ -352,7 +336,6 @@ export function configurationWithSettings(
   settings: Settings,
 ): UserConfiguration {
   const parsed = settingsSchema.parse(settings);
-  const accounts = accountsFromSettings(current.accounts, parsed);
   return decodeConfiguration(
     preserveConfigurationExtensions(current, {
       ...current,
@@ -377,7 +360,6 @@ export function configurationWithSettings(
         transcription: parsed.transcription,
       },
       permissions: current.permissions,
-      accounts,
     }),
   );
 }
@@ -393,33 +375,4 @@ function preserveConfigurationExtensions(
     ]),
   ) as unknown as UserConfiguration;
   return merged;
-}
-
-function accountsFromSettings(
-  current: AccountsConfig,
-  settings: Settings,
-): AccountsConfig {
-  const atlassianCredentials = new Map(
-    current.profiles.atlassian.map((profile) => [
-      profile.id,
-      profile.credential,
-    ]),
-  );
-  const tavilyCredentials = new Map(
-    current.profiles.tavily.map((profile) => [profile.id, profile.credential]),
-  );
-  return accountsConfigSchema.parse({
-    version: 2,
-    profiles: {
-      atlassian: settings.providers.atlassianProfiles.map((profile) => ({
-        ...profile,
-        credential:
-          atlassianCredentials.get(profile.id) ?? `atlassian:${profile.id}`,
-      })),
-      tavily: settings.providers.tavilyProfiles.map((profile) => ({
-        ...profile,
-        credential: tavilyCredentials.get(profile.id) ?? `tavily:${profile.id}`,
-      })),
-    },
-  });
 }

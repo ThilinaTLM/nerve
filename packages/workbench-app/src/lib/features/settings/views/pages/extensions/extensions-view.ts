@@ -193,7 +193,7 @@ export function extensionSummary(
   return parts.length > 0 ? parts.join(" · ") : extension.metadata.description;
 }
 
-function sentence(text: string): string {
+export function sentence(text: string): string {
   return text.charAt(0).toUpperCase() + text.slice(1);
 }
 
@@ -230,8 +230,6 @@ export function extensionFix(
 
 /** `quick_script` namespaces of the runtime itself, always present. */
 export const RUNTIME_NAMESPACES = ["files", "image"] as const;
-/** Namespaces that only support another one; not listed to the user. */
-const HELPER_NAMESPACES = new Set(["atlassian", "storage"]);
 
 /** Every namespace the extension contributes with its availability, helpers included. */
 export function contributedNamespaces(extension: ExtensionView) {
@@ -251,7 +249,11 @@ export function activeNamespaces(
       extension.enabled.value
         ? Object.entries(extension.availability)
             .filter(
-              ([id, state]) => state.configured && !HELPER_NAMESPACES.has(id),
+              ([id, state]) =>
+                state.configured &&
+                !extension.metadata.contributes.namespaces.some(
+                  (namespace) => namespace.id === id && namespace.helper,
+                ),
             )
             .map(([id]) => id)
         : [],
@@ -266,7 +268,12 @@ export function namespaceProblem(
   for (const extension of extensions) {
     if (!extension.enabled.value) continue;
     for (const [namespace, state] of unavailable(extension))
-      if (!state.available && !HELPER_NAMESPACES.has(namespace))
+      if (
+        !state.available &&
+        !extension.metadata.contributes.namespaces.some(
+          (entry) => entry.id === namespace && entry.helper,
+        )
+      )
         return {
           extensionId: extension.metadata.id,
           namespace,

@@ -20,9 +20,13 @@ Protocol v1 does not accept aliases, raw/private frames, or breaking changes dis
 
 Define tool name/schema/risk/execution mode in the owning manifest, implement a bounded executor or host adapter, integrate availability/policy, add presentation when generic rendering is insufficient, and test destructive/concurrent/error boundaries. Shared tool names belong in contracts.
 
+## Built-in extensions
+
+A `quick_script` extension (Atlassian, web, diagrams, image generation) is one folder in `packages/extensions/src/<id>/`: a definition written with `@nervekit/extension-api` (settings, accounts, namespaces, direct tools, declared doc paths) and method code that reaches the world only through `ctx`. The package depends on `extension-api` and nothing else. The workbench server owns the list of built-ins (`builtinExtensions`), builds the registry from it and reads the declared doc files; a repository check rejects a mention of an extension anywhere else in production source.
+
 ## Content extensions
 
-Skills and AGENTS/SYSTEM resources extend instructions without code changes. Official disabled-by-default Nerve skills live in `@nervekit/skills`; generic parsing and prompt formatting stay in `@nervekit/harness`, while executable capabilities stay in `@nervekit/tools`. Prompt suggestions add contextual reusable prompts and optional explicitly trusted predicates. These content sources require clear precedence and trust documentation.
+Skills and AGENTS/SYSTEM resources extend instructions without code changes. Official disabled-by-default Nerve skills live in `@nervekit/workbench-server` (`src/builtin-skills/`); generic parsing and prompt formatting stay in `@nervekit/harness`, while executable capabilities stay in `@nervekit/tools`. Prompt suggestions add contextual reusable prompts and optional explicitly trusted predicates. These content sources require clear precedence and trust documentation.
 
 ## Package boundaries
 

@@ -89,7 +89,7 @@ export const permissionExceptionSchema = z
         context.addIssue({
           code: "custom",
           message:
-            "Quick Script rules must be an operation glob such as 'jira.issues.*' (dotted path; '*' segments).",
+            "Quick Script rules must be an operation glob such as 'namespace.items.*' (dotted path; '*' segments).",
           path: ["rule"],
         });
       }

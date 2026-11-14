@@ -8,6 +8,8 @@ import type { UnifiedCompletionService } from "../domains/completions/unified-co
 import type { ConversationTitleService } from "../domains/conversation-titles/title.service.js";
 import type { PrSyncService } from "../domains/git/pr-sync/pr-sync-service.js";
 import type { GitWorkspaceSync } from "../domains/git/workspace-sync/git-workspace-sync-service.js";
+import { hostRegistry } from "../core-host/host-tools.js";
+import type { AccountsService } from "../domains/accounts/index.js";
 import type { IntegrationHealthService } from "../domains/auth/integration-health.service.js";
 import type { WorkspaceMonitor } from "../domains/monitoring/workspace-monitor.js";
 import type { LaunchService } from "../domains/launches/application/launch.service.js";
@@ -25,7 +27,7 @@ import type { agentConfigurationOperations } from "../infrastructure/configurati
 import type { ActivityService } from "../domains/activity/activity.service.js";
 import type { MaintenanceService } from "../domains/maintenance/maintenance.service.js";
 import type { ApplicationConfigurationSnapshot } from "@nervekit/contracts/settings";
-import type { NerveSkillCatalog } from "@nervekit/skills";
+import type { NerveSkillCatalog } from "../builtin-skills/index.js";
 import type { StatusResponse } from "@nervekit/contracts/status";
 import type {
   AuthManager,
@@ -87,6 +89,7 @@ export interface AdapterServices {
   launchDefinitions: LaunchDefinitionService;
   launchDefinitionOperations: LaunchDefinitionOperations;
   scratchNotes: CoreScratchNoteService;
+  accounts: AccountsService;
   integrationHealth: IntegrationHealthService;
   workspaceMonitor: WorkspaceMonitor;
   prSync: PrSyncService;
@@ -112,13 +115,8 @@ export function createServerAdapterContexts(
   const extensionViews = createExtensionViews({
     extensions: services.extensionSettings,
     agents: services.agentConfiguration,
-    accounts: () => infrastructure.storage.settings.providers,
-    hasCredential: async (kind, id) =>
-      Boolean(
-        await infrastructure.auth
-          .getApiKey(`${kind}:${id}`)
-          .catch(() => undefined),
-      ),
+    registry: hostRegistry,
+    accounts: services.accounts,
   });
   const protocol = {
     activity: {
@@ -138,6 +136,7 @@ export function createServerAdapterContexts(
       admissionPolicy: services.admissionPolicy,
       workspaceMonitor: services.workspaceMonitor,
       prSync: services.prSync,
+      accounts: services.accounts,
       integrationHealth: services.integrationHealth,
     },
     projects: {

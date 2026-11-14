@@ -533,9 +533,9 @@ describe("saved file notices", () => {
 });
 
 describe("process footer scope", () => {
-  it("adds no exit footer to web_search results", () => {
+  it("adds no exit footer to web_fetch results", () => {
     const projected = projectAgentResult({
-      ...context("web_search", {
+      ...context("web_fetch", {
         content: "hello",
         exitCode: 0,
         details: { exitCode: 0 },

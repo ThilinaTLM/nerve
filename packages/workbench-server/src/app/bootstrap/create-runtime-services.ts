@@ -13,7 +13,7 @@ import {
 } from "../../infrastructure/configuration/project-migration/descriptors.js";
 import { projectMigrationTrust } from "../../infrastructure/configuration/project-migration/project-migration-trust.js";
 import { allToolDescriptors } from "@nervekit/tools/catalog";
-import { registerHostTools } from "../../core-host/host-tools.js";
+import { hostRegistry, registerHostTools } from "../../core-host/host-tools.js";
 import { listAvailableSkills } from "../../core-host/resource-loader.js";
 import { UnifiedCompletionService } from "../../domains/completions/unified-completion-service.js";
 import { createCompletionDependencies } from "./create-completion-dependencies.js";
@@ -25,6 +25,8 @@ import {
 } from "../../domains/prompt-suggestions/index.js";
 import { PromptSuggestionEnablementService } from "../../domains/prompt-suggestions/prompt-suggestion-enablement.service.js";
 import type { AuthManager } from "../../domains/auth/index.js";
+import { AccountsService } from "../../domains/accounts/index.js";
+import { extensionAccountTester } from "../../domains/auth/account-testers.js";
 import { IntegrationHealthService } from "../../domains/auth/integration-health.service.js";
 import type { ProviderCatalogStore } from "../../domains/providers/provider-catalog.store.js";
 import type { SubscriptionUsageService } from "../../domains/usage/subscription-usage-service.js";
@@ -34,7 +36,7 @@ import type { WorkbenchNoticePublisher } from "../../infrastructure/events/index
 import type { SecretProvider } from "../../infrastructure/secrets/index.js";
 import type { InitializedStorage } from "../../infrastructure/storage-bootstrap/index.js";
 import type { ResourceLimits } from "@nervekit/contracts/settings";
-import type { NerveSkillCatalog } from "@nervekit/skills";
+import type { NerveSkillCatalog } from "../../builtin-skills/index.js";
 import type { AgentBrowserSkillCatalog } from "../../core-host/agent-browser-skills.js";
 import { CoreScratchNoteService } from "../../core-host/scratch-note.service.js";
 import { createConversationCore } from "./create-conversation-core.js";
@@ -116,6 +118,9 @@ export function createRuntimeServices(deps: RuntimeDeps) {
       await events.publish(type, data);
     },
   );
+  const accountKinds = () =>
+    hostRegistry.extensions.flatMap((extension) => extension.accounts ?? []);
+  const accounts = new AccountsService({ storage, auth, kinds: accountKinds });
   const {
     conversationTitles,
     core: conversationCore,
@@ -126,7 +131,7 @@ export function createRuntimeServices(deps: RuntimeDeps) {
     scopedConfiguration,
     admissionPolicy,
   } = createConversationCore(
-    deps,
+    { ...deps, accounts },
     { launches, definitions: launchDefinitions },
     // Lazy: completion project lookup depends on the constructed core.
     async (projectId) => {
@@ -154,10 +159,18 @@ export function createRuntimeServices(deps: RuntimeDeps) {
     },
   );
   const integrationHealth = new IntegrationHealthService({
-    profiles: () => storage.settings.providers.atlassianProfiles,
-    getToken: (profileId) => auth.getApiKey(`atlassian:${profileId}`),
-    publish: async (profileId) => {
-      await events.publish("auth.integration_health_changed", { profileId });
+    accounts,
+    kinds: accountKinds,
+    test: extensionAccountTester({
+      registry: hostRegistry,
+      accounts,
+      warn: (extensionId, message, data) =>
+        void deps.logger.warn("Extension warning", {
+          context: { extension: extensionId, message, data },
+        }),
+    }),
+    publish: async (kind, accountId) => {
+      await events.publish("accounts.health_changed", { kind, accountId });
     },
   });
   const gitService = new GitService((id) => {
@@ -390,6 +403,7 @@ export function createRuntimeServices(deps: RuntimeDeps) {
     launchDefinitions,
     launchDefinitionOperations,
     scratchNotes,
+    accounts,
     integrationHealth,
     workspaceMonitor,
     prSync,

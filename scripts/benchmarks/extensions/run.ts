@@ -1,6 +1,6 @@
 /**
  * Extensions benchmark: `quick_script` task suite against the test Atlassian
- * site (docs/proposals/extensions/README.md, "Measurement"). The step 5 gate
+ * site. The step 5 gate
  * compared it with the direct Jira and Confluence tools, which are gone.
  *
  * Drives an already running dev slot through its conversation channel; it never

@@ -152,50 +152,6 @@ describe("executeTool dispatch", () => {
     }
   });
 
-  it("dispatches web_search using the context Tavily key", async () => {
-    const originalFetch = globalThis.fetch;
-    globalThis.fetch = (async (_input, init) => {
-      assert.equal(init?.method, "POST");
-      const body = JSON.parse(String(init?.body)) as Record<string, unknown>;
-      assert.equal(body.api_key, "test-key");
-      assert.equal(body.query, "nerve agent");
-      return new Response(
-        JSON.stringify({
-          answer: "A concise answer.",
-          results: [
-            {
-              title: "Nerve",
-              url: "https://example.test/nerve",
-              content: "A result snippet.",
-              score: 0.9,
-            },
-          ],
-        }),
-        { status: 200, headers: { "content-type": "application/json" } },
-      );
-    }) as typeof fetch;
-    try {
-      const result = await executeTool(
-        "web_search",
-        { query: "nerve agent", max_results: 1 },
-        { cwd: process.cwd(), getApiKey: async () => "test-key" },
-      );
-      assert.match(result.content ?? "", /A concise answer/);
-      assert.deepEqual(
-        (result.details as { results?: Array<{ title: string }> } | undefined)
-          ?.results?.[0],
-        {
-          title: "Nerve",
-          url: "https://example.test/nerve",
-          content: "A result snippet.",
-          score: 0.9,
-        },
-      );
-    } finally {
-      globalThis.fetch = originalFetch;
-    }
-  });
-
   it("dispatches explain_image through the host vision callback", async () => {
     const project = await createTempProject();
     const image = Buffer.from([

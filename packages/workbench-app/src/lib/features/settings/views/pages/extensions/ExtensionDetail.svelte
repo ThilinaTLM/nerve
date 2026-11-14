@@ -11,7 +11,7 @@ import { Callout } from "@nervekit/ui-kit/components/composites/callout";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
 import * as Collapsible from "@nervekit/ui-kit/components/ui/collapsible";
 import { Switch } from "@nervekit/ui-kit/components/ui/switch";
-import type { AuthProviderMetadata, ModelInfo, Settings } from "$lib/api";
+import type { ModelInfo } from "$lib/api";
 import type { ScopedExtensionsState } from "$lib/application/extensions/scoped-extensions-state.svelte";
 import {
   openProjectSettingsPane,
@@ -19,10 +19,8 @@ import {
 } from "$lib/application/settings";
 import { SettingsRow, SettingsSection } from "$lib/presentation/settings";
 import { settingsSectionDomId } from "$lib/presentation/settings/section-id";
-import type { SettingsChange } from "../settings-change";
-import AtlassianAccountsSection from "./AtlassianAccountsSection.svelte";
+import AccountsSection from "./AccountsSection.svelte";
 import ExtensionFieldRow from "./ExtensionFieldRow.svelte";
-import TavilyAccountsSection from "./TavilyAccountsSection.svelte";
 import { extensionIcon } from "./extension-icons";
 import {
   entryWithEnabled,
@@ -45,9 +43,6 @@ type Props = {
   extensions: ScopedExtensionsState;
   accounts: AccountChoices;
   models?: ModelInfo[];
-  settingsDraft: Settings;
-  authProviders: AuthProviderMetadata[];
-  onSettingsChange?: SettingsChange;
 };
 
 let {
@@ -58,9 +53,6 @@ let {
   extensions,
   accounts,
   models = [],
-  settingsDraft,
-  authProviders,
-  onSettingsChange,
 }: Props = $props();
 
 const id = $derived(extension.metadata.id);
@@ -86,15 +78,14 @@ const busy = $derived(extensions.saving || extension.readOnly);
 const hasAccounts = $derived(extension.accountKinds.length > 0);
 
 let advancedOpen = $state<Record<string, boolean>>({});
-let atlassian = $state<{ openAdd: () => void }>();
-let tavily = $state<{ openAdd: () => void }>();
+let accountSections = $state<Record<string, { openAdd: () => void }>>({});
 
 function openUserAccounts(): void {
   void openSettingsPane("extensions", { item: id, section: "accounts" });
 }
 function addAccount(kind: string): void {
   if (scope === "project") return openUserAccounts();
-  (kind === "atlassian" ? atlassian : tavily)?.openAdd();
+  accountSections[kind]?.openAdd();
 }
 function revealSection(section: string): void {
   document
@@ -136,7 +127,6 @@ function openPage(page: "tools" | "skills"): void {
         checked={extension.enabled.value}
         disabled={busy || locked}
         aria-label={`Enable ${extension.metadata.name}`}
-        data-tour-id={`setup-extension-${id}-enabled`}
         onCheckedChange={(next) =>
           void extensions.save(id, entryWithEnabled(extension, next))}
       />
@@ -237,21 +227,11 @@ function openPage(page: "tools" | "skills"): void {
   {#if hasAccounts}
     {#if scope === "user"}
       {#each extension.accountKinds as kind (kind.kind)}
-        {#if kind.kind === "atlassian"}
-          <AtlassianAccountsSection
-            bind:this={atlassian}
-            {settingsDraft}
-            {authProviders}
-            {onSettingsChange}
-          />
-        {:else if kind.kind === "tavily"}
-          <TavilyAccountsSection
-            bind:this={tavily}
-            {settingsDraft}
-            {authProviders}
-            {onSettingsChange}
-          />
-        {/if}
+        <AccountsSection
+          bind:this={accountSections[kind.kind]}
+          {kind}
+          icon={Icon}
+        />
       {/each}
     {:else}
       <SettingsSection id="accounts" title="Accounts" divided>

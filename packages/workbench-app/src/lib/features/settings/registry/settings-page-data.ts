@@ -321,14 +321,6 @@ export const SETTINGS_REDIRECTS_ENABLED = true;
 
 /** Old page/section targets and where they live now. */
 export const settingsRedirects: readonly SettingsRedirect[] = [
-  {
-    from: { pageId: "integrations", section: "tavily-accounts" },
-    to: { pageId: "extensions", item: "web", section: "accounts" },
-  },
-  {
-    from: { pageId: "integrations", section: "atlassian-accounts" },
-    to: { pageId: "extensions", item: "atlassian", section: "accounts" },
-  },
   { from: { pageId: "integrations" }, to: { pageId: "extensions" } },
 ];
 

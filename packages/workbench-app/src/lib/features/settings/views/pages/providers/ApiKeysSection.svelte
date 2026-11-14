@@ -35,9 +35,7 @@ const apiKeys = $derived(
       (provider) =>
         provider.configured &&
         provider.credentialType === "api_key" &&
-        !reserved.has(provider.provider) &&
-        !provider.provider.startsWith("atlassian:") &&
-        !provider.provider.startsWith("tavily:"),
+        !reserved.has(provider.provider),
     )
     .sort((a, b) => a.displayName.localeCompare(b.displayName)),
 );

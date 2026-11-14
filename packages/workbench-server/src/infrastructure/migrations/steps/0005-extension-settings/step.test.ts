@@ -13,17 +13,31 @@ import { test } from "node:test";
 import { createStepContext } from "../../framework/context.js";
 import { storagePaths } from "../../../storage-bootstrap/paths.js";
 import { convertConversationAgent, extractFromTools } from "./convert.js";
-import { findQuickScriptNamespace } from "@nervekit/quick-script";
+import { hostRegistry } from "../../../../core-host/host-tools.js";
 import {
   REMOVED_TOOL_OPERATIONS,
   convertRemovedToolException,
 } from "./removed-tools.js";
+import { EncryptedFileSecretProvider } from "../../../secrets/index.js";
 import step from "./step.js";
 
+const findQuickScriptNamespace = (id: string) =>
+  hostRegistry.namespaces.find((namespace) => namespace.id === id);
+
+/** Released `integrations.json`: per-product profiles that name their credential. */
 const accounts = {
   version: 2,
   profiles: {
-    atlassian: [{ id: "acme", name: "Acme", credential: "atlassian:acme" }],
+    atlassian: [
+      {
+        id: "acme",
+        name: "Acme",
+        siteUrl: "https://acme.atlassian.net",
+        email: "a@acme.test",
+        defaultProjectKey: "ACME",
+        credential: "atlassian:acme",
+      },
+    ],
     tavily: [{ id: "tav", name: "Tavily", credential: "tavily:tav" }],
   },
 };
@@ -109,6 +123,35 @@ void test("quick_script wins over direct tools; differing accounts keep Jira", (
   });
 });
 
+void test("a selected search account keeps web_search available: Web is enabled unless it was set or the tool was off", () => {
+  const web = (tools: Record<string, unknown>) =>
+    extractFromTools(tools, () => {}).entries.web;
+  assert.deepEqual(web({ web_search: { profileId: "tav" } }), {
+    version: 1,
+    enabled: true,
+    settings: { searchAccount: "tav" },
+  });
+  assert.deepEqual(
+    web({ quick_script: { settings: { web: { profileId: "tav" } } } })?.enabled,
+    true,
+  );
+  // An explicit choice wins, in either direction.
+  assert.equal(
+    web({
+      web_search: { profileId: "tav" },
+      quick_script: { settings: { web: { enabled: false } } },
+    })?.enabled,
+    false,
+  );
+  // A switched-off tool does not turn the extension on.
+  assert.equal(
+    web({ web_search: { enabled: false, profileId: "tav" } })?.enabled,
+    undefined,
+  );
+  // No account: nothing to keep.
+  assert.equal(web({ web_search: { enabled: true } }), undefined);
+});
+
 void test("a child's frozen defaults and overrides become its frozen extension file", () => {
   const { document, entries } = convertConversationAgent(
     {
@@ -157,6 +200,11 @@ void test("moves accounts, user, profile and conversation settings, and verifies
   const { root, paths, put, read, context } = home();
   t.after(() => rmSync(root, { recursive: true, force: true }));
   put(join(paths.configPath, "integrations.json"), accounts);
+  const secrets = new EncryptedFileSecretProvider(root);
+  await secrets.initialize();
+  await secrets.set("provider:atlassian:acme:apiKey", "atl-token");
+  await secrets.set("provider:tavily:tav:apiKey", "tvly-key");
+  await secrets.set("provider:openai:apiKey", "sk-other");
   put(join(paths.configPath, "agent.json"), {
     schemaVersion: 1,
     revision: 5,
@@ -201,7 +249,35 @@ void test("moves accounts, user, profile and conversation settings, and verifies
   await step.verify!(context);
 
   assert.ok(!existsSync(join(paths.configPath, "integrations.json")));
-  assert.deepEqual(read(paths.accountsConfigPath), accounts);
+  assert.deepEqual(read(paths.accountsConfigPath), {
+    version: 2,
+    accounts: {
+      atlassian: [
+        {
+          id: "acme",
+          name: "Acme",
+          fields: {
+            siteUrl: "https://acme.atlassian.net",
+            email: "a@acme.test",
+            defaultProjectKey: "ACME",
+          },
+        },
+      ],
+      tavily: [{ id: "tav", name: "Tavily", fields: {} }],
+    },
+  });
+  // Account secrets take the `account:<kind>:<id>` id; other secrets stay.
+  assert.deepEqual(await new EncryptedFileSecretProvider(root).list(), [
+    "provider:account:atlassian:acme:apiKey",
+    "provider:account:tavily:tav:apiKey",
+    "provider:openai:apiKey",
+  ]);
+  assert.equal(
+    await new EncryptedFileSecretProvider(root).get(
+      "provider:account:atlassian:acme:apiKey",
+    ),
+    "atl-token",
+  );
   const agent = read(join(paths.configPath, "agent.json"));
   assert.equal(agent.revision, 5);
   assert.deepEqual(agent.overrides.tools, { quick_script: { enabled: true } });
@@ -219,7 +295,11 @@ void test("moves accounts, user, profile and conversation settings, and verifies
   const profile = read(join(paths.agentProfilesConfigPath, "planning.json"));
   assert.deepEqual(profile.extensions, {
     requirements: {
-      web: { version: 1, settings: { searchAccount: "tav" } },
+      web: {
+        version: 1,
+        enabled: true,
+        settings: { searchAccount: "tav" },
+      },
     },
   });
   assert.deepEqual(profile.requirements, {});
@@ -259,7 +339,7 @@ void test("moves accounts, user, profile and conversation settings, and verifies
   );
 });
 
-void test("an existing accounts file is never replaced", async (t) => {
+void test("an existing accounts file is never replaced, only reshaped", async (t) => {
   const { root, paths, put, context } = home();
   t.after(() => rmSync(root, { recursive: true, force: true }));
   put(join(paths.configPath, "integrations.json"), accounts);
@@ -271,9 +351,83 @@ void test("an existing accounts file is never replaced", async (t) => {
   await step.run(context);
   assert.ok(existsSync(join(paths.configPath, "integrations.json")));
   assert.deepEqual(
-    JSON.parse(readFileSync(paths.accountsConfigPath, "utf8")).profiles,
+    JSON.parse(readFileSync(paths.accountsConfigPath, "utf8")).accounts,
     { atlassian: [], tavily: [] },
   );
+});
+
+void test("a home that applied an earlier draft is reshaped once and settings stay put", async (t) => {
+  const { root, paths, put, context } = home();
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  // Earlier draft output: accounts moved but not reshaped, secrets under old ids,
+  // settings already in extensions.json, agent.json already stripped.
+  put(paths.accountsConfigPath, accounts);
+  const secrets = new EncryptedFileSecretProvider(root);
+  await secrets.initialize();
+  await secrets.set("provider:atlassian:acme:apiKey", "atl-token");
+  await secrets.set("provider:tavily:tav:apiKey", "tvly-key");
+  await secrets.set("provider:openai:apiKey", "sk-other");
+  const extensions = {
+    schemaVersion: 1,
+    revision: 4,
+    extensions: {
+      atlassian: { version: 1, settings: { account: "acme" } },
+    },
+  };
+  put(join(paths.configPath, "extensions.json"), extensions);
+  put(join(paths.configPath, "agent.json"), {
+    schemaVersion: 1,
+    revision: 5,
+    overrides: { tools: { quick_script: { enabled: true } } },
+  });
+  const agentBefore = readFileSync(
+    join(paths.configPath, "agent.json"),
+    "utf8",
+  );
+  const extensionsBefore = readFileSync(
+    join(paths.configPath, "extensions.json"),
+    "utf8",
+  );
+
+  const apply = async () => {
+    context.ownPaths(await step.ownedPaths!(context));
+    await step.run(context);
+    await step.verify!(context);
+  };
+  const ids = async () => new EncryptedFileSecretProvider(root).list();
+  const expectedIds = [
+    "provider:account:atlassian:acme:apiKey",
+    "provider:account:tavily:tav:apiKey",
+    "provider:openai:apiKey",
+  ];
+  await apply();
+  const reshaped = readFileSync(paths.accountsConfigPath, "utf8");
+  assert.deepEqual(JSON.parse(reshaped).accounts.tavily, [
+    { id: "tav", name: "Tavily", fields: {} },
+  ]);
+  assert.equal(JSON.parse(reshaped).accounts.atlassian.length, 1);
+  assert.deepEqual(await ids(), expectedIds);
+  assert.equal(
+    await new EncryptedFileSecretProvider(root).get(
+      "provider:account:tavily:tav:apiKey",
+    ),
+    "tvly-key",
+  );
+  assert.equal(
+    readFileSync(join(paths.configPath, "agent.json"), "utf8"),
+    agentBefore,
+  );
+  assert.equal(
+    readFileSync(join(paths.configPath, "extensions.json"), "utf8"),
+    extensionsBefore,
+  );
+
+  // Running again changes nothing.
+  const credentials = readFileSync(paths.credentialsPath, "utf8");
+  await apply();
+  assert.equal(readFileSync(paths.accountsConfigPath, "utf8"), reshaped);
+  assert.equal(readFileSync(paths.credentialsPath, "utf8"), credentials);
+  assert.deepEqual(await ids(), expectedIds);
 });
 
 const permissionRule = (
