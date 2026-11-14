@@ -1,6 +1,6 @@
 # Extensions benchmark
 
-Task suite from the [extensions proposal](../../../docs/proposals/extensions/README.md#measurement) for `quick_script` against the test Atlassian site, per model family. It gated delivery step 5 by comparing `quick_script` with the direct Jira and Confluence tools (Claude Haiku 5.5: 45/45 vs 44/45); those tools are removed, so only the `quick_script` variant remains, for regression runs.
+Task suite for `quick_script` against the test Atlassian site, per model family. It gated delivery step 5 by comparing `quick_script` with the direct Jira and Confluence tools (Claude Haiku 5.5: 45/45 vs 44/45); those tools are removed, so only the `quick_script` variant remains, for regression runs.
 
 It drives an **already running** dev slot (never slot 1, never started or stopped by the harness) through the same conversation channel the app uses (`/ws/conversations`, authenticated with the slot's `secrets/daemon-token`). Verification and cleanup call Jira and Confluence directly with the product's own clients (`@nervekit/extensions` clients) using the slot's Atlassian account. Both need `pnpm build` output (`packages/*/dist`).
 

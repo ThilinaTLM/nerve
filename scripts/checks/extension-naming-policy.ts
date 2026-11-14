@@ -1,7 +1,7 @@
 import { defineFileRule } from "./policy.ts";
 
 /**
- * Goal 1 of docs/proposals/extension-platform: outside its own folder
+ * Rule of docs/architecture/extension-platform.md: outside its own folder
  * (`packages/extensions/src/<id>/`), an extension is named only by the built-in
  * registry list (`packages/extensions/src/index.ts`) and by old migration steps and
  * their frozen schemas. Production source elsewhere may not name one in code;
