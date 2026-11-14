@@ -20,7 +20,11 @@ Phase 1 of the extension platform shipped ([architecture/extension-platform](../
 ### Small changes
 
 4. **Planning rule set derives research namespaces.** `packages/tools/src/policy/rule-sets/planning.json` allows network reads in the Atlassian and Web namespaces by name, a reviewed exception in `scripts/checks/extension-naming-policy.ts`. Add a namespace declaration (for example `research: true`: read operations are safe in planning) and let the rule set use it; remove the exception.
-5. **Extension icons.** Manifests name a lucide icon, but the app resolves names through a fixed map (`extension-icons.ts`) that lacks `image-plus`, so Image generation shows the generic icon. Either load lucide icons by name or validate manifest icon names against the map at registry build, so a typo fails a test instead of falling back silently. Third-party extensions will need the general answer.
+5. **Extension icons (decided: extensions ship their own icon).** Manifests name a lucide icon today, resolved through a fixed map in the app (`extension-icons.ts`) that lacks `image-plus`, so Image generation shows the generic icon. Brand icons identify an extension faster (Atlassian's official mark), and third-party extensions need the same route.
+   - The manifest declares an SVG file in the extension package (`icon: "icon.svg"`), read by the host like doc topics and served to the app; a lucide name stays allowed for extensions without a brand mark, and unknown names fail a registry test instead of falling back silently.
+   - The app renders extension SVGs as images (`<img>`), never inlined, so markup in a third-party file cannot run scripts or read the page; the host also rejects files over a small size limit (for example 16 KB), non-square view boxes and external references.
+   - Brand icons keep their colours, so they look the same in both themes; monochrome lucide icons keep following the text colour.
+   - Built-ins: Atlassian uses the official Atlassian mark (SVG, 32×32 view box); follow the vendor's brand guidelines for any official logo. Web, Diagrams and Image generation keep lucide icons (`globe`, `workflow`, `image-plus`).
 6. **Settings change notice.** Accounts publish `accounts.changed`; extension settings saves publish no equivalent event. Confirm whether other clients and open views (Tools page availability, composer capabilities) refresh after a save in another window; if not, add `extensions.changed` and invalidate the extension views.
 7. **Retire the older settings rows.** `SettingsItem` is the current row component ([docs/ui/settings.md](../ui/settings.md)), but `SettingsListItem` / `SettingsDisclosureItem` are still used by the Suggestions, Shortcuts and Storage pages, permission rule sets and `settings-entity-list-section.svelte` (whose doc comment also predates `SettingsItem`). Migrate them, then delete the old components and their design-lab entries.
 
@@ -39,5 +43,4 @@ Order: 1 (one-line default) → 8 (unknown risk) → 2 and 4 (policy shape, befo
 
 ## Open questions
 
-- Item 2: is matching extension tools only by operation acceptable to users who already write tool-name rules for core tools?
-- Item 5: should extensions be able to ship their own icon (SVG asset) instead of naming a lucide icon?
+- Item 2 is about consistency for new extension tools, not compatibility: existing rules keep working (core tool names are unchanged, `web_search` stays a valid name, and draft step 0005 rewrites rules for the removed `jira_*`/`confluence_*` tools into operation rules). Is it acceptable that a future extension tool (say a `jira_search` direct tool) can be targeted only by its operation (`jira.issues.search`) and not by its tool name, while core tools are targeted by name?
