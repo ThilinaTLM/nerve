@@ -85,6 +85,6 @@ flowchart LR
 2. **Confluence conversion belongs to the Atlassian extension.** `confluenceStorageToMarkdown` (storage XHTML and macros to Markdown) moves out of the tools worker into `extensions/atlassian/confluence/`; the tools worker keeps plain HTML for `web_fetch` only. In phase 1 the conversion runs in-process without the worker's timeout; inputs come from the user's own site and keep the size limit, and phase 2 puts extension code under the sandbox's limits.
 3. **App code that knows Atlassian or Tavily is replaced by generic code** (not the website docs, which describe the built-ins and stay):
    - Settings → Extensions: the Atlassian and Tavily account dialogs, lists and health badges become one generated account list and dialog.
-   - Discover → Guides: the "Connect Jira and Confluence" and Tavily setup coaches (step targets inside those dialogs) become one generated "Set up <extension>" guide per extension with an account kind or required setting.
+   - Discover → Guides: the "Connect Jira and Confluence" and Tavily setup coaches (step targets inside those dialogs) are removed, not generalized. Guidance for extensions comes later, on the website or in Discover.
    - `AtlassianLinkCapability` (Jira and Confluence site URLs for links) has had no consumer since step 5 removed the Jira and Confluence tool views; delete it. Manifest `links` are not needed in phase 1.
 4. **`extension-api` is its own package.**
