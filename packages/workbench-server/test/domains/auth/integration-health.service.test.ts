@@ -73,10 +73,13 @@ describe("IntegrationHealthService", () => {
     await assert.rejects(service.check("tavily", "tav"), /cannot be tested/);
   });
 
-  it("drops results after the secret or a field changes", async () => {
+  it("drops results after the secret is replaced, removed or a field changes", async () => {
     const { service, accounts, secrets } = fixture();
     await service.check("atlassian", "ner");
-    secrets.set("atlassian:ner", "token-2");
+    service.forget("atlassian", "ner");
+    assert.deepEqual(await service.list(), []);
+    await service.check("atlassian", "ner");
+    secrets.delete("atlassian:ner");
     assert.deepEqual(await service.list(), []);
     secrets.set("atlassian:ner", "token-1");
     assert.equal((await service.list()).length, 1);

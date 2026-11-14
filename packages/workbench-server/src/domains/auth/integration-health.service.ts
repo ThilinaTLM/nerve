@@ -1,4 +1,3 @@
-import { createHmac, randomBytes } from "node:crypto";
 import {
   accountHealthSchema,
   type AccountHealth,
@@ -33,7 +32,7 @@ export type IntegrationHealthDeps = {
 
 type Stored = {
   result: AccountHealth;
-  /** Fingerprint of the fields and secret that produced the result; never the secret. */
+  /** The account name and fields that produced the result; secret changes go through `forget`. */
   fingerprint: string;
 };
 
@@ -41,13 +40,11 @@ const key = (kind: string, id: string) => `${kind}\u0000${id}`;
 
 /**
  * Tracks whether each account's credentials currently work, for kinds that can
- * be tested. A result is bound to the account's fields and secret, so editing
- * the account or replacing its secret invalidates it.
+ * be tested. A result is bound to the account's name and fields, and saving a new
+ * secret calls `forget`, so editing the account or replacing its secret invalidates it.
  */
 export class IntegrationHealthService {
   readonly #health = new Map<string, Stored>();
-  /** Keys the fingerprints; random per instance because results live only in this map. */
-  readonly #fingerprintKey = randomBytes(32);
 
   constructor(private readonly deps: IntegrationHealthDeps) {}
 
@@ -100,7 +97,7 @@ export class IntegrationHealthService {
     });
     this.#health.set(key(kind, id), {
       result,
-      fingerprint: this.#fingerprint(account, secret),
+      fingerprint: fingerprint(account),
     });
     await this.deps.publish(kind, id);
     return result;
@@ -109,15 +106,22 @@ export class IntegrationHealthService {
   async #current(account: AccountRecord): Promise<AccountHealth | undefined> {
     const stored = this.#health.get(key(account.kind, account.id));
     if (!stored) return undefined;
-    const secret = await this.deps.accounts.secret(account.kind, account.id);
-    return secret && stored.fingerprint === this.#fingerprint(account, secret)
+    const hasSecret = await this.deps.accounts.hasSecret(
+      account.kind,
+      account.id,
+    );
+    return hasSecret && stored.fingerprint === fingerprint(account)
       ? stored.result
       : undefined;
   }
 
-  #fingerprint(account: AccountRecord, secret: string): string {
-    return createHmac("sha256", this.#fingerprintKey)
-      .update(JSON.stringify([account.name, account.fields, secret]))
-      .digest("hex");
+  /** Drops the result of an account whose secret changed; the fingerprint holds no secret material. */
+  forget(kind: string, id: string): void {
+    this.#health.delete(key(kind, id));
   }
+}
+
+/** What a result was checked against, apart from the secret (`forget` covers secret changes). */
+function fingerprint(account: AccountRecord): string {
+  return JSON.stringify([account.name, account.fields]);
 }

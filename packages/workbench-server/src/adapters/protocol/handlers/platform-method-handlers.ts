@@ -67,8 +67,10 @@ export const platformMethodHandlers: WorkbenchMethodHandlerMapFor<PlatformMethod
         ? state.credentialKey.decryptEnvelope(secret)
         : undefined;
       const saved = await state.accounts.save(input);
-      if (plaintext)
+      if (plaintext) {
         await state.accounts.setSecret(saved.kind, saved.id, plaintext);
+        state.integrationHealth.forget(saved.kind, saved.id);
+      }
       await state.events.publish("accounts.changed", {
         kind: saved.kind,
         accountId: saved.id,
