@@ -14,7 +14,6 @@
   "ignorePatterns": [
     "pnpm-lock.yaml",
     "data/**",
-    "packages/skills/src/guides/quick-script/references/*.d.ts",
     "packages/website/.screenshots/**",
     "packages/workbench-app/src/lib/app/design-lab/wireframes/**"
   ],

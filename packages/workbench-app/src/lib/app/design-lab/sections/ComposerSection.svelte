@@ -254,7 +254,10 @@ const capabilityConfiguration: AgentEditorView = {
   resolution: resolveAgentConfiguration({
     role: "lead",
     project: {
-      tools: { web_search: { enabled: false }, jira: { enabled: true } },
+      tools: {
+        web_search: { enabled: false },
+        quick_script: { enabled: true },
+      },
       skills: { file: { review: true }, nerve: { plan: true } },
     },
     conversation: { skills: { file: { deploy: false } } },

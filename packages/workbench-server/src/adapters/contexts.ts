@@ -8,6 +8,8 @@ import type { UnifiedCompletionService } from "../domains/completions/unified-co
 import type { ConversationTitleService } from "../domains/conversation-titles/title.service.js";
 import type { PrSyncService } from "../domains/git/pr-sync/pr-sync-service.js";
 import type { GitWorkspaceSync } from "../domains/git/workspace-sync/git-workspace-sync-service.js";
+import { hostRegistry } from "../core-host/host-tools.js";
+import type { AccountsService } from "../domains/accounts/index.js";
 import type { IntegrationHealthService } from "../domains/auth/integration-health.service.js";
 import type { WorkspaceMonitor } from "../domains/monitoring/workspace-monitor.js";
 import type { LaunchService } from "../domains/launches/application/launch.service.js";
@@ -25,7 +27,7 @@ import type { agentConfigurationOperations } from "../infrastructure/configurati
 import type { ActivityService } from "../domains/activity/activity.service.js";
 import type { MaintenanceService } from "../domains/maintenance/maintenance.service.js";
 import type { ApplicationConfigurationSnapshot } from "@nervekit/contracts/settings";
-import type { NerveSkillCatalog } from "@nervekit/skills";
+import type { NerveSkillCatalog } from "../builtin-skills/index.js";
 import type { StatusResponse } from "@nervekit/contracts/status";
 import type {
   AuthManager,
@@ -42,6 +44,8 @@ import type { ApplicationLogger } from "../infrastructure/diagnostics/index.js";
 import type { WorkbenchNoticePublisher } from "../infrastructure/events/index.js";
 import type { SecretProvider } from "../infrastructure/secrets/index.js";
 import type { InitializedStorage } from "../infrastructure/storage-bootstrap/index.js";
+import { createExtensionViews } from "../core-host/extension-views.js";
+import type { ExtensionSettingsService } from "../infrastructure/configuration/extensions/extension-settings-service.js";
 import { createPermissionConfigurationService } from "../core-host/permission-configuration.js";
 
 export interface AdapterInfrastructure {
@@ -76,6 +80,7 @@ export interface AdapterServices {
   conversationTitles: ConversationTitleService;
   conversationCore: ConversationCore;
   agentConfiguration: AgentConfigurationService;
+  extensionSettings: ExtensionSettingsService;
   configurationOperations: ReturnType<typeof agentConfigurationOperations>;
   admissionPolicy: ScopedPermissionPolicySource;
   coreStorage: CoreStorage;
@@ -84,6 +89,7 @@ export interface AdapterServices {
   launchDefinitions: LaunchDefinitionService;
   launchDefinitionOperations: LaunchDefinitionOperations;
   scratchNotes: CoreScratchNoteService;
+  accounts: AccountsService;
   integrationHealth: IntegrationHealthService;
   workspaceMonitor: WorkspaceMonitor;
   prSync: PrSyncService;
@@ -106,6 +112,12 @@ export function createServerAdapterContexts(
     if (!project) throw new Error(`Project not found: ${id}`);
     return project;
   };
+  const extensionViews = createExtensionViews({
+    extensions: services.extensionSettings,
+    agents: services.agentConfiguration,
+    registry: hostRegistry,
+    accounts: services.accounts,
+  });
   const protocol = {
     activity: {
       activities: infrastructure.activities,
@@ -118,10 +130,13 @@ export function createServerAdapterContexts(
       git: services.git,
       conversationCore: services.conversationCore,
       agentConfiguration: services.agentConfiguration,
+      extensionSettings: services.extensionSettings,
+      extensionViews,
       configurationOperations: services.configurationOperations,
       admissionPolicy: services.admissionPolicy,
       workspaceMonitor: services.workspaceMonitor,
       prSync: services.prSync,
+      accounts: services.accounts,
       integrationHealth: services.integrationHealth,
     },
     projects: {

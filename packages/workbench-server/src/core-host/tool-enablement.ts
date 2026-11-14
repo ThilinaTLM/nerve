@@ -2,15 +2,9 @@ import { isSubagentTool } from "@nervekit/contracts/tools";
 import { capabilityToolNameSchema } from "@nervekit/contracts/capabilities";
 import type { LeadSettingsOverrides } from "@nervekit/contracts/agent-configuration";
 
-/** Capability toggle that governs a tool, e.g. `jira_get_issue` -> `jira`. */
+/** Capability toggle that governs a tool, e.g. `subagent_prompt` -> `subagents`. */
 export function capabilityForTool(toolName: string): string {
-  return isSubagentTool(toolName)
-    ? "subagents"
-    : toolName.startsWith("jira_")
-      ? "jira"
-      : toolName.startsWith("confluence_")
-        ? "confluence"
-        : toolName;
+  return isSubagentTool(toolName) ? "subagents" : toolName;
 }
 
 /**
@@ -24,13 +18,8 @@ export function isToolEnabled(
   missingReferences: readonly string[] = [],
 ): boolean {
   const name = capabilityForTool(toolName);
-  // A missing quick_script account only drops that integration; the tool still works.
   if (
-    missingReferences.some(
-      (pointer) =>
-        pointer.startsWith(`/tools/${name}/`) &&
-        !(name === "quick_script" && pointer.includes("/settings/")),
-    )
+    missingReferences.some((pointer) => pointer.startsWith(`/tools/${name}/`))
   )
     return false;
   const parsed = capabilityToolNameSchema.safeParse(name);

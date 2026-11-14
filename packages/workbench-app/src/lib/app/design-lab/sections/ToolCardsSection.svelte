@@ -238,6 +238,14 @@ const searchCases: LabeledCard[] = [
     props: { toolCall: vfx.webSearchCompleted, cwd },
   },
   {
+    label: "extension tool (table) — completed",
+    props: { toolCall: vfx.extensionTableCompleted, cwd },
+  },
+  {
+    label: "extension tool (markdown) — completed",
+    props: { toolCall: vfx.extensionMarkdownCompleted, cwd, onOpenFile: noop },
+  },
+  {
     label: "web_fetch — completed",
     props: { toolCall: vfx.webFetchCompleted, cwd, onOpenFile: noop },
   },
@@ -246,28 +254,8 @@ const searchCases: LabeledCard[] = [
     props: { toolCall: vfx.webFetchFailed, cwd },
   },
   {
-    label: "jira_create_issue — drafting",
-    props: { draft: vfx.jiraCreateDraft, cwd },
-  },
-  {
-    label: "jira_create_issue — completed",
-    props: { toolCall: vfx.jiraCreateCompleted, cwd },
-  },
-  {
-    label: "jira_search_issues — completed",
-    props: { toolCall: vfx.jiraSearchCompleted, cwd },
-  },
-  {
-    label: "confluence_search_pages — completed",
-    props: { toolCall: vfx.confluenceSearchCompleted, cwd },
-  },
-  {
-    label: "generate_image — running",
-    props: { toolCall: vfx.generateImageRunning, cwd },
-  },
-  {
-    label: "generate_image — completed",
-    props: { toolCall: vfx.generateImageCompleted, cwd, onOpenFile: noop },
+    label: "acme_search_items (removed tool) — recorded call",
+    props: { toolCall: vfx.removedToolCompleted, cwd },
   },
   {
     label: "explain_image — completed",

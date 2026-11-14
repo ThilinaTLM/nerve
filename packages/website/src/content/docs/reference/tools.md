@@ -15,30 +15,25 @@ Nerve exposes the tool names below. The contracts and manifest own the exact cat
 
 Reads are bounded and parallel-capable. `edit` accepts only `path` plus exact, unique `edits: [{ oldText, newText }]`; every match resolves against the original file and the write is atomic. Use `write` to replace an entire file. Bash is noninteractive and process-tree cancellable; use `launch` for the user’s dev servers. Python accepts exactly one code/file source, has no stdin, and is capped at 600 seconds.
 
-## Web and Atlassian
+## Web and quick_script
 
 - Web: `web_search`, `web_fetch`
-- Jira reads: `jira_search_users`, `jira_search_issues`, `jira_get_issue`, `jira_get_project`, `jira_search_boards`, `jira_get_board`, `jira_get_sprint`, `jira_download_attachment`
-- Jira writes: `jira_create_issue`, `jira_update_issue`, `jira_transition_issue`, `jira_manage_comment`, `jira_manage_worklog`, `jira_manage_issue_link`, `jira_manage_attachment`, `jira_manage_sprint`, `jira_manage_backlog`
-- Confluence reads: `confluence_search_spaces`, `confluence_search_pages`, `confluence_get_page`, `confluence_download_page`
-- Confluence writes: `confluence_create_page`, `confluence_update_page`, `confluence_manage_comment`, `confluence_manage_page`, `confluence_manage_label`, `confluence_manage_restriction`, `confluence_manage_attachment`
+- Scripts: `quick_script`
 
-Web search/fetch, image explanation, and Python are individual global tool toggles. Search requires Tavily. Jira/Confluence are enabled and assigned an Atlassian profile per user, project, or conversation; Web search uses the selected Tavily profile. Atlassian responses and mutation reports are always saved as managed raw artifacts while the agent receives a bounded semantic preview. Related Jira/Confluence data is selected with each read tool's compact `include` array.
+Web search/fetch, image explanation, and Python are individual global tool toggles. Search requires Tavily and uses the account selected in the Web extension. Jira, Confluence, diagram rendering and image generation have no tools of their own: `quick_script` runs a sandboxed TypeScript script that calls the `jira`, `confluence`, `diagram` and `imagegen` namespaces of the enabled [extensions](/guides/settings/), and the tool description lists only the namespaces that are on. Each SDK call is an operation (`jira.issues.create`, `diagram.render`, `imagegen.generate`) checked against your permission policy, and the agent discovers methods inside the script with `sdk.describe` and `sdk.docs`. See [Jira](/integrations/jira/) and [Confluence](/integrations/confluence/).
 
 ## Images
 
 - Explanation: `explain_image`
-- Generation: `generate_image`
+- Generation: the `imagegen` namespace of `quick_script`
 
 Choose an image-capable fallback model and its thinking level under **Settings → Tools**, then explicitly enable image explanation. `explain_image` is exposed only when the current agent model is text-only. It accepts an absolute or project-relative JPEG, PNG, GIF, or WebP path and an optional focus prompt, sends the image to the configured vision model, and returns only bounded explanatory text to the primary model. Cloud providers receive the image bytes; a compatible local provider can keep processing local.
 
-Configure and enable image generation separately. `generate_image` accepts a prompt while provider, model, and output options remain user-owned settings. The generated raster file is retained as a tool-call artifact and its path is returned to the agent. The initial OpenAI Codex integration uses ChatGPT subscription image access rather than OpenAI API-key billing.
+Enable the Image generation extension in **Settings → Extensions** (with Quick script on). `imagegen.generate` takes a prompt and optional size while backend, model, and quality defaults remain user-owned settings. The generated image is saved as a conversation artifact and its handle is returned to the script, so it can be resized with `image(...)`, attached to a Confluence page, or read. The OpenAI Codex backend uses ChatGPT subscription image access rather than OpenAI API-key billing.
 
-## Diagram export
+## Diagram rendering
 
-- `kroki_export`
-
-Disabled by default. Configure a trusted Kroki endpoint under **Settings → Tools → Third party → Diagram export**, then enable the tool. Diagram source is sent to that server; use a self-hosted endpoint for private diagrams. It accepts source from a file or inline and returns a linked SVG or PNG artifact. See [diagram settings and limits](/guides/settings/#diagram-export).
+The `diagram` namespace of `quick_script` renders Mermaid, D2, PlantUML and other Kroki engines to PNG. It is on by default. Configure a trusted Kroki endpoint under **Settings → Extensions → Diagrams**. Diagram source is sent to that server; use a self-hosted endpoint for private diagrams. See [diagram settings and limits](/guides/settings/#diagram-rendering).
 
 ## Interaction and to-dos
 

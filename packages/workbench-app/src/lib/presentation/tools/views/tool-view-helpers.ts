@@ -21,8 +21,6 @@ export const COLLAPSED_LINES = 6;
  * box, so the line slide never exposes an empty band.
  */
 export const SLIDE_OVERSCAN_LINES = 4;
-/** Rich Atlassian result rows shown in a collapsed body. */
-export const ATLASSIAN_COLLAPSED_ITEMS = 3;
 const GREP_MATCH_TEXT_MAX = 260;
 
 /**
@@ -279,21 +277,4 @@ export function diffStats(diff: string | undefined): {
     else if (line.startsWith("-") && !line.startsWith("---")) deletions += 1;
   }
   return { additions, deletions };
-}
-
-export function parseWithSchema<T>(
-  schema: {
-    safeParse: (
-      value: unknown,
-    ) => { success: true; data: T } | { success: false };
-  },
-  value: unknown,
-): T | undefined {
-  const parsed = schema.safeParse(value);
-  return parsed.success ? parsed.data : undefined;
-}
-
-export function fileBasename(path: string | undefined): string | undefined {
-  if (!path) return undefined;
-  return path.replaceAll("\\", "/").split("/").at(-1) || undefined;
 }

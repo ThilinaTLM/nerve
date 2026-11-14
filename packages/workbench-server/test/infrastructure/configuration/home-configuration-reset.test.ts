@@ -102,13 +102,7 @@ void test("all five preserved documents can be invalid without blocking configur
   t.after(() => rm(home, { recursive: true, force: true }));
   const paths = storagePaths(home);
   await initializeHomeConfiguration(paths);
-  const ids = [
-    "daemon",
-    "ui",
-    "permissions",
-    "providers",
-    "integrations",
-  ] as const;
+  const ids = ["daemon", "ui", "permissions", "providers", "accounts"] as const;
   for (const id of ids)
     await writeFile(join(paths.configPath, `${id}.json`), "broken");
   assert.deepEqual(

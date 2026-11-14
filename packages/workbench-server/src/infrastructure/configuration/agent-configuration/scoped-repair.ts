@@ -1,5 +1,6 @@
 import {
   projectAgentConfiguration,
+  projectAgentSchema,
   projectConversationDefaults,
 } from "./project-chains/scoped-migrations.js";
 import {
@@ -146,7 +147,7 @@ export function createScopedRepair(service: AgentConfigurationService) {
                 typeof candidate === "object" &&
                 "version" in candidate
                   ? candidate.version
-                  : 2,
+                  : 3,
             })
           : profileDefinitionSchema.parse(candidate);
       if ((candidate as { name: string }).name !== input.target.name)
@@ -170,7 +171,10 @@ export function createScopedRepair(service: AgentConfigurationService) {
       if (input.target.document === "conversation-defaults")
         candidate = conversationDefaultsSchema.parse(candidate);
       else if (input.target.scope.scope !== "conversation")
-        candidate = agentPreferencesSchema.parse(candidate);
+        candidate =
+          input.target.scope.scope === "project"
+            ? projectAgentSchema.parse({ ...(candidate as object), version: 2 })
+            : agentPreferencesSchema.parse(candidate);
       else {
         const owner = service.paths.locations.conversationOwner(
           input.target.scope.conversationId,
@@ -199,6 +203,9 @@ export function createScopedRepair(service: AgentConfigurationService) {
               instructions: lookup.definition.instructions,
               recommendations: lookup.definition.recommendations ?? {},
               requirements: lookup.definition.requirements ?? {},
+              ...(lookup.definition.extensions
+                ? { extensions: lookup.definition.extensions }
+                : {}),
             },
           };
         } else if (

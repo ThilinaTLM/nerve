@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { toolNameSchema } from "./tool-name.js";
+import { activeToolNameSchema } from "./tool-name.js";
 export * from "./tool-name.js";
 import {
   durablePermissionSchema,
@@ -18,11 +18,8 @@ export const toolGroupNameSchema = z.enum([
   "python",
   "web",
   "vision",
-  "imageGeneration",
-  "diagramExport",
-  "jira",
-  "confluence",
   "quickScript",
+  "extension",
   "input",
   "todos",
   "process",
@@ -43,7 +40,7 @@ export const toolTraitSchema = z.enum([
 export type ToolTrait = z.infer<typeof toolTraitSchema>;
 
 export const toolDescriptorSchema = z.object({
-  name: toolNameSchema,
+  name: activeToolNameSchema,
   kind: toolKindSchema,
   groups: z.array(z.string().trim().min(1).max(128)).min(1),
   baseRisk: staticToolRiskSchema,
@@ -52,6 +49,8 @@ export const toolDescriptorSchema = z.object({
   argumentSensitive: z.boolean().default(false),
   description: z.string(),
   group: toolGroupNameSchema,
+  /** Id of the extension that contributes the tool; absent for core tools. */
+  extension: z.string().optional(),
   executionKind: toolExecutionKindSchema,
   traits: z.array(toolTraitSchema),
   permission: z.object({

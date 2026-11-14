@@ -207,11 +207,11 @@ export type RespondOAuthFlowRequest = z.infer<
 >;
 
 /**
- * Outcome of the latest Atlassian connection evidence for one service.
- * `rejected` means the credentials were refused (401); `restricted` means the
- * account authenticated but lacks access (403); `unavailable` means the
- * service is not provided by the site (404); `unreachable` covers network,
- * rate-limit, and server failures where credentials could not be judged.
+ * Outcome of the latest connection test of one account. `rejected` means the
+ * credentials were refused; `restricted` means the account authenticated but
+ * lacks access; `unavailable` means the service is not provided; `unreachable`
+ * covers network, rate-limit, and server failures where credentials could not
+ * be judged.
  */
 export const integrationHealthStatusSchema = z.enum([
   "verified",
@@ -224,26 +224,30 @@ export type IntegrationHealthStatus = z.infer<
   typeof integrationHealthStatusSchema
 >;
 
-export const atlassianServiceSchema = z.enum(["jira", "confluence"]);
-export type AtlassianService = z.infer<typeof atlassianServiceSchema>;
-
-export const integrationHealthResultSchema = z.object({
+export const accountHealthSchema = z.object({
+  kind: z.string().min(1),
+  accountId: z.string().min(1),
   status: integrationHealthStatusSchema,
   checkedAt: z.string().datetime(),
-  source: z.enum(["check", "tool"]),
   message: z.string().max(2000).optional(),
-  siteUrl: z.string().min(1),
-  email: z.string().min(1),
 });
-export type IntegrationHealthResult = z.infer<
-  typeof integrationHealthResultSchema
->;
+export type AccountHealth = z.infer<typeof accountHealthSchema>;
 
-export const atlassianProfileHealthSchema = z.object({
-  profileId: z.string().min(1),
-  jira: integrationHealthResultSchema.optional(),
-  confluence: integrationHealthResultSchema.optional(),
+export const accountRefSchema = z.object({
+  kind: z.string().min(1).max(64),
+  id: z.string().min(1).max(256),
 });
-export type AtlassianProfileHealth = z.infer<
-  typeof atlassianProfileHealthSchema
->;
+export type AccountRef = z.infer<typeof accountRefSchema>;
+
+/**
+ * Creates (no `id`) or updates an account. `secret` is the encrypted API
+ * token or key; omit it to keep the stored one.
+ */
+export const saveAccountRequestSchema = z.object({
+  kind: z.string().min(1).max(64),
+  id: z.string().min(1).max(256).optional(),
+  name: z.string().max(256),
+  fields: z.record(z.string(), z.unknown()),
+  secret: encryptedSecretEnvelopeSchema.optional(),
+});
+export type SaveAccountRequest = z.infer<typeof saveAccountRequestSchema>;

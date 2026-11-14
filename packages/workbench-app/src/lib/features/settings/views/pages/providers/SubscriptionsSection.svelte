@@ -6,9 +6,7 @@ import { IconAction } from "@nervekit/ui-kit/components/composites/icon-action";
 import type { AuthProviderMetadata } from "$lib/api";
 import { deleteProviderCredential } from "$lib/api";
 import ConfirmDialog from "@nervekit/ui-kit/components/composites/confirm-dialog";
-import TriangleAlert from "@lucide/svelte/icons/triangle-alert";
-import * as Tooltip from "@nervekit/ui-kit/components/ui/tooltip";
-import { SettingsListItem } from "$lib/presentation/settings";
+import { SettingsItem } from "$lib/presentation/settings";
 import { loadSettingsPanel } from "$lib/application/settings/settings-actions.svelte";
 import {
   SettingsSection,
@@ -65,8 +63,13 @@ async function confirmLogout(): Promise<void> {
   {:else}
     <SettingsList ariaLabel="Connected subscriptions">
       {#each subscriptions as provider (provider.provider)}
-        <SettingsListItem
+        <SettingsItem
           title={provider.displayName}
+          summary={subscriptionAccountLabel(
+            provider.displayName,
+            provider.oauthName,
+          ) || undefined}
+          problem={provider.warning || undefined}
           tourId={provider.provider === "openai-codex"
             ? "setup-auth-openai-codex-connected"
             : undefined}
@@ -77,32 +80,6 @@ async function confirmLogout(): Promise<void> {
               class="size-4 shrink-0"
             />
           {/snippet}
-          {#snippet detail()}
-            {@const account = subscriptionAccountLabel(
-              provider.displayName,
-              provider.oauthName,
-            )}
-            {#if account}
-              <span class="truncate">{account}</span>
-            {/if}
-          {/snippet}
-          {#snippet status()}
-            {#if provider.warning}
-              <Tooltip.Provider delayDuration={200}>
-                <Tooltip.Root>
-                  <Tooltip.Trigger
-                    aria-label={`${provider.displayName} warning: ${provider.warning}`}
-                    class="inline-flex cursor-help rounded-sm text-warning focus-visible:ring-3 focus-visible:ring-focus focus-visible:outline-none"
-                  >
-                    <TriangleAlert class="size-3.5" aria-hidden="true" />
-                  </Tooltip.Trigger>
-                  <Tooltip.Content class="max-w-xs"
-                    >{provider.warning}</Tooltip.Content
-                  >
-                </Tooltip.Root>
-              </Tooltip.Provider>
-            {/if}
-          {/snippet}
           {#snippet actions()}
             <IconAction
               icon={LogOut}
@@ -110,7 +87,7 @@ async function confirmLogout(): Promise<void> {
               onclick={() => (pendingLogout = provider)}
             />
           {/snippet}
-        </SettingsListItem>
+        </SettingsItem>
       {/each}
     </SettingsList>
   {/if}

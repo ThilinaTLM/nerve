@@ -7,8 +7,8 @@
   },
   "references": [
     { "path": "../contracts" },
-    { "path": "../native" },
-    { "path": "../skills" }
+    { "path": "../extension-api" },
+    { "path": "../native" }
   ],
   "include": ["src/**/*.ts", "src/**/*.json"]
 }

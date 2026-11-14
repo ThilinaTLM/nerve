@@ -31,7 +31,7 @@ import ShortcutsSettingsPage from "$lib/features/settings/views/pages/shortcuts/
 import StorageSettingsPage from "$lib/features/settings/views/pages/storage/StorageSettingsPage.svelte";
 import SystemSettingsPage from "$lib/features/settings/views/pages/system/SystemSettingsPage.svelte";
 import VoiceSettingsPage from "$lib/features/settings/views/pages/voice/VoiceSettingsPage.svelte";
-import IntegrationsSettingsPage from "$lib/features/settings/views/pages/integrations/IntegrationsSettingsPage.svelte";
+import ExtensionsSettingsPage from "$lib/features/settings/views/pages/extensions/ExtensionsSettingsPage.svelte";
 import InstructionsFilesPage from "$lib/features/settings/views/pages/project/InstructionsFilesPage.svelte";
 import LaunchSettingsPage from "$lib/features/settings/views/pages/project/LaunchSettingsPage.svelte";
 import TrustSettingsPage from "$lib/features/settings/views/pages/project/TrustSettingsPage.svelte";
@@ -52,6 +52,9 @@ let {
   page,
   target,
   controllers,
+  itemId = "",
+  sectionId,
+  onOpenItem,
   status,
   settingsDraft,
   applicationConfiguration,
@@ -73,6 +76,12 @@ let {
   /** Fixed for the lifetime of the view; every save goes to this target. */
   target: SettingsScopeTarget;
   controllers: SettingsPageControllers;
+  /** Open detail item of a page with a detail view; "" shows its list. */
+  itemId?: string;
+  /** Section to reveal once the item has loaded. */
+  sectionId?: string;
+  /** Opens a detail item, optionally at one of its sections. */
+  onOpenItem?: (id: string, section?: string) => void;
   status?: StatusResponse;
   settingsDraft?: Settings;
   applicationConfiguration?: ApplicationConfigurationSnapshot;
@@ -111,7 +120,6 @@ const projectId = $derived(
       onOpenFile={project
         ? (path) => void openFilePane({ projectId: project.id, path })
         : undefined}
-      {settingsDraft}
       {models}
       {authProviders}
       {skills}
@@ -155,11 +163,15 @@ const projectId = $derived(
     />
   {:else if page.id === "models"}
     <ModelsSettingsPage {models} {authProviders} />
-  {:else if page.id === "integrations"}
-    <IntegrationsSettingsPage
-      {settingsDraft}
+  {:else if page.id === "extensions"}
+    <ExtensionsSettingsPage
+      {scope}
+      {projectId}
+      {models}
       {authProviders}
-      {onSettingsChange}
+      {itemId}
+      {sectionId}
+      {onOpenItem}
     />
   {:else if page.id === "launch"}
     <LaunchSettingsPage
@@ -179,14 +191,7 @@ const projectId = $derived(
   {:else if page.id === "providers"}
     <ProvidersSettingsPage {models} {authProviders} />
   {:else if page.id === "tools"}
-    <ToolsSettingsPage
-      {scope}
-      {projectId}
-      {settingsDraft}
-      {models}
-      {authProviders}
-      {status}
-    />
+    <ToolsSettingsPage {scope} {projectId} {models} {authProviders} {status} />
   {:else if page.id === "skills"}
     <SkillsSettingsPage
       {scope}

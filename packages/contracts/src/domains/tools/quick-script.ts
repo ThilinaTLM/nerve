@@ -1,11 +1,29 @@
 import { z } from "zod";
 
+/**
+ * An SDK operation a script contains, as the admission scan found it, for the
+ * approval and the tool card. `targets` are normalized resources
+ * (`jira:issue/SCRUM-1`); `targetsKnown` is false when some call's targets are
+ * not statically known (they are checked when the call runs).
+ */
+export const quickScriptOperationSchema = z.object({
+  /** `<namespace>.<path>`, e.g. `jira.comments.add`. */
+  operation: z.string(),
+  targets: z.array(z.string()),
+  targetsKnown: z.boolean(),
+  /** Number of calls in the script. */
+  count: z.number().int().positive(),
+});
+export type QuickScriptOperation = z.infer<typeof quickScriptOperationSchema>;
+
 /** One SDK call a quick-script script made through the host broker. */
 export const quickScriptHostCallSchema = z
   .object({
     /** SDK method, e.g. `jira.issues.search`. */
     method: z.string(),
-    /** Direct tool the call was authorized as, e.g. `jira_search_issues`. */
+    /** Normalized resources the call was authorized for, e.g. `jira:issue/APP-12`. */
+    targets: z.array(z.string()).optional(),
+    /** Set only when the call was authorized as a remaining direct tool (`web_fetch`, `write`); older records name the tool for every call. */
     authorizedAs: z.string().optional(),
     /** Short argument summary for display (JQL, issue key). */
     summary: z.string().optional(),
@@ -15,17 +33,6 @@ export const quickScriptHostCallSchema = z
   })
   .passthrough();
 export type QuickScriptHostCall = z.infer<typeof quickScriptHostCallSchema>;
-
-/** A Confluence page the script wrote, with the linter's report. */
-export const quickScriptPageReportSchema = z.object({
-  action: z.enum(["created", "updated"]),
-  id: z.string(),
-  title: z.string(),
-  version: z.number().nullable(),
-  fixes: z.array(z.string()),
-  warnings: z.array(z.string()),
-});
-export type QuickScriptPageReport = z.infer<typeof quickScriptPageReportSchema>;
 
 /** A file the script wrote to the conversation's quick-script artifact folder. */
 export const quickScriptArtifactSchema = z.object({
@@ -55,9 +62,8 @@ export const quickScriptResultDetailsSchema = z
     memoryUsedBytes: z.number().nonnegative().optional(),
     outputTruncated: z.boolean().optional(),
     hostCalls: z.array(quickScriptHostCallSchema),
-    pages: z.array(quickScriptPageReportSchema).optional(),
     artifacts: z.array(quickScriptArtifactSchema).optional(),
-    /** Entities the run created (`SCRUM-6`, `comment 77 on SCRUM-6`); pages are in `pages`. */
+    /** Entities the run created (`SCRUM-6`, `comment 77 on SCRUM-6`). */
     created: z.array(z.string()).optional(),
   })
   .passthrough();

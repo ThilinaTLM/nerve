@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { formatElapsed } from "./tool-presentation-helpers";
+import { formatElapsed, operationLines } from "./tool-presentation-helpers";
 
 describe("formatElapsed", () => {
   it("counts seconds for short work", () => {
@@ -19,4 +19,36 @@ describe("formatElapsed", () => {
     assert.equal(formatElapsed(3_600_000), "1:00:00");
     assert.equal(formatElapsed(3_725_000), "1:02:05");
   });
+});
+
+it("operationLines shows operation · target, one line per target", () => {
+  assert.deepEqual(
+    operationLines([
+      {
+        operation: "jira.comments.add",
+        targets: ["jira:issue/SCRUM-1", "jira:issue/SCRUM-2"],
+        targetsKnown: true,
+        count: 2,
+      },
+      {
+        operation: "jira.issues.get",
+        targets: [],
+        targetsKnown: false,
+        count: 3,
+      },
+      {
+        operation: "jira.issues.update",
+        targets: ["jira:issue/A-1"],
+        targetsKnown: false,
+        count: 1,
+      },
+    ]),
+    [
+      "jira.comments.add · jira:issue/SCRUM-1",
+      "jira.comments.add · jira:issue/SCRUM-2",
+      "jira.issues.get ×3",
+      "jira.issues.update · jira:issue/A-1",
+      "jira.issues.update · other targets",
+    ],
+  );
 });

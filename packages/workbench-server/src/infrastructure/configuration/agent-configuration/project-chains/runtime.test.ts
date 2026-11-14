@@ -39,7 +39,7 @@ void test("capability chain participates in resolution, sparse save normalizatio
     assert.equal(changed.resolution.settings.tools?.web_search?.enabled, true);
   await put(f.service.paths.agent(lead), leadDocument);
   await f.service.reload(lead);
-  await put(file, { schemaVersion: 4, overrides: {} });
+  await put(file, { schemaVersion: 5, overrides: {} });
   const newer = await f.service.projectMigration.resolve(context, {
     type: "capabilities",
     action: "reload",
@@ -52,7 +52,7 @@ void test("capability chain participates in resolution, sparse save normalizatio
   assert.equal(fallback.status, "available");
   if (fallback.status === "available")
     assert.equal(fallback.resolution.settings.tools?.web_search?.enabled, true);
-  await put(file, { schemaVersion: 3, overrides: {}, unexpected: true });
+  await put(file, { schemaVersion: 4, overrides: {}, unexpected: true });
   await f.service.projectMigration.resolve(context, {
     type: "capabilities",
     action: "reload",

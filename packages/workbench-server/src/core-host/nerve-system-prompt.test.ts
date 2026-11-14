@@ -133,22 +133,7 @@ void test("conversation custom base never drops separately captured profile/loca
   );
 });
 
-void test("adds one guide line per active Jira/Confluence tool family", () => {
-  const none = buildNerveSystemPrompt({ cwd: "/w", selectedTools: ["read"] });
-  assert.doesNotMatch(none, /Before first using/);
-  const prompt = buildNerveSystemPrompt({
-    cwd: "/w",
-    customPrompt: "Custom",
-    selectedTools: ["read", "jira_get_issue"],
-  });
-  assert.match(
-    prompt,
-    /^Custom\n\nBefore first using jira_\* tools, read .*jira.*\.\n\n/,
-  );
-  assert.doesNotMatch(prompt, /confluence_\*/);
-});
-
-void test("quick_script adds no guide line: its description carries the pointer", () => {
+void test("no tool adds a guide line to the prompt", () => {
   const prompt = buildNerveSystemPrompt({
     cwd: "/w",
     customPrompt: "Custom",

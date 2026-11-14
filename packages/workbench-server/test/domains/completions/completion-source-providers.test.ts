@@ -13,7 +13,7 @@ import { candidateFromPath } from "../../../src/domains/completions/file-complet
 
 function setup() {
   const settings: LeadSettingsOverrides = {
-    tools: { jira: { enabled: false } },
+    tools: { quick_script: { enabled: false } },
     skills: { file: { hidden: false } },
   };
   const updates: unknown[] = [];
@@ -57,7 +57,7 @@ function setup() {
       },
       profiles: { list: async () => profiles },
     },
-    tools: [{ name: "jira_get_issue", description: "Read a synthetic issue" }],
+    tools: [{ name: "quick_script", description: "Run a synthetic script" }],
     skills: async () => [
       {
         name: "hidden",
@@ -273,26 +273,6 @@ void test("completion enablement writes scoped agent settings with the captured 
       },
     },
   ]);
-});
-
-void test("tool completion disables missing-reference tools rather than selecting integration accounts", async () => {
-  const f = setup();
-  f.ports.configuration.getEffective = async (conversationId) => ({
-    status: "available",
-    conversationId,
-    role: "lead",
-    resolution: resolveAgentConfiguration({
-      role: "lead",
-      conversation: {
-        tools: { jira: { enabled: true, profileId: "missing" } },
-      },
-      referenceAvailable: () => false,
-    }),
-    sources: [],
-    diagnostics: [],
-  });
-  const tools = await f.load("tools");
-  assert.equal(tools[0].item.available, false);
 });
 
 void test("child completion never offers preference editing", async () => {

@@ -45,19 +45,27 @@
     "./execution": {
       "types": "./dist/execution/index.d.ts",
       "import": "./dist/execution/index.js"
+    },
+    "./quick-script": {
+      "types": "./dist/quick-script/index.d.ts",
+      "import": "./dist/quick-script/index.js"
+    },
+    "./quick-script/testing": {
+      "types": "./dist/quick-script/testing.d.ts",
+      "import": "./dist/quick-script/testing.js"
     }
   },
   "scripts": {
-    "build": "tsc -b && tsx ../../scripts/build/copy-tools-assets.ts",
+    "build": "tsc -b && tsx ../../scripts/build/copy-quick-script-assets.ts",
     "check": "tsc -b --pretty false",
-    "pretest": "tsx ../../scripts/build/copy-tools-assets.ts",
+    "pretest": "tsx ../../scripts/build/copy-quick-script-assets.ts",
     "test": "tsx --test \"test/**/*.test.ts\" \"src/**/*.test.ts\"",
     "test:native": "tsx --test test/execution/bash.test.ts test/execution/process-tree.test.ts"
   },
   "dependencies": {
     "@nervekit/contracts": "workspace:*",
+    "@nervekit/extension-api": "workspace:*",
     "@nervekit/native": "workspace:*",
-    "@nervekit/skills": "workspace:*",
     "cross-spawn": "7.0.6",
     "diff": "^8.0.4",
     "node-html-markdown": "^2.0.0",

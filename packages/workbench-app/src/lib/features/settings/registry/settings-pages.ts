@@ -11,7 +11,7 @@ import Lightbulb from "@lucide/svelte/icons/lightbulb";
 import Mic from "@lucide/svelte/icons/mic";
 import Monitor from "@lucide/svelte/icons/monitor";
 import Play from "@lucide/svelte/icons/play";
-import Plug from "@lucide/svelte/icons/plug";
+import Blocks from "@lucide/svelte/icons/blocks";
 import Server from "@lucide/svelte/icons/server";
 import ShieldCheck from "@lucide/svelte/icons/shield-check";
 import Shield from "@lucide/svelte/icons/shield";
@@ -30,16 +30,17 @@ import type {
 import type { SettingsScopeTarget } from "./settings-scope";
 import {
   layoutByScope,
+  resolveSettingsTarget,
   pagesByScope,
   resolveSettingsPageId,
   settingsPageIds,
 } from "./settings-page-data";
 
-export { resolveSettingsPageId, settingsPageIds };
+export { resolveSettingsPageId, resolveSettingsTarget, settingsPageIds };
 
 const icons: Record<string, Component> = {
   providers: CloudCog,
-  integrations: Plug,
+  extensions: Blocks,
   general: SlidersHorizontal,
   tools: Wrench,
   skills: Library,

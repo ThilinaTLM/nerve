@@ -5,7 +5,7 @@ import { IconAction } from "@nervekit/ui-kit/components/composites/icon-action";
 import type { AuthProviderMetadata } from "$lib/api";
 import { deleteProviderCredential } from "$lib/api";
 import ConfirmDialog from "@nervekit/ui-kit/components/composites/confirm-dialog";
-import { SettingsListItem } from "$lib/presentation/settings";
+import { SettingsItem } from "$lib/presentation/settings";
 import { providerCatalogState } from "$lib/features/settings/state/provider-catalog-state.svelte";
 import { loadSettingsPanel } from "$lib/application/settings/settings-actions.svelte";
 import {
@@ -35,9 +35,7 @@ const apiKeys = $derived(
       (provider) =>
         provider.configured &&
         provider.credentialType === "api_key" &&
-        !reserved.has(provider.provider) &&
-        !provider.provider.startsWith("atlassian:") &&
-        !provider.provider.startsWith("tavily:"),
+        !reserved.has(provider.provider),
     )
     .sort((a, b) => a.displayName.localeCompare(b.displayName)),
 );
@@ -76,17 +74,16 @@ async function confirmRemove(): Promise<void> {
   {:else}
     <SettingsList ariaLabel="Configured API keys">
       {#each apiKeys as provider (provider.provider)}
-        <SettingsListItem title={provider.displayName}>
+        <SettingsItem
+          title={provider.displayName}
+          summary={provider.envVar}
+          mono
+        >
           {#snippet leading()}
             <ProviderIcon
               provider={provider.provider}
               class="size-4 shrink-0"
             />
-          {/snippet}
-          {#snippet detail()}
-            {#if provider.envVar}
-              <span class="truncate font-mono">{provider.envVar}</span>
-            {/if}
           {/snippet}
           {#snippet actions()}
             <IconAction
@@ -96,7 +93,7 @@ async function confirmRemove(): Promise<void> {
               onclick={() => (pendingRemove = provider)}
             />
           {/snippet}
-        </SettingsListItem>
+        </SettingsItem>
       {/each}
     </SettingsList>
   {/if}

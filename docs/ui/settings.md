@@ -24,7 +24,15 @@ Put controls directly in the row's `control` snippet: Select, Input with suffix,
 
 ## Lists
 
-Entity lists are a single `SettingsList` (bordered `card` surface, hairline-divided rows) holding `SettingsListItem` rows, never a stack of individually tinted cards. A row's hierarchy is fixed and all of it sits on the left: `title` (primary), `detail` (inline secondary), `status` (badges), `description` (its own line). The right column holds icon actions and nothing else, always visible. Row actions are `IconAction`s, which require a label and supply the tooltip and accessible name; detail editing belongs in a dialog, not inline on the page.
+Entity lists and catalogs (tools, skills, extensions, providers, accounts) are a single `SettingsList` (bordered `card` surface, hairline-divided rows) holding `SettingsItem` rows, never a stack of individually tinted cards. The anatomy is fixed:
+
+- **Left:** an identity icon tile (or a custom mark such as a provider logo), then the title with badges for exceptional states only (Experimental, Default, Shadowed, a version), and one status line under it.
+- **Status line:** the summary of how the item is set up, or what it does when it has no settings. A problem replaces it in warning tone, followed by its fix action, so every row keeps its height. Never write "Off" there; the switch says it.
+- **Right:** change indicator and other quiet meta, icon actions (entity lists), lock, then the switch or "Always on", then a chevron when the row opens something.
+- **Opening:** the whole row opens the item's detail view or dialog. Never add a per-row Configure or Edit button; the row is that button. Lists that open nothing keep the chevron slot empty so switches align.
+- **Off:** the title and icon turn muted; the row stays readable and openable.
+
+Row actions are `IconAction`s, which require a label and supply the tooltip and accessible name; keep them to actions other than opening (Test, Copy, Delete). Detail editing belongs in a dialog or detail view, not inline on the page. `SettingsListItem` remains for compact lists without identity (shortcuts, devices) and `SettingsDisclosureItem` for rows that expand in place.
 
 ## Entity cards
 

@@ -54,6 +54,7 @@ export const permissionTargetKindSchema = z.enum([
   "path",
   "url",
   "agent",
+  "resource",
   "whole_tool",
 ]);
 export type PermissionTargetKind = z.infer<typeof permissionTargetKindSchema>;
@@ -135,6 +136,13 @@ export const permissionTargetSchema = z.union([
     .object({
       kind: z.literal("agent"),
       agentId: boundedStringSchema,
+    })
+    .strict(),
+  z
+    .object({
+      kind: z.literal("resource"),
+      /** Normalized `<system>:<type>/<id>`, e.g. `jira:issue/APP-12`. */
+      value: z.string().trim().min(1).max(2_048),
     })
     .strict(),
   z.object({ kind: z.literal("whole_tool") }).strict(),

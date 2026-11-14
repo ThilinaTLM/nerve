@@ -149,7 +149,7 @@ test("equal settings are removed across configuration domains without mutation",
         enabled: true,
         settings: { interpreterPath: "/bin/python" },
       },
-      jira: { enabled: true, profileId: "account" },
+      quick_script: { enabled: true },
       explain_image: { settings: { model } },
       plan_present: { settings: { approvalProfile: "planning" } },
       subagents: { enabled: true },
@@ -177,24 +177,20 @@ test("canonical object merge units stay whole and ignore property order", () => 
     model,
     tools: {
       bash: { settings: { autoPromotion: { enabled: true, afterMs: 3000 } } },
-      generate_image: {
-        settings: {
-          provider: "openai-codex",
-          model: "gpt-image-2.5-flare",
-          options: { quality: "low", size: "auto", background: "opaque" },
-        },
-      },
     },
   };
   const current = structuredClone(inherited);
   current.model = { modelId: model.modelId, provider: model.provider };
   assert.deepEqual(normalizeSettingsOverrides(current, inherited), {});
   current.model.modelId = "different";
-  current.tools!.generate_image!.settings!.options.quality = "high";
+  current.tools!.bash!.settings!.autoPromotion = {
+    enabled: true,
+    afterMs: 4000,
+  };
   const sparse = normalizeSettingsOverrides(current, inherited);
   assert.deepEqual(sparse, {
     model: current.model,
-    tools: { generate_image: current.tools!.generate_image },
+    tools: { bash: current.tools!.bash },
   });
 });
 

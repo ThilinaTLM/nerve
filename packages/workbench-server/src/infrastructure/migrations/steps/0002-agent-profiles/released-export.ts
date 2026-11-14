@@ -6,7 +6,7 @@ import {
   leadConversationAgentSchema,
   childConversationAgentSchema,
   profileDefinitionSchema,
-} from "@nervekit/contracts/agent-configuration";
+} from "./frozen-agent-schemas.js";
 import {
   sha256,
   jsonBytes,

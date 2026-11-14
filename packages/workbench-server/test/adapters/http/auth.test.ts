@@ -144,28 +144,20 @@ describe("AuthManager", () => {
     assert.equal(custom.supportsApiKey, true);
   });
 
-  it("includes composite integration profile metadata without env hints", async () => {
+  it("keeps account secrets out of the provider lists", async () => {
     const auth = new AuthManager(
       new EncryptedFileSecretProvider(await tempHome()),
     );
-    await auth.setApiKey("atlassian:work", "atlassian-token");
-    await auth.setApiKey("tavily:search", "tavily-token");
+    await auth.setApiKey("account:atlassian:work", "atlassian-token");
+    await auth.setApiKey("custom-compatible", "key");
 
     const providers = await auth.listProviderMetadata();
-    const atlassian = providers.find(
-      (provider) => provider.provider === "atlassian:work",
+    assert.ok(providers.some((p) => p.provider === "custom-compatible"));
+    assert.ok(!providers.some((p) => p.provider.startsWith("account:")));
+    assert.equal(
+      await auth.getApiKey("account:atlassian:work"),
+      "atlassian-token",
     );
-    assert.ok(atlassian);
-    assert.equal(atlassian.displayName, "Atlassian profile");
-    assert.equal(atlassian.configured, true);
-    assert.equal(atlassian.envVar, undefined);
-    const tavily = providers.find(
-      (provider) => provider.provider === "tavily:search",
-    );
-    assert.ok(tavily);
-    assert.equal(tavily.displayName, "Tavily profile");
-    assert.equal(tavily.configured, true);
-    assert.equal(tavily.envVar, undefined);
   });
   it("passes a stable installation device ID to OAuth login flows", async () => {
     const home = await tempHome();

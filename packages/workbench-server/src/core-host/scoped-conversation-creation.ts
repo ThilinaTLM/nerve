@@ -13,12 +13,17 @@ import type {
   SubagentHost,
 } from "@nervekit/conversation-core";
 import type { AgentConfigurationService } from "../infrastructure/configuration/agent-configuration/agent-configuration-service.js";
+import type { ExtensionSettingsService } from "../infrastructure/configuration/extensions/extension-settings-service.js";
 import { requireReady } from "./scoped-agent-configuration.js";
 
 /** Preflight advertises names; new-child creation revalidates them at the actual launch boundary. */
 export function scopedConversationCreation(
   service: AgentConfigurationService,
   validateChildPermission: (id: string) => Promise<void>,
+  extensions?: Pick<
+    ExtensionSettingsService,
+    "resolve" | "freezeEntries" | "freezeForChild"
+  >,
 ) {
   const launches = new WeakMap<
     Awaited<ReturnType<SubagentHost["resolveProfile"]>>["application"],
@@ -49,6 +54,9 @@ export function scopedConversationCreation(
         instructions: profile.definition.instructions,
         recommendations: profile.definition.recommendations ?? {},
         requirements: profile.definition.requirements ?? {},
+        ...(profile.definition.extensions
+          ? { extensions: profile.definition.extensions }
+          : {}),
       };
       let launch;
       let currentParent: (() => boolean) | undefined;
@@ -184,6 +192,19 @@ export function scopedConversationCreation(
   const initializeConversation: AgentConfigurationPort["initializeConversation"] =
     async (input) => {
       const { child, resolved } = await resolveCreationInput(input);
+      // A sub-agent's extension settings are frozen like its tool settings:
+      // user → project → child profile at creation, never the parent's layer.
+      if (child && extensions)
+        await extensions.freezeForChild(
+          input.id,
+          extensions.freezeEntries(
+            await extensions.resolve({
+              projectId: input.projectId,
+              role: "lead",
+              appliedProfile: resolved.applied,
+            }),
+          ),
+        );
       const context = {
         ...(input.config?.instructions != null
           ? { instructions: input.config.instructions }

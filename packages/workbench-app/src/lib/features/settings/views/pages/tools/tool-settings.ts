@@ -1,13 +1,11 @@
-import type {
-  CapabilityToolName,
-  quickScriptIntegrationNames,
-} from "@nervekit/contracts/capabilities";
+import type { CapabilityToolName } from "@nervekit/contracts/capabilities";
+import type { AccountKind } from "@nervekit/contracts/extensions";
+import type { AccountView } from "@nervekit/contracts/settings";
 export type ToolId = CapabilityToolName;
 
 /** The editable shape shared by every tool: all fields optional. */
 export type ToolPayload = {
   enabled?: boolean;
-  profileId?: string;
   settings?: Record<string, unknown>;
 };
 
@@ -17,7 +15,7 @@ export type ToolRowDef = {
   description: string;
   /** Always on: only its configuration is offered. */
   always?: boolean;
-  /** Has a Configure dialog. */
+  /** Has a Configure dialog; otherwise its setup lives in an extension. */
   configurable: boolean;
 };
 
@@ -36,12 +34,6 @@ export const toolRows: readonly ToolRowDef[] = [
     configurable: true,
   },
   {
-    id: "web_search",
-    label: "Web search",
-    description: "Search the web through Tavily.",
-    configurable: true,
-  },
-  {
     id: "web_fetch",
     label: "Web fetch",
     description: "Fetch a URL as readable markdown.",
@@ -54,35 +46,11 @@ export const toolRows: readonly ToolRowDef[] = [
     configurable: true,
   },
   {
-    id: "generate_image",
-    label: "Image generation",
-    description: "Generate images.",
-    configurable: true,
-  },
-  {
-    id: "kroki_export",
-    label: "Diagram export",
-    description: "Render diagrams to SVG or PNG with Kroki.",
-    configurable: true,
-  },
-  {
-    id: "jira",
-    label: "Jira",
-    description: "Search and manage Jira Cloud issues.",
-    configurable: true,
-  },
-  {
-    id: "confluence",
-    label: "Confluence",
-    description: "Search and manage Confluence Cloud content.",
-    configurable: true,
-  },
-  {
     id: "quick_script",
     label: "Quick script",
     description:
-      "Experimental: run short TypeScript scripts with Jira, Confluence and document utilities, instead of separate tools.",
-    configurable: true,
+      "Run short TypeScript scripts that call the enabled extensions and document utilities.",
+    configurable: false,
   },
   {
     id: "plan_present",
@@ -106,66 +74,43 @@ export function toolRow(id: ToolId): ToolRowDef {
 
 export type AccountOption = { id: string; name: string; detail?: string };
 
-/** Tools whose account is chosen from the user's integration accounts. */
-export type AccountKind = "tavily" | "atlassian";
-export function accountKind(id: ToolId): AccountKind | undefined {
-  if (id === "web_search") return "tavily";
-  return id === "jira" || id === "confluence" ? "atlassian" : undefined;
+/** Every account the user can pick from, by account kind. */
+export type AccountOptions = Record<string, AccountOption[]>;
+
+/** The account's first filled field in the kind's order, e.g. the site URL. */
+function accountDetail(
+  kind: AccountKind | undefined,
+  account: AccountView,
+): string | undefined {
+  for (const key of Object.keys(kind?.fields ?? {})) {
+    const value = account.fields[key];
+    if (key !== "name" && typeof value === "string" && value) return value;
+  }
+  return undefined;
 }
 
-/** Every account the user can pick from, by kind. */
-export type AccountOptions = Record<AccountKind, AccountOption[]>;
 export function accountOptions(
-  providers:
-    | {
-        tavilyProfiles: AccountOption[];
-        atlassianProfiles: { id: string; name: string; siteUrl?: string }[];
-      }
-    | undefined,
+  accounts: readonly AccountView[],
+  kinds: readonly AccountKind[],
 ): AccountOptions {
-  return {
-    tavily: providers?.tavilyProfiles ?? [],
-    atlassian: (providers?.atlassianProfiles ?? []).map((p) => ({
-      id: p.id,
-      name: p.name,
-      detail: p.siteUrl,
-    })),
-  };
-}
-
-/** quick_script integrations in settings order, each with the account kind it uses. */
-export const quickScriptIntegrations = [
-  { id: "jira", label: "Jira", kind: "atlassian" },
-  { id: "confluence", label: "Confluence", kind: "atlassian" },
-  { id: "web", label: "Web", kind: "tavily" },
-] as const satisfies readonly {
-  id: (typeof quickScriptIntegrationNames)[number];
-  label: string;
-  kind: AccountKind;
-}[];
-
-type IntegrationSelection = { enabled?: boolean; profileId?: string };
-function enabledIntegrations(payload: ToolPayload) {
-  const s = (payload.settings ?? {}) as Record<string, IntegrationSelection>;
-  return quickScriptIntegrations.filter((i) => s[i.id]?.enabled);
-}
-
-/** Labels of quick_script integrations that are enabled but have no existing account. */
-export function integrationsMissingAccount(
-  payload: ToolPayload,
-  hasAccount: (kind: AccountKind, id: string | undefined) => boolean,
-): string[] {
-  const s = (payload.settings ?? {}) as Record<string, IntegrationSelection>;
-  return enabledIntegrations(payload)
-    .filter((i) => !hasAccount(i.kind, s[i.id]?.profileId))
-    .map((i) => i.label);
+  const options: AccountOptions = Object.fromEntries(
+    kinds.map(({ kind }) => [kind, []]),
+  );
+  for (const account of accounts) {
+    const detail = accountDetail(
+      kinds.find(({ kind }) => kind === account.kind),
+      account,
+    );
+    (options[account.kind] ??= []).push({
+      id: account.id,
+      name: account.name,
+      ...(detail ? { detail } : {}),
+    });
+  }
+  return options;
 }
 
 export type ToolDisplayContext = {
-  accountName: (
-    kind: AccountKind,
-    id: string | undefined,
-  ) => string | undefined;
   profileLabel: (name: string) => string;
   modelLabel: (selection: unknown) => string | undefined;
 };
@@ -175,11 +120,12 @@ function onOff(payload: ToolPayload): string {
 }
 
 /** One short line: "On · account: Work", "/bin/bash · timeout 900 s". */
-export function toolSummary(
+/** How a tool is set up, without its on/off state (the switch shows that). */
+export function toolSettingsSummary(
   id: ToolId,
   payload: ToolPayload,
   context: ToolDisplayContext,
-): string {
+): string | undefined {
   const s = (payload.settings ?? {}) as Record<string, unknown>;
   switch (id) {
     case "bash": {
@@ -195,33 +141,24 @@ export function toolSummary(
       ].join(" · ");
     }
     case "python_exec":
-      return `${onOff(payload)} · ${(s.interpreterPath as string | undefined) ?? "auto-detect"}`;
-    case "quick_script": {
-      const chosen = (payload.settings ?? {}) as Record<
-        string,
-        IntegrationSelection
-      >;
-      const active = enabledIntegrations(payload).map((i) => {
-        const account = context.accountName(i.kind, chosen[i.id]?.profileId);
-        return account ? `${i.label} (${account})` : `${i.label} (no account)`;
-      });
-      return `${onOff(payload)} · ${active.length ? active.join(", ") : "no integrations"}`;
-    }
-    case "web_search":
-    case "jira":
-    case "confluence": {
-      const name = context.accountName(accountKind(id)!, payload.profileId);
-      return `${onOff(payload)} · ${name ? `account: ${name}` : "no account"}`;
-    }
+      return `${(s.interpreterPath as string | undefined) ?? "auto-detect"}`;
     case "explain_image":
-      return `${onOff(payload)} · ${context.modelLabel(s.model) ?? "no model"}`;
-    case "generate_image":
-      return `${onOff(payload)} · ${String(s.model ?? "")}`;
-    case "kroki_export":
-      return `${onOff(payload)} · ${String(s.url ?? "").replace(/^https?:\/\//, "")}`;
+      return `${context.modelLabel(s.model) ?? "no model"}`;
     case "plan_present":
-      return `${onOff(payload)} · after approval: ${context.profileLabel(String(s.approvalProfile ?? ""))}`;
+      return `after approval: ${context.profileLabel(String(s.approvalProfile ?? ""))}`;
     default:
-      return onOff(payload);
+      return undefined;
   }
+}
+
+/** On/off plus the settings, for change descriptions and profile summaries. */
+export function toolSummary(
+  id: ToolId,
+  payload: ToolPayload,
+  context: ToolDisplayContext,
+): string {
+  const settings = toolSettingsSummary(id, payload, context);
+  return id === "bash"
+    ? (settings ?? "")
+    : [onOff(payload), settings].filter(Boolean).join(" · ");
 }

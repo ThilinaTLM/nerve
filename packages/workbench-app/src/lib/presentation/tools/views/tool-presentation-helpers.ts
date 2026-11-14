@@ -1,3 +1,4 @@
+import type { QuickScriptOperation } from "@nervekit/contracts/tools";
 import type { MetaItem } from "../../cards/card-presentation";
 import type { StatusTone } from "@nervekit/ui-kit/display/status";
 
@@ -6,6 +7,23 @@ import type { DetailsActionInfo } from "./tool-presentation-types";
 import type { ToolCallDisplayRecord } from "./tool-result-parser";
 import { countLogicalLines } from "./tool-view-helpers";
 import { COLLAPSED_LINES, type ToolView } from "./tool-result-view";
+
+/**
+ * `operation · target` lines for the operations a script contains: one line per
+ * target, the bare operation when its targets are unknown (they are checked
+ * when the call runs), `×n` for repeated calls of one operation.
+ */
+export function operationLines(
+  operations: readonly QuickScriptOperation[],
+): string[] {
+  return operations.flatMap(({ operation, targets, targetsKnown, count }) => {
+    const times = count > 1 ? ` ×${count}` : "";
+    const lines = targets.map((target) => `${operation} · ${target}`);
+    if (lines.length === 0) return [`${operation}${times}`];
+    if (!targetsKnown) lines.push(`${operation} · other targets`);
+    return count > 1 && lines.length === 1 ? [`${lines[0]}${times}`] : lines;
+  });
+}
 
 export function basename(path: string): string {
   return path.split(/[\\/]/).pop() || path;

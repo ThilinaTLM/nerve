@@ -47,25 +47,8 @@ const metadata = {
   ),
   todos_set: m("interaction", "todos", "interaction", [], ["whole_tool"], true),
   todos_get: m("interaction", "todos", "read", [], ["whole_tool"], true),
-  web_search: m("network", "web", "network", ["query"], ["whole_tool"], true),
   web_fetch: m("network", "web", "network", ["url"], ["url"], true),
   explain_image: m("network", "vision", "network", ["path"], ["path"], true),
-  generate_image: m(
-    "network",
-    "imageGeneration",
-    "network",
-    ["prompt"],
-    ["whole_tool"],
-    true,
-  ),
-  kroki_export: m(
-    "network",
-    "diagramExport",
-    "network",
-    ["source_path", "diagram_type"],
-    ["path", "whole_tool"],
-    false,
-  ),
   quick_script: m(
     "integration",
     "quickScript",
@@ -73,230 +56,6 @@ const metadata = {
     ["code"],
     ["whole_tool"],
     true,
-  ),
-  jira_search_users: m(
-    "integration",
-    "jira",
-    "network",
-    ["query"],
-    ["whole_tool"],
-    true,
-  ),
-  jira_search_issues: m(
-    "integration",
-    "jira",
-    "network",
-    ["jql"],
-    ["whole_tool"],
-    true,
-  ),
-  jira_get_issue: m(
-    "integration",
-    "jira",
-    "network",
-    ["issue_key"],
-    ["whole_tool"],
-    true,
-  ),
-  jira_get_project: m(
-    "integration",
-    "jira",
-    "network",
-    ["project_key"],
-    ["whole_tool"],
-    true,
-  ),
-  jira_search_boards: m(
-    "integration",
-    "jira",
-    "network",
-    ["project_key", "name"],
-    ["whole_tool"],
-    true,
-  ),
-  jira_get_board: m(
-    "integration",
-    "jira",
-    "network",
-    ["board_id"],
-    ["whole_tool"],
-    true,
-  ),
-  jira_get_sprint: m(
-    "integration",
-    "jira",
-    "network",
-    ["sprint_id"],
-    ["whole_tool"],
-    true,
-  ),
-  jira_download_attachment: m(
-    "integration",
-    "jira",
-    "network",
-    ["attachment_id"],
-    ["whole_tool"],
-    true,
-  ),
-  jira_create_issue: m(
-    "integration",
-    "jira",
-    "write",
-    ["project_key"],
-    ["whole_tool"],
-    true,
-  ),
-  jira_update_issue: m(
-    "integration",
-    "jira",
-    "write",
-    ["issue_key"],
-    ["whole_tool"],
-    true,
-  ),
-  jira_transition_issue: m(
-    "integration",
-    "jira",
-    "write",
-    ["issue_key"],
-    ["whole_tool"],
-    true,
-  ),
-  jira_manage_comment: m(
-    "integration",
-    "jira",
-    "destructive",
-    ["comment_id", "issue_key"],
-    ["whole_tool"],
-    true,
-  ),
-  jira_manage_worklog: m(
-    "integration",
-    "jira",
-    "destructive",
-    ["worklog_id", "issue_key"],
-    ["whole_tool"],
-    true,
-  ),
-  jira_manage_issue_link: m(
-    "integration",
-    "jira",
-    "destructive",
-    ["link_id", "issue_key"],
-    ["whole_tool"],
-    true,
-  ),
-  jira_manage_attachment: m(
-    "integration",
-    "jira",
-    "destructive",
-    ["attachment_id", "issue_key"],
-    ["path", "whole_tool"],
-    false,
-  ),
-  jira_manage_sprint: m(
-    "integration",
-    "jira",
-    "destructive",
-    ["sprint_id", "board_id"],
-    ["whole_tool"],
-    true,
-  ),
-  jira_manage_backlog: m(
-    "integration",
-    "jira",
-    "write",
-    ["issue_key"],
-    ["whole_tool"],
-    true,
-  ),
-  confluence_search_spaces: m(
-    "integration",
-    "confluence",
-    "network",
-    ["keys", "ids"],
-    ["whole_tool"],
-    true,
-  ),
-  confluence_search_pages: m(
-    "integration",
-    "confluence",
-    "network",
-    ["cql", "query", "space_key", "space_id", "title"],
-    ["whole_tool"],
-    true,
-  ),
-  confluence_get_page: m(
-    "integration",
-    "confluence",
-    "network",
-    ["page_id"],
-    ["whole_tool"],
-    true,
-  ),
-  confluence_download_page: m(
-    "integration",
-    "confluence",
-    "network",
-    ["page_id"],
-    ["whole_tool"],
-    true,
-  ),
-  confluence_create_page: m(
-    "integration",
-    "confluence",
-    "write",
-    ["space_id", "space_key", "parent_id", "page_file"],
-    ["path", "whole_tool"],
-    false,
-  ),
-  confluence_update_page: m(
-    "integration",
-    "confluence",
-    "write",
-    ["page_id", "page_file"],
-    ["path", "whole_tool"],
-    false,
-  ),
-  confluence_manage_comment: m(
-    "integration",
-    "confluence",
-    "destructive",
-    ["comment_id", "page_id"],
-    ["whole_tool"],
-    true,
-  ),
-  confluence_manage_page: m(
-    "integration",
-    "confluence",
-    "destructive",
-    ["page_id"],
-    ["whole_tool"],
-    true,
-  ),
-  confluence_manage_label: m(
-    "integration",
-    "confluence",
-    "write",
-    ["page_id"],
-    ["whole_tool"],
-    true,
-  ),
-  confluence_manage_restriction: m(
-    "integration",
-    "confluence",
-    "destructive",
-    ["page_id"],
-    ["whole_tool"],
-    true,
-  ),
-  confluence_manage_attachment: m(
-    "integration",
-    "confluence",
-    "destructive",
-    ["attachment_id", "page_id"],
-    ["path", "whole_tool"],
-    false,
   ),
   async_bash: m(
     "orchestration",
@@ -370,8 +129,23 @@ export const toolPermissionMetadata: Readonly<
   Record<ToolName, ToolPermissionMetadata>
 > = Object.freeze(metadata);
 
+const extensionToolMetadata = new Map<string, ToolPermissionMetadata>();
+
+/** Records the permission metadata of an extension's tool (see `registerToolDefinitions`). */
+export function registerExtensionToolMetadata(
+  name: string,
+  metadata: ToolPermissionMetadata,
+): void {
+  if (name in toolPermissionMetadata)
+    throw new Error(`Duplicate tool definition: ${name}`);
+  extensionToolMetadata.set(name, Object.freeze({ ...metadata }));
+}
+
 export function permissionMetadataForTool(
   name: ToolName,
 ): ToolPermissionMetadata {
-  return toolPermissionMetadata[name];
+  const metadata =
+    toolPermissionMetadata[name] ?? extensionToolMetadata.get(name);
+  if (!metadata) throw new Error(`Unknown tool: ${name}`);
+  return metadata;
 }

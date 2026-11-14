@@ -1,5 +1,19 @@
 import { ConversationTitleService } from "../../domains/conversation-titles/title.service.js";
 import { projectGitRemotes } from "../../core-host/project-git-remotes.js";
+import {
+  assertExtensionToolOffered,
+  extensionAvailability,
+} from "../../core-host/extension-availability.js";
+import {
+  createExtensionPorts,
+  selectedAccountsTarget,
+} from "../../core-host/extension-ports.js";
+import { hostRegistry } from "../../core-host/host-tools.js";
+import type { AccountsReader } from "../../domains/accounts/accounts.service.js";
+import { conversationExtensions } from "../../core-host/conversation-extensions.js";
+import { ExtensionSettingsService } from "../../infrastructure/configuration/extensions/extension-settings-service.js";
+import { extensionSettingsDefinitions } from "../../core-host/host-tools.js";
+import { type QuickScriptContext } from "@nervekit/tools/quick-script";
 import { capabilityToolNameSchema } from "@nervekit/contracts/capabilities";
 import { ProjectMigrationService } from "../../infrastructure/configuration/project-migration/project-migration.js";
 import { projectMigrationTrust } from "../../infrastructure/configuration/project-migration/project-migration-trust.js";
@@ -10,11 +24,7 @@ import {
 import { createProfileTransitions } from "../../infrastructure/configuration/agent-configuration/profile-transitions.js";
 import { agentConfigurationOperations } from "../../infrastructure/configuration/agent-configuration/scoped-configuration-operations.js";
 import type { LeadSettingsOverrides } from "@nervekit/contracts/agent-configuration";
-import {
-  defaultKrokiToolSettings,
-  type Settings,
-  type BashToolSettings,
-} from "@nervekit/contracts/settings";
+import type { BashToolSettings } from "@nervekit/contracts/settings";
 import { createScopedPermissionSource } from "../../core-host/scoped-permission-source.js";
 import { resolveAgentModel } from "@nervekit/harness/models";
 import { scopedConversationCreation } from "../../core-host/scoped-conversation-creation.js";
@@ -41,10 +51,14 @@ import {
 import {
   resolvePythonRuntime,
   resolveBashShellConfig,
-  classifyQuickScriptArguments,
   ToolExecutionError,
   type ToolExecutionContext,
 } from "@nervekit/tools/execution";
+import {
+  classifyQuickScriptArguments,
+  quickScriptToolRisk,
+} from "@nervekit/tools/quick-script";
+import type { ToolName } from "@nervekit/contracts/tools";
 import { explainImageWithModel } from "@nervekit/harness/models";
 import { listAvailableSkills } from "../../core-host/resource-loader.js";
 import { createModelPort } from "../../core-host/model.adapter.js";
@@ -59,7 +73,7 @@ import { ImageGenerationService } from "../../domains/image-generation/image-gen
 import { OpenAiCodexImageGenerationProvider } from "../../domains/image-generation/providers/openai-codex-image-generation.provider.js";
 
 export function createConversationCore(
-  deps: RuntimeDeps,
+  deps: RuntimeDeps & { accounts: AccountsReader },
   launchServices: Pick<LaunchToolOptions, "launches" | "definitions">,
   onProjectDeleted?: ConversationCoreOptions["onProjectDeleted"],
   processHost?: CoreProcessHost,
@@ -90,6 +104,7 @@ export function createConversationCore(
         throw new Error("Agent configuration unavailable");
       return view.resolution.settings.tools?.bash?.settings?.shellPath;
     });
+  const { accounts } = deps;
   const imageGeneration = new ImageGenerationService([
     new OpenAiCodexImageGenerationProvider(deps.auth),
   ]);
@@ -121,11 +136,15 @@ export function createConversationCore(
       });
   });
   const captureExecutionResources = async (
+    conversation: { id?: string | undefined; projectId: string },
     cwd: string,
     settings: LeadSettingsOverrides,
     forcePython = false,
   ) => {
-    const providers = structuredClone(deps.storage.settings.providers);
+    const extensions = await conversationExtensionSettings(
+      conversation.id,
+      conversation.projectId,
+    );
     const modelConfiguration = structuredClone(
       deps.storage.configuration.providers,
     );
@@ -149,9 +168,10 @@ export function createConversationCore(
     } catch {
       shell = { available: false };
     }
-    return { providers, modelConfiguration, python, shell };
+    return { extensions, modelConfiguration, python, shell };
   };
   let credentialEpoch = 0;
+  let extensionEpoch = 0;
   const tools = createToolHostPort(
     processes,
     async (input) => {
@@ -207,6 +227,12 @@ export function createConversationCore(
           isCurrent = captured.isCurrent;
           settings = structuredClone(captured.view.resolution.settings);
           resources = await captureExecutionResources(
+            {
+              id: input.conversationId,
+              projectId: agentConfiguration.paths.locations.conversationOwner(
+                input.conversationId,
+              ).projectId,
+            },
             input.cwd,
             settings,
             input.toolName === "python_exec",
@@ -221,7 +247,7 @@ export function createConversationCore(
             "TOOL_NOT_ENABLED",
             `${input.toolName}: not enabled for this conversation`,
           );
-        const { providers, modelConfiguration, python, shell } = resources;
+        const { extensions, modelConfiguration, python, shell } = resources;
         const bash = structuredClone(
           settings.tools!.bash!.settings as BashToolSettings,
         );
@@ -239,89 +265,26 @@ export function createConversationCore(
             );
           bash.shellPath = shell.path;
         }
-        // Direct Jira/Confluence tools need their own account up front: missing
-        // setup fails the call so the agent can tell the user (configuration_blocked
-        // is reserved for invalid configuration/policy). quick_script instead
-        // leaves an unconfigured product out: its calls fail with an error naming
-        // the setting to fix.
         const quickScript = input.toolName === "quick_script";
-        const quickScriptSettings = quickScript
-          ? settings.tools?.quick_script?.settings
-          : undefined;
-        const toolProvider = input.toolName.startsWith("jira_")
-          ? "jira"
-          : input.toolName.startsWith("confluence_")
-            ? "confluence"
-            : input.toolName === "web_search"
-              ? "tavily"
-              : undefined;
-        const quickScriptWeb = quickScriptSettings?.web;
-        const tavilyAccount = providers.tavilyProfiles.find(
-          (profile) =>
-            profile.id ===
-            (toolProvider === "tavily"
-              ? settings.tools?.web_search?.profileId
-              : quickScriptWeb?.enabled
-                ? quickScriptWeb.profileId
-                : undefined),
+        const extensionPorts = createExtensionPorts({
+          resolution: extensions,
+          accounts,
+          generateImage: (request) => imageGeneration.generate(request),
+          warn: (extensionId, message, data) =>
+            void deps.logger.warn("Extension warning", {
+              context: { extension: extensionId, message, data },
+            }),
+        });
+        const isExtensionTool = hostRegistry.tools.some(
+          (tool) => tool.definition.name === input.toolName,
         );
-        if (toolProvider === "tavily" && !tavilyAccount)
-          throw new ToolExecutionError(
-            "MISSING_ACCOUNT",
-            `${input.toolName}: no Tavily account is selected for this tool. Ask the user to add or choose one in Settings → Integrations → Tavily.`,
-          );
-        // quick_script's `web.search` is simply unavailable without a usable token.
-        const tavilyKey = tavilyAccount
-          ? await deps.auth
-              .getApiKey(`tavily:${tavilyAccount.id}`)
-              .catch(() => undefined)
-          : undefined;
-        if (toolProvider === "tavily" && tavilyAccount && !tavilyKey)
-          throw new ToolExecutionError(
-            "MISSING_CREDENTIALS",
-            `${input.toolName}: the Tavily account "${tavilyAccount.name}" has no API token saved. Ask the user to add it in Settings → Integrations → Tavily.`,
-          );
-        const atlassianProducts = quickScript
-          ? (["jira", "confluence"] as const)
-          : toolProvider === "jira" || toolProvider === "confluence"
-            ? ([toolProvider] as const)
-            : ([] as const);
-        const atlassianAccounts = new Map<
-          "jira" | "confluence",
-          {
-            profile: (typeof providers.atlassianProfiles)[number];
-            apiKey: string;
-          }
-        >();
-        for (const product of atlassianProducts) {
-          const selection = quickScript
-            ? quickScriptSettings?.[product]
-            : settings.tools?.[product];
-          const profile =
-            !quickScript || selection?.enabled
-              ? providers.atlassianProfiles.find(
-                  (candidate) => candidate.id === selection?.profileId,
-                )
-              : undefined;
-          if (!profile) {
-            if (quickScript) continue;
-            throw new ToolExecutionError(
-              "MISSING_ACCOUNT",
-              `${input.toolName}: no Atlassian account is selected for this tool. Ask the user to add or choose one in Settings → Integrations → Atlassian.`,
-            );
-          }
-          const apiKey = await deps.auth
-            .getApiKey(`atlassian:${profile.id}`)
-            .catch(() => undefined);
-          if (!apiKey) {
-            if (quickScript) continue;
-            throw new ToolExecutionError(
-              "MISSING_CREDENTIALS",
-              `${input.toolName}: the Atlassian account "${profile.name}" has no API token saved. Ask the user to add it in Settings → Integrations → Atlassian.`,
-            );
-          }
-          atlassianAccounts.set(product, { profile, apiKey });
-        }
+        // Direct tools of extensions: offered only while available (advertising is not authorization).
+        await assertExtensionToolOffered(
+          hostRegistry,
+          input.toolName,
+          extensions,
+          accounts,
+        );
         if (input.toolName === "python_exec" && (!python || !python.available))
           throw new ToolExecutionError(
             "PYTHON_UNAVAILABLE",
@@ -339,30 +302,26 @@ export function createConversationCore(
             "MODEL_REQUIRED",
             "explain_image: no usable image model is configured. Ask the user to choose one in Settings → Tools → explain_image.",
           );
-        const context: ToolExecutionContext = {
+        const context: ToolExecutionContext & QuickScriptContext = {
           cwd: input.cwd,
           shellPath: bash.shellPath,
           pythonRuntime: python?.available ? python : undefined,
-          kroki: quickScript
+          registry: hostRegistry,
+          extensionPorts,
+          ...(quickScript || isExtensionTool
             ? {
-                url:
-                  quickScriptSettings?.diagram?.url ??
-                  defaultKrokiToolSettings.url,
-              }
-            : (settings.tools?.kroki_export
-                ?.settings as Settings["tools"]["kroki"]),
-          getApiKey: async (provider) =>
-            provider === "jira" || provider === "confluence"
-              ? atlassianAccounts.get(provider)?.apiKey
-              : provider === "tavily"
-                ? tavilyKey
-                : undefined,
-          ...(quickScript
-            ? {
-                web: {
-                  enabled: quickScriptWeb?.enabled === true,
-                  search: Boolean(tavilyKey),
-                },
+                ...(quickScript
+                  ? {
+                      namespaces: (
+                        await extensionAvailability(
+                          hostRegistry,
+                          extensions,
+                          accounts,
+                          { checkSecrets: true, ports: extensionPorts },
+                        )
+                      ).namespaces,
+                    }
+                  : {}),
                 authorizeNested: (request) =>
                   // Only a person's approval of the script sets the ceiling: the
                   // admission stored on the tool call says whether a rule allowed
@@ -378,27 +337,21 @@ export function createConversationCore(
                       signal: input.signal,
                       admission: {
                         by: userApproved(input.toolCallId) ? "user" : "rule",
-                        scriptRisk: classifyQuickScriptArguments(
-                          input.args as Record<string, unknown>,
-                        ).risk,
+                        scriptRisk: quickScript
+                          ? classifyQuickScriptArguments(
+                              input.args as Record<string, unknown>,
+                              hostRegistry,
+                            ).risk
+                          : quickScriptToolRisk(
+                              input.toolName as ToolName,
+                              input.args as Record<string, unknown>,
+                            ),
                       },
                     },
                     request,
                   ),
               }
             : {}),
-          getProviderConfig: async (provider) => {
-            if (provider !== "jira" && provider !== "confluence")
-              return undefined;
-            const account = atlassianAccounts.get(provider);
-            return { ...account?.profile, enabled: Boolean(account) };
-          },
-          generateImage: (request) =>
-            imageGeneration.generate(
-              request,
-              settings.tools!.generate_image!
-                .settings as Settings["tools"]["imageGeneration"],
-            ),
           explainImage: async (request) => {
             if (!explanationModel || !explanation?.model)
               throw new Error("Image explanation model was not prepared");
@@ -418,13 +371,7 @@ export function createConversationCore(
           },
         };
         if (!isCurrent() || credentialVersion !== credentialEpoch) continue;
-        const selectedTool = capabilityToolNameSchema.safeParse(
-          input.toolName.startsWith("jira_")
-            ? "jira"
-            : input.toolName.startsWith("confluence_")
-              ? "confluence"
-              : input.toolName,
-        );
+        const selectedTool = capabilityToolNameSchema.safeParse(input.toolName);
         const modelTarget =
           input.toolName === "explain_image" && explanation?.model
             ? {
@@ -448,17 +395,23 @@ export function createConversationCore(
                 ? (settings.tools?.[selectedTool.data] ?? null)
                 : null,
               modelConfiguration: modelTarget,
+              // Only quick_script and extension tools read extension settings; other
+              // approvals must not be invalidated by unrelated extension edits.
+              ...(quickScript || isExtensionTool
+                ? {
+                    extensions: extensions.extensions,
+                    // Switching an extension's account (or its site) ends approvals.
+                    accounts: await selectedAccountsTarget(
+                      hostRegistry,
+                      extensions,
+                      accounts,
+                    ),
+                  }
+                : {}),
               python:
                 input.toolName === "python_exec" && python?.available
                   ? python
                   : null,
-              accounts: Object.fromEntries(
-                [...atlassianAccounts].map(([product, { profile }]) => [
-                  product,
-                  profile,
-                ]),
-              ),
-              account: tavilyAccount ?? null,
               shellPath: spawnsShell ? (bash.shellPath ?? null) : null,
             }),
           ) as Record<string, unknown>,
@@ -484,7 +437,8 @@ export function createConversationCore(
     JSON.stringify({
       discoveredSkills: [...discoveredSkills],
       credentialEpoch,
-      providers: deps.storage.settings.providers,
+      extensionEpoch,
+      accounts: deps.storage.configuration.accounts,
       modelConfiguration: deps.storage.configuration.providers,
       models: deps.providerCatalog.resolvedModels(),
       nerve: deps.nerveSkills.skills,
@@ -569,7 +523,6 @@ export function createConversationCore(
     captureResources: (projectId) => {
       const generation = resourceGeneration();
       const models = deps.providerCatalog.resolvedModels();
-      const providers = structuredClone(deps.storage.settings.providers);
       return {
         options: {
           eligibleSkills: {
@@ -594,14 +547,6 @@ export function createConversationCore(
                 return false;
               }
             }
-            if (pointer.endsWith("/profileId")) {
-              const profiles =
-                pointer.includes("/web_search/") ||
-                pointer.includes("/quick_script/settings/web/")
-                  ? providers.tavilyProfiles
-                  : providers.atlassianProfiles;
-              return profiles.some((profile) => profile.id === value);
-            }
             return true;
           },
         },
@@ -609,8 +554,26 @@ export function createConversationCore(
       };
     },
   });
-  const scopedCreation = scopedConversationCreation(agentConfiguration, (id) =>
-    admissionPolicy.validateChildPermission(id),
+  const extensionSettings = new ExtensionSettingsService({
+    paths: agentConfiguration.paths,
+    projectMigration,
+    definitions: extensionSettingsDefinitions,
+    isProjectTrusted: (projectId, path, digest) =>
+      core.trust.isTrusted("project_capabilities", projectId, path, digest),
+  });
+  extensionSettings.subscribe((scope) => {
+    // A conversation's own file is written while that conversation is created
+    // (a child's frozen settings), so it cannot invalidate that creation.
+    if (scope.scope !== "conversation") extensionEpoch++;
+  });
+  const conversationExtensionSettings = conversationExtensions({
+    agents: agentConfiguration,
+    extensions: extensionSettings,
+  });
+  const scopedCreation = scopedConversationCreation(
+    agentConfiguration,
+    (id) => admissionPolicy.validateChildPermission(id),
+    extensionSettings,
   );
   const profileTransitions = createProfileTransitions(agentConfiguration);
   const configurationOperations =
@@ -622,7 +585,11 @@ export function createConversationCore(
     prepareCreation: scopedCreation.prepareCreation,
     profiles: profileTransitions.port,
     captureExecutorResources: (input, settings) =>
-      captureExecutionResources(input.config.workingDirectory, settings),
+      captureExecutionResources(
+        input.conversation,
+        input.config.workingDirectory,
+        settings,
+      ),
     resourcesGeneration: resourceGeneration,
     service: agentConfiguration,
     prepare: scopedTurnResources({
@@ -633,6 +600,11 @@ export function createConversationCore(
       agentBrowserSkills: () => deps.agentBrowserSkills.skills,
       hasChildren: (id) =>
         (storage.conversations.getSummary(id)?.childCount ?? 0) > 0,
+      registry: hostRegistry,
+      extensions: async (id, projectId) => ({
+        resolution: await conversationExtensionSettings(id, projectId),
+        accounts,
+      }),
     }),
   });
   const admissionPolicy = createScopedPermissionSource({
@@ -651,6 +623,7 @@ export function createConversationCore(
   };
   const authorizeQuickScriptCall = createQuickScriptAuthorizer(
     createExecutionAdmission(admissionPolicy),
+    hostRegistry,
   );
   const conversationTitles = new ConversationTitleService({
     settings: () => deps.storage.settings.conversationTitles,
@@ -723,6 +696,7 @@ export function createConversationCore(
         "settings.updated",
         "providers.catalog_changed",
         "auth.providers_changed",
+        "accounts.changed",
       ].includes(event.type)
     )
       return;
@@ -784,6 +758,7 @@ export function createConversationCore(
     core,
     storage,
     agentConfiguration,
+    extensionSettings,
     configurationOperations,
     scopedConfiguration,
     admissionPolicy,

@@ -13,16 +13,23 @@ import {
   permissionRuleSetSchema,
   permissionOverlayDocumentForOriginSchema,
   type PermissionOverlayDocument,
+  type ToolRisk,
 } from "@nervekit/contracts/permissions";
-import { toolNameSchema } from "@nervekit/contracts/tools";
+import { activeToolNameSchema } from "@nervekit/contracts/tools";
 import {
   composeEffectivePermissionPolicy,
+  composeScriptAdmission,
   evaluatePermissionRequest,
+  normalizeOperationRequest,
   normalizePermissionRequest,
   builtInPermissionRuleSets,
+  type OperationRisk,
 } from "@nervekit/tools/policy";
 import { classifyToolRisk } from "@nervekit/tools/catalog";
-import { classifyQuickScriptArguments } from "@nervekit/tools/execution";
+import {
+  classifyQuickScriptArguments,
+  summarizeScannedCalls,
+} from "@nervekit/tools/quick-script";
 import type { AgentConfigurationService } from "../infrastructure/configuration/agent-configuration/agent-configuration-service.js";
 import {
   canonicalDigest,
@@ -30,6 +37,7 @@ import {
   type CurrentPolicy,
 } from "./execution-admission/admission.js";
 import { emptyOverlayDocument, overlayDigest } from "./permission-overlays.js";
+import { hostRegistry } from "./host-tools.js";
 
 type Loaded =
   | { kind: "missing" }
@@ -200,21 +208,28 @@ export function createScopedPermissionSource(options: {
       while (true) {
         const trustVersion = options.trustGeneration();
         const context = projectOf(input.conversationId);
+        const operation = nestedOperation(input);
         normalized.set(
           input,
-          normalizePermissionRequest({
-            toolName: toolNameSchema.parse(input.toolName),
-            args: input.args as Record<string, unknown>,
-            conversationId: input.conversationId,
-            projectId: context.project.id,
-            cwd: input.cwd,
-            roots: {
-              project: context.project.directory,
-              nerve_home: options.home,
-              nerve_data: join(options.home, "data"),
-              plans: join(options.home, "data", "plans"),
-            },
-          }),
+          operation
+            ? normalizeOperationRequest({
+                ...operation,
+                conversationId: input.conversationId,
+                projectId: context.project.id,
+              })
+            : normalizePermissionRequest({
+                toolName: activeToolNameSchema.parse(input.toolName),
+                args: input.args as Record<string, unknown>,
+                conversationId: input.conversationId,
+                projectId: context.project.id,
+                cwd: input.cwd,
+                roots: {
+                  project: context.project.directory,
+                  nerve_home: options.home,
+                  nerve_data: join(options.home, "data"),
+                  plans: join(options.home, "data", "plans"),
+                },
+              }),
         );
 
         const existing = policies.get(input.conversationId);
@@ -343,24 +358,41 @@ export function createScopedPermissionSource(options: {
                 const request = normalized.get(actual);
                 if (!request)
                   throw new Error("Permission request was not prepared");
-                const evaluated = evaluatePermissionRequest({
-                  policy,
-                  request,
-                });
+                const scanned =
+                  actual.toolName === "quick_script" && !request.operation
+                    ? classifyQuickScriptArguments(request.args, hostRegistry)
+                    : undefined;
+                const script = evaluatePermissionRequest({ policy, request });
+                // A complete scan lets operation rules decide the script.
+                const evaluated =
+                  scanned?.admissible === true
+                    ? composeScriptAdmission({
+                        script,
+                        calls: scanned.calls,
+                        policy,
+                        conversationId: request.conversationId,
+                        ...(request.projectId === undefined
+                          ? {}
+                          : { projectId: request.projectId }),
+                      }).result
+                    : script;
                 return supervisionSchema.parse({
                   decision:
                     evaluated.decision === "prompt"
                       ? "approval"
                       : evaluated.decision,
-                  effectiveRisk: classifyToolRisk(
-                    actual.toolName,
-                    request.args,
-                  ),
+                  effectiveRisk: request.operation
+                    ? operationEffectiveRisk(request.args.risk)
+                    : classifyToolRisk(actual.toolName, request.args),
                   reason:
                     actual.toolName === "quick_script" &&
+                    !request.operation &&
                     evaluated.decision !== "allow"
                       ? withScriptOperations(evaluated.reason, request.args)
                       : evaluated.reason,
+                  ...(scanned && scanned.calls.length > 0
+                    ? { operations: summarizeScannedCalls(scanned.calls) }
+                    : {}),
                   matchedRule: evaluated.winningRule,
                   suggestedRules: evaluated.suggestedRules,
                   authority: {
@@ -437,8 +469,47 @@ function withScriptOperations(
   reason: string,
   args: Record<string, unknown>,
 ): string {
-  const { operations } = classifyQuickScriptArguments(args);
+  const { operations } = classifyQuickScriptArguments(args, hostRegistry);
   return operations.length > 0
     ? `${reason} Script operations: ${operations.join(", ")}.`
     : reason;
+}
+
+/** The SDK operation a quick-script broker check names, or undefined for any other request. */
+function nestedOperation(
+  input: Parameters<AdmissionPolicySource["ensureLoaded"]>[0],
+) {
+  const target = input.target as { kind?: unknown } | null;
+  const args = input.args as {
+    operation?: unknown;
+    targets?: unknown;
+    risk?: unknown;
+  };
+  if (
+    input.toolName !== "quick_script" ||
+    target?.kind !== "quick_script_nested" ||
+    typeof args.operation !== "string"
+  )
+    return undefined;
+  return {
+    operation: args.operation,
+    targets: (args.targets as string[] | undefined) ?? [],
+    risk: args.risk as OperationRisk,
+  };
+}
+
+function operationEffectiveRisk(risk: unknown): ToolRisk {
+  switch (risk) {
+    case "none":
+    case "read":
+      return "read";
+    case "write":
+      return "workspace_write";
+    case "external_write":
+      return "command";
+    case "destructive":
+      return "destructive";
+    default:
+      return "network";
+  }
 }

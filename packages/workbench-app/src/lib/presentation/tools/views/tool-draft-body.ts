@@ -34,22 +34,11 @@ export function progressDraftBody(
  * Header-only arguments (for example a one-line command or path) deliberately
  * do not create an empty placeholder body.
  */
-export function hasMeaningfulToolDraftBody(
-  summary: ToolDraftSummary,
-  atlassianSummary?: string,
-): boolean {
+export function hasMeaningfulToolDraftBody(summary: ToolDraftSummary): boolean {
   const argumentBody = summary.argumentBody;
-  const meaningfulArgumentBody =
-    argumentBody?.kind === "atlassian-draft"
-      ? !summary.done ||
-        argumentBody.fields.some((field) => field.value !== undefined) ||
-        argumentBody.text?.text !== undefined
-      : Boolean(argumentBody && argumentBody.kind !== "none");
   return Boolean(
     summary.preview?.length ||
     summary.inputPreview?.length ||
-    meaningfulArgumentBody ||
-    (atlassianSummary?.length &&
-      !atlassianSummary.includes("Waiting for arguments…")),
+    (argumentBody && argumentBody.kind !== "none"),
   );
 }

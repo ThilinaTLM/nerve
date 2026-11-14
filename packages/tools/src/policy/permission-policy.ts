@@ -52,6 +52,8 @@ export interface NormalizedPermissionRequest {
   targets: PermissionTarget[];
   projectId?: string;
   conversationId: string;
+  /** Set for a quick_script SDK operation checked by name (`jira.issues.create`), not for a script. */
+  operation?: { namespace: string; baseRisk: StaticToolRisk };
 }
 
 export interface EffectivePermissionRule {
@@ -322,26 +324,6 @@ function extractTargets(
       },
     ];
   }
-  if (toolName === "kroki_export") {
-    const targets = [
-      ...stringPathTargets(args.source_path, "read", "exact", roots, cwd),
-      ...stringPathTargets(args.output_path, "write", "exact", roots, cwd),
-    ];
-    return targets.length > 0 ? targets : [{ kind: "whole_tool" }];
-  }
-
-  const fileArguments =
-    toolName === "jira_manage_attachment" ||
-    toolName === "confluence_manage_attachment"
-      ? [args.file_path]
-      : toolName === "confluence_create_page" ||
-          toolName === "confluence_update_page"
-        ? [args.page_file, args.body_file]
-        : [];
-  const fileTargets = fileArguments.flatMap((value) =>
-    stringPathTargets(value, "read", "exact", roots, cwd),
-  );
-  if (fileTargets.length > 0) return fileTargets;
   return [{ kind: "whole_tool" }];
 }
 
@@ -466,6 +448,13 @@ const ARGUMENT_RISK_TOOLS = new Set(["async_bash", "launch", "quick_script"]);
 
 function requestMetadata(request: NormalizedPermissionRequest) {
   const metadata = permissionMetadataForTool(request.toolName);
+  if (request.operation)
+    return {
+      ...metadata,
+      groups: [request.operation.namespace],
+      baseRisk: request.operation.baseRisk,
+      primaryTargetComplete: true,
+    };
   if (ARGUMENT_RISK_TOOLS.has(request.toolName)) {
     const risk = requireToolDefinition(request.toolName).classifyRisk?.(
       request.args,
@@ -594,7 +583,9 @@ function targetMatches(
         ? target.normalizedUrl
         : target.kind === "agent"
           ? target.agentId
-          : "*";
+          : target.kind === "resource"
+            ? target.value
+            : "*";
   return value !== undefined && patternMatches(value, matcher.pattern);
 }
 
@@ -625,6 +616,8 @@ function suggestPermissionRules(
   request: NormalizedPermissionRequest,
   risk: StaticToolRisk,
 ): PermissionRule[] {
+  // A script's primary argument is its whole text; operation rules, built from the scan, are suggested instead.
+  if (request.toolName === "quick_script" && !request.operation) return [];
   const primary = comparable(request.primaryArgument);
   const onlyTarget =
     request.targets.length === 1 ? request.targets[0] : undefined;
@@ -663,6 +656,12 @@ function suggestPermissionRules(
         kind: "agent",
         pattern: escapeGlobLiteral(target.agentId),
       },
+    };
+  } else if (target?.kind === "resource") {
+    when.primaryArgument = { operator: "equals", value: primary! };
+    when.targets = {
+      quantifier: "all",
+      matcher: { kind: "resource", pattern: escapeGlobLiteral(target.value) },
     };
   } else if (primary !== undefined) {
     when.primaryArgument = { operator: "equals", value: primary };

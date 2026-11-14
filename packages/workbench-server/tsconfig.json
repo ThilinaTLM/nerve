@@ -20,10 +20,13 @@
       "path": "../harness"
     },
     {
-      "path": "../skills"
+      "path": "../tools"
     },
     {
-      "path": "../tools"
+      "path": "../extension-api"
+    },
+    {
+      "path": "../extensions"
     },
     {
       "path": "../conversation-core"

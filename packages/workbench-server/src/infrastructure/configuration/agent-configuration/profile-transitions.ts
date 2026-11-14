@@ -93,6 +93,9 @@ export function createProfileTransitions(service: AgentConfigurationService) {
       instructions: lookup.definition.instructions,
       recommendations: lookup.definition.recommendations ?? {},
       requirements: lookup.definition.requirements ?? {},
+      ...(lookup.definition.extensions
+        ? { extensions: lookup.definition.extensions }
+        : {}),
     };
     const resolution = resolveAgentConfiguration({
       ...defaults.options,

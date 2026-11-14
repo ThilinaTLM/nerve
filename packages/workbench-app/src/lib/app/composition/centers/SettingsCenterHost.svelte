@@ -8,4 +8,5 @@ import SettingsCenter from "./SettingsCenter.svelte";
   target={userSettingsScope}
   bind:pageId={settingsState.activePageId}
   bind:sectionId={settingsState.activeSectionId}
+  bind:itemId={settingsState.activeItemId}
 />

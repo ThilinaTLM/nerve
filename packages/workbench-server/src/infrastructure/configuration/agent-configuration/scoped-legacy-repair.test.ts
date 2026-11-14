@@ -137,11 +137,14 @@ await test("D12 manual fix plus Retry reruns conversion; invalid files discovere
   const f = fixture(t);
   f.put(f.source, '{"schemaVersion":3}');
   assert.equal((await f.operations.get(project)).status, "unavailable");
-  f.put(f.source, '{"schemaVersion":2,"tools":{"jira":{"enabled":true}}}');
+  f.put(f.source, '{"schemaVersion":2,"tools":{"web_fetch":{"enabled":true}}}');
   await f.service.reload(project);
   assert.equal((await f.operations.get(project)).status, "available");
   assert.equal(existsSync(f.source), false);
-  assert.match(readFileSync(f.service.paths.agent(project), "utf8"), /jira/);
+  assert.match(
+    readFileSync(f.service.paths.agent(project), "utf8"),
+    /web_fetch/,
+  );
   f.put(f.source, "{not JSON");
   await f.service.reload(project);
   assert.equal((await f.operations.get(project)).status, "unavailable");

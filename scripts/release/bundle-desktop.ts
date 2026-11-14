@@ -34,7 +34,7 @@ export const bundleEntryPoints: Record<string, string> = {
   daemon: "packages/workbench-server/dist/main.js",
   // Worker/subprocess entrypoints, named as their referencing code expects.
   "html-to-markdown.worker":
-    "packages/tools/dist/execution/atlassian/html-to-markdown.worker.js",
+    "packages/tools/dist/execution/web/html-to-markdown.worker.js",
   "git-isolated-reader-helper":
     "packages/tools/dist/git/read/git-isolated-reader-helper.js",
   worker:
@@ -46,9 +46,16 @@ export const bundleAssets: [source: string, destination: string][] = [
   ["packages/desktop-shell/dist/preload.cjs", "dist/preload.cjs"],
   ["packages/desktop-shell/build", "build"],
   ["packages/workbench-server/dist/web", "dist/web"],
-  ["packages/skills/dist/builtin", "dist/builtin"],
-  ["packages/skills/dist/guides", "dist/guides"],
-  ["packages/tools/dist/sandbox-libraries", "dist/sandbox-libraries"],
+  ["packages/workbench-server/dist/builtin-skills/builtin", "dist/builtin"],
+  [
+    "packages/tools/dist/quick-script/sandbox-libraries",
+    "dist/sandbox-libraries",
+  ],
+  [
+    "packages/tools/dist/quick-script/quick-script-docs",
+    "dist/quick-script-docs",
+  ],
+  ["packages/extensions/dist/extension-docs", "dist/extension-docs"],
 ];
 
 /** Files every bundled desktop dist must contain (relative to the package root). */
@@ -63,6 +70,8 @@ export const bundleOutputFiles = [
   "dist/sandbox-libraries/mammoth.browser.min.js",
   "dist/sandbox-libraries/pptxgen.bundle.js",
   "dist/sandbox-libraries/jszip.min.js",
+  "dist/quick-script-docs/runtime/files.md",
+  "dist/extension-docs/atlassian/docs/jira-workflows.md",
   "build/README.md",
   "THIRD-PARTY-LICENSES.txt",
 ];

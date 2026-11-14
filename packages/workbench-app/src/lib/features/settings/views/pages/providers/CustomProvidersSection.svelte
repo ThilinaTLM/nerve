@@ -1,14 +1,12 @@
 <script lang="ts">
 import { Callout } from "@nervekit/ui-kit/components/composites/callout";
 import ProviderIcon from "$lib/presentation/model-picker/ProviderIcon.svelte";
-import { Badge } from "@nervekit/ui-kit/components/ui/badge";
-import Pencil from "@lucide/svelte/icons/pencil";
 import Trash2 from "@lucide/svelte/icons/trash-2";
 import { IconAction } from "@nervekit/ui-kit/components/composites/icon-action";
 import type { AuthProviderMetadata, CustomProvider } from "$lib/api";
 import { deleteCustomProvider } from "$lib/api";
 import ConfirmDialog from "@nervekit/ui-kit/components/composites/confirm-dialog";
-import { SettingsListItem } from "$lib/presentation/settings";
+import { SettingsItem } from "$lib/presentation/settings";
 import { providerCatalogState } from "$lib/features/settings/state/provider-catalog-state.svelte";
 import { refreshProviderCatalog } from "$lib/features/settings/state/provider-catalog-actions.svelte";
 import SettingsEntityListSection from "../../shared/settings-entity-list-section.svelte";
@@ -85,29 +83,18 @@ async function confirmDelete(): Promise<void> {
   onAdd={openAdd}
 >
   {#snippet row(provider)}
-    <SettingsListItem title={provider.displayName}>
+    <SettingsItem
+      title={provider.displayName}
+      summary={`${provider.id} · ${provider.api} · ${provider.baseUrl} · ${modelCountByProvider.get(provider.id) ?? 0} models`}
+      problem={keyConfigured(provider.id) ? undefined : "No API key"}
+      problemAction={{ label: "Add key", onclick: () => openEdit(provider) }}
+      onOpen={() => openEdit(provider)}
+      openLabel={`Edit ${provider.displayName}`}
+    >
       {#snippet leading()}
         <ProviderIcon provider={provider.id} class="size-4 shrink-0" />
       {/snippet}
-      {#snippet detail()}
-        <span class="truncate">
-          <span>{provider.id}</span>
-          · {provider.api} ·
-          <span class="font-mono">{provider.baseUrl}</span>
-          · {modelCountByProvider.get(provider.id) ?? 0} models
-        </span>
-      {/snippet}
-      {#snippet status()}
-        {#if !keyConfigured(provider.id)}
-          <Badge variant="warning">No key</Badge>
-        {/if}
-      {/snippet}
       {#snippet actions()}
-        <IconAction
-          icon={Pencil}
-          label="Edit provider"
-          onclick={() => openEdit(provider)}
-        />
         <IconAction
           icon={Trash2}
           label="Delete provider"
@@ -115,7 +102,7 @@ async function confirmDelete(): Promise<void> {
           onclick={() => (pendingDelete = provider)}
         />
       {/snippet}
-    </SettingsListItem>
+    </SettingsItem>
   {/snippet}
   {#snippet below()}
     {#if deleteError}<Callout

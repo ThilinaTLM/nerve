@@ -46,8 +46,9 @@ Shared foundations stay transport- and framework-neutral:
 - `@nervekit/protocol` owns the Protocol v1 codec, sessions, RPC, replay, cursors, snapshots, and bounded delivery.
 - `@nervekit/harness` owns model resolution, the generic agent loop, streaming/context primitives, resources and compaction.
 - `@nervekit/conversation-core` owns durable conversation history, inputs, tool lifecycle, delegation, async Bash and execution scheduling through host ports.
-- `@nervekit/skills` owns built-in skills and harness resource integration.
-- `@nervekit/tools` owns the canonical tool catalog, executors, output bounds, artifacts, and Git/GitHub utilities.
+- `@nervekit/extension-api` owns the extension contract (manifest and `ctx` types, `define*` helpers, a fake context).
+- `@nervekit/tools` owns the canonical tool catalog, executors, output bounds, artifacts, Git/GitHub utilities, and the `quick_script` runtime and registry.
+- `@nervekit/extensions` owns the built-in `quick_script` extensions. It depends on `@nervekit/extension-api` only; `@nervekit/workbench-server` builds the registry from its list.
 - `@nervekit/native` provides TypeScript façades over a Rust N-API addon for Git reads, managed processes, filesystem/Git monitoring, and lexical search indexes.
 - `@nervekit/ui-kit` provides contract-free presentation primitives and renderers.
 
@@ -60,7 +61,7 @@ The product hosts compose those foundations:
 - `@nervekit/desktop-shell` owns the published launcher, Electron bridge, migration consent/presentation, and daemon ownership; the server package owns storage inspection and migration transactions.
 
 <figure>
-  <img src="/diagrams/02-package-dependencies.svg" alt="Package dependency diagram showing contracts, protocol, harness, tools, native runtime, and UI kit foundations plus the workbench server, app, and desktop shell hosts." loading="lazy" />
+  <img src="/diagrams/02-package-dependencies.svg" alt="Package dependency diagram showing extension-api, contracts, protocol, harness, tools, extensions, native runtime, and UI kit foundations plus the workbench server, app, and desktop shell hosts." loading="lazy" />
   <figcaption>Package graph: compile-time dependencies are separate from the app-to-server runtime link.</figcaption>
 </figure>
 

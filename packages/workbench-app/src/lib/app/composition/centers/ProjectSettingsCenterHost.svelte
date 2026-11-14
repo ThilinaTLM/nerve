@@ -40,6 +40,18 @@ const view = $derived(
         };
       }
     }
+    bind:itemId={
+      () => view?.itemId ?? "",
+      (itemId) => {
+        const current = settingsState.projectViews[projectId];
+        settingsState.projectViews[projectId] = {
+          pageId:
+            current?.pageId ?? resolveSettingsPageId("project", undefined),
+          sectionId: current?.sectionId ?? "",
+          itemId: itemId ?? "",
+        };
+      }
+    }
     bind:sectionId={
       () => view?.sectionId ?? "",
       (sectionId) => {
@@ -48,6 +60,7 @@ const view = $derived(
           pageId:
             current?.pageId ?? resolveSettingsPageId("project", undefined),
           sectionId: sectionId ?? "",
+          itemId: current?.itemId ?? "",
         };
       }
     }

@@ -122,7 +122,7 @@ test("scoped saves require CAS tokens and canonical sparse mutations without met
   for (const resets of [
     ["/schemaVersion"],
     ["/overrides/model/provider"],
-    ["/overrides/tools", "/overrides/tools/jira"],
+    ["/overrides/tools", "/overrides/tools/quick_script"],
     ["/overrides/notASetting"],
   ])
     assert.equal(

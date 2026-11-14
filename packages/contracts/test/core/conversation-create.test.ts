@@ -20,7 +20,6 @@ test("conversation.create preserves sparse choices and never materializes a mode
         enabled: false,
         settings: { interpreterPath: "/pending/python" },
       },
-      web_search: { profileId: "selected-account" },
     },
     skills: { nerve: { planning: true } },
   };

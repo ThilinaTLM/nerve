@@ -21,7 +21,7 @@ function handleAction(action: DiscoverAction): void {
     return;
   }
   if (action.kind === "settings")
-    void openSettingsPane(action.pageId, action.sectionId);
+    void openSettingsPane(action.pageId, { section: action.sectionId });
 }
 </script>
 

@@ -1,10 +1,7 @@
 import { isSubagentTool } from "@nervekit/contracts/tools";
 import type { ToolUserProjection } from "@nervekit/contracts/core";
 import { AGENT_RESULT_PROFILES } from "../profiles.js";
-import {
-  buildWebFetchTranscriptPreview,
-  buildWebSearchTranscriptPreview,
-} from "./web-tool-transcript-preview.js";
+import { buildWebFetchTranscriptPreview } from "./web-tool-transcript-preview.js";
 import {
   firstLines,
   lastLines,
@@ -629,19 +626,6 @@ export function buildUserProjection(
       break;
     }
 
-    case "generate_image": {
-      const details = record(resultRecord.details);
-      const { images, ...metadata } = details;
-      resultPreview = {
-        details: { images, ...metadata },
-        ...Object.fromEntries(
-          Object.entries(resultRecord).filter(([key]) => key !== "details"),
-        ),
-      };
-      direction = "head";
-      break;
-    }
-
     case "explain_image": {
       const details = record(resultRecord.details);
       const explanation = firstLines(
@@ -659,12 +643,8 @@ export function buildUserProjection(
       break;
     }
 
-    case "web_search":
     case "web_fetch": {
-      const preview =
-        toolName === "web_search"
-          ? buildWebSearchTranscriptPreview(resultRecord)
-          : buildWebFetchTranscriptPreview(resultRecord);
+      const preview = buildWebFetchTranscriptPreview(resultRecord);
       ({ resultPreview, hidden, noun, direction, semanticOverflow } = preview);
       break;
     }
@@ -742,9 +722,7 @@ export function buildUserProjection(
   }
 
   const resultFirst =
-    ["edit", "write", "grep", "find", "ls", "generate_image"].includes(
-      toolName,
-    ) ||
+    ["edit", "write", "grep", "find", "ls"].includes(toolName) ||
     toolName === "async_bash" ||
     toolName === "ask_user" ||
     toolName === "launch" ||

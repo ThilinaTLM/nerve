@@ -10,6 +10,7 @@ import type { ComposerView } from "$lib/application/composer/composer-view.svelt
 import type { AgentEditorView } from "$lib/presentation/composer/agent-editor-view";
 import type { AvailableSkill } from "@nervekit/contracts/skills";
 import { listTools, uploadAttachment } from "$lib/api";
+import { setExtensionToolNames } from "$lib/presentation/tools/lifecycle/extension-tools";
 import { getDesktopBridge } from "$lib/platform/desktop/desktop-bridge.svelte";
 import { readClipboardText } from "$lib/platform/clipboard/read-text";
 import { writeClipboardText } from "$lib/platform/clipboard/write-text";
@@ -225,6 +226,9 @@ $effect(() => {
   if (!workbenchStartupState.progressiveActive || !activeProject) return;
   void listTools()
     .then((tools) => {
+      setExtensionToolNames(
+        tools.flatMap((tool) => (tool.extension ? [tool.name] : [])),
+      );
       conversationCatalog.toolRisks = Object.fromEntries(
         tools.map((tool) => [
           tool.name,

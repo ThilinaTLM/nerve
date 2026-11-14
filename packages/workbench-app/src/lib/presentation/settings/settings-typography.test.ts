@@ -96,6 +96,18 @@ describe("settings typography", () => {
     }
   });
 
+  it("keeps catalog item titles regular and their status line muted", () => {
+    const item = source("./SettingsItem.svelte");
+    const title = /"truncate text-ui",[^)]*\)\}>\{title\}/s.exec(item);
+    assert.ok(title, "expected a SettingsItem title span");
+    assert.doesNotMatch(title[0], /font-(medium|semibold|bold)/);
+    assert.match(
+      item,
+      /"truncate text-caption text-muted-foreground",[^)]*\)\}\s*title=\{summary\}>\{summary\}/s,
+      "the summary line should be text-caption muted",
+    );
+  });
+
   it("keeps row supporting text muted and under the title", () => {
     assert.match(
       source("./SettingsListItem.svelte"),

@@ -12,7 +12,7 @@ import {
 for (const [filename, type] of [
   ["agent.json", "agent-settings"],
   ["capabilities.json", "capabilities"],
-  ["integrations.json", "integrations"],
+  ["extensions.json", "extensions"],
   ["conversation-defaults.json", "conversation-defaults"],
 ] as const) {
   void test(

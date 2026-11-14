@@ -16,6 +16,7 @@ import {
   createScopedRepair,
 } from "../../../infrastructure/configuration/agent-configuration/scoped-repair.js";
 import { diagnostic } from "../../../infrastructure/configuration/agent-configuration/document-adapters.js";
+import { projectAgentDocumentValue } from "../../../infrastructure/configuration/agent-configuration/project-chains/scoped-migrations.js";
 import { profileDocumentValue } from "../../../infrastructure/configuration/agent-configuration/project-chains/profile-migrations.js";
 import { mutationFailure } from "../../../infrastructure/configuration/agent-configuration/scoped-configuration-operations.js";
 import { defineWorkbenchMethodHandlersFor } from "../method-handler-registry.js";
@@ -57,9 +58,12 @@ async function trust(state: Context, input: ScopedTrustRequest) {
         throw new ScopeConflictError();
       if (input.trusted) {
         const parsed: unknown = JSON.parse(bytes.toString("utf8"));
-        if (input.target.document === "agent")
-          agentPreferencesSchema.parse(parsed);
-        else if (
+        if (input.target.document === "agent") {
+          // Project agent files carry their own chain version.
+          if (input.target.scope.scope === "project")
+            projectAgentDocumentValue(parsed);
+          else agentPreferencesSchema.parse(parsed);
+        } else if (
           // Project profiles are stored as versioned documents; user profiles are bare definitions.
           (input.target.scope.scope === "project"
             ? profileDocumentValue(parsed)

@@ -257,14 +257,23 @@ void test("creation saves clean redundant default profiles and atomic model list
   assert.deepEqual(empty.value.document.overrides, { scopedModels: [] });
 });
 
-void test("Jira equal profiles disappear and later user changes flow through project and conversation", async (t) => {
+void test("Python equal interpreters disappear and later user changes flow through project and conversation", async (t) => {
   const f = await fixture(t);
   await f.agent(user, {
     schemaVersion: 1,
     revision: 0,
-    overrides: { model: A, tools: { jira: { enabled: true, profileId: "x" } } },
+    overrides: {
+      model: A,
+      tools: {
+        python_exec: { enabled: true, settings: { interpreterPath: "x" } },
+      },
+    },
   });
-  const equal = { tools: { jira: { enabled: true, profileId: "x" } } };
+  const equal = {
+    tools: {
+      python_exec: { enabled: true, settings: { interpreterPath: "x" } },
+    },
+  };
   const p = await f.service.save(project, mutation(0, "missing", equal));
   assert.deepEqual(p.value.document.overrides, {});
   const l = await f.service.ensureLoaded(lead);
@@ -275,23 +284,27 @@ void test("Jira equal profiles disappear and later user changes flow through pro
   if (u.status === "unavailable") throw new Error("user unavailable");
   await f.service.save(
     user,
-    mutation(0, u.value.digest, { tools: { jira: { profileId: "z" } } }),
+    mutation(0, u.value.digest, {
+      tools: { python_exec: { settings: { interpreterPath: "z" } } },
+    }),
   );
   const view = await f.service.getEffective("lead");
   assert.equal(view.status, "available");
   if (view.status === "available")
-    assert.deepEqual(view.resolution.settings.tools?.jira, {
+    assert.deepEqual(view.resolution.settings.tools?.python_exec, {
       enabled: true,
-      profileId: "z",
+      settings: { interpreterPath: "z" },
     });
   const changed = await f.service.save(
     project,
     mutation(p.value.revision, p.value.digest, {
-      tools: { jira: { enabled: true, profileId: "y" } },
+      tools: {
+        python_exec: { enabled: true, settings: { interpreterPath: "y" } },
+      },
     }),
   );
   assert.deepEqual(changed.value.document.overrides, {
-    tools: { jira: { profileId: "y" } },
+    tools: { python_exec: { settings: { interpreterPath: "y" } } },
   });
 });
 

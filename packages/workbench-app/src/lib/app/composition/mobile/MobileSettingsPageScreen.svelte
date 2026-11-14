@@ -48,6 +48,14 @@ let {
 const page = $derived(
   settingsPageFor(target, resolveSettingsPageId(target.kind, pageId)),
 );
+/** Open detail item of pages with a detail view; "" shows the list. */
+let itemId = $state("");
+let sectionId = $state<string>();
+// A different page starts at its list.
+$effect(() => {
+  void page.id;
+  untrack(() => (itemId = ""));
+});
 const desktopOnly = $derived(isDesktopOnlySettingsPage(page.id));
 const status = $derived(workspaceSelectors.status);
 const controllers = createSettingsPageControllers({
@@ -89,7 +97,7 @@ $effect(() => {
 <MobileScreen
   title={page.label}
   subtitle={saveLabel}
-  onBack={backFromMobileScreen}
+  onBack={() => (itemId ? (itemId = "") : backFromMobileScreen())}
   {backLabel}
 >
   {#snippet actions()}
@@ -114,6 +122,12 @@ $effect(() => {
         {page}
         {target}
         {controllers}
+        {itemId}
+        {sectionId}
+        onOpenItem={(id, section) => {
+          itemId = id;
+          sectionId = section;
+        }}
         {status}
         settingsDraft={settingsState.settingsDraft}
         applicationConfiguration={settingsState.applicationConfiguration}

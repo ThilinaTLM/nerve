@@ -56,20 +56,7 @@ export type ToolArgumentBody =
       kind: "checklist";
       items: Array<{ text: string; done: boolean }>;
     }
-  | { kind: "text-summary"; text: string; label?: string; mono?: boolean }
-  | { kind: "atlassian-summary"; text: string }
-  | {
-      kind: "atlassian-draft";
-      /** Ordered field rows; `value === undefined` means expected/pending. */
-      fields: Array<{
-        label: string;
-        value?: string;
-        mono?: boolean;
-        tone?: MetaItem["tone"];
-      }>;
-      /** Long-form section; `text === undefined` means not yet streamed. */
-      text?: { label: string; text?: string; language?: "xml" };
-    };
+  | { kind: "text-summary"; text: string; label?: string; mono?: boolean };
 
 export type ToolArgumentPresentation = {
   primaryArg?: PrimaryArg;
@@ -120,14 +107,10 @@ export type CompletedViewFamily =
   | "todos"
   | "subagent"
   | "plan_present"
-  | "jira"
-  | "confluence"
-  | "web_search"
   | "web_fetch"
   | "explain_image"
-  | "generate_image"
-  | "kroki_export"
-  | "quick_script";
+  | "quick_script"
+  | "extension";
 
 export type ToolLifecycleSpec<Name extends ToolName = ToolName> = {
   name: Name;
@@ -149,6 +132,15 @@ export type UnknownToolLifecycleSpec = Omit<
 > & {
   name: "unknown";
   completedView: "generic";
+};
+
+/** A direct tool an extension contributes: one spec for all, driven by the call's arguments. */
+export type ExtensionToolLifecycleSpec = Omit<
+  ToolLifecycleSpec,
+  "name" | "completedView"
+> & {
+  name: "extension";
+  completedView: "extension";
 };
 
 export const noArgumentBody = (): ToolArgumentBody => ({ kind: "none" });

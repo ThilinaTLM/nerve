@@ -4,12 +4,13 @@ import {
   toolArgumentSource,
   type ToolArgumentSourceInput,
 } from "./argument-source";
-import { confluenceToolLifecycleSpecs } from "./confluence-specs";
 import { coreToolLifecycleSpecs } from "./core-specs";
-import { jiraToolLifecycleSpecs } from "./jira-specs";
 import { orchestrationToolLifecycleSpecs } from "./orchestration-specs";
+import { extensionToolLifecycleSpec } from "./extension-spec";
+import { isExtensionToolName } from "./extension-tools";
 import {
   argumentPresentation,
+  type ExtensionToolLifecycleSpec,
   type ToolArgumentPresentation,
   type ToolLifecycleSpec,
   type ToolLifecycleStage,
@@ -19,8 +20,6 @@ import {
 export const toolLifecycleRegistry = {
   ...coreToolLifecycleSpecs,
   ...orchestrationToolLifecycleSpecs,
-  ...jiraToolLifecycleSpecs,
-  ...confluenceToolLifecycleSpecs,
 } satisfies Record<ToolName, ToolLifecycleSpec>;
 
 export const unknownToolLifecycleSpec: UnknownToolLifecycleSpec = {
@@ -55,15 +54,21 @@ export const unknownToolLifecycleSpec: UnknownToolLifecycleSpec = {
   },
 };
 
-export function isKnownToolName(name: string): name is ToolName {
+function isCoreToolName(name: string): name is ToolName {
   return toolNameSchema.safeParse(name).success;
+}
+
+/** Whether the active catalog has the tool: a core tool or one an extension contributes. */
+export function isKnownToolName(name: string): boolean {
+  return isCoreToolName(name) || isExtensionToolName(name);
 }
 
 export function toolLifecycleSpec(
   name: string,
-): ToolLifecycleSpec | UnknownToolLifecycleSpec {
-  return isKnownToolName(name)
-    ? toolLifecycleRegistry[name]
+): ToolLifecycleSpec | ExtensionToolLifecycleSpec | UnknownToolLifecycleSpec {
+  if (isCoreToolName(name)) return toolLifecycleRegistry[name];
+  return isExtensionToolName(name)
+    ? extensionToolLifecycleSpec
     : unknownToolLifecycleSpec;
 }
 

@@ -1,19 +1,17 @@
 ---
 title: Confluence
-description: Search, download, and manage single Confluence pages and their resources.
+description: Let the agent search, read and write Confluence pages through quick_script.
 sidebar:
   order: 4
 ---
 
-Confluence tools are offered once Confluence is enabled with an existing Atlassian profile, at the user, project, or conversation level — the same layered selection and connection status described for [Jira](/integrations/jira/). Reads include space/page lookup, search, and a single-page download. Mutations include page create/update, comments, supported page lifecycle actions, labels, restrictions, and attachments.
+Confluence is reached through the `confluence` namespace of the `quick_script` tool, provided by the Atlassian extension, with the same account selection, project overrides and connection status described for [Jira](/integrations/jira/). Switch on Confluence in **Settings → Extensions → Atlassian** and turn on **Quick script** under **Settings → Tools**.
 
-The tool surface is single-target: there is no subtree/space download or multi-page publishing tool. `confluence_download_page` downloads exactly one page into editable JSON/storage XML artifacts, and `confluence_update_page` is the only file-backed publishing path. Related resource mutations use an explicit `action`; labels and restriction subjects are changed one at a time.
+Typed methods cover spaces, page search and reads, page create, update and move, comments, labels, attachments, trash, restore and permanent purge; a raw `confluence.request` covers the rest of the REST API, such as page restrictions. Page bodies are written as Markdown or the `storage` helpers and checked against Confluence's storage format before they are sent, and the run reports what it created and changed. Confluence Cloud has no supported REST API for archiving pages, so there is no archive method. `sdk.describe("confluence")` and `sdk.docs("confluence")` list methods and writing rules for the agent.
 
-`confluence_manage_page` supports `trash`, `restore`, and permanent `purge`. Confluence Cloud does not provide a supported REST API for page archive, so Nerve does not expose an archive action. Use `dry_run` before mutations when you want remote target/state validation without writing.
+Each SDK call is checked against your permission policy as an operation such as `confluence.pages.update` with the space or page it acts on (`confluence:page/123`); deletes and raw non-GET requests are destructive. The Planning profile allows reads and denies writes.
 
-Read calls are parallel network operations that favor narrow limits and artifacts. Write calls are sequential and pass tool policy; supported operations use dry-run behavior where the catalog provides it. The Planning profile excludes mutating Confluence tools.
-
-Read-only agent permission blocks Confluence network access. Use supervised permission to inspect proposed page IDs, parents, versions, body changes, publication state, and attachment paths.
+Read-only agent permission blocks Confluence network access. Use supervised permission to inspect the operations, pages and attachment paths in each approval.
 
 :::caution
 Confluence content and local attachment data leave the machine for Atlassian. The configured account may have broad publication rights. Verify the target space and page before approval.

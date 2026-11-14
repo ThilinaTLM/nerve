@@ -5,6 +5,7 @@ import {
   permissionOverlayDocumentSchema,
   permissionOverlayForOriginSchema,
   permissionOverlaySchema,
+  permissionExceptionSchema,
   permissionRuleSchema,
   permissionRuleSetSchema,
   permissionTargetSchema,
@@ -197,4 +198,44 @@ test("path matchers reject traversal and platform-dependent forms", () => {
       }),
     );
   }
+});
+
+test("resource targets and quick_script operation exceptions validate", () => {
+  assert.deepEqual(
+    permissionTargetSchema.parse({
+      kind: "resource",
+      value: "jira:issue/APP-1",
+    }),
+    { kind: "resource", value: "jira:issue/APP-1" },
+  );
+  assert.throws(() =>
+    permissionTargetSchema.parse({ kind: "resource", value: "" }),
+  );
+  assert.equal(
+    permissionRuleSchema.parse({
+      ...rule,
+      when: {
+        targets: {
+          quantifier: "all",
+          matcher: { kind: "resource", pattern: "jira:*/APP*" },
+        },
+      },
+    }).id,
+    "allow-read",
+  );
+  const exception = (rule: string) => ({
+    id: "exception_1",
+    tool: "quick_script",
+    effect: "allow",
+    rule,
+  });
+  for (const rule of ["jira.issues.*", "jira.issues.create", "*.*.delete"])
+    assert.equal(permissionExceptionSchema.parse(exception(rule)).rule, rule);
+  for (const rule of [
+    "jira..issues",
+    "jira.issues.",
+    "jira/issues",
+    "jira issues",
+  ])
+    assert.throws(() => permissionExceptionSchema.parse(exception(rule)), rule);
 });

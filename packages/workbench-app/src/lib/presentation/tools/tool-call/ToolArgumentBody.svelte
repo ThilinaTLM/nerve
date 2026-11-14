@@ -1,7 +1,6 @@
 <script lang="ts">
 import type { ToolArgumentBody as ArgumentBody } from "../lifecycle/registry";
 import { COLLAPSED_LINES } from "../views/tool-view-helpers";
-import AtlassianDraftBody from "./AtlassianDraftBody.svelte";
 import DiffSections from "./DiffSections.svelte";
 import EntityList from "./EntityList.svelte";
 import ResultCodeBlock from "./ResultCodeBlock.svelte";
@@ -122,19 +121,17 @@ const streamMotion = $derived(streaming && toolMotion.streamMotion);
   </dl>
 {:else if body.kind === "checklist"}
   <TodoChecklist items={checklistItems(body.items)} {streaming} />
-{:else if body.kind === "atlassian-draft"}
-  <AtlassianDraftBody {body} {streaming} {fixedRows} />
-{:else if body.kind === "text-summary" || body.kind === "atlassian-summary"}
+{:else if body.kind === "text-summary"}
   <div class={`grid gap-1.5 ${pad}`}>
-    {#if body.kind === "text-summary" && body.label}
+    {#if body.label}
       <p class="m-0 text-ui text-muted-foreground">{body.label}</p>
     {/if}
     <p
       class="m-0 whitespace-pre-wrap text-foreground [overflow-wrap:anywhere]"
-      class:font-mono={body.kind === "text-summary" && body.mono}
-      class:text-ui={body.kind === "text-summary" && body.mono}
-      class:text-body={body.kind !== "text-summary" || !body.mono}
-      class:leading-relaxed={body.kind !== "text-summary" || !body.mono}
+      class:font-mono={body.mono}
+      class:text-ui={body.mono}
+      class:text-body={!body.mono}
+      class:leading-relaxed={!body.mono}
     >
       <StreamingText text={body.text} fade={streamMotion} />
     </p>

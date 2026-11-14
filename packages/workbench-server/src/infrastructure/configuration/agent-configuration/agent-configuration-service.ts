@@ -5,6 +5,7 @@ import { projectSettings } from "./profile-resources.js";
 import { ProjectMigrationService } from "../project-migration/project-migration.js";
 import {
   projectAgentConfiguration,
+  projectAgentDisk,
   projectConversationDefaults,
 } from "./project-chains/scoped-migrations.js";
 import {
@@ -163,6 +164,7 @@ export class AgentConfigurationService {
         this.paths,
         () => projectAgentConfiguration,
       ),
+      ...projectAgentDisk,
       resolvePath: (scope) => this.paths.agent(scope),
       required: (scope) => scope.scope === "conversation",
       supportedVersion: 1,

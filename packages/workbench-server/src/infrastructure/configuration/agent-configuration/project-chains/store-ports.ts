@@ -1,7 +1,4 @@
-import {
-  projectCapabilitiesConfiguration,
-  projectIntegrations,
-} from "./scoped-migrations.js";
+import { projectCapabilitiesConfiguration } from "./scoped-migrations.js";
 import { atomicReplaceFile } from "../../../storage-bootstrap/file-mutations.js";
 import type { atomicWriteJson } from "../../../storage-bootstrap/json.js";
 import { resolve } from "node:path";
@@ -56,7 +53,6 @@ export function projectStorePorts<
           (
             [
               projectCapabilitiesConfiguration,
-              projectIntegrations,
             ] as ProjectConfigurationType<unknown>[]
           ).map(async (resource) => {
             migrations.register(resource);

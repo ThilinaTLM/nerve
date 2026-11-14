@@ -20,6 +20,7 @@ import {
   publicUrlSchema,
   trustProxySchema,
 } from "./application-configuration.js";
+import { accountsConfigSchema, defaultAccountsConfig } from "./accounts.js";
 
 const homeMigrationLedgerSchema = z.array(
   z
@@ -289,49 +290,13 @@ export const defaultProvidersConfig: ProvidersConfig = {
   authentication: [],
 };
 
-const atlassianProfileConfigSchema = z
-  .object({
-    id: z.string().trim().min(1),
-    name: z.string().trim().min(1),
-    siteUrl: z.string().url().optional(),
-    email: z.string().email().optional(),
-    defaultProjectKey: z.string().trim().min(1).optional(),
-    defaultSpaceKey: z.string().trim().min(1).optional(),
-    credential: z.string().trim().min(1),
-  })
-  .strict();
-const tavilyProfileConfigSchema = z
-  .object({
-    id: z.string().trim().min(1),
-    name: z.string().trim().min(1),
-    credential: z.string().trim().min(1),
-  })
-  .strict();
-
-export const integrationsConfigSchema = z
-  .object({
-    version: z.literal(2),
-    profiles: z
-      .object({
-        atlassian: z.array(atlassianProfileConfigSchema),
-        tavily: z.array(tavilyProfileConfigSchema),
-      })
-      .strict(),
-  })
-  .strict();
-export type IntegrationsConfig = z.infer<typeof integrationsConfigSchema>;
-export const defaultIntegrationsConfig: IntegrationsConfig = {
-  version: 2,
-  profiles: { atlassian: [], tavily: [] },
-};
-
 export const userConfigurationSchema = z
   .object({
     daemon: daemonConfigSchema,
     ui: uiConfigSchema,
     permissions: permissionsConfigSchema,
     providers: providersConfigSchema,
-    integrations: integrationsConfigSchema,
+    accounts: accountsConfigSchema,
   })
   .strict();
 export type UserConfiguration = z.infer<typeof userConfigurationSchema>;
@@ -341,5 +306,5 @@ export const defaultUserConfiguration: UserConfiguration = {
   ui: defaultUiConfig,
   permissions: defaultPermissionsConfig,
   providers: defaultProvidersConfig,
-  integrations: defaultIntegrationsConfig,
+  accounts: defaultAccountsConfig,
 };

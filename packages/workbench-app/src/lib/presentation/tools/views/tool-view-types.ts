@@ -1,35 +1,16 @@
 import type {
   QuickScriptArtifact,
   QuickScriptHostCall,
-  QuickScriptPageReport,
-  ConfluenceAttachmentSummaryPayload,
-  ConfluenceCommentSummaryPayload,
-  ConfluenceIncludedCountsPayload,
-  ConfluenceLabelSummaryPayload,
-  ConfluencePageSummaryPayload,
-  ConfluenceRestrictionSummaryPayload,
-  ConfluencePublishOutcomePayload,
-  ConfluenceSpaceSummaryPayload,
+  QuickScriptOperation,
   FileEntry,
   GrepMatch,
-  JiraAttachmentSummaryPayload,
-  JiraBoardSummaryPayload,
-  JiraCommentSummaryPayload,
-  JiraFieldSummaryPayload,
-  JiraIncludedCountsPayload,
-  JiraIssueLinkSummaryPayload,
-  JiraIssueSummaryPayload,
-  JiraProjectSummaryPayload,
-  JiraSprintSummaryPayload,
-  JiraTransitionSummaryPayload,
-  JiraUserSummaryPayload,
-  JiraWorklogSummaryPayload,
   ProcessStreamResultDetails,
   PythonArtifactResultDetails,
   TodoItem,
   ToolOutputArtifactPayload,
   ToolOutputLimitsPayload,
 } from "@nervekit/contracts/tools";
+import type { ExtensionDisplayKind } from "@nervekit/contracts/extensions";
 import type { LaunchStatus } from "@nervekit/contracts/launches";
 import type { UserInputAnswer } from "@nervekit/contracts/core";
 import type { RedactedStructuredEntry } from "../lifecycle/argument-source";
@@ -51,38 +32,6 @@ export type AskUserViewQuestion = {
   answer?: UserInputAnswer;
   skipped?: boolean;
 };
-
-export type JiraToolAction =
-  | "search_users"
-  | "search_issues"
-  | "get_issue"
-  | "get_project"
-  | "search_boards"
-  | "get_board"
-  | "get_sprint"
-  | "download_attachment"
-  | "create_issue"
-  | "update_issue"
-  | "manage_comment"
-  | "manage_worklog"
-  | "manage_issue_link"
-  | "manage_attachment"
-  | "manage_sprint"
-  | "manage_backlog"
-  | "transition_issue";
-
-export type ConfluenceToolAction =
-  | "search_spaces"
-  | "search_pages"
-  | "get_page"
-  | "download_page"
-  | "create_page"
-  | "update_page"
-  | "manage_comment"
-  | "manage_page"
-  | "manage_label"
-  | "manage_restriction"
-  | "manage_attachment";
 
 export type GrepMatchView = GrepMatch & { openPath?: string };
 export type GroupedMatches = {
@@ -139,13 +88,6 @@ export type ToolView =
       outputArtifacts?: ToolOutputArtifactPayload[];
     }
   | {
-      kind: "kroki_export";
-      /** Footer tag such as "mermaid → SVG". */
-      conversion: string;
-      path?: string;
-      bytes?: number;
-    }
-  | {
       kind: "quick_script";
       code?: string;
       output: string;
@@ -160,24 +102,13 @@ export type ToolView =
       durationMs?: number;
       outputTruncated?: boolean;
       hostCalls: QuickScriptHostCall[];
-      /** Confluence pages the run wrote, with the linter's report. */
-      pages: QuickScriptPageReport[];
+      /** Operations the admission scan found, shown before the script runs and when it never ran. */
+      plannedOperations: QuickScriptOperation[];
       /** Files the run wrote to the conversation artifact folder. */
       artifacts: QuickScriptArtifact[];
       /** Entities the run created (`SCRUM-6`, `comment 77 on SCRUM-6`). */
       created: string[];
       live?: boolean;
-    }
-  | {
-      kind: "generate_image";
-      prompt?: string;
-      paths: string[];
-      images?: Array<{
-        path: string;
-        bytes?: number;
-        width?: number;
-        height?: number;
-      }>;
     }
   | {
       kind: "bash";
@@ -326,151 +257,15 @@ export type ToolView =
       outcome?: string;
     }
   | {
-      kind: "jira";
-      action: JiraToolAction;
+      kind: "extension";
       toolName: string;
-      content?: string;
-      contentLineCount: number;
-      messageLines: string[];
-      query?: string;
-      jql?: string;
-      issueKey?: string;
-      issueUrl?: string;
-      projectKey?: string;
-      issueType?: string;
-      summary?: string;
-      issue?: JiraIssueSummaryPayload;
-      issues: JiraIssueSummaryPayload[];
-      issueCount?: number;
-      displayedIssueCount?: number;
-      total?: number;
-      nextPageToken?: string;
-      users: JiraUserSummaryPayload[];
-      userCount?: number;
-      displayedUserCount?: number;
-      project?: JiraProjectSummaryPayload;
-      includedCounts?: JiraIncludedCountsPayload;
-      dryRun?: boolean;
-      resolvedAssignee?: JiraUserSummaryPayload;
-      operation?: string;
-      boardId?: string;
-      board?: JiraBoardSummaryPayload;
-      boards: JiraBoardSummaryPayload[];
-      boardCount?: number;
-      displayedBoardCount?: number;
-      startAt?: number;
-      maxResults?: number;
-      sprintId?: string;
-      sprint?: JiraSprintSummaryPayload;
-      sprints: JiraSprintSummaryPayload[];
-      sprintCount?: number;
-      backlogIssues: JiraIssueSummaryPayload[];
-      backlogCount?: number;
-      attachmentId?: string;
-      attachment?: JiraAttachmentSummaryPayload;
-      attachments: JiraAttachmentSummaryPayload[];
-      filename?: string;
-      mediaType?: string;
-      bytes?: number;
-      path?: string;
-      comment?: JiraCommentSummaryPayload;
-      worklogId?: string;
-      worklog?: JiraWorklogSummaryPayload;
-      issueLink?: JiraIssueLinkSummaryPayload;
-      linkId?: string;
-      otherIssueKey?: string;
-      linkType?: string;
-      direction?: "outward" | "inward";
-      rankBeforeIssueKey?: string;
-      rankAfterIssueKey?: string;
-      previousState?: string;
-      resultingState?: string;
-      updatedFields?: string[];
-      updatedFieldCount?: number;
-      commentId?: string;
-      transition?: JiraTransitionSummaryPayload;
-      transitions: JiraTransitionSummaryPayload[];
-      fields: JiraFieldSummaryPayload[];
-      payload?: unknown;
-      fieldCount?: number;
-      displayedFieldCount?: number;
-      transitionCount?: number;
-      displayedTransitionCount?: number;
-      outputLimits?: ToolOutputLimitsPayload;
-      outputArtifacts?: ToolOutputArtifactPayload[];
-    }
-  | {
-      kind: "confluence";
-      action: ConfluenceToolAction;
-      toolName: string;
-      content?: string;
-      contentLineCount: number;
-      messageLines: string[];
-      query?: string;
-      cql?: string;
-      pageId?: string;
-      spaceId?: string;
-      spaceKey?: string;
-      title?: string;
-      status?: string;
-      bodyFormat?: string;
-      spaces: ConfluenceSpaceSummaryPayload[];
-      space?: ConfluenceSpaceSummaryPayload;
-      spaceCount?: number;
-      displayedSpaceCount?: number;
-      pages: ConfluencePageSummaryPayload[];
-      page?: ConfluencePageSummaryPayload;
-      pageCount?: number;
-      displayedPageCount?: number;
-      attachments: ConfluenceAttachmentSummaryPayload[];
-      attachment?: ConfluenceAttachmentSummaryPayload;
-      attachmentCount?: number;
-      displayedAttachmentCount?: number;
-      includedCounts?: ConfluenceIncludedCountsPayload;
-      downloadDir?: string;
-      manifestPath?: string;
-      pagesJsonlPath?: string;
-      inputPath?: string;
-      nextCursor?: string;
-      outcomes: ConfluencePublishOutcomePayload[];
-      outcomeCount?: number;
-      displayedOutcomeCount?: number;
-      operation?: string;
-      commentId?: string;
-      comment?: ConfluenceCommentSummaryPayload;
-      commentKind?: "footer" | "inline";
-      label?: string;
-      labels: ConfluenceLabelSummaryPayload[];
-      labelCount?: number;
-      prefix?: string;
-      restrictionOperation?: "read" | "update";
-      subjectType?: "user" | "group";
-      subjectId?: string;
-      restrictions: ConfluenceRestrictionSummaryPayload[];
-      restrictionCount?: number;
-      previousStatus?: string;
-      resultingStatus?: string;
-      attachmentId?: string;
-      filename?: string;
-      newFilename?: string;
-      bytes?: number;
-      dryRun?: boolean;
-      payload?: unknown;
-      outputLimits?: ToolOutputLimitsPayload;
-      outputArtifacts?: ToolOutputArtifactPayload[];
-    }
-  | {
-      kind: "web_search";
-      query?: string;
-      answer?: string;
-      results: Array<{
-        title: string;
-        url: string;
-        content?: string;
-        score?: number;
-      }>;
-      outputLimits?: ToolOutputLimitsPayload;
-      outputArtifacts?: ToolOutputArtifactPayload[];
+      /** Id of the extension that contributes the tool. */
+      extension: string;
+      /** How the result renders; `value` is the method's result as data when it was small enough to carry. */
+      display: { kind: ExtensionDisplayKind; value?: unknown };
+      artifacts: QuickScriptArtifact[];
+      /** The result text the agent saw; the fallback when `value` is absent. */
+      resultText?: string;
     }
   | {
       kind: "web_fetch";

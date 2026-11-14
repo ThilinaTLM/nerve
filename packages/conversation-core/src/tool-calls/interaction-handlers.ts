@@ -29,8 +29,9 @@ const approvalHandler: InteractionHandler<"approval"> = {
     if (resolution.decision === "deny")
       return settle("denied", "Approval denied.");
     if (resolution.persistScope) {
-      const rule = call.supervision?.suggestedRules[0];
-      if (rule === undefined)
+      // One suggestion per operation of a quick_script; every other tool has one.
+      const rules = call.supervision?.suggestedRules ?? [];
+      if (rules.length === 0)
         throw new InteractionError("No suggested permission rule to persist");
       const { projectDir, config } = await ctx.options.context(
         call.conversationId,
@@ -44,13 +45,14 @@ const approvalHandler: InteractionHandler<"approval"> = {
         typeof authority.ruleSetId === "string"
           ? authority.ruleSetId
           : effectivePermissionRuleSetId(config);
-      await ctx.options.permissions.addRule({
-        scope: resolution.persistScope,
-        conversationId: call.conversationId,
-        projectDir,
-        ruleSetId,
-        rule,
-      });
+      for (const rule of rules)
+        await ctx.options.permissions.addRule({
+          scope: resolution.persistScope,
+          conversationId: call.conversationId,
+          projectDir,
+          ruleSetId,
+          rule,
+        });
     }
     // After restart there is no transient presentation: never invent a grant.
     const binding = ctx.presentedApproval;

@@ -275,3 +275,31 @@ void test(
     assert.equal(f.spawns.length, 0);
   },
 );
+
+void test(
+  "production wiring: a child launch succeeds with extension settings at user and project scope",
+  { skip: process.platform === "win32" },
+  async (t) => {
+    const f = await productionAdmissionFixture(t);
+    const document = (settings: Record<string, unknown>) =>
+      JSON.stringify({
+        schemaVersion: 1,
+        revision: 1,
+        extensions: { diagram: { version: 1, settings } },
+      });
+    await writeFile(
+      join(f.paths.configPath, "extensions.json"),
+      document({ server: "https://kroki.example/" }),
+    );
+    await mkdir(join(f.project, ".nerve", "config"), { recursive: true });
+    await writeFile(
+      join(f.project, ".nerve", "config", "extensions.json"),
+      document({ server: "https://project.example/" }),
+    );
+    // Preparation resolves (and first loads) both files; creation then writes the
+    // child's frozen extensions.json. Neither may invalidate the launch.
+    await f.createChild();
+    const child = f.runtime.core.getSnapshot("child");
+    assert.equal(child.conversation.parentConversationId, "c");
+  },
+);

@@ -4,6 +4,7 @@ import { scopedProfileOperationDefinitions } from "../domains/agent-configuratio
 import { conversationChannelOperations } from "../domains/core/channel.js";
 import { projectsOperationDefinitions } from "../domains/projects/operations.js";
 import { maintenanceOperationDefinitions } from "../domains/maintenance/maintenance-operations.js";
+import { extensionOperationDefinitions } from "../domains/extensions/extension-operations.js";
 import { z } from "zod";
 export type {
   OperationDefinition,
@@ -29,6 +30,7 @@ const methodDefinitions = [
   ...projectsOperationDefinitions,
   ...promptSuggestionsOperationDefinitions,
   ...scopedProfileOperationDefinitions,
+  ...extensionOperationDefinitions,
   ...maintenanceOperationDefinitions,
   ...activityOperationDefinitions,
   ...authOperationDefinitions,

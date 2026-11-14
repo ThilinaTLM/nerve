@@ -130,6 +130,7 @@ export class ProjectAgentDefaults {
         instructions: definition.instructions,
         recommendations: definition.recommendations ?? {},
         requirements: definition.requirements ?? {},
+        ...(definition.extensions ? { extensions: definition.extensions } : {}),
       };
       const inherited = resolveInheritedConversationSettings({
         ...defaults.options,

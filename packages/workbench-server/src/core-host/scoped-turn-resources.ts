@@ -9,38 +9,23 @@ import type { AgentConfigurationService } from "../infrastructure/configuration/
 import { loadHarnessResources } from "./resource-loader.js";
 import { buildNerveSystemPrompt } from "./nerve-system-prompt.js";
 import { withAgentProfiles } from "./turn-resources.adapter.js";
-import { resolveSkillPlaceholders } from "@nervekit/skills";
+import { resolveSkillPlaceholders } from "../builtin-skills/index.js";
 import { isToolEnabled } from "./tool-enablement.js";
-import { quickScriptDescription } from "@nervekit/tools/execution";
-import { quickScriptIntegrationNames } from "@nervekit/contracts/capabilities";
+import {
+  configuredNamespaces,
+  quickScriptDescription,
+  type QuickScriptRegistry,
+} from "@nervekit/tools/quick-script";
+import type { ExtensionResolution } from "@nervekit/contracts/extensions";
+import type { AccountsReader } from "../domains/accounts/accounts.service.js";
+import {
+  extensionAvailability,
+  extensionToolOffered,
+} from "./extension-availability.js";
+import { createExtensionPorts } from "./extension-ports.js";
 
 const blocked = new Set<string>(subagentBlockedToolNames);
 
-/** An account-backed integration is active when enabled with an existing account selected; `web` needs only to be enabled (`fetch`), and `web.search` also lists with a Tavily account. */
-function activeQuickScriptIntegrations(
-  settings: LeadSettingsOverrides,
-  missingReferences: readonly string[],
-): string[] {
-  const configured = settings.tools?.quick_script?.settings;
-  const hasAccount = (name: (typeof quickScriptIntegrationNames)[number]) =>
-    Boolean(
-      configured?.[name]?.profileId &&
-      !missingReferences.includes(
-        `/tools/quick_script/settings/${name}/profileId`,
-      ),
-    );
-  return quickScriptIntegrationNames.flatMap((name) =>
-    !configured?.[name]?.enabled
-      ? []
-      : name !== "web"
-        ? hasAccount(name)
-          ? [name]
-          : []
-        : hasAccount(name)
-          ? [name, "web.search"]
-          : [name],
-  );
-}
 export function scopedTurnResources(options: {
   home: string;
   service: AgentConfigurationService;
@@ -52,6 +37,13 @@ export function scopedTurnResources(options: {
   nerveSkills(): readonly Skill[];
   agentBrowserSkills(): readonly Skill[];
   hasChildren(id: string): boolean;
+  /** The extensions the host serves. */
+  registry: QuickScriptRegistry;
+  /** Resolved extension settings and the home's accounts, for this conversation. */
+  extensions(
+    conversationId: string | undefined,
+    projectId: string,
+  ): Promise<{ resolution: ExtensionResolution; accounts: AccountsReader }>;
 }) {
   return async (
     input: ConfigurationPreviewInput,
@@ -60,6 +52,20 @@ export function scopedTurnResources(options: {
     missingReferences: readonly string[] = [],
   ) => {
     const child = input.conversation.parentConversationId !== null;
+    const { resolution, accounts } = await options.extensions(
+      input.conversation.id,
+      input.conversation.projectId,
+    );
+    // Direct tools of extensions are offered while the extension (and its switch) is on and its requirements are met.
+    const offered = await extensionAvailability(
+      options.registry,
+      resolution,
+      accounts,
+      {
+        checkSecrets: true,
+        ports: createExtensionPorts({ resolution, accounts }),
+      },
+    );
     const selected = [
       ...(await options.tools(
         input.projectDir,
@@ -70,7 +76,8 @@ export function scopedTurnResources(options: {
     ].filter(
       (tool) =>
         !(child && blocked.has(tool.name)) &&
-        isToolEnabled(tool.name, settings, missingReferences),
+        isToolEnabled(tool.name, settings, missingReferences) &&
+        extensionToolOffered(offered, tool.name),
     );
     const profiles = [];
     if (!child && selected.some((tool) => tool.name === "subagent_prompt"))
@@ -90,6 +97,24 @@ export function scopedTurnResources(options: {
             permission: "Independent child policy",
           });
       }
+    // Only configured namespaces: unavailability stays out of the description so credential changes keep the prompt prefix.
+    const quickScriptText = quickScriptDescription(
+      {
+        namespaces: configuredNamespaces(
+          (
+            await extensionAvailability(
+              options.registry,
+              resolution,
+              accounts,
+              {
+                checkSecrets: false,
+              },
+            )
+          ).namespaces,
+        ),
+      },
+      options.registry,
+    );
     const tools = withAgentProfiles(
       selected,
       profiles,
@@ -100,14 +125,7 @@ export function scopedTurnResources(options: {
       ...tool,
       description:
         resolveSkillPlaceholders(
-          tool.name === "quick_script"
-            ? quickScriptDescription({
-                integrations: activeQuickScriptIntegrations(
-                  settings,
-                  missingReferences,
-                ),
-              })
-            : tool.description,
+          tool.name === "quick_script" ? quickScriptText : tool.description,
         ) +
         (tool.name === "plan_present"
           ? `\n\nWrite the plan under: ${join(options.home, "data", "plans")}`

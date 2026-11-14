@@ -5,8 +5,19 @@ import { join } from "node:path";
 import { test } from "node:test";
 import { resolveAgentConfiguration } from "@nervekit/contracts/agent-configuration";
 import { scopedTurnResources } from "./scoped-turn-resources.js";
+import { hostRegistry } from "./host-tools.js";
 import { requireToolDefinition } from "@nervekit/tools/catalog";
 import type { Skill } from "@nervekit/harness/resources";
+
+const noExtensions = async () => ({
+  resolution: { extensions: {}, unknown: [], diagnostics: [] },
+  accounts: {
+    get: async () => undefined,
+    list: async () => [],
+    secret: async () => undefined,
+    hasSecret: async () => false,
+  },
+});
 
 void test("turns use captured instructions without consulting their source template, while project context stays fresh", async () => {
   const project = await mkdtemp(join(tmpdir(), "nerve-template-prompt-"));
@@ -18,6 +29,8 @@ void test("turns use captured instructions without consulting their source templ
       nerveSkills: () => [],
       agentBrowserSkills: () => [],
       hasChildren: () => false,
+      registry: hostRegistry,
+      extensions: noExtensions,
       service: {
         profiles: {
           get: async () => {
@@ -67,6 +80,8 @@ void test("prompt preparation reads initialized and subsequently replaced skill 
       nerveSkills: () => nerveSkills,
       agentBrowserSkills: () => browserSkills,
       hasChildren: () => false,
+      registry: hostRegistry,
+      extensions: noExtensions,
       service: {} as never,
     });
     const skill = (name: string, filePath: string): Skill => ({

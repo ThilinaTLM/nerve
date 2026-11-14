@@ -3,16 +3,10 @@ import {
   type ToolGroupName,
   type ToolName,
   type ToolTrait,
-  toolGroupNameSchema,
 } from "@nervekit/contracts/tools";
 import { type ToolRisk } from "@nervekit/contracts/permissions";
-import { confluenceToolDefinitions } from "./definitions/core/confluence.tools.js";
 import { filesystemToolDefinitions } from "./definitions/core/filesystem.tools.js";
-import { imageGenerationToolDefinitions } from "./definitions/core/image-generation.tools.js";
 import { interactionToolDefinitions } from "./definitions/core/interaction.tools.js";
-import { jiraToolDefinitions } from "./definitions/core/jira.tools.js";
-import { krokiToolDefinitions } from "./definitions/core/kroki.tools.js";
-import { quickScriptToolDefinitions } from "./definitions/core/quick-script.tools.js";
 import { pythonToolDefinitions } from "./definitions/core/python.tools.js";
 import { shellToolDefinitions } from "./definitions/core/shell.tools.js";
 import { webToolDefinitions } from "./definitions/core/web.tools.js";
@@ -20,7 +14,10 @@ import { visionToolDefinitions } from "./definitions/core/vision.tools.js";
 import { planPresentToolDefinitions } from "./definitions/orchestration/plan-present.tools.js";
 import { processToolDefinitions } from "./definitions/orchestration/process.tools.js";
 import { agentResultPolicyForTool } from "../result-projection/policies/index.js";
-import { permissionMetadataForTool } from "./permission-metadata.js";
+import {
+  permissionMetadataForTool,
+  registerExtensionToolMetadata,
+} from "./permission-metadata.js";
 import {
   type HostToolDefinition,
   isHostToolDefinition,
@@ -36,20 +33,18 @@ const rawCoreToolDefinitions: readonly ToolDefinition[] = [
   ...(readToolDefinition ? [readToolDefinition] : []),
   ...shellToolDefinitions,
   ...pythonToolDefinitions,
-  ...quickScriptToolDefinitions,
   ...remainingFilesystemToolDefinitions,
   ...interactionToolDefinitions,
   ...webToolDefinitions,
   ...visionToolDefinitions,
-  ...imageGenerationToolDefinitions,
-  ...krokiToolDefinitions,
-  ...jiraToolDefinitions,
-  ...confluenceToolDefinitions,
 ];
 
-export const coreToolDefinitions: readonly ToolDefinition[] = Object.freeze(
-  rawCoreToolDefinitions.map(withAgentResultPolicy),
-);
+// Live lists: `registerToolDefinitions` appends definitions that live in other
+// modules (`quick_script`, from `@nervekit/tools/quick-script`) before first use.
+const coreDefinitions: ToolDefinition[] = [];
+const allDefinitions: ToolDefinition[] = [];
+
+export const coreToolDefinitions: readonly ToolDefinition[] = coreDefinitions;
 
 export const orchestrationToolDefinitions: readonly ToolDefinition[] =
   Object.freeze(
@@ -60,12 +55,7 @@ export const orchestrationToolDefinitions: readonly ToolDefinition[] =
     ].map(withAgentResultPolicy),
   );
 
-export const toolManifest: readonly ToolDefinition[] = Object.freeze([
-  ...coreToolDefinitions,
-  ...orchestrationToolDefinitions,
-]);
-
-/** Existing public name retained for callers that consume the complete catalog. */
+export const toolManifest: readonly ToolDefinition[] = allDefinitions;
 
 function withAgentResultPolicy(definition: ToolDefinition): ToolDefinition {
   const agentResult =
@@ -80,7 +70,8 @@ function withAgentResultPolicy(definition: ToolDefinition): ToolDefinition {
 }
 
 const definitionByName = new Map<ToolName, ToolDefinition>();
-for (const definition of toolManifest) {
+
+function addDefinition(definition: ToolDefinition): void {
   if (definitionByName.has(definition.name)) {
     throw new Error(`Duplicate tool definition: ${definition.name}`);
   }
@@ -111,6 +102,44 @@ for (const definition of toolManifest) {
   definitionByName.set(definition.name, definition);
 }
 
+for (const definition of [
+  ...rawCoreToolDefinitions.map(withAgentResultPolicy),
+]) {
+  addDefinition(definition);
+  coreDefinitions.push(definition);
+  allDefinitions.push(definition);
+}
+for (const definition of orchestrationToolDefinitions) {
+  addDefinition(definition);
+  allDefinitions.push(definition);
+}
+
+/**
+ * Adds core tool definitions owned by another package. The host calls this
+ * once at startup, before any tool is listed or run; registering the same
+ * definition again is a no-op.
+ */
+export function registerToolDefinitions(
+  definitions: readonly ToolDefinition[],
+): void {
+  for (const definition of definitions) {
+    const existing = definitionByName.get(definition.name);
+    if (existing) {
+      if (existing.label === definition.label) continue;
+      throw new Error(`Duplicate tool definition: ${definition.name}`);
+    }
+    if (definition.permissionMetadata)
+      registerExtensionToolMetadata(
+        definition.name,
+        definition.permissionMetadata,
+      );
+    const finalized = withAgentResultPolicy(definition);
+    addDefinition(finalized);
+    coreDefinitions.push(finalized);
+    allDefinitions.push(finalized);
+  }
+}
+
 export function toolDefinitionByName(
   name: ToolName | string,
 ): ToolDefinition | undefined {
@@ -129,18 +158,13 @@ export function toolDefinitionsByGroup(
   return toolManifest.filter((definition) => definition.group === group);
 }
 
-export const toolGroups: readonly ToolGroupName[] = Object.freeze(
-  toolGroupNameSchema.options.filter((group) =>
-    toolManifest.some((definition) => definition.group === group),
-  ),
-);
+export function localToolDefinitions(): readonly LocalToolDefinition[] {
+  return toolManifest.filter(isLocalToolDefinition);
+}
 
-export const localToolDefinitions: readonly LocalToolDefinition[] =
-  Object.freeze(toolManifest.filter(isLocalToolDefinition));
-
-export const hostToolDefinitions: readonly HostToolDefinition[] = Object.freeze(
-  toolManifest.filter(isHostToolDefinition),
-);
+export function hostToolDefinitions(): readonly HostToolDefinition[] {
+  return toolManifest.filter(isHostToolDefinition);
+}
 
 export function classifyToolRisk(
   name: ToolName | string,

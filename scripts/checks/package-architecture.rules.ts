@@ -9,22 +9,22 @@ export const ALLOWED_INTERNAL_DEPENDENCIES: ReadonlyMap<
   string,
   readonly string[]
 > = new Map([
-  ["@nervekit/contracts", []],
+  ["@nervekit/extension-api", []],
+  ["@nervekit/contracts", ["@nervekit/extension-api"]],
   ["@nervekit/native", []],
   ["@nervekit/protocol", ["@nervekit/contracts"]],
   ["@nervekit/harness", ["@nervekit/contracts", "@nervekit/native"]],
-  ["@nervekit/skills", ["@nervekit/harness"]],
   [
     "@nervekit/tools",
-    ["@nervekit/contracts", "@nervekit/native", "@nervekit/skills"],
+    ["@nervekit/contracts", "@nervekit/native", "@nervekit/extension-api"],
   ],
+  ["@nervekit/extensions", ["@nervekit/extension-api"]],
   [
     "@nervekit/conversation-core",
     [
       "@nervekit/contracts",
       "@nervekit/native",
       "@nervekit/harness",
-      "@nervekit/skills",
       "@nervekit/tools",
     ],
   ],
@@ -37,8 +37,9 @@ export const ALLOWED_INTERNAL_DEPENDENCIES: ReadonlyMap<
       "@nervekit/native",
       "@nervekit/protocol",
       "@nervekit/harness",
-      "@nervekit/skills",
       "@nervekit/tools",
+      "@nervekit/extension-api",
+      "@nervekit/extensions",
       "@nervekit/conversation-core",
     ],
   ],

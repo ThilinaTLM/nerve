@@ -5,12 +5,10 @@ import { createHash, randomUUID } from "node:crypto";
 import { isDeepStrictEqual } from "node:util";
 import {
   defaultUserConfiguration,
-  type IntegrationsConfig,
   type Settings,
   type SettingsHealth,
   settingsSchema,
   type UserConfiguration,
-  integrationsConfigSchema,
 } from "@nervekit/contracts/settings";
 import type { StoragePaths } from "../storage-bootstrap/paths.js";
 import {
@@ -202,7 +200,7 @@ function documentPaths(
     ["ui", paths.uiConfigPath],
     ["permissions", paths.permissionsConfigPath],
     ["providers", paths.providersConfigPath],
-    ["integrations", paths.integrationsConfigPath],
+    ["accounts", paths.accountsConfigPath],
   ];
 }
 
@@ -213,7 +211,7 @@ export async function writeHomeConfiguration(
     "daemon",
     "ui",
     "providers",
-    "integrations",
+    "accounts",
   ],
 ): Promise<UserConfiguration> {
   const parsed = decodeConfiguration(configuration);
@@ -293,9 +291,7 @@ function decodeConfiguration(
     providers: HOME_CONFIGURATION_CODECS.providers.decode(
       configuration.providers,
     ),
-    integrations: HOME_CONFIGURATION_CODECS.integrations.decode(
-      configuration.integrations,
-    ),
+    accounts: HOME_CONFIGURATION_CODECS.accounts.decode(configuration.accounts),
   };
 }
 
@@ -308,7 +304,7 @@ function configDocuments(
     { path: paths.uiConfigPath, value: configuration.ui },
     { path: paths.permissionsConfigPath, value: configuration.permissions },
     { path: paths.providersConfigPath, value: configuration.providers },
-    { path: paths.integrationsConfigPath, value: configuration.integrations },
+    { path: paths.accountsConfigPath, value: configuration.accounts },
   ];
 }
 
@@ -316,7 +312,7 @@ function configDocuments(
 export function settingsFromConfiguration(
   configuration: UserConfiguration,
 ): Settings {
-  const { daemon, ui, integrations } = configuration;
+  const { daemon, ui } = configuration;
   return settingsSchema.parse({
     ...defaultSettings,
     application: {
@@ -332,20 +328,6 @@ export function settingsFromConfiguration(
     transcription: ui.transcription,
     logging: daemon.logging,
     permissions: { exceptions: [] },
-    providers: {
-      atlassianProfiles: integrations.profiles.atlassian.map((profile) => ({
-        id: profile.id,
-        name: profile.name,
-        siteUrl: profile.siteUrl,
-        email: profile.email,
-        defaultProjectKey: profile.defaultProjectKey,
-        defaultSpaceKey: profile.defaultSpaceKey,
-      })),
-      tavilyProfiles: integrations.profiles.tavily.map((profile) => ({
-        id: profile.id,
-        name: profile.name,
-      })),
-    },
   });
 }
 
@@ -354,7 +336,6 @@ export function configurationWithSettings(
   settings: Settings,
 ): UserConfiguration {
   const parsed = settingsSchema.parse(settings);
-  const integrations = integrationsFromSettings(current.integrations, parsed);
   return decodeConfiguration(
     preserveConfigurationExtensions(current, {
       ...current,
@@ -379,7 +360,6 @@ export function configurationWithSettings(
         transcription: parsed.transcription,
       },
       permissions: current.permissions,
-      integrations,
     }),
   );
 }
@@ -395,33 +375,4 @@ function preserveConfigurationExtensions(
     ]),
   ) as unknown as UserConfiguration;
   return merged;
-}
-
-function integrationsFromSettings(
-  current: IntegrationsConfig,
-  settings: Settings,
-): IntegrationsConfig {
-  const atlassianCredentials = new Map(
-    current.profiles.atlassian.map((profile) => [
-      profile.id,
-      profile.credential,
-    ]),
-  );
-  const tavilyCredentials = new Map(
-    current.profiles.tavily.map((profile) => [profile.id, profile.credential]),
-  );
-  return integrationsConfigSchema.parse({
-    version: 2,
-    profiles: {
-      atlassian: settings.providers.atlassianProfiles.map((profile) => ({
-        ...profile,
-        credential:
-          atlassianCredentials.get(profile.id) ?? `atlassian:${profile.id}`,
-      })),
-      tavily: settings.providers.tavilyProfiles.map((profile) => ({
-        ...profile,
-        credential: tavilyCredentials.get(profile.id) ?? `tavily:${profile.id}`,
-      })),
-    },
-  });
 }

@@ -1,5 +1,6 @@
 import {
   bashResultDetailsSchema,
+  quickScriptArtifactSchema,
   quickScriptResultDetailsSchema,
   writeResultDetailsSchema,
   grepResultDetailsSchema,
@@ -9,8 +10,8 @@ import {
   pythonResultDetailsSchema,
   todosResultSchema,
   webFetchResultDetailsSchema,
-  webSearchResultDetailsSchema,
 } from "@nervekit/contracts/tools";
+import { extensionToolResultDetailsSchema } from "@nervekit/contracts/extensions";
 import type {
   ToolCallRecord,
   ToolCallTranscriptRecord,
@@ -25,10 +26,6 @@ import {
   toolArgumentSource,
 } from "../lifecycle/argument-source";
 import { askUserViewFromCall } from "../tool-call/ask-user-state";
-import { parseConfluenceView } from "./confluence-result-view";
-import { parseGenerateImageView } from "./generate-image-result-view";
-import { parseKrokiView } from "./kroki-result-view";
-import { parseJiraView } from "./jira-result-view";
 import {
   parseStatusDetail,
   parseStatusListing,
@@ -58,7 +55,6 @@ import type { ToolView } from "./tool-view-types";
 // Re-export the supporting modules so existing consumers that import from this
 // file (via tool-result-view) keep a single, stable surface.
 export {
-  ATLASSIAN_COLLAPSED_ITEMS,
   COLLAPSED_LINES,
   splitLogicalLines,
   tailLogicalText,
@@ -260,11 +256,6 @@ export function parseToolView(
       };
     }
 
-    case "generate_image":
-      return parseGenerateImageView(rawArgs, rawResult);
-    case "kroki_export":
-      return parseKrokiView(args, rawResult);
-
     case "quick_script": {
       const details = quickScriptResultDetailsSchema.safeParse(result?.details);
       return {
@@ -278,7 +269,10 @@ export function parseToolView(
           ? details.data.outputTruncated
           : undefined,
         hostCalls: details.success ? details.data.hostCalls : [],
-        pages: details.success ? (details.data.pages ?? []) : [],
+        plannedOperations:
+          ("supervision" in toolCall
+            ? toolCall.supervision?.operations
+            : undefined) ?? [],
         artifacts: details.success ? (details.data.artifacts ?? []) : [],
         created: details.success ? (details.data.created ?? []) : [],
         live: !result && Boolean(liveOutput?.text),
@@ -645,54 +639,6 @@ export function parseToolView(
       };
     }
 
-    case "jira_search_users":
-    case "jira_search_issues":
-    case "jira_get_issue":
-    case "jira_get_project":
-    case "jira_search_boards":
-    case "jira_get_board":
-    case "jira_get_sprint":
-    case "jira_download_attachment":
-    case "jira_create_issue":
-    case "jira_update_issue":
-    case "jira_manage_comment":
-    case "jira_manage_worklog":
-    case "jira_manage_issue_link":
-    case "jira_manage_attachment":
-    case "jira_manage_sprint":
-    case "jira_manage_backlog":
-    case "jira_transition_issue":
-      return parseJiraView(toolCall, args, rawResult, liveOutput);
-
-    case "confluence_search_spaces":
-    case "confluence_search_pages":
-    case "confluence_get_page":
-    case "confluence_download_page":
-    case "confluence_create_page":
-    case "confluence_update_page":
-    case "confluence_manage_comment":
-    case "confluence_manage_page":
-    case "confluence_manage_label":
-    case "confluence_manage_restriction":
-    case "confluence_manage_attachment":
-      return parseConfluenceView(toolCall, args, rawResult, liveOutput);
-
-    case "web_search": {
-      const details = webSearchResultDetailsSchema.safeParse(result?.details);
-      const query = details.success
-        ? details.data.query
-        : stringField(args.query);
-      const results = details.success ? details.data.results : [];
-      return {
-        kind: "web_search",
-        query,
-        answer: details.success ? details.data.answer : undefined,
-        results,
-        outputLimits,
-        outputArtifacts,
-      };
-    }
-
     case "explain_image": {
       const details = explainImageResultDetailsSchema.safeParse(
         result?.details,
@@ -774,6 +720,24 @@ export function parseToolView(
     }
 
     default: {
+      // A direct tool of an extension: the result says how to render it.
+      const extensionResult = extensionToolResultDetailsSchema.safeParse(
+        result?.details,
+      );
+      if (extensionResult.success) {
+        const details = extensionResult.data;
+        const artifacts = quickScriptArtifactSchema
+          .array()
+          .safeParse(details.artifacts);
+        return {
+          kind: "extension",
+          toolName: toolCall.toolName,
+          extension: details.extension,
+          display: details.display,
+          artifacts: artifacts.success ? artifacts.data : [],
+          resultText: resultOutputText(result, rawResult, liveOutput),
+        };
+      }
       const resultText = resultOutputText(result, rawResult, liveOutput);
       const safeResultText = resultText
         ? redactStructuredValue("result", resultText).slice(0, 6_000)

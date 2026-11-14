@@ -21,8 +21,8 @@ import {
   resolveNativePath,
   type ToolExecutionContext,
 } from "@nervekit/tools/execution";
-import { toolNameSchema } from "@nervekit/contracts/tools";
 import type { CoreProcessHost } from "./process.adapter.js";
+import { registerHostTools } from "./host-tools.js";
 import type { LaunchTool } from "./launch-tool.js";
 import { prepareShellProcess } from "../infrastructure/process-host/shell-process.js";
 
@@ -48,6 +48,7 @@ export function createToolHostPort(
   >,
   launchTool?: LaunchTool,
 ) {
+  registerHostTools();
   const todos = new Map<unknown, { todo: string; done: boolean }[]>();
   const handlers = createTodoHandlers({
     get: async (id) => todos.get(id) ?? [],
@@ -99,9 +100,12 @@ export function createToolHostPort(
     async prepareExecution(input) {
       while (true) {
         input.signal.throwIfAborted();
-        const name = toolNameSchema.parse(input.toolName);
-        const definition = baseDefinitions.find((tool) => tool.name === name);
-        if (!definition) throw new Error(`Tool unavailable: ${name}`);
+        // Core tools and the direct tools extensions contribute; the catalog is the authority on names.
+        const definition = baseDefinitions.find(
+          (tool) => tool.name === input.toolName,
+        );
+        if (!definition) throw new Error(`Tool unavailable: ${input.toolName}`);
+        const name = definition.name;
         const args = structuredClone(
           normalizeToolArguments(definition, structuredClone(input.args)),
         );
