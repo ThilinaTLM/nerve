@@ -66,22 +66,42 @@ export interface Atlassian {
   searchPages(title: string): Promise<Loose[]>;
 }
 
+async function selectedAtlassianAccount(
+  home: string,
+): Promise<string | undefined> {
+  try {
+    const file = JSON.parse(
+      await readFile(join(home, "config", "extensions.json"), "utf8"),
+    ) as { extensions?: { atlassian?: { settings?: { account?: unknown } } } };
+    const account = file.extensions?.atlassian?.settings?.account;
+    return typeof account === "string" ? account : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 async function readSlotConnection(target: SlotTarget): Promise<Connection> {
   const accounts = JSON.parse(
     await readFile(join(target.home, "config", "accounts.json"), "utf8"),
   ) as {
     profiles?: {
       atlassian?: {
+        id: string;
         siteUrl: string;
         email: string;
         credential: string;
       }[];
     };
   };
-  const profile = accounts.profiles?.atlassian?.[0];
+  // The account the Atlassian extension selects, so checks and the agent use
+  // the same site; never guess, since write tasks must stay in the sandbox.
+  const selected = await selectedAtlassianAccount(target.home);
+  const profile = accounts.profiles?.atlassian?.find(
+    (account) => account.id === selected,
+  );
   if (!profile)
     throw new CliError(
-      `Slot ${target.slot} has no Atlassian account; set ATLASSIAN_SITE_URL, ATLASSIAN_EMAIL and ATLASSIAN_API_TOKEN.`,
+      `Slot ${target.slot} has no Atlassian account selected in Settings → Extensions → Atlassian (user scope); select the sandbox account, or set ATLASSIAN_SITE_URL, ATLASSIAN_EMAIL and ATLASSIAN_API_TOKEN.`,
     );
   const envelope = JSON.parse(
     await readFile(join(target.home, "secrets", "credentials.enc"), "utf8"),
