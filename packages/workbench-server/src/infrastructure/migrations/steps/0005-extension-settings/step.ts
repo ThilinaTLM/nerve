@@ -172,7 +172,7 @@ function convert(context: StepContext, target: Target): void {
 
 export default defineStep({
   id: "0005-extension-settings",
-  description: "Move account choices and tool options to extension settings",
+  description: "Move account and tool options to extensions",
   ownedPaths: (context) => owned(context),
   async run(context) {
     const { paths } = context;
