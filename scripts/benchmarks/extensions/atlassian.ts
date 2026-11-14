@@ -12,7 +12,7 @@ import { createDecipheriv } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { CliError } from "../../cli/main.ts";
-import { importBuilt, type SlotTarget } from "./daemon-client.ts";
+import type { SlotTarget } from "./daemon-client.ts";
 
 export interface Sandbox {
   /** Jira project key every write task must stay inside. */
@@ -130,6 +130,35 @@ async function readSlotConnection(target: SlotTarget): Promise<Connection> {
   return { siteUrl: siteUrl.replace(/\/+$/, ""), email, token };
 }
 
+async function restRequest(
+  connection: Connection,
+  base: string,
+  { method = "GET", path, query, body }: RequestOptions,
+): Promise<unknown> {
+  const url = new URL(`${connection.siteUrl}${base}${path}`);
+  for (const [key, value] of Object.entries(query ?? {}))
+    if (value !== undefined)
+      url.searchParams.set(
+        key,
+        Array.isArray(value) ? value.join(",") : String(value),
+      );
+  const response = await fetch(url, {
+    method,
+    headers: {
+      authorization: `Basic ${Buffer.from(`${connection.email}:${connection.token}`).toString("base64")}`,
+      accept: "application/json",
+      ...(body === undefined ? {} : { "content-type": "application/json" }),
+    },
+    body: body === undefined ? undefined : JSON.stringify(body),
+  });
+  const text = await response.text();
+  if (!response.ok)
+    throw new Error(
+      `${method} ${path}: HTTP ${response.status} ${text.slice(0, 200)}`,
+    );
+  return text ? (JSON.parse(text) as unknown) : undefined;
+}
+
 export async function connectAtlassian(
   target: SlotTarget,
   sandbox: Sandbox,
@@ -143,15 +172,20 @@ export async function connectAtlassian(
           token: env.ATLASSIAN_API_TOKEN,
         }
       : await readSlotConnection(target);
+  // Checks talk to the REST APIs directly, independent of the extension under test.
   const integrations: Integrations = {
-    ...(await importBuilt<Pick<Integrations, "jiraRequest">>(
-      "extensions",
-      "atlassian/jira/client.js",
-    )),
-    ...(await importBuilt<Pick<Integrations, "confluenceRequest">>(
-      "extensions",
-      "atlassian/confluence/client.js",
-    )),
+    jiraRequest: (connection, { api, ...options }) =>
+      restRequest(
+        connection,
+        api === "agile" ? "/rest/agile/1.0" : "/rest/api/3",
+        options,
+      ),
+    confluenceRequest: (connection, { api, ...options }) =>
+      restRequest(
+        connection,
+        api === "v2" ? "/wiki/api/v2" : "/wiki/rest/api",
+        options,
+      ),
   };
   const atlassian: Atlassian = {
     siteUrl: connection.siteUrl,
