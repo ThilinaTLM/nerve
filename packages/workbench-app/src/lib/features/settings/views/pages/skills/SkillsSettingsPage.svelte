@@ -3,6 +3,11 @@ import { Callout } from "@nervekit/ui-kit/components/composites/callout";
 import ProjectCapabilityTrustAction from "../capabilities/ProjectCapabilityTrustAction.svelte";
 import ProjectCapabilityTrustNotice from "../capabilities/ProjectCapabilityTrustNotice.svelte";
 import Copy from "@lucide/svelte/icons/copy";
+import FolderGit2 from "@lucide/svelte/icons/folder-git-2";
+import FolderOpen from "@lucide/svelte/icons/folder-open";
+import Globe from "@lucide/svelte/icons/globe";
+import Sparkles from "@lucide/svelte/icons/sparkles";
+import Trash2 from "@lucide/svelte/icons/trash-2";
 import type { AvailableSkill } from "@nervekit/contracts/skills";
 import { skillOverrideKind } from "@nervekit/contracts/skills";
 import { IconAction } from "@nervekit/ui-kit/components/composites/icon-action";
@@ -10,14 +15,13 @@ import SearchInput from "@nervekit/ui-kit/components/composites/search-input";
 import { Badge } from "@nervekit/ui-kit/components/ui/badge";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
 import { Skeleton } from "@nervekit/ui-kit/components/ui/skeleton";
-import { Switch } from "@nervekit/ui-kit/components/ui/switch";
 import { ScopedAgentState } from "$lib/application/agent-configuration/scoped-agent-state.svelte";
 import { workbenchStartupState } from "$lib/application/startup/workbench-startup-state.svelte";
 import { writeClipboardText } from "$lib/platform/clipboard/write-text";
 import {
   SettingsChangeIndicator,
-  SettingsDisclosureItem,
   SettingsEmptyState,
+  SettingsItem,
   SettingsList,
   SettingsSection,
   SettingsToolbar,
@@ -59,6 +63,12 @@ $effect(() => editor.observe());
 const locked = $derived(editor.saving || !editor.resolution);
 const error = $derived(editor.error ?? catalogError);
 let query = $state("");
+const skillSourceIcons = {
+  user: FolderOpen,
+  project: FolderGit2,
+  nerve: Sparkles,
+  agentBrowser: Globe,
+};
 const escape = (value: string) =>
   value.replaceAll("~", "~0").replaceAll("/", "~1");
 function pointer(entry: SkillEntry) {
@@ -219,51 +229,42 @@ function onRetry() {
     >
       <SettingsList ariaLabel={skillSourceLabels[group.source]}>
         {#each group.entries as entry (entry.skill.filePath)}
-          <SettingsDisclosureItem
+          <SettingsItem
             title={entry.skill.name}
-            description={entry.skill.description}
+            icon={skillSourceIcons[entry.source]}
+            summary={entry.skill.description || entry.skill.filePath}
+            mono={!entry.skill.description}
+            checked={entry.enabled}
+            disabled={locked}
+            switchLabel={scope === "user"
+              ? `Enable ${entry.skill.name} skill`
+              : `Enable ${entry.skill.name} skill for this project`}
+            onCheckedChange={(checked) => toggleEntry(entry, checked)}
           >
             {#snippet badges()}
               {#if shadowNote(entry)}
                 <Badge variant="neutral">{shadowNote(entry)}</Badge>
               {/if}
             {/snippet}
-            {#snippet actions()}
+            {#snippet meta()}
               {#if entry.overridden}
                 <SettingsChangeIndicator
+                  compact
                   {scope}
                   from={entry.inherited ? "On" : "Off"}
                   to={entry.enabled ? "On" : "Off"}
                   onReset={() => resetEntry(entry)}
                 />
               {/if}
-              <Switch
-                checked={entry.enabled}
-                disabled={locked}
-                aria-label={scope === "user"
-                  ? `Enable ${entry.skill.name} skill`
-                  : `Enable ${entry.skill.name} skill for this project`}
-                onCheckedChange={(checked) => toggleEntry(entry, checked)}
+            {/snippet}
+            {#snippet actions()}
+              <IconAction
+                icon={Copy}
+                label="Copy skill path"
+                onclick={() => copyPath(entry.skill.filePath)}
               />
             {/snippet}
-            {#snippet detail()}
-              <div class="flex min-w-0 items-center gap-2">
-                <span class="truncate font-mono" title={entry.skill.filePath}
-                  >{entry.skill.filePath}</span
-                >
-                <IconAction
-                  icon={Copy}
-                  label="Copy skill path"
-                  onclick={() => copyPath(entry.skill.filePath)}
-                />
-                {#if scope === "project" && !entry.overridden}
-                  <span class="flex-none text-ui text-muted-foreground">
-                    User default: {entry.inherited ? "on" : "off"}
-                  </span>
-                {/if}
-              </div>
-            {/snippet}
-          </SettingsDisclosureItem>
+          </SettingsItem>
         {/each}
       </SettingsList>
     </SettingsSection>
@@ -289,28 +290,20 @@ function onRetry() {
       {/snippet}
       <SettingsList ariaLabel="Unused skill entries">
         {#each orphans as orphan (`${orphan.kind}:${orphan.name}`)}
-          <SettingsDisclosureItem
+          <SettingsItem
             title={orphan.name}
-            description={`Saved as ${orphan.enabled ? "enabled" : "disabled"}, but no skill with this name is installed ${scope === "user" ? "for you" : "for this project"}.`}
+            icon={orphan.kind === "agentBrowser" ? Globe : FolderOpen}
+            summary={`Saved as ${orphan.enabled ? "enabled" : "disabled"}; no skill with this name is installed.`}
           >
             {#snippet actions()}
-              <Button
-                size="sm"
-                variant="ghost"
-                class="text-muted-foreground"
+              <IconAction
+                icon={Trash2}
+                tone="destructive"
+                label="Remove entry"
                 onclick={() => clearOrphans([orphan])}
-              >
-                Remove
-              </Button>
+              />
             {/snippet}
-            {#snippet detail()}
-              <span class="text-ui text-muted-foreground">
-                {orphan.kind === "agentBrowser"
-                  ? "Agent Browser skill entry"
-                  : "File skill entry"}
-              </span>
-            {/snippet}
-          </SettingsDisclosureItem>
+          </SettingsItem>
         {/each}
       </SettingsList>
     </SettingsSection>

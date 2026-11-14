@@ -4,24 +4,35 @@ import { toolSettingsMutation } from "./tool-settings-mutation";
 import { clampThinkingLevelForModel } from "$lib/presentation/state/thinking-levels";
 import ProjectCapabilityTrustAction from "../capabilities/ProjectCapabilityTrustAction.svelte";
 import ProjectCapabilityTrustNotice from "../capabilities/ProjectCapabilityTrustNotice.svelte";
-import Settings2 from "@lucide/svelte/icons/settings-2";
-import TriangleAlert from "@lucide/svelte/icons/triangle-alert";
+import Bot from "@lucide/svelte/icons/bot";
+import Eye from "@lucide/svelte/icons/eye";
+import Globe from "@lucide/svelte/icons/globe";
+import ListChecks from "@lucide/svelte/icons/list-checks";
+import ScrollText from "@lucide/svelte/icons/scroll-text";
+import Search from "@lucide/svelte/icons/search";
+import SquareTerminal from "@lucide/svelte/icons/square-terminal";
+import Wrench from "@lucide/svelte/icons/wrench";
+import Code from "@lucide/svelte/icons/code";
 import { leadSettingsOverridesSchema } from "@nervekit/contracts/agent-configuration";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
 import { Skeleton } from "@nervekit/ui-kit/components/ui/skeleton";
-import { Switch } from "@nervekit/ui-kit/components/ui/switch";
 import type {
   AuthProviderMetadata,
   ModelInfo,
   Settings,
   StatusResponse,
 } from "$lib/api";
-import { openSettingsPane } from "$lib/application/settings";
 import { ScopedAgentState } from "$lib/application/agent-configuration/scoped-agent-state.svelte";
+import { ScopedExtensionsState } from "$lib/application/extensions/scoped-extensions-state.svelte";
+import {
+  openProjectSettingsPane,
+  openSettingsPane,
+} from "$lib/application/settings";
 import { workbenchStartupState } from "$lib/application/startup/workbench-startup-state.svelte";
 import {
   SettingsChangeIndicator,
-  SettingsRow,
+  SettingsItem,
+  SettingsList,
   SettingsSection,
 } from "$lib/presentation/settings";
 import {
@@ -35,13 +46,12 @@ import {
   profileLabelFor,
 } from "../../shared/profile-options.svelte";
 import ToolConfigDialog from "./ToolConfigDialog.svelte";
+import { toolExtensionState, toolSettingsLink } from "./tool-extension-links";
 import {
-  accountKind,
   accountOptions,
-  integrationsMissingAccount,
   toolRows,
+  toolSettingsSummary,
   toolSummary,
-  type AccountKind,
   type ToolId,
   type ToolPayload,
   type ToolRowDef,
@@ -76,6 +86,28 @@ $effect(() => {
   ensureProfilesFor(scope, projectId);
 });
 $effect(() => editor.observe());
+// Web, Atlassian and Quick script rows reflect the extensions they depend on.
+const extensions = new ScopedExtensionsState();
+$effect(() => {
+  if (!workbenchStartupState.progressiveActive || (project && !projectId))
+    return;
+  void extensions.load(
+    project ? { scope: "project", projectId: projectId! } : { scope: "user" },
+  );
+});
+$effect(() => extensions.observe());
+const accounts = $derived(accountOptions(settingsDraft.providers));
+function extensionState(id: ToolId) {
+  return toolExtensionState(id, extensions.view?.extensions, accounts);
+}
+function openExtension(item?: string, section?: string) {
+  const options = {
+    ...(item ? { item } : {}),
+    ...(section ? { section } : {}),
+  };
+  if (projectId) void openProjectSettingsPane(projectId, "extensions", options);
+  else void openSettingsPane("extensions", options);
+}
 const error = $derived(editor.error);
 const loading = $derived(!editor.resolution && !error);
 const locked = $derived(editor.saving || !editor.resolution);
@@ -91,39 +123,23 @@ function inheritedPayload(id: ToolId): ToolPayload {
 function changed(id: ToolId) {
   return editor.overrides.tools?.[id] !== undefined;
 }
-const accounts = $derived(accountOptions(settingsDraft.providers));
-function hasAccount(kind: AccountKind, accountId: string | undefined) {
-  return accounts[kind].some((a) => a.id === accountId);
-}
-function accountName(id: ToolId, accountId: string | undefined) {
-  const kind = accountKind(id);
-  return kind
-    ? accounts[kind].find((a) => a.id === accountId)?.name
-    : undefined;
-}
 function modelLabel(selection: unknown) {
   const v = selection as { provider: string; modelId: string } | undefined;
   if (!v) return undefined;
   const m = models.find((m) => modelKey(m) === modelKey(v));
   return m ? modelDisplayName(m) : v.modelId;
 }
+const displayContext = $derived({
+  profileLabel: profileLabelFor,
+  modelLabel,
+});
+/** On/off plus settings: what the change indicator compares. */
 function summary(id: ToolId, value: ToolPayload) {
-  return toolSummary(id, value, {
-    accountName: (kind, accountId) =>
-      accounts[kind].find((a) => a.id === accountId)?.name,
-    profileLabel: profileLabelFor,
-    modelLabel,
-  });
+  return toolSummary(id, value, displayContext);
 }
-function problem(id: ToolId, value: ToolPayload): string | undefined {
-  if (accountKind(id) && !accountName(id, value.profileId))
-    return "Choose an account";
-  // The tool works without integrations; only enabled ones lacking an account are flagged.
-  if (id === "quick_script" && value.enabled) {
-    const missing = integrationsMissingAccount(value, hasAccount);
-    if (missing.length) return `Choose an account for ${missing.join(", ")}`;
-  }
-  return undefined;
+/** The row's status line: settings only, or what the tool does. */
+function rowSummary(row: ToolRowDef, value: ToolPayload) {
+  return toolSettingsSummary(row.id, value, displayContext) ?? row.description;
 }
 function save(id: ToolId, next: ToolPayload) {
   try {
@@ -146,7 +162,18 @@ function onRetry() {
 }
 let dialogOpen = $state(false);
 let dialogTool = $state<ToolRowDef>(toolRows[0]);
+const toolIcons: Partial<Record<ToolId, typeof Wrench>> = {
+  bash: SquareTerminal,
+  python_exec: Code,
+  web_search: Search,
+  web_fetch: Globe,
+  explain_image: Eye,
+  quick_script: ScrollText,
+  plan_present: ListChecks,
+  subagents: Bot,
+};
 function configure(row: ToolRowDef) {
+  if (locked) return;
   dialogTool = row;
   dialogOpen = true;
 }
@@ -171,66 +198,59 @@ const python = $derived(status?.runtime.python);
   <SettingsSection
     id="tools"
     description="Read, edit, ask_user, process and todo tools are always on. Permissions govern them."
-    divided
   >
     {#snippet actions()}{#if project}<ProjectCapabilityTrustAction
           document={editor.document}
           scope={editor.scope}
           onReload={onRetry}
         />{/if}{/snippet}
-    {#each toolRows as row (row.id)}
-      {@const value = payload(row.id)}
-      {@const issue =
-        !row.always && value.enabled ? problem(row.id, value) : undefined}
-      {@const unavailable = false}
-      <SettingsRow label={row.label} description={summary(row.id, value)}>
-        {#snippet badges()}
-          {#if changed(row.id)}
-            <SettingsChangeIndicator
-              compact
-              {scope}
-              from={summary(row.id, inheritedPayload(row.id))}
-              to={summary(row.id, value)}
-              onReset={() => reset(row.id)}
-            />
-          {/if}
-        {/snippet}
-        {#snippet hint()}
-          {#if issue || unavailable}
-            <span class="inline-flex items-center gap-1 text-warning">
-              <TriangleAlert class="size-3" aria-hidden="true" />
-              {issue ?? "Not set up on this machine"}
-            </span>
-          {/if}
-        {/snippet}
-        {#snippet control()}
-          {#if row.configurable}
-            <Button
-              size="sm"
-              variant="outline"
-              aria-label={`Configure ${row.label}`}
-              disabled={locked}
-              onclick={() => configure(row)}
-            >
-              <Settings2 class="size-3.5" aria-hidden="true" />Configure
-            </Button>
-          {/if}
-          {#if row.always}
-            <!-- Same width as Switch so Configure buttons line up. -->
-            <span class="w-7 flex-none" aria-hidden="true"></span>
-          {:else}
-            <Switch
-              checked={value.enabled === true}
-              disabled={locked ||
-                (!value.enabled && !!problem(row.id, value)) ||
-                (project && !!unavailable)}
-              aria-label={`Enable ${row.label}`}
-              onCheckedChange={(next) => toggle(row.id, next)}
-            />
-          {/if}
-        {/snippet}
-      </SettingsRow>
-    {/each}
+    <SettingsList>
+      {#each toolRows as row (row.id)}
+        {@const value = payload(row.id)}
+        {@const fromExtension = extensionState(row.id)}
+        {@const link = toolSettingsLink(row.id)}
+        <SettingsItem
+          title={row.label}
+          icon={toolIcons[row.id] ?? Wrench}
+          summary={fromExtension?.summary ?? rowSummary(row, value)}
+          problem={fromExtension?.problem}
+          problemAction={fromExtension?.fix
+            ? {
+                label: fromExtension.fix.label,
+                onclick: () =>
+                  openExtension(
+                    fromExtension.fix?.extensionId,
+                    fromExtension.fix?.section,
+                  ),
+              }
+            : undefined}
+          always={row.always}
+          checked={row.always ? undefined : value.enabled === true}
+          disabled={locked || fromExtension?.disabled === true}
+          onCheckedChange={(next) => toggle(row.id, next)}
+          onOpen={row.configurable
+            ? () => configure(row)
+            : link?.item
+              ? () => openExtension(link.item)
+              : undefined}
+          openLabel={row.configurable
+            ? `Configure ${row.label}`
+            : `Open ${row.label} extension settings`}
+        >
+          {#snippet meta()}
+            {#if changed(row.id)}
+              <SettingsChangeIndicator
+                compact
+                {scope}
+                from={summary(row.id, inheritedPayload(row.id))}
+                to={summary(row.id, value)}
+                onReset={() => reset(row.id)}
+              />
+            {/if}
+          {/snippet}
+        </SettingsItem>
+      {/each}
+    </SettingsList>
   </SettingsSection>
 
   <ToolConfigDialog
@@ -241,15 +261,8 @@ const python = $derived(status?.runtime.python);
       ? "Changes apply to this project only."
       : "Applies to every project unless it changes this."}
     models={usableModels}
-    {accounts}
-    noAccountLabel={project
-      ? "Use the account from your settings"
-      : "No account"}
     leadProfiles={leadProfileOptions()}
     resolvedPython={python?.executable}
-    onManageAccounts={project
-      ? undefined
-      : () => void openSettingsPane("integrations")}
     onSave={(next) => save(dialogTool.id, next)}
   />
 {/if}

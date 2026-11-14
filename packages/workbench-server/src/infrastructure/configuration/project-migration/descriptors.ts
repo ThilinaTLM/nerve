@@ -1,10 +1,10 @@
 import {
   projectAgentConfiguration,
   projectConversationDefaults,
-  projectIntegrations,
   projectSubagentCatalog,
   projectCapabilitiesConfiguration,
 } from "../agent-configuration/project-chains/scoped-migrations.js";
+import { projectExtensionsConfiguration } from "../extensions/project-extensions.js";
 import { projectPermissionsConfiguration } from "../../../core-host/project-permission-migrations.js";
 import type { TrustedResourceKind } from "@nervekit/contracts/core";
 import { launchDefinitionsConfiguration } from "../../../domains/launch-definitions/launch-definition-migrations.js";
@@ -18,8 +18,8 @@ export const projectConfigurationDescriptors: readonly {
   { type: launchDefinitionsConfiguration },
   { type: projectAgentConfiguration, trustKind: "project_capabilities" },
   { type: projectConversationDefaults },
-  { type: projectIntegrations },
   { type: projectCapabilitiesConfiguration, trustKind: "project_capabilities" },
+  { type: projectExtensionsConfiguration, trustKind: "project_capabilities" },
   { type: projectSubagentCatalog, trustKind: "agent_profile" },
   { type: projectPermissionsConfiguration, trustKind: "project_permissions" },
 ];

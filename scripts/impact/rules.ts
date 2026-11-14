@@ -63,6 +63,7 @@ export const CORE_PACKAGES: ReadonlySet<string> = new Set([
   "@nervekit/protocol",
   "@nervekit/skills",
   "@nervekit/tools",
+  "@nervekit/quick-script",
   "@nervekit/conversation-core",
   "@nervekit/ui-kit",
   "@nervekit/workbench-app",
@@ -74,6 +75,7 @@ export const HOST_PACKAGES: ReadonlySet<string> = new Set([
   "@nervekit/harness",
   "@nervekit/skills",
   "@nervekit/tools",
+  "@nervekit/quick-script",
   "@nervekit/conversation-core",
   "@nervekit/workbench-server",
 ]);

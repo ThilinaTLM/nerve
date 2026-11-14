@@ -32,6 +32,11 @@ export const settingsState = $state({
   /** User settings view; project settings tabs keep theirs in `projectViews`. */
   activePageId: "providers",
   activeSectionId: "subscriptions",
-  /** Page and section last shown by each project's settings tab. */
-  projectViews: {} as Record<string, { pageId: string; sectionId: string }>,
+  /** Open detail item of the active page (`Page › Item`); "" shows the list. */
+  activeItemId: "",
+  /** Page, detail item and section last shown by each project's settings tab. */
+  projectViews: {} as Record<
+    string,
+    { pageId: string; sectionId: string; itemId?: string }
+  >,
 });

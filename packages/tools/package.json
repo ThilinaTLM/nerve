@@ -48,16 +48,14 @@
     }
   },
   "scripts": {
-    "build": "tsc -b && tsx ../../scripts/build/copy-tools-assets.ts",
+    "build": "tsc -b",
     "check": "tsc -b --pretty false",
-    "pretest": "tsx ../../scripts/build/copy-tools-assets.ts",
     "test": "tsx --test \"test/**/*.test.ts\" \"src/**/*.test.ts\"",
     "test:native": "tsx --test test/execution/bash.test.ts test/execution/process-tree.test.ts"
   },
   "dependencies": {
     "@nervekit/contracts": "workspace:*",
     "@nervekit/native": "workspace:*",
-    "@nervekit/skills": "workspace:*",
     "cross-spawn": "7.0.6",
     "diff": "^8.0.4",
     "node-html-markdown": "^2.0.0",
@@ -68,13 +66,7 @@
     "@types/cross-spawn": "6.0.6",
     "@types/node": "24.10.1",
     "@types/shell-quote": "^1.7.5",
-    "docx": "9.15.3",
-    "jszip": "3.10.2",
-    "mammoth": "1.13.0",
-    "papaparse": "5.5.3",
-    "pptxgenjs": "4.0.1",
-    "typescript": "5.9.3",
-    "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz"
+    "typescript": "5.9.3"
   },
   "engines": {
     "node": ">=24.0.0"

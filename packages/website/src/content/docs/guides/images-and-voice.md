@@ -21,7 +21,7 @@ The image is sent to the model you choose for this tool. To keep images on your 
 
 ## Generate an image
 
-Turn on **Image generation** in **Settings → Tools → Image generation** and choose a provider, model, and output defaults. The agent then writes the prompt, and the finished image appears in the conversation as a link to the file.
+Turn on **Image generation** in **Settings → Extensions** (Quick script must be on under **Settings → Tools**) and choose a backend, model, and output defaults. The agent then writes the prompt in a script, and the finished image is saved as a conversation file the agent can use or show you.
 
 The OpenAI Codex provider uses your ChatGPT subscription's image access and limits, not API billing. Availability and options can vary by account.
 

@@ -9,7 +9,7 @@ The contracts and tool manifest define the agent-callable catalog. Definitions d
 
 ## Local versus host tools
 
-Local executors cover files/search, Bash/Python, Web, Jira and Confluence. Conversation-core handlers own questions, to-dos, asynchronous sub-agent delegation and plan review. The server supplies host integrations, including the `launch` tool for user-defined run configurations.
+Local executors cover files/search, Bash/Python, Web and the `quick_script` sandbox, whose SDK namespaces (Jira, Confluence, diagrams, image generation) come from extensions and are checked per operation. Conversation-core handlers own questions, to-dos, asynchronous sub-agent delegation and plan review. The server supplies host integrations, including the `launch` tool for user-defined run configurations.
 
 Accepted calls use the durable core tool lifecycle. File mutations serialize per path. Python remains finite; Bash can return immediately in the background or promote after its configured foreground limit. `async_bash` manages conversation-owned runs; `launch` manages separate workbench launch instances. Async Bash queues completion notices instead of requiring polling. Agent-started launches queue exit notices when they finish naturally while the daemon retains their in-memory ownership; cancelled launches suppress those notices, and launch ownership does not survive restart. See [tool output lifecycle](/developers/tool-output-lifecycle/) for the execution states, durable/live event split, and output budgets.
 

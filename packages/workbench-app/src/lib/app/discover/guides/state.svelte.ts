@@ -12,6 +12,7 @@ import {
   openConversationHistory,
 } from "$lib/features/conversations/state/composer-signals.svelte";
 import { settingsState } from "$lib/features/settings/state/settings-state.svelte";
+import { selectedAtlassianAccountId } from "$lib/application/extensions/selected-accounts.svelte";
 import { atlassianProfileReady } from "$lib/features/settings/views/pages/providers/provider-profiles";
 import { openSettingsPane } from "$lib/application/settings/settings-actions.svelte";
 import {
@@ -76,30 +77,26 @@ export function voiceConfigured(): boolean {
   return hasChatGptAudioAuth(settingsState.authProviders);
 }
 
+/** The Atlassian account the extension selects exists and has its token. */
 export function atlassianConfigured(): boolean {
-  const settings = settingsState.settingsDraft;
-  if (!settings) return false;
-  return (["jira", "confluence"] as const).every((integration) => {
-    const configuration = settings.tools[integration];
-    const profile = settings.providers.atlassianProfiles.find(
-      (candidate) => candidate.id === configuration.profileId,
-    );
-    return (
-      configuration.enabled &&
-      atlassianProfileReady(profile, settingsState.authProviders)
-    );
-  });
+  const selected = selectedAtlassianAccountId();
+  const profile = settingsState.settingsDraft?.providers.atlassianProfiles.find(
+    (candidate) => candidate.id === selected,
+  );
+  return Boolean(
+    profile && atlassianProfileReady(profile, settingsState.authProviders),
+  );
 }
 
 export function webSearchConfigured(): boolean {
-  const profileId = settingsState.settingsDraft?.tools.web.tavilyProfileId;
   return Boolean(
-    profileId &&
-    settingsState.authProviders.some(
-      (provider) =>
-        provider.provider === `tavily:${profileId}` &&
-        provider.configured &&
-        provider.credentialType === "api_key",
+    settingsState.settingsDraft?.providers.tavilyProfiles.some((profile) =>
+      settingsState.authProviders.some(
+        (provider) =>
+          provider.provider === `tavily:${profile.id}` &&
+          provider.configured &&
+          provider.credentialType === "api_key",
+      ),
     ),
   );
 }
@@ -273,7 +270,10 @@ async function prepareSetupStep(
   let target = visibleTarget(step.targetId);
   const preparation = step.preparation;
   if (enterCoach && !target && preparation?.kind === "settings") {
-    await openSettingsPane(preparation.pageId, preparation.sectionId);
+    await openSettingsPane(preparation.pageId, {
+      ...(preparation.itemId ? { item: preparation.itemId } : {}),
+      section: preparation.sectionId,
+    });
   }
 
   await settlePreparation();

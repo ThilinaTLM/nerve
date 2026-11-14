@@ -18,7 +18,7 @@ function closeDialog() {
 
 function openProviderSettings() {
   closeDialog();
-  void openSettingsPane("providers", "subscriptions");
+  void openSettingsPane("providers", { section: "subscriptions" });
 }
 </script>
 

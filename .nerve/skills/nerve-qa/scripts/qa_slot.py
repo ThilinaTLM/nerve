@@ -2,10 +2,10 @@
 """Prepare and inspect a Nerve development slot for hands-on QA.
 
 Subcommands (all take --slot N, default 1):
-  status         Paths, ports, running state, default model, launch definition.
+  status         Paths, ports, running state, default model, OAuth expiry, launch definition.
   ensure-launch  Add/update the `desktop-dev-slot-N` launch definition with CDP enabled.
   set-model      Set the slot's default agent model (slot must be stopped).
-  copy-secrets   Replace the slot's secrets with ~/.nerve/secrets (slot must be stopped).
+  copy-secrets   API keys, provider config and refresh-free OAuth access tokens from ~/.nerve (slot must be stopped).
 
 Ports mirror scripts/development/storage-slot.ts:
   HTTP 43967 + 2*(N-1), HTTPS HTTP+1, CDP 9230 + N (slot 1 -> 9231; avoids
@@ -20,6 +20,7 @@ import os
 import secrets
 import shutil
 import socket
+import subprocess
 import sys
 import time
 import urllib.request
@@ -133,6 +134,7 @@ def cmd_status(info: dict) -> None:
                 "daemonRunning": running(info),
                 "cdpOwner": cdp_owner(info["cdp"]),
                 "defaultModel": model,
+                "oauth": slot_oauth_status(info) if (info["home"] / "secrets" / "credentials.enc").is_file() else [],
                 "launchDefinition": definition
                 and {
                     "label": definition["label"],
@@ -205,28 +207,137 @@ def cmd_set_model(info: dict, provider: str, model: str) -> None:
     print(f"Default model set to {provider}/{model} in {config}.")
 
 
-def cmd_copy_secrets(info: dict, source: Path) -> None:
+def backup_secrets(info: dict) -> None:
+    target = info["home"] / "secrets"
+    if not target.exists():
+        return
+    stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+    backup = REPO / "data" / "secrets-backups" / f"storage-{info['slot']}-{stamp}"
+    backup.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+    shutil.copytree(target, backup)
+    print(f"Backed up previous secrets to {backup}")
+
+
+def copy_full_secrets(info: dict, source: Path) -> None:
+    """Old behaviour: copy the whole folder, including OAuth sessions (can log the source out)."""
+    target = info["home"] / "secrets"
+    backup_secrets(info)
+    shutil.rmtree(target, ignore_errors=True)
+    target.mkdir(mode=0o700)
+    for item in source.iterdir():
+        if item.is_file():
+            shutil.copy2(item, target / item.name)
+            os.chmod(target / item.name, 0o600)
+    print(f"Copied {source} -> {target} (full copy, includes OAuth sessions).")
+
+
+def copy_provider_config(info: dict, source_home: Path) -> None:
+    """Copy provider/account config so credential ids match the copied API keys."""
+    config = info["home"] / "config"
+    config.mkdir(parents=True, exist_ok=True)
+    stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+
+    def put(src: Path, name: str) -> None:
+        dest = config / name
+        if dest.exists():
+            shutil.copy2(dest, config / f"{name}.bak-{stamp}")
+        shutil.copy2(src, dest)
+        print(f"Copied config/{src.name} -> config/{name}")
+
+    def merge_accounts(src: Path, name: str) -> None:
+        """Source accounts win by id; accounts only the slot has (test sites) stay."""
+        dest = config / name
+        if not dest.exists():
+            put(src, name)
+            return
+        shutil.copy2(dest, config / f"{name}.bak-{stamp}")
+        merged = json.loads(src.read_text())
+        own = json.loads(dest.read_text()).get("profiles", {})
+        for kind, profiles in own.items():
+            ids = {p.get("id") for p in merged.setdefault("profiles", {}).setdefault(kind, [])}
+            merged["profiles"][kind] += [p for p in profiles if p.get("id") not in ids]
+        dest.write_text(json.dumps(merged, indent=2) + "\n")
+        print(f"Merged config/{src.name} into config/{name} (slot-only accounts kept)")
+
+    providers = source_home / "config" / "providers.json"
+    if providers.is_file():
+        put(providers, "providers.json")
+    # Migration 0005 renamed integrations.json to accounts.json (same document).
+    # Write the name the slot's version reads; if it has neither yet, write both.
+    src = next(
+        (p for p in (source_home / "config" / "accounts.json", source_home / "config" / "integrations.json") if p.is_file()),
+        None,
+    )
+    if src:
+        names = [n for n in ("accounts.json", "integrations.json") if (config / n).exists()] or [
+            "accounts.json",
+            "integrations.json",
+        ]
+        for name in names:
+            merge_accounts(src, name)
+
+
+def run_secrets_tool(*args: str) -> dict:
+    cmd = ["pnpm", "exec", "tsx", str(Path(__file__).with_name("copy-secrets.ts")), *args]
+    result = subprocess.run(cmd, cwd=REPO, capture_output=True, text=True)
+    if result.returncode != 0:
+        raise RuntimeError(result.stderr.strip() or "secrets tool failed")
+    return json.loads(result.stdout.strip().splitlines()[-1])
+
+
+def describe_expiry(provider: str, expires_ms: int) -> tuple[str, bool]:
+    now = time.time() * 1000
+    minutes = int((expires_ms - now) // 60000)
+    local = datetime.fromtimestamp(expires_ms / 1000).strftime("%Y-%m-%d %H:%M:%S")
+    remaining = f"{minutes} min left" if minutes > 0 else f"EXPIRED {-minutes} min ago"
+    return f"OAuth {provider}: access token expires {local} local ({remaining})", minutes < 15
+
+
+def cmd_copy_secrets(info: dict, source: Path, full: bool) -> None:
     require_not_own_home(info)
     if not (source / "credentials.enc").is_file():
         sys.exit(f"{source} has no credentials.enc; nothing to copy.")
     if not info["home"].exists():
         sys.exit(f"{info['home']} does not exist. Start the slot once first.")
     require_stopped(info)
-    target = info["home"] / "secrets"
-    if target.exists():
-        stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
-        backup = REPO / "data" / "secrets-backups" / f"storage-{info['slot']}-{stamp}"
-        backup.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
-        shutil.move(str(target), backup)
-        print(f"Backed up previous secrets to {backup}")
-    target.mkdir(mode=0o700)
-    for item in source.iterdir():
-        if item.is_file():
-            shutil.copy2(item, target / item.name)
-            os.chmod(target / item.name, 0o600)
-    # File names only; never print secret contents.
-    names = ", ".join(sorted(p.name for p in target.iterdir()))
-    print(f"Copied {source} -> {target} ({names}).")
+    if full:
+        copy_full_secrets(info, source)
+        return
+    if not (source / "master.key").is_file():
+        sys.exit(f"{source} has no master.key; cannot decrypt it.")
+    backup_secrets(info)
+    (info["home"] / "secrets").mkdir(mode=0o700, exist_ok=True)
+    try:
+        summary = run_secrets_tool("copy", "--source", str(source.parent), "--target", str(info["home"]))
+    except RuntimeError as error:
+        sys.exit(f"copy failed (previous secrets are backed up):\n{error}")
+    print(f"API keys copied from {source.parent} (read-only): {len(summary['apiKeys'])}")
+    for name in summary["apiKeys"]:
+        print(f"  {name}")
+    copy_provider_config(info, source.parent)
+    for s in summary["oauth"]:
+        line, soon = describe_expiry(s["provider"], s["expires"])
+        print(line + " (no refresh token copied)")
+        if soon:
+            print(
+                f"  WARNING: {s['provider']} expires within 15 minutes; production may refresh it soon. "
+                "Make a production request with that provider first, or rerun copy-secrets later."
+            )
+    if not summary["oauth"]:
+        print("No OAuth sessions in the source: log in on production (Settings -> Providers -> Subscriptions).")
+    print("Rerun copy-secrets when an access token expires; the slot cannot refresh it.")
+
+
+def slot_oauth_status(info: dict) -> list | str:
+    try:
+        sessions = run_secrets_tool("oauth-status", "--home", str(info["home"]))["oauth"]
+    except Exception as error:  # status must not fail on unreadable secrets
+        return f"unreadable: {error}"
+    return [
+        {"provider": s["provider"], "expires": datetime.fromtimestamp(s["expires"] / 1000).astimezone().isoformat(timespec="seconds"),
+         "minutesLeft": int((s["expires"] - time.time() * 1000) // 60000)}
+        for s in sessions
+    ]
 
 
 def main() -> None:
@@ -240,6 +351,7 @@ def main() -> None:
             p.add_argument("--model", default=DEFAULT_MODEL)
         if name == "copy-secrets":
             p.add_argument("--from", dest="source", type=Path, default=Path.home() / ".nerve" / "secrets")
+            p.add_argument("--full", action="store_true", help="old behaviour: copy the whole folder incl. OAuth (can log the source out)")
     args = parser.parse_args()
     info = slot_info(args.slot)
     if args.command == "status":
@@ -249,7 +361,7 @@ def main() -> None:
     elif args.command == "set-model":
         cmd_set_model(info, args.provider, args.model)
     else:
-        cmd_copy_secrets(info, args.source.expanduser())
+        cmd_copy_secrets(info, args.source.expanduser(), args.full)
 
 
 if __name__ == "__main__":

@@ -629,19 +629,6 @@ export function buildUserProjection(
       break;
     }
 
-    case "generate_image": {
-      const details = record(resultRecord.details);
-      const { images, ...metadata } = details;
-      resultPreview = {
-        details: { images, ...metadata },
-        ...Object.fromEntries(
-          Object.entries(resultRecord).filter(([key]) => key !== "details"),
-        ),
-      };
-      direction = "head";
-      break;
-    }
-
     case "explain_image": {
       const details = record(resultRecord.details);
       const explanation = firstLines(
@@ -742,9 +729,7 @@ export function buildUserProjection(
   }
 
   const resultFirst =
-    ["edit", "write", "grep", "find", "ls", "generate_image"].includes(
-      toolName,
-    ) ||
+    ["edit", "write", "grep", "find", "ls"].includes(toolName) ||
     toolName === "async_bash" ||
     toolName === "ask_user" ||
     toolName === "launch" ||

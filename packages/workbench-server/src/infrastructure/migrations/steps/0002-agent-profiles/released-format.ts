@@ -9,7 +9,7 @@ import {
   childConversationAgentSchema,
   completeChildSettingsSchema,
   leadSettingsOverridesSchema,
-} from "@nervekit/contracts/agent-configuration";
+} from "./frozen-agent-schemas.js";
 import releasedDefaults from "./released-baseline.json" with { type: "json" };
 import bundledAgentProfiles from "./converted-mode-profiles.json" with { type: "json" };
 

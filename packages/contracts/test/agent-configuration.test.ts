@@ -185,7 +185,7 @@ test("strict sparse inputs reject unsupported, partial atomic and future values"
     { compaction: { customKeepRecentPercent: 10 } },
     { tools: { web_fetch: {} } },
     { tools: { bash: { enabled: false } } },
-    { tools: { generate_image: { settings: { provider: "openai-codex" } } } },
+    { tools: { explain_image: { settings: { model: { provider: "p" } } } } },
     { tools: { bash: { settings: { autoPromotion: { enabled: false } } } } },
   ];
   for (const input of invalid)
@@ -271,8 +271,8 @@ test("source defaults participate at layer priority; same-section named exceptio
   );
   assert.equal(
     requirementOverlaps(
-      { tools: { jira: { profileId: "a" } } },
-      { tools: { jira: { enabled: false } } },
+      { tools: { python_exec: { settings: { interpreterPath: "/a" } } } },
+      { tools: { python_exec: { enabled: false } } },
     ).length,
     0,
   );

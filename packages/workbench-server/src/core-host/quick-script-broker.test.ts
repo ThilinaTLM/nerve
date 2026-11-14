@@ -44,84 +44,104 @@ const call: QuickScriptCall = {
   admission: { by: "user" as const, scriptRisk: "read" },
 };
 
-void test("nested calls are evaluated as the equivalent direct tool call", async () => {
+const op = (
+  operation: string,
+  risk: "network" | "external_write" | "destructive",
+  targets: string[] = [],
+) => ({ operation, targets, risk });
+
+const as = (
+  by: "user" | "rule",
+  scriptRisk: QuickScriptCall["admission"]["scriptRisk"],
+): QuickScriptCall => ({ ...call, admission: { by, scriptRisk } });
+
+void test("an operation is evaluated as a quick_script request with operation, targets and risk", async () => {
   const { authorize, inputs } = authorizer(["stale", "allow"]);
-  await authorize(call, {
-    toolName: "jira_search_issues",
-    args: { jql: "project = X" },
-  });
+  await authorize(call, op("jira.issues.get", "network", ["jira:issue/APP-1"]));
   assert.equal(inputs.length, 2);
-  assert.equal(inputs[1]?.toolName, "jira_search_issues");
-  assert.deepEqual(inputs[1]?.args, { jql: "project = X" });
+  assert.equal(inputs[1]?.toolName, "quick_script");
+  assert.deepEqual(inputs[1]?.args, {
+    operation: "jira.issues.get",
+    targets: ["jira:issue/APP-1"],
+    risk: "network",
+  });
+  assert.equal(
+    (inputs[1]?.target as { kind: string }).kind,
+    "quick_script_nested",
+  );
 });
 
-void test("deny refuses the call with the policy reason", async () => {
+void test("any operation of a registered namespace is accepted; unknown namespaces are refused", async () => {
+  const { authorize, inputs } = authorizer([]);
+  for (const operation of [
+    "jira.issues.create",
+    "confluence.pages.update",
+    "diagram.render",
+    "jira.request",
+  ])
+    await authorize(call, op(operation, "network"));
+  assert.equal(inputs.length, 4);
+  await assert.rejects(authorize(call, op("bash.run", "network")), {
+    code: "NESTED_DENIED",
+  });
+  assert.equal(inputs.length, 4);
+});
+
+void test("deny refuses the call with the operation, targets and policy reason", async () => {
   const { authorize } = authorizer(["deny"]);
   await assert.rejects(
-    authorize(call, { toolName: "jira_get_issue", args: {} }),
+    authorize(call, op("jira.issues.get", "network", ["jira:issue/APP-1"])),
     {
       code: "NESTED_DENIED",
-      message: "jira_get_issue: denied (read-only mode)",
+      message: "jira.issues.get · jira:issue/APP-1: denied (read-only mode)",
     },
   );
 });
 
 void test("approval inside the approved risk runs; above it is refused", async () => {
   const { authorize } = authorizer(["approval", "approval", "approval"]);
-  const network = {
-    ...call,
-    admission: { by: "user" as const, scriptRisk: "network" as const },
-  };
+  await assert.rejects(authorize(call, op("jira.issues.get", "network")), {
+    code: "NESTED_APPROVAL_REQUIRED",
+    message: /approved for read/,
+  });
+  await authorize(as("user", "network"), op("jira.issues.get", "network"));
   await assert.rejects(
-    authorize(call, { toolName: "jira_get_issue", args: {} }),
-    { code: "NESTED_APPROVAL_REQUIRED", message: /approved for read/ },
-  );
-  await authorize(network, { toolName: "jira_get_issue", args: {} });
-  await assert.rejects(
-    authorize(network, { toolName: "jira_create_issue", args: {} }),
+    authorize(
+      as("user", "network"),
+      op("jira.issues.create", "external_write", ["jira:project/APP"]),
+    ),
     {
       code: "NESTED_APPROVAL_REQUIRED",
       message:
-        "jira_create_issue: script was approved for network operations; this call needs external write approval (read-only mode)",
+        "jira.issues.create · jira:project/APP: script was approved for network operations; this call needs external write approval (read-only mode)",
     },
-  );
-  await authorize(
-    {
-      ...call,
-      admission: { by: "user" as const, scriptRisk: "workspace_write" },
-    },
-    { toolName: "jira_create_issue", args: {} },
   );
 });
 
 void test("a workspace_write ceiling admits Atlassian (external) writes: equal rank", async () => {
   const { authorize } = authorizer(["approval"]);
   await authorize(
-    {
-      ...call,
-      admission: { by: "user" as const, scriptRisk: "workspace_write" },
-    },
-    { toolName: "jira_create_issue", args: {} },
+    as("user", "workspace_write"),
+    op("jira.issues.create", "external_write"),
   );
 });
 
 void test("deny wins over the approved risk", async () => {
   const { authorize } = authorizer(["deny"]);
   await assert.rejects(
-    authorize(
-      {
-        ...call,
-        admission: { by: "user" as const, scriptRisk: "destructive" },
-      },
-      { toolName: "jira_get_issue", args: {} },
-    ),
+    authorize(as("user", "destructive"), op("jira.issues.get", "network")),
     { code: "NESTED_DENIED" },
   );
 });
 
-void test("only Atlassian, file, diagram and web tools can be brokered", async () => {
+void test("only operations and the remaining direct tools can be brokered", async () => {
   const { authorize, inputs } = authorizer([]);
-  for (const toolName of ["bash", "python_exec"])
+  for (const toolName of [
+    "bash",
+    "python_exec",
+    "quick_script",
+    "explain_image",
+  ])
     await assert.rejects(authorize(call, { toolName, args: {} }), {
       code: "NESTED_DENIED",
     });
@@ -135,7 +155,6 @@ void test("only Atlassian, file, diagram and web tools can be brokered", async (
     toolName: "edit",
     args: { path: "a.txt", edits: [] },
   });
-  await authorize(call, { toolName: "kroki_export", args: {} });
   await authorize(call, {
     toolName: "web_fetch",
     args: { url: "https://example.com" },
@@ -143,53 +162,38 @@ void test("only Atlassian, file, diagram and web tools can be brokered", async (
   await authorize(call, { toolName: "web_search", args: { query: "x" } });
   assert.deepEqual(
     inputs.map((input) => input.toolName),
-    ["read", "write", "edit", "kroki_export", "web_fetch", "web_search"],
+    ["read", "write", "edit", "web_fetch", "web_search"],
   );
 });
 
-void test("the ceiling uses the nested call's own risk: adding is a write, deleting is destructive", async () => {
+void test("the ceiling uses the operation's own risk: adding is a write, deleting is destructive", async () => {
   const { authorize } = authorizer(["approval", "approval", "approval"]);
-  const write = {
-    ...call,
-    admission: { by: "user" as const, scriptRisk: "workspace_write" as const },
-  };
-  await authorize(write, {
-    toolName: "confluence_manage_comment",
-    args: { action: "create", kind: "footer", page_id: "1", body: "hi" },
-  });
+  const write = as("user", "workspace_write");
+  await authorize(write, op("confluence.comments.add", "external_write"));
   await assert.rejects(
-    authorize(write, {
-      toolName: "confluence_manage_comment",
-      args: { action: "delete", comment_id: "9" },
-    }),
+    authorize(
+      write,
+      op("confluence.comments.delete", "destructive", ["confluence:comment/9"]),
+    ),
     {
       code: "NESTED_APPROVAL_REQUIRED",
       message:
-        "confluence_manage_comment: script was approved for workspace write operations; this call needs destructive approval (read-only mode)",
+        "confluence.comments.delete · confluence:comment/9: script was approved for workspace write operations; this call needs destructive approval (read-only mode)",
     },
   );
   await authorize(
-    { ...call, admission: { by: "user" as const, scriptRisk: "destructive" } },
-    {
-      toolName: "jira_manage_comment",
-      args: { action: "delete", issue_key: "A-1", comment_id: "9" },
-    },
+    as("user", "destructive"),
+    op("jira.comments.delete", "destructive"),
   );
 });
 
 void test("a script approved at network level runs nested network calls but not writes", async () => {
-  const approved = {
-    ...call,
-    admission: { by: "user" as const, scriptRisk: "network" as const },
-  };
+  const approved = as("user", "network");
   const { authorize } = authorizer(["approval", "approval", "approval"]);
   await authorize(approved, { toolName: "web_fetch", args: {} });
-  await authorize(approved, { toolName: "jira_get_issue", args: {} });
+  await authorize(approved, op("jira.issues.get", "network"));
   await assert.rejects(
-    authorize(approved, {
-      toolName: "jira_manage_comment",
-      args: { action: "add" },
-    }),
+    authorize(approved, op("jira.comments.add", "external_write")),
     { code: "NESTED_APPROVAL_REQUIRED", message: /approved for network/ },
   );
 });
@@ -197,95 +201,44 @@ void test("a script approved at network level runs nested network calls but not 
 void test("a script allowed by a rule has no ceiling: a nested approval is refused", async () => {
   const { authorize } = authorizer(["approval"]);
   await assert.rejects(
-    authorize(
-      { ...call, admission: { by: "rule" as const, scriptRisk: "read" } },
-      { toolName: "jira_get_issue", args: {} },
-    ),
+    authorize(as("rule", "read"), op("jira.issues.get", "network")),
     {
       code: "NESTED_APPROVAL_REQUIRED",
       message:
-        "jira_get_issue: needs network approval, but the script was allowed by a rule rather than approved (read-only mode)",
+        "jira.issues.get: needs network approval, but the script was allowed by a rule rather than approved (read-only mode)",
     },
   );
 });
 
 void test("a rule-allowed script still runs nested calls that policy allows and refuses denied ones", async () => {
   const { authorize } = authorizer(["allow", "deny"]);
-  const allowed = {
-    ...call,
-    admission: { by: "rule" as const, scriptRisk: "read" as const },
-  };
-  await authorize(allowed, { toolName: "jira_get_issue", args: {} });
-  await assert.rejects(
-    authorize(allowed, { toolName: "jira_get_issue", args: {} }),
-    { code: "NESTED_DENIED" },
-  );
-});
-
-void test("an unanalysable call is never admitted by an allow rule", async () => {
-  const raw = {
-    toolName: "jira_manage_comment",
-    args: { action: "delete", issue_key: "raw-request", comment_id: "-" },
-    approvalRequired: true,
-  };
-  // Allowed by a rule for the borrowed tool, but the script was only allowed.
-  await assert.rejects(
-    authorizer(["allow"]).authorize(
-      { ...call, admission: { by: "rule" as const, scriptRisk: "read" } },
-      raw,
-    ),
-    { code: "NESTED_APPROVAL_REQUIRED" },
-  );
-  // A person approved the script below destructive level.
-  await assert.rejects(
-    authorizer(["allow"]).authorize(
-      {
-        ...call,
-        admission: { by: "user" as const, scriptRisk: "workspace_write" },
-      },
-      raw,
-    ),
-    { code: "NESTED_APPROVAL_REQUIRED" },
-  );
-  // Approved at destructive level.
-  await authorizer(["allow"]).authorize(
-    { ...call, admission: { by: "user" as const, scriptRisk: "destructive" } },
-    raw,
-  );
-  // Deny rules still win.
-  await assert.rejects(
-    authorizer(["deny"]).authorize(
-      {
-        ...call,
-        admission: { by: "user" as const, scriptRisk: "destructive" },
-      },
-      raw,
-    ),
-    { code: "NESTED_DENIED" },
-  );
-});
-
-void test("a rule-admitted destructive script runs a raw write only when the verdict allows it", async () => {
-  const raw = {
-    toolName: "jira_manage_comment",
-    args: { action: "delete", issue_key: "raw-request", comment_id: "-" },
-    approvalRequired: true,
-  };
-  const ruled = (scriptRisk: "destructive" | "workspace_write") => ({
-    ...call,
-    admission: { by: "rule" as const, scriptRisk },
+  const allowed = as("rule", "read");
+  await authorize(allowed, op("jira.issues.get", "network"));
+  await assert.rejects(authorize(allowed, op("jira.issues.get", "network")), {
+    code: "NESTED_DENIED",
   });
-  await authorizer(["allow"]).authorize(ruled("destructive"), raw);
+});
+
+void test("a raw request is an ordinary destructive operation: an allow rule admits it, otherwise it needs a destructive approval", async () => {
+  const raw = op("jira.request", "destructive", [
+    "jira:request/DELETE /rest/api/3/issue/APP-1",
+  ]);
+  // A rule matching the method and path admits it.
+  await authorizer(["allow"]).authorize(as("rule", "destructive"), raw);
+  // No rule: a prompt verdict is refused for a rule-allowed script and for a lower approval.
   await assert.rejects(
-    authorizer(["approval"]).authorize(ruled("destructive"), raw),
-    { code: "NESTED_APPROVAL_REQUIRED", message: /person approve the script/ },
-  );
-  await assert.rejects(
-    authorizer(["allow"]).authorize(ruled("workspace_write"), raw),
+    authorizer(["approval"]).authorize(as("rule", "destructive"), raw),
     { code: "NESTED_APPROVAL_REQUIRED" },
   );
   await assert.rejects(
-    authorizer(["deny"]).authorize(ruled("destructive"), raw),
-    { code: "NESTED_DENIED" },
+    authorizer(["approval"]).authorize(as("user", "workspace_write"), raw),
+    { code: "NESTED_APPROVAL_REQUIRED" },
+  );
+  await authorizer(["approval"]).authorize(as("user", "destructive"), raw);
+  await assert.rejects(
+    authorizer(["deny"]).authorize(as("user", "destructive"), raw),
+    {
+      code: "NESTED_DENIED",
+    },
   );
 });

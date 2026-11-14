@@ -5,10 +5,7 @@ import { hasSharedToolViewBody } from "./tool-details-state";
 import type { ToolView } from "../views/tool-result-view";
 
 /** Whether a parsed durable result has anything worth rendering as a body. */
-export function hasMeaningfulDurableBody(
-  view: ToolView | undefined,
-  toolCall: Pick<ToolCallTranscriptRecord, "resultPreview"> | undefined,
-): boolean {
+export function hasMeaningfulDurableBody(view: ToolView | undefined): boolean {
   if (!view) return false;
   switch (view.kind) {
     case "bash":
@@ -17,15 +14,13 @@ export function hasMeaningfulDurableBody(
     case "quick_script":
       return (
         view.hostCalls.length > 0 ||
+        view.plannedOperations.length > 0 ||
         view.pages.length > 0 ||
         view.artifacts.length > 0 ||
         (view.status !== undefined && view.status !== "completed")
       );
     case "generic":
       return Boolean(view.resultText || view.result.length);
-    case "jira":
-    case "confluence":
-      return toolCall?.resultPreview !== undefined;
     default:
       return hasSharedToolViewBody(view);
   }

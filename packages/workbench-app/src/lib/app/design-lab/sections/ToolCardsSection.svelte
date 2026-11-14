@@ -246,28 +246,8 @@ const searchCases: LabeledCard[] = [
     props: { toolCall: vfx.webFetchFailed, cwd },
   },
   {
-    label: "jira_create_issue — drafting",
-    props: { draft: vfx.jiraCreateDraft, cwd },
-  },
-  {
-    label: "jira_create_issue — completed",
-    props: { toolCall: vfx.jiraCreateCompleted, cwd },
-  },
-  {
-    label: "jira_search_issues — completed",
-    props: { toolCall: vfx.jiraSearchCompleted, cwd },
-  },
-  {
-    label: "confluence_search_pages — completed",
-    props: { toolCall: vfx.confluenceSearchCompleted, cwd },
-  },
-  {
-    label: "generate_image — running",
-    props: { toolCall: vfx.generateImageRunning, cwd },
-  },
-  {
-    label: "generate_image — completed",
-    props: { toolCall: vfx.generateImageCompleted, cwd, onOpenFile: noop },
+    label: "jira_search_issues (removed tool) — recorded call",
+    props: { toolCall: vfx.removedToolCompleted, cwd },
   },
   {
     label: "explain_image — completed",

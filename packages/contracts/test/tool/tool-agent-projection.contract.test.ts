@@ -2,8 +2,6 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
   agentProjectionSnapshotSchema,
-  relatedCollectionPageSchema,
-  toolMutationSummarySchema,
   validatedToolArtifactSchema,
 } from "../../src/domains/tools/index.js";
 
@@ -102,29 +100,7 @@ describe("agent projection contracts", () => {
     );
   });
 
-  it("accepts normalized mutation, related-page, and process strategy metadata", () => {
-    assert.equal(
-      toolMutationSummarySchema.safeParse({
-        operation: "edit",
-        outcome: "dry_run",
-        resources: [{ kind: "file", path: "/tmp/file.txt" }],
-        warnings: [],
-      }).success,
-      true,
-    );
-    assert.equal(
-      relatedCollectionPageSchema.safeParse({
-        id: "comments",
-        original: 10,
-        returned: 3,
-        continuation: {
-          parameter: "comment_start_at",
-          value: 3,
-          direction: "after",
-        },
-      }).success,
-      true,
-    );
+  it("accepts process strategy metadata", () => {
     assert.equal(
       agentProjectionSnapshotSchema.safeParse({
         version: 1,

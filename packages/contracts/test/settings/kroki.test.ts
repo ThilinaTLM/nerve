@@ -1,12 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import {
-  defaultSettings,
-  krokiToolSettingsSchema,
-} from "../../src/domains/settings/index.js";
-import { krokiExportResultDetailsSchema } from "../../src/domains/tools/kroki.js";
-import { resolveAgentConfiguration } from "../../src/domains/agent-configuration/resolver.js";
-import { leadSettingsOverridesSchema } from "../../src/domains/agent-configuration/schemas.js";
+import { krokiToolSettingsSchema } from "../../src/domains/settings/index.js";
 
 describe("Kroki configuration", () => {
   it("normalizes public and private endpoints without losing path prefixes", () => {
@@ -16,20 +10,6 @@ describe("Kroki configuration", () => {
       ["https://example.org/kroki/", "https://example.org/kroki/"],
     ])
       assert.equal(krokiToolSettingsSchema.parse({ url: input }).url, expected);
-    assert.ok(defaultSettings.tools.disabled.includes("kroki_export"));
-    assert.equal(
-      resolveAgentConfiguration({ role: "lead" }).settings.tools?.kroki_export
-        ?.enabled,
-      false,
-    );
-    assert.deepEqual(
-      leadSettingsOverridesSchema.parse({
-        tools: { kroki_export: { settings: { url: "https://example.org" } } },
-      }),
-      {
-        tools: { kroki_export: { settings: { url: "https://example.org/" } } },
-      },
-    );
   });
   it("rejects credentials, queries, fragments, non-HTTP and invalid URLs", () => {
     for (const url of [
@@ -47,30 +27,6 @@ describe("Kroki configuration", () => {
         krokiToolSettingsSchema.safeParse({ url }).success,
         false,
         url,
-      );
-    }
-  });
-  it("rejects malformed or mismatched export details", () => {
-    const details = {
-      diagramType: "graphviz",
-      outputFormat: "svg",
-      path: "/tmp/diagram.svg",
-      filename: "diagram.svg",
-      mediaType: "image/svg+xml",
-      bytes: 32,
-    };
-    assert.ok(krokiExportResultDetailsSchema.safeParse(details).success);
-    for (const override of [
-      { outputFormat: "pdf" },
-      { diagramType: "../mermaid" },
-      { path: "" },
-      { bytes: 0 },
-      { mediaType: "image/png" },
-    ]) {
-      assert.equal(
-        krokiExportResultDetailsSchema.safeParse({ ...details, ...override })
-          .success,
-        false,
       );
     }
   });

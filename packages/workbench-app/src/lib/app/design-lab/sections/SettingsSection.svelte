@@ -17,9 +17,14 @@ import SlidersHorizontalIcon from "@lucide/svelte/icons/sliders-horizontal";
 import StarIcon from "@lucide/svelte/icons/star";
 import Trash2Icon from "@lucide/svelte/icons/trash-2";
 import WrenchIcon from "@lucide/svelte/icons/wrench";
+import BookOpenIcon from "@lucide/svelte/icons/book-open";
+import CodeIcon from "@lucide/svelte/icons/code";
+import EyeIcon from "@lucide/svelte/icons/eye";
+import ImageIcon from "@lucide/svelte/icons/image";
+import PlugZapIcon from "@lucide/svelte/icons/plug-zap";
+import TerminalIcon from "@lucide/svelte/icons/terminal";
 import { Badge } from "@nervekit/ui-kit/components/ui/badge";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
-import { Switch } from "@nervekit/ui-kit/components/ui/switch";
 import { IconAction } from "@nervekit/ui-kit/components/composites/icon-action";
 import SelectField from "@nervekit/ui-kit/components/composites/select-field";
 import {
@@ -27,6 +32,7 @@ import {
   SettingsEmptyState,
   SettingsFieldRow,
   SettingsInfoHint,
+  SettingsItem,
   SettingsList,
   SettingsListItem,
   SettingsPageHeader,
@@ -81,6 +87,9 @@ let fieldNumber = $state("43967");
 let theme = $state<string>(defaultColorTheme);
 let specimenTheme = $state("melange-light");
 let discA = $state(false);
+let itemPython = $state(false);
+let itemImage = $state(true);
+let itemSkill = $state(true);
 let discB = $state(true);
 
 // ── In context: SettingsShell (screenshots 29 Workbench, 34 Tools) ────────
@@ -250,60 +259,33 @@ let headerStyle = $state("auto");
               <SettingsSection id="core" title="Core">
                 <SettingsList ariaLabel="Core tool groups">
                   {#each coreTools as tool (tool.id)}
-                    <SettingsDisclosureItem
+                    <SettingsItem
+                      icon={WrenchIcon}
                       title={tool.title}
-                      description={tool.description}
-                    >
-                      {#snippet actions()}
-                        {#if tool.configure}
-                          <Button variant="outline" size="sm">
-                            <SlidersHorizontalIcon data-icon="inline-start" />
-                            Configure
-                          </Button>
-                        {/if}
-                        <Switch
-                          bind:checked={toolState[tool.id]}
-                          aria-label={tool.title}
-                        />
-                      {/snippet}
-                      {#snippet detail()}
-                        <span class="font-mono text-foreground">{tool.id}</span>
-                      {/snippet}
-                    </SettingsDisclosureItem>
+                      summary={tool.description}
+                      bind:checked={toolState[tool.id]}
+                      onOpen={tool.configure ? () => {} : undefined}
+                    />
                   {/each}
-                  <SettingsListItem
+                  <SettingsItem
+                    icon={CpuIcon}
                     title="Sub-agents"
-                    description="Delegate work to sub-agents with their own profiles. Profiles, models and permissions are configured on the Sub-agents page."
-                  >
-                    {#snippet actions()}
-                      <Button variant="outline" size="sm"
-                        >Open Sub-agents</Button
-                      >
-                    {/snippet}
-                  </SettingsListItem>
+                    summary="Profiles, models and permissions are on the Sub-agents page."
+                    onOpen={() => {}}
+                    openLabel="Open Sub-agents"
+                  />
                 </SettingsList>
               </SettingsSection>
               <SettingsSection id="third-party" title="Third party">
                 <SettingsList ariaLabel="Third-party tool groups">
                   {#each thirdPartyTools as tool (tool.id)}
-                    <SettingsDisclosureItem
+                    <SettingsItem
+                      icon={WrenchIcon}
                       title={tool.title}
-                      description={tool.description}
-                    >
-                      {#snippet actions()}
-                        <Button variant="outline" size="sm">
-                          <SlidersHorizontalIcon data-icon="inline-start" />
-                          Configure
-                        </Button>
-                        <Switch
-                          bind:checked={toolState[tool.id]}
-                          aria-label={tool.title}
-                        />
-                      {/snippet}
-                      {#snippet detail()}
-                        <span class="font-mono text-foreground">{tool.id}</span>
-                      {/snippet}
-                    </SettingsDisclosureItem>
+                      summary={tool.description}
+                      bind:checked={toolState[tool.id]}
+                      onOpen={() => {}}
+                    />
                   {/each}
                 </SettingsList>
               </SettingsSection>
@@ -496,6 +478,79 @@ let headerStyle = $state("auto");
     title="Lists"
     description="Entity lists are one bordered SettingsList of hairline-divided rows. Right column holds IconActions."
   >
+    <GallerySpecimen
+      title="SettingsList + SettingsItem"
+      source="settings/SettingsItem"
+      usage="settings catalogs and entity lists"
+      layout="stack"
+      description="Catalog row: identity icon, exceptional badges, one status line (a problem replaces the summary), meta, switch, chevron. The whole row opens the item."
+    >
+      <SettingsList ariaLabel="Catalog items">
+        <SettingsItem
+          icon={TerminalIcon}
+          title="Bash"
+          summary="Auto-background after 30 s"
+          always
+          onOpen={() => {}}
+        />
+        <SettingsItem
+          icon={CodeIcon}
+          title="Python"
+          summary="Python 3.13 (uv)"
+          bind:checked={itemPython}
+          onOpen={() => {}}
+        >
+          {#snippet meta()}
+            <SettingsChangeIndicator
+              compact
+              scope="project"
+              from="On"
+              to="Off"
+              onReset={() => {}}
+            />
+          {/snippet}
+        </SettingsItem>
+        <SettingsItem
+          icon={ImageIcon}
+          title="Image generation"
+          summary="OpenAI · gpt-image"
+          problem="Sign in to OpenAI in Providers"
+          problemAction={{ label: "Sign in", onclick: () => {} }}
+          bind:checked={itemImage}
+          onOpen={() => {}}
+        >
+          {#snippet badges()}<Badge variant="info">Experimental</Badge
+            >{/snippet}
+        </SettingsItem>
+        <SettingsItem
+          icon={EyeIcon}
+          title="Image explanation"
+          summary="gpt-5.2-mini"
+          checked
+          lockedBy="Planning"
+          onOpen={() => {}}
+        />
+        <SettingsItem
+          icon={BookOpenIcon}
+          title="engineering-docs"
+          summary={longText}
+          mono
+          bind:checked={itemSkill}
+        />
+        <SettingsItem
+          icon={KeyRoundIcon}
+          title="acme-cloud"
+          summary="acme.atlassian.net · used by you and 2 projects"
+          onOpen={() => {}}
+        >
+          {#snippet actions()}
+            <IconAction icon={PlugZapIcon} label="Test connection" />
+            <IconAction icon={Trash2Icon} label="Delete" tone="destructive" />
+          {/snippet}
+        </SettingsItem>
+      </SettingsList>
+    </GallerySpecimen>
+
     <GallerySpecimen
       title="SettingsList + SettingsListItem"
       source="settings/SettingsList"

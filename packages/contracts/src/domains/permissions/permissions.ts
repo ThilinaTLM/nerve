@@ -37,6 +37,9 @@ export type PermissionRuleKind = z.infer<typeof permissionRuleKindSchema>;
 export const durablePermissionSchema = z.enum(["never", "tool", "target"]);
 export type DurablePermission = z.infer<typeof durablePermissionSchema>;
 
+const operationGlobPattern =
+  /^(?:[A-Za-z][A-Za-z0-9]*|\*)(?:\.(?:[A-Za-z][A-Za-z0-9]*|\*))*$/;
+
 const pathRuleTools = new Set(["read", "edit", "write", "grep", "find", "ls"]);
 
 export const permissionExceptionSchema = z
@@ -75,6 +78,18 @@ export const permissionExceptionSchema = z
         context.addIssue({
           code: "custom",
           message: "Bash rules must use a focused command glob.",
+          path: ["rule"],
+        });
+      }
+      return;
+    }
+    if (exception.tool === "quick_script") {
+      // An operation glob: a dotted path whose segments are names or `*`.
+      if (!operationGlobPattern.test(rule)) {
+        context.addIssue({
+          code: "custom",
+          message:
+            "Quick Script rules must be an operation glob such as 'jira.issues.*' (dotted path; '*' segments).",
           path: ["rule"],
         });
       }

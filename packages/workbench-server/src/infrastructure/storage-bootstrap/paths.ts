@@ -13,7 +13,7 @@ export interface StoragePaths {
   uiConfigPath: string;
   permissionsConfigPath: string;
   providersConfigPath: string;
-  integrationsConfigPath: string;
+  accountsConfigPath: string;
   secretsPath: string;
   masterKeyPath: string;
   credentialsPath: string;
@@ -68,7 +68,7 @@ export function storagePaths(home = resolveDataDir()): StoragePaths {
     uiConfigPath: join(configPath, "ui.json"),
     permissionsConfigPath: join(configPath, "permissions.json"),
     providersConfigPath: join(configPath, "providers.json"),
-    integrationsConfigPath: join(configPath, "integrations.json"),
+    accountsConfigPath: join(configPath, "accounts.json"),
     secretsPath,
     masterKeyPath: join(secretsPath, "master.key"),
     credentialsPath: join(secretsPath, "credentials.enc"),

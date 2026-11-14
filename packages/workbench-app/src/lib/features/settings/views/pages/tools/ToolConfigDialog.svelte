@@ -5,13 +5,7 @@ import type { ModelInfo } from "$lib/api";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
 import FormDialog from "@nervekit/ui-kit/components/composites/form-dialog";
 import ToolConfigForm from "./ToolConfigForm.svelte";
-import {
-  accountKind,
-  toolRow,
-  type AccountOptions,
-  type ToolId,
-  type ToolPayload,
-} from "./tool-settings";
+import { toolRow, type ToolId, type ToolPayload } from "./tool-settings";
 
 type Props = {
   open?: boolean;
@@ -21,12 +15,8 @@ type Props = {
   value: ToolPayload;
   description?: string;
   models?: ModelInfo[];
-  accounts?: AccountOptions;
-  noAccountLabel?: string;
   leadProfiles?: { name: string; label: string }[];
   resolvedPython?: string;
-  /** Goes to Integrations. Omit where accounts can't be managed (projects). */
-  onManageAccounts?: () => void;
   onSave: (value: ToolPayload) => void;
 };
 
@@ -37,11 +27,8 @@ let {
   value,
   description,
   models,
-  accounts,
-  noAccountLabel,
   leadProfiles,
   resolvedPython,
-  onManageAccounts,
   onSave,
 }: Props = $props();
 
@@ -75,17 +62,10 @@ function save(): void {
     bind:payload={draft}
     bind:valid
     {models}
-    {accounts}
-    {noAccountLabel}
     {leadProfiles}
     {resolvedPython}
   />
   {#snippet footerLeading()}
-    {#if onManageAccounts && (accountKind(name) || name === "quick_script")}
-      <Button variant="outline" onclick={onManageAccounts}
-        >Manage accounts</Button
-      >
-    {/if}
     {#if name === "python_exec"}
       <Button
         variant="outline"

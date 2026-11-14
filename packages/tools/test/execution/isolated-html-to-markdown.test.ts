@@ -4,7 +4,7 @@ import {
   HTML_CONVERSION_MAX_INPUT_BYTES,
   HtmlConversionError,
   isolatedHtmlToMarkdown,
-} from "../../src/execution/atlassian/isolated-html-to-markdown.js";
+} from "../../src/execution/web/isolated-html-to-markdown.js";
 
 function errorCode(error: unknown): string | undefined {
   return error instanceof HtmlConversionError ? error.code : undefined;

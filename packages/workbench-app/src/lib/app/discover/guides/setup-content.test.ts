@@ -41,6 +41,14 @@ describe("setup guide settings targets", () => {
         sections,
         `guide step "${step.id}" targets unknown settings page "${preparation.pageId}"`,
       );
+      if (preparation.itemId !== undefined) {
+        // Detail sections come from the item's schema, not the page registry.
+        assert.ok(
+          pagesByScope.user[preparation.pageId]?.detail,
+          `guide step "${step.id}" opens an item on page "${preparation.pageId}", which has no detail view`,
+        );
+        continue;
+      }
       if (preparation.sectionId === undefined) continue;
       assert.ok(
         sections.has(preparation.sectionId),

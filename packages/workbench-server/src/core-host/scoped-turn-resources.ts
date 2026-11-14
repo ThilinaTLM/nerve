@@ -11,36 +11,17 @@ import { buildNerveSystemPrompt } from "./nerve-system-prompt.js";
 import { withAgentProfiles } from "./turn-resources.adapter.js";
 import { resolveSkillPlaceholders } from "@nervekit/skills";
 import { isToolEnabled } from "./tool-enablement.js";
-import { quickScriptDescription } from "@nervekit/tools/execution";
-import { quickScriptIntegrationNames } from "@nervekit/contracts/capabilities";
+import { quickScriptDescription } from "@nervekit/quick-script";
+import {
+  configuredNamespaces,
+  quickScriptAvailability,
+  selectedSearchAccount,
+  type AccountDirectory,
+} from "./quick-script-availability.js";
+import type { ExtensionResolution } from "@nervekit/contracts/extensions";
 
 const blocked = new Set<string>(subagentBlockedToolNames);
 
-/** An account-backed integration is active when enabled with an existing account selected; `web` needs only to be enabled (`fetch`), and `web.search` also lists with a Tavily account. */
-function activeQuickScriptIntegrations(
-  settings: LeadSettingsOverrides,
-  missingReferences: readonly string[],
-): string[] {
-  const configured = settings.tools?.quick_script?.settings;
-  const hasAccount = (name: (typeof quickScriptIntegrationNames)[number]) =>
-    Boolean(
-      configured?.[name]?.profileId &&
-      !missingReferences.includes(
-        `/tools/quick_script/settings/${name}/profileId`,
-      ),
-    );
-  return quickScriptIntegrationNames.flatMap((name) =>
-    !configured?.[name]?.enabled
-      ? []
-      : name !== "web"
-        ? hasAccount(name)
-          ? [name]
-          : []
-        : hasAccount(name)
-          ? [name, "web.search"]
-          : [name],
-  );
-}
 export function scopedTurnResources(options: {
   home: string;
   service: AgentConfigurationService;
@@ -52,6 +33,11 @@ export function scopedTurnResources(options: {
   nerveSkills(): readonly Skill[];
   agentBrowserSkills(): readonly Skill[];
   hasChildren(id: string): boolean;
+  /** Resolved extension settings and the home's accounts, for this conversation. */
+  extensions(
+    conversationId: string | undefined,
+    projectId: string,
+  ): Promise<{ resolution: ExtensionResolution; accounts: AccountDirectory }>;
 }) {
   return async (
     input: ConfigurationPreviewInput,
@@ -60,6 +46,13 @@ export function scopedTurnResources(options: {
     missingReferences: readonly string[] = [],
   ) => {
     const child = input.conversation.parentConversationId !== null;
+    const { resolution, accounts } = await options.extensions(
+      input.conversation.id,
+      input.conversation.projectId,
+    );
+    const directAccounts = {
+      search: Boolean(selectedSearchAccount(resolution, accounts)),
+    };
     const selected = [
       ...(await options.tools(
         input.projectDir,
@@ -70,7 +63,7 @@ export function scopedTurnResources(options: {
     ].filter(
       (tool) =>
         !(child && blocked.has(tool.name)) &&
-        isToolEnabled(tool.name, settings, missingReferences),
+        isToolEnabled(tool.name, settings, missingReferences, directAccounts),
     );
     const profiles = [];
     if (!child && selected.some((tool) => tool.name === "subagent_prompt"))
@@ -102,9 +95,8 @@ export function scopedTurnResources(options: {
         resolveSkillPlaceholders(
           tool.name === "quick_script"
             ? quickScriptDescription({
-                integrations: activeQuickScriptIntegrations(
-                  settings,
-                  missingReferences,
+                namespaces: configuredNamespaces(
+                  quickScriptAvailability(resolution, accounts),
                 ),
               })
             : tool.description,

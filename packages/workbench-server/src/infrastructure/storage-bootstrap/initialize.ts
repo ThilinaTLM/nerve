@@ -46,7 +46,7 @@ function settingsDocumentsTouched(
       ].includes(key)
     )
       ids.add("ui");
-    else if (key === "providers") ids.add("integrations");
+    else if (key === "providers") ids.add("accounts");
     else if (key === "permissions") ids.add("permissions");
   }
   return [...ids];

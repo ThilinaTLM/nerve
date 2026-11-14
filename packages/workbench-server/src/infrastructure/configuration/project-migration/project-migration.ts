@@ -32,6 +32,8 @@ export interface ProjectConfigurationType<T> {
   readonly legacyFiles?: readonly string[];
   readonly decode?: (bytes: string) => unknown;
   encode?(value: T): string;
+  /** Extra line for the upgrade notice when the original file loses data in the conversion. */
+  readonly upgradeNotice?: (original: unknown) => string | undefined;
   readonly schema: { parse(value: unknown): T };
   fallback(): T;
   /** null removes an override; a value replaces it with validated defaults. */
@@ -256,7 +258,10 @@ export class ProjectMigrationService {
         const validated = type.schema.parse(value);
         if (version < type.currentVersion) {
           const release = await this.lock(path);
-          let migrationMessage: string | undefined;
+          const notice = type.upgradeNotice?.(raw);
+          let migrationMessage: string | undefined = notice
+            ? `Project configuration was upgraded. ${notice}`
+            : undefined;
           try {
             const carry = await this.options.trust?.capture({
               type: type.id,
@@ -277,7 +282,7 @@ export class ProjectMigrationService {
             try {
               await carry?.(path, written);
             } catch (error) {
-              migrationMessage = `Configuration was upgraded, but trust could not be carried over; review it before approving: ${message(error)}`;
+              migrationMessage = `Configuration was upgraded, but trust could not be carried over; review it before approving: ${message(error)}${notice ? ` ${notice}` : ""}`;
             }
           } finally {
             await release();

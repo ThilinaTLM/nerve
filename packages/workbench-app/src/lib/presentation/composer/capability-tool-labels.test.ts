@@ -2,15 +2,14 @@ import assert from "node:assert/strict";
 import { it } from "node:test";
 import { capabilityToolGroupsFor } from "./capability-tool-labels";
 
-it("keeps web search/fetch and Jira/Confluence independently controllable", () => {
+it("keeps web search/fetch and quick script independently controllable", () => {
   const groups = capabilityToolGroupsFor([
     "web_search",
     "web_fetch",
-    "jira",
-    "confluence",
+    "quick_script",
   ]);
   assert.deepEqual(
     groups.map((group) => group.names),
-    [["web_search"], ["web_fetch"], ["jira"], ["confluence"]],
+    [["web_search"], ["web_fetch"], ["quick_script"]],
   );
 });

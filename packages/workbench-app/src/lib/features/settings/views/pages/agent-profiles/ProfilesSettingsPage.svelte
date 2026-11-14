@@ -323,8 +323,6 @@ function text(row: ChangeRow) {
   if (row.key === "instructions") return String(row.value);
   const id = row.key.slice(5) as ToolId;
   return toolSummary(id, row.value as ToolPayload, {
-    accountName: (kind, accountId) =>
-      accounts[kind].find((a) => a.id === accountId)?.name,
     profileLabel: (name) =>
       all.find((p) => p.name === name)?.definition?.label ?? name,
     modelLabel: (selection) => modelText(selection as ModelSelection),

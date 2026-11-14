@@ -34,7 +34,7 @@ export const bundleEntryPoints: Record<string, string> = {
   daemon: "packages/workbench-server/dist/main.js",
   // Worker/subprocess entrypoints, named as their referencing code expects.
   "html-to-markdown.worker":
-    "packages/tools/dist/execution/atlassian/html-to-markdown.worker.js",
+    "packages/tools/dist/execution/web/html-to-markdown.worker.js",
   "git-isolated-reader-helper":
     "packages/tools/dist/git/read/git-isolated-reader-helper.js",
   worker:
@@ -47,8 +47,8 @@ export const bundleAssets: [source: string, destination: string][] = [
   ["packages/desktop-shell/build", "build"],
   ["packages/workbench-server/dist/web", "dist/web"],
   ["packages/skills/dist/builtin", "dist/builtin"],
-  ["packages/skills/dist/guides", "dist/guides"],
-  ["packages/tools/dist/sandbox-libraries", "dist/sandbox-libraries"],
+  ["packages/quick-script/dist/sandbox-libraries", "dist/sandbox-libraries"],
+  ["packages/quick-script/dist/quick-script-docs", "dist/quick-script-docs"],
 ];
 
 /** Files every bundled desktop dist must contain (relative to the package root). */
@@ -63,6 +63,7 @@ export const bundleOutputFiles = [
   "dist/sandbox-libraries/mammoth.browser.min.js",
   "dist/sandbox-libraries/pptxgen.bundle.js",
   "dist/sandbox-libraries/jszip.min.js",
+  "dist/quick-script-docs/runtime/files.md",
   "build/README.md",
   "THIRD-PARTY-LICENSES.txt",
 ];
@@ -136,12 +137,12 @@ export function thirdPartyPackageRoots(metafile: Metafile): string[] {
 
 /** Packages shipped as copied assets (not esbuild inputs) that still need license text. */
 const assetShippedPackageRoots = [
-  "packages/tools/node_modules/docx",
-  "packages/tools/node_modules/jszip",
-  "packages/tools/node_modules/mammoth",
-  "packages/tools/node_modules/papaparse",
-  "packages/tools/node_modules/pptxgenjs",
-  "packages/tools/node_modules/xlsx",
+  "packages/quick-script/node_modules/docx",
+  "packages/quick-script/node_modules/jszip",
+  "packages/quick-script/node_modules/mammoth",
+  "packages/quick-script/node_modules/papaparse",
+  "packages/quick-script/node_modules/pptxgenjs",
+  "packages/quick-script/node_modules/xlsx",
 ];
 
 async function collectThirdPartyLicenses(

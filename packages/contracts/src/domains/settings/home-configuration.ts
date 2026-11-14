@@ -308,7 +308,7 @@ const tavilyProfileConfigSchema = z
   })
   .strict();
 
-export const integrationsConfigSchema = z
+export const accountsConfigSchema = z
   .object({
     version: z.literal(2),
     profiles: z
@@ -319,8 +319,8 @@ export const integrationsConfigSchema = z
       .strict(),
   })
   .strict();
-export type IntegrationsConfig = z.infer<typeof integrationsConfigSchema>;
-export const defaultIntegrationsConfig: IntegrationsConfig = {
+export type AccountsConfig = z.infer<typeof accountsConfigSchema>;
+export const defaultAccountsConfig: AccountsConfig = {
   version: 2,
   profiles: { atlassian: [], tavily: [] },
 };
@@ -331,7 +331,7 @@ export const userConfigurationSchema = z
     ui: uiConfigSchema,
     permissions: permissionsConfigSchema,
     providers: providersConfigSchema,
-    integrations: integrationsConfigSchema,
+    accounts: accountsConfigSchema,
   })
   .strict();
 export type UserConfiguration = z.infer<typeof userConfigurationSchema>;
@@ -341,5 +341,5 @@ export const defaultUserConfiguration: UserConfiguration = {
   ui: defaultUiConfig,
   permissions: defaultPermissionsConfig,
   providers: defaultProvidersConfig,
-  integrations: defaultIntegrationsConfig,
+  accounts: defaultAccountsConfig,
 };

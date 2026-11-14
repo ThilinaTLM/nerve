@@ -54,12 +54,7 @@ describe("tool lifecycle registry", () => {
         name,
       );
     }
-    for (const name of [
-      "web_search",
-      "web_fetch",
-      "jira_get_issue",
-      "confluence_search_pages",
-    ] as const) {
+    for (const name of ["web_search", "web_fetch"] as const) {
       assert.equal(toolLifecycleRegistry[name].argumentRegion, "none", name);
       assert.ok(toolLifecycleRegistry[name].resultPlaceholder, name);
     }

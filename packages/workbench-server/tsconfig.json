@@ -26,6 +26,9 @@
       "path": "../tools"
     },
     {
+      "path": "../quick-script"
+    },
+    {
       "path": "../conversation-core"
     }
   ],

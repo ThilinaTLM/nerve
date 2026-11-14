@@ -173,13 +173,7 @@ function document(
   };
 }
 function capabilityName(name: string): CapabilityToolName | undefined {
-  const grouped = isSubagentTool(name)
-    ? "subagents"
-    : name.startsWith("jira_")
-      ? "jira"
-      : name.startsWith("confluence_")
-        ? "confluence"
-        : name;
+  const grouped = isSubagentTool(name) ? "subagents" : name;
   const parsed = capabilityToolNameSchema.safeParse(grouped);
   return parsed.success ? parsed.data : undefined;
 }

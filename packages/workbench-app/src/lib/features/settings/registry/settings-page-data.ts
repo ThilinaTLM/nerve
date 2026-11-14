@@ -11,6 +11,11 @@ export type PageData = {
   label: string;
   description?: string;
   sections: { id: string; label: string }[];
+  /**
+   * The page drills into one item (`Page › Item`). `param` names the item
+   * (e.g. "extension"); the item ids come from the page's own data.
+   */
+  detail?: { param: string };
 };
 
 const providers: PageData = {
@@ -22,14 +27,12 @@ const providers: PageData = {
     { id: "custom-models", label: "Custom models" },
   ],
 };
-const integrations: PageData = {
-  label: "Integrations",
+const extensions: PageData = {
+  label: "Extensions",
   description:
-    "Accounts the agent's tools sign in with. Add several and choose one per tool.",
-  sections: [
-    { id: "tavily-accounts", label: "Tavily" },
-    { id: "atlassian-accounts", label: "Atlassian" },
-  ],
+    "What the agent's quick_script can use. Open one to set it up and manage its accounts.",
+  sections: [{ id: "builtin", label: "Built-in" }],
+  detail: { param: "extension" },
 };
 const general: PageData = {
   label: "General",
@@ -83,7 +86,7 @@ const suggestions: PageData = {
 
 const userPages: Record<string, PageData> = {
   providers,
-  integrations,
+  extensions,
   general,
   tools,
   skills,
@@ -167,6 +170,11 @@ const projectPages: Record<string, PageData> = {
   },
   tools,
   skills,
+  extensions: {
+    ...extensions,
+    description:
+      "Overrides for this project. Anything left unset follows your user settings.",
+  },
   agents: {
     ...agents,
     description:
@@ -222,7 +230,7 @@ const userLayout: NavLayout = [
   {
     id: "connections",
     title: "Connections",
-    pages: ["providers", "integrations"],
+    pages: ["providers", "extensions"],
   },
   { id: "agent", title: "Agent", pages: ["general", "tools", "skills"] },
   {
@@ -245,7 +253,11 @@ const userLayout: NavLayout = [
 ];
 
 const projectLayout: NavLayout = [
-  { id: "agent", title: "Agent", pages: ["general", "tools", "skills"] },
+  {
+    id: "agent",
+    title: "Agent",
+    pages: ["general", "tools", "skills", "extensions"],
+  },
   {
     id: "catalog",
     title: "Catalog",
@@ -280,4 +292,90 @@ export function resolveSettingsPageId(
   return pageId && Object.hasOwn(pagesByScope[kind], pageId)
     ? pageId
     : defaultSettingsPageId(kind);
+}
+
+/** The page's detail declaration; undefined for pages without drill-in. */
+export function settingsPageDetail(
+  kind: SettingsScopeKind,
+  pageId: string | undefined,
+): { param: string } | undefined {
+  return pageId && Object.hasOwn(pagesByScope[kind], pageId)
+    ? pagesByScope[kind][pageId]!.detail
+    : undefined;
+}
+
+/** A deep link: a page, optionally one of its detail items and a section. */
+export type SettingsTarget = {
+  pageId?: string;
+  item?: string;
+  section?: string;
+};
+
+export type SettingsRedirect = {
+  from: { pageId: string; section?: string };
+  to: { pageId: string; item?: string; section?: string };
+};
+
+/** Turned off only by tests that exercise targets without redirects. */
+export const SETTINGS_REDIRECTS_ENABLED = true;
+
+/** Old page/section targets and where they live now. */
+export const settingsRedirects: readonly SettingsRedirect[] = [
+  {
+    from: { pageId: "integrations", section: "tavily-accounts" },
+    to: { pageId: "extensions", item: "web", section: "accounts" },
+  },
+  {
+    from: { pageId: "integrations", section: "atlassian-accounts" },
+    to: { pageId: "extensions", item: "atlassian", section: "accounts" },
+  },
+  { from: { pageId: "integrations" }, to: { pageId: "extensions" } },
+];
+
+/**
+ * Normalizes a deep link for a scope: applies redirects (section-specific
+ * entries win over page-wide ones), and drops `item` for pages without a
+ * detail. A redirect whose destination page is not in the scope is ignored.
+ */
+export function resolveSettingsTarget(
+  kind: SettingsScopeKind,
+  target: SettingsTarget,
+  options: {
+    redirects?: readonly SettingsRedirect[];
+    enabled?: boolean;
+  } = {},
+): SettingsTarget {
+  const {
+    redirects = settingsRedirects,
+    enabled = SETTINGS_REDIRECTS_ENABLED,
+  } = options;
+  let next = target;
+  const { pageId } = target;
+  if (enabled && pageId) {
+    const match =
+      redirects.find(
+        (r) =>
+          r.from.pageId === pageId &&
+          r.from.section !== undefined &&
+          r.from.section === target.section,
+      ) ?? redirects.find((r) => r.from.pageId === pageId && !r.from.section);
+    if (match && Object.hasOwn(pagesByScope[kind], match.to.pageId)) {
+      next = {
+        pageId: match.to.pageId,
+        ...(match.to.item ? { item: match.to.item } : {}),
+        ...((match.to.section ?? target.section)
+          ? { section: match.to.section ?? target.section }
+          : {}),
+      };
+    }
+  }
+  const resolvedPage = next.pageId
+    ? resolveSettingsPageId(kind, next.pageId)
+    : undefined;
+  const hasDetail = settingsPageDetail(kind, resolvedPage) !== undefined;
+  return {
+    ...(next.pageId ? { pageId: resolvedPage } : {}),
+    ...(next.item && hasDetail ? { item: next.item } : {}),
+    ...(next.section ? { section: next.section } : {}),
+  };
 }

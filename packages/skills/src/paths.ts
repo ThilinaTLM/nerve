@@ -1,16 +1,13 @@
 import { existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
-/** Resolve bundled skills and tool guides without exposing guides in the catalog. */
+/** Resolve a bundled skill's `SKILL.md`. */
 export function builtinSkillFilePath(name: string): string | undefined {
   if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(name)) return undefined;
-  for (const segment of ["builtin", "guides"]) {
-    const path = fileURLToPath(
-      new URL(`./${segment}/${name}/SKILL.md`, import.meta.url),
-    );
-    if (existsSync(path)) return path;
-  }
-  return undefined;
+  const path = fileURLToPath(
+    new URL(`./builtin/${name}/SKILL.md`, import.meta.url),
+  );
+  return existsSync(path) ? path : undefined;
 }
 
 export function resolveSkillPlaceholders(text: string): string {

@@ -93,20 +93,6 @@ export const providersSettingsSchema = z.object({
 });
 export type ProvidersSettings = z.infer<typeof providersSettingsSchema>;
 
-export const jiraToolSettingsSchema = z.object({
-  enabled: z.boolean(),
-  profileId: z.string().trim().min(1).optional(),
-});
-
-export const confluenceToolSettingsSchema = z.object({
-  enabled: z.boolean(),
-  profileId: z.string().trim().min(1).optional(),
-});
-
-export const webToolSettingsSchema = z.object({
-  tavilyProfileId: z.string().trim().min(1).optional(),
-});
-
 const bashAutoPromotionSettingsSchema = z.object({
   enabled: z.boolean(),
   afterMs: z.number().int().positive().max(86_400_000),
@@ -143,79 +129,6 @@ export const imageExplanationToolSettingsSchema = z.object({
 });
 export type ImageExplanationToolSettings = z.infer<
   typeof imageExplanationToolSettingsSchema
->;
-
-export const imageGenerationProviderSchema = z.enum(["openai-codex"]);
-export type ImageGenerationProvider = z.infer<
-  typeof imageGenerationProviderSchema
->;
-
-export const openAiCodexImageModelSchema = z.enum([
-  "gpt-image-2.5-flare",
-  "gpt-image-2.5-sunburst",
-]);
-export type OpenAiCodexImageModel = z.infer<typeof openAiCodexImageModelSchema>;
-export const openAiCodexImageQualitySchema = z.enum([
-  "auto",
-  "low",
-  "medium",
-  "high",
-  "xhigh",
-  "max",
-]);
-export type OpenAiCodexImageQuality = z.infer<
-  typeof openAiCodexImageQualitySchema
->;
-export const openAiCodexImageBackgroundSchema = z.enum([
-  "auto",
-  "opaque",
-  "transparent",
-]);
-export type OpenAiCodexImageBackground = z.infer<
-  typeof openAiCodexImageBackgroundSchema
->;
-const customOpenAiCodexImageSizeSchema = z
-  .string()
-  .regex(/^\d+x\d+$/)
-  .refine((value) => {
-    const [width, height] = value.split("x").map(Number);
-    if (!width || !height || width % 16 !== 0 || height % 16 !== 0) {
-      return false;
-    }
-    const longEdge = Math.max(width, height);
-    const shortEdge = Math.min(width, height);
-    const pixels = width * height;
-    return (
-      longEdge <= 3840 &&
-      longEdge / shortEdge <= 3 &&
-      pixels >= 655_360 &&
-      pixels <= 8_294_400
-    );
-  });
-export const openAiCodexImageSizeSchema = z.union([
-  z.literal("auto"),
-  customOpenAiCodexImageSizeSchema,
-]);
-export type OpenAiCodexImageSize = z.infer<typeof openAiCodexImageSizeSchema>;
-
-export const openAiCodexImageGenerationSettingsSchema = z.object({
-  provider: z.literal("openai-codex"),
-  model: openAiCodexImageModelSchema,
-  options: z.object({
-    quality: openAiCodexImageQualitySchema,
-    size: openAiCodexImageSizeSchema,
-    background: openAiCodexImageBackgroundSchema,
-  }),
-});
-export type OpenAiCodexImageGenerationSettings = z.infer<
-  typeof openAiCodexImageGenerationSettingsSchema
->;
-export const imageGenerationToolSettingsSchema = z.discriminatedUnion(
-  "provider",
-  [openAiCodexImageGenerationSettingsSchema],
-);
-export type ImageGenerationToolSettings = z.infer<
-  typeof imageGenerationToolSettingsSchema
 >;
 
 export const krokiToolSettingsSchema = z
@@ -259,20 +172,11 @@ export const defaultKrokiToolSettings: KrokiToolSettings = {
 };
 
 const toolSettingsSchema = z.object({
-  kroki: krokiToolSettingsSchema,
   disabled: disabledToolListSchema,
   bash: bashToolSettingsSchema,
   pythonExec: pythonExecToolSettingsSchema,
   planPresent: planPresentToolSettingsSchema,
-  jira: jiraToolSettingsSchema,
-  confluence: confluenceToolSettingsSchema,
-  web: webToolSettingsSchema,
   imageExplanation: imageExplanationToolSettingsSchema,
-  imageGeneration: imageGenerationToolSettingsSchema.default({
-    provider: "openai-codex",
-    model: "gpt-image-2.5-flare",
-    options: { quality: "auto", size: "auto", background: "auto" },
-  }),
 });
 
 export const compactionProfileSchema = z.enum([
@@ -447,29 +351,14 @@ export const defaultSettings: Settings = {
   permissions: { exceptions: [] },
   providers: { atlassianProfiles: [], tavilyProfiles: [] },
   tools: {
-    disabled: [
-      "plan_present",
-      "explain_image",
-      "generate_image",
-      "kroki_export",
-      ...subagentToolNames,
-    ],
+    disabled: ["plan_present", "explain_image", ...subagentToolNames],
     bash: {
       autoPromotion: { enabled: true, afterMs: 120_000 },
       maxTimeoutMs: 900_000,
     },
     pythonExec: {},
     planPresent: { approvalProfile: "coding" },
-    jira: { enabled: false },
-    confluence: { enabled: false },
-    web: {},
-    kroki: defaultKrokiToolSettings,
     imageExplanation: { thinkingLevel: "off" },
-    imageGeneration: {
-      provider: "openai-codex",
-      model: "gpt-image-2.5-flare",
-      options: { quality: "auto", size: "auto", background: "auto" },
-    },
   },
   skills: {
     disabled: [],

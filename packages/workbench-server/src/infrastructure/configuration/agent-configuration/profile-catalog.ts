@@ -97,7 +97,7 @@ export class AgentProfileCatalog {
       fromDisk: (input, scope) =>
         scope.scope === "project" ? profileDocumentValue(input) : input,
       toDisk: (document, scope) =>
-        scope.scope === "project" ? { ...document, version: 2 } : document,
+        scope.scope === "project" ? { ...document, version: 3 } : document,
       resolvePath: (scope) => options.paths.profile(scope, scope.name),
       required: () => true,
       revisioned: false,

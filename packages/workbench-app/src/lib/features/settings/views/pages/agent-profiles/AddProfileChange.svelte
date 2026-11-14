@@ -18,7 +18,7 @@ import {
   buildAddChangeItems,
   type ChangeKey,
 } from "./profile-changes";
-import { toolRows, accountKind } from "../tools/tool-settings";
+import { toolRows } from "../tools/tool-settings";
 import ProfileChangeEditor from "./ProfileChangeEditor.svelte";
 import type { ChangeDraft, ProfileEditContext } from "./profile-edit-context";
 let {
@@ -63,7 +63,7 @@ const items = $derived(
         key: `tool:${t.id}` as ChangeKey,
         label: t.label,
         description: t.description,
-        account: !!accountKind(t.id),
+        account: false,
         defaultOn: t.always
           ? undefined
           : (context.seedTool(t.id).enabled ?? true),

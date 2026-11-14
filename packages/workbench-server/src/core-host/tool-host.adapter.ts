@@ -23,6 +23,7 @@ import {
 } from "@nervekit/tools/execution";
 import { toolNameSchema } from "@nervekit/contracts/tools";
 import type { CoreProcessHost } from "./process.adapter.js";
+import { registerHostTools } from "./host-tools.js";
 import type { LaunchTool } from "./launch-tool.js";
 import { prepareShellProcess } from "../infrastructure/process-host/shell-process.js";
 
@@ -48,6 +49,7 @@ export function createToolHostPort(
   >,
   launchTool?: LaunchTool,
 ) {
+  registerHostTools();
   const todos = new Map<unknown, { todo: string; done: boolean }[]>();
   const handlers = createTodoHandlers({
     get: async (id) => todos.get(id) ?? [],

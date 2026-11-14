@@ -14,6 +14,7 @@ import {
   builtInPermissionRuleSet,
   composeEffectivePermissionPolicy,
   evaluatePermissionRequest,
+  normalizeOperationRequest,
   normalizePermissionRequest,
 } from "../../src/policy/index.js";
 import {
@@ -83,7 +84,8 @@ function overlay(
 }
 
 test("catalog has complete static policy metadata", () => {
-  assert.equal(toolManifest.length, toolNameSchema.options.length);
+  // `quick_script` is registered by @nervekit/quick-script; its static metadata is checked here too.
+  assert.equal(toolManifest.length, toolNameSchema.options.length - 1);
   for (const definition of toolManifest) {
     const metadata = permissionMetadataForTool(definition.name);
     assert.ok(metadata.kind);
@@ -93,10 +95,7 @@ test("catalog has complete static policy metadata", () => {
   }
   assert.equal(permissionMetadataForTool("bash").baseRisk, "unknown");
   assert.equal(permissionMetadataForTool("python_exec").baseRisk, "unknown");
-  assert.equal(
-    permissionMetadataForTool("jira_manage_comment").baseRisk,
-    "destructive",
-  );
+  assert.equal(permissionMetadataForTool("quick_script").baseRisk, "network");
 });
 
 test("built-in coding rule sets implement their complete behavior", () => {
@@ -185,42 +184,6 @@ test("blank singleton search paths target the current project directory", () => 
   }
 });
 
-test("kroki exports target their source file for read and output file for write", () => {
-  const request = normalizePermissionRequest({
-    toolName: "kroki_export",
-    args: {
-      diagram_type: "mermaid",
-      source_path: "docs/flow.mmd",
-      output_path: "/tmp/flow.svg",
-    },
-    roots,
-    conversationId: "conv_test",
-  });
-  assert.deepEqual(request.targets, [
-    {
-      kind: "path",
-      access: "read",
-      scope: "exact",
-      root: "project",
-      relativePath: "docs/flow.mmd",
-    },
-    {
-      kind: "path",
-      access: "write",
-      scope: "exact",
-      absolutePath: resolve("/tmp/flow.svg"),
-    },
-  ]);
-  assert.equal(request.primaryArgument, "docs/flow.mmd");
-  const inline = normalizePermissionRequest({
-    toolName: "kroki_export",
-    args: { diagram_type: "mermaid", source: "graph TD" },
-    roots,
-    conversationId: "conv_test",
-  });
-  assert.deepEqual(inline.targets, [{ kind: "whole_tool" }]);
-});
-
 test("an empty grep paths collection does not default to the project", () => {
   assert.throws(
     () =>
@@ -265,8 +228,6 @@ test("planning separates research, prompted analysis, and mutations", () => {
     ["web_search", { query: "Nerve planning" }],
     ["web_fetch", { url: "https://example.com" }],
     ["explain_image", { path: "/workspace/screenshot.png" }],
-    ["jira_get_issue", { issue_key: "NERVE-1" }],
-    ["confluence_get_page", { page_id: "123" }],
   ] as const) {
     assert.equal(
       decision("planning", toolName, args).decision,
@@ -286,8 +247,6 @@ test("planning separates research, prompted analysis, and mutations", () => {
 
   for (const [toolName, args] of [
     ["edit", { path: "/workspace/a.ts" }],
-    ["jira_update_issue", { issue_key: "NERVE-1", summary: "Changed" }],
-    ["confluence_create_page", { title: "Changed", body: "content" }],
     ["launch", { action: "start", name: "Dev server" }],
     ["async_bash", { id: "bash_dev", action: "stop" }],
   ] as const) {
@@ -297,6 +256,29 @@ test("planning separates research, prompted analysis, and mutations", () => {
       toolName,
     );
   }
+});
+
+test("planning allows SDK reads of Jira and Confluence and denies their writes", () => {
+  const operation = (
+    name: string,
+    risk: "network" | "external_write" | "destructive",
+  ) =>
+    evaluatePermissionRequest({
+      request: normalizeOperationRequest({
+        operation: name,
+        targets: [],
+        risk,
+        conversationId: "conv_test",
+      }),
+      policy: composeEffectivePermissionPolicy({
+        selectedRuleSet: builtInPermissionRuleSet("planning"),
+      }),
+    }).decision;
+  assert.equal(operation("jira.issues.get", "network"), "allow");
+  assert.equal(operation("confluence.pages.get", "network"), "allow");
+  assert.equal(operation("jira.issues.update", "external_write"), "deny");
+  assert.equal(operation("confluence.pages.create", "external_write"), "deny");
+  assert.equal(operation("imagegen.generate", "network"), "deny");
 });
 
 test("process read actions do not ask for approval; launch grants bind action and name", () => {

@@ -18,6 +18,12 @@ export type SettingsPageDef = {
    * not render a submenu.
    */
   sections: SettingsSectionDef[];
+  /**
+   * The page drills into one item (`Page › Item`). `items` are the valid item
+   * ids with their breadcrumb labels; leave it undefined until they are known,
+   * so an item is never rejected before its list has loaded.
+   */
+  detail?: { param: string; items?: { id: string; label: string }[] };
 };
 
 export type SettingsChoice = {

@@ -37,6 +37,7 @@ export const packageExportSurfaces: Readonly<Record<string, string[]>> =
       "./settings",
       "./skills",
       "./status",
+      "./extensions",
       "./agent-configuration",
       "./agent-profiles",
       "./subagents",
@@ -80,6 +81,7 @@ export const packageExportSurfaces: Readonly<Record<string, string[]>> =
       "./git",
       "./execution",
     ],
+    "@nervekit/quick-script": ["."],
     "@nervekit/ui-kit": [
       ".",
       "./styles/app.css",

@@ -7,30 +7,12 @@ import {
   requireToolDefinition,
 } from "../../src/catalog/manifest.js";
 
-const validActionArguments: Record<string, Record<string, unknown>> = {
-  jira_manage_comment: { action: "create", issue_key: "PROJ-1" },
-  jira_manage_worklog: { action: "create", issue_key: "PROJ-1" },
-  jira_manage_issue_link: { action: "create", issue_key: "PROJ-1" },
-  jira_manage_attachment: { action: "upload", issue_key: "PROJ-1" },
-  jira_manage_sprint: { action: "create" },
-  jira_manage_backlog: { action: "move_to_backlog", issue_key: "PROJ-1" },
-  confluence_manage_comment: { action: "create", kind: "footer" },
-  confluence_manage_page: { action: "trash", page_id: "123" },
-  confluence_manage_label: { action: "add", page_id: "123", label: "one" },
-  confluence_manage_restriction: {
-    action: "clear_operation",
-    page_id: "123",
-    operation: "read",
-  },
-  confluence_manage_attachment: { action: "upload", page_id: "123" },
-};
-const flattenedActionTools = new Set(Object.keys(validActionArguments));
-
 describe("model-facing tool schema compatibility", () => {
   it("declares a reviewed agent-result policy for every active tool", () => {
+    // `quick_script` is defined in @nervekit/quick-script and registered by the host.
     assert.deepEqual(
       toolManifest.map((definition) => definition.name).sort(),
-      [...toolNameSchema.options].sort(),
+      toolNameSchema.options.filter((name) => name !== "quick_script").sort(),
     );
     assert.deepEqual(
       toolManifest.filter((definition) => !definition.agentResult),
@@ -44,54 +26,8 @@ describe("model-facing tool schema compatibility", () => {
     it("locks the simplified model-facing property sets and schema budget", () => {
       const expectedProperties: Record<string, string[]> = {
         edit: ["path", "edits"],
-        generate_image: ["prompt"],
-        kroki_export: [
-          "diagram_type",
-          "source_path",
-          "source",
-          "output_path",
-          "output_format",
-        ],
-        jira_search_users: [
-          "query",
-          "project_key",
-          "issue_key",
-          "max_results",
-          "include_inactive",
-        ],
-        jira_search_issues: ["jql", "fields", "max_results", "next_page_token"],
-        jira_get_issue: [
-          "issue_key",
-          "fields",
-          "include",
-          "comment_start_at",
-          "worklog_start_at",
-          "changelog_start_at",
-          "related_limit",
-        ],
-        jira_get_project: [
-          "project_key",
-          "include",
-          "issue_type",
-          "field_query",
-          "field_limit",
-        ],
         async_bash: ["action", "all", "id", "offset", "limit"],
         launch: ["action", "name", "runId", "offset", "limit"],
-        confluence_get_page: [
-          "page_id",
-          "body_format",
-          "include",
-          "comment_limit",
-          "comment_cursor",
-          "markdown",
-        ],
-        confluence_download_page: [
-          "page_id",
-          "body_format",
-          "markdown",
-          "attachments",
-        ],
       };
       for (const [name, expected] of Object.entries(expectedProperties)) {
         const schema = requireToolDefinition(name as never).parameters as {
@@ -99,29 +35,6 @@ describe("model-facing tool schema compatibility", () => {
         };
         assert.deepEqual(Object.keys(schema.properties ?? {}), expected, name);
       }
-
-      for (const definition of toolManifest) {
-        const properties = Object.keys(
-          (definition.parameters as { properties?: Record<string, unknown> })
-            .properties ?? {},
-        );
-        if (
-          definition.name.startsWith("jira_") ||
-          definition.name.startsWith("confluence_")
-        ) {
-          assert.equal(
-            properties.includes("save_to_file"),
-            false,
-            definition.name,
-          );
-        }
-      }
-
-      const searchSchema =
-        requireToolDefinition("jira_search_issues").parameters;
-      assert.equal(Check(searchSchema, { jql: "project = PROJ" }), true);
-      assert.equal(Check(searchSchema, {}), false);
-      assert.equal(Check(searchSchema, { jql: 123 }), false);
 
       const editSchemaSize = JSON.stringify(
         requireToolDefinition("edit").parameters,
@@ -136,7 +49,7 @@ describe("model-facing tool schema compatibility", () => {
         `edit schema is ${editSchemaSize} chars`,
       );
       assert.ok(
-        catalogSchemaSize <= 32_500,
+        catalogSchemaSize <= 6_500,
         `catalog schemas total ${catalogSchemaSize} chars`,
       );
     });
@@ -192,28 +105,5 @@ describe("model-facing tool schema compatibility", () => {
       Check(schema, { file_path: "/tmp/plan.md", title: "override" }),
       false,
     );
-  });
-
-  it("does not expose top-level schema composition for action tools", () => {
-    for (const definition of toolManifest) {
-      if (!flattenedActionTools.has(definition.name)) continue;
-      const schema = definition.parameters as Record<string, unknown>;
-      assert.equal(schema.type, "object", definition.name);
-      assert.equal(schema.anyOf, undefined, definition.name);
-      assert.equal(schema.oneOf, undefined, definition.name);
-      assert.equal(schema.allOf, undefined, definition.name);
-    }
-  });
-
-  it("keeps every flattened action property closed", () => {
-    for (const [name, args] of Object.entries(validActionArguments)) {
-      const schema = requireToolDefinition(name).parameters;
-      assert.equal(Check(schema, args), true, name);
-      assert.equal(
-        Check(schema, { ...args, action: "unsupported" }),
-        false,
-        name,
-      );
-    }
   });
 });

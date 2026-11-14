@@ -11,7 +11,7 @@ import {
   HTML_CONVERSION_MAX_INPUT_BYTES,
   HTML_CONVERSION_TIMEOUT_MS,
   isolatedHtmlToMarkdown,
-} from "../atlassian/isolated-html-to-markdown.js";
+} from "./isolated-html-to-markdown.js";
 import { withTimeoutSignal } from "../process/abort.js";
 import {
   assertSafeHttpUrl,

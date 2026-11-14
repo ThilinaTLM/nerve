@@ -5,6 +5,7 @@ export { default as EntityRow } from "./EntityRow.svelte";
 export { default as SettingsSidebarStatus } from "./SettingsSidebarStatus.svelte";
 
 export { default as SettingsPageHeader } from "./SettingsPageHeader.svelte";
+export { default as SettingsBreadcrumb } from "./SettingsBreadcrumb.svelte";
 export { default as SettingsInfoHint } from "./SettingsInfoHint.svelte";
 export { default as SettingsSection } from "./SettingsSection.svelte";
 export { default as SettingsRow } from "./SettingsRow.svelte";
@@ -15,6 +16,7 @@ export { default as SettingsPreviewCards } from "./SettingsPreviewCards.svelte";
 export type { SettingsPreviewOption } from "./SettingsPreviewCards.svelte";
 export { default as SettingsList } from "./SettingsList.svelte";
 export { default as SettingsListItem } from "./SettingsListItem.svelte";
+export { default as SettingsItem } from "./SettingsItem.svelte";
 export { default as SettingsDisclosureItem } from "./SettingsDisclosureItem.svelte";
 export { default as SettingsStatGrid } from "./SettingsStatGrid.svelte";
 export type { SettingsStat } from "./SettingsStatGrid.svelte";

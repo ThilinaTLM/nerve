@@ -4,17 +4,11 @@ import { dirname, isAbsolute, join } from "node:path";
 import test from "node:test";
 import {
   builtinSkillFilePath,
-  loadNerveSkills,
   resolveSkillPlaceholders,
 } from "../src/index.js";
 
-test("resolves bundled skills and guides but rejects unknown names and traversal", () => {
-  for (const name of [
-    "engineering-docs",
-    "skill-creator",
-    "jira",
-    "confluence",
-  ]) {
+test("resolves bundled skills but rejects unknown names and traversal", () => {
+  for (const name of ["engineering-docs", "skill-creator"]) {
     const path = builtinSkillFilePath(name);
     assert.ok(path);
     assert.ok(isAbsolute(path));
@@ -25,10 +19,11 @@ test("resolves bundled skills and guides but rejects unknown names and traversal
     "unknown",
     "planning",
     "team-lead",
-    "../jira",
+    "../skill-creator",
     "",
-    "/tmp/jira",
-    "guides/jira",
+    "/tmp/skill-creator",
+    "jira",
+    "confluence",
   ]) {
     assert.equal(builtinSkillFilePath(name), undefined);
   }
@@ -48,14 +43,8 @@ test("bundles supporting files beside a built-in skill", () => {
 test("replaces every known placeholder without adding quotes and preserves unknown ones", () => {
   assert.equal(
     resolveSkillPlaceholders(
-      "Read {{skill:jira}}, {{skill:skill-creator}}, {{skill:jira}}; {{skill:unknown}}.",
+      "Read {{skill:engineering-docs}}, {{skill:skill-creator}}, {{skill:engineering-docs}}; {{skill:unknown}}.",
     ),
-    `Read ${builtinSkillFilePath("jira")}, ${builtinSkillFilePath("skill-creator")}, ${builtinSkillFilePath("jira")}; {{skill:unknown}}.`,
+    `Read ${builtinSkillFilePath("engineering-docs")}, ${builtinSkillFilePath("skill-creator")}, ${builtinSkillFilePath("engineering-docs")}; {{skill:unknown}}.`,
   );
-});
-
-test("guide skills are not exposed in the normal skill catalog", async () => {
-  const names = (await loadNerveSkills()).map((skill) => skill.name);
-  assert.ok(!names.includes("jira"));
-  assert.ok(!names.includes("confluence"));
 });

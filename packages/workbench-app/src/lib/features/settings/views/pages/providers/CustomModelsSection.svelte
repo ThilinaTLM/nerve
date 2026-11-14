@@ -1,8 +1,6 @@
 <script lang="ts">
 import { Callout } from "@nervekit/ui-kit/components/composites/callout";
 import ProviderIcon from "$lib/presentation/model-picker/ProviderIcon.svelte";
-import { Badge } from "@nervekit/ui-kit/components/ui/badge";
-import Pencil from "@lucide/svelte/icons/pencil";
 import Trash2 from "@lucide/svelte/icons/trash-2";
 import { IconAction } from "@nervekit/ui-kit/components/composites/icon-action";
 import type {
@@ -12,7 +10,7 @@ import type {
 } from "$lib/api";
 import { deleteModelDefinition } from "$lib/api";
 import ConfirmDialog from "@nervekit/ui-kit/components/composites/confirm-dialog";
-import { SettingsListItem } from "$lib/presentation/settings";
+import { SettingsItem } from "$lib/presentation/settings";
 import { providerCatalogState } from "$lib/features/settings/state/provider-catalog-state.svelte";
 import { refreshProviderCatalog } from "$lib/features/settings/state/provider-catalog-actions.svelte";
 import SettingsEntityListSection from "../../shared/settings-entity-list-section.svelte";
@@ -130,28 +128,20 @@ async function confirmDelete(): Promise<void> {
   onAdd={openAdd}
 >
   {#snippet row(model)}
-    <SettingsListItem title={model.name}>
-      {#snippet detail()}
-        <span class="truncate">
-          <ProviderIcon provider={model.provider} class="inline size-3.5" />
-          {providerLabel(model.provider)} ·
-          <span>{model.modelId}</span>
-        </span>
-      {/snippet}
-      {#snippet status()}
-        {#if isUnavailable(model)}
-          <Badge variant="warning">Unavailable</Badge>
-        {/if}
-        {#if model.reasoning}
-          <Badge variant="info">Reasoning</Badge>
-        {/if}
+    <SettingsItem
+      title={model.name}
+      summary={`${providerLabel(model.provider)} · ${model.modelId}${model.reasoning ? " · Reasoning" : ""}`}
+      problem={isUnavailable(model)
+        ? `Unavailable: ${providerLabel(model.provider)} is not authenticated`
+        : undefined}
+      problemAction={{ label: "Edit", onclick: () => openEdit(model) }}
+      onOpen={() => openEdit(model)}
+      openLabel={`Edit ${model.name}`}
+    >
+      {#snippet leading()}
+        <ProviderIcon provider={model.provider} class="size-4 shrink-0" />
       {/snippet}
       {#snippet actions()}
-        <IconAction
-          icon={Pencil}
-          label="Edit model"
-          onclick={() => openEdit(model)}
-        />
         <IconAction
           icon={Trash2}
           label="Delete model"
@@ -159,7 +149,7 @@ async function confirmDelete(): Promise<void> {
           onclick={() => (pendingDelete = model)}
         />
       {/snippet}
-    </SettingsListItem>
+    </SettingsItem>
   {/snippet}
   {#snippet below()}
     {#if deleteError}<Callout

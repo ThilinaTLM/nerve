@@ -1,3 +1,4 @@
+import type { OperationRisk } from "../policy/operation-request.js";
 import type { ToolOutputStream } from "@nervekit/contracts/tools";
 import type {
   ToolContentBlockPayload,
@@ -6,7 +7,6 @@ import type {
   ToolTextContentPayload,
 } from "@nervekit/contracts/tools";
 import type { PythonRuntime } from "./python/runtime.js";
-import type { KrokiToolSettings } from "@nervekit/contracts/settings";
 
 export type ToolExecutionOutputUpdate = {
   kind: "output";
@@ -26,17 +26,6 @@ export type ExplainImageRequest = {
 export type ExplainImageResponse = {
   explanation: string;
   model: { provider: string; modelId: string };
-};
-
-export type ImageGenerateRequest = {
-  prompt: string;
-  signal?: AbortSignal;
-};
-
-export type ImageGenerateResponse = {
-  provider: string;
-  model: string;
-  images: Array<{ data: Uint8Array; revisedPrompt?: string }>;
 };
 
 export interface BaseExecutionContext {
@@ -67,16 +56,23 @@ export interface VisionExecutionContext extends BaseExecutionContext {
     request: ExplainImageRequest,
   ) => Promise<ExplainImageResponse>;
 }
-export interface ImageGenerationExecutionContext extends BaseExecutionContext {
-  artifactDir?: string;
-  generateImage?: (
-    request: ImageGenerateRequest,
-  ) => Promise<ImageGenerateResponse>;
-}
-export interface KrokiExecutionContext extends BaseExecutionContext {
-  artifactDir?: string;
-  kroki?: KrokiToolSettings;
-}
+/** Whether a configured quick_script namespace can be used now; the same text reaches the agent and, later, the Extensions page. */
+export type NamespaceAvailability =
+  | { configured: boolean; available: true }
+  | {
+      configured: boolean;
+      available: false;
+      /** Why the namespace cannot be used. */
+      reason: string;
+      /** What the user must do. */
+      fix: string;
+    };
+
+/** Availability by namespace id, computed by the host from settings. */
+export type QuickScriptAvailability = Readonly<
+  Record<string, NamespaceAvailability>
+>;
+
 export interface IntegrationExecutionContext extends BaseExecutionContext {
   artifactDir?: string;
   /** Absolute managed folder of the conversation; may not exist yet. */
@@ -85,18 +81,15 @@ export interface IntegrationExecutionContext extends BaseExecutionContext {
   getProviderConfig?: (provider: string) => Promise<unknown>;
   /** quick_script `web.*`: `enabled` by Settings; `search` when a Tavily account with a token is selected (its key is `getApiKey("tavily")`). */
   web?: { enabled: boolean; search: boolean };
+  /** quick_script: whether each extension namespace is usable now, with reason and fix; `sdk.list` and `sdk.describe` report it. Absent: every namespace counts as available. */
+  namespaces?: QuickScriptAvailability;
   /**
    * quick_script: checks one brokered SDK call against the conversation's
-   * permission policy as if it were a direct call to `toolName` with `args`.
-   * Resolves when allowed; rejects with the one-line reason otherwise
-   * (`ToolExecutionError` code `NESTED_DENIED` or `NESTED_APPROVAL_REQUIRED`).
+   * permission policy. Resolves when allowed; rejects with the one-line reason
+   * otherwise (`ToolExecutionError` code `NESTED_DENIED` or
+   * `NESTED_APPROVAL_REQUIRED`).
    */
-  authorizeNested?: (request: {
-    toolName: string;
-    args: Record<string, unknown>;
-    /** Never allowed by a rule alone; needs a user-approved destructive script (raw non-GET requests). */
-    approvalRequired?: boolean;
-  }) => Promise<void>;
+  authorizeNested?: (request: QuickScriptNestedRequest) => Promise<void>;
 }
 
 /** Complete host context accepted by catalog dispatch. Executors use narrower contexts. */
@@ -105,8 +98,6 @@ export type ToolExecutionContext = FilesystemExecutionContext &
   PythonExecutionContext &
   WebExecutionContext &
   VisionExecutionContext &
-  ImageGenerationExecutionContext &
-  KrokiExecutionContext &
   IntegrationExecutionContext;
 
 // Result contracts live in `@nervekit/contracts` (single source of truth shared with the web UI).
@@ -181,5 +172,16 @@ export type ExplainImageToolArgs = ToolPathArgs & {
   prompt?: unknown;
 };
 
-export type JiraToolArgs = Record<string, unknown>;
-export type ConfluenceToolArgs = Record<string, unknown>;
+/**
+ * One SDK call to check: an operation (`jira.issues.create`) with its
+ * normalized resource targets and risk, or, for `web.*` and `files.*`, the
+ * remaining direct tool the call is authorized as.
+ */
+export type QuickScriptNestedRequest =
+  | {
+      operation: string;
+      /** Normalized `<system>:<type>/<id>` values. */
+      targets: string[];
+      risk: OperationRisk;
+    }
+  | { toolName: string; args: Record<string, unknown> };

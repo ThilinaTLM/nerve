@@ -13,6 +13,7 @@ import ProjectDialogHost from "$lib/app/shell/ProjectDialogHost.svelte";
 import WorkbenchStatusBarHost from "$lib/app/shell/WorkbenchStatusBarHost.svelte";
 import WorkbenchTitlebarHost from "$lib/app/shell/WorkbenchTitlebarHost.svelte";
 import { createLaunchCatalogActivity } from "$lib/app/composition/registrations/launch-catalog-activity.svelte";
+import { createSelectedAccountsActivity } from "$lib/app/composition/registrations/selected-accounts-activity.svelte";
 import { panelViewDescriptors } from "$lib/app/composition/registries/panel-registry";
 import { responsive } from "$lib/app/shell/responsive.svelte";
 import {
@@ -37,6 +38,7 @@ import { workbenchStartupState } from "$lib/application/startup/workbench-startu
 import { workspaceState } from "$lib/application/workspace/workspace-state.svelte";
 
 const launchActivity = createLaunchCatalogActivity();
+createSelectedAccountsActivity();
 const descriptors = $derived(
   panelViewDescriptors.map((descriptor) =>
     descriptor.id === "launches"

@@ -110,6 +110,10 @@
       "types": "./dist/domains/status/index.d.ts",
       "import": "./dist/domains/status/index.js"
     },
+    "./extensions": {
+      "types": "./dist/domains/extensions/index.d.ts",
+      "import": "./dist/domains/extensions/index.js"
+    },
     "./agent-configuration": {
       "types": "./dist/domains/agent-configuration/index.d.ts",
       "import": "./dist/domains/agent-configuration/index.js"

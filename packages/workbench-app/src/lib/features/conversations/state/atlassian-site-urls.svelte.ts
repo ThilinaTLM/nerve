@@ -1,19 +1,18 @@
+import { selectedAtlassianAccountId } from "$lib/application/extensions/selected-accounts.svelte";
 import { settingsReadModel } from "$lib/application/preferences/settings-read-model.svelte";
 
-/** Optional link decoration derived from the orchestrated core settings load. */
-function selectedSiteUrl(provider: "jira" | "confluence"): string | undefined {
-  const settings = settingsReadModel.settingsDraft;
-  if (!settings) return undefined;
-  const profileId = settings.tools[provider].profileId;
-  return settings.providers.atlassianProfiles.find(
-    (profile) => profile.id === profileId,
+/** Optional link decoration: the site of the Atlassian account the extension selects. */
+function selectedSiteUrl(): string | undefined {
+  const selected = selectedAtlassianAccountId();
+  return settingsReadModel.settingsDraft?.providers.atlassianProfiles.find(
+    (profile) => profile.id === selected,
   )?.siteUrl;
 }
 
 export function jiraSiteUrl(): string | undefined {
-  return selectedSiteUrl("jira");
+  return selectedSiteUrl();
 }
 
 export function confluenceSiteUrl(): string | undefined {
-  return selectedSiteUrl("confluence");
+  return selectedSiteUrl();
 }

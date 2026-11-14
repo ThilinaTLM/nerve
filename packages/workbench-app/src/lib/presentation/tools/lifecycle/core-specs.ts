@@ -10,7 +10,6 @@ import {
   COLLAPSED_LINES,
   SLIDE_OVERSCAN_LINES,
 } from "../views/tool-view-helpers";
-import { krokiConversion } from "../views/kroki-result-view";
 import { askUserDraftQuestions } from "../tool-call/ask-user-state";
 import {
   argumentPresentation,
@@ -347,49 +346,6 @@ function editPresentation(
   });
 }
 
-function krokiPresentation(
-  source: ToolArgumentSource,
-  _stage: ToolLifecycleStage,
-  cwd?: string,
-) {
-  const inline = source.string("source");
-  const outputPath = source.string("output_path");
-  const secondary: MetaItem[] = [
-    {
-      text: krokiConversion({
-        diagram_type: source.string("diagram_type"),
-        output_format: source.string("output_format"),
-        output_path: outputPath,
-      }),
-    },
-  ];
-  if (outputPath) {
-    secondary.push({
-      text: `→ ${(cwd && relativePathForDisplay(outputPath, cwd)) || outputPath}`,
-      mono: true,
-    });
-  }
-  return argumentPresentation({
-    // A source file is the preferred input; inline source is the fallback.
-    primaryArg: source.string("source_path")
-      ? pathArg(source, cwd, "source_path")
-      : textArg(inline ? "inline" : undefined, "Diagram"),
-    secondary,
-    // Stage-independent so the block never appears/disappears mid-lifecycle.
-    body: codeBody(inline, "text", {
-      force: true,
-      head: true,
-      label: "Source",
-    }),
-    safetyNotes: [
-      "Sends diagram source to the Kroki server configured in Settings.",
-      ...(outputPath
-        ? ["Creates the output file or overwrites it if it already exists."]
-        : []),
-    ],
-  });
-}
-
 function quickScriptPresentation(
   source: ToolArgumentSource,
   stage: ToolLifecycleStage,
@@ -413,7 +369,7 @@ function quickScriptPresentation(
       label: "Script",
     }),
     safetyNotes: [
-      "Runs a sandboxed script that calls the Atlassian SDK; each SDK call is checked against the permission policy.",
+      "Runs a sandboxed script that calls extension SDKs (Jira, Confluence, web, diagrams, images); each SDK call is checked against the permission policy.",
     ],
   });
 }
@@ -610,14 +566,6 @@ export const coreToolLifecycleSpecs = {
         ],
       }),
   }),
-  kroki_export: defineToolLifecycleSpec({
-    name: "kroki_export",
-    argumentRegion: "persistent",
-    completedView: "kroki_export",
-    resultPlaceholder: { variant: "text", rows: 1 },
-    emptyResult: "No diagram returned",
-    present: krokiPresentation,
-  }),
   quick_script: defineToolLifecycleSpec({
     name: "quick_script",
     argumentRegion: "persistent",
@@ -625,27 +573,6 @@ export const coreToolLifecycleSpecs = {
     resultPlaceholder: { variant: "text", rows: 2 },
     emptyResult: "No output",
     present: quickScriptPresentation,
-  }),
-  generate_image: defineToolLifecycleSpec({
-    name: "generate_image",
-    argumentRegion: "none",
-    completedView: "generate_image",
-    resultPlaceholder: { variant: "image", rows: 6 },
-    emptyResult: "No image returned",
-    present: (source, stage) =>
-      argumentPresentation({
-        primaryArg: textArg(source.string("prompt"), "Image prompt"),
-        secondary: source.string("size")
-          ? [{ key: "size", text: source.string("size")!.replace("x", "×") }]
-          : [],
-        body:
-          stage === "approval"
-            ? keyValues([["Prompt", source.string("prompt")]])
-            : undefined,
-        safetyNotes: [
-          "Sends the prompt to the image provider configured in Settings and may consume provider usage.",
-        ],
-      }),
   }),
   explain_image: defineToolLifecycleSpec({
     name: "explain_image",
@@ -710,8 +637,6 @@ export const coreToolLifecycleSpecs = {
     | "web_search"
     | "web_fetch"
     | "explain_image"
-    | "generate_image"
-    | "kroki_export"
     | "quick_script"
   >,
   ToolLifecycleSpec

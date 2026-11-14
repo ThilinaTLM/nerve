@@ -6,7 +6,10 @@ import type { ToolCallDisplayRecord } from "../views/tool-result-view";
 import type { ToolView } from "../views/tool-result-view";
 import type { QuickScriptArtifact } from "@nervekit/contracts/tools";
 import { COLLAPSED_LINES } from "../views/tool-result-view";
-import { formatDuration } from "../views/tool-presentation-helpers";
+import {
+  formatDuration,
+  operationLines,
+} from "../views/tool-presentation-helpers";
 import { cn } from "@nervekit/ui-kit/utils";
 import ToolSections from "./ToolSections.svelte";
 
@@ -26,8 +29,13 @@ const hiddenCalls = $derived(view.hostCalls.length - hostCalls.length);
 const scriptFailed = $derived(
   view.status !== undefined && view.status !== "completed",
 );
+// Before the script runs (and when it never did), the operations the scan found.
+const plannedLines = $derived(
+  view.hostCalls.length === 0 ? operationLines(view.plannedOperations) : [],
+);
 const hasSummary = $derived(
   view.hostCalls.length > 0 ||
+    plannedLines.length > 0 ||
     view.pages.length > 0 ||
     view.artifacts.length > 0 ||
     view.created.length > 0 ||
@@ -79,12 +87,27 @@ function pageLintLabel(fixes: number, warnings: number): string {
 
 {#if hasSummary}
   <ToolSections>
+    {#if plannedLines.length > 0}
+      <ul class="m-0 list-none p-0 py-1" aria-label="Operations">
+        {#each plannedLines as line, index (index)}
+          <li
+            class="min-w-0 truncate px-2.5 py-0.5 font-mono text-ui text-foreground"
+            title={line}
+          >
+            {line}
+          </li>
+        {/each}
+      </ul>
+    {/if}
+
     {#if view.hostCalls.length > 0}
       <ul class="m-0 list-none p-0 py-1" aria-label="SDK calls">
         {#each hostCalls as call, index (index)}
           <li
             class="flex min-w-0 items-baseline gap-2 px-2.5 py-0.5 text-ui"
-            title={call.error}
+            title={[call.targets?.join(", "), call.error]
+              .filter(Boolean)
+              .join(" — ") || undefined}
           >
             {#if call.outcome === "completed"}
               <CircleCheck

@@ -83,21 +83,26 @@ test("moving a tool policy removes the other contribution without touching other
 test("mixed tool policies display once with all values, avoiding dropped recommendations on edit", () => {
   const profile = profileDefinitionSchema.parse({
     ...base,
-    recommendations: { tools: { web_search: { enabled: true } } },
-    requirements: { tools: { web_search: { profileId: "account" } } },
+    recommendations: { tools: { python_exec: { enabled: true } } },
+    requirements: {
+      tools: { python_exec: { settings: { interpreterPath: "/py" } } },
+    },
   });
-  const rows = changeRows(profile).filter((r) => r.key === "tool:web_search");
+  const rows = changeRows(profile).filter((r) => r.key === "tool:python_exec");
   assert.equal(rows.length, 1);
   assert.equal(rows[0]!.mixed, true);
-  assert.deepEqual(rows[0]!.value, { enabled: true, profileId: "account" });
+  assert.deepEqual(rows[0]!.value, {
+    enabled: true,
+    settings: { interpreterPath: "/py" },
+  });
   const next = applyProfileChange(profile, {
     key: rows[0]!.key,
     mode: "recommend",
     value: rows[0]!.value,
   });
-  assert.deepEqual(next.recommendations?.tools?.web_search, {
+  assert.deepEqual(next.recommendations?.tools?.python_exec, {
     enabled: true,
-    profileId: "account",
+    settings: { interpreterPath: "/py" },
   });
 });
 test("child definitions use the same real recommendations/requirements schema and editable instructions", () => {

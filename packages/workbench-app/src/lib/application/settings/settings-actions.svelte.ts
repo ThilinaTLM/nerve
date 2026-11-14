@@ -30,7 +30,10 @@ import {
 } from "$lib/application/workspace/center-tabs.svelte";
 import { selection } from "$lib/application/workspace/selection.svelte";
 import { selectProject } from "$lib/application/workspace/workspace-actions.svelte";
-import { resolveSettingsPageId } from "$lib/features/settings/registry/settings-pages";
+import {
+  resolveSettingsPageId,
+  resolveSettingsTarget,
+} from "$lib/features/settings/registry/settings-pages";
 import { workspaceState } from "$lib/application/workspace/workspace-state.svelte";
 export type SettingsSaveOptions = {
   immediate?: boolean;
@@ -46,36 +49,62 @@ let coreSettingsLoadInFlight: Promise<void> | undefined;
 let settingsLoadInFlight: Promise<void> | undefined;
 let settingsReloadRequested = false;
 
-function targetSettingsPage(pageId?: string, sectionId?: string) {
-  if (pageId)
-    settingsState.activePageId = resolveSettingsPageId("user", pageId);
-  if (sectionId) settingsState.activeSectionId = sectionId;
+/** Where to land inside a page: a detail item and/or an anchored section. */
+export type SettingsPaneOptions = { item?: string; section?: string };
+
+function targetSettingsPage(
+  pageId?: string,
+  options: SettingsPaneOptions = {},
+) {
+  const target = resolveSettingsTarget("user", {
+    pageId,
+    item: options.item,
+    section: options.section,
+  });
+  if (target.pageId) {
+    settingsState.activePageId = target.pageId;
+    settingsState.activeItemId = target.item ?? "";
+  }
+  if (target.section) settingsState.activeSectionId = target.section;
 }
 
 /** Opens (or focuses) one project's settings tab, in that project's session. */
 export async function openProjectSettingsPane(
   projectId: string,
   pageId?: string,
-  sectionId?: string,
+  options: SettingsPaneOptions = {},
 ) {
   if (!workspaceState.projects.some((project) => project.id === projectId))
     return;
   await selectProject(projectId, { deferTabActivation: true });
   const view = settingsState.projectViews[projectId];
-  settingsState.projectViews[projectId] = {
-    pageId: pageId
-      ? resolveSettingsPageId("project", pageId)
-      : (view?.pageId ?? resolveSettingsPageId("project", undefined)),
-    sectionId: sectionId ?? (pageId ? "" : (view?.sectionId ?? "")),
-  };
+  const target = resolveSettingsTarget("project", {
+    pageId,
+    item: options.item,
+    section: options.section,
+  });
+  settingsState.projectViews[projectId] = target.pageId
+    ? {
+        pageId: target.pageId,
+        sectionId: target.section ?? "",
+        itemId: target.item ?? "",
+      }
+    : {
+        pageId: view?.pageId ?? resolveSettingsPageId("project", undefined),
+        sectionId: target.section ?? view?.sectionId ?? "",
+        itemId: view?.itemId ?? "",
+      };
   const tab = { kind: "project-settings" as const, id: projectId };
   addCenterTab(tab);
   setActiveCenterTab(tab);
   await loadSettingsPanel();
 }
 
-export async function openSettingsPane(pageId?: string, sectionId?: string) {
-  targetSettingsPage(pageId, sectionId);
+export async function openSettingsPane(
+  pageId?: string,
+  options: SettingsPaneOptions = {},
+) {
+  targetSettingsPage(pageId, options);
   addCenterTab({ kind: "settings", id: "settings" });
   setActiveCenterTab({ kind: "settings", id: "settings" });
   await loadSettingsPanel();
@@ -83,9 +112,9 @@ export async function openSettingsPane(pageId?: string, sectionId?: string) {
 
 export async function selectCenterSettingsTab(
   pageId?: string,
-  sectionId?: string,
+  options: SettingsPaneOptions = {},
 ) {
-  targetSettingsPage(pageId, sectionId);
+  targetSettingsPage(pageId, options);
   addCenterTab({ kind: "settings", id: "settings" });
   setActiveCenterTab({ kind: "settings", id: "settings" });
   if (!settingsState.settingsDraft) await loadSettingsPanel();

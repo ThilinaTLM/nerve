@@ -17,6 +17,9 @@
       "path": "./packages/tools"
     },
     {
+      "path": "./packages/quick-script"
+    },
+    {
       "path": "./packages/workbench-server"
     },
     {

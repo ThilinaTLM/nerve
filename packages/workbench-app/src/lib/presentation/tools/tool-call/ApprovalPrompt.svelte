@@ -96,7 +96,14 @@ function riskTone(risk: string | undefined): StatusTone {
 }
 
 function reviewedRuleLabel(): string {
-  const rule = approval.suggestedRules[0];
+  const rules = approval.suggestedRules;
+  // quick_script: one rule per operation.
+  if (
+    rules.length > 0 &&
+    rules.every((rule) => rule.when.toolNames?.[0] === "quick_script")
+  )
+    return rules.map((rule) => rule.description ?? rule.id).join("; ");
+  const rule = rules[0];
   if (rule) {
     const tool = rule.when.toolNames?.join(", ") ?? "matching tools";
     const primary = rule.when.primaryArgument;
