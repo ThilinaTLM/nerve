@@ -636,6 +636,8 @@ function suggestPermissionRules(
   request: NormalizedPermissionRequest,
   risk: StaticToolRisk,
 ): PermissionRule[] {
+  // A script's primary argument is its whole text; operation rules, built from the scan, are suggested instead.
+  if (request.toolName === "quick_script" && !request.operation) return [];
   const primary = comparable(request.primaryArgument);
   const onlyTarget =
     request.targets.length === 1 ? request.targets[0] : undefined;

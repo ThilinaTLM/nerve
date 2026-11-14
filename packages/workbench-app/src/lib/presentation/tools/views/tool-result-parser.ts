@@ -278,6 +278,10 @@ export function parseToolView(
           ? details.data.outputTruncated
           : undefined,
         hostCalls: details.success ? details.data.hostCalls : [],
+        plannedOperations:
+          ("supervision" in toolCall
+            ? toolCall.supervision?.operations
+            : undefined) ?? [],
         pages: details.success ? (details.data.pages ?? []) : [],
         artifacts: details.success ? (details.data.artifacts ?? []) : [],
         created: details.success ? (details.data.created ?? []) : [],

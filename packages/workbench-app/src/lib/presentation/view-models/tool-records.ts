@@ -1,4 +1,5 @@
 /** Presentation-owned tool records shapes. No runtime schemas. */
+import type { QuickScriptOperation } from "@nervekit/contracts/tools";
 import type {
   ToolCallInteraction,
   ToolPermissionEvaluation,
@@ -70,6 +71,8 @@ export type ToolCallRecord = {
         decision: "allow" | "approval" | "deny";
         reason?: string | undefined;
         effectiveRisk?: ToolRisk | undefined;
+        /** quick_script: operations the admission scan found, with normalized targets. */
+        operations?: QuickScriptOperation[] | undefined;
       }
     | undefined;
   /** Open call is still being checked by the supervisor (status stays committed). */

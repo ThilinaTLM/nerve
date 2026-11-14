@@ -5,6 +5,7 @@ import {
 } from "../agent-configuration/agent-configuration-operations.js";
 import { agentMutationSchema } from "../agent-configuration/resolver.js";
 import { toolRiskSchema } from "../permissions/permissions.js";
+import { quickScriptOperationSchema } from "../tools/quick-script.js";
 import {
   configurationDiagnosticSchema,
   sha256HexSchema,
@@ -70,6 +71,8 @@ export const supervisionSchema = z.strictObject({
   effectiveRisk: toolRiskSchema.optional(),
   matchedRule: z.json().optional(),
   suggestedRules: z.array(z.json()),
+  /** quick_script: the operations the admission scan found, with normalized targets. */
+  operations: z.array(quickScriptOperationSchema).optional(),
   authority: z.json(),
 });
 export const userInputAnswerSchema = z.object({

@@ -320,6 +320,7 @@ function buildToolRecord(
           decision: p.supervision.decision,
           reason: p.supervision.reason,
           effectiveRisk: p.supervision.effectiveRisk,
+          operations: p.supervision.operations,
         }
       : undefined,
     supervising: open && source.state === "supervising" ? true : undefined,

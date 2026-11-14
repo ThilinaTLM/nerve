@@ -9,6 +9,7 @@ import {
   composeEffectivePermissionPolicy,
   evaluatePermissionRequest,
   normalizeOperationRequest,
+  suggestOperationRules,
   operationBaseRisk,
 } from "../../src/policy/index.js";
 
@@ -111,5 +112,19 @@ void test("operations never get the write base risk, and the namespace is the to
       policy: planning,
     }).decision,
     "allow",
+  );
+});
+
+void test("a multi-target operation suggests one brace pattern over its targets", () => {
+  const [rule] = suggestOperationRules([
+    {
+      operation: "jira.issues.link",
+      risk: "external_write",
+      targets: ["jira:issue/A-2", "jira:issue/A-1"],
+    },
+  ]);
+  assert.equal(
+    rule!.when.targets!.matcher.pattern,
+    "{jira:issue/A-1,jira:issue/A-2}",
   );
 });

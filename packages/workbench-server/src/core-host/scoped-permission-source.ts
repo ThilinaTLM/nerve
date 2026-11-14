@@ -18,6 +18,7 @@ import {
 import { toolNameSchema } from "@nervekit/contracts/tools";
 import {
   composeEffectivePermissionPolicy,
+  composeScriptAdmission,
   evaluatePermissionRequest,
   normalizeOperationRequest,
   normalizePermissionRequest,
@@ -25,7 +26,10 @@ import {
   type OperationRisk,
 } from "@nervekit/tools/policy";
 import { classifyToolRisk } from "@nervekit/tools/catalog";
-import { classifyQuickScriptArguments } from "@nervekit/quick-script";
+import {
+  classifyQuickScriptArguments,
+  summarizeScannedCalls,
+} from "@nervekit/quick-script";
 import type { AgentConfigurationService } from "../infrastructure/configuration/agent-configuration/agent-configuration-service.js";
 import {
   canonicalDigest,
@@ -353,10 +357,24 @@ export function createScopedPermissionSource(options: {
                 const request = normalized.get(actual);
                 if (!request)
                   throw new Error("Permission request was not prepared");
-                const evaluated = evaluatePermissionRequest({
-                  policy,
-                  request,
-                });
+                const scanned =
+                  actual.toolName === "quick_script" && !request.operation
+                    ? classifyQuickScriptArguments(request.args)
+                    : undefined;
+                const script = evaluatePermissionRequest({ policy, request });
+                // A complete scan lets operation rules decide the script.
+                const evaluated =
+                  scanned?.admissible === true
+                    ? composeScriptAdmission({
+                        script,
+                        calls: scanned.calls,
+                        policy,
+                        conversationId: request.conversationId,
+                        ...(request.projectId === undefined
+                          ? {}
+                          : { projectId: request.projectId }),
+                      }).result
+                    : script;
                 return supervisionSchema.parse({
                   decision:
                     evaluated.decision === "prompt"
@@ -371,6 +389,9 @@ export function createScopedPermissionSource(options: {
                     evaluated.decision !== "allow"
                       ? withScriptOperations(evaluated.reason, request.args)
                       : evaluated.reason,
+                  ...(scanned && scanned.calls.length > 0
+                    ? { operations: summarizeScannedCalls(scanned.calls) }
+                    : {}),
                   matchedRule: evaluated.winningRule,
                   suggestedRules: evaluated.suggestedRules,
                   authority: {

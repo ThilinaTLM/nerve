@@ -1,6 +1,7 @@
 import type {
   QuickScriptArtifact,
   QuickScriptHostCall,
+  QuickScriptOperation,
   QuickScriptPageReport,
   ConfluenceAttachmentSummaryPayload,
   ConfluenceCommentSummaryPayload,
@@ -160,6 +161,8 @@ export type ToolView =
       durationMs?: number;
       outputTruncated?: boolean;
       hostCalls: QuickScriptHostCall[];
+      /** Operations the admission scan found, shown before the script runs and when it never ran. */
+      plannedOperations: QuickScriptOperation[];
       /** Confluence pages the run wrote, with the linter's report. */
       pages: QuickScriptPageReport[];
       /** Files the run wrote to the conversation artifact folder. */

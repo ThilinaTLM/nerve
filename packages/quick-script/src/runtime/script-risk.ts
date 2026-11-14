@@ -1,9 +1,14 @@
 import type { ToolRisk } from "@nervekit/contracts/permissions";
-import { type ToolName, toolNameSchema } from "@nervekit/contracts/tools";
+import {
+  type QuickScriptOperation,
+  type ToolName,
+  toolNameSchema,
+} from "@nervekit/contracts/tools";
 import { classifyToolRisk } from "@nervekit/tools/catalog";
-import { findSdkMethod } from "./sdk.js";
+import { createSdkEnvironment, findSdkMethod } from "./sdk.js";
 import {
   isOperationCheck,
+  type NestedAuthorization,
   type MethodRisk,
   type NestedCheck,
 } from "./sdk-types.js";
@@ -30,11 +35,52 @@ const RANK: Record<QuickScriptRisk, number> = {
   destructive: 3,
 };
 
+/** One SDK call the scan found that policy checks as an operation. */
+export type ScannedCall = {
+  /** `<namespace>.<path>`, e.g. `jira.comments.add`. */
+  operation: string;
+  /** The call's own risk: the method's, or for raw requests GET `network` and anything else `destructive`. */
+  risk: MethodRisk;
+  /** Normalized resources (`jira:issue/SCRUM-1`); undefined when the arguments are not literal, so they are known only when the call runs. */
+  targets: string[] | undefined;
+};
+
 export type QuickScriptClassification = {
   risk: QuickScriptRisk;
   /** Human-readable operations found, e.g. `confluence.pages.update ×2 (98506)`. */
   operations: string[];
+  /** The operation calls found, with normalized targets, for operation rules. */
+  calls: ScannedCall[];
+  /**
+   * Every call with an effect is one of `calls`: nothing unanalysable (aliasing,
+   * `eval`, a computed request method) and nothing checked as a direct tool
+   * (`web.*`, workspace `files.*`, `image`). Only then may operation rules admit
+   * the script.
+   */
+  admissible: boolean;
 };
+
+/** The operations of a scan for display: one entry per operation, targets merged. */
+export function summarizeScannedCalls(
+  calls: readonly ScannedCall[],
+): QuickScriptOperation[] {
+  const byOperation = new Map<string, QuickScriptOperation>();
+  for (const call of calls) {
+    const entry = byOperation.get(call.operation) ?? {
+      operation: call.operation,
+      targets: [],
+      targetsKnown: true,
+      count: 0,
+    };
+    entry.count += 1;
+    if (call.targets === undefined) entry.targetsKnown = false;
+    else
+      for (const target of call.targets)
+        if (!entry.targets.includes(target)) entry.targets.push(target);
+    byOperation.set(call.operation, entry);
+  }
+  return [...byOperation.values()];
+}
 
 export function quickScriptRiskWithin(
   risk: QuickScriptRisk,
@@ -448,6 +494,9 @@ function objectProperties(
     });
 }
 
+/** Namespaces whose calls are checked as direct tools (`web_fetch`, `read` / `write` / `edit`), not as operations. */
+const DIRECT_PRODUCTS = new Set(["web", "files", "image"]);
+
 /** `files.write` writes outside the artifact folder only with `workspace: true`; anything that might set it counts. */
 function writesWorkspace(args: Token[][]): boolean {
   const options = args[2];
@@ -470,6 +519,101 @@ function editsWorkspace(args: Token[][]): boolean {
   return !literal(args[0])?.startsWith("artifact:");
 }
 
+const NOT_LITERAL = Symbol("not literal");
+
+/** The value of a literal expression (strings, numbers, booleans, null, arrays and plain objects of those), or NOT_LITERAL. */
+function literalValue(tokens: Token[]): unknown {
+  let at = 0;
+  const parse = (): unknown => {
+    const token = tokens[at];
+    if (!token) return NOT_LITERAL;
+    if (token.kind === "str") {
+      at += 1;
+      return token.text;
+    }
+    if (token.kind === "num" && /^\d+(\.\d+)?$/.test(token.text)) {
+      at += 1;
+      return Number(token.text);
+    }
+    if (token.kind === "id" && ["true", "false", "null"].includes(token.text)) {
+      at += 1;
+      return token.text === "null" ? null : token.text === "true";
+    }
+    if (token.text === "[" && token.kind === "punct") {
+      at += 1;
+      const items: unknown[] = [];
+      while (tokens[at]?.text !== "]") {
+        const item = parse();
+        if (item === NOT_LITERAL) return NOT_LITERAL;
+        items.push(item);
+        if (tokens[at]?.text === ",") at += 1;
+        else if (tokens[at]?.text !== "]") return NOT_LITERAL;
+      }
+      at += 1;
+      return items;
+    }
+    if (token.text === "{" && token.kind === "punct") {
+      at += 1;
+      const object: Record<string, unknown> = {};
+      while (tokens[at]?.text !== "}") {
+        const key = tokens[at];
+        if (
+          !key ||
+          (key.kind !== "id" && key.kind !== "str") ||
+          tokens[at + 1]?.text !== ":" ||
+          key.text === "__proto__"
+        )
+          return NOT_LITERAL;
+        at += 2;
+        const value = parse();
+        if (value === NOT_LITERAL) return NOT_LITERAL;
+        object[key.text] = value;
+        if (tokens[at]?.text === ",") at += 1;
+        else if (tokens[at]?.text !== "}") return NOT_LITERAL;
+      }
+      at += 1;
+      return object;
+    }
+    return NOT_LITERAL;
+  };
+  const value = parse();
+  return at === tokens.length ? value : NOT_LITERAL;
+}
+
+let scanEnvironment: ReturnType<typeof createSdkEnvironment> | undefined;
+
+/**
+ * The operation checks of a call with literal arguments, from the method's own
+ * `authorize`, so targets are normalized exactly as at run time. Undefined when
+ * an argument is not literal or the method rejects the arguments.
+ */
+function literalChecks(
+  method: NonNullable<ReturnType<typeof findSdkMethod>>,
+  args: Token[][],
+): ScannedCall[] | undefined {
+  const values = args.map(literalValue);
+  if (values.includes(NOT_LITERAL)) return undefined;
+  try {
+    scanEnvironment ??= createSdkEnvironment({ cwd: process.cwd() });
+    const prepared = method.prepare(values, scanEnvironment);
+    return [
+      prepared.authorization,
+      ...(prepared.additionalAuthorizations ?? []),
+    ]
+      .filter(
+        (check): check is NestedAuthorization =>
+          check !== undefined && isOperationCheck(check),
+      )
+      .map((check) => ({
+        operation: check.operation,
+        risk: check.risk,
+        targets: check.targets.map((target) => target.value),
+      }));
+  } catch {
+    return undefined;
+  }
+}
+
 type Found = { risk: QuickScriptRisk; targets: string[] };
 
 /**
@@ -489,19 +633,32 @@ export function classifyQuickScriptScript(
   if (JSON.stringify(division) === JSON.stringify(regex)) return first;
   // The readings disagree: report the riskier, and every operation either found.
   const second = classifyTokens(regex);
+  const seen = new Set<string>();
   return {
     risk: higherRisk(first.risk, second.risk),
     operations: [...new Set([...first.operations, ...second.operations])],
+    calls: [...first.calls, ...second.calls].filter((call) => {
+      const key = JSON.stringify(call);
+      return seen.has(key) ? false : (seen.add(key), true);
+    }),
+    admissible: first.admissible && second.admissible,
   };
 }
 
 function classifyTokens(tokens: Token[]): QuickScriptClassification {
   const found = new Map<string, Found[]>();
+  const scanned: ScannedCall[] = [];
+  let admissible = true;
   const record = (
     name: string,
     risk: QuickScriptRisk,
     targets: string[] = [],
-  ) => found.set(name, [...(found.get(name) ?? []), { risk, targets }]);
+    /** `operation`: policy checks it as an operation (listed in `calls`); `none`: no check; otherwise the scan cannot hand it to operation rules. */
+    check: "operation" | "none" | "other" = "other",
+  ) => {
+    found.set(name, [...(found.get(name) ?? []), { risk, targets }]);
+    if (check === "other") admissible = false;
+  };
 
   for (let i = 0; i < tokens.length; i += 1) {
     const token = tokens[i];
@@ -573,15 +730,38 @@ function classifyTokens(tokens: Token[]): QuickScriptClassification {
       } else {
         const verb = literal(args[0])?.toUpperCase();
         const path = literal(args[1]);
-        if (verb === "GET")
-          record(`${name} GET`, "network", path ? [path] : []);
-        else if (verb)
-          record(`${name} ${verb}`, "destructive", path ? [path] : []);
-        else record(`${name} (computed method)`, "destructive");
+        if (verb) {
+          const get = verb === "GET";
+          record(
+            `${name} ${verb}`,
+            get ? "network" : "destructive",
+            path ? [path] : [],
+            "operation",
+          );
+          scanned.push({
+            operation: name,
+            risk: get ? "network" : "destructive",
+            targets:
+              path === undefined
+                ? undefined
+                : [`${method.product}:request/${verb} ${path}`],
+          });
+        } else record(`${name} (computed method)`, "destructive");
       }
       continue;
     }
-    record(name, quickScriptRiskOfMethod(method.risk), targets);
+    const methodRisk = quickScriptRiskOfMethod(method.risk);
+    if (method.risk === "none") record(name, methodRisk, targets, "none");
+    else if (DIRECT_PRODUCTS.has(method.product))
+      record(name, methodRisk, targets);
+    else {
+      record(name, methodRisk, targets, "operation");
+      scanned.push(
+        ...(literalChecks(method, args) ?? [
+          { operation: name, risk: method.risk, targets: undefined },
+        ]),
+      );
+    }
   }
 
   let risk: QuickScriptRisk = "read";
@@ -593,7 +773,7 @@ function classifyTokens(tokens: Token[]): QuickScriptClassification {
       `${name}${calls.length > 1 ? ` ×${calls.length}` : ""}${targets.length > 0 ? ` (${targets.join(", ")})` : ""}`,
     );
   }
-  return { risk, operations };
+  return { risk, operations, calls: scanned, admissible };
 }
 
 /** Classifies the arguments of an `quick_script` call. */
@@ -602,5 +782,5 @@ export function classifyQuickScriptArguments(
 ): QuickScriptClassification {
   return typeof args.code === "string"
     ? classifyQuickScriptScript(args.code)
-    : { risk: "destructive", operations: [] };
+    : { risk: "destructive", operations: [], calls: [], admissible: false };
 }
