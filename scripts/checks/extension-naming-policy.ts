@@ -19,67 +19,15 @@ export const EXTENSION_NAMING_EXCEPTIONS: ReadonlyMap<string, string> = new Map(
       "the planning rule set is product policy: a quick_script operation's tool group is its namespace, and planning allows network reads in the Atlassian namespaces only (not diagram or image generation). Extensions do not declare read-only research namespaces",
     ],
     [
+      "packages/workbench-server/src/core-host/project-permission-migrations.ts",
+      "migrates project permission files that name the retired direct tools (an old migration; its notice names the tools it converted)",
+    ],
+    [
       "packages/conversation-core/src/conversations/conversation-title.ts",
       "titles a conversation from a pasted ticket URL; `/browse/KEY-1` and `/jira/browse/…` are URL shapes of any tracker",
     ],
   ],
 );
-
-/** Pending removal: generic replacements are owned by the app/contracts streams of the extension platform (README decision 3). */
-export const EXTENSION_NAMING_PENDING: ReadonlyMap<string, string> = new Map([
-  [
-    "packages/contracts/src/domains/permissions/permissions.ts",
-    "error message example (`jira.issues.*`)",
-  ],
-  [
-    "packages/extension-api/src/types.ts",
-    "`ImagegenBackend` type name (rename to `ImageBackend`)",
-  ],
-  [
-    "packages/workbench-server/src/domains/image-generation/image-generation.provider.ts",
-    "uses `ImagegenBackend`",
-  ],
-  [
-    "packages/workbench-server/src/domains/image-generation/image-generation.service.ts",
-    "uses `ImagegenBackend`",
-  ],
-  [
-    "packages/workbench-server/src/domains/image-generation/providers/openai-codex-image-generation.provider.ts",
-    "uses `ImagegenBackend`",
-  ],
-  [
-    "packages/workbench-server/src/core-host/project-permission-migrations.ts",
-    "migration message for the removed direct tools",
-  ],
-  [
-    "packages/workbench-app/src/lib/app/design-lab/sections/SettingsSection.svelte",
-    "design-lab fixtures",
-  ],
-  [
-    "packages/workbench-app/src/lib/app/design-lab/sections/ToolCardsSection.svelte",
-    "design-lab fixtures",
-  ],
-  [
-    "packages/workbench-app/src/lib/app/design-lab/sections/tool-card-view-fixtures.ts",
-    "design-lab fixtures",
-  ],
-  [
-    "packages/workbench-app/src/lib/features/settings/registry/settings-page-data.ts",
-    "redirects of retired Integrations settings sections",
-  ],
-  [
-    "packages/workbench-app/src/lib/features/settings/views/pages/extensions/extensions-view.ts",
-    "`HELPER_NAMESPACES` (derive from the namespace's `helper` flag)",
-  ],
-  [
-    "packages/workbench-app/src/lib/features/settings/views/pages/tools/tool-settings.ts",
-    "description text naming Jira and Confluence",
-  ],
-  [
-    "packages/workbench-app/src/lib/presentation/tools/lifecycle/core-specs.ts",
-    "description text naming Jira and Confluence",
-  ],
-]);
 
 const SCANNED = /^packages\/[^/]+\/src\/.*\.(?:ts|svelte|json|js|mjs)$/;
 const OUT_OF_SCOPE =
@@ -90,11 +38,7 @@ export function extensionNamingViolations(
   text: string,
 ): string[] {
   if (!SCANNED.test(file) || OUT_OF_SCOPE.test(file)) return [];
-  if (
-    EXTENSION_NAMING_EXCEPTIONS.has(file) ||
-    EXTENSION_NAMING_PENDING.has(file)
-  )
-    return [];
+  if (EXTENSION_NAMING_EXCEPTIONS.has(file)) return [];
   const violations: string[] = [];
   text.split("\n").forEach((line, index) => {
     const trimmed = line.trim();

@@ -134,6 +134,8 @@ export type SdkMethod = {
   path: string;
   /** Upper bound of the method's effect; the script scanner and the runtime ceiling start from it. */
   risk: MethodRisk;
+  /** The risk depends on argument values; the scanner needs literal arguments to decide it (see `MethodDefinition.riskFromArgs`). */
+  riskFromArgs?: boolean;
   /** TypeScript method declaration, optionally led by a one-line JSDoc comment; generates the declarations `sdk.describe` serves (sdk-dts.ts). */
   signature: string;
   /**

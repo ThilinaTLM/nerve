@@ -88,6 +88,7 @@ function toSdkMethod(
     product: namespace.id,
     path,
     risk: method.risk,
+    ...(method.riskFromArgs ? { riskFromArgs: true } : {}),
     signature: method.signature,
     prepare(args, env): PreparedCall {
       assertNamespaceAvailable(namespace.id, env);

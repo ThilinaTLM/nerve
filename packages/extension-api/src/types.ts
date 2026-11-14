@@ -249,11 +249,11 @@ export type HttpResponse = {
 export type ReportEntry = string;
 
 /** Image generation backends the host can run; a member of the Image generation extension's `backend` setting. */
-export type ImagegenBackend = "openai-codex";
+export type ImageBackend = "openai-codex";
 
 /** Image generation the host provides when the manifest declares `models.image`: every option is final (call overrides applied). */
 export type ImageOptions = {
-  backend: ImagegenBackend;
+  backend: ImageBackend;
   model: string;
   quality: string;
   size: string;
@@ -399,6 +399,13 @@ export type MethodDefinition<
   Output = unknown,
 > = {
   risk: Risk;
+  /**
+   * The risk depends on argument values (a raw request: `GET` reads, anything else writes), so
+   * `authorize` returns the call's own risk (never above `risk`). The script scanner needs literal
+   * arguments to decide it; a call whose arguments it cannot read counts as destructive and is
+   * not handed to operation rules.
+   */
+  riskFromArgs?: boolean;
   /** TypeScript method declaration, optionally led by a one-line JSDoc comment; generates what `sdk.describe` serves. */
   signature: string;
   /** Validates the script's positional arguments; throws on bad input. Synchronous and pure. */
@@ -443,7 +450,7 @@ export type NamespaceDefinition<Session = unknown> = {
   /** Boolean setting of the extension that switches this namespace, or several (any one enables it). Absent: it follows the extension. */
   enabledBy?: string | readonly string[];
   requires?: Requires;
-  /** Marks sandbox-side helper namespaces (no account, no host methods). */
+  /** A supporting namespace (`storage` builders, a site `defaults()`): usable by scripts, not listed to the user. */
   helper?: boolean;
   /** One line in the `quick_script` description. */
   summary: string;

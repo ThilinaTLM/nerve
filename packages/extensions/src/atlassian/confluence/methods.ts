@@ -280,6 +280,7 @@ export const confluenceMethods: PathedMethod<ConfluenceSession>[] = [
     product: "confluence",
     path: "request",
     risk: "destructive",
+    riskFromArgs: true,
     maxArgs: 4,
     signature:
       '/** Path under /wiki/api/v2/ or /wiki/rest/api/; binary returns a FileHandle. Page bodies: use pages.create/update. */ request(method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE", path: string, body?: unknown, query?: Record<string, string | number | boolean | string[]>): Promise<unknown>',

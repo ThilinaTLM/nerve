@@ -20,6 +20,8 @@ type MethodBody<P, S> = {
   /** Dotted path under the namespace, e.g. `issues.search`. */
   path: string;
   risk: Risk;
+  /** The risk depends on argument values (raw requests); see `MethodDefinition.riskFromArgs`. */
+  riskFromArgs?: boolean;
   signature: string;
   authorize?(parsed: P): Authorization | undefined;
   /** Further checks (a workspace file the method reads); all must pass. */
@@ -80,6 +82,7 @@ function build<P, S>(
     path: definition.path,
     definition: method<P, unknown, S>({
       risk: definition.risk,
+      ...(definition.riskFromArgs ? { riskFromArgs: true } : {}),
       signature: definition.signature,
       parse,
       authorize: authorizations,

@@ -190,7 +190,7 @@ const thirdPartyTools = [
     on: false,
   },
   {
-    id: "imagegen",
+    id: "images",
     title: "Image generation",
     description: "Generate images through the provider configured in Settings.",
     on: false,
@@ -204,7 +204,7 @@ let toolState = $state<Record<string, boolean>>({
   todos: true,
   web: true,
   vision: false,
-  imagegen: false,
+  images: false,
 });
 let activePageId = $state("workbench");
 let activeSectionId = $state("appearance");
@@ -540,7 +540,7 @@ let headerStyle = $state("auto");
         <SettingsItem
           icon={KeyRoundIcon}
           title="acme-cloud"
-          summary="acme.atlassian.net · used by you and 2 projects"
+          summary="acme.example.com · used by you and 2 projects"
           onOpen={() => {}}
         >
           {#snippet actions()}

@@ -78,6 +78,7 @@ export const atlassianExtension = defineExtension({
   namespaces: [
     defineNamespace<AtlassianSession>({
       id: "atlassian",
+      helper: true,
       session: (ctx) => AtlassianSession.create(ctx),
       enabledBy: ["jira", "confluence"],
       requires: { account: "account" },

@@ -167,7 +167,7 @@ export const extensionMetadataSchema = z.strictObject({
         enabledBy: z.union([z.string(), z.array(z.string())]).optional(),
         /** Account setting that must select an account with a saved secret. */
         requiresAccount: z.string().optional(),
-        /** Sandbox-side helper namespace without host methods. */
+        /** Supporting namespace, not listed to the user. */
         helper: z.boolean().optional(),
         summary: z.string(),
       }),

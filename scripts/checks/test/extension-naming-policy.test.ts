@@ -2,7 +2,6 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   EXTENSION_NAMING_EXCEPTIONS,
-  EXTENSION_NAMING_PENDING,
   extensionNamingViolations,
 } from "../extension-naming-policy.ts";
 
@@ -44,9 +43,6 @@ test("generic image generation names are not extension names", () => {
 });
 
 test("every reviewed leftover has a reason", () => {
-  for (const reason of [
-    ...EXTENSION_NAMING_EXCEPTIONS.values(),
-    ...EXTENSION_NAMING_PENDING.values(),
-  ])
+  for (const reason of EXTENSION_NAMING_EXCEPTIONS.values())
     assert.ok(reason.length > 5);
 });

@@ -738,6 +738,10 @@ function classifyTokens(
     else {
       // Literal arguments: the method's own authorization decides the risk (a raw request is a network read for GET, destructive otherwise).
       const checks = literalChecks(method, args, registry);
+      if (method.riskFromArgs && !checks) {
+        record(`${name} (computed method)`, "destructive");
+        continue;
+      }
       const decided = checks?.reduce<QuickScriptRisk | undefined>(
         (highest, check) =>
           highest === undefined

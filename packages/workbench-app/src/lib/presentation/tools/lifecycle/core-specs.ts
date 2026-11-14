@@ -369,7 +369,7 @@ function quickScriptPresentation(
       label: "Script",
     }),
     safetyNotes: [
-      "Runs a sandboxed script that calls extension SDKs (Jira, Confluence, web, diagrams, images); each SDK call is checked against the permission policy.",
+      "Runs a sandboxed script that calls the enabled extensions' SDKs; each SDK call is checked against the permission policy.",
     ],
   });
 }

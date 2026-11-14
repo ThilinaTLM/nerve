@@ -49,7 +49,7 @@ export const toolRows: readonly ToolRowDef[] = [
     id: "quick_script",
     label: "Quick script",
     description:
-      "Run short TypeScript scripts that call the enabled extensions (Jira, Confluence, web, diagrams, images) and document utilities.",
+      "Run short TypeScript scripts that call the enabled extensions and document utilities.",
     configurable: false,
   },
   {

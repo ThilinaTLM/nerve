@@ -7,12 +7,12 @@
 import type {
   ExtensionContext,
   ImageBackendRequest,
-  ImagegenBackend,
+  ImageBackend,
 } from "@nervekit/extension-api";
 
 /** The resolved settings of the extension. */
 export type ImagegenSettings = {
-  backend: ImagegenBackend;
+  backend: ImageBackend;
   model: string;
   quality: string;
   size: string;
@@ -21,7 +21,7 @@ export type ImagegenSettings = {
 
 export const IMAGEGEN_BACKENDS = [
   "openai-codex",
-] as const satisfies readonly ImagegenBackend[];
+] as const satisfies readonly ImageBackend[];
 
 export const OPENAI_CODEX_MODELS = [
   "gpt-image-2.5-flare",
@@ -61,7 +61,7 @@ export function resolveImagegenSettings(raw: unknown): ImagegenSettings {
   const backend = text("backend");
   return {
     backend: (IMAGEGEN_BACKENDS as readonly string[]).includes(backend)
-      ? (backend as ImagegenBackend)
+      ? (backend as ImageBackend)
       : DEFAULT_IMAGEGEN_SETTINGS.backend,
     model: text("model"),
     quality: text("quality"),

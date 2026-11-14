@@ -243,6 +243,7 @@ const readMethods: PathedMethod<JiraSession>[] = [
     product: "jira",
     path: "request",
     risk: "destructive",
+    riskFromArgs: true,
     maxArgs: 4,
     signature:
       '/** Path under /rest/api/3/ or /rest/agile/1.0/. Binary responses return a FileHandle; array query values repeat. */ request(method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE", path: string, body?: unknown, query?: Record<string, string | number | boolean | (string | number)[]>): Promise<unknown>',

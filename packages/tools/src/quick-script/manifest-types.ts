@@ -27,7 +27,7 @@ export type SdkNamespace = {
   enabledBy?: string | string[];
   /** Account setting that must select an existing account with a saved secret for the namespace to be available. */
   requires?: Requires;
-  /** Sandbox-side helper namespace (no host methods of its own). */
+  /** Supporting namespace, not listed to the user. */
   helper?: boolean;
   /** Extra availability check (extension-API namespaces only). */
   availability?: (

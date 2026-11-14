@@ -146,6 +146,17 @@ describe("extension summary and availability", () => {
 
   it("lists active namespaces and finds the first unusable one", () => {
     const off = atlassian({
+      metadata: {
+        ...atlassian().metadata,
+        contributes: {
+          namespaces: [
+            { id: "atlassian", helper: true, summary: "site" },
+            { id: "storage", helper: true, summary: "builders" },
+          ],
+          tools: [],
+          skills: [],
+        },
+      },
       availability: {
         atlassian: { configured: true, available: true },
         jira: { configured: true, available: true },

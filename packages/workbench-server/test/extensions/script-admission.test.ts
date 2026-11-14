@@ -199,14 +199,20 @@ void test("the scan hands operation rules normalized targets, and marks scripts 
       ?.targets,
     undefined,
   );
-  // A computed request method: the operation is known with its declared (destructive) risk, its targets are not.
+  // A raw request with a literal verb is an operation check with the call's own risk.
+  const get = classifyQuickScriptScript(
+    `await jira.request("GET", "/rest/api/3/myself")`,
+    registry,
+  );
+  assert.equal(get.admissible, true);
   assert.deepEqual(
-    classifyQuickScriptScript(`await jira.request(m, "/x")`, registry).calls,
-    [{ operation: "jira.request", risk: "destructive", targets: undefined }],
+    get.calls.map(({ operation, risk }) => ({ operation, risk })),
+    [{ operation: "jira.request", risk: "network" }],
   );
   // Incomplete scans never reach operation rules.
   for (const code of [
     `const f = jira.issues.get; await f("A-1")`,
+    `await jira.request(m, "/x")`,
     `await web.fetch("https://x.test")`,
     `await jira.issues.get("A-1"); eval("1")`,
   ])

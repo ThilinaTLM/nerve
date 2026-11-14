@@ -254,7 +254,7 @@ const searchCases: LabeledCard[] = [
     props: { toolCall: vfx.webFetchFailed, cwd },
   },
   {
-    label: "jira_search_issues (removed tool) — recorded call",
+    label: "acme_search_items (removed tool) — recorded call",
     props: { toolCall: vfx.removedToolCompleted, cwd },
   },
   {
