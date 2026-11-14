@@ -81,7 +81,7 @@ describe("AccountsService", () => {
               id: saved.id,
               name: "Acme",
               fields: {
-                siteUrl: "https://acme.atlassian.net/",
+                siteUrl: "https://acme.atlassian.net",
                 email: "a@acme.test",
               },
             },

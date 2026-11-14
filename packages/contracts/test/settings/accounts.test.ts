@@ -57,7 +57,7 @@ describe("accounts store", () => {
       {
         ok: true,
         name: "Acme",
-        fields: { siteUrl: "https://acme.atlassian.net/" },
+        fields: { siteUrl: "https://acme.atlassian.net" },
       },
     );
     assert.equal(

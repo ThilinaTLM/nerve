@@ -107,8 +107,8 @@ function summary(account: AccountView): string | undefined {
   sectionId="accounts"
   title={`${kind.label}s`}
   addLabel="Add account"
-  emptyTitle={`No ${kind.label.toLowerCase()}s`}
-  emptyDescription={`Add a ${kind.label.toLowerCase()} for this extension to sign in with.`}
+  emptyTitle={`No ${kind.label}s`}
+  emptyDescription="Add an account for this extension to sign in with."
   items={accounts}
   listAriaLabel={`${kind.label}s`}
   itemKey={(account) => account.id}
@@ -175,9 +175,9 @@ function summary(account: AccountView): string | undefined {
 />
 <ConfirmDialog
   open={!!pendingDelete}
-  title={`Delete ${kind.label.toLowerCase()}?`}
+  title="Delete account?"
   description={pendingDelete
-    ? `Delete “${pendingDelete.name}” and its stored ${kind.secret.label.toLowerCase()}? Extensions that use it need another account.`
+    ? `Delete “${pendingDelete.name}” and its stored ${kind.secret.label}? Extensions that use it need another account.`
     : ""}
   confirmLabel="Delete"
   destructive

@@ -15,6 +15,7 @@ import { encryptApiKey } from "$lib/platform/crypto/credential-crypto";
 import SettingsFormField from "../../shared/settings-form-field.svelte";
 import {
   accountFormInputs,
+  helpParts,
   initialAccountForm,
   type AccountFormValues,
   submitAccountForm,
@@ -82,7 +83,7 @@ async function save(): Promise<void> {
 
 <FormDialog
   bind:open
-  title={`${account ? "Edit" : "Add"} ${kind.label.toLowerCase()}`}
+  title={`${account ? "Edit" : "Add"} ${kind.label}`}
   submitLabel="Save account"
   {busy}
   {error}
@@ -135,10 +136,21 @@ async function save(): Promise<void> {
       bind:value={form.secret}
       placeholder={account?.secretConfigured
         ? "Leave blank to keep the current one"
-        : `Paste ${kind.secret.label.toLowerCase()}`}
+        : `Paste the ${kind.secret.label}`}
     />
     {#if kind.secret.help}
-      <p class="text-ui text-muted-foreground">{kind.secret.help}</p>
+      <p class="text-ui text-muted-foreground">
+        {#each helpParts(kind.secret.help) as part, index (index)}
+          {#if part.href}
+            <a
+              class="text-info underline underline-offset-2"
+              href={part.href}
+              target="_blank"
+              rel="noreferrer">{part.text}</a
+            >
+          {:else}{part.text}{/if}
+        {/each}
+      </p>
     {/if}
   </SettingsFormField>
 </FormDialog>

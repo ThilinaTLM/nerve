@@ -89,7 +89,7 @@ export type AccountInputValidation =
 
 /**
  * Checks an account against its kind: the name is required, only the kind's
- * fields are accepted, and blank values are dropped. Normalizes values.
+ * fields are accepted, and blank values are dropped. Normalizes values; URL fields lose a trailing slash.
  */
 export function validateAccountInput(
   kind: AccountKind,
@@ -112,7 +112,12 @@ export function validateAccountInput(
     const checked = validateField(field, value);
     if (!checked.ok)
       return { ok: false, message: `${field.label}: ${checked.message}` };
-    if (checked.value !== "") fields[key] = checked.value;
+    if (checked.value === "") continue;
+    // Account URLs are origins that templates extend (`{siteUrl}/rest/...`).
+    fields[key] =
+      field.type === "string" && field.format === "url"
+        ? String(checked.value).replace(/\/+$/, "")
+        : checked.value;
   }
   return { ok: true, name, fields };
 }

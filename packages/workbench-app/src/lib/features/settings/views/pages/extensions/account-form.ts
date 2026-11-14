@@ -133,3 +133,19 @@ export function accountCanTest(
 ): boolean {
   return kind.test === true && account.secretConfigured;
 }
+
+export type HelpPart = { text: string; href?: string };
+
+/** Splits help text so `http(s)` URLs can render as links; trailing punctuation stays text. */
+export function helpParts(help: string): HelpPart[] {
+  const parts: HelpPart[] = [];
+  let last = 0;
+  for (const match of help.matchAll(/https?:\/\/[^\s<>"]+/g)) {
+    const url = match[0].replace(/[.,;:!?)]+$/, "");
+    if (match.index > last) parts.push({ text: help.slice(last, match.index) });
+    parts.push({ text: url, href: url });
+    last = match.index + url.length;
+  }
+  if (last < help.length) parts.push({ text: help.slice(last) });
+  return parts;
+}
