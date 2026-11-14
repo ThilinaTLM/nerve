@@ -14,7 +14,10 @@ import { visionToolDefinitions } from "./definitions/core/vision.tools.js";
 import { planPresentToolDefinitions } from "./definitions/orchestration/plan-present.tools.js";
 import { processToolDefinitions } from "./definitions/orchestration/process.tools.js";
 import { agentResultPolicyForTool } from "../result-projection/policies/index.js";
-import { permissionMetadataForTool } from "./permission-metadata.js";
+import {
+  permissionMetadataForTool,
+  registerExtensionToolMetadata,
+} from "./permission-metadata.js";
 import {
   type HostToolDefinition,
   isHostToolDefinition,
@@ -37,7 +40,7 @@ const rawCoreToolDefinitions: readonly ToolDefinition[] = [
 ];
 
 // Live lists: `registerToolDefinitions` appends definitions that live in other
-// packages (`quick_script`, from `@nervekit/quick-script`) before first use.
+// modules (`quick_script`, from `@nervekit/tools/quick-script`) before first use.
 const coreDefinitions: ToolDefinition[] = [];
 const allDefinitions: ToolDefinition[] = [];
 
@@ -125,6 +128,11 @@ export function registerToolDefinitions(
       if (existing.label === definition.label) continue;
       throw new Error(`Duplicate tool definition: ${definition.name}`);
     }
+    if (definition.permissionMetadata)
+      registerExtensionToolMetadata(
+        definition.name,
+        definition.permissionMetadata,
+      );
     const finalized = withAgentResultPolicy(definition);
     addDefinition(finalized);
     coreDefinitions.push(finalized);

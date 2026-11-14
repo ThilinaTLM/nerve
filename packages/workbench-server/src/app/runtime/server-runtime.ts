@@ -8,7 +8,7 @@ import { type MaintenanceExecution } from "../../domains/maintenance/maintenance
 import { join } from "node:path";
 import { builtinModels } from "@earendil-works/pi-ai/providers/all";
 import { registerManagedProvider } from "@nervekit/harness/models";
-import { NerveSkillCatalog } from "@nervekit/skills";
+import { NerveSkillCatalog } from "../../builtin-skills/index.js";
 import { allOperationDefinitions } from "@nervekit/contracts/operations";
 import {
   DEFAULT_RESOURCE_LIMITS,

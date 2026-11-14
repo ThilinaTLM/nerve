@@ -23,7 +23,6 @@ import type { LeadSettingsOverrides } from "@nervekit/contracts/agent-configurat
 import { registerAgentScriptedProvider } from "@nervekit/harness/models";
 import type { BackgroundProcess } from "@nervekit/conversation-core";
 import { createConversationCore } from "../../app/bootstrap/create-conversation-core.js";
-import type { RuntimeDeps } from "../../app/bootstrap/create-runtime-services.js";
 import { WorkbenchNoticePublisher } from "../../infrastructure/events/index.js";
 import {
   initializeHomeConfiguration,
@@ -220,6 +219,12 @@ export async function productionAdmissionFixture(
         events,
         auth: { requestAuthForPiModel: async () => ({ apiKey: "fixture" }) },
         secrets: {},
+        accounts: {
+          get: async () => undefined,
+          list: async () => [],
+          secret: async () => undefined,
+          hasSecret: async () => false,
+        },
         providerCatalog: {
           resolvedModels: () => [],
           resolvedModelsWithCredentials: async () => [],
@@ -227,7 +232,7 @@ export async function productionAdmissionFixture(
         logger: { warn: async () => {} },
         nerveSkills: { skills: [] },
         agentBrowserSkills: { skills: [] },
-      } as unknown as RuntimeDeps,
+      } as unknown as Parameters<typeof createConversationCore>[0],
       { launches, definitions },
       undefined,
       processHost,

@@ -34,17 +34,6 @@ export const quickScriptHostCallSchema = z
   .passthrough();
 export type QuickScriptHostCall = z.infer<typeof quickScriptHostCallSchema>;
 
-/** A Confluence page the script wrote, with the linter's report. */
-export const quickScriptPageReportSchema = z.object({
-  action: z.enum(["created", "updated"]),
-  id: z.string(),
-  title: z.string(),
-  version: z.number().nullable(),
-  fixes: z.array(z.string()),
-  warnings: z.array(z.string()),
-});
-export type QuickScriptPageReport = z.infer<typeof quickScriptPageReportSchema>;
-
 /** A file the script wrote to the conversation's quick-script artifact folder. */
 export const quickScriptArtifactSchema = z.object({
   /** `artifact:<name>`, the handle scripts use. */
@@ -73,9 +62,8 @@ export const quickScriptResultDetailsSchema = z
     memoryUsedBytes: z.number().nonnegative().optional(),
     outputTruncated: z.boolean().optional(),
     hostCalls: z.array(quickScriptHostCallSchema),
-    pages: z.array(quickScriptPageReportSchema).optional(),
     artifacts: z.array(quickScriptArtifactSchema).optional(),
-    /** Entities the run created (`SCRUM-6`, `comment 77 on SCRUM-6`); pages are in `pages`. */
+    /** Entities the run created (`SCRUM-6`, `comment 77 on SCRUM-6`). */
     created: z.array(z.string()).optional(),
   })
   .passthrough();

@@ -1,0 +1,47 @@
+{
+  "name": "@nervekit/extensions",
+  "version": "0.40.2",
+  "private": true,
+  "description": "Built-in quick_script extensions (Atlassian, web, diagram, image generation) and their docs.",
+  "author": "ThilinaTLM",
+  "license": "Apache-2.0",
+  "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ThilinaTLM/nerve.git",
+    "directory": "packages/extensions"
+  },
+  "homepage": "https://github.com/ThilinaTLM/nerve#readme",
+  "files": [
+    "dist/**",
+    "LICENSE",
+    "NOTICE"
+  ],
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./docs": {
+      "types": "./dist/docs-source.d.ts",
+      "import": "./dist/docs-source.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -b && tsx ../../scripts/build/copy-extension-assets.ts",
+    "check": "tsc -b --pretty false",
+    "test": "tsx --test \"src/**/*.test.ts\""
+  },
+  "dependencies": {
+    "@nervekit/extension-api": "workspace:*",
+    "node-html-markdown": "^2.0.0",
+    "typebox": "1.3.7"
+  },
+  "devDependencies": {
+    "@types/node": "24.10.1",
+    "typescript": "5.9.3"
+  },
+  "engines": {
+    "node": ">=24.0.0"
+  }
+}

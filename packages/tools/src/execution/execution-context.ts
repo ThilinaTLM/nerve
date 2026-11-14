@@ -47,7 +47,6 @@ export interface PythonExecutionContext extends BaseExecutionContext {
 }
 export interface WebExecutionContext extends BaseExecutionContext {
   artifactDir?: string;
-  getApiKey?: (provider: string) => Promise<string | undefined>;
   webFetchPolicy?: { allowPrivateNetwork?: boolean };
 }
 export interface VisionExecutionContext extends BaseExecutionContext {
@@ -78,9 +77,6 @@ export interface IntegrationExecutionContext extends BaseExecutionContext {
   /** Absolute managed folder of the conversation; may not exist yet. */
   conversationDir?: string;
   getApiKey?: (provider: string) => Promise<string | undefined>;
-  getProviderConfig?: (provider: string) => Promise<unknown>;
-  /** quick_script `web.*`: `enabled` by Settings; `search` when a Tavily account with a token is selected (its key is `getApiKey("tavily")`). */
-  web?: { enabled: boolean; search: boolean };
   /** quick_script: whether each extension namespace is usable now, with reason and fix; `sdk.list` and `sdk.describe` report it. Absent: every namespace counts as available. */
   namespaces?: QuickScriptAvailability;
   /**

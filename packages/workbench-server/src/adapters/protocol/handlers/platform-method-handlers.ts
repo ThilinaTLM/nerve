@@ -56,11 +56,39 @@ export const platformMethodHandlers: WorkbenchMethodHandlerMapFor<PlatformMethod
         state.providerCatalog.providerDisplayNames(),
       ),
     }),
-    "auth.integrationHealth.list": async (state) => ({
-      profiles: await state.integrationHealth.list(),
+    "accounts.list": async (state) => ({
+      accounts: await state.accounts.views(),
+      kinds: [...state.accounts.kinds()],
     }),
-    "auth.integrationHealth.check": async (state, params) => ({
-      health: await state.integrationHealth.check(params.profileId),
+    "accounts.save": async (state, params) => {
+      const { secret, ...input } = params;
+      // Decrypt first, so a stale key fails before anything is written.
+      const plaintext = secret
+        ? state.credentialKey.decryptEnvelope(secret)
+        : undefined;
+      const saved = await state.accounts.save(input);
+      if (plaintext)
+        await state.accounts.setSecret(saved.kind, saved.id, plaintext);
+      await state.events.publish("accounts.changed", {
+        kind: saved.kind,
+        accountId: saved.id,
+      });
+      return { account: (await state.accounts.view(saved.kind, saved.id))! };
+    },
+    "accounts.delete": async (state, params) => {
+      const deleted = await state.accounts.delete(params.kind, params.id);
+      if (deleted)
+        await state.events.publish("accounts.changed", {
+          kind: params.kind,
+          accountId: params.id,
+        });
+      return { deleted };
+    },
+    "accounts.health.list": async (state) => ({
+      health: await state.integrationHealth.list(),
+    }),
+    "accounts.test": async (state, params) => ({
+      health: await state.integrationHealth.check(params.kind, params.id),
     }),
     "providerCatalog.get": async (state) => {
       await state.providerCatalog.ensureLoaded();

@@ -1,10 +1,7 @@
 import { isSubagentTool } from "@nervekit/contracts/tools";
 import type { ToolUserProjection } from "@nervekit/contracts/core";
 import { AGENT_RESULT_PROFILES } from "../profiles.js";
-import {
-  buildWebFetchTranscriptPreview,
-  buildWebSearchTranscriptPreview,
-} from "./web-tool-transcript-preview.js";
+import { buildWebFetchTranscriptPreview } from "./web-tool-transcript-preview.js";
 import {
   firstLines,
   lastLines,
@@ -646,12 +643,8 @@ export function buildUserProjection(
       break;
     }
 
-    case "web_search":
     case "web_fetch": {
-      const preview =
-        toolName === "web_search"
-          ? buildWebSearchTranscriptPreview(resultRecord)
-          : buildWebFetchTranscriptPreview(resultRecord);
+      const preview = buildWebFetchTranscriptPreview(resultRecord);
       ({ resultPreview, hidden, noun, direction, semanticOverflow } = preview);
       break;
     }

@@ -1,4 +1,5 @@
 <script lang="ts">
+import { accountsState } from "$lib/application/extensions/accounts-state.svelte";
 import { Callout } from "@nervekit/ui-kit/components/composites/callout";
 import { untrack } from "svelte";
 import { resolveAgentConfiguration } from "@nervekit/contracts/agent-configuration";
@@ -20,12 +21,7 @@ import {
   type ProfileDefinition,
   type PreferenceScope,
 } from "@nervekit/contracts/agent-configuration";
-import type {
-  AuthProviderMetadata,
-  AvailableSkill,
-  ModelInfo,
-  Settings,
-} from "$lib/api";
+import type { AuthProviderMetadata, AvailableSkill, ModelInfo } from "$lib/api";
 import { EntityCard } from "$lib/presentation/settings";
 import {
   authenticatedRealModelOptions,
@@ -77,7 +73,6 @@ let {
   kind,
   scope,
   projectId,
-  settingsDraft,
   models = [],
   authProviders = [],
   skills = [],
@@ -86,7 +81,6 @@ let {
   kind: ProfileKind;
   scope: "user" | "project";
   projectId?: string;
-  settingsDraft: Settings;
   models?: ModelInfo[];
   authProviders?: AuthProviderMetadata[];
   skills?: AvailableSkill[];
@@ -183,7 +177,9 @@ const rules = $derived(
     scope === "project" ? projectId : undefined,
   ),
 );
-const accounts = $derived(accountOptions(settingsDraft.providers));
+const accounts = $derived(
+  accountOptions(accountsState.accounts, accountsState.kinds),
+);
 const context = $derived<ProfileEditContext>({
   models: authenticatedRealModelOptions(models, authProviders),
   permissionOptions: rules

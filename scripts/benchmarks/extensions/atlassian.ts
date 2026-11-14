@@ -1,7 +1,7 @@
 /**
  * Read-mostly Jira/Confluence access for task setup, verification and cleanup.
  *
- * Uses the product's own clients (`@nervekit/quick-script` Atlassian clients,
+ * Uses the product's own clients (`@nervekit/extensions` Atlassian clients,
  * loaded from the built package) with the slot's Atlassian account. The credential is
  * decrypted in memory from the slot's own store (read-only; nothing is ever
  * written back or printed). `ATLASSIAN_SITE_URL`, `ATLASSIAN_EMAIL` and
@@ -12,7 +12,7 @@ import { createDecipheriv } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { CliError } from "../../cli/main.ts";
-import { importBuilt, type SlotTarget } from "./daemon-client.ts";
+import type { SlotTarget } from "./daemon-client.ts";
 
 export interface Sandbox {
   /** Jira project key every write task must stay inside. */
@@ -84,19 +84,17 @@ async function readSlotConnection(target: SlotTarget): Promise<Connection> {
   const accounts = JSON.parse(
     await readFile(join(target.home, "config", "accounts.json"), "utf8"),
   ) as {
-    profiles?: {
+    accounts?: {
       atlassian?: {
         id: string;
-        siteUrl: string;
-        email: string;
-        credential: string;
+        fields: { siteUrl?: string; email?: string };
       }[];
     };
   };
   // The account the Atlassian extension selects, so checks and the agent use
   // the same site; never guess, since write tasks must stay in the sandbox.
   const selected = await selectedAtlassianAccount(target.home);
-  const profile = accounts.profiles?.atlassian?.find(
+  const profile = accounts.accounts?.atlassian?.find(
     (account) => account.id === selected,
   );
   if (!profile)
@@ -122,12 +120,43 @@ async function readSlotConnection(target: SlotTarget): Promise<Connection> {
       decipher.final(),
     ]).toString("utf8"),
   ) as Record<string, string>;
-  const token = values[`provider:${profile.credential}:apiKey`];
-  if (!token)
+  const credential = `account:atlassian:${profile.id}`;
+  const token = values[`provider:${credential}:apiKey`];
+  const { siteUrl, email } = profile.fields;
+  if (!token || !siteUrl || !email)
     throw new CliError(
-      `Slot ${target.slot} has no saved API token for ${profile.credential}.`,
+      `Slot ${target.slot}: the selected Atlassian account needs a site URL, an email and a saved API token (${credential}).`,
     );
-  return { siteUrl: profile.siteUrl, email: profile.email, token };
+  return { siteUrl: siteUrl.replace(/\/+$/, ""), email, token };
+}
+
+async function restRequest(
+  connection: Connection,
+  base: string,
+  { method = "GET", path, query, body }: RequestOptions,
+): Promise<unknown> {
+  const url = new URL(`${connection.siteUrl}${base}${path}`);
+  for (const [key, value] of Object.entries(query ?? {}))
+    if (value !== undefined)
+      url.searchParams.set(
+        key,
+        Array.isArray(value) ? value.join(",") : String(value),
+      );
+  const response = await fetch(url, {
+    method,
+    headers: {
+      authorization: `Basic ${Buffer.from(`${connection.email}:${connection.token}`).toString("base64")}`,
+      accept: "application/json",
+      ...(body === undefined ? {} : { "content-type": "application/json" }),
+    },
+    body: body === undefined ? undefined : JSON.stringify(body),
+  });
+  const text = await response.text();
+  if (!response.ok)
+    throw new Error(
+      `${method} ${path}: HTTP ${response.status} ${text.slice(0, 200)}`,
+    );
+  return text ? (JSON.parse(text) as unknown) : undefined;
 }
 
 export async function connectAtlassian(
@@ -143,15 +172,20 @@ export async function connectAtlassian(
           token: env.ATLASSIAN_API_TOKEN,
         }
       : await readSlotConnection(target);
+  // Checks talk to the REST APIs directly, independent of the extension under test.
   const integrations: Integrations = {
-    ...(await importBuilt<Pick<Integrations, "jiraRequest">>(
-      "quick-script",
-      "extensions/atlassian/jira/client.js",
-    )),
-    ...(await importBuilt<Pick<Integrations, "confluenceRequest">>(
-      "quick-script",
-      "extensions/atlassian/confluence/client.js",
-    )),
+    jiraRequest: (connection, { api, ...options }) =>
+      restRequest(
+        connection,
+        api === "agile" ? "/rest/agile/1.0" : "/rest/api/3",
+        options,
+      ),
+    confluenceRequest: (connection, { api, ...options }) =>
+      restRequest(
+        connection,
+        api === "v2" ? "/wiki/api/v2" : "/wiki/rest/api",
+        options,
+      ),
   };
   const atlassian: Atlassian = {
     siteUrl: connection.siteUrl,

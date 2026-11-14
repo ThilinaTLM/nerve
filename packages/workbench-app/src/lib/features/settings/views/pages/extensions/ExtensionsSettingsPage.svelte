@@ -4,13 +4,14 @@
   scope; a project shows what differs from the user's settings.
 -->
 <script lang="ts">
+import { accountsState } from "$lib/application/extensions/accounts-state.svelte";
 import Blocks from "@lucide/svelte/icons/blocks";
 import { tick } from "svelte";
 import { Callout } from "@nervekit/ui-kit/components/composites/callout";
 import ConfirmDialog from "@nervekit/ui-kit/components/composites/confirm-dialog";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
 import { Skeleton } from "@nervekit/ui-kit/components/ui/skeleton";
-import type { AuthProviderMetadata, ModelInfo, Settings } from "$lib/api";
+import type { AuthProviderMetadata, ModelInfo } from "$lib/api";
 import { ScopedExtensionsState } from "$lib/application/extensions/scoped-extensions-state.svelte";
 import { onEvent } from "$lib/application/events/workbench-event-bus";
 import { workbenchStartupState } from "$lib/application/startup/workbench-startup-state.svelte";
@@ -23,7 +24,6 @@ import {
 } from "$lib/presentation/settings";
 import { settingsSectionDomId } from "$lib/presentation/settings/section-id";
 import { authenticatedRealModelOptions } from "$lib/presentation/utils/model";
-import type { SettingsChange } from "../settings-change";
 import { accountOptions } from "../tools/tool-settings";
 import ExtensionDetail from "./ExtensionDetail.svelte";
 import ExtensionsTrustNotice from "./ExtensionsTrustNotice.svelte";
@@ -39,7 +39,6 @@ import {
 type Props = {
   scope: "user" | "project";
   projectId?: string;
-  settingsDraft: Settings;
   models?: ModelInfo[];
   authProviders?: AuthProviderMetadata[];
   /** The open extension; "" shows the list. */
@@ -47,19 +46,16 @@ type Props = {
   /** Section a deep link asks for once the item has loaded. */
   sectionId?: string;
   onOpenItem?: (id: string, section?: string) => void;
-  onSettingsChange?: SettingsChange;
 };
 
 let {
   scope,
   projectId,
-  settingsDraft,
   models = [],
   authProviders = [],
   itemId = "",
   sectionId,
   onOpenItem,
-  onSettingsChange,
 }: Props = $props();
 
 const extensions = new ScopedExtensionsState();
@@ -80,13 +76,16 @@ $effect(() => extensions.observe());
 $effect(() => {
   const stop = [
     onEvent("settings.updated", () => void extensions.reload()),
-    onEvent("auth.integration_health_changed", () => void extensions.reload()),
+    onEvent("accounts.changed", () => void extensions.reload()),
+    onEvent("accounts.health_changed", () => void extensions.reload()),
   ];
   return () => stop.forEach((off) => off());
 });
 
 const view = $derived(extensions.view);
-const accounts = $derived(accountOptions(settingsDraft.providers));
+const accounts = $derived(
+  accountOptions(accountsState.accounts, accountsState.kinds),
+);
 const usableModels = $derived(
   authenticatedRealModelOptions(models, authProviders),
 );
@@ -190,9 +189,6 @@ function resetAll(): void {
       {extensions}
       {accounts}
       models={usableModels}
-      {settingsDraft}
-      {authProviders}
-      {onSettingsChange}
     />
   {:else}
     <SettingsEmptyState

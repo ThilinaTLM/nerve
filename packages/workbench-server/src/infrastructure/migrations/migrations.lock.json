@@ -10,13 +10,14 @@
     ]
   },
   "0002-agent-profiles": {
-    "checksum": "3e787a6b0fbb1b98184681e381e4c73c7e11c1bb05df53d70a6947b0e0474423",
+    "checksum": "d1344a9a3c3f30bbd7352a6a4a42a2c019b6771339647965c57d2095a9029c34",
     "stage": "released",
     "releasedIn": "0.38.0",
     "previousChecksums": [
       "4bc089e0c758119861523ef4234aa6f008206334d0a65cd524293c9908ca646e",
       "d38155a16d87079d02ba3e4fc140b9a0c4e7ad8b4f4c68612e98bcfe1ffed7d7",
-      "893d816d07e9525e5b5f90f099c29145f0817935c6fafc5b7827ec1a65b4ad26"
+      "893d816d07e9525e5b5f90f099c29145f0817935c6fafc5b7827ec1a65b4ad26",
+      "3e787a6b0fbb1b98184681e381e4c73c7e11c1bb05df53d70a6947b0e0474423"
     ]
   },
   "0003-process-output-files": {
@@ -30,7 +31,7 @@
     "releasedIn": "0.40.0"
   },
   "0005-extension-settings": {
-    "checksum": "8cf58602016314c63c1037ff67a4011fce17d6c486100a68538f0a5fb8bd29ae",
+    "checksum": "fc3d81ae3052ece76a5c9b305caee6d9e09366fe2f18a58a018c62cde8fc3413",
     "stage": "draft"
   }
 }

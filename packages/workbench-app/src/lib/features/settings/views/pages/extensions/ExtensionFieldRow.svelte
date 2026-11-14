@@ -132,7 +132,6 @@ function commit(): void {
         checked={item.value === true}
         {disabled}
         aria-label={field.label}
-        data-tour-id={`setup-extension-${extensionId}-${item.key}`}
         onCheckedChange={(next) => onChange(next)}
       />
     {:else if field.type === "enum"}
@@ -149,10 +148,7 @@ function commit(): void {
       />
     {:else if field.type === "account"}
       <div class="grid w-full min-w-0 gap-1">
-        <div
-          class="min-w-0"
-          data-tour-id={`setup-extension-${extensionId}-${item.key}`}
-        >
+        <div class="min-w-0">
           <SelectField
             items={accountItems}
             value={typeof item.value === "string" ? item.value : ""}
@@ -171,7 +167,6 @@ function commit(): void {
               size="sm"
               variant="ghost"
               class="text-muted-foreground"
-              data-tour-id={`setup-extension-${extensionId}-add-account`}
               onclick={onAddAccount}>Add account</Button
             >
           </div>

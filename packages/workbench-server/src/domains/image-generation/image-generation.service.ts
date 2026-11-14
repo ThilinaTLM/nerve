@@ -1,7 +1,7 @@
 import type {
   ImageGenerateRequest,
   ImageGenerateResponse,
-} from "@nervekit/quick-script";
+} from "@nervekit/extension-api";
 import { ApplicationError } from "../../core/application-error.js";
 import type { ImageGenerationProviderAdapter } from "./image-generation.provider.js";
 

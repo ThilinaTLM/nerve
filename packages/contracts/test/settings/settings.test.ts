@@ -138,22 +138,6 @@ describe("settings schema", () => {
     );
   });
 
-  it("rejects duplicate profile ids", () => {
-    assert.equal(
-      settingsSchema.safeParse({
-        ...defaultSettings,
-        providers: {
-          atlassianProfiles: [
-            { id: "duplicate", name: "One" },
-            { id: "duplicate", name: "Two" },
-          ],
-          tavilyProfiles: [],
-        },
-      }).success,
-      false,
-    );
-  });
-
   it("rejects migrated agent and creation fields in the preserved settings update API", () => {
     for (const patch of [
       { defaultAgentProfile: "coding" },

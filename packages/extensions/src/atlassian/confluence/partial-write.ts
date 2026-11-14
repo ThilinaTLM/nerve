@@ -1,0 +1,14 @@
+import { ExtensionError } from "@nervekit/extension-api";
+
+/**
+ * Confluence writes are several requests, not one transaction. When a later
+ * step fails, the error keeps its code (a 401 still ends the script) and says
+ * what already happened, so the script does not blindly repeat it.
+ */
+export function partialWriteFailure(error: unknown, done: string): Error {
+  const reason = error instanceof Error ? error.message : String(error);
+  const message = `${reason} (${done})`;
+  return error instanceof ExtensionError
+    ? new ExtensionError(error.code, message)
+    : new Error(message, { cause: error });
+}

@@ -26,6 +26,7 @@ Start with the codebase overview, then the conversation core.
 - [Permissions](architecture/permissions.md) — rule sets, overlays, guardrails and tool-call authorization.
 - [System prompt and tool descriptions](architecture/system-prompt.md) — prompt assembly and tool-writing rules.
 - [Tool-result projection](architecture/tool-result-projection.md) — complete payload, agent projection and user projection.
+- [Extension platform](architecture/extension-platform.md) — extension API contract, `ctx` security rules, direct tools, display kinds and the naming rule.
 - [Code mode (`quick_script`)](architecture/code-mode.md) — sandboxed TypeScript scripts with integration SDKs, nested authorization, artifacts and results.
 - [Conversation state and attention](architecture/conversation-state-and-attention.md) — composer and drafts, execution status, summary activity and notifications.
 - [Conversation discovery](architecture/conversation-discovery.md) — local and AI titles, PR/issue references, list sections, stable ordering and smart search.

@@ -2,6 +2,7 @@
  * Per-tool-view sample data (file, search, web and todo tools) for the ToolCards gallery section. Builders and
  * lifecycle fixtures live in `tool-card-fixtures.ts`.
  */
+import { setExtensionToolNames } from "$lib/presentation/tools/lifecycle/extension-tools";
 import {
   SAMPLE_CWD,
   sampleApproval,
@@ -9,6 +10,9 @@ import {
   sampleCall,
   sampleDraft,
 } from "./tool-card-fixtures";
+
+// The gallery shows `web_search` as the extension tool it is.
+setExtensionToolNames(["web_search"]);
 
 const DIFF = `--- a/src/lib/presentation/cards/MetaChip.svelte
 +++ b/src/lib/presentation/cards/MetaChip.svelte
@@ -235,20 +239,20 @@ export const pythonRunning = sampleCall({
   args: { code: PYTHON_SCRIPT, timeout: 60 },
 });
 
-const ATLASSIAN_SCRIPT = `const open = await jira.issues.search({
+const ACME_SCRIPT = `const open = await acme.items.search({
   jql: "project = NERVE AND status = 'In Progress' ORDER BY updated DESC",
   maxResults: 20,
 });
 for (const issue of open.issues.slice(0, 3)) {
-  const full = await jira.issues.get(issue.key);
+  const full = await acme.items.get(issue.key);
   console.log(issue.key, full.status, full.assignee ?? "unassigned");
 }
-await jira.issues.get("NERVE-9999");`;
+await acme.items.get("NERVE-9999");`;
 
 export const quickScriptCompleted = sampleCall({
   id: "tool_quick_script_ok",
   toolName: "quick_script",
-  args: { code: ATLASSIAN_SCRIPT, timeout: 120 },
+  args: { code: ACME_SCRIPT, timeout: 120 },
   result: {
     content:
       "NERVE-412 In Progress Ada Lovelace\nNERVE-398 In Progress unassigned\nNERVE-377 In Progress Grace Hopper",
@@ -258,31 +262,31 @@ export const quickScriptCompleted = sampleCall({
       memoryUsedBytes: 2_400_000,
       hostCalls: [
         {
-          method: "jira.issues.search",
+          method: "acme.items.search",
           summary: "project = NERVE AND status = 'In Progress' …",
           outcome: "completed",
           durationMs: 412,
         },
         {
-          method: "jira.issues.get",
+          method: "acme.items.get",
           summary: "NERVE-412",
           outcome: "completed",
           durationMs: 233,
         },
         {
-          method: "jira.issues.get",
+          method: "acme.items.get",
           summary: "NERVE-398",
           outcome: "completed",
           durationMs: 198,
         },
         {
-          method: "jira.issues.get",
+          method: "acme.items.get",
           summary: "NERVE-377",
           outcome: "completed",
           durationMs: 221,
         },
         {
-          method: "jira.issues.get",
+          method: "acme.items.get",
           summary: "NERVE-9999",
           outcome: "failed",
           error: "Issue does not exist or you do not have permission",
@@ -297,7 +301,7 @@ export const quickScriptCompleted = sampleCall({
 export const quickScriptFailed = sampleCall({
   id: "tool_quick_script_fail",
   toolName: "quick_script",
-  args: { code: ATLASSIAN_SCRIPT, timeout: 120 },
+  args: { code: ACME_SCRIPT, timeout: 120 },
   result: {
     content: "Error: Issue does not exist or you do not have permission",
     details: {
@@ -306,7 +310,7 @@ export const quickScriptFailed = sampleCall({
       durationMs: 1_400,
       hostCalls: [
         {
-          method: "jira.issues.get",
+          method: "acme.items.get",
           summary: "NERVE-9999",
           outcome: "failed",
           error: "Issue does not exist or you do not have permission",
@@ -332,7 +336,7 @@ export const quickScriptWaiting = sampleCall({
   id: "tool_quick_script_wait",
   toolName: "quick_script",
   status: "waiting",
-  args: { code: ATLASSIAN_SCRIPT, timeout: 120 },
+  args: { code: ACME_SCRIPT, timeout: 120 },
   interaction: {
     kind: "approval",
     status: "pending",
@@ -340,7 +344,7 @@ export const quickScriptWaiting = sampleCall({
     updatedAt: isoAgo(2_000),
     request: {
       risk: "command",
-      reason: "Script operations: jira.issues.search, jira.issues.get",
+      reason: "Script operations: acme.items.search, acme.items.get",
       offeredScopes: ["single_call"],
       suggestedExceptions: [],
       suggestedRules: [],
@@ -351,7 +355,7 @@ export const quickScriptWaitingApproval = sampleApproval(
   "tool_quick_script_wait",
   {
     risk: "command",
-    reason: "Script operations: jira.issues.search, jira.issues.get",
+    reason: "Script operations: acme.items.search, acme.items.get",
     toolName: "quick_script",
   },
 );
@@ -361,7 +365,7 @@ export const quickScriptRunning = sampleCall({
   toolName: "quick_script",
   status: "running",
   ageMs: 2_000,
-  args: { code: ATLASSIAN_SCRIPT, timeout: 120 },
+  args: { code: ACME_SCRIPT, timeout: 120 },
 });
 
 export const bashMultiline = sampleCall({
@@ -465,25 +469,64 @@ export const webSearchCompleted = sampleCall({
   result: {
     content: "2 results",
     details: {
-      query: "svelte 5 runes $state deep reactivity",
-      answer:
-        "In Svelte 5, $state makes objects and arrays deeply reactive via proxies; reassigning is not required for mutation to be tracked.",
-      results: [
-        {
-          title: "$state • Svelte Docs",
-          url: "https://svelte.dev/docs/svelte/$state",
-          content:
-            "$state creates reactive state. Arrays and plain objects are turned into deeply reactive proxies.",
-          score: 0.92,
-        },
-        {
-          title:
-            "Understanding Svelte 5 reactivity: a long-form walkthrough of runes, signals, and fine-grained updates",
-          url: "https://example.com/blog/svelte-5-reactivity-walkthrough-with-a-very-long-path/that/keeps/going",
-          content: "A deep dive into how signals replaced stores.",
-          score: 0.71,
-        },
-      ],
+      extension: "web",
+      tool: "web_search",
+      display: {
+        kind: "links",
+        value: [
+          {
+            title: "$state • Svelte Docs",
+            url: "https://svelte.dev/docs/svelte/$state",
+            snippet:
+              "$state creates reactive state. Arrays and plain objects are turned into deeply reactive proxies.",
+          },
+          {
+            title:
+              "Understanding Svelte 5 reactivity: a long-form walkthrough of runes, signals, and fine-grained updates",
+            url: "https://example.com/blog/svelte-5-reactivity-walkthrough-with-a-very-long-path/that/keeps/going",
+            snippet: "A deep dive into how signals replaced stores.",
+          },
+        ],
+      },
+    },
+  },
+});
+
+export const extensionTableCompleted = sampleCall({
+  id: "tool_ext_table",
+  toolName: "web_search",
+  args: { query: "release versions" },
+  result: {
+    content: "3 rows",
+    details: {
+      extension: "web",
+      tool: "web_search",
+      display: {
+        kind: "table",
+        value: [
+          { name: "svelte", version: "5.1.0", released: "2025-01-12" },
+          { name: "tailwindcss", version: "4.0.2", released: "2025-02-03" },
+          { name: "vite", version: "6.2.0", released: "2025-02-20" },
+        ],
+      },
+    },
+  },
+});
+
+export const extensionMarkdownCompleted = sampleCall({
+  id: "tool_ext_md",
+  toolName: "web_search",
+  args: { query: "release notes" },
+  result: {
+    content: "# Release notes",
+    details: {
+      extension: "web",
+      tool: "web_search",
+      display: {
+        kind: "markdown",
+        value:
+          "# Release notes\n\n- Faster **startup**\n- Fixed `tool` cards\n\nSee [the docs](https://example.com).",
+      },
     },
   },
 });
@@ -546,8 +589,8 @@ export const todosCompleted = sampleCall({
 
 /** A call recorded by a tool that no longer exists: rendered by the generic view. */
 export const removedToolCompleted = sampleCall({
-  id: "tool_jira_search",
-  toolName: "jira_search_issues",
+  id: "tool_acme_search",
+  toolName: "acme_search_items",
   args: { jql: "project = NRV AND status != Done ORDER BY updated DESC" },
   result: {
     details: {

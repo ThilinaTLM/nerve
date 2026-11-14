@@ -20,10 +20,6 @@ import {
   readToolCallResult,
 } from "$lib/features/conversations/adapters/core-tool-details.adapter";
 import {
-  confluenceSiteUrl,
-  jiraSiteUrl,
-} from "$lib/features/conversations/state/atlassian-site-urls.svelte";
-import {
   getFileContent,
   uploadAttachment,
 } from "$lib/features/filesystem/api/filesystem.api";
@@ -102,7 +98,6 @@ export function workbenchConversationUiCapabilities(
       );
     },
     imageSource,
-    atlassian: { jiraSiteUrl, confluenceSiteUrl },
     voice: {
       session: voiceInputSession,
       targetKey: voiceInputTargetKey,

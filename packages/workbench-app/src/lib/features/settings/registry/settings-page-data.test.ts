@@ -72,21 +72,7 @@ describe("settings deep-link targets", () => {
     { from: { pageId: "tools" }, to: { pageId: "nowhere" } },
   ];
 
-  it("sends old integrations targets to the extension detail", () => {
-    assert.deepEqual(
-      resolveSettingsTarget("user", {
-        pageId: "integrations",
-        section: "tavily-accounts",
-      }),
-      { pageId: "extensions", item: "web", section: "accounts" },
-    );
-    assert.deepEqual(
-      resolveSettingsTarget("user", {
-        pageId: "integrations",
-        section: "atlassian-accounts",
-      }),
-      { pageId: "extensions", item: "atlassian", section: "accounts" },
-    );
+  it("sends old integrations targets to the Extensions page", () => {
     assert.deepEqual(
       resolveSettingsTarget("project", { pageId: "integrations" }),
       {

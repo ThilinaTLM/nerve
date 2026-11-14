@@ -1,6 +1,6 @@
 /**
  * The direct tools removed in favour of `quick_script` namespaces, each with
- * the SDK operations that replace it (docs/proposals/extensions/parity.md),
+ * the SDK operations that replace it,
  * and the conversion of permission rules that name them. Plain-JSON shapes
  * only: this must not follow later changes to the evolving contracts. The
  * project permission overlay chain (`permission-overlay` v3) shares it so

@@ -18,10 +18,7 @@ import {
   scriptAgentResultPolicy,
 } from "./process.js";
 import { explainImageAgentResultPolicy } from "./vision.js";
-import {
-  webFetchAgentResultPolicy,
-  webSearchAgentResultPolicy,
-} from "./web.js";
+import { webFetchAgentResultPolicy } from "./web.js";
 
 const subagentPolicy = policy("lifecycle_state", "item_aware", textCandidate);
 // Status repeats the child's capped report, so it must fit whole rather than be cut again.
@@ -41,7 +38,6 @@ const map: Record<ToolName, AgentResultPolicy> = {
   bash: processAgentResultPolicy,
   python_exec: scriptAgentResultPolicy,
   quick_script: scriptAgentResultPolicy,
-  web_search: webSearchAgentResultPolicy,
   web_fetch: webFetchAgentResultPolicy,
   explain_image: explainImageAgentResultPolicy,
   ask_user: askUserAgentResultPolicy,
@@ -66,7 +62,6 @@ export {
   grepCandidate,
 } from "../candidates/filesystem.js";
 export { processCandidate } from "../candidates/process.js";
-export { searchCandidate } from "../candidates/search.js";
 export { mutationCandidate } from "../candidates/mutation.js";
 export { webFetchCandidate } from "../candidates/web.js";
 export { humanCandidate } from "../candidates/interaction.js";
@@ -76,3 +71,4 @@ export * from "./plan-review.js";
 export * from "./process.js";
 export * from "./vision.js";
 export * from "./web.js";
+export * from "./search.js";

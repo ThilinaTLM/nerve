@@ -2,37 +2,34 @@ import type { ExtensionsView } from "@nervekit/contracts/extensions";
 import { requestWorkbench } from "$lib/application/startup/workbench-connection";
 
 /**
- * The accounts the user's extension settings select, for features outside the
- * Extensions page (setup guides, Jira and Confluence links). Kept current by
+ * The account each `account` setting of the user's extensions selects, for
+ * features outside the Extensions page. Kept current by
  * `publishUserExtensions`, which every user-scope load and save calls.
  */
-const selected = $state<{ atlassian?: string; search?: string }>({});
+const selected = $state<Record<string, string>>({});
 
-function accountOf(
-  view: ExtensionsView,
-  extensionId: string,
-  key: string,
-): string | undefined {
-  const value = view.extensions.find(
-    (extension) => extension.metadata.id === extensionId,
-  )?.fields[key]?.value;
-  return typeof value === "string" && value ? value : undefined;
-}
+const slot = (extensionId: string, field: string) => `${extensionId}.${field}`;
 
 export function publishUserExtensions(view: ExtensionsView): void {
   if (view.target.scope !== "user") return;
-  selected.atlassian = accountOf(view, "atlassian", "account");
-  selected.search = accountOf(view, "web", "searchAccount");
+  for (const extension of view.extensions)
+    for (const [field, schema] of Object.entries(
+      extension.settingsSchema.fields,
+    )) {
+      if (schema.type !== "account") continue;
+      const value = extension.fields[field]?.value;
+      const key = slot(extension.metadata.id, field);
+      if (typeof value === "string" && value) selected[key] = value;
+      else delete selected[key];
+    }
 }
 
-/** Id of the Atlassian account the user selected, if any. */
-export function selectedAtlassianAccountId(): string | undefined {
-  return selected.atlassian;
-}
-
-/** Id of the Tavily account web search uses, if any. */
-export function selectedSearchAccountId(): string | undefined {
-  return selected.search;
+/** Id of the account the user's `account` setting selects, if any. */
+export function selectedAccountId(
+  extensionId: string,
+  field: string,
+): string | undefined {
+  return selected[slot(extensionId, field)];
 }
 
 export async function refreshSelectedAccounts(): Promise<void> {

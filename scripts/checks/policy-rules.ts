@@ -1,4 +1,5 @@
 import { packageBoundariesRule } from "./package-boundary-checks.ts";
+import { extensionNamingRule } from "./extension-naming-policy.ts";
 import { exportSurfacesRule } from "./package-export-surfaces.ts";
 import { contractsSourceRule } from "./contracts-source-policy.ts";
 import type { PolicyRule } from "./policy.ts";
@@ -18,4 +19,5 @@ export const policyRules: readonly PolicyRule[] = [
   contractsSourceRule,
   serverTestRuntimeRule,
   sourceNamingRule,
+  extensionNamingRule,
 ];

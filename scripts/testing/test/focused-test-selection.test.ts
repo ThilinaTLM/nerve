@@ -275,20 +275,21 @@ test("changed and new tests are always included without selecting unrelated test
 test("website tests are included, documentation is skipped, and skill Markdown is runtime data", (t) => {
   const f = fixture(t);
   f.pkg("website");
-  f.pkg("skills");
+  f.pkg("extensions");
   f.write("packages/website/scripts/lib.ts");
   f.write("packages/website/scripts/site.test.ts", 'import "./lib.ts";');
-  f.write("packages/skills/test/skills.test.ts");
+  f.write("packages/extensions/test/skills.test.ts");
   assert.deepEqual(selected(f.select(["packages/website/scripts/lib.ts"])), [
     "packages/website/scripts/site.test.ts",
   ]);
   assert.equal(
-    f.select(["README.md", "docs/guide.md", "packages/skills/AGENTS.md"]).mode,
+    f.select(["README.md", "docs/guide.md", "packages/extensions/AGENTS.md"])
+      .mode,
     "none",
   );
   assert.equal(f.select([]).mode, "none");
   assert.equal(
-    f.select(["packages/skills/assets/skill/SKILL.md"]).packages[0].fallback
+    f.select(["packages/extensions/assets/skill/SKILL.md"]).packages[0].fallback
       .length > 0,
     true,
   );
@@ -334,7 +335,7 @@ test("server options, skills lifecycle and native Cargo coverage survive selecti
   const f = fixture(t);
   f.pkg("native");
   f.pkg("workbench-server", ["native"]);
-  f.pkg("skills", [], {
+  f.pkg("extensions", [], {
     scripts: {
       build: "tsc -b",
       pretest: "copy-assets",
@@ -344,7 +345,7 @@ test("server options, skills lifecycle and native Cargo coverage survive selecti
   f.write("packages/native/src/index.ts");
   f.write("packages/native/test/native.test.ts", 'import "../src/index.js";');
   f.write("packages/workbench-server/test/server.test.ts");
-  f.write("packages/skills/test/skills.test.ts");
+  f.write("packages/extensions/test/skills.test.ts");
   const server = f.select(["packages/workbench-server/test/server.test.ts"]);
   assert.equal(server.commands[0].args[0], "build:native");
   assert.equal(
@@ -359,8 +360,8 @@ test("server options, skills lifecycle and native Cargo coverage survive selecti
     server.commands.at(-1).args.some((arg) => arg.includes("*")),
     false,
   );
-  const skills = f.select(["packages/skills/test/skills.test.ts"]);
-  assert.equal(skills.commands.at(-2).args.at(-1), "pretest");
+  const extensions = f.select(["packages/extensions/test/skills.test.ts"]);
+  assert.equal(extensions.commands.at(-2).args.at(-1), "pretest");
   const native = f.select(["packages/native/src/index.ts"]);
   assert.deepEqual(native.commands.at(-1).args, [
     "--filter",

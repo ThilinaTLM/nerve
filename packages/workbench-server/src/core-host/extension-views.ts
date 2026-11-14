@@ -4,7 +4,6 @@ import type {
   ExtensionView,
 } from "@nervekit/contracts/extensions";
 import { upgradeEntry } from "@nervekit/contracts/extensions";
-import { builtinExtensions, extensionMetadata } from "@nervekit/quick-script";
 import type { AgentConfigurationService } from "../infrastructure/configuration/agent-configuration/agent-configuration-service.js";
 import type {
   ExtensionContext,
@@ -13,18 +12,19 @@ import type {
 } from "../infrastructure/configuration/extensions/extension-settings-service.js";
 import { conversationExtensionContext } from "./conversation-extensions.js";
 import {
-  quickScriptAvailability,
-  selectedAtlassianAccount,
-  selectedSearchAccount,
-  type AccountDirectory,
-} from "./quick-script-availability.js";
+  extensionMetadata,
+  type QuickScriptRegistry,
+} from "@nervekit/tools/quick-script";
+import type { AccountsReader } from "../domains/accounts/accounts.service.js";
+import { extensionAvailability } from "./extension-availability.js";
+import { createExtensionPorts } from "./extension-ports.js";
 
 export type ExtensionViewOptions = {
   extensions: ExtensionSettingsService;
   agents: Pick<AgentConfigurationService, "paths" | "getEffective">;
-  accounts(): AccountDirectory;
-  /** Whether a saved credential exists for the account (`atlassian:<id>`, `tavily:<id>`). */
-  hasCredential(kind: "atlassian" | "tavily", id: string): Promise<boolean>;
+  /** The extensions the views describe. */
+  registry: QuickScriptRegistry;
+  accounts: AccountsReader;
 };
 
 export function toScopeRef(target: ExtensionTarget): ExtensionScopeRef {
@@ -47,57 +47,70 @@ export function createExtensionViews(options: ExtensionViewOptions) {
       options.extensions.resolve(ctx, target.scope),
       options.extensions.read(ref),
     ]);
-    const accounts = options.accounts();
-    const atlassian = selectedAtlassianAccount(resolution, accounts);
-    const search = selectedSearchAccount(resolution, accounts);
-    const availability = quickScriptAvailability(resolution, accounts, {
-      atlassian: atlassian
-        ? await options.hasCredential("atlassian", atlassian)
-        : false,
-      tavily: search ? await options.hasCredential("tavily", search) : false,
-    });
+    const { namespaces: availability, tools: toolAvailability } =
+      await extensionAvailability(
+        options.registry,
+        resolution,
+        options.accounts,
+        {
+          checkSecrets: true,
+          ports: createExtensionPorts({
+            resolution,
+            accounts: options.accounts,
+          }),
+        },
+      );
     const definitions = new Map(
       options.extensions.definitions.map((definition) => [
         definition.id,
         definition,
       ]),
     );
-    const extensions = builtinExtensions.map((manifest): ExtensionView => {
-      const resolved = resolution.extensions[manifest.id];
-      const stored = file.entries[manifest.id];
-      const definition = definitions.get(manifest.id)!;
-      const upgraded = stored ? upgradeEntry(definition, stored) : undefined;
-      return {
-        metadata: extensionMetadata(manifest),
-        settingsSchema: manifest.settings,
-        accountKinds: manifest.accounts ?? [],
-        enabled: resolved.enabled,
-        fields: resolved.fields,
-        stored:
-          upgraded &&
-          upgraded.status !== "newer" &&
-          upgraded.status !== "failed"
-            ? {
-                ...(upgraded.entry.enabled !== undefined
-                  ? { enabled: upgraded.entry.enabled }
-                  : {}),
-                settings: upgraded.entry.settings ?? {},
-              }
-            : null,
-        readOnly: upgraded?.status === "newer",
-        locked:
-          target.scope === "conversation"
-            ? options.extensions.lockedFields(ctx.appliedProfile, manifest.id)
-            : [],
-        availability: Object.fromEntries(
-          (manifest.contributes.sdk ?? []).flatMap((namespace) =>
-            availability[namespace.id]
-              ? [[namespace.id, availability[namespace.id]]]
+    const extensions = options.registry.extensions.map(
+      (manifest): ExtensionView => {
+        const resolved = resolution.extensions[manifest.id];
+        const stored = file.entries[manifest.id];
+        const definition = definitions.get(manifest.id)!;
+        const upgraded = stored ? upgradeEntry(definition, stored) : undefined;
+        return {
+          metadata: extensionMetadata(manifest),
+          settingsSchema: manifest.settings,
+          accountKinds: manifest.accounts ?? [],
+          enabled: resolved.enabled,
+          fields: resolved.fields,
+          stored:
+            upgraded &&
+            upgraded.status !== "newer" &&
+            upgraded.status !== "failed"
+              ? {
+                  ...(upgraded.entry.enabled !== undefined
+                    ? { enabled: upgraded.entry.enabled }
+                    : {}),
+                  settings: upgraded.entry.settings ?? {},
+                }
+              : null,
+          readOnly: upgraded?.status === "newer",
+          locked:
+            target.scope === "conversation"
+              ? options.extensions.lockedFields(ctx.appliedProfile, manifest.id)
               : [],
+          availability: Object.fromEntries(
+            (manifest.contributes.sdk ?? []).flatMap((namespace) =>
+              availability[namespace.id]
+                ? [[namespace.id, availability[namespace.id]]]
+                : [],
+            ),
           ),
-        ),
-      };
-    });
+          toolAvailability: Object.fromEntries(
+            (manifest.tools ?? []).flatMap((tool) =>
+              toolAvailability[tool.name]
+                ? [[tool.name, toolAvailability[tool.name]]]
+                : [],
+            ),
+          ),
+        };
+      },
+    );
     return {
       target,
       extensions,

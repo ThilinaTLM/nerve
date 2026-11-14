@@ -11,7 +11,7 @@ export type FieldValidation =
   | { ok: true; value: unknown }
   | { ok: false; message: string };
 
-/** Public Kroki-style server URL: HTTP(S), no credentials, query or fragment; a trailing slash is added. */
+/** A server URL setting (`format: "url"`): HTTP(S), no credentials, query or fragment; a trailing slash is added. */
 function normalizeServerUrl(value: string): string | undefined {
   try {
     const url = new URL(value.trim());

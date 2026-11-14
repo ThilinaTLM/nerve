@@ -1,0 +1,219 @@
+import assert from "node:assert/strict";
+import { test } from "node:test";
+import { ExtensionError } from "@nervekit/extension-api";
+import { createHarness, type HarnessOptions } from "../test-support.js";
+
+/** A harness whose Jira answers with `fetch`. */
+function scripted(
+  fetch: (url: URL) => Response | Promise<Response>,
+  options: Omit<HarnessOptions, "fetch"> = {},
+) {
+  return createHarness({ ...options, fetch: (url) => fetch(url) });
+}
+
+const adf = (text: string) => ({
+  type: "doc",
+  content: [{ type: "paragraph", content: [{ type: "text", text }] }],
+});
+
+void test("every method takes one ID string or one options object, with one ID name", async () => {
+  const { authorized, run } = scripted(async (url) => {
+    if (url.pathname.includes("/project/")) {
+      return Response.json({
+        key: "SCRUM",
+        name: "Scrum",
+        issueTypes: [{ name: "Task" }],
+      });
+    }
+    return Response.json({ id: "4", key: "SCRUM-4", fields: { summary: "S" } });
+  });
+  const result = await run(`
+        const p = await jira.projects.get({ key: "SCRUM" });
+        const i = await jira.issues.get({ key: "SCRUM-4", fields: ["summary"] });
+        const j = await jira.issues.get("SCRUM-4");
+        console.log(p.key, i.key, j.summary);
+        const attempts = [
+          () => jira.issues.get({ issueKey: "SCRUM-4" }),
+          () => jira.issues.get("SCRUM-4", { fields: ["summary"] }),
+          () => jira.projects.get({}),
+        ];
+        for (const attempt of attempts) {
+          try { await attempt(); } catch (e) { console.log(e.name + ": " + e.message); }
+        }
+      `);
+  const lines = (result.content ?? "").split("\n");
+  assert.equal(lines[0], "SCRUM SCRUM-4 S");
+  assert.ok(
+    lines[1].startsWith(
+      "HostError: jira.issues.get has no option 'issueKey'; valid options: key, fields, comments, transitions." +
+        " Declaration: jira.issues.get(",
+    ),
+    lines[1],
+  );
+  assert.ok(
+    lines[2].startsWith(
+      "HostError: jira.issues.get takes one argument (a key string or an options object), got 2." +
+        " Declaration: jira.issues.get(",
+    ),
+    lines[2],
+  );
+  assert.ok(
+    lines[3].startsWith(
+      "HostError: key must be a non-empty string." +
+        " Declaration: jira.projects.get(",
+    ),
+    lines[3],
+  );
+  assert.deepEqual(
+    authorized.map((r) => ("operation" in r ? r.targets : [])),
+    [["jira:project/SCRUM"], ["jira:issue/SCRUM-4"], ["jira:issue/SCRUM-4"]],
+  );
+});
+
+void test("maps parent for subtasks and simplifies structured fields", async () => {
+  const { run } = scripted(async (url) => {
+    if (!url.searchParams.get("fields")!.includes("comment")) {
+      assert.match(url.searchParams.get("fields") ?? "", /parent/);
+    }
+    return Response.json({
+      id: "4",
+      key: "SCRUM-4",
+      fields: {
+        summary: "Subtask 2.1",
+        parent: { key: "SCRUM-2", fields: { summary: "Parent" } },
+        comment: {
+          comments: [
+            {
+              id: "77",
+              author: { displayName: "Ann", accountId: "a" },
+              created: "2026-01-01",
+              body: adf("hi **there**"),
+            },
+          ],
+        },
+        attachment: [
+          {
+            id: "9",
+            filename: "a.png",
+            size: 12,
+            mimeType: "image/png",
+            content: "https://x",
+          },
+        ],
+        issuelinks: [
+          {
+            id: "30",
+            type: { name: "Blocks" },
+            outwardIssue: { key: "SCRUM-9", fields: { summary: "Other" } },
+          },
+          {
+            id: "31",
+            type: { name: "Blocks" },
+            inwardIssue: { key: "SCRUM-1", fields: { summary: "First" } },
+          },
+        ],
+        subtasks: [
+          {
+            key: "SCRUM-5",
+            fields: { summary: "Kid", status: { name: "Done" } },
+          },
+        ],
+      },
+    });
+  });
+  const result = await run(`
+        const d = await jira.issues.get("SCRUM-4");
+        const x = await jira.issues.get({ key: "SCRUM-4", fields: ["summary", "comment", "attachment", "issuelinks", "subtasks"] });
+        console.log(JSON.stringify([d.parent, x]));
+      `);
+  const [parent, issue] = JSON.parse((result.content ?? "").split("\n")[0]) as [
+    unknown,
+    Record<string, unknown>,
+  ];
+  assert.deepEqual(parent, { key: "SCRUM-2", summary: "Parent" });
+  assert.deepEqual(issue.comment, [
+    // Literal asterisks in Jira text are escaped so they stay literal.
+    {
+      id: "77",
+      author: "Ann",
+      created: "2026-01-01",
+      body: "hi \\*\\*there\\*\\*",
+    },
+  ]);
+  assert.deepEqual(issue.attachment, [
+    { id: "9", filename: "a.png", size: 12, mimeType: "image/png" },
+  ]);
+  assert.deepEqual(issue.issuelinks, [
+    {
+      id: "30",
+      type: "Blocks",
+      direction: "outward",
+      key: "SCRUM-9",
+      summary: "Other",
+    },
+    {
+      id: "31",
+      type: "Blocks",
+      direction: "inward",
+      key: "SCRUM-1",
+      summary: "First",
+    },
+  ]);
+  assert.deepEqual(issue.subtasks, [
+    { key: "SCRUM-5", summary: "Kid", status: "Done" },
+  ]);
+});
+
+void test("comments: true returns one canonical comments array, and worklog ids are kept", async () => {
+  const { run } = scripted(async (url) => {
+    if (url.pathname.endsWith("/comment"))
+      return Response.json({
+        comments: [{ id: "5", author: { displayName: "Ann" }, body: adf("x") }],
+      });
+    return Response.json({
+      id: "4",
+      key: "SCRUM-4",
+      fields: {
+        comment: { comments: [{ id: "5", body: adf("x") }] },
+        worklog: { worklogs: [{ id: "8", timeSpent: "1h" }] },
+      },
+    });
+  });
+  const result = await run(
+    `console.log(JSON.stringify(await jira.issues.get({ key: "SCRUM-4", fields: ["comment", "worklog"], comments: true })));`,
+  );
+  const issue = JSON.parse((result.content ?? "").split("\n")[0]);
+  assert.equal("comment" in issue, false);
+  assert.deepEqual(
+    issue.comments.map((c: { id: string }) => c.id),
+    ["5"],
+  );
+  assert.equal(issue.worklog[0].id, "8");
+});
+
+void test("strips the skill guide pointer from Jira errors", async () => {
+  const { run } = scripted(
+    async () =>
+      new Response(JSON.stringify({ errorMessages: ["Unbounded JQL"] }), {
+        status: 400,
+      }),
+  );
+  const result = await run(
+    `try { await jira.issues.search({ jql: "ORDER BY created" }); } catch (e) { console.log(e.message); }`,
+  );
+  assert.doesNotMatch(result.content, /SKILL\.md/);
+  assert.match(result.content, /^Unbounded JQL/);
+  assert.equal(result.hostCalls[0].outcome, "failed");
+});
+
+void test("denials keep the policy reason", async () => {
+  const { run } = scripted(async () => Response.json([]), {
+    authorize: async () => {
+      throw new ExtensionError("DENIED", "nope");
+    },
+  });
+  const result = await run(
+    `try { await jira.users.search({ query: "ann" }); } catch (e) { console.log(e.message); }`,
+  );
+  assert.match(result.content ?? "", /^nope/);
+});

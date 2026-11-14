@@ -4,6 +4,7 @@ import {
   displayValue,
   extensionFix,
   namespaceProblem,
+  sentence,
   type AccountChoices,
 } from "../extensions/extensions-view";
 import type { ToolId } from "./tool-settings";
@@ -13,7 +14,7 @@ export type ToolSettingsLink = { item?: string };
 
 export function toolSettingsLink(id: ToolId): ToolSettingsLink | undefined {
   switch (id) {
-    case "web_search":
+    // A core tool that follows the Web extension; tools extensions contribute link by `ToolDescriptor.extension`.
     case "web_fetch":
       return { item: "web" };
     case "quick_script":
@@ -44,8 +45,10 @@ function accountName(
 }
 
 /**
- * Tool rows whose setup moved to an extension: Web search and fetch follow the
- * Web extension, and Quick script lists the namespaces that are on. `undefined` leaves the row alone.
+ * Core tool rows whose setup lives in an extension: Web fetch follows the Web
+ * extension, and Quick script lists the namespaces that are on. `undefined`
+ * leaves the row alone. Tools an extension contributes use
+ * {@link extensionToolState}.
  */
 export function toolExtensionState(
   id: ToolId,
@@ -56,32 +59,10 @@ export function toolExtensionState(
   const find = (extensionId: string) =>
     extensions.find((extension) => extension.metadata.id === extensionId);
   switch (id) {
-    case "web_search":
     case "web_fetch": {
       const web = find("web");
-      if (!web) return undefined;
-      if (!web.enabled.value)
-        return {
-          disabled: true,
-          problem: "Turned off in the Web extension",
-          fix: { extensionId: "web", label: "Open Web", section: "settings" },
-        };
-      if (id === "web_fetch") return undefined;
-      const account = accountName(web, "searchAccount", accounts);
-      return account
-        ? { summary: `Web extension · ${account}` }
-        : {
-            problem: "No search account selected in the Web extension",
-            fix: {
-              extensionId: "web",
-              label:
-                (accounts.tavily?.length ?? 0) > 0
-                  ? "Choose account"
-                  : "Add account",
-              section:
-                (accounts.tavily?.length ?? 0) > 0 ? "settings" : "accounts",
-            },
-          };
+      if (!web || web.enabled.value) return undefined;
+      return turnedOff(web);
     }
     case "quick_script": {
       const problem = namespaceProblem(extensions);
@@ -102,4 +83,59 @@ export function toolExtensionState(
     default:
       return undefined;
   }
+}
+
+function turnedOff(owner: ExtensionView): ToolExtensionState {
+  return {
+    disabled: true,
+    problem: `Turned off in the ${owner.metadata.name} extension`,
+    fix: {
+      extensionId: owner.metadata.id,
+      label: `Open ${owner.metadata.name}`,
+      section: "settings",
+    },
+  };
+}
+
+/**
+ * What the contributing extension says about one of its direct tools: switched
+ * off, not usable yet (with the way to fix it), or the extension and account it uses.
+ */
+export function extensionToolState(
+  toolName: string,
+  extensionId: string,
+  extensions: readonly ExtensionView[] | undefined,
+  accounts: AccountChoices,
+): ToolExtensionState | undefined {
+  const owner = extensions?.find(
+    (extension) => extension.metadata.id === extensionId,
+  );
+  if (!owner) return undefined;
+  if (!owner.enabled.value) return turnedOff(owner);
+  const state = owner.toolAvailability?.[toolName];
+  if (state && !state.available) {
+    const kind = owner.accountKinds[0]?.kind;
+    const hasAccounts = kind ? (accounts[kind]?.length ?? 0) > 0 : false;
+    return {
+      problem: sentence(state.reason),
+      fix: {
+        extensionId,
+        label: !kind
+          ? "Review"
+          : hasAccounts
+            ? "Choose account"
+            : "Add account",
+        section: kind && !hasAccounts ? "accounts" : "settings",
+      },
+    };
+  }
+  const accountNames = Object.keys(owner.settingsSchema.fields)
+    .filter((key) => owner.settingsSchema.fields[key]?.type === "account")
+    .flatMap((key) => {
+      const name = accountName(owner, key, accounts);
+      return name ? [name] : [];
+    });
+  return {
+    summary: [`${owner.metadata.name} extension`, ...accountNames].join(" · "),
+  };
 }

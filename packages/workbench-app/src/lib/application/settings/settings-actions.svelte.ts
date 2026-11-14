@@ -277,13 +277,6 @@ function mergeSettingsPatch(
         : {}),
     };
   }
-  if (base?.providers || patch.providers) {
-    next.providers = {
-      ...(base?.providers ?? {}),
-      ...(patch.providers ?? {}),
-    };
-  }
-
   return next;
 }
 
