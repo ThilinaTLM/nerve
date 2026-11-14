@@ -84,19 +84,17 @@ async function readSlotConnection(target: SlotTarget): Promise<Connection> {
   const accounts = JSON.parse(
     await readFile(join(target.home, "config", "accounts.json"), "utf8"),
   ) as {
-    profiles?: {
+    accounts?: {
       atlassian?: {
         id: string;
-        siteUrl: string;
-        email: string;
-        credential: string;
+        fields: { siteUrl?: string; email?: string };
       }[];
     };
   };
   // The account the Atlassian extension selects, so checks and the agent use
   // the same site; never guess, since write tasks must stay in the sandbox.
   const selected = await selectedAtlassianAccount(target.home);
-  const profile = accounts.profiles?.atlassian?.find(
+  const profile = accounts.accounts?.atlassian?.find(
     (account) => account.id === selected,
   );
   if (!profile)
@@ -122,12 +120,14 @@ async function readSlotConnection(target: SlotTarget): Promise<Connection> {
       decipher.final(),
     ]).toString("utf8"),
   ) as Record<string, string>;
-  const token = values[`provider:${profile.credential}:apiKey`];
-  if (!token)
+  const credential = `account:atlassian:${profile.id}`;
+  const token = values[`provider:${credential}:apiKey`];
+  const { siteUrl, email } = profile.fields;
+  if (!token || !siteUrl || !email)
     throw new CliError(
-      `Slot ${target.slot} has no saved API token for ${profile.credential}.`,
+      `Slot ${target.slot}: the selected Atlassian account needs a site URL, an email and a saved API token (${credential}).`,
     );
-  return { siteUrl: profile.siteUrl, email: profile.email, token };
+  return { siteUrl: siteUrl.replace(/\/+$/, ""), email, token };
 }
 
 export async function connectAtlassian(
