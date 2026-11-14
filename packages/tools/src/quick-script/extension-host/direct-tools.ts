@@ -116,11 +116,16 @@ async function executeExtensionTool(
     raw: [],
   });
   const artifacts = await withImageSizes([...env.report.artifacts.values()]);
-  const text = render(value);
+  const presented =
+    value !== undefined && !isMethodTool(tool) && tool.present
+      ? tool.present(value)
+      : { text: render(value), value };
+  const text = presented.text;
+  const shown = presented.value;
   const carried =
-    value !== undefined &&
-    JSON.stringify(value)?.length <= MAX_DISPLAY_VALUE_CHARS
-      ? value
+    shown !== undefined &&
+    JSON.stringify(shown)?.length <= MAX_DISPLAY_VALUE_CHARS
+      ? shown
       : undefined;
   return {
     content: [text, ...reportLines(artifacts, changes, env.report.notes)].join(

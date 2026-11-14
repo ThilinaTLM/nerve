@@ -273,7 +273,6 @@ export function parseToolView(
           ("supervision" in toolCall
             ? toolCall.supervision?.operations
             : undefined) ?? [],
-        pages: details.success ? (details.data.pages ?? []) : [],
         artifacts: details.success ? (details.data.artifacts ?? []) : [],
         created: details.success ? (details.data.created ?? []) : [],
         live: !result && Boolean(liveOutput?.text),

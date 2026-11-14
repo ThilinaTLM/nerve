@@ -155,18 +155,9 @@ importers:
 
   packages/extensions:
     dependencies:
-      '@nervekit/contracts':
-        specifier: workspace:*
-        version: link:../contracts
       '@nervekit/extension-api':
         specifier: workspace:*
         version: link:../extension-api
-      '@nervekit/native':
-        specifier: workspace:*
-        version: link:../native
-      '@nervekit/tools':
-        specifier: workspace:*
-        version: link:../tools
       node-html-markdown:
         specifier: ^2.0.0
         version: 2.0.0

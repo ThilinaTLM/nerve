@@ -1,4 +1,4 @@
-import { ATLASSIAN_SAMPLES } from "../src/atlassian/method-samples.js";
+import { ATLASSIAN_SAMPLES } from "./atlassian-samples.js";
 
 /** Representative arguments for every SDK method; a new method must be added here. */
 export const SAMPLES: Record<string, unknown[][]> = {

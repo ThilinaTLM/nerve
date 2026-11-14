@@ -1,7 +1,9 @@
 import { registerToolDefinitions } from "@nervekit/tools/catalog";
 import { builtinExtensions } from "@nervekit/extensions";
+import { readBuiltinExtensionDoc } from "@nervekit/extensions/docs";
 import {
   createQuickScriptRegistry,
+  extensionSettingsDefinition,
   quickScriptHostTools,
 } from "@nervekit/tools/quick-script";
 
@@ -11,7 +13,14 @@ import {
  * everything that needs it: the tools, the description, the authorizer and the
  * availability.
  */
-export const hostRegistry = createQuickScriptRegistry(builtinExtensions);
+export const hostRegistry = createQuickScriptRegistry(builtinExtensions, {
+  readExtensionDoc: readBuiltinExtensionDoc,
+});
+
+/** What the settings machinery needs of every registered extension. */
+export const extensionSettingsDefinitions = hostRegistry.extensions.map(
+  extensionSettingsDefinition,
+);
 
 /**
  * Adds the tool definitions that other packages own to the tools catalog:

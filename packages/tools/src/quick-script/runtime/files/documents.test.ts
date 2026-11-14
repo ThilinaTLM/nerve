@@ -8,6 +8,10 @@ import { preludesFor } from "../sdk.js";
 import { executeQuickScript } from "../quick-script.js";
 import type { QuickScriptNestedRequest } from "../../../execution/index.js";
 
+import { createQuickScriptRegistry } from "../../registry.js";
+
+const registry = createQuickScriptRegistry([]);
+
 type Nested = { toolName: string; args: Record<string, unknown> };
 
 async function setup() {
@@ -18,6 +22,7 @@ async function setup() {
   await mkdir(cwd);
   const authorized: Nested[] = [];
   const context = {
+    registry,
     cwd,
     conversationDir,
     authorizeNested: async (request: QuickScriptNestedRequest) => {
@@ -30,11 +35,11 @@ async function setup() {
 
 void test("document libraries and shims load only for scripts that mention them", () => {
   const sources = (code: string) =>
-    preludesFor(code)
+    preludesFor(code, registry)
       .slice(1)
       .map((prelude) => prelude.source)
       .join("\n");
-  assert.equal(preludesFor(`console.log(1)`).length, 1);
+  assert.equal(preludesFor(`console.log(1)`, registry).length, 1);
   assert.doesNotMatch(sources(`XLSX.read`), /g\.setImmediate/);
   assert.match(sources(`docx.Packer`), /g\.setImmediate/);
   assert.match(sources(`mammoth.convertToHtml`), /qsimg/);
@@ -101,7 +106,7 @@ void test("mammoth replaces images with a placeholder unless convertImage is giv
 
 void test("document globals are harmless to the risk scanner", () => {
   const code = `const d = new docx.Document({ sections: [] }); await mammoth.convertToHtml(b); await pptxText(b); new PptxGenJS(); JSZip.loadAsync(b);`;
-  assert.equal(classifyQuickScriptScript(code).risk, "read");
+  assert.equal(classifyQuickScriptScript(code, registry).risk, "read");
 });
 
 void test("PptxGenJS and JSZip can be used in the same script", async () => {

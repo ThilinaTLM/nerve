@@ -2,7 +2,6 @@ import {
   MAX_ATTACHMENT_BYTES,
   MAX_FILE_BYTES,
 } from "./runtime/files/artifacts.js";
-import { quickScriptRegistry } from "./registry.js";
 
 /** Limits stated in docs and rules as `{{limit:<name>}}`; the values come from the code that enforces them (extensions declare theirs in the manifest). */
 const LIMIT_BYTES: Record<string, number> = {
@@ -21,7 +20,7 @@ function formatBytes(bytes: number): string {
 /** Fills `{{limit:name}}` placeholders; an unknown name throws so a typo cannot ship. */
 export function renderLimits(
   text: string,
-  limits: Readonly<Record<string, number>> = quickScriptRegistry().limits,
+  limits: Readonly<Record<string, number>> = {},
 ): string {
   return text.replace(/\{\{limit:([\w.]+)\}\}/g, (_, name: string) => {
     const bytes = LIMIT_BYTES[name] ?? limits[name];

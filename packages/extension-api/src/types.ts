@@ -216,8 +216,22 @@ export type HttpRequest = {
   timeoutMs?: number;
   /** Largest accepted response body; the host's limit applies when absent or larger. */
   maxBytes?: number;
-  /** How the body is returned; `json` by default for JSON content, else `text`. */
-  response?: "json" | "text" | "bytes" | { artifact: string };
+  /**
+   * How the body is returned; `json` by default for JSON content, else `text`.
+   * `{ artifact }` streams a successful response to that artifact (up to 100 MB).
+   * `{ artifactFor }` decides from the response's content type: a name streams
+   * it to that artifact, `undefined` returns the body as `text`.
+   */
+  response?:
+    | "json"
+    | "text"
+    | "bytes"
+    | { artifact: string }
+    | {
+        artifactFor(
+          contentType: string,
+        ): string | undefined | Promise<string | undefined>;
+      };
 };
 
 export type HttpResponse = {
@@ -494,6 +508,11 @@ export type OwnToolDefinition<Input = any, Output = unknown> = ToolBase & {
   parse(args: Record<string, unknown>): Input;
   authorize?(input: Input): AuthorizeResult;
   run(input: Input, ctx: ExtensionContext): Promise<Output> | Output;
+  /**
+   * Splits the output into what the agent reads (`text`) and what the
+   * transcript renders (`value`, per `display`). Without it, both are the output.
+   */
+  present?(output: Output): { text: string; value?: unknown };
 };
 
 export type ToolDefinition = MethodToolDefinition | OwnToolDefinition;
@@ -540,6 +559,4 @@ export type ExtensionDefinition = {
   prelude?: string;
   /** Byte limits, filled into `{{limit:<name>}}` placeholders of docs and rules. */
   limits?: Readonly<Record<string, number>>;
-  /** Reads a doc topic file (`DocTopic.file`) of this extension. */
-  readDoc?: (file: string) => string;
 };

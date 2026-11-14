@@ -10,7 +10,6 @@ import {
   formatDuration,
   operationLines,
 } from "../views/tool-presentation-helpers";
-import { cn } from "@nervekit/ui-kit/utils";
 import ToolSections from "./ToolSections.svelte";
 
 type Props = {
@@ -36,7 +35,6 @@ const plannedLines = $derived(
 const hasSummary = $derived(
   view.hostCalls.length > 0 ||
     plannedLines.length > 0 ||
-    view.pages.length > 0 ||
     view.artifacts.length > 0 ||
     view.created.length > 0 ||
     scriptFailed,
@@ -67,12 +65,6 @@ const namedHandles = $derived(
 const unnamedArtifacts = $derived(
   view.artifacts.filter((artifact) => !namedHandles.has(artifact.handle)),
 );
-
-function pageLintLabel(fixes: number, warnings: number): string {
-  if (warnings > 0)
-    return `${warnings} lint warning${warnings === 1 ? "" : "s"}`;
-  return fixes > 0 ? `lint fixed ${fixes}` : "lint clean";
-}
 </script>
 
 {#snippet artifactLink(artifact: QuickScriptArtifact)}
@@ -169,37 +161,6 @@ function pageLintLabel(fixes: number, warnings: number): string {
           {@render artifactLink(artifact)}
         {/each}
       </p>
-    {/if}
-
-    {#if view.pages.length > 0}
-      <ul class="m-0 list-none p-0 py-1" aria-label="Pages written">
-        {#each view.pages as page (page.id)}
-          <li class="px-2.5 py-0.5 text-ui">
-            <div class="flex min-w-0 items-baseline gap-2">
-              <span class="flex-none text-muted-foreground">{page.action}</span>
-              <span class="min-w-0 flex-1 truncate text-foreground"
-                >{page.title}</span
-              >
-              <span
-                class={cn(
-                  "flex-none text-caption",
-                  page.warnings.length > 0
-                    ? "text-warning"
-                    : "text-muted-foreground",
-                )}
-                >{pageLintLabel(page.fixes.length, page.warnings.length)}</span
-              >
-            </div>
-            {#each page.warnings as warning, index (index)}
-              <p
-                class="m-0 pl-4 text-caption text-warning [overflow-wrap:anywhere]"
-              >
-                {warning}
-              </p>
-            {/each}
-          </li>
-        {/each}
-      </ul>
     {/if}
 
     {#if scriptFailed}

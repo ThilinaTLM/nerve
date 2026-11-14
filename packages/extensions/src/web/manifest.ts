@@ -3,9 +3,8 @@ import {
   defineNamespace,
   defineTool,
 } from "@nervekit/extension-api";
-import { readExtensionDoc } from "../docs-source.js";
 import { WEB_DTS_TYPES } from "./declarations.js";
-import { MAX_FETCH_BYTES, webMethods } from "./web-methods.js";
+import { MAX_FETCH_BYTES, webMethods, webSearchTool } from "./web-methods.js";
 
 /** `web.fetch` needs only the switch; `web.search` also needs a Tavily account. */
 export const webExtension = defineExtension({
@@ -40,7 +39,6 @@ export const webExtension = defineExtension({
   },
   // `*`: `web.fetch` reaches any public http(s) origin; the host's SSRF guard still applies.
   permissions: { network: ["https://api.tavily.com", "*"] },
-  readDoc: (file) => readExtensionDoc("web", file),
   limits: { "web.fetch": MAX_FETCH_BYTES },
   namespaces: [
     defineNamespace({
@@ -57,7 +55,6 @@ export const webExtension = defineExtension({
     defineTool({
       name: "web_search",
       label: "Web Search",
-      method: "web.search",
       description: "Search the web.",
       parameters: {
         type: "object",
@@ -68,6 +65,8 @@ export const webExtension = defineExtension({
         required: ["query"],
         additionalProperties: false,
       },
+      risk: "network",
+      ...webSearchTool,
       display: "links",
       requires: { account: "searchAccount" },
     }),

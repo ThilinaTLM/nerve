@@ -1,6 +1,7 @@
 import { ExtensionError } from "@nervekit/extension-api";
-import { MAX_FILE_BYTES } from "./files.js";
+import type { ArtifactRef } from "@nervekit/extension-api";
 import {
+  bodyText,
   send,
   TEXT_RESPONSE_MAX_BYTES,
   type Connection,
@@ -69,6 +70,15 @@ function appendRawQuery(url: URL, query: unknown): void {
   }
 }
 
+function isArtifactRef(body: unknown): body is ArtifactRef {
+  return (
+    typeof body === "object" &&
+    body !== null &&
+    !(body instanceof Uint8Array) &&
+    typeof (body as ArtifactRef).handle === "string"
+  );
+}
+
 const TEXTUAL_CONTENT_TYPE = /json|text|xml|javascript|x-www-form-urlencoded/i;
 
 /** Names the artifact a binary response is saved as: `<base>-<n><extension>`. */
@@ -81,7 +91,7 @@ export type BinaryNaming = {
  * The raw request of `jira.request` / `confluence.request`: JSON or text
  * back, parsed when it is JSON. With `binary`, a response whose content type is
  * not textual is saved as an artifact and its handle returned. The body is held
- * in memory (the host's 20 MB limit), unlike attachment downloads.
+ * in memory (the host's 20 MB limit); binary ones stream to an artifact (up to 100 MB).
  */
 export async function sendRaw(
   connection: Connection,
@@ -97,30 +107,28 @@ export async function sendRaw(
     options.body !== undefined &&
     options.body !== null &&
     options.method !== "GET";
+  const { binary } = options;
   const response = await send(connection, {
     service: options.service,
     url: options.url,
     method: options.method,
     ...(hasBody ? { body: { json: options.body } } : {}),
-    response: "bytes",
-    maxBytes: MAX_FILE_BYTES,
+    // Non-textual responses stream to an artifact (up to 100 MB); textual ones stay in memory.
+    response: binary
+      ? {
+          artifactFor: async (contentType) =>
+            contentType && !TEXTUAL_CONTENT_TYPE.test(contentType)
+              ? await connection.ctx.artifacts.freshName(
+                  binary.base,
+                  binary.extensionFor(contentType),
+                )
+              : undefined,
+        }
+      : "text",
     errorPath: options.url.pathname,
   });
-  const contentType = response.headers["content-type"] ?? "";
-  const bytes =
-    response.body instanceof Uint8Array ? response.body : new Uint8Array();
-  if (
-    options.binary &&
-    contentType &&
-    !TEXTUAL_CONTENT_TYPE.test(contentType)
-  ) {
-    const { artifacts } = connection.ctx;
-    const name = await artifacts.freshName(
-      options.binary.base,
-      options.binary.extensionFor(contentType),
-    );
-    return (await artifacts.write(name, bytes, contentType)).handle;
-  }
+  if (isArtifactRef(response.body)) return response.body.handle;
+  const bytes = new TextEncoder().encode(bodyText(response));
   if (bytes.byteLength > TEXT_RESPONSE_MAX_BYTES)
     throw new ExtensionError(
       "BAD_REQUEST",

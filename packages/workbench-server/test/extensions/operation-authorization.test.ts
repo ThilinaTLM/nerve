@@ -1,12 +1,12 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import "./install.js";
+import { registry } from "./registry.js";
 import { SAMPLES } from "./method-samples.js";
 import {
   createSdkEnvironment,
   findSdkMethod,
-} from "@nervekit/tools/quick-script/runtime/sdk";
-import { isOperationCheck } from "@nervekit/tools/quick-script/runtime/sdk-types";
+} from "@nervekit/tools/quick-script/testing";
+import { isOperationCheck } from "@nervekit/tools/quick-script/testing";
 
 /**
  * SDK calls are authorized as operations (`jira.issues.create`) with resource
@@ -16,13 +16,14 @@ import { isOperationCheck } from "@nervekit/tools/quick-script/runtime/sdk-types
  */
 
 const env = createSdkEnvironment({
+  registry,
   cwd: process.cwd(),
   conversationDir: "/tmp/quick-script",
   web: { enabled: true, search: true },
 });
 
 const checksOf = (name: string, args: unknown[]) => {
-  const prepared = findSdkMethod(name)!.prepare(args, env);
+  const prepared = findSdkMethod(name, registry)!.prepare(args, env);
   return [
     ...(prepared.authorization ? [prepared.authorization] : []),
     ...(prepared.additionalAuthorizations ?? []),
@@ -31,7 +32,7 @@ const checksOf = (name: string, args: unknown[]) => {
 
 void test("methods keep the direct-tool route only for web.fetch, files and image; everything else is an operation", () => {
   for (const [name, calls] of Object.entries(SAMPLES)) {
-    const product = findSdkMethod(name)!.product;
+    const product = findSdkMethod(name, registry)!.product;
     for (const args of calls) {
       const [first] = checksOf(name, args);
       if (!first) continue;

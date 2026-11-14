@@ -7,6 +7,7 @@ import type {
   ExtensionContext,
   ExtensionDefinition,
   NamespaceDefinition,
+  Risk,
 } from "@nervekit/extension-api";
 import { ExtensionError } from "@nervekit/extension-api";
 import {
@@ -17,6 +18,8 @@ import {
   artifactTempPath,
   commitArtifact,
   freshArtifactName,
+  MAX_ATTACHMENT_BYTES,
+  MAX_FILE_BYTES,
   mediaTypeFor,
   parseHandle,
   readFileRef,
@@ -24,6 +27,7 @@ import {
   writeArtifact,
 } from "../runtime/files/artifacts.js";
 import type { SdkEnvironment } from "../runtime/sdk-types.js";
+import { assertDeclaredRisk } from "../runtime/script-risk.js";
 import { createHttp } from "./http.js";
 
 /**
@@ -60,13 +64,56 @@ export class ExtensionRuntime {
     return session;
   }
 
-  context(definition: ExtensionDefinition): ExtensionContext {
+  /**
+   * The extension's `ctx`. Inside a method call (`call`) `ctx.authorize` is
+   * bound to that call's declared risk; elsewhere it is unavailable.
+   */
+  context(
+    definition: ExtensionDefinition,
+    call?: { name: string; risk: Risk },
+  ): ExtensionContext {
     let ctx = this.#contexts.get(definition.id);
     if (!ctx) {
       ctx = this.#build(definition);
       this.#contexts.set(definition.id, ctx);
     }
-    return ctx;
+    if (!call) return ctx;
+    return {
+      ...ctx,
+      authorize: async (check) => {
+        // The invariant of the script scan: a call never checks above its declared risk.
+        try {
+          assertDeclaredRisk(call.name, call.risk, [
+            { ...check, targets: [], summary: "" },
+          ]);
+        } catch (error) {
+          throw new ExtensionError(
+            "BAD_REQUEST",
+            error instanceof Error ? error.message : String(error),
+          );
+        }
+        // The same path as the checks declared in `authorize`: policy, then the script's admission.
+        await this.#authorizeNested(check);
+      },
+    };
+  }
+
+  async #authorizeNested(check: {
+    operation: string;
+    targets: readonly string[];
+    risk: Risk;
+  }): Promise<void> {
+    const authorizeNested = this.env.context.authorizeNested;
+    if (!authorizeNested)
+      throw new ExtensionError(
+        "DENIED",
+        "Nested authorization is unavailable; refusing to run SDK calls.",
+      );
+    await authorizeNested({
+      operation: check.operation,
+      targets: [...check.targets],
+      risk: check.risk,
+    });
   }
 
   #build(definition: ExtensionDefinition): ExtensionContext {
@@ -129,9 +176,14 @@ export class ExtensionRuntime {
       secret: (kind, id) => ports.accounts.secret(kind, id),
       signal,
       allowPrivateNetwork: env.context.webFetchPolicy?.allowPrivateNetwork,
-      readHandle: async (handle) => {
+      openHandle: async (handle) => {
         const ref = await readWorkspaceOrArtifact(handle);
-        return new Uint8Array(await readFileRef(ref));
+        const size = await statFileRef(
+          ref,
+          MAX_ATTACHMENT_BYTES,
+          "Split or compress it.",
+        );
+        return { path: ref.path, size };
       },
       artifactSink: () => ({
         prepare: () => artifactTempPath(env),
@@ -165,10 +217,16 @@ export class ExtensionRuntime {
         },
         info: async (handle): Promise<ArtifactInfo> => {
           const ref = await readWorkspaceOrArtifact(handle);
-          const bytes = await statFileRef(ref);
+          // Size up to the transfer limit (uploads stream); dimensions only for files the host reads.
+          const bytes = await statFileRef(
+            ref,
+            MAX_ATTACHMENT_BYTES,
+            "Split or compress it.",
+          );
           const mediaType = mediaTypeFor(ref.path);
           const dimensions =
-            mediaType === "image/png" || mediaType === "image/jpeg"
+            bytes <= MAX_FILE_BYTES &&
+            (mediaType === "image/png" || mediaType === "image/jpeg")
               ? await readFileRef(ref)
                   .then((data) => image.imageInfo(data))
                   .then((info) => ({ width: info.width, height: info.height }))
@@ -188,18 +246,11 @@ export class ExtensionRuntime {
       text: {
         htmlToMarkdown: (html) => isolatedHtmlToMarkdown(html, { signal }),
       },
-      authorize: async (check) => {
-        const authorizeNested = env.context.authorizeNested;
-        if (!authorizeNested)
-          throw new ExtensionError(
-            "DENIED",
-            "Nested authorization is unavailable; refusing to run SDK calls.",
-          );
-        await authorizeNested({
-          operation: check.operation,
-          targets: [...check.targets],
-          risk: check.risk,
-        });
+      authorize: async () => {
+        throw new ExtensionError(
+          "DENIED",
+          "ctx.authorize is only available inside a method call.",
+        );
       },
       report: {
         created: (entry) => void env.report.created.push(entry),

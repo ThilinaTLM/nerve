@@ -2,9 +2,8 @@
 
 The built-in `quick_script` extensions: Atlassian (`jira`, `confluence`, `storage`), web, diagram and image generation. See `docs/architecture/code-mode.md`.
 
-- `src/<id>/`: manifest, declarations, method code, tests and `docs/` (the `sdk.docs` topics) of one extension. `atlassian` has `jira/`, `confluence/` and `shared/`.
-- `src/index.ts`: `builtinExtensions` (display order), `extensionSettingsDefinitions`, `extensionMetadata`, and the host-facing exports (`checkAtlassianConnection`, image backend types).
-- `src/docs-source.ts`: reads a topic from `src/<id>/docs/` from source and from `dist/extension-docs/<id>/` in builds and the desktop bundle (`scripts/build/copy-extension-assets.ts` copies it).
-- `test/`: tests of the runtime together with the built-ins (registry, discovery, risk samples, docs).
+- `src/<id>/`: definition (`manifest.ts`, built with `@nervekit/extension-api`), declarations, method code, unit tests and `docs/` (the `sdk.docs` topics, declared as `docs/<file>` paths) of one extension. `atlassian` has `jira/`, `confluence/` and `shared/`.
+- `src/index.ts`: `builtinExtensions`, the definitions in display order. Nothing else is exported from the package root.
+- `src/docs-source.ts` (subpath `@nervekit/extensions/docs`): the host-side reader of the declared doc paths, from `src/<id>/` in source and from `dist/extension-docs/<id>/` in builds and the desktop bundle (`scripts/build/copy-extension-assets.ts` copies it). Extension code itself does not read files.
 
-Depends on `@nervekit/tools` (runtime, manifest types, execution primitives and the Jira, Confluence, web and kroki clients). Tools does not import this package: the host builds its registry from `builtinExtensions` (`createQuickScriptRegistry`).
+Depends on `@nervekit/extension-api` only (plus npm libraries); it imports neither `tools` nor `contracts`. The host (`workbench-server`) builds the registry from `builtinExtensions`. Tests that run the built-ins through the runtime live in `packages/workbench-server/test/extensions/`.

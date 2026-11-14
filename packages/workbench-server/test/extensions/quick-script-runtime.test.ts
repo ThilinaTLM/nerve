@@ -1,9 +1,8 @@
-import "./install.js";
+import { executeQuickScript } from "./registry.js";
 import assert from "node:assert/strict";
 import { afterEach, test } from "node:test";
 import { quickScriptResultDetailsSchema } from "@nervekit/contracts/tools";
-import { executeQuickScript } from "@nervekit/tools/quick-script/runtime/quick-script";
-import type { Nested } from "@nervekit/tools/quick-script/runtime/test-nested";
+import type { Nested } from "@nervekit/tools/quick-script/testing";
 import { atlassianPorts, mockedNetwork } from "./atlassian-context.js";
 
 const originalFetch = globalThis.fetch;

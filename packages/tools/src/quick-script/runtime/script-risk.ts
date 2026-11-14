@@ -5,7 +5,7 @@ import {
   toolNameSchema,
 } from "@nervekit/contracts/tools";
 import { classifyToolRisk } from "../../catalog/index.js";
-import { quickScriptRegistry, type QuickScriptRegistry } from "../registry.js";
+import type { QuickScriptRegistry } from "../registry.js";
 import { sdkGlobals } from "./sdk-globals.js";
 import { createSdkEnvironment, findSdkMethod } from "./sdk.js";
 import {
@@ -180,12 +180,7 @@ export function assertDeclaredRisk(
 }
 
 /** Methods whose risk depends on a literal argument. */
-const ARGUMENT_DEPENDENT = new Set([
-  "jira.request",
-  "confluence.request",
-  "files.write",
-  "files.edit",
-]);
+const ARGUMENT_DEPENDENT = new Set(["files.write", "files.edit"]);
 
 /** Ways to reach an SDK global or run code without naming it. */
 const ESCAPES = new Set([
@@ -625,7 +620,7 @@ type Found = { risk: QuickScriptRisk; targets: string[] };
  */
 export function classifyQuickScriptScript(
   code: string,
-  registry: QuickScriptRegistry = quickScriptRegistry(),
+  registry: QuickScriptRegistry,
 ): QuickScriptClassification {
   const [division, regex] = [
     tokenize(code, "division"),
@@ -733,26 +728,6 @@ function classifyTokens(
       } else if (name === "files.edit") {
         if (editsWorkspace(args))
           record(`${name} (workspace)`, "workspace_write", targets);
-      } else {
-        const verb = literal(args[0])?.toUpperCase();
-        const path = literal(args[1]);
-        if (verb) {
-          const get = verb === "GET";
-          record(
-            `${name} ${verb}`,
-            get ? "network" : "destructive",
-            path ? [path] : [],
-            "operation",
-          );
-          scanned.push({
-            operation: name,
-            risk: get ? "network" : "destructive",
-            targets:
-              path === undefined
-                ? undefined
-                : [`${method.product}:request/${verb} ${path}`],
-          });
-        } else record(`${name} (computed method)`, "destructive");
       }
       continue;
     }
@@ -761,9 +736,18 @@ function classifyTokens(
     else if (DIRECT_PRODUCTS.has(method.product))
       record(name, methodRisk, targets);
     else {
-      record(name, methodRisk, targets, "operation");
+      // Literal arguments: the method's own authorization decides the risk (a raw request is a network read for GET, destructive otherwise).
+      const checks = literalChecks(method, args, registry);
+      const decided = checks?.reduce<QuickScriptRisk | undefined>(
+        (highest, check) =>
+          highest === undefined
+            ? quickScriptRiskOfMethod(check.risk)
+            : higherRisk(highest, quickScriptRiskOfMethod(check.risk)),
+        undefined,
+      );
+      record(name, decided ?? methodRisk, targets, "operation");
       scanned.push(
-        ...(literalChecks(method, args, registry) ?? [
+        ...(checks ?? [
           { operation: name, risk: method.risk, targets: undefined },
         ]),
       );
@@ -785,7 +769,7 @@ function classifyTokens(
 /** Classifies the arguments of an `quick_script` call. */
 export function classifyQuickScriptArguments(
   args: Record<string, unknown>,
-  registry: QuickScriptRegistry = quickScriptRegistry(),
+  registry: QuickScriptRegistry,
 ): QuickScriptClassification {
   return typeof args.code === "string"
     ? classifyQuickScriptScript(args.code, registry)

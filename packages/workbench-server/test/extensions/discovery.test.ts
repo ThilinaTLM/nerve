@@ -1,15 +1,15 @@
-import "./install.js";
+import { registry } from "./registry.js";
 import assert from "node:assert/strict";
 import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import { DISCOVERY_BUDGET_CHARS } from "@nervekit/tools/quick-script/runtime/discovery";
-import type { QuickScriptAvailability } from "@nervekit/tools/quick-script/manifest-types";
+import { DISCOVERY_BUDGET_CHARS } from "@nervekit/tools/quick-script/testing";
+import type { QuickScriptAvailability } from "@nervekit/tools/quick-script";
 import {
   createSdkEnvironment,
   findSdkMethod,
-} from "@nervekit/tools/quick-script/runtime/sdk";
+} from "@nervekit/tools/quick-script/testing";
 
 const namespaces: QuickScriptAvailability = {
   atlassian: { configured: true, available: true },
@@ -37,17 +37,18 @@ const namespaces: QuickScriptAvailability = {
 
 function session(conversationDir?: string) {
   const env = createSdkEnvironment({
+    registry,
     cwd: process.cwd(),
     conversationDir,
     namespaces,
   });
   return async (method: string, ...args: unknown[]) =>
-    String(await findSdkMethod(method)!.prepare(args, env).run(env));
+    String(await findSdkMethod(method, registry)!.prepare(args, env).run(env));
 }
 
 void test("sdk methods have risk none and need no authorization", () => {
   for (const name of ["list", "describe", "search", "docs"]) {
-    const method = findSdkMethod(`sdk.${name}`)!;
+    const method = findSdkMethod(`sdk.${name}`, registry)!;
     assert.equal(method.risk, "none");
   }
 });
@@ -130,13 +131,16 @@ void test("over budget, describe summarises and writes the full declarations to 
     assert.ok(first.length + second.length > 0);
     // Spend the rest of the budget, then ask for the whole namespace again.
     const env = createSdkEnvironment({
+      registry,
       cwd: process.cwd(),
       conversationDir: dir,
       namespaces,
     });
     env.discovery.used = DISCOVERY_BUDGET_CHARS - 500;
     const summary = String(
-      await findSdkMethod("sdk.describe")!.prepare(["jira"], env).run(env),
+      await findSdkMethod("sdk.describe", registry)!
+        .prepare(["jira"], env)
+        .run(env),
     );
     const file = /Full declarations: (\S+)/.exec(summary)?.[1];
     assert.ok(file, summary);
@@ -151,7 +155,7 @@ void test("over budget, describe summarises and writes the full declarations to 
 });
 
 void test("a wrong argument names the method's declaration", async () => {
-  const env = createSdkEnvironment({ cwd: process.cwd() });
-  const method = findSdkMethod("jira.issues.get")!;
+  const env = createSdkEnvironment({ registry, cwd: process.cwd() });
+  const method = findSdkMethod("jira.issues.get", registry)!;
   assert.throws(() => method.prepare([1, 2], env), /takes one argument/);
 });

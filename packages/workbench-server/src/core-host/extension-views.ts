@@ -4,7 +4,6 @@ import type {
   ExtensionView,
 } from "@nervekit/contracts/extensions";
 import { upgradeEntry } from "@nervekit/contracts/extensions";
-import { extensionMetadata } from "@nervekit/extensions";
 import type { AgentConfigurationService } from "../infrastructure/configuration/agent-configuration/agent-configuration-service.js";
 import type {
   ExtensionContext,
@@ -12,7 +11,10 @@ import type {
   ExtensionSettingsService,
 } from "../infrastructure/configuration/extensions/extension-settings-service.js";
 import { conversationExtensionContext } from "./conversation-extensions.js";
-import type { QuickScriptRegistry } from "@nervekit/tools/quick-script";
+import {
+  extensionMetadata,
+  type QuickScriptRegistry,
+} from "@nervekit/tools/quick-script";
 import type { AccountsReader } from "../domains/accounts/accounts.service.js";
 import { extensionAvailability } from "./extension-availability.js";
 import { createExtensionPorts } from "./extension-ports.js";

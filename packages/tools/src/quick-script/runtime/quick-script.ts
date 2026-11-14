@@ -14,7 +14,6 @@ import { processFooter } from "../../result-projection/index.js";
 import { withImageSizes } from "./files/artifacts.js";
 import { assertDeclaredRisk } from "./script-risk.js";
 import { declarationLine } from "./sdk-dts.js";
-import { quickScriptRegistry } from "../registry.js";
 import {
   createSdkEnvironment,
   findSdkMethod,
@@ -40,7 +39,7 @@ const EXIT_CODES: Record<string, number> = {
 
 /**
  * Runs an agent-written TypeScript script in the QuickJS sandbox with the
- * Jira and Confluence SDKs. Failure convention follows `python_exec`: a script that fails,
+ * extensions' SDKs. Failure convention follows `python_exec`: a script that fails,
  * times out or is cancelled still yields a normal result (error text + footer,
  * non-zero `exitCode`); only invalid arguments and a missing runtime throw.
  */
@@ -68,7 +67,9 @@ export async function executeQuickScript(
   const abortStop = () => stop.abort();
   context.signal?.addEventListener("abort", abortStop, { once: true });
   if (context.signal?.aborted) stop.abort();
-  const registry = context.registry ?? quickScriptRegistry();
+  const registry = context.registry;
+  if (!registry)
+    throw new Error("quick_script needs the host's extension registry.");
   const env = createSdkEnvironment({
     ...context,
     registry,
@@ -126,9 +127,9 @@ export async function executeQuickScript(
       record({ outcome: "failed", error: authFailure });
       throw new Error(`[UNAUTHORIZED] ${authFailure}`);
     }
-    const sdkMethod = findSdkMethod(method, registry);
+    const sdkMethod = findSdkMethod(method, env.registry);
     if (!sdkMethod) {
-      const message = `Unknown method '${method}'. Valid methods: ${sdkMethodNames(registry).join(", ")}.`;
+      const message = `Unknown method '${method}'. Valid methods: ${sdkMethodNames(env.registry).join(", ")}.`;
       record({ outcome: "failed", error: message });
       throw new Error(`[BAD_REQUEST] ${message}`);
     }

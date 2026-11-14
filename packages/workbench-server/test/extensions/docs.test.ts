@@ -3,22 +3,32 @@ import test from "node:test";
 import {
   createSdkEnvironment,
   findSdkMethod,
-} from "@nervekit/tools/quick-script/runtime/sdk";
-import { STORAGE_PRELUDE } from "../src/atlassian/storage/storage-helpers.js";
-import { renderLimits } from "@nervekit/tools/quick-script/limits";
-import { registeredMethods, registeredNamespaces } from "./install.js";
+} from "@nervekit/tools/quick-script/testing";
+import { renderLimits } from "@nervekit/tools/quick-script/testing";
+import {
+  registeredMethods,
+  registeredNamespaces,
+  registry,
+} from "./registry.js";
+
+/** The Atlassian storage helpers, as the sandbox evaluates them. */
+const STORAGE_PRELUDE = registry.extensions.find(
+  (extension) => extension.id === "atlassian",
+)!.prelude!;
 
 const topics = registeredNamespaces.flatMap((namespace) =>
   namespace.docs.map((topic) => ({ namespace, topic })),
 );
 const rendered = topics.map(({ namespace, topic }) => ({
   id: topic.id,
-  text: renderLimits(namespace.readDoc(topic.file)),
+  text: renderLimits(namespace.readDoc(topic.file), registry.limits),
 }));
 
 async function run(method: string, ...args: unknown[]) {
-  const env = createSdkEnvironment({ cwd: process.cwd() });
-  return String(await findSdkMethod(method)!.prepare(args, env).run(env));
+  const env = createSdkEnvironment({ registry, cwd: process.cwd() });
+  return String(
+    await findSdkMethod(method, registry)!.prepare(args, env).run(env),
+  );
 }
 
 void test("topic ids are unique and live under their namespace", () => {
@@ -114,8 +124,12 @@ void test("limits come from code", () => {
   assert.equal(
     renderLimits(
       "{{limit:files.read}} {{limit:attachments}} {{limit:diagram.source}}",
+      registry.limits,
     ),
     "20 MiB 100 MiB 128 KiB",
   );
-  assert.throws(() => renderLimits("{{limit:nope}}"), /Unknown limit/);
+  assert.throws(
+    () => renderLimits("{{limit:nope}}", registry.limits),
+    /Unknown limit/,
+  );
 });

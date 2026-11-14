@@ -62,7 +62,8 @@ function record(value: unknown): Record<string, unknown> {
 
 /** A file read for upload. */
 type LoadedFile = {
-  bytes: Uint8Array;
+  handle: string;
+  size: number;
   filename: string;
   mediaType: string;
 };
@@ -81,9 +82,14 @@ async function loadFile(
   spec: AttachmentSpec,
   session: JiraSession,
 ): Promise<LoadedFile> {
-  const { bytes, name } = await session.ctx.artifacts.read(spec.file);
-  const filename = spec.filename ?? name;
-  return { bytes, filename, mediaType: mediaTypeFor(filename) };
+  const info = await session.ctx.artifacts.info(spec.file);
+  const filename = spec.filename ?? info.name;
+  return {
+    handle: spec.file,
+    size: info.bytes,
+    filename,
+    mediaType: mediaTypeFor(filename),
+  };
 }
 
 async function uploadFile(session: JiraSession, key: string, file: LoadedFile) {
@@ -95,7 +101,7 @@ async function uploadFile(session: JiraSession, key: string, file: LoadedFile) {
         name: "file",
         filename: file.filename,
         mediaType: file.mediaType,
-        data: file.bytes,
+        data: { handle: file.handle },
       },
     ],
   });
@@ -106,7 +112,7 @@ async function uploadFile(session: JiraSession, key: string, file: LoadedFile) {
     id,
     filename: String(raw.filename ?? file.filename),
     mediaType: String(raw.mimeType ?? file.mediaType),
-    size: typeof raw.size === "number" ? raw.size : file.bytes.byteLength,
+    size: typeof raw.size === "number" ? raw.size : file.size,
   };
 }
 
@@ -539,7 +545,7 @@ export const jiraWriteMethods: PathedMethod<JiraSession>[] = [
     risk: "external_write",
     options: ["key", "file", "filename"],
     signature:
-      "/** Max 20 MB. A repeated filename adds a duplicate (unlike Confluence). */ upload(options: { key: string; file: FileHandle; filename?: string }): Promise<JiraAttachment>",
+      "/** Max 100 MB. A repeated filename adds a duplicate (unlike Confluence). */ upload(options: { key: string; file: FileHandle; filename?: string }): Promise<JiraAttachment>",
     parse: (options) => ({
       key: nonEmptyString(options.key, "key"),
       spec: parseAttachmentSpec({

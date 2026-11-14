@@ -12,7 +12,8 @@ package "Shared desktop foundations" as foundations {
   component "@nervekit/contracts\nTransport-neutral API, operation,\nevent, policy, and storage schemas" as contracts
   component "@nervekit/protocol\nProtocol v1 codec, sessions, RPC,\nreplay, cursors, and bounded delivery" as protocol
   component "@nervekit/harness\nModel conversation, harness,\nand agent loop runtime" as harness
-  component "@nervekit/skills\nBuilt-in skills and harness resource integration" as skills
+  component "@nervekit/extension-api\nExtension contract: manifest and ctx types,\ndefine helpers, fake context" as extension_api
+  component "@nervekit/extensions\nBuilt-in quick_script extensions\n(Atlassian, web, diagrams, image generation)" as extensions
   component "@nervekit/conversation-core\nDurable history, inputs, tools, delegation\nand async Bash through environment ports" as core
   component "@nervekit/tools\nCanonical coding tool catalog,\nexecutors, and policy contracts" as tools
   component "@nervekit/native\nNormalized Rust N-API Git, process,\nplatform, and runtime primitives" as native
@@ -28,17 +29,19 @@ package "Desktop workbench" as local {
 protocol -[#3567a8]-> contracts
 harness -[#3567a8]-> contracts
 harness -[#3567a8]-> native
-skills -[#3567a8]-> harness
+contracts -[#3567a8]-> extension_api
+extensions -[#3567a8]-> extension_api
 core -[#3567a8]-> contracts
 core -[#3567a8]-> native
 core -[#3567a8]-> harness
-core -[#3567a8]-> skills
 core -[#3567a8]-> tools
 tools -[#3567a8]-> contracts
 tools -[#3567a8]-> native
+tools -[#3567a8]-> extension_api
 
 workbench_server -[#3567a8]-> core
-workbench_server -[#3567a8]-> skills
+workbench_server -[#3567a8]-> extensions
+workbench_server -[#3567a8]-> extension_api
 workbench_server -[#3567a8]-> contracts
 workbench_server -[#3567a8]-> protocol
 workbench_server -[#3567a8]-> harness
@@ -65,7 +68,8 @@ note bottom of ui_kit
 end note
 note bottom of workbench_server
   Implements conversation-core environment ports;
-  owns workbench services and concrete process drivers.
+  owns workbench services, concrete process drivers,
+  the built-in skills and the extension registry.
 end note
 note bottom of workbench_app
   Presentation cannot import app shells, feature state,
@@ -75,6 +79,6 @@ end note
 legend bottom
   |<#3567a8> solid arrow | consumer --> allowed compile-time @nervekit dependency |
   | dotted double arrow | runtime network communication, not an import dependency |
-  The compile-time graph and internal purity rules are enforced by scripts/checks/check-package-boundaries.mjs.
+  The compile-time graph and internal purity rules are enforced by scripts/checks/check-package-boundaries.ts.
 endlegend
 @enduml

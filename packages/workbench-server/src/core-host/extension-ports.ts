@@ -1,5 +1,8 @@
 import type { ExtensionResolution } from "@nervekit/contracts/extensions";
-import type { ExtensionHostPorts } from "@nervekit/tools/quick-script";
+import type {
+  ExtensionHostPorts,
+  QuickScriptRegistry,
+} from "@nervekit/tools/quick-script";
 import type { AccountsReader } from "../domains/accounts/accounts.service.js";
 import { fieldValue } from "@nervekit/contracts/extensions";
 import type { ExtensionState } from "@nervekit/tools/quick-script";
@@ -46,4 +49,40 @@ export function createExtensionPorts(input: {
       if (level === "warn") input.warn?.(extensionId, message, data);
     },
   };
+}
+
+/**
+ * What an approval of an extension call is bound to besides the settings: for
+ * every enabled extension, the account each `account` setting selects, with its
+ * non-secret fields. Switching the account, or its site, ends the approval; the
+ * credential never enters it.
+ */
+export async function selectedAccountsTarget(
+  registry: QuickScriptRegistry,
+  resolution: ExtensionResolution,
+  accounts: AccountsReader,
+): Promise<Record<string, Record<string, unknown>>> {
+  const states = extensionStates(resolution);
+  const target: Record<string, Record<string, unknown>> = {};
+  for (const extension of registry.extensions) {
+    const state = states(extension.id);
+    if (!state?.enabled) continue;
+    const selected: Record<string, unknown> = {};
+    for (const [field, declared] of Object.entries(extension.settings.fields)) {
+      if (declared.type !== "account") continue;
+      const id = state.settings[field];
+      if (typeof id !== "string" || !id) continue;
+      const account = await accounts.get(declared.kind, id);
+      selected[field] = account
+        ? {
+            id: account.id,
+            kind: account.kind,
+            name: account.name,
+            fields: account.fields,
+          }
+        : { id, missing: true };
+    }
+    if (Object.keys(selected).length > 0) target[extension.id] = selected;
+  }
+  return target;
 }

@@ -50,9 +50,9 @@
       "types": "./dist/quick-script/index.d.ts",
       "import": "./dist/quick-script/index.js"
     },
-    "./quick-script/*": {
-      "types": "./dist/quick-script/*.d.ts",
-      "import": "./dist/quick-script/*.js"
+    "./quick-script/testing": {
+      "types": "./dist/quick-script/testing.d.ts",
+      "import": "./dist/quick-script/testing.js"
     }
   },
   "scripts": {

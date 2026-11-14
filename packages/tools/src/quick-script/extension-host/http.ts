@@ -1,5 +1,6 @@
 import { Buffer } from "node:buffer";
-import { createWriteStream } from "node:fs";
+import { randomUUID } from "node:crypto";
+import { createReadStream, createWriteStream } from "node:fs";
 import { rm } from "node:fs/promises";
 import { Readable } from "node:stream";
 import { pipeline } from "node:stream/promises";
@@ -51,7 +52,12 @@ export type HttpHostDeps = {
   signal: AbortSignal;
   /** Plain fetch for destinations the user configured themselves in tests/host policy; others are SSRF-guarded. */
   allowPrivateNetwork?: boolean;
-  readHandle(handle: string): Promise<Uint8Array>;
+  /**
+   * A file handle the call may read, for streaming into a request: its path
+   * and size (checked against the transfer limit). The bytes never enter
+   * extension code.
+   */
+  openHandle(handle: string): Promise<{ path: string; size: number }>;
   artifactSink(): {
     prepare(): Promise<string>;
     commit(path: string, name: string): Promise<ArtifactRef>;
@@ -80,10 +86,33 @@ function credentialHeader(
   }
 }
 
+type BodySegment = Uint8Array | { path: string; size: number };
+
+type EncodedBody = {
+  data?: Uint8Array | string;
+  /** A multipart body streamed from disk; opened afresh for every hop. */
+  stream?: { length: number; open(): ReadableStream<Uint8Array> };
+  contentType?: string;
+};
+
+const quoted = (value: string) =>
+  value.replace(/[\r\n]/g, " ").replace(/"/g, "%22");
+
+async function* segmentChunks(segments: readonly BodySegment[]) {
+  for (const segment of segments) {
+    if (segment instanceof Uint8Array) yield segment;
+    else if (segment.size > 0)
+      yield* createReadStream(segment.path, {
+        start: 0,
+        end: segment.size - 1,
+      });
+  }
+}
+
 async function encodeBody(
   body: HttpRequest["body"],
-  readHandle: HttpHostDeps["readHandle"],
-): Promise<{ data?: Uint8Array | string; contentType?: string }> {
+  openHandle: HttpHostDeps["openHandle"],
+): Promise<EncodedBody> {
   if (body === undefined || body === null) return {};
   if (typeof body === "string" || body instanceof Uint8Array)
     return { data: body };
@@ -92,28 +121,41 @@ async function encodeBody(
       data: JSON.stringify(body.json),
       contentType: "application/json",
     };
-  const form = new FormData();
+  // Multipart: file handles are streamed from disk by the host, never read into memory.
+  const boundary = `----nerve${randomUUID().replaceAll("-", "")}`;
+  const encoder = new TextEncoder();
+  const segments: BodySegment[] = [];
+  let length = 0;
+  const push = (segment: BodySegment) => {
+    segments.push(segment);
+    length += segment instanceof Uint8Array ? segment.byteLength : segment.size;
+  };
   for (const part of body.form) {
     if ("value" in part) {
-      form.append(part.name, part.value);
+      push(
+        encoder.encode(
+          `--${boundary}\r\nContent-Disposition: form-data; name="${quoted(part.name)}"\r\n\r\n${part.value}\r\n`,
+        ),
+      );
       continue;
     }
-    const bytes =
-      part.data instanceof Uint8Array
-        ? part.data
-        : await readHandle(part.data.handle);
-    form.append(
-      part.name,
-      new Blob([bytes as BlobPart], {
-        type: part.mediaType ?? "application/octet-stream",
-      }),
-      part.filename,
+    push(
+      encoder.encode(
+        `--${boundary}\r\nContent-Disposition: form-data; name="${quoted(part.name)}"; filename="${quoted(part.filename)}"\r\nContent-Type: ${(part.mediaType ?? "application/octet-stream").replace(/[\r\n]/g, "")}\r\n\r\n`,
+      ),
     );
+    if (part.data instanceof Uint8Array) push(part.data);
+    else push(await openHandle(part.data.handle));
+    push(encoder.encode("\r\n"));
   }
-  const encoded = new Response(form);
+  push(encoder.encode(`--${boundary}--\r\n`));
   return {
-    data: new Uint8Array(await encoded.arrayBuffer()),
-    contentType: encoded.headers.get("content-type") ?? undefined,
+    stream: {
+      length,
+      open: () =>
+        Readable.toWeb(Readable.from(segmentChunks(segments))) as never,
+    },
+    contentType: `multipart/form-data; boundary=${boundary}`,
   };
 }
 
@@ -225,16 +267,20 @@ export function createHttp(deps: HttpHostDeps) {
       };
     }
 
-    const encoded = await encodeBody(req.body, deps.readHandle);
+    const encoded = await encodeBody(req.body, deps.openHandle);
     let data = encoded.data;
+    let stream = encoded.stream;
     const headers = new Headers();
     for (const [name, value] of Object.entries(req.headers ?? {}))
       headers.set(name, value);
     if (encoded.contentType && !headers.has("content-type"))
       headers.set("content-type", encoded.contentType);
+    if (stream) headers.set("content-length", String(stream.length));
     headers.set("user-agent", "nerve/1.0");
 
     let response: Response | undefined;
+    // Whether the final response came from an origin that got the credential.
+    let credentialSent: boolean | undefined;
     for (let hop = 0; ; hop += 1) {
       const match = patterns.find((entry) => originMatches(url, entry.pattern));
       if (!match)
@@ -249,6 +295,7 @@ export function createHttp(deps: HttpHostDeps) {
       const hopHeaders = new Headers(headers);
       const send =
         credential && credential.origins.some((o) => originMatches(safe, o));
+      credentialSent = Boolean(send);
       if (credential) {
         hopHeaders.delete(credential.header[0]);
         if (send) hopHeaders.set(credential.header[0], credential.header[1]);
@@ -266,7 +313,8 @@ export function createHttp(deps: HttpHostDeps) {
         body:
           method === "GET" || method === "HEAD"
             ? undefined
-            : (data as BodyInit | undefined),
+            : ((stream?.open() ?? data) as BodyInit | undefined),
+        ...(stream ? { duplex: "half" } : {}),
         redirect: "manual",
         signal,
       });
@@ -286,11 +334,18 @@ export function createHttp(deps: HttpHostDeps) {
           method === "POST")
       ) {
         data = undefined;
+        stream = undefined;
         headers.delete("content-type");
+        headers.delete("content-length");
       }
     }
 
-    if (credential && (response.status === 401 || response.status === 403)) {
+    // A 401/403 of a redirect target (a signed media URL) is not a verdict on the account.
+    if (
+      credential &&
+      credentialSent &&
+      (response.status === 401 || response.status === 403)
+    ) {
       await response.body?.cancel().catch(() => undefined);
       const { account, label } = credential;
       const fix = `Ask the user to check the ${label} "${account.name}" and its credential in ${settingsPage(deps.extensionName)}.`;
@@ -317,11 +372,17 @@ export function createHttp(deps: HttpHostDeps) {
       headers: responseHeaders,
       url: url.toString(),
     };
-    const mode =
+    let mode =
       req.response ??
       ((responseHeaders["content-type"] ?? "").includes("json")
         ? "json"
         : "text");
+    if (typeof mode === "object" && "artifactFor" in mode) {
+      const name = response.ok
+        ? await mode.artifactFor(responseHeaders["content-type"] ?? "")
+        : undefined;
+      mode = name === undefined ? "text" : { artifact: name };
+    }
     if (typeof mode === "object") {
       if (!response.ok || !response.body) {
         await response.body?.cancel().catch(() => undefined);

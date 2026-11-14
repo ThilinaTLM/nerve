@@ -1,5 +1,4 @@
 import { defineExtension, defineNamespace } from "@nervekit/extension-api";
-import { readExtensionDoc } from "../docs-source.js";
 import {
   describeBackend,
   imagegenSettingsOf,
@@ -73,7 +72,6 @@ export const imagegenExtension = defineExtension({
     },
   },
   permissions: { capabilities: ["models.image"] },
-  readDoc: (file) => readExtensionDoc("imagegen", file),
   namespaces: [
     defineNamespace({
       id: "imagegen",
@@ -85,7 +83,7 @@ export const imagegenExtension = defineExtension({
         {
           id: "imagegen/generate",
           whenToRead: "before generating images or chaining them into pages",
-          file: "imagegen.md",
+          file: "docs/imagegen.md",
         },
       ],
     }),

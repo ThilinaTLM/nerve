@@ -211,9 +211,17 @@ export function createPinnedFetch(resolveHost?: HostResolver): typeof fetch {
       if (body === undefined || body === null) req.end();
       else if (typeof body === "string" || ArrayBuffer.isView(body))
         req.end(body);
-      else {
+      else if (body instanceof ReadableStream) {
+        const source = Readable.fromWeb(body as never);
+        source.on("error", (error) => req.destroy(error));
+        source.pipe(req);
+      } else {
         req.destroy();
-        reject(new TypeError("A pinned fetch body must be a string or bytes."));
+        reject(
+          new TypeError(
+            "A pinned fetch body must be a string, bytes or a stream.",
+          ),
+        );
       }
     });
   };

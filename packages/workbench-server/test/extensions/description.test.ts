@@ -1,10 +1,9 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import "./install.js";
-import { quickScriptDescription } from "@nervekit/tools/quick-script/runtime/description";
-import { builtinExtensions } from "../src/index.js";
+import { registry } from "./registry.js";
+import { quickScriptDescription } from "@nervekit/tools/quick-script";
 
-const ALL = builtinExtensions.flatMap((extension) =>
+const ALL = registry.extensions.flatMap((extension) =>
   (extension.contributes.sdk ?? []).map((namespace) => namespace.id),
 );
 
@@ -14,7 +13,7 @@ const MAX_DESCRIPTION_CHARS = 3_200;
 const MAX_NAMESPACE_CHARS = 420;
 
 void test("without extensions the description lists the runtime only", () => {
-  const text = quickScriptDescription();
+  const text = quickScriptDescription({}, registry);
   assert.doesNotMatch(text, /jira|confluence|Write to Jira/);
   assert.match(text, /^Run a sandboxed TypeScript script/);
   assert.match(text, /Namespaces: files \([^)]*\); image \([^)]*\)\./);
@@ -27,9 +26,12 @@ void test("without extensions the description lists the runtime only", () => {
 });
 
 void test("namespaces appear in registry order, only when configured, with their rules", () => {
-  const text = quickScriptDescription({
-    namespaces: ["web", "jira", "atlassian"],
-  });
+  const text = quickScriptDescription(
+    {
+      namespaces: ["web", "jira", "atlassian"],
+    },
+    registry,
+  );
   assert.match(text, /atlassian \([^)]*\); jira \([^)]*\); web \([^)]*\)\./);
   assert.match(
     text,
@@ -41,22 +43,22 @@ void test("namespaces appear in registry order, only when configured, with their
 
 void test("the description is stable for one configuration and independent of availability", () => {
   assert.equal(
-    quickScriptDescription({ namespaces: ["jira"] }),
-    quickScriptDescription({ namespaces: ["jira"] }),
+    quickScriptDescription({ namespaces: ["jira"] }, registry),
+    quickScriptDescription({ namespaces: ["jira"] }, registry),
   );
   assert.doesNotMatch(
-    quickScriptDescription({ namespaces: ALL }),
+    quickScriptDescription({ namespaces: ALL }, registry),
     /\d+ methods|unavailable/,
   );
 });
 
 void test("the full description stays under its size cap", () => {
-  const text = quickScriptDescription({ namespaces: ALL });
+  const text = quickScriptDescription({ namespaces: ALL }, registry);
   assert.ok(text.length <= MAX_DESCRIPTION_CHARS, `${text.length} characters`);
 });
 
 void test("each namespace contributes a short summary and at most three rules", () => {
-  for (const extension of builtinExtensions)
+  for (const extension of registry.extensions)
     for (const namespace of extension.contributes.sdk ?? []) {
       const rules = namespace.rules ?? [];
       assert.ok(rules.length <= 3, `${namespace.id} has ${rules.length} rules`);

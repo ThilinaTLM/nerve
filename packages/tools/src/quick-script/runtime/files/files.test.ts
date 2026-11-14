@@ -15,6 +15,10 @@ import { executeQuickScript } from "../quick-script.js";
 import { preludesFor } from "../sdk.js";
 import type { QuickScriptNestedRequest } from "../../../execution/index.js";
 
+import { createQuickScriptRegistry } from "../../registry.js";
+
+const registry = createQuickScriptRegistry([]);
+
 type Nested = { toolName: string; args: Record<string, unknown> };
 
 const PIXEL_PNG = Buffer.from(
@@ -38,6 +42,7 @@ async function setup() {
   await mkdir(cwd);
   const authorized: Nested[] = [];
   const context = {
+    registry,
     cwd,
     conversationDir,
     authorizeNested: async (request: QuickScriptNestedRequest) => {
@@ -140,7 +145,7 @@ void test("files.* needs an artifact folder", async () => {
     {
       code: `try { await files.list(); } catch (e) { console.log(e.message); }`,
     },
-    { cwd: process.cwd() },
+    { cwd: process.cwd(), registry },
   );
   assert.match(result.content ?? "", /Artifacts are not available/);
 });
@@ -184,10 +189,10 @@ void test("image(handle) resizes, crops and converts into new artifacts", async 
 });
 
 void test("XLSX and Papa work in the sandbox and load only for scripts that mention them", async () => {
-  assert.equal(preludesFor(`console.log("no libraries")`).length, 1);
-  assert.equal(preludesFor(`const x = Papa.parse("a");`).length, 2);
+  assert.equal(preludesFor(`console.log("no libraries")`, registry).length, 1);
+  assert.equal(preludesFor(`const x = Papa.parse("a");`, registry).length, 2);
   assert.match(
-    preludesFor(`XLSX.read`)[1].source,
+    preludesFor(`XLSX.read`, registry)[1].source,
     /defineProperty\(globalThis, "XLSX"/,
   );
 

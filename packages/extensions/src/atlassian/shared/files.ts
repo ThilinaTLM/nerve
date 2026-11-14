@@ -3,9 +3,9 @@ import { isArtifactName } from "@nervekit/extension-api";
 
 export const ARTIFACT_PREFIX = "artifact:";
 
-/** Largest file the host reads for an upload (`ctx.artifacts.read`); the host's limit. */
+/** Largest file the host reads into memory (`ctx.artifacts.read`, JSON responses). */
 export const MAX_FILE_BYTES = 20 * 1024 * 1024;
-/** Attachment downloads stream to an artifact. */
+/** Attachment uploads and downloads stream between disk and the network. */
 export const MAX_ATTACHMENT_BYTES = 100 * 1024 * 1024;
 
 export function assertArtifactName(name: unknown): string {

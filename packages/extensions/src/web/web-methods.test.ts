@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import type { HttpRequest, HttpResponse } from "@nervekit/extension-api";
 import { createFakeContext } from "@nervekit/extension-api/testing";
-import { webMethods } from "./web-methods.js";
+import { webMethods, webSearchTool } from "./web-methods.js";
 import { webExtension } from "./manifest.js";
 
 const PNG = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0, 255, 128, 13, 10]);
@@ -54,6 +54,7 @@ function setup(account = true) {
         tavily.push(request);
         return reply(
           JSON.stringify({
+            answer: "The answer.",
             results: [
               {
                 title: "T",
@@ -190,10 +191,49 @@ void test("web.search without a Tavily account is DENIED with the setting to cha
   await fetchPage(ctx, "https://site.test/data").run();
 });
 
-void test("web_search is a direct tool bound to web.search and shown as links", () => {
+void test("web_search is a direct tool sharing web.search's authorization, shown as links", () => {
   const [tool] = webExtension.tools ?? [];
   assert.equal(tool.name, "web_search");
-  assert.equal("method" in tool && tool.method, "web.search");
+  assert.ok("run" in tool && !("method" in tool));
   assert.equal(tool.display, "links");
   assert.deepEqual(tool.requires, { account: "searchAccount" });
+  const input = webSearchTool.parse({ query: "nerve", max_results: 3 });
+  assert.deepEqual(webSearchTool.authorize(input), {
+    operation: "web.search",
+    targets: [],
+    summary: "nerve",
+  });
+});
+
+void test("web_search gives the agent the Tavily answer and full result content, the transcript bounded links", async () => {
+  const { ctx, tavily } = setup();
+  const long = "word ".repeat(200);
+  const output = await webSearchTool.run({ query: "nerve", limit: 2 }, ctx);
+  assert.deepEqual(tavily[0].body, {
+    json: { query: "nerve", max_results: 2, include_answer: true },
+  });
+  assert.equal(output.answer, "The answer.");
+  const presented = webSearchTool.present({
+    ...output,
+    results: [{ ...output.results[0], content: long }, output.results[1]],
+  });
+  assert.equal(
+    presented.text,
+    [
+      "**Answer:** The answer.",
+      "",
+      "### T",
+      "https://x.test",
+      "",
+      long,
+      "",
+      "### U",
+      "https://y.test",
+      "",
+      "more",
+    ].join("\n"),
+  );
+  const links = presented.value as { snippet?: string }[];
+  assert.equal(links[0].snippet?.length, 300);
+  assert.equal(links[1].snippet, "more");
 });

@@ -1,4 +1,4 @@
-import "./install.js";
+import { registry } from "./registry.js";
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
@@ -11,9 +11,9 @@ import {
   registerToolDefinitions,
   requireToolDefinition,
 } from "@nervekit/tools/catalog";
-import { quickScriptToolDefinition } from "@nervekit/tools/quick-script/tool";
+import { createQuickScriptToolDefinition } from "@nervekit/tools/quick-script";
 
-registerToolDefinitions([quickScriptToolDefinition]);
+registerToolDefinitions([createQuickScriptToolDefinition(registry)]);
 
 const roots = {
   project: "/workspace",

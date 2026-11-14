@@ -3,7 +3,7 @@ import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { test } from "node:test";
-import { extensionSettingsDefinitions } from "@nervekit/extensions";
+import { extensionSettingsDefinitions } from "./host-tools.js";
 import { ProjectMigrationService } from "../infrastructure/configuration/project-migration/project-migration.js";
 import { AgentConfigurationPaths } from "../infrastructure/configuration/agent-configuration/document-adapters.js";
 import { ExtensionSettingsService } from "../infrastructure/configuration/extensions/extension-settings-service.js";

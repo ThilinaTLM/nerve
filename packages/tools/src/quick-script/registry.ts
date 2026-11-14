@@ -3,10 +3,7 @@ import type {
   ExtensionDefinition,
   ToolDefinition as ExtensionToolDefinition,
 } from "@nervekit/extension-api";
-import {
-  fromDefinition,
-  isExtensionDefinition,
-} from "./extension-host/from-definition.js";
+import { fromDefinition } from "./extension-host/from-definition.js";
 import { createSdkNamespace } from "./runtime/discovery.js";
 import { runtimeNamespaces } from "./runtime/runtime-namespaces.js";
 import type { SdkMethod } from "./runtime/sdk-types.js";
@@ -34,17 +31,24 @@ export type QuickScriptRegistry = {
   readonly limits: Readonly<Record<string, number>>;
 };
 
+/** What the host provides besides the definitions. */
+export type QuickScriptRegistryOptions = {
+  /**
+   * Reads a doc topic file (`DocTopic.file`, relative to the extension's root) of an extension.
+   * Extensions only declare paths; the host reads them.
+   */
+  readExtensionDoc?: (extensionId: string, file: string) => string;
+};
+
 /**
- * Builds the registry of the runtime's own capabilities plus `extensions`:
- * manifests (LEGACY shape of the current built-ins) or definitions built on
- * `@nervekit/extension-api`.
+ * Builds the registry of the runtime's own capabilities plus `extensions`,
+ * definitions built on `@nervekit/extension-api`.
  */
 export function createQuickScriptRegistry(
-  input: readonly (ExtensionManifest | ExtensionDefinition)[],
+  input: readonly ExtensionDefinition[],
+  options: QuickScriptRegistryOptions = {},
 ): QuickScriptRegistry {
-  const extensions = input.map((extension) =>
-    isExtensionDefinition(extension) ? fromDefinition(extension) : extension,
-  );
+  const extensions = input.map(fromDefinition);
   assertUnique(
     extensions.map((extension) => extension.id),
     "extension",
@@ -72,7 +76,13 @@ export function createQuickScriptRegistry(
           source: "extension",
           extension: extension.name,
           owner: extension.id,
-          readDoc: extension.readDoc,
+          readDoc: (file) => {
+            if (!options.readExtensionDoc)
+              throw new Error(
+                `${extension.id}: no docs are bundled (${file}).`,
+              );
+            return options.readExtensionDoc(extension.id, file);
+          },
         }),
       ),
     ),
@@ -101,28 +111,9 @@ function assertUnique(ids: readonly string[], what: string): void {
   }
 }
 
-// LEGACY until extension-platform S2: the default registry. The host composes
-// its own registry and passes it explicitly (`createQuickScriptTool`,
-// `quickScriptDescription`, the authorizer, `context.registry`); this holder
-// only serves callers that do not (the built-ins' tests and helpers).
-let active: QuickScriptRegistry | undefined;
-
-/** Sets the default registry (LEGACY, see above). */
-export function installQuickScriptExtensions(
-  extensions: readonly (ExtensionManifest | ExtensionDefinition)[],
-): QuickScriptRegistry {
-  active = createQuickScriptRegistry(extensions);
-  return active;
-}
-
-/** The default registry (LEGACY, see above); the runtime's own capabilities only until one is installed. */
-export function quickScriptRegistry(): QuickScriptRegistry {
-  return (active ??= createQuickScriptRegistry([]));
-}
-
 export function findNamespace(
   id: string,
-  registry: QuickScriptRegistry = quickScriptRegistry(),
+  registry: QuickScriptRegistry,
 ): RegisteredNamespace | undefined {
   return registry.namespaces.find((namespace) => namespace.id === id);
 }

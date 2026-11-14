@@ -55,10 +55,8 @@ export type SdkNamespace = {
 };
 
 /**
- * The manifest of a built-in extension as the host registers it. Extensions
- * written against `@nervekit/extension-api` are converted into it
- * (`fromDefinition`); the other built-ins still hand-write it with
- * `contributes.sdk` and `SdkMethod`. LEGACY until extension-platform S2.
+ * An extension as the host registers it: the registry's view of an
+ * `@nervekit/extension-api` definition (`fromDefinition`).
  */
 export type ExtensionManifest = {
   /** Kebab-case, unique, stable. */
@@ -81,14 +79,12 @@ export type ExtensionManifest = {
   accounts?: AccountKind[];
   /** What the extension may reach: network origins and host capabilities. */
   permissions?: ExtensionPermissions;
-  /** Set when the extension is built on `@nervekit/extension-api`; its methods run through `ctx`, not `SdkEnvironment`. */
+  /** The definition this view was derived from; its methods run through `ctx`, not `SdkEnvironment`. */
   definition?: ExtensionDefinition;
   /** Direct tools (extension-API extensions). */
   tools?: readonly ExtensionToolDefinition[];
   /** Sandbox-side helper source appended to the SDK prelude. */
   prelude?: string;
-  /** Reads a doc topic file (`DocTopic.file`) of this extension. */
-  readDoc: (file: string) => string;
   /** Byte limits the extension enforces, filled into `{{limit:<name>}}` placeholders of its docs and rules. */
   limits?: Readonly<Record<string, number>>;
   contributes: {

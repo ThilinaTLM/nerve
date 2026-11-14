@@ -385,7 +385,7 @@ export function createSdkNamespace(registry: Registry): SdkNamespace {
       risk: "none",
       maxArgs: 1,
       signature:
-        '/** TypeScript declarations of a namespace ("jira"), group ("jira.issues") or method ("jira.issues.create") with the shapes they use. Large output becomes a summary plus a file. */ describe(path: string): Promise<string>',
+        '/** TypeScript declarations of a namespace ("<namespace>"), group ("<namespace>.<group>") or method ("<namespace>.<group>.<method>") with the shapes they use. Large output becomes a summary plus a file. */ describe(path: string): Promise<string>',
       parse: (args) => text(args[0], "path"),
       resource: () => "sdk",
       run: (path, env) => describeText(registry(), path, env),
@@ -432,7 +432,7 @@ export function createSdkNamespace(registry: Registry): SdkNamespace {
       risk: "none",
       maxArgs: 1,
       signature:
-        '/** Doc topics: no argument lists every topic with when to read it, a namespace ("jira") lists its topics, a topic ("jira/workflows") returns its Markdown. */ docs(topic?: string): Promise<string>',
+        '/** Doc topics: no argument lists every topic with when to read it, a namespace ("<namespace>") lists its topics, a topic ("<namespace>/<topic>") returns its Markdown. */ docs(topic?: string): Promise<string>',
       parse: (args) =>
         args[0] === undefined ? undefined : text(args[0], "topic"),
       resource: () => "sdk",

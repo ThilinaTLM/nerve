@@ -1,4 +1,4 @@
-import { quickScriptRegistry, type QuickScriptRegistry } from "../registry.js";
+import type { QuickScriptRegistry } from "../registry.js";
 import { ExtensionRuntime } from "../extension-host/runtime.js";
 import { librariesPrelude } from "./libraries.js";
 import { RUNTIME_HEAD, runtimeTail } from "./runtime-prelude.js";
@@ -43,21 +43,21 @@ function derive(registry: QuickScriptRegistry): Derived {
 
 export function findSdkMethod(
   name: string,
-  registry: QuickScriptRegistry = quickScriptRegistry(),
+  registry: QuickScriptRegistry,
 ): SdkMethod | undefined {
   return derive(registry).methodByName.get(name);
 }
 
-export function sdkMethodNames(
-  registry: QuickScriptRegistry = quickScriptRegistry(),
-): string[] {
+export function sdkMethodNames(registry: QuickScriptRegistry): string[] {
   return [...derive(registry).methodByName.keys()];
 }
 
 export function createSdkEnvironment(
   context: QuickScriptContext,
 ): SdkEnvironment {
-  const registry = context.registry ?? quickScriptRegistry();
+  const registry = context.registry;
+  if (!registry)
+    throw new Error("quick_script needs the host's extension registry.");
   const environment: SdkEnvironment = {
     context,
     registry,
@@ -126,11 +126,11 @@ function buildPrelude(registry: QuickScriptRegistry): string {
 /** Everything evaluated before the module: the SDK, plus lazy libraries the script mentions. */
 export function preludesFor(
   code: string,
-  registry: QuickScriptRegistry = quickScriptRegistry(),
+  registry: QuickScriptRegistry,
 ): Array<{ name: string; source: string }> {
   const libraries = librariesPrelude(code);
   return [
-    { name: "nerve:atlassian-sdk", source: derive(registry).prelude },
+    { name: "nerve:sdk", source: derive(registry).prelude },
     ...(libraries ? [{ name: "nerve:libraries", source: libraries }] : []),
   ];
 }

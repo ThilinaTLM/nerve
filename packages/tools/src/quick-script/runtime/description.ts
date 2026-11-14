@@ -1,6 +1,6 @@
 import { HOST_ERROR_CODES } from "./errors.js";
 import { renderLimits } from "../limits.js";
-import { quickScriptRegistry, type QuickScriptRegistry } from "../registry.js";
+import type { QuickScriptRegistry } from "../registry.js";
 
 /**
  * The `quick_script` tool description, built from the registry for the
@@ -25,7 +25,7 @@ const DISCOVER =
 
 export function quickScriptDescription(
   { namespaces: configured = [] }: QuickScriptCapabilities = {},
-  registry: QuickScriptRegistry = quickScriptRegistry(),
+  registry: QuickScriptRegistry,
 ): string {
   const active = registry.namespaces.filter(
     (namespace) =>

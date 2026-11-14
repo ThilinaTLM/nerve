@@ -1,5 +1,4 @@
 import { defineExtension, defineNamespace } from "@nervekit/extension-api";
-import { readExtensionDoc } from "../docs-source.js";
 import { diagramMethods, MAX_SOURCE_BYTES } from "./diagram-methods.js";
 
 /** Diagrams rendered to PNG artifacts by a Kroki server. */
@@ -26,7 +25,6 @@ export const diagramExtension = defineExtension({
   },
   // The Kroki server the user configured; it may be on a private network.
   permissions: { network: ["{settings.server}"] },
-  readDoc: (file) => readExtensionDoc("diagram", file),
   // Declared by the extension; the host fills `{{limit:diagram.source}}` in docs and rules.
   limits: { "diagram.source": MAX_SOURCE_BYTES },
   namespaces: [
@@ -39,7 +37,7 @@ export const diagramExtension = defineExtension({
         {
           id: "diagram/render",
           whenToRead: "before rendering a diagram that goes on a page or slide",
-          file: "diagrams.md",
+          file: "docs/diagrams.md",
         },
       ],
     }),

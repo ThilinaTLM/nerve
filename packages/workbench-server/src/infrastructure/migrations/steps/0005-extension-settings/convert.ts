@@ -120,7 +120,13 @@ export function extractFromTools(
   const web = sub(qs.web);
   const searchAccount =
     string(web.profileId) ?? string(sub(tools.web_search).profileId);
-  const webEnabled = boolean(web.enabled);
+  // `web_search` used to work without the Web switch; it is the extension's tool now, so a
+  // home that selected a search account (and did not turn the tool off) keeps it by enabling Web.
+  const webEnabled =
+    boolean(web.enabled) ??
+    (searchAccount && boolean(sub(tools.web_search).enabled) !== false
+      ? true
+      : undefined);
   if (searchAccount || webEnabled !== undefined)
     entries.web = {
       version: 1,

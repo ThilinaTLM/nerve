@@ -38,7 +38,7 @@ export type SendOptions = {
   method?: string;
   headers?: Record<string, string>;
   body?: HttpRequest["body"];
-  response?: "text" | "bytes" | { artifact: string };
+  response?: Exclude<HttpRequest["response"], "json" | undefined>;
   timeoutMs?: number;
   maxBytes?: number;
   /** Path shown in errors (never the query). */

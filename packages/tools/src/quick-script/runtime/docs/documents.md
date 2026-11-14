@@ -21,11 +21,8 @@ const xlsx = await files.write(
   XLSX.write(book, { type: "array", bookType: "xlsx" }),
 );
 const csv = await files.write("sprint.csv", Papa.unparse(rows));
-await confluence.attachments.upload({
-  id: pageId,
-  file: xlsx,
-  comment: "Sprint export",
-});
+// The handles go to any SDK method that takes a file.
+console.log(xlsx, csv);
 ```
 
 ## Word

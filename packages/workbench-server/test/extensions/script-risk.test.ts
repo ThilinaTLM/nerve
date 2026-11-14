@@ -1,17 +1,17 @@
-import "./install.js";
+import { registry } from "./registry.js";
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
   findSdkMethod,
   sdkMethodNames,
-} from "@nervekit/tools/quick-script/runtime/sdk";
+} from "@nervekit/tools/quick-script/testing";
 import {
   classifyQuickScriptScript,
   describeQuickScriptRisk,
   quickScriptRiskWithin,
-} from "@nervekit/tools/quick-script/runtime/script-risk";
+} from "@nervekit/tools/quick-script";
 
-const classify = (code: string) => classifyQuickScriptScript(code);
+const classify = (code: string) => classifyQuickScriptScript(code, registry);
 
 void test("the scanner reads each method's declared risk", () => {
   const risks = (code: string) => classify(code).risk;
@@ -34,7 +34,7 @@ void test("the scanner reads each method's declared risk", () => {
     risks(`await confluence.attachments.upload({ id: "1", file: "a.png" })`),
     "external_write",
   );
-  for (const name of sdkMethodNames())
+  for (const name of sdkMethodNames(registry))
     assert.ok(
       [
         "none",
@@ -43,7 +43,7 @@ void test("the scanner reads each method's declared risk", () => {
         "write",
         "external_write",
         "destructive",
-      ].includes(findSdkMethod(name)!.risk),
+      ].includes(findSdkMethod(name, registry)!.risk),
       name,
     );
 });
@@ -93,7 +93,7 @@ void test("request is judged by its literal method", () => {
   );
   const post = classify(`await jira.request('POST', "/rest/api/3/issue", {})`);
   assert.equal(post.risk, "destructive");
-  assert.deepEqual(post.operations, ["jira.request POST (/rest/api/3/issue)"]);
+  assert.deepEqual(post.operations, ["jira.request (POST)"]);
   assert.equal(
     classify(`const m = "GET"; await confluence.request(m, "/x")`).risk,
     "destructive",

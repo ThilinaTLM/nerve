@@ -249,7 +249,7 @@ export const confluenceMethods: PathedMethod<ConfluenceSession>[] = [
     risk: "external_write",
     options: ["id", "file", "filename", "comment"],
     signature:
-      "/** Same filename replaces. SVG rejected; max 20 MB. */ upload(options: { id: string; file: FileHandle; filename?: string; comment?: string }): Promise<AttachmentInfo>",
+      "/** Same filename replaces. SVG rejected; max 100 MB. */ upload(options: { id: string; file: FileHandle; filename?: string; comment?: string }): Promise<AttachmentInfo>",
     parse: (options) => ({
       id: nonEmptyString(options.id, "id"),
       spec: parseAttachmentSpec({

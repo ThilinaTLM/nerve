@@ -378,7 +378,7 @@ describe("quick_script result", () => {
     assert.equal(view.kind === "quick_script" && view.artifacts.length, 0);
   });
 
-  it("reads page lint reports and keeps a failed script outcome", () => {
+  it("keeps a failed script outcome", () => {
     const view = parseToolView(
       call(
         "quick_script",
@@ -390,22 +390,11 @@ describe("quick_script result", () => {
             error: "boom",
             durationMs: 5,
             hostCalls: [],
-            pages: [
-              {
-                action: "created",
-                id: "1",
-                title: "Runbook",
-                version: 1,
-                fixes: ["a"],
-                warnings: [],
-              },
-            ],
           },
         },
       ),
     );
     if (view.kind !== "quick_script") assert.fail("wrong kind");
-    assert.equal(view.pages[0]?.title, "Runbook");
     assert.equal(view.status, "failed");
     assert.equal(outcomeLabel({ status: "completed" }, view), "failed");
     assert.equal(outcomeLabel({ status: "denied" }, view), "denied");

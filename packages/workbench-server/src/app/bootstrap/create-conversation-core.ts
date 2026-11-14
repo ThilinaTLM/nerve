@@ -4,12 +4,15 @@ import {
   assertExtensionToolOffered,
   extensionAvailability,
 } from "../../core-host/extension-availability.js";
-import { createExtensionPorts } from "../../core-host/extension-ports.js";
+import {
+  createExtensionPorts,
+  selectedAccountsTarget,
+} from "../../core-host/extension-ports.js";
 import { hostRegistry } from "../../core-host/host-tools.js";
 import type { AccountsReader } from "../../domains/accounts/accounts.service.js";
 import { conversationExtensions } from "../../core-host/conversation-extensions.js";
 import { ExtensionSettingsService } from "../../infrastructure/configuration/extensions/extension-settings-service.js";
-import { extensionSettingsDefinitions } from "@nervekit/extensions";
+import { extensionSettingsDefinitions } from "../../core-host/host-tools.js";
 import { type QuickScriptContext } from "@nervekit/tools/quick-script";
 import { capabilityToolNameSchema } from "@nervekit/contracts/capabilities";
 import { ProjectMigrationService } from "../../infrastructure/configuration/project-migration/project-migration.js";
@@ -395,7 +398,15 @@ export function createConversationCore(
               // Only quick_script and extension tools read extension settings; other
               // approvals must not be invalidated by unrelated extension edits.
               ...(quickScript || isExtensionTool
-                ? { extensions: extensions.extensions }
+                ? {
+                    extensions: extensions.extensions,
+                    // Switching an extension's account (or its site) ends approvals.
+                    accounts: await selectedAccountsTarget(
+                      hostRegistry,
+                      extensions,
+                      accounts,
+                    ),
+                  }
                 : {}),
               python:
                 input.toolName === "python_exec" && python?.available

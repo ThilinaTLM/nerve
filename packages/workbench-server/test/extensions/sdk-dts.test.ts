@@ -1,13 +1,13 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import ts from "typescript";
-import { registeredNamespaces } from "./install.js";
+import { registeredNamespaces } from "./registry.js";
 import {
   declarationLine,
   describeDeclarations,
   splitTypes,
   typePool,
-} from "@nervekit/tools/quick-script/runtime/sdk-dts";
+} from "@nervekit/tools/quick-script/testing";
 
 const pool = typePool(registeredNamespaces);
 const named = (id: string) => registeredNamespaces.find((n) => n.id === id)!;

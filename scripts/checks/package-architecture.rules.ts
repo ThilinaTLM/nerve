@@ -18,16 +18,7 @@ export const ALLOWED_INTERNAL_DEPENDENCIES: ReadonlyMap<
     "@nervekit/tools",
     ["@nervekit/contracts", "@nervekit/native", "@nervekit/extension-api"],
   ],
-  [
-    "@nervekit/extensions",
-    // TEMPORARY until docs/proposals/extension-platform phase 1 step 3: target is @nervekit/extension-api only.
-    [
-      "@nervekit/extension-api",
-      "@nervekit/contracts",
-      "@nervekit/native",
-      "@nervekit/tools",
-    ],
-  ],
+  ["@nervekit/extensions", ["@nervekit/extension-api"]],
   [
     "@nervekit/conversation-core",
     [

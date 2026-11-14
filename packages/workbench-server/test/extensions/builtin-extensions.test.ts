@@ -1,4 +1,4 @@
-import "./install.js";
+import { executeQuickScript } from "./registry.js";
 import assert from "node:assert/strict";
 import { mkdir, mkdtemp, readdir, rm } from "node:fs/promises";
 import { createServer, type Server } from "node:http";
@@ -6,7 +6,6 @@ import type { AddressInfo } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, before, test } from "node:test";
-import { executeQuickScript } from "@nervekit/tools/quick-script/runtime/quick-script";
 import type { QuickScriptNestedRequest } from "@nervekit/tools/execution";
 import type { ExtensionHostPorts } from "@nervekit/tools/quick-script";
 

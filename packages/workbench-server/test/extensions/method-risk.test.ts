@@ -1,40 +1,42 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import "./install.js";
+import { registry } from "./registry.js";
 import {
   describeToolArgumentErrors,
   normalizeToolArguments,
   requireToolDefinition,
 } from "@nervekit/tools/catalog";
-import { markdownToAdf } from "../src/atlassian/jira/markdown-adf.js";
-import { adfToMarkdown } from "../src/atlassian/jira/adf-markdown.js";
 import { SAMPLES } from "./method-samples.js";
 import {
   type MethodRisk,
   isOperationCheck,
-} from "@nervekit/tools/quick-script/runtime/sdk-types";
+} from "@nervekit/tools/quick-script/testing";
 import {
   createSdkEnvironment,
   findSdkMethod,
   sdkMethodNames,
-} from "@nervekit/tools/quick-script/runtime/sdk";
-import "./install.js";
+} from "@nervekit/tools/quick-script/testing";
+import { registry } from "./registry.js";
 import {
   assertDeclaredRisk,
   classifyQuickScriptScript,
   quickScriptRiskOfToolRisk,
-} from "@nervekit/tools/quick-script/runtime/script-risk";
+} from "@nervekit/tools/quick-script";
 
 const env = createSdkEnvironment({
+  registry,
   cwd: process.cwd(),
   conversationDir: "/tmp/quick-script",
   web: { enabled: true, search: true },
 });
 
 void test("every method has samples, and its declared risk covers every authorization it produces", () => {
-  assert.deepEqual(Object.keys(SAMPLES).sort(), [...sdkMethodNames()].sort());
+  assert.deepEqual(
+    Object.keys(SAMPLES).sort(),
+    [...sdkMethodNames(registry)].sort(),
+  );
   for (const [name, calls] of Object.entries(SAMPLES)) {
-    const method = findSdkMethod(name)!;
+    const method = findSdkMethod(name, registry)!;
     for (const args of calls) {
       const prepared = method.prepare(args, env);
       const checks = [
@@ -125,7 +127,7 @@ void test("effective tool risks map conservatively onto the quick-script scale",
 });
 
 void test("scripts are classified from the method table: adding is a write, deleting destructive", () => {
-  const risk = (code: string) => classifyQuickScriptScript(code).risk;
+  const risk = (code: string) => classifyQuickScriptScript(code, registry).risk;
   assert.equal(
     risk(`await jira.comments.add({ key: "A-1", body: "x" })`),
     "external_write",
@@ -144,34 +146,9 @@ void test("scripts are classified from the method table: adding is a write, dele
   );
 });
 
-void test("Markdown converts to ADF and back", () => {
-  const markdown = [
-    "## Plan",
-    "",
-    "Do **this** and `that` in [docs](https://x.test).",
-    "",
-    "- one",
-    "  - nested",
-    "- two",
-    "",
-    "1. first",
-    "2. second",
-    "",
-    "```ts",
-    "const a = 1;",
-    "```",
-  ].join("\n");
-  const adf = markdownToAdf(markdown);
-  assert.deepEqual(
-    adf.content.map((node) => node.type),
-    ["heading", "paragraph", "bulletList", "orderedList", "codeBlock"],
-  );
-  assert.equal(adfToMarkdown(adf), markdown);
-});
-
 void test("raw requests are checked as the request operation: GET is a network read, anything else destructive, with method and path as the target", () => {
   for (const product of ["jira", "confluence"]) {
-    const request = findSdkMethod(`${product}.request`)!;
+    const request = findSdkMethod(`${product}.request`, registry)!;
     assert.deepEqual(request.prepare(["get", "/x"], env).authorization, {
       operation: `${product}.request`,
       targets: [{ kind: "resource", value: `${product}:request/GET /x` }],

@@ -13,7 +13,6 @@ flowchart TB
   end
   subgraph Engine
     harness --> conversation-core
-    tools --> extensions
     tools --> conversation-core
   end
   subgraph Product
@@ -27,29 +26,30 @@ flowchart TB
   native --> harness
   conversation-core --> workbench-server
   extensions --> workbench-server
+  tools --> workbench-server
   protocol --> workbench-server
   protocol --> workbench-app
   contracts --> workbench-app
   ui-kit --> workbench-app
 ```
 
-Arrows mean “is consumed by.” The diagram highlights key direct dependencies; contracts supply shared domain types throughout the engine and product, so their other edges are omitted. The exact allowed graph lives in [`ALLOWED_INTERNAL_DEPENDENCIES`](../../scripts/checks/package-architecture.rules.ts) and is enforced by the [boundary checker](../../scripts/checks/check-package-boundaries.ts).
+Arrows mean “is consumed by.” The diagram highlights key direct dependencies; contracts supply shared domain types throughout the engine and product, so their other edges are omitted. Extensions never import `tools`, and `tools` never imports extensions: `workbench-server` is the host that composes both. Outside its own folder an extension is named only by the built-in list and old migration steps ([`extension-naming` rule](../../scripts/checks/extension-naming-policy.ts)). The exact allowed graph lives in [`ALLOWED_INTERNAL_DEPENDENCIES`](../../scripts/checks/package-architecture.rules.ts) and is enforced by the [boundary checker](../../scripts/checks/check-package-boundaries.ts).
 
-| Package             | Layer      | One-line responsibility                                                                                                                                                                                                                                           |
-| ------------------- | ---------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `extension-api`     | Foundation | The extension contract: manifest and `ctx` types, `define*` helpers and a fake context for tests. No dependencies.                                                                                                                                                |
-| `contracts`         | Foundation | Transport-neutral domain schemas and policy contracts.                                                                                                                                                                                                            |
-| `protocol`          | Foundation | Sessions, remote procedure calls, replay and transport lifecycle.                                                                                                                                                                                                 |
-| `native`            | Foundation | Rust-backed Git reads, managed processes, file monitoring, listing, search and script sandbox.                                                                                                                                                                    |
-| `ui-kit`            | Foundation | Domain-independent UI primitives and shared styles.                                                                                                                                                                                                               |
-| `harness`           | Engine     | Model execution, the agent loop and a conversation-aware harness facade (trees, hooks, compaction).                                                                                                                                                               |
-| `tools`             | Engine     | Tool execution, policy, result projection and the `quick_script` tool with its runtime and extension registry.                                                                                                                                                    |
-| `extensions`        | Engine     | The built-in `quick_script` extensions: Atlassian with the Jira and Confluence clients, web, diagrams, image generation, with their docs. Builds on `tools` (which owns the `quick_script` tool, runtime and registry); the host installs them into the registry. |
-| `conversation-core` | Engine     | Portable conversation storage and durable runtime behavior.                                                                                                                                                                                                       |
-| `workbench-server`  | Product    | Host services, core composition, client-facing adapters and the built-in skill catalog.                                                                                                                                                                           |
-| `workbench-app`     | Product    | Web UI, application workflows and feature state.                                                                                                                                                                                                                  |
-| `desktop-shell`     | Product    | Electron windows, integration and daemon supervision.                                                                                                                                                                                                             |
-| `website`           | Standalone | Public website and documentation.                                                                                                                                                                                                                                 |
+| Package             | Layer      | One-line responsibility                                                                                                                                                                                                                                                              |
+| ------------------- | ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `extension-api`     | Foundation | The extension contract: manifest and `ctx` types, `define*` helpers and a fake context for tests. No dependencies.                                                                                                                                                                   |
+| `contracts`         | Foundation | Transport-neutral domain schemas and policy contracts.                                                                                                                                                                                                                               |
+| `protocol`          | Foundation | Sessions, remote procedure calls, replay and transport lifecycle.                                                                                                                                                                                                                    |
+| `native`            | Foundation | Rust-backed Git reads, managed processes, file monitoring, listing, search and script sandbox.                                                                                                                                                                                       |
+| `ui-kit`            | Foundation | Domain-independent UI primitives and shared styles.                                                                                                                                                                                                                                  |
+| `harness`           | Engine     | Model execution, the agent loop and a conversation-aware harness facade (trees, hooks, compaction).                                                                                                                                                                                  |
+| `tools`             | Engine     | Tool execution, policy, result projection and the `quick_script` tool with its runtime and extension registry.                                                                                                                                                                       |
+| `extensions`        | Engine     | The built-in `quick_script` extensions: Atlassian with the Jira and Confluence clients, web, diagrams, image generation, with their docs. Depends on `extension-api` only; the server host registers its definitions list (`builtinExtensions`) with the registry that `tools` owns. |
+| `conversation-core` | Engine     | Portable conversation storage and durable runtime behavior.                                                                                                                                                                                                                          |
+| `workbench-server`  | Product    | Host services, core composition, client-facing adapters and the built-in skill catalog.                                                                                                                                                                                              |
+| `workbench-app`     | Product    | Web UI, application workflows and feature state.                                                                                                                                                                                                                                     |
+| `desktop-shell`     | Product    | Electron windows, integration and daemon supervision.                                                                                                                                                                                                                                |
+| `website`           | Standalone | Public website and documentation.                                                                                                                                                                                                                                                    |
 
 ## Reusable engine
 

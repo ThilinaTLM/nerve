@@ -20,6 +20,7 @@ import {
   type FakeContextRecord,
 } from "@nervekit/extension-api/testing";
 import { atlassianExtension } from "./manifest.js";
+import { imageSize } from "./shared/image-size.js";
 
 /** A check the policy would have seen: an operation on targets, or a direct tool such as `read`. */
 export type Nested =
@@ -149,9 +150,15 @@ async function toHttpResponse(
     headers,
     url: url.toString(),
   };
-  const mode =
+  let mode =
     request.response ??
     ((headers["content-type"] ?? "").includes("json") ? "json" : "text");
+  if (typeof mode === "object" && "artifactFor" in mode) {
+    const name = response.ok
+      ? await mode.artifactFor(headers["content-type"] ?? "")
+      : undefined;
+    mode = name === undefined ? "text" : { artifact: name };
+  }
   if (typeof mode === "object") {
     if (!response.ok) return { ...base, body: undefined };
     const bytes = new Uint8Array(await response.arrayBuffer());
@@ -305,6 +312,29 @@ export function createHarness(options: HarnessOptions = {}) {
     },
   });
   const ctx = fake;
+  // Like the host: size from the stored file (any handle), dimensions of PNG/JPEG by extension.
+  ctx.artifacts.info = async (handle) => {
+    const stored = record.artifacts.get(handle);
+    if (!stored) throw new Error(`file not found: ${handle}`);
+    const mediaType = /\.png$/i.test(handle)
+      ? "image/png"
+      : /\.jpe?g$/i.test(handle)
+        ? "image/jpeg"
+        : /\.svg$/i.test(handle)
+          ? "image/svg+xml"
+          : stored.mediaType;
+    const size =
+      mediaType === "image/png" || mediaType === "image/jpeg"
+        ? imageSize(stored.bytes)
+        : undefined;
+    return {
+      handle,
+      name: stored.name,
+      bytes: stored.bytes.byteLength,
+      mediaType,
+      ...size,
+    };
+  };
   for (const [handle, data] of Object.entries(options.files ?? {})) {
     record.artifacts.set(handle, {
       bytes: textOf(data),

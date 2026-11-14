@@ -149,7 +149,7 @@ void test("SVG attachments are rejected with guidance", async () => {
   );
 });
 
-void test("GIFs upload unchanged, with the size read from their header", async () => {
+void test("GIFs upload unchanged (the host reads no GIF dimensions)", async () => {
   const gif = Uint8Array.from(
     Buffer.from(
       "R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7",
@@ -163,7 +163,7 @@ void test("GIFs upload unchanged, with the size read from their header", async (
   const uploaded = JSON.parse(result.content.split("\n")[0]);
   assert.equal(uploaded.filename, "anim.gif");
   assert.equal(uploaded.mediaType, "image/gif");
-  assert.equal(uploaded.width, 1);
+  assert.equal(uploaded.width, undefined);
   assert.equal((requests[0].form!.get("file") as File).type, "image/gif");
 });
 

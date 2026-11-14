@@ -6,10 +6,7 @@ import type {
   WebExecutionContext,
 } from "../../execution/index.js";
 
-/*
- * Shapes the runtime context and environment carry for the built-in extensions.
- * TEMPORARY until docs/proposals/extension-platform phase 1 step 3: they move to the extensions.
- */
+/* Shapes the runtime context and environment carry for the extensions' calls. */
 
 /** A resource a call acts on, normalized `<system>:<type>/<id>`: `jira:issue/APP-12`, `confluence:page/123`, `jira:request/GET /rest/api/3/myself`. */
 export type OperationTarget = { kind: "resource"; value: string };

@@ -13,7 +13,7 @@ import { test } from "node:test";
 import { createStepContext } from "../../framework/context.js";
 import { storagePaths } from "../../../storage-bootstrap/paths.js";
 import { convertConversationAgent, extractFromTools } from "./convert.js";
-import { builtinExtensions } from "@nervekit/extensions";
+import { hostRegistry } from "../../../../core-host/host-tools.js";
 import {
   REMOVED_TOOL_OPERATIONS,
   convertRemovedToolException,
@@ -22,9 +22,7 @@ import { EncryptedFileSecretProvider } from "../../../secrets/index.js";
 import step from "./step.js";
 
 const findQuickScriptNamespace = (id: string) =>
-  builtinExtensions
-    .flatMap((extension) => extension.contributes.sdk ?? [])
-    .find((namespace) => namespace.id === id);
+  hostRegistry.namespaces.find((namespace) => namespace.id === id);
 
 /** Released `integrations.json`: per-product profiles that name their credential. */
 const accounts = {
@@ -123,6 +121,35 @@ void test("quick_script wins over direct tools; differing accounts keep Jira", (
     quick_script: { enabled: true },
     python_exec: { enabled: true },
   });
+});
+
+void test("a selected search account keeps web_search available: Web is enabled unless it was set or the tool was off", () => {
+  const web = (tools: Record<string, unknown>) =>
+    extractFromTools(tools, () => {}).entries.web;
+  assert.deepEqual(web({ web_search: { profileId: "tav" } }), {
+    version: 1,
+    enabled: true,
+    settings: { searchAccount: "tav" },
+  });
+  assert.deepEqual(
+    web({ quick_script: { settings: { web: { profileId: "tav" } } } })?.enabled,
+    true,
+  );
+  // An explicit choice wins, in either direction.
+  assert.equal(
+    web({
+      web_search: { profileId: "tav" },
+      quick_script: { settings: { web: { enabled: false } } },
+    })?.enabled,
+    false,
+  );
+  // A switched-off tool does not turn the extension on.
+  assert.equal(
+    web({ web_search: { enabled: false, profileId: "tav" } })?.enabled,
+    undefined,
+  );
+  // No account: nothing to keep.
+  assert.equal(web({ web_search: { enabled: true } }), undefined);
 });
 
 void test("a child's frozen defaults and overrides become its frozen extension file", () => {
@@ -268,7 +295,11 @@ void test("moves accounts, user, profile and conversation settings, and verifies
   const profile = read(join(paths.agentProfilesConfigPath, "planning.json"));
   assert.deepEqual(profile.extensions, {
     requirements: {
-      web: { version: 1, settings: { searchAccount: "tav" } },
+      web: {
+        version: 1,
+        enabled: true,
+        settings: { searchAccount: "tav" },
+      },
     },
   });
   assert.deepEqual(profile.requirements, {});

@@ -1,4 +1,4 @@
-import "./install.js";
+import { registry } from "./registry.js";
 import assert from "node:assert/strict";
 import test from "node:test";
 import type { PermissionRule } from "@nervekit/contracts/permissions";
@@ -10,10 +10,12 @@ import {
   evaluatePermissionRequest,
   normalizePermissionRequest,
 } from "@nervekit/tools/policy";
-import { quickScriptToolDefinition } from "@nervekit/tools/quick-script/tool";
-import { classifyQuickScriptScript } from "@nervekit/tools/quick-script/runtime/script-risk";
+import {
+  classifyQuickScriptScript,
+  createQuickScriptToolDefinition,
+} from "@nervekit/tools/quick-script";
 
-registerToolDefinitions([quickScriptToolDefinition]);
+registerToolDefinitions([createQuickScriptToolDefinition(registry)]);
 
 function scriptAdmission(
   calls: Parameters<typeof composeScriptAdmission>[0]["calls"],
@@ -171,6 +173,7 @@ void test("operation rules cannot outrank a guardrail script-level deny, and bui
 void test("the scan hands operation rules normalized targets, and marks scripts it cannot fully analyse", () => {
   const scan = classifyQuickScriptScript(
     `await jira.comments.add({ key: "SCRUM-1", body: "x" }); await confluence.pages.get("12"); await jira.request("delete", "/rest/api/3/issue/A-1")`,
+    registry,
   );
   assert.equal(scan.admissible, true);
   assert.deepEqual(scan.calls, [
@@ -192,15 +195,24 @@ void test("the scan hands operation rules normalized targets, and marks scripts 
   ]);
   // A variable key: the operation is known, its targets are not.
   assert.equal(
-    classifyQuickScriptScript(`await jira.issues.get(k)`).calls[0]?.targets,
+    classifyQuickScriptScript(`await jira.issues.get(k)`, registry).calls[0]
+      ?.targets,
     undefined,
+  );
+  // A computed request method: the operation is known with its declared (destructive) risk, its targets are not.
+  assert.deepEqual(
+    classifyQuickScriptScript(`await jira.request(m, "/x")`, registry).calls,
+    [{ operation: "jira.request", risk: "destructive", targets: undefined }],
   );
   // Incomplete scans never reach operation rules.
   for (const code of [
     `const f = jira.issues.get; await f("A-1")`,
-    `await jira.request(m, "/x")`,
     `await web.fetch("https://x.test")`,
     `await jira.issues.get("A-1"); eval("1")`,
   ])
-    assert.equal(classifyQuickScriptScript(code).admissible, false, code);
+    assert.equal(
+      classifyQuickScriptScript(code, registry).admissible,
+      false,
+      code,
+    );
 });

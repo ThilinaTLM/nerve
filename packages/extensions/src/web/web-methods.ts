@@ -43,6 +43,7 @@ function artifactName(value: unknown): string | undefined {
 }
 
 type TavilyResponse = {
+  answer?: string;
   results?: {
     title: string;
     url: string;
@@ -50,6 +51,46 @@ type TavilyResponse = {
     published_date?: string;
   }[];
 };
+
+/** The Tavily call behind `web.search` and the `web_search` tool, with the selected account's injected credential. */
+async function searchTavily(
+  ctx: ExtensionContext,
+  query: string,
+  limit: number,
+  includeAnswer: boolean,
+): Promise<TavilyResponse> {
+  if (!(await ctx.accounts.selected("searchAccount")))
+    throw new ExtensionError(
+      "DENIED",
+      "web.search: no Tavily account is selected.",
+      {
+        fix: "Ask the user to choose one with a saved API token in Settings → Extensions → Web; web.fetch still works.",
+      },
+    );
+  const response = await ctx.http.request({
+    url: SEARCH_URL,
+    method: "POST",
+    auth: { account: "searchAccount" },
+    body: {
+      json: { query, max_results: limit, include_answer: includeAnswer },
+    },
+    response: "text",
+    timeoutMs: 60_000,
+  });
+  if (!response.ok)
+    throw new ExtensionError(
+      httpCode(response.status),
+      `Tavily API error: ${response.status} ${String(response.body)}`,
+    );
+  try {
+    return JSON.parse(String(response.body)) as TavilyResponse;
+  } catch {
+    throw new ExtensionError(
+      "SERVER_ERROR",
+      "Tavily returned a response that is not JSON.",
+    );
+  }
+}
 
 export const webMethods = {
   fetch: method({
@@ -179,38 +220,7 @@ export const webMethods = {
     authorize: ({ query }) => ({ targets: [], summary: query }),
     resource: () => "the search provider",
     async run(_session, { query, limit }, ctx: ExtensionContext) {
-      if (!(await ctx.accounts.selected("searchAccount")))
-        throw new ExtensionError(
-          "DENIED",
-          "web.search: no Tavily account is selected.",
-          {
-            fix: "Ask the user to choose one with a saved API token in Settings → Extensions → Web; web.fetch still works.",
-          },
-        );
-      const response = await ctx.http.request({
-        url: SEARCH_URL,
-        method: "POST",
-        auth: { account: "searchAccount" },
-        body: {
-          json: { query, max_results: limit, include_answer: false },
-        },
-        response: "text",
-        timeoutMs: 60_000,
-      });
-      if (!response.ok)
-        throw new ExtensionError(
-          httpCode(response.status),
-          `Tavily API error: ${response.status} ${String(response.body)}`,
-        );
-      let data: TavilyResponse;
-      try {
-        data = JSON.parse(String(response.body)) as TavilyResponse;
-      } catch {
-        throw new ExtensionError(
-          "SERVER_ERROR",
-          "Tavily returned a response that is not JSON.",
-        );
-      }
+      const data = await searchTavily(ctx, query, limit, false);
       return (Array.isArray(data.results) ? data.results : []).map((hit) => ({
         title: hit.title,
         url: hit.url,
@@ -219,4 +229,53 @@ export const webMethods = {
       }));
     },
   }),
+};
+
+/** What the `web_search` tool returns: the Tavily answer and results with their full content. */
+export type WebSearchOutput = {
+  query: string;
+  answer?: string;
+  results: { title: string; url: string; content: string }[];
+};
+
+/** `web_search`: the same parse, authorization (operation `web.search`) and Tavily call as `web.search`, with the answer and full content for the agent. */
+export const webSearchTool = {
+  parse: (args: Record<string, unknown>) => webMethods.search.parse([args]),
+  authorize: ({ query }: { query: string }) => ({
+    operation: "web.search",
+    targets: [],
+    summary: query,
+  }),
+  async run(
+    { query, limit }: { query: string; limit: number },
+    ctx: ExtensionContext,
+  ): Promise<WebSearchOutput> {
+    const data = await searchTavily(ctx, query, limit, true);
+    return {
+      query,
+      ...(data.answer ? { answer: data.answer } : {}),
+      results: (Array.isArray(data.results) ? data.results : []).map((hit) => ({
+        title: hit.title,
+        url: hit.url,
+        content: hit.content,
+      })),
+    };
+  },
+  /** The text the agent reads, and the links the transcript lists (snippets bounded). */
+  present(output: WebSearchOutput): { text: string; value: unknown } {
+    const lines: string[] = [];
+    if (output.answer) lines.push(`**Answer:** ${output.answer}`, "");
+    for (const result of output.results)
+      lines.push(`### ${result.title}`, result.url, "", result.content, "");
+    return {
+      text: lines.join("\n").trimEnd(),
+      value: output.results.map((result) => ({
+        title: result.title,
+        url: result.url,
+        ...(snippet(result.content)
+          ? { snippet: snippet(result.content) }
+          : {}),
+      })),
+    };
+  },
 };

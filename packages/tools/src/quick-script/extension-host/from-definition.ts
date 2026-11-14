@@ -19,13 +19,6 @@ import type {
 } from "../runtime/sdk-types.js";
 import { toHostError } from "./errors.js";
 
-/** An extension built on `@nervekit/extension-api` (as opposed to a hand-written legacy manifest). */
-export function isExtensionDefinition(
-  value: ExtensionManifest | ExtensionDefinition,
-): value is ExtensionDefinition {
-  return "apiVersion" in value;
-}
-
 const asArray = (result: AuthorizeResult): Authorization[] =>
   result === undefined
     ? []
@@ -118,7 +111,10 @@ function toSdkMethod(
             return await method.run(
               session,
               input,
-              runEnv.extensions.context(definition),
+              runEnv.extensions.context(definition, {
+                name: operation,
+                risk: method.risk,
+              }),
             );
           } catch (error) {
             throw toHostError(error);
@@ -165,10 +161,6 @@ function toSdkNamespace(
   };
 }
 
-const noDocs = (extension: string) => (file: string) => {
-  throw new Error(`${extension}: no docs are bundled (${file}).`);
-};
-
 /** The registry's view of an extension built on the extension API. */
 export function fromDefinition(
   definition: ExtensionDefinition,
@@ -203,7 +195,6 @@ export function fromDefinition(
     ...(definition.tools ? { tools: definition.tools } : {}),
     ...(definition.prelude ? { prelude: definition.prelude } : {}),
     ...(definition.limits ? { limits: definition.limits } : {}),
-    readDoc: definition.readDoc ?? noDocs(definition.id),
     contributes: {
       sdk: definition.namespaces.map((namespace) =>
         toSdkNamespace(definition, namespace),
@@ -238,7 +229,13 @@ export function sdkMethodForOwnTool(
         run: async (runEnv) => {
           runEnv.extensions.allowReads(declaredReadPaths(checks));
           try {
-            return await tool.run(input, runEnv.extensions.context(definition));
+            return await tool.run(
+              input,
+              runEnv.extensions.context(definition, {
+                name: operation,
+                risk: tool.risk,
+              }),
+            );
           } catch (error) {
             throw toHostError(error);
           }

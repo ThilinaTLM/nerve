@@ -22,12 +22,12 @@ const parameters = Type.Object(
 );
 
 /**
- * The `quick_script` tool for `registry` (absent: the default registry). The host registers it with
+ * The `quick_script` tool for `registry`. The host registers it with
  * `registerToolDefinitions` (`@nervekit/tools/catalog`) at startup and
  * replaces the description per conversation with `quickScriptDescription`.
  */
 export function createQuickScriptToolDefinition(
-  registry?: QuickScriptRegistry,
+  registry: QuickScriptRegistry,
 ): ToolDefinition {
   return {
     name: "quick_script",
@@ -36,7 +36,7 @@ export function createQuickScriptToolDefinition(
     traits: ["write_capable", "credentialed", "long_running"],
     executionKind: "local",
     executor: (args, context) =>
-      executeQuickScript(args, registry ? { ...context, registry } : context),
+      executeQuickScript(args, { ...context, registry }),
     classifyRisk: (args) => classifyQuickScriptArguments(args, registry).risk,
     label: "Quick script",
     description:
@@ -45,10 +45,6 @@ export function createQuickScriptToolDefinition(
     executionMode: "parallel",
   };
 }
-
-/** The `quick_script` tool serving the default registry (LEGACY, see `registry.ts`). */
-export const quickScriptToolDefinition: ToolDefinition =
-  createQuickScriptToolDefinition();
 
 /** Every tool the extensions' registry contributes: `quick_script` and the extensions' direct tools. */
 export function quickScriptHostTools(

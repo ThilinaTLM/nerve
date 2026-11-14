@@ -1,5 +1,4 @@
 import { defineExtension, defineNamespace } from "@nervekit/extension-api";
-import { readExtensionDoc } from "../docs-source.js";
 import { AtlassianSession, atlassianMethods } from "./shared/defaults.js";
 import { testAtlassianAccount } from "./shared/connection-check.js";
 import { methodTable } from "./shared/define-method.js";
@@ -76,7 +75,6 @@ export const atlassianExtension = defineExtension({
       "{account.siteUrl}",
     ],
   },
-  readDoc: (file) => readExtensionDoc("atlassian", file),
   namespaces: [
     defineNamespace<AtlassianSession>({
       id: "atlassian",
@@ -94,7 +92,7 @@ export const atlassianExtension = defineExtension({
           id: "atlassian/project-knowledge",
           whenToRead:
             "after exploring a Jira project or Confluence space, to save what you learned as a skill",
-          file: "project-knowledge.md",
+          file: "docs/project-knowledge.md",
         },
       ],
     }),
@@ -113,12 +111,12 @@ export const atlassianExtension = defineExtension({
         {
           id: "jira/workflows",
           whenToRead: "before creating or updating issues",
-          file: "jira-workflows.md",
+          file: "docs/jira-workflows.md",
         },
         {
           id: "jira/raw",
           whenToRead: "when no method covers the task (`jira.request`)",
-          file: "jira-raw.md",
+          file: "docs/jira-raw.md",
         },
       ],
     }),
@@ -138,13 +136,13 @@ export const atlassianExtension = defineExtension({
         {
           id: "confluence/writing",
           whenToRead: "before writing or editing a page",
-          file: "confluence-writing.md",
+          file: "docs/confluence-writing.md",
         },
         {
           id: "confluence/raw",
           whenToRead:
             "when no method covers the task (`confluence.request`, restrictions)",
-          file: "confluence-raw.md",
+          file: "docs/confluence-raw.md",
         },
       ],
     }),
@@ -161,7 +159,7 @@ export const atlassianExtension = defineExtension({
           id: "storage/builders",
           whenToRead:
             "before building page bodies with panels, tables, macros or images",
-          file: "storage.md",
+          file: "docs/storage.md",
         },
       ],
     }),

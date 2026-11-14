@@ -59,7 +59,7 @@ flowchart LR
 **Phase 1: decouple the built-ins** (this proposal, one branch, the steps below in order)
 
 1. **API and host.** Add `extension-api`. Implement `ctx` in the runtime and its server ports. Generic accounts store and secret ids, generic availability, generic account UI and connection test. Extend the unreleased migration step 0005 for `accounts.json` and secret ids (files and the secret store only, no database change).
-2. **Package moves** ([packages.md](packages.md)). Create `@nervekit/extensions` with the four built-ins, merge `quick-script` into `tools`, merge `skills` into `workbench-server`. Temporary allowed edges from `extensions` to `tools` and `contracts` are listed in the boundary rules with a comment pointing here.
+2. **Package moves** ([packages.md](packages.md)). Create `@nervekit/extensions` with the four built-ins, merge `quick-script` into `tools`, merge `skills` into `workbench-server`. The temporary edges from `extensions` to `tools`, `contracts` and `native` are gone: `extensions` depends on `extension-api` only, and the `extension-naming` repository rule keeps every other package from naming an extension.
 3. **Port** in order of difficulty, each one deleting its host special cases: Diagrams (setting, `http`, artifact) → Web (account, injected bearer, `http`) → Atlassian (two switches, session, attachments, prelude, error mapping) → Image generation (`models.image`). Then remove the temporary edges.
 4. **Verify.** Grep goal, focused checks and unit suites, the extensions benchmark (Haiku 5.5, compare with the recorded baseline) and QA on a copied slot (settings, accounts, approvals, each namespace).
 

@@ -71,7 +71,7 @@ export const bundleOutputFiles = [
   "dist/sandbox-libraries/pptxgen.bundle.js",
   "dist/sandbox-libraries/jszip.min.js",
   "dist/quick-script-docs/runtime/files.md",
-  "dist/extension-docs/atlassian/jira-workflows.md",
+  "dist/extension-docs/atlassian/docs/jira-workflows.md",
   "build/README.md",
   "THIRD-PARTY-LICENSES.txt",
 ];
