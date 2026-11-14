@@ -1,11 +1,8 @@
-import { jsonObject } from "@nervekit/tools/integrations";
-import {
-  type ConfluenceConnection,
-  confluenceRequest,
-  pathSegment,
-} from "@nervekit/tools/integrations";
-import { valuesFromConfluenceList } from "@nervekit/tools/integrations";
-import { storageXmlToMarkdown } from "@nervekit/tools/integrations";
+import { jsonObject } from "../shared/http.js";
+import { type ConfluenceConnection, confluenceRequest } from "./client.js";
+import { pathSegment } from "../jira/client.js";
+import { valuesFromConfluenceList } from "./format.js";
+import { storageXmlToMarkdown } from "./markdown.js";
 import { ToolExecutionError } from "@nervekit/tools/execution";
 import { codedError } from "../../../runtime/errors.js";
 import { nonEmptyString } from "../../../runtime/sdk-args.js";

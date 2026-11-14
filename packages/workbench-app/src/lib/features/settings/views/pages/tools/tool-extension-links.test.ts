@@ -59,7 +59,7 @@ const web = (enabled: boolean, value?: string) =>
 
 describe("tool rows backed by extensions", () => {
   it("links tools to their extension", () => {
-    assert.deepEqual(toolSettingsLink("jira"), { item: "atlassian" });
+    assert.deepEqual(toolSettingsLink("web_fetch"), { item: "web" });
     assert.deepEqual(toolSettingsLink("quick_script"), {});
     assert.equal(toolSettingsLink("bash"), undefined);
   });
@@ -82,22 +82,6 @@ describe("tool rows backed by extensions", () => {
       toolExtensionState("web_fetch", [web(true)], accounts),
       undefined,
     );
-  });
-
-  it("asks Jira and Confluence for the Atlassian account", () => {
-    const atlassian = (value?: string) =>
-      extension("atlassian", {
-        field: { key: "account", kind: "atlassian", value },
-      });
-    assert.equal(
-      toolExtensionState("jira", [atlassian("a1")], accounts)?.summary,
-      "Atlassian extension · Nerve Test",
-    );
-    const missing = toolExtensionState("confluence", [atlassian()], {
-      atlassian: [],
-    });
-    assert.equal(missing?.fix?.label, "Add account");
-    assert.equal(missing?.fix?.section, "accounts");
   });
 
   it("lists Quick script namespaces and links an unusable one", () => {

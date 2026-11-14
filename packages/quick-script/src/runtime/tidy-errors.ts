@@ -1,9 +1,9 @@
 import { ToolExecutionError } from "@nervekit/tools/execution";
 import type { SdkMethod } from "./sdk-types.js";
 
-/** `JIRA_BAD_REQUEST: Jira POST /issue/X/worklog failed (400 Bad Request): reason [See guide.]` (same for Confluence). */
+/** `JIRA_BAD_REQUEST: Jira POST /issue/X/worklog failed (400 Bad Request): reason` (same for Confluence). */
 const REQUEST_FAILURE =
-  /^(?:JIRA|CONFLUENCE)_[A-Z_]+: (?:Jira|Confluence) [A-Z]+ \S+ failed \((\d+)[^)]*\)(?::\s*([\s\S]*?))?(?:\s+See \S*SKILL\.md\.?)?\s*$/;
+  /^(?:JIRA|CONFLUENCE)_[A-Z_]+: (?:Jira|Confluence) [A-Z]+ \S+ failed \((\d+)[^)]*\)(?::\s*([\s\S]*?))?\s*$/;
 
 const BAD_TIME = /time ?logged|time duration|worklog must not be null/i;
 const BAD_TIME_HINT =

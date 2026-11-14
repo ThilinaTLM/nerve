@@ -1,7 +1,7 @@
-import { jsonObject } from "@nervekit/tools/integrations";
-import { confluenceRequest } from "@nervekit/tools/integrations";
-import { valuesFromConfluenceList } from "@nervekit/tools/integrations";
-import { resolveSpaceId } from "@nervekit/tools/integrations";
+import { jsonObject } from "../shared/http.js";
+import { confluenceRequest } from "./client.js";
+import { valuesFromConfluenceList } from "./format.js";
+import { resolveSpaceId } from "./space-resolution.js";
 import { ToolExecutionError } from "@nervekit/tools/execution";
 import { closeMatches } from "../../../runtime/sdk-args.js";
 import type { SdkEnvironment } from "../../../runtime/sdk-types.js";

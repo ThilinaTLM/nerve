@@ -1,4 +1,4 @@
-import { HTML_CONVERSION_MAX_INPUT_BYTES } from "@nervekit/tools/integrations";
+import { HTML_CONVERSION_MAX_INPUT_BYTES } from "@nervekit/tools/execution";
 import {
   MAX_ATTACHMENT_BYTES,
   MAX_FILE_BYTES,

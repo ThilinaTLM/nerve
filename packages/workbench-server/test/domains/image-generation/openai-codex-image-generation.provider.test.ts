@@ -12,14 +12,15 @@ function accessToken(accountId = "account-test"): string {
   return `header.${claims}.signature`;
 }
 
-const request = { prompt: "A coral nerve cell" };
-const settings = {
-  provider: "openai-codex" as const,
-  model: "gpt-image-2.5-flare" as const,
+const request = {
+  prompt: "A coral nerve cell",
+  inputs: [],
   options: {
-    quality: "xhigh" as const,
-    size: "1024x1024" as const,
-    background: "transparent" as const,
+    backend: "openai-codex" as const,
+    model: "gpt-image-2.5-flare",
+    quality: "xhigh",
+    size: "1024x1024",
+    background: "transparent",
   },
 };
 
@@ -68,7 +69,7 @@ describe("OpenAI Codex image generation provider", () => {
         auth(),
         () => (usageTouches += 1),
       );
-      const response = await provider.generate(request, settings);
+      const response = await provider.generate(request);
       assert.equal(response.provider, "openai-codex");
       assert.equal(response.model, "gpt-image-2.5-flare");
       assert.deepEqual(Buffer.from(response.images[0]!.data), image);
@@ -87,7 +88,7 @@ describe("OpenAI Codex image generation provider", () => {
       getCredential: async () => ({ type: "api_key", key: "key" }),
     } as AuthManager);
     await assert.rejects(
-      provider.generate(request, settings),
+      provider.generate(request),
       /requires an OAuth connection/,
     );
   });

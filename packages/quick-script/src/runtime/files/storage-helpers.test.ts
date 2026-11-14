@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { runInNewContext } from "node:vm";
-import { markdownToStorage } from "@nervekit/tools/integrations";
+import { markdownToStorage } from "../../extensions/atlassian/confluence/markdown-to-storage.js";
 import { STORAGE_PRELUDE } from "./storage-helpers.js";
 
 type Storage = Record<string, (...args: unknown[]) => string>;

@@ -396,7 +396,7 @@ export function createConversationProtocolSession(
         agentBrowserSkills: platform.agentBrowserSkills.skills,
       });
     },
-    "tool.list": () => ({ tools: allToolDescriptors }),
+    "tool.list": () => ({ tools: allToolDescriptors() }),
     "completion.slash.list": () => ({ items: slashCommandCompletionItems }),
   } satisfies Partial<OperationHandlerRegistry>;
   const session: ProtocolServerSession = new ProtocolServerSession({

@@ -50,34 +50,10 @@ export const toolRows: readonly ToolRowDef[] = [
     configurable: true,
   },
   {
-    id: "generate_image",
-    label: "Image generation",
-    description: "Generate images.",
-    configurable: true,
-  },
-  {
-    id: "kroki_export",
-    label: "Diagram export",
-    description: "Render diagrams to SVG or PNG with Kroki.",
-    configurable: false,
-  },
-  {
-    id: "jira",
-    label: "Jira",
-    description: "Search and manage Jira Cloud issues.",
-    configurable: false,
-  },
-  {
-    id: "confluence",
-    label: "Confluence",
-    description: "Search and manage Confluence Cloud content.",
-    configurable: false,
-  },
-  {
     id: "quick_script",
     label: "Quick script",
     description:
-      "Experimental: run short TypeScript scripts with Jira, Confluence and document utilities, instead of separate tools.",
+      "Run short TypeScript scripts that call the enabled extensions (Jira, Confluence, web, diagrams, images) and document utilities.",
     configurable: false,
   },
   {
@@ -159,8 +135,6 @@ export function toolSettingsSummary(
       return `${(s.interpreterPath as string | undefined) ?? "auto-detect"}`;
     case "explain_image":
       return `${context.modelLabel(s.model) ?? "no model"}`;
-    case "generate_image":
-      return `${String(s.model ?? "")}`;
     case "plan_present":
       return `after approval: ${context.profileLabel(String(s.approvalProfile ?? ""))}`;
     default:

@@ -1,8 +1,8 @@
 # Extensions benchmark
 
-Measurement harness required before delivery step 5 of [docs/proposals/extensions](../../../docs/proposals/extensions/README.md#measurement): `quick_script` alone against the direct Jira and Confluence tools alone, per model family.
+Task suite from the [extensions proposal](../../../docs/proposals/extensions/README.md#measurement) for `quick_script` against the test Atlassian site, per model family. It gated delivery step 5 by comparing `quick_script` with the direct Jira and Confluence tools (Claude Haiku 5.5: 45/45 vs 44/45); those tools are removed, so only the `quick_script` variant remains, for regression runs.
 
-It drives an **already running** dev slot (never slot 1, never started or stopped by the harness) through the same conversation channel the app uses (`/ws/conversations`, authenticated with the slot's `secrets/daemon-token`). Verification and cleanup call Jira and Confluence directly with the product's own clients (`@nervekit/tools/integrations`) using the slot's Atlassian account. Both need `pnpm build` output (`packages/*/dist`).
+It drives an **already running** dev slot (never slot 1, never started or stopped by the harness) through the same conversation channel the app uses (`/ws/conversations`, authenticated with the slot's `secrets/daemon-token`). Verification and cleanup call Jira and Confluence directly with the product's own clients (`@nervekit/quick-script` clients) using the slot's Atlassian account. Both need `pnpm build` output (`packages/*/dist`).
 
 ## Run
 
@@ -17,7 +17,7 @@ pnpm exec tsx scripts/benchmarks/extensions/run.ts --slot 5 --selftest
 pnpm exec tsx scripts/benchmarks/extensions/run.ts --slot 5 --smoke --model anthropic/claude-sonnet-5
 
 # Full benchmark: costs real model usage; ask first.
-pnpm exec tsx scripts/benchmarks/extensions/run.ts --slot 5 --variant quick_script,direct \
+pnpm exec tsx scripts/benchmarks/extensions/run.ts --slot 5 --variant quick_script \
   --model anthropic/claude-sonnet-5,openai/gpt-5.5 --runs 5 [--tasks lookup-issue,bulk-label]
 ```
 
@@ -28,7 +28,7 @@ Pass one model per family (Claude, GPT) in `--model`; the family is derived from
 ## What a run does
 
 1. The task's `setup` creates its fixtures in the sandbox (every Jira issue carries label `bench-<runId>`, every page title starts with `[bench <runId>]`) and returns the prompt.
-2. A conversation is created in the benchmark project with per-conversation overrides: the model, the rule set, and tool enablement. `quick_script` variant: `quick_script` on; `jira`, `confluence`, `kroki_export` off. `direct` variant: the opposite. Web search/fetch, sub-agents, image tools and `plan_present` are off in both; `bash` and `python_exec` stay on (the Excel task needs them).
+2. A conversation is created in the benchmark project with per-conversation overrides: the model, the rule set, and tool enablement. `quick_script` is on; web search/fetch, sub-agents, image explanation and `plan_present` are off; `bash` and `python_exec` stay on (the Excel task needs them).
 3. Approvals are polled and answered by [`policy.ts`](policy.ts): approve inside the task's declared scope (issue keys and page ids of its own fixtures, sandbox project/space only, shell only when the task declares it, deletes only when declared), deny otherwise. `ask_user` is dismissed. Both are counted.
 4. When the conversation is idle, the task's `check` verifies the outcome with read-only requests or the final answer. Cleanup runs in reverse order even on failure.
 
@@ -36,11 +36,11 @@ Tasks ([`tasks.ts`](tasks.ts)): `lookup-issue`, `lookup-page` (single lookups); 
 
 ## Metrics ([`metrics.ts`](metrics.ts), [`report.ts`](report.ts))
 
-Per run, from the conversation's recorded events: success, turns (assistant messages), input/output/total tokens from each response's usage, input tokens of every request up to and including the one that issued the first successful SDK call (`quick_script` code touching `jira.`/`confluence.`/`diagram.`/…, or a `jira_*`/`confluence_*`/`kroki_export` call), failures classified as wrong arguments or unknown methods, calls into unavailable namespaces (not-available/not-configured errors, or a tool the variant does not offer), approvals requested and denied, dismissed questions. Failures are classified by error-text patterns, so spot-check `results.json` against a conversation before trusting small differences.
+Per run, from the conversation's recorded events: success, turns (assistant messages), input/output/total tokens from each response's usage, input tokens of every request up to and including the one that issued the first successful SDK call (`quick_script` code touching `jira.`/`confluence.`/`diagram.`/…), failures classified as wrong arguments or unknown methods, calls into unavailable namespaces (not-available/not-configured errors, or a tool that no longer exists), approvals requested and denied, dismissed questions. Failures are classified by error-text patterns, so spot-check `results.json` against a conversation before trusting small differences.
 
-Tool-definition tokens per request cannot be read from usage directly. Before the runs, one trivial conversation per model and variant (plus a `none` baseline with all three Atlassian surfaces off) records the first request's input tokens; the difference to the baseline is the variant's tool-definition cost.
+Tool-definition tokens per request cannot be read from usage directly. Before the runs, one trivial conversation per model and variant (plus a `none` baseline with `quick_script` off) records the first request's input tokens; the difference to the baseline is the variant's tool-definition cost.
 
-The summary table compares variants per family and per task, and flags a family where direct beats `quick_script` by 10 or more success points.
+The summary table lists success and cost per family and per task.
 
 ## Cost
 

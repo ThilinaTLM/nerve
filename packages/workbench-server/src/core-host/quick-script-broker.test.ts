@@ -139,8 +139,8 @@ void test("only operations and the remaining direct tools can be brokered", asyn
   for (const toolName of [
     "bash",
     "python_exec",
-    "jira_get_issue",
-    "kroki_export",
+    "quick_script",
+    "explain_image",
   ])
     await assert.rejects(authorize(call, { toolName, args: {} }), {
       code: "NESTED_DENIED",

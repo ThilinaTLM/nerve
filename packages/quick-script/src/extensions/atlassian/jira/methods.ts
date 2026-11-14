@@ -4,7 +4,7 @@ import {
   jsonArray,
   jsonObject,
   objectWithFields,
-} from "@nervekit/tools/integrations";
+} from "../shared/http.js";
 import type { IntegrationExecutionContext } from "@nervekit/tools/execution";
 import {
   type JiraConnection,
@@ -12,12 +12,9 @@ import {
   jiraRequest,
   pathSegment,
   requireJiraConnection,
-} from "@nervekit/tools/integrations";
-import { rawMethod } from "@nervekit/tools/integrations";
-import {
-  jiraUsersFromResponse,
-  searchJiraUsers,
-} from "@nervekit/tools/integrations";
+} from "./client.js";
+import { rawMethod } from "../shared/raw-request.js";
+import { jiraUsersFromResponse, searchJiraUsers } from "./users.js";
 import {
   DEFAULT_GET_FIELDS,
   DEFAULT_SEARCH_FIELDS,

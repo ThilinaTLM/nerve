@@ -113,6 +113,9 @@ export class ExtensionSettingsService {
       parse: (input) => extensionsDocumentSchema.parse(input),
       issues: parserIssues,
       publish: (value) => {
+        // A scope's first load only reads what was already on disk (or nothing);
+        // it is not a change, and resolving a capture itself triggers it.
+        if (value.generation <= 1) return;
         for (const listener of this.listeners) listener(value.scope);
       },
     });

@@ -316,7 +316,7 @@ void test("a page created and deleted in one run is marked in the Deleted list",
 });
 
 void test("decision lists read with their state", async () => {
-  const { storageXmlToMarkdown } = await import("@nervekit/tools/integrations");
+  const { storageXmlToMarkdown } = await import("./markdown.js");
   const item = (state: string, text: string) =>
     `<ac:adf-node type="decision-item"><ac:adf-attribute key="state">${state}</ac:adf-attribute><ac:adf-content>${text}</ac:adf-content></ac:adf-node>`;
   const markdown = await storageXmlToMarkdown(

@@ -1,7 +1,7 @@
 import type { Atlassian, Sandbox } from "./atlassian.ts";
 
-export type Variant = "quick_script" | "direct";
-export const VARIANTS: readonly Variant[] = ["quick_script", "direct"];
+export type Variant = "quick_script";
+export const VARIANTS: readonly Variant[] = ["quick_script"];
 
 export type TaskCategory = "lookup" | "join" | "bulk" | "document" | "pitfall";
 

@@ -1,5 +1,5 @@
-import { jsonObject } from "@nervekit/tools/integrations";
-import { jiraRequest, pathSegment } from "@nervekit/tools/integrations";
+import { jsonObject } from "../shared/http.js";
+import { jiraRequest, pathSegment } from "./client.js";
 import {
   DEFAULT_SEARCH_FIELDS,
   defaultSelection,

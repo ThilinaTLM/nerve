@@ -2,9 +2,9 @@ import { openAsBlob } from "node:fs";
 import { open, readFile } from "node:fs/promises";
 import { extname } from "node:path";
 import { image } from "@nervekit/native";
-import { anyJson } from "@nervekit/tools/integrations";
-import { confluenceAttachmentRequest } from "@nervekit/tools/integrations";
-import { valuesFromConfluenceList } from "@nervekit/tools/integrations";
+import { anyJson } from "./http.js";
+import { confluenceAttachmentRequest } from "../confluence/client.js";
+import { valuesFromConfluenceList } from "../confluence/format.js";
 import {
   MAX_ATTACHMENT_BYTES,
   MAX_FILE_BYTES,

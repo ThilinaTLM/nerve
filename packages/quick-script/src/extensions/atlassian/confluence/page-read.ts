@@ -1,7 +1,7 @@
-import { jsonObject } from "@nervekit/tools/integrations";
-import { confluenceRequest } from "@nervekit/tools/integrations";
-import { valuesFromConfluenceList } from "@nervekit/tools/integrations";
-import { storageXmlToMarkdown } from "@nervekit/tools/integrations";
+import { jsonObject } from "../shared/http.js";
+import { confluenceRequest } from "./client.js";
+import { valuesFromConfluenceList } from "./format.js";
+import { storageXmlToMarkdown } from "./markdown.js";
 import type { SdkEnvironment } from "../../../runtime/sdk-types.js";
 import { orWhenUnsupported } from "../../../runtime/sdk-types.js";
 

@@ -61,7 +61,7 @@ A project `config/agent.json` stores only its own choices:
 }
 ```
 
-Missing fields inherit. Tool configuration merges by declared fields, except atomic values such as image generation settings. `profileId` selects a user-owned account only for Jira, Confluence, and Web Search; credentials are never copied into project or conversation files. Missing references stay visible with readiness diagnostics. See [Agent profiles](/reference/agent-profiles/) for requirements, health and repair, and scope paths.
+Missing fields inherit. Tool configuration merges by declared fields, except atomic values such as the explanation model. Accounts for Jira, Confluence, and Web Search are selected in extension settings (`extensions.json`); credentials are never copied into project or conversation files. Missing references stay visible with readiness diagnostics. See [Agent profiles](/reference/agent-profiles/) for requirements, health and repair, and scope paths.
 
 Agent Browser skills are prompt guidance from an external CLI, not a native browser tool.
 

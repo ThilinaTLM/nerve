@@ -80,10 +80,10 @@ test("metrics: tokens before the first successful SDK call, failure classes, app
     call(
       8,
       "a7",
-      "jira_get_issue",
+      "no_such_tool",
       { key: "SCRUM-1" },
       "failed",
-      "no such tool",
+      "Unknown tool: no_such_tool",
     ),
     assistant(9, { input: 3500, output: 90 }),
     call(
@@ -115,16 +115,6 @@ test("approval policy stays inside the sandbox and the task's fixtures", () => {
   const decide = (toolName: string, args: unknown, s = scope) =>
     decideApproval({ toolName, arguments: args }, s, sandbox).decision;
   assert.equal(
-    decide("jira_update_issue", { issueKey: "SCRUM-12" }),
-    "approve",
-  );
-  assert.equal(decide("jira_update_issue", { issueKey: "SCRUM-13" }), "deny");
-  assert.equal(decide("jira_update_issue", { issueKey: "OPS-1" }), "deny");
-  assert.equal(
-    decide("confluence_update_page", { spaceKey: "ENG", pageId: "1234" }, {}),
-    "deny",
-  );
-  assert.equal(
     decide("quick_script", {
       code: "await jira.issues.delete({key:'SCRUM-12'})",
     }),
@@ -135,17 +125,9 @@ test("approval policy stays inside the sandbox and the task's fixtures", () => {
     decide("python_exec", { code: "1" }, { allowShell: true }),
     "approve",
   );
-  assert.equal(
-    decide(
-      "confluence_update_page",
-      { pageId: "99999" },
-      { pageIds: ["12345"] },
-    ),
-    "deny",
-  );
 });
 
-test("task file is valid and the report compares variants per family", () => {
+test("task file is valid and the report summarizes per family", () => {
   assert.deepEqual(validateTasks(TASKS), []);
   assert.equal(estimate(TASKS, 2, 2, 5).runs, TASKS.length * 20);
   const probes = [
@@ -158,19 +140,16 @@ test("task file is valid and the report compares variants per family", () => {
     {
       model: "m",
       family: "Claude",
-      variant: "direct" as const,
+      variant: "quick_script" as const,
       firstRequestInputTokens: 9000,
     },
   ];
-  assert.equal(toolSurfaceTokens(probes, "m", "direct"), 6000);
-  const record = (
-    variant: "direct" | "quick_script",
-    status: "passed" | "failed",
-  ) => ({
+  assert.equal(toolSurfaceTokens(probes, "m", "quick_script"), 6000);
+  const record = (status: "passed" | "failed") => ({
     task: "t",
     model: "m",
     family: "Claude",
-    variant,
+    variant: "quick_script" as const,
     run: 1,
     status,
     failures: [],
@@ -179,11 +158,11 @@ test("task file is valid and the report compares variants per family", () => {
     approvalsDenied: 0,
     questionsDismissed: 0,
   });
-  const markdown = renderSummary(
-    [record("direct", "passed"), record("quick_script", "failed")],
-    probes,
-    { slot: 5, ruleSet: "supervised", generatedAt: "now" },
-  );
+  const markdown = renderSummary([record("passed"), record("failed")], probes, {
+    slot: 5,
+    ruleSet: "supervised",
+    generatedAt: "now",
+  });
   assert.match(markdown, /### Claude/);
-  assert.match(markdown, /direct wins clearly/);
+  assert.match(markdown, /quick_script/);
 });

@@ -24,7 +24,6 @@ export const diagramExtension: ExtensionManifest = {
     },
   },
   contributes: {
-    tools: ["kroki_export"],
     sdk: [
       {
         id: "diagram",

@@ -54,11 +54,23 @@ export function selectedSearchAccount(
     : undefined;
 }
 
-/** Diagram server URL, regardless of the extension switch (the direct tool uses it too). */
+/** Diagram server URL, regardless of the extension switch. */
 export function diagramServer(
   resolution: ExtensionResolution,
 ): string | undefined {
   return stringField(resolution, "diagram", "server");
+}
+
+/** Resolved settings of the image generation extension, for the execution context. */
+export function imagegenSettings(
+  resolution: ExtensionResolution,
+): Record<string, unknown> {
+  return Object.fromEntries(
+    ["backend", "model", "quality", "size", "background"].flatMap((key) => {
+      const value = stringField(resolution, "imagegen", key);
+      return value ? [[key, value]] : [];
+    }),
+  );
 }
 
 /**
@@ -131,12 +143,21 @@ export function quickScriptAvailability(
         reason: "Diagrams are switched off.",
         fix: `Ask the user to enable Diagrams in ${SETTINGS("Diagrams")}.`,
       };
+  const imagegen: State = extensionOn("imagegen")
+    ? { configured: true, available: true }
+    : {
+        configured: false,
+        available: false,
+        reason: "Image generation is switched off.",
+        fix: `Ask the user to enable Image generation in ${SETTINGS("Image generation")}.`,
+      };
   return {
     atlassian,
     jira,
     confluence,
     storage: confluence,
     web,
+    imagegen,
     diagram,
   };
 }

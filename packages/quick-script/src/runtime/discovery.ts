@@ -178,8 +178,11 @@ async function describeText(
       `// ${namespace.id}: ${namespace.summary}. No method declarations.\n${pointer}`,
     );
   }
+  const configured = !sub ? namespace.configuration?.(env) : undefined;
   const text =
-    pointer + describeDeclarations(namespace, typePool(namespaces), sub);
+    (configured ? `// ${configured}\n` : "") +
+    pointer +
+    describeDeclarations(namespace, typePool(namespaces), sub);
   const single = methods.length === 1 && text.length <= SINGLE_METHOD_CHARS;
   if (single || text.length <= remaining(env)) return spend(env, text);
 

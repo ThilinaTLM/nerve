@@ -1,8 +1,5 @@
 import { z } from "zod";
-import {
-  defaultImageGenerationSettings,
-  defaultSettings,
-} from "../settings/settings.js";
+import { defaultSettings } from "../settings/settings.js";
 import type { ModelSelection, ThinkingLevel } from "../models/models.js";
 import {
   childLaunchOverridesSchema,
@@ -52,18 +49,11 @@ const builtin: LeadSettingsOverrides = {
     python_exec: { enabled: true, settings: {} },
     web_search: { enabled: true },
     web_fetch: { enabled: true },
-    jira: { enabled: false },
-    confluence: { enabled: false },
     quick_script: { enabled: false },
     explain_image: {
       enabled: false,
       settings: defaultSettings.tools.imageExplanation,
     },
-    generate_image: {
-      enabled: false,
-      settings: defaultImageGenerationSettings,
-    },
-    kroki_export: { enabled: false },
     bash: { settings: defaultSettings.tools.bash },
     plan_present: {
       enabled: false,
@@ -360,11 +350,9 @@ export function applySettingsMutation(
     // Validate structural paths; never allow descent into atomic values.
     const relative = pointer.slice(10);
     const atomicAncestor =
-      [
-        "/model",
-        "/tools/generate_image/settings",
-        "/tools/bash/settings/autoPromotion",
-      ].some((p) => relative.startsWith(p + "/")) ||
+      ["/model", "/tools/bash/settings/autoPromotion"].some((p) =>
+        relative.startsWith(p + "/"),
+      ) ||
       /^\/subagents\/[^/]+\/model\//.test(relative) ||
       relative.startsWith("/tools/explain_image/settings/model/");
     if (atomicAncestor)

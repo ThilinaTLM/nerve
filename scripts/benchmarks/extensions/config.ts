@@ -17,8 +17,8 @@ export const FLAGS = {
   variant: {
     type: "string",
     description:
-      "quick_script, direct, or a comma list (default: quick_script,direct).",
-    default: "quick_script,direct",
+      "quick_script (the only variant since the direct tools were removed).",
+    default: "quick_script",
   },
   model: {
     type: "string",
@@ -122,24 +122,17 @@ export function parseVariants(value: string): Variant[] {
   const variants = value.split(",").map((entry) => entry.trim());
   for (const variant of variants)
     if (!VARIANTS.includes(variant as Variant))
-      throw new CliError(
-        `Unknown variant "${variant}"; use quick_script or direct.`,
-      );
+      throw new CliError(`Unknown variant "${variant}"; use quick_script.`);
   return variants as Variant[];
 }
 
-/** Tool enablement per conversation: only the variant's Atlassian surface differs. */
+/** Tool enablement per conversation; the `none` baseline has no `quick_script`. */
 export function toolOverrides(variant: Variant | "none") {
-  const direct = variant === "direct";
   return {
     quick_script: { enabled: variant === "quick_script" },
-    jira: { enabled: direct },
-    confluence: { enabled: direct },
-    kroki_export: { enabled: direct },
     web_search: { enabled: false },
     web_fetch: { enabled: false },
     subagents: { enabled: false },
-    generate_image: { enabled: false },
     explain_image: { enabled: false },
     plan_present: { enabled: false },
   };

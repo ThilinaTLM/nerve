@@ -13,6 +13,11 @@ import { test } from "node:test";
 import { createStepContext } from "../../framework/context.js";
 import { storagePaths } from "../../../storage-bootstrap/paths.js";
 import { convertConversationAgent, extractFromTools } from "./convert.js";
+import { findQuickScriptNamespace } from "@nervekit/quick-script";
+import {
+  REMOVED_TOOL_OPERATIONS,
+  convertRemovedToolException,
+} from "./removed-tools.js";
 import step from "./step.js";
 
 const accounts = {
@@ -51,6 +56,14 @@ void test("quick_script wins over direct tools; differing accounts keep Jira", (
         enabled: true,
         settings: { url: "https://kroki.local/" },
       },
+      generate_image: {
+        enabled: true,
+        settings: {
+          provider: "openai-codex",
+          model: "gpt-image-2.5-sunburst",
+          options: { quality: "high", size: "1024x1024", background: "auto" },
+        },
+      },
       quick_script: {
         enabled: true,
         settings: {
@@ -74,14 +87,23 @@ void test("quick_script wins over direct tools; differing accounts keep Jira", (
       settings: { searchAccount: "tav-qs" },
     },
     diagram: { version: 1, settings: { server: "https://kroki.local/" } },
+    imagegen: {
+      version: 1,
+      enabled: true,
+      settings: {
+        backend: "openai-codex",
+        model: "gpt-image-2.5-sunburst",
+        quality: "high",
+        size: "1024x1024",
+        background: "auto",
+      },
+    },
   });
   assert.equal(losses.length, 1);
   assert.match(losses[0], /different Atlassian accounts/);
+  // The removed tools leave their entries; web_search keeps only its switch.
   assert.deepEqual(tools, {
-    jira: { enabled: true },
-    confluence: { enabled: true },
     web_search: { enabled: true },
-    kroki_export: { enabled: true },
     quick_script: { enabled: true },
     python_exec: { enabled: true },
   });
@@ -128,9 +150,7 @@ void test("a child's frozen defaults and overrides become its frozen extension f
       },
     },
   });
-  assert.deepEqual(applied.requirements, {
-    tools: { jira: { enabled: true } },
-  });
+  assert.deepEqual(applied.requirements, {});
 });
 
 void test("moves accounts, user, profile and conversation settings, and verifies", async (t) => {
@@ -184,10 +204,7 @@ void test("moves accounts, user, profile and conversation settings, and verifies
   assert.deepEqual(read(paths.accountsConfigPath), accounts);
   const agent = read(join(paths.configPath, "agent.json"));
   assert.equal(agent.revision, 5);
-  assert.deepEqual(agent.overrides.tools, {
-    jira: { enabled: true },
-    quick_script: { enabled: true },
-  });
+  assert.deepEqual(agent.overrides.tools, { quick_script: { enabled: true } });
   assert.deepEqual(read(join(paths.configPath, "extensions.json")), {
     schemaVersion: 1,
     revision: 1,
@@ -257,4 +274,179 @@ void test("an existing accounts file is never replaced", async (t) => {
     JSON.parse(readFileSync(paths.accountsConfigPath, "utf8")).profiles,
     { atlassian: [], tavily: [] },
   );
+});
+
+const permissionRule = (
+  id: string,
+  priority: number,
+  when: object,
+  decision = "allow",
+) => ({
+  id,
+  enabled: true,
+  priority,
+  enforcement: "overridable",
+  when,
+  decision,
+});
+
+void test("permission rules and rule sets naming removed tools are rewritten; what cannot be is disabled and reported", async (t) => {
+  const { root, paths, put, read, context } = home();
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  const rules = [
+    permissionRule("create", 1, { toolNames: ["jira_create_issue"] }),
+    permissionRule("pages", 2, {
+      toolNames: ["confluence_get_page", "confluence_search_pages"],
+      toolGroups: ["confluence"],
+    }),
+    permissionRule("kroki", 3, { toolNames: ["kroki_export"] }, "prompt"),
+    permissionRule("img", 4, { toolNames: ["generate_image"] }, "deny"),
+    permissionRule("restrict-allow", 5, {
+      toolNames: ["confluence_manage_restriction"],
+    }),
+    permissionRule(
+      "restrict-deny",
+      6,
+      { toolNames: ["confluence_manage_restriction"] },
+      "deny",
+    ),
+    permissionRule("by-key", 7, {
+      toolNames: ["jira_update_issue"],
+      primaryArgument: { operator: "glob", value: "APP-*" },
+    }),
+    permissionRule("bash", 8, { toolNames: ["bash"] }, "prompt"),
+  ];
+  put(paths.permissionsConfigPath, {
+    schemaVersion: 2,
+    overlays: [{ ruleSetId: "supervised", rules }],
+  });
+  put(join(paths.conversationsPath, "conv_1", "config", "permissions.json"), {
+    schemaVersion: 2,
+    overlays: [{ ruleSetId: "supervised", rules: [rules[0]] }],
+  });
+  put(join(paths.configPath, "rule-sets", "mine.json"), {
+    schemaVersion: 1,
+    id: "mine",
+    name: "Mine",
+    source: "user",
+    enabled: true,
+    rules: [rules[0]],
+  });
+  const losses: string[] = [];
+  const ctx = { ...context, loss: (reason: string) => losses.push(reason) };
+  context.ownPaths(await step.ownedPaths!(context));
+  await step.run(ctx);
+  await step.verify!(context);
+
+  const converted = read(paths.permissionsConfigPath).overlays[0].rules;
+  const byId = Object.fromEntries(
+    converted.map((rule: { id: string }) => [rule.id, rule]),
+  );
+  assert.deepEqual(byId.create.when, {
+    toolNames: ["quick_script"],
+    primaryArgument: { operator: "glob", value: "jira.issues.create" },
+  });
+  assert.deepEqual(byId.pages.when.toolGroups, ["confluence"]);
+  assert.deepEqual(byId.pages.when.primaryArgument.value, [
+    "confluence.pages.get",
+    "confluence.comments.list",
+    "confluence.attachments.list",
+    "confluence.pages.search",
+  ]);
+  assert.equal(byId.kroki.when.primaryArgument.value, "diagram.render");
+  assert.equal(byId.kroki.decision, "prompt");
+  assert.equal(byId.img.when.primaryArgument.value, "imagegen.generate");
+  // Allow cannot widen to raw requests; deny and prompt do cover them.
+  assert.equal(byId["restrict-allow"].enabled, false);
+  assert.equal(byId["restrict-deny"].enabled, true);
+  assert.equal(
+    byId["restrict-deny"].when.primaryArgument.value,
+    "confluence.request",
+  );
+  assert.equal(byId["by-key"].enabled, false);
+  assert.deepEqual(byId["by-key"].when.toolNames, ["jira_update_issue"]);
+  assert.deepEqual(byId.bash, rules[7]);
+  assert.equal(
+    read(join(paths.conversationsPath, "conv_1", "config", "permissions.json"))
+      .overlays[0].rules[0].when.toolNames[0],
+    "quick_script",
+  );
+  assert.equal(
+    read(join(paths.configPath, "rule-sets", "mine.json")).rules[0].when
+      .toolNames[0],
+    "quick_script",
+  );
+  assert.equal(losses.length, 2);
+  assert.match(losses.join("\n"), /restrict-allow/);
+  assert.match(losses.join("\n"), /by-key/);
+  // A second run has nothing left to convert.
+  const snapshot = readFileSync(paths.permissionsConfigPath, "utf8");
+  await step.run(ctx);
+  assert.equal(readFileSync(paths.permissionsConfigPath, "utf8"), snapshot);
+});
+
+void test("the removed-tool table names real SDK methods for every removed tool", () => {
+  assert.equal(Object.keys(REMOVED_TOOL_OPERATIONS).length, 30);
+  for (const [tool, route] of Object.entries(REMOVED_TOOL_OPERATIONS)) {
+    assert.ok(route.operations.length > 0 || route.raw, tool);
+    for (const operation of [
+      ...route.operations,
+      ...(route.raw ? [`${route.raw}.request`] : []),
+    ]) {
+      const [namespace, ...path] = operation.split(".");
+      const methods = findQuickScriptNamespace(namespace)?.methods ?? [];
+      assert.ok(
+        methods.some((method) => method.path === path.join(".")),
+        `${tool} -> ${operation}`,
+      );
+    }
+  }
+});
+
+void test("exceptions naming removed tools become quick_script operation globs", () => {
+  const exception = (tool: string, effect = "allow") => ({
+    id: "exception_1",
+    tool,
+    effect,
+    rule: "*",
+  });
+  assert.deepEqual(
+    convertRemovedToolException(exception("jira_manage_comment")),
+    [
+      {
+        id: "exception_1",
+        tool: "quick_script",
+        effect: "allow",
+        rule: "jira.comments.*",
+      },
+    ],
+  );
+  assert.deepEqual(convertRemovedToolException(exception("kroki_export")), [
+    {
+      id: "exception_1",
+      tool: "quick_script",
+      effect: "allow",
+      rule: "diagram.render",
+    },
+  ]);
+  assert.equal(
+    convertRemovedToolException(exception("confluence_manage_restriction")),
+    null,
+  );
+  assert.deepEqual(
+    convertRemovedToolException(
+      exception("confluence_manage_restriction", "deny"),
+    ),
+    [
+      {
+        id: "exception_1",
+        tool: "quick_script",
+        effect: "deny",
+        rule: "confluence.request",
+      },
+    ],
+  );
+  assert.deepEqual(convertRemovedToolException(exception("bash")), [
+    exception("bash"),
+  ]);
 });

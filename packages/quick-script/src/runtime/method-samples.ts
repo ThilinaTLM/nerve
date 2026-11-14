@@ -110,6 +110,7 @@ export const SAMPLES: Record<string, unknown[][]> = {
     ["PUT", "/x", {}],
     ["DELETE", "/x"],
   ],
+  "imagegen.generate": [[{ prompt: "a red square" }]],
   "diagram.render": [[{ type: "mermaid", source: "graph TD; A-->B" }]],
   "files.list": [[]],
   "files.read": [["artifact:a.txt"], ["notes.txt"]],

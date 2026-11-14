@@ -8,10 +8,10 @@ import {
 const retiredTools = [
   "task_cancel",
   "task_restart",
-  "jira_add_comment",
-  "confluence_download_pages",
-  "confluence_publish_pages",
-  "confluence_upload_attachment",
+  "jira_get_issue",
+  "confluence_get_page",
+  "kroki_export",
+  "generate_image",
 ] as const;
 
 describe("retired tool names", () => {

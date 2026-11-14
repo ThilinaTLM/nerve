@@ -1,5 +1,5 @@
-import { jsonArray, jsonObject } from "@nervekit/tools/integrations";
-import { jiraRequest, pathSegment } from "@nervekit/tools/integrations";
+import { jsonArray, jsonObject } from "../shared/http.js";
+import { jiraRequest, pathSegment } from "./client.js";
 import {
   AUTOMATIC_FIELDS,
   type FieldMeta,

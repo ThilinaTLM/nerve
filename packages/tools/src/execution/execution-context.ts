@@ -7,7 +7,6 @@ import type {
   ToolTextContentPayload,
 } from "@nervekit/contracts/tools";
 import type { PythonRuntime } from "./python/runtime.js";
-import type { KrokiToolSettings } from "@nervekit/contracts/settings";
 
 export type ToolExecutionOutputUpdate = {
   kind: "output";
@@ -27,17 +26,6 @@ export type ExplainImageRequest = {
 export type ExplainImageResponse = {
   explanation: string;
   model: { provider: string; modelId: string };
-};
-
-export type ImageGenerateRequest = {
-  prompt: string;
-  signal?: AbortSignal;
-};
-
-export type ImageGenerateResponse = {
-  provider: string;
-  model: string;
-  images: Array<{ data: Uint8Array; revisedPrompt?: string }>;
 };
 
 export interface BaseExecutionContext {
@@ -68,12 +56,6 @@ export interface VisionExecutionContext extends BaseExecutionContext {
     request: ExplainImageRequest,
   ) => Promise<ExplainImageResponse>;
 }
-export interface ImageGenerationExecutionContext extends BaseExecutionContext {
-  artifactDir?: string;
-  generateImage?: (
-    request: ImageGenerateRequest,
-  ) => Promise<ImageGenerateResponse>;
-}
 /** Whether a configured quick_script namespace can be used now; the same text reaches the agent and, later, the Extensions page. */
 export type NamespaceAvailability =
   | { configured: boolean; available: true }
@@ -91,10 +73,6 @@ export type QuickScriptAvailability = Readonly<
   Record<string, NamespaceAvailability>
 >;
 
-export interface KrokiExecutionContext extends BaseExecutionContext {
-  artifactDir?: string;
-  kroki?: KrokiToolSettings;
-}
 export interface IntegrationExecutionContext extends BaseExecutionContext {
   artifactDir?: string;
   /** Absolute managed folder of the conversation; may not exist yet. */
@@ -120,8 +98,6 @@ export type ToolExecutionContext = FilesystemExecutionContext &
   PythonExecutionContext &
   WebExecutionContext &
   VisionExecutionContext &
-  ImageGenerationExecutionContext &
-  KrokiExecutionContext &
   IntegrationExecutionContext;
 
 // Result contracts live in `@nervekit/contracts` (single source of truth shared with the web UI).
@@ -195,9 +171,6 @@ export type WebFetchToolArgs = {
 export type ExplainImageToolArgs = ToolPathArgs & {
   prompt?: unknown;
 };
-
-export type JiraToolArgs = Record<string, unknown>;
-export type ConfluenceToolArgs = Record<string, unknown>;
 
 /**
  * One SDK call to check: an operation (`jira.issues.create`) with its

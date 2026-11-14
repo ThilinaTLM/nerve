@@ -2,6 +2,7 @@ import { outcomeLabel } from "./tool-presentation-helpers";
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import type { ToolCallRecord } from "../../state/tool-types";
+import { toolLifecycleSpec } from "../lifecycle/registry";
 import { parseToolView, parseToolViewCached } from "./tool-result-parser";
 
 function call(
@@ -307,24 +308,23 @@ it("renders legacy edit diffs without structured operation status", () => {
   assert.equal(view.operations, undefined);
 });
 
-it("derives created Jira issue links from the result self URL", () => {
-  const view = parseToolView(
-    call(
-      "jira_create_issue",
-      { project_key: "APP", summary: "Fix" },
-      {
-        details: {
-          issueKey: "APP-42",
-          self: "https://example.atlassian.net/jira/rest/api/3/issue/10042",
-        },
-      },
-    ),
-  );
-  assert.ok(view.kind === "jira");
-  assert.equal(
-    view.issueUrl,
-    "https://example.atlassian.net/jira/browse/APP-42",
-  );
+it("renders calls recorded by removed tools with the generic view", () => {
+  for (const toolName of [
+    "jira_search_issues",
+    "confluence_get_page",
+    "kroki_export",
+    "generate_image",
+  ]) {
+    const view = parseToolView(
+      call(
+        toolName,
+        { jql: "project = APP" },
+        { content: "3 issues", details: { issues: [{ key: "APP-1" }] } },
+      ),
+    );
+    assert.equal(view.kind, "generic", toolName);
+    assert.equal(toolLifecycleSpec(toolName).completedView, "generic");
+  }
 });
 
 describe("quick_script result", () => {

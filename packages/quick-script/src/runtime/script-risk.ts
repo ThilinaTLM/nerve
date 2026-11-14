@@ -192,6 +192,7 @@ const SDK_GLOBALS = new Set([
   "diagram",
   "files",
   "image",
+  "imagegen",
   "web",
 ]);
 /** Ways to reach an SDK global or run code without naming it. */

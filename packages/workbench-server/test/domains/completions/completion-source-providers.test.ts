@@ -13,7 +13,7 @@ import { candidateFromPath } from "../../../src/domains/completions/file-complet
 
 function setup() {
   const settings: LeadSettingsOverrides = {
-    tools: { jira: { enabled: false } },
+    tools: { quick_script: { enabled: false } },
     skills: { file: { hidden: false } },
   };
   const updates: unknown[] = [];
@@ -57,7 +57,7 @@ function setup() {
       },
       profiles: { list: async () => profiles },
     },
-    tools: [{ name: "jira_get_issue", description: "Read a synthetic issue" }],
+    tools: [{ name: "quick_script", description: "Run a synthetic script" }],
     skills: async () => [
       {
         name: "hidden",

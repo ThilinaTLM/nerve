@@ -1,16 +1,22 @@
-// Frozen: tool keys that moved into extension settings (`extensions.json`).
-// Project files are not converted across files; the same-file version bump
-// drops these keys and the upgrade notice asks the user to set them again.
+// Tool keys that moved into extension settings (`extensions.json`) and tools
+// that were removed in favour of `quick_script` namespaces (Jira, Confluence,
+// Diagram export, Image generation). Project files are not converted across
+// files; the same-file version bump drops these entries and the upgrade
+// notice asks the user to set them again.
 type Tools = Record<string, unknown>;
 const record = (value: unknown): value is Record<string, unknown> =>
   !!value && typeof value === "object" && !Array.isArray(value);
 const MOVED: Readonly<Record<string, string>> = {
-  jira: "profileId",
-  confluence: "profileId",
   web_search: "profileId",
   quick_script: "settings",
-  kroki_export: "settings",
 };
+/** Removed tools: the whole entry goes. */
+const REMOVED: ReadonlySet<string> = new Set([
+  "jira",
+  "confluence",
+  "generate_image",
+  "kroki_export",
+]);
 
 const omit = (value: Record<string, unknown>, key: string) =>
   Object.fromEntries(Object.entries(value).filter(([name]) => name !== key));
@@ -23,6 +29,10 @@ export function withoutMovedToolKeys(tools: Tools): {
   const next: Tools = {};
   const dropped: string[] = [];
   for (const [name, entry] of Object.entries(tools)) {
+    if (REMOVED.has(name)) {
+      dropped.push(`tools.${name}`);
+      continue;
+    }
     const key = MOVED[name];
     if (key && record(entry) && Object.hasOwn(entry, key)) {
       const rest = omit(entry, key);
@@ -74,4 +84,4 @@ export function dropMovedFromProfile(value: unknown): {
 }
 
 export const movedKeysNotice =
-  "Account and server choices for Jira, Confluence, Web search and Diagrams moved to Extensions; they were removed from this file. Set them again in project settings.";
+  "Settings for Jira, Confluence, Image generation, Diagram export and Web search moved to Extensions (Jira, Confluence, diagrams and images are now reached through quick_script); they were removed from this file. Set them again in project settings.";

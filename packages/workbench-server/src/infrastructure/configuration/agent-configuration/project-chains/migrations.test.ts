@@ -43,6 +43,7 @@ async function fixture(t: TestContext) {
 const preferences = { schemaVersion: 1, revision: 0, overrides: {} };
 const movedKeys = {
   jira: { enabled: true, profileId: "acme" },
+  generate_image: { enabled: true, settings: { provider: "openai-codex" } },
   quick_script: { enabled: true, settings: { diagram: { url: "https://k/" } } },
   python_exec: { enabled: true },
 };
@@ -86,7 +87,7 @@ const cases: {
   },
   {
     type: projectPermissionsConfiguration,
-    healthy: { schemaVersion: 2, version: 2, overlays: [] },
+    healthy: { schemaVersion: 2, version: 3, overlays: [] },
     older: { schemaVersion: 2, overlays: [] },
   },
 ];
@@ -215,7 +216,6 @@ void test("agent settings and capabilities drop keys that moved to extensions, a
     ...preferences,
     overrides: {
       tools: {
-        jira: { enabled: true },
         quick_script: { enabled: true },
         python_exec: { enabled: true },
       },
@@ -226,6 +226,7 @@ void test("agent settings and capabilities drop keys that moved to extensions, a
     .health("p")
     .issues.find((issue) => issue.type === "agent-settings");
   assert.match(notice?.message ?? "", /moved to Extensions/);
+  assert.match(notice?.message ?? "", /Jira, Confluence/);
   const capabilities = await f.put("config/capabilities.json", {
     schemaVersion: 3,
     overrides: { tools: { web_search: { enabled: true, profileId: "tav" } } },
@@ -275,4 +276,86 @@ void test("permission bump renames only the planning selector, not descriptive t
   const rule = migrated.value.overlays[0].rules[0];
   assert.deepEqual(rule.when?.toolNames, ["plan_present", "bash"]);
   assert.equal(rule.description, "plan_mode_present stays in text");
+});
+
+void test("permission overlays naming removed tools become quick_script operation rules; unconvertible ones are disabled and reported", async (t) => {
+  const f = await fixture(t);
+  const rule = (
+    id: string,
+    priority: number,
+    when: object,
+    decision: string,
+  ) => ({
+    id,
+    enabled: true,
+    priority,
+    enforcement: "overridable",
+    when,
+    decision,
+  });
+  const old = {
+    version: 2,
+    schemaVersion: 2,
+    overlays: [
+      {
+        ruleSetId: "supervised",
+        rules: [
+          rule("comments", 1, { toolNames: ["jira_manage_comment"] }, "allow"),
+          rule("mixed", 2, { toolNames: ["jira_get_issue", "read"] }, "allow"),
+          rule(
+            "by-argument",
+            3,
+            {
+              toolNames: ["jira_update_issue"],
+              arguments: [
+                { path: "args.issue_key", operator: "glob", value: "APP-*" },
+              ],
+            },
+            "allow",
+          ),
+          rule("boards", 4, { toolNames: ["jira_get_board"] }, "allow"),
+          rule("images", 5, { toolGroups: ["imageGeneration"] }, "deny"),
+          rule("other", 6, { toolNames: ["bash"] }, "prompt"),
+        ],
+      },
+    ],
+  };
+  await f.put(projectPermissionsConfiguration.path, old);
+  const migrated = await f.service.load(
+    f.context,
+    projectPermissionsConfiguration,
+  );
+  assert.equal(migrated.classification, "migrated");
+  const rules = migrated.value.overlays[0].rules;
+  const byId = Object.fromEntries(rules.map((r) => [r.id, r]));
+  assert.deepEqual(byId.comments.when, {
+    toolNames: ["quick_script"],
+    primaryArgument: {
+      operator: "in",
+      value: [
+        "jira.comments.add",
+        "jira.comments.update",
+        "jira.comments.delete",
+      ],
+    },
+  });
+  assert.deepEqual(byId.mixed.when.toolNames, ["read"]);
+  assert.deepEqual(byId["mixed-quick-script"].when.toolNames, ["quick_script"]);
+  assert.equal(byId["mixed-quick-script"].decision, "allow");
+  assert.equal(byId["by-argument"].enabled, false);
+  assert.equal(byId.boards.enabled, false);
+  assert.deepEqual(byId.images.when.toolGroups, ["imagegen"]);
+  assert.deepEqual(byId.other, old.overlays[0].rules[5]);
+  assert.equal(
+    new Set(rules.map((r) => `${r.enforcement}:${r.priority}`)).size,
+    rules.length,
+  );
+  const notice = f.service
+    .health("p")
+    .issues.find((issue) => issue.type === "permission-overlay");
+  assert.match(
+    notice?.message ?? "",
+    /converted to quick_script operation rules/,
+  );
+  assert.match(notice?.message ?? "", /by-argument/);
 });

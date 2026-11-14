@@ -19,7 +19,6 @@ import {
   bashToolSettingsSchema,
   compactionProfileSchema,
   imageExplanationToolSettingsSchema,
-  openAiCodexImageGenerationSettingsSchema,
   planPresentToolSettingsSchema,
   pythonExecToolSettingsSchema,
 } from "../settings/settings.js";
@@ -45,11 +44,6 @@ const bash = bashToolSettingsSchema
 const explanation = imageExplanationToolSettingsSchema
   .extend({ model: model.optional() })
   .strict();
-const generation = openAiCodexImageGenerationSettingsSchema
-  .extend({
-    options: openAiCodexImageGenerationSettingsSchema.shape.options.strict(),
-  })
-  .strict();
 const sourceDefaults = z.strictObject({
   file: z.boolean(),
   nerve: z.boolean(),
@@ -71,13 +65,9 @@ const toggle = z.strictObject({ enabled: z.boolean() });
 const childToolShape = {
   python_exec: payload(pythonExecToolSettingsSchema.partial()),
   web_search: toggle,
-  jira: toggle,
-  confluence: toggle,
   quick_script: toggle,
   web_fetch: toggle,
   explain_image: payload(explanation.partial().refine(nonempty)),
-  generate_image: payload(generation),
-  kroki_export: toggle,
   bash: z.strictObject({ settings: bash.partial().refine(nonempty) }),
 };
 const leadTools = z
@@ -125,10 +115,6 @@ const completeTools = z.strictObject({
   web_search: capabilityToolPayloadSchemas.web_search.required({
     enabled: true,
   }),
-  jira: capabilityToolPayloadSchemas.jira.required({ enabled: true }),
-  confluence: capabilityToolPayloadSchemas.confluence.required({
-    enabled: true,
-  }),
   // Optional: configurations frozen before this tool existed omit it (= off).
   quick_script: capabilityToolPayloadSchemas.quick_script
     .required({ enabled: true })
@@ -138,11 +124,6 @@ const completeTools = z.strictObject({
     enabled: z.boolean(),
     settings: explanation,
   }),
-  generate_image: z.strictObject({
-    enabled: z.boolean(),
-    settings: generation,
-  }),
-  kroki_export: toggle,
   bash: z.strictObject({ settings: bash }),
 });
 export const completeChildSettingsSchema = childSettingsOverridesSchema.extend({
@@ -358,7 +339,6 @@ export function canonicalSettingsEntries(
   function walk(node: unknown, path: string) {
     const atomic =
       /(?:^|\/)model$/.test(path) ||
-      path === "/tools/generate_image/settings" ||
       path === "/tools/bash/settings/autoPromotion";
     if (
       node !== undefined &&

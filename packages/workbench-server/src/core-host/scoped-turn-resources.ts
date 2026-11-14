@@ -15,7 +15,6 @@ import { quickScriptDescription } from "@nervekit/quick-script";
 import {
   configuredNamespaces,
   quickScriptAvailability,
-  selectedAtlassianAccount,
   selectedSearchAccount,
   type AccountDirectory,
 } from "./quick-script-availability.js";
@@ -52,7 +51,6 @@ export function scopedTurnResources(options: {
       input.conversation.projectId,
     );
     const directAccounts = {
-      atlassian: Boolean(selectedAtlassianAccount(resolution, accounts)),
       search: Boolean(selectedSearchAccount(resolution, accounts)),
     };
     const selected = [

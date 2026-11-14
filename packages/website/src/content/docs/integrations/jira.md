@@ -1,26 +1,22 @@
 ---
 title: Jira
-description: Enable credentialed Jira reads and supervised issue mutations.
+description: Let the agent read and change Jira issues, boards and sprints through quick_script.
 sidebar:
   order: 3
 ---
 
-Jira tools are offered once an Atlassian profile exists and Jira is enabled with a selected profile. Add profiles (site, email, API token) in **Settings → Providers → Atlassian profiles**. Enable Jira and choose its profile in your tool settings, per project in `.nerve/config/agent.json`, or per conversation from **Capabilities → Tools** beside the composer (the configure button beside Jira). The agent sees Jira only when the resolved settings name a profile that exists, and tool calls use that same profile.
+Jira is reached through the `jira` namespace of the `quick_script` tool, provided by the Atlassian extension. Add an Atlassian account (site, email, API token) and select it in **Settings → Extensions → Atlassian**, then switch on Jira there and turn on **Quick script** under **Settings → Tools**. A project can pin its own extension settings in `.nerve/config/extensions.json`; per-conversation tool switches sit under **Capabilities → Tools** beside the composer. The agent sees the `jira` namespace only when the extension is on and the selected account exists with a saved token.
 
-Each Atlassian profile shows its connection status for Jira and Confluence: verified, credentials rejected, access restricted, not on this site, or couldn't check. Use **Test connection** to check now; Nerve also re-checks stale results when the page opens and updates the status when a Jira call succeeds or is refused with 401.
+Each Atlassian account shows its connection status for Jira and Confluence: verified, credentials rejected, access restricted, not on this site, or couldn't check. Use **Test connection** to check now; Nerve also re-checks stale results when the page opens and updates the status when a Jira call succeeds or is refused with 401.
 
-Nerve exposes Jira operations for users, issues, projects, boards, sprints, backlogs, attachments, comments, worklogs, and issue links. Read operations are network reads and can run in parallel. Mutations are sequential write-capable calls and pass the active permission/approval policy.
+The agent writes one short script for a task instead of one tool call per request: typed methods cover users, issues, projects, boards, sprints, backlogs, attachments, comments, worklogs and issue links, and a raw `jira.request` covers the rest of the REST API. The agent discovers methods with `sdk.describe("jira")` and `sdk.docs("jira")` inside the script. Only the script's printed output returns to the conversation, and attachment bytes never enter the model context.
 
-The tool surface is single-target: each mutation changes one issue, comment, worklog, link, attachment, sprint, or backlog placement. Related resource mutations use an explicit `action` such as `create`, `update`, or `delete`. Jira Software board, sprint, and backlog tools require the configured site and project to provide Jira Software APIs. Attachment transfers are capped at 25 MiB and downloads are written to local artifacts; attachment bytes are never injected into the model context.
+Each SDK call is checked against your permission policy as an **operation** such as `jira.issues.create`, with the issue or project it acts on (`jira:issue/APP-12`). Reads are network operations; creating and changing issues are external writes; deletes and raw non-GET requests are destructive. In **Settings → Permissions** you can allow, prompt or deny by operation, for example a rule that lets the agent edit issues in one project only.
 
-Use `jira_get_issue` to discover comment, worklog, issue-link, and attachment IDs before changing them. `jira_manage_attachment` uses `action: "upload"` with `issue_key` and `file_path`, or `action: "delete"` with `attachment_id`; deletion is destructive. Calls that previously used `jira_upload_attachment` should use `jira_manage_attachment` with `action: "upload"`. Use `jira_get_project` with issue-link types before creating links. All new mutations support `dry_run`.
-
-Read-only agent permission blocks Jira network calls, even operations classified as read-only network access. Use supervised permission when you want the agent to research Jira and ask before changes.
-
-Results are bounded; narrow queries and limits improve context use. Larger/raw data can be stored as artifacts rather than injected in full.
+Read-only agent permission blocks Jira network calls. Use supervised permission when you want the agent to research Jira and ask before changes.
 
 :::caution
-Jira queries send project information to Atlassian, and mutations act with the configured account's permissions. Review issue keys, site, fields, transitions, and comments before approval.
+Jira queries send project information to Atlassian, and changes act with the configured account's permissions. Review the operations and targets listed in the approval before accepting.
 :::
 
 ## Next steps

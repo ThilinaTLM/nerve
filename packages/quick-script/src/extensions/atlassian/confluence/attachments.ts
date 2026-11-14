@@ -1,13 +1,10 @@
 import { rm } from "node:fs/promises";
 import { extname } from "node:path";
 import { ToolExecutionError } from "@nervekit/tools/execution";
-import { jsonObject } from "@nervekit/tools/integrations";
-import {
-  confluenceDownloadToFile,
-  confluenceRequest,
-  pathSegment,
-} from "@nervekit/tools/integrations";
-import { valuesFromConfluenceList } from "@nervekit/tools/integrations";
+import { jsonObject } from "../shared/http.js";
+import { confluenceDownloadToFile, confluenceRequest } from "./client.js";
+import { pathSegment } from "../jira/client.js";
+import { valuesFromConfluenceList } from "./format.js";
 import {
   artifactNameFor,
   artifactTempPath,

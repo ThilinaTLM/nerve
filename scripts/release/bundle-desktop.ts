@@ -47,7 +47,6 @@ export const bundleAssets: [source: string, destination: string][] = [
   ["packages/desktop-shell/build", "build"],
   ["packages/workbench-server/dist/web", "dist/web"],
   ["packages/skills/dist/builtin", "dist/builtin"],
-  ["packages/skills/dist/guides", "dist/guides"],
   ["packages/quick-script/dist/sandbox-libraries", "dist/sandbox-libraries"],
   ["packages/quick-script/dist/quick-script-docs", "dist/quick-script-docs"],
 ];

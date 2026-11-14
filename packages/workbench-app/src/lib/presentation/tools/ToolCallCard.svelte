@@ -208,9 +208,7 @@ const draftSummary = $derived.by(() =>
 const meaningfulDraftBody = $derived(
   draftSummary ? hasMeaningfulToolDraftBody(draftSummary) : false,
 );
-const hasDurableBodyContent = $derived(
-  hasMeaningfulDurableBody(view, toolCall),
-);
+const hasDurableBodyContent = $derived(hasMeaningfulDurableBody(view));
 const toolApproval = $derived(resolveToolApproval(toolCall, pendingApproval));
 const lifecycleSpec = $derived(
   toolLifecycleSpec(toolCall?.toolName ?? draft?.block.toolName ?? "tool"),

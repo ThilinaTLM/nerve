@@ -1,6 +1,6 @@
-import { jsonObject } from "@nervekit/tools/integrations";
-import { confluenceRequest } from "@nervekit/tools/integrations";
-import { jiraRequest } from "@nervekit/tools/integrations";
+import { jsonObject } from "./http.js";
+import { confluenceRequest } from "../confluence/client.js";
+import { jiraRequest } from "../jira/client.js";
 import { ToolExecutionError } from "@nervekit/tools/execution";
 import {
   defineMethod,

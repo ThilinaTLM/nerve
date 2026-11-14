@@ -5,7 +5,7 @@ import { join } from "node:path";
 import { afterEach, test } from "node:test";
 import { image } from "@nervekit/native";
 import { quickScriptResultDetailsSchema } from "@nervekit/contracts/tools";
-import { assertWellFormedStorage } from "@nervekit/tools/integrations";
+import { assertWellFormedStorage } from "./storage-xml.js";
 import { executeQuickScript } from "../../../runtime/quick-script.js";
 import { type Nested, nestedName } from "../../../runtime/test-nested.js";
 

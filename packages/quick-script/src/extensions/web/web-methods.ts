@@ -1,14 +1,14 @@
-import { isolatedHtmlToMarkdown } from "@nervekit/tools/integrations";
+import { isolatedHtmlToMarkdown } from "@nervekit/tools/execution";
 import { ToolExecutionError } from "@nervekit/tools/execution";
-import { withTimeoutSignal } from "@nervekit/tools/integrations";
+import { withTimeoutSignal } from "@nervekit/tools/execution";
 import {
   baseContentType,
   downloadWebResource,
   getExtension,
   isHtml,
   isTextType,
-} from "@nervekit/tools/integrations";
-import { searchTavily, snippet } from "@nervekit/tools/integrations";
+} from "@nervekit/tools/execution";
+import { searchTavily, snippet } from "@nervekit/tools/execution";
 import { codedError, type HostErrorCode } from "../../runtime/errors.js";
 import {
   assertArtifactName,

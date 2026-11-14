@@ -74,23 +74,6 @@ test("Required atomic settings are omitted without suppressing editable siblings
     },
     resets: [],
   });
-  const image = toolSettingsMutation(
-    "generate_image",
-    {
-      enabled: true,
-      settings: {
-        provider: "openai-codex",
-        model: "gpt-image-2.5-flare",
-        options: { size: "auto", quality: "auto", background: "auto" },
-      },
-    },
-    {},
-    ["/tools/generate_image/settings"],
-  );
-  assert.deepEqual(image, {
-    changes: { tools: { generate_image: { enabled: true } } },
-    resets: [],
-  });
 });
 
 test("clearing Required fields never resets hidden local choices", () => {

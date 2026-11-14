@@ -1,17 +1,11 @@
 import type {
-  ImageGenerationProvider,
-  ImageGenerationToolSettings,
-} from "@nervekit/contracts/settings";
-import type {
   ImageGenerateRequest,
   ImageGenerateResponse,
-} from "@nervekit/tools/execution";
+  ImagegenBackend,
+} from "@nervekit/quick-script";
 
+/** Host side of an image generation backend: credentials and transport. The request carries every option, already validated. */
 export interface ImageGenerationProviderAdapter {
-  readonly id: ImageGenerationProvider;
-  isAvailable(): Promise<boolean>;
-  generate(
-    request: ImageGenerateRequest,
-    settings: ImageGenerationToolSettings,
-  ): Promise<ImageGenerateResponse>;
+  readonly id: ImagegenBackend;
+  generate(request: ImageGenerateRequest): Promise<ImageGenerateResponse>;
 }

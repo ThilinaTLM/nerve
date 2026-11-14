@@ -7,12 +7,12 @@ import {
   normalizePermissionRequest,
 } from "@nervekit/tools/policy";
 import {
-  installQuickScriptRuntime,
+  registerToolDefinitions,
   requireToolDefinition,
 } from "@nervekit/tools/catalog";
-import { quickScriptRuntime } from "../index.js";
+import { quickScriptToolDefinition } from "../tool.js";
 
-installQuickScriptRuntime(quickScriptRuntime);
+registerToolDefinitions([quickScriptToolDefinition]);
 
 const roots = {
   project: "/workspace",

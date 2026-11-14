@@ -6,6 +6,5 @@
     "outDir": "dist"
   },
   "references": [{ "path": "../harness" }],
-  "include": ["src/**/*.ts"],
-  "exclude": ["src/guides/**"]
+  "include": ["src/**/*.ts"]
 }

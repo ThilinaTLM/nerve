@@ -7,6 +7,7 @@ import { runtimeNamespaces } from "./runtime/runtime-namespaces.js";
 import type { SdkMethod } from "./runtime/sdk-types.js";
 import { atlassianExtension } from "./extensions/atlassian/manifest.js";
 import { diagramExtension } from "./extensions/diagram/manifest.js";
+import { imagegenExtension } from "./extensions/imagegen/manifest.js";
 import type {
   ExtensionManifest,
   RegisteredNamespace,
@@ -17,6 +18,7 @@ import { webExtension } from "./extensions/web/manifest.js";
 export const builtinExtensions: readonly ExtensionManifest[] = [
   atlassianExtension,
   webExtension,
+  imagegenExtension,
   diagramExtension,
 ];
 

@@ -29,9 +29,9 @@ Settings has two scopes. **User** settings apply everywhere. **Project** setting
 ### Agent
 
 - **General** holds defaults for new conversations: profile, permission level, model, thinking level, and compaction. Projects and conversations can override them.
-- **Tools** lists core and third-party tools. Controls include enablement, background-command behavior, Python, image explanation, and image generation. Web search follows the Web extension, and Jira, Confluence and diagram export take their accounts and servers from their extensions.
+- **Tools** lists core and third-party tools. Controls include enablement, background-command behavior, Python, and image explanation. Web search follows the Web extension. Jira, Confluence, diagrams and image generation are reached through Quick script and configured in their extensions.
 - **Skills** lists your, project, built-in, and Agent Browser skills. See [Skills and project resources](/guides/skills-and-resources/).
-- **Extensions** lists the built-in extensions (Atlassian, Web, Diagrams). Each row shows how it is set up and has its own switch; open one to change its settings, manage its accounts, and see what it adds to `quick_script`. Projects can override an extension; a project's extension file is ignored until you trust it.
+- **Extensions** lists the built-in extensions (Atlassian, Web, Image generation, Diagrams). Each row shows how it is set up and has its own switch; open one to change its settings, manage its accounts, and see what it adds to `quick_script`. Projects can override an extension; a project's extension file is ignored until you trust it.
 
 ### Catalog
 
@@ -59,11 +59,11 @@ Besides the agent and catalog pages above, a project has:
 - **Instructions files** for `AGENTS.md` files and extra system prompt text.
 - **Trust** for project files Nerve reads only after you review them, such as profile files and suggestion scripts.
 
-## Diagram export
+## Diagram rendering
 
-**Settings → Extensions → Diagrams** sets the Kroki server the agent renders diagrams with (default `https://kroki.io/`). Enable the extension, and the Diagram export tool on **Settings → Tools**.
+**Settings → Extensions → Diagrams** sets the Kroki server the agent renders diagrams with (default `https://kroki.io/`). The extension is on by default; the agent uses it through Quick script.
 
-Diagram source is sent to the configured server when the tool runs. Use a trusted self-hosted server for private diagrams. SVG is the default output; PNG is also supported, depending on your server. Exports appear as a linked file in the tool call's card.
+Diagram source is sent to the configured server when a script renders a diagram. Use a trusted self-hosted server for private diagrams. Diagrams render to PNG and appear in the tool call's artifact list.
 
 ## Good to know
 

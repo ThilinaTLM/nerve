@@ -1,19 +1,12 @@
 import { openAsBlob } from "node:fs";
 import { basename } from "node:path";
-import { anyJson, isArray, jsonObject } from "@nervekit/tools/integrations";
-import {
-  jiraMultipartRequest,
-  jiraRequest,
-  pathSegment,
-} from "@nervekit/tools/integrations";
-import { markdownToAdf } from "@nervekit/tools/integrations";
+import { anyJson, isArray, jsonObject } from "../shared/http.js";
+import { jiraMultipartRequest, jiraRequest, pathSegment } from "./client.js";
+import { markdownToAdf } from "./markdown-adf.js";
 import { startedOption } from "./edit-methods.js";
 import { hasLocalImages, markdownDoc } from "./media.js";
 import { noteChange } from "./report.js";
-import {
-  matchTransition,
-  transitionSummary,
-} from "@nervekit/tools/integrations";
+import { matchTransition, transitionSummary } from "./transitions.js";
 import {
   MAX_ATTACHMENT_BYTES,
   mediaTypeFor,

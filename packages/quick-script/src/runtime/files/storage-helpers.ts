@@ -1,4 +1,4 @@
-import { MARKDOWN_SANDBOX_SOURCE } from "@nervekit/tools/integrations";
+import { MARKDOWN_SANDBOX_SOURCE } from "../../extensions/atlassian/confluence/markdown-to-storage.js";
 
 /**
  * `storage.*`: pure JS in the sandbox (no host calls) for Confluence storage

@@ -3,7 +3,7 @@ import type {
   ExtensionSettingsDefinition,
   SettingsSchema,
 } from "@nervekit/contracts/extensions";
-import type { SdkMethod } from "./runtime/sdk-types.js";
+import type { SdkEnvironment, SdkMethod } from "./runtime/sdk-types.js";
 
 /** One `sdk.docs` topic. `id` is the full topic id (`jira/workflows`); `file` is relative to the owner's `docs/` folder. */
 export type DocTopic = { id: string; whenToRead: string; file: string };
@@ -19,6 +19,8 @@ export type SdkNamespace = {
   /** At most three short lines, added to the description whenever the namespace is configured. */
   rules?: string[];
   methods: SdkMethod[];
+  /** One line `sdk.describe` prints above the declarations: how the namespace is configured now (the backend an extension uses). */
+  configuration?: (env: SdkEnvironment) => string | undefined;
   /** Shared declarations for `sdk.describe`: the shapes methods return. */
   types: string;
   docs: DocTopic[];

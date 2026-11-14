@@ -1,15 +1,15 @@
 import { rm } from "node:fs/promises";
 import { extname } from "node:path";
-import { jsonObject } from "@nervekit/tools/integrations";
+import { jsonObject } from "../shared/http.js";
 import { ToolExecutionError } from "@nervekit/tools/execution";
 import {
   type JiraConnection,
   jiraDownloadToFile,
   jiraRequest,
   pathSegment,
-} from "@nervekit/tools/integrations";
-import { adfToMarkdown } from "@nervekit/tools/integrations";
-import { markdownToAdf } from "@nervekit/tools/integrations";
+} from "./client.js";
+import { adfToMarkdown } from "./adf-markdown.js";
+import { markdownToAdf } from "./markdown-adf.js";
 import {
   artifactBinarySink,
   artifactNameOf,

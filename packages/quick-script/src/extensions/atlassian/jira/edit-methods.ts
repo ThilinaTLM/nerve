@@ -1,6 +1,6 @@
-import { jsonObject } from "@nervekit/tools/integrations";
-import { jiraRequest, pathSegment } from "@nervekit/tools/integrations";
-import { markdownToAdf } from "@nervekit/tools/integrations";
+import { jsonObject } from "../shared/http.js";
+import { jiraRequest, pathSegment } from "./client.js";
+import { markdownToAdf } from "./markdown-adf.js";
 import { issueAttachments } from "./media.js";
 import { noteChange } from "./report.js";
 import { simplifyWorklog } from "./issue.js";

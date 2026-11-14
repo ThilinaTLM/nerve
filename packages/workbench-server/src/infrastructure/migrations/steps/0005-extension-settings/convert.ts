@@ -1,7 +1,9 @@
 /**
  * Frozen conversion of account choices and tool options from agent
- * configuration into extension settings. Plain-JSON shapes only: this step
- * must not follow later changes to the evolving contracts.
+ * configuration into extension settings, and removal of the direct tools that
+ * `quick_script` namespaces replaced (`jira*`, `confluence*`, `generate_image`,
+ * `kroki_export`). Plain-JSON shapes only: this step must not follow later
+ * changes to the evolving contracts.
  */
 export type Json = Record<string, unknown>;
 export type Entry = {
@@ -22,6 +24,52 @@ const string = (value: unknown): string | undefined =>
   typeof value === "string" && value.trim() ? value : undefined;
 const boolean = (value: unknown): boolean | undefined =>
   typeof value === "boolean" ? value : undefined;
+
+/** Tool entries that no longer exist; their settings moved to extensions. */
+const REMOVED_TOOLS: ReadonlySet<string> = new Set([
+  "jira",
+  "confluence",
+  "generate_image",
+  "kroki_export",
+]);
+
+const IMAGEGEN_DEFAULTS = {
+  backend: "openai-codex",
+  model: "gpt-image-2.5-flare",
+  quality: "auto",
+  size: "auto",
+  background: "auto",
+};
+
+/** `tools.generate_image` (`{ enabled, settings: { provider, model, options } }`) as the `imagegen` extension entry. */
+function imageGenerationEntry(
+  tool: unknown,
+  complete: boolean,
+): Entry | undefined {
+  if (!isRecord(tool)) return undefined;
+  const settings = isRecord(tool.settings) ? tool.settings : {};
+  const options = isRecord(settings.options) ? settings.options : {};
+  const values: Record<string, string> = {};
+  const set = (key: keyof typeof IMAGEGEN_DEFAULTS, value: unknown) => {
+    const text = string(value);
+    // A frozen full configuration repeats defaults; only a choice is worth keeping.
+    if (text && !(complete && text === IMAGEGEN_DEFAULTS[key]))
+      values[key] = text;
+  };
+  set("backend", settings.provider);
+  set("model", settings.model);
+  set("quality", options.quality);
+  set("size", options.size);
+  set("background", options.background);
+  const enabled = boolean(tool.enabled);
+  if (enabled === undefined && Object.keys(values).length === 0)
+    return undefined;
+  return {
+    version: 1,
+    ...(enabled !== undefined ? { enabled } : {}),
+    ...(Object.keys(values).length ? { settings: values } : {}),
+  };
+}
 
 /**
  * Moves the fields out of one `tools` object: Jira/Confluence accounts and
@@ -86,12 +134,17 @@ export function extractFromTools(
   if (server && !(complete && server === KROKI_DEFAULT))
     entries.diagram = { version: 1, settings: { server } };
 
+  const image = imageGenerationEntry(tools.generate_image, complete);
+  if (image) entries.imagegen = image;
+
   const cleaned: Json = {};
   for (const [name, entry] of Object.entries(tools)) {
+    // Removed tools: the whole entry goes, its switch and options live in the extension entries above.
+    if (REMOVED_TOOLS.has(name)) continue;
     const drop =
-      name === "jira" || name === "confluence" || name === "web_search"
+      name === "web_search"
         ? "profileId"
-        : name === "quick_script" || name === "kroki_export"
+        : name === "quick_script"
           ? "settings"
           : undefined;
     if (drop && isRecord(entry)) {
@@ -240,15 +293,12 @@ export function convertConversationAgent(
   return { document: next, entries };
 }
 
-/** Whether a tools object still carries a moved field. */
+/** Whether a tools object still carries a moved field or a removed tool. */
 export function hasMovedFields(tools: unknown): boolean {
   if (!isRecord(tools)) return false;
   return (
-    ["jira", "confluence", "web_search"].some(
-      (name) => isRecord(tools[name]) && "profileId" in tools[name],
-    ) ||
-    ["quick_script", "kroki_export"].some(
-      (name) => isRecord(tools[name]) && "settings" in tools[name],
-    )
+    [...REMOVED_TOOLS].some((name) => name in tools) ||
+    (isRecord(tools.web_search) && "profileId" in tools.web_search) ||
+    (isRecord(tools.quick_script) && "settings" in tools.quick_script)
   );
 }

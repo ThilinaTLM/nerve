@@ -1,15 +1,15 @@
-import { jsonObject } from "@nervekit/tools/integrations";
+import { jsonObject } from "../shared/http.js";
 import {
   type ConfluenceConnection,
   confluenceRawRequest,
   confluenceRequest,
-  pathSegment,
   requireConfluenceConnection,
-} from "@nervekit/tools/integrations";
-import { valuesFromConfluenceList } from "@nervekit/tools/integrations";
+} from "./client.js";
+import { pathSegment } from "../jira/client.js";
+import { valuesFromConfluenceList } from "./format.js";
 import { pageMarkdown } from "./page-read.js";
 import { listSpaces, resolveSpace } from "./spaces.js";
-import { rawMethod } from "@nervekit/tools/integrations";
+import { rawMethod } from "../shared/raw-request.js";
 import {
   attachmentReadAuthorizations,
   loadAttachment,

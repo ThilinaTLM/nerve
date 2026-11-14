@@ -458,13 +458,8 @@ function messageOf(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
-/** Jira/Confluence errors end with a pointer to a skill guide; quick_script has no such guide. */
-const GUIDE_POINTER = /\s+See \S*SKILL\.md\.?\s*$/;
-
 function cleanMessage(error: unknown, paths?: DisplayPaths): string {
-  return (
-    errnoMessage(error, paths) ?? messageOf(error).replace(GUIDE_POINTER, "")
-  );
+  return errnoMessage(error, paths) ?? messageOf(error);
 }
 
 /** A 403 names the resource ("no access to project APP"); other messages pass through. */

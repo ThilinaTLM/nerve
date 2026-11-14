@@ -1,11 +1,8 @@
 import type {
-  ImageGenerationToolSettings,
-  OpenAiCodexImageGenerationSettings,
-} from "@nervekit/contracts/settings";
-import type {
+  ImageBackendRequest,
   ImageGenerateRequest,
   ImageGenerateResponse,
-} from "@nervekit/tools/execution";
+} from "@nervekit/quick-script";
 import { ApplicationError } from "../../../core/application-error.js";
 import {
   chatGptAccountIdFromAccessToken,
@@ -30,32 +27,18 @@ export class OpenAiCodexImageGenerationProvider implements ImageGenerationProvid
     private readonly onUsed?: () => void,
   ) {}
 
-  async isAvailable(): Promise<boolean> {
-    return (
-      (await this.auth.getCredential(OPENAI_CODEX_PROVIDER))?.type === "oauth"
-    );
-  }
-
   async generate(
     request: ImageGenerateRequest,
-    settings: ImageGenerationToolSettings,
   ): Promise<ImageGenerateResponse> {
-    if (settings.provider !== OPENAI_CODEX_PROVIDER) {
-      throw new ApplicationError(
-        400,
-        "IMAGE_GENERATION_PROVIDER_SETTINGS_INVALID",
-        "OpenAI Codex image generation received incompatible settings.",
-      );
-    }
     this.onUsed?.();
-    return generateWithOpenAiCodex(this.auth, request, settings);
+    return generateWithOpenAiCodex(this.auth, request, request.options);
   }
 }
 
 async function generateWithOpenAiCodex(
   auth: AuthManager,
   request: ImageGenerateRequest,
-  settings: OpenAiCodexImageGenerationSettings,
+  settings: ImageBackendRequest,
 ): Promise<ImageGenerateResponse> {
   const credential = await auth.getCredential(OPENAI_CODEX_PROVIDER);
   if (credential?.type !== "oauth") {
@@ -96,9 +79,9 @@ async function generateWithOpenAiCodex(
     body: JSON.stringify({
       model: settings.model,
       prompt: request.prompt,
-      quality: settings.options.quality,
-      size: settings.options.size,
-      background: settings.options.background,
+      quality: settings.quality,
+      size: settings.size,
+      background: settings.background,
       n: 1,
     }),
     signal: request.signal,

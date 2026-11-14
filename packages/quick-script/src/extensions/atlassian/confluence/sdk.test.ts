@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, test } from "node:test";
 import { executeQuickScript } from "../../../runtime/quick-script.js";
-import { assertWellFormedStorage } from "@nervekit/tools/integrations";
+import { assertWellFormedStorage } from "./storage-xml.js";
 import { type Nested, nestedName } from "../../../runtime/test-nested.js";
 
 const originalFetch = globalThis.fetch;

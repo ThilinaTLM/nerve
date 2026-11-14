@@ -1,6 +1,5 @@
 export type { Project } from "@nervekit/contracts/core";
 export type { MaintenanceOperation } from "@nervekit/contracts/maintenance";
-export { openAiCodexImageSizeSchema } from "@nervekit/contracts/settings";
 export type {
   AtlassianProfile,
   ColorTheme,

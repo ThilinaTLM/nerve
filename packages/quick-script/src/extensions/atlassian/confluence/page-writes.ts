@@ -1,18 +1,15 @@
 import { image } from "@nervekit/native";
-import { jsonObject } from "@nervekit/tools/integrations";
+import { jsonObject } from "../shared/http.js";
 import {
   type ConfluenceConnection,
   confluenceDownload,
   confluenceRequest,
-  pathSegment,
-} from "@nervekit/tools/integrations";
-import {
-  pageWebUrl,
-  valuesFromConfluenceList,
-} from "@nervekit/tools/integrations";
-import { lintStoragePage } from "@nervekit/tools/integrations";
-import { fetchPageCurrent } from "@nervekit/tools/integrations";
-import { StorageXmlError } from "@nervekit/tools/integrations";
+} from "./client.js";
+import { pathSegment } from "../jira/client.js";
+import { pageWebUrl, valuesFromConfluenceList } from "./format.js";
+import { lintStoragePage } from "./page-lint.js";
+import { fetchPageCurrent } from "./page-resolution.js";
+import { StorageXmlError } from "./storage-xml.js";
 import { resolveSpace } from "./spaces.js";
 import {
   type AttachmentSpec,

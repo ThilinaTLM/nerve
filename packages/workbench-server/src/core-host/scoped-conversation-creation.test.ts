@@ -67,7 +67,7 @@ async function fixture(requiredModel = false) {
     overrides: {
       model: { provider: "test", modelId: "parent-only" },
       permissionRuleSetId: "planning",
-      tools: { subagents: { enabled: true }, jira: { enabled: true } },
+      tools: { subagents: { enabled: true }, quick_script: { enabled: true } },
       subagents: {
         worker: requiredModel
           ? { enabled: true }
@@ -143,7 +143,10 @@ void test("child launch uses only model/reasoning invocation choices, freezes pr
     assert.equal(before.resolution.settings.model?.modelId, "launch");
     assert.equal(before.resolution.settings.reasoningLevel, "low");
     assert.equal(before.resolution.settings.permissionRuleSetId, "baseline");
-    assert.equal(before.resolution.settings.tools?.jira?.enabled, false);
+    assert.equal(
+      before.resolution.settings.tools?.quick_script?.enabled,
+      false,
+    );
     assert.deepEqual(f.service.getConversationContext("child"), {
       instructions: null,
       systemPrompt: null,

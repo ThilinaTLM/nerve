@@ -12,11 +12,8 @@ import {
   projectConfigurationTrustKinds,
 } from "../../infrastructure/configuration/project-migration/descriptors.js";
 import { projectMigrationTrust } from "../../infrastructure/configuration/project-migration/project-migration-trust.js";
-import {
-  allToolDescriptors,
-  installQuickScriptRuntime,
-} from "@nervekit/tools/catalog";
-import { quickScriptRuntime } from "@nervekit/quick-script";
+import { allToolDescriptors } from "@nervekit/tools/catalog";
+import { registerHostTools } from "../../core-host/host-tools.js";
 import { listAvailableSkills } from "../../core-host/resource-loader.js";
 import { UnifiedCompletionService } from "../../domains/completions/unified-completion-service.js";
 import { createCompletionDependencies } from "./create-completion-dependencies.js";
@@ -75,8 +72,7 @@ export interface RuntimeDeps {
 export type RuntimeServices = ReturnType<typeof createRuntimeServices>;
 
 export function createRuntimeServices(deps: RuntimeDeps) {
-  // The tools catalog delegates `quick_script` execution and risk classification to this runtime.
-  installQuickScriptRuntime(quickScriptRuntime);
+  registerHostTools();
   const { storage, events, auth, logger } = deps;
   const activities = new ActivityService((activity, removed) =>
     events.publish("activity.updated", { activity, removed }),
@@ -354,7 +350,7 @@ export function createRuntimeServices(deps: RuntimeDeps) {
             path,
             digest,
           ),
-        tools: allToolDescriptors,
+        tools: allToolDescriptors(),
         skills: async (scope) =>
           (
             await listAvailableSkills(getProject(scope.projectId).directory, {

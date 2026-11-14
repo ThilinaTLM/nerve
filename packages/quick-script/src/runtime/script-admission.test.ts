@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import type { PermissionRule } from "@nervekit/contracts/permissions";
-import { installQuickScriptRuntime } from "@nervekit/tools/catalog";
+import { registerToolDefinitions } from "@nervekit/tools/catalog";
 import {
   builtInPermissionRuleSet,
   composeEffectivePermissionPolicy,
@@ -9,10 +9,10 @@ import {
   evaluatePermissionRequest,
   normalizePermissionRequest,
 } from "@nervekit/tools/policy";
-import { quickScriptRuntime } from "../index.js";
+import { quickScriptToolDefinition } from "../tool.js";
 import { classifyQuickScriptScript } from "./script-risk.js";
 
-installQuickScriptRuntime(quickScriptRuntime);
+registerToolDefinitions([quickScriptToolDefinition]);
 
 function scriptAdmission(
   calls: Parameters<typeof composeScriptAdmission>[0]["calls"],

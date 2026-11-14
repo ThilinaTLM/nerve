@@ -1,8 +1,8 @@
 /**
  * Read-mostly Jira/Confluence access for task setup, verification and cleanup.
  *
- * Uses the product's own clients (`@nervekit/tools/integrations`, loaded from
- * the built package) with the slot's Atlassian account. The credential is
+ * Uses the product's own clients (`@nervekit/quick-script` Atlassian clients,
+ * loaded from the built package) with the slot's Atlassian account. The credential is
  * decrypted in memory from the slot's own store (read-only; nothing is ever
  * written back or printed). `ATLASSIAN_SITE_URL`, `ATLASSIAN_EMAIL` and
  * `ATLASSIAN_API_TOKEN` override the slot account.
@@ -143,10 +143,16 @@ export async function connectAtlassian(
           token: env.ATLASSIAN_API_TOKEN,
         }
       : await readSlotConnection(target);
-  const integrations = await importBuilt<Integrations>(
-    "tools",
-    "execution/integrations.js",
-  );
+  const integrations: Integrations = {
+    ...(await importBuilt<Pick<Integrations, "jiraRequest">>(
+      "quick-script",
+      "extensions/atlassian/jira/client.js",
+    )),
+    ...(await importBuilt<Pick<Integrations, "confluenceRequest">>(
+      "quick-script",
+      "extensions/atlassian/confluence/client.js",
+    )),
+  };
   const atlassian: Atlassian = {
     siteUrl: connection.siteUrl,
     sandbox,

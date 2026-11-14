@@ -20,7 +20,6 @@ const modelB = { provider: "provider-b", modelId: "model-b" };
 const atomicPaths = new Set([
   "/model",
   "/tools/explain_image/settings/model",
-  "/tools/generate_image/settings",
   "/tools/bash/settings/autoPromotion",
   "/subagents/coding/model",
 ]);
@@ -67,8 +66,6 @@ const cases: Record<string, readonly [unknown, unknown]> = {
     "/upper/python",
   ],
   "/tools/web_search/enabled": booleanPair,
-  "/tools/jira/enabled": booleanPair,
-  "/tools/confluence/enabled": booleanPair,
   "/tools/quick_script/enabled": booleanPair,
   "/tools/web_fetch/enabled": booleanPair,
   "/tools/plan_present/enabled": booleanPair,
@@ -76,24 +73,6 @@ const cases: Record<string, readonly [unknown, unknown]> = {
   "/tools/explain_image/enabled": booleanPair,
   "/tools/explain_image/settings/model": [modelA, modelB],
   "/tools/explain_image/settings/thinkingLevel": ["low", "high"],
-  "/tools/generate_image/enabled": booleanPair,
-  "/tools/generate_image/settings": [
-    {
-      provider: "openai-codex",
-      model: "gpt-image-2.5-flare",
-      options: { quality: "low", size: "auto", background: "opaque" },
-    },
-    {
-      provider: "openai-codex",
-      model: "gpt-image-2.5-sunburst",
-      options: {
-        quality: "high",
-        size: "1024x1024",
-        background: "transparent",
-      },
-    },
-  ],
-  "/tools/kroki_export/enabled": booleanPair,
   "/tools/bash/settings/shellPath": ["/lower/bash", "/upper/bash"],
   "/tools/bash/settings/autoPromotion": [
     { enabled: true, afterMs: 1000 },

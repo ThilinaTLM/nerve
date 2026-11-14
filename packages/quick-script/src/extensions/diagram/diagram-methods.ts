@@ -1,7 +1,7 @@
 import { krokiToolSettingsSchema } from "@nervekit/contracts/settings";
 import { krokiDiagramTypeSchema } from "@nervekit/contracts/tools";
-import { fetchKrokiDiagram } from "@nervekit/tools/integrations";
-import { withTimeoutSignal } from "@nervekit/tools/integrations";
+import { fetchKrokiDiagram } from "./kroki-export.js";
+import { withTimeoutSignal } from "@nervekit/tools/execution";
 import {
   assertArtifactName,
   freshArtifactName,

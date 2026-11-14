@@ -52,7 +52,7 @@ void test("the user view lists every built-in extension with sources, availabili
   const view = await views.view({ scope: "user" });
   assert.deepEqual(
     view.extensions.map((extension) => extension.metadata.id),
-    ["atlassian", "web", "diagram"],
+    ["atlassian", "web", "imagegen", "diagram"],
   );
   assert.equal(view.file.revision, 3);
   const atlassian = view.extensions[0];
@@ -75,5 +75,5 @@ void test("the user view lists every built-in extension with sources, availabili
     view.diagnostics.map((diagnostic) => diagnostic.code),
     ["newer-version"],
   );
-  assert.equal(view.extensions[2].enabled.value, true);
+  assert.equal(view.extensions[3].enabled.value, true);
 });

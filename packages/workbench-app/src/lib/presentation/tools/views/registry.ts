@@ -2,15 +2,11 @@ import type { Component } from "svelte";
 import QuickScriptToolView from "../tool-call/QuickScriptToolView.svelte";
 import AskUserToolView from "../tool-call/AskUserToolView.svelte";
 import BashToolView from "../tool-call/BashToolView.svelte";
-import ConfluenceToolView from "../tool-call/ConfluenceToolView.svelte";
 import EditToolView from "../tool-call/EditToolView.svelte";
 import ExplainImageToolView from "../tool-call/ExplainImageToolView.svelte";
 import FindToolView from "../tool-call/FindToolView.svelte";
 import GenericToolView from "../tool-call/GenericToolView.svelte";
 import GrepToolView from "../tool-call/GrepToolView.svelte";
-import GenerateImageToolView from "../tool-call/GenerateImageToolView.svelte";
-import JiraToolView from "../tool-call/JiraToolView.svelte";
-import KrokiToolView from "../tool-call/KrokiToolView.svelte";
 import LsToolView from "../tool-call/LsToolView.svelte";
 import PlanPresentToolView from "../tool-call/PlanPresentToolView.svelte";
 import PythonToolView from "../tool-call/PythonToolView.svelte";
@@ -38,13 +34,9 @@ const viewByKind: Record<ToolView["kind"], ToolViewComponent> = {
   todos: TodoToolView,
   subagent: SubagentToolView,
   plan_present: PlanPresentToolView,
-  jira: JiraToolView,
-  confluence: ConfluenceToolView,
   web_search: WebSearchToolView,
   web_fetch: WebFetchToolView,
   explain_image: ExplainImageToolView,
-  generate_image: GenerateImageToolView,
-  kroki_export: KrokiToolView,
   quick_script: QuickScriptToolView,
   generic: GenericToolView,
 };

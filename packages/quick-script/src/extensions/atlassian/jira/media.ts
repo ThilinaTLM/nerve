@@ -1,15 +1,8 @@
-import { basicAuthHeader, jsonObject } from "@nervekit/tools/integrations";
-import {
-  type JiraConnection,
-  jiraRequest,
-  pathSegment,
-} from "@nervekit/tools/integrations";
-import type { AdfDocument } from "@nervekit/tools/integrations";
-import {
-  isLocalImageTarget,
-  markdownToAdf,
-} from "@nervekit/tools/integrations";
-import { withTimeoutSignal } from "@nervekit/tools/integrations";
+import { basicAuthHeader, jsonObject } from "../shared/http.js";
+import { type JiraConnection, jiraRequest, pathSegment } from "./client.js";
+import type { AdfDocument } from "./adf.js";
+import { isLocalImageTarget, markdownToAdf } from "./markdown-adf.js";
+import { withTimeoutSignal } from "@nervekit/tools/execution";
 import { listValues } from "./field-values.js";
 import type { SdkEnvironment } from "../../../runtime/sdk-types.js";
 

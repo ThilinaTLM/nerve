@@ -16,11 +16,6 @@ export function toolSettingsLink(id: ToolId): ToolSettingsLink | undefined {
     case "web_search":
     case "web_fetch":
       return { item: "web" };
-    case "jira":
-    case "confluence":
-      return { item: "atlassian" };
-    case "kroki_export":
-      return { item: "diagram" };
     case "quick_script":
       return {};
     default:
@@ -50,8 +45,7 @@ function accountName(
 
 /**
  * Tool rows whose setup moved to an extension: Web search and fetch follow the
- * Web extension, Jira and Confluence need the Atlassian account, and Quick
- * script lists the namespaces that are on. `undefined` leaves the row alone.
+ * Web extension, and Quick script lists the namespaces that are on. `undefined` leaves the row alone.
  */
 export function toolExtensionState(
   id: ToolId,
@@ -88,22 +82,6 @@ export function toolExtensionState(
                 (accounts.tavily?.length ?? 0) > 0 ? "settings" : "accounts",
             },
           };
-    }
-    case "jira":
-    case "confluence": {
-      const atlassian = find("atlassian");
-      if (!atlassian) return undefined;
-      const account = accountName(atlassian, "account", accounts);
-      if (account) return { summary: `Atlassian extension · ${account}` };
-      const hasAccounts = (accounts.atlassian?.length ?? 0) > 0;
-      return {
-        problem: "No Atlassian account selected in the Atlassian extension",
-        fix: {
-          extensionId: "atlassian",
-          label: hasAccounts ? "Choose account" : "Add account",
-          section: hasAccounts ? "settings" : "accounts",
-        },
-      };
     }
     case "quick_script": {
       const problem = namespaceProblem(extensions);

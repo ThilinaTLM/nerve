@@ -1,6 +1,7 @@
 /**
- * Extensions benchmark: `quick_script` alone against the direct Jira and
- * Confluence tools alone (docs/proposals/extensions/README.md, "Measurement").
+ * Extensions benchmark: `quick_script` task suite against the test Atlassian
+ * site (docs/proposals/extensions/README.md, "Measurement"). The step 5 gate
+ * compared it with the direct Jira and Confluence tools, which are gone.
  *
  * Drives an already running dev slot through its conversation channel; it never
  * starts or stops a daemon. See README.md for flags and cost.
@@ -156,7 +157,7 @@ async function probeToolSurface(
   if (driven.state !== "done")
     throw new Error(`probe ${variant}: ${driven.note ?? driven.state}`);
   const metrics = analyzeEvents(
-    variant === "none" ? "direct" : variant,
+    "quick_script",
     await loadEvents(env, conversationId),
   );
   await env.client

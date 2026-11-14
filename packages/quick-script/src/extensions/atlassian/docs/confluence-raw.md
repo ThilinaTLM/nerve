@@ -25,6 +25,7 @@ await confluence.request("DELETE", `${base}/update/user`, undefined, {
   accountId: "…",
 }); // remove a user
 await confluence.request("PUT", `${base}/read/byGroupId/${groupId}`); // add a group
+await confluence.request("DELETE", `${base}/update`); // clear_operation: lift every `update` restriction
 ```
 
 A restricted operation with no subjects left is unrestricted again.

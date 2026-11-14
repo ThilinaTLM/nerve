@@ -78,14 +78,7 @@ export async function dryRun(
     "tool.list",
     {},
   );
-  for (const name of [
-    "quick_script",
-    "jira_search_issues",
-    "jira_update_issue",
-    "confluence_get_page",
-    "confluence_update_page",
-    "kroki_export",
-  ])
+  for (const name of ["quick_script"])
     if (!tools.some((tool) => tool.name === name))
       problems.push(`tool ${name} is not registered on slot ${flags.slot}`);
 

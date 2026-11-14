@@ -45,10 +45,6 @@
     "./execution": {
       "types": "./dist/execution/index.d.ts",
       "import": "./dist/execution/index.js"
-    },
-    "./integrations": {
-      "types": "./dist/execution/integrations.d.ts",
-      "import": "./dist/execution/integrations.js"
     }
   },
   "scripts": {
@@ -60,7 +56,6 @@
   "dependencies": {
     "@nervekit/contracts": "workspace:*",
     "@nervekit/native": "workspace:*",
-    "@nervekit/skills": "workspace:*",
     "cross-spawn": "7.0.6",
     "diff": "^8.0.4",
     "node-html-markdown": "^2.0.0",

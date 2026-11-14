@@ -11,7 +11,7 @@ import {
 } from "node:fs/promises";
 import { dirname, extname, join } from "node:path";
 import { image } from "@nervekit/native";
-import type { BinarySink } from "@nervekit/tools/integrations";
+import type { BinarySink } from "../../extensions/atlassian/shared/raw-request.js";
 import { codedError } from "../errors.js";
 import { resolveToolPath } from "@nervekit/tools/execution";
 import type {

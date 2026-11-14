@@ -4,9 +4,7 @@ import {
   toolArgumentSource,
   type ToolArgumentSourceInput,
 } from "./argument-source";
-import { confluenceToolLifecycleSpecs } from "./confluence-specs";
 import { coreToolLifecycleSpecs } from "./core-specs";
-import { jiraToolLifecycleSpecs } from "./jira-specs";
 import { orchestrationToolLifecycleSpecs } from "./orchestration-specs";
 import {
   argumentPresentation,
@@ -19,8 +17,6 @@ import {
 export const toolLifecycleRegistry = {
   ...coreToolLifecycleSpecs,
   ...orchestrationToolLifecycleSpecs,
-  ...jiraToolLifecycleSpecs,
-  ...confluenceToolLifecycleSpecs,
 } satisfies Record<ToolName, ToolLifecycleSpec>;
 
 export const unknownToolLifecycleSpec: UnknownToolLifecycleSpec = {

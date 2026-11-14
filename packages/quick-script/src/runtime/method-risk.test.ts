@@ -1,13 +1,12 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { classifyToolRisk } from "@nervekit/tools/catalog";
 import {
   describeToolArgumentErrors,
   normalizeToolArguments,
   requireToolDefinition,
 } from "@nervekit/tools/catalog";
-import { markdownToAdf } from "@nervekit/tools/integrations";
-import { adfToMarkdown } from "@nervekit/tools/integrations";
+import { markdownToAdf } from "../extensions/atlassian/jira/markdown-adf.js";
+import { adfToMarkdown } from "../extensions/atlassian/jira/adf-markdown.js";
 import { SAMPLES } from "./method-samples.js";
 import { type MethodRisk, isOperationCheck } from "./sdk-types.js";
 import { createSdkEnvironment, findSdkMethod, sdkMethodNames } from "./sdk.js";
@@ -15,7 +14,6 @@ import {
   assertDeclaredRisk,
   classifyQuickScriptScript,
   quickScriptRiskOfToolRisk,
-  quickScriptToolRisk,
 } from "./script-risk.js";
 
 const env = createSdkEnvironment({
@@ -76,15 +74,15 @@ void test("the guard refuses a declaration below the authorization's risk", () =
     args,
     summary: "",
   });
-  const comment = direct("jira_manage_comment", { action: "create" });
-  const remove = direct("jira_manage_comment", { action: "delete" });
-  assertDeclaredRisk("m", "write", [comment]);
+  const write = direct("write", { path: "a.txt", content: "x" });
+  const remove = direct("bash", { command: "rm -rf build" });
+  assertDeclaredRisk("m", "write", [write]);
   assert.throws(
     () => assertDeclaredRisk("m", "write", [remove]),
-    /Internal error: m declares risk "write" but is authorized as jira_manage_comment with destructive risk/,
+    /Internal error: m declares risk "write" but is authorized as bash with destructive risk/,
   );
   assert.throws(
-    () => assertDeclaredRisk("m", "read", [comment]),
+    () => assertDeclaredRisk("m", "read", [write]),
     /declares risk "read"/,
   );
   assert.throws(() => assertDeclaredRisk("m", "none", [direct("read", {})]));
@@ -98,31 +96,6 @@ void test("the guard refuses a declaration below the authorization's risk", () =
   assert.throws(
     () => assertDeclaredRisk("m", "network", [operation("destructive")]),
     /authorized as jira\.x\.y with destructive risk/,
-  );
-});
-
-void test("direct manage tools are write, and destructive only for deletes", () => {
-  const risk = (tool: string, args: Record<string, unknown>) =>
-    quickScriptToolRisk(tool as never, args);
-  for (const [tool, args] of [
-    ["jira_manage_comment", { action: "create" }],
-    ["jira_manage_worklog", { action: "update" }],
-    ["jira_manage_issue_link", { action: "create" }],
-    ["confluence_manage_comment", { action: "create" }],
-    ["confluence_manage_attachment", { action: "upload" }],
-    ["confluence_manage_label", { action: "add" }],
-  ] as const)
-    assert.equal(risk(tool, args), "external_write", tool);
-  for (const [tool, args] of [
-    ["jira_manage_comment", { action: "delete" }],
-    ["jira_manage_issue_link", { action: "delete" }],
-    ["confluence_manage_comment", { action: "delete" }],
-    ["confluence_manage_attachment", { action: "delete" }],
-  ] as const)
-    assert.equal(risk(tool, args), "destructive", tool);
-  assert.equal(
-    classifyToolRisk("confluence_manage_attachment", { action: "delete" }),
-    "destructive",
   );
 });
 

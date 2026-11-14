@@ -31,7 +31,6 @@ export interface RunMetrics {
   approvalsDenied: number;
 }
 
-const DIRECT_SDK = /^(jira|confluence)_|^kroki_export$/;
 const SDK_NAMESPACES = /\b(?:jira|confluence|diagram|web|imagegen)\s*\./;
 const DISCOVERY_ONLY = /\bsdk\s*\./;
 const UNAVAILABLE =
@@ -64,7 +63,6 @@ export function isSdkCall(
   toolName: string,
   args: unknown,
 ): boolean {
-  if (variant === "direct") return DIRECT_SDK.test(toolName);
   if (toolName !== "quick_script") return false;
   return SDK_NAMESPACES.test(JSON.stringify(args ?? {}));
 }
@@ -77,13 +75,6 @@ function isDiscoveryCall(
   if (variant !== "quick_script" || toolName !== "quick_script") return false;
   const text = JSON.stringify(args ?? {});
   return DISCOVERY_ONLY.test(text) && !SDK_NAMESPACES.test(text);
-}
-
-/** Calls the model made to a tool that the variant does not offer. */
-function offeredElsewhere(variant: Variant, toolName: string): boolean {
-  return variant === "quick_script"
-    ? /^(jira|confluence)_/.test(toolName) || toolName === "kroki_export"
-    : toolName === "quick_script";
 }
 
 export function analyzeEvents(
@@ -149,9 +140,7 @@ export function analyzeEvents(
         }
       }
     }
-    if (offeredElsewhere(variant, p.toolName)) {
-      metrics.unavailableNamespaceCalls += 1;
-    } else if (failed || p.outcome === "denied") {
+    if (failed || p.outcome === "denied") {
       if (p.outcome === "denied") continue;
       if (UNAVAILABLE.test(message)) metrics.unavailableNamespaceCalls += 1;
       else if (WRONG_ARGUMENTS.test(message)) metrics.failedWrongArguments += 1;

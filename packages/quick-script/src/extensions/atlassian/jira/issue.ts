@@ -1,4 +1,4 @@
-import { adfToMarkdown } from "@nervekit/tools/integrations";
+import { adfToMarkdown } from "./adf-markdown.js";
 import { closeMatches } from "../../../runtime/sdk-args.js";
 
 /** Standard Jira fields the SDK flattens. Everything else is a custom field keyed by name. */

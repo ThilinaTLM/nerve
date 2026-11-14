@@ -1,11 +1,16 @@
 import { ToolExecutionError } from "@nervekit/tools/execution";
-import type { ConfluenceConnection } from "@nervekit/tools/integrations";
+import type { ConfluenceConnection } from "../extensions/atlassian/confluence/client.js";
+import type { KrokiToolSettings } from "@nervekit/contracts/settings";
 import type {
   IntegrationExecutionContext,
-  KrokiExecutionContext,
   WebExecutionContext,
 } from "@nervekit/tools/execution";
-import type { JiraConnection } from "@nervekit/tools/integrations";
+import type {
+  ImageGenerateRequest,
+  ImageGenerateResponse,
+  ImagegenSettings,
+} from "../extensions/imagegen/backends.js";
+import type { JiraConnection } from "../extensions/atlassian/jira/client.js";
 import type { JiraFieldInfo } from "../extensions/atlassian/jira/issue.js";
 
 /** A resource a call acts on, normalized `<system>:<type>/<id>`: `jira:issue/APP-12`, `confluence:page/123`, `jira:request/GET /rest/api/3/myself`. */
@@ -74,9 +79,23 @@ export function orWhenUnsupported<T>(fallback: () => T | Promise<T>) {
   };
 }
 
-/** Context type of the quick-script executor: integrations plus Kroki settings. */
+/** Kroki server of the `diagram` extension. */
+export interface KrokiExecutionContext {
+  kroki?: KrokiToolSettings;
+}
+
+/** Image generation: the resolved `imagegen` settings and the host's backend adapter. */
+export interface ImageGenerationExecutionContext {
+  imagegen?: Partial<ImagegenSettings>;
+  generateImage?: (
+    request: ImageGenerateRequest,
+  ) => Promise<ImageGenerateResponse>;
+}
+
+/** Context type of the quick-script executor: integrations plus the extensions' settings and host adapters. */
 export type QuickScriptContext = IntegrationExecutionContext &
   KrokiExecutionContext &
+  ImageGenerationExecutionContext &
   WebExecutionContext;
 
 /** A Confluence page written by the run, for the automatic lint report. */

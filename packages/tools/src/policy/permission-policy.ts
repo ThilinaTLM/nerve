@@ -324,26 +324,6 @@ function extractTargets(
       },
     ];
   }
-  if (toolName === "kroki_export") {
-    const targets = [
-      ...stringPathTargets(args.source_path, "read", "exact", roots, cwd),
-      ...stringPathTargets(args.output_path, "write", "exact", roots, cwd),
-    ];
-    return targets.length > 0 ? targets : [{ kind: "whole_tool" }];
-  }
-
-  const fileArguments =
-    toolName === "jira_manage_attachment" ||
-    toolName === "confluence_manage_attachment"
-      ? [args.file_path]
-      : toolName === "confluence_create_page" ||
-          toolName === "confluence_update_page"
-        ? [args.page_file, args.body_file]
-        : [];
-  const fileTargets = fileArguments.flatMap((value) =>
-    stringPathTargets(value, "read", "exact", roots, cwd),
-  );
-  if (fileTargets.length > 0) return fileTargets;
   return [{ kind: "whole_tool" }];
 }
 

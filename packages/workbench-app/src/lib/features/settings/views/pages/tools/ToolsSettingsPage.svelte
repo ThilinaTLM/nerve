@@ -6,14 +6,10 @@ import ProjectCapabilityTrustAction from "../capabilities/ProjectCapabilityTrust
 import ProjectCapabilityTrustNotice from "../capabilities/ProjectCapabilityTrustNotice.svelte";
 import Bot from "@lucide/svelte/icons/bot";
 import Eye from "@lucide/svelte/icons/eye";
-import FileText from "@lucide/svelte/icons/file-text";
 import Globe from "@lucide/svelte/icons/globe";
-import Image from "@lucide/svelte/icons/image";
 import ListChecks from "@lucide/svelte/icons/list-checks";
-import Network from "@lucide/svelte/icons/network";
 import ScrollText from "@lucide/svelte/icons/scroll-text";
 import Search from "@lucide/svelte/icons/search";
-import SquareKanban from "@lucide/svelte/icons/square-kanban";
 import SquareTerminal from "@lucide/svelte/icons/square-terminal";
 import Wrench from "@lucide/svelte/icons/wrench";
 import Code from "@lucide/svelte/icons/code";
@@ -172,10 +168,6 @@ const toolIcons: Partial<Record<ToolId, typeof Wrench>> = {
   web_search: Search,
   web_fetch: Globe,
   explain_image: Eye,
-  generate_image: Image,
-  kroki_export: Network,
-  jira: SquareKanban,
-  confluence: FileText,
   quick_script: ScrollText,
   plan_present: ListChecks,
   subagents: Bot,

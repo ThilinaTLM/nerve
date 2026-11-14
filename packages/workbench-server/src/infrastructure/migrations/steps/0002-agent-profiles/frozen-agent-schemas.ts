@@ -19,12 +19,44 @@ import {
   bashToolSettingsSchema,
   compactionProfileSchema,
   imageExplanationToolSettingsSchema,
-  imageGenerationToolSettingsSchema,
-  openAiCodexImageGenerationSettingsSchema,
   planPresentToolSettingsSchema,
   pythonExecToolSettingsSchema,
   krokiToolSettingsSchema,
 } from "@nervekit/contracts/settings";
+
+// Image generation settings as they were in `@nervekit/contracts/settings` (removed with the `generate_image` tool).
+const openAiCodexImageGenerationSettingsSchema = z.object({
+  provider: z.literal("openai-codex"),
+  model: z.enum(["gpt-image-2.5-flare", "gpt-image-2.5-sunburst"]),
+  options: z.object({
+    quality: z.enum(["auto", "low", "medium", "high", "xhigh", "max"]),
+    size: z.union([
+      z.literal("auto"),
+      z
+        .string()
+        .regex(/^\d+x\d+$/)
+        .refine((value) => {
+          const [width, height] = value.split("x").map(Number);
+          if (!width || !height || width % 16 !== 0 || height % 16 !== 0) {
+            return false;
+          }
+          const longEdge = Math.max(width, height);
+          const shortEdge = Math.min(width, height);
+          const pixels = width * height;
+          return (
+            longEdge <= 3840 &&
+            longEdge / shortEdge <= 3 &&
+            pixels >= 655_360 &&
+            pixels <= 8_294_400
+          );
+        }),
+    ]),
+    background: z.enum(["auto", "opaque", "transparent"]),
+  }),
+});
+const imageGenerationToolSettingsSchema = z.discriminatedUnion("provider", [
+  openAiCodexImageGenerationSettingsSchema,
+]);
 
 const profileIdSchema = z.string().trim().min(1).max(256);
 function payloadOf<S extends z.ZodType>(settings: S) {

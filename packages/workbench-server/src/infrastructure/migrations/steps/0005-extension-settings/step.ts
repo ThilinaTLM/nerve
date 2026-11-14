@@ -11,6 +11,11 @@ import {
   type Entries,
   type Json,
 } from "./convert.js";
+import {
+  convertPermissionOverlayDocument,
+  convertRuleSetDocument,
+  hasEnabledRemovedToolRule,
+} from "./removed-tools.js";
 
 /**
  * Extension settings: integration accounts move to `config/accounts.json`
@@ -21,6 +26,12 @@ import {
  * - each conversation's `config/agent.json` (lead overrides, child frozen
  *   defaults and overrides) → the conversation's `config/extensions.json`
  * - applied profile snapshots and user profile definitions → their `extensions` section
+ *
+ * The direct tools that `quick_script` namespaces replaced (`jira_*`,
+ * `confluence_*`, `generate_image`, `kroki_export`) leave tool entries, and
+ * permission rules that name them (user and conversation overlays, custom
+ * rule sets) are rewritten to `quick_script` operations; a rule that cannot
+ * be converted is disabled and reported.
  *
  * Project files are not touched: project chains convert lazily.
  */
@@ -41,7 +52,12 @@ const serialize = (value: unknown): string =>
 
 type Target = {
   path: string;
-  kind: "user-agent" | "profile" | "conversation-agent";
+  kind:
+    | "user-agent"
+    | "profile"
+    | "conversation-agent"
+    | "permissions"
+    | "rule-set";
   /** The scope's `extensions.json`. */
   extensions?: string;
 };
@@ -56,6 +72,13 @@ function targets(context: StepContext): Target[] {
       kind: "user-agent",
       extensions: join(paths.configPath, "extensions.json"),
     });
+  if (existsSync(paths.permissionsConfigPath))
+    found.push({ path: paths.permissionsConfigPath, kind: "permissions" });
+  const ruleSets = join(paths.configPath, "rule-sets");
+  if (existsSync(ruleSets))
+    for (const file of readdirSync(ruleSets).sort())
+      if (file.endsWith(".json"))
+        found.push({ path: join(ruleSets, file), kind: "rule-set" });
   if (existsSync(paths.agentProfilesConfigPath))
     for (const file of readdirSync(paths.agentProfilesConfigPath).sort())
       if (file.endsWith(".json"))
@@ -73,6 +96,9 @@ function targets(context: StepContext): Target[] {
           kind: "conversation-agent",
           extensions: join(directory, "extensions.json"),
         });
+      const permissions = join(directory, "permissions.json");
+      if (existsSync(permissions))
+        found.push({ path: permissions, kind: "permissions" });
     }
   return found;
 }
@@ -109,6 +135,17 @@ function convert(context: StepContext, target: Target): void {
   const source = readObject(target.path);
   let document: Json;
   let entries: Entries = {};
+  if (target.kind === "permissions" || target.kind === "rule-set") {
+    const converted = (
+      target.kind === "permissions"
+        ? convertPermissionOverlayDocument
+        : convertRuleSetDocument
+    )(source, loss);
+    if (converted.changed)
+      context.fs.write(target.path, serialize(converted.document));
+    for (const [reason, count] of losses) context.loss(reason, count);
+    return;
+  }
   if (target.kind === "profile")
     document = convertProfileDefinition(source, loss);
   else {
@@ -179,6 +216,11 @@ export default defineStep({
     for (const target of targets(context)) {
       if (context.discarded.has(target.path)) continue;
       const document = readObject(target.path);
+      if (target.kind === "permissions" || target.kind === "rule-set") {
+        if (hasEnabledRemovedToolRule(document))
+          throw new Error(`Removed tools remain in ${target.path}`);
+        continue;
+      }
       const sections =
         target.kind === "profile"
           ? [document.recommendations, document.requirements]

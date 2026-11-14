@@ -12,12 +12,9 @@ import {
 import { coreToolRiskForName } from "./risk.js";
 import type { ToolDefinition } from "./contracts.js";
 
-export * from "./definitions/core/confluence.tools.js";
 export * from "./definitions/core/filesystem.tools.js";
 export * from "./definitions/core/interaction.tools.js";
-export * from "./definitions/core/jira.tools.js";
 export * from "./definitions/core/python.tools.js";
-export * from "./definitions/core/quick-script.tools.js";
 export * from "./definitions/core/shell.tools.js";
 export * from "./definitions/core/web.tools.js";
 export * from "./descriptors.js";
@@ -27,15 +24,18 @@ export * from "./argument-validation.js";
 export * from "./definitions/orchestration/plan-present.tools.js";
 export * from "./definitions/orchestration/process.tools.js";
 export * from "./permission-metadata.js";
-export * from "./quick-script-runtime.js";
 export * from "./risk.js";
 export * from "./contracts.js";
 
-export const coreToolDescriptors: ToolDescriptor[] =
-  coreToolDescriptorsFromDefinitions();
+/** Descriptors of the core tools, including those registered by other packages. */
+export function coreToolDescriptors(): ToolDescriptor[] {
+  return coreToolDescriptorsFromDefinitions();
+}
 
-export const allToolDescriptors: ToolDescriptor[] =
-  allToolDescriptorsFromDefinitions();
+/** Descriptors of every tool, including those registered by other packages. */
+export function allToolDescriptors(): ToolDescriptor[] {
+  return allToolDescriptorsFromDefinitions();
+}
 
 export function toolRiskForName(name: ToolName): ToolRisk {
   return coreToolRiskForName(name);

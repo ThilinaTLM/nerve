@@ -1,4 +1,4 @@
-import { findAssignableUser } from "@nervekit/tools/integrations";
+import { findAssignableUser } from "./users.js";
 import { markdownDoc } from "./media.js";
 import { closeMatches } from "../../../runtime/sdk-args.js";
 import { resolveFieldSelection, type JiraFieldInfo } from "./issue.js";

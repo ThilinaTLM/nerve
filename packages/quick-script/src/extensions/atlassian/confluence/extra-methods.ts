@@ -1,7 +1,8 @@
-import { jsonObject } from "@nervekit/tools/integrations";
-import { confluenceRequest, pathSegment } from "@nervekit/tools/integrations";
-import { valuesFromConfluenceList } from "@nervekit/tools/integrations";
-import { assertWellFormedStorage } from "@nervekit/tools/integrations";
+import { jsonObject } from "../shared/http.js";
+import { confluenceRequest } from "./client.js";
+import { pathSegment } from "../jira/client.js";
+import { valuesFromConfluenceList } from "./format.js";
+import { assertWellFormedStorage } from "./storage-xml.js";
 import { ToolExecutionError } from "@nervekit/tools/execution";
 import { codedError } from "../../../runtime/errors.js";
 import { nonEmptyString } from "../../../runtime/sdk-args.js";

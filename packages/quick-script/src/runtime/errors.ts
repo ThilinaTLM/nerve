@@ -54,7 +54,7 @@ export function hostErrorCode(error: unknown): HostErrorCode {
 
 /**
  * A product that is disabled or lacks an account is absent from the SDK: its
- * `*_NOT_CONFIGURED` failure names the setting to fix instead of the direct tool's.
+ * `*_NOT_CONFIGURED` failure names the setting to fix.
  */
 export async function orNotAvailable<T>(
   product: "jira" | "confluence",

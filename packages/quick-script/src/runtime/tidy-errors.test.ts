@@ -29,7 +29,7 @@ async function failWith(
 
 void test("Confluence transport errors become `subject: reason`, keeping the code", async () => {
   const error = await failWith(
-    "CONFLUENCE_BAD_REQUEST: Confluence PUT /pages/123 failed (400 Bad Request): Title too long See /home/x/SKILL.md.",
+    "CONFLUENCE_BAD_REQUEST: Confluence PUT /pages/123 failed (400 Bad Request): Title too long",
     "page 123",
     "CONFLUENCE_BAD_REQUEST",
   );

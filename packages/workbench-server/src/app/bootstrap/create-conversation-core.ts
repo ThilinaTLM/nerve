@@ -2,12 +2,16 @@ import { ConversationTitleService } from "../../domains/conversation-titles/titl
 import { projectGitRemotes } from "../../core-host/project-git-remotes.js";
 import {
   diagramServer,
+  imagegenSettings,
   quickScriptAvailability,
 } from "../../core-host/quick-script-availability.js";
 import { resolveExecutionAccounts } from "../../core-host/execution-accounts.js";
 import { conversationExtensions } from "../../core-host/conversation-extensions.js";
 import { ExtensionSettingsService } from "../../infrastructure/configuration/extensions/extension-settings-service.js";
-import { extensionSettingsDefinitions } from "@nervekit/quick-script";
+import {
+  extensionSettingsDefinitions,
+  type QuickScriptContext,
+} from "@nervekit/quick-script";
 import { capabilityToolNameSchema } from "@nervekit/contracts/capabilities";
 import { ProjectMigrationService } from "../../infrastructure/configuration/project-migration/project-migration.js";
 import { projectMigrationTrust } from "../../infrastructure/configuration/project-migration/project-migration-trust.js";
@@ -19,7 +23,6 @@ import { createProfileTransitions } from "../../infrastructure/configuration/age
 import { agentConfigurationOperations } from "../../infrastructure/configuration/agent-configuration/scoped-configuration-operations.js";
 import type { LeadSettingsOverrides } from "@nervekit/contracts/agent-configuration";
 import {
-  defaultImageGenerationSettings,
   defaultKrokiToolSettings,
   type BashToolSettings,
 } from "@nervekit/contracts/settings";
@@ -290,7 +293,7 @@ export function createConversationCore(
             "MODEL_REQUIRED",
             "explain_image: no usable image model is configured. Ask the user to choose one in Settings → Tools → explain_image.",
           );
-        const context: ToolExecutionContext = {
+        const context: ToolExecutionContext & QuickScriptContext = {
           cwd: input.cwd,
           shellPath: bash.shellPath,
           pythonRuntime: python?.available ? python : undefined,
@@ -343,12 +346,8 @@ export function createConversationCore(
             const account = atlassianAccounts.get(provider);
             return { ...account?.profile, enabled: Boolean(account) };
           },
-          generateImage: (request) =>
-            imageGeneration.generate(
-              request,
-              settings.tools?.generate_image?.settings ??
-                defaultImageGenerationSettings,
-            ),
+          imagegen: imagegenSettings(extensions),
+          generateImage: (request) => imageGeneration.generate(request),
           explainImage: async (request) => {
             if (!explanationModel || !explanation?.model)
               throw new Error("Image explanation model was not prepared");
@@ -368,13 +367,7 @@ export function createConversationCore(
           },
         };
         if (!isCurrent() || credentialVersion !== credentialEpoch) continue;
-        const selectedTool = capabilityToolNameSchema.safeParse(
-          input.toolName.startsWith("jira_")
-            ? "jira"
-            : input.toolName.startsWith("confluence_")
-              ? "confluence"
-              : input.toolName,
-        );
+        const selectedTool = capabilityToolNameSchema.safeParse(input.toolName);
         const modelTarget =
           input.toolName === "explain_image" && explanation?.model
             ? {
@@ -398,7 +391,9 @@ export function createConversationCore(
                 ? (settings.tools?.[selectedTool.data] ?? null)
                 : null,
               modelConfiguration: modelTarget,
-              extensions: extensions.extensions,
+              // Only quick_script reads extension settings; other approvals must not
+              // be invalidated by unrelated extension edits.
+              ...(quickScript ? { extensions: extensions.extensions } : {}),
               python:
                 input.toolName === "python_exec" && python?.available
                   ? python
@@ -559,8 +554,10 @@ export function createConversationCore(
     isProjectTrusted: (projectId, path, digest) =>
       core.trust.isTrusted("project_capabilities", projectId, path, digest),
   });
-  extensionSettings.subscribe(() => {
-    extensionEpoch++;
+  extensionSettings.subscribe((scope) => {
+    // A conversation's own file is written while that conversation is created
+    // (a child's frozen settings), so it cannot invalidate that creation.
+    if (scope.scope !== "conversation") extensionEpoch++;
   });
   const conversationExtensionSettings = conversationExtensions({
     agents: agentConfiguration,

@@ -9,8 +9,11 @@ import {
 
 void test("Required configuration does not lock a Recommended enabled switch", () => {
   assert.deepEqual(
-    capabilityToolLocks(["jira"], {
-      "/tools/jira/profileId": { source: "requirement", profile: "planning" },
+    capabilityToolLocks(["python_exec"], {
+      "/tools/python_exec/settings/interpreterPath": {
+        source: "requirement",
+        profile: "planning",
+      },
       "/tools/python_exec/enabled": {
         source: "recommendation",
         profile: "planning",
@@ -22,12 +25,12 @@ void test("Required configuration does not lock a Recommended enabled switch", (
 
 void test("Required enabled does not lock unrelated editable configuration", () => {
   assert.deepEqual(
-    capabilityToolLocks(["jira"], {
+    capabilityToolLocks(["python_exec"], {
       "/tools/python_exec/enabled": {
         source: "requirement",
         profile: "planning",
       },
-      "/tools/jira/profileId": {
+      "/tools/python_exec/settings/interpreterPath": {
         source: "recommendation",
         profile: "planning",
       },

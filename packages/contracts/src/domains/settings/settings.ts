@@ -131,86 +131,6 @@ export type ImageExplanationToolSettings = z.infer<
   typeof imageExplanationToolSettingsSchema
 >;
 
-export const imageGenerationProviderSchema = z.enum(["openai-codex"]);
-export type ImageGenerationProvider = z.infer<
-  typeof imageGenerationProviderSchema
->;
-
-export const openAiCodexImageModelSchema = z.enum([
-  "gpt-image-2.5-flare",
-  "gpt-image-2.5-sunburst",
-]);
-export type OpenAiCodexImageModel = z.infer<typeof openAiCodexImageModelSchema>;
-export const openAiCodexImageQualitySchema = z.enum([
-  "auto",
-  "low",
-  "medium",
-  "high",
-  "xhigh",
-  "max",
-]);
-export type OpenAiCodexImageQuality = z.infer<
-  typeof openAiCodexImageQualitySchema
->;
-export const openAiCodexImageBackgroundSchema = z.enum([
-  "auto",
-  "opaque",
-  "transparent",
-]);
-export type OpenAiCodexImageBackground = z.infer<
-  typeof openAiCodexImageBackgroundSchema
->;
-const customOpenAiCodexImageSizeSchema = z
-  .string()
-  .regex(/^\d+x\d+$/)
-  .refine((value) => {
-    const [width, height] = value.split("x").map(Number);
-    if (!width || !height || width % 16 !== 0 || height % 16 !== 0) {
-      return false;
-    }
-    const longEdge = Math.max(width, height);
-    const shortEdge = Math.min(width, height);
-    const pixels = width * height;
-    return (
-      longEdge <= 3840 &&
-      longEdge / shortEdge <= 3 &&
-      pixels >= 655_360 &&
-      pixels <= 8_294_400
-    );
-  });
-export const openAiCodexImageSizeSchema = z.union([
-  z.literal("auto"),
-  customOpenAiCodexImageSizeSchema,
-]);
-export type OpenAiCodexImageSize = z.infer<typeof openAiCodexImageSizeSchema>;
-
-export const openAiCodexImageGenerationSettingsSchema = z.object({
-  provider: z.literal("openai-codex"),
-  model: openAiCodexImageModelSchema,
-  options: z.object({
-    quality: openAiCodexImageQualitySchema,
-    size: openAiCodexImageSizeSchema,
-    background: openAiCodexImageBackgroundSchema,
-  }),
-});
-export type OpenAiCodexImageGenerationSettings = z.infer<
-  typeof openAiCodexImageGenerationSettingsSchema
->;
-export const imageGenerationToolSettingsSchema = z.discriminatedUnion(
-  "provider",
-  [openAiCodexImageGenerationSettingsSchema],
-);
-export type ImageGenerationToolSettings = z.infer<
-  typeof imageGenerationToolSettingsSchema
->;
-
-/** Default of `generate_image` until image generation moves to its extension. */
-export const defaultImageGenerationSettings: ImageGenerationToolSettings = {
-  provider: "openai-codex",
-  model: "gpt-image-2.5-flare",
-  options: { quality: "auto", size: "auto", background: "auto" },
-};
-
 export const krokiToolSettingsSchema = z
   .object({
     url: z
@@ -431,13 +351,7 @@ export const defaultSettings: Settings = {
   permissions: { exceptions: [] },
   providers: { atlassianProfiles: [], tavilyProfiles: [] },
   tools: {
-    disabled: [
-      "plan_present",
-      "explain_image",
-      "generate_image",
-      "kroki_export",
-      ...subagentToolNames,
-    ],
+    disabled: ["plan_present", "explain_image", ...subagentToolNames],
     bash: {
       autoPromotion: { enabled: true, afterMs: 120_000 },
       maxTimeoutMs: 900_000,

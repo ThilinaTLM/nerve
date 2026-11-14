@@ -2,7 +2,6 @@ import { z } from "zod";
 import { subagentToolNames } from "../tools/subagent-tools.js";
 import {
   imageExplanationToolSettingsSchema,
-  imageGenerationToolSettingsSchema,
   pythonExecToolSettingsSchema,
   bashToolSettingsSchema,
   planPresentToolSettingsSchema,
@@ -13,8 +12,6 @@ import { userConfigurableToolNameSchema } from "../tools/tool-name.js";
 export const capabilityToggleToolNameSchema = z.enum([
   ...userConfigurableToolNameSchema.exclude(subagentToolNames).options,
   "subagents",
-  "jira",
-  "confluence",
   "quick_script",
 ]);
 export const capabilityToolNameSchema = z.enum([
@@ -49,12 +46,8 @@ export const capabilityToolPayloadSchemas = {
   web_search: basicPayload,
   web_fetch: basicPayload,
   explain_image: payload(imageExplanationToolSettingsSchema),
-  generate_image: payload(imageGenerationToolSettingsSchema),
-  kroki_export: basicPayload,
   plan_present: payload(planPresentToolSettingsSchema),
   subagents: basicPayload,
-  jira: basicPayload,
-  confluence: basicPayload,
   quick_script: basicPayload,
   bash: z.object({ settings: bashToolSettingsSchema }).strict(),
 };

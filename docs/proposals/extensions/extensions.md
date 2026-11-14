@@ -105,9 +105,8 @@ packages/quick-script/src/
 
 A new package, `@nervekit/quick-script`, holds the runtime, registry, built-in extensions and their docs. It sits in the engine layer beside `tools`:
 
-- It depends on `contracts`, `native` (sandbox, image) and the integration clients.
-- `tools` registers the single `quick_script` definition from it.
-- The Jira and Confluence clients move into the Atlassian extension once the direct tools are deleted, since nothing else uses them.
+- It depends on `contracts`, `native` (sandbox, image) and `tools` (execution primitives, web fetch and search). It owns the Jira and Confluence clients, the Kroki client and the image generation request model, since nothing else uses them once the direct tools are gone.
+- It defines the `quick_script` tool; the host registers that definition in the tools catalog at startup. `tools` never imports quick-script and has no port for it.
 - `ALLOWED_INTERNAL_DEPENDENCIES` gets the new edges.
 
 The registry may later move to its own package when MCP servers or installed extensions need it outside quick-script. Until then it stays with its only consumer.

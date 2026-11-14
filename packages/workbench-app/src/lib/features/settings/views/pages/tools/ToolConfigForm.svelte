@@ -5,7 +5,6 @@
 -->
 <script lang="ts">
 import { canonicalSettingRequired } from "$lib/presentation/composer/capability-tool-locks";
-import { openAiCodexImageSizeSchema } from "$lib/api";
 import type { ModelInfo } from "$lib/api";
 import SelectField from "@nervekit/ui-kit/components/composites/select-field";
 import { Input } from "@nervekit/ui-kit/components/ui/input";
@@ -76,51 +75,17 @@ const validTimeout = $derived(
     Number(timeoutSeconds) <= 3600,
 );
 
-const imageSize = $derived(
-  String(((settings.options ?? {}) as Loose).size ?? "auto"),
-);
-const validSize = $derived(
-  openAiCodexImageSizeSchema.safeParse(imageSize).success,
-);
-
 $effect(() => {
   const nextValid =
     name === "bash"
       ? validAfter && (auto.enabled || validTimeout)
-      : name === "generate_image"
-        ? validSize
-        : name === "plan_present"
-          ? Boolean(settings.approvalProfile)
-          : name === "explain_image"
-            ? Boolean(settings.model)
-            : true;
+      : name === "plan_present"
+        ? Boolean(settings.approvalProfile)
+        : name === "explain_image"
+          ? Boolean(settings.model)
+          : true;
   if (valid !== nextValid) valid = nextValid;
 });
-
-const imageOptions = $derived((settings.options ?? {}) as Loose);
-function patchImageOptions(next: Loose): void {
-  patchSettings({ options: { ...imageOptions, ...next } });
-}
-
-const qualityItems = ["auto", "low", "medium", "high", "xhigh", "max"].map(
-  (value) => ({ value, label: value.charAt(0).toUpperCase() + value.slice(1) }),
-);
-const backgroundItems = ["auto", "opaque", "transparent"].map((value) => ({
-  value,
-  label: value.charAt(0).toUpperCase() + value.slice(1),
-}));
-const imageModelItems = [
-  {
-    value: "gpt-image-2.5-flare",
-    label: "GPT Image 2.5 Flare",
-    detail: "Fast, high-quality everyday generation.",
-  },
-  {
-    value: "gpt-image-2.5-sunburst",
-    label: "GPT Image 2.5 Sunburst",
-    detail: "Highest quality and precision-focused generation.",
-  },
-];
 </script>
 
 <div class="grid gap-4">
@@ -258,73 +223,6 @@ const imageModelItems = [
               ? { thinkingLevel: next.thinkingLevel }
               : {}),
           })}
-      />
-    </div>
-  {:else if name === "generate_image"}
-    <div class="grid gap-1.5">
-      <Label>Provider</Label>
-      <SelectField
-        items={[
-          {
-            value: "openai-codex",
-            label: "OpenAI Codex subscription",
-            detail: "Generate through the connected ChatGPT subscription.",
-          },
-        ]}
-        value={String(settings.provider ?? "openai-codex")}
-        disabled={required("settings/provider")}
-        ariaLabel="Image generation provider"
-        onValueChange={(next) => patchSettings({ provider: next })}
-      />
-    </div>
-    <div class="grid gap-1.5">
-      <Label>Model</Label>
-      <SelectField
-        items={imageModelItems}
-        value={String(settings.model ?? "gpt-image-2.5-flare")}
-        disabled={required("settings/model")}
-        ariaLabel="Image model"
-        onValueChange={(next) => patchSettings({ model: next })}
-      />
-    </div>
-    <div class="grid gap-1.5">
-      <Label>Quality</Label>
-      <SelectField
-        items={qualityItems}
-        value={String(imageOptions.quality ?? "auto")}
-        disabled={required("settings/options/quality")}
-        ariaLabel="Image quality"
-        onValueChange={(next) => patchImageOptions({ quality: next })}
-      />
-    </div>
-    <div class="grid gap-1.5">
-      <Label for="tool-image-size">Size</Label>
-      <Input
-        disabled={required("settings/options/size")}
-        id="tool-image-size"
-        value={imageSize}
-        aria-invalid={validSize ? undefined : "true"}
-        placeholder="auto or 1024x1024"
-        oninput={(event) =>
-          patchImageOptions({ size: event.currentTarget.value })}
-      />
-      <p
-        class={validSize
-          ? "text-ui text-muted-foreground"
-          : "text-ui text-destructive"}
-      >
-        Use auto or WIDTHxHEIGHT. Dimensions must be multiples of 16 and at most
-        3840px.
-      </p>
-    </div>
-    <div class="grid gap-1.5">
-      <Label>Background</Label>
-      <SelectField
-        items={backgroundItems}
-        value={String(imageOptions.background ?? "auto")}
-        disabled={required("settings/options/background")}
-        ariaLabel="Image background"
-        onValueChange={(next) => patchImageOptions({ background: next })}
       />
     </div>
   {:else if name === "plan_present"}

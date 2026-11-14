@@ -8,7 +8,7 @@ import {
   type IntegrationHealthStatus,
 } from "@nervekit/contracts/auth";
 import type { AtlassianProfile } from "@nervekit/contracts/settings";
-import { checkAtlassianConnection } from "@nervekit/tools/execution";
+import { checkAtlassianConnection } from "@nervekit/quick-script";
 import { z } from "zod";
 
 const services = ["jira", "confluence"] as const;

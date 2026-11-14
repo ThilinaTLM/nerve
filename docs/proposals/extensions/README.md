@@ -1,6 +1,6 @@
 # Extensions
 
-> **Status:** Accepted for steps 1–5 (branch `feat/extensions`). MCP servers and installable extensions are later proposals. How `quick_script` works today: [architecture/code-mode.md](../../architecture/code-mode.md).
+> **Status:** Implemented (steps 1–5) on branch `feat/extensions`. The current design lives in [architecture/code-mode.md](../../architecture/code-mode.md) (runtime, registry, permissions), [architecture/configuration.md](../../architecture/configuration.md#extension-settings) (settings, migration), [architecture/permissions.md](../../architecture/permissions.md) and [architecture/codebase.md](../../architecture/codebase.md) (packages). MCP servers and installable extensions are later proposals.
 
 ## Summary
 

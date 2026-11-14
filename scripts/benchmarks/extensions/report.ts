@@ -160,11 +160,11 @@ export function renderSummary(
   meta: { slot: number; generatedAt: string; ruleSet: string },
 ): string {
   const lines = [
-    "# Extensions benchmark: quick_script vs direct tools",
+    "# Extensions benchmark: quick_script",
     "",
     `Slot ${meta.slot}, rule set \`${meta.ruleSet}\`, generated ${meta.generatedAt}. ${records.length} runs.`,
     "",
-    "Tool-def tokens/request = first-request input tokens of a trivial prompt with the variant's tools minus the same prompt with Jira, Confluence and quick_script all off.",
+    "Tool-def tokens/request = first-request input tokens of a trivial prompt with quick_script minus the same prompt with it off.",
     "",
   ];
 
@@ -173,25 +173,14 @@ export function renderSummary(
   for (const [family, familyRecords] of byFamily) {
     lines.push(`### ${family}`, "");
     const rows: string[][] = [];
-    const bySuccess = new Map<string, number>();
     for (const [variant, variantRecords] of group(
       familyRecords,
       (r) => r.variant,
     )) {
       const s = summarize(variantRecords, probes);
-      bySuccess.set(variant, s.runs ? s.passed / s.runs : 0);
       rows.push([variant, ...summaryCells(s)]);
     }
     lines.push(table(["Variant", ...HEADER], rows), "");
-    const direct = bySuccess.get("direct");
-    const script = bySuccess.get("quick_script");
-    if (direct !== undefined && script !== undefined) {
-      const delta = Math.round((direct - script) * 100);
-      lines.push(
-        `Direct minus quick_script success: ${delta >= 0 ? "+" : ""}${delta} points${delta >= 10 ? " (**direct wins clearly**: step 5 should not proceed for this family without review)" : ""}.`,
-        "",
-      );
-    }
   }
 
   lines.push("## By task", "");

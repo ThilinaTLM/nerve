@@ -259,35 +259,30 @@ export const quickScriptCompleted = sampleCall({
       hostCalls: [
         {
           method: "jira.issues.search",
-          authorizedAs: "jira_search_issues",
           summary: "project = NERVE AND status = 'In Progress' …",
           outcome: "completed",
           durationMs: 412,
         },
         {
           method: "jira.issues.get",
-          authorizedAs: "jira_get_issue",
           summary: "NERVE-412",
           outcome: "completed",
           durationMs: 233,
         },
         {
           method: "jira.issues.get",
-          authorizedAs: "jira_get_issue",
           summary: "NERVE-398",
           outcome: "completed",
           durationMs: 198,
         },
         {
           method: "jira.issues.get",
-          authorizedAs: "jira_get_issue",
           summary: "NERVE-377",
           outcome: "completed",
           durationMs: 221,
         },
         {
           method: "jira.issues.get",
-          authorizedAs: "jira_get_issue",
           summary: "NERVE-9999",
           outcome: "failed",
           error: "Issue does not exist or you do not have permission",
@@ -312,7 +307,6 @@ export const quickScriptFailed = sampleCall({
       hostCalls: [
         {
           method: "jira.issues.get",
-          authorizedAs: "jira_get_issue",
           summary: "NERVE-9999",
           outcome: "failed",
           error: "Issue does not exist or you do not have permission",
@@ -550,7 +544,8 @@ export const todosCompleted = sampleCall({
   },
 });
 
-export const jiraSearchCompleted = sampleCall({
+/** A call recorded by a tool that no longer exists: rendered by the generic view. */
+export const removedToolCompleted = sampleCall({
   id: "tool_jira_search",
   toolName: "jira_search_issues",
   args: { jql: "project = NRV AND status != Done ORDER BY updated DESC" },
@@ -573,90 +568,6 @@ export const jiraSearchCompleted = sampleCall({
           status: "To Do",
           statusCategory: "new",
           priority: "Medium",
-        },
-      ],
-    },
-  },
-});
-
-export const jiraCreateDraft = sampleDraft({
-  toolName: "jira_create_issue",
-  argsText:
-    '{"project_key":"NRV","issue_type":"Task","summary":"Unify tool card lifecycle rendering","priority":"High","description":"Tool cards should keep the same keyed elements from drafting',
-});
-
-export const jiraCreateCompleted = sampleCall({
-  id: "tool_jira_create",
-  toolName: "jira_create_issue",
-  args: {
-    project_key: "NRV",
-    issue_type: "Task",
-    summary: "Unify tool card lifecycle rendering",
-    priority: "High",
-    description:
-      "Tool cards should keep the same keyed elements from drafting to completion. Multi-item tools render one sheet section per item; chips are monotonic.",
-  },
-  result: {
-    details: {
-      issueKey: "NRV-142",
-      summary: "Unify tool card lifecycle rendering",
-    },
-  },
-});
-
-export const confluenceSearchCompleted = sampleCall({
-  id: "tool_conf_search",
-  toolName: "confluence_search_pages",
-  args: { query: "tool card lifecycle" },
-  result: {
-    details: {
-      pages: [
-        {
-          id: "10231",
-          title: "Tool card lifecycle design",
-          spaceKey: "ENG",
-          status: "current",
-          versionNumber: 4,
-          bodyPreview: "Cards keep one sheet from drafting to completion.",
-        },
-        {
-          id: "10377",
-          title: "Transcript motion budget",
-          spaceKey: "ENG",
-          status: "current",
-          versionNumber: 2,
-        },
-      ],
-    },
-  },
-});
-
-export const generateImageRunning = sampleCall({
-  id: "tool_img_run",
-  toolName: "generate_image",
-  status: "running",
-  ageMs: 3_000,
-  args: {
-    prompt: "isometric illustration of stacked translucent cards",
-    size: "1024x576",
-  },
-});
-
-export const generateImageCompleted = sampleCall({
-  id: "tool_img_ok",
-  toolName: "generate_image",
-  args: {
-    prompt: "isometric illustration of stacked translucent cards",
-    size: "1024x576",
-  },
-  result: {
-    details: {
-      images: [
-        {
-          path: `${SAMPLE_CWD}/generated/cards-morph.png`,
-          bytes: 412_000,
-          width: 1024,
-          height: 576,
         },
       ],
     },
