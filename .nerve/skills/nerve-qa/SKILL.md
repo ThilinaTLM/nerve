@@ -44,7 +44,7 @@ $H set-model --slot N   # default model anthropic/claude-haiku-5-5 (Haiku 5.5); 
 
 Do this once per slot; it persists in `data/storage-N/config/agent.json`. A brand-new slot has no config until its first launch: start it once, stop it, then run `set-model`.
 
-`copy-secrets` is the only way to give a slot credentials. Run it when a slot lacks credentials, or when provider authentication fails (401/403, "expired", "sign in", or a token-refresh error):
+`copy-secrets` (`scripts/copy-secrets.ts`, run through `$H`) is the only way to give a slot credentials; never copy `secrets/` by hand. Run it when a slot lacks credentials, or when provider authentication fails (401/403, "expired", "sign in", or a token-refresh error):
 
 ```bash
 $H copy-secrets --slot N   # slot must be stopped; backs up data/storage-N/secrets first
@@ -52,7 +52,7 @@ $H copy-secrets --slot N   # slot must be stopped; backs up data/storage-N/secre
 
 What it does:
 
-- Copies API keys (Atlassian, Tavily, provider keys) from `~/.nerve`, read-only, re-encrypted with the slot's own `master.key`. It also copies `config/providers.json` and the account config (`accounts.json` or `integrations.json`, whichever the slot uses) so credential ids match.
+- Copies API keys (Atlassian, Tavily, provider keys) from `~/.nerve`, read-only, re-encrypted with the slot's own `master.key`, and copies `config/providers.json`. Accounts (`accounts.json` or `integrations.json`, whichever the slot uses) and keys are **merged**: production's win by id, and accounts only the slot has (such as the `Nerve Test` test-site account) are kept.
 - Copies subscription (OAuth) sessions as the access token and expiry only. **Refresh tokens are never copied**: refresh rotates the token and would log production out. The slot cannot refresh, so once the access token expires, requests fail with a token-refresh error.
 - Prints each OAuth provider's expiry (local time, minutes left). `WARNING ... within 15 minutes` means production may refresh soon; make a production request with that provider first, or rerun later.
 

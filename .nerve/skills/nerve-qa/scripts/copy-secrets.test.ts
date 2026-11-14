@@ -4,7 +4,7 @@ import {
   NO_REFRESH_TOKEN,
   oauthSessions,
   selectCopyable,
-} from "../qa-copy-secrets.ts";
+} from "./copy-secrets.ts";
 
 const session = JSON.stringify({
   type: "oauth",

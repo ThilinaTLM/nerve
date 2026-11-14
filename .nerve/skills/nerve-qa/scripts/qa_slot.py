@@ -244,6 +244,21 @@ def copy_provider_config(info: dict, source_home: Path) -> None:
         shutil.copy2(src, dest)
         print(f"Copied config/{src.name} -> config/{name}")
 
+    def merge_accounts(src: Path, name: str) -> None:
+        """Source accounts win by id; accounts only the slot has (test sites) stay."""
+        dest = config / name
+        if not dest.exists():
+            put(src, name)
+            return
+        shutil.copy2(dest, config / f"{name}.bak-{stamp}")
+        merged = json.loads(src.read_text())
+        own = json.loads(dest.read_text()).get("profiles", {})
+        for kind, profiles in own.items():
+            ids = {p.get("id") for p in merged.setdefault("profiles", {}).setdefault(kind, [])}
+            merged["profiles"][kind] += [p for p in profiles if p.get("id") not in ids]
+        dest.write_text(json.dumps(merged, indent=2) + "\n")
+        print(f"Merged config/{src.name} into config/{name} (slot-only accounts kept)")
+
     providers = source_home / "config" / "providers.json"
     if providers.is_file():
         put(providers, "providers.json")
@@ -259,11 +274,11 @@ def copy_provider_config(info: dict, source_home: Path) -> None:
             "integrations.json",
         ]
         for name in names:
-            put(src, name)
+            merge_accounts(src, name)
 
 
 def run_secrets_tool(*args: str) -> dict:
-    cmd = ["pnpm", "exec", "tsx", "scripts/development/qa-copy-secrets.ts", *args]
+    cmd = ["pnpm", "exec", "tsx", str(Path(__file__).with_name("copy-secrets.ts")), *args]
     result = subprocess.run(cmd, cwd=REPO, capture_output=True, text=True)
     if result.returncode != 0:
         raise RuntimeError(result.stderr.strip() or "secrets tool failed")

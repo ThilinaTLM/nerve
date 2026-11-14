@@ -1,18 +1,19 @@
 /**
  * Builds a dev slot's credential store from a source home without ever giving
- * the slot a refresh token. Used by `.nerve/skills/nerve-qa/scripts/qa_slot.py`.
+ * the slot a refresh token. Called by `qa_slot.py copy-secrets` in this folder.
  *
- *   tsx scripts/development/qa-copy-secrets.ts copy --source HOME --target HOME
- *   tsx scripts/development/qa-copy-secrets.ts oauth-status --home HOME
+ *   tsx .nerve/skills/nerve-qa/scripts/copy-secrets.ts copy --source HOME --target HOME
+ *   tsx .nerve/skills/nerve-qa/scripts/copy-secrets.ts oauth-status --home HOME
  *
  * `copy` decrypts the source read-only and keeps `provider:*:apiKey` entries
  * plus OAuth entries reduced to the access token and expiry. The refresh token
  * is replaced by a placeholder, so the slot cannot rotate the source's refresh
- * token. The target keeps its own non-provider entries (installation identity).
+ * token. Copied entries are merged over the target's: entries only the slot has
+ * (installation identity, test-site API keys) are kept.
  * Output is JSON with names and expiry times only, never values.
  */
 import { pathToFileURL } from "node:url";
-import { EncryptedFileSecretProvider } from "../../packages/workbench-server/src/infrastructure/secrets/index.js";
+import { EncryptedFileSecretProvider } from "../../../../packages/workbench-server/src/infrastructure/secrets/index.js";
 
 const API_KEY_NAME = /^provider:.+:apiKey$/;
 const OAUTH_NAME = /^provider:(.+):oauth$/;
@@ -109,11 +110,8 @@ async function main(): Promise<void> {
   const target = option(rest, "--target");
   // The source is only decrypted; its master.key must already exist.
   const copied = selectCopyable(await readAll(source));
-  const kept: Record<string, string> = {};
-  for (const [name, value] of Object.entries(await readAll(target))) {
-    if (!API_KEY_NAME.test(name) && !OAUTH_NAME.test(name)) kept[name] = value;
-  }
-  const next = { ...kept, ...copied };
+  // Merge: the slot keeps credentials production does not have.
+  const next = { ...(await readAll(target)), ...copied };
   const out = new EncryptedFileSecretProvider(target);
   await out.initialize(); // creates the slot's own master.key if missing
   for (const name of await out.list()) await out.delete(name);
