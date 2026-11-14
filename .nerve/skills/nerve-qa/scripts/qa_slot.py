@@ -244,37 +244,10 @@ def copy_provider_config(info: dict, source_home: Path) -> None:
         shutil.copy2(src, dest)
         print(f"Copied config/{src.name} -> config/{name}")
 
-    def merge_accounts(src: Path, name: str) -> None:
-        """Source accounts win by id; accounts only the slot has (test sites) stay."""
-        dest = config / name
-        if not dest.exists():
-            put(src, name)
-            return
-        shutil.copy2(dest, config / f"{name}.bak-{stamp}")
-        merged = json.loads(src.read_text())
-        own = json.loads(dest.read_text()).get("profiles", {})
-        for kind, profiles in own.items():
-            ids = {p.get("id") for p in merged.setdefault("profiles", {}).setdefault(kind, [])}
-            merged["profiles"][kind] += [p for p in profiles if p.get("id") not in ids]
-        dest.write_text(json.dumps(merged, indent=2) + "\n")
-        print(f"Merged config/{src.name} into config/{name} (slot-only accounts kept)")
-
     providers = source_home / "config" / "providers.json"
     if providers.is_file():
         put(providers, "providers.json")
-    # Migration 0005 renamed integrations.json to accounts.json (same document).
-    # Write the name the slot's version reads; if it has neither yet, write both.
-    src = next(
-        (p for p in (source_home / "config" / "accounts.json", source_home / "config" / "integrations.json") if p.is_file()),
-        None,
-    )
-    if src:
-        names = [n for n in ("accounts.json", "integrations.json") if (config / n).exists()] or [
-            "accounts.json",
-            "integrations.json",
-        ]
-        for name in names:
-            merge_accounts(src, name)
+    # Accounts are merged by copy-secrets.ts, in the slot's format (see there).
 
 
 def run_secrets_tool(*args: str) -> dict:
@@ -315,6 +288,9 @@ def cmd_copy_secrets(info: dict, source: Path, full: bool) -> None:
     for name in summary["apiKeys"]:
         print(f"  {name}")
     copy_provider_config(info, source.parent)
+    accounts = summary.get("accounts")
+    if accounts:
+        print(f"Merged accounts into config/{', config/'.join(accounts['files'])} ({accounts['format']} format; slot-only accounts kept)")
     for s in summary["oauth"]:
         line, soon = describe_expiry(s["provider"], s["expires"])
         print(line + " (no refresh token copied)")
