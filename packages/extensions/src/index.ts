@@ -1,20 +1,27 @@
+import type { ExtensionDefinition } from "@nervekit/extension-api";
 import type {
   ExtensionMetadata,
   ExtensionSettingsDefinition,
 } from "@nervekit/contracts/extensions";
+import { fromDefinition } from "@nervekit/tools/quick-script";
 import type { ExtensionManifest } from "@nervekit/tools/quick-script/manifest-types";
 import { atlassianExtension } from "./atlassian/manifest.js";
 import { diagramExtension } from "./diagram/manifest.js";
 import { imagegenExtension } from "./imagegen/manifest.js";
 import { webExtension } from "./web/manifest.js";
 
-/** The built-in extensions, in display order. */
-export const builtinExtensions: readonly ExtensionManifest[] = [
+const definitions: readonly (ExtensionManifest | ExtensionDefinition)[] = [
   atlassianExtension,
   webExtension,
   imagegenExtension,
   diagramExtension,
 ];
+
+/** The built-in extensions, in display order, as the registry sees them. */
+export const builtinExtensions: readonly ExtensionManifest[] = definitions.map(
+  (extension) =>
+    "apiVersion" in extension ? fromDefinition(extension) : extension,
+);
 
 /** What the settings machinery needs of every registered extension. */
 export const extensionSettingsDefinitions: readonly ExtensionSettingsDefinition[] =
@@ -61,11 +68,3 @@ export function extensionMetadata(
     },
   };
 }
-
-export { checkAtlassianConnection } from "./atlassian/shared/connection-check.js";
-export type {
-  ImageBackendRequest,
-  ImageGenerateRequest,
-  ImageGenerateResponse,
-  ImagegenBackend,
-} from "./imagegen/backends.js";

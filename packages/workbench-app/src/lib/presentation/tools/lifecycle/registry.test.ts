@@ -8,6 +8,7 @@ import {
   toolLifecycleSpec,
   unknownToolLifecycleSpec,
 } from "./registry";
+import { setExtensionToolNames } from "./extension-tools";
 describe("tool lifecycle registry", () => {
   it("has exactly one typed spec for every active tool", () => {
     assert.deepEqual(
@@ -54,9 +55,33 @@ describe("tool lifecycle registry", () => {
         name,
       );
     }
-    for (const name of ["web_search", "web_fetch"] as const) {
-      assert.equal(toolLifecycleRegistry[name].argumentRegion, "none", name);
-      assert.ok(toolLifecycleRegistry[name].resultPlaceholder, name);
+    assert.equal(toolLifecycleRegistry.web_fetch.argumentRegion, "none");
+    assert.ok(toolLifecycleRegistry.web_fetch.resultPlaceholder);
+  });
+
+  it("presents tools extensions contribute through one generic spec, and other names as unknown", () => {
+    assert.equal(toolLifecycleSpec("web_search"), unknownToolLifecycleSpec);
+    setExtensionToolNames(["web_search"]);
+    try {
+      const spec = toolLifecycleSpec("web_search");
+      assert.equal(spec.completedView, "extension");
+      assert.equal(isKnownToolName("web_search"), true);
+      const presentation = presentToolArguments(
+        "web_search",
+        { args: { query: "nerve", max_results: 3 } },
+        "completed",
+      );
+      assert.equal(presentation.primaryArg?.text, "nerve");
+      assert.deepEqual(
+        presentation.secondary.map((item) => item.text),
+        ["max_results 3"],
+      );
+      assert.equal(
+        toolLifecycleSpec("recorded_tool"),
+        unknownToolLifecycleSpec,
+      );
+    } finally {
+      setExtensionToolNames([]);
     }
   });
 

@@ -167,6 +167,9 @@ importers:
       '@nervekit/tools':
         specifier: workspace:*
         version: link:../tools
+      node-html-markdown:
+        specifier: ^2.0.0
+        version: 2.0.0
       typebox:
         specifier: 1.3.7
         version: 1.3.7
@@ -618,6 +621,9 @@ importers:
       '@nervekit/conversation-core':
         specifier: workspace:*
         version: link:../conversation-core
+      '@nervekit/extension-api':
+        specifier: workspace:*
+        version: link:../extension-api
       '@nervekit/extensions':
         specifier: workspace:*
         version: link:../extensions

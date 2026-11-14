@@ -5,18 +5,19 @@
  */
 
 import type {
+  ExtensionContext,
   ImageBackendRequest,
   ImagegenBackend,
-  ImagegenSettings,
-} from "@nervekit/tools/quick-script/runtime/sdk-types";
+} from "@nervekit/extension-api";
 
-export type {
-  ImageBackendRequest,
-  ImageGenerateRequest,
-  ImageGenerateResponse,
-  ImagegenBackend,
-  ImagegenSettings,
-} from "@nervekit/tools/quick-script/runtime/sdk-types";
+/** The resolved settings of the extension. */
+export type ImagegenSettings = {
+  backend: ImagegenBackend;
+  model: string;
+  quality: string;
+  size: string;
+  background: string;
+};
 
 export const IMAGEGEN_BACKENDS = [
   "openai-codex",
@@ -69,6 +70,18 @@ export function resolveImagegenSettings(raw: unknown): ImagegenSettings {
   };
 }
 
+/** The extension's settings as `ctx` resolves them. */
+export function imagegenSettingsOf(ctx: ExtensionContext): ImagegenSettings {
+  return resolveImagegenSettings(
+    Object.fromEntries(
+      ["backend", "model", "quality", "size", "background"].map((key) => [
+        key,
+        ctx.settings.get(key),
+      ]),
+    ),
+  );
+}
+
 /** `auto` or `<width>x<height>`: multiples of 16, long edge up to 3840, ratio up to 3:1, 0.65 to 8.3 megapixels. */
 export function assertOpenAiCodexSize(size: unknown): string {
   const text = typeof size === "string" ? size.trim() : "";
@@ -102,6 +115,30 @@ function oneOf(
   if (typeof value !== "string" || !allowed.includes(value))
     throw new Error(`${name} must be one of: ${allowed.join(", ")}.`);
   return value;
+}
+
+/** Checks the call's own `size` and `backendOptions`, which do not depend on the configured settings (all backends today are openai-codex). */
+export function assertCallOptions(call: {
+  size?: string;
+  backendOptions?: Record<string, unknown>;
+}): void {
+  if (call.size !== undefined) assertOpenAiCodexSize(call.size);
+  const extra = call.backendOptions ?? {};
+  const unknown = Object.keys(extra).filter(
+    (key) => key !== "quality" && key !== "background",
+  );
+  if (unknown.length > 0)
+    throw new Error(
+      `backendOptions.${unknown[0]} is not an option of openai-codex; valid: quality, background.`,
+    );
+  if (extra.quality !== undefined)
+    oneOf("backendOptions.quality", extra.quality, OPENAI_CODEX_QUALITIES);
+  if (extra.background !== undefined)
+    oneOf(
+      "backendOptions.background",
+      extra.background,
+      OPENAI_CODEX_BACKGROUNDS,
+    );
 }
 
 /** Applies the call's `size` and `backendOptions` over the configured settings; throws a teaching error for options the backend does not have. */

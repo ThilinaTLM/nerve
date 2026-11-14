@@ -123,10 +123,9 @@ async function executeExtensionTool(
       ? value
       : undefined;
   return {
-    content: [
-      text,
-      ...reportLines([], artifacts, changes, env.report.notes),
-    ].join("\n"),
+    content: [text, ...reportLines(artifacts, changes, env.report.notes)].join(
+      "\n",
+    ),
     details: {
       extension: extension.id,
       tool: tool.name,

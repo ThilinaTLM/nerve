@@ -7,8 +7,6 @@ export const HTML_CONVERSION_TIMEOUT_MS = 10_000;
 const MAX_ACTIVE_WORKERS = 2;
 const MAX_QUEUED_CONVERSIONS = 16;
 
-export type HtmlConversionMode = "html" | "confluence-storage";
-
 export class HtmlConversionError extends ToolExecutionError {
   constructor(code: string, message: string, retryable = false) {
     super(code, message, {}, retryable);
@@ -16,7 +14,6 @@ export class HtmlConversionError extends ToolExecutionError {
 }
 
 interface ConversionOptions {
-  mode?: HtmlConversionMode;
   signal?: AbortSignal;
   /** Internal override used by deterministic timeout tests. */
   timeoutMs?: number;
@@ -111,7 +108,6 @@ async function runConversion(pending: PendingConversion): Promise<void> {
         execArgv: workerExecArgv(),
         workerData: {
           source,
-          mode: options.mode ?? "html",
           maxOutputBytes: HTML_CONVERSION_MAX_OUTPUT_BYTES,
         },
       },

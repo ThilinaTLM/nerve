@@ -7,17 +7,10 @@ import {
   resolveFieldSelection,
 } from "./issue.js";
 import { noteChange } from "./report.js";
-import {
-  clampInt,
-  nonEmptyString,
-  optionalText,
-} from "@nervekit/tools/quick-script/runtime/sdk-args";
-import {
-  defineMethod,
-  type SdkEnvironment,
-  type SdkMethod,
-} from "@nervekit/tools/quick-script/runtime/sdk-types";
+import { clampInt, nonEmptyString, optionalText } from "../shared/args.js";
 import { jiraBoard, jiraProject, jiraSprint } from "../shared/targets.js";
+import { defineMethod, type PathedMethod } from "../shared/define-method.js";
+import type { JiraSession } from "./session.js";
 
 const PAGE = 50;
 const MAX_ISSUES = 1000;
@@ -78,18 +71,17 @@ function durationDays(value: unknown): number {
   );
 }
 
-async function getSprint(env: SdkEnvironment, id: number) {
-  return await jiraRequest(await env.jira(), {
+async function getSprint(session: JiraSession, id: number) {
+  return await jiraRequest(session.connection, {
     api: "agile",
     parse: jsonObject,
     path: `/sprint/${id}`,
-    signal: env.context.signal,
   });
 }
 
 /** Full update (PUT replaces the sprint): current values overlaid with `changes`. */
 async function putSprint(
-  env: SdkEnvironment,
+  session: JiraSession,
   current: Record<string, unknown>,
   changes: Record<string, unknown>,
 ) {
@@ -99,36 +91,34 @@ async function putSprint(
     if (value !== undefined && value !== null) body[key] = value;
   }
   return sprintOf(
-    await jiraRequest(await env.jira(), {
+    await jiraRequest(session.connection, {
       api: "agile",
       parse: jsonObject,
       method: "PUT",
       path: `/sprint/${current.id}`,
       body,
-      signal: env.context.signal,
     }),
   );
 }
 
 /** Board for a new sprint: the given one, or the project's only scrum or team-managed board. */
 async function boardFor(
-  env: SdkEnvironment,
+  session: JiraSession,
   board: number | undefined,
   project: string | undefined,
 ): Promise<number> {
   if (board !== undefined) return board;
-  const key = project ?? (await env.jira()).defaultProjectKey;
+  const key = project ?? session.connection.defaultProjectKey;
   if (!key) {
     throw new Error(
       'Pass board (id) or project (key): { project: "APP", name: "Sprint 5" }.',
     );
   }
-  const page = await jiraRequest(await env.jira(), {
+  const page = await jiraRequest(session.connection, {
     api: "agile",
     parse: jsonObject,
     path: "/board",
     query: { projectKeyOrId: key, maxResults: PAGE },
-    signal: env.context.signal,
   });
   // Scrum and team-managed (`simple`) boards support sprints; kanban boards do not.
   const boards = list(page.values)
@@ -145,13 +135,13 @@ async function boardFor(
 
 /** Keys of a sprint's issues, optionally filtered by JQL. */
 async function sprintIssues(
-  env: SdkEnvironment,
+  session: JiraSession,
   id: number,
   query: { jql?: string; fields: string[]; limit: number },
 ) {
   const out: unknown[] = [];
   while (out.length < query.limit) {
-    const page = await jiraRequest(await env.jira(), {
+    const page = await jiraRequest(session.connection, {
       api: "agile",
       parse: jsonObject,
       path: `/sprint/${id}/issue`,
@@ -161,7 +151,6 @@ async function sprintIssues(
         startAt: out.length,
         maxResults: Math.min(PAGE, query.limit - out.length),
       },
-      signal: env.context.signal,
     });
     const batch = list(page.issues);
     out.push(...batch);
@@ -172,17 +161,16 @@ async function sprintIssues(
 }
 
 async function moveIssues(
-  env: SdkEnvironment,
+  session: JiraSession,
   keys: string[],
   target: number | "backlog",
 ) {
   for (let i = 0; i < keys.length; i += PAGE) {
-    await jiraRequest(await env.jira(), {
+    await jiraRequest(session.connection, {
       api: "agile",
       method: "POST",
       path: target === "backlog" ? "/backlog/issue" : `/sprint/${target}/issue`,
       body: { issues: keys.slice(i, i + PAGE) },
-      signal: env.context.signal,
     });
   }
 }
@@ -194,7 +182,7 @@ const sprintAuthorization = (id: number) => ({
 
 const SPRINT = "Sprint";
 
-export const jiraSprintMethods: SdkMethod[] = [
+export const jiraSprintMethods: PathedMethod<JiraSession>[] = [
   defineMethod({
     product: "jira",
     path: "sprints.create",
@@ -223,10 +211,10 @@ export const jiraSprintMethods: SdkMethod[] = [
     }),
     resource: ({ project, board }) =>
       board === undefined ? `project ${project ?? "Jira"}` : `board ${board}`,
-    async run({ board, project, name, goal, startDate, endDate }, env) {
-      const originBoardId = await boardFor(env, board, project);
+    async run({ board, project, name, goal, startDate, endDate }, session) {
+      const originBoardId = await boardFor(session, board, project);
       const created = sprintOf(
-        await jiraRequest(await env.jira(), {
+        await jiraRequest(session.connection, {
           api: "agile",
           parse: jsonObject,
           method: "POST",
@@ -238,10 +226,9 @@ export const jiraSprintMethods: SdkMethod[] = [
             ...(startDate ? { startDate } : {}),
             ...(endDate ? { endDate } : {}),
           },
-          signal: env.context.signal,
         }),
       );
-      noteChange(env, "created", `sprint ${created.id}`);
+      noteChange(session, "created", `sprint ${created.id}`);
       return { ...created, boardId: created.boardId || originBoardId };
     },
   }),
@@ -265,10 +252,10 @@ export const jiraSprintMethods: SdkMethod[] = [
     },
     authorize: ({ id }) => sprintAuthorization(id),
     resource: ({ id }) => `sprint ${id}`,
-    async run({ id, changes }, env) {
-      const current = await getSprint(env, id);
-      const updated = await putSprint(env, current, changes);
-      noteChange(env, "updated", `sprint ${id}`);
+    async run({ id, changes }, session) {
+      const current = await getSprint(session, id);
+      const updated = await putSprint(session, current, changes);
+      noteChange(session, "updated", `sprint ${id}`);
       return updated;
     },
   }),
@@ -293,8 +280,8 @@ export const jiraSprintMethods: SdkMethod[] = [
     },
     authorize: ({ id }) => sprintAuthorization(id),
     resource: ({ id }) => `sprint ${id}`,
-    async run({ id, endDate, days }, env) {
-      const current = await getSprint(env, id);
+    async run({ id, endDate, days }, session) {
+      const current = await getSprint(session, id);
       if (current.state !== "future") {
         throw new Error(
           `Sprint ${id} is ${String(current.state)}; only a future sprint can be started.`,
@@ -311,12 +298,12 @@ export const jiraSprintMethods: SdkMethod[] = [
           `Sprint ${id} has no end date: pass endDate or duration (e.g. "2w").`,
         );
       }
-      const started = await putSprint(env, current, {
+      const started = await putSprint(session, current, {
         state: "active",
         startDate: now.toISOString(),
         endDate: end,
       });
-      noteChange(env, "updated", `sprint ${id}`);
+      noteChange(session, "updated", `sprint ${id}`);
       return started;
     },
   }),
@@ -343,8 +330,8 @@ export const jiraSprintMethods: SdkMethod[] = [
       summary: `sprint ${id}`,
     }),
     resource: ({ id }) => `sprint ${id}`,
-    async run({ id, moveOpenTo }, env) {
-      const current = await getSprint(env, id);
+    async run({ id, moveOpenTo }, session) {
+      const current = await getSprint(session, id);
       if (current.state !== "active") {
         throw new Error(
           `Sprint ${id} is ${String(current.state)}; only an active sprint can be closed.`,
@@ -357,17 +344,17 @@ export const jiraSprintMethods: SdkMethod[] = [
         moveOpenTo === undefined
           ? []
           : (
-              await sprintIssues(env, id, {
+              await sprintIssues(session, id, {
                 jql: "statusCategory != Done",
                 fields: ["summary"],
                 limit: MAX_ISSUES,
               })
             ).map((raw) => String((raw as { key?: unknown }).key ?? ""));
-      const closed = await putSprint(env, current, { state: "closed" });
+      const closed = await putSprint(session, current, { state: "closed" });
       if (moveOpenTo !== undefined && open.length > 0) {
-        await moveIssues(env, open, moveOpenTo);
+        await moveIssues(session, open, moveOpenTo);
       }
-      noteChange(env, "updated", `sprint ${id}`);
+      noteChange(session, "updated", `sprint ${id}`);
       return { ...closed, moved: open };
     },
   }),
@@ -400,12 +387,12 @@ export const jiraSprintMethods: SdkMethod[] = [
       summary: `sprint ${id}`,
     }),
     resource: ({ id }) => `sprint ${id}`,
-    async run({ id, fields, jql, limit }, env) {
+    async run({ id, fields, jql, limit }, session) {
       const selection = fields
-        ? await resolveFieldSelection(fields, env.jiraFields)
+        ? await resolveFieldSelection(fields, () => session.fields())
         : defaultSelection(DEFAULT_SEARCH_FIELDS);
-      const { siteUrl } = await env.jira();
-      const raw = await sprintIssues(env, id, {
+      const { siteUrl } = session.connection;
+      const raw = await sprintIssues(session, id, {
         jql,
         fields: selection.map((field) => field.id),
         limit,
@@ -424,14 +411,13 @@ export const jiraSprintMethods: SdkMethod[] = [
     parse: (options) => sprintId(options.id),
     authorize: (id) => sprintAuthorization(id),
     resource: (id) => `sprint ${id}`,
-    async run(id, env) {
-      await jiraRequest(await env.jira(), {
+    async run(id, session) {
+      await jiraRequest(session.connection, {
         api: "agile",
         method: "DELETE",
         path: `/sprint/${pathSegment(String(id))}`,
-        signal: env.context.signal,
       });
-      noteChange(env, "deleted", `sprint ${id}`);
+      noteChange(session, "deleted", `sprint ${id}`);
       return { id };
     },
   }),

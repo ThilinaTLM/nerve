@@ -1,19 +1,15 @@
 import assert from "node:assert/strict";
-import { mkdtemp, readFile, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
 import { test } from "node:test";
 
 import { returned, setup } from "./test-harness.js";
-import { nestedName } from "@nervekit/tools/quick-script/runtime/test-nested";
+import { nestedName } from "../test-support.js";
 
 const PNG = Uint8Array.from([
   0x89, 0x50, 0x4e, 0x47, 0, 255, 0xc3, 0x28, 13, 10,
 ]);
 
 void test("attachments.download writes exact bytes to a fresh artifact and authorizes as a read", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "jira-dl-"));
-  const { authorized, run } = setup((s) => {
+  const { authorized, run, harness } = setup((s) => {
     if (s.path === "/attachment/9")
       return Response.json({ id: "9", filename: "shot one.png", size: 10 });
     if (s.path === "/attachment/content/9")
@@ -23,14 +19,12 @@ void test("attachments.download writes exact bytes to a fresh artifact and autho
     `const a = await jira.attachments.download("9");
      const b = await jira.attachments.download({ id: "9", name: "x.png" });
      return [a, b];`,
-    process.cwd(),
-    dir,
   );
   assert.match(result.content ?? "", /artifact:shot one-1\.png/);
   assert.match(result.content ?? "", /artifact:x\.png/);
   for (const name of ["shot one-1.png", "x.png"]) {
     assert.deepEqual(
-      new Uint8Array(await readFile(join(dir, "quick-script", name))),
+      harness.record.artifacts.get(`artifact:${name}`)?.bytes,
       PNG,
     );
   }
@@ -48,8 +42,6 @@ void test("attachments.download refuses files over the size limit", async () => 
   });
   const result = await run(
     `try { await jira.attachments.download("9"); } catch (e) { console.log(e.code, e.message); }`,
-    process.cwd(),
-    await mkdtemp(join(tmpdir(), "jira-dl-")),
   );
   assert.match(
     result.content ?? "",
@@ -142,16 +134,13 @@ void test("jira.adf converts Markdown both ways without authorization", async ()
 });
 
 void test("jira.request encodes query values and saves binary GET responses as artifacts", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "jira-raw-"));
-  const { sent, run } = setup((s) => {
+  const { sent, run, harness } = setup((s) => {
     if (s.path === "/thumb.png")
       return new Response(PNG, { headers: { "content-type": "image/png" } });
   });
   const result = await run(
     `const j = await jira.request("GET", "/rest/api/3/search/jql", undefined, { jql: "a b&c", fields: ["x", "y"], n: 2 });
      return await jira.request("GET", "/rest/api/3/thumb.png");`,
-    process.cwd(),
-    dir,
   );
   const call = sent.find((s) => s.path === "/search/jql")!;
   assert.equal(call.query.get("jql"), "a b&c");
@@ -159,24 +148,21 @@ void test("jira.request encodes query values and saves binary GET responses as a
   assert.equal(call.query.get("n"), "2");
   assert.match(result.content ?? "", /artifact:response-1\.png/);
   assert.deepEqual(
-    new Uint8Array(await readFile(join(dir, "quick-script", "response-1.png"))),
+    harness.record.artifacts.get("artifact:response-1.png")?.bytes,
     PNG,
   );
 });
 
 void test("every Jira create path reports what it created", async () => {
-  const cwd = await mkdtemp(join(tmpdir(), "jira-created-"));
-  await writeFile(join(cwd, "n.txt"), "hi");
-  const { run } = setup();
+  const { run } = setup(undefined, { files: { "n.txt": "hi" } });
   const result = await run(
     `await jira.issues.create({ type: "Task", summary: "s" });
      await jira.comments.add({ key: "APP-1", body: "x" });
      await jira.worklogs.add({ key: "APP-1", time: "1h" });
      await jira.issues.link({ key: "APP-1", to: "APP-2", type: "Blocks" });
      await jira.attachments.upload({ key: "APP-1", file: "n.txt" });`,
-    cwd,
   );
-  assert.deepEqual((result.details as { created?: string[] }).created, [
+  assert.deepEqual(result.details.created, [
     "APP-10",
     "comment 77 on APP-1",
     "worklog 5 on APP-1",

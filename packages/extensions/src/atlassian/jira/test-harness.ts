@@ -1,11 +1,5 @@
 /** Shared mocked-HTTP harness for the Jira quick-script tests. */
-import { afterEach } from "node:test";
-import { executeQuickScript } from "@nervekit/tools/quick-script/runtime/quick-script";
-
-const originalFetch = globalThis.fetch;
-afterEach(() => {
-  globalThis.fetch = originalFetch;
-});
+import { createHarness, type HarnessOptions } from "../test-support.js";
 
 export type Sent = {
   method: string;
@@ -14,8 +8,7 @@ export type Sent = {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   body: any;
 };
-export type { Nested } from "@nervekit/tools/quick-script/runtime/test-nested";
-import type { Nested } from "@nervekit/tools/quick-script/runtime/test-nested";
+export { returned, type Nested } from "../test-support.js";
 
 export const FIELDS = [
   { id: "summary", name: "Summary", custom: false, schema: { type: "string" } },
@@ -133,16 +126,17 @@ export const TRANSITIONS = [
   },
 ];
 
-export function setup(extra?: (sent: Sent) => Response | undefined) {
+export function setup(
+  extra?: (sent: Sent) => Response | undefined,
+  options: Omit<HarnessOptions, "fetch"> = {},
+) {
   const sent: Sent[] = [];
-  const authorized: Nested[] = [];
-  globalThis.fetch = async (input, init) => {
-    const url = new URL(String(input));
+  const fetch: HarnessOptions["fetch"] = async (url, init) => {
     const entry: Sent = {
-      method: init?.method ?? "GET",
+      method: init.method,
       path: url.pathname.replace("/rest/api/3", ""),
       query: url.searchParams,
-      body: typeof init?.body === "string" ? JSON.parse(init.body) : init?.body,
+      body: typeof init.body === "string" ? JSON.parse(init.body) : init.body,
     };
     sent.push(entry);
     const custom = extra?.(entry);
@@ -198,31 +192,9 @@ export function setup(extra?: (sent: Sent) => Response | undefined) {
       return Response.json([{ id: "9", filename: "n.txt", size: 2 }]);
     return new Response(null, { status: 204 });
   };
-  const run = (code: string, cwd = process.cwd(), conversationDir?: string) =>
-    executeQuickScript(
-      { code },
-      {
-        cwd,
-        conversationDir,
-        getApiKey: async () => "token",
-        getProviderConfig: async () => ({
-          enabled: true,
-          siteUrl: "https://example.atlassian.net",
-          email: "dev@example.com",
-          defaultProjectKey: "APP",
-        }),
-        authorizeNested: async (request: Nested) => {
-          authorized.push(request);
-        },
-      },
-    );
-  return { sent, authorized, run };
-}
-
-/** The JSON a script returned: everything before the footer line. */
-export function returned(content: string | undefined) {
-  const text = content ?? "";
-  return JSON.parse(text.slice(0, text.lastIndexOf("\njira ")));
+  const harness = createHarness({ ...options, fetch });
+  const run = (code: string) => harness.run(code);
+  return { sent, authorized: harness.authorized, run, harness };
 }
 
 export const lastOf = (sent: Sent[], method: string, path: string) =>

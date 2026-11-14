@@ -2,6 +2,7 @@
  * Per-tool-view sample data (file, search, web and todo tools) for the ToolCards gallery section. Builders and
  * lifecycle fixtures live in `tool-card-fixtures.ts`.
  */
+import { setExtensionToolNames } from "$lib/presentation/tools/lifecycle/extension-tools";
 import {
   SAMPLE_CWD,
   sampleApproval,
@@ -9,6 +10,9 @@ import {
   sampleCall,
   sampleDraft,
 } from "./tool-card-fixtures";
+
+// The gallery shows `web_search` as the extension tool it is.
+setExtensionToolNames(["web_search"]);
 
 const DIFF = `--- a/src/lib/presentation/cards/MetaChip.svelte
 +++ b/src/lib/presentation/cards/MetaChip.svelte
@@ -465,25 +469,64 @@ export const webSearchCompleted = sampleCall({
   result: {
     content: "2 results",
     details: {
-      query: "svelte 5 runes $state deep reactivity",
-      answer:
-        "In Svelte 5, $state makes objects and arrays deeply reactive via proxies; reassigning is not required for mutation to be tracked.",
-      results: [
-        {
-          title: "$state • Svelte Docs",
-          url: "https://svelte.dev/docs/svelte/$state",
-          content:
-            "$state creates reactive state. Arrays and plain objects are turned into deeply reactive proxies.",
-          score: 0.92,
-        },
-        {
-          title:
-            "Understanding Svelte 5 reactivity: a long-form walkthrough of runes, signals, and fine-grained updates",
-          url: "https://example.com/blog/svelte-5-reactivity-walkthrough-with-a-very-long-path/that/keeps/going",
-          content: "A deep dive into how signals replaced stores.",
-          score: 0.71,
-        },
-      ],
+      extension: "web",
+      tool: "web_search",
+      display: {
+        kind: "links",
+        value: [
+          {
+            title: "$state • Svelte Docs",
+            url: "https://svelte.dev/docs/svelte/$state",
+            snippet:
+              "$state creates reactive state. Arrays and plain objects are turned into deeply reactive proxies.",
+          },
+          {
+            title:
+              "Understanding Svelte 5 reactivity: a long-form walkthrough of runes, signals, and fine-grained updates",
+            url: "https://example.com/blog/svelte-5-reactivity-walkthrough-with-a-very-long-path/that/keeps/going",
+            snippet: "A deep dive into how signals replaced stores.",
+          },
+        ],
+      },
+    },
+  },
+});
+
+export const extensionTableCompleted = sampleCall({
+  id: "tool_ext_table",
+  toolName: "web_search",
+  args: { query: "release versions" },
+  result: {
+    content: "3 rows",
+    details: {
+      extension: "web",
+      tool: "web_search",
+      display: {
+        kind: "table",
+        value: [
+          { name: "svelte", version: "5.1.0", released: "2025-01-12" },
+          { name: "tailwindcss", version: "4.0.2", released: "2025-02-03" },
+          { name: "vite", version: "6.2.0", released: "2025-02-20" },
+        ],
+      },
+    },
+  },
+});
+
+export const extensionMarkdownCompleted = sampleCall({
+  id: "tool_ext_md",
+  toolName: "web_search",
+  args: { query: "release notes" },
+  result: {
+    content: "# Release notes",
+    details: {
+      extension: "web",
+      tool: "web_search",
+      display: {
+        kind: "markdown",
+        value:
+          "# Release notes\n\n- Faster **startup**\n- Fixed `tool` cards\n\nSee [the docs](https://example.com).",
+      },
     },
   },
 });

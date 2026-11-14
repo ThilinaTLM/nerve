@@ -4,6 +4,7 @@ import { afterEach, test } from "node:test";
 import { quickScriptResultDetailsSchema } from "@nervekit/contracts/tools";
 import { executeQuickScript } from "@nervekit/tools/quick-script/runtime/quick-script";
 import type { Nested } from "@nervekit/tools/quick-script/runtime/test-nested";
+import { atlassianPorts, mockedNetwork } from "./atlassian-context.js";
 
 const originalFetch = globalThis.fetch;
 afterEach(() => {
@@ -13,12 +14,8 @@ afterEach(() => {
 function context(authorized: Nested[] = []) {
   return {
     cwd: process.cwd(),
-    getApiKey: async () => "token",
-    getProviderConfig: async (): Promise<Record<string, unknown>> => ({
-      enabled: true,
-      siteUrl: "https://example.atlassian.net",
-      email: "dev@example.com",
-    }),
+    extensionPorts: atlassianPorts(),
+    webFetchPolicy: mockedNetwork,
     authorizeNested: async (request: Nested) => {
       authorized.push(request);
     },
@@ -84,13 +81,8 @@ void test("atlassian.defaults() returns configured products once per run", async
     `const a = await atlassian.defaults(); await atlassian.defaults(); return a;`,
     {
       ...context(authorized),
-      getProviderConfig: async (id?: string) => ({
-        enabled: true,
-        siteUrl: "https://example.atlassian.net",
-        email: "dev@example.com",
-        ...(id === "jira"
-          ? { defaultProjectKey: "SCRUM" }
-          : { defaultSpaceKey: "ENG" }),
+      extensionPorts: atlassianPorts({
+        fields: { defaultProjectKey: "SCRUM", defaultSpaceKey: "ENG" },
       }),
     },
   );
@@ -108,14 +100,7 @@ void test("atlassian.defaults() omits an unconfigured product", async () => {
     });
   const result = await run(`return await atlassian.defaults();`, {
     ...context(),
-    getProviderConfig: async (id?: string) =>
-      id === "jira"
-        ? {
-            enabled: true,
-            siteUrl: "https://example.atlassian.net",
-            email: "dev@example.com",
-          }
-        : { enabled: false },
+    extensionPorts: atlassianPorts({ products: { confluence: false } }),
   });
   assert.equal(result.exitCode, 0, result.content);
   assert.match(result.content ?? "", /jira/);
@@ -125,9 +110,7 @@ void test("atlassian.defaults() omits an unconfigured product", async () => {
 void test("a script runs without integrations; an absent product names the setting to fix", async () => {
   const none = {
     ...context(),
-    getApiKey: async (): Promise<string | undefined> => undefined,
-    getProviderConfig: async (): Promise<Record<string, unknown> | undefined> =>
-      undefined,
+    extensionPorts: atlassianPorts({ account: false }),
   };
   const ok = await run(`return 1 + 1;`, none);
   assert.equal(ok.exitCode, 0, ok.content);
@@ -157,11 +140,11 @@ void test("a 401 stops the whole script with one message and no further requests
   assert.doesNotMatch(result.content ?? "", /never printed/);
   assert.match(
     result.content ?? "",
-    /Jira rejected the API token for dev@example\.com; update it in Settings → Extensions → Atlassian\.\n.*failed · exit 1$/s,
+    /example\.atlassian\.net rejected the credential of the Atlassian account "Acme" \(HTTP 401\)\. Ask the user to check .* in Settings → Extensions → Atlassian\.\n.*failed · exit 1$/s,
   );
   const details = quickScriptResultDetailsSchema.parse(result.details);
   assert.equal(details.status, "failed");
-  assert.equal(details.error?.startsWith("Jira rejected"), true);
+  assert.equal(details.error?.includes("rejected the credential"), true);
   assert.equal(details.hostCalls[0].outcome, "failed");
 });
 

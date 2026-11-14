@@ -1,115 +1,69 @@
-import {
-  detectSupportedImageMimeType,
-  ToolExecutionError,
-} from "@nervekit/tools/execution";
-import { startsWithSvgRoot } from "./svg-header.js";
+import { ExtensionError, type ExtensionContext } from "@nervekit/extension-api";
 
 const MAX_RESPONSE_BYTES = 5 * 1024 * 1024;
+const PNG_SIGNATURE = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
 
-async function readBounded(
-  response: Response,
-  limit: number,
-  signal: AbortSignal,
-  truncate = false,
-): Promise<Buffer> {
-  if (!truncate && Number(response.headers.get("content-length")) > limit) {
-    await response.body?.cancel();
-    throw new Error(`Kroki output exceeds ${limit} bytes.`);
-  }
-  const reader = response.body?.getReader();
-  if (!reader) return Buffer.alloc(0);
-  const cancel = () => {
-    void reader.cancel().catch(() => undefined);
-  };
-  signal.addEventListener("abort", cancel, { once: true });
-  const chunks: Uint8Array[] = [];
-  let bytes = 0;
-  try {
-    while (true) {
-      signal.throwIfAborted();
-      const { done, value } = await reader.read();
-      signal.throwIfAborted();
-      if (done) break;
-      if (bytes + value.byteLength > limit) {
-        if (!truncate) throw new Error(`Kroki output exceeds ${limit} bytes.`);
-        chunks.push(value.subarray(0, limit - bytes));
-        break;
-      }
-      chunks.push(value);
-      bytes += value.byteLength;
-      if (truncate && bytes === limit) break;
-    }
-    return Buffer.concat(chunks);
-  } finally {
-    signal.removeEventListener("abort", cancel);
-    await reader.cancel().catch(() => undefined);
-    reader.releaseLock();
-  }
+/** A Kroki diagram engine name (`mermaid`, `plantuml`, …). */
+export const KROKI_DIAGRAM_TYPE = /^[a-z][a-z0-9-]{0,63}$/;
+
+/** Which part of an error body is worth showing: text only, without the diagram source. */
+function diagnosticOf(body: unknown, source: string): string {
+  const text =
+    body instanceof Uint8Array
+      ? new TextDecoder().decode(body.subarray(0, 4 * 1024))
+      : "";
+  return text
+    .replaceAll(source, "[diagram source omitted]")
+    .replace(/<[^>]*>/g, " ")
+    .replace(/\p{Cc}/gu, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 512);
 }
 
-/** POSTs a diagram to Kroki and returns validated output bytes (`diagram.render`). */
-export async function fetchKrokiDiagram(options: {
-  url: string;
-  diagramType: string;
-  source: string;
-  outputFormat: "svg" | "png";
-  signal: AbortSignal;
-}): Promise<Buffer> {
-  const { url, diagramType, source, outputFormat, signal } = options;
-  const mediaType = outputFormat === "svg" ? "image/svg+xml" : "image/png";
-  signal.throwIfAborted();
-  const response = await fetch(url, {
+/** POSTs a diagram to the Kroki server and returns validated PNG bytes (`diagram.render`). */
+export async function fetchKrokiDiagram(
+  ctx: ExtensionContext,
+  options: { url: string; diagramType: string; source: string },
+): Promise<Uint8Array> {
+  const { url, diagramType, source } = options;
+  const response = await ctx.http.request({
+    url,
     method: "POST",
-    redirect: "manual",
-    headers: { "Content-Type": "application/json", Accept: mediaType },
-    body: JSON.stringify({
-      diagram_source: source,
-      diagram_type: diagramType,
-      output_format: outputFormat,
-    }),
-    signal,
+    headers: { accept: "image/png" },
+    body: {
+      json: {
+        diagram_source: source,
+        diagram_type: diagramType,
+        output_format: "png",
+      },
+    },
+    response: "bytes",
+    maxBytes: MAX_RESPONSE_BYTES,
+    timeoutMs: 60_000,
   });
-  if (response.status >= 300 && response.status < 400) {
-    await response.body?.cancel();
-    throw new ToolExecutionError(
-      "KROKI_REDIRECT",
-      "Kroki redirects are not allowed. Configure the final server URL in Settings.",
-    );
-  }
   if (!response.ok) {
-    const body = await readBounded(response, 4 * 1024, signal, true);
-    const diagnostic = body
-      .toString("utf8")
-      .replaceAll(source, "[diagram source omitted]")
-      .replace(/<[^>]*>/g, " ")
-      .replace(/\p{Cc}/gu, " ")
-      .replace(/\s+/g, " ")
-      .trim()
-      .slice(0, 512);
-    throw new ToolExecutionError(
-      "KROKI_HTTP_ERROR",
+    const diagnostic = diagnosticOf(response.body, source);
+    throw new ExtensionError(
+      response.status >= 500 ? "SERVER_ERROR" : "BAD_REQUEST",
       `Kroki returned HTTP ${response.status}${diagnostic ? `: ${diagnostic}` : "."}`,
     );
   }
   if (
-    response.headers
-      .get("content-type")
-      ?.split(";", 1)[0]
-      ?.trim()
-      .toLowerCase() !== mediaType
-  ) {
-    await response.body?.cancel();
-    throw new Error(`Kroki did not return ${mediaType}.`);
-  }
-  const data = await readBounded(response, MAX_RESPONSE_BYTES, signal);
-  if (!data.byteLength) throw new Error("Kroki returned an empty diagram.");
-  const valid =
-    outputFormat === "png"
-      ? detectSupportedImageMimeType(data) === "image/png"
-      : startsWithSvgRoot(data.subarray(0, 512).toString("utf8"));
-  if (!valid)
-    throw new Error(
-      `Kroki returned invalid ${outputFormat.toUpperCase()} data.`,
+    response.headers["content-type"]?.split(";", 1)[0]?.trim().toLowerCase() !==
+    "image/png"
+  )
+    throw new ExtensionError("SERVER_ERROR", "Kroki did not return image/png.");
+  const data = response.body as Uint8Array;
+  if (!data.byteLength)
+    throw new ExtensionError(
+      "SERVER_ERROR",
+      "Kroki returned an empty diagram.",
+    );
+  if (!PNG_SIGNATURE.every((byte, index) => data[index] === byte))
+    throw new ExtensionError(
+      "SERVER_ERROR",
+      "Kroki returned invalid PNG data.",
     );
   return data;
 }

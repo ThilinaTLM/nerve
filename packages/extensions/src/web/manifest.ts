@@ -1,20 +1,22 @@
+import {
+  defineExtension,
+  defineNamespace,
+  defineTool,
+} from "@nervekit/extension-api";
 import { readExtensionDoc } from "../docs-source.js";
-import type { ExtensionManifest } from "@nervekit/tools/quick-script/manifest-types";
 import { WEB_DTS_TYPES } from "./declarations.js";
-import { webMethods } from "./web-methods.js";
+import { MAX_FETCH_BYTES, webMethods } from "./web-methods.js";
 
 /** `web.fetch` needs only the switch; `web.search` also needs a Tavily account. */
-export const webExtension: ExtensionManifest = {
+export const webExtension = defineExtension({
   id: "web",
+  apiVersion: 1,
   name: "Web",
   description: "Fetch web pages and search the web.",
-  source: "builtin",
   icon: "globe",
   enabledByDefault: false,
-  settingsVersion: 1,
-  accounts: [
-    {
-      kind: "tavily",
+  accounts: {
+    tavily: {
       label: "Tavily account",
       fields: { name: { type: "string", label: "Name", maxLength: 128 } },
       secret: {
@@ -24,8 +26,9 @@ export const webExtension: ExtensionManifest = {
       auth: { scheme: "bearer" },
       origins: ["https://api.tavily.com"],
     },
-  ],
+  },
   settings: {
+    version: 1,
     fields: {
       searchAccount: {
         type: "account",
@@ -35,21 +38,38 @@ export const webExtension: ExtensionManifest = {
       },
     },
   },
-  permissions: { network: ["https://api.tavily.com"] },
+  // `*`: `web.fetch` reaches any public http(s) origin; the host's SSRF guard still applies.
+  permissions: { network: ["https://api.tavily.com", "*"] },
   readDoc: (file) => readExtensionDoc("web", file),
-  contributes: {
-    tools: ["web_fetch", "web_search"],
-    sdk: [
-      {
-        id: "web",
-        summary: "fetch, search",
-        rules: [
-          "`web.fetch` content can be up to {{limit:web.fetch}}: slice before printing. `web.search` needs a Tavily account, else `DENIED`.",
-        ],
-        methods: webMethods,
-        types: WEB_DTS_TYPES,
-        docs: [],
+  limits: { "web.fetch": MAX_FETCH_BYTES },
+  namespaces: [
+    defineNamespace({
+      id: "web",
+      summary: "fetch, search",
+      rules: [
+        "`web.fetch` content can be up to {{limit:web.fetch}}: slice before printing. `web.search` needs a Tavily account, else `DENIED`.",
+      ],
+      methods: webMethods,
+      types: WEB_DTS_TYPES,
+    }),
+  ],
+  tools: [
+    defineTool({
+      name: "web_search",
+      label: "Web Search",
+      method: "web.search",
+      description: "Search the web.",
+      parameters: {
+        type: "object",
+        properties: {
+          query: { type: "string" },
+          max_results: { type: "number", minimum: 1, maximum: 20, default: 5 },
+        },
+        required: ["query"],
+        additionalProperties: false,
       },
-    ],
-  },
-};
+      display: "links",
+      requires: { account: "searchAccount" },
+    }),
+  ],
+});

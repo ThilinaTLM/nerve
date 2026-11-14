@@ -1,14 +1,11 @@
-import { rm } from "node:fs/promises";
-import { ToolExecutionError } from "@nervekit/tools/execution";
-import type { BinarySink } from "@nervekit/tools/quick-script/runtime/files/artifacts";
-import { BodyTooLargeError, streamBodyToFile } from "./stream-download.js";
-
-/** Largest textual raw response body returned to a script. */
-export const RAW_RESPONSE_MAX_BYTES = 5 * 1024 * 1024;
-/** Largest binary raw response streamed to an artifact; matches the attachment transfer limit. */
-export const RAW_BINARY_MAX_BYTES = 100 * 1024 * 1024;
-/** Largest binary response handed to a buffering `onBinary` function. */
-const RAW_BINARY_BUFFERED_MAX_BYTES = 25 * 1024 * 1024;
+import { ExtensionError } from "@nervekit/extension-api";
+import { MAX_FILE_BYTES } from "./files.js";
+import {
+  send,
+  TEXT_RESPONSE_MAX_BYTES,
+  type Connection,
+  type Service,
+} from "./transport.js";
 
 const RAW_METHODS = ["GET", "POST", "PUT", "PATCH", "DELETE"] as const;
 
@@ -74,71 +71,62 @@ function appendRawQuery(url: URL, query: unknown): void {
 
 const TEXTUAL_CONTENT_TYPE = /json|text|xml|javascript|x-www-form-urlencoded/i;
 
-/** A sink streams to disk; a function receives the whole body in memory (capped at 25 MB). */
-export type BinaryHandler =
-  | BinarySink
-  | ((bytes: Buffer, contentType: string) => Promise<unknown>);
+/** Names the artifact a binary response is saved as: `<base>-<n><extension>`. */
+export type BinaryNaming = {
+  base: string;
+  extensionFor: (contentType: string) => string;
+};
 
 /**
- * Reads a successful body (capped), returning parsed JSON when it is JSON and
- * text otherwise. With `onBinary`, a response whose content type is not
- * textual is handed to it instead of being decoded.
+ * The raw request of `jira.request` / `confluence.request`: JSON or text
+ * back, parsed when it is JSON. With `binary`, a response whose content type is
+ * not textual is saved as an artifact and its handle returned. The body is held
+ * in memory (the host's 20 MB limit), unlike attachment downloads.
  */
-export async function readRawBody(
-  response: Response,
-  onBinary?: BinaryHandler,
+export async function sendRaw(
+  connection: Connection,
+  options: {
+    service: Service;
+    url: URL;
+    method: string;
+    body?: unknown;
+    binary?: BinaryNaming;
+  },
 ): Promise<unknown> {
-  const contentType = response.headers.get("content-type") ?? "";
-  const binary = Boolean(
-    onBinary && contentType && !TEXTUAL_CONTENT_TYPE.test(contentType),
-  );
-  const sink = binary && typeof onBinary === "object" ? onBinary : undefined;
-  const limit = !binary
-    ? RAW_RESPONSE_MAX_BYTES
-    : sink
-      ? RAW_BINARY_MAX_BYTES
-      : RAW_BINARY_BUFFERED_MAX_BYTES;
-  const tooLarge = () =>
-    new ToolExecutionError(
-      "RESPONSE_TOO_LARGE",
-      binary
-        ? `Binary response is larger than ${limit / 1048576} MB.`
-        : "Response is larger than 5 MB; narrow the request (fields, limit, paging).",
+  const hasBody =
+    options.body !== undefined &&
+    options.body !== null &&
+    options.method !== "GET";
+  const response = await send(connection, {
+    service: options.service,
+    url: options.url,
+    method: options.method,
+    ...(hasBody ? { body: { json: options.body } } : {}),
+    response: "bytes",
+    maxBytes: MAX_FILE_BYTES,
+    errorPath: options.url.pathname,
+  });
+  const contentType = response.headers["content-type"] ?? "";
+  const bytes =
+    response.body instanceof Uint8Array ? response.body : new Uint8Array();
+  if (
+    options.binary &&
+    contentType &&
+    !TEXTUAL_CONTENT_TYPE.test(contentType)
+  ) {
+    const { artifacts } = connection.ctx;
+    const name = await artifacts.freshName(
+      options.binary.base,
+      options.binary.extensionFor(contentType),
     );
-  if (sink) {
-    const path = await sink.prepare(contentType);
-    try {
-      const bytes = await streamBodyToFile(response, path, { maxBytes: limit });
-      return await sink.commit(path, bytes, contentType);
-    } catch (error) {
-      await rm(path, { force: true });
-      throw error instanceof BodyTooLargeError ? tooLarge() : error;
-    }
+    return (await artifacts.write(name, bytes, contentType)).handle;
   }
-  const declared = Number(response.headers.get("content-length") ?? 0);
-  if (declared > limit) {
-    await response.body?.cancel();
-    throw tooLarge();
-  }
-  const reader = response.body?.getReader();
-  const chunks: Uint8Array[] = [];
-  let bytes = 0;
-  if (reader) {
-    for (;;) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      bytes += value.byteLength;
-      if (bytes > limit) {
-        await reader.cancel();
-        throw tooLarge();
-      }
-      chunks.push(value);
-    }
-  }
-  if (binary && typeof onBinary === "function") {
-    return await onBinary(Buffer.concat(chunks), contentType);
-  }
-  const text = Buffer.concat(chunks).toString("utf8");
+  if (bytes.byteLength > TEXT_RESPONSE_MAX_BYTES)
+    throw new ExtensionError(
+      "BAD_REQUEST",
+      "Response is larger than 5 MB; narrow the request (fields, limit, paging).",
+    );
+  const text = new TextDecoder().decode(bytes);
   if (!text.trim()) return null;
   try {
     return JSON.parse(text) as unknown;

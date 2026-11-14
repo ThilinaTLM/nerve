@@ -193,7 +193,7 @@ export function extensionSummary(
   return parts.length > 0 ? parts.join(" · ") : extension.metadata.description;
 }
 
-function sentence(text: string): string {
+export function sentence(text: string): string {
   return text.charAt(0).toUpperCase() + text.slice(1);
 }
 

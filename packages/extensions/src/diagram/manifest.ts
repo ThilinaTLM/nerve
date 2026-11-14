@@ -1,17 +1,17 @@
+import { defineExtension, defineNamespace } from "@nervekit/extension-api";
 import { readExtensionDoc } from "../docs-source.js";
-import type { ExtensionManifest } from "@nervekit/tools/quick-script/manifest-types";
 import { diagramMethods, MAX_SOURCE_BYTES } from "./diagram-methods.js";
 
 /** Diagrams rendered to PNG artifacts by a Kroki server. */
-export const diagramExtension: ExtensionManifest = {
+export const diagramExtension = defineExtension({
   id: "diagram",
+  apiVersion: 1,
   name: "Diagrams",
   description: "Render Mermaid, D2, PlantUML and other diagrams with Kroki.",
-  source: "builtin",
   icon: "workflow",
   enabledByDefault: true,
-  settingsVersion: 1,
   settings: {
+    version: 1,
     fields: {
       server: {
         type: "string",
@@ -27,23 +27,21 @@ export const diagramExtension: ExtensionManifest = {
   // The Kroki server the user configured; it may be on a private network.
   permissions: { network: ["{settings.server}"] },
   readDoc: (file) => readExtensionDoc("diagram", file),
+  // Declared by the extension; the host fills `{{limit:diagram.source}}` in docs and rules.
   limits: { "diagram.source": MAX_SOURCE_BYTES },
-  contributes: {
-    sdk: [
-      {
-        id: "diagram",
-        summary: "Kroki: mermaid, d2, plantuml… to PNG",
-        methods: diagramMethods,
-        types: "",
-        docs: [
-          {
-            id: "diagram/render",
-            whenToRead:
-              "before rendering a diagram that goes on a page or slide",
-            file: "diagrams.md",
-          },
-        ],
-      },
-    ],
-  },
-};
+  namespaces: [
+    defineNamespace({
+      id: "diagram",
+      summary: "Kroki: mermaid, d2, plantuml… to PNG",
+      methods: diagramMethods,
+      types: "",
+      docs: [
+        {
+          id: "diagram/render",
+          whenToRead: "before rendering a diagram that goes on a page or slide",
+          file: "diagrams.md",
+        },
+      ],
+    }),
+  ],
+});

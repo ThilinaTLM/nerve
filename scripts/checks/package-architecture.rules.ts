@@ -47,6 +47,7 @@ export const ALLOWED_INTERNAL_DEPENDENCIES: ReadonlyMap<
       "@nervekit/protocol",
       "@nervekit/harness",
       "@nervekit/tools",
+      "@nervekit/extension-api",
       "@nervekit/extensions",
       "@nervekit/conversation-core",
     ],

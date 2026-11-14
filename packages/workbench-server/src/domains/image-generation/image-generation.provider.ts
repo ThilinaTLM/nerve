@@ -2,7 +2,7 @@ import type {
   ImageGenerateRequest,
   ImageGenerateResponse,
   ImagegenBackend,
-} from "@nervekit/extensions";
+} from "@nervekit/extension-api";
 
 /** Host side of an image generation backend: credentials and transport. The request carries every option, already validated. */
 export interface ImageGenerationProviderAdapter {

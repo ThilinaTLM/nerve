@@ -32,39 +32,6 @@ function outputText(result: Record<string, unknown>): string | undefined {
   return text.length > 0 ? text : undefined;
 }
 
-function webSearchResultPreview(value: unknown): Record<string, unknown> {
-  const result = record(value);
-  return {
-    title: result.title,
-    url: result.url,
-    content: result.content,
-    score: result.score,
-  };
-}
-
-export function buildWebSearchTranscriptPreview(
-  result: Record<string, unknown>,
-): WebToolTranscriptPreview {
-  const details = record(result.details);
-  const allResults = Array.isArray(details.results) ? details.results : [];
-  const results = allResults.slice(0, WEB_PREVIEW_COUNT);
-  const hidden = allResults.length - results.length;
-  return {
-    resultPreview: {
-      details: {
-        query: details.query,
-        answer: details.answer,
-        results: results.map(webSearchResultPreview),
-        outputLimits: details.outputLimits,
-      },
-    },
-    hidden,
-    noun: "results",
-    direction: "head",
-    semanticOverflow: hidden > 0,
-  };
-}
-
 export function buildWebFetchTranscriptPreview(
   result: Record<string, unknown>,
 ): WebToolTranscriptPreview {

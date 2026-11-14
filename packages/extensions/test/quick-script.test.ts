@@ -14,6 +14,7 @@ import {
   type Nested,
   nestedName,
 } from "@nervekit/tools/quick-script/runtime/test-nested";
+import { atlassianPorts, mockedNetwork } from "./atlassian-context.js";
 
 const originalFetch = globalThis.fetch;
 afterEach(() => {
@@ -28,12 +29,8 @@ function makeContext(options: {
 }) {
   return {
     cwd: process.cwd(),
-    getApiKey: async () => "token",
-    getProviderConfig: async () => ({
-      enabled: true,
-      siteUrl: "https://example.atlassian.net",
-      email: "dev@example.com",
-    }),
+    extensionPorts: atlassianPorts(),
+    webFetchPolicy: mockedNetwork,
     authorizeNested: async (request: Authorization) => {
       options.events.push(`authorize ${nestedName(request)}`);
       options.authorize?.(request);
@@ -257,17 +254,13 @@ const changes = (partial: Partial<ChangeReport>): ChangeReport => ({
 });
 
 void test("created, updated and deleted entities are listed on capped lines", () => {
-  assert.deepEqual(reportLines([], [], changes({})), []);
+  assert.deepEqual(reportLines([], changes({})), []);
   assert.deepEqual(
-    reportLines(
-      [],
-      [],
-      changes({ created: ["SCRUM-6", "comment 1 on SCRUM-6"] }),
-    ),
+    reportLines([], changes({ created: ["SCRUM-6", "comment 1 on SCRUM-6"] })),
     ["Created: SCRUM-6, comment 1 on SCRUM-6"],
   );
   const many = Array.from({ length: 23 }, (_, i) => `SCRUM-${i}`);
-  const [line] = reportLines([], [], changes({ created: many }));
+  const [line] = reportLines([], changes({ created: many }));
   assert.match(line, /SCRUM-19, \+3 more$/);
   assert.doesNotMatch(line, /SCRUM-20/);
 });
@@ -281,7 +274,7 @@ void test("an entity created and then deleted in one run is only shown as delete
       raw: ["POST /rest/api/3/x"],
     }),
   );
-  assert.deepEqual(reportLines([], [], report), [
+  assert.deepEqual(reportLines([], report), [
     "Created: SCRUM-7",
     "Updated: SCRUM-1",
     "Deleted: SCRUM-6 (created in this run), SCRUM-2, attachment 5 (created in this run)",
@@ -298,7 +291,6 @@ void test("the artifacts footer names the folder once so Read/Edit can open them
   });
   assert.deepEqual(
     reportLines(
-      [],
       [artifact("a.txt", 5), artifact("résumé 日本.md", 2048)],
       changes({}),
     ),

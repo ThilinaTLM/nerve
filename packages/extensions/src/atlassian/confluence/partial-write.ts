@@ -1,4 +1,4 @@
-import { ToolExecutionError } from "@nervekit/tools/execution";
+import { ExtensionError } from "@nervekit/extension-api";
 
 /**
  * Confluence writes are several requests, not one transaction. When a later
@@ -8,7 +8,7 @@ import { ToolExecutionError } from "@nervekit/tools/execution";
 export function partialWriteFailure(error: unknown, done: string): Error {
   const reason = error instanceof Error ? error.message : String(error);
   const message = `${reason} (${done})`;
-  return error instanceof ToolExecutionError
-    ? new ToolExecutionError(error.code, message, error.details)
+  return error instanceof ExtensionError
+    ? new ExtensionError(error.code, message)
     : new Error(message, { cause: error });
 }

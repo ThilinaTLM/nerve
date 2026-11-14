@@ -1,10 +1,9 @@
 import { jsonObject } from "../shared/http.js";
 import { confluenceRequest } from "./client.js";
 import { valuesFromConfluenceList } from "./format.js";
-import { resolveSpaceId } from "./space-resolution.js";
-import { ToolExecutionError } from "@nervekit/tools/execution";
-import { closeMatches } from "@nervekit/tools/quick-script/runtime/sdk-args";
-import type { SdkEnvironment } from "@nervekit/tools/quick-script/runtime/sdk-types";
+import { resolveSpaceId, SpaceNotFoundError } from "./space-resolution.js";
+import { closeMatches } from "../shared/args.js";
+import type { ConfluenceSession } from "./session.js";
 
 const MAX_SPACE_PAGES = 10;
 
@@ -12,10 +11,10 @@ type SpaceSummary = { id: string; key: string; name: string; type: unknown };
 
 /** Lists spaces (up to 2500), optionally those whose key or name contains `needle`. */
 export async function listSpaces(
-  env: SdkEnvironment,
+  session: ConfluenceSession,
   needle = "",
 ): Promise<SpaceSummary[]> {
-  const connection = await env.confluence();
+  const connection = session.connection;
   const lowered = needle.toLowerCase();
   const spaces: SpaceSummary[] = [];
   let cursor: string | undefined;
@@ -24,7 +23,6 @@ export async function listSpaces(
       parse: jsonObject,
       path: "/spaces",
       query: { limit: 250, cursor },
-      signal: env.context.signal,
     });
     for (const raw of valuesFromConfluenceList(response)) {
       const space = raw as Record<string, unknown>;
@@ -53,22 +51,17 @@ export async function listSpaces(
 
 /** Resolves a space key (or the configured default); an unknown key lists close matches. */
 export async function resolveSpace(
-  env: SdkEnvironment,
+  session: ConfluenceSession,
   space: string | undefined,
 ) {
-  const connection = await env.confluence();
+  const connection = session.connection;
   try {
     return await resolveSpaceId(connection, {
       spaceKey: space,
-      signal: env.context.signal,
     });
   } catch (error) {
-    if (
-      space &&
-      error instanceof ToolExecutionError &&
-      error.code === "CONFLUENCE_SPACE_NOT_FOUND"
-    ) {
-      const all = await listSpaces(env);
+    if (space && error instanceof SpaceNotFoundError) {
+      const all = await listSpaces(session);
       const close = closeMatches(
         space,
         all.flatMap((entry) => [entry.key, entry.name]),

@@ -6,11 +6,9 @@ import {
   fieldMetaMap,
   listValues,
 } from "./field-values.js";
-import { closeMatches } from "@nervekit/tools/quick-script/runtime/sdk-args";
-import {
-  orWhenUnsupported,
-  type SdkEnvironment,
-} from "@nervekit/tools/quick-script/runtime/sdk-types";
+import { closeMatches } from "../shared/args.js";
+import { orWhenUnsupported } from "../shared/errors.js";
+import type { JiraSession } from "./session.js";
 
 /** Extra project data `jira.projects.get` returns on request. */
 export const PROJECT_INCLUDES = [
@@ -39,14 +37,13 @@ export type IssueTypeInfo = { id: string; name: string; subtask: boolean };
 
 /** Issue types the user can create in a project (createmeta). */
 export async function projectIssueTypes(
-  env: SdkEnvironment,
+  session: JiraSession,
   projectKey: string,
 ): Promise<IssueTypeInfo[]> {
-  const page = await jiraRequest(await env.jira(), {
+  const page = await jiraRequest(session.connection, {
     parse: jsonObject,
     path: `/issue/createmeta/${pathSegment(projectKey)}/issuetypes`,
     query: { maxResults: 100 },
-    signal: env.context.signal,
   });
   return list(page.issueTypes ?? page.values).map((raw) => {
     const type = record(raw);
@@ -60,15 +57,14 @@ export async function projectIssueTypes(
 
 /** Fields of one issue type's create screen; empty when Jira does not say. */
 export async function createFieldMeta(
-  env: SdkEnvironment,
+  session: JiraSession,
   projectKey: string,
   issueTypeId: string,
 ): Promise<Map<string, FieldMeta>> {
-  const page = await jiraRequest(await env.jira(), {
+  const page = await jiraRequest(session.connection, {
     parse: jsonObject,
     path: `/issue/createmeta/${pathSegment(projectKey)}/issuetypes/${pathSegment(issueTypeId)}`,
     query: { maxResults: 200 },
-    signal: env.context.signal,
   }).catch(orWhenUnsupported((): Record<string, unknown> => ({})));
   return fieldMetaMap(page.fields ?? page.values);
 }
@@ -97,17 +93,17 @@ const typeName = (field: FieldMeta) =>
   field.items ? `${field.type}<${field.items}>` : (field.type ?? "unknown");
 
 async function createFields(
-  env: SdkEnvironment,
+  session: JiraSession,
   key: string,
   issueType: string | undefined,
 ) {
-  const all = await projectIssueTypes(env, key);
+  const all = await projectIssueTypes(session, key);
   const types = issueType ? [pickIssueType(all, issueType, key)] : all;
   return await Promise.all(
     types.map(async (type) => ({
       issueType: type.name,
       subtask: type.subtask,
-      fields: [...(await createFieldMeta(env, key, type.id)).values()]
+      fields: [...(await createFieldMeta(session, key, type.id)).values()]
         .filter((field) => !AUTOMATIC_FIELDS.has(field.id))
         .map((field) => ({
           name: field.name,
@@ -119,11 +115,10 @@ async function createFields(
   );
 }
 
-async function statuses(env: SdkEnvironment, key: string) {
-  const raw = await jiraRequest(await env.jira(), {
+async function statuses(session: JiraSession, key: string) {
+  const raw = await jiraRequest(session.connection, {
     parse: jsonArray,
     path: `/project/${pathSegment(key)}/statuses`,
-    signal: env.context.signal,
   });
   return raw.map((item) => {
     const type = record(item);
@@ -137,11 +132,10 @@ async function statuses(env: SdkEnvironment, key: string) {
   });
 }
 
-async function releases(env: SdkEnvironment, key: string) {
-  const raw = await jiraRequest(await env.jira(), {
+async function releases(session: JiraSession, key: string) {
+  const raw = await jiraRequest(session.connection, {
     parse: jsonArray,
     path: `/project/${pathSegment(key)}/versions`,
-    signal: env.context.signal,
   });
   return raw
     .map((item) => {
@@ -163,13 +157,12 @@ async function releases(env: SdkEnvironment, key: string) {
     .slice(0, 100);
 }
 
-async function boards(env: SdkEnvironment, key: string) {
-  const page = await jiraRequest(await env.jira(), {
+async function boards(session: JiraSession, key: string) {
+  const page = await jiraRequest(session.connection, {
     api: "agile",
     parse: jsonObject,
     path: "/board",
     query: { projectKeyOrId: key, maxResults: LIMIT },
-    signal: env.context.signal,
   });
   return list(page.values).map((item) => {
     const board = record(item);
@@ -188,19 +181,18 @@ const MAX_SPRINT_PAGES = 20;
 
 /** Sprints of one board in `state`, oldest first as Jira returns them; [] for boards without sprints. */
 async function boardSprints(
-  env: SdkEnvironment,
+  session: JiraSession,
   boardId: number,
   state: string,
   allPages: boolean,
 ): Promise<unknown[]> {
   const values: unknown[] = [];
   for (let page = 0; page < (allPages ? MAX_SPRINT_PAGES : 1); page += 1) {
-    const response = await jiraRequest(await env.jira(), {
+    const response = await jiraRequest(session.connection, {
       api: "agile",
       parse: jsonObject,
       path: `/board/${boardId}/sprint`,
       query: { state, startAt: values.length, maxResults: LIMIT },
-      signal: env.context.signal,
     }).catch(orWhenUnsupported((): Record<string, unknown> => ({})));
     const batch = list(response.values);
     values.push(...batch);
@@ -210,13 +202,13 @@ async function boardSprints(
 }
 
 /** Active and future sprints of every board that has them (kanban boards say no); `closed` adds the latest closed ones. */
-async function sprints(env: SdkEnvironment, key: string, closed: boolean) {
+async function sprints(session: JiraSession, key: string, closed: boolean) {
   const perBoard = await Promise.all(
-    (await boards(env, key)).map(async (board) => {
+    (await boards(session, key)).map(async (board) => {
       const [open, done] = await Promise.all([
-        boardSprints(env, board.id, "active,future", false),
+        boardSprints(session, board.id, "active,future", false),
         closed
-          ? boardSprints(env, board.id, "closed", true)
+          ? boardSprints(session, board.id, "closed", true)
           : Promise.resolve([]),
       ]);
       return [...done.slice(-CLOSED_SPRINTS), ...open].map((item) => {
@@ -241,8 +233,8 @@ async function sprints(env: SdkEnvironment, key: string, closed: boolean) {
   });
 }
 
-async function epics(env: SdkEnvironment, key: string) {
-  const page = await jiraRequest(await env.jira(), {
+async function epics(session: JiraSession, key: string) {
+  const page = await jiraRequest(session.connection, {
     parse: jsonObject,
     method: "POST",
     path: "/search/jql",
@@ -251,7 +243,6 @@ async function epics(env: SdkEnvironment, key: string) {
       fields: ["summary", "status"],
       maxResults: LIMIT,
     },
-    signal: env.context.signal,
   });
   return list(page.issues).map((item) => {
     const issue = record(item);
@@ -266,7 +257,7 @@ async function epics(env: SdkEnvironment, key: string) {
 
 /** The opt-in parts of `jira.projects.get`, fetched in parallel. */
 export async function projectExtras(
-  env: SdkEnvironment,
+  session: JiraSession,
   key: string,
   include: readonly ProjectInclude[],
   issueType: string | undefined,
@@ -275,17 +266,20 @@ export async function projectExtras(
   const extras: Record<string, unknown> = {};
   await Promise.all([
     wanted.has("fields") &&
-      createFields(env, key, issueType).then((v) => (extras.createFields = v)),
+      createFields(session, key, issueType).then(
+        (v) => (extras.createFields = v),
+      ),
     wanted.has("statuses") &&
-      statuses(env, key).then((v) => (extras.statuses = v)),
+      statuses(session, key).then((v) => (extras.statuses = v)),
     wanted.has("releases") &&
-      releases(env, key).then((v) => (extras.releases = v)),
-    wanted.has("boards") && boards(env, key).then((v) => (extras.boards = v)),
+      releases(session, key).then((v) => (extras.releases = v)),
+    wanted.has("boards") &&
+      boards(session, key).then((v) => (extras.boards = v)),
     (wanted.has("sprints") || wanted.has("closedSprints")) &&
-      sprints(env, key, wanted.has("closedSprints")).then(
+      sprints(session, key, wanted.has("closedSprints")).then(
         (v) => (extras.sprints = v),
       ),
-    wanted.has("epics") && epics(env, key).then((v) => (extras.epics = v)),
+    wanted.has("epics") && epics(session, key).then((v) => (extras.epics = v)),
   ]);
   return extras;
 }

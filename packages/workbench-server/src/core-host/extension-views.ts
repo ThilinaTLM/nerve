@@ -45,15 +45,19 @@ export function createExtensionViews(options: ExtensionViewOptions) {
       options.extensions.resolve(ctx, target.scope),
       options.extensions.read(ref),
     ]);
-    const { namespaces: availability } = await extensionAvailability(
-      options.registry,
-      resolution,
-      options.accounts,
-      {
-        checkSecrets: true,
-        ports: createExtensionPorts({ resolution, accounts: options.accounts }),
-      },
-    );
+    const { namespaces: availability, tools: toolAvailability } =
+      await extensionAvailability(
+        options.registry,
+        resolution,
+        options.accounts,
+        {
+          checkSecrets: true,
+          ports: createExtensionPorts({
+            resolution,
+            accounts: options.accounts,
+          }),
+        },
+      );
     const definitions = new Map(
       options.extensions.definitions.map((definition) => [
         definition.id,
@@ -92,6 +96,13 @@ export function createExtensionViews(options: ExtensionViewOptions) {
             (manifest.contributes.sdk ?? []).flatMap((namespace) =>
               availability[namespace.id]
                 ? [[namespace.id, availability[namespace.id]]]
+                : [],
+            ),
+          ),
+          toolAvailability: Object.fromEntries(
+            (manifest.tools ?? []).flatMap((tool) =>
+              toolAvailability[tool.name]
+                ? [[tool.name, toolAvailability[tool.name]]]
                 : [],
             ),
           ),

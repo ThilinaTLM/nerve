@@ -1,11 +1,6 @@
 import { ConversationTitleService } from "../../domains/conversation-titles/title.service.js";
 import { projectGitRemotes } from "../../core-host/project-git-remotes.js";
 import {
-  diagramServer,
-  imagegenSettings,
-  resolveExecutionAccounts,
-} from "../../core-host/legacy-extension-context.js";
-import {
   assertExtensionToolOffered,
   extensionAvailability,
 } from "../../core-host/extension-availability.js";
@@ -26,10 +21,7 @@ import {
 import { createProfileTransitions } from "../../infrastructure/configuration/agent-configuration/profile-transitions.js";
 import { agentConfigurationOperations } from "../../infrastructure/configuration/agent-configuration/scoped-configuration-operations.js";
 import type { LeadSettingsOverrides } from "@nervekit/contracts/agent-configuration";
-import {
-  defaultKrokiToolSettings,
-  type BashToolSettings,
-} from "@nervekit/contracts/settings";
+import type { BashToolSettings } from "@nervekit/contracts/settings";
 import { createScopedPermissionSource } from "../../core-host/scoped-permission-source.js";
 import { resolveAgentModel } from "@nervekit/harness/models";
 import { scopedConversationCreation } from "../../core-host/scoped-conversation-creation.js";
@@ -270,17 +262,7 @@ export function createConversationCore(
             );
           bash.shellPath = shell.path;
         }
-        const {
-          quickScript,
-          extensionOn,
-          tavilyAccount,
-          tavilyKey,
-          atlassianAccounts,
-        } = await resolveExecutionAccounts({
-          toolName: input.toolName,
-          extensions,
-          accounts,
-        });
+        const quickScript = input.toolName === "quick_script";
         const extensionPorts = createExtensionPorts({
           resolution: extensions,
           accounts,
@@ -321,25 +303,12 @@ export function createConversationCore(
           cwd: input.cwd,
           shellPath: bash.shellPath,
           pythonRuntime: python?.available ? python : undefined,
-          kroki: {
-            url: diagramServer(extensions) ?? defaultKrokiToolSettings.url,
-          },
-          getApiKey: async (provider) =>
-            provider === "jira" || provider === "confluence"
-              ? atlassianAccounts.get(provider)?.apiKey
-              : provider === "tavily"
-                ? tavilyKey
-                : undefined,
           registry: hostRegistry,
           extensionPorts,
           ...(quickScript || isExtensionTool
             ? {
                 ...(quickScript
                   ? {
-                      web: {
-                        enabled: extensionOn("web"),
-                        search: Boolean(tavilyKey),
-                      },
                       namespaces: (
                         await extensionAvailability(
                           hostRegistry,
@@ -380,14 +349,6 @@ export function createConversationCore(
                   ),
               }
             : {}),
-          getProviderConfig: async (provider) => {
-            if (provider !== "jira" && provider !== "confluence")
-              return undefined;
-            const account = atlassianAccounts.get(provider);
-            return { ...account?.profile, enabled: Boolean(account) };
-          },
-          imagegen: imagegenSettings(extensions),
-          generateImage: (request) => imageGeneration.generate(request),
           explainImage: async (request) => {
             if (!explanationModel || !explanation?.model)
               throw new Error("Image explanation model was not prepared");
@@ -431,20 +392,15 @@ export function createConversationCore(
                 ? (settings.tools?.[selectedTool.data] ?? null)
                 : null,
               modelConfiguration: modelTarget,
-              // Only quick_script reads extension settings; other approvals must not
-              // be invalidated by unrelated extension edits.
-              ...(quickScript ? { extensions: extensions.extensions } : {}),
+              // Only quick_script and extension tools read extension settings; other
+              // approvals must not be invalidated by unrelated extension edits.
+              ...(quickScript || isExtensionTool
+                ? { extensions: extensions.extensions }
+                : {}),
               python:
                 input.toolName === "python_exec" && python?.available
                   ? python
                   : null,
-              accounts: Object.fromEntries(
-                [...atlassianAccounts].map(([product, { profile }]) => [
-                  product,
-                  profile,
-                ]),
-              ),
-              account: tavilyAccount ?? null,
               shellPath: spawnsShell ? (bash.shellPath ?? null) : null,
             }),
           ) as Record<string, unknown>,

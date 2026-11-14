@@ -1,9 +1,8 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { isolatedHtmlToMarkdown } from "@nervekit/tools/execution";
+import { confluenceStorageToMarkdown } from "./storage-markdown.js";
 
-const md = (source: string) =>
-  isolatedHtmlToMarkdown(source, { mode: "confluence-storage" });
+const md = (source: string) => confluenceStorageToMarkdown(source);
 const m = (name: string, body = "", params: Record<string, string> = {}) =>
   `<ac:structured-macro ac:name="${name}" ac:schema-version="1">${Object.entries(
     params,

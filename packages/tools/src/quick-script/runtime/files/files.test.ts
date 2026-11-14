@@ -210,15 +210,6 @@ void test("XLSX and Papa work in the sandbox and load only for scripts that ment
   assert.equal(plain.content, "object\nexit 0");
 });
 
-void test("RichText Markdown in storage.* builders becomes storage markup", async () => {
-  const { run } = await setup();
-  const result = await run(`return storage.panel("info", "Some *emphasis*");`);
-  assert.match(
-    result.content ?? "",
-    /<ac:rich-text-body><p>Some <em>emphasis<\/em><\/p><\/ac:rich-text-body>/,
-  );
-});
-
 void test("files.write accepts a name or an artifact handle and keeps Unicode names", async () => {
   const { artifactDir, run } = await setup();
   const result = await run(`

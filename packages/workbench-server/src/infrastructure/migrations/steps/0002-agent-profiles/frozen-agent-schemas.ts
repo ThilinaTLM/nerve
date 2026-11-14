@@ -21,8 +21,44 @@ import {
   imageExplanationToolSettingsSchema,
   planPresentToolSettingsSchema,
   pythonExecToolSettingsSchema,
-  krokiToolSettingsSchema,
 } from "@nervekit/contracts/settings";
+
+// Kroki settings as they were in `@nervekit/contracts/settings` (moved into the Diagrams extension).
+const krokiToolSettingsSchema = z
+  .object({
+    url: z
+      .string()
+      .trim()
+      .min(1)
+      .max(2_048)
+      .url()
+      .refine(
+        (value) => {
+          try {
+            const url = new URL(value);
+            return (
+              ["http:", "https:"].includes(url.protocol) &&
+              !url.username &&
+              !url.password &&
+              !url.search &&
+              !url.hash
+            );
+          } catch {
+            return false;
+          }
+        },
+        {
+          message:
+            "Use an HTTP(S) URL without credentials, query parameters, or fragments.",
+        },
+      )
+      .transform((value) => {
+        const url = new URL(value);
+        if (!url.pathname.endsWith("/")) url.pathname += "/";
+        return url.href;
+      }),
+  })
+  .strict();
 
 // Image generation settings as they were in `@nervekit/contracts/settings` (removed with the `generate_image` tool).
 const openAiCodexImageGenerationSettingsSchema = z.object({

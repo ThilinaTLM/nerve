@@ -16,18 +16,17 @@ export type AccountTestResult = {
   message?: string;
 };
 
-/** Checks that an account's credentials work. Throws only when it cannot run the check. */
+/** Runs the kind's `test` hook for an account. Throws only when it cannot run the check. */
 export type AccountTester = (
   account: AccountRecord,
-  secret: string,
 ) => Promise<AccountTestResult>;
 
 export type IntegrationHealthDeps = {
   accounts: AccountsReader;
   /** Account kinds the registered extensions define; only kinds that declare `test` are checked. */
   kinds: () => readonly AccountKind[];
-  /** The connection check per kind. */
-  testers: Readonly<Record<string, AccountTester>>;
+  /** The connection check of an account's kind (the extension's `test` hook). */
+  test: AccountTester;
   publish: (kind: string, accountId: string) => Promise<void>;
   now?: () => Date;
 };
@@ -69,8 +68,7 @@ export class IntegrationHealthService {
   }
 
   async check(kind: string, id: string): Promise<AccountHealth> {
-    const tester = this.#testable(kind) && this.deps.testers[kind];
-    if (!tester)
+    if (!this.#testable(kind))
       throw new ApplicationError(
         400,
         "ACCOUNT_NOT_TESTABLE",
@@ -90,7 +88,7 @@ export class IntegrationHealthService {
         "ACCOUNT_SECRET_MISSING",
         "Add the secret before testing this account.",
       );
-    const outcome = await tester(account, secret);
+    const outcome = await this.deps.test(account);
     const result = accountHealthSchema.parse({
       kind,
       accountId: id,

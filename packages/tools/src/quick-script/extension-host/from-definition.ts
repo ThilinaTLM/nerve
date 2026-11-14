@@ -135,7 +135,14 @@ function toSdkNamespace(
 ): SdkNamespace {
   return {
     id: namespace.id,
-    ...(namespace.enabledBy ? { enabledBy: namespace.enabledBy } : {}),
+    ...(namespace.enabledBy
+      ? {
+          enabledBy:
+            typeof namespace.enabledBy === "string"
+              ? namespace.enabledBy
+              : [...namespace.enabledBy],
+        }
+      : {}),
     ...(namespace.requires ? { requires: namespace.requires } : {}),
     ...(namespace.helper ? { helper: true } : {}),
     ...(namespace.availability ? { availability: namespace.availability } : {}),
@@ -146,8 +153,11 @@ function toSdkNamespace(
     ),
     ...(namespace.configuration
       ? {
+          // Without host ports (a bare runtime) there is nothing to describe.
           configuration: (env) =>
-            namespace.configuration!(env.extensions.context(definition)),
+            env.context.extensionPorts
+              ? namespace.configuration!(env.extensions.context(definition))
+              : undefined,
         }
       : {}),
     types: namespace.types,

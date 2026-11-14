@@ -23,6 +23,9 @@
       "path": "../tools"
     },
     {
+      "path": "../extension-api"
+    },
+    {
       "path": "../extensions"
     },
     {

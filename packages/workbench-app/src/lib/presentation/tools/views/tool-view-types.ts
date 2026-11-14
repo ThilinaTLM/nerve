@@ -11,6 +11,7 @@ import type {
   ToolOutputArtifactPayload,
   ToolOutputLimitsPayload,
 } from "@nervekit/contracts/tools";
+import type { ExtensionDisplayKind } from "@nervekit/contracts/extensions";
 import type { LaunchStatus } from "@nervekit/contracts/launches";
 import type { UserInputAnswer } from "@nervekit/contracts/core";
 import type { RedactedStructuredEntry } from "../lifecycle/argument-source";
@@ -259,17 +260,15 @@ export type ToolView =
       outcome?: string;
     }
   | {
-      kind: "web_search";
-      query?: string;
-      answer?: string;
-      results: Array<{
-        title: string;
-        url: string;
-        content?: string;
-        score?: number;
-      }>;
-      outputLimits?: ToolOutputLimitsPayload;
-      outputArtifacts?: ToolOutputArtifactPayload[];
+      kind: "extension";
+      toolName: string;
+      /** Id of the extension that contributes the tool. */
+      extension: string;
+      /** How the result renders; `value` is the method's result as data when it was small enough to carry. */
+      display: { kind: ExtensionDisplayKind; value?: unknown };
+      artifacts: QuickScriptArtifact[];
+      /** The result text the agent saw; the fallback when `value` is absent. */
+      resultText?: string;
     }
   | {
       kind: "web_fetch";

@@ -34,12 +34,6 @@ export const toolRows: readonly ToolRowDef[] = [
     configurable: true,
   },
   {
-    id: "web_search",
-    label: "Web search",
-    description: "Search the web through Tavily.",
-    configurable: false,
-  },
-  {
     id: "web_fetch",
     label: "Web fetch",
     description: "Fetch a URL as readable markdown.",

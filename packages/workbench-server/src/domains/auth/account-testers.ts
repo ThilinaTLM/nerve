@@ -1,64 +1,45 @@
-import { checkAtlassianConnection } from "@nervekit/extensions";
+import {
+  testExtensionAccount,
+  type QuickScriptRegistry,
+} from "@nervekit/tools/quick-script";
+import { ToolExecutionError } from "@nervekit/tools/execution";
 import { ApplicationError } from "../../core/application-error.js";
-import type {
-  AccountTester,
-  AccountTestResult,
-} from "./integration-health.service.js";
-
-const services = [
-  { id: "jira", label: "Jira" },
-  { id: "confluence", label: "Confluence" },
-] as const;
-
-const field = (value: unknown): string =>
-  typeof value === "string" ? value : "";
+import type { AccountsReader } from "../accounts/accounts.service.js";
+import type { AccountTester } from "./integration-health.service.js";
 
 /**
- * Jira and Confluence are checked together: rejected credentials win, then
- * unreachable; otherwise the account is verified when any service answers,
- * and the message names what is not available.
+ * Checks an account through its kind's `test` hook, run by the extension host
+ * with a `ctx` bound to the account. An account missing what the test needs
+ * (a site URL) is a client error, not a stored result.
  */
-export function testAtlassianAccount(
-  check: typeof checkAtlassianConnection = checkAtlassianConnection,
-): AccountTester {
-  return async (account, token) => {
-    const siteUrl = field(account.fields.siteUrl);
-    const email = field(account.fields.email);
-    if (!siteUrl || !email)
-      throw new ApplicationError(
-        400,
-        "ACCOUNT_INCOMPLETE",
-        "Add the site URL and email before testing this account.",
-      );
-    const results = await Promise.all(
-      services.map(async (service) => ({
-        label: service.label,
-        outcome: await check({ siteUrl, email, token }, service.id),
-      })),
-    );
-    const problems = results.filter(
-      ({ outcome }) => outcome.status !== "verified",
-    );
-    const message = problems
-      .map(
-        ({ label, outcome }) =>
-          `${label}: ${outcome.message ?? outcome.status}`,
+export function extensionAccountTester(input: {
+  registry: QuickScriptRegistry;
+  accounts: AccountsReader;
+  warn?: (extensionId: string, message: string, data?: unknown) => void;
+}): AccountTester {
+  const { registry, accounts, warn } = input;
+  return async (account) => {
+    try {
+      return await testExtensionAccount({
+        registry,
+        account,
+        ports: {
+          accounts: {
+            get: async (kind, id) => await accounts.get(kind, id),
+            secret: async (kind, id) => await accounts.secret(kind, id),
+          },
+          log: (level, extensionId, message, data) => {
+            if (level === "warn") warn?.(extensionId, message, data);
+          },
+        },
+      });
+    } catch (error) {
+      if (
+        error instanceof ToolExecutionError &&
+        error.code === "ACCOUNT_INCOMPLETE"
       )
-      .join("\n");
-    const has = (status: AccountTestResult["status"]) =>
-      results.some(({ outcome }) => outcome.status === status);
-    const status = has("rejected")
-      ? "rejected"
-      : has("unreachable")
-        ? "unreachable"
-        : has("verified")
-          ? "verified"
-          : (results[0]?.outcome.status ?? "unreachable");
-    return { status, ...(message ? { message } : {}) };
+        throw new ApplicationError(400, "ACCOUNT_INCOMPLETE", error.message);
+      throw error;
+    }
   };
 }
-
-/** Connection checks by account kind; a kind's manifest `test` hook replaces its entry. */
-export const accountTesters: Readonly<Record<string, AccountTester>> = {
-  atlassian: testAtlassianAccount(),
-};

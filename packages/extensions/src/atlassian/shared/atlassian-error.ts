@@ -3,17 +3,31 @@ const SAFE_BODY_LIMIT = 4_000;
 
 export type AtlassianErrorContext = {
   service: "jira" | "confluence";
-  code: string;
   method: string;
   path: string;
   status: number;
-  statusText: string;
   body: string;
 };
 
 export type SafeAtlassianError = {
+  /** `Jira POST /search/jql failed (400 Bad Request): reason`; never the query, the token or more than 4 kB of the body. */
   message: string;
-  details: Record<string, unknown>;
+  /** What the service said, bounded and redacted. */
+  reason: string | undefined;
+};
+
+const STATUS_TEXT: Record<number, string> = {
+  400: "Bad Request",
+  401: "Unauthorized",
+  403: "Forbidden",
+  404: "Not Found",
+  409: "Conflict",
+  413: "Payload Too Large",
+  429: "Too Many Requests",
+  500: "Internal Server Error",
+  502: "Bad Gateway",
+  503: "Service Unavailable",
+  504: "Gateway Timeout",
 };
 
 export function safeAtlassianError(
@@ -27,20 +41,12 @@ export function safeAtlassianError(
     normalizeReason(reasonFromBody(body)),
     PUBLIC_REASON_LIMIT,
   );
-  const statusLabel = [context.status, normalizeWhitespace(context.statusText)]
+  const statusLabel = [context.status, STATUS_TEXT[context.status]]
     .filter(Boolean)
     .join(" ");
   return {
-    message: `${context.code}: ${serviceName} ${method} ${path} failed (${statusLabel})${reason ? `: ${reason}` : ""}`,
-    details: compactRecord({
-      service: context.service,
-      status: context.status,
-      statusText: normalizeWhitespace(context.statusText) || undefined,
-      method,
-      path,
-      reason,
-      body: body || undefined,
-    }),
+    message: `${serviceName} ${method} ${path} failed (${statusLabel})${reason ? `: ${reason}` : ""}`,
+    reason,
   };
 }
 
@@ -112,12 +118,4 @@ function truncate(
 ): string | undefined {
   if (!value || value.length <= limit) return value;
   return `${value.slice(0, limit - 1)}…`;
-}
-
-function compactRecord(
-  value: Record<string, unknown>,
-): Record<string, unknown> {
-  return Object.fromEntries(
-    Object.entries(value).filter(([, item]) => item !== undefined),
-  );
 }

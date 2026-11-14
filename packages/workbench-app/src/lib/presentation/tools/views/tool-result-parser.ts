@@ -1,5 +1,6 @@
 import {
   bashResultDetailsSchema,
+  quickScriptArtifactSchema,
   quickScriptResultDetailsSchema,
   writeResultDetailsSchema,
   grepResultDetailsSchema,
@@ -9,8 +10,8 @@ import {
   pythonResultDetailsSchema,
   todosResultSchema,
   webFetchResultDetailsSchema,
-  webSearchResultDetailsSchema,
 } from "@nervekit/contracts/tools";
+import { extensionToolResultDetailsSchema } from "@nervekit/contracts/extensions";
 import type {
   ToolCallRecord,
   ToolCallTranscriptRecord,
@@ -639,22 +640,6 @@ export function parseToolView(
       };
     }
 
-    case "web_search": {
-      const details = webSearchResultDetailsSchema.safeParse(result?.details);
-      const query = details.success
-        ? details.data.query
-        : stringField(args.query);
-      const results = details.success ? details.data.results : [];
-      return {
-        kind: "web_search",
-        query,
-        answer: details.success ? details.data.answer : undefined,
-        results,
-        outputLimits,
-        outputArtifacts,
-      };
-    }
-
     case "explain_image": {
       const details = explainImageResultDetailsSchema.safeParse(
         result?.details,
@@ -736,6 +721,24 @@ export function parseToolView(
     }
 
     default: {
+      // A direct tool of an extension: the result says how to render it.
+      const extensionResult = extensionToolResultDetailsSchema.safeParse(
+        result?.details,
+      );
+      if (extensionResult.success) {
+        const details = extensionResult.data;
+        const artifacts = quickScriptArtifactSchema
+          .array()
+          .safeParse(details.artifacts);
+        return {
+          kind: "extension",
+          toolName: toolCall.toolName,
+          extension: details.extension,
+          display: details.display,
+          artifacts: artifacts.success ? artifacts.data : [],
+          resultText: resultOutputText(result, rawResult, liveOutput),
+        };
+      }
       const resultText = resultOutputText(result, rawResult, liveOutput);
       const safeResultText = resultText
         ? redactStructuredValue("result", resultText).slice(0, 6_000)

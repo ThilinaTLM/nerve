@@ -13,7 +13,7 @@ import {
 } from "../../infrastructure/configuration/project-migration/descriptors.js";
 import { projectMigrationTrust } from "../../infrastructure/configuration/project-migration/project-migration-trust.js";
 import { allToolDescriptors } from "@nervekit/tools/catalog";
-import { registerHostTools } from "../../core-host/host-tools.js";
+import { hostRegistry, registerHostTools } from "../../core-host/host-tools.js";
 import { listAvailableSkills } from "../../core-host/resource-loader.js";
 import { UnifiedCompletionService } from "../../domains/completions/unified-completion-service.js";
 import { createCompletionDependencies } from "./create-completion-dependencies.js";
@@ -25,9 +25,8 @@ import {
 } from "../../domains/prompt-suggestions/index.js";
 import { PromptSuggestionEnablementService } from "../../domains/prompt-suggestions/prompt-suggestion-enablement.service.js";
 import type { AuthManager } from "../../domains/auth/index.js";
-import { builtinExtensions } from "@nervekit/extensions";
 import { AccountsService } from "../../domains/accounts/index.js";
-import { accountTesters } from "../../domains/auth/account-testers.js";
+import { extensionAccountTester } from "../../domains/auth/account-testers.js";
 import { IntegrationHealthService } from "../../domains/auth/integration-health.service.js";
 import type { ProviderCatalogStore } from "../../domains/providers/provider-catalog.store.js";
 import type { SubscriptionUsageService } from "../../domains/usage/subscription-usage-service.js";
@@ -120,7 +119,7 @@ export function createRuntimeServices(deps: RuntimeDeps) {
     },
   );
   const accountKinds = () =>
-    builtinExtensions.flatMap((extension) => extension.accounts ?? []);
+    hostRegistry.extensions.flatMap((extension) => extension.accounts ?? []);
   const accounts = new AccountsService({ storage, auth, kinds: accountKinds });
   const {
     conversationTitles,
@@ -162,7 +161,14 @@ export function createRuntimeServices(deps: RuntimeDeps) {
   const integrationHealth = new IntegrationHealthService({
     accounts,
     kinds: accountKinds,
-    testers: accountTesters,
+    test: extensionAccountTester({
+      registry: hostRegistry,
+      accounts,
+      warn: (extensionId, message, data) =>
+        void deps.logger.warn("Extension warning", {
+          context: { extension: extensionId, message, data },
+        }),
+    }),
     publish: async (kind, accountId) => {
       await events.publish("accounts.health_changed", { kind, accountId });
     },

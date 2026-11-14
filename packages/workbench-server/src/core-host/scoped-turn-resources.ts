@@ -23,7 +23,6 @@ import {
   extensionToolOffered,
 } from "./extension-availability.js";
 import { createExtensionPorts } from "./extension-ports.js";
-import { selectedSearchAccount } from "./legacy-extension-context.js";
 
 const blocked = new Set<string>(subagentBlockedToolNames);
 
@@ -57,9 +56,6 @@ export function scopedTurnResources(options: {
       input.conversation.id,
       input.conversation.projectId,
     );
-    const directAccounts = {
-      search: Boolean(await selectedSearchAccount(resolution, accounts)),
-    };
     // Direct tools of extensions are offered while the extension (and its switch) is on and its requirements are met.
     const offered = await extensionAvailability(
       options.registry,
@@ -80,7 +76,7 @@ export function scopedTurnResources(options: {
     ].filter(
       (tool) =>
         !(child && blocked.has(tool.name)) &&
-        isToolEnabled(tool.name, settings, missingReferences, directAccounts) &&
+        isToolEnabled(tool.name, settings, missingReferences) &&
         extensionToolOffered(offered, tool.name),
     );
     const profiles = [];

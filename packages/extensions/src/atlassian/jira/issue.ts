@@ -1,5 +1,5 @@
 import { adfToMarkdown } from "./adf-markdown.js";
-import { closeMatches } from "@nervekit/tools/quick-script/runtime/sdk-args";
+import { closeMatches } from "../shared/args.js";
 
 /** Standard Jira fields the SDK flattens. Everything else is a custom field keyed by name. */
 const STANDARD_FIELD_IDS = [
@@ -55,8 +55,16 @@ export const DEFAULT_SEARCH_FIELDS: readonly string[] =
   STANDARD_FIELD_IDS.filter((id) => id !== "description");
 export const DEFAULT_GET_FIELDS: readonly string[] = STANDARD_FIELD_IDS;
 
-export type { JiraFieldInfo } from "@nervekit/tools/quick-script/runtime/sdk-types";
-import type { JiraFieldInfo } from "@nervekit/tools/quick-script/runtime/sdk-types";
+export type JiraFieldInfo = {
+  id: string;
+  name: string;
+  custom: boolean;
+  type: string | null;
+  /** Element type of array fields, e.g. `option`, `user`, `version`. */
+  items?: string | null;
+  /** Custom field type, e.g. `...:textarea`; system field name otherwise. */
+  kind?: string | null;
+};
 
 export type FieldSelection = { id: string; key: string };
 

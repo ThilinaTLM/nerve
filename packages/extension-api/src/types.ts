@@ -140,9 +140,22 @@ export type AccountInfo = {
   fields: Record<string, unknown>;
 };
 
+/**
+ * What a kind's `test` hook reports. A failure says why when it can:
+ * `rejected` (credentials refused, the default), `restricted` (authenticated
+ * without access), `unavailable` (the service is not provided) or
+ * `unreachable` (network or server failure; the credentials could not be judged).
+ * A `test` hook throws `ExtensionError("BAD_REQUEST")` when the account lacks
+ * what the test needs (a site URL).
+ */
 export type AccountTestResult =
   | { ok: true; message?: string }
-  | { ok: false; message: string; fix?: string };
+  | {
+      ok: false;
+      message: string;
+      fix?: string;
+      reason?: "rejected" | "restricted" | "unavailable" | "unreachable";
+    };
 
 /** The serializable part of an account kind; contracts validate it. */
 export type AccountKindData = {
@@ -221,14 +234,19 @@ export type HttpResponse = {
 
 export type ReportEntry = string;
 
-/** Image generation the host provides when the manifest declares `models.image`. */
+/** Image generation backends the host can run; a member of the Image generation extension's `backend` setting. */
+export type ImagegenBackend = "openai-codex";
+
+/** Image generation the host provides when the manifest declares `models.image`: every option is final (call overrides applied). */
 export type ImageOptions = {
-  backend: string;
+  backend: ImagegenBackend;
   model: string;
   quality: string;
   size: string;
   background: string;
 };
+/** What the host's backend adapter executes. */
+export type ImageBackendRequest = ImageOptions;
 
 export type ImageRequest = {
   prompt: string;
@@ -242,6 +260,10 @@ export type ImageResult = {
   model: string;
   images: readonly { data: Uint8Array; revisedPrompt?: string }[];
 };
+
+/** `ImageRequest` as the host's backend adapters receive it (the run's abort signal added). */
+export type ImageGenerateRequest = ImageRequest & { signal?: AbortSignal };
+export type ImageGenerateResponse = ImageResult;
 
 export interface ExtensionContext {
   /** Resolved values of this extension's own settings (user → project → conversation). */
@@ -265,7 +287,27 @@ export interface ExtensionContext {
       handle: string,
     ): Promise<{ bytes: Uint8Array; mediaType: string; name: string }>;
     info(handle: string): Promise<ArtifactInfo>;
+    /** An artifact name not yet used in this conversation: `<base>-<n><extension>` (`diagram-1.png`). */
+    freshName(base: string, extension: string): Promise<string>;
   };
+
+  /** Text utilities the host runs with its own limits (time, input and output size). */
+  text: {
+    /** Plain HTML to Markdown (a web page); not for Confluence storage format. */
+    htmlToMarkdown(html: string): Promise<string>;
+  };
+
+  /**
+   * Checks an operation whose targets are known only after a lookup (the page
+   * a comment belongs to) against the conversation's permission policy, before
+   * the first write. Rejects with `DENIED` when the policy refuses. Everything
+   * known from the arguments belongs in the method's `authorize` instead.
+   */
+  authorize(check: {
+    operation: string;
+    targets: readonly string[];
+    risk: Risk;
+  }): Promise<void>;
 
   /** Listed in the run footer. Use one label per entity across created/updated/deleted. */
   report: {
@@ -286,6 +328,15 @@ export interface ExtensionContext {
     debug(message: string, data?: unknown): void;
     warn(message: string, data?: unknown): void;
   };
+}
+
+// ── Artifact names ───────────────────────────────────────────────────────────
+
+/** Artifact names: 1–128 letters, digits, spaces, `.`, `_` or `-`; no folders, no leading dot or space, no trailing space. */
+export function isArtifactName(name: string): boolean {
+  return (
+    /^[\p{L}\p{N}_][\p{L}\p{N} ._-]{0,127}$/u.test(name) && !name.endsWith(" ")
+  );
 }
 
 // ── Errors ───────────────────────────────────────────────────────────────────
@@ -375,8 +426,8 @@ export type Requires = {
 export type NamespaceDefinition<Session = unknown> = {
   /** Global name in the sandbox: `jira`. */
   id: string;
-  /** Boolean setting of the extension that switches this namespace. Absent: it follows the extension. */
-  enabledBy?: string;
+  /** Boolean setting of the extension that switches this namespace, or several (any one enables it). Absent: it follows the extension. */
+  enabledBy?: string | readonly string[];
   requires?: Requires;
   /** Marks sandbox-side helper namespaces (no account, no host methods). */
   helper?: boolean;
@@ -458,8 +509,10 @@ export type Capability = "models.image";
 export type ExtensionPermissions = {
   /**
    * Origins `ctx.http` may reach: URL origins with `*` for one host label
-   * (`https://*.atlassian.net`) and `{account.<field>}` templates for the
-   * selected account's fields. Absent: no network.
+   * (`https://*.atlassian.net`), `{account.<field>}` templates for the
+   * selected account's fields and `{settings.<key>}` for a setting of the
+   * extension. The entry `*` alone means any public `http(s)` origin (the host's
+   * SSRF guard still applies). Absent: no network.
    */
   network?: string[];
   capabilities?: Capability[];

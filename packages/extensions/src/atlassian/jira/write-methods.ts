@@ -1,5 +1,3 @@
-import { openAsBlob } from "node:fs";
-import { basename } from "node:path";
 import { anyJson, isArray, jsonObject } from "../shared/http.js";
 import { jiraMultipartRequest, jiraRequest, pathSegment } from "./client.js";
 import { markdownToAdf } from "./markdown-adf.js";
@@ -7,12 +5,6 @@ import { startedOption } from "./edit-methods.js";
 import { hasLocalImages, markdownDoc } from "./media.js";
 import { noteChange } from "./report.js";
 import { matchTransition, transitionSummary } from "./transitions.js";
-import {
-  MAX_ATTACHMENT_BYTES,
-  mediaTypeFor,
-  parseHandle,
-  statFileRef,
-} from "@nervekit/tools/quick-script/runtime/files/artifacts";
 import {
   type AttachmentSpec,
   parseAttachmentSpec,
@@ -30,16 +22,11 @@ import {
   pickIssueType,
   projectIssueTypes,
 } from "./discovery.js";
-import {
-  nonEmptyString,
-  optionalText,
-} from "@nervekit/tools/quick-script/runtime/sdk-args";
-import type { SdkEnvironment } from "@nervekit/tools/quick-script/runtime/sdk-types";
-import {
-  defineMethod,
-  orWhenUnsupported,
-  type SdkMethod,
-} from "@nervekit/tools/quick-script/runtime/sdk-types";
+import { nonEmptyString, optionalText } from "../shared/args.js";
+import { orWhenUnsupported } from "../shared/errors.js";
+import { mediaTypeFor } from "../shared/files.js";
+import { defineMethod, type PathedMethod } from "../shared/define-method.js";
+import type { JiraSession } from "./session.js";
 import { jiraIssue, jiraProject, jiraSprint } from "../shared/targets.js";
 
 const MAX_MOVE_KEYS = 50;
@@ -73,10 +60,9 @@ function record(value: unknown): Record<string, unknown> {
     : {};
 }
 
-/** A file checked for upload; its bytes are streamed from `path` and never held in memory. */
+/** A file read for upload. */
 type LoadedFile = {
-  path: string;
-  size: number;
+  bytes: Uint8Array;
   filename: string;
   mediaType: string;
 };
@@ -93,43 +79,38 @@ function attachmentSpecs(value: unknown): AttachmentSpec[] {
 
 async function loadFile(
   spec: AttachmentSpec,
-  env: SdkEnvironment,
+  session: JiraSession,
 ): Promise<LoadedFile> {
-  const ref = parseHandle(spec.file, env);
-  const size = await statFileRef(
-    ref,
-    MAX_ATTACHMENT_BYTES,
-    "Split or compress it.",
-  );
-  const filename = spec.filename ?? basename(ref.path);
-  return { path: ref.path, size, filename, mediaType: mediaTypeFor(filename) };
+  const { bytes, name } = await session.ctx.artifacts.read(spec.file);
+  const filename = spec.filename ?? name;
+  return { bytes, filename, mediaType: mediaTypeFor(filename) };
 }
 
-async function uploadFile(env: SdkEnvironment, key: string, file: LoadedFile) {
-  const form = new FormData();
-  form.append(
-    "file",
-    await openAsBlob(file.path, { type: file.mediaType }),
-    file.filename,
-  );
-  const data = await jiraMultipartRequest(await env.jira(), {
+async function uploadFile(session: JiraSession, key: string, file: LoadedFile) {
+  const data = await jiraMultipartRequest(session.connection, {
     parse: anyJson,
     path: `/issue/${pathSegment(key)}/attachments`,
-    form,
-    signal: env.context.signal,
+    parts: [
+      {
+        name: "file",
+        filename: file.filename,
+        mediaType: file.mediaType,
+        data: file.bytes,
+      },
+    ],
   });
   const raw = record(Array.isArray(data) ? data[0] : data);
   const id = String(raw.id ?? "");
-  noteChange(env, "created", `attachment ${id} on ${key}`);
+  noteChange(session, "created", `attachment ${id} on ${key}`);
   return {
     id,
     filename: String(raw.filename ?? file.filename),
     mediaType: String(raw.mimeType ?? file.mediaType),
-    size: typeof raw.size === "number" ? raw.size : file.size,
+    size: typeof raw.size === "number" ? raw.size : file.bytes.byteLength,
   };
 }
 
-export const jiraWriteMethods: SdkMethod[] = [
+export const jiraWriteMethods: PathedMethod<JiraSession>[] = [
   defineMethod({
     product: "jira",
     path: "issues.create",
@@ -160,14 +141,14 @@ export const jiraWriteMethods: SdkMethod[] = [
       summary: `${project ?? "default project"} ${type}: ${summary}`,
     }),
     // Attaching files is part of creating the issue; only the file reads need their own check.
-    authorizeAlso: ({ attachments }, env) =>
-      attachmentReadAuthorizations(attachments, env),
+    authorizeAlso: ({ attachments }) =>
+      attachmentReadAuthorizations(attachments),
     resource: ({ project }) => (project ? `project ${project}` : "Jira"),
     async run(
       { project, type, summary, description, fields, attachments },
-      env,
+      session,
     ) {
-      const connection = await env.jira();
+      const connection = session.connection;
       const projectKey = project ?? connection.defaultProjectKey;
       if (!projectKey) {
         throw new Error(
@@ -176,26 +157,26 @@ export const jiraWriteMethods: SdkMethod[] = [
       }
       // Files are read first, so bad input fails before the issue exists.
       const files: LoadedFile[] = [];
-      for (const spec of attachments) files.push(await loadFile(spec, env));
+      for (const spec of attachments) files.push(await loadFile(spec, session));
       // Images can only point at attachments that exist: the description is set after the upload.
       const deferred = Boolean(
         description && files.length > 0 && hasLocalImages(description),
       );
-      const types = await projectIssueTypes(env, projectKey);
+      const types = await projectIssueTypes(session, projectKey);
       const issueType =
         types.length > 0
           ? pickIssueType(types, type, projectKey)
           : { id: "", name: type, subtask: false };
       const meta = issueType.id
-        ? await createFieldMeta(env, projectKey, issueType.id)
+        ? await createFieldMeta(session, projectKey, issueType.id)
         : new Map();
       const payload = {
-        ...(await toApiFields(fields, env, meta, { projectKey })),
+        ...(await toApiFields(fields, session, meta, { projectKey })),
         project: { key: projectKey },
         issuetype: { name: issueType.name },
         summary,
         ...(description && !deferred
-          ? { description: await markdownDoc(env, undefined, description) }
+          ? { description: await markdownDoc(session, undefined, description) }
           : {}),
       };
       const missing = missingFields(meta, payload);
@@ -209,14 +190,13 @@ export const jiraWriteMethods: SdkMethod[] = [
         method: "POST",
         path: "/issue",
         body: { fields: payload },
-        signal: env.context.signal,
       });
       const key = String(created.key ?? "");
-      noteChange(env, "created", key);
+      noteChange(session, "created", key);
       const uploaded: { id: string; filename: string }[] = [];
       try {
         for (const file of files) {
-          const { id, filename } = await uploadFile(env, key, file);
+          const { id, filename } = await uploadFile(session, key, file);
           uploaded.push({ id, filename });
         }
         if (deferred && description) {
@@ -224,9 +204,10 @@ export const jiraWriteMethods: SdkMethod[] = [
             method: "PUT",
             path: `/issue/${pathSegment(key)}`,
             body: {
-              fields: { description: await markdownDoc(env, key, description) },
+              fields: {
+                description: await markdownDoc(session, key, description),
+              },
             },
-            signal: env.context.signal,
           });
         }
       } catch (error) {
@@ -259,16 +240,15 @@ export const jiraWriteMethods: SdkMethod[] = [
       summary: key,
     }),
     resource: ({ key }) => `issue ${key}`,
-    async run({ key, fields }, env) {
-      const connection = await env.jira();
+    async run({ key, fields }, session) {
+      const connection = session.connection;
       const editable = await jiraRequest(connection, {
         parse: jsonObject,
         path: `/issue/${pathSegment(key)}/editmeta`,
-        signal: env.context.signal,
       }).catch(orWhenUnsupported((): Record<string, unknown> => ({})));
       const payload = await toApiFields(
         fields,
-        env,
+        session,
         fieldMetaMap(editable.fields),
         { issueKey: key },
       );
@@ -276,9 +256,8 @@ export const jiraWriteMethods: SdkMethod[] = [
         method: "PUT",
         path: `/issue/${pathSegment(key)}`,
         body: { fields: payload },
-        signal: env.context.signal,
       });
-      noteChange(env, "updated", key);
+      noteChange(session, "updated", key);
       return {
         key,
         url: `${connection.siteUrl}/browse/${key}`,
@@ -307,13 +286,12 @@ export const jiraWriteMethods: SdkMethod[] = [
       summary: `${key} → ${to}`,
     }),
     resource: ({ key }) => `issue ${key}`,
-    async run({ key, to, fields, comment }, env) {
-      const connection = await env.jira();
+    async run({ key, to, fields, comment }, session) {
+      const connection = session.connection;
       const response = await jiraRequest(connection, {
         parse: jsonObject,
         path: `/issue/${pathSegment(key)}/transitions`,
         query: { expand: "transitions.fields" },
-        signal: env.context.signal,
       });
       const transitions = isArray(response.transitions)
         ? response.transitions
@@ -337,7 +315,9 @@ export const jiraWriteMethods: SdkMethod[] = [
       const { id, to: target, fields: screen } = record(transition);
       const status = String(record(target).name ?? to);
       const meta = fieldMetaMap(screen);
-      const payload = await toApiFields(fields, env, meta, { issueKey: key });
+      const payload = await toApiFields(fields, session, meta, {
+        issueKey: key,
+      });
       const missing = missingFields(meta, payload);
       if (missing.length > 0) {
         throw new Error(
@@ -351,7 +331,6 @@ export const jiraWriteMethods: SdkMethod[] = [
           transition: { id: String(id) },
           ...(Object.keys(payload).length > 0 ? { fields: payload } : {}),
         },
-        signal: env.context.signal,
       });
       // `update.comment` is ignored by transitions without a screen, so the
       // comment is posted explicitly once the transition has succeeded.
@@ -359,11 +338,10 @@ export const jiraWriteMethods: SdkMethod[] = [
         await jiraRequest(connection, {
           method: "POST",
           path: `/issue/${pathSegment(key)}/comment`,
-          body: { body: await markdownDoc(env, key, comment) },
-          signal: env.context.signal,
+          body: { body: await markdownDoc(session, key, comment) },
         });
       }
-      noteChange(env, "updated", key);
+      noteChange(session, "updated", key);
       return { key, status, url: `${connection.siteUrl}/browse/${key}` };
     },
   }),
@@ -383,17 +361,16 @@ export const jiraWriteMethods: SdkMethod[] = [
       summary: key,
     }),
     resource: ({ key }) => `issue ${key}`,
-    async run({ key, body }, env) {
-      const connection = await env.jira();
+    async run({ key, body }, session) {
+      const connection = session.connection;
       const comment = await jiraRequest(connection, {
         parse: jsonObject,
         method: "POST",
         path: `/issue/${pathSegment(key)}/comment`,
-        body: { body: await markdownDoc(env, key, body) },
-        signal: env.context.signal,
+        body: { body: await markdownDoc(session, key, body) },
       });
       const id = String(comment.id ?? "");
-      noteChange(env, "created", `comment ${id} on ${key}`);
+      noteChange(session, "created", `comment ${id} on ${key}`);
       return {
         id,
         url: `${connection.siteUrl}/browse/${key}?focusedCommentId=${id}`,
@@ -417,14 +394,13 @@ export const jiraWriteMethods: SdkMethod[] = [
       summary: `${key} comment ${id}`,
     }),
     resource: ({ key }) => `issue ${key}`,
-    async run({ key, id, body }, env) {
-      await jiraRequest(await env.jira(), {
+    async run({ key, id, body }, session) {
+      await jiraRequest(session.connection, {
         method: "PUT",
         path: `/issue/${pathSegment(key)}/comment/${pathSegment(id)}`,
-        body: { body: await markdownDoc(env, key, body) },
-        signal: env.context.signal,
+        body: { body: await markdownDoc(session, key, body) },
       });
-      noteChange(env, "updated", `comment ${id} on ${key}`);
+      noteChange(session, "updated", `comment ${id} on ${key}`);
       return { id };
     },
   }),
@@ -444,13 +420,12 @@ export const jiraWriteMethods: SdkMethod[] = [
       summary: `${key} comment ${id}`,
     }),
     resource: ({ key }) => `issue ${key}`,
-    async run({ key, id }, env) {
-      await jiraRequest(await env.jira(), {
+    async run({ key, id }, session) {
+      await jiraRequest(session.connection, {
         method: "DELETE",
         path: `/issue/${pathSegment(key)}/comment/${pathSegment(id)}`,
-        signal: env.context.signal,
       });
-      noteChange(env, "deleted", `comment ${id} on ${key}`);
+      noteChange(session, "deleted", `comment ${id} on ${key}`);
       return { id };
     },
   }),
@@ -471,12 +446,11 @@ export const jiraWriteMethods: SdkMethod[] = [
       summary: `${key} ${type} ${to}`,
     }),
     resource: ({ key }) => `issue ${key}`,
-    async run({ key, to, type }, env) {
-      const connection = await env.jira();
+    async run({ key, to, type }, session) {
+      const connection = session.connection;
       const response = await jiraRequest(connection, {
         parse: jsonObject,
         path: "/issueLinkType",
-        signal: env.context.signal,
       });
       const types = (
         isArray(response.issueLinkTypes) ? response.issueLinkTypes : []
@@ -514,9 +488,8 @@ export const jiraWriteMethods: SdkMethod[] = [
           inwardIssue: { key: keyIsInward ? key : to },
           outwardIssue: { key: keyIsInward ? to : key },
         },
-        signal: env.context.signal,
       });
-      noteChange(env, "created", `link ${key}→${to}`);
+      noteChange(session, "created", `link ${key}→${to}`);
       return { key, to, type: match.name };
     },
   }),
@@ -541,8 +514,8 @@ export const jiraWriteMethods: SdkMethod[] = [
       summary: `${key} ${time}`,
     }),
     resource: ({ key }) => `issue ${key}`,
-    async run({ key, time, started, comment }, env) {
-      const worklog = await jiraRequest(await env.jira(), {
+    async run({ key, time, started, comment }, session) {
+      const worklog = await jiraRequest(session.connection, {
         parse: jsonObject,
         method: "POST",
         path: `/issue/${pathSegment(key)}/worklog`,
@@ -551,10 +524,9 @@ export const jiraWriteMethods: SdkMethod[] = [
           ...(started ? { started } : {}),
           ...(comment ? { comment: markdownToAdf(comment) } : {}),
         },
-        signal: env.context.signal,
       });
       const id = String(worklog.id ?? "");
-      noteChange(env, "created", `worklog ${id} on ${key}`);
+      noteChange(session, "created", `worklog ${id} on ${key}`);
       return {
         id,
         timeSpent: String(worklog.timeSpent ?? time),
@@ -567,7 +539,7 @@ export const jiraWriteMethods: SdkMethod[] = [
     risk: "external_write",
     options: ["key", "file", "filename"],
     signature:
-      "/** Max 100 MB. A repeated filename adds a duplicate (unlike Confluence). */ upload(options: { key: string; file: FileHandle; filename?: string }): Promise<JiraAttachment>",
+      "/** Max 20 MB. A repeated filename adds a duplicate (unlike Confluence). */ upload(options: { key: string; file: FileHandle; filename?: string }): Promise<JiraAttachment>",
     parse: (options) => ({
       key: nonEmptyString(options.key, "key"),
       spec: parseAttachmentSpec({
@@ -579,10 +551,10 @@ export const jiraWriteMethods: SdkMethod[] = [
       targets: [jiraIssue(key)],
       summary: `${key} ← ${spec.filename ?? spec.file}`,
     }),
-    authorizeAlso: ({ spec }, env) => attachmentReadAuthorizations([spec], env),
+    authorizeAlso: ({ spec }) => attachmentReadAuthorizations([spec]),
     resource: ({ key }) => `issue ${key}`,
-    async run({ key, spec }, env) {
-      return await uploadFile(env, key, await loadFile(spec, env));
+    async run({ key, spec }, session) {
+      return await uploadFile(session, key, await loadFile(spec, session));
     },
   }),
   defineMethod({
@@ -620,14 +592,13 @@ export const jiraWriteMethods: SdkMethod[] = [
     }),
     resource: ({ sprint }) =>
       sprint === "backlog" ? "the backlog" : `sprint ${sprint}`,
-    async run({ keys, sprint }, env) {
-      await jiraRequest(await env.jira(), {
+    async run({ keys, sprint }, session) {
+      await jiraRequest(session.connection, {
         api: "agile",
         method: "POST",
         path:
           sprint === "backlog" ? "/backlog/issue" : `/sprint/${sprint}/issue`,
         body: { issues: keys },
-        signal: env.context.signal,
       });
       return { moved: keys.length };
     },

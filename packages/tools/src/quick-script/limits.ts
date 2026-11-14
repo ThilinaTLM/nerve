@@ -1,4 +1,3 @@
-import { HTML_CONVERSION_MAX_INPUT_BYTES } from "../execution/index.js";
 import {
   MAX_ATTACHMENT_BYTES,
   MAX_FILE_BYTES,
@@ -10,7 +9,6 @@ const LIMIT_BYTES: Record<string, number> = {
   "files.read": MAX_FILE_BYTES,
   "files.write": MAX_FILE_BYTES,
   attachments: MAX_ATTACHMENT_BYTES,
-  "web.fetch": HTML_CONVERSION_MAX_INPUT_BYTES,
 };
 
 function formatBytes(bytes: number): string {

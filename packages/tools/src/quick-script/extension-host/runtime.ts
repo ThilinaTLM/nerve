@@ -9,10 +9,14 @@ import type {
   NamespaceDefinition,
 } from "@nervekit/extension-api";
 import { ExtensionError } from "@nervekit/extension-api";
-import { resolveToolPath } from "../../execution/index.js";
+import {
+  isolatedHtmlToMarkdown,
+  resolveToolPath,
+} from "../../execution/index.js";
 import {
   artifactTempPath,
   commitArtifact,
+  freshArtifactName,
   mediaTypeFor,
   parseHandle,
   readFileRef,
@@ -179,6 +183,23 @@ export class ExtensionRuntime {
             ...dimensions,
           };
         },
+        freshName: (base, extension) => freshArtifactName(env, base, extension),
+      },
+      text: {
+        htmlToMarkdown: (html) => isolatedHtmlToMarkdown(html, { signal }),
+      },
+      authorize: async (check) => {
+        const authorizeNested = env.context.authorizeNested;
+        if (!authorizeNested)
+          throw new ExtensionError(
+            "DENIED",
+            "Nested authorization is unavailable; refusing to run SDK calls.",
+          );
+        await authorizeNested({
+          operation: check.operation,
+          targets: [...check.targets],
+          risk: check.risk,
+        });
       },
       report: {
         created: (entry) => void env.report.created.push(entry),
@@ -195,10 +216,7 @@ export class ExtensionRuntime {
                   await generateImage({
                     prompt: request.prompt,
                     inputs: [...request.inputs],
-                    options: {
-                      ...request.options,
-                      backend: request.options.backend as "openai-codex",
-                    },
+                    options: request.options,
                     signal,
                   }),
               },

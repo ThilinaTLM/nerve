@@ -5,15 +5,10 @@ import { issueAttachments } from "./media.js";
 import { noteChange } from "./report.js";
 import { simplifyWorklog } from "./issue.js";
 import { listValues } from "./field-values.js";
-import {
-  nonEmptyString,
-  optionalText,
-} from "@nervekit/tools/quick-script/runtime/sdk-args";
-import {
-  defineMethod,
-  type SdkMethod,
-} from "@nervekit/tools/quick-script/runtime/sdk-types";
+import { nonEmptyString, optionalText } from "../shared/args.js";
 import { jiraAttachment, jiraIssue } from "../shared/targets.js";
+import type { JiraSession } from "./session.js";
+import { defineMethod, type PathedMethod } from "../shared/define-method.js";
 
 const MAX_RANK_KEYS = 50;
 const list = (value: unknown): unknown[] => (Array.isArray(value) ? value : []);
@@ -42,7 +37,7 @@ function commentOption(value: unknown): string | undefined {
   return value;
 }
 
-export const jiraEditMethods: SdkMethod[] = [
+export const jiraEditMethods: PathedMethod<JiraSession>[] = [
   defineMethod({
     product: "jira",
     path: "issues.rank",
@@ -73,8 +68,8 @@ export const jiraEditMethods: SdkMethod[] = [
       summary: `${keys.join(", ")} ${before ? `before ${before}` : `after ${after}`}`,
     }),
     resource: ({ keys }) => `issue ${keys[0]}`,
-    async run({ keys, before, after }, env) {
-      await jiraRequest(await env.jira(), {
+    async run({ keys, before, after }, session) {
+      await jiraRequest(session.connection, {
         api: "agile",
         method: "PUT",
         path: "/issue/rank",
@@ -82,7 +77,6 @@ export const jiraEditMethods: SdkMethod[] = [
           issues: keys,
           ...(before ? { rankBeforeIssue: before } : { rankAfterIssue: after }),
         },
-        signal: env.context.signal,
       });
       return { ranked: keys.length };
     },
@@ -104,13 +98,12 @@ export const jiraEditMethods: SdkMethod[] = [
       summary: `${key} ${type ?? "link"} ${to}`,
     }),
     resource: ({ key }) => `issue ${key}`,
-    async run({ key, to, type }, env) {
-      const connection = await env.jira();
+    async run({ key, to, type }, session) {
+      const connection = session.connection;
       const issue = await jiraRequest(connection, {
         parse: jsonObject,
         path: `/issue/${pathSegment(key)}`,
         query: { fields: "issuelinks" },
-        signal: env.context.signal,
       });
       const links = list(record(issue.fields).issuelinks).map((raw) => {
         const link = record(raw);
@@ -152,10 +145,9 @@ export const jiraEditMethods: SdkMethod[] = [
         await jiraRequest(connection, {
           method: "DELETE",
           path: `/issueLink/${pathSegment(link.id)}`,
-          signal: env.context.signal,
         });
       }
-      noteChange(env, "deleted", `link ${key}→${to}`);
+      noteChange(session, "deleted", `link ${key}→${to}`);
       return { key, to, removed: matches.length };
     },
   }),
@@ -170,15 +162,14 @@ export const jiraEditMethods: SdkMethod[] = [
     parse: (options) => nonEmptyString(options.key, "key"),
     authorize: (key) => ({ targets: [jiraIssue(key)], summary: key }),
     resource: (key) => `issue ${key}`,
-    async run(key, env) {
-      const connection = await env.jira();
+    async run(key, session) {
+      const connection = session.connection;
       const all: unknown[] = [];
       for (;;) {
         const page = await jiraRequest(connection, {
           parse: jsonObject,
           path: `/issue/${pathSegment(key)}/worklog`,
           query: { startAt: all.length, maxResults: 1000 },
-          signal: env.context.signal,
         });
         const batch = list(page.worklogs);
         all.push(...batch);
@@ -213,8 +204,8 @@ export const jiraEditMethods: SdkMethod[] = [
       summary: `${key} worklog ${id}`,
     }),
     resource: ({ key }) => `issue ${key}`,
-    async run({ key, id, time, started, comment }, env) {
-      const worklog = await jiraRequest(await env.jira(), {
+    async run({ key, id, time, started, comment }, session) {
+      const worklog = await jiraRequest(session.connection, {
         parse: jsonObject,
         method: "PUT",
         path: `/issue/${pathSegment(key)}/worklog/${pathSegment(id)}`,
@@ -223,9 +214,8 @@ export const jiraEditMethods: SdkMethod[] = [
           ...(started ? { started } : {}),
           ...(comment ? { comment: markdownToAdf(comment) } : {}),
         },
-        signal: env.context.signal,
       });
-      noteChange(env, "updated", `worklog ${id} on ${key}`);
+      noteChange(session, "updated", `worklog ${id} on ${key}`);
       return { id, timeSpent: String(worklog.timeSpent ?? time ?? "") };
     },
   }),
@@ -245,13 +235,12 @@ export const jiraEditMethods: SdkMethod[] = [
       summary: `${key} worklog ${id}`,
     }),
     resource: ({ key }) => `issue ${key}`,
-    async run({ key, id }, env) {
-      await jiraRequest(await env.jira(), {
+    async run({ key, id }, session) {
+      await jiraRequest(session.connection, {
         method: "DELETE",
         path: `/issue/${pathSegment(key)}/worklog/${pathSegment(id)}`,
-        signal: env.context.signal,
       });
-      noteChange(env, "deleted", `worklog ${id} on ${key}`);
+      noteChange(session, "deleted", `worklog ${id} on ${key}`);
       return { id };
     },
   }),
@@ -266,7 +255,7 @@ export const jiraEditMethods: SdkMethod[] = [
     parse: (options) => nonEmptyString(options.key, "key"),
     authorize: (key) => ({ targets: [jiraIssue(key)], summary: key }),
     resource: (key) => `issue ${key}`,
-    run: (key, env) => issueAttachments(env, key),
+    run: (key, session) => issueAttachments(session, key),
   }),
   defineMethod({
     product: "jira",
@@ -282,13 +271,12 @@ export const jiraEditMethods: SdkMethod[] = [
       summary: `attachment ${id}`,
     }),
     resource: (id) => `attachment ${id}`,
-    async run(id, env) {
-      await jiraRequest(await env.jira(), {
+    async run(id, session) {
+      await jiraRequest(session.connection, {
         method: "DELETE",
         path: `/attachment/${pathSegment(id)}`,
-        signal: env.context.signal,
       });
-      noteChange(env, "deleted", `attachment ${id}`);
+      noteChange(session, "deleted", `attachment ${id}`);
       return { id };
     },
   }),

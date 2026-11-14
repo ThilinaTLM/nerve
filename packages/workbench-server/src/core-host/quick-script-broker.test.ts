@@ -162,10 +162,9 @@ void test("only operations and the remaining direct tools can be brokered", asyn
     toolName: "web_fetch",
     args: { url: "https://example.com" },
   });
-  await authorize(call, { toolName: "web_search", args: { query: "x" } });
   assert.deepEqual(
     inputs.map((input) => input.toolName),
-    ["read", "write", "edit", "web_fetch", "web_search"],
+    ["read", "write", "edit", "web_fetch"],
   );
 });
 

@@ -228,33 +228,6 @@ export async function commitArtifact(
   }
 }
 
-/** Where a streamed binary response goes: the sink hands out a temp path and commits it once complete. */
-export type BinarySink = {
-  prepare: (contentType: string) => Promise<string>;
-  commit: (
-    path: string,
-    bytes: number,
-    contentType: string,
-  ) => Promise<unknown>;
-};
-
-/** Streams a binary `request()` response into a fresh `<base>-N<ext>` artifact. */
-export function artifactBinarySink(
-  env: SdkEnvironment,
-  base: string,
-  extensionFor: (contentType: string) => string,
-): BinarySink {
-  return {
-    prepare: () => artifactTempPath(env),
-    commit: async (path, _bytes, contentType) =>
-      await commitArtifact(
-        env,
-        path,
-        await freshArtifactName(env, base, extensionFor(contentType)),
-      ),
-  };
-}
-
 /** Records an artifact the run wrote or changed for the result report; returns its handle. */
 export function reportArtifact(
   env: SdkEnvironment,

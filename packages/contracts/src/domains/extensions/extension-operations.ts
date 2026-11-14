@@ -62,6 +62,10 @@ export const extensionViewSchema = z.strictObject({
   locked: z.array(z.string()),
   /** Per `quick_script` namespace the extension contributes. */
   availability: z.record(z.string(), namespaceAvailabilitySchema),
+  /** Per direct tool the extension contributes. */
+  toolAvailability: z
+    .record(z.string(), namespaceAvailabilitySchema)
+    .optional(),
 });
 export type ExtensionView = z.infer<typeof extensionViewSchema>;
 

@@ -5,7 +5,9 @@ import type {
   AccountRecord,
   AccountsReader,
 } from "../../../src/domains/accounts/accounts.service.js";
-import { testAtlassianAccount } from "../../../src/domains/auth/account-testers.js";
+import { ApplicationError } from "../../../src/core/application-error.js";
+import { hostRegistry } from "../../../src/core-host/host-tools.js";
+import { extensionAccountTester } from "../../../src/domains/auth/account-testers.js";
 import { IntegrationHealthService } from "../../../src/domains/auth/integration-health.service.js";
 
 const kinds: AccountKind[] = [
@@ -48,12 +50,11 @@ function fixture() {
   const service = new IntegrationHealthService({
     accounts: reader,
     kinds: () => kinds,
-    testers: {
-      atlassian: async (account, secret) => {
-        tested.push(`${account.id}:${secret}`);
-        return { status: "verified" };
-      },
-      tavily: async () => ({ status: "verified" }),
+    test: async (account) => {
+      tested.push(
+        `${account.id}:${await reader.secret(account.kind, account.id)}`,
+      );
+      return { status: "verified" };
     },
     publish: async (kind, id) => void published.push(`${kind}:${id}`),
     now: () => new Date("2026-10-01T00:00:00.000Z"),
@@ -93,7 +94,17 @@ describe("IntegrationHealthService", () => {
   });
 });
 
-describe("testAtlassianAccount", () => {
+describe("extensionAccountTester", () => {
+  const reader: AccountsReader = {
+    get: async () => undefined,
+    list: async () => [],
+    secret: async () => "token",
+    hasSecret: async () => true,
+  };
+  const test = extensionAccountTester({
+    registry: hostRegistry,
+    accounts: reader,
+  });
   const account: AccountRecord = {
     id: "ner",
     name: "NER",
@@ -101,24 +112,20 @@ describe("testAtlassianAccount", () => {
     fields: { siteUrl: "https://ner.atlassian.net", email: "dev@example.com" },
   };
 
-  it("verifies when one service answers and names the other", async () => {
-    const result = await testAtlassianAccount(async (_connection, service) =>
-      service === "jira"
-        ? { status: "verified" }
-        : { status: "unavailable", message: "Not found" },
-    )(account, "token");
-    assert.equal(result.status, "verified");
-    assert.match(result.message ?? "", /Confluence: Not found/);
+  it("runs the kind's hook; an account without a site or email is a client error", async () => {
+    await assert.rejects(
+      test({ ...account, fields: {} }),
+      (error: unknown) =>
+        error instanceof ApplicationError &&
+        error.status === 400 &&
+        /site URL and email/.test(error.message),
+    );
   });
 
-  it("reports refused credentials first and needs a site and email", async () => {
-    const rejected = await testAtlassianAccount(async (_c, service) =>
-      service === "jira" ? { status: "rejected" } : { status: "verified" },
-    )(account, "token");
-    assert.equal(rejected.status, "rejected");
+  it("refuses kinds without a hook", async () => {
     await assert.rejects(
-      testAtlassianAccount()({ ...account, fields: {} }, "token"),
-      /site URL and email/,
+      test({ ...account, kind: "tavily", fields: {} }),
+      /cannot be tested/,
     );
   });
 });

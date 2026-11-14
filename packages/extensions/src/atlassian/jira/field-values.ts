@@ -1,8 +1,8 @@
 import { findAssignableUser } from "./users.js";
 import { markdownDoc } from "./media.js";
-import { closeMatches } from "@nervekit/tools/quick-script/runtime/sdk-args";
+import { closeMatches } from "../shared/args.js";
 import { resolveFieldSelection, type JiraFieldInfo } from "./issue.js";
-import type { SdkEnvironment } from "@nervekit/tools/quick-script/runtime/sdk-types";
+import type { JiraSession } from "./session.js";
 
 /** What Jira says about one field of an operation (createmeta, editmeta or a transition's screen). */
 export type FieldMeta = {
@@ -130,7 +130,7 @@ export type FieldScope = { projectKey?: string; issueKey?: string };
  */
 export async function toApiFields(
   input: Record<string, unknown>,
-  env: SdkEnvironment,
+  session: JiraSession,
   meta: Map<string, FieldMeta>,
   scope: FieldScope,
 ): Promise<Record<string, unknown>> {
@@ -143,7 +143,7 @@ export async function toApiFields(
     );
     let id = known?.id;
     if (!id) {
-      id = (await resolveFieldSelection([name], env.jiraFields))[0]?.id;
+      id = (await resolveFieldSelection([name], () => session.fields()))[0]?.id;
       if (!id) throw new Error(`Unknown Jira field "${name}".`);
       if (meta.size > 0 && !meta.has(id)) {
         throw new Error(
@@ -152,7 +152,7 @@ export async function toApiFields(
       }
     }
     if (catalog.size === 0) {
-      for (const info of await env.jiraFields()) catalog.set(info.id, info);
+      for (const info of await session.fields()) catalog.set(info.id, info);
     }
     const info = catalog.get(id);
     const field: FieldMeta = meta.get(id) ?? {
@@ -164,7 +164,7 @@ export async function toApiFields(
       items: info?.items ?? null,
       kind: info?.kind ?? null,
     };
-    out[id] = await convert(field, value, env, scope);
+    out[id] = await convert(field, value, session, scope);
   }
   return out;
 }
@@ -174,7 +174,7 @@ const RICH_TEXT = new Set(["description", "environment"]);
 async function convert(
   field: FieldMeta,
   value: unknown,
-  env: SdkEnvironment,
+  session: JiraSession,
   scope: FieldScope,
 ): Promise<unknown> {
   if (value === null || value === undefined) return null;
@@ -184,13 +184,13 @@ async function convert(
     (type === "string" && field.kind?.endsWith(":textarea"))
   ) {
     return typeof value === "string"
-      ? await markdownDoc(env, scope.issueKey, value)
+      ? await markdownDoc(session, scope.issueKey, value)
       : value;
   }
   if (type === "user" || (type === "array" && items === "user")) {
     const resolve = async (item: unknown) =>
       typeof item === "string"
-        ? await userRef(item, field.name, env, scope)
+        ? await userRef(item, field.name, session, scope)
         : item;
     const users =
       type === "user"
@@ -241,14 +241,14 @@ async function convert(
 async function userRef(
   query: string,
   field: string,
-  env: SdkEnvironment,
+  session: JiraSession,
   scope: FieldScope,
 ): Promise<{ accountId: string }> {
   if (ACCOUNT_ID.test(query)) return { accountId: query };
   const { user, candidates } = await findAssignableUser(
-    await env.jira(),
+    session.connection,
     query,
-    { ...scope, signal: env.context.signal },
+    { ...scope },
   );
   if (user) return { accountId: user.accountId };
   const where = scope.issueKey ?? scope.projectKey ?? "this site";

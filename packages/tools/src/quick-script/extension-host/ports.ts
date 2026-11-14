@@ -1,8 +1,8 @@
-import type { AccountInfo } from "@nervekit/extension-api";
 import type {
+  AccountInfo,
   ImageGenerateRequest,
   ImageGenerateResponse,
-} from "../runtime/sdk-types.js";
+} from "@nervekit/extension-api";
 
 /**
  * What the embedding host (the server) provides so the runtime can build an

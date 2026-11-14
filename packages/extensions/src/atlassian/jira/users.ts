@@ -25,7 +25,6 @@ export async function searchJiraUsers(
     issueKey?: string;
     maxResults: number;
     includeInactive?: boolean;
-    signal?: AbortSignal;
   },
 ): Promise<JiraUsersResponse> {
   const commonQuery = { query: options.query, maxResults: options.maxResults };
@@ -34,7 +33,6 @@ export async function searchJiraUsers(
       parse: parseUsers,
       path: "/user/assignable/search",
       query: { ...commonQuery, issueKey: options.issueKey },
-      signal: options.signal,
     });
   }
   if (options.projectKey) {
@@ -42,7 +40,6 @@ export async function searchJiraUsers(
       parse: parseUsers,
       path: "/user/assignable/search",
       query: { ...commonQuery, project: options.projectKey },
-      signal: options.signal,
     });
   }
   return jiraRequest(connection, {
@@ -52,7 +49,6 @@ export async function searchJiraUsers(
       ...commonQuery,
       includeInactive: options.includeInactive === true,
     },
-    signal: options.signal,
   });
 }
 
@@ -77,7 +73,6 @@ export async function findAssignableUser(
     projectKey: options.projectKey,
     issueKey: options.issueKey,
     maxResults: 10,
-    signal: options.signal,
   });
   const users = jiraUsersFromResponse(data).flatMap((user) => {
     const summary = summarizeJiraUser(user);

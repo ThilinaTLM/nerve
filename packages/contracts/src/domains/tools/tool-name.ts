@@ -12,13 +12,16 @@ export const coreToolNameSchema = z.enum([
   "ask_user",
   "todos_set",
   "todos_get",
-  "web_search",
   "web_fetch",
   "explain_image",
   "quick_script",
 ]);
 export type CoreToolName = z.infer<typeof coreToolNameSchema>;
 
+/**
+ * Tools with a per-profile switch. `web_search` is contributed by the Web
+ * extension (not a core tool); its switch keeps the name the agent profiles use.
+ */
 export const userConfigurableToolNameSchema = z.enum([
   "plan_present",
   "subagent_prompt",

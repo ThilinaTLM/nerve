@@ -6,8 +6,6 @@ import type {
   SdkMethod,
   ArtifactReport,
   QuickScriptContext,
-  PageReport,
-  SdkEnvironment,
 } from "./sdk-types.js";
 import { isOperationCheck } from "./sdk-types.js";
 import { ToolExecutionError } from "../../execution/index.js";
@@ -201,7 +199,7 @@ export async function executeQuickScript(
       record({ ...base, outcome: "completed" });
       return value;
     } catch (error) {
-      const unauthorized = await unauthorizedMessage(error, env);
+      const unauthorized = unauthorizedMessage(error);
       if (unauthorized) {
         authFailure ??= unauthorized;
         record({ ...base, outcome: "failed", error: unauthorized });
@@ -247,18 +245,12 @@ export async function executeQuickScript(
         : undefined);
   const exitCode = EXIT_CODES[status] ?? 1;
   // Copies: a call that ignored the abort must not change a result already built.
-  const report = reconcileReport(
-    {
-      created: env.report.created,
-      updated: env.report.updated,
-      deleted: env.report.deleted,
-      raw: env.report.raw,
-    },
-    env.report.pages
-      .filter((page) => page.action === "created")
-      .map((page) => page.id),
-  );
-  const pages = env.report.pages.map((page) => ({ ...page }));
+  const report = reconcileReport({
+    created: env.report.created,
+    updated: env.report.updated,
+    deleted: env.report.deleted,
+    raw: env.report.raw,
+  });
   const artifacts = await withImageSizes([...env.report.artifacts.values()]);
   const calls = hostCalls.map((call) => ({ ...call }));
   const footer = quickScriptFooter({
@@ -271,7 +263,7 @@ export async function executeQuickScript(
     outcome.output.trimEnd(),
     outcome.outputTruncated ? "[output truncated]" : undefined,
     error,
-    ...reportLines(pages, artifacts, report, env.report.notes),
+    ...reportLines(artifacts, report, env.report.notes),
     footer,
   ]
     .filter((part): part is string => Boolean(part))
@@ -287,7 +279,6 @@ export async function executeQuickScript(
       memoryUsedBytes: outcome.memoryUsedBytes,
       outputTruncated: outcome.outputTruncated,
       hostCalls: calls,
-      pages,
       created: report.created,
       ...(report.updated.length > 0 ? { updated: report.updated } : {}),
       ...(report.deleted.length > 0 ? { deleted: report.deleted } : {}),
@@ -323,18 +314,11 @@ export type ChangeReport = {
 };
 
 /** An entity created and deleted in one run is shown as deleted (marked), not as created; one created and updated is just created. */
-export function reconcileReport(
-  report: ChangeReport,
-  /** Ids of pages created in this run; they are listed as `Page … created` lines, not in `created`. */
-  createdPageIds: readonly string[] = [],
-): ChangeReport {
+export function reconcileReport(report: ChangeReport): ChangeReport {
   // `attachment 10 on SCRUM-1` and `attachment 10` name one entity; so do `page 5 "T" (trashed)` and `page 5`.
   const entity = (item: string) =>
     /^(?:attachment|page) \S+/.exec(item)?.[0] ?? item;
-  const created = new Set([
-    ...report.created.map(entity),
-    ...createdPageIds.map((id) => `page ${id}`),
-  ]);
+  const created = new Set(report.created.map(entity));
   const deleted = new Set(report.deleted.map(entity));
   return {
     created: report.created.filter((item) => !deleted.has(entity(item))),
@@ -348,26 +332,14 @@ export function reconcileReport(
   };
 }
 
-/** Lint report for every page written, the artifacts, and what was created/updated/deleted, appended after the script's output. */
+/** The artifacts, and what was created/updated/deleted, appended after the script's output. */
 export function reportLines(
-  pages: readonly PageReport[],
   artifacts: readonly ArtifactReport[],
   changes: ChangeReport,
   /** Free-text lines extensions added through `ctx.report.note`. */
   notes: readonly string[] = [],
 ): string[] {
-  const lines = pages.map((page) => {
-    const parts = [
-      `Page ${page.id} "${page.title}" ${page.action}${page.version ? ` (v${page.version})` : ""}`,
-    ];
-    if (page.fixes.length > 0) parts.push(`fixes: ${page.fixes.join("; ")}`);
-    if (page.warnings.length > 0) {
-      parts.push(`warnings: ${page.warnings.join("; ")}`);
-    }
-    if (page.fixes.length + page.warnings.length === 0)
-      parts.push("lint clean");
-    return parts.join(" · ");
-  });
+  const lines: string[] = [];
   if (artifacts.length > 0) {
     // One folder: print it once so Read/Edit can open any artifact as <folder>/<name>.
     const folder = dirname(artifacts[0].path);
@@ -494,20 +466,11 @@ function hostFailure(
 }
 
 /** For a 401, the message that ends the whole script; otherwise undefined. */
-async function unauthorizedMessage(
-  error: unknown,
-  env: SdkEnvironment,
-): Promise<string | undefined> {
+function unauthorizedMessage(error: unknown): string | undefined {
   if (!(error instanceof ToolExecutionError)) return undefined;
   // The host's own 401 on an authenticated `ctx.http` request: the message names the account and the fix.
   if (error.code === "UNAUTHORIZED") return error.message;
-  const product = /^(JIRA|CONFLUENCE)_UNAUTHORIZED$/.exec(error.code)?.[1];
-  if (!product) return undefined;
-  const connection = await (
-    product === "JIRA" ? env.jira() : env.confluence()
-  ).catch(() => undefined);
-  const name = product === "JIRA" ? "Jira" : "Confluence";
-  return `${name} rejected the API token${connection ? ` for ${connection.email}` : ""}; update it in Settings → Extensions → Atlassian.`;
+  return undefined;
 }
 
 function truncate(text: string, max: number): string {

@@ -1,35 +1,13 @@
 import assert from "node:assert/strict";
-import { mkdir, mkdtemp, readdir, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
-import { afterEach, test } from "node:test";
-import { image } from "@nervekit/native";
-import { quickScriptResultDetailsSchema } from "@nervekit/contracts/tools";
+import { test } from "node:test";
 import { assertWellFormedStorage } from "./storage-xml.js";
-import { executeQuickScript } from "@nervekit/tools/quick-script/runtime/quick-script";
 import {
+  createHarness,
+  fakePng,
+  type FetchLike,
   type Nested,
   nestedName,
-} from "@nervekit/tools/quick-script/runtime/test-nested";
-
-const originalFetch = globalThis.fetch;
-afterEach(() => {
-  globalThis.fetch = originalFetch;
-});
-
-const PIXEL_PNG = Buffer.from(
-  "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==",
-  "base64",
-);
-
-/** A real PNG of the given size (the native module stretches a 1x1 pixel). */
-async function png(width: number, height: number): Promise<Buffer> {
-  return (
-    await image.transformImage(PIXEL_PNG, {
-      resize: { width, height, fit: "fill" },
-    })
-  ).data;
-}
+} from "../test-support.js";
 
 type PageBody = {
   title?: string;
@@ -43,31 +21,25 @@ type Recorded = {
   form?: FormData;
 };
 
-async function setup(options: { deny?: string } = {}) {
-  const root = await mkdtemp(join(tmpdir(), "quick-script-"));
-  const cwd = join(root, "workspace");
-  const conversationDir = join(root, "conversation");
-  const artifactDir = join(conversationDir, "quick-script");
-  await mkdir(cwd);
-  const kroki = await png(800, 400);
+function setup(
+  options: {
+    deny?: string;
+    files?: Record<string, Uint8Array | string>;
+    wrap?: (inner: FetchLike) => FetchLike;
+  } = {},
+) {
   const events: string[] = [];
   const requests: Recorded[] = [];
   const authorized: Nested[] = [];
-  globalThis.fetch = async (input, init) => {
-    const url = new URL(String(input));
-    const method = init?.method ?? "GET";
+  const inner: FetchLike = async (url, init) => {
+    const method = init.method;
     events.push(`fetch ${method} ${url.host}${url.pathname}`);
-    const form = init?.body instanceof FormData ? init.body : undefined;
+    const form = init.body instanceof FormData ? init.body : undefined;
     const body =
-      typeof init?.body === "string"
+      typeof init.body === "string"
         ? (JSON.parse(init.body) as PageBody)
         : undefined;
     requests.push({ method, path: url.pathname, body, form });
-    if (url.host === "kroki.test") {
-      return new Response(new Uint8Array(kroki), {
-        headers: { "content-type": "image/png" },
-      });
-    }
     const path = url.pathname.replace("/wiki/api/v2", "");
     if (url.pathname.endsWith("/child/attachment")) {
       const file = form!.get("file") as File;
@@ -108,34 +80,26 @@ async function setup(options: { deny?: string } = {}) {
     }
     return new Response("{}", { status: 404 });
   };
-  const context = {
-    cwd,
-    conversationDir,
-    kroki: { url: "http://kroki.test/" },
-    getApiKey: async () => "token",
-    getProviderConfig: async () => ({
-      enabled: true,
-      siteUrl: "https://example.atlassian.net",
-      email: "dev@example.com",
-    }),
-    authorizeNested: async (request: Nested) => {
+  const context = createHarness({
+    files: options.files,
+    fetch: options.wrap ? options.wrap(inner) : inner,
+    authorize: (request) => {
       const name = nestedName(request);
       events.push(`authorize ${name}`);
       authorized.push(request);
       if (options.deny === name) throw new Error(`denied ${name}`);
     },
-  };
-  return { cwd, artifactDir, events, requests, authorized, context };
+  });
+  return { events, requests, authorized, context };
 }
 
 void test("attachments.upload authorizes the operation and read before any I/O, then returns dimensions", async () => {
-  const { cwd, events, requests, authorized, context } = await setup();
-  await writeFile(join(cwd, "chart.png"), await png(1200, 600));
-  const result = await executeQuickScript(
-    {
-      code: `console.log(JSON.stringify(await confluence.attachments.upload({ id: "100", file: "chart.png", comment: "c" })));`,
-    },
-    context,
+  const chart = fakePng(1200, 600);
+  const { events, requests, authorized, context } = setup({
+    files: { "chart.png": chart },
+  });
+  const result = await context.run(
+    `console.log(JSON.stringify(await confluence.attachments.upload({ id: "100", file: "chart.png", comment: "c" })));`,
   );
   assert.deepEqual(events.slice(0, 2), [
     "authorize confluence.attachments.upload",
@@ -144,13 +108,13 @@ void test("attachments.upload authorizes the operation and read before any I/O, 
   assert.equal(events[2]?.startsWith("fetch PUT"), true);
   assert.deepEqual(authorized[1], {
     toolName: "read",
-    args: { path: join(cwd, "chart.png") },
+    args: { path: "chart.png" },
   });
-  assert.deepEqual(JSON.parse(result.content!.split("\n")[0]), {
+  assert.deepEqual(JSON.parse(result.content.split("\n")[0]), {
     id: "att1",
     filename: "chart.png",
     mediaType: "image/png",
-    size: (await png(1200, 600)).byteLength,
+    size: chart.byteLength,
     width: 1200,
     height: 600,
   });
@@ -158,79 +122,63 @@ void test("attachments.upload authorizes the operation and read before any I/O, 
 });
 
 void test("a denied read stops the upload before any HTTP", async () => {
-  const { cwd, events, context } = await setup({ deny: "read" });
-  await writeFile(join(cwd, "a.png"), await png(10, 10));
-  const result = await executeQuickScript(
-    {
-      code: `try { await confluence.attachments.upload({ id: "100", file: "a.png" }); } catch (e) { console.log(e.message); }`,
-    },
-    context,
+  const { events, context } = setup({
+    deny: "read",
+    files: { "a.png": fakePng(10, 10) },
+  });
+  const result = await context.run(
+    `try { await confluence.attachments.upload({ id: "100", file: "a.png" }); } catch (e) { console.log(e.message); }`,
   );
   assert.ok(events.every((event) => event.startsWith("authorize")));
-  assert.match(result.content ?? "", /denied read/);
-  assert.equal(
-    quickScriptResultDetailsSchema.parse(result.details).hostCalls[0].outcome,
-    "denied",
-  );
+  assert.match(result.content, /denied read/);
+  assert.equal(result.hostCalls[0].outcome, "denied");
 });
 
 void test("SVG attachments are rejected with guidance", async () => {
-  const { cwd, context } = await setup();
-  await writeFile(
-    join(cwd, "d.svg"),
-    '<svg xmlns="http://www.w3.org/2000/svg" width="1" height="1"/>',
-  );
-  const result = await executeQuickScript(
-    {
-      code: `try { await confluence.attachments.upload({ id: "100", file: "d.svg" }); } catch (e) { console.log(e.message); }`,
+  const { context } = setup({
+    files: {
+      "d.svg": '<svg xmlns="http://www.w3.org/2000/svg" width="1" height="1"/>',
     },
-    context,
+  });
+  const result = await context.run(
+    `try { await confluence.attachments.upload({ id: "100", file: "d.svg" }); } catch (e) { console.log(e.message); }`,
   );
   assert.match(
-    result.content ?? "",
+    result.content,
     /SVG attachments are not supported.*diagram\.render/,
   );
 });
 
-void test(
-  "GIFs are converted to PNG on upload",
-  { skip: !image.isAvailable() },
-  async () => {
-    const { cwd, requests, context } = await setup();
-    const gif = Buffer.from(
+void test("GIFs upload unchanged, with the size read from their header", async () => {
+  const gif = Uint8Array.from(
+    Buffer.from(
       "R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7",
       "base64",
-    );
-    await writeFile(join(cwd, "anim.gif"), gif);
-    const result = await executeQuickScript(
-      {
-        code: `console.log(JSON.stringify(await confluence.attachments.upload({ id: "100", file: "anim.gif" })));`,
-      },
-      context,
-    );
-    const uploaded = JSON.parse(result.content!.split("\n")[0]);
-    assert.equal(uploaded.filename, "anim.png");
-    assert.equal(uploaded.mediaType, "image/png");
-    assert.equal(requests[0].form!.get("file") instanceof File, true);
-  },
-);
+    ),
+  );
+  const { requests, context } = setup({ files: { "anim.gif": gif } });
+  const result = await context.run(
+    `console.log(JSON.stringify(await confluence.attachments.upload({ id: "100", file: "anim.gif" })));`,
+  );
+  const uploaded = JSON.parse(result.content.split("\n")[0]);
+  assert.equal(uploaded.filename, "anim.gif");
+  assert.equal(uploaded.mediaType, "image/gif");
+  assert.equal(uploaded.width, 1);
+  assert.equal((requests[0].form!.get("file") as File).type, "image/gif");
+});
 
 void test("pages.create with attachments: create, upload, then save again so images resolve", async () => {
-  const { cwd, events, requests, context } = await setup();
-  await writeFile(join(cwd, "shot.png"), await png(1400, 700));
-  const result = await executeQuickScript(
-    {
-      code: `
+  const { events, requests, context } = setup({
+    files: { "shot.png": fakePng(1400, 700) },
+  });
+  const result = await context.run(`
         const page = await confluence.pages.create({
           space: "DOC", title: "T",
           body: [storage.heading(1, "Intro"), storage.image("shot.png", { alt: "Shot" }), storage.image("missing.png")],
           attachments: ["shot.png"],
         });
         console.log(JSON.stringify(page));
-      `,
-    },
-    context,
-  );
+      `);
   assert.deepEqual(
     events
       .filter((e) => e.startsWith("fetch"))
@@ -249,7 +197,7 @@ void test("pages.create with attachments: create, upload, then save again so ima
   const pageUpdate = requests.filter((r) => r.method === "PUT" && r.body)[0];
   assert.equal(pageUpdate.body!.version.number, 2);
   assert.equal(pageUpdate.body!.body.value, body);
-  const page = JSON.parse(result.content!.split("\n")[0]);
+  const page = JSON.parse(result.content.split("\n")[0]);
   assert.equal(page.version, 2);
   assert.equal(page.attachments[0].width, 1400);
   assert.match(
@@ -264,83 +212,60 @@ void test("pages.create with attachments: create, upload, then save again so ima
 });
 
 void test("malformed bodies are rejected before any HTTP", async () => {
-  const { events, context } = await setup();
-  const result = await executeQuickScript(
-    {
-      code: `try { await confluence.pages.create({ space: "DOC", title: "T", body: storage.raw("<p>unclosed") }); } catch (e) { console.log(e.message); }`,
-    },
-    context,
+  const { events, context } = setup();
+  const result = await context.run(
+    `try { await confluence.pages.create({ space: "DOC", title: "T", body: storage.raw("<p>unclosed") }); } catch (e) { console.log(e.message); }`,
   );
   assert.match(
-    result.content ?? "",
+    result.content,
     /not well-formed storage XHTML: <p> opened at line 1 is never closed/,
   );
   assert.equal(events.filter((e) => e.startsWith("fetch")).length, 0);
 });
 
-void test("diagram.render saves an artifact and returns its handle; the handle uploads as an attachment", async () => {
-  const { artifactDir, events, requests, authorized, context } = await setup();
-  const result = await executeQuickScript(
-    {
-      code: `
-        const d = await diagram.render({ type: "mermaid", source: "graph TD; A-->B" });
-        console.log(d);
-        const up = await confluence.attachments.upload({ id: "100", file: d, filename: "flow.png" });
-        console.log(JSON.stringify(up));
-      `,
-    },
-    context,
-  );
-  assert.deepEqual(authorized[0], {
-    operation: "diagram.render",
-    targets: [],
-    risk: "network",
+void test("an artifact handle uploads as an attachment under the name given", async () => {
+  const { requests, context } = setup({
+    files: { "artifact:diagram-1.png": fakePng(800, 400) },
   });
-  assert.equal(events[0], "authorize diagram.render");
-  const [handleLine, uploadLine] = result.content!.split("\n");
-  assert.equal(handleLine, "artifact:diagram-1.png");
-  assert.deepEqual(await readdir(artifactDir), ["diagram-1.png"]);
-  const uploaded = JSON.parse(uploadLine);
+  const result = await context.run(`
+        const up = await confluence.attachments.upload({ id: "100", file: "artifact:diagram-1.png", filename: "flow.png" });
+        console.log(JSON.stringify(up));
+      `);
+  const uploaded = JSON.parse(result.content.split("\n")[0]);
   assert.equal(uploaded.filename, "flow.png");
   assert.equal(uploaded.width, 800);
   assert.equal((requests.at(-1)!.form!.get("file") as File).name, "flow.png");
-  // The artifact is listed after the script's output, and recorded in the details.
-  assert.match(result.content ?? "", /Artifacts: artifact:diagram-1\.png \(\d/);
-  const details = quickScriptResultDetailsSchema.parse(result.details);
-  assert.equal(details.artifacts?.[0]?.handle, "artifact:diagram-1.png");
-  assert.equal(details.artifacts?.[0]?.mediaType, "image/png");
+  // An artifact is the run's own file: no read authorization.
+  assert.deepEqual(context.authorized.map(nestedName), [
+    "confluence.attachments.upload",
+  ]);
 });
 
-void test("page attachments accept artifact handles and report the lint result automatically", async () => {
-  const { context } = await setup();
-  const result = await executeQuickScript(
-    {
-      code: `
-        const d = await diagram.render({ type: "mermaid", source: "graph TD; A-->B", name: "flow.png" });
+void test("page attachments accept artifact handles and the footer reports the page and its lint result", async () => {
+  const { context } = setup({
+    files: { "artifact:flow.png": fakePng(800, 400) },
+  });
+  const result = await context.run(`
         await confluence.pages.create({
           space: "DOC", title: "Flow",
           body: [storage.heading(2, "Diagram"), storage.image("flow.png"), storage.image("other.png")],
-          attachments: [d],
+          attachments: ["artifact:flow.png"],
         });
-      `,
-    },
-    context,
+      `);
+  // Nothing was printed, yet the footer names the page, fixes and warnings.
+  const lines = result.content.split("\n");
+  assert.equal(
+    lines[0],
+    'Created: attachment att1 on page 100, page 100 "Flow"',
   );
-  // Nothing was printed, yet the report names the page, fixes and warnings.
-  const lines = (result.content ?? "").split("\n");
-  assert.match(lines[0], /^Page 100 "Flow" created \(v2\) · fixes: /);
-  assert.match(lines[0], /Promoted all headings/);
-  assert.match(lines[0], /"other\.png" that is not on the page/);
-  assert.match(lines[1], /^Artifacts: artifact:flow\.png/);
-  const details = quickScriptResultDetailsSchema.parse(result.details);
-  assert.equal(details.pages?.[0]?.id, "100");
+  assert.match(lines[1], /^Page 100 "Flow" created \(v2\) · fixes: /);
+  assert.match(lines[1], /Promoted all headings/);
+  assert.match(lines[1], /"other\.png" that is not on the page/);
 });
 
 void test("storage builders produce well-formed XHTML", async () => {
-  const { requests, context } = await setup();
-  await executeQuickScript(
-    {
-      code: `
+  const { requests, context } = setup();
+  await context.run(`
         const body = [
           storage.heading(1, "Overview"), storage.p("Plain & simple"),
           storage.layout(["left **bold**", storage.panel("tip", "right")], { type: "two_left_sidebar" }),
@@ -352,10 +277,7 @@ void test("storage builders produce well-formed XHTML", async () => {
           storage.heading(1, "Last"), storage.p("x"),
         ];
         await confluence.pages.create({ space: "DOC", title: "T", body });
-      `,
-    },
-    context,
-  );
+      `);
   const value = requests.find((r) => r.method === "POST")!.body!.body.value;
   assertWellFormedStorage(value);
   assert.ok(value.includes('<ac:layout-section ac:type="two_left_sidebar">'));
@@ -371,10 +293,8 @@ void test("storage builders produce well-formed XHTML", async () => {
 });
 
 void test("jiraIssues builds semicolon-separated columns and a layout; panels map Cloud names to storage macros", async () => {
-  const { requests, context } = await setup();
-  await executeQuickScript(
-    {
-      code: `
+  const { requests, context } = setup();
+  await context.run(`
         const body = [
           storage.heading(1, "A"),
           storage.jiraIssues("project = A", { columns: ["key", "summary", "type", "assignee"], limit: 20 }),
@@ -386,10 +306,7 @@ void test("jiraIssues builds semicolon-separated columns and a layout; panels ma
         ];
         try { storage.panel("tip2", "x"); } catch (e) { console.log(e.message); }
         await confluence.pages.create({ space: "DOC", title: "T", body });
-      `,
-    },
-    context,
-  );
+      `);
   const value = requests.find((r) => r.method === "POST")!.body!.body.value;
   assertWellFormedStorage(value);
   assert.ok(
@@ -431,28 +348,25 @@ void test("jiraIssues builds semicolon-separated columns and a layout; panels ma
 });
 
 /** Makes uploads of `filename` fail with a server error. */
-function failUploadsOf(filename: string) {
-  const inner = globalThis.fetch;
-  globalThis.fetch = async (input, init) => {
-    const file = init?.body instanceof FormData ? init.body.get("file") : null;
+const failUploadsOf =
+  (filename: string) =>
+  (inner: FetchLike): FetchLike =>
+  (url, init) => {
+    const file = init.body instanceof FormData ? init.body.get("file") : null;
     if (file instanceof File && file.name === filename)
       return new Response("{}", { status: 500 });
-    return inner(input, init);
+    return inner(url, init);
   };
-}
 
 void test("a failed upload after pages.create names the created page and the missing attachments", async () => {
-  const { cwd, context } = await setup();
-  await writeFile(join(cwd, "a.png"), await png(100, 50));
-  await writeFile(join(cwd, "b.png"), await png(100, 50));
-  failUploadsOf("b.png");
-  const result = await executeQuickScript(
-    {
-      code: `try { await confluence.pages.create({ space: "DOC", title: "T", body: storage.raw("<p>x</p>"), attachments: ["a.png", "b.png"] }); } catch (e) { console.log(e.code, e.message); }`,
-    },
-    context,
+  const { context } = setup({
+    files: { "a.png": fakePng(100, 50), "b.png": fakePng(100, 50) },
+    wrap: failUploadsOf("b.png"),
+  });
+  const result = await context.run(
+    `try { await confluence.pages.create({ space: "DOC", title: "T", body: storage.raw("<p>x</p>"), attachments: ["a.png", "b.png"] }); } catch (e) { console.log(e.code, e.message); }`,
   );
-  const text = result.content ?? "";
+  const text = result.content;
   assert.match(text, /^SERVER_ERROR /);
   assert.match(
     text,
@@ -465,22 +379,18 @@ void test("a failed upload after pages.create names the created page and the mis
 });
 
 void test("a failed pages.update save names the attachments already uploaded", async () => {
-  const { cwd, requests, context } = await setup();
-  await writeFile(join(cwd, "a.png"), await png(100, 50));
-  const inner = globalThis.fetch;
-  globalThis.fetch = async (input, init) =>
-    init?.method === "PUT" &&
-    new URL(String(input)).pathname.endsWith("/pages/100")
-      ? new Response("{}", { status: 500 })
-      : inner(input, init);
-  const result = await executeQuickScript(
-    {
-      code: `try { await confluence.pages.update({ id: "100", body: storage.raw("<p>x</p>"), attachments: ["a.png"] }); } catch (e) { console.log(e.message); }`,
-    },
-    context,
+  const { requests, context } = setup({
+    files: { "a.png": fakePng(100, 50) },
+    wrap: (inner) => (url, init) =>
+      init.method === "PUT" && url.pathname.endsWith("/pages/100")
+        ? new Response("{}", { status: 500 })
+        : inner(url, init),
+  });
+  const result = await context.run(
+    `try { await confluence.pages.update({ id: "100", body: storage.raw("<p>x</p>"), attachments: ["a.png"] }); } catch (e) { console.log(e.message); }`,
   );
   assert.match(
-    result.content ?? "",
+    result.content,
     /page 100 was not saved, but these attachments were already uploaded: a\.png/,
   );
   assert.ok(requests.some((r) => r.form));

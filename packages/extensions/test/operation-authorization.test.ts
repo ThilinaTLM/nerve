@@ -29,7 +29,7 @@ const checksOf = (name: string, args: unknown[]) => {
   ];
 };
 
-void test("methods keep the direct-tool route only for web, files and image; everything else is an operation", () => {
+void test("methods keep the direct-tool route only for web.fetch, files and image; everything else is an operation", () => {
   for (const [name, calls] of Object.entries(SAMPLES)) {
     const product = findSdkMethod(name)!.product;
     for (const args of calls) {
@@ -37,7 +37,7 @@ void test("methods keep the direct-tool route only for web, files and image; eve
       if (!first) continue;
       assert.equal(
         !isOperationCheck(first),
-        ["web", "files", "image"].includes(product),
+        name === "web.fetch" || ["files", "image"].includes(product),
         `${name} ${JSON.stringify(args)}`,
       );
     }
@@ -59,6 +59,14 @@ void test("raw requests are operations: GET is network, anything else destructiv
       assert.equal(check.risk, args[0] === "GET" ? "network" : "destructive");
     }
   }
+});
+
+void test("web.search is a network operation named after the method, without targets", () => {
+  const [check] = checksOf("web.search", ["nerve"]);
+  assert.ok(check && isOperationCheck(check));
+  assert.equal(check.operation, "web.search");
+  assert.equal(check.risk, "network");
+  assert.deepEqual(check.targets, []);
 });
 
 void test("imagegen.generate is a network operation without targets", () => {

@@ -1,30 +1,20 @@
-import { rm } from "node:fs/promises";
 import { extname } from "node:path";
-import { ToolExecutionError } from "@nervekit/tools/execution";
 import { jsonObject } from "../shared/http.js";
-import { confluenceDownloadToFile, confluenceRequest } from "./client.js";
+import { confluenceDownloadToArtifact, confluenceRequest } from "./client.js";
 import { pathSegment } from "../jira/client.js";
 import { valuesFromConfluenceList } from "./format.js";
-import {
-  artifactNameFor,
-  artifactTempPath,
-  commitArtifact,
-  freshArtifactName,
-  MAX_ATTACHMENT_BYTES,
-} from "@nervekit/tools/quick-script/runtime/files/artifacts";
-import { codedError } from "@nervekit/tools/quick-script/runtime/errors";
-import { nonEmptyString } from "@nervekit/tools/quick-script/runtime/sdk-args";
-import {
-  defineMethod,
-  type SdkMethod,
-} from "@nervekit/tools/quick-script/runtime/sdk-types";
+import { artifactNameFor } from "../shared/files.js";
+import { codedError } from "../shared/errors.js";
+import { nonEmptyString } from "../shared/args.js";
 import { confluenceAttachment, confluencePage } from "../shared/targets.js";
+import { defineMethod, type PathedMethod } from "../shared/define-method.js";
+import type { ConfluenceSession } from "./session.js";
 
 type Target = { id: string } | { page: string; filename: string };
 
 type Found = { downloadLink?: unknown; title?: unknown };
 
-export const confluenceAttachmentMethods: SdkMethod[] = [
+export const confluenceAttachmentMethods: PathedMethod<ConfluenceSession>[] = [
   defineMethod({
     product: "confluence",
     path: "attachments.download",
@@ -57,21 +47,19 @@ export const confluenceAttachmentMethods: SdkMethod[] = [
     }),
     resource: (target) =>
       "id" in target ? `attachment ${target.id}` : `page ${target.page}`,
-    async run(target, env) {
-      const connection = await env.confluence();
+    async run(target, session) {
+      const connection = session.connection;
       let found: Found | undefined;
       if ("id" in target) {
         found = await confluenceRequest(connection, {
           parse: jsonObject,
           path: `/attachments/${pathSegment(target.id)}`,
-          signal: env.context.signal,
         });
       } else {
         const response = await confluenceRequest(connection, {
           parse: jsonObject,
           path: `/pages/${pathSegment(target.page)}/attachments`,
           query: { limit: 250 },
-          signal: env.context.signal,
         });
         const all = valuesFromConfluenceList(response) as Found[];
         found = all.find((item) => item.title === target.filename);
@@ -86,35 +74,19 @@ export const confluenceAttachmentMethods: SdkMethod[] = [
       if (typeof found.downloadLink !== "string") {
         throw codedError("NOT_FOUND", "Attachment has no download link.");
       }
-      const tempPath = await artifactTempPath(env);
-      await confluenceDownloadToFile(connection, found.downloadLink, {
-        destination: tempPath,
-        maxBytes: MAX_ATTACHMENT_BYTES,
-        signal: env.context.signal,
-      }).catch((error: unknown) => {
-        if (
-          error instanceof ToolExecutionError &&
-          error.code === "CONFLUENCE_ATTACHMENT_TOO_LARGE"
-        ) {
-          throw new Error(
-            `Attachment is ${(Number(error.details?.bytes ?? 0) / 1048576).toFixed(1)} MB; the limit is ${MAX_ATTACHMENT_BYTES / 1048576} MB.`,
-          );
-        }
-        throw error;
-      });
       const title =
         typeof found.title === "string" ? found.title : "attachment";
       const filename = artifactNameFor(title);
       const extension = extname(filename);
-      const name = await freshArtifactName(
-        env,
+      const name = await session.ctx.artifacts.freshName(
         filename.slice(0, filename.length - extension.length),
         extension,
-      ).catch(async (error: unknown) => {
-        await rm(tempPath, { force: true });
-        throw error;
-      });
-      return await commitArtifact(env, tempPath, name);
+      );
+      return (
+        await confluenceDownloadToArtifact(connection, found.downloadLink, {
+          name,
+        })
+      ).handle;
     },
   }),
 ];

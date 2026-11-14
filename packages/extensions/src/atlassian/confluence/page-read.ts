@@ -1,21 +1,20 @@
 import { jsonObject } from "../shared/http.js";
 import { confluenceRequest } from "./client.js";
 import { valuesFromConfluenceList } from "./format.js";
-import { storageXmlToMarkdown } from "./markdown.js";
-import type { SdkEnvironment } from "@nervekit/tools/quick-script/runtime/sdk-types";
-import { orWhenUnsupported } from "@nervekit/tools/quick-script/runtime/sdk-types";
+import { confluenceStorageToMarkdown } from "./storage-markdown.js";
+import type { ConfluenceSession } from "./session.js";
+import { orWhenUnsupported } from "../shared/errors.js";
 
 /** Display names for account ids in one request; ids it cannot resolve are left out. */
 async function userNames(
-  env: SdkEnvironment,
+  session: ConfluenceSession,
   ids: string[],
 ): Promise<Map<string, string>> {
-  const response = await confluenceRequest(await env.confluence(), {
+  const response = await confluenceRequest(session.connection, {
     parse: jsonObject,
     method: "POST",
     path: "/users-bulk",
     body: { accountIds: ids.slice(0, 100) },
-    signal: env.context.signal,
   }).catch(orWhenUnsupported((): Record<string, unknown> => ({})));
   const names = new Map<string, string>();
   for (const raw of valuesFromConfluenceList(response)) {
@@ -34,14 +33,14 @@ async function userNames(
  * add-on macros `[drawio macro: name]`.
  */
 export async function pageMarkdown(
-  env: SdkEnvironment,
+  session: ConfluenceSession,
   storage: string,
 ): Promise<string> {
-  const markdown = await storageXmlToMarkdown(storage, env.context.signal);
+  const markdown = confluenceStorageToMarkdown(storage);
   const ids = [
     ...new Set([...markdown.matchAll(/@\{([^}\s]+)\}/g)].map((m) => m[1])),
   ];
-  const names = ids.length > 0 ? await userNames(env, ids) : new Map();
+  const names = ids.length > 0 ? await userNames(session, ids) : new Map();
   return markdown.replaceAll(
     /@\{([^}\s]+)\}/g,
     (_m, id: string) => `@${names.get(id) ?? id}`,

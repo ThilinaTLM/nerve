@@ -7,11 +7,14 @@ import type {
   HttpResponse,
   ImageRequest,
   ImageResult,
+  Risk,
 } from "./types.js";
 
 /** What a fake `ctx` recorded, for assertions. */
 export type FakeContextRecord = {
   requests: HttpRequest[];
+  /** Checks made through `ctx.authorize`. */
+  authorized: { operation: string; targets: readonly string[]; risk: Risk }[];
   created: string[];
   updated: string[];
   deleted: string[];
@@ -28,10 +31,16 @@ export type FakeContextOptions = {
   settings?: Record<string, unknown>;
   /** Selected accounts by `account` setting name. */
   accounts?: Record<string, AccountInfo>;
+  /** Decides `ctx.authorize` checks; throw to refuse. Absent: every check passes. */
+  authorize?: (
+    check: FakeContextRecord["authorized"][number],
+  ) => void | Promise<void>;
   /** Answers `ctx.http.request`; throws when a test makes a request it did not expect. */
   http?: (request: HttpRequest) => HttpResponse | Promise<HttpResponse>;
   /** Present: `ctx.models.image` exists. */
   image?: (request: ImageRequest) => ImageResult | Promise<ImageResult>;
+  /** Answers `ctx.text.htmlToMarkdown`; throws when a test uses it without one. */
+  htmlToMarkdown?: (html: string) => string | Promise<string>;
   signal?: AbortSignal;
 };
 
@@ -44,6 +53,7 @@ export function createFakeContext(options: FakeContextOptions = {}): {
 } {
   const record: FakeContextRecord = {
     requests: [],
+    authorized: [],
     created: [],
     updated: [],
     deleted: [],
@@ -94,6 +104,23 @@ export function createFakeContext(options: FakeContextOptions = {}): {
         lookup(handle);
         return ref(handle.replace(/^artifact:/, ""));
       },
+      freshName: async (base, extension) => {
+        for (let index = 1; ; index++) {
+          const name = `${base}-${index}${extension}`;
+          if (!record.artifacts.has(`artifact:${name}`)) return name;
+        }
+      },
+    },
+    text: {
+      htmlToMarkdown: async (html) => {
+        if (!options.htmlToMarkdown)
+          throw new Error("Unexpected ctx.text.htmlToMarkdown call.");
+        return await options.htmlToMarkdown(html);
+      },
+    },
+    authorize: async (check) => {
+      record.authorized.push(check);
+      await options.authorize?.(check);
     },
     report: {
       created: (entry) => void record.created.push(entry),

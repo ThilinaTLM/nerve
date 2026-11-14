@@ -1,17 +1,8 @@
 import assert from "node:assert/strict";
-import { afterEach, test } from "node:test";
-import {
-  executeQuickScript,
-  reconcileReport,
-} from "@nervekit/tools/quick-script/runtime/quick-script";
-import type { QuickScriptContext } from "@nervekit/tools/quick-script/runtime/sdk-types";
+import { test } from "node:test";
+import { createHarness, type HarnessOptions } from "../test-support.js";
 import { normalizeLabels } from "./extra-methods.js";
-import type { Nested } from "@nervekit/tools/quick-script/runtime/test-nested";
-
-const originalFetch = globalThis.fetch;
-afterEach(() => {
-  globalThis.fetch = originalFetch;
-});
+import { confluenceStorageToMarkdown } from "./storage-markdown.js";
 
 type Seen = {
   method: string;
@@ -20,37 +11,27 @@ type Seen = {
   body: unknown;
 };
 
-function setup(handler: (seen: Seen) => Response | undefined): {
-  seen: Seen[];
-  context: QuickScriptContext;
-} {
+function setup(
+  handler: (seen: Seen) => Response | undefined,
+  options: Omit<HarnessOptions, "fetch"> = {},
+) {
   const seen: Seen[] = [];
-  globalThis.fetch = async (input, init) => {
-    const url = new URL(String(input));
-    const entry = {
-      method: init?.method ?? "GET",
-      path: url.pathname
-        .replace("/wiki/api/v2", "")
-        .replace("/wiki/rest/api", "v1"),
-      search: url.searchParams,
-      body: init?.body ? JSON.parse(String(init.body)) : undefined,
-    };
-    seen.push(entry);
-    return handler(entry) ?? new Response("{}", { status: 404 });
-  };
-  return {
-    seen,
-    context: {
-      cwd: process.cwd(),
-      getApiKey: async () => "token",
-      getProviderConfig: async () => ({
-        enabled: true,
-        siteUrl: "https://example.atlassian.net",
-        email: "dev@example.com",
-      }),
-      authorizeNested: async () => {},
+  const context = createHarness({
+    ...options,
+    fetch: (url, init) => {
+      const entry = {
+        method: init.method,
+        path: url.pathname
+          .replace("/wiki/api/v2", "")
+          .replace("/wiki/rest/api", "v1"),
+        search: url.searchParams,
+        body: typeof init.body === "string" ? JSON.parse(init.body) : undefined,
+      };
+      seen.push(entry);
+      return handler(entry) ?? new Response("{}", { status: 404 });
     },
-  };
+  });
+  return { seen, context };
 }
 
 void test("labels are folded to lowercase with hyphens; other punctuation names the fix", () => {
@@ -77,11 +58,8 @@ void test("labels.remove checks every label first and lists the current ones", a
       ? Response.json({ results: [{ name: "a" }, { name: "b" }] })
       : undefined,
   );
-  const result = await executeQuickScript(
-    {
-      code: `try { await confluence.labels.remove({ id: "1", labels: ["a", "zz"] }); } catch (e) { console.log(e.code, e.message); }`,
-    },
-    context,
+  const result = await context.run(
+    `try { await confluence.labels.remove({ id: "1", labels: ["a", "zz"] }); } catch (e) { console.log(e.code, e.message); }`,
   );
   assert.match(
     result.content ?? "",
@@ -120,13 +98,9 @@ void test("comments.list merges footer and inline comments with replies and sele
         })
       : undefined,
   );
-  const result = await executeQuickScript(
-    {
-      code: `console.log(JSON.stringify(await confluence.comments.list("1")));
-console.log(JSON.stringify((await confluence.comments.list({ id: "1", resolved: true })).length));`,
-    },
-    context,
-  );
+  const result =
+    await context.run(`console.log(JSON.stringify(await confluence.comments.list("1")));
+console.log(JSON.stringify((await confluence.comments.list({ id: "1", resolved: true })).length));`);
   const [first, second] = (result.content ?? "").split("\n");
   assert.deepEqual(JSON.parse(first), [
     {
@@ -152,11 +126,8 @@ void test("comments.reply posts to the endpoint of the parent's kind", async () 
       return Response.json({ id: "12" });
     return undefined;
   });
-  const result = await executeQuickScript(
-    {
-      code: `console.log(JSON.stringify(await confluence.comments.reply({ id: "10", body: "Thanks" })));`,
-    },
-    context,
+  const result = await context.run(
+    `console.log(JSON.stringify(await confluence.comments.reply({ id: "10", body: "Thanks" })));`,
   );
   assert.match(result.content ?? "", /\{"id":"12","parentId":"10"\}/);
   assert.deepEqual(seen.at(-1)!.body, {
@@ -173,10 +144,7 @@ void test("pages.delete with purge trashes first and then purges; trashed pages 
     if (method === "DELETE") return new Response(null, { status: 204 });
     return undefined;
   });
-  await executeQuickScript(
-    { code: `await confluence.pages.delete({ id: "5", purge: true });` },
-    context,
-  );
+  await context.run(`await confluence.pages.delete({ id: "5", purge: true });`);
   const deletes = seen.filter((s) => s.method === "DELETE");
   assert.deepEqual(
     deletes.map((d) => d.search.get("purge")),
@@ -184,10 +152,7 @@ void test("pages.delete with purge trashes first and then purges; trashed pages 
   );
   status = "trashed";
   seen.length = 0;
-  await executeQuickScript(
-    { code: `await confluence.pages.delete({ id: "5", purge: true });` },
-    context,
-  );
+  await context.run(`await confluence.pages.delete({ id: "5", purge: true });`);
   assert.deepEqual(
     seen.filter((s) => s.method === "DELETE").map((d) => d.search.get("purge")),
     ["true"],
@@ -215,11 +180,8 @@ void test("a duplicate page title error names the title instead of showing JSON"
       );
     return undefined;
   });
-  const result = await executeQuickScript(
-    {
-      code: `try { await confluence.pages.create({ space: "DOC", title: "Dup", body: "x" }); } catch (e) { console.log(e.message); }`,
-    },
-    context,
+  const result = await context.run(
+    `try { await confluence.pages.create({ space: "DOC", title: "Dup", body: "x" }); } catch (e) { console.log(e.message); }`,
   );
   assert.match(
     result.content ?? "",
@@ -232,13 +194,9 @@ void test("pages.move needs exactly one target and uses the v1 move endpoint", a
   const { seen, context } = setup(({ method }) =>
     method === "PUT" ? Response.json({ id: "5" }) : undefined,
   );
-  const result = await executeQuickScript(
-    {
-      code: `try { await confluence.pages.move({ id: "5" }); } catch (e) { console.log(e.message); }
-await confluence.pages.move({ id: "5", parent: "9" });`,
-    },
-    context,
-  );
+  const result =
+    await context.run(`try { await confluence.pages.move({ id: "5" }); } catch (e) { console.log(e.message); }
+await confluence.pages.move({ id: "5", parent: "9" });`);
   assert.match(result.content ?? "", /Give exactly one of parent/);
   assert.equal(seen[0].path, "v1/content/5/move/append/9");
 });
@@ -257,11 +215,8 @@ void test("comments.add inline counts matches in the page text and sends the sel
   });
   const run = async (inline: string) =>
     (
-      await executeQuickScript(
-        {
-          code: `console.log(JSON.stringify(await confluence.comments.add({ id: "1", body: "Hi", inline: ${inline} })));`,
-        },
-        context,
+      await context.run(
+        `console.log(JSON.stringify(await confluence.comments.add({ id: "1", body: "Hi", inline: ${inline} })));`,
       )
     ).content ?? "";
   assert.match(
@@ -282,21 +237,14 @@ void test("comments.add inline counts matches in the page text and sends the sel
 });
 
 void test("attachments.delete authorizes with the attachment's real page", async () => {
-  const authorized: Nested[] = [];
   const { context } = setup(({ method, path }) => {
     if (method === "GET" && path === "/attachments/9")
       return Response.json({ id: "9", pageId: "77" });
     if (method === "DELETE") return new Response(null, { status: 204 });
     return undefined;
   });
-  context.authorizeNested = async (request) => {
-    authorized.push(request);
-  };
-  await executeQuickScript(
-    { code: `await confluence.attachments.delete("9");` },
-    context,
-  );
-  assert.deepEqual(authorized, [
+  await context.run(`await confluence.attachments.delete("9");`);
+  assert.deepEqual(context.authorized, [
     {
       operation: "confluence.attachments.delete",
       targets: ["confluence:attachment/9", "confluence:page/77"],
@@ -305,21 +253,10 @@ void test("attachments.delete authorizes with the attachment's real page", async
   ]);
 });
 
-void test("a page created and deleted in one run is marked in the Deleted list", () => {
-  const report = reconcileReport(
-    { created: [], updated: [], deleted: ['page 5 "T" (trashed)'], raw: [] },
-    ["5"],
-  );
-  assert.deepEqual(report.deleted, [
-    'page 5 "T" (trashed) (created in this run)',
-  ]);
-});
-
 void test("decision lists read with their state", async () => {
-  const { storageXmlToMarkdown } = await import("./markdown.js");
   const item = (state: string, text: string) =>
     `<ac:adf-node type="decision-item"><ac:adf-attribute key="state">${state}</ac:adf-attribute><ac:adf-content>${text}</ac:adf-content></ac:adf-node>`;
-  const markdown = await storageXmlToMarkdown(
+  const markdown = confluenceStorageToMarkdown(
     `<ac:adf-extension><ac:adf-node type="decision-list">${item("DECIDED", "Ship")}${item("UNDECIDED", "Wait")}</ac:adf-node></ac:adf-extension>`,
   );
   assert.match(markdown, /- \[decided\] Ship\n- \[undecided\] Wait/);

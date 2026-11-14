@@ -44,6 +44,7 @@
     "@hono/node-server": "2.1.5",
     "@nervekit/contracts": "workspace:*",
     "@nervekit/conversation-core": "workspace:*",
+    "@nervekit/extension-api": "workspace:*",
     "@nervekit/extensions": "workspace:*",
     "@nervekit/harness": "workspace:*",
     "@nervekit/native": "workspace:*",

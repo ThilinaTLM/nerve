@@ -47,7 +47,6 @@ const metadata = {
   ),
   todos_set: m("interaction", "todos", "interaction", [], ["whole_tool"], true),
   todos_get: m("interaction", "todos", "read", [], ["whole_tool"], true),
-  web_search: m("network", "web", "network", ["query"], ["whole_tool"], true),
   web_fetch: m("network", "web", "network", ["url"], ["url"], true),
   explain_image: m("network", "vision", "network", ["path"], ["path"], true),
   quick_script: m(

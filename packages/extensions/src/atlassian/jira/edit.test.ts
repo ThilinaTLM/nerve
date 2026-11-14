@@ -1,11 +1,8 @@
 import assert from "node:assert/strict";
-import { mkdtemp, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
 import { test } from "node:test";
 
 import { lastOf, setup } from "./test-harness.js";
-import { nestedName } from "@nervekit/tools/quick-script/runtime/test-nested";
+import { nestedName } from "../test-support.js";
 
 /** The returned JSON: before the footer and the "Created:" line. */
 const returned = (content: string | undefined) =>
@@ -105,18 +102,18 @@ void test("embedding names the attached files for unknown or non-image names", a
 });
 
 void test("issues.create uploads attachments and sets the description afterwards", async () => {
-  const cwd = await mkdtemp(join(tmpdir(), "jira-create-"));
-  await writeFile(join(cwd, "shot.png"), "png");
-  const { sent, authorized, run } = setup((s) => {
-    if (s.method === "GET" && s.path === "/issue/APP-10")
-      return Response.json(ATTACHMENTS);
-    if (s.path === "/issue/APP-10/attachments")
-      return Response.json([{ id: "8", filename: "shot.png", size: 3 }]);
-    return mediaMocks(s);
-  });
+  const { sent, authorized, run } = setup(
+    (s) => {
+      if (s.method === "GET" && s.path === "/issue/APP-10")
+        return Response.json(ATTACHMENTS);
+      if (s.path === "/issue/APP-10/attachments")
+        return Response.json([{ id: "8", filename: "shot.png", size: 3 }]);
+      return mediaMocks(s);
+    },
+    { files: { "shot.png": "png" } },
+  );
   const result = await run(
     `return await jira.issues.create({ type: "Task", summary: "s", description: "Look: ![](shot.png)", attachments: ["shot.png"] });`,
-    cwd,
   );
   assert.equal(returned(result.content).attachments[0].id, "8");
   assert.equal(

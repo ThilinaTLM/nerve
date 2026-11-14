@@ -543,29 +543,6 @@ export const coreToolLifecycleSpecs = {
     emptyResult: "No todos",
     present: () => argumentPresentation({ primaryArg: textArg("Get todos") }),
   }),
-  web_search: defineToolLifecycleSpec({
-    name: "web_search",
-    argumentRegion: "none",
-    completedView: "web_search",
-    resultPlaceholder: { variant: "links", rows: 3 },
-    emptyResult: "No results",
-    present: (source, stage) =>
-      argumentPresentation({
-        primaryArg: textArg(source.string("query"), "Search query"),
-        secondary:
-          source.number("max_results") !== undefined &&
-          source.number("max_results") !== 5
-            ? [{ text: `max ${source.number("max_results")}` }]
-            : [],
-        body:
-          stage === "approval"
-            ? keyValues([["External search", source.string("query")]])
-            : undefined,
-        safetyNotes: [
-          "Sends the query to the configured external search provider.",
-        ],
-      }),
-  }),
   quick_script: defineToolLifecycleSpec({
     name: "quick_script",
     argumentRegion: "persistent",
@@ -634,7 +611,6 @@ export const coreToolLifecycleSpecs = {
     | "ask_user"
     | "todos_set"
     | "todos_get"
-    | "web_search"
     | "web_fetch"
     | "explain_image"
     | "quick_script"

@@ -1,34 +1,25 @@
-import { trimTrailingSlashes } from "../shared/site-url.js";
-import type { IntegrationExecutionContext } from "@nervekit/tools/execution";
-import { withTimeoutSignal } from "@nervekit/tools/execution";
-import { safeAtlassianError } from "../shared/atlassian-error.js";
-import { ToolExecutionError } from "@nervekit/tools/execution";
+import type { ArtifactRef, FormPart } from "@nervekit/extension-api";
+import { ExtensionError } from "@nervekit/extension-api";
+import { MAX_ATTACHMENT_BYTES } from "../shared/files.js";
 import {
-  type BinaryHandler,
   rawRequestUrl,
-  readRawBody,
+  sendRaw,
+  type BinaryNaming,
 } from "../shared/raw-request.js";
+import { trimTrailingSlashes } from "../shared/site-url.js";
 import {
-  BodyTooLargeError,
-  idleTimeoutSignal,
-  streamBodyToFile,
-} from "../shared/stream-download.js";
-import {
-  anyJson,
-  atlassianJsonRequestInit,
-  basicAuthHeader,
-  readAtlassianJson,
-  type ResponseParser,
-} from "../shared/http.js";
+  readJson,
+  send,
+  sendJson,
+  TRANSFER_TIMEOUT_MS,
+  bodyText,
+  type Connection,
+} from "../shared/transport.js";
+import type { ResponseParser } from "../shared/http.js";
 
-export type { ConfluenceConnection } from "@nervekit/tools/quick-script/runtime/sdk-types";
-import type { ConfluenceConnection } from "@nervekit/tools/quick-script/runtime/sdk-types";
-
-type ConfluenceConfig = {
-  enabled?: unknown;
-  siteUrl?: unknown;
-  email?: unknown;
-  defaultSpaceKey?: unknown;
+/** The run's Confluence connection: `ctx` plus the account's site. Credentials never reach it. */
+export type ConfluenceConnection = Connection & {
+  defaultSpaceKey?: string;
 };
 
 export type ConfluenceApiVersion = "v1" | "v2";
@@ -41,51 +32,10 @@ type ConfluenceRequestOptions = {
   path: string;
   query?: Record<string, QueryValue>;
   body?: unknown;
-  signal?: AbortSignal;
+  timeoutMs?: number;
 };
 
 type Parsed<T> = { parse: ResponseParser<T> };
-
-type MultipartAttachmentOptions = {
-  method: "POST" | "PUT";
-  pageId: string;
-  form: FormData;
-  query?: Record<string, QueryValue>;
-  signal?: AbortSignal;
-};
-
-export async function requireConfluenceConnection(
-  context: IntegrationExecutionContext,
-): Promise<ConfluenceConnection> {
-  const token = await context.getApiKey?.("confluence");
-  const rawConfig = (await context.getProviderConfig?.("confluence")) as
-    | ConfluenceConfig
-    | undefined;
-  const siteUrl = normalizeSiteUrl(
-    typeof rawConfig?.siteUrl === "string" ? rawConfig.siteUrl : "",
-  );
-  const email =
-    typeof rawConfig?.email === "string" ? rawConfig.email.trim() : "";
-  const defaultSpaceKey =
-    typeof rawConfig?.defaultSpaceKey === "string" &&
-    rawConfig.defaultSpaceKey.trim().length > 0
-      ? rawConfig.defaultSpaceKey.trim()
-      : undefined;
-
-  if (rawConfig?.enabled !== true || !siteUrl || !email || !token) {
-    throw new ToolExecutionError(
-      "CONFLUENCE_NOT_CONFIGURED",
-      "Confluence is not configured or enabled. Configure Confluence site URL, Atlassian email, and API token in Nerve Settings, then enable the Confluence module.",
-      {
-        enabled: rawConfig?.enabled === true,
-        hasSiteUrl: Boolean(siteUrl),
-        hasEmail: Boolean(email),
-        hasToken: Boolean(token),
-      },
-    );
-  }
-  return { siteUrl, email, token, defaultSpaceKey };
-}
 
 export function normalizeSiteUrl(value: string): string {
   let siteUrl = trimTrailingSlashes(value.trim());
@@ -112,23 +62,16 @@ export async function confluenceRequest(
   const apiRoot = options.api === "v1" ? "/wiki/rest/api" : "/wiki/api/v2";
   const url = new URL(`${connection.siteUrl}${apiRoot}${options.path}`);
   appendQuery(url, options.query);
-
-  const init = atlassianJsonRequestInit(basicAuth(connection), options);
-
-  const response = await send(url, init);
-  if (!response.ok) {
-    await throwConfluenceError(
-      response,
-      init.method ?? "GET",
-      options.path,
-      options.body,
-    );
-  }
-  return readAtlassianJson(
-    response,
-    { service: "confluence", method: init.method ?? "GET", path: options.path },
-    options.parse ?? anyJson,
-  );
+  return await sendJson(connection, {
+    service: "confluence",
+    url,
+    method: options.method,
+    body: options.body,
+    errorPath: options.path,
+    errorReason: (text) => confluenceErrorReason(text, options.body),
+    timeoutMs: options.timeoutMs,
+    parse: options.parse,
+  });
 }
 
 /** REST bases `confluence.request()` may call (v2 and v1). */
@@ -145,8 +88,8 @@ export async function confluenceRawRequest(
     path: unknown;
     body?: unknown;
     query?: unknown;
-    onBinary?: BinaryHandler;
-    signal?: AbortSignal;
+    /** Saves a binary response as an artifact. */
+    binary?: BinaryNaming;
   },
 ): Promise<unknown> {
   const url = rawRequestUrl(
@@ -155,153 +98,97 @@ export async function confluenceRawRequest(
     CONFLUENCE_RAW_BASES,
     options.query,
   );
-  const init = atlassianJsonRequestInit(basicAuth(connection), options);
-  const response = await send(url, init);
-  if (!response.ok)
-    await throwConfluenceError(response, options.method, url.pathname);
-  return await readRawBody(response, options.onBinary);
+  return await sendRaw(connection, {
+    service: "confluence",
+    url,
+    method: options.method,
+    body: options.body,
+    binary: options.binary,
+  });
 }
 
+/** Uploads a file to a page (`PUT` replaces a same-name attachment, `POST` adds one). */
 export async function confluenceAttachmentRequest<T>(
   connection: ConfluenceConnection,
-  options: MultipartAttachmentOptions & Parsed<T>,
+  options: {
+    method: "POST" | "PUT";
+    pageId: string;
+    parts: readonly FormPart[];
+    query?: Record<string, QueryValue>;
+  } & Parsed<T>,
 ): Promise<T> {
-  const url = new URL(
-    `${connection.siteUrl}/wiki/rest/api/content/${pathSegment(options.pageId)}/child/attachment`,
-  );
+  const path = `/content/${pathSegment(options.pageId)}/child/attachment`;
+  const url = new URL(`${connection.siteUrl}/wiki/rest/api${path}`);
   appendQuery(url, options.query);
-  const response = await send(url, {
+  const response = await send(connection, {
+    service: "confluence",
+    url,
     method: options.method,
-    headers: {
-      Accept: "application/json",
-      Authorization: basicAuth(connection),
-      "X-Atlassian-Token": "nocheck",
-    },
-    body: options.form,
-    signal: withTimeoutSignal(options.signal, UPLOAD_TIMEOUT_MS),
+    headers: { "X-Atlassian-Token": "nocheck" },
+    body: { form: options.parts },
+    timeoutMs: TRANSFER_TIMEOUT_MS,
+    errorPath: path,
   });
-  if (!response.ok) {
-    await throwConfluenceError(
-      response,
-      options.method,
-      `/content/${pathSegment(options.pageId)}/child/attachment`,
-    );
-  }
-  return readAtlassianJson(
+  return readJson(
     response,
-    {
-      service: "confluence",
-      method: options.method,
-      path: `/content/${pathSegment(options.pageId)}/child/attachment`,
-    },
+    { service: "confluence", method: options.method, path },
     options.parse,
   );
 }
 
-/** Uploads of up to 100 MB need longer than a JSON request. */
-const UPLOAD_TIMEOUT_MS = 10 * 60_000;
 const DIRECT_DOWNLOAD_MAX_BYTES = 25 * 1024 * 1024;
-/** Signed media-host redirects followed after the authenticated first hop. */
-const MAX_MEDIA_REDIRECTS = 3;
-
-function attachmentTooLarge(maximum: number, bytes: number) {
-  return new ToolExecutionError(
-    "CONFLUENCE_ATTACHMENT_TOO_LARGE",
-    `Confluence attachment exceeds the ${maximum / 1048576} MiB download limit.`,
-    { bytes, maximum },
-  );
-}
 
 /**
- * Starts an attachment download. Only the first request, to the configured
- * site, carries credentials. Cloud answers with a redirect to a signed media
- * URL (e.g. api.media.atlassian.com); each further hop must be https and is
- * fetched without the Authorization header, so the token never leaves the site.
+ * Downloads an attachment. Only the first request, to the configured site,
+ * carries the credential; Cloud answers with a redirect to a signed media URL
+ * (api.media.atlassian.com), which the host follows without it.
  */
-async function openConfluenceDownload(
+async function sendDownload(
   connection: ConfluenceConnection,
   downloadLink: string,
-  signal: AbortSignal,
-): Promise<{ response: Response; url: URL }> {
+  response: "bytes" | { artifact: string },
+  maxBytes: number,
+) {
   const url = resolveConfluenceDownloadUrl(connection, downloadLink);
-  let response = await fetch(url, {
-    headers: { Authorization: basicAuth(connection) },
-    redirect: "manual",
-    signal,
+  return await send(connection, {
+    service: "confluence",
+    url,
+    headers: { Accept: "*/*" },
+    response,
+    timeoutMs: TRANSFER_TIMEOUT_MS,
+    maxBytes,
+    errorPath: url.pathname,
   });
-  for (
-    let hops = 0;
-    response.status >= 300 && response.status < 400;
-    hops += 1
-  ) {
-    const location = response.headers.get("location");
-    await response.body?.cancel().catch(() => undefined);
-    const target = location ? new URL(location, url) : undefined;
-    if (target?.protocol !== "https:" || hops >= MAX_MEDIA_REDIRECTS) {
-      throw new ToolExecutionError(
-        "CONFLUENCE_UNTRUSTED_REDIRECT",
-        hops >= MAX_MEDIA_REDIRECTS
-          ? "Confluence attachment download redirected too many times."
-          : "Confluence attachment download redirected to a non-https location.",
-        { status: response.status, location },
-      );
-    }
-    response = await fetch(target, { redirect: "manual", signal });
-  }
-  if (!response.ok) {
-    await throwConfluenceError(response, "GET", url.pathname);
-  }
-  return { response, url };
 }
 
 export async function confluenceDownload(
   connection: ConfluenceConnection,
   downloadLink: string,
-  signal?: AbortSignal,
 ): Promise<Uint8Array> {
-  const maximum = DIRECT_DOWNLOAD_MAX_BYTES;
-  const { response } = await openConfluenceDownload(
+  const response = await sendDownload(
     connection,
     downloadLink,
-    withTimeoutSignal(signal, 60_000),
+    "bytes",
+    DIRECT_DOWNLOAD_MAX_BYTES,
   );
-  const declared = Number(response.headers.get("content-length") ?? 0);
-  if (declared > maximum) throw attachmentTooLarge(maximum, declared);
-  const bytes = new Uint8Array(await response.arrayBuffer());
-  if (bytes.byteLength > maximum) {
-    throw attachmentTooLarge(maximum, bytes.byteLength);
-  }
-  return bytes;
+  return response.body instanceof Uint8Array
+    ? response.body
+    : new TextEncoder().encode(bodyText(response));
 }
 
-/**
- * Streams an attachment to `destination` (removed on failure or abort) with
- * the limit enforced on Content-Length and on the bytes received.
- */
-export async function confluenceDownloadToFile(
+/** Streams an attachment into the artifact `name` (up to the attachment limit). */
+export async function confluenceDownloadToArtifact(
   connection: ConfluenceConnection,
   downloadLink: string,
-  options: { destination: string; maxBytes: number; signal?: AbortSignal },
-): Promise<number> {
-  const idle = idleTimeoutSignal(options.signal, 60_000);
-  try {
-    const { response } = await openConfluenceDownload(
-      connection,
-      downloadLink,
-      idle.signal,
-    );
-    return await streamBodyToFile(response, options.destination, {
-      maxBytes: options.maxBytes,
-      signal: idle.signal,
-      onChunk: idle.touch,
-    }).catch((error: unknown) => {
-      throw error instanceof BodyTooLargeError
-        ? attachmentTooLarge(options.maxBytes, error.bytes)
-        : error;
-    });
-  } finally {
-    idle.dispose();
-  }
+  options: { name: string; maxBytes?: number },
+): Promise<ArtifactRef> {
+  const response = await sendDownload(
+    connection,
+    downloadLink,
+    { artifact: options.name },
+    options.maxBytes ?? MAX_ATTACHMENT_BYTES,
+  );
+  return response.body as ArtifactRef;
 }
 
 function resolveConfluenceDownloadUrl(
@@ -313,10 +200,9 @@ function resolveConfluenceDownloadUrl(
     const absoluteUrl = new URL(trimmed);
     const configuredOrigin = new URL(connection.siteUrl).origin;
     if (absoluteUrl.origin !== configuredOrigin) {
-      throw new ToolExecutionError(
-        "CONFLUENCE_UNTRUSTED_DOWNLOAD_URL",
+      throw new ExtensionError(
+        "DENIED",
         "Confluence attachment download URL is outside the configured site.",
-        { configuredOrigin, downloadOrigin: absoluteUrl.origin },
       );
     }
     return absoluteUrl;
@@ -328,19 +214,6 @@ function resolveConfluenceDownloadUrl(
   return new URL(`${connection.siteUrl}${wikiPath}`);
 }
 
-/** Fetches with credentials; a redirect is an error, so the token never follows one to another host. */
-async function send(url: URL, init: RequestInit): Promise<Response> {
-  const response = await fetch(url, { ...init, redirect: "manual" });
-  if (response.status >= 300 && response.status < 400) {
-    throw new ToolExecutionError(
-      "CONFLUENCE_UNTRUSTED_REDIRECT",
-      `Confluence responded to ${url.pathname} with a redirect; credentialed requests do not follow redirects.`,
-      { status: response.status, location: response.headers.get("location") },
-    );
-  }
-  return response;
-}
-
 function appendQuery(url: URL, query: Record<string, QueryValue> | undefined) {
   for (const [key, value] of Object.entries(query ?? {})) {
     if (value === undefined) continue;
@@ -350,35 +223,6 @@ function appendQuery(url: URL, query: Record<string, QueryValue> | undefined) {
       url.searchParams.set(key, String(value));
     }
   }
-}
-
-function basicAuth(connection: ConfluenceConnection): string {
-  return basicAuthHeader(connection.email, connection.token);
-}
-
-async function throwConfluenceError(
-  response: Response,
-  method: string,
-  path: string,
-  requestBody?: unknown,
-): Promise<never> {
-  const body = confluenceErrorReason(
-    await response.text().catch(() => ""),
-    requestBody,
-  );
-  const code = confluenceErrorCode(response.status);
-  const retryable = response.status === 429 || response.status >= 500;
-  const error = safeAtlassianError({
-    service: "confluence",
-    code,
-    method,
-    path,
-    status: response.status,
-    statusText: response.statusText,
-    body,
-  });
-  const message = response.status === 400 ? error.message : error.message;
-  throw new ToolExecutionError(code, message, error.details, retryable);
 }
 
 /**
@@ -426,17 +270,6 @@ export function confluenceErrorReason(body: string, requestBody?: unknown) {
     return `A page titled "${title}" already exists in this space (titles are unique per space); pick another title or update that page`;
   }
   return reason;
-}
-
-function confluenceErrorCode(status: number): string {
-  if (status === 400) return "CONFLUENCE_BAD_REQUEST";
-  if (status === 401) return "CONFLUENCE_UNAUTHORIZED";
-  if (status === 403) return "CONFLUENCE_FORBIDDEN";
-  if (status === 404) return "CONFLUENCE_NOT_FOUND";
-  if (status === 409) return "CONFLUENCE_CONFLICT";
-  if (status === 429) return "CONFLUENCE_RATE_LIMITED";
-  if (status >= 500) return "CONFLUENCE_SERVER_ERROR";
-  return "CONFLUENCE_API_ERROR";
 }
 
 export function pathSegment(value: string): string {

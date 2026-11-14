@@ -11,11 +11,7 @@ import type {
   Requires,
   ToolDefinition as ExtensionToolDefinition,
 } from "@nervekit/extension-api";
-import type {
-  QuickScriptContext,
-  SdkEnvironment,
-  SdkMethod,
-} from "./runtime/sdk-types.js";
+import type { SdkEnvironment, SdkMethod } from "./runtime/sdk-types.js";
 
 /** One `sdk.docs` topic. `id` is the full topic id (`jira/workflows`); `file` is relative to the owner's `docs/` folder. */
 export type DocTopic = { id: string; whenToRead: string; file: string };
@@ -58,19 +54,11 @@ export type SdkNamespace = {
   };
 };
 
-/** The parts of `SdkEnvironment` that depend on one extension's connections. */
-export type ExtensionEnvironment = Partial<
-  Pick<
-    SdkEnvironment,
-    "jira" | "confluence" | "jiraFields" | "confluenceSpaceKeys"
-  >
->;
-
 /**
  * The manifest of a built-in extension as the host registers it. Extensions
  * written against `@nervekit/extension-api` are converted into it
- * (`fromDefinition`); the built-ins still hand-write it with `contributes.sdk`,
- * `SdkMethod` and `createEnvironment`. LEGACY until extension-platform S2.
+ * (`fromDefinition`); the other built-ins still hand-write it with
+ * `contributes.sdk` and `SdkMethod`. LEGACY until extension-platform S2.
  */
 export type ExtensionManifest = {
   /** Kebab-case, unique, stable. */
@@ -103,11 +91,6 @@ export type ExtensionManifest = {
   readDoc: (file: string) => string;
   /** Byte limits the extension enforces, filled into `{{limit:<name>}}` placeholders of its docs and rules. */
   limits?: Readonly<Record<string, number>>;
-  /**
-   * The extension's part of the per-run environment (connection loaders).
-   * LEGACY until extension-platform S2 ports the built-ins to the extension API (`ctx`).
-   */
-  createEnvironment?: (context: QuickScriptContext) => ExtensionEnvironment;
   contributes: {
     sdk?: SdkNamespace[];
     /** Direct tool names. */

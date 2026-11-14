@@ -1,33 +1,29 @@
-import { rm } from "node:fs/promises";
 import { extname } from "node:path";
 import { jsonObject } from "../shared/http.js";
-import { ToolExecutionError } from "@nervekit/tools/execution";
 import {
-  type JiraConnection,
-  jiraDownloadToFile,
+  attachmentTooLarge,
+  jiraDownloadToArtifact,
   jiraRequest,
   pathSegment,
+  type JiraConnection,
 } from "./client.js";
 import { adfToMarkdown } from "./adf-markdown.js";
 import { markdownToAdf } from "./markdown-adf.js";
 import {
-  artifactBinarySink,
   artifactNameOf,
   artifactNameFor,
-  artifactTempPath,
-  commitArtifact,
-  freshArtifactName,
   MAX_ATTACHMENT_BYTES,
-} from "@nervekit/tools/quick-script/runtime/files/artifacts";
-import { codedError } from "@nervekit/tools/quick-script/runtime/errors";
+} from "../shared/files.js";
+import type { BinaryNaming } from "../shared/raw-request.js";
+import { codedError, hasStatus } from "../shared/errors.js";
 import { noteChange } from "./report.js";
-import { nonEmptyString } from "@nervekit/tools/quick-script/runtime/sdk-args";
+import { nonEmptyString } from "../shared/args.js";
 import {
   defineMethod,
   definePositionalMethod,
-  type SdkEnvironment,
-  type SdkMethod,
-} from "@nervekit/tools/quick-script/runtime/sdk-types";
+  type PathedMethod,
+} from "../shared/define-method.js";
+import type { JiraSession } from "./session.js";
 import { jiraAttachment, jiraIssue } from "../shared/targets.js";
 
 const MAX_PROJECTS = 1000;
@@ -35,13 +31,12 @@ const PROJECT_PAGE_SIZE = 50;
 
 /** The current user, shared with `atlassian.defaults()`. */
 export async function fetchJiraMe(
-  env: SdkEnvironment,
+  session: { connection: JiraConnection },
   connection?: JiraConnection,
 ) {
-  const me = await jiraRequest(connection ?? (await env.jira()), {
+  const me = await jiraRequest(connection ?? session.connection, {
     parse: jsonObject,
     path: "/myself",
-    signal: env.context.signal,
   });
   return {
     accountId: String(me.accountId ?? ""),
@@ -51,13 +46,13 @@ export async function fetchJiraMe(
   };
 }
 
-/** `jira.request` onBinary: streams a binary response into an artifact named after the path's file extension. */
-export function rawBinarySaver(env: SdkEnvironment, path: unknown) {
+/** `jira.request` binary responses: saved as `response-<n>` with the path's file extension. */
+export function rawBinaryNaming(path: unknown): BinaryNaming {
   const extension = extname(String(path).split("?")[0] ?? "") || ".bin";
-  return artifactBinarySink(env, "response", () => extension);
+  return { base: "response", extensionFor: () => extension };
 }
 
-export const jiraExtraMethods: SdkMethod[] = [
+export const jiraExtraMethods: PathedMethod<JiraSession>[] = [
   defineMethod({
     product: "jira",
     path: "attachments.download",
@@ -76,51 +71,30 @@ export const jiraExtraMethods: SdkMethod[] = [
       summary: `attachment ${id}`,
     }),
     resource: ({ id }) => `attachment ${id}`,
-    async run({ id, name }, env) {
-      const connection = await env.jira();
+    async run({ id, name }, session) {
+      const connection = session.connection;
       const meta = await jiraRequest(connection, {
         parse: jsonObject,
         path: `/attachment/${pathSegment(id)}`,
-        signal: env.context.signal,
       });
-      const tooBig = (size: number) =>
-        codedError(
-          "BAD_REQUEST",
-          `Attachment ${id} is ${(size / 1048576).toFixed(1)} MB; the limit is ${MAX_ATTACHMENT_BYTES / 1048576} MB.`,
-        );
       if (typeof meta.size === "number" && meta.size > MAX_ATTACHMENT_BYTES) {
-        throw tooBig(meta.size);
+        throw attachmentTooLarge(id, meta.size);
       }
-      const tempPath = await artifactTempPath(env);
-      const downloaded = await jiraDownloadToFile(connection, id, {
-        destination: tempPath,
-        maxBytes: MAX_ATTACHMENT_BYTES,
-        signal: env.context.signal,
-      }).catch((error: unknown) => {
-        if (
-          error instanceof ToolExecutionError &&
-          error.code === "JIRA_ATTACHMENT_TOO_LARGE"
-        ) {
-          throw tooBig(Number(error.details?.bytes ?? 0));
-        }
-        throw error;
-      });
       const filename = artifactNameFor(
-        String(meta.filename ?? downloaded.filename ?? `attachment-${id}`),
+        String(meta.filename ?? `attachment-${id}`),
       );
       let target = name;
       if (!target) {
         const extension = extname(filename);
-        target = await freshArtifactName(
-          env,
+        target = await session.ctx.artifacts.freshName(
           filename.slice(0, filename.length - extension.length),
           extension,
-        ).catch(async (error: unknown) => {
-          await rm(tempPath, { force: true });
-          throw error;
-        });
+        );
       }
-      return await commitArtifact(env, tempPath, target);
+      const { artifact } = await jiraDownloadToArtifact(connection, id, {
+        name: target,
+      });
+      return artifact.handle;
     },
   }),
   defineMethod({
@@ -140,20 +114,15 @@ export const jiraExtraMethods: SdkMethod[] = [
       summary: `DELETE issue ${key}`,
     }),
     resource: ({ key }) => `issue ${key}`,
-    async run({ key, subtasks }, env) {
+    async run({ key, subtasks }, session) {
       try {
-        await jiraRequest(await env.jira(), {
+        await jiraRequest(session.connection, {
           method: "DELETE",
           path: `/issue/${pathSegment(key)}`,
           query: { deleteSubtasks: subtasks },
-          signal: env.context.signal,
         });
       } catch (error) {
-        if (
-          !subtasks &&
-          error instanceof ToolExecutionError &&
-          error.code === "JIRA_BAD_REQUEST"
-        ) {
+        if (!subtasks && hasStatus(error, 400)) {
           throw codedError(
             "BAD_REQUEST",
             `${key} was not deleted, probably because it has subtasks: pass { key: "${key}", subtasks: true } to delete them too. ${error.message}`,
@@ -161,7 +130,7 @@ export const jiraExtraMethods: SdkMethod[] = [
         }
         throw error;
       }
-      noteChange(env, "deleted", key);
+      noteChange(session, "deleted", key);
       return { key };
     },
   }),
@@ -177,15 +146,14 @@ export const jiraExtraMethods: SdkMethod[] = [
       summary: "all projects",
     }),
     resource: () => "Jira projects",
-    async run(_parsed, env) {
-      const connection = await env.jira();
+    async run(_parsed, session) {
+      const connection = session.connection;
       const projects: Array<{ key: string; name: string; type: string }> = [];
       for (;;) {
         const page = await jiraRequest(connection, {
           parse: jsonObject,
           path: "/project/search",
           query: { startAt: projects.length, maxResults: PROJECT_PAGE_SIZE },
-          signal: env.context.signal,
         });
         const batch = Array.isArray(page.values) ? page.values : [];
         for (const raw of batch) {
@@ -219,7 +187,7 @@ export const jiraExtraMethods: SdkMethod[] = [
       summary: "current user",
     }),
     resource: () => "Jira user",
-    run: (_parsed, env) => fetchJiraMe(env),
+    run: (_parsed, session) => fetchJiraMe(session),
   }),
   definePositionalMethod({
     product: "jira",

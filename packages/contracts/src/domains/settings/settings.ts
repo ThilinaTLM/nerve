@@ -85,46 +85,6 @@ export type ImageExplanationToolSettings = z.infer<
   typeof imageExplanationToolSettingsSchema
 >;
 
-export const krokiToolSettingsSchema = z
-  .object({
-    url: z
-      .string()
-      .trim()
-      .min(1)
-      .max(2_048)
-      .url()
-      .refine(
-        (value) => {
-          try {
-            const url = new URL(value);
-            return (
-              ["http:", "https:"].includes(url.protocol) &&
-              !url.username &&
-              !url.password &&
-              !url.search &&
-              !url.hash
-            );
-          } catch {
-            return false;
-          }
-        },
-        {
-          message:
-            "Use an HTTP(S) URL without credentials, query parameters, or fragments.",
-        },
-      )
-      .transform((value) => {
-        const url = new URL(value);
-        if (!url.pathname.endsWith("/")) url.pathname += "/";
-        return url.href;
-      }),
-  })
-  .strict();
-export type KrokiToolSettings = z.infer<typeof krokiToolSettingsSchema>;
-export const defaultKrokiToolSettings: KrokiToolSettings = {
-  url: "https://kroki.io/",
-};
-
 const toolSettingsSchema = z.object({
   disabled: disabledToolListSchema,
   bash: bashToolSettingsSchema,

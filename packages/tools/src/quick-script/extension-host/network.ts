@@ -1,7 +1,7 @@
 /*
  * Origin patterns of an extension's manifest: `permissions.network` entries and
  * account kind `origins`. A pattern is a URL origin where `*` stands for one
- * host label (`https://*.atlassian.net`), or a template filled from user
+ * host label (`https://*.atlassian.net`), `*` alone for any http(s) origin, or a template filled from user
  * configuration: `{account.<field>}` (a field of the selected account),
  * `{settings.<key>}` (a setting of the extension) and, in an account kind's
  * `origins`, `{<field>}` of that account.
@@ -42,6 +42,9 @@ const hasTemplate = (pattern: string): boolean => pattern.includes("{");
 
 /** Whether `url` is within `pattern` (a filled origin pattern; any path of the pattern is ignored). */
 export function originMatches(url: URL, pattern: string): boolean {
+  // `*` alone: any http(s) origin; the SSRF guard still applies to it.
+  if (pattern === "*")
+    return url.protocol === "http:" || url.protocol === "https:";
   if (!pattern.includes("*")) {
     try {
       return new URL(pattern).origin === url.origin;

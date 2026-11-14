@@ -1,4 +1,4 @@
-import { image } from "@nervekit/native";
+import type { ExtensionContext } from "@nervekit/extension-api";
 import { jsonObject } from "../shared/http.js";
 import {
   type ConfluenceConnection,
@@ -25,35 +25,53 @@ import { partialWriteFailure } from "./partial-write.js";
 import {
   artifactNameFor,
   MAX_ATTACHMENT_BYTES,
-  parseHandle,
-  readAuthorizations,
-  readFileRef,
-  writeArtifact,
-} from "@nervekit/tools/quick-script/runtime/files/artifacts";
-import { codedError } from "@nervekit/tools/quick-script/runtime/errors";
-import {
-  nonEmptyString,
-  optionalText,
-} from "@nervekit/tools/quick-script/runtime/sdk-args";
-import {
-  defineMethod,
-  type SdkEnvironment,
-  type SdkMethod,
-} from "@nervekit/tools/quick-script/runtime/sdk-types";
+  mediaTypeFor,
+} from "../shared/files.js";
+import { imageSize } from "../shared/image-size.js";
+import { codedError } from "../shared/errors.js";
+import { nonEmptyString, optionalText } from "../shared/args.js";
 import { confluencePage, confluenceSpace } from "../shared/targets.js";
+import { defineMethod, type PathedMethod } from "../shared/define-method.js";
+import type { ConfluenceSession } from "./session.js";
+
+/**
+ * Lists a page the run wrote with what the linter did: the entity goes in the
+ * footer's Created/Updated list, the lint result on a line of its own.
+ */
+function reportPage(
+  ctx: ExtensionContext,
+  page: {
+    action: "created" | "updated";
+    id: string;
+    title: string;
+    version: number | null;
+    fixes: string[];
+    warnings: string[];
+  },
+): void {
+  ctx.report[page.action](`page ${page.id} "${page.title}"`);
+  const parts = [
+    `Page ${page.id} "${page.title}" ${page.action}${page.version ? ` (v${page.version})` : ""}`,
+  ];
+  if (page.fixes.length > 0) parts.push(`fixes: ${page.fixes.join("; ")}`);
+  if (page.warnings.length > 0)
+    parts.push(`warnings: ${page.warnings.join("; ")}`);
+  if (page.fixes.length + page.warnings.length === 0) parts.push("lint clean");
+  ctx.report.note(parts.join(" · "));
+}
 
 /** Uploads one file; a same-name upload is a new version (updated), otherwise a new attachment (created). */
 export async function uploadAttachment(
-  env: SdkEnvironment,
+  session: ConfluenceSession,
   pageId: string,
   file: LoadedAttachment,
   comment?: string,
 ): Promise<UploadedAttachment> {
-  const uploaded = await uploadFile(env, pageId, file, comment);
+  const uploaded = await uploadFile(session, pageId, file, comment);
   const label = `attachment ${uploaded.id} on page ${pageId}`;
   if ((uploaded.version ?? 1) > 1)
-    env.report.updated.push(`${label} (new version)`);
-  else env.report.created.push(label);
+    session.ctx.report.updated(`${label} (new version)`);
+  else session.ctx.report.created(label);
   return uploaded;
 }
 
@@ -114,7 +132,7 @@ type PageAttachment = {
 };
 
 async function listPageAttachments(
-  env: SdkEnvironment,
+  session: ConfluenceSession,
   connection: ConfluenceConnection,
   pageId: string,
 ): Promise<PageAttachment[]> {
@@ -122,7 +140,6 @@ async function listPageAttachments(
     parse: jsonObject,
     path: `/pages/${pathSegment(pageId)}/attachments`,
     query: { limit: 250 },
-    signal: env.context.signal,
   });
   return valuesFromConfluenceList(response).flatMap((raw) => {
     const item = raw as Record<string, unknown>;
@@ -171,7 +188,7 @@ const MAX_SIZED_DOWNLOADS = 8;
  * downloaded to learn their real size, so the linter can set it.
  */
 async function existingReferenced(
-  env: SdkEnvironment,
+  session: ConfluenceSession,
   connection: ConfluenceConnection,
   pageId: string,
   storage: string,
@@ -185,7 +202,7 @@ async function existingReferenced(
     { width: number; height: number } | undefined
   >();
   if (wanted.length === 0) return found;
-  const onPage = await listPageAttachments(env, connection, pageId);
+  const onPage = await listPageAttachments(session, connection, pageId);
   const unsized = unsizedImageFiles(storage);
   let downloads = 0;
   for (const name of wanted) {
@@ -202,13 +219,9 @@ async function existingReferenced(
       const bytes = await confluenceDownload(
         connection,
         item.downloadLink,
-        env.context.signal,
       ).catch(() => undefined);
       if (bytes && bytes.byteLength <= MAX_ATTACHMENT_BYTES) {
-        const info = await image
-          .imageInfo(Buffer.from(bytes))
-          .catch(() => undefined);
-        if (info) size = { width: info.width, height: info.height };
+        size = imageSize(bytes);
       }
     }
     found.set(name, size);
@@ -279,7 +292,7 @@ export function pageBodyOption(options: Record<string, unknown>) {
 }
 
 /** `pages.create`, `pages.update` and `pages.download`: storage bodies, linted, with attachments. */
-export const confluencePageWriteMethods: SdkMethod[] = [
+export const confluencePageWriteMethods: PathedMethod<ConfluenceSession>[] = [
   defineMethod({
     product: "confluence",
     path: "pages.create",
@@ -307,15 +320,15 @@ export const confluencePageWriteMethods: SdkMethod[] = [
       summary: `${space ?? "default space"}/${title}`,
     }),
     // Attaching files is part of creating the page; only the file reads need their own check.
-    authorizeAlso: ({ attachments }, env) =>
-      attachmentReadAuthorizations(attachments, env),
+    authorizeAlso: ({ attachments }) =>
+      attachmentReadAuthorizations(attachments),
     resource: ({ space }) => `space ${space ?? "(default)"}`,
-    async run({ space, title, parent, body, toc, attachments }, env) {
-      const connection = await env.confluence();
+    async run({ space, title, parent, body, toc, attachments }, session) {
+      const connection = session.connection;
       // Read, validate and size attachments first so bad input fails before the page exists.
-      const loaded = await loadAttachments(attachments, env);
+      const loaded = await loadAttachments(attachments, session);
       const page = finalizeBody(body, title, toc, loaded);
-      const { spaceId } = await resolveSpace(env, space);
+      const { spaceId } = await resolveSpace(session, space);
       const created = await confluenceRequest(connection, {
         parse: jsonObject,
         method: "POST",
@@ -327,7 +340,6 @@ export const confluencePageWriteMethods: SdkMethod[] = [
           status: "current",
           body: { representation: "storage", value: page.storage },
         },
-        signal: env.context.signal,
       });
       const result = compactPage(connection, created, { title, version: 1 });
       const uploaded: UploadedAttachment[] = [];
@@ -336,7 +348,7 @@ export const confluencePageWriteMethods: SdkMethod[] = [
         for (const [index, file] of loaded.entries()) {
           uploaded.push(
             await uploadAttachment(
-              env,
+              session,
               result.id,
               file,
               attachments[index].comment,
@@ -360,7 +372,6 @@ export const confluencePageWriteMethods: SdkMethod[] = [
                 message: "Attach images",
               },
             },
-            signal: env.context.signal,
           });
           version =
             (updated.version as { number?: number } | undefined)?.number ??
@@ -378,7 +389,7 @@ export const confluencePageWriteMethods: SdkMethod[] = [
         );
       }
       const warnings = page.warnings;
-      env.report.pages.push({
+      reportPage(session.ctx, {
         action: "created",
         id: result.id,
         title: result.title ?? title,
@@ -434,10 +445,11 @@ export const confluencePageWriteMethods: SdkMethod[] = [
       targets: [confluencePage(id)],
       summary: id,
     }),
-    authorizeAlso: ({ bodyFile, attachments }, env) => [
-      ...attachmentReadAuthorizations(attachments, env),
-      ...(bodyFile ? readAuthorizations([parseHandle(bodyFile, env)]) : []),
-    ],
+    authorizeAlso: ({ bodyFile, attachments }) =>
+      attachmentReadAuthorizations([
+        ...attachments,
+        ...(bodyFile ? [{ file: bodyFile }] : []),
+      ]),
     resource: ({ id }) => `page ${id}`,
     async run(
       {
@@ -451,19 +463,17 @@ export const confluencePageWriteMethods: SdkMethod[] = [
         toc,
         attachments,
       },
-      env,
+      session,
     ) {
-      const connection = await env.confluence();
-      const loaded = await loadAttachments(attachments, env);
+      const connection = session.connection;
+      const loaded = await loadAttachments(attachments, session);
       const body =
         bodyFile === undefined
           ? inlineBody
-          : (await readFileRef(parseHandle(bodyFile, env))).toString("utf8");
-      const current = await fetchPageCurrent(
-        connection,
-        id,
-        env.context.signal,
-      );
+          : new TextDecoder().decode(
+              (await session.ctx.artifacts.read(bodyFile)).bytes,
+            );
+      const current = await fetchPageCurrent(connection, id);
       const currentVersion = (
         current.version as { number?: unknown } | undefined
       )?.number;
@@ -487,7 +497,7 @@ export const confluencePageWriteMethods: SdkMethod[] = [
         body !== undefined
           ? finalizeBody(body, nextTitle, toc, loaded, {
               existing: await existingReferenced(
-                env,
+                session,
                 connection,
                 id,
                 body,
@@ -515,7 +525,12 @@ export const confluencePageWriteMethods: SdkMethod[] = [
       try {
         for (const [index, file] of loaded.entries()) {
           uploaded.push(
-            await uploadAttachment(env, id, file, attachments[index].comment),
+            await uploadAttachment(
+              session,
+              id,
+              file,
+              attachments[index].comment,
+            ),
           );
         }
         updated = await confluenceRequest(connection, {
@@ -533,7 +548,6 @@ export const confluencePageWriteMethods: SdkMethod[] = [
               ...(message ? { message } : {}),
             },
           },
-          signal: env.context.signal,
         });
       } catch (error) {
         if (uploaded.length === 0) throw error;
@@ -547,7 +561,7 @@ export const confluencePageWriteMethods: SdkMethod[] = [
         { ...updated, id },
         { title: nextTitle, version: currentVersion + 1 },
       );
-      env.report.pages.push({
+      reportPage(session.ctx, {
         action: "updated",
         id,
         title: result.title ?? nextTitle,
@@ -579,17 +593,19 @@ export const confluencePageWriteMethods: SdkMethod[] = [
       summary: id,
     }),
     resource: ({ id }) => `page ${id}`,
-    async run({ id, attachments }, env) {
-      const connection = await env.confluence();
-      const page = await fetchPageCurrent(connection, id, env.context.signal);
+    async run({ id, attachments }, session) {
+      const connection = session.connection;
+      const page = await fetchPageCurrent(connection, id);
       const storage = (
         page.body as { storage?: { value?: unknown } } | undefined
       )?.storage?.value;
-      const file = await writeArtifact(
-        env,
-        `page-${id.replace(/[^A-Za-z0-9_-]/g, "_")}.xhtml`,
-        Buffer.from(typeof storage === "string" ? storage : "", "utf8"),
-      );
+      const file = (
+        await session.ctx.artifacts.write(
+          `page-${id.replace(/[^A-Za-z0-9_-]/g, "_")}.xhtml`,
+          typeof storage === "string" ? storage : "",
+          "application/xhtml+xml",
+        )
+      ).handle;
       const versionNumber = (page.version as { number?: unknown } | undefined)
         ?.number;
       const result: Record<string, unknown> = {
@@ -600,13 +616,9 @@ export const confluencePageWriteMethods: SdkMethod[] = [
       if (attachments) {
         const saved: { filename: string; file: string }[] = [];
         const skipped: string[] = [];
-        for (const item of await listPageAttachments(env, connection, id)) {
+        for (const item of await listPageAttachments(session, connection, id)) {
           const bytes = item.downloadLink
-            ? await confluenceDownload(
-                connection,
-                item.downloadLink,
-                env.context.signal,
-              )
+            ? await confluenceDownload(connection, item.downloadLink)
             : undefined;
           if (!bytes || bytes.byteLength > MAX_ATTACHMENT_BYTES) {
             skipped.push(item.title);
@@ -614,11 +626,13 @@ export const confluencePageWriteMethods: SdkMethod[] = [
           }
           saved.push({
             filename: item.title,
-            file: await writeArtifact(
-              env,
-              `${id}-${artifactNameFor(item.title)}`.slice(0, 128),
-              bytes,
-            ),
+            file: (
+              await session.ctx.artifacts.write(
+                `${id}-${artifactNameFor(item.title)}`.slice(0, 128),
+                bytes,
+                mediaTypeFor(item.title),
+              )
+            ).handle,
           });
         }
         result.attachments = saved;

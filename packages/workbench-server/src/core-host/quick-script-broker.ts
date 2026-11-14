@@ -37,14 +37,13 @@ export type QuickScriptRequest = QuickScriptNestedRequest;
 
 const MAX_STALE_RETRIES = 5;
 
-/** Direct tools a quick-script SDK call may still be authorized as: `read` / `write` / `edit` for workspace files and `web_fetch` / `web_search` for the web namespace. */
+/** Direct tools a quick-script SDK call may still be authorized as: `read` / `write` / `edit` for workspace files and `web_fetch` for `web.fetch`. */
 function brokerableDirectTool(toolName: string): boolean {
   return (
     toolName === "read" ||
     toolName === "write" ||
     toolName === "edit" ||
-    toolName === "web_fetch" ||
-    toolName === "web_search"
+    toolName === "web_fetch"
   );
 }
 

@@ -1,18 +1,16 @@
 import {
   isArray,
   isString,
-  jsonArray,
   jsonObject,
   objectWithFields,
 } from "../shared/http.js";
-import type { IntegrationExecutionContext } from "@nervekit/tools/execution";
 import {
   type JiraConnection,
   jiraRawRequest,
   jiraRequest,
   pathSegment,
-  requireJiraConnection,
 } from "./client.js";
+import type { JiraSession } from "./session.js";
 import { rawMethod } from "../shared/raw-request.js";
 import { jiraUsersFromResponse, searchJiraUsers } from "./users.js";
 import {
@@ -20,7 +18,6 @@ import {
   DEFAULT_SEARCH_FIELDS,
   defaultSelection,
   flattenIssue,
-  type JiraFieldInfo,
   resolveFieldSelection,
   simplifyComment,
   userOf,
@@ -31,23 +28,16 @@ import {
   projectExtras,
 } from "./discovery.js";
 import { fieldMetaMap } from "./field-values.js";
-import { jiraExtraMethods, rawBinarySaver } from "./extra-methods.js";
+import { jiraExtraMethods, rawBinaryNaming } from "./extra-methods.js";
 import { jiraEditMethods } from "./edit-methods.js";
-import { withTidyErrors } from "@nervekit/tools/quick-script/runtime/tidy-errors";
 import { jiraSprintMethods } from "./sprints.js";
 import { jiraWriteMethods } from "./write-methods.js";
-import { orNotAvailable } from "@nervekit/tools/quick-script/runtime/errors";
-import {
-  clampInt,
-  nonEmptyString,
-  optionalText,
-} from "@nervekit/tools/quick-script/runtime/sdk-args";
+import { clampInt, nonEmptyString, optionalText } from "../shared/args.js";
 import {
   defineMethod,
   definePositionalMethod,
-  type SdkEnvironment,
-  type SdkMethod,
-} from "@nervekit/tools/quick-script/runtime/sdk-types";
+  type PathedMethod,
+} from "../shared/define-method.js";
 import { jiraIssue, jiraProject, rawRequest } from "../shared/targets.js";
 
 const MAX_SEARCH_LIMIT = 1000;
@@ -72,14 +62,14 @@ function fieldsOption(options: Record<string, unknown>): string[] | undefined {
 function selectFields(
   requested: string[] | undefined,
   defaults: readonly string[],
-  env: SdkEnvironment,
+  session: JiraSession,
 ) {
   return requested
-    ? resolveFieldSelection(requested, env.jiraFields)
+    ? resolveFieldSelection(requested, () => session.fields())
     : Promise.resolve(defaultSelection(defaults));
 }
 
-const readMethods: SdkMethod[] = [
+const readMethods: PathedMethod<JiraSession>[] = [
   defineMethod({
     product: "jira",
     path: "issues.search",
@@ -95,9 +85,13 @@ const readMethods: SdkMethod[] = [
     }),
     authorize: ({ jql }) => ({ targets: [], summary: jql }),
     resource: () => "this Jira search",
-    async run({ jql, limit, fields }, env) {
-      const selection = await selectFields(fields, DEFAULT_SEARCH_FIELDS, env);
-      const connection = await env.jira();
+    async run({ jql, limit, fields }, session) {
+      const selection = await selectFields(
+        fields,
+        DEFAULT_SEARCH_FIELDS,
+        session,
+      );
+      const connection = session.connection;
       const issues: Record<string, unknown>[] = [];
       let nextPageToken: string | undefined;
       do {
@@ -111,7 +105,6 @@ const readMethods: SdkMethod[] = [
             maxResults: Math.min(SEARCH_PAGE_SIZE, limit - issues.length),
             ...(nextPageToken ? { nextPageToken } : {}),
           },
-          signal: env.context.signal,
         });
         for (const raw of page.issues ?? []) {
           if (issues.length >= limit) break;
@@ -138,21 +131,20 @@ const readMethods: SdkMethod[] = [
     }),
     authorize: ({ key }) => ({ targets: [jiraIssue(key)], summary: key }),
     resource: ({ key }) => `issue ${key}`,
-    async run({ key, fields, comments, transitions }, env) {
-      const selection = await selectFields(fields, DEFAULT_GET_FIELDS, env);
-      const connection = await env.jira();
+    async run({ key, fields, comments, transitions }, session) {
+      const selection = await selectFields(fields, DEFAULT_GET_FIELDS, session);
+      const connection = session.connection;
       const raw = await jiraRequest(connection, {
         parse: jsonObject,
         path: `/issue/${pathSegment(key)}`,
         query: { fields: selection.map((field) => field.id) },
-        signal: env.context.signal,
       });
       const issue = flattenIssue(raw, connection.siteUrl, selection);
       if (comments) {
         delete issue.comment;
-        issue.comments = await fetchComments(connection, key, env);
+        issue.comments = await fetchComments(connection, key);
       }
-      if (transitions) issue.transitions = await fetchTransitions(key, env);
+      if (transitions) issue.transitions = await fetchTransitions(key, session);
       return issue;
     },
   }),
@@ -184,14 +176,13 @@ const readMethods: SdkMethod[] = [
     },
     authorize: ({ key }) => ({ targets: [jiraProject(key)], summary: key }),
     resource: ({ key }) => `project ${key}`,
-    async run({ key, include, issueType }, env) {
+    async run({ key, include, issueType }, session) {
       const [project, extras] = await Promise.all([
-        jiraRequest(await env.jira(), {
+        jiraRequest(session.connection, {
           parse: jsonObject,
           path: `/project/${pathSegment(key)}`,
-          signal: env.context.signal,
         }),
-        projectExtras(env, key, include, issueType),
+        projectExtras(session, key, include, issueType),
       ]);
       return {
         key: project.key ?? key,
@@ -215,11 +206,10 @@ const readMethods: SdkMethod[] = [
     parse: (options) => nonEmptyString(options.query, "query"),
     authorize: (query) => ({ targets: [], summary: query }),
     resource: () => "Jira users",
-    async run(query, env) {
-      const response = await searchJiraUsers(await env.jira(), {
+    async run(query, session) {
+      const response = await searchJiraUsers(session.connection, {
         query,
         maxResults: 50,
-        signal: env.context.signal,
       });
       return jiraUsersFromResponse(response).map((raw) => {
         const user = (raw ?? {}) as Record<string, unknown>;
@@ -241,8 +231,8 @@ const readMethods: SdkMethod[] = [
     parse: () => undefined,
     authorize: () => ({ targets: [], summary: "all fields" }),
     resource: () => "Jira fields",
-    run: async (_parsed, env) =>
-      (await env.jiraFields()).map(({ id, name, custom, type }) => ({
+    run: async (_parsed, session) =>
+      (await session.fields()).map(({ id, name, custom, type }) => ({
         id,
         name,
         custom,
@@ -270,33 +260,31 @@ const readMethods: SdkMethod[] = [
       summary: `${method} ${String(path)}`,
     }),
     resource: ({ path }) => String(path),
-    async run({ method, path, body, query }, env) {
-      return await jiraRawRequest(await env.jira(), {
+    async run({ method, path, body, query }, session) {
+      return await jiraRawRequest(session.connection, {
         method,
         path,
         body,
         query,
-        onBinary: method === "GET" ? rawBinarySaver(env, path) : undefined,
-        signal: env.context.signal,
+        binary: method === "GET" ? rawBinaryNaming(path) : undefined,
       });
     },
   }),
 ];
 
-export const jiraMethods: SdkMethod[] = [
+export const jiraMethods: PathedMethod<JiraSession>[] = [
   ...readMethods,
   ...jiraWriteMethods,
   ...jiraEditMethods,
   ...jiraSprintMethods,
   ...jiraExtraMethods,
-].map(withTidyErrors);
+];
 
-async function fetchTransitions(key: string, env: SdkEnvironment) {
-  const response = await jiraRequest(await env.jira(), {
+async function fetchTransitions(key: string, session: JiraSession) {
+  const response = await jiraRequest(session.connection, {
     parse: jsonObject,
     path: `/issue/${pathSegment(key)}/transitions`,
     query: { expand: "transitions.fields" },
-    signal: env.context.signal,
   });
   return (Array.isArray(response.transitions) ? response.transitions : []).map(
     (raw) => {
@@ -313,11 +301,7 @@ async function fetchTransitions(key: string, env: SdkEnvironment) {
   );
 }
 
-async function fetchComments(
-  connection: JiraConnection,
-  issueKey: string,
-  env: SdkEnvironment,
-) {
+async function fetchComments(connection: JiraConnection, issueKey: string) {
   const comments: Array<ReturnType<typeof simplifyComment>> = [];
   let startAt = 0;
   while (comments.length < MAX_COMMENTS) {
@@ -325,7 +309,6 @@ async function fetchComments(
       parse: jsonObject,
       path: `/issue/${pathSegment(issueKey)}/comment`,
       query: { startAt, maxResults: 100, orderBy: "created" },
-      signal: env.context.signal,
     });
     const batch = Array.isArray(page.comments) ? page.comments : [];
     comments.push(...batch.map(simplifyComment));
@@ -334,43 +317,6 @@ async function fetchComments(
     if (batch.length === 0 || startAt >= total) break;
   }
   return comments;
-}
-
-export function createJiraFieldLoader(
-  context: IntegrationExecutionContext,
-  connection: () => Promise<JiraConnection>,
-): () => Promise<JiraFieldInfo[]> {
-  let fields: Promise<JiraFieldInfo[]> | undefined;
-  return () =>
-    (fields ??= connection().then(async (conn) => {
-      const raw = await jiraRequest(conn, {
-        parse: jsonArray,
-        path: "/field",
-        signal: context.signal,
-      });
-      return raw.map((item) => {
-        const field = (item ?? {}) as Record<string, unknown>;
-        const schema = (field.schema ?? {}) as Record<string, unknown>;
-        const text = (value: unknown) =>
-          typeof value === "string" ? value : null;
-        return {
-          id: String(field.id ?? ""),
-          name: String(field.name ?? ""),
-          custom: field.custom === true,
-          type: text(schema.type),
-          items: text(schema.items),
-          kind: text(schema.custom) ?? text(schema.system),
-        };
-      });
-    }));
-}
-
-export function jiraConnectionLoader(context: IntegrationExecutionContext) {
-  let connection: Promise<JiraConnection> | undefined;
-  return () =>
-    (connection ??= orNotAvailable("jira", () =>
-      requireJiraConnection(context),
-    ));
 }
 
 function namesOf(value: unknown): string[] {

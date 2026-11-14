@@ -12,10 +12,6 @@ import {
   extensionToolOffered,
 } from "./extension-availability.js";
 import { hostRegistry } from "./host-tools.js";
-import {
-  diagramServer,
-  selectedSearchAccount,
-} from "./legacy-extension-context.js";
 
 const accounts = (options: { secrets?: boolean } = {}): AccountsReader => {
   const known = new Map([
@@ -113,21 +109,31 @@ void test("the extension switch gates its products, the product switch the names
   );
 });
 
-void test("web needs only its switch; the search account and the diagram server read the resolved settings", async () => {
-  const resolution = resolve({
+void test("web needs only its switch; web_search also needs its search account with a saved token", async () => {
+  const withAccount = resolve({
     web: { version: 1, enabled: true, settings: { searchAccount: "tav" } },
-    diagram: { version: 1, settings: { server: "https://kroki.internal" } },
   });
-  assert.deepEqual((await derive(resolution)).namespaces.web, {
+  assert.deepEqual((await derive(withAccount)).namespaces.web, {
     configured: true,
     available: true,
   });
   assert.equal(
-    (await selectedSearchAccount(resolution, accounts()))?.id,
-    "tav",
+    extensionToolOffered(await derive(withAccount), "web_search"),
+    true,
   );
-  assert.equal(diagramServer(resolution), "https://kroki.internal/");
-  assert.equal(diagramServer(resolve()), "https://kroki.io/");
+  assert.equal(
+    extensionToolOffered(
+      await derive(withAccount, { secrets: false }),
+      "web_search",
+    ),
+    false,
+  );
+  const noAccount = resolve({ web: { version: 1, enabled: true } });
+  assert.equal(
+    extensionToolOffered(await derive(noAccount), "web_search"),
+    false,
+  );
+  assert.equal((await derive(noAccount)).namespaces.web.available, true);
 });
 
 void test("tools the extensions do not contribute are not gated here", async () => {

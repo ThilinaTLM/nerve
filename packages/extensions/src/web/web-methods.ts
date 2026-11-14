@@ -1,48 +1,30 @@
-import { isolatedHtmlToMarkdown } from "@nervekit/tools/execution";
-import { ToolExecutionError } from "@nervekit/tools/execution";
-import { withTimeoutSignal } from "@nervekit/tools/execution";
+import {
+  ExtensionError,
+  isArtifactName,
+  method,
+  nonEmptyString,
+  parseOptions,
+  type ExtensionContext,
+  type ExtensionErrorCode,
+} from "@nervekit/extension-api";
 import {
   baseContentType,
-  downloadWebResource,
-  getExtension,
+  extensionFor,
+  htmlTitle,
   isHtml,
   isTextType,
-} from "@nervekit/tools/execution";
-import { searchTavily, snippet } from "@nervekit/tools/execution";
-import {
-  codedError,
-  type HostErrorCode,
-} from "@nervekit/tools/quick-script/runtime/errors";
-import {
-  assertArtifactName,
-  freshArtifactName,
-  MAX_FILE_BYTES,
-  writeArtifact,
-} from "@nervekit/tools/quick-script/runtime/files/artifacts";
-import {
-  clampInt,
-  nonEmptyString,
-} from "@nervekit/tools/quick-script/runtime/sdk-args";
-import {
-  defineMethod,
-  type SdkEnvironment,
-  type SdkMethod,
-} from "@nervekit/tools/quick-script/runtime/sdk-types";
+  snippet,
+} from "./content-types.js";
 
-const SETTINGS = "Settings → Extensions → Web";
+/** Largest page `web.fetch` downloads (and converts). */
+export const MAX_FETCH_BYTES = 8 * 1024 * 1024;
+/** Largest file `web.fetch` saves as an artifact. */
+const MAX_FILE_BYTES = 20 * 1024 * 1024;
 const FETCH_AS = ["markdown", "text", "json", "file"] as const;
 type FetchAs = (typeof FETCH_AS)[number];
+const SEARCH_URL = "https://api.tavily.com/search";
 
-function requireWeb(name: string, env: SdkEnvironment): void {
-  if (!env.context.web?.enabled) {
-    throw codedError(
-      "DENIED",
-      `${name}: web is not available in quick_script. Ask the user to enable Web in ${SETTINGS}.`,
-    );
-  }
-}
-
-function httpCode(status: number): HostErrorCode {
+function httpCode(status: number): ExtensionErrorCode {
   if (status === 401) return "UNAUTHORIZED";
   if (status === 403) return "FORBIDDEN";
   if (status === 404 || status === 410) return "NOT_FOUND";
@@ -50,102 +32,104 @@ function httpCode(status: number): HostErrorCode {
   return status >= 500 ? "SERVER_ERROR" : "BAD_REQUEST";
 }
 
-/** Re-codes an HTTP failure of the shared fetch/search clients as a script-visible host code. */
-function asHostError(error: unknown): unknown {
-  if (
-    error instanceof ToolExecutionError &&
-    (error.code === "WEB_FETCH_HTTP_ERROR" ||
-      error.code === "WEB_SEARCH_HTTP_ERROR") &&
-    typeof error.details.status === "number"
-  ) {
-    return codedError(httpCode(error.details.status), error.message);
-  }
-  return error;
+function artifactName(value: unknown): string | undefined {
+  if (value === undefined) return undefined;
+  if (typeof value !== "string" || !isArtifactName(value))
+    throw new ExtensionError(
+      "BAD_REQUEST",
+      `Invalid artifact name ${JSON.stringify(value)}: use 1-128 letters, digits, spaces, '.', '_' or '-' (no folders, no leading dot).`,
+    );
+  return value;
 }
 
-const TITLE_ENTITIES: Record<string, string> = {
-  "&amp;": "&",
-  "&lt;": "<",
-  "&gt;": ">",
-  "&quot;": '"',
-  "&#39;": "'",
+type TavilyResponse = {
+  results?: {
+    title: string;
+    url: string;
+    content: string;
+    published_date?: string;
+  }[];
 };
 
-function htmlTitle(html: string): string | undefined {
-  const raw = /<title[^>]*>([\s\S]*?)<\/title>/i.exec(html)?.[1];
-  // One pass, so `&amp;lt;` decodes to `&lt;`, not `<`.
-  const title = raw
-    ?.replace(/&(?:amp|lt|gt|quot|#39);/g, (entity) => TITLE_ENTITIES[entity])
-    .replace(/\s+/g, " ")
-    .trim();
-  return title || undefined;
-}
-
-export const webMethods: SdkMethod[] = [
-  defineMethod({
-    product: "web",
-    path: "fetch",
+export const webMethods = {
+  fetch: method({
     risk: "network",
-    bare: "url",
-    options: ["url", "as", "name"],
     signature:
       '/** GET a URL. Default: HTML as markdown, text as text, JSON parsed; binary or `as: "file"` saves an artifact. */ fetch(url: string | { url: string; as?: "markdown" | "text" | "json" | "file"; name?: string }): Promise<WebPage | FileHandle>',
-    parse: (options) => {
+    parse: (args) => {
+      const options = parseOptions("web.fetch", args, {
+        bare: "url",
+        options: ["url", "as", "name"],
+      });
       const as = options.as;
-      if (as !== undefined && !FETCH_AS.includes(as as FetchAs)) {
-        throw new Error(`as must be one of: ${FETCH_AS.join(", ")}.`);
-      }
+      if (as !== undefined && !FETCH_AS.includes(as as FetchAs))
+        throw new ExtensionError(
+          "BAD_REQUEST",
+          `as must be one of: ${FETCH_AS.join(", ")}.`,
+        );
       return {
         url: nonEmptyString(options.url, "url"),
         as: as as FetchAs | undefined,
-        name:
-          options.name === undefined
-            ? undefined
-            : assertArtifactName(options.name),
+        name: artifactName(options.name),
       };
     },
-    authorize: ({ url }, env) => {
-      requireWeb("web.fetch", env);
-      return { toolName: "web_fetch", args: { url }, summary: url };
-    },
+    // Checked as the core `web_fetch` tool, so its URL rules and approvals apply.
+    authorize: ({ url }) => ({
+      toolName: "web_fetch",
+      args: { url },
+      summary: url,
+    }),
     resource: ({ url }) => url,
-    async run({ url, as, name }, env) {
-      let page;
-      try {
-        page = await downloadWebResource(
+    async run(_session, { url, as, name }, ctx) {
+      const page = await ctx.http
+        .request({
           url,
-          withTimeoutSignal(env.context.signal, 60_000),
-          env.context.webFetchPolicy?.allowPrivateNetwork === true,
+          headers: { accept: "text/html,application/json,text/plain,*/*" },
+          response: "bytes",
+          maxBytes: MAX_FETCH_BYTES,
+          timeoutMs: 60_000,
+        })
+        .catch((error: unknown) => {
+          if (
+            error instanceof ExtensionError &&
+            error.message.includes("is larger than")
+          )
+            throw new ExtensionError(
+              "BAD_REQUEST",
+              `Response exceeds the ${MAX_FETCH_BYTES / (1024 * 1024)} MiB download limit.`,
+            );
+          throw error;
+        });
+      if (!page.ok)
+        throw new ExtensionError(
+          httpCode(page.status),
+          `Fetch failed: ${page.status}`,
         );
-      } catch (error) {
-        throw asHostError(error);
-      }
-      const { buffer, contentType } = page;
+      const bytes = page.body as Uint8Array;
+      const contentType =
+        page.headers["content-type"] ?? "application/octet-stream";
       const text = isTextType(contentType);
       if (as === "file" || (as === undefined && !text)) {
-        if (buffer.byteLength > MAX_FILE_BYTES) {
-          throw new Error(
-            `Response is ${buffer.byteLength} bytes; the limit is ${MAX_FILE_BYTES}.`,
+        if (bytes.byteLength > MAX_FILE_BYTES)
+          throw new ExtensionError(
+            "BAD_REQUEST",
+            `Response is ${bytes.byteLength} bytes; the limit is ${MAX_FILE_BYTES}.`,
           );
-        }
-        return await writeArtifact(
-          env,
+        const written = await ctx.artifacts.write(
           name ??
-            (await freshArtifactName(env, "web", getExtension(contentType))),
-          buffer,
+            (await ctx.artifacts.freshName("web", extensionFor(contentType))),
+          bytes,
+          baseContentType(contentType) || undefined,
         );
+        return written.handle;
       }
-      if (!text) {
-        throw new Error(
+      if (!text)
+        throw new ExtensionError(
+          "BAD_REQUEST",
           `${baseContentType(contentType) || "binary"} content cannot be read as ${as}; use as: "file" to save it.`,
         );
-      }
-      const source = buffer.toString("utf8");
-      const result = {
-        url: page.url,
-        status: page.status,
-        contentType,
-      };
+      const source = new TextDecoder().decode(bytes);
+      const result = { url: page.url, status: page.status, contentType };
       const kind =
         as ??
         (baseContentType(contentType) === "application/json"
@@ -155,74 +139,77 @@ export const webMethods: SdkMethod[] = [
         try {
           return { ...result, content: JSON.parse(source) as unknown };
         } catch {
-          if (as === "json") {
-            throw new Error(
+          if (as === "json")
+            throw new ExtensionError(
+              "BAD_REQUEST",
               `${page.url} did not return valid JSON; use as: "text".`,
             );
-          }
           return { ...result, content: source };
         }
       }
-      if (kind === "markdown" && isHtml(contentType)) {
-        const title = htmlTitle(source);
+      const title = isHtml(contentType) ? htmlTitle(source) : undefined;
+      if (kind === "markdown" && isHtml(contentType))
         return {
           ...result,
           ...(title ? { title } : {}),
-          content: await isolatedHtmlToMarkdown(source, {
-            signal: env.context.signal,
-          }),
+          content: await ctx.text.htmlToMarkdown(source),
         };
-      }
-      const title = isHtml(contentType) ? htmlTitle(source) : undefined;
       return { ...result, ...(title ? { title } : {}), content: source };
     },
   }),
-  defineMethod({
-    product: "web",
-    path: "search",
+  search: method({
     risk: "network",
-    bare: "query",
-    options: ["query", "limit"],
     signature:
       "/** Web search; default 5 results (max 20). */ search(query: string | { query: string; limit?: number }): Promise<WebHit[]>",
-    parse: (options) => ({
-      query: nonEmptyString(options.query, "query"),
-      limit: clampInt(options.limit, 5, 1, 20),
-    }),
-    authorize: ({ query, limit }, env) => {
-      requireWeb("web.search", env);
-      if (!env.context.web?.search) {
-        throw codedError(
-          "DENIED",
-          `web.search: no Tavily account is selected. Ask the user to choose one with a saved API token in ${SETTINGS}; web.fetch still works.`,
-        );
-      }
+    // A bound tool passes `max_results`; a script passes `limit`.
+    parse: (args) => {
+      const options = parseOptions("web.search", args, {
+        bare: "query",
+        options: ["query", "limit", "max_results"],
+      });
+      const requested = options.limit ?? options.max_results;
       return {
-        toolName: "web_search",
-        args: { query, max_results: limit },
-        summary: query,
+        query: nonEmptyString(options.query, "query"),
+        limit:
+          typeof requested === "number" && Number.isFinite(requested)
+            ? Math.min(20, Math.max(1, Math.floor(requested)))
+            : 5,
       };
     },
+    authorize: ({ query }) => ({ targets: [], summary: query }),
     resource: () => "the search provider",
-    async run({ query, limit }, env) {
-      const apiKey = await env.context.getApiKey?.("tavily");
-      if (!apiKey) {
-        throw codedError(
+    async run(_session, { query, limit }, ctx: ExtensionContext) {
+      if (!(await ctx.accounts.selected("searchAccount")))
+        throw new ExtensionError(
           "DENIED",
-          `web.search: the selected Tavily account has no API token. Ask the user to add it in Settings → Extensions → Web.`,
+          "web.search: no Tavily account is selected.",
+          {
+            fix: "Ask the user to choose one with a saved API token in Settings → Extensions → Web; web.fetch still works.",
+          },
         );
-      }
-      let data;
+      const response = await ctx.http.request({
+        url: SEARCH_URL,
+        method: "POST",
+        auth: { account: "searchAccount" },
+        body: {
+          json: { query, max_results: limit, include_answer: false },
+        },
+        response: "text",
+        timeoutMs: 60_000,
+      });
+      if (!response.ok)
+        throw new ExtensionError(
+          httpCode(response.status),
+          `Tavily API error: ${response.status} ${String(response.body)}`,
+        );
+      let data: TavilyResponse;
       try {
-        data = await searchTavily({
-          apiKey,
-          query,
-          maxResults: limit,
-          includeAnswer: false,
-          signal: withTimeoutSignal(env.context.signal, 60_000),
-        });
-      } catch (error) {
-        throw asHostError(error);
+        data = JSON.parse(String(response.body)) as TavilyResponse;
+      } catch {
+        throw new ExtensionError(
+          "SERVER_ERROR",
+          "Tavily returned a response that is not JSON.",
+        );
       }
       return (Array.isArray(data.results) ? data.results : []).map((hit) => ({
         title: hit.title,
@@ -232,4 +219,4 @@ export const webMethods: SdkMethod[] = [
       }));
     },
   }),
-];
+};

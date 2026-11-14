@@ -107,10 +107,10 @@ export type CompletedViewFamily =
   | "todos"
   | "subagent"
   | "plan_present"
-  | "web_search"
   | "web_fetch"
   | "explain_image"
-  | "quick_script";
+  | "quick_script"
+  | "extension";
 
 export type ToolLifecycleSpec<Name extends ToolName = ToolName> = {
   name: Name;
@@ -132,6 +132,15 @@ export type UnknownToolLifecycleSpec = Omit<
 > & {
   name: "unknown";
   completedView: "generic";
+};
+
+/** A direct tool an extension contributes: one spec for all, driven by the call's arguments. */
+export type ExtensionToolLifecycleSpec = Omit<
+  ToolLifecycleSpec,
+  "name" | "completedView"
+> & {
+  name: "extension";
+  completedView: "extension";
 };
 
 export const noArgumentBody = (): ToolArgumentBody => ({ kind: "none" });

@@ -8,10 +8,7 @@ export {
 } from "./registry.js";
 export type { QuickScriptRegistry } from "./registry.js";
 export { quickScriptRiskOfMethod } from "./runtime/script-risk.js";
-export type {
-  ExtensionEnvironment,
-  ExtensionManifest,
-} from "./manifest-types.js";
+export type { ExtensionManifest } from "./manifest-types.js";
 export type { QuickScriptCapabilities } from "./runtime/description.js";
 export { quickScriptDescription } from "./runtime/description.js";
 export * from "./runtime/script-risk.js";
@@ -35,14 +32,13 @@ export type {
 export type { ExtensionHostPorts } from "./extension-host/ports.js";
 export { createAvailabilityContext } from "./extension-host/host-context.js";
 export { fromDefinition } from "./extension-host/from-definition.js";
+export {
+  accountKindIsTestable,
+  testExtensionAccount,
+} from "./extension-host/account-test.js";
+export type { AccountTestOutcome } from "./extension-host/account-test.js";
 export type {
   NamespaceAvailability,
   QuickScriptAvailability,
 } from "./manifest-types.js";
 export type { QuickScriptContext } from "./runtime/sdk-types.js";
-export type {
-  ImageBackendRequest,
-  ImageGenerateRequest,
-  ImageGenerateResponse,
-  ImagegenBackend,
-} from "./runtime/sdk-types.js";

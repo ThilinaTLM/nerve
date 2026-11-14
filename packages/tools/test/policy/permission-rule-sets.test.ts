@@ -225,7 +225,6 @@ test("planning separates research, prompted analysis, and mutations", () => {
   );
 
   for (const [toolName, args] of [
-    ["web_search", { query: "Nerve planning" }],
     ["web_fetch", { url: "https://example.com" }],
     ["explain_image", { path: "/workspace/screenshot.png" }],
   ] as const) {

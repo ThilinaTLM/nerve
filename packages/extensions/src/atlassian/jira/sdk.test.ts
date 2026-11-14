@@ -1,28 +1,14 @@
 import assert from "node:assert/strict";
-import { afterEach, test } from "node:test";
-import { quickScriptResultDetailsSchema } from "@nervekit/contracts/tools";
-import { ToolExecutionError } from "@nervekit/tools/execution";
-import { executeQuickScript } from "@nervekit/tools/quick-script/runtime/quick-script";
-import type { Nested } from "@nervekit/tools/quick-script/runtime/test-nested";
+import { test } from "node:test";
+import { ExtensionError } from "@nervekit/extension-api";
+import { createHarness, type HarnessOptions } from "../test-support.js";
 
-const originalFetch = globalThis.fetch;
-afterEach(() => {
-  globalThis.fetch = originalFetch;
-});
-
-function context(authorized: Nested[] = []) {
-  return {
-    cwd: process.cwd(),
-    getApiKey: async () => "token",
-    getProviderConfig: async () => ({
-      enabled: true,
-      siteUrl: "https://example.atlassian.net",
-      email: "dev@example.com",
-    }),
-    authorizeNested: async (request: Nested) => {
-      authorized.push(request);
-    },
-  };
+/** A harness whose Jira answers with `fetch`. */
+function scripted(
+  fetch: (url: URL) => Response | Promise<Response>,
+  options: Omit<HarnessOptions, "fetch"> = {},
+) {
+  return createHarness({ ...options, fetch: (url) => fetch(url) });
 }
 
 const adf = (text: string) => ({
@@ -31,8 +17,7 @@ const adf = (text: string) => ({
 });
 
 void test("every method takes one ID string or one options object, with one ID name", async () => {
-  globalThis.fetch = async (input) => {
-    const url = new URL(String(input));
+  const { authorized, run } = scripted(async (url) => {
     if (url.pathname.includes("/project/")) {
       return Response.json({
         key: "SCRUM",
@@ -41,11 +26,8 @@ void test("every method takes one ID string or one options object, with one ID n
       });
     }
     return Response.json({ id: "4", key: "SCRUM-4", fields: { summary: "S" } });
-  };
-  const authorized: Nested[] = [];
-  const result = await executeQuickScript(
-    {
-      code: `
+  });
+  const result = await run(`
         const p = await jira.projects.get({ key: "SCRUM" });
         const i = await jira.issues.get({ key: "SCRUM-4", fields: ["summary"] });
         const j = await jira.issues.get("SCRUM-4");
@@ -58,10 +40,7 @@ void test("every method takes one ID string or one options object, with one ID n
         for (const attempt of attempts) {
           try { await attempt(); } catch (e) { console.log(e.name + ": " + e.message); }
         }
-      `,
-    },
-    context(authorized),
-  );
+      `);
   const lines = (result.content ?? "").split("\n");
   assert.equal(lines[0], "SCRUM SCRUM-4 S");
   assert.ok(
@@ -92,8 +71,7 @@ void test("every method takes one ID string or one options object, with one ID n
 });
 
 void test("maps parent for subtasks and simplifies structured fields", async () => {
-  globalThis.fetch = async (input) => {
-    const url = new URL(String(input));
+  const { run } = scripted(async (url) => {
     if (!url.searchParams.get("fields")!.includes("comment")) {
       assert.match(url.searchParams.get("fields") ?? "", /parent/);
     }
@@ -142,17 +120,12 @@ void test("maps parent for subtasks and simplifies structured fields", async () 
         ],
       },
     });
-  };
-  const result = await executeQuickScript(
-    {
-      code: `
+  });
+  const result = await run(`
         const d = await jira.issues.get("SCRUM-4");
         const x = await jira.issues.get({ key: "SCRUM-4", fields: ["summary", "comment", "attachment", "issuelinks", "subtasks"] });
         console.log(JSON.stringify([d.parent, x]));
-      `,
-    },
-    context(),
-  );
+      `);
   const [parent, issue] = JSON.parse((result.content ?? "").split("\n")[0]) as [
     unknown,
     Record<string, unknown>,
@@ -192,8 +165,7 @@ void test("maps parent for subtasks and simplifies structured fields", async () 
 });
 
 void test("comments: true returns one canonical comments array, and worklog ids are kept", async () => {
-  globalThis.fetch = async (input) => {
-    const url = new URL(String(input));
+  const { run } = scripted(async (url) => {
     if (url.pathname.endsWith("/comment"))
       return Response.json({
         comments: [{ id: "5", author: { displayName: "Ann" }, body: adf("x") }],
@@ -206,12 +178,9 @@ void test("comments: true returns one canonical comments array, and worklog ids 
         worklog: { worklogs: [{ id: "8", timeSpent: "1h" }] },
       },
     });
-  };
-  const result = await executeQuickScript(
-    {
-      code: `console.log(JSON.stringify(await jira.issues.get({ key: "SCRUM-4", fields: ["comment", "worklog"], comments: true })));`,
-    },
-    context(),
+  });
+  const result = await run(
+    `console.log(JSON.stringify(await jira.issues.get({ key: "SCRUM-4", fields: ["comment", "worklog"], comments: true })));`,
   );
   const issue = JSON.parse((result.content ?? "").split("\n")[0]);
   assert.equal("comment" in issue, false);
@@ -223,34 +192,28 @@ void test("comments: true returns one canonical comments array, and worklog ids 
 });
 
 void test("strips the skill guide pointer from Jira errors", async () => {
-  globalThis.fetch = async () =>
-    new Response(JSON.stringify({ errorMessages: ["Unbounded JQL"] }), {
-      status: 400,
-    });
-  const result = await executeQuickScript(
-    {
-      code: `try { await jira.issues.search({ jql: "ORDER BY created" }); } catch (e) { console.log(e.message); }`,
-    },
-    context(),
+  const { run } = scripted(
+    async () =>
+      new Response(JSON.stringify({ errorMessages: ["Unbounded JQL"] }), {
+        status: 400,
+      }),
   );
-  assert.doesNotMatch(result.content ?? "", /SKILL\.md/);
-  const details = quickScriptResultDetailsSchema.parse(result.details);
-  assert.equal(details.hostCalls[0].outcome, "failed");
-  assert.doesNotMatch(details.hostCalls[0].error ?? "", /SKILL\.md/);
+  const result = await run(
+    `try { await jira.issues.search({ jql: "ORDER BY created" }); } catch (e) { console.log(e.message); }`,
+  );
+  assert.doesNotMatch(result.content, /SKILL\.md/);
+  assert.match(result.content, /^Unbounded JQL/);
+  assert.equal(result.hostCalls[0].outcome, "failed");
 });
 
 void test("denials keep the policy reason", async () => {
-  const ctx = {
-    ...context(),
-    authorizeNested: async () => {
-      throw new ToolExecutionError("NESTED_DENIED", "nope");
+  const { run } = scripted(async () => Response.json([]), {
+    authorize: async () => {
+      throw new ExtensionError("DENIED", "nope");
     },
-  };
-  const result = await executeQuickScript(
-    {
-      code: `try { await jira.users.search({ query: "ann" }); } catch (e) { console.log(e.message); }`,
-    },
-    ctx,
+  });
+  const result = await run(
+    `try { await jira.users.search({ query: "ann" }); } catch (e) { console.log(e.message); }`,
   );
   assert.match(result.content ?? "", /^nope/);
 });

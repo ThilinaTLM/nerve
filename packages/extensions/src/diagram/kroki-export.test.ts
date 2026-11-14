@@ -1,74 +1,59 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
+import { createFakeContext } from "@nervekit/extension-api/testing";
+import type { HttpResponse } from "@nervekit/extension-api";
 import { fetchKrokiDiagram } from "./kroki-export.js";
 
-const svg = '<svg xmlns="http://www.w3.org/2000/svg"><text>Hello</text></svg>';
-const png = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+const png = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
 const options = {
   url: "http://127.0.0.1:9080/prefix/",
   diagramType: "graphviz",
   source: "digraph G { Hello -> World }",
-  outputFormat: "svg" as const,
-  signal: new AbortController().signal,
 };
-const response = (body: string | Buffer, type: string, status = 200) =>
-  new Response(typeof body === "string" ? body : new Uint8Array(body), {
-    status,
-    headers: { "content-type": type },
-  });
+const reply = (
+  body: Uint8Array | string,
+  type: string,
+  status = 200,
+): HttpResponse => ({
+  status,
+  ok: status >= 200 && status < 300,
+  headers: { "content-type": type },
+  url: options.url,
+  body: typeof body === "string" ? new TextEncoder().encode(body) : body,
+});
 
 describe("fetchKrokiDiagram", () => {
-  it("POSTs the source untouched and returns validated bytes", async (t) => {
-    t.mock.method(
-      globalThis,
-      "fetch",
-      async (url: string, init: RequestInit) => {
-        assert.equal(url, options.url);
-        assert.equal(init.method, "POST");
-        assert.equal(init.redirect, "manual");
-        assert.deepEqual(JSON.parse(String(init.body)), {
-          diagram_source: options.source,
-          diagram_type: "graphviz",
-          output_format: "svg",
-        });
-        return response(svg, "image/svg+xml; charset=UTF-8");
-      },
-    );
-    assert.equal((await fetchKrokiDiagram(options)).toString("utf8"), svg);
+  it("POSTs the source untouched and returns validated PNG bytes", async () => {
+    const { ctx, record } = createFakeContext({
+      http: () => reply(png, "image/png"),
+    });
+    assert.deepEqual(await fetchKrokiDiagram(ctx, options), png);
+    const [request] = record.requests;
+    assert.equal(request.url, options.url);
+    assert.equal(request.method, "POST");
+    assert.deepEqual((request.body as { json: unknown }).json, {
+      diagram_source: options.source,
+      diagram_type: "graphviz",
+      output_format: "png",
+    });
   });
 
-  it("returns PNG bytes", async (t) => {
-    t.mock.method(globalThis, "fetch", async () => response(png, "image/png"));
-    assert.deepEqual(
-      await fetchKrokiDiagram({ ...options, outputFormat: "png" }),
-      png,
-    );
-  });
-
-  it("rejects redirects, wrong media types and invalid data", async (t) => {
-    const fetchMock = t.mock.method(globalThis, "fetch", async () =>
-      response("", "text/plain", 302),
-    );
+  it("rejects wrong media types and invalid data", async () => {
+    let next = reply(png, "text/html");
+    const { ctx } = createFakeContext({ http: () => next });
     await assert.rejects(
-      fetchKrokiDiagram(options),
-      /redirects are not allowed/,
+      fetchKrokiDiagram(ctx, options),
+      /did not return image\/png/,
     );
-    fetchMock.mock.mockImplementation(async () => response(svg, "text/html"));
-    await assert.rejects(
-      fetchKrokiDiagram(options),
-      /did not return image\/svg/,
-    );
-    fetchMock.mock.mockImplementation(async () =>
-      response("<html/>", "image/svg+xml"),
-    );
-    await assert.rejects(fetchKrokiDiagram(options), /invalid SVG data/);
+    next = reply("<html/>", "image/png");
+    await assert.rejects(fetchKrokiDiagram(ctx, options), /invalid PNG data/);
   });
 
-  it("reports the server diagnostic without echoing the source", async (t) => {
-    t.mock.method(globalThis, "fetch", async () =>
-      response(`Error 400: bad ${options.source}`, "text/plain", 400),
-    );
-    await assert.rejects(fetchKrokiDiagram(options), (error: Error) => {
+  it("reports the server diagnostic without echoing the source", async () => {
+    const { ctx } = createFakeContext({
+      http: () => reply(`Error 400: bad ${options.source}`, "text/plain", 400),
+    });
+    await assert.rejects(fetchKrokiDiagram(ctx, options), (error: Error) => {
       assert.match(error.message, /HTTP 400/);
       assert.ok(!error.message.includes(options.source));
       return true;

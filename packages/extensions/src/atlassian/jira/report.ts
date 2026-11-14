@@ -1,10 +1,10 @@
-import type { SdkEnvironment } from "@nervekit/tools/quick-script/runtime/sdk-types";
+import type { ExtensionContext } from "@nervekit/extension-api";
 
 /** Lists an entity the run created, updated or deleted in the result footer. */
 export function noteChange(
-  env: SdkEnvironment,
+  session: { ctx: ExtensionContext },
   kind: "created" | "updated" | "deleted",
   what: string,
 ): void {
-  env.report[kind].push(what);
+  session.ctx.report[kind](what);
 }

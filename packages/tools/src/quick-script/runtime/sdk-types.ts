@@ -1,8 +1,6 @@
-import { ToolExecutionError } from "../../execution/index.js";
 import type { ExtensionHostPorts } from "../extension-host/ports.js";
 import type { ExtensionRuntime } from "../extension-host/runtime.js";
 import type { QuickScriptRegistry } from "../registry.js";
-import type { KrokiToolSettings } from "@nervekit/contracts/settings";
 import type {
   IntegrationExecutionContext,
   WebExecutionContext,
@@ -12,65 +10,6 @@ import type {
  * Shapes the runtime context and environment carry for the built-in extensions.
  * TEMPORARY until docs/proposals/extension-platform phase 1 step 3: they move to the extensions.
  */
-
-export type JiraConnection = {
-  siteUrl: string;
-  email: string;
-  token: string;
-  defaultProjectKey?: string;
-};
-
-export type ConfluenceConnection = {
-  siteUrl: string;
-  email: string;
-  token: string;
-  defaultSpaceKey?: string;
-};
-
-export type JiraFieldInfo = {
-  id: string;
-  name: string;
-  custom: boolean;
-  type: string | null;
-  /** Element type of array fields, e.g. `option`, `user`, `version`. */
-  items?: string | null;
-  /** Custom field type, e.g. `...:textarea`; system field name otherwise. */
-  kind?: string | null;
-};
-
-export type ImagegenBackend = "openai-codex";
-
-/** The resolved `imagegen` extension settings the host puts in the execution context. */
-export type ImagegenSettings = {
-  backend: ImagegenBackend;
-  model: string;
-  quality: string;
-  size: string;
-  background: string;
-};
-
-/** What the host's backend adapter executes: every option is final (call overrides applied). */
-export type ImageBackendRequest = {
-  backend: "openai-codex";
-  model: string;
-  quality: string;
-  size: string;
-  background: string;
-};
-
-export type ImageGenerateRequest = {
-  prompt: string;
-  /** Reference images; only backends that accept them get any. */
-  inputs: { data: Uint8Array; mimeType: string }[];
-  options: ImageBackendRequest;
-  signal?: AbortSignal;
-};
-
-export type ImageGenerateResponse = {
-  provider: string;
-  model: string;
-  images: Array<{ data: Uint8Array; revisedPrompt?: string }>;
-};
 
 /** A resource a call acts on, normalized `<system>:<type>/<id>`: `jira:issue/APP-12`, `confluence:page/123`, `jira:request/GET /rest/api/3/myself`. */
 export type OperationTarget = { kind: "resource"; value: string };
@@ -118,39 +57,6 @@ export function describeCheck(check: NestedCheck): string {
     .join(" · ");
 }
 
-/** The optional lookup was refused as unknown or unsupported (404/400); anything else, such as 401/403/5xx, is a real failure. */
-const UNSUPPORTED_LOOKUP = [
-  "JIRA_NOT_FOUND",
-  "JIRA_BAD_REQUEST",
-  "CONFLUENCE_NOT_FOUND",
-  "CONFLUENCE_BAD_REQUEST",
-];
-
-/** `.catch` handler for an optional lookup: `fallback` when the API says it is not there or not supported, otherwise rethrows. */
-export function orWhenUnsupported<T>(fallback: () => T | Promise<T>) {
-  return (error: unknown): T | Promise<T> => {
-    if (
-      error instanceof ToolExecutionError &&
-      UNSUPPORTED_LOOKUP.includes(error.code)
-    )
-      return fallback();
-    throw error;
-  };
-}
-
-/** Kroki server of the `diagram` extension. */
-export interface KrokiExecutionContext {
-  kroki?: KrokiToolSettings;
-}
-
-/** Image generation: the resolved `imagegen` settings and the host's backend adapter. */
-export interface ImageGenerationExecutionContext {
-  imagegen?: Partial<ImagegenSettings>;
-  generateImage?: (
-    request: ImageGenerateRequest,
-  ) => Promise<ImageGenerateResponse>;
-}
-
 /** The extension host's ports and the registry this run serves. */
 export interface ExtensionExecutionContext {
   /** Registry of the extensions this run serves; the host passes the one it composed. */
@@ -162,19 +68,7 @@ export interface ExtensionExecutionContext {
 /** Context type of the quick-script executor: integrations plus the extensions' settings and host adapters. */
 export type QuickScriptContext = IntegrationExecutionContext &
   ExtensionExecutionContext &
-  KrokiExecutionContext &
-  ImageGenerationExecutionContext &
   WebExecutionContext;
-
-/** A Confluence page written by the run, for the automatic lint report. */
-export type PageReport = {
-  action: "created" | "updated";
-  id: string;
-  title: string;
-  version: number | null;
-  fixes: string[];
-  warnings: string[];
-};
 
 /** A file the run wrote to the conversation artifact folder. */
 export type ArtifactReport = {
@@ -190,12 +84,6 @@ export type ArtifactReport = {
 
 export type SdkEnvironment = {
   context: QuickScriptContext;
-  jira: () => Promise<JiraConnection>;
-  confluence: () => Promise<ConfluenceConnection>;
-  /** Jira field list, loaded once per script run. */
-  jiraFields: () => Promise<JiraFieldInfo[]>;
-  /** Confluence space keys by id, fetched lazily and cached per script run. */
-  confluenceSpaceKeys: (ids: string[]) => Promise<Map<string, string>>;
   /** Extension API runtime of this run: `ctx` per extension and namespace sessions. */
   extensions: ExtensionRuntime;
   /** The registry of this run. */
@@ -204,9 +92,8 @@ export type SdkEnvironment = {
   discovery: { used: number };
   /** What the run produced; appended to the tool result automatically. */
   report: {
-    pages: PageReport[];
     artifacts: Map<string, ArtifactReport>;
-    /** Entities the run created, listed in the footer for follow-up and cleanup: `SCRUM-6`, `comment 10023 on SCRUM-6`, `sprint 5`. Pages are reported in `pages`. */
+    /** Entities the run created, listed in the footer for follow-up and cleanup: `SCRUM-6`, `comment 10023 on SCRUM-6`, `sprint 5`. */
     created: string[];
     /** Existing entities the run changed in a way that is not a creation: `attachment 77 on page 5 (new version)`. Use the same label as `created`/`deleted` for the same entity. */
     updated: string[];

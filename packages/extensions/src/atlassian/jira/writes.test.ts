@@ -1,11 +1,8 @@
 import assert from "node:assert/strict";
-import { mkdtemp, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
 import { test } from "node:test";
 
 import { lastOf, returned, setup } from "./test-harness.js";
-import { nestedName } from "@nervekit/tools/quick-script/runtime/test-nested";
+import { nestedName } from "../test-support.js";
 
 void test("issues.create resolves field names, converts Markdown and users, and authorizes as jira.issues.create", async () => {
   const { sent, authorized, run } = setup();
@@ -207,12 +204,11 @@ void test("issues.link rejects unknown link types with the valid ones", async ()
 });
 
 void test("attachments.upload sends a multipart file read from a workspace handle", async () => {
-  const cwd = await mkdtemp(join(tmpdir(), "jira-upload-"));
-  await writeFile(join(cwd, "n.txt"), "hi");
-  const { sent, authorized, run } = setup();
+  const { sent, authorized, run } = setup(undefined, {
+    files: { "n.txt": "hi" },
+  });
   const result = await run(
     `return await jira.attachments.upload({ key: "APP-1", file: "n.txt" });`,
-    cwd,
   );
   assert.match(result.content ?? "", /"filename": "n.txt"|n\.txt/);
   const upload = lastOf(sent, "POST", "/issue/APP-1/attachments")!;

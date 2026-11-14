@@ -1,16 +1,13 @@
+import { defineExtension, defineNamespace } from "@nervekit/extension-api";
 import { readExtensionDoc } from "../docs-source.js";
-import { atlassianMethods } from "./shared/defaults.js";
-import {
-  confluenceConnectionLoader,
-  confluenceMethods,
-  confluenceSpaceKeyLoader,
-} from "./confluence/methods.js";
-import {
-  createJiraFieldLoader,
-  jiraConnectionLoader,
-  jiraMethods,
-} from "./jira/methods.js";
-import type { ExtensionManifest } from "@nervekit/tools/quick-script/manifest-types";
+import { AtlassianSession, atlassianMethods } from "./shared/defaults.js";
+import { testAtlassianAccount } from "./shared/connection-check.js";
+import { methodTable } from "./shared/define-method.js";
+import { ConfluenceSession } from "./confluence/session.js";
+import { confluenceMethods } from "./confluence/methods.js";
+import { JiraSession } from "./jira/session.js";
+import { jiraMethods } from "./jira/methods.js";
+import { STORAGE_PRELUDE } from "./storage/storage-helpers.js";
 import {
   ATLASSIAN_DTS_TYPES,
   CONFLUENCE_DTS_TYPES,
@@ -18,17 +15,15 @@ import {
 } from "./declarations.js";
 
 /** Jira and Confluence behind one Atlassian account; the `jira` and `confluence` switches enable each namespace. */
-export const atlassianExtension: ExtensionManifest = {
+export const atlassianExtension = defineExtension({
   id: "atlassian",
+  apiVersion: 1,
   name: "Atlassian",
   description: "Jira and Confluence through one Atlassian account.",
-  source: "builtin",
   icon: "layers",
   enabledByDefault: false,
-  settingsVersion: 1,
-  accounts: [
-    {
-      kind: "atlassian",
+  accounts: {
+    atlassian: {
       label: "Atlassian account",
       fields: {
         name: { type: "string", label: "Name", maxLength: 128 },
@@ -48,10 +43,11 @@ export const atlassianExtension: ExtensionManifest = {
       },
       auth: { scheme: "basic", user: "email" },
       origins: ["{siteUrl}"],
-      test: true,
+      test: testAtlassianAccount,
     },
-  ],
+  },
   settings: {
+    version: 1,
     fields: {
       account: {
         type: "account",
@@ -81,102 +77,94 @@ export const atlassianExtension: ExtensionManifest = {
     ],
   },
   readDoc: (file) => readExtensionDoc("atlassian", file),
-  createEnvironment: (context) => {
-    const jira = jiraConnectionLoader(context);
-    const confluence = confluenceConnectionLoader(context);
-    return {
-      jira,
-      confluence,
-      jiraFields: createJiraFieldLoader(context, jira),
-      confluenceSpaceKeys: confluenceSpaceKeyLoader(context, confluence),
-    };
-  },
-  contributes: {
-    sdk: [
-      {
-        id: "atlassian",
-        enabledBy: ["jira", "confluence"],
-        requires: { account: "account" },
-        summary: "site, default project/space and current user",
-        rules: [
-          "Write to Jira and Confluence only on explicit user request; start with `await atlassian.defaults()`.",
-        ],
-        methods: atlassianMethods,
-        types: ATLASSIAN_DTS_TYPES,
-        docs: [
-          {
-            id: "atlassian/project-knowledge",
-            whenToRead:
-              "after exploring a Jira project or Confluence space, to save what you learned as a skill",
-            file: "project-knowledge.md",
-          },
-        ],
-      },
-      {
-        id: "jira",
-        enabledBy: "jira",
-        requires: { account: "account" },
-        summary: "issues, sprints, comments; bounded JQL",
-        rules: [
-          "Text is Markdown; methods take `key`; JQL needs a restriction (`project = X AND …`).",
-        ],
-        methods: jiraMethods,
-        types: JIRA_DTS_TYPES,
-        docs: [
-          {
-            id: "jira/workflows",
-            whenToRead: "before creating or updating issues",
-            file: "jira-workflows.md",
-          },
-          {
-            id: "jira/raw",
-            whenToRead: "when no method covers the task (`jira.request`)",
-            file: "jira-raw.md",
-          },
-        ],
-      },
-      {
-        id: "confluence",
-        enabledBy: "confluence",
-        requires: { account: "account" },
-        summary: "pages; bodies are Markdown or `storage.*` builders",
-        rules: [
-          'Methods take `id`. Edit with `body: "storage"` and the `version` you read (`CONFLICT` if newer).',
-          "CQL search lags after a create; use `pages.get({ title })` for exact titles.",
-        ],
-        methods: confluenceMethods,
-        types: CONFLUENCE_DTS_TYPES,
-        docs: [
-          {
-            id: "confluence/writing",
-            whenToRead: "before writing or editing a page",
-            file: "confluence-writing.md",
-          },
-          {
-            id: "confluence/raw",
-            whenToRead:
-              "when no method covers the task (`confluence.request`, restrictions)",
-            file: "confluence-raw.md",
-          },
-        ],
-      },
-      {
-        id: "storage",
-        enabledBy: "confluence",
-        requires: { account: "account" },
-        helper: true,
-        summary: "builders for Confluence storage-format bodies",
-        methods: [],
-        types: "",
-        docs: [
-          {
-            id: "storage/builders",
-            whenToRead:
-              "before building page bodies with panels, tables, macros or images",
-            file: "storage.md",
-          },
-        ],
-      },
-    ],
-  },
-};
+  namespaces: [
+    defineNamespace<AtlassianSession>({
+      id: "atlassian",
+      session: (ctx) => AtlassianSession.create(ctx),
+      enabledBy: ["jira", "confluence"],
+      requires: { account: "account" },
+      summary: "site, default project/space and current user",
+      rules: [
+        "Write to Jira and Confluence only on explicit user request; start with `await atlassian.defaults()`.",
+      ],
+      methods: methodTable(atlassianMethods),
+      types: ATLASSIAN_DTS_TYPES,
+      docs: [
+        {
+          id: "atlassian/project-knowledge",
+          whenToRead:
+            "after exploring a Jira project or Confluence space, to save what you learned as a skill",
+          file: "project-knowledge.md",
+        },
+      ],
+    }),
+    defineNamespace<JiraSession>({
+      id: "jira",
+      session: (ctx) => JiraSession.create(ctx),
+      enabledBy: "jira",
+      requires: { account: "account" },
+      summary: "issues, sprints, comments; bounded JQL",
+      rules: [
+        "Text is Markdown; methods take `key`; JQL needs a restriction (`project = X AND …`).",
+      ],
+      methods: methodTable(jiraMethods),
+      types: JIRA_DTS_TYPES,
+      docs: [
+        {
+          id: "jira/workflows",
+          whenToRead: "before creating or updating issues",
+          file: "jira-workflows.md",
+        },
+        {
+          id: "jira/raw",
+          whenToRead: "when no method covers the task (`jira.request`)",
+          file: "jira-raw.md",
+        },
+      ],
+    }),
+    defineNamespace<ConfluenceSession>({
+      id: "confluence",
+      session: (ctx) => ConfluenceSession.create(ctx),
+      enabledBy: "confluence",
+      requires: { account: "account" },
+      summary: "pages; bodies are Markdown or `storage.*` builders",
+      rules: [
+        'Methods take `id`. Edit with `body: "storage"` and the `version` you read (`CONFLICT` if newer).',
+        "CQL search lags after a create; use `pages.get({ title })` for exact titles.",
+      ],
+      methods: methodTable(confluenceMethods),
+      types: CONFLUENCE_DTS_TYPES,
+      docs: [
+        {
+          id: "confluence/writing",
+          whenToRead: "before writing or editing a page",
+          file: "confluence-writing.md",
+        },
+        {
+          id: "confluence/raw",
+          whenToRead:
+            "when no method covers the task (`confluence.request`, restrictions)",
+          file: "confluence-raw.md",
+        },
+      ],
+    }),
+    defineNamespace({
+      id: "storage",
+      enabledBy: "confluence",
+      requires: { account: "account" },
+      helper: true,
+      summary: "builders for Confluence storage-format bodies",
+      methods: {},
+      types: "",
+      docs: [
+        {
+          id: "storage/builders",
+          whenToRead:
+            "before building page bodies with panels, tables, macros or images",
+          file: "storage.md",
+        },
+      ],
+    }),
+  ],
+  prelude: STORAGE_PRELUDE,
+});

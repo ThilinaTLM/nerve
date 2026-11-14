@@ -1,11 +1,9 @@
-import { Buffer } from "node:buffer";
-import { ToolExecutionError } from "@nervekit/tools/execution";
-import { withTimeoutSignal } from "@nervekit/tools/execution";
+import { ExtensionError } from "@nervekit/extension-api";
 
 /**
  * Validates a decoded JSON response and returns it typed. Parsers throw
  * `InvalidResponseShape` (or any Error) when the payload is not usable;
- * `readAtlassianJson` converts that into a `ToolExecutionError`.
+ * `readAtlassianJson` converts that into an `ExtensionError`.
  */
 export type ResponseParser<T> = (value: unknown) => T;
 
@@ -18,37 +16,6 @@ export type AtlassianRequestContext = {
 };
 
 const SNIPPET_LIMIT = 200;
-
-export function basicAuthHeader(email: string, token: string): string {
-  return `Basic ${Buffer.from(`${email}:${token}`, "utf8").toString("base64")}`;
-}
-
-export function atlassianJsonRequestInit(
-  authorization: string,
-  options: { method?: string; body?: unknown; signal?: AbortSignal },
-): RequestInit {
-  const headers: Record<string, string> = {
-    Accept: "application/json",
-    Authorization: authorization,
-  };
-  const method = (options.method ?? "GET").toUpperCase();
-  const init: RequestInit = {
-    method,
-    headers,
-    signal: withTimeoutSignal(options.signal, 60_000),
-  };
-  // A positional `undefined` crosses the sandbox bridge as null; GET/HEAD never carry a body.
-  if (
-    options.body !== undefined &&
-    options.body !== null &&
-    method !== "GET" &&
-    method !== "HEAD"
-  ) {
-    headers["Content-Type"] = "application/json";
-    init.body = JSON.stringify(options.body);
-  }
-  return init;
-}
 
 /** Explicit opt-out: the payload is only forwarded, never inspected. */
 export const anyJson: ResponseParser<unknown> = (value) => value;
@@ -110,12 +77,12 @@ export const isArray = (value: unknown): value is unknown[] =>
  * (`anyJson`); a non-JSON body (for example a proxy error page) is an error
  * carrying status, content type and a truncated snippet.
  */
-export async function readAtlassianJson<T>(
-  response: Response,
+export function readAtlassianJson<T>(
+  response: { status: number; contentType: string; text: string },
   context: AtlassianRequestContext,
   parse: ResponseParser<T>,
-): Promise<T> {
-  const text = response.status === 204 ? "" : await response.text();
+): T {
+  const text = response.status === 204 ? "" : response.text;
   let value: unknown;
   if (text.trim()) {
     try {
@@ -137,23 +104,16 @@ export async function readAtlassianJson<T>(
 }
 
 function invalidResponse(
-  response: Response,
+  response: { status: number; contentType: string },
   context: AtlassianRequestContext,
   text: string,
   reason: string,
-): ToolExecutionError {
+): ExtensionError {
   const label = context.service === "jira" ? "Jira" : "Confluence";
-  return new ToolExecutionError(
-    `${context.service.toUpperCase()}_INVALID_RESPONSE`,
-    `${label} returned an unexpected response for ${context.method} ${context.path}: ${reason}.`,
-    {
-      service: context.service,
-      method: context.method,
-      path: context.path,
-      status: response.status,
-      contentType: response.headers.get("content-type") ?? undefined,
-      snippet: text.slice(0, SNIPPET_LIMIT),
-    },
+  const snippet = text.slice(0, SNIPPET_LIMIT);
+  return new ExtensionError(
+    "SERVER_ERROR",
+    `${label} returned an unexpected response for ${context.method} ${context.path}: ${reason} (HTTP ${response.status}${response.contentType ? `, ${response.contentType}` : ""}${snippet ? `: ${snippet}` : ""}).`,
   );
 }
 

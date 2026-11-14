@@ -1,20 +1,16 @@
+import type { Risk } from "@nervekit/extension-api";
 import { jsonObject } from "../shared/http.js";
 import { confluenceRequest } from "./client.js";
 import { pathSegment } from "../jira/client.js";
 import { valuesFromConfluenceList } from "./format.js";
 import { assertWellFormedStorage } from "./storage-xml.js";
-import { ToolExecutionError } from "@nervekit/tools/execution";
-import { codedError } from "@nervekit/tools/quick-script/runtime/errors";
-import { nonEmptyString } from "@nervekit/tools/quick-script/runtime/sdk-args";
-import {
-  defineMethod,
-  type MethodRisk,
-  type SdkEnvironment,
-  type SdkMethod,
-} from "@nervekit/tools/quick-script/runtime/sdk-types";
+import { codedError, hasStatus } from "../shared/errors.js";
+import { nonEmptyString } from "../shared/args.js";
 import { pageUrl } from "./page-writes.js";
 import { partialWriteFailure } from "./partial-write.js";
 import { confluenceAttachment, confluencePage } from "../shared/targets.js";
+import { defineMethod, type PathedMethod } from "../shared/define-method.js";
+import type { ConfluenceSession } from "./session.js";
 
 const MAX_LIST_PAGES = 5;
 const LABEL_PATTERN = /^[\p{L}\p{N}_-]+$/u;
@@ -60,15 +56,10 @@ export function normalizeLabels(value: unknown): string[] {
  * methods authorize here, before their first write.
  */
 export async function authorizeLookedUp(
-  env: SdkEnvironment,
-  check: { operation: string; targets: string[]; risk: MethodRisk },
+  session: ConfluenceSession,
+  check: { operation: string; targets: string[]; risk: Risk },
 ): Promise<void> {
-  if (!env.context.authorizeNested) {
-    throw new Error(
-      "Nested authorization is unavailable; refusing to run SDK calls.",
-    );
-  }
-  await env.context.authorizeNested(check);
+  await session.ctx.authorize(check);
 }
 
 /** The sandbox converts RichText to storage XHTML before the call; the host only checks it is well-formed storage. */
@@ -81,7 +72,7 @@ export function storageBodyOption(options: Json): string {
   return body;
 }
 
-export const confluenceExtraMethods: SdkMethod[] = [
+export const confluenceExtraMethods: PathedMethod<ConfluenceSession>[] = [
   defineMethod({
     product: "confluence",
     path: "attachments.list",
@@ -93,8 +84,8 @@ export const confluenceExtraMethods: SdkMethod[] = [
     parse: (options) => ({ id: nonEmptyString(options.id, "id") }),
     authorize: ({ id }) => ({ targets: [confluencePage(id)], summary: id }),
     resource: ({ id }) => `page ${id}`,
-    async run({ id }, env) {
-      const connection = await env.confluence();
+    async run({ id }, session) {
+      const connection = session.connection;
       const items: Json[] = [];
       let cursor: string | undefined;
       for (let round = 0; round < MAX_LIST_PAGES; round++) {
@@ -102,7 +93,6 @@ export const confluenceExtraMethods: SdkMethod[] = [
           parse: jsonObject,
           path: `/pages/${pathSegment(id)}/attachments`,
           query: { limit: 250, cursor },
-          signal: env.context.signal,
         });
         items.push(...(valuesFromConfluenceList(response) as Json[]));
         cursor = nextCursor(response);
@@ -131,12 +121,11 @@ export const confluenceExtraMethods: SdkMethod[] = [
     parse: (options) => ({ id: nonEmptyString(options.id, "id") }),
     // The direct tool wants a page id: look the attachment's page up, then authorize.
     resource: ({ id }) => `attachment ${id}`,
-    async run({ id }, env) {
-      const connection = await env.confluence();
+    async run({ id }, session) {
+      const connection = session.connection;
       const attachment = await confluenceRequest(connection, {
         parse: jsonObject,
         path: `/attachments/${pathSegment(id)}`,
-        signal: env.context.signal,
       });
       const pageId = attachment.pageId;
       if (pageId === undefined || pageId === null || pageId === "") {
@@ -145,7 +134,7 @@ export const confluenceExtraMethods: SdkMethod[] = [
           `Attachment ${id} is not on a page; it cannot be deleted from here.`,
         );
       }
-      await authorizeLookedUp(env, {
+      await authorizeLookedUp(session, {
         operation: "confluence.attachments.delete",
         targets: [confluenceAttachment(id), confluencePage(String(pageId))],
         risk: "destructive",
@@ -153,9 +142,8 @@ export const confluenceExtraMethods: SdkMethod[] = [
       await confluenceRequest(connection, {
         method: "DELETE",
         path: `/attachments/${pathSegment(id)}`,
-        signal: env.context.signal,
       });
-      env.report.deleted.push(`attachment ${id}`);
+      session.ctx.report.deleted(`attachment ${id}`);
       return { id };
     },
   }),
@@ -175,14 +163,13 @@ export const confluenceExtraMethods: SdkMethod[] = [
       summary: `${id} +${labels.join(",")}`,
     }),
     resource: ({ id }) => `page ${id}`,
-    async run({ id, labels }, env) {
+    async run({ id, labels }, session) {
       try {
-        await confluenceRequest(await env.confluence(), {
+        await confluenceRequest(session.connection, {
           api: "v1",
           method: "POST",
           path: `/content/${pathSegment(id)}/label`,
           body: labels.map((name) => ({ prefix: "global", name })),
-          signal: env.context.signal,
         });
       } catch (error) {
         if (
@@ -215,13 +202,12 @@ export const confluenceExtraMethods: SdkMethod[] = [
       summary: `${id} -${labels.join(",")}`,
     }),
     resource: ({ id }) => `page ${id}`,
-    async run({ id, labels }, env) {
-      const connection = await env.confluence();
+    async run({ id, labels }, session) {
+      const connection = session.connection;
       const current = await confluenceRequest(connection, {
         api: "v1",
         parse: jsonObject,
         path: `/content/${pathSegment(id)}/label`,
-        signal: env.context.signal,
       });
       const have = (Array.isArray(current.results) ? current.results : [])
         .map((item) => String((item as { name?: unknown }).name ?? ""))
@@ -241,13 +227,10 @@ export const confluenceExtraMethods: SdkMethod[] = [
             method: "DELETE",
             path: `/content/${pathSegment(id)}/label`,
             query: { name: label },
-            signal: env.context.signal,
           });
           done.push(label);
         } catch (error) {
-          const missing =
-            error instanceof ToolExecutionError &&
-            error.code === "CONFLUENCE_NOT_FOUND";
+          const missing = hasStatus(error, 404);
           const reason = missing
             ? codedError("NOT_FOUND", `Page ${id} has no label "${label}".`)
             : error;
@@ -287,14 +270,13 @@ export const confluenceExtraMethods: SdkMethod[] = [
       summary: id,
     }),
     resource: ({ id }) => `page ${id}`,
-    async run({ id, position, target }, env) {
-      await confluenceRequest(await env.confluence(), {
+    async run({ id, position, target }, session) {
+      await confluenceRequest(session.connection, {
         api: "v1",
         method: "PUT",
         path: `/content/${pathSegment(id)}/move/${position}/${pathSegment(target)}`,
-        signal: env.context.signal,
       });
-      env.report.updated.push(`page ${id} moved (${position} ${target})`);
+      session.ctx.report.updated(`page ${id} moved (${position} ${target})`);
       return { id, position, target };
     },
   }),
@@ -320,20 +302,18 @@ export const confluenceExtraMethods: SdkMethod[] = [
       summary: id,
     }),
     resource: ({ id }) => `page ${id}`,
-    async run({ id, purge }, env) {
-      const connection = await env.confluence();
+    async run({ id, purge }, session) {
+      const connection = session.connection;
       const page = await confluenceRequest(connection, {
         parse: jsonObject,
         path: `/pages/${pathSegment(id)}`,
         query: { status: ["current", "trashed"] },
-        signal: env.context.signal,
       });
       const title = typeof page.title === "string" ? page.title : null;
       if (page.status !== "trashed") {
         await confluenceRequest(connection, {
           method: "DELETE",
           path: `/pages/${pathSegment(id)}`,
-          signal: env.context.signal,
         });
       }
       if (purge) {
@@ -342,7 +322,6 @@ export const confluenceExtraMethods: SdkMethod[] = [
             method: "DELETE",
             path: `/pages/${pathSegment(id)}`,
             query: { purge: true },
-            signal: env.context.signal,
           });
         } catch (error) {
           throw partialWriteFailure(
@@ -351,7 +330,7 @@ export const confluenceExtraMethods: SdkMethod[] = [
           );
         }
       }
-      env.report.deleted.push(
+      session.ctx.report.deleted(
         `page ${id}${title ? ` "${title}"` : ""}${purge ? " (purged)" : " (trashed)"}`,
       );
       return { id, title, status: purge ? "purged" : "trashed" };
@@ -371,13 +350,12 @@ export const confluenceExtraMethods: SdkMethod[] = [
       summary: id,
     }),
     resource: ({ id }) => `page ${id}`,
-    async run({ id }, env) {
-      const connection = await env.confluence();
+    async run({ id }, session) {
+      const connection = session.connection;
       const page = await confluenceRequest(connection, {
         parse: jsonObject,
         path: `/pages/${pathSegment(id)}`,
         query: { status: "trashed", "body-format": "storage" },
-        signal: env.context.signal,
       });
       if (page.status !== "trashed") {
         throw new Error(
@@ -402,10 +380,9 @@ export const confluenceExtraMethods: SdkMethod[] = [
           },
           version: { number: version + 1, message: "Restored" },
         },
-        signal: env.context.signal,
       });
       const title = typeof page.title === "string" ? page.title : null;
-      env.report.updated.push(
+      session.ctx.report.updated(
         `page ${id}${title ? ` "${title}"` : ""} restored`,
       );
       return {

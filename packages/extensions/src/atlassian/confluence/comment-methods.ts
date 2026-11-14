@@ -2,17 +2,13 @@ import { jsonObject } from "../shared/http.js";
 import { type ConfluenceConnection, confluenceRequest } from "./client.js";
 import { pathSegment } from "../jira/client.js";
 import { valuesFromConfluenceList } from "./format.js";
-import { storageXmlToMarkdown } from "./markdown.js";
-import { ToolExecutionError } from "@nervekit/tools/execution";
-import { codedError } from "@nervekit/tools/quick-script/runtime/errors";
-import { nonEmptyString } from "@nervekit/tools/quick-script/runtime/sdk-args";
-import {
-  defineMethod,
-  type SdkEnvironment,
-  type SdkMethod,
-} from "@nervekit/tools/quick-script/runtime/sdk-types";
+import { confluenceStorageToMarkdown } from "./storage-markdown.js";
+import { codedError, hasStatus } from "../shared/errors.js";
+import { nonEmptyString } from "../shared/args.js";
 import { confluenceComment, confluencePage } from "../shared/targets.js";
 import { authorizeLookedUp, storageBodyOption } from "./extra-methods.js";
+import { defineMethod, type PathedMethod } from "../shared/define-method.js";
+import type { ConfluenceSession } from "./session.js";
 
 const MAX_LIST_PAGES = 5;
 
@@ -28,25 +24,20 @@ type FoundComment = { kind: "footer" | "inline"; comment: Json };
 
 /** Footer and inline comments have separate v2 endpoints; the id alone does not say which. */
 async function findComment(
-  env: SdkEnvironment,
+  session: ConfluenceSession,
   id: string,
 ): Promise<FoundComment> {
-  const connection = await env.confluence();
+  const connection = session.connection;
   for (const kind of ["footer", "inline"] as const) {
     try {
       const comment = await confluenceRequest(connection, {
         parse: jsonObject,
         path: `/${kind}-comments/${pathSegment(id)}`,
         query: { "body-format": "storage" },
-        signal: env.context.signal,
       });
       return { kind, comment };
     } catch (error) {
-      if (
-        !(error instanceof ToolExecutionError) ||
-        error.code !== "CONFLUENCE_NOT_FOUND"
-      )
-        throw error;
+      if (!hasStatus(error, 404)) throw error;
     }
   }
   throw codedError(
@@ -67,7 +58,7 @@ function commentVersion(comment: Json): number {
 
 async function listComments(
   connection: ConfluenceConnection,
-  env: SdkEnvironment,
+  session: ConfluenceSession,
   pageId: string,
   want: { inline?: boolean; resolved?: boolean },
 ) {
@@ -84,7 +75,6 @@ async function listComments(
         limit: 100,
         start,
       },
-      signal: env.context.signal,
     });
     const batch = valuesFromConfluenceList(response) as Json[];
     found.push(...batch);
@@ -123,7 +113,7 @@ async function listComments(
         (history.createdBy?.publicName as string | undefined) ??
         null,
       created: (history.createdDate as string | undefined) ?? null,
-      body: await storageXmlToMarkdown(commentStorage(raw), env.context.signal),
+      body: await confluenceStorageToMarkdown(commentStorage(raw)),
       parentId: parent?.id === undefined ? null : String(parent.id),
       ...(isInline
         ? {
@@ -243,7 +233,7 @@ function resolveInlineSelection(storage: string, inline: InlineTarget) {
   };
 }
 
-export const confluenceCommentMethods: SdkMethod[] = [
+export const confluenceCommentMethods: PathedMethod<ConfluenceSession>[] = [
   defineMethod({
     product: "confluence",
     path: "comments.list",
@@ -272,8 +262,8 @@ export const confluenceCommentMethods: SdkMethod[] = [
     },
     authorize: ({ id }) => ({ targets: [confluencePage(id)], summary: id }),
     resource: ({ id }) => `page ${id}`,
-    async run({ id, inline, resolved }, env) {
-      return await listComments(await env.confluence(), env, id, {
+    async run({ id, inline, resolved }, session) {
+      return await listComments(session.connection, session, id, {
         inline,
         resolved,
       });
@@ -296,15 +286,14 @@ export const confluenceCommentMethods: SdkMethod[] = [
       summary: id,
     }),
     resource: ({ id }) => `page ${id}`,
-    async run({ id, body, inline }, env) {
-      const connection = await env.confluence();
+    async run({ id, body, inline }, session) {
+      const connection = session.connection;
       let request: { path: string; body: Json };
       if (inline) {
         const page = await confluenceRequest(connection, {
           parse: jsonObject,
           path: `/pages/${pathSegment(id)}`,
           query: { "body-format": "storage" },
-          signal: env.context.signal,
         });
         const storage = (page.body as { storage?: { value?: unknown } })
           ?.storage?.value;
@@ -334,10 +323,9 @@ export const confluenceCommentMethods: SdkMethod[] = [
         method: "POST",
         path: request.path,
         body: request.body,
-        signal: env.context.signal,
       });
       const commentId = String(created.id ?? "");
-      env.report.created.push(`confluence comment ${commentId}`);
+      session.ctx.report.created(`confluence comment ${commentId}`);
       return { id: commentId, pageId: id };
     },
   }),
@@ -352,23 +340,22 @@ export const confluenceCommentMethods: SdkMethod[] = [
       body: storageBodyOption(options),
     }),
     resource: ({ id }) => `comment ${id}`,
-    async run({ id, body }, env) {
-      const { kind, comment } = await findComment(env, id);
-      await authorizeLookedUp(env, {
+    async run({ id, body }, session) {
+      const { kind, comment } = await findComment(session, id);
+      await authorizeLookedUp(session, {
         operation: "confluence.comments.update",
         targets: [confluenceComment(id), ...commentPage(comment)],
         risk: "external_write",
       });
-      await confluenceRequest(await env.confluence(), {
+      await confluenceRequest(session.connection, {
         method: "PUT",
         path: `/${kind}-comments/${pathSegment(id)}`,
         body: {
           version: { number: commentVersion(comment) + 1 },
           body: { representation: "storage", value: body },
         },
-        signal: env.context.signal,
       });
-      env.report.updated.push(`confluence comment ${id}`);
+      session.ctx.report.updated(`confluence comment ${id}`);
       return { id };
     },
   }),
@@ -382,19 +369,18 @@ export const confluenceCommentMethods: SdkMethod[] = [
       "/** Also deletes replies. */ delete(id: string | { id: string }): Promise<{ id: string }>",
     parse: (options) => ({ id: nonEmptyString(options.id, "id") }),
     resource: ({ id }) => `comment ${id}`,
-    async run({ id }, env) {
-      const { kind, comment } = await findComment(env, id);
-      await authorizeLookedUp(env, {
+    async run({ id }, session) {
+      const { kind, comment } = await findComment(session, id);
+      await authorizeLookedUp(session, {
         operation: "confluence.comments.delete",
         targets: [confluenceComment(id), ...commentPage(comment)],
         risk: "destructive",
       });
-      await confluenceRequest(await env.confluence(), {
+      await confluenceRequest(session.connection, {
         method: "DELETE",
         path: `/${kind}-comments/${pathSegment(id)}`,
-        signal: env.context.signal,
       });
-      env.report.deleted.push(`confluence comment ${id}`);
+      session.ctx.report.deleted(`confluence comment ${id}`);
       return { id };
     },
   }),
@@ -409,14 +395,14 @@ export const confluenceCommentMethods: SdkMethod[] = [
       body: storageBodyOption(options),
     }),
     resource: ({ id }) => `comment ${id}`,
-    async run({ id, body }, env) {
-      const { kind, comment } = await findComment(env, id);
-      await authorizeLookedUp(env, {
+    async run({ id, body }, session) {
+      const { kind, comment } = await findComment(session, id);
+      await authorizeLookedUp(session, {
         operation: "confluence.comments.reply",
         targets: [confluenceComment(id), ...commentPage(comment)],
         risk: "external_write",
       });
-      const created = await confluenceRequest(await env.confluence(), {
+      const created = await confluenceRequest(session.connection, {
         parse: jsonObject,
         method: "POST",
         path: `/${kind}-comments`,
@@ -424,10 +410,9 @@ export const confluenceCommentMethods: SdkMethod[] = [
           parentCommentId: id,
           body: { representation: "storage", value: body },
         },
-        signal: env.context.signal,
       });
       const replyId = String(created.id ?? "");
-      env.report.created.push(`confluence comment ${replyId}`);
+      session.ctx.report.created(`confluence comment ${replyId}`);
       return { id: replyId, parentId: id };
     },
   }),
@@ -451,21 +436,17 @@ export const confluenceCommentMethods: SdkMethod[] = [
       };
     },
     resource: ({ id }) => `comment ${id}`,
-    async run({ id, resolved }, env) {
-      const connection = await env.confluence();
+    async run({ id, resolved }, session) {
+      const connection = session.connection;
       let comment: Json;
       try {
         comment = await confluenceRequest(connection, {
           parse: jsonObject,
           path: `/inline-comments/${pathSegment(id)}`,
           query: { "body-format": "storage" },
-          signal: env.context.signal,
         });
       } catch (error) {
-        if (
-          error instanceof ToolExecutionError &&
-          error.code === "CONFLUENCE_NOT_FOUND"
-        ) {
+        if (hasStatus(error, 404)) {
           throw codedError(
             "NOT_FOUND",
             `No inline comment ${id}; only inline comments can be resolved (footer comments have no resolution). Use confluence.comments.list({ id: pageId, inline: true }).`,
@@ -473,7 +454,7 @@ export const confluenceCommentMethods: SdkMethod[] = [
         }
         throw error;
       }
-      await authorizeLookedUp(env, {
+      await authorizeLookedUp(session, {
         operation: "confluence.comments.resolve",
         targets: [confluenceComment(id), ...commentPage(comment)],
         risk: "external_write",
@@ -486,9 +467,8 @@ export const confluenceCommentMethods: SdkMethod[] = [
           body: { representation: "storage", value: commentStorage(comment) },
           resolved,
         },
-        signal: env.context.signal,
       });
-      env.report.updated.push(`confluence comment ${id}`);
+      session.ctx.report.updated(`confluence comment ${id}`);
       return { id, resolved };
     },
   }),

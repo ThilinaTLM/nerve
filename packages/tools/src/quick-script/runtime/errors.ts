@@ -27,10 +27,9 @@ export function codedError(
 }
 
 /**
- * Maps any failure to the script-visible code. Product codes
- * (`JIRA_TRANSITION_NOT_FOUND`) collapse by suffix; NESTED_* policy refusals
- * are `DENIED`; plain errors (validation, prepare, unknown method) are
- * `BAD_REQUEST`.
+ * Maps any failure to the script-visible code. NESTED_* policy refusals are
+ * `DENIED`; other codes and plain errors (validation, prepare, unknown method)
+ * are `BAD_REQUEST`.
  */
 export function hostErrorCode(error: unknown): HostErrorCode {
   if (!(error instanceof ToolExecutionError))
@@ -40,42 +39,7 @@ export function hostErrorCode(error: unknown): HostErrorCode {
   const { code } = error;
   if (isHostErrorCode(code)) return code;
   if (code.startsWith("NESTED_")) return "DENIED";
-  const product = /^(?:JIRA|CONFLUENCE)_([A-Z_]+)$/.exec(code)?.[1];
-  if (!product) return "BAD_REQUEST";
-  if (product.endsWith("NOT_FOUND")) return "NOT_FOUND";
-  if (product.endsWith("CONFLICT")) return "CONFLICT";
-  if (product === "FORBIDDEN") return "FORBIDDEN";
-  if (product === "RATE_LIMITED") return "RATE_LIMITED";
-  if (product === "UNAUTHORIZED") return "UNAUTHORIZED";
-  if (product === "SERVER_ERROR" || product === "API_ERROR")
-    return "SERVER_ERROR";
   return "BAD_REQUEST";
-}
-
-/**
- * A product that is disabled or lacks an account is absent from the SDK: its
- * `*_NOT_CONFIGURED` failure names the setting to fix.
- */
-export async function orNotAvailable<T>(
-  product: "jira" | "confluence",
-  load: () => Promise<T>,
-): Promise<T> {
-  try {
-    return await load();
-  } catch (error) {
-    if (
-      error instanceof ToolExecutionError &&
-      error.code.endsWith("_NOT_CONFIGURED")
-    ) {
-      const name = product === "jira" ? "Jira" : "Confluence";
-      throw new ToolExecutionError(
-        error.code,
-        `${product}: not available in quick_script. Ask the user to enable ${name} and choose an Atlassian account with a saved API token in Settings → Extensions → Atlassian.`,
-        error.details,
-      );
-    }
-    throw error;
-  }
 }
 
 /** Where host paths in error messages are shown relative to: the workspace and the artifact folder. */

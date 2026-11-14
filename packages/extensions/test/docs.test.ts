@@ -4,7 +4,7 @@ import {
   createSdkEnvironment,
   findSdkMethod,
 } from "@nervekit/tools/quick-script/runtime/sdk";
-import { STORAGE_PRELUDE } from "@nervekit/tools/quick-script/runtime/files/storage-helpers";
+import { STORAGE_PRELUDE } from "../src/atlassian/storage/storage-helpers.js";
 import { renderLimits } from "@nervekit/tools/quick-script/limits";
 import { registeredMethods, registeredNamespaces } from "./install.js";
 

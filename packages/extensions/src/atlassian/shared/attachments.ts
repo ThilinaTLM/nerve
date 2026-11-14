@@ -1,22 +1,10 @@
-import { openAsBlob } from "node:fs";
-import { open, readFile } from "node:fs/promises";
-import { extname } from "node:path";
-import { image } from "@nervekit/native";
 import { anyJson } from "./http.js";
 import { confluenceAttachmentRequest } from "../confluence/client.js";
 import { valuesFromConfluenceList } from "../confluence/format.js";
-import {
-  MAX_ATTACHMENT_BYTES,
-  MAX_FILE_BYTES,
-  mediaTypeFor,
-  parseHandle,
-  readAuthorizations,
-  statFileRef,
-} from "@nervekit/tools/quick-script/runtime/files/artifacts";
-import type {
-  DirectAuthorization,
-  SdkEnvironment,
-} from "@nervekit/tools/quick-script/runtime/sdk-types";
+import type { ConfluenceSession } from "../confluence/session.js";
+import { mediaTypeFor } from "./files.js";
+import { imageSize } from "./image-size.js";
+import type { ToolAuthorization } from "@nervekit/extension-api";
 
 /** One file to attach: any handle (`artifact:<name>` or a workspace path). */
 export type AttachmentSpec = {
@@ -25,14 +13,10 @@ export type AttachmentSpec = {
   comment?: string;
 };
 
-/**
- * A file ready to upload, with image dimensions when it is an image. The bytes
- * are streamed from `path` unless an image was converted (`bytes`, then in memory).
- */
+/** A file ready to upload, with image dimensions when the host knows them (PNG/JPEG). */
 export type LoadedAttachment = {
-  path: string;
+  bytes: Uint8Array;
   size: number;
-  bytes?: Buffer;
   filename: string;
   mediaType: string;
   width?: number;
@@ -79,12 +63,15 @@ export function parseAttachmentSpec(raw: unknown): AttachmentSpec {
   };
 }
 
-/** Workspace sources are checked as the direct `read` tool before anything is read. */
+/** Workspace sources are checked as the direct `read` tool before anything is read; artifacts are the run's own files. */
 export function attachmentReadAuthorizations(
-  specs: AttachmentSpec[],
-  env: SdkEnvironment,
-): DirectAuthorization[] {
-  return readAuthorizations(specs.map((spec) => parseHandle(spec.file, env)));
+  specs: readonly AttachmentSpec[],
+): ToolAuthorization[] {
+  return specs.flatMap(({ file }) =>
+    file.startsWith("artifact:")
+      ? []
+      : [{ toolName: "read", args: { path: file }, summary: file }],
+  );
 }
 
 type ImageKind = "png" | "jpeg" | "gif" | "webp" | "svg";
@@ -97,118 +84,80 @@ function sniffImage(bytes: Uint8Array): ImageKind | undefined {
     return "jpeg";
   if (ascii(0, 3) === "GIF") return "gif";
   if (ascii(0, 4) === "RIFF" && ascii(8, 12) === "WEBP") return "webp";
-  const head = Buffer.from(bytes.subarray(0, 1024))
-    .toString("utf8")
-    .trimStart();
+  const head = new TextDecoder().decode(bytes.subarray(0, 1024)).trimStart();
   return /^(<\?xml[\s\S]*?)?<svg[\s>]/i.test(head) ? "svg" : undefined;
-}
-
-function withExtension(filename: string, extension: string): string {
-  const current = extname(filename);
-  return (current ? filename.slice(0, -current.length) : filename) + extension;
 }
 
 /** Advice for files beyond the transfer limit. */
 const ATTACHMENT_TOO_LARGE_HINT = "Split or compress it.";
 
-/** Bytes read to recognize an image (the SVG check looks at the first 1 KiB). */
-const SNIFF_BYTES = 1100;
-
-async function readHead(path: string): Promise<Buffer> {
-  const handle = await open(path, "r");
-  try {
-    const head = Buffer.alloc(SNIFF_BYTES);
-    const { bytesRead } = await handle.read(head, 0, SNIFF_BYTES, 0);
-    return head.subarray(0, bytesRead);
-  } finally {
-    await handle.close();
-  }
-}
-
-/** Loads attachments one after another; files are only checked here and streamed when uploaded. */
+/** Loads attachments one after another. */
 export async function loadAttachments(
   specs: readonly AttachmentSpec[],
-  env: SdkEnvironment,
+  session: ConfluenceSession,
 ): Promise<LoadedAttachment[]> {
   const loaded: LoadedAttachment[] = [];
-  for (const spec of specs) loaded.push(await loadAttachment(spec, env));
+  for (const spec of specs) loaded.push(await loadAttachment(spec, session));
   return loaded;
 }
 
 /**
- * Checks and describes an attachment without reading it into memory: SVG is
- * rejected, and PNG/JPEG/GIF/WebP up to 20 MB are read for their dimensions
- * (GIF/WebP are converted to PNG). Larger images upload unchanged.
+ * Reads and describes an attachment: SVG is rejected, and PNG/JPEG/GIF get
+ * their dimensions from the header. The host reads files up to 20 MB.
  */
 export async function loadAttachment(
   spec: AttachmentSpec,
-  env: SdkEnvironment,
-  maxBytes = MAX_ATTACHMENT_BYTES,
+  session: ConfluenceSession,
 ): Promise<LoadedAttachment> {
-  const ref = parseHandle(spec.file, env);
-  const size = await statFileRef(ref, maxBytes, ATTACHMENT_TOO_LARGE_HINT);
-  let filename =
-    spec.filename ??
-    (ref.kind === "artifact" ? ref.name : ref.path.split(/[\\/]/).pop()!);
-  const kind = sniffImage(await readHead(ref.path));
-  if (kind === "svg" || /\.svg$/i.test(filename)) {
+  const { artifacts } = session.ctx;
+  const file = await artifacts.read(spec.file).catch((error: unknown) => {
+    if (error instanceof Error && /the limit is/.test(error.message))
+      error.message = `${error.message.replace(/ Process it with .*$/, "")} ${ATTACHMENT_TOO_LARGE_HINT}`;
+    throw error;
+  });
+  const filename = spec.filename ?? file.name;
+  if (sniffImage(file.bytes) === "svg" || /\.svg$/i.test(filename)) {
     throw new Error(
       `SVG attachments are not supported (Confluence does not render them reliably): "${filename}". Render diagrams as PNG with diagram.render() or provide a PNG/JPEG.`,
     );
   }
   const plain = {
-    path: ref.path,
-    size,
+    bytes: file.bytes,
+    size: file.bytes.byteLength,
     filename,
     mediaType: mediaTypeFor(filename),
   };
-  if (!kind || size > MAX_FILE_BYTES) return plain;
-  const original = await readFile(ref.path);
-  let info = await image.imageInfo(original);
-  if (kind === "jpeg" || kind === "png") {
-    return {
-      ...plain,
-      mediaType: kind === "jpeg" ? "image/jpeg" : "image/png",
-      width: info.width,
-      height: info.height,
-    };
-  }
-  const converted = await image.transformImage(original, { format: "png" });
-  info = { format: "png", width: converted.width, height: converted.height };
-  filename = withExtension(filename, ".png");
+  const kind = sniffImage(file.bytes);
+  if (!kind) return plain;
+  const size = imageSize(file.bytes);
   return {
-    path: ref.path,
-    size: converted.data.byteLength,
-    bytes: Buffer.from(converted.data),
-    filename,
-    mediaType: "image/png",
-    width: info.width,
-    height: info.height,
+    ...plain,
+    ...(kind === "jpeg" ? { mediaType: "image/jpeg" } : {}),
+    ...(kind === "png" ? { mediaType: "image/png" } : {}),
+    ...(size ?? {}),
   };
 }
 
 export async function uploadAttachment(
-  env: SdkEnvironment,
+  session: ConfluenceSession,
   pageId: string,
   file: LoadedAttachment,
   comment?: string,
 ): Promise<UploadedAttachment> {
-  const form = new FormData();
-  form.append(
-    "file",
-    file.bytes
-      ? new Blob([new Uint8Array(file.bytes)], { type: file.mediaType })
-      : await openAsBlob(file.path, { type: file.mediaType }),
-    file.filename,
-  );
-  form.append("minorEdit", "true");
-  if (comment) form.append("comment", comment);
-  const data = await confluenceAttachmentRequest(await env.confluence(), {
+  const data = await confluenceAttachmentRequest(session.connection, {
     parse: anyJson,
     method: "PUT",
     pageId,
-    form,
-    signal: env.context.signal,
+    parts: [
+      {
+        name: "file",
+        filename: file.filename,
+        mediaType: file.mediaType,
+        data: file.bytes,
+      },
+      { name: "minorEdit", value: "true" },
+      ...(comment ? [{ name: "comment", value: comment }] : []),
+    ],
   });
   const raw = (valuesFromConfluenceList(data)[0] ?? data) as {
     id?: unknown;

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { markdownToStorage } from "@nervekit/tools/quick-script/runtime/files/markdown-to-storage";
+import { markdownToStorage } from "../storage/markdown-to-storage.js";
 import { assertWellFormedStorage } from "./storage-xml.js";
 
 function convert(markdown: string): string {

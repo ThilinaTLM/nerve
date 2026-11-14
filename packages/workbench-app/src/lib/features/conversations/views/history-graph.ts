@@ -80,7 +80,6 @@ const TOOL_ICONS: Record<string, HistoryIconName> = {
   grep: "search",
   find: "folder-search",
   ls: "folder-tree",
-  web_search: "globe",
   web_fetch: "download",
   ask_user: "message-circle-question",
   plan_present: "clipboard-check",

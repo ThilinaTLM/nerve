@@ -1,12 +1,12 @@
+import { defineExtension, defineNamespace } from "@nervekit/extension-api";
 import { readExtensionDoc } from "../docs-source.js";
-import type { ExtensionManifest } from "@nervekit/tools/quick-script/manifest-types";
 import {
   describeBackend,
+  imagegenSettingsOf,
   IMAGEGEN_BACKENDS,
   OPENAI_CODEX_BACKGROUNDS,
   OPENAI_CODEX_MODELS,
   OPENAI_CODEX_QUALITIES,
-  resolveImagegenSettings,
 } from "./backends.js";
 import { imagegenMethods } from "./imagegen-methods.js";
 
@@ -15,15 +15,15 @@ const options = (values: readonly string[]) =>
   values.map((value) => ({ value, label: value }));
 
 /** Image generation: creates new images as artifacts. `image` transforms existing ones. */
-export const imagegenExtension: ExtensionManifest = {
+export const imagegenExtension = defineExtension({
   id: "imagegen",
   name: "Image generation",
   description: "Generate images from a text prompt.",
-  source: "builtin",
+  apiVersion: 1,
   icon: "image-plus",
   enabledByDefault: false,
-  settingsVersion: 1,
   settings: {
+    version: 1,
     fields: {
       backend: {
         type: "enum",
@@ -74,23 +74,20 @@ export const imagegenExtension: ExtensionManifest = {
   },
   permissions: { capabilities: ["models.image"] },
   readDoc: (file) => readExtensionDoc("imagegen", file),
-  contributes: {
-    sdk: [
-      {
-        id: "imagegen",
-        summary: "generate an image from a prompt (spends the user's credit)",
-        configuration: (env) =>
-          describeBackend(resolveImagegenSettings(env.context.imagegen)),
-        methods: imagegenMethods,
-        types: "",
-        docs: [
-          {
-            id: "imagegen/generate",
-            whenToRead: "before generating images or chaining them into pages",
-            file: "imagegen.md",
-          },
-        ],
-      },
-    ],
-  },
-};
+  namespaces: [
+    defineNamespace({
+      id: "imagegen",
+      summary: "generate an image from a prompt (spends the user's credit)",
+      configuration: (ctx) => describeBackend(imagegenSettingsOf(ctx)),
+      methods: imagegenMethods,
+      types: "",
+      docs: [
+        {
+          id: "imagegen/generate",
+          whenToRead: "before generating images or chaining them into pages",
+          file: "imagegen.md",
+        },
+      ],
+    }),
+  ],
+});

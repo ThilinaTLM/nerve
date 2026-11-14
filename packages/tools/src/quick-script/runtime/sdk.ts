@@ -7,7 +7,6 @@ import type {
   SdkEnvironment,
   SdkMethod,
 } from "./sdk-types.js";
-import { STORAGE_PRELUDE } from "./files/storage-helpers.js";
 
 /**
  * The SDK in one place. Every method declares its signature, what it is
@@ -58,21 +57,14 @@ export function sdkMethodNames(
 export function createSdkEnvironment(
   context: QuickScriptContext,
 ): SdkEnvironment {
-  // Connection loaders come from the extensions that need them; without one, the namespace is not registered either.
   const registry = context.registry ?? quickScriptRegistry();
-  const unavailable = () => Promise.reject(new Error("Not available."));
   const environment: SdkEnvironment = {
     context,
     registry,
     // Assigned right below: the runtime reads the environment's report and context.
     extensions: undefined as unknown as SdkEnvironment["extensions"],
-    jira: unavailable,
-    confluence: unavailable,
-    jiraFields: unavailable,
-    confluenceSpaceKeys: unavailable,
     discovery: { used: 0 },
     report: {
-      pages: [],
       artifacts: new Map(),
       created: [],
       updated: [],
@@ -82,8 +74,6 @@ export function createSdkEnvironment(
     },
   };
   environment.extensions = new ExtensionRuntime(environment);
-  for (const extension of registry.extensions)
-    Object.assign(environment, extension.createEnvironment?.(context));
   return environment;
 }
 
@@ -113,7 +103,7 @@ function productPrelude(
   return `  globalThis.${product} = {\n${body}\n  };`;
 }
 
-/** Trusted prelude: SDK objects forwarding to `host.call`, plus the pure-JS `storage.*` builders. */
+/** Trusted prelude: SDK objects forwarding to `host.call`, plus the extensions' pure-JS helpers (`storage.*`). */
 function buildPrelude(registry: QuickScriptRegistry): string {
   const methods = registry.methods;
   /** Namespaces with host methods get a global object; `image` is a function and gets none (the prelude wraps it). */
@@ -127,7 +117,6 @@ function buildPrelude(registry: QuickScriptRegistry): string {
     `(() => {\n${RUNTIME_HEAD}`,
     ...withMethods.map((namespace) => productPrelude(methods, namespace.id)),
     `${runtimeTail(guarded)}})();`,
-    STORAGE_PRELUDE,
     ...registry.extensions.flatMap((extension) =>
       extension.prelude ? [extension.prelude] : [],
     ),
