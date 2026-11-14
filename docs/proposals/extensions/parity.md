@@ -2,7 +2,7 @@
 
 Part of [Extensions](README.md). Gate for delivery step 5.
 
-Every direct tool removed in step 5 maps to a typed SDK method or a raw-request recipe. "Today" lists what the SDK method is authorized as now (from the method tables in [`quick-script/`](../../../packages/quick-script/src/)). The rule and exception migration in [permissions.md](permissions.md#migration) is generated from this table.
+Every direct tool removed in step 5 maps to a typed SDK method or a raw-request recipe. "Today" lists what the SDK method is authorized as now (from the method tables in [`quick-script/`](../../../packages/tools/src/quick-script/)). The rule and exception migration in [permissions.md](permissions.md#migration) is generated from this table.
 
 **Gaps** are closed in step 5 before any tool is removed. A gap is either a new typed method or a recipe in the extension's raw-request docs.
 

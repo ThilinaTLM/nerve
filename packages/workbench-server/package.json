@@ -31,10 +31,11 @@
     }
   },
   "scripts": {
-    "build": "tsc -b",
+    "build": "tsc -b && tsx ../../scripts/build/copy-skills-assets.ts",
     "check": "tsc -b --pretty false",
     "dev": "tsx src/main.ts",
-    "test": "tsx --test --test-concurrency=1 \"test/**/*.test.ts\" \"src/{adapters,app,core-host,domains}/**/*.test.ts\" \"src/infrastructure/{configuration,events,storage-bootstrap}/**/*.test.ts\" \"src/infrastructure/process-host/!(port-inspector).test.ts\"",
+    "pretest": "tsx ../../scripts/build/copy-skills-assets.ts",
+    "test": "tsx --test --test-concurrency=1 \"test/**/*.test.ts\" \"src/{adapters,app,builtin-skills,core-host,domains}/**/*.test.ts\" \"src/infrastructure/{configuration,events,storage-bootstrap}/**/*.test.ts\" \"src/infrastructure/process-host/!(port-inspector).test.ts\"",
     "test:migrations": "tsx --test --test-concurrency=1 \"src/infrastructure/migrations/**/*.test.ts\" \"test/infrastructure/persistence/*.test.ts\"",
     "test:native": "tsx --test test/infrastructure/persistence/file-mutations.test.ts test/domains/launches/process-runtime-driver.test.ts src/infrastructure/process-host/port-inspector.test.ts test/domains/launches/launch-scope.test.ts test/domains/launches/launch-supervisor.test.ts"
   },
@@ -43,11 +44,10 @@
     "@hono/node-server": "2.1.5",
     "@nervekit/contracts": "workspace:*",
     "@nervekit/conversation-core": "workspace:*",
+    "@nervekit/extensions": "workspace:*",
     "@nervekit/harness": "workspace:*",
     "@nervekit/native": "workspace:*",
     "@nervekit/protocol": "workspace:*",
-    "@nervekit/quick-script": "workspace:*",
-    "@nervekit/skills": "workspace:*",
     "@nervekit/tools": "workspace:*",
     "@peculiar/x509": "^2.2.0",
     "@simplewebauthn/server": "^14.0.3",

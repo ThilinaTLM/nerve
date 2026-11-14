@@ -6,7 +6,7 @@
 
 The four built-in extensions (Atlassian, Web, Diagrams, Image generation) have manifests, a settings schema and operation-based permissions, but they are not built on a platform API. Their execution reaches into host internals, and the host knows each of them by name:
 
-- Methods receive one context type that is the union of every extension's needs (`jira()`, `confluence()`, `kroki`, `imagegen`, `generateImage` in [`sdk-types.ts`](../../../packages/quick-script/src/runtime/sdk-types.ts)).
+- Methods receive one context type that is the union of every extension's needs (`jira()`, `confluence()`, `kroki`, `imagegen`, `generateImage` in [`sdk-types.ts`](../../../packages/tools/src/quick-script/runtime/sdk-types.ts)).
 - The server decides availability, resolves accounts and builds credentials per extension by hand ([`quick-script-availability.ts`](../../../packages/workbench-server/src/core-host/quick-script-availability.ts), [`execution-accounts.ts`](../../../packages/workbench-server/src/core-host/execution-accounts.ts), `create-conversation-core.ts`).
 - Accounts are typed per product (`atlassianProfiles`, `tavilyProfiles` in contracts settings), with a dialog per kind in the app and secret ids built in several places (`atlassian:<id>`).
 - Extension code calls `fetch` directly, imports helpers from `@nervekit/tools`, and the runtime imports from the Atlassian folder (`runtime/files/artifacts.ts` → `extensions/atlassian/shared/raw-request.ts`). Confluence storage builders and Atlassian error mapping live in the runtime; the Tavily client and Confluence HTML mode live in `tools`.

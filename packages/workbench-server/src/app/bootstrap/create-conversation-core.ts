@@ -8,10 +8,8 @@ import {
 import { resolveExecutionAccounts } from "../../core-host/execution-accounts.js";
 import { conversationExtensions } from "../../core-host/conversation-extensions.js";
 import { ExtensionSettingsService } from "../../infrastructure/configuration/extensions/extension-settings-service.js";
-import {
-  extensionSettingsDefinitions,
-  type QuickScriptContext,
-} from "@nervekit/quick-script";
+import { extensionSettingsDefinitions } from "@nervekit/extensions";
+import { type QuickScriptContext } from "@nervekit/tools/quick-script";
 import { capabilityToolNameSchema } from "@nervekit/contracts/capabilities";
 import { ProjectMigrationService } from "../../infrastructure/configuration/project-migration/project-migration.js";
 import { projectMigrationTrust } from "../../infrastructure/configuration/project-migration/project-migration-trust.js";
@@ -55,7 +53,7 @@ import {
   ToolExecutionError,
   type ToolExecutionContext,
 } from "@nervekit/tools/execution";
-import { classifyQuickScriptArguments } from "@nervekit/quick-script";
+import { classifyQuickScriptArguments } from "@nervekit/tools/quick-script";
 import { explainImageWithModel } from "@nervekit/harness/models";
 import { listAvailableSkills } from "../../core-host/resource-loader.js";
 import { createModelPort } from "../../core-host/model.adapter.js";

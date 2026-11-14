@@ -7,7 +7,7 @@ import {
   findQuickScriptNamespace,
   describeQuickScriptRisk,
   type QuickScriptRisk,
-} from "@nervekit/quick-script";
+} from "@nervekit/tools/quick-script";
 import {
   ToolExecutionError,
   type QuickScriptNestedRequest,

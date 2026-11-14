@@ -29,7 +29,7 @@ import { classifyToolRisk } from "@nervekit/tools/catalog";
 import {
   classifyQuickScriptArguments,
   summarizeScannedCalls,
-} from "@nervekit/quick-script";
+} from "@nervekit/tools/quick-script";
 import type { AgentConfigurationService } from "../infrastructure/configuration/agent-configuration/agent-configuration-service.js";
 import {
   canonicalDigest,

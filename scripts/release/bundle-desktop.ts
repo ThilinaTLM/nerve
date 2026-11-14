@@ -46,9 +46,16 @@ export const bundleAssets: [source: string, destination: string][] = [
   ["packages/desktop-shell/dist/preload.cjs", "dist/preload.cjs"],
   ["packages/desktop-shell/build", "build"],
   ["packages/workbench-server/dist/web", "dist/web"],
-  ["packages/skills/dist/builtin", "dist/builtin"],
-  ["packages/quick-script/dist/sandbox-libraries", "dist/sandbox-libraries"],
-  ["packages/quick-script/dist/quick-script-docs", "dist/quick-script-docs"],
+  ["packages/workbench-server/dist/builtin-skills/builtin", "dist/builtin"],
+  [
+    "packages/tools/dist/quick-script/sandbox-libraries",
+    "dist/sandbox-libraries",
+  ],
+  [
+    "packages/tools/dist/quick-script/quick-script-docs",
+    "dist/quick-script-docs",
+  ],
+  ["packages/extensions/dist/extension-docs", "dist/extension-docs"],
 ];
 
 /** Files every bundled desktop dist must contain (relative to the package root). */
@@ -64,6 +71,7 @@ export const bundleOutputFiles = [
   "dist/sandbox-libraries/pptxgen.bundle.js",
   "dist/sandbox-libraries/jszip.min.js",
   "dist/quick-script-docs/runtime/files.md",
+  "dist/extension-docs/atlassian/jira-workflows.md",
   "build/README.md",
   "THIRD-PARTY-LICENSES.txt",
 ];
@@ -137,12 +145,12 @@ export function thirdPartyPackageRoots(metafile: Metafile): string[] {
 
 /** Packages shipped as copied assets (not esbuild inputs) that still need license text. */
 const assetShippedPackageRoots = [
-  "packages/quick-script/node_modules/docx",
-  "packages/quick-script/node_modules/jszip",
-  "packages/quick-script/node_modules/mammoth",
-  "packages/quick-script/node_modules/papaparse",
-  "packages/quick-script/node_modules/pptxgenjs",
-  "packages/quick-script/node_modules/xlsx",
+  "packages/tools/node_modules/docx",
+  "packages/tools/node_modules/jszip",
+  "packages/tools/node_modules/mammoth",
+  "packages/tools/node_modules/papaparse",
+  "packages/tools/node_modules/pptxgenjs",
+  "packages/tools/node_modules/xlsx",
 ];
 
 async function collectThirdPartyLicenses(

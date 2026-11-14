@@ -23,7 +23,7 @@ Integration-style direct tools (Jira, Confluence, diagram export, image generati
 ## Problem
 
 - **Every request pays for every schema.** The 17 `jira_*`, 11 `confluence_*`, `generate_image` and `kroki_export` definitions are sent on each turn whether the task needs them or not. MCP would add tens or hundreds more.
-- **The `quick_script` guide is static while the capability set is not.** `SKILL.md` and `references/*` describe Jira, Confluence and web for every conversation. Only the tool description ([`description.ts`](../../../packages/quick-script/src/runtime/description.ts)) follows settings, so the two can disagree.
+- **The `quick_script` guide is static while the capability set is not.** `SKILL.md` and `references/*` describe Jira, Confluence and web for every conversation. Only the tool description ([`description.ts`](../../../packages/tools/src/quick-script/runtime/description.ts)) follows settings, so the two can disagree.
 - **The upfront reading cost is high.** "Read the guide before first use" walks description → `SKILL.md` → `.d.ts` → workflow file, about 2–6k tokens, before a simple `XLSX` read.
 - **Adding a capability touches many places:** description fragments, `activeQuickScriptIntegrations` in [`scoped-turn-resources.ts`](../../../packages/workbench-server/src/core-host/scoped-turn-resources.ts), the guide, the broker's `brokerable()` list, `toolRows` and the Tools and Integrations pages. Nothing outside the repository can add one.
 - **Settings follow tools, not capabilities.** The same Atlassian account is picked in `tools.jira`, `tools.confluence` and `tools.quick_script.settings`. The Integrations page is user-only, so a project cannot pin its site.
@@ -31,7 +31,7 @@ Integration-style direct tools (Jira, Confluence, diagram export, image generati
 
 ## Current state
 
-- **Single source for SDK methods:** each method is declared once in a method table ([`sdk-types.ts`](../../../packages/quick-script/src/runtime/sdk-types.ts)). The prelude, scanner, dispatch and generated `references/*.d.ts` all read these tables.
+- **Single source for SDK methods:** each method is declared once in a method table ([`sdk-types.ts`](../../../packages/tools/src/quick-script/runtime/sdk-types.ts)). The prelude, scanner, dispatch and generated `references/*.d.ts` all read these tables.
 - **Errors already teach:** a misspelled method lists the valid names, an unknown option lists the valid options, and an unavailable integration names the setting to fix.
 - **Nested authorization maps each SDK call to a direct tool** ([permissions](../../architecture/code-mode.md#permissions)). Removing direct tools removes those identities; see [permissions.md](permissions.md).
 - **Agent settings already resolve in four layers** (built-in defaults → user → project → conversation, plus agent profiles) ([configuration](../../architecture/configuration.md)). Extension settings reuse this.

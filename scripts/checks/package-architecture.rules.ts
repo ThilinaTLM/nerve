@@ -13,10 +13,10 @@ export const ALLOWED_INTERNAL_DEPENDENCIES: ReadonlyMap<
   ["@nervekit/native", []],
   ["@nervekit/protocol", ["@nervekit/contracts"]],
   ["@nervekit/harness", ["@nervekit/contracts", "@nervekit/native"]],
-  ["@nervekit/skills", ["@nervekit/harness"]],
   ["@nervekit/tools", ["@nervekit/contracts", "@nervekit/native"]],
   [
-    "@nervekit/quick-script",
+    "@nervekit/extensions",
+    // TEMPORARY until docs/proposals/extension-platform phase 1 step 3: target is @nervekit/extension-api only.
     ["@nervekit/contracts", "@nervekit/native", "@nervekit/tools"],
   ],
   [
@@ -25,7 +25,6 @@ export const ALLOWED_INTERNAL_DEPENDENCIES: ReadonlyMap<
       "@nervekit/contracts",
       "@nervekit/native",
       "@nervekit/harness",
-      "@nervekit/skills",
       "@nervekit/tools",
     ],
   ],
@@ -38,9 +37,8 @@ export const ALLOWED_INTERNAL_DEPENDENCIES: ReadonlyMap<
       "@nervekit/native",
       "@nervekit/protocol",
       "@nervekit/harness",
-      "@nervekit/skills",
       "@nervekit/tools",
-      "@nervekit/quick-script",
+      "@nervekit/extensions",
       "@nervekit/conversation-core",
     ],
   ],

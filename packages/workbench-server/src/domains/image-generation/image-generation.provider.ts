@@ -2,7 +2,7 @@ import type {
   ImageGenerateRequest,
   ImageGenerateResponse,
   ImagegenBackend,
-} from "@nervekit/quick-script";
+} from "@nervekit/extensions";
 
 /** Host side of an image generation backend: credentials and transport. The request carries every option, already validated. */
 export interface ImageGenerationProviderAdapter {

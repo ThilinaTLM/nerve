@@ -61,9 +61,8 @@ export const CORE_PACKAGES: ReadonlySet<string> = new Set([
   "@nervekit/harness",
   "@nervekit/native",
   "@nervekit/protocol",
-  "@nervekit/skills",
   "@nervekit/tools",
-  "@nervekit/quick-script",
+  "@nervekit/extensions",
   "@nervekit/conversation-core",
   "@nervekit/ui-kit",
   "@nervekit/workbench-app",
@@ -73,9 +72,8 @@ export const CORE_PACKAGES: ReadonlySet<string> = new Set([
 export const HOST_PACKAGES: ReadonlySet<string> = new Set([
   "@nervekit/native",
   "@nervekit/harness",
-  "@nervekit/skills",
   "@nervekit/tools",
-  "@nervekit/quick-script",
+  "@nervekit/extensions",
   "@nervekit/conversation-core",
   "@nervekit/workbench-server",
 ]);
@@ -117,7 +115,18 @@ export const SPECIAL_OWNERS: ReadonlyMap<string, SpecialOwner> = new Map([
     "scripts/build/copy-workbench-app-dist-to-workbench-server.ts",
     { owners: ["@nervekit/workbench-app", "@nervekit/workbench-server"] },
   ],
-  ["scripts/build/copy-skills-assets.ts", { owners: ["@nervekit/skills"] }],
+  [
+    "scripts/build/copy-skills-assets.ts",
+    { owners: ["@nervekit/workbench-server"] },
+  ],
+  [
+    "scripts/build/copy-quick-script-assets.ts",
+    { owners: ["@nervekit/tools"] },
+  ],
+  [
+    "scripts/build/copy-extension-assets.ts",
+    { owners: ["@nervekit/extensions"] },
+  ],
   [
     "scripts/release/smoke-workbench-release.ts",
     { owners: ["@nervekit/workbench-app", "@nervekit/workbench-server"] },

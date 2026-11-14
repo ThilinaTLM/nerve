@@ -9,7 +9,7 @@ import {
 
 describe("model-facing tool schema compatibility", () => {
   it("declares a reviewed agent-result policy for every active tool", () => {
-    // `quick_script` is defined in @nervekit/quick-script and registered by the host.
+    // `quick_script` is defined in @nervekit/tools/quick-script and registered by the host.
     assert.deepEqual(
       toolManifest.map((definition) => definition.name).sort(),
       toolNameSchema.options.filter((name) => name !== "quick_script").sort(),

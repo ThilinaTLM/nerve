@@ -25,7 +25,7 @@ import type { agentConfigurationOperations } from "../infrastructure/configurati
 import type { ActivityService } from "../domains/activity/activity.service.js";
 import type { MaintenanceService } from "../domains/maintenance/maintenance.service.js";
 import type { ApplicationConfigurationSnapshot } from "@nervekit/contracts/settings";
-import type { NerveSkillCatalog } from "@nervekit/skills";
+import type { NerveSkillCatalog } from "../builtin-skills/index.js";
 import type { StatusResponse } from "@nervekit/contracts/status";
 import type {
   AuthManager,

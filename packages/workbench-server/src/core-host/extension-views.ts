@@ -4,7 +4,7 @@ import type {
   ExtensionView,
 } from "@nervekit/contracts/extensions";
 import { upgradeEntry } from "@nervekit/contracts/extensions";
-import { builtinExtensions, extensionMetadata } from "@nervekit/quick-script";
+import { builtinExtensions, extensionMetadata } from "@nervekit/extensions";
 import type { AgentConfigurationService } from "../infrastructure/configuration/agent-configuration/agent-configuration-service.js";
 import type {
   ExtensionContext,

@@ -45,11 +45,20 @@
     "./execution": {
       "types": "./dist/execution/index.d.ts",
       "import": "./dist/execution/index.js"
+    },
+    "./quick-script": {
+      "types": "./dist/quick-script/index.d.ts",
+      "import": "./dist/quick-script/index.js"
+    },
+    "./quick-script/*": {
+      "types": "./dist/quick-script/*.d.ts",
+      "import": "./dist/quick-script/*.js"
     }
   },
   "scripts": {
-    "build": "tsc -b",
+    "build": "tsc -b && tsx ../../scripts/build/copy-quick-script-assets.ts",
     "check": "tsc -b --pretty false",
+    "pretest": "tsx ../../scripts/build/copy-quick-script-assets.ts",
     "test": "tsx --test \"test/**/*.test.ts\" \"src/**/*.test.ts\"",
     "test:native": "tsx --test test/execution/bash.test.ts test/execution/process-tree.test.ts"
   },
@@ -66,7 +75,13 @@
     "@types/cross-spawn": "6.0.6",
     "@types/node": "24.10.1",
     "@types/shell-quote": "^1.7.5",
-    "typescript": "5.9.3"
+    "docx": "9.15.3",
+    "jszip": "3.10.2",
+    "mammoth": "1.13.0",
+    "papaparse": "5.5.3",
+    "pptxgenjs": "4.0.1",
+    "typescript": "5.9.3",
+    "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz"
   },
   "engines": {
     "node": ">=24.0.0"

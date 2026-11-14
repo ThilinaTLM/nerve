@@ -46,8 +46,8 @@ Shared foundations stay transport- and framework-neutral:
 - `@nervekit/protocol` owns the Protocol v1 codec, sessions, RPC, replay, cursors, snapshots, and bounded delivery.
 - `@nervekit/harness` owns model resolution, the generic agent loop, streaming/context primitives, resources and compaction.
 - `@nervekit/conversation-core` owns durable conversation history, inputs, tool lifecycle, delegation, async Bash and execution scheduling through host ports.
-- `@nervekit/skills` owns built-in skills and harness resource integration.
-- `@nervekit/tools` owns the canonical tool catalog, executors, output bounds, artifacts, and Git/GitHub utilities.
+- `@nervekit/tools` owns the canonical tool catalog, executors, output bounds, artifacts, Git/GitHub utilities, and the `quick_script` runtime and registry.
+- `@nervekit/extensions` owns the built-in `quick_script` extensions.
 - `@nervekit/native` provides TypeScript façades over a Rust N-API addon for Git reads, managed processes, filesystem/Git monitoring, and lexical search indexes.
 - `@nervekit/ui-kit` provides contract-free presentation primitives and renderers.
 

@@ -9,9 +9,9 @@ import type { AgentConfigurationService } from "../infrastructure/configuration/
 import { loadHarnessResources } from "./resource-loader.js";
 import { buildNerveSystemPrompt } from "./nerve-system-prompt.js";
 import { withAgentProfiles } from "./turn-resources.adapter.js";
-import { resolveSkillPlaceholders } from "@nervekit/skills";
+import { resolveSkillPlaceholders } from "../builtin-skills/index.js";
 import { isToolEnabled } from "./tool-enablement.js";
-import { quickScriptDescription } from "@nervekit/quick-script";
+import { quickScriptDescription } from "@nervekit/tools/quick-script";
 import {
   configuredNamespaces,
   quickScriptAvailability,

@@ -4,6 +4,9 @@ import {
   createQuickScriptAuthorizer,
   type QuickScriptCall,
 } from "./quick-script-broker.js";
+import { registerHostTools } from "./host-tools.js";
+
+registerHostTools();
 
 type Decision = "allow" | "deny" | "approval" | "stale" | "blocked";
 

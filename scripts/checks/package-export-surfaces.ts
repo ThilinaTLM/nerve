@@ -52,6 +52,7 @@ export const packageExportSurfaces: Readonly<Record<string, string[]>> =
       "./activity",
     ],
     "@nervekit/conversation-core": ["."],
+    "@nervekit/extensions": ["."],
     "@nervekit/desktop-shell": [],
     "@nervekit/harness": [
       ".",
@@ -80,8 +81,9 @@ export const packageExportSurfaces: Readonly<Record<string, string[]>> =
       "./result-projection",
       "./git",
       "./execution",
+      "./quick-script",
+      "./quick-script/*",
     ],
-    "@nervekit/quick-script": ["."],
     "@nervekit/ui-kit": [
       ".",
       "./styles/app.css",
@@ -107,7 +109,6 @@ export const packageExportSurfaces: Readonly<Record<string, string[]>> =
       "./components/ui/*",
       "./components/composites/*",
     ],
-    "@nervekit/skills": ["."],
     "@nervekit/website": [],
     "@nervekit/workbench-app": [],
     "@nervekit/workbench-server": [".", "./network", "./main"],

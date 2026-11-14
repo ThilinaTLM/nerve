@@ -34,7 +34,7 @@ import type { WorkbenchNoticePublisher } from "../../infrastructure/events/index
 import type { SecretProvider } from "../../infrastructure/secrets/index.js";
 import type { InitializedStorage } from "../../infrastructure/storage-bootstrap/index.js";
 import type { ResourceLimits } from "@nervekit/contracts/settings";
-import type { NerveSkillCatalog } from "@nervekit/skills";
+import type { NerveSkillCatalog } from "../../builtin-skills/index.js";
 import type { AgentBrowserSkillCatalog } from "../../core-host/agent-browser-skills.js";
 import { CoreScratchNoteService } from "../../core-host/scratch-note.service.js";
 import { createConversationCore } from "./create-conversation-core.js";

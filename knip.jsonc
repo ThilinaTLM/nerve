@@ -12,7 +12,12 @@
       "entry": ["src/preload.cjs", "{test,src}/**/*.test.ts"],
     },
     "packages/workbench-server": {
-      "entry": ["scripts/**/*.ts", "{test,src}/**/*.test.ts"],
+      // The doccheck script is shipped in the engineering-docs skill and invoked by the agent, not imported.
+      "entry": [
+        "scripts/**/*.ts",
+        "{test,src}/**/*.test.ts",
+        "src/builtin-skills/builtin/engineering-docs/scripts/doccheck.mjs",
+      ],
     },
     "packages/website": {
       "entry": ["scripts/**/*.ts"],
@@ -24,7 +29,7 @@
         "src/git/read/git-isolated-reader-helper.ts",
       ],
       // Types for shell-quote are consumed implicitly by tsc, not by an import.
-      // Sandbox libraries are copied as assets by scripts/build/copy-tools-assets.ts, not imported.
+      // Sandbox libraries are copied as assets by scripts/build/copy-quick-script-assets.ts, not imported.
       "ignoreDependencies": [
         "@types/shell-quote",
         "docx",
@@ -39,13 +44,6 @@
       "entry": ["{test,src}/**/*.test.ts"],
       // Type sidecar for theme-resolver.mjs, picked up by TypeScript only.
       "ignore": ["src/styles/theme-resolver.d.mts"],
-    },
-    "packages/skills": {
-      // Shipped in the skill and invoked by the agent, not imported.
-      "entry": [
-        "{test,src}/**/*.test.ts",
-        "src/builtin/engineering-docs/scripts/doccheck.mjs",
-      ],
     },
     "packages/workbench-app": {
       "entry": ["{test,src}/**/*.test.ts"],

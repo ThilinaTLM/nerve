@@ -2,7 +2,7 @@ import type {
   ImageBackendRequest,
   ImageGenerateRequest,
   ImageGenerateResponse,
-} from "@nervekit/quick-script";
+} from "@nervekit/extensions";
 import { ApplicationError } from "../../../core/application-error.js";
 import {
   chatGptAccountIdFromAccessToken,

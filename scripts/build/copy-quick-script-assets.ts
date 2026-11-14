@@ -1,5 +1,4 @@
-import { existsSync } from "node:fs";
-import { cp, mkdir, readdir, rm } from "node:fs/promises";
+import { cp, mkdir, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { build } from "esbuild";
 import { repoRoot } from "../workspace/repo.ts";
@@ -23,8 +22,14 @@ const libraries = [
   { name: "jszip", file: "dist/jszip.min.js", license: "LICENSE.markdown" },
 ];
 
-const packageRoot = join(repoRoot, "packages", "quick-script");
-const destination = join(packageRoot, "dist", "sandbox-libraries");
+const packageRoot = join(repoRoot, "packages", "tools");
+// Under dist/quick-script/ so `./sandbox-libraries/` resolves from the module that reads it.
+const destination = join(
+  packageRoot,
+  "dist",
+  "quick-script",
+  "sandbox-libraries",
+);
 
 await rm(destination, { recursive: true, force: true });
 await mkdir(destination, { recursive: true });
@@ -49,17 +54,17 @@ for (const { name, file, ...options } of libraries) {
   );
 }
 
-// quick_script doc topics (Markdown beside the code that owns them) -> dist/quick-script-docs/<owner>/.
-const srcRoot = join(packageRoot, "src");
-const docsDestination = join(packageRoot, "dist", "quick-script-docs");
+// Runtime doc topics (Markdown beside the code that owns them) -> dist/quick-script/quick-script-docs/runtime/.
+// Extensions ship their own topics (scripts/build/copy-extension-assets.ts).
+const docsDestination = join(
+  packageRoot,
+  "dist",
+  "quick-script",
+  "quick-script-docs",
+);
 await rm(docsDestination, { recursive: true, force: true });
-await cp(join(srcRoot, "runtime", "docs"), join(docsDestination, "runtime"), {
-  recursive: true,
-});
-for (const owner of await readdir(join(srcRoot, "extensions"), {
-  withFileTypes: true,
-})) {
-  const docs = join(srcRoot, "extensions", owner.name, "docs");
-  if (owner.isDirectory() && existsSync(docs))
-    await cp(docs, join(docsDestination, owner.name), { recursive: true });
-}
+await cp(
+  join(packageRoot, "src", "quick-script", "runtime", "docs"),
+  join(docsDestination, "runtime"),
+  { recursive: true },
+);

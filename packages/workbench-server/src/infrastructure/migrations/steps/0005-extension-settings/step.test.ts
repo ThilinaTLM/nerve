@@ -13,12 +13,17 @@ import { test } from "node:test";
 import { createStepContext } from "../../framework/context.js";
 import { storagePaths } from "../../../storage-bootstrap/paths.js";
 import { convertConversationAgent, extractFromTools } from "./convert.js";
-import { findQuickScriptNamespace } from "@nervekit/quick-script";
+import { builtinExtensions } from "@nervekit/extensions";
 import {
   REMOVED_TOOL_OPERATIONS,
   convertRemovedToolException,
 } from "./removed-tools.js";
 import step from "./step.js";
+
+const findQuickScriptNamespace = (id: string) =>
+  builtinExtensions
+    .flatMap((extension) => extension.contributes.sdk ?? [])
+    .find((namespace) => namespace.id === id);
 
 const accounts = {
   version: 2,

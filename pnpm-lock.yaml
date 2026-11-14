@@ -141,6 +141,28 @@ importers:
         specifier: 5.9.3
         version: 5.9.3
 
+  packages/extensions:
+    dependencies:
+      '@nervekit/contracts':
+        specifier: workspace:*
+        version: link:../contracts
+      '@nervekit/native':
+        specifier: workspace:*
+        version: link:../native
+      '@nervekit/tools':
+        specifier: workspace:*
+        version: link:../tools
+      typebox:
+        specifier: 1.3.7
+        version: 1.3.7
+    devDependencies:
+      '@types/node':
+        specifier: 24.10.1
+        version: 24.10.1
+      typescript:
+        specifier: 5.9.3
+        version: 5.9.3
+
   packages/harness:
     dependencies:
       '@earendil-works/pi-ai':
@@ -200,62 +222,6 @@ importers:
         specifier: 5.9.3
         version: 5.9.3
 
-  packages/quick-script:
-    dependencies:
-      '@nervekit/contracts':
-        specifier: workspace:*
-        version: link:../contracts
-      '@nervekit/native':
-        specifier: workspace:*
-        version: link:../native
-      '@nervekit/tools':
-        specifier: workspace:*
-        version: link:../tools
-      typebox:
-        specifier: 1.3.7
-        version: 1.3.7
-    devDependencies:
-      '@types/node':
-        specifier: 24.10.1
-        version: 24.10.1
-      docx:
-        specifier: 9.15.3
-        version: 9.15.3
-      jszip:
-        specifier: 3.10.2
-        version: 3.10.2
-      mammoth:
-        specifier: 1.13.0
-        version: 1.13.0
-      papaparse:
-        specifier: 5.5.3
-        version: 5.5.3
-      pptxgenjs:
-        specifier: 4.0.1
-        version: 4.0.1
-      typescript:
-        specifier: 5.9.3
-        version: 5.9.3
-      xlsx:
-        specifier: https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz
-        version: https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz
-
-  packages/skills:
-    dependencies:
-      '@nervekit/harness':
-        specifier: workspace:*
-        version: link:../harness
-    devDependencies:
-      '@types/node':
-        specifier: 24.10.1
-        version: 24.10.1
-      tsx:
-        specifier: 4.22.4
-        version: 4.22.4
-      typescript:
-        specifier: 5.9.3
-        version: 5.9.3
-
   packages/tools:
     dependencies:
       '@nervekit/contracts':
@@ -289,9 +255,27 @@ importers:
       '@types/shell-quote':
         specifier: ^1.7.5
         version: 1.7.5
+      docx:
+        specifier: 9.15.3
+        version: 9.15.3
+      jszip:
+        specifier: 3.10.2
+        version: 3.10.2
+      mammoth:
+        specifier: 1.13.0
+        version: 1.13.0
+      papaparse:
+        specifier: 5.5.3
+        version: 5.5.3
+      pptxgenjs:
+        specifier: 4.0.1
+        version: 4.0.1
       typescript:
         specifier: 5.9.3
         version: 5.9.3
+      xlsx:
+        specifier: https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz
+        version: https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz
 
   packages/ui-kit:
     dependencies:
@@ -616,6 +600,9 @@ importers:
       '@nervekit/conversation-core':
         specifier: workspace:*
         version: link:../conversation-core
+      '@nervekit/extensions':
+        specifier: workspace:*
+        version: link:../extensions
       '@nervekit/harness':
         specifier: workspace:*
         version: link:../harness
@@ -625,12 +612,6 @@ importers:
       '@nervekit/protocol':
         specifier: workspace:*
         version: link:../protocol
-      '@nervekit/quick-script':
-        specifier: workspace:*
-        version: link:../quick-script
-      '@nervekit/skills':
-        specifier: workspace:*
-        version: link:../skills
       '@nervekit/tools':
         specifier: workspace:*
         version: link:../tools

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { extensionSettingsDefinitions } from "@nervekit/quick-script";
+import { extensionSettingsDefinitions } from "@nervekit/extensions";
 import {
   resolveExtensions,
   type ExtensionEntries,

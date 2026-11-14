@@ -37,7 +37,7 @@ const rawCoreToolDefinitions: readonly ToolDefinition[] = [
 ];
 
 // Live lists: `registerToolDefinitions` appends definitions that live in other
-// packages (`quick_script`, from `@nervekit/quick-script`) before first use.
+// modules (`quick_script`, from `@nervekit/tools/quick-script`) before first use.
 const coreDefinitions: ToolDefinition[] = [];
 const allDefinitions: ToolDefinition[] = [];
 
