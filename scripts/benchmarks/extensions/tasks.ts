@@ -135,9 +135,15 @@ const joinIssuesPage: TaskDefinition = {
     const failures: string[] = [];
     for (const key of ctx.data.open as string[])
       if (!mentionsKey(answer, key)) failures.push(`answer lacks open ${key}`);
+    // Naming a done key is fine when the answer says it is Done; listing it
+    // as open (a line with the key but without "done") is the error.
     for (const key of ctx.data.done as string[])
-      if (mentionsKey(answer, key))
-        failures.push(`answer wrongly lists done ${key}`);
+      if (
+        answer
+          .split("\n")
+          .some((line) => mentionsKey(line, key) && !/\bdone\b/i.test(line))
+      )
+        failures.push(`answer wrongly lists done ${key} as open`);
     return result(failures);
   },
 };
