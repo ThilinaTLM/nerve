@@ -278,7 +278,7 @@ test("website tests are included, documentation is skipped, and skill Markdown i
   f.pkg("extensions");
   f.write("packages/website/scripts/lib.ts");
   f.write("packages/website/scripts/site.test.ts", 'import "./lib.ts";');
-  f.write("packages/extensions/test/skills.test.ts");
+  f.write("packages/extensions/src/skills.test.ts");
   assert.deepEqual(selected(f.select(["packages/website/scripts/lib.ts"])), [
     "packages/website/scripts/site.test.ts",
   ]);
@@ -345,7 +345,7 @@ test("server options, skills lifecycle and native Cargo coverage survive selecti
   f.write("packages/native/src/index.ts");
   f.write("packages/native/test/native.test.ts", 'import "../src/index.js";');
   f.write("packages/workbench-server/test/server.test.ts");
-  f.write("packages/extensions/test/skills.test.ts");
+  f.write("packages/extensions/src/skills.test.ts");
   const server = f.select(["packages/workbench-server/test/server.test.ts"]);
   assert.equal(server.commands[0].args[0], "build:native");
   assert.equal(
@@ -360,7 +360,7 @@ test("server options, skills lifecycle and native Cargo coverage survive selecti
     server.commands.at(-1).args.some((arg) => arg.includes("*")),
     false,
   );
-  const extensions = f.select(["packages/extensions/test/skills.test.ts"]);
+  const extensions = f.select(["packages/extensions/src/skills.test.ts"]);
   assert.equal(extensions.commands.at(-2).args.at(-1), "pretest");
   const native = f.select(["packages/native/src/index.ts"]);
   assert.deepEqual(native.commands.at(-1).args, [

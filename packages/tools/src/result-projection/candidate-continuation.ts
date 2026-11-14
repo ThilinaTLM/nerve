@@ -1,5 +1,5 @@
 import type { ExactContinuation } from "@nervekit/contracts/tools";
-import { record, array, number } from "./candidate-values.js";
+import { number } from "./candidate-values.js";
 
 export function continuations(
   value: Record<string, unknown>,
@@ -57,31 +57,4 @@ export function continuationText(continuation: ExactContinuation): string {
     case "page_token":
       return hint("Next", continuation.parameter, continuation.value);
   }
-}
-
-export function relatedCollectionContinuations(
-  details: Record<string, unknown>,
-): ExactContinuation[] {
-  const pages = array(details.relatedCollections) ?? [];
-  return pages.flatMap((value) => {
-    const page = record(value);
-    const continuation = record(page.continuation);
-    if (
-      typeof continuation.parameter !== "string" ||
-      (typeof continuation.value !== "string" &&
-        typeof continuation.value !== "number")
-    )
-      return [];
-    return [
-      {
-        kind: "cursor" as const,
-        cursorName: continuation.parameter,
-        value: continuation.value,
-        direction:
-          continuation.direction === "before"
-            ? ("before" as const)
-            : ("after" as const),
-      },
-    ];
-  });
 }

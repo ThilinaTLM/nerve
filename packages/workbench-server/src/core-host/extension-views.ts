@@ -131,4 +131,3 @@ export function createExtensionViews(options: ExtensionViewOptions) {
 
   return { view, context };
 }
-export type ExtensionViews = ReturnType<typeof createExtensionViews>;

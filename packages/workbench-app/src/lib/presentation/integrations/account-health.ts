@@ -1,6 +1,5 @@
 import type { AccountHealth } from "@nervekit/contracts/auth";
 import type { StatusTone } from "@nervekit/ui-kit/display/status";
-import { relativeTimeLabel } from "@nervekit/ui-kit/display/time";
 
 export type HealthBadge = { label: string; tone: StatusTone };
 
@@ -29,17 +28,6 @@ export function accountHealthBadge(
     default:
       return { label: "Not checked", tone: "neutral" };
   }
-}
-
-export function accountHealthDetail(result: AccountHealth | undefined): string {
-  if (!result) return "No connection test yet.";
-  const age = relativeTimeLabel(result.checkedAt);
-  return [
-    `Tested ${age === "now" ? "just now" : `${age} ago`}.`,
-    result.message,
-  ]
-    .filter(Boolean)
-    .join(" ");
 }
 
 /** Whether an account should be re-tested automatically. */

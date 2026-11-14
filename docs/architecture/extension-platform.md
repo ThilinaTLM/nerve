@@ -6,8 +6,8 @@ The API is built to be isolated: extension code could later run in its own sandb
 
 ## Rules
 
-1. **Extension code imports only `@nervekit/extension-api`** and its own files. No host objects, no `fetch`, no file system. *Why:* this is what keeps the contract publishable and sandbox-ready. The boundary checker enforces the dependency, and the [`extension-naming` rule](../../scripts/checks/extension-naming-policy.ts) forbids every other production source from naming an extension; only the built-in list and frozen migration steps do. Its exception list is reviewed and may only shrink: the `planning` rule set names the Atlassian namespaces because a quick_script operation's tool group is its namespace and extensions declare no "read-only research" flag.
-2. **Every `ctx` call is async and exchanges plain data** (JSON values, `Uint8Array`, handles); no class instances or callbacks cross. *Why:* a later `__hostCall` transport must work without an API change.
+1. **Extension code imports only `@nervekit/extension-api`** and its own files. No host objects, no `fetch`, no file system. _Why:_ this is what keeps the contract publishable and sandbox-ready. The boundary checker enforces the dependency, and the [`extension-naming` rule](../../scripts/checks/extension-naming-policy.ts) forbids every other production source from naming an extension; only the built-in list and frozen migration steps do. Its exception list is reviewed and may only shrink: the `planning` rule set names the Atlassian namespaces because a quick_script operation's tool group is its namespace and extensions declare no "read-only research" flag.
+2. **Every `ctx` call is async and exchanges plain data** (JSON values, `Uint8Array`, handles); no class instances or callbacks cross. _Why:_ a later `__hostCall` transport must work without an API change.
 3. **The extension declares; the host decides.** Permissions, approvals, network policy and limits are host code. The manifest is plain data except its hooks (`test`, `availability`, `parse`, `authorize`, `run`); contracts validate the data part, typed against the API.
 4. **`parse` and `authorize` are synchronous and pure**, so authorization happens before any I/O. `authorize` returns one check, several (all must pass) or none.
 5. **Account kinds are unique across extensions**; the registry rejects duplicates.
@@ -17,7 +17,7 @@ The API is built to be isolated: extension code could later run in its own sandb
 `ctx` is the only way out of extension code ([`ExtensionContext`](../../packages/extension-api/src/types.ts), host side in [`extension-host/`](../../packages/tools/src/quick-script/extension-host)).
 
 - **Secrets never reach extension code.** `ctx.accounts.selected` returns non-secret fields only. `ctx.http` injects the credential on the host side, in the shape the account kind declares (`basic`, `bearer` or a named header). Breaking this makes every extension a credential-exfiltration risk, so a new `ctx` service must never return or echo a secret.
-- **Credential origins are checked per hop.** A credential is sent only to the account kind's own `origins` (templated from account fields). Each redirect hop is re-resolved: the credential header is removed from every hop and added back only if that hop's origin is allowed. A 401/403 from a redirect target that got no credential (a signed media URL) is a normal response; only the credentialed origin's 401/403 becomes the host error (`UNAUTHORIZED` ends the run, `FORBIDDEN` names the account and the fix). *Why:* the extension must not need to know about, or be able to leak, auth headers.
+- **Credential origins are checked per hop.** A credential is sent only to the account kind's own `origins` (templated from account fields). Each redirect hop is re-resolved: the credential header is removed from every hop and added back only if that hop's origin is allowed. A 401/403 from a redirect target that got no credential (a signed media URL) is a normal response; only the credentialed origin's 401/403 becomes the host error (`UNAUTHORIZED` ends the run, `FORBIDDEN` names the account and the fix). _Why:_ the extension must not need to know about, or be able to leak, auth headers.
 - **The network is an allowlist.** `ctx.http` reaches only origins in the manifest's `permissions.network`. Patterns are URL origins with `*` for one host label, `*` alone for any public http(s) origin (Web fetch; it never carries a credential), or templates over a selected account's field or an extension setting. Templated destinations are user-supplied and may be on a private network; every other origin goes through the SSRF guard on every hop, and redirects are manual and capped.
 - **Uploads stream from the host.** A multipart part with `data: { handle }` is read and streamed by the host from the authorized artifact or workspace file, so large bytes never enter extension code. `ctx.artifacts.read` has a smaller limit than transfers; limits live in code.
 - **Files are authorized, not ambient.** A method reaches a workspace file only through a handle its `authorize` declared as a host-tool check (such as `read`); an undeclared read fails with `DENIED`. Extension code has no file-system access, and its docs are declared as paths the host reads.
@@ -57,14 +57,14 @@ The agent projection follows the kind: a `links` result is projected like the co
 
 ## Change risk
 
-| Change | Risk |
-| ------ | ---- |
-| New `ctx` service or `http` option | Security boundary: must keep secrets host-side and stay serializable. Update the fake context. |
-| Credential injection, origin matching, redirects | Credential leak. Test each hop. |
-| Declared risk, `ctx.authorize`, `riskFromArgs` | Silent permission widening. The script scan and declared-risk guard depend on them. |
-| Account kind or secret id format | Needs a home migration step (files and secret store). |
-| New display kind | Contracts, transcript renderer and projection rule. |
-| Naming an extension outside its folder | Fails the `extension-naming` rule; derive from the registry instead. |
+| Change                                           | Risk                                                                                           |
+| ------------------------------------------------ | ---------------------------------------------------------------------------------------------- |
+| New `ctx` service or `http` option               | Security boundary: must keep secrets host-side and stay serializable. Update the fake context. |
+| Credential injection, origin matching, redirects | Credential leak. Test each hop.                                                                |
+| Declared risk, `ctx.authorize`, `riskFromArgs`   | Silent permission widening. The script scan and declared-risk guard depend on them.            |
+| Account kind or secret id format                 | Needs a home migration step (files and secret store).                                          |
+| New display kind                                 | Contracts, transcript renderer and projection rule.                                            |
+| Naming an extension outside its folder           | Fails the `extension-naming` rule; derive from the registry instead.                           |
 
 ## Not shipped
 

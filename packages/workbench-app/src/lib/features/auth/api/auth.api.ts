@@ -81,10 +81,6 @@ export async function cancelOAuthFlow(flowId: string): Promise<OAuthFlowInfo> {
   ).flow;
 }
 
-export async function listAccounts() {
-  return (await protocolRequest("accounts.list", {})).result;
-}
-
 export async function saveAccount(
   request: SaveAccountRequest,
 ): Promise<AccountView> {
@@ -99,10 +95,6 @@ export async function deleteAccount(ref: AccountRef): Promise<void> {
   await protocolRequest("accounts.delete", ref, {
     idempotencyKey: crypto.randomUUID(),
   });
-}
-
-export async function listAccountHealth(): Promise<AccountHealth[]> {
-  return (await protocolRequest("accounts.health.list", {})).result.health;
 }
 
 export async function testAccount(ref: AccountRef): Promise<AccountHealth> {

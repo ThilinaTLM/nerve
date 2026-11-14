@@ -39,6 +39,7 @@ function tsxRunner(
 const defaultGlobs = ["test/**/*.test.ts"];
 
 export const TEST_RUNNERS: ReadonlyMap<string, TestRunner> = new Map([
+  ["@nervekit/extension-api", tsxRunner(defaultGlobs)],
   ["@nervekit/contracts", tsxRunner(defaultGlobs)],
   ["@nervekit/protocol", tsxRunner(defaultGlobs)],
   ["@nervekit/harness", tsxRunner(defaultGlobs)],
@@ -53,13 +54,7 @@ export const TEST_RUNNERS: ReadonlyMap<string, TestRunner> = new Map([
     }),
   ],
   ["@nervekit/tools", tsxRunner(["test/**/*.test.ts", "src/**/*.test.ts"])],
-  [
-    "@nervekit/extensions",
-    // test/install.ts registers the built-ins with the quick_script runtime before any test runs.
-    tsxRunner(["test/**/*.test.ts", "src/**/*.test.ts"], {
-      options: ["--import", "./test/install.ts"],
-    }),
-  ],
+  ["@nervekit/extensions", tsxRunner(["src/**/*.test.ts"])],
   ["@nervekit/ui-kit", tsxRunner(["src/**/!(*.svelte).test.ts"])],
   ["@nervekit/website", tsxRunner(["scripts/**/*.test.ts"])],
   [

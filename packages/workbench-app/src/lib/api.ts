@@ -9,7 +9,6 @@ export type {
   UpdateSettingsRequest,
 } from "@nervekit/contracts/settings";
 export type {
-  AccountHealth,
   AuthProviderMetadata,
   OAuthFlowInfo,
 } from "@nervekit/contracts/auth";

@@ -24,14 +24,6 @@ export function publishUserExtensions(view: ExtensionsView): void {
     }
 }
 
-/** Id of the account the user's `account` setting selects, if any. */
-export function selectedAccountId(
-  extensionId: string,
-  field: string,
-): string | undefined {
-  return selected[slot(extensionId, field)];
-}
-
 export async function refreshSelectedAccounts(): Promise<void> {
   publishUserExtensions(
     await requestWorkbench("extensions.get", { target: { scope: "user" } }),

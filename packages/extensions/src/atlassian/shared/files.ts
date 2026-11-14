@@ -3,8 +3,6 @@ import { isArtifactName } from "@nervekit/extension-api";
 
 export const ARTIFACT_PREFIX = "artifact:";
 
-/** Largest file the host reads into memory (`ctx.artifacts.read`, JSON responses). */
-export const MAX_FILE_BYTES = 20 * 1024 * 1024;
 /** Attachment uploads and downloads stream between disk and the network. */
 export const MAX_ATTACHMENT_BYTES = 100 * 1024 * 1024;
 

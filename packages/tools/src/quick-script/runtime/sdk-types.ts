@@ -46,14 +46,6 @@ export function isOperationCheck(
   return "operation" in check;
 }
 
-/** `operation · target, target`, as shown in approvals, errors and records. */
-export function describeCheck(check: NestedCheck): string {
-  if (!isOperationCheck(check)) return check.toolName;
-  return [check.operation, check.targets.map((t) => t.value).join(", ")]
-    .filter(Boolean)
-    .join(" · ");
-}
-
 /** The extension host's ports and the registry this run serves. */
 export interface ExtensionExecutionContext {
   /** Registry of the extensions this run serves; the host passes the one it composed. */
