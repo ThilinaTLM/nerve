@@ -325,6 +325,80 @@ void test("an existing accounts file is never replaced, only reshaped", async (t
   );
 });
 
+void test("a home that applied an earlier draft is reshaped once and settings stay put", async (t) => {
+  const { root, paths, put, context } = home();
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  // Earlier draft output: accounts moved but not reshaped, secrets under old ids,
+  // settings already in extensions.json, agent.json already stripped.
+  put(paths.accountsConfigPath, accounts);
+  const secrets = new EncryptedFileSecretProvider(root);
+  await secrets.initialize();
+  await secrets.set("provider:atlassian:acme:apiKey", "atl-token");
+  await secrets.set("provider:tavily:tav:apiKey", "tvly-key");
+  await secrets.set("provider:openai:apiKey", "sk-other");
+  const extensions = {
+    schemaVersion: 1,
+    revision: 4,
+    extensions: {
+      atlassian: { version: 1, settings: { account: "acme" } },
+    },
+  };
+  put(join(paths.configPath, "extensions.json"), extensions);
+  put(join(paths.configPath, "agent.json"), {
+    schemaVersion: 1,
+    revision: 5,
+    overrides: { tools: { quick_script: { enabled: true } } },
+  });
+  const agentBefore = readFileSync(
+    join(paths.configPath, "agent.json"),
+    "utf8",
+  );
+  const extensionsBefore = readFileSync(
+    join(paths.configPath, "extensions.json"),
+    "utf8",
+  );
+
+  const apply = async () => {
+    context.ownPaths(await step.ownedPaths!(context));
+    await step.run(context);
+    await step.verify!(context);
+  };
+  const ids = async () => new EncryptedFileSecretProvider(root).list();
+  const expectedIds = [
+    "provider:account:atlassian:acme:apiKey",
+    "provider:account:tavily:tav:apiKey",
+    "provider:openai:apiKey",
+  ];
+  await apply();
+  const reshaped = readFileSync(paths.accountsConfigPath, "utf8");
+  assert.deepEqual(JSON.parse(reshaped).accounts.tavily, [
+    { id: "tav", name: "Tavily", fields: {} },
+  ]);
+  assert.equal(JSON.parse(reshaped).accounts.atlassian.length, 1);
+  assert.deepEqual(await ids(), expectedIds);
+  assert.equal(
+    await new EncryptedFileSecretProvider(root).get(
+      "provider:account:tavily:tav:apiKey",
+    ),
+    "tvly-key",
+  );
+  assert.equal(
+    readFileSync(join(paths.configPath, "agent.json"), "utf8"),
+    agentBefore,
+  );
+  assert.equal(
+    readFileSync(join(paths.configPath, "extensions.json"), "utf8"),
+    extensionsBefore,
+  );
+
+  // Running again changes nothing.
+  const credentials = readFileSync(paths.credentialsPath, "utf8");
+  await apply();
+  assert.equal(readFileSync(paths.accountsConfigPath, "utf8"), reshaped);
+  assert.equal(readFileSync(paths.credentialsPath, "utf8"), credentials);
+  assert.deepEqual(await ids(), expectedIds);
+});
+
 const permissionRule = (
   id: string,
   priority: number,
