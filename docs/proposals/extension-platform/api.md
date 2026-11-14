@@ -54,8 +54,8 @@ export default defineExtension({
   },
 
   namespaces: [jira, confluence, atlassian, storage],
+  tools: [], // direct tools; see the Web example below
   prelude: "./prelude.js", // pure sandbox-side helpers (storage builders), no host access
-  links: { "jira:issue": "{account.site}/browse/{key}" }, // open question 3
 });
 ```
 
@@ -93,6 +93,28 @@ export const jira = defineNamespace({
 ```
 
 `parse` and `authorize` stay synchronous and pure, so the host can authorize before any I/O (today's `prepare` split). An optional `availability(ctx)` returns `{ available: false, reason, fix }` for checks the declarations cannot express.
+
+## Direct tools
+
+An extension can contribute direct tools for work the agent does often enough that discovery through `sdk.*` costs too much. A tool is usually bound to a namespace method, so it shares parsing, authorization and execution:
+
+```ts
+// web/manifest.ts
+tools: [
+  defineTool({
+    name: "web_search", // unique across core and extension tools
+    method: "web.search", // same parse → authorize → run as quick_script's web.search
+    description: "Search the web …",
+    parameters: webSearchSchema, // JSON Schema for the model
+    display: "links", // platform display kind for the transcript
+  }),
+],
+```
+
+- A tool without `method` declares its own `parse`, `authorize` and `run(args, ctx)`.
+- The tool is offered while its extension (and `enabledBy` switch, if any) is on and its `requires` are met. It shows on the Tools page under its extension. Unavailable tools are left out of the request, like disabled core tools today.
+- Permissions: rules can name the tool (`web_search`) or its operation (`web.search`); both match, as `web_fetch` and `files.*` do today.
+- Results: the method's result goes to the agent through the generic result projection (size limits, artifacts for large output). The transcript renders it with a **display kind** from a small platform set (`text`, `markdown`, `links`, `table`, `artifact`), so the app needs no per-tool view. Today's `web_search` view becomes the `links` kind.
 
 ## Context
 
@@ -140,9 +162,6 @@ interface ExtensionContext {
 
   /** Only capabilities the manifest declares. */
   models: { image?: { generate(req: ImageRequest): Promise<ImageResult> } };
-  text: {
-    htmlToMarkdown(html: string, options?: HtmlOptions): Promise<string>;
-  };
 
   signal: AbortSignal;
   log: {

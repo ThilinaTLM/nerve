@@ -23,7 +23,7 @@ The package layout has also grown by accretion: `skills` is a thin content packa
 4. **Fewer, clearer packages** ([packages.md](packages.md)).
 5. **No regression.** Agent-visible behaviour, permissions and the extensions benchmark stay equal or better.
 
-Non-goals (phase 1): installing extensions, running built-ins in the sandbox, extension-defined UI, extensions contributing direct tools or agent profiles, MCP servers.
+Non-goals (phase 1): installing extensions, running built-ins in the sandbox, extension-defined UI (tool results use the platform display kinds), extensions contributing agent profiles, MCP servers.
 
 ## Design
 
@@ -32,6 +32,7 @@ Non-goals (phase 1): installing extensions, running built-ins in the sandbox, ex
 - **`@nervekit/extension-api`** (new, no dependencies): `defineExtension`, `defineNamespace`, `method`, the manifest types and the `ExtensionContext` (`ctx`) interfaces. This is the future public contract for third-party authors.
 - **Manifest** (declarative): identity, settings schema with version and migrations, account kinds, declared permissions (network origins, host capabilities), namespaces, sandbox-side helpers (`prelude`), resource links.
 - **Namespace methods:** `parse → authorize → run(session, args, ctx)`. `authorize` returns the operation and targets (unchanged from today). A per-run `session(ctx)` replaces the host's `jira()`/`confluence()` loaders and caches.
+- **Direct tools:** a manifest can contribute tools with a JSON-schema input, usually bound to a namespace method; results render with platform display kinds.
 - **`ctx`:** `settings`, `accounts`, `http` (host-side egress with credential injection), `artifacts`, `report`, `models` (declared host capabilities, e.g. image generation), `signal`, `log`.
 - **Secrets never reach extension code.** `ctx.http` injects the selected account's credential (`basic`, `bearer` or a named header) on the host side, only for origins the manifest allows. All four current integrations fit this.
 - **Availability is derived** from the manifest (`requires: { account: "account" }`, `enabledBy`) and the resolved settings; an optional `availability(ctx)` hook covers extra checks. Reasons and fixes are generated with the extension's name, replacing the hand-written texts.
@@ -78,11 +79,12 @@ flowchart LR
 - [Configuration](../../architecture/configuration.md): `accounts.json` becomes generic by kind.
 - [Codebase](../../architecture/codebase.md): package table and allowed graph ([packages.md](packages.md)).
 
-## Open questions
+## Decisions
 
-Each has a recommendation; decide before step 1.
-
-1. **Direct `web_search`.** It uses the Web extension's Tavily account but is a core tool. Recommended: remove it, as step 5 did for the other integration tools, and keep `web.search`; `web_fetch` stays a core tool (no account) and its guarded fetch becomes the implementation behind `ctx.http`. Alternative: let a manifest bind a direct tool to a namespace method.
-2. **HTML to Markdown.** Confluence uses a `confluence-storage` mode of the tools worker. Recommended: a host utility `ctx.text.htmlToMarkdown(html, { macros })` with the Confluence macro rules passed as data from the extension.
-3. **App-side Atlassian knowledge** (links to Jira issues in the UI, setup guides in Discover). Recommended: manifest `links` (resource kind → URL template from an account field) and one generic "set up an extension" guide.
-4. **Package for the API.** Recommended: a separate `extension-api` package (tiny, publishable later, enforced by the existing package boundary checker). Alternative: a subpath of `extensions` plus a path-level policy rule; saves a package but needs a new rule kind.
+1. **Extensions can contribute direct tools.** A tool the agent needs often (`web_search`) must not cost a trip through `sdk.*` discovery. The Web extension contributes `web_search` as a direct tool bound to its `web.search` method, so both share one implementation and one operation ([api.md](api.md#direct-tools)). `web_fetch` stays a core tool (no account), and its guarded fetch becomes the implementation behind `ctx.http`.
+2. **Confluence conversion belongs to the Atlassian extension.** `confluenceStorageToMarkdown` (storage XHTML and macros to Markdown) moves out of the tools worker into `extensions/atlassian/confluence/`; the tools worker keeps plain HTML for `web_fetch` only. In phase 1 the conversion runs in-process without the worker's timeout; inputs come from the user's own site and keep the size limit, and phase 2 puts extension code under the sandbox's limits.
+3. **App code that knows Atlassian or Tavily is replaced by generic code** (not the website docs, which describe the built-ins and stay):
+   - Settings → Extensions: the Atlassian and Tavily account dialogs, lists and health badges become one generated account list and dialog.
+   - Discover → Guides: the "Connect Jira and Confluence" and Tavily setup coaches (step targets inside those dialogs) become one generated "Set up <extension>" guide per extension with an account kind or required setting.
+   - `AtlassianLinkCapability` (Jira and Confluence site URLs for links) has had no consumer since step 5 removed the Jira and Confluence tool views; delete it. Manifest `links` are not needed in phase 1.
+4. **`extension-api` is its own package.**
