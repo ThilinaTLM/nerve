@@ -10,7 +10,15 @@ import type { SdkNamespace } from "../manifest-types.js";
  * `types` block; a declaration brings the shapes it names, from any namespace.
  */
 
-const SIGNATURE = /^(?:\/\*\*\s*(.*?)\s*\*\/\s*)?([\s\S]*)$/;
+/** Splits an optional leading one-line `/** … *\/` comment from the declaration, in linear time. */
+function splitDoc(signature: string): { doc?: string; declaration: string } {
+  if (!signature.startsWith("/**")) return { declaration: signature };
+  const end = signature.indexOf("*/", 3);
+  if (end < 0) return { declaration: signature };
+  const doc = signature.slice(3, end).trim();
+  if (/[\n\r\u2028\u2029]/.test(doc)) return { declaration: signature };
+  return { doc, declaration: signature.slice(end + 2).trimStart() };
+}
 
 /** A method's JSDoc line and declaration; throws when the declaration does not start with the method name. */
 export function parseSignature(method: SdkMethod): {
@@ -18,14 +26,13 @@ export function parseSignature(method: SdkMethod): {
   declaration: string;
 } {
   const name = method.path.split(".").pop() as string;
-  const match = SIGNATURE.exec(method.signature);
-  const declaration = match?.[2] ?? "";
+  const { doc, declaration } = splitDoc(method.signature);
   if (!declaration.startsWith(`${name}(`)) {
     throw new Error(
       `${method.product}.${method.path}: signature must declare ${name}(...)`,
     );
   }
-  return { doc: match?.[1], declaration };
+  return { doc, declaration };
 }
 
 /** `Destructive.` text for a method, empty when it is not. `request` is destructive only for non-GET. */

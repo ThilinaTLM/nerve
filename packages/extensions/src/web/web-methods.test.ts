@@ -34,6 +34,20 @@ const pages: Record<string, HttpResponse> = {
   "https://site.test/missing": reply(text("nope"), "text/plain", 404),
 };
 
+/** Drops everything between `<` and `>` in one linear scan; a stray `<` without `>` is kept as text. */
+function stripTags(html: string): string {
+  let out = "";
+  let position = 0;
+  while (position < html.length) {
+    const open = html.indexOf("<", position);
+    const close = open < 0 ? -1 : html.indexOf(">", open);
+    if (close < 0) return out + html.slice(position);
+    out += html.slice(position, open);
+    position = close + 1;
+  }
+  return out;
+}
+
 function setup(account = true) {
   const tavily: HttpRequest[] = [];
   const fake = createFakeContext({
@@ -47,8 +61,7 @@ function setup(account = true) {
           },
         }
       : {},
-    htmlToMarkdown: (html) =>
-      html.replace(/<h1>(.*?)<\/h1>/, "# $1\n\n").replace(/<[^>]+>/g, ""),
+    htmlToMarkdown: (html) => stripTags(html.replace("<h1>", "# ")),
     http: (request) => {
       if (request.url === "https://api.tavily.com/search") {
         tavily.push(request);

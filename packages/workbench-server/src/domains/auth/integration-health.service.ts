@@ -1,4 +1,4 @@
-import { createHash } from "node:crypto";
+import { createHmac, randomBytes } from "node:crypto";
 import {
   accountHealthSchema,
   type AccountHealth,
@@ -46,6 +46,8 @@ const key = (kind: string, id: string) => `${kind}\u0000${id}`;
  */
 export class IntegrationHealthService {
   readonly #health = new Map<string, Stored>();
+  /** Keys the fingerprints; random per instance because results live only in this map. */
+  readonly #fingerprintKey = randomBytes(32);
 
   constructor(private readonly deps: IntegrationHealthDeps) {}
 
@@ -98,7 +100,7 @@ export class IntegrationHealthService {
     });
     this.#health.set(key(kind, id), {
       result,
-      fingerprint: fingerprint(account, secret),
+      fingerprint: this.#fingerprint(account, secret),
     });
     await this.deps.publish(kind, id);
     return result;
@@ -108,14 +110,14 @@ export class IntegrationHealthService {
     const stored = this.#health.get(key(account.kind, account.id));
     if (!stored) return undefined;
     const secret = await this.deps.accounts.secret(account.kind, account.id);
-    return secret && stored.fingerprint === fingerprint(account, secret)
+    return secret && stored.fingerprint === this.#fingerprint(account, secret)
       ? stored.result
       : undefined;
   }
-}
 
-function fingerprint(account: AccountRecord, secret: string): string {
-  return createHash("sha256")
-    .update(JSON.stringify([account.name, account.fields, secret]))
-    .digest("hex");
+  #fingerprint(account: AccountRecord, secret: string): string {
+    return createHmac("sha256", this.#fingerprintKey)
+      .update(JSON.stringify([account.name, account.fields, secret]))
+      .digest("hex");
+  }
 }

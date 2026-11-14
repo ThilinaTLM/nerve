@@ -6,15 +6,26 @@ const PNG_SIGNATURE = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
 /** A Kroki diagram engine name (`mermaid`, `plantuml`, …). */
 export const KROKI_DIAGRAM_TYPE = /^[a-z][a-z0-9-]{0,63}$/;
 
+/** Replaces each `<…>` span with a space in one linear scan; a `<` without a closing `>` stays text. */
+function replaceTags(text: string): string {
+  let out = "";
+  let position = 0;
+  for (;;) {
+    const open = text.indexOf("<", position);
+    const close = open < 0 ? -1 : text.indexOf(">", open);
+    if (close < 0) return out + text.slice(position);
+    out += `${text.slice(position, open)} `;
+    position = close + 1;
+  }
+}
+
 /** Which part of an error body is worth showing: text only, without the diagram source. */
 function diagnosticOf(body: unknown, source: string): string {
   const text =
     body instanceof Uint8Array
       ? new TextDecoder().decode(body.subarray(0, 4 * 1024))
       : "";
-  return text
-    .replaceAll(source, "[diagram source omitted]")
-    .replace(/<[^>]*>/g, " ")
+  return replaceTags(text.replaceAll(source, "[diagram source omitted]"))
     .replace(/\p{Cc}/gu, " ")
     .replace(/\s+/g, " ")
     .trim()
